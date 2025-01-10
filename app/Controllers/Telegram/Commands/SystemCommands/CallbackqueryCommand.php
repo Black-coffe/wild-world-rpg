@@ -1,0 +1,205 @@
+<?php
+
+namespace App\Controllers\Telegram\Commands\SystemCommands;
+
+use Longman\TelegramBot\Commands\SystemCommand;
+use Longman\TelegramBot\Entities\ServerResponse;
+use Longman\TelegramBot\Request;
+
+class CallbackqueryCommand extends SystemCommand
+{
+    protected $name = 'callbackquery';
+
+    public function execute(): ServerResponse
+    {
+        $callbackQuery = $this->getCallbackQuery();
+        $callbackData = $callbackQuery->getData();
+        $action = explode('_', $callbackData)[0]; // Получаем действие из callback_data
+        $handlerClass = $this->getActionHandler($action);
+
+        if ($handlerClass && class_exists($handlerClass)) {
+            $handler = new $handlerClass($callbackQuery);
+            return $handler->handle();
+        } else {
+            // Логирование или ответ пользователю об ошибке
+            return Request::emptyResponse();
+        }
+    }
+
+    protected function getActionHandler($action)
+    {
+        $mapping = [
+            'withoutTrainingStart' =>   \App\Controllers\Telegram\Commands\Actions\StartGame\WithoutTrainingStartAction::class,
+            'setCharacterName' =>       \App\Controllers\Telegram\Commands\Actions\StartGame\SetCharacterNameAction::class,
+            'autoGenerateName' =>       \App\Controllers\Telegram\Commands\Actions\StartGame\AutoGenerateNameAction::class,
+            'setName' =>                \App\Controllers\Telegram\Commands\Actions\StartGame\SetNameAction::class,
+            'getTrainedStart' =>        \App\Controllers\Telegram\Commands\Actions\StartGame\GetTrainingStartAction::class,
+            'getTrainedStart2' =>        \App\Controllers\Telegram\Commands\Actions\StartGame\GetTrainingStart2Action::class,
+            'getTrainedStart3' =>        \App\Controllers\Telegram\Commands\Actions\StartGame\GetTrainingStart3Action::class,
+            'getTrainedStart4' =>        \App\Controllers\Telegram\Commands\Actions\StartGame\GetTrainingStart4Action::class,
+            'startAdventure' =>          \App\Controllers\Telegram\Commands\Actions\StartGame\StartAdventureAction::class,
+            'exploreAreaTips' =>        \App\Controllers\Telegram\Commands\Actions\StartGame\ExploreAreaTipsAction::class,
+            'moveNorthEastTips' =>      \App\Controllers\Telegram\Commands\Actions\StartGame\MoveNorthEastTips::class,
+            'gatherTips' =>             \App\Controllers\Telegram\Commands\Actions\StartGame\GatherTips::class,
+            'explore' =>                \App\Controllers\Telegram\Commands\Actions\ExploreAction::class,
+            'characterActions' =>       \App\Controllers\Telegram\Commands\Actions\CharacterGoActions::class,
+            'cancelExploration' =>      \App\Controllers\Telegram\Commands\Actions\CancelExplorationAction::class,
+            'move' =>                   \App\Controllers\Telegram\Commands\Actions\MoveCharacterAction::class,
+            'movetonorth' =>            \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToNorth::class,
+            'movetosouth' =>            \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToSouth::class,
+            'movetonorthwest' =>        \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToNorthWest::class,
+            'movetonortheast' =>        \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToNorthEast::class,
+            'movetowest' =>             \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToWest::class,
+            'movetoeast' =>             \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToEast::class,
+            'movetosouthwest' =>        \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToSouthWest::class,
+            'movetosoutheast' =>        \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToSouthEast::class,
+            'gather' =>                 \App\Controllers\Telegram\Commands\Actions\GatherAction::class,
+            'cancelGather' =>           \App\Controllers\Telegram\Commands\Actions\CancelGatherAction::class,
+            'inventory' =>              \App\Controllers\Telegram\Commands\Actions\InventoryAction::class,
+            'resourcesGathered' =>      \App\Controllers\Telegram\Commands\Actions\ResourcesGatheredAction::class,
+            'character' =>              \App\Controllers\Telegram\Commands\Actions\CharacterAction::class,
+            'shop' =>                   \App\Controllers\Telegram\Commands\Actions\ShopAction::class,
+            'sell' =>                   \App\Controllers\Telegram\Commands\Actions\Sell\SellAction::class,
+            'sellSelectRarity' =>       \App\Controllers\Telegram\Commands\Actions\Sell\SellResourceAction::class,
+            'buy' =>                    \App\Controllers\Telegram\Commands\Actions\Sell\BuyResourceAction::class,
+            'sellCraft' =>              \App\Controllers\Telegram\Commands\Actions\Sell\SellCraftAction::class,
+            'sellCraftList' =>          \App\Controllers\Telegram\Commands\Actions\Sell\SellCraftItemListAction::class,
+            'sellCraftItem' =>          \App\Controllers\Telegram\Commands\Actions\Sell\SellCraftItemAction::class,
+            'sellCraftConfirm' =>       \App\Controllers\Telegram\Commands\Actions\Sell\SellCraftConfirmAction::class,
+            'buyCraft' =>               \App\Controllers\Telegram\Commands\Actions\Sell\BuyCraftAction::class,
+            'buyCraftList' =>           \App\Controllers\Telegram\Commands\Actions\Sell\BuyCraftItemListAction::class,
+            'buyCraftItem' =>           \App\Controllers\Telegram\Commands\Actions\Sell\BuyCraftItemAction::class,
+            'buyCraftConfirm' =>        \App\Controllers\Telegram\Commands\Actions\Sell\BuyCraftConfirmAction::class,
+
+            'entertainment' =>          \App\Controllers\Telegram\Commands\Actions\EntertaimentAction::class,
+            'WheelOfFortune' =>         \App\Controllers\Telegram\Commands\Actions\Games\FortuneWheelAction::class,
+            'GuessNumber' =>            \App\Controllers\Telegram\Commands\Actions\Games\GuessNumberAction::class,
+            'RockPaperScissors' =>      \App\Controllers\Telegram\Commands\Actions\Games\RockPaperScissorsAction::class,
+            'events' =>                 \App\Controllers\Telegram\Commands\Actions\EventAction::class,
+            'finishAllTasks' =>         \App\Controllers\Telegram\Commands\Actions\FinishAllTasksAction::class,
+            'crafting' =>               \App\Controllers\Telegram\Commands\Actions\Craft\CraftingAction::class,
+            'standardCraft' =>          \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\StandardCraftingAction::class,
+            'robotsCraft2' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotsCraft2Select::class,
+            'robotExplorer' =>          \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotExplorer2Action::class,
+            'craftRobotExplorer2' =>    \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\StartCraftRobotExplorer2Action::class,
+            'robotGatherer' =>          \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotGatherer2Action::class,
+            'craftRobotGatherer2' =>    \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\StartCraftRobotGatherer2Action::class,
+
+            'AllRobots' =>              \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\AllRobotsHandler::class,
+            'activateRobot' =>          \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\ActivateRobotHandler::class,
+            'startRobotExplorer' =>          \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\StartRobotExplorationAction::class,
+
+            'generalCraft' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\GeneralCraftingAction::class,
+            'medicinesCraft1' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\MedicalCraft1Action::class,
+            'strengtheningElixir' =>    \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\StrengthElixirCraft1Action::class,
+            'craftStrengtheningElixir' => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\StrengthElixirCraftActionStart::class,
+            'craftAntisepticCraft1' =>  \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\AntisepticCraftActionStart::class,
+            'antiseptic' =>             \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\AntisepticCraft1Action::class,
+            'bandage' =>                \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\BandageCraft1Action::class,
+            'stimulator' =>             \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\StimulatorCraft1Action::class,
+            'painReliefPowder' =>       \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\PainReliefPowerCraft1Action::class,
+            'craftBandage' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\BandageCraftActionStart::class,
+            'craftPainReliefPower' =>   \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\PainReliefPowerCraftActionStart::class,
+            'craftSedative' =>          \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\SedativeCraftActionStart::class,
+            'craftStimulator' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\StimulatorCraftActionStart::class,
+            'sedative' =>               \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\SedativeCraft1Action::class,
+            'regenerator' =>            \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\RegeneratorCraft1Action::class,
+            'craftRegenerator' =>       \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\RegeneratorCraftActionStart::class,
+            'basicMedKit' =>            \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\BasicMedKitCraft1Action::class,
+            'craftBasicMedKit' =>       \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\BasicMedKitCraftActionStart::class,
+            'resourcesCrafting' =>      \App\Controllers\Telegram\Commands\Actions\CraftedResourcesAction::class,
+            'pharmacy' =>               \App\Controllers\Telegram\Commands\Actions\PharmacyAction::class,
+            'usePharmacy' =>            \App\Controllers\Telegram\Commands\Actions\UsePharmacyAction::class,
+            'componentsCraft' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\ComponentsCraft1Select::class,
+            'metalFragments' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\MetalFragmentsCraft1Action::class,
+            'craftMetalFragments' =>   \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\MetalFragmentsCraftActionStart::class,
+            'fabric' =>                 \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\FabricCraft1Action::class,
+            'craftFabric' =>            \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\FabricCraftActionStart::class,
+            'stoneBlocks' =>            \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\StoneBlocksCraft1Action::class,
+            'craftStoneBlocks' =>       \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\StoneBlocksCraftActionStart::class,
+            'fertilizer' =>             \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\FertilizerCraft1Action::class,
+            'craftFertilizer' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\FertilizerCraftActionStart::class,
+            'woodMaterials' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\WoodMaterialsCraft1Action::class,
+            'craftWoodMaterials' =>    \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\WoodMaterialsCraftActionStart::class,
+            'soil' =>                   \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\SoilCraft1Action::class,
+            'craftSoil' =>              \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\SoilCraftActionStart::class,
+            'charcoalBriquettes' =>     \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\CharcoalBriquettes1Action::class,
+            'craftCharcoalBriquettes' => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\CharcoalBriquettesActionStart::class,
+            'WorkbenchChoice' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Workbench\WorkbenchCraft1Select::class,
+            'workbenchOne' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Workbench\WorkbenchOneAction::class,
+            'craftWorkbenchOne' =>      \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Workbench\StartCraftWorkbenchOneAction::class,
+            'glassBags' =>              \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\GlassBagsCraft1Action::class,
+            'craftGlassBags' =>         \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\GlassBagsCraftActionStart::class,
+
+            'tools' =>                  \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\ToolsCraft1Action::class,
+            'lumberjackAxe' =>          \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\LumberjackAxeCraft1Action::class,
+            'craftLumberjackAxeCraft1' => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\LumberjackAxeCraftActionStart::class,
+            'stonePickaxe' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\StonePickaxeCraft1Action::class,
+            'craftStonePickaxe' =>      \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\StonePickaxeCraftActionStart::class,
+            'ironShovel' =>             \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\IronShovelCraft1Action::class,
+            'craftIronShovel' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\IronShovelCraftActionStart::class,
+            'fishingRod' =>             \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\FishingRodCraft1Action::class,
+            'craftFishingRod' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\FishingRodCraftActionStart::class,
+            'hoe' =>                    \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\HoeCraft1Action::class,
+            'craftHoe' =>               \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\HoeCraftActionStart::class,
+            'foldingKnife' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\FoldingKnifeCraft1Action::class,
+            'craftFoldingKnife' =>      \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\FoldingKnifeCraftActionStart::class,
+            'ironPickaxe' =>            \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\IronPickaxeCraft1Action::class,
+            'craftIronPickaxe' =>       \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\IronPickaxeCraftActionStart::class,
+            'tireIron' =>               \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\TireIronCraft1Action::class,
+            'craftTireIron' =>          \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\TireIronCraftActionStart::class,
+            'questInfo' =>              \App\Controllers\Telegram\Commands\Actions\Quest\QuestsInfo::class,
+            'questAndTask' =>          \App\Controllers\Telegram\Commands\Actions\Quest\QuestAndTaskAction::class,
+            'availableQuests' =>          \App\Controllers\Telegram\Commands\Actions\Quest\AvailableQuests::class,
+            'completedQuests' =>          \App\Controllers\Telegram\Commands\Actions\Quest\CompletedQuests::class,
+            'activeQuests' =>          \App\Controllers\Telegram\Commands\Actions\Quest\ActiveQuests::class,
+            'questStartExplore30Cells' => \App\Controllers\Telegram\Commands\Actions\Quest\QuestStartExplore30Cells::class,
+            'questStartExplore300Cells' => \App\Controllers\Telegram\Commands\Actions\Quest\QuestStartExplore300Cells::class,
+            'questStartExploreAllBiomes' => \App\Controllers\Telegram\Commands\Actions\Quest\QuestStartExploreAllBiomes::class,
+            'questStartFirstAidkitBasic' => \App\Controllers\Telegram\Commands\Actions\Quest\QuestStartFirstAidkitBasic::class,
+
+            'chooseFaction' =>              \App\Controllers\Telegram\Commands\Actions\Faction\ChooseFaction::class,
+            'entrench' =>                   \App\Controllers\Telegram\Commands\Actions\Camp\EntrenchAction::class,
+            'Camp' =>                       \App\Controllers\Telegram\Commands\Actions\Camp\CampingAction::class,
+            'Base' =>                       \App\Controllers\Telegram\Commands\Actions\Camp\BaseInfoAction::class,
+            'construction' =>               \App\Controllers\Telegram\Commands\Actions\Camp\DetailedBaseInfoAction::class,
+            'TeleportToCamp' =>             \App\Controllers\Telegram\Commands\Actions\Camp\TeleportAction::class,
+            'TeleportUse' =>                \App\Controllers\Telegram\Commands\Actions\Camp\TeleportUseAction::class,
+            'DeleteBase' =>                 \App\Controllers\Telegram\Commands\Actions\Camp\DeleteBaseAction::class,
+            'Build' =>                      \App\Controllers\Telegram\Commands\Actions\Camp\BuildListAction::class,
+            'buildHandPump' =>              \App\Controllers\Telegram\Commands\Actions\Camp\HandPumpConstruction::class,
+            'startBuildHandPump' =>         \App\Controllers\Telegram\Commands\Actions\Camp\StartHandPumpConstruction::class,
+            'buildBlastFurnace' =>          \App\Controllers\Telegram\Commands\Actions\Camp\BlastFurnaceConstruction::class,
+            'startBuildBlastFurnace' =>     \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildBlastFurnaceConstruction::class,
+            'buildWorkshop' =>              \App\Controllers\Telegram\Commands\Actions\Camp\WorkshopConstruction::class,
+            'startBuildWorkshop' =>         \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildWorkshopConstruction::class,
+            'buildWarehouse' =>             \App\Controllers\Telegram\Commands\Actions\Camp\BuildWarehouseConstruction::class,
+            'startBuildWarehouse' =>        \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildWarehouseConstruction::class,
+            'buildSolarStation' =>          \App\Controllers\Telegram\Commands\Actions\Camp\BuildSolarStationConstruction::class,
+            'startBuildSolarStation' =>     \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildSolarStationConstruction::class,
+            'buildGreenhouse' =>            \App\Controllers\Telegram\Commands\Actions\Camp\BuildGreenHouseConstruction::class,
+            'startBuildGreenhouse' =>       \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildGreenhouseConstruction::class,
+            'buildGym' =>                   \App\Controllers\Telegram\Commands\Actions\Camp\BuildGymConstruction::class,
+            'startBuildGym' =>              \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildGymConstruction::class,
+            'buildLaboratory' =>            \App\Controllers\Telegram\Commands\Actions\Camp\BuildLabConstruction::class,
+            'startBuildLab' =>              \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildLabConstruction::class,
+            'buildRoboticsWorkshop' =>      \App\Controllers\Telegram\Commands\Actions\Camp\BuildRoboticsWorkshopConstruction::class,
+            'startBuildRoboticsWorkshop' => \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildRoboticsWorkshopConstruction::class,
+            'building' =>                   \App\Controllers\Telegram\Commands\Actions\Camp\BuildingHandlerAction::class,
+
+            'objectActionClosedWarehouse' =>  \App\Controllers\Telegram\Commands\Actions\Objects\ObjectCloseWarehouseAction::class,
+
+            'PersonalInsurance' =>          \App\Controllers\Telegram\Commands\Profile\PersonalInsurance::class,
+            'toggleInsurance' =>          \App\Controllers\Telegram\Commands\Profile\ToggleInsuranceAction::class,
+            'calculateInsurance' =>          \App\Controllers\Telegram\Commands\Profile\CalculateInsuranceAction::class,
+        ];
+
+        // Проверяем, начинается ли $action с 'sellResource'
+        if (strpos($action, 'sellResource') === 0) {
+            return \App\Controllers\Telegram\Commands\Actions\Sell\SellResourceAction::class;
+        }
+
+        return $mapping[$action] ?? null;
+    }
+
+}
