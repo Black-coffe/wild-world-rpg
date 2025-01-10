@@ -1,0 +1,127 @@
+.noto-color emoji-regular {
+    font-family: "Noto Color Emoji", sans-serif;
+    font-weight: 400;
+    font-style: normal;
+}
+
+
+.uploadlabel {
+    width: 100%;
+    min-height: 100px;
+    background: #00cc9a;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border: 1px dashed #727eee;
+    cursor: pointer;
+    border-radius: 8px;
+}
+
+.uploadlabel  span {
+    font-size: 3rem;
+    color: #fdfdfd;
+}
+
+.uploadlabel  p {
+    font-size: 1rem;
+    color: #fdfdfd;
+    font-weight: 800;
+    font-family: cursive;
+}
+
+h3.uploaded {
+    margin: 30px 0;
+    font-size: 17px;
+    font-weight: 700;
+    color: #a5a5a5;
+}
+
+.showfilebox {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 10px 0;
+    padding: 10px 15px;
+    box-shadow: #0000000d 0px 0px 0px 1px inset;
+    border-radius: 3px;
+}
+
+.showfilebox .left {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.filetype {
+    background: #18a7ff;
+    color: #fff;
+    padding: 5px 12px;
+    font-size: 20px;
+    text-transform: capitalize;
+    font-weight: 700;
+    border-radius: 3px;
+}
+
+.left h3 {
+    font-weight: 600;
+    font-size: 18px;
+    color: #292f42;
+    margin: 0;
+}
+
+.right span {
+    background: #8b0000;
+    color: #fff;
+    width: 26px;
+    height: 26px;
+    font-size: 24px;
+    line-height: 26px;
+    display: inline-block;
+    text-align: center;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 50%;
+}
+
+.upload-label {
+    display: block;
+    width: 100%;
+    padding: 20px;
+    border: 2px dashed #ddd;
+    border-radius: 5px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.upload-icon {
+    display: block;
+    font-size: 24px;
+    margin-bottom: 10px;
+}
+
+.preview-container {
+    margin-top: 20px;
+}
+
+.img-thumbnail {
+    max-width: 200px;
+    height: auto;
+}
+
+.tags-suggestions {
+    border: 1px solid #ccc;
+    display: none; /* Початково сховано */
+    background: white;
+    position: absolute;
+    width: calc(100% - 2px);
+    z-index: 1000;
+}
+.tags-suggestions div {
+    padding: 10px;
+    cursor: pointer;
+}
+.tags-suggestions div:hover {
+    background-color: #f0f0f0;
+}
