@@ -134,27 +134,35 @@ class PlayerDetectionService
 
             $chatId = $telegramUser['telegram_id'];
 
-            // Формируем сообщение
+            // Формируем текст сообщения
             $message = "🔍 *Обнаружение игроков!* 🔍\n\n";
+            $keyboardRows = [];
+
             foreach ($detectedPlayers as $detected) {
                 $message .= "Есть игрок №{$detected['id']} на расстоянии {$detected['distance']} ячеек от тебя.\n";
+
+                // Для каждой цели можно сделать и отдельную строку клавиатуры,
+                // или общий набор кнопок, если нужно.
+                $keyboardRows[] = [
+                    [
+                        'text' => '🏃 Бежать',
+                        'callback_data' => 'runAway'
+                    ],
+                    [
+                        'text' => '⚔️ Атаковать',
+                        // ВАЖНО: приклеиваем сюда ID найденного игрока
+                        'callback_data' => 'attackPlayer_' . $detected['id']
+                    ],
+                ];
             }
+
             $message .= "\n_Вы можете предпринять дальнейшие действия._";
 
-            // Опционально, добавляем клавиатуру
+            // Если хотим все цели на одной клавиатуре, можно объединять кнопки
+            // Но логичнее для каждого игрока – одна «строка» кнопок
             $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                        ['text' => '🚜 Переехать', 'callback_data' => 'move'],
-                    ],
-                    [
-                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                        ['text' => '🏠 База', 'callback_data' => 'Base'],
-                    ],
-                ]
+                'inline_keyboard' => $keyboardRows
             ];
-            $encodedKeyboard = json_encode($keyboard);
 
             // Отправляем сообщение через Telegram
             try {
@@ -162,12 +170,13 @@ class PlayerDetectionService
                     'chat_id' => $chatId,
                     'text' => $message,
                     'parse_mode' => 'Markdown',
-                    'reply_markup' => $encodedKeyboard
+                    'reply_markup' => json_encode($keyboard),
                 ]);
             } catch (TelegramException $e) {
                 log_message('error', 'Ошибка отправки сообщения в Telegram: ' . $e->getMessage());
             }
         }
+
     }
 
     /**
@@ -194,6 +203,6 @@ class PlayerDetectionService
         $currentTime = time();
 
         // Проверяем, прошло ли больше 1 часа с последнего уведомления (3600 секунд)
-        return ($currentTime - $lastDetectedAt) > 3600;
+        return ($currentTime - $lastDetectedAt) > 3;
     }
 }

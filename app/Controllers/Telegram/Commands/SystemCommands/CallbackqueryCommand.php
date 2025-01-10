@@ -190,8 +190,11 @@ class CallbackqueryCommand extends SystemCommand
             'objectActionClosedWarehouse' =>  \App\Controllers\Telegram\Commands\Actions\Objects\ObjectCloseWarehouseAction::class,
 
             'PersonalInsurance' =>          \App\Controllers\Telegram\Commands\Profile\PersonalInsurance::class,
-            'toggleInsurance' =>          \App\Controllers\Telegram\Commands\Profile\ToggleInsuranceAction::class,
-            'calculateInsurance' =>          \App\Controllers\Telegram\Commands\Profile\CalculateInsuranceAction::class,
+            'toggleInsurance' =>            \App\Controllers\Telegram\Commands\Profile\ToggleInsuranceAction::class,
+            'calculateInsurance' =>         \App\Controllers\Telegram\Commands\Profile\CalculateInsuranceAction::class,
+
+            'runAway' =>                    \App\Controllers\Telegram\Commands\Actions\PVP\RunAwayAction::class,
+            'attackPlayer' =>               \App\Controllers\Telegram\Commands\Actions\PVP\AttackPlayerAction::class,
         ];
 
         // Проверяем, начинается ли $action с 'sellResource'
