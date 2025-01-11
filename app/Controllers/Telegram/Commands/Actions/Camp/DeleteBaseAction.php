@@ -3,6 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions\Camp;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Models\CharacterBuildingModel;
 use App\Models\ClaimedCellModel;
 use App\Models\MapModel;
 use App\Models\BiomeModel;
@@ -63,9 +64,12 @@ class DeleteBaseAction extends BaseAction
         $buildingModel = new BuildingModel();
 
         // Удаляем все постройки
-        $buildings = $buildingModel->where('character_id', $character['id'])
-            ->where('claimed_cell_id', $character['cell_number'])
+        $characterBuildingModel = new CharacterBuildingModel();
+        $buildings = $characterBuildingModel
+            ->where('character_id', $character['id'])
+            ->where('map_cell_id', $character['cell_number'])
             ->findAll();
+
 
         foreach ($buildings as $building) {
             $buildingModel->delete($building['id']);
