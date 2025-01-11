@@ -5,6 +5,9 @@ namespace App\Controllers\Telegram\Commands\SystemCommands;
 use Longman\TelegramBot\Commands\SystemCommand;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
+use App\Services\CharacterService;
+use App\Models\TelegramUserModel;
+use App\Models\CharacterModel;
 
 class CallbackqueryCommand extends SystemCommand
 {
@@ -13,15 +16,44 @@ class CallbackqueryCommand extends SystemCommand
     public function execute(): ServerResponse
     {
         $callbackQuery = $this->getCallbackQuery();
-        $callbackData = $callbackQuery->getData();
-        $action = explode('_', $callbackData)[0]; // Получаем действие из callback_data
-        $handlerClass = $this->getActionHandler($action);
+        $callbackData  = $callbackQuery->getData();
+        $action        = explode('_', $callbackData)[0]; // "character" и т.д.
 
+        // Если action==='character' — показываем персонажа через сервис
+        if ($action === 'character') {
+            $chatId = $callbackQuery->getMessage()->getChat()->getId();
+            $from   = $callbackQuery->getFrom();
+            $tid    = $from->getId();
+
+            $userModel  = new TelegramUserModel();
+            $userRow    = $userModel->where('telegram_id', $tid)->first();
+            if (!$userRow) {
+                return Request::sendMessage([
+                    'chat_id' => $chatId,
+                    'text'    => 'User not found!',
+                ]);
+            }
+
+            $charModel    = new CharacterModel();
+            $characterRow = $charModel->where('telegram_user_id', $userRow['id'])->first();
+            if (!$characterRow) {
+                return Request::sendMessage([
+                    'chat_id' => $chatId,
+                    'text'    => 'Character not found!',
+                ]);
+            }
+
+            $charService = new CharacterService();
+            return $charService->showCharacterInfo($chatId, $characterRow);
+        }
+
+        // Иначе — прочие action
+        // ... (старый код)
+        $handlerClass = $this->getActionHandler($action);
         if ($handlerClass && class_exists($handlerClass)) {
             $handler = new $handlerClass($callbackQuery);
             return $handler->handle();
         } else {
-            // Логирование или ответ пользователю об ошибке
             return Request::emptyResponse();
         }
     }
