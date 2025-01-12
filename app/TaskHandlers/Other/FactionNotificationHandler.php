@@ -52,8 +52,7 @@ class FactionNotificationHandler
                 // Если запись есть, проверяем статус уведомления
                 $notifiedAt = strtotime($factionEntry['notified_at']);
                 $currentTime = time();
-                // $notificationInterval = 24 * 60 * 60; // 24 часа
-                $notificationInterval = 24;
+                $notificationInterval = 24 * 60 * 60; // 24 часа
 
                 if ($factionEntry['notification_status'] === 'False' && ($currentTime - $notifiedAt) >= $notificationInterval) {
                     // Если уведомление не было выбрано и прошло более 24 часов, отправляем повторное уведомление

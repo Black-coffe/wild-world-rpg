@@ -8,7 +8,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterBuildingModel;
 use App\Models\BuildingModel;
 
-class BlastFurnaceHandler extends BaseAction
+class WorkshopHandler extends BaseAction
 {
     protected $characterBuildingModel;
     protected $buildingModel;
@@ -28,90 +28,89 @@ class BlastFurnaceHandler extends BaseAction
         if (!$user || !$character) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text' => 'Пользователь не найден в базе данных или персонаж не определён.',
+                'text'    => 'Пользователь не найден в базе данных или персонаж не определён.',
             ]);
         }
 
-        // Допустим, в таблице `buildings` у Доменной печи (BlastFurnace) — id=2
-        $buildingId = 2;  // ID для BlastFurnace
+        // Допустим в таблице `buildings` у Мастерской (Workshop) — id=4
+        $buildingId = 4;
 
-        // Ищем, построил ли пользователь такую постройку
+        // Проверяем, построил ли персонаж Мастерскую
         $characterBuilding = $this->characterBuildingModel
             ->where('character_id', $character['id'])
             ->where('building_id', $buildingId)
             ->first();
 
-        // Если у пользователя нет доменной печи
         if (!$characterBuilding) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text' => 'У вас нет Доменной печи на базе.',
+                'text' => 'У вас нет Мастерской на базе.',
             ]);
         }
 
-        // Находим инфо о здании
+        // Получаем информацию о самом здании
         $buildingInfo = $this->buildingModel->find($buildingId);
         if (!$buildingInfo) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text' => 'Информация о Доменной печи не найдена.',
+                'text'    => 'Информация о Мастерской не найдена.',
             ]);
         }
 
-        // Здесь указываете путь к картинке
-        $imagePath = base_url('uploads/telegram/camp/blast_furnace.png');
+        // Путь к изображению Мастерской (обязательно укажите корректный путь на сервере)
+        $imagePath = base_url('uploads/telegram/camp/WorkShop.png');
 
-        // Формируем текст, аналогично HandPumpHandler
+        // Формируем текстовое описание
         $text = sprintf(
-            "🏗️ *%s*\n\n".
-            "📅 *Дата постройки:* %s\n".
-            "⏳ *Дата исчезновения:* %s\n".
-            "🔄 *Использований:* %d всего / %s осталось\n".
-            "💰 *Налог за постройку:* %d$\n".
-            "🆙 *Уровень постройки:* %d lvl\n".
-            "🔒 *Доступность:* %s\n".
+            "🏗️ *%s*\n\n" .
+            "📅 *Дата постройки:* %s\n" .
+            "⏳ *Дата исчезновения:* %s\n" .
+            "🔄 *Использований:* %d всего / %s осталось\n" .
+            "💰 *Налог за постройку:* %d$\n" .
+            "🆙 *Уровень постройки:* %d lvl\n" .
+            "🔒 *Доступность:* %s\n" .
             "📜 *Описание:* %s",
             $buildingInfo['name_ru'],
             date('d.m.Y', strtotime($characterBuilding['built_at'])),
             $characterBuilding['disappearance_date']
                 ? date('d.m.Y', strtotime($characterBuilding['disappearance_date']))
                 : 'Без ограничений',
-            // Текущий usage_count
+            // Сколько раз уже использовали
             $characterBuilding['usage_count'] ?? 0,
-            // Сколько осталось (если у buildingInfo вообще есть параметр usage_count)
-            $buildingInfo['usage_count'] && $characterBuilding['usage_count'] !== null
-                ? ($buildingInfo['usage_count'] - $characterBuilding['usage_count'])
+            // Сколько осталось (если есть usage_count в buildingInfo и оно не null в characterBuilding)
+            ($buildingInfo['usage_count'] !== null && $characterBuilding['usage_count'] !== null)
+                ? max(0, $buildingInfo['usage_count'] - $characterBuilding['usage_count'])
                 : 'Без ограничений',
             $characterBuilding['tax'],
             $characterBuilding['level'],
-            // Например, если usage = 'personal' => "персональная", если 'collective' => "коллективная" и т. д.
-            $characterBuilding['usage'] === 'personal' ? 'персональная' : 'общая',
+            $characterBuilding['usage'] === 'personal'
+                ? 'персональная'
+                : ($characterBuilding['usage'] === 'collective' ? 'коллективная' : 'общая'),
             $buildingInfo['description']
         );
 
-        // Формируем кнопки, аналогично
+        // Клавиатура с кнопками
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    // Поднять уровень, обновить
                     ['text' => '🆙 Поднять уровень', 'callback_data' => 'upgrade_building_' . $buildingId],
                     ['text' => '🔄 Обновить постройку', 'callback_data' => 'renew_building_' . $buildingId],
                 ],
                 [
-                    // Удалить строение, вернуться на базу
                     ['text' => '❌ Удалить строение', 'callback_data' => 'delete_building_' . $buildingId],
                     ['text' => '🏠 База', 'callback_data' => 'Base'],
                 ],
             ],
         ];
 
-        // Закрываем alert
+        // Закрываем всплывающее уведомление
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
+        // Отправляем фотографию с описанием постройки
         return Request::sendPhoto([
-            'chat_id' => $chatId,
-            'photo' => Request::encodeFile($imagePath),
-            'caption' => $text,
+            'chat_id'    => $chatId,
+            'photo'      => Request::encodeFile($imagePath),
+            'caption'    => $text,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);

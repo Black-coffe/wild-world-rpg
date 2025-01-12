@@ -9,6 +9,12 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\HandPumpHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\BlastFurnaceHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\RoboticsWorkshopHandler;
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\GreenhouseHandler;
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\GymHandler;
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\LaboratoryHandler;
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\SolarStationHandler;
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\WarehouseHandler;
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\WorkshopHandler;
 
 class BuildingHandlerAction extends BaseAction
 {
@@ -37,6 +43,24 @@ class BuildingHandlerAction extends BaseAction
                 break;
             case 'RoboticsWorkshop':
                 $handler = new RoboticsWorkshopHandler($this->callbackQuery);
+                break;
+            case 'Workshop':
+                $handler = new WorkshopHandler($this->callbackQuery);
+                break;
+            case 'Warehouse':
+                $handler = new WarehouseHandler($this->callbackQuery);
+                break;
+            case 'Laboratory':
+                $handler = new LaboratoryHandler($this->callbackQuery);
+                break;
+            case 'Greenhouse':
+                $handler = new GreenhouseHandler($this->callbackQuery);
+                break;
+            case 'SolarStation':
+                $handler = new SolarStationHandler($this->callbackQuery);
+                break;
+            case 'Gym':
+                $handler = new GymHandler($this->callbackQuery);
                 break;
             default:
                 return Request::sendMessage([
