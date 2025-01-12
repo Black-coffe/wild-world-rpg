@@ -69,7 +69,7 @@ class MoveNewLocationToNorthEast
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                         ['text' => '🗺️ Изучить местность', 'callback_data' => 'explore'],
                     ],
                 ]
@@ -115,7 +115,6 @@ class MoveNewLocationToNorthEast
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
                 ],
                 [

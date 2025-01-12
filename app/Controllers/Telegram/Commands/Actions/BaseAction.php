@@ -100,7 +100,6 @@ abstract class BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '❌ Прервать действие', 'callback_data' => $callbackDataCancel]
                 ],
             ]

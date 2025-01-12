@@ -61,7 +61,7 @@ class BuildGreenHouseConstruction extends BaseAction
                 'inline_keyboard' => [
                     [
                         ['text' => '🏕 Разбить лагерь', 'callback_data' => 'Camp'],
-                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
+                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ],
                 ]
             ];
@@ -86,7 +86,6 @@ class BuildGreenHouseConstruction extends BaseAction
                     [
                         ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
                         ['text' => '🚜 Переехать', 'callback_data' => 'move'],
-                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
                     ],
                 ]
             ];
@@ -108,7 +107,6 @@ class BuildGreenHouseConstruction extends BaseAction
                     [
                         ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
                         ['text' => '🚜 Переехать', 'callback_data' => 'move'],
-                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
                     ],
                 ]
             ];
@@ -147,7 +145,7 @@ class BuildGreenHouseConstruction extends BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                 ],
             ]

@@ -5,6 +5,7 @@ namespace App\Controllers\Telegram\Commands;
 use Longman\TelegramBot\Commands\UserCommand;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
+use Longman\TelegramBot\Entities\Keyboard; // не ReplyKeyboardMarkup, а именно Keyboard
 use App\Models\TelegramUserModel;
 use App\Models\CharacterModel;
 use App\Models\MapModel;
@@ -19,7 +20,7 @@ class StartCommand extends UserCommand
     protected $name        = 'start';
     protected $description = 'Start command';
     protected $usage       = '/start';
-    protected $version     = '1.1.0';
+    protected $version     = '1.2.0';
 
     public function execute(): ServerResponse
     {
@@ -31,7 +32,25 @@ class StartCommand extends UserCommand
         $firstName  = $from->getFirstName();
         $lastName   = $from->getLastName();
 
-        // 1) Проверяем/создаём пользователя
+        // 1. Закрепляем постоянную клавиатуру
+        $replyKeyboard = new Keyboard([
+            'keyboard' => [
+                // Каждая вложенная строка массива - это одна горизонтальная строка кнопок
+                ['Перс', 'База', 'Крафт', 'Карта'],
+            ],
+            'resize_keyboard'   => true,  // сжимаем клавиатуру под кнопки
+            'one_time_keyboard' => false, // не скрывать после нажатия
+            'selective'         => false, // показывать всем
+        ]);
+
+        // Отправляем сообщение для отображения клавиатуры
+        Request::sendMessage([
+            'chat_id'      => $chatId,
+            'text'         => 'Добро пожаловать! Используйте меню ниже для выбора действия.',
+            'reply_markup' => $replyKeyboard,
+        ]);
+
+        // 2. Проверяем/создаём пользователя
         $telegramUserModel = new TelegramUserModel();
         $existingUser      = $telegramUserModel->where('telegram_id', $telegramId)->first();
         if (!$existingUser) {
@@ -45,11 +64,11 @@ class StartCommand extends UserCommand
             $createdUserId = $existingUser['id'];
         }
 
-        // 2) Ищем персонажа
+        // 3. Ищем персонажа
         $characterModel   = new CharacterModel();
         $existingCharacter= $characterModel->where('telegram_user_id', $createdUserId)->first();
 
-        // 3) Если персонаж НЕ найден → создаём и отправляем приветственное сообщение
+        // 4. Если персонаж НЕ найден → создаём и отправляем приветственное сообщение
         if (!$existingCharacter) {
             $createdCharacterId = $characterModel->insert([
                 'telegram_user_id' => $createdUserId,
@@ -68,7 +87,7 @@ class StartCommand extends UserCommand
             $mapModel   = new MapModel();
             $biomeModel = new BiomeModel();
 
-            // Здесь пытаемся заспавнить в одной из допустимых ячеек
+            // Пытаемся заспавнить в одной из допустимых ячеек
             $allowedBiomes = [1, 2, 3, 5, 6, 7, 8, 9];
             $spawnCells = $mapModel
                 ->where('coordinate_y >=', 900)
@@ -117,7 +136,7 @@ class StartCommand extends UserCommand
             ]);
 
         } else {
-            // 4) Если персонаж УЖЕ существует → используем CharacterService
+            // Если персонаж УЖЕ существует → используем CharacterService
             $charService = new CharacterService();
             return $charService->showCharacterInfo($chatId, $existingCharacter);
         }

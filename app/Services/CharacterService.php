@@ -48,7 +48,7 @@ class CharacterService
         // 1. Устанавливаем «ReplyKeyboard»
         $replyKeyboard = new Keyboard([
             'keyboard' => [
-                ['Персонаж', 'База', 'Крафт'],
+                ['Перс', 'База', 'Крафт', 'Карта'],
             ],
             'resize_keyboard'   => true,
             'one_time_keyboard' => false,

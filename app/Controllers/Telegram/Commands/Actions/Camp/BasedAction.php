@@ -53,7 +53,6 @@ class BasedAction extends BaseAction
                     [
                         ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
                         ['text' => '🏠 База', 'callback_data' => 'Base'],
-                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
                     ],
                 ]
             ];
@@ -95,7 +94,7 @@ class BasedAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '🏠 База', 'callback_data' => 'Base'],
-                    ['text' => '👤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                 ],
             ]
         ];

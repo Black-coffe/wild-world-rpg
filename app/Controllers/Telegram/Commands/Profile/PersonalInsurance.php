@@ -56,7 +56,6 @@ class PersonalInsurance extends BaseAction
 
                     ['text' => $hasInsurance ? 'Снять страховку' : 'Страховаться', 'callback_data' => 'toggleInsurance'],
                     ['text' => '🧮 Просчет', 'callback_data' => 'calculateInsurance'],
-                    ['text' => '🔙 Персонаж', 'callback_data' => 'character'],
                 ],
             ]
         ];

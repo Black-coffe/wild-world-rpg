@@ -57,7 +57,7 @@ class CharacterAction extends BaseAction
         $replyKeyboard = new Keyboard([
             'keyboard' => [
                 // Каждая вложенная строка массива - это одна горизонтальная строка кнопок
-                ['Персонаж', 'База', 'Крафт'],
+                ['Перс', 'База', 'Крафт', 'Карта'],
             ],
             'resize_keyboard'   => true,  // сжимаем клавиатуру под кнопки
             'one_time_keyboard' => false, // не скрывать после нажатия

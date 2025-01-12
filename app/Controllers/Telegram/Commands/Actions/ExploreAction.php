@@ -130,7 +130,6 @@ class ExploreAction extends BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '❌ Прервать изучение', 'callback_data' => 'cancelExploration']
                 ],
             ]

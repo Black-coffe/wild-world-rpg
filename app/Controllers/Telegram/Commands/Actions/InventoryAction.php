@@ -26,16 +26,13 @@ class InventoryAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '🔄 Добытые ресурсы', 'callback_data' => 'resourcesGathered'],
-                    ['text' => '🔨 Крафтовые ресурсы', 'callback_data' => 'resourcesCrafting']
+                    ['text' => '🔨 Крафтовые ресурсы', 'callback_data' => 'resourcesCrafting'],
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
                 ],
 //                [
 //                    ['text' => '🤝 Ресурсы от NPC', 'callback_data' => 'resourcesNpc'],
 //                    ['text' => '📦 Прочие', 'callback_data' => 'resourcesOther']
 //                ],
-                [
-                    ['text' => '‍👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
-                ]
             ]
         ];
 

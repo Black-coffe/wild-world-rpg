@@ -5,9 +5,16 @@ namespace App\Controllers\Telegram\Commands\SystemCommands;
 use Longman\TelegramBot\Commands\SystemCommand;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
-use App\Services\CharacterService;
+
+// Модели
 use App\Models\TelegramUserModel;
 use App\Models\CharacterModel;
+
+// Сервисы
+use App\Services\CharacterService;
+use App\Services\BaseService;
+use App\Services\CraftService; // <-- Важно: импортируем сервис крафта
+use App\Services\MapService;
 
 class GenericmessageCommand extends SystemCommand
 {
@@ -16,62 +23,151 @@ class GenericmessageCommand extends SystemCommand
     public function execute(): ServerResponse
     {
         $message = $this->getMessage();
-        $text    = trim($message->getText(true));
+        $text    = mb_strtolower(trim($message->getText(true)));
         $chatId  = $message->getChat()->getId();
 
-        switch (mb_strtolower($text)) {
-            case 'персонаж':
+        switch ($text) {
+            case 'перс':
                 return $this->handleCharacter($chatId);
 
             case 'база':
-                // Пока пусто
-                return Request::sendMessage([
-                    'chat_id' => $chatId,
-                    'text'    => 'Вы запросили «база». Логика пока не написана.',
-                ]);
+                return $this->handleBase($chatId);
 
             case 'крафт':
-                // Пока пусто
-                return Request::sendMessage([
-                    'chat_id' => $chatId,
-                    'text'    => 'Вы запросили «крафт». Логика пока не написана.',
-                ]);
+                return $this->handleCraft($chatId);
+
+            case 'карта': // <-- Новая команда
+                return $this->handleMap($chatId);
 
             default:
                 return Request::sendMessage([
                     'chat_id' => $chatId,
-                    'text'    => 'Не понял, попробуйте «персонаж», «база» или «крафт».',
+                    'text'    => 'Не понял, попробуйте «перс», «база», «крафт» или «карта».',
                 ]);
         }
     }
 
+    /**
+     *  Логика для команды «персонаж»
+     */
     private function handleCharacter(int $chatId): ServerResponse
     {
         $from       = $this->getMessage()->getFrom();
         $telegramId = $from->getId();
 
-        // Ищем юзера
         $userModel  = new TelegramUserModel();
         $userRow    = $userModel->where('telegram_id', $telegramId)->first();
         if (!$userRow) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => 'Пользователь не найден.',
+                'text'    => 'Пользователь не найден (character).',
             ]);
         }
 
-        // Ищем персонажа
         $charModel    = new CharacterModel();
         $characterRow = $charModel->where('telegram_user_id', $userRow['id'])->first();
         if (!$characterRow) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => 'Персонаж не найден.',
+                'text'    => 'Персонаж не найден (character).',
             ]);
         }
 
-        // Вызываем сервис
+        // Вызываем сервис персонажа
         $charService = new CharacterService();
         return $charService->showCharacterInfo($chatId, $characterRow);
     }
+
+    /**
+     *  Логика для команды «база»
+     */
+    private function handleBase(int $chatId): ServerResponse
+    {
+        $from       = $this->getMessage()->getFrom();
+        $telegramId = $from->getId();
+
+        $userModel  = new TelegramUserModel();
+        $userRow    = $userModel->where('telegram_id', $telegramId)->first();
+        if (!$userRow) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'Пользователь не найден (base).',
+            ]);
+        }
+
+        $charModel    = new CharacterModel();
+        $characterRow = $charModel->where('telegram_user_id', $userRow['id'])->first();
+        if (!$characterRow) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'Персонаж не найден (base).',
+            ]);
+        }
+
+        // Вызываем сервис базы
+        $baseService = new BaseService();
+        return $baseService->showBaseInfo($chatId, $characterRow);
+    }
+
+    /**
+     *  Логика для команды «крафт»
+     */
+    private function handleCraft(int $chatId): ServerResponse
+    {
+        $from       = $this->getMessage()->getFrom();
+        $telegramId = $from->getId();
+
+        $userModel  = new TelegramUserModel();
+        $userRow    = $userModel->where('telegram_id', $telegramId)->first();
+        if (!$userRow) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'Пользователь не найден (craft).',
+            ]);
+        }
+
+        $charModel    = new CharacterModel();
+        $characterRow = $charModel->where('telegram_user_id', $userRow['id'])->first();
+        if (!$characterRow) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'Персонаж не найден (craft).',
+            ]);
+        }
+
+        // Вызываем сервис крафта
+        $craftService = new CraftService();
+        return $craftService->showCraftMenu($chatId);
+    }
+
+    private function handleMap(int $chatId): ServerResponse
+    {
+        $from       = $this->getMessage()->getFrom();
+        $telegramId = $from->getId();
+
+        // 1) Ищем пользователя
+        $userModel  = new TelegramUserModel();
+        $userRow    = $userModel->where('telegram_id', $telegramId)->first();
+        if (!$userRow) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'Пользователь не найден (map).',
+            ]);
+        }
+
+        // 2) Ищем персонажа
+        $charModel    = new CharacterModel();
+        $characterRow = $charModel->where('telegram_user_id', $userRow['id'])->first();
+        if (!$characterRow) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'Персонаж не найден (map).',
+            ]);
+        }
+
+        // 3) Вызываем сервис карты
+        $mapService = new MapService();
+        return $mapService->showMapWithPlayer($chatId, $characterRow);
+    }
+
 }
