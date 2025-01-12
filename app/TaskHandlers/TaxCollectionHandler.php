@@ -134,15 +134,6 @@ class TaxCollectionHandler extends Controller
                 . "Собрано налога: *{$formattedCollectedTax}* золота\n"
                 . "Оставшееся золото: *{$formattedNewGoldAmount}*";
 
-            $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
-                        ['text' => '🏠 База', 'callback_data' => 'Base'],
-                    ],
-                ]
-            ];
-
             try {
                 $imagePath = base_url('uploads/telegram/camp/tax_for_building.png');
 
@@ -151,7 +142,6 @@ class TaxCollectionHandler extends Controller
                     'photo'   => Request::encodeFile($imagePath),
                     'caption' => $messageText,
                     'parse_mode' => 'Markdown',
-                    'reply_markup' => json_encode($keyboard),
                 ]);
             } catch (TelegramException $e) {
                 log_message('error', 'Telegram API error: ' . $e->getMessage());

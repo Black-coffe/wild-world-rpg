@@ -62,7 +62,6 @@ class RobotExplorerActivator implements RobotActivatorInterface
                 [
                     ['text' => '🚀 Запустить', 'callback_data' => 'startRobotExplorer_'.$this->robotId],
                     ['text' => '🤖 Роботы', 'callback_data' => 'AllRobots'],
-                    ['text' => '👤 Персонаж', 'callback_data' => 'character'],
                 ],
             ]
         ];

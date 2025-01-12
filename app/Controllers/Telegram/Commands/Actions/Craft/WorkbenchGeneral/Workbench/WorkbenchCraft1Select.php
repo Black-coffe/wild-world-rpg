@@ -23,10 +23,6 @@ class WorkbenchCraft1Select extends BaseAction
                     ['text' => '🔬 Верстак 2', 'callback_data' => 'workbenchTwo'],
                     ['text' => '🔬 Верстак 3', 'callback_data' => 'workbenchFree'],
                 ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
-                ],
             ]
         ];
 

@@ -60,10 +60,7 @@ class FoldingKnifeCraft1Action extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ],
-                    [
                         ['text' => '💰 Продать', 'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить', 'callback_data' => 'buy']
                     ],

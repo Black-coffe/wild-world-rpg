@@ -60,21 +60,12 @@ class TipsCommand extends UserCommand
             $tip = $gameTipsModel->orderBy('RAND()')->first();
         }
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character']
-                ],
-            ]
-        ];
-
         if (!$tip) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => "Вы уже просмотрели все доступные советы в последние 15 дней. Пожалуйста, приходите позже.",
                 'parse_mode' => 'Markdown',
                 'disable_web_page_preview' => true,
-                'reply_markup' => json_encode($keyboard)
             ]);
         }
 

@@ -34,10 +34,6 @@ class ToolsCraft1Action extends BaseAction
                     ['text' => '🔨 Медный молот', 'callback_data' => 'copperHammer'],
                     ['text' => '🔪 Складной нож', 'callback_data' => 'foldingKnife'],
                 ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting']
-                ]
             ]
         ];
 
@@ -51,10 +47,6 @@ class ToolsCraft1Action extends BaseAction
                     ['text' => '🥄 Железная лопата', 'callback_data' => 'ironShovel'],
                     ['text' => '🎣 Удочка', 'callback_data' => 'fishingRod'],
                 ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting']
-                ]
             ]
         ];
 

@@ -96,20 +96,6 @@ class AllRobotsHandler extends BaseAction
             ];
         }
 
-        // Добавляем кнопки для базы и персонажа
-        $keyboardButtons[] = [
-            'text' => '🏠 База',
-            'callback_data' => 'Base'
-        ];
-        $keyboardButtons[] = [
-            'text' => '👨‍🎤 Персонаж',
-            'callback_data' => 'character'
-        ];
-
-        $keyboard = [
-            'inline_keyboard' => array_chunk($keyboardButtons, 2)
-        ];
-
         $imagePath = base_url('uploads/telegram/craft/standard/all_robots.jpg');
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
@@ -119,7 +105,6 @@ class AllRobotsHandler extends BaseAction
             'photo' => Request::encodeFile($imagePath),
             'caption' => $text,
             'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
         ]);
     }
 }

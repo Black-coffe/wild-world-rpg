@@ -64,7 +64,7 @@ class CraftedResourcesAction extends BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']
                 ],
                 [

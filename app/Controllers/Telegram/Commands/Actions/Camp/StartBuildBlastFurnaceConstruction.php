@@ -60,7 +60,7 @@ class StartBuildBlastFurnaceConstruction extends BaseAction
                 'inline_keyboard' => [
                     [
                         ['text' => '🏕 Разбить лагерь', 'callback_data' => 'Camp'],
-                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
+                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ],
                 ]
             ];
@@ -84,7 +84,6 @@ class StartBuildBlastFurnaceConstruction extends BaseAction
                     [
                         ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
                         ['text' => '🚜 Переехать', 'callback_data' => 'move'],
-                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
                     ],
                 ]
             ];
@@ -106,7 +105,6 @@ class StartBuildBlastFurnaceConstruction extends BaseAction
                     [
                         ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
                         ['text' => '🚜 Переехать', 'callback_data' => 'move'],
-                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
                     ],
                 ]
             ];
@@ -142,7 +140,7 @@ class StartBuildBlastFurnaceConstruction extends BaseAction
                         ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
                     ],
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                     ]
                 ]
@@ -231,16 +229,6 @@ class StartBuildBlastFurnaceConstruction extends BaseAction
             . "*О готовности ты узнаешь в сообщении.* 🎁\n\n"
             . "P.S. _Не забудь поделиться своими находками!_ 🗣️\n";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting']
-                ],
-            ]
-        ];
-        $encodedKeyboard = json_encode($keyboard);
-
         $imagePath = base_url('uploads/telegram/camp/Construction-by-improvised.jpg'); // Ensure this path is correctly configured
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendPhoto([
@@ -248,7 +236,6 @@ class StartBuildBlastFurnaceConstruction extends BaseAction
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,
             'parse_mode' => 'Markdown',
-            'reply_markup' => $encodedKeyboard
         ]);
     }
 

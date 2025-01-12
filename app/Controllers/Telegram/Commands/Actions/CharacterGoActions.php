@@ -47,7 +47,7 @@ class CharacterGoActions
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ['text' => '🚜 Переехать', 'callback_data' => 'move'],
 
                 ],

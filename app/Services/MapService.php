@@ -21,30 +21,57 @@ class MapService
     }
 
     /**
-     * Главный метод: берёт данные о персонаже, ищет его (x,y),
-     * рисует перекрестие и шлёт обратно в Telegram.
+     * Метод: берёт данные о персонаже, проверяет его предпочтения к карте,
+     * если не выбрано — просит игрока выбрать.
+     * Если выбрано, рисует нужную карту (учитывая масштаб 2px=1 coord).
      *
      * @param int   $chatId       Куда шлём ответ
-     * @param array $characterRow  Строка персонажа из БД (с ключом 'cell_number')
+     * @param array $characterRow  Строка персонажа из БД
      */
     public function showMapWithPlayer(int $chatId, array $characterRow): ServerResponse
     {
-        // 1. Ищем ячейку в таблице map (чтобы получить coordinate_x, coordinate_y)
+        // Проверяем поле preferred_map_type
+        $mapType = $characterRow['preferred_map_type'] ?? null;
+
+        if ($mapType === null) {
+            // Ещё не выбрана карта → возвращаем просьбу выбрать
+            $text = "*У вас не выбран тип карты!*\n\n"
+                . "Доступно 2 варианта:\n"
+                . "1. Точная карта (пиксель в пиксель):\n"
+                . "   - введите команду: `accurate_map`\n"
+                . "2. Художественная карта (более красивая, но менее точная):\n"
+                . "   - введите команду: `beautiful_map`\n\n"
+                . "_Скопируйте нужную команду и отправьте в этот же чат._\n";
+
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => $text,
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
+        // Выбираем файл карты
+        if ($mapType === 'accurate') {
+            $baseMapPath = FCPATH . 'uploads/telegram/character/world_map_1000x1000.png';
+        } else {
+            $baseMapPath = FCPATH . 'uploads/telegram/character/beautiful_map.png';
+        }
+
+        // 1. Ищем ячейку персонажа
         $cellNumber = $characterRow['cell_number'] ?? 0;
         $mapRow = $this->mapModel->where('cell_number', $cellNumber)->first();
         if (!$mapRow) {
-            // Если вдруг нет записи в таблице map
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text'    => "Карта: Ячейка с номером {$cellNumber} не найдена.",
             ]);
         }
 
-        // Извлекаем X, Y (1..1000)
+        // Извлекаем X, Y
         $x = (int) $mapRow['coordinate_x'];
         $y = (int) $mapRow['coordinate_y'];
 
-        // Проверка на выход за пределы 1000×1000
+        // Граничные проверки (1..1000)
         if ($x < 1) {
             $x = 1;
         } elseif ($x > 1000) {
@@ -56,9 +83,7 @@ class MapService
             $y = 1000;
         }
 
-        // 2. Путь к исходной карте
-        $baseMapPath = FCPATH . 'uploads/telegram/character/world_map_1000x1000.png';
-
+        // 2. Проверяем, существует ли файл
         if (!file_exists($baseMapPath)) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
@@ -66,40 +91,41 @@ class MapService
             ]);
         }
 
-        // 3. Загружаем PNG-картинку через GD
+        // 3. Загружаем картинку
         $im = @imagecreatefrompng($baseMapPath);
         if (!$im) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => 'Ошибка GD: не могу открыть исходный PNG.',
+                'text'    => 'Ошибка GD: не могу открыть PNG.',
             ]);
         }
 
-        // 4. Рисуем перекрестие
-        // Переносим координаты в «0-индекс» (GD)
-        $gdX = $x - 1;
-        $gdY = $y - 1;
+        // 4. Масштабируем логические координаты (1..1000) в пиксели (0..2000)
+        // 2 px = 1 координата
+        $gdX = 2 * ($x - 1);
+        $gdY = 2 * ($y - 1);
 
-        // Красный цвет
+        // Красный цвет для перекрестия
         $color = imagecolorallocate($im, 255, 0, 0);
 
         // Толщина линий = 2 px
         imagesetthickness($im, 2);
 
-        // Рисуем линию по горизонтали 100 px (по 50 px влево и вправо от центра)
-        imageline($im, $gdX - 50, $gdY, $gdX + 50, $gdY, $color);
+        // Горизонтальная линия: ±50 px от центра
+        // (если хотите, чтобы она была "±50 клеток", то умножайте на 2 дополнительно)
+        $halfLine = 50;
+        imageline($im, $gdX - $halfLine, $gdY, $gdX + $halfLine, $gdY, $color);
 
-        // Рисуем линию по вертикали 100 px (по 50 px вверх и вниз от центра)
-        imageline($im, $gdX, $gdY - 50, $gdX, $gdY + 50, $color);
+        // Вертикальная линия: ±50 px от центра
+        imageline($im, $gdX, $gdY - $halfLine, $gdX, $gdY + $halfLine, $color);
 
-        // 5. Пишем надпись вида "(123, 456)" шрифтом 5 (самый крупный «встроенный»)
+        // Надпись вида "(123, 456)"
         $coordText = "({$x}, {$y})";
-        // Смещаем чуть правее и выше основной точки
         imagestring($im, 5, $gdX + 6, $gdY - 20, $coordText, $color);
 
-        // 6. Сохраняем во временный файл PNG
+        // 5. Сохраняем во временный файл
         $tempPath = FCPATH . 'uploads/tmp';
-        if (! is_dir($tempPath)) {
+        if (!is_dir($tempPath)) {
             mkdir($tempPath, 0777, true);
         }
         $tempFile = $tempPath . '/tmp_map_' . uniqid() . '.png';
@@ -107,9 +133,10 @@ class MapService
         imagepng($im, $tempFile);
         imagedestroy($im);
 
-        // 7. Отправляем готовое изображение в Telegram
+        // 6. Отправляем изображение в Telegram
         $caption = "Текущая локация: X={$x}, Y={$y}\n\n"
-            . "Ячейка #{$cellNumber}";
+            . "Ячейка #{$cellNumber}\n"
+            . "Вы используете карту: *{$mapType}* (масштаб 2px=1coord)";
 
         $response = Request::sendPhoto([
             'chat_id'    => $chatId,
@@ -118,7 +145,7 @@ class MapService
             'parse_mode' => 'Markdown',
         ]);
 
-        // 8. Удаляем временный файл
+        // 7. Удаляем временный файл
         @unlink($tempFile);
 
         return $response;

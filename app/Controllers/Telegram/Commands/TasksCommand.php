@@ -76,7 +76,6 @@ class TasksCommand extends UserCommand
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🏁 Завершить все задачи', 'callback_data' => 'finishAllTasks']
                 ]
             ]

@@ -65,7 +65,7 @@ class CancelGatherAction extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                         ['text' => '⛏️ Добыть ресурсы', 'callback_data' => 'gather'],
                     ],
                 ]

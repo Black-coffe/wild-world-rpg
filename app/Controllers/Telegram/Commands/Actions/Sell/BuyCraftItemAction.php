@@ -103,7 +103,7 @@ class BuyCraftItemAction extends BaseAction
 
         $keyboard = array_chunk($keyboardButtons, 4);
         $keyboard[] = [
-            ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+            ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
             ['text' => '🛍️ Купить крафт', 'callback_data' => 'buyCraft'],
         ];
 

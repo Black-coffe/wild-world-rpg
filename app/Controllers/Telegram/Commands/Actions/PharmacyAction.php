@@ -41,7 +41,6 @@ class PharmacyAction extends BaseAction
 
         if (empty($craftedItemsLogs)) {
             $text = "К сожалению, у тебя нет медицинских предметов! Нужно их сначала скрафтить.";
-            $inline_keyboard[] = ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'];
             $inline_keyboard[] = ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting'];
             $keyboard = ['inline_keyboard' => array_chunk($inline_keyboard, 2)];
         } else {
@@ -70,8 +69,7 @@ class PharmacyAction extends BaseAction
             }
 
             $text .= "\n_Выбери снизу, какой предмет ты будешь использовать:_👇";
-            $inline_keyboard[] = ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'];
-            $inline_keyboard[] = ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting'];
+            $inline_keyboard[] = ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'];
 
             $keyboard = ['inline_keyboard' => array_chunk($inline_keyboard, 2)];
         }

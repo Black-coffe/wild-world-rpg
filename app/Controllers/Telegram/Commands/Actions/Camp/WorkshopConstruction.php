@@ -60,7 +60,7 @@ class WorkshopConstruction extends BaseAction
                 'inline_keyboard' => [
                     [
                         ['text' => '🏕 Разбить лагерь', 'callback_data' => 'Camp'],
-                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
+                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ],
                 ]
             ];
@@ -85,7 +85,6 @@ class WorkshopConstruction extends BaseAction
                     [
                         ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
                         ['text' => '🚜 Переехать', 'callback_data' => 'move'],
-                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
                     ],
                 ]
             ];
@@ -107,7 +106,6 @@ class WorkshopConstruction extends BaseAction
                     [
                         ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
                         ['text' => '🚜 Переехать', 'callback_data' => 'move'],
-                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
                     ],
                 ]
             ];

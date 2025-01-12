@@ -34,10 +34,6 @@ class GeneralCraftingAction extends BaseAction
                     ['text' => '🚗 Транспорт', 'callback_data' => 'transport'],
                     ['text' => '🎲 Разное', 'callback_data' => 'miscellaneous'],
                 ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting']
-                ]
             ]
         ];
 
@@ -45,8 +41,6 @@ class GeneralCraftingAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '💊 Лекарства', 'callback_data' => 'medicinesCraft1'],
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting']
                 ]
             ]
         ];

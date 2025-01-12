@@ -39,7 +39,7 @@ class ShopAction extends BaseAction
                     ['text' => '🛍️ Купить крафт', 'callback_data' => 'buyCraft']
                 ],
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                 ]
             ]

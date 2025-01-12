@@ -97,7 +97,7 @@ class TeleportUseAction extends BaseAction
                             'inline_keyboard' => [
                                 [
                                     ['text' => '🏠 База', 'callback_data' => 'Base'],
-                                    ['text' => '👤 Персонаж', 'callback_data' => 'character'],
+                                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                                 ],
                             ]
                         ];
@@ -147,20 +147,11 @@ class TeleportUseAction extends BaseAction
                         'experience' => $character['experience'] - 1
                     ]);
 
-                    $keyboard = [
-                        'inline_keyboard' => [
-                            [
-                                ['text' => '🏠 База', 'callback_data' => 'Base'],
-                                ['text' => '👤 Персонаж', 'callback_data' => 'character'],
-                            ],
-                        ]
-                    ];
                     Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
                     return Request::sendMessage([
                         'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
                         'text'    => "🤖 Это снова я – *Роби*!\n\nТы успешно использовал опыт для телепортации и телепортировался на базу.",
                         'parse_mode' => 'Markdown',
-                        'reply_markup' => json_encode($keyboard),
                     ]);
                 }
             }

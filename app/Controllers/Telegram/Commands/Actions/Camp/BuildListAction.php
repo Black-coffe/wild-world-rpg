@@ -86,10 +86,6 @@ class BuildListAction extends BaseAction
             ];
         }
 
-        // Добавляем кнопки "База" и "Персонаж"
-        $keyboardButtons[] = ['text' => '🏠 База', 'callback_data' => 'Base'];
-        $keyboardButtons[] = ['text' => '👤 Персонаж', 'callback_data' => 'character'];
-
         $keyboard = array_chunk($keyboardButtons, 2);
 
         $text = "🤖 Это я – *Роби*!\n\n"

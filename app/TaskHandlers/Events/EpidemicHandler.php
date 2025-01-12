@@ -117,7 +117,6 @@ class EpidemicHandler
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ['text' => '🎉 События', 'callback_data' => 'events']
                 ]

@@ -145,19 +145,9 @@ class FoldingKnifeCraftActionStart extends BaseAction
         $minutes = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
         $text = "*Процесс крафта запущен*\n\n"
-            . "*Ты создаешь: 🌾 Мотыгу!*\n\n"
+            . "*Ты создаешь: 🔪 Складной нож!*\n\n"
             . "__*Время крафта: " . $minutes . " минут.*__ ⏱️\n\n"
             . "*О готовности ты узнаешь в сообщении.* 🎁\n\n";
-
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting']
-                ],
-            ]
-        ];
-        $encodedKeyboard = json_encode($keyboard);
 
         $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg'); // Ensure this path is correctly configured
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
@@ -166,7 +156,6 @@ class FoldingKnifeCraftActionStart extends BaseAction
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,
             'parse_mode' => 'Markdown',
-            'reply_markup' => $encodedKeyboard
         ]);
     }
 }

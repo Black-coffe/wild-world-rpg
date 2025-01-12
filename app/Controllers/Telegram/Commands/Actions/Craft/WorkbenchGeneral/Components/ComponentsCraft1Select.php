@@ -34,10 +34,6 @@ class ComponentsCraft1Select extends BaseAction
                     ['text' => '🪨 Угольные брикеты', 'callback_data' => 'charcoalBriquettes'],
                     ['text' => '🪟 Стекло пакеты', 'callback_data' => 'glassBags'],
                 ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
-                ],
             ]
         ];
 

@@ -13,7 +13,7 @@ use App\Models\CharacterModel;
 // Сервисы
 use App\Services\CharacterService;
 use App\Services\BaseService;
-use App\Services\CraftService; // <-- Важно: импортируем сервис крафта
+use App\Services\CraftService;
 use App\Services\MapService;
 
 class GenericmessageCommand extends SystemCommand
@@ -23,7 +23,7 @@ class GenericmessageCommand extends SystemCommand
     public function execute(): ServerResponse
     {
         $message = $this->getMessage();
-        $text    = mb_strtolower(trim($message->getText(true)));
+        $text    = mb_strtolower(trim($message->getText(true)));  // приводим к нижнему регистру
         $chatId  = $message->getChat()->getId();
 
         switch ($text) {
@@ -36,8 +36,15 @@ class GenericmessageCommand extends SystemCommand
             case 'крафт':
                 return $this->handleCraft($chatId);
 
-            case 'карта': // <-- Новая команда
+            case 'карта':
                 return $this->handleMap($chatId);
+
+            // Новые команды для смены типа карты
+            case 'beautiful_map':
+                return $this->handleMapPreference($chatId, 'beautiful');
+
+            case 'accurate_map':
+                return $this->handleMapPreference($chatId, 'accurate');
 
             default:
                 return Request::sendMessage([
@@ -45,6 +52,43 @@ class GenericmessageCommand extends SystemCommand
                     'text'    => 'Не понял, попробуйте «перс», «база», «крафт» или «карта».',
                 ]);
         }
+    }
+
+    /**
+     * Установка предпочтения карты (beautiful/accurate)
+     */
+    private function handleMapPreference(int $chatId, string $mapType): ServerResponse
+    {
+        $from       = $this->getMessage()->getFrom();
+        $telegramId = $from->getId();
+
+        $userModel = new TelegramUserModel();
+        $userRow   = $userModel->where('telegram_id', $telegramId)->first();
+        if (!$userRow) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'Пользователь не найден, не могу установить тип карты.',
+            ]);
+        }
+
+        $charModel    = new CharacterModel();
+        $characterRow = $charModel->where('telegram_user_id', $userRow['id'])->first();
+        if (!$characterRow) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'Персонаж не найден, не могу установить тип карты.',
+            ]);
+        }
+
+        // Обновляем поле в БД
+        $charModel->update($characterRow['id'], [
+            'preferred_map_type' => $mapType,
+        ]);
+
+        return Request::sendMessage([
+            'chat_id' => $chatId,
+            'text'    => "Теперь ваша карта будет отображаться в режиме: {$mapType}",
+        ]);
     }
 
     /**

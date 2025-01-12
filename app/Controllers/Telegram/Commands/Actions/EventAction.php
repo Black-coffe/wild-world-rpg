@@ -113,7 +113,6 @@ class EventAction extends BaseAction
         return [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                 ],

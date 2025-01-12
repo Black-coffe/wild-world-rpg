@@ -30,7 +30,7 @@ class EntertaimentAction extends BaseAction
                 ],
                 [
                     ['text' => '✂️ Камень-ножницы-бумага', 'callback_data' => 'RockPaperScissors'],
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                 ],
             ]
         ];

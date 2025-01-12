@@ -44,7 +44,6 @@ class DeleteBaseAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '❌ Удалить навсегда', 'callback_data' => 'DeleteBase_Confirm'],
-                    ['text' => '👤 Персонаж', 'callback_data' => 'character'],
                 ],
             ]
         ];

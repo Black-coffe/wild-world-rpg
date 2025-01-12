@@ -178,7 +178,6 @@ class UsePharmacyAction extends BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
                 ],
                 [

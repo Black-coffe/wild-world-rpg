@@ -30,10 +30,6 @@ class RobotsCraft2Select extends BaseAction
                     ['text' => '🔫 Туррель', 'callback_data' => 'robotTurret'],
                     ['text' => '🏗️ Строитель', 'callback_data' => 'robotBuilder'],
                 ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
-                ],
             ]
         ];
 

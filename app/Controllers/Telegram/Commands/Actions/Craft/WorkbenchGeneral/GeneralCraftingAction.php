@@ -34,10 +34,6 @@ class GeneralCraftingAction extends BaseAction
                     ['text' => '🚗 Транспорт', 'callback_data' => 'transport'],
                     ['text' => '🎲 Разное', 'callback_data' => 'miscellaneous'],
                 ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting']
-                ]
             ]
         ];
 
@@ -51,10 +47,6 @@ class GeneralCraftingAction extends BaseAction
                     ['text' => '📐 Компоненты', 'callback_data' => 'componentsCraft'],
                     ['text' => '🔬 Верстаки', 'callback_data' => 'WorkbenchChoice'],
                 ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
-                ]
             ]
         ];
 

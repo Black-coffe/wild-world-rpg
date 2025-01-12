@@ -55,10 +55,6 @@ class TeleportAction extends BaseAction
                         ['text' => '📡 Портативный телепорт', 'callback_data' => 'TeleportUse_Portable'],
                         ['text' => '🚜 Телепорт за опыт', 'callback_data' => 'TeleportUse_WithExperience'],
                     ],
-                    [
-                        ['text' => '🏠 База', 'callback_data' => 'Base'],
-                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
-                    ],
                 ]
             ];
         } elseif ($hasPortableTeleport) {
@@ -69,10 +65,6 @@ class TeleportAction extends BaseAction
                 'inline_keyboard' => [
                     [
                         ['text' => '📡 Портативный телепорт', 'callback_data' => 'TeleportUse_Portable'],
-                    ],
-                    [
-                        ['text' => '🏠 База', 'callback_data' => 'Base'],
-                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
                     ],
                 ]
             ];
@@ -85,10 +77,6 @@ class TeleportAction extends BaseAction
                     [
                         ['text' => '🚜 Телепорт за опыт', 'callback_data' => 'TeleportUse_WithExperience'],
                     ],
-                    [
-                        ['text' => '🏠 База', 'callback_data' => 'Base'],
-                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
-                    ],
                 ]
             ];
         } else {
@@ -99,7 +87,7 @@ class TeleportAction extends BaseAction
                 'inline_keyboard' => [
                     [
                         ['text' => '🚜 Переехать', 'callback_data' => 'move'],
-                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
+                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ],
                 ]
             ];

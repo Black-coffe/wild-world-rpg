@@ -22,9 +22,11 @@ class CharacterModel extends Model
         'intellect',
         'gold',
         'cell_number',
-        'biome_id', // Добавляем поле 'biome_id' в список разрешенных
-        'trading_karma', // Добавляем новое поле 'trading_karma' в список разрешенных
-        'insurance', // Новое поле
+        'biome_id',
+        'trading_karma',
+        'insurance',
+        // Новое поле для выбора типа карты
+        'preferred_map_type',
     ];
 
     protected $useTimestamps = true;
@@ -50,13 +52,17 @@ class CharacterModel extends Model
         $info .= "Интеллект: " . $character['intellect'] . "\n";
         $info .= "Золото: " . $character['gold'] . "\n";
         $info .= "Номер ячейки: " . $character['cell_number'] . "\n";
-        // Добавление информации о биоме, если она доступна
+        // Добавление информации о биоме
         if (isset($character['biome_id'])) {
             $info .= "ID биома: " . $character['biome_id'] . "\n";
         }
-        // Добавление информации о карме торговли
+        // Карма торговли
         if (isset($character['trading_karma'])) {
             $info .= "Карма торговли: " . $character['trading_karma'] . "\n";
+        }
+        // Текущий тип карты
+        if (isset($character['preferred_map_type'])) {
+            $info .= "Тип карты: " . $character['preferred_map_type'] . "\n";
         }
 
         return $info;

@@ -140,14 +140,6 @@ class BuiltCompletionHandPumpHandler extends Controller
             . "🚰 *Ручную скважину!*\n\n"
             . "Зона применения: *База* 🏚️";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🏠 База', 'callback_data' => 'Base'],
-                ],
-            ]
-        ];
         $imagePath = base_url('uploads/telegram/camp/hand_pump.jpg');
 
         Request::answerCallbackQuery(['callback_query_id' => $telegram_id]);
@@ -157,7 +149,6 @@ class BuiltCompletionHandPumpHandler extends Controller
                 'photo'   => Request::encodeFile($imagePath),
                 'caption' => $text,
                 'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
             log_message('error', "Telegram API error: " . $e->getMessage());

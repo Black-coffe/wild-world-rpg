@@ -40,10 +40,6 @@ class ToolsCraft1Action extends BaseAction
                     ['text' => '⛏️ Железная кирка', 'callback_data' => 'ironPickaxe'],
                     ['text' => '🪛 Монтировка', 'callback_data' => 'tireIron'],
                 ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
-                ],
             ]
         ];
 

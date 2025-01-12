@@ -34,10 +34,6 @@ class MedicalCraft1Action extends BaseAction
                     ['text' => '🔋 Регенератор', 'callback_data' => 'regenerator'],
                     ['text' => '🚑 Аптечка базовая', 'callback_data' => 'basicMedKit'],
                 ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting']
-                ]
             ]
         ];
 

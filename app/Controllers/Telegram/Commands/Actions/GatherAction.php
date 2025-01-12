@@ -162,7 +162,6 @@ class GatherAction extends BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '❌ Прервать добычу', 'callback_data' => 'cancelGather']
                 ],
             ]

@@ -65,7 +65,6 @@ class MoveCharacterAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                         ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
                     ],
                 ]
@@ -117,7 +116,6 @@ class MoveCharacterAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                         ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
                     ],
                 ]
