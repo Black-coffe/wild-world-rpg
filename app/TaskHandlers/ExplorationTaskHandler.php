@@ -10,7 +10,7 @@ use App\Models\TelegramUserModel;
 use App\Models\ExploredCellsModel;
 use App\Models\BiomeWorldObjectMapModel;
 use App\Models\WorldObjectModel;
-use App\Services\PlayerDetectionService; // Подключаем PlayerDetectionService
+use App\Services\PlayerDetectionService; // Сервис обнаружения игроков
 use CodeIgniter\Controller;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
@@ -19,93 +19,105 @@ use Longman\TelegramBot\Exception\TelegramException;
 class ExplorationTaskHandler extends Controller
 {
     private $telegram;
-    private $playerDetectionService; // Добавляем свойство для PlayerDetectionService
+    private $playerDetectionService;
 
     public function __construct()
     {
-        $API_KEY = getenv('telegram.API_KEY');
+        $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
 
         try {
             $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            // Инициализируем объект Telegram в Request
             Request::initialize($this->telegram);
         } catch (TelegramException $e) {
-            // Обработка исключений при инициализации бота
             log_message('error', $e->getMessage());
         }
 
-        // Инициализация PlayerDetectionService
         $this->playerDetectionService = new PlayerDetectionService();
     }
 
     public function handle($task)
     {
-        // Обновляем статус задачи на 'completed'
+        // 1) Обновляем статус задачи на 'completed'
         $characterTaskModel = new CharacterTaskModel();
         $characterTaskModel->update($task['id'], ['status' => 'completed']);
 
-        // Получаем данные персонажа
+        // 2) Получаем персонажа и делаем базовые +0.01/+0.03/+0.01/+0.02
         $characterModel = new CharacterModel();
-        $character = $characterModel->find($task['character_id']);
+        $character      = $characterModel->find($task['character_id']);
+        if (!$character) {
+            log_message('error', 'Персонаж не найден при закрытии задачи ExplorationTask.');
+            return;
+        }
 
-        // Обновляем характеристики персонажа
         $characterModel->update($character['id'], [
             'experience' => $character['experience'] + 0.01,
-            'strength' => $character['strength'] + 0.03,
-            'agility' => $character['agility'] + 0.01,
-            'intellect' => $character['intellect'] + 0.02,
+            'strength'   => $character['strength']   + 0.03,
+            'agility'    => $character['agility']    + 0.01,
+            'intellect'  => $character['intellect']  + 0.02,
         ]);
 
-        // Получаем текущую локацию и биомы вокруг
-        $mapModel = new MapModel();
-        $biomeModel = new BiomeModel();
-        $telegramUserModel = new TelegramUserModel();
-        $chat_id = $telegramUserModel->where('id', $task['telegram_user_id'])->first()['telegram_id'];
+        // 3) Ищем текущую локацию + формируем список ячеек
+        $mapModel  = new MapModel();
+        $biomeModel= new BiomeModel();
+        $userModel = new TelegramUserModel();
+        $chat_id   = $userModel->where('id', $task['telegram_user_id'])->first()['telegram_id'];
+
         $currentCell = $mapModel->where('cell_number', $character['cell_number'])->first();
+        if (!$currentCell) {
+            log_message('error', 'Текущая ячейка персонажа не найдена.');
+            return;
+        }
 
-        // Передаем экземпляры моделей как аргументы
-        $surroundingCells = $this->getSurroundingCells($currentCell, $mapModel, $biomeModel);
+        // 4) Получаем ячейки вокруг (учитывая уровень)
+        $surroundingCells = $this->getSurroundingCellsWithLevels($currentCell, $mapModel, $biomeModel, $character);
 
-        // Инициализация сервиса обнаружения объектов
+        // 5) Учитываем здоровье и усталость, снижаем количество (до 10%)
+        //    по формуле: каждые 10% потери (здоровье или выносливость) = -1% ячеек
+        $surroundingCells = $this->applyHealthAndTirednessReduction($surroundingCells, $character);
+
+        // 6) Обнаружение объектов
         $biomeWorldObjectMapModel = new BiomeWorldObjectMapModel();
-        $worldObjectModel = new WorldObjectModel();
-        $discoveryService = new \App\Services\ObjectDiscoveryService($biomeWorldObjectMapModel, $worldObjectModel);
-
-        // Передаем данные о ячейках в сервис и вызываем обнаружение объектов
+        $worldObjectModel         = new WorldObjectModel();
+        $discoveryService         = new \App\Services\ObjectDiscoveryService(
+            $biomeWorldObjectMapModel,
+            $worldObjectModel
+        );
         $discoveryService->discoverObjects($surroundingCells, $character);
 
-        // Запись информации об изученных ячейках в базу данных
+        // 7) Запись информации об изученных ячейках
         $exploredCellsModel = new ExploredCellsModel();
         foreach ($surroundingCells as $cell) {
-            // Проверяем, существует ли уже запись для данной ячейки и персонажа
-            $query = $exploredCellsModel->where('character_id', $character['id'])
+            // Проверяем, есть ли запись
+            $found = $exploredCellsModel
+                ->where('character_id', $character['id'])
                 ->where('map_cell_id', $cell['cell_number'])
-                ->get();
+                ->countAllResults();
 
-            // Если запись не найдена, то вставляем новую
-            if ($query->getNumRows() === 0) {
+            // Если записи нет, вставляем
+            if ($found == 0) {
                 $exploredCellsModel->insert([
-                    'character_id' => $character['id'],
+                    'character_id'     => $character['id'],
                     'telegram_user_id' => $task['telegram_user_id'],
-                    'map_cell_id' => $cell['cell_number'],
-                    'biome_id' => $cell['biome_id'],
-                    'character_level' => $character['level'],
+                    'map_cell_id'      => $cell['cell_number'],
+                    'biome_id'         => $cell['biome_id'],
+                    'character_level'  => $character['level'],
                 ]);
             }
         }
 
-        // Вызов PlayerDetectionService для обнаружения ближайших игроков
+        // 8) Detected nearby players
         $this->playerDetectionService->detectNearbyPlayers($character['id']);
 
-        // Формируем сообщение пользователю
+        // 9) Формируем сообщение
         $text = $this->formatExplorationResultMessage($surroundingCells);
 
+        // 10) Кнопки
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🚜 Переехать', 'callback_data' => 'move'],
+                    ['text' => '👨‍🎤 Персонаж',   'callback_data' => 'character'],
+                    ['text' => '🚜 Переехать',   'callback_data' => 'move'],
                 ],
                 [
                     ['text' => '📜 Выполнить квест', 'callback_data' => 'quest'],
@@ -113,74 +125,167 @@ class ExplorationTaskHandler extends Controller
                 ],
             ]
         ];
-        $encodedKeyboard = json_encode($keyboard);
 
-        // Отправляем сообщение в Telegram
+        // 11) Отправляем
         return Request::sendMessage([
-            'chat_id' => $chat_id,
-            'text' => $text,
+            'chat_id'    => $chat_id,
+            'text'       => $text,
             'parse_mode' => 'Markdown',
-            'reply_markup' => $encodedKeyboard
+            'reply_markup' => json_encode($keyboard),
         ]);
     }
 
-    private function getSurroundingCells($currentCell, MapModel $mapModel, BiomeModel $biomeModel) {
-        $x = $currentCell['coordinate_x'];
-        $y = $currentCell['coordinate_y'];
+    /**
+     * Формируем список всех ячеек вокруг, основываясь на уровне персонажа:
+     * 1..10  -> радиус 1
+     * 11..99 -> радиус 2
+     * 100..350 -> радиус 3
+     * 351..700 -> радиус 4
+     * 701..1000 -> радиус 5
+     */
+    private function getSurroundingCellsWithLevels($currentCell, MapModel $mapModel, BiomeModel $biomeModel, array $character)
+    {
+        $x     = $currentCell['coordinate_x'];
+        $y     = $currentCell['coordinate_y'];
+        $level = (int) $character['level'];
 
-        // Определение координат соседних ячеек
-        $neighboringPositions = [
-            ['x' => $x - 1, 'y' => $y - 1], // Северо-запад
-            ['x' => $x,     'y' => $y - 1], // Север
-            ['x' => $x + 1, 'y' => $y - 1], // Северо-восток
-            ['x' => $x - 1, 'y' => $y],     // Запад
-            ['x' => $x + 1, 'y' => $y],     // Восток
-            ['x' => $x - 1, 'y' => $y + 1], // Юго-запад
-            ['x' => $x,     'y' => $y + 1], // Юг
-            ['x' => $x + 1, 'y' => $y + 1], // Юго-восток
-        ];
+        // Определяем радиус (кол-во колец)
+        $ring = $this->getRingByLevel($level);
 
-        $surroundingCellsInfo = [];
+        $result = [];
+        for ($dx = -$ring; $dx <= $ring; $dx++) {
+            for ($dy = -$ring; $dy <= $ring; $dy++) {
 
-        foreach ($neighboringPositions as $position) {
-            // Получение ячеек по координатам
-            $cell = $mapModel->where('coordinate_x', $position['x'])
-                ->where('coordinate_y', $position['y'])
-                ->first();
+                // Пропускаем (0,0)
+                if ($dx === 0 && $dy === 0) {
+                    continue;
+                }
 
-            if ($cell) {
-                // Получение информации о биоме
-                $biome = $biomeModel->find($cell['biome_id']);
-                $biomeName = $biome ? $biome['name'] : 'Неизвестный биом';
+                // Координаты
+                $nx = $x + $dx;
+                $ny = $y + $dy;
 
-                $surroundingCellsInfo[] = [
-                    'cell_number' => $cell['cell_number'],
-                    'coordinates' => "X={$position['x']}, Y={$position['y']}",
-                    'biome' => $biomeName,
-                    'biome_id' => $cell['biome_id'], // Добавить эту строку
-                    'map_id' => $cell['id']  // Добавляем map_id, предполагая, что это primary key в таблице map
-                ];
+                // Пределы карты (допустим 1..1000)
+                if ($nx < 1 || $nx > 1000 || $ny < 1 || $ny > 1000) {
+                    continue;
+                }
+
+                $cell = $mapModel
+                    ->where('coordinate_x', $nx)
+                    ->where('coordinate_y', $ny)
+                    ->first();
+
+                if ($cell) {
+                    $biome     = $biomeModel->find($cell['biome_id']);
+                    $biomeName = $biome ? $biome['name'] : 'Неизвестный биом';
+
+                    $result[] = [
+                        'cell_number' => $cell['cell_number'],
+                        'coordinates' => "X={$nx}, Y={$ny}",
+                        'biome'       => $biomeName,
+                        'biome_id'    => $cell['biome_id'],
+                        'map_id'      => $cell['id'],
+                    ];
+                }
             }
         }
 
-        return $surroundingCellsInfo;
+        return $result;
     }
 
-    private function formatExplorationResultMessage($surroundingCells) {
-        // Вступительное сообщение
+    /**
+     * Вспомогательный метод: возвращает кол-во «колец» (радиус) на основе уровня.
+     */
+    private function getRingByLevel(int $level): int
+    {
+        return match (true) {
+            $level <= 10    => 1,
+            $level <= 99    => 2,
+            $level <= 350   => 3,
+            $level <= 700   => 4,
+            default         => 5, // 701..1000
+        };
+    }
+
+    /**
+     * Учитываем здоровье (health) и выносливость (tired).
+     * - Макс здоровье / выносливость = 100
+     * - Каждые -10% (здоровье ИЛИ выносливость) => -1% ячеек.
+     *   Суммируем проценты потерь, но максимум снижения 10%.
+     *
+     * Пример:
+     *   health= 80 => потеря 20% => 2%
+     *   tired = 50 => потеря 50% => 5%
+     *   итого 7% => -7% ячеек.
+     */
+    private function applyHealthAndTirednessReduction(array $cells, array $character): array
+    {
+        $maxHealth = 100.0;
+        $maxTired  = 100.0;
+
+        // Процент потерь (здоровье)
+        $healthLostPercent = 0.0;
+        if ($character['health'] < $maxHealth) {
+            $healthLostPercent = ($maxHealth - $character['health']); // 100 - (health)
+        }
+        // Процент потерь (выносливость)
+        $tiredLostPercent = 0.0;
+        if ($character['tired'] < $maxTired) {
+            $tiredLostPercent = ($maxTired - $character['tired']);
+        }
+
+        // healthLostPercent=20 => это 20% => 2% от ячеек
+        // tiredLostPercent=50 => 50% => 5% от ячеек
+        // итого 7%
+        // ограничим максимум 10%
+        $summedPercent = ($healthLostPercent / 10) + ($tiredLostPercent / 10);
+        if ($summedPercent > 10) {
+            $summedPercent = 10; // max -10% от ячеек
+        }
+
+        // Считаем кол-во ячеек, вычитаем этот процент
+        $countCells  = count($cells);
+        if ($countCells === 0) {
+            return $cells; // нечего урезать
+        }
+
+        // Сколько нужно отбросить
+        // 7% => 0.07 * count
+        // 10% => 0.10 * count
+        $dropCount = floor($countCells * ($summedPercent / 100.0));
+
+        // Если dropCount=0, не трогаем
+        if ($dropCount <= 0) {
+            return $cells;
+        }
+
+        // Удаляем случайные dropCount ячеек
+        // Перемешиваем массив
+        shuffle($cells);
+
+        // Отбрасываем нужное кол-во в конце
+        // (либо в начале, не принципиально)
+        $cells = array_slice($cells, 0, $countCells - $dropCount);
+
+        return $cells;
+    }
+
+    private function formatExplorationResultMessage(array $surroundingCells): string
+    {
         $message = "*Поздравляем с успешным возвращением!* 🎉\n\n";
 
-        // Перебор информации о соседних ячейках и добавление данных в сообщение
         foreach ($surroundingCells as $cellInfo) {
             $message .= "🌍 *Яч-ка №{$cellInfo['cell_number']}* 📍 `{$cellInfo['coordinates']}`\n"
                 . "🌳 Биом: *{$cellInfo['biome']}*\n\n";
         }
 
-        // Заключительная часть сообщения
-        $message .= "_У тебя ценная информация, принимай решения оставаться здесь и выживать или переехать в новое место._\n"
-            . "💡 И кстати, твои показатели немного выросли - *поздравляю!*\n\n";
+        if (empty($surroundingCells)) {
+            $message .= "_Из-за плохого здоровья/усталости вам удалось изучить слишком мало мест!_\n\n";
+        }
+
+        $message .= "_У тебя ценная информация, принимай решения: оставаться или переехать._\n"
+            . "💡 *Твои показатели немного выросли - поздравляю!*";
 
         return $message;
     }
-
 }
