@@ -13,6 +13,10 @@ use App\Models\TaskModel;
 use App\Models\ExploredCellsModel;
 use App\Models\BiomeModel;
 
+/**
+ * Класс, отвечающий за отображение возможностей переезда персонажа и
+ * переход в соседние (исследованные) локации. Упрощённый радиус = 3.
+ */
 class MoveCharacterAction
 {
     protected $callbackQuery;
@@ -25,7 +29,7 @@ class MoveCharacterAction
     protected $biomeModel;
 
     // Урезанный радиус: теперь только 3 клетки «вглубь» вокруг персонажа
-    protected $visionRadius = 3;
+    protected $visionRadius = 5;
 
     public function __construct(CallbackQuery $callbackQuery)
     {
@@ -90,7 +94,7 @@ class MoveCharacterAction
             ]);
         }
 
-        // 4. Проверяем параллельные задачи
+        // 4. Проверяем параллельные задачи (непараллельные блокируют переезд)
         $activeTasks = $this->characterTaskModel
             ->where('character_id', $character['id'])
             ->where('telegram_user_id', $user['id'])
@@ -149,25 +153,78 @@ class MoveCharacterAction
             ]);
         }
 
-        // 6. Считаем количество ячеек, исследованных в радиусе (урезан до 3)
-        $totalExploredInRadius = $this->countExploredCellsInRadius(
-            $currentCell['coordinate_x'],
-            $currentCell['coordinate_y'],
-            $character['id'],
-            $this->visionRadius
+        // --- НИЖЕ: РЕАЛИЗАЦИЯ ОПТИМИЗИРОВАННОЙ ЗАГРУЗКИ ДАННЫХ ---
+        // 6. Собираем все координаты в квадрате ± visionRadius (3)
+        $x = $currentCell['coordinate_x'];
+        $y = $currentCell['coordinate_y'];
+
+        $coords = [];
+        for ($dx = -$this->visionRadius; $dx <= $this->visionRadius; $dx++) {
+            for ($dy = -$this->visionRadius; $dy <= $this->visionRadius; $dy++) {
+                $nx = $x + $dx;
+                $ny = $y + $dy;
+                // Проверяем, что это в пределах (например, если карта 1..1000)
+                if ($nx >= 1 && $nx <= 1000 && $ny >= 1 && $ny <= 1000) {
+                    $coords[] = ['x' => $nx, 'y' => $ny];
+                }
+            }
+        }
+
+        // 7. Одним запросом получаем все ячейки map, подходящие под эти координаты
+        $xValues = array_column($coords, 'x');
+        $yValues = array_column($coords, 'y');
+
+        // Поскольку inWhere('coordinate_x', $xValues) И inWhere('coordinate_y', $yValues)
+        // может работать не так, как нужно (это логика "coordinate_x IN (...)" AND "coordinate_y IN (...)"
+        // — а нам нужен набор пар), в CodeIgniter нет стандартной возможности "парного" IN.
+        // Но для простоты используем whereIn для X, whereIn для Y.
+        // (Допущение: false positives маловероятны, ибо пересечение - узкий набор).
+        $cells = $this->mapModel
+            ->whereIn('coordinate_x', $xValues)
+            ->whereIn('coordinate_y', $yValues)
+            ->findAll();
+
+        // 7.2 формируем mapCellsById и массив Id
+        $mapCellsById = [];
+        $cellIds = [];
+        foreach ($cells as $c) {
+            $mapCellsById[$c['id']] = $c;
+            $cellIds[] = $c['id'];
+        }
+
+        // 8. Одним запросом получаем все exploredCells для данного персонажа и этих cellIds
+        $exploredRows = $this->exploredCellsModel
+            ->where('character_id', $character['id'])
+            ->whereIn('map_cell_id', $cellIds)
+            ->findAll();
+
+        // 8.2 флаговый массив
+        $exploredMap = [];
+        foreach ($exploredRows as $er) {
+            $exploredMap[$er['map_cell_id']] = true;
+        }
+
+        // 9. Подсчитываем, сколько из них исследовано
+        $totalExploredInRadius = 0;
+        foreach ($cellIds as $cid) {
+            if (isset($exploredMap[$cid])) {
+                $totalExploredInRadius++;
+            }
+        }
+
+        // 10. Теперь сформируем инфо о 8 соседях:
+        //    instead of doing getSurroundingCellsInfo() мелкими запросами,
+        //    используем уже загруженные mapCellsById / exploredMap
+        $surroundingCellsInfo = $this->buildSurroundingCellsInfo(
+            $x,
+            $y,
+            $mapCellsById,
+            $exploredMap
         );
 
-        // 7. Информация о соседних направлениях (соседние ячейки)
-        $surroundingCellsInfo = $this->getSurroundingCellsInfo(
-            $currentCell['coordinate_x'],
-            $currentCell['coordinate_y'],
-            $character['id']
-        );
+        // 11. Генерируем клавиатуру
+        $keyboardButtons = $this->generateKeyboard($surroundingCellsInfo, $mapCellsById, $exploredMap, $character['id']);
 
-        // 8. Генерируем клавиатуру
-        $keyboardButtons = $this->generateKeyboard($surroundingCellsInfo, $character['id']);
-
-        // Если совсем нет кнопок
         if (empty($keyboardButtons)) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
@@ -177,7 +234,7 @@ class MoveCharacterAction
 
         $keyboard = ['inline_keyboard' => $keyboardButtons];
 
-        // 9. Формируем текст
+        // 12. Формируем текст
         $text = "👋 Привет, герой! 🙋‍♂️\n\n"
             . "🚜 Ты готов к переезду? 🏡\n\n"
             . "🗺️ Доступные направления: выбирай, куда двинуться.\n\n"
@@ -200,49 +257,9 @@ class MoveCharacterAction
     }
 
     /**
-     * Генерируем кнопки с учётом количества ячеек (не более 10) в каждом направлении.
+     * Формируем массив c данными: "direction => cellId" для соседних клеток.
      */
-    private function generateKeyboard(array $surroundingCellsInfo, int $characterId): array
-    {
-        $directions = [
-            ['northwest' => '↖️ Северо-запад', 'northeast' => '↗️ Северо-восток'],
-            ['north' => '⬆️ Север',           'south' => '⬇️ Юг'],
-            ['west' => '⬅️ Запад',            'east' => '➡️ Восток'],
-            ['southwest' => '↙️ Юго-запад',    'southeast' => '↘️ Юго-восток'],
-        ];
-
-        $keyboard = [];
-        foreach ($directions as $pair) {
-            $row = [];
-            foreach ($pair as $dir => $label) {
-                if (isset($surroundingCellsInfo[$dir])) {
-                    // Сколько ещё исследованных клеток по направлению?
-                    $countInDirection = $this->countExploredInSingleDirection(
-                        $surroundingCellsInfo[$dir]['cell_number'],
-                        $dir,
-                        $characterId
-                    );
-                    $countLabel = min($countInDirection, 10);
-
-                    $row[] = [
-                        'text'          => "{$label} ({$countLabel})",
-                        'callback_data' => "moveto{$dir}"
-                    ];
-                }
-            }
-            if (!empty($row)) {
-                $keyboard[] = $row;
-            }
-        }
-
-        return $keyboard;
-    }
-
-    /**
-     * Возвращаем словарь «направление -> данные» для соседних клеток.
-     * Только если клетка исследована.
-     */
-    private function getSurroundingCellsInfo(int $x, int $y, int $characterId): array
+    private function buildSurroundingCellsInfo(int $x, int $y, array $mapCellsById, array $exploredMap): array
     {
         $neighboringPositions = [
             'northwest' => [$x - 1, $y - 1],
@@ -256,26 +273,22 @@ class MoveCharacterAction
         ];
 
         $info = [];
+        // Для быстрого поиска: mapCellsByCoord: [x,y] => id
+        // Но у нас уже mapCellsById. Превратим его во временный массив "[$cell['coordinate_x'],$cell['coordinate_y']] => cellId".
+        $mapCellsByCoord = [];
+        foreach ($mapCellsById as $cid => $cell) {
+            $xx = $cell['coordinate_x'];
+            $yy = $cell['coordinate_y'];
+            $mapCellsByCoord["{$xx}_{$yy}"] = $cid;
+        }
 
         foreach ($neighboringPositions as $direction => [$nx, $ny]) {
-            $cell = $this->mapModel
-                ->where('coordinate_x', $nx)
-                ->where('coordinate_y', $ny)
-                ->first();
-            if ($cell) {
+            $key = "{$nx}_{$ny}";
+            if (isset($mapCellsByCoord[$key])) {
+                $cellId = $mapCellsByCoord[$key];
                 // Проверяем, исследована ли
-                $explored = $this->exploredCellsModel
-                    ->where('character_id', $characterId)
-                    ->where('map_cell_id', $cell['id'])
-                    ->first();
-                if ($explored) {
-                    // Можно добавить проверку биома
-                    $biome = $this->biomeModel->find($cell['biome_id']);
-                    $info[$direction] = [
-                        'cell_number' => $cell['id'],
-                        'biome_name'  => $biome ? $biome['name'] : 'Unknown',
-                        'direction'   => $direction,
-                    ];
+                if (isset($exploredMap[$cellId])) {
+                    $info[$direction] = $cellId;
                 }
             }
         }
@@ -283,10 +296,60 @@ class MoveCharacterAction
     }
 
     /**
-     * Сколько исследованных ячеек есть в направлении $dir, начиная от $startCellId, до 10.
+     * Генерируем клавиатуру с учётом количества исследованных ячеек (не более 10)
+     * по направлению. Для этого смотрим "шаги" в цикле.
      */
-    private function countExploredInSingleDirection(int $startCellId, string $dir, int $characterId): int
+    private function generateKeyboard(array $surroundingCellsInfo, array $mapCellsById, array $exploredMap, int $characterId): array
     {
+        $directions = [
+            ['northwest' => '↖️ Северо-запад', 'northeast' => '↗️ Северо-восток'],
+            ['north' => '⬆️ Север',           'south' => '⬇️ Юг'],
+            ['west' => '⬅️ Запад',            'east' => '➡️ Восток'],
+            ['southwest' => '↙️ Юго-запад',    'southeast' => '↘️ Юго-восток'],
+        ];
+
+        $keyboard = [];
+        foreach ($directions as $pair) {
+            $row = [];
+            foreach ($pair as $dir => $label) {
+                if (isset($surroundingCellsInfo[$dir])) {
+                    $startCellId = $surroundingCellsInfo[$dir];
+                    // Сколько ещё исследованных клеток по направлению?
+                    $countInDirection = $this->countExploredInSingleDirection(
+                        $startCellId,
+                        $dir,
+                        $mapCellsById,
+                        $exploredMap
+                    );
+                    $countLabel = min($countInDirection, 10);
+
+                    $row[] = [
+                        'text'          => "{$label} ({$countLabel})",
+                        'callback_data' => "moveto{$dir}"
+                    ];
+                }
+            }
+            if (!empty($row)) {
+                $keyboard[] = $row;
+            }
+        }
+        return $keyboard;
+    }
+
+    /**
+     * Сколько исследованных ячеек есть в направлении $dir, начиная от $startCellId, до 10.
+     * Вместо отдельных запросов:
+     *  - мы идём шагами (dx, dy)
+     *  - на каждом шаге проверяем, есть ли такая ячейка в mapCellsById
+     *  - и проверяем exploredMap[$cellId]
+     */
+    private function countExploredInSingleDirection(
+        int $startCellId,
+        string $dir,
+        array $mapCellsById,
+        array $exploredMap
+    ): int {
+        // Векторы смещения по направлениям
         $directionVectors = [
             'north'     => [ 0, -1 ],
             'south'     => [ 0,  1 ],
@@ -298,76 +361,56 @@ class MoveCharacterAction
             'southeast' => [ 1,  1 ],
         ];
 
+        // Если направление некорректно, сразу 0
         if (!isset($directionVectors[$dir])) {
             return 0;
         }
         [$dx, $dy] = $directionVectors[$dir];
 
-        $count       = 0;
-        $startCell   = $this->mapModel->find($startCellId);
-        if (!$startCell) {
+        // Если стартовой ячейки нет в массиве — 0
+        if (!isset($mapCellsById[$startCellId])) {
             return 0;
         }
 
-        $cx = $startCell['coordinate_x'];
-        $cy = $startCell['coordinate_y'];
+        // Проверим, исследована ли сама стартовая клетка
+        // Если да — начинаем с 1, иначе с 0.
+        $count = isset($exploredMap[$startCellId]) ? 1 : 0;
 
-        // Делаем максимум 10 шагов
+        // Координаты стартовой ячейки
+        $cx = $mapCellsById[$startCellId]['coordinate_x'];
+        $cy = $mapCellsById[$startCellId]['coordinate_y'];
+
+        // Готовим удобный массив "коорд => cellId", чтобы быстро находить ячейку
+        // по (x,y) без дополнительных запросов.
+        $mapCellsByCoord = [];
+        foreach ($mapCellsById as $cid => $cell) {
+            $xx = $cell['coordinate_x'];
+            $yy = $cell['coordinate_y'];
+            $mapCellsByCoord["{$xx}_{$yy}"] = $cid;
+        }
+
+        // Делаем максимум 10 шагов в данном направлении
         for ($i = 0; $i < 10; $i++) {
             $cx += $dx;
             $cy += $dy;
+            $key = "{$cx}_{$cy}";
 
-            $cell = $this->mapModel
-                ->where('coordinate_x', $cx)
-                ->where('coordinate_y', $cy)
-                ->first();
-            if (!$cell) {
-                break; // Клетки не существует
+            // Если такой ячейки вообще нет в загруженном наборе
+            if (!isset($mapCellsByCoord[$key])) {
+                break;
             }
-            // Проверяем, исследовано ли
-            $explored = $this->exploredCellsModel
-                ->where('character_id', $characterId)
-                ->where('map_cell_id', $cell['id'])
-                ->first();
-            if ($explored) {
+
+            $cid = $mapCellsByCoord[$key];
+            // Если эта клетка исследована, прибавим к счётчику
+            if (isset($exploredMap[$cid])) {
                 $count++;
             } else {
-                // Если сразу упираемся в неисследованную, можно break
+                // Как только упираемся в неисследованную — можно прервать,
+                // если по вашей логике дальше тоже идти смысла нет.
                 // break;
             }
         }
 
-        return $count;
-    }
-
-    /**
-     * Считает общее число исследованных ячеек в квадрате ±$radius.
-     */
-    private function countExploredCellsInRadius(int $x, int $y, int $characterId, int $radius): int
-    {
-        $xMin = $x - $radius;
-        $xMax = $x + $radius;
-        $yMin = $y - $radius;
-        $yMax = $y + $radius;
-
-        // Ищем все клетки
-        $cells = $this->mapModel
-            ->where('coordinate_x >=', $xMin)
-            ->where('coordinate_x <=', $xMax)
-            ->where('coordinate_y >=', $yMin)
-            ->where('coordinate_y <=', $yMax)
-            ->findAll();
-
-        $count = 0;
-        foreach ($cells as $cell) {
-            $explored = $this->exploredCellsModel
-                ->where('character_id', $characterId)
-                ->where('map_cell_id', $cell['id'])
-                ->first();
-            if ($explored) {
-                $count++;
-            }
-        }
         return $count;
     }
 }

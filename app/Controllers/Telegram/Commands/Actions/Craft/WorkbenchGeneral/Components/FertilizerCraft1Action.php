@@ -52,7 +52,7 @@ class FertilizerCraft1Action extends BaseAction
 
         $text .= "\n*Стоимость на рынке:* _82_ 💰\n"
             . "*Одноразовый:* _Нет_\n"
-            . "*Время крафта:* _2 минуты_\n\n"
+            . "*Время крафта:* _~5-12 мн._\n\n"
             . "*Описание:* Компонент предназначенный для удобрений почвы и растений, важный для фермерства.\n\n";
 
         if (!$this->areAllResourcesSufficient($resourcesAvailable, $requiredResources)) {

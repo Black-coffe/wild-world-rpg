@@ -104,7 +104,6 @@ class GatherTips extends Controller
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                         ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ],
                 ]
@@ -262,12 +261,9 @@ class GatherTips extends Controller
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
-                ],
-                [
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '🎉 События', 'callback_data' => 'events']
+                    ['text' => '🎉 События', 'callback_data' => 'events'],
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
                 ]
             ]
         ];

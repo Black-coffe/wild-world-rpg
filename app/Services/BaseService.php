@@ -105,7 +105,6 @@ class BaseService
                     [
                         ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
                         ['text' => '🚜 Переехать', 'callback_data' => 'move'],
-                        ['text' => '👤 Персонаж',  'callback_data' => 'character'],
                     ],
                 ]
             ];
@@ -169,7 +168,6 @@ class BaseService
                     ['text' => '🏘 Постройки',  'callback_data' => 'construction'],
                 ],
                 [
-                    ['text' => '👤 Персонаж',     'callback_data' => 'character'],
                     ['text' => '❌ Удалить базу', 'callback_data' => 'DeleteBase'],
                 ],
             ]

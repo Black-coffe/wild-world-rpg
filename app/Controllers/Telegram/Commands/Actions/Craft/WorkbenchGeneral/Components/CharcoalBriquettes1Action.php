@@ -52,7 +52,7 @@ class CharcoalBriquettes1Action extends BaseAction
 
         $text .= "\n*Стоимость на рынке:* _130_ 💰\n"
             . "*Одноразовый:* _Да_\n"
-            . "*Время крафта:* _3 минуты_\n\n"
+            . "*Время крафта:* _~5-16 мн._\n\n"
             . "*Описание:* Компонент предназначенный для создания изделий, сооружений и плавки.\n\n";
 
         if (!$this->areAllResourcesSufficient($resourcesAvailable, $requiredResources)) {

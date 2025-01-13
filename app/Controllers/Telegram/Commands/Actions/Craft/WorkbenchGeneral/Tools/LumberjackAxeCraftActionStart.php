@@ -47,8 +47,9 @@ class LumberjackAxeCraftActionStart extends BaseAction
     private function checkAndDeductResources($characterId): bool
     {
         $requiredResources = [
-            'Древесина' => 40,
-            'Железная руда' => 20,
+            'Древесина' => 50,
+            'Базальт' => 1,
+            'Камни' => 10,
         ];
 
         foreach ($requiredResources as $resourceName => $requiredAmount) {

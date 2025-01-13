@@ -50,7 +50,7 @@ class WoodMaterialsCraft1Action extends BaseAction
 
         $text .= "\n*Стоимость на рынке:* _105_ 💰\n"
             . "*Одноразовый:* _Нет_\n"
-            . "*Время крафта:* _~10 минут_\n\n"
+            . "*Время крафта:* _~4-16 мн._\n\n"
             . "*Описание:* Компонент предназначенный для создания изделий из дерева, постройки, станки и т.д.\n\n";
 
         if (!$this->areAllResourcesSufficient($resourcesAvailable, $requiredResources)) {

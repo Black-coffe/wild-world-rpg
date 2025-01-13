@@ -51,7 +51,7 @@ class MetalFragmentsCraft1Action extends BaseAction
 
         $text .= "\n*Стоимость на рынке:* _420_ 💰\n"
             . "*Одноразовый:* _Нет_\n"
-            . "*Время крафта:* _2 минуты_\n\n"
+            . "*Время крафта:* _~5-12 мн._\n\n"
             . "*Описание:* Компонент предназначенный для создания металлических изделий, сооружений и станков.\n\n";
 
         if (!$this->areAllResourcesSufficient($resourcesAvailable, $requiredResources)) {

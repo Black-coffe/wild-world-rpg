@@ -50,7 +50,7 @@ class StoneBlocksCraft1Action extends BaseAction
 
         $text .= "\n*Стоимость на рынке:* _230_ 💰\n"
             . "*Одноразовый:* _Нет_\n"
-            . "*Время крафта:* _3 минуты_\n\n"
+            . "*Время крафта:* _~4-16 мн._\n\n"
             . "*Описание:* Компонент из камня, предназначенный для любых сооружений, где применяется камень.\n\n";
 
         if (!$this->areAllResourcesSufficient($resourcesAvailable, $requiredResources)) {

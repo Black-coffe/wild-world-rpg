@@ -52,7 +52,7 @@ class GlassBagsCraft1Action extends BaseAction
 
         $text .= "\n*Стоимость на рынке:* _170_ 💰\n"
             . "*Одноразовый:* _Нет_\n"
-            . "*Время крафта:* _8 минуты_\n\n"
+            . "*Время крафта:* _~4-8 мн._\n\n"
             . "*Описание:* Компонент предназначенный для создания изделий из стекла, применяется почти во всех сооружениях.\n\n";
 
         if (!$this->areAllResourcesSufficient($resourcesAvailable, $requiredResources)) {
