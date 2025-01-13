@@ -185,5 +185,18 @@ class CharacterResourceModel extends Model
             ->where('resource_id', $resourceId)
             ->first();
     }
+
+    public function subtractResource($resourceId, $amount): bool
+    {
+        $resource = $this->find($resourceId);
+        if (!$resource) {
+            return false;
+        }
+
+        $newQuantity = $resource['current_quantity'] - $amount;
+        // Проверить на <0 и т.д.
+        return $this->update($resourceId, ['current_quantity' => $newQuantity]);
+    }
+
 }
 

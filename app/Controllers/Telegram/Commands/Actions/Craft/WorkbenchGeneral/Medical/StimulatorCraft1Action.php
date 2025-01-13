@@ -5,6 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medic
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
+use App\Models\CraftedItemsLogModel; // <-- Подключаем лог крафта
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -12,12 +13,14 @@ class StimulatorCraft1Action extends BaseAction
 {
     protected $characterResourceModel;
     protected $resourceModel;
+    protected $craftedItemsLogModel; // <-- Добавляем свойство
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
         $this->characterResourceModel = new CharacterResourceModel();
-        $this->resourceModel = new ResourceModel();
+        $this->resourceModel          = new ResourceModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel(); // <-- Инициализируем
     }
 
     public function handle(): ServerResponse
@@ -28,26 +31,41 @@ class StimulatorCraft1Action extends BaseAction
         if (!$user || !$character) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text' => 'Пользователь не найден в базе данных или персонаж не определён.',
+                'text'    => 'Пользователь не найден в базе данных или персонаж не определён.',
             ]);
         }
 
         $characterId = $character['id'];
 
+        // Предположим, в базе предмет называется "Stimulator"
+        $itemNameEng = 'Stimulator';
+
+        // Узнаём, сколько штук «Стимулятора» уже есть у игрока
+        $stimulatorQuantity = $this->getCraftedItemQuantity($characterId, $itemNameEng);
+
+        // Формируем заголовок
+        $itemTitle = '💉 Стимулятор!';
+        if ($stimulatorQuantity > 0) {
+            $itemTitle .= " (в инв. – {$stimulatorQuantity} шт.)";
+        }
+
+        // Ниже — как у вас было
         $requiredResources = [
             'Грибы' => 3,
-            'Мед' => 2,
-            'Алоэ' => 3,
-            'Вода' => 12,
+            'Мед'   => 2,
+            'Алоэ'  => 3,
+            'Вода'  => 12,
         ];
 
         $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
 
-        $text = "*💉 Стимулятор!*\n\n"
+        // Подставляем $itemTitle
+        $text = "*{$itemTitle}*\n\n"
             . "Для крафта предмета тебе нужны:\n\n";
 
         foreach ($resourcesAvailable as $resource) {
-            $text .= "📦 {$resource['name']} - {$requiredResources[$resource['name']]} ед. (в наличии {$resource['quantity']} ед. редк - {$resource['rarity']})\n";
+            $text .= "📦 {$resource['name']} - {$requiredResources[$resource['name']]} ед."
+                . " (в наличии {$resource['quantity']} ед. редк - {$resource['rarity']})\n";
         }
 
         $text .= "\n*Стоимость на рынке:* _65_ 💰\n"
@@ -60,12 +78,12 @@ class StimulatorCraft1Action extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                        ['text' => '👨‍🎤 Персонаж',  'callback_data' => 'character'],
+                        ['text' => '🎒 Инвентарь',  'callback_data' => 'inventory'],
                     ],
                     [
-                        ['text' => '💰 Продать', 'callback_data' => 'sell'],
-                        ['text' => '🛍️ Купить', 'callback_data' => 'buy']
+                        ['text' => '💰 Продать',     'callback_data' => 'sell'],
+                        ['text' => '🛍️ Купить',     'callback_data' => 'buy']
                     ],
                 ]
             ];
@@ -73,11 +91,11 @@ class StimulatorCraft1Action extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '🛠️ Крафтить', 'callback_data' => 'craftStimulator'],
+                        ['text' => '🛠️ Крафтить',   'callback_data' => 'craftStimulator'],
                     ],
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                        ['text' => '👨‍🎤 Персонаж',  'callback_data' => 'character'],
+                        ['text' => '🎒 Инвентарь',  'callback_data' => 'inventory'],
                     ],
                 ]
             ];
@@ -88,12 +106,26 @@ class StimulatorCraft1Action extends BaseAction
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         return Request::sendPhoto([
-            'chat_id' => $chatId,
-            'photo' => Request::encodeFile($imagePath),
-            'caption' => $text,
-            'parse_mode' => 'Markdown',
+            'chat_id'      => $chatId,
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * Возвращает количество предмета (англ. название) у персонажа (из crafted_items_log).
+     */
+    private function getCraftedItemQuantity(int $characterId, string $itemNameEng): int
+    {
+        // Предполагается, что у вас есть метод:
+        // getItemByNameEngAndCharacterId($itemNameEng, $characterId)
+        // в модели CraftedItemsLogModel.
+        $logEntry = $this->craftedItemsLogModel
+            ->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
+
+        return $logEntry ? (int) $logEntry['quantity'] : 0;
     }
 
     private function checkResourcesAvailability($characterId, $requiredResources)
@@ -102,11 +134,12 @@ class StimulatorCraft1Action extends BaseAction
         foreach ($requiredResources as $name => $amount) {
             $resource = $this->resourceModel->getResourceByName($name);
             if ($resource) {
-                $characterResource = $this->characterResourceModel->getResourceByNameAndCharacterId($name, $characterId);
+                $characterResource = $this->characterResourceModel
+                    ->getResourceByNameAndCharacterId($name, $characterId);
                 $results[] = [
-                    'name' => $name,
+                    'name'     => $name,
                     'quantity' => $characterResource ? $characterResource['quantity'] : 0,
-                    'rarity' => $resource['rarity']
+                    'rarity'   => $resource['rarity']
                 ];
             }
         }
@@ -115,8 +148,9 @@ class StimulatorCraft1Action extends BaseAction
 
     private function areAllResourcesSufficient($resourcesAvailable, $requiredResources)
     {
-        foreach ($resourcesAvailable as $resource) {
-            if ($resource['quantity'] < $requiredResources[$resource['name']]) {
+        foreach ($resourcesAvailable as $res) {
+            $need = $requiredResources[$res['name']] ?? 0;
+            if ($res['quantity'] < $need) {
                 return false;
             }
         }
