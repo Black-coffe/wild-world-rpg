@@ -92,7 +92,6 @@ class TipsCommand extends UserCommand
             'chat_id' => $chatId,
             'text' => $text,
             'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($keyboard)
         ]);
     }
 }
