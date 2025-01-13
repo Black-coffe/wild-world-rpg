@@ -65,7 +65,7 @@ class TasksCommand extends UserCommand
             }
 
             $text .= "📌 *{$taskInfo['name_rus']}*\n";
-            $text .= "_{$taskInfo['description']}_\n";
+//            $text .= "_{$taskInfo['description']}_\n";
             $text .= "⏳ *Времени осталось:* $timeLeft\n\n";
         }
 

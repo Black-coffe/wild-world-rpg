@@ -116,12 +116,8 @@ class ExplorationTaskHandler extends Controller
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж',   'callback_data' => 'character'],
-                    ['text' => '🚜 Переехать',   'callback_data' => 'move'],
-                ],
-                [
-                    ['text' => '📜 Выполнить квест', 'callback_data' => 'quest'],
                     ['text' => '🗺️ Изучить местность', 'callback_data' => 'explore'],
+                    ['text' => '🚜 Переехать',   'callback_data' => 'move'],
                 ],
             ]
         ];
@@ -270,21 +266,50 @@ class ExplorationTaskHandler extends Controller
         return $cells;
     }
 
+    /**
+     * Формируем итоговое сообщение в игровом стиле:
+     * 1) Сколько всего новых ячеек изучено.
+     * 2) Подсчёт и вывод по биомам.
+     */
     private function formatExplorationResultMessage(array $surroundingCells): string
     {
-        $message = "*Поздравляем с успешным возвращением!* 🎉\n\n";
+        $totalDiscovered = count($surroundingCells);
 
+        // Если ничего не нашли
+        if ($totalDiscovered === 0) {
+            return "*Поздравляем с возвращением!* 🎉\n\n"
+                . "Похоже, усталость и раны не дали разгуляться. 😓\n"
+                . "_Ни одной новой локации не открыто._\n\n"
+                . "Но не расстраивайся — даже опыт ошибки помогает расти!\n\n"
+                . "📍 *Решай, останешься тут или рванёшь дальше.*\n"
+                . "💡 *Параметры всё же чуток улучшились — молодец!*";
+        }
+
+        // Подсчёт ячеек по биомам
+        $biomeCounts = [];
         foreach ($surroundingCells as $cellInfo) {
-            $message .= "🌍 *Яч-ка №{$cellInfo['cell_number']}* 📍 `{$cellInfo['coordinates']}`\n"
-                . "🌳 Биом: *{$cellInfo['biome']}*\n\n";
+            $biomeName = $cellInfo['biome'] ?? 'Неизвестный биом';
+            if (!isset($biomeCounts[$biomeName])) {
+                $biomeCounts[$biomeName] = 0;
+            }
+            $biomeCounts[$biomeName]++;
         }
 
-        if (empty($surroundingCells)) {
-            $message .= "_Из-за плохого здоровья/усталости вам удалось изучить слишком мало мест!_\n\n";
+        // Начало сообщения
+        $message  = "*Отличная работа!* 🙌\n\n";
+        $message .= "Ты вернулся из разведки с трофеями знаний! 🗺\n\n"
+            . "За это время тебе удалось открыть: *{$totalDiscovered}* новых ячеек.\n\n"
+            . "Среди них встречаются:\n";
+
+        // Подробности по биомам
+        foreach ($biomeCounts as $biomeName => $count) {
+            $message .= "• *{$biomeName}*: {$count} шт.\n";
         }
 
-        $message .= "_У тебя ценная информация, принимай решения: оставаться или переехать._\n"
-            . "💡 *Твои показатели немного выросли - поздравляю!*";
+        // Завершающая часть
+        $message .= "\n"
+            . "🔎 *Теперь решай: остаёмся здесь или покоряем новые земли?*\n"
+            . "💡 *Характеристики тоже подросли — так держать!*";
 
         return $message;
     }

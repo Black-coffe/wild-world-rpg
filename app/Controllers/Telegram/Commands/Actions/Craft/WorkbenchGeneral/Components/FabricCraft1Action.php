@@ -51,7 +51,7 @@ class FabricCraft1Action extends BaseAction
 
         $text .= "\n*Стоимость на рынке:* _70_ 💰\n"
             . "*Одноразовый:* _Нет_\n"
-            . "*Время крафта:* _2 минуты_\n\n"
+            . "*Время крафта:* _~10 мн._\n\n"
             . "*Описание:* Компонент предназначенный для создания изделий из ткани, одежда, накидки, и т.д.\n\n";
 
         if (!$this->areAllResourcesSufficient($resourcesAvailable, $requiredResources)) {
