@@ -2,13 +2,15 @@
 
 namespace App\Controllers\Telegram\Commands\Actions;
 
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Entities\ServerResponse;
+use App\Models\ActiveEventModel;
+use App\Models\EventModel;
 use App\Models\MapModel;
 use App\Models\TaskModel;
-use App\Models\EventModel;
-use App\Models\ActiveEventModel;
-use App\Services\PlayerDetectionService; // Подключаем PlayerDetectionService
+use App\Services\Player\PlayerDetectionService;
+use Longman\TelegramBot\Entities\ServerResponse;
+use Longman\TelegramBot\Request;
+
+// Подключаем PlayerDetectionService
 
 class ExploreAction extends BaseAction
 {

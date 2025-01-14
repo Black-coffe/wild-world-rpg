@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\Player;
 
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;

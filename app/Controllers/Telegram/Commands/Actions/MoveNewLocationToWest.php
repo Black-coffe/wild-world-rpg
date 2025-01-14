@@ -2,15 +2,17 @@
 
 namespace App\Controllers\Telegram\Commands\Actions;
 
-use Longman\TelegramBot\Request;
+use App\Models\BiomeModel;
+use App\Models\CharacterModel;
+use App\Models\ExploredCellsModel;
+use App\Models\MapModel;
+use App\Models\TelegramUserModel;
+use App\Services\Player\PlayerDetectionService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use App\Models\CharacterModel;
-use App\Models\MapModel;
-use App\Models\BiomeModel;
-use App\Models\TelegramUserModel;
-use App\Models\ExploredCellsModel;
-use App\Services\PlayerDetectionService; // Добавляем PlayerDetectionService
+use Longman\TelegramBot\Request;
+
+// Добавляем PlayerDetectionService
 
 class MoveNewLocationToWest
 {

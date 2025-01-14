@@ -2,19 +2,19 @@
 
 namespace App\Controllers\Telegram\Commands\SystemCommands;
 
+use App\Models\CharacterModel;
+use App\Models\TelegramUserModel;
+use App\Services\BaseService;
+use App\Services\Player\CharacterService;
+use App\Services\Player\CraftService;
+use App\Services\World\MapService;
 use Longman\TelegramBot\Commands\SystemCommand;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
 // Модели
-use App\Models\TelegramUserModel;
-use App\Models\CharacterModel;
 
 // Сервисы
-use App\Services\CharacterService;
-use App\Services\BaseService;
-use App\Services\CraftService;
-use App\Services\MapService;
 
 class GenericmessageCommand extends SystemCommand
 {

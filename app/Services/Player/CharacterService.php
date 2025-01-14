@@ -1,21 +1,21 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\Player;
 
+use App\Models\BiomeModel;
+use App\Models\CharacterFactionModel;
+use App\Models\CharacterModel;
+use App\Models\CharacterResourceModel;
+use App\Models\ExploredCellsModel;
+use App\Models\FactionModel;
+use App\Models\MapModel;
+use App\Models\ResourceModel;
+use DateTime;
+use Longman\TelegramBot\Entities\Keyboard;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Entities\Keyboard;
-use DateTime;
 
 // Модели
-use App\Models\CharacterModel;
-use App\Models\ExploredCellsModel;
-use App\Models\MapModel;
-use App\Models\BiomeModel;
-use App\Models\CharacterResourceModel;
-use App\Models\ResourceModel;
-use App\Models\CharacterFactionModel;
-use App\Models\FactionModel;
 
 class CharacterService
 {
@@ -113,12 +113,11 @@ class CharacterService
             . "🌟 *Опыт:* {$characterRow['experience']}\n"
             . "🤸‍♂️ *Ловкость:* {$characterRow['agility']}\n"
             . "🧠 *Интеллект:* {$characterRow['intellect']}\n"
+            . "💪 *Сила:* {$characterRow['strength']}\n\n"
             . "💖 *Здоровье:* {$characterRow['health']}\n"
-            . "💪 *Сила:* {$characterRow['strength']}\n"
             . "🥱 *Выносливость:* {$characterRow['tired']}\n\n"
-            . $goldText . "\n"
-            . "💹 *Карма торговли:* {$characterRow['trading_karma']}\n\n"
-            . "Продолжай исследования, сражения и улучшай свои навыки! Приключения ждут! 🚀";
+            . "💹 *Карма торговли:* {$characterRow['trading_karma']}\n"
+            . $goldText . "\n\n";
 
         // Инлайн-кнопки
         $inlineKeyboard = [

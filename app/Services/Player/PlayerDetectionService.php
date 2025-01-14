@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\Player;
 
 use App\Models\CharacterModel;
 use App\Models\MapModel;
-use App\Models\TelegramUserModel;
 use App\Models\PlayerDetectionHistoryModel;
+use App\Models\TelegramUserModel;
+use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
-use Longman\TelegramBot\Exception\TelegramException;
 
 class PlayerDetectionService
 {

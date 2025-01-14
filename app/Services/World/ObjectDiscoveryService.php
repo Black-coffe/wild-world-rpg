@@ -1,5 +1,5 @@
 <?php
-namespace App\Services;
+namespace App\Services\World;
 
 use App\TaskHandlers\Objects\AbandonedTruckHandler;
 use App\TaskHandlers\Objects\ClosedWarehouseHandler;

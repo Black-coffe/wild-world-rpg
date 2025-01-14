@@ -2,21 +2,23 @@
 
 namespace App\TaskHandlers;
 
-use App\Models\CharacterTaskModel;
-use App\Models\CharacterModel;
-use App\Models\MapModel;
 use App\Models\BiomeModel;
-use App\Models\TelegramUserModel;
-use App\Models\ExploredCellsModel;
-use App\Models\CraftedItemsLogModel;
-use App\Models\CharacterBuildingModel;
 use App\Models\BiomeWorldObjectMapModel;
+use App\Models\CharacterBuildingModel;
+use App\Models\CharacterModel;
+use App\Models\CharacterTaskModel;
+use App\Models\CraftedItemsLogModel;
+use App\Models\ExploredCellsModel;
+use App\Models\MapModel;
+use App\Models\TelegramUserModel;
 use App\Models\WorldObjectModel;
-use App\Services\PlayerDetectionService; // Подключаем PlayerDetectionService
+use App\Services\Player\PlayerDetectionService;
 use CodeIgniter\Controller;
+use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
-use Longman\TelegramBot\Exception\TelegramException;
+
+// Подключаем PlayerDetectionService
 
 class CompleteRobotExplorationHandler extends Controller
 {

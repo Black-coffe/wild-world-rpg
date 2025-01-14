@@ -2,12 +2,12 @@
 
 namespace App\Controllers\Telegram\Commands\SystemCommands;
 
+use App\Models\CharacterModel;
+use App\Models\TelegramUserModel;
+use App\Services\Player\CharacterService;
 use Longman\TelegramBot\Commands\SystemCommand;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
-use App\Services\CharacterService;
-use App\Models\TelegramUserModel;
-use App\Models\CharacterModel;
 
 class CallbackqueryCommand extends SystemCommand
 {

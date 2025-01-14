@@ -1,9 +1,6 @@
 <?php
 
-namespace App\Services;
-
-use Longman\TelegramBot\Request;
-use CodeIgniter\Config\Services;
+namespace App\Services\World;
 
 /**
  * Сервис для «зумирования» карты при переезде персонажа в новую локацию.

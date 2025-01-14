@@ -2,18 +2,19 @@
 
 namespace App\Controllers\Telegram\Commands;
 
-use Longman\TelegramBot\Commands\UserCommand;
-use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Entities\Keyboard; // не ReplyKeyboardMarkup, а именно Keyboard
-use App\Models\TelegramUserModel;
+use App\Models\BiomeModel;
 use App\Models\CharacterModel;
 use App\Models\MapModel;
-use App\Models\BiomeModel;
-use DateTime;
+use App\Models\TelegramUserModel;
+use App\Services\Player\CharacterService;
+use Longman\TelegramBot\Commands\UserCommand;
+use Longman\TelegramBot\Entities\Keyboard;
+use Longman\TelegramBot\Entities\ServerResponse;
+use Longman\TelegramBot\Request;
+
+// не ReplyKeyboardMarkup, а именно Keyboard
 
 // Подключаем ваш CharacterService
-use App\Services\CharacterService;
 
 class StartCommand extends UserCommand
 {

@@ -120,12 +120,11 @@ class CharacterAction extends BaseAction
             . "🌟 *Опыт:* {$character['experience']}\n"
             . "🤸‍♂️ *Ловкость:* {$character['agility']}\n"
             . "🧠 *Интеллект:* {$character['intellect']}\n"
+            . "💪 *Сила:* {$character['strength']}\n\n"
             . "💖 *Здоровье:* {$character['health']}\n"
-            . "💪 *Сила:* {$character['strength']}\n"
             . "🥱 *Выносливость:* {$character['tired']}\n\n"
             . $goldText . "\n"
-            . "💹 *Карма торговли:* {$character['trading_karma']}\n\n"
-            . "Продолжай исследования, сражения и улучшай свои навыки! Приключения ждут! 🚀";
+            . "💹 *Карма торговли:* {$character['trading_karma']}\n\n";
 
         // 5. Inline-кнопки (которые идут под сообщением, как в примере):
         $inlineKeyboard = [

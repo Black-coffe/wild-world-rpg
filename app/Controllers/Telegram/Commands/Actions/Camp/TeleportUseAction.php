@@ -3,16 +3,28 @@
 namespace App\Controllers\Telegram\Commands\Actions\Camp;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
-use App\Models\CraftedItemsModel;
-use App\Models\CraftedItemsLogModel;
 use App\Models\CharacterModel;
 use App\Models\ClaimedCellModel;
+use App\Models\CraftedItemsLogModel;
+use App\Models\CraftedItemsModel;
 use App\Models\MapModel;
+use App\Services\Player\TeleportCostService;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
+// Подключаем наш сервис
+
 class TeleportUseAction extends BaseAction
 {
+    protected $teleportCostService;
+
+    public function __construct($callbackQuery)
+    {
+        parent::__construct($callbackQuery);
+        // Подключаем сервис для вычисления стоимости/проверки золота
+        $this->teleportCostService = new TeleportCostService();
+    }
+
     public function handle(): ServerResponse
     {
         [$user, $character] = $this->getUserAndCharacter();
@@ -31,8 +43,14 @@ class TeleportUseAction extends BaseAction
         switch ($callbackData) {
             case 'TeleportUse_Portable':
                 return $this->usePortableTeleport($character);
+
             case 'TeleportUse_WithExperience':
                 return $this->useExperienceTeleport($character);
+
+            case 'TeleportUse_WithGold':
+                // Новый кейс: телепорт за золото
+                return $this->useGoldTeleport($character);
+
             default:
                 Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
                 return Request::sendMessage([
@@ -43,6 +61,87 @@ class TeleportUseAction extends BaseAction
         }
     }
 
+    /**
+     * Телепорт за золото
+     */
+    private function useGoldTeleport(array $character): ServerResponse
+    {
+        $characterModel  = new CharacterModel();
+        $claimedCellModel = new ClaimedCellModel();
+        $mapModel        = new MapModel();
+
+        // Актуализируем персонажа из БД (вдруг gold изменился)
+        $charRow = $characterModel->find($character['id']);
+        if (!$charRow) {
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'    => "Ошибка! Персонаж не найден.",
+            ]);
+        }
+
+        // Получаем стоимость телепорта
+        $cost = $this->teleportCostService->calculateTeleportCost((int)$charRow['level']);
+
+        // Проверяем, достаточно ли золота
+        if ((int)$charRow['gold'] < $cost) {
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'    => "Недостаточно золота! Нужно {$cost}, а у тебя всего {$charRow['gold']}.",
+            ]);
+        }
+
+        // Находим базу
+        $claimedCell = $claimedCellModel->where('character_id', $charRow['id'])->first();
+        if (!$claimedCell) {
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'    => "У тебя нет базы для телепорта!",
+                'parse_mode' => 'Markdown'
+            ]);
+        }
+
+        $mapRow = $mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
+        if (!$mapRow) {
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'    => "Ошибка: не найдена ячейка базы на карте.",
+            ]);
+        }
+
+        // Списываем золото
+        $newGold = (int)$charRow['gold'] - $cost;
+
+        // Обновляем координаты персонажа → телепорт
+        $characterModel->update($charRow['id'], [
+            'gold'       => $newGold,
+            'cell_number'=> $claimedCell['map_cell_id'],
+            'biome_id'   => $mapRow['biome_id'],
+        ]);
+
+        // Форматируем цифры с разделителями по 3
+        $formattedCost = number_format($cost, 0, '.', ' ');
+        $formattedGold = number_format($newGold, 0, '.', ' ');
+
+        $text = "Ты успешно телепортировался за золото!\n\n"
+            . "Списано: {$formattedCost} 💰\n"
+            . "Остаток золота: {$formattedGold} 💰";
+
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+        return Request::sendMessage([
+            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'    => $text,
+            'parse_mode' => 'Markdown',
+        ]);
+    }
+
+    /**
+     * Телепорт с помощью портативного устройства
+     */
     private function usePortableTeleport($character): ServerResponse
     {
         $craftedItemModel = new CraftedItemsModel();
@@ -119,6 +218,10 @@ class TeleportUseAction extends BaseAction
             'parse_mode' => 'Markdown'
         ]);
     }
+
+    /**
+     * Телепорт за опыт
+     */
 
     private function useExperienceTeleport($character): ServerResponse
     {

@@ -1,11 +1,13 @@
 <?php
 
-namespace App\Services;
+namespace App\Services\World;
 
-use Longman\TelegramBot\Request;
+use App\Models\MapModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use App\Models\MapModel;            // нужно, чтобы найти (x,y) персонажа
-use CodeIgniter\Config\Services;    // если нужно что-то из CodeIgniter
+use Longman\TelegramBot\Request;
+
+// нужно, чтобы найти (x,y) персонажа
+// если нужно что-то из CodeIgniter
 
 class MapService
 {
