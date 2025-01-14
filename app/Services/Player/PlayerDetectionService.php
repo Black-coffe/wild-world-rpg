@@ -70,8 +70,11 @@ class PlayerDetectionService
         // Получаем уровень персонажа
         $level = isset($character['level']) ? (int)$character['level'] : 0;
 
-        // Расчет радиуса обнаружения на основе уровня
-        $detectionRadius = 2 + floor($level / 100);
+        // Новый расчёт радиуса (добавили cap на 3):
+        $detectionRadius = 2 + floor($level / 500);
+        $detectionRadius = min($detectionRadius, 3);
+
+        // Дальше всё как прежде:
         $detectionRadiusSq = $detectionRadius * $detectionRadius;
 
         // Определяем границы для предварительной фильтрации
