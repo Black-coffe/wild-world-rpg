@@ -10,6 +10,13 @@ use App\Models\TaskModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
+/**
+ * Класс FabricCraftActionStart:
+ * Запускает процесс крафта «Ткань» (Fabric), списывая ресурсы.
+ *
+ * Используем новые методы getResourceForCraft() и deductResourceForCraft()
+ * из CharacterResourceModel (через алиасы).
+ */
 class FabricCraftActionStart extends BaseAction
 {
     protected $taskModel;
@@ -26,20 +33,24 @@ class FabricCraftActionStart extends BaseAction
         $this->characterResourceModel= new CharacterResourceModel();
     }
 
+    /**
+     * Основной метод обработки нажатия "🛠️ Крафтить" для "Ткань".
+     */
     public function handle(): ServerResponse
     {
+        // Получаем данные пользователя и персонажа.
         [$user, $character] = $this->getUserAndCharacter();
         if (!$user || !$character) {
             return $this->sendError('Пользователь не найден в базе данных или персонаж не определён.');
         }
 
-        // 1) Ищем задачу "craftFabric" в базе
+        // 1) Ищем задачу "craftFabric" в таблице tasks.
         $craftTask = $this->taskModel->where('name', 'craftFabric')->first();
         if (!$craftTask) {
             return $this->sendError('Задача "Крафт Ткань (craftFabric)" не найдена в базе данных.');
         }
 
-        // 2) Проверяем, нет ли уже активной задачи крафта "craftFabric" у персонажа
+        // 2) Проверяем, нет ли уже активной задачи крафта "craftFabric" у персонажа.
         $activeTask = $this->characterTaskModel
             ->where('character_id', $character['id'])
             ->where('task_id', $craftTask['id'])
@@ -47,64 +58,64 @@ class FabricCraftActionStart extends BaseAction
             ->first();
 
         if ($activeTask) {
-            // Уже идёт крафт этого предмета — выходим без списания ресурсов
+            // Уже идёт крафт этого предмета — выходим без списания ресурсов.
             return $this->sendError(
-                "Извини, но у тебя уже идёт крафт ткани. "
-                . "Дождись завершения, прежде чем начинать новый!"
+                "Извини, но у тебя уже идёт крафт ткани. Дождись завершения, прежде чем начинать новый!"
             );
         }
 
-        // 3) Теперь проверяем ресурсы, если их хватает — списываем
+        // 3) Проверяем и списываем ресурсы.
         if (!$this->checkAndDeductResources($character['id'])) {
             return $this->sendError('Недостаточно ресурсов для крафта: ничего не списано.');
         }
 
-        // 4) Запускаем процесс крафта
+        // 4) Запускаем процесс крафта (запись в character_tasks).
         return $this->startCraftingProcess($character, $user['id'], $craftTask);
     }
 
     /**
      * Проверяет наличие нужных ресурсов у персонажа и, если хватает, списывает.
+     * Используем новые методы getResourceForCraft() / deductResourceForCraft() (alias'ы).
      */
     private function checkAndDeductResources(int $characterId): bool
     {
+        // Необходимые ресурсы для крафта ткани.
         $requiredResources = [
-            'Шерсть животных'           => 10,
-            'Шёлк пауков-пустынников'   => 1,
-            'Текстильные культуры'      => 10,
+            'Шерсть животных'          => 10,
+            'Шёлк пауков-пустынников'  => 1,
+            'Текстильные культуры'     => 10,
         ];
 
-        // Сначала убеждаемся, что всего хватает
+        // 1) Проверяем, хватает ли ресурсов (через alias'ы).
         foreach ($requiredResources as $resourceName => $requiredAmount) {
-            $resource = $this->characterResourceModel->getResourceByNameAndCharacterId($resourceName, $characterId);
-            if (!$resource || $resource['quantity'] < $requiredAmount) {
-                return false; // Не хватает хотя бы одного ресурса
+            $row = $this->characterResourceModel->getResourceForCraft($resourceName, $characterId);
+            // В $row['charResQty'] лежит кол-во ресурса из character_resources.
+            if (!$row || (int)$row['charResQty'] < $requiredAmount) {
+                return false;
             }
         }
 
-        // Теперь, когда точно всего хватает, списываем
+        // 2) Списываем (раз всего хватает).
         foreach ($requiredResources as $resourceName => $requiredAmount) {
-            $resource = $this->characterResourceModel->getResourceByNameAndCharacterId($resourceName, $characterId);
-
-            // В character_resources primary key — поле `id`
-            $this->characterResourceModel->update($resource['id'], [
-                'quantity' => $resource['quantity'] - $requiredAmount,
-            ]);
+            if (!$this->characterResourceModel->deductResourceForCraft($resourceName, $characterId, $requiredAmount)) {
+                return false;
+            }
         }
 
         return true;
     }
 
     /**
-     * Создаём запись в character_tasks и шлём сообщение о старте крафта.
+     * Создаём запись в character_tasks и уведомляем игрока.
      */
     private function startCraftingProcess(array $character, int $userId, array $craftTask): ServerResponse
     {
-        $duration = $this->calculateCraftingDuration($character, $craftTask);
-
+        // Рассчитываем примерное время крафта.
+        $duration  = $this->calculateCraftingDuration($character, $craftTask);
         $startTime = new \DateTime();
         $endTime   = (clone $startTime)->add(new \DateInterval('PT' . $duration . 'M'));
 
+        // Запись в таблицу character_tasks.
         $this->characterTaskModel->insert([
             'character_id'     => $character['id'],
             'telegram_user_id' => $userId,
@@ -118,54 +129,40 @@ class FabricCraftActionStart extends BaseAction
     }
 
     /**
-     * Упрощённый расчёт времени крафта.
+     * Пример расчёта длительности крафта.
      */
     private function calculateCraftingDuration(array $character, array $craftTask): int
     {
-        // Извлекаем из task
         $minDuration = $craftTask['min_duration'] ?? 5;
         $maxDuration = $craftTask['max_duration'] ?? 15;
 
-        // Пусть влияет интеллект, ловкость и т.д. — примерные логики
-        $experience = $character['experience'] ?? 0;
-        $agility    = $character['agility']    ?? 0;
-        $intellect  = $character['intellect']  ?? 0;
+        // Имеем логику, зависящую от характеристики.
+        $intellect = (float)($character['intellect'] ?? 0);
+        $factor    = 1 - min(1.0, $intellect / 200.0);
 
-        // Коэффициенты
-        $expFactor = 0.3;
-        $agiFactor = 0.3;
-        $intFactor = 0.4;
-
-        $attributeScore = ($experience * $expFactor) + ($agility * $agiFactor) + ($intellect * $intFactor);
-        $maxAttributeScore = 1000 * ($expFactor + $agiFactor + $intFactor);
-
-        $normalized = $attributeScore / $maxAttributeScore;
-        if ($normalized > 1) {
-            $normalized = 1;
-        }
-
-        // Чем выше нормализованный скор, тем меньше времени
-        $duration = $minDuration + ($maxDuration - $minDuration) * (1 - $normalized);
-
-        return (int) max($minDuration, min($maxDuration, round($duration)));
+        $time = $maxDuration - ($maxDuration - $minDuration) * (1 - $factor);
+        return (int) max($minDuration, min($maxDuration, round($time)));
     }
 
     /**
-     * Сообщаем, что крафт запущен.
+     * Отправляем сообщение о том, что крафт стартовал, + картинка.
      */
     private function notifyCraftStarted(array $character, \DateTime $startTime, \DateTime $endTime): ServerResponse
     {
         $interval = $startTime->diff($endTime);
         $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
+        // Текст уведомления.
         $text = "*Процесс крафта запущен*\n\n"
             . "*Ты создаёшь: 🧵 Ткань*\n\n"
             . "__*Время крафта: {$minutes} минут.*__ ⏱️\n\n"
             . "*О готовности ты узнаешь в сообщении.* 🎁\n\n"
-            . "P.S. _Не забудь поделиться своими находками!_ 🗣️\n";
+            . "P.S. _Не забудь поделиться своими находками!_";
 
+        // Закрываем "Loading..." у Telegram.
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
+        // Путь к картинке.
         $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg');
 
         return Request::sendPhoto([
@@ -177,7 +174,7 @@ class FabricCraftActionStart extends BaseAction
     }
 
     /**
-     * Сообщение об ошибке с ответом на CallbackQuery.
+     * Унифицированный метод для отправки ошибки.
      */
     private function sendError(string $message): ServerResponse
     {

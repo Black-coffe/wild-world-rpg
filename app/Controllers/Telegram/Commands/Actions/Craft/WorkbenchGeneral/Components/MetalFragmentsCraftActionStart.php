@@ -11,7 +11,9 @@ use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
 /**
- * Класс для запуска крафта Металлических Фрагментов.
+ * Класс для запуска крафта «Металл фрагменты».
+ * Используем НОВЫЕ методы модели CharacterResourceModel (getResourceForCraft / deductResourceForCraft),
+ * чтобы избежать конфликтов alias'ов.
  */
 class MetalFragmentsCraftActionStart extends BaseAction
 {
@@ -23,26 +25,30 @@ class MetalFragmentsCraftActionStart extends BaseAction
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
+
         $this->taskModel             = new TaskModel();
         $this->eventModel            = new EventModel();
         $this->activeEventModel      = new ActiveEventModel();
         $this->characterResourceModel= new CharacterResourceModel();
     }
 
+    /**
+     * Точка входа при нажатии кнопки «Крафтить металл фрагменты».
+     */
     public function handle(): ServerResponse
     {
         [$user, $character] = $this->getUserAndCharacter();
         if (!$user || !$character) {
-            return $this->sendError('Пользователь не найден в базе данных или персонаж не определён.');
+            return $this->sendError('Пользователь не найден в базе или персонаж не определён.');
         }
 
-        // 1) Проверяем, есть ли задача "craftMetalFragments"
+        // 1) Ищем задачу "craftMetalFragments"
         $craftTask = $this->taskModel->where('name', 'craftMetalFragments')->first();
         if (!$craftTask) {
-            return $this->sendError('Задача "Крафт металлических компонентов" не найдена в базе данных.');
+            return $this->sendError('Задача "Крафт металлических фрагментов" не найдена в базе данных.');
         }
 
-        // 2) Проверяем, нет ли уже активной задачи крафта этого типа
+        // 2) Проверяем, нет ли у персонажа активного крафта этого типа
         $activeTask = $this->characterTaskModel
             ->where('character_id', $character['id'])
             ->where('task_id', $craftTask['id'])
@@ -51,66 +57,55 @@ class MetalFragmentsCraftActionStart extends BaseAction
 
         if ($activeTask) {
             return $this->sendError(
-                "Извини, но ты не многорукий и не всемогущ. "
-                . "Крафт «Металл фрагменты» уже выполняется. Поищи себе другое занятие!"
+                "У тебя уже идёт крафт «Металл фрагменты». " .
+                "Дождись завершения или прерви задачу!"
             );
         }
 
-        // 3) Проверяем ресурсы (без списания), если не хватает — выходим
-        if (!$this->hasEnoughResources($character['id'])) {
+        // 3) Проверяем и списываем ресурсы
+        if (!$this->checkAndDeductResources($character['id'])) {
             return $this->sendError('Недостаточно ресурсов для крафта: ничего не списано.');
         }
 
-        // 4) Теперь списываем ресурсы и запускаем процесс
-        $this->deductResources($character['id']);
+        // 4) Стартуем процесс крафта
         return $this->startCraftingProcess($character, $user['id'], $craftTask);
     }
 
     /**
-     * Проверяем, достаточно ли ресурсов (не списываем).
+     * Проверяем ресурсы (через getResourceForCraft) и списываем (через deductResourceForCraft).
      */
-    private function hasEnoughResources(int $characterId): bool
+    private function checkAndDeductResources(int $charId): bool
     {
+        // Что нужно для «Металл фрагментов»
         $requiredResources = [
             'Железная руда' => 100,
             'Древесина'     => 10,
             'Песок'         => 1,
         ];
 
-        foreach ($requiredResources as $resourceName => $amount) {
-            $resourceRow = $this->characterResourceModel
-                ->getResourceByNameAndCharacterId($resourceName, $characterId);
-            if (!$resourceRow || $resourceRow['quantity'] < $amount) {
+        // Сначала убеждаемся, что всего хватает
+        foreach ($requiredResources as $resourceName => $amountNeeded) {
+            $row = $this->characterResourceModel->getResourceForCraft($resourceName, $charId);
+            if (!$row || (int)$row['charResQty'] < $amountNeeded) {
+                // Хоть одного ресурса не хватает => отмена
                 return false;
             }
         }
+
+        // Если всего хватает — списываем
+        foreach ($requiredResources as $resourceName => $amountNeeded) {
+            // Если вдруг не получилось списать (например, конкурирующее списание в другом процессе) — отмена
+            if (!$this->characterResourceModel->deductResourceForCraft($resourceName, $charId, $amountNeeded)) {
+                return false;
+            }
+        }
+
         return true;
     }
 
     /**
-     * Списываем ресурсы, зная, что всего хватает.
-     */
-    private function deductResources(int $characterId): void
-    {
-        $requiredResources = [
-            'Железная руда' => 100,
-            'Древесина'     => 10,
-            'Песок'         => 1,
-        ];
-
-        foreach ($requiredResources as $resourceName => $amount) {
-            $resourceRow = $this->characterResourceModel
-                ->getResourceByNameAndCharacterId($resourceName, $characterId);
-
-            // Обновляем количество (тут точно хватает, раз прошли hasEnoughResources)
-            $this->characterResourceModel->update($resourceRow['id'], [
-                'quantity' => $resourceRow['quantity'] - $amount,
-            ]);
-        }
-    }
-
-    /**
-     * Запускаем процесс крафта: создаём запись в character_tasks со статусом in_work.
+     * Создаём запись крафта (character_tasks), указываем время,
+     * и отправляем сообщение об успешном запуске.
      */
     private function startCraftingProcess(array $character, int $userId, array $craftTask): ServerResponse
     {
@@ -132,36 +127,31 @@ class MetalFragmentsCraftActionStart extends BaseAction
     }
 
     /**
-     * Логика определения длительности крафта.
+     * Пример вычисления времени крафта.
      */
     private function calculateCraftingDuration(array $character, array $craftTask): int
     {
-        $experience = $character['experience'] ?? 0;
-        $agility    = $character['agility']    ?? 0;
-        $intellect  = $character['intellect']  ?? 0;
+        $minDuration = $craftTask['min_duration'] ?? 5;
+        $maxDuration = $craftTask['max_duration'] ?? 15;
+
+        $exp   = (float)($character['experience'] ?? 0);
+        $agi   = (float)($character['agility']    ?? 0);
+        $intel = (float)($character['intellect']  ?? 0);
 
         $expFactor = 0.3;
         $agiFactor = 0.3;
         $intFactor = 0.4;
 
-        $attributeScore = ($experience * $expFactor)
-            + ($agility    * $agiFactor)
-            + ($intellect  * $intFactor);
+        $attrScore = $exp * $expFactor + $agi * $agiFactor + $intel * $intFactor;
+        $maxAttr   = 1000 * ($expFactor + $agiFactor + $intFactor);
+        $norm      = min(1.0, $attrScore / $maxAttr);
 
-        $maxAttributeScore = 1000 * ($expFactor + $agiFactor + $intFactor);
-        $normalized        = min(1.0, $attributeScore / $maxAttributeScore);
-
-        $minDuration       = $craftTask['min_duration'] ?? 5;
-        $maxDuration       = $craftTask['max_duration'] ?? 15;
-
-        $adjustedDuration  = $minDuration + ($maxDuration - $minDuration) * (1 - $normalized);
-        $finalDuration     = (int) round($adjustedDuration);
-
-        return max($minDuration, min($finalDuration, $maxDuration));
+        $duration  = $minDuration + ($maxDuration - $minDuration) * (1 - $norm);
+        return (int)max($minDuration, min($duration, $maxDuration));
     }
 
     /**
-     * Отправляем сообщение об успешно запущенном крафте.
+     * Уведомляем пользователя об успешном запуске крафта.
      */
     private function notifyCraftStarted(array $character, \DateTime $startTime, \DateTime $endTime): ServerResponse
     {
@@ -169,28 +159,43 @@ class MetalFragmentsCraftActionStart extends BaseAction
         $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
         $text = "*Процесс крафта запущен*\n\n"
-            . "*Ты создаешь: 🔩 Металл фрагменты*\n\n"
+            . "*Ты создаёшь: 🔩 Металл фрагменты*\n\n"
             . "__*Время крафта: {$minutes} минут.*__ ⏱️\n\n"
             . "*О готовности ты узнаешь в сообщении.* 🎁\n\n"
             . "P.S. _Не забудь поделиться своими находками!_ 🗣️\n";
 
+        // Отправим фото (рабочий верстак, например)
         $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg');
+
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
+        // Можно добавить inline-кнопки
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '🛠️ Крафт',     'callback_data' => 'crafting'],
+                ],
+            ]
+        ];
+
         return Request::sendPhoto([
-            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'photo'      => Request::encodeFile($imagePath),
-            'caption'    => $text,
-            'parse_mode' => 'Markdown',
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
         ]);
     }
 
     /**
-     * Шаблон для отправки ошибки.
+     * Универсальный метод для отправки ошибок.
      */
     private function sendError(string $message): ServerResponse
     {
-        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+        Request::answerCallbackQuery([
+            'callback_query_id' => $this->callbackQuery->getId(),
+        ]);
         return Request::sendMessage([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
             'text'    => $message,

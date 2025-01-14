@@ -11,7 +11,9 @@ use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
 /**
- * Этот класс отвечает за запуск крафта «Стекло пакеты».
+ * Класс GlassBagsCraftActionStart:
+ * Запуск крафта «Стеклопакеты» с использованием новых методов модели CharacterResourceModel,
+ * работающих через alias (getResourceForCraft / deductResourceForCraft).
  */
 class GlassBagsCraftActionStart extends BaseAction
 {
@@ -32,47 +34,48 @@ class GlassBagsCraftActionStart extends BaseAction
 
     public function handle(): ServerResponse
     {
+        // 1. Получаем пользователя и персонажа
         [$user, $character] = $this->getUserAndCharacter();
         if (!$user || !$character) {
-            return $this->sendError('Пользователь не найден в базе данных или персонаж не определён.');
+            return $this->sendError('Пользователь не найден в базе или персонаж не определён!');
         }
 
-        // 1) Найдём в базе данных задачу "craftGlassBags"
+        // 2. Ищем задачу "craftGlassBags" в таблице tasks
         $craftTask = $this->taskModel->where('name', 'craftGlassBags')->first();
         if (!$craftTask) {
-            return $this->sendError('Задача "Крафт Стекло пакеты" не найдена в базе данных.');
+            return $this->sendError('Задача "Крафт Стеклопакеты" не найдена в базе данных!');
         }
 
-        // 2) Проверка, нет ли уже запущенной задачи крафта GlassBags
-        //    Если есть — выходим без списания ресурсов!
-        $activeTask = $this->characterTaskModel->where([
-            'character_id' => $character['id'],
-            'task_id'      => $craftTask['id'],
-            'status'       => 'in_work'
-        ])->first();
+        // 3. Проверяем, нет ли уже активной задачи крафта "craftGlassBags"
+        $activeTask = $this->characterTaskModel
+            ->where('character_id', $character['id'])
+            ->where('task_id', $craftTask['id'])
+            ->where('status', 'in_work')
+            ->first();
 
         if ($activeTask) {
+            // Уже крафтим этот предмет
             return $this->sendError(
-                "Ты уже крафтишь \"Стекло пакеты\". "
-                . "Дождись завершения! Или прерви текущий крафт, чтобы начать заново."
+                "Ты уже крафтишь \"Стеклопакеты\". " .
+                "Дождись завершения или прерви текущий крафт!"
             );
         }
 
-        // 3) Раз задачи нет — теперь можно списывать ресурсы
+        // 4. Проверяем ресурсы и списываем с помощью алиасных методов
         if (!$this->checkAndDeductResources($character['id'])) {
             return $this->sendError('Недостаточно ресурсов для крафта: списание не выполнено.');
         }
 
-        // 4) Стартуем процесс крафта (создаём запись в character_tasks)
+        // 5. Запускаем процесс крафта
         return $this->startCraftingProcess($character, $user['id'], $craftTask);
     }
 
     /**
-     * Сначала проверяем, хватает ли ресурсов,
-     * и только потом списываем.
+     * Проверяем ресурсы (через getResourceForCraft) и списываем (через deductResourceForCraft).
      */
     private function checkAndDeductResources(int $characterId): bool
     {
+        // Перечень ресурсов для крафта "Стеклопакеты"
         $requiredResources = [
             'Древесина'      => 10,
             'Песок'          => 50,
@@ -80,74 +83,68 @@ class GlassBagsCraftActionStart extends BaseAction
             'Лавовый камень' => 8,
         ];
 
-        // Сначала проверяем наличие
+        // Сначала убеждаемся, что всего хватает
         foreach ($requiredResources as $resName => $neededAmount) {
-            $resource = $this->characterResourceModel->getResourceByNameAndCharacterId($resName, $characterId);
-            if (!$resource || $resource['quantity'] < $neededAmount) {
-                return false; // Не хватает
+            $row = $this->characterResourceModel->getResourceForCraft($resName, $characterId);
+            if (!$row || (int)$row['charResQty'] < $neededAmount) {
+                return false; // Не хватает хотя бы одного ресурса
             }
         }
 
-        // Если все ресурсы есть — уменьшаем количество
+        // Затем списываем
         foreach ($requiredResources as $resName => $neededAmount) {
-            $resource = $this->characterResourceModel->getResourceByNameAndCharacterId($resName, $characterId);
-            // Обновляем запись
-            // Важно: $resource['id'] — это ID из character_resources, а не из resources
-            $this->characterResourceModel->update($resource['id'], [
-                'quantity' => $resource['quantity'] - $neededAmount
-            ]);
+            if (!$this->characterResourceModel->deductResourceForCraft($resName, $characterId, $neededAmount)) {
+                // Если вдруг не получилось списать, выходим
+                return false;
+            }
         }
 
         return true;
     }
 
     /**
-     * Создание записи задачи крафта в БД,
-     * вычисляем время крафта и отправляем ответ о старте.
+     * Создаём запись задачи в character_tasks и уведомляем о начале крафта.
      */
     private function startCraftingProcess(array $character, int $userId, array $craftTask): ServerResponse
     {
-        // Расчёт времени
+        // Вычисляем время крафта (упрощённый пример)
         $duration = $this->calculateCraftingDuration($character, $craftTask);
 
         $startTime = new \DateTime();
         $endTime   = (clone $startTime)->add(new \DateInterval('PT' . $duration . 'M'));
 
-        // Создаём запись в character_tasks
+        // Создаём запись в таблице character_tasks
         $this->characterTaskModel->insert([
-            'character_id'      => $character['id'],
-            'telegram_user_id'  => $userId,
-            'task_id'           => $craftTask['id'],
-            'start_time'        => $startTime->format('Y-m-d H:i:s'),
-            'end_time'          => $endTime->format('Y-m-d H:i:s'),
-            'status'            => 'in_work',
+            'character_id'     => $character['id'],
+            'telegram_user_id' => $userId,
+            'task_id'          => $craftTask['id'],
+            'start_time'       => $startTime->format('Y-m-d H:i:s'),
+            'end_time'         => $endTime->format('Y-m-d H:i:s'),
+            'status'           => 'in_work',
         ]);
 
+        // Уведомляем о старте крафта
         return $this->notifyCraftStarted($character, $startTime, $endTime);
     }
 
     /**
-     * Пример расчёта времени (упрощённая логика).
+     * Примерный расчёт времени крафта.
      */
     private function calculateCraftingDuration(array $character, array $craftTask): int
     {
-        $minDuration = $craftTask['min_duration'];
-        $maxDuration = $craftTask['max_duration'];
+        $minDuration = $craftTask['min_duration'] ?? 5;
+        $maxDuration = $craftTask['max_duration'] ?? 15;
 
-        // Пример: чем выше интеллект, тем быстрее
-        $intellect = $character['intellect'];
-        // Допустим, при intellect=100 задача будет на 50% короче
-        // при intellect=0 — без скидки
-        $factor = 1 - min(1.0, $intellect / 200.0);
+        // Допустим, интеллект ускоряет крафт
+        $intellect = (float)($character['intellect'] ?? 0);
+        $factor    = 1 - min(1.0, $intellect / 200.0);
 
         $baseTime = $maxDuration - ($maxDuration - $minDuration) * (1 - $factor);
-
-        // Округлим
-        return max($minDuration, min($maxDuration, round($baseTime)));
+        return (int)max($minDuration, min($maxDuration, round($baseTime)));
     }
 
     /**
-     * Отправляем пользователю сообщение о начале крафта.
+     * Отправляем сообщение об успешном начале крафта.
      */
     private function notifyCraftStarted(array $character, \DateTime $startTime, \DateTime $endTime): ServerResponse
     {
@@ -155,36 +152,43 @@ class GlassBagsCraftActionStart extends BaseAction
         $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
         $text = "*Процесс крафта запущен!*\n\n"
-            . "Ты создаёшь: *Стекло пакеты* 🪟\n\n"
-            . "Время крафта: *{$minutes}* минут.\n"
-            . "О результате сообщим отдельно! 🍀\n\n"
-            . "_Удачи!_\n";
+            . "Ты создаёшь: *Стеклопакеты* 🪟\n"
+            . "Примерное время крафта: *{$minutes}* мин.\n\n"
+            . "_О результате сообщим дополнительно!_\n";
 
+        // Добавляем inline-кнопки
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж',  'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафт',       'callback_data' => 'crafting']
+                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '🛠️ Крафт',     'callback_data' => 'crafting'],
                 ],
-            ]
+            ],
         ];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
+        // Можно отправить фото (как в других примерах)
+        // Но здесь оставим текст. Или, если хотите, отправьте картинку:
+        // $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg');
+        // return Request::sendPhoto([...]);
+
         return Request::sendMessage([
-            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'       => $text,
-            'parse_mode' => 'Markdown',
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
     }
 
     /**
-     * Упрощённый метод для отправки сообщения об ошибке.
+     * Унифицированный метод для отправки ошибки.
      */
     private function sendError(string $msg): ServerResponse
     {
-        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+        Request::answerCallbackQuery([
+            'callback_query_id' => $this->callbackQuery->getId(),
+        ]);
         return Request::sendMessage([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
             'text'    => $msg,

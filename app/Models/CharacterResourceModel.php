@@ -6,47 +6,42 @@ use CodeIgniter\Model;
 
 class CharacterResourceModel extends Model
 {
-    protected $table = 'character_resources'; // Укажите здесь название вашей таблицы связей
-    protected $primaryKey = 'id'; // Первичный ключ таблицы
+    protected $table = 'character_resources';
+    protected $primaryKey = 'id';
 
-    protected $useAutoIncrement = true; // Использовать автоинкремент для первичного ключа
-    protected $returnType = 'array'; // Тип возвращаемых данных из таблицы
+    protected $useAutoIncrement = true;
+    protected $returnType    = 'array';
 
     protected $allowedFields = [
-        'id_characters', // Вместо character_id
-        'id_resources', // Вместо resource_id
+        'id_characters',
+        'id_resources',
         'quantity',
         'created_at',
         'updated_at'
     ];
 
+    protected $useTimestamps = true;
+    protected $createdField  = 'created_at';
+    protected $updatedField  = 'updated_at';
+    protected $dateFormat    = 'datetime';
 
-    protected $useTimestamps = true; // Включение автоматической установки меток времени
-    protected $createdField  = 'created_at'; // Поле для метки времени создания записи
-    protected $updatedField  = 'updated_at'; // Поле для метки времени обновления записи
-    protected $dateFormat    = 'datetime'; // Формат даты и времени
-
-    protected $validationRules    = []; // Правила валидации данных
-    protected $validationMessages = []; // Сообщения валидации
-    protected $skipValidation     = false; // Не использовать валидацию по умолчанию
+    // === СТАРЫЕ МЕТОДЫ НЕ ТРОГАЕМ, чтобы не ломать уже существующий код ===
 
     public function increaseResources($characterId, $resourceId, $amount)
     {
         $existingResource = $this->where([
             'id_characters' => $characterId,
-            'id_resources' => $resourceId
+            'id_resources'  => $resourceId
         ])->first();
 
         if ($existingResource) {
-            // Если запись с ресурсом существует, увеличиваем количество
             $newQuantity = $existingResource['quantity'] + $amount;
             return $this->update($existingResource['id'], ['quantity' => $newQuantity]);
         } else {
-            // Если запись не найдена, создаём новую
             return $this->insert([
                 'id_characters' => $characterId,
-                'id_resources' => $resourceId,
-                'quantity' => $amount
+                'id_resources'  => $resourceId,
+                'quantity'      => $amount
             ]);
         }
     }
@@ -55,22 +50,18 @@ class CharacterResourceModel extends Model
     {
         $existingResource = $this->where([
             'id_characters' => $characterId,
-            'id_resources' => $resourceId
+            'id_resources'  => $resourceId
         ])->first();
 
         if ($existingResource) {
             $newQuantity = $existingResource['quantity'] - $amount;
 
             if ($newQuantity <= 0) {
-                // Если количество ресурса становится меньше или равно нулю, можно удалить запись
                 return $this->delete($existingResource['id']);
             } else {
-                // Иначе обновляем количество ресурса
                 return $this->update($existingResource['id'], ['quantity' => $newQuantity]);
             }
         } else {
-            // Если запись не найдена, вероятно, это ошибка в логике программы
-            // Возвращаем ошибку или логируем ситуацию
             log_message('error', "Attempt to decrease non-existing resource for character $characterId and resource $resourceId");
             return false;
         }
@@ -78,11 +69,6 @@ class CharacterResourceModel extends Model
 
     public function getTotalResourcesByRarity($characterId, $resourceRarity)
     {
-        // Сначала нужно присоединить таблицу ресурсов к таблице ресурсов персонажа,
-        // чтобы можно было фильтровать по редкости ресурса. Для этого нужна связь
-        // между этими таблицами по id ресурса.
-        // Предполагается, что в таблице ресурсов есть колонка `rarity`, указывающая на редкость ресурса.
-
         $db = \Config\Database::connect();
         $builder = $db->table($this->table);
         $builder->select('character_resources.id_characters, SUM(character_resources.quantity) as total_quantity');
@@ -93,10 +79,7 @@ class CharacterResourceModel extends Model
 
         $query = $builder->get();
 
-        // Возвращаем результат запроса. Если ресурсов нет, вернется null или 0.
-        // Этот код возвращает общее количество ресурсов указанной редкости у персонажа.
         $result = $query->getRow();
-
         return $result ? (int)$result->total_quantity : 0;
     }
 
@@ -104,36 +87,30 @@ class CharacterResourceModel extends Model
     {
         $existingResource = $this->where([
             'id_characters' => $characterId,
-            'id_resources' => $resourceId
+            'id_resources'  => $resourceId
         ])->first();
 
         if ($existingResource) {
-            // Увеличиваем количество существующего ресурса
             return $this->update($existingResource['id'], [
                 'quantity' => $existingResource['quantity'] + $amount,
             ]);
         } else {
-            // Создаем новую запись с ресурсом
             return $this->insert([
                 'id_characters' => $characterId,
-                'id_resources' => $resourceId,
-                'quantity' => $amount,
+                'id_resources'  => $resourceId,
+                'quantity'      => $amount,
             ]);
         }
     }
 
     /**
-     * Получение ресурса по имени и ID персонажа.
-     *
-     * @param string $resourceName Имя ресурса.
-     * @param int $characterId ID персонажа.
-     * @return array|null Данные ресурса или null, если не найден.
+     * СТАРЫЙ метод (не меняем!).
+     * Но он возвращает conflict: 'id' (из resources), 'id' (из character_resources).
      */
     public function getResourceByNameAndCharacterId($resourceName, $characterId)
     {
-        // Здесь должен быть ваш код для поиска ресурса по имени и ID персонажа.
-        // Это пример запроса, который можно использовать:
-        return $this->select('character_resources.*, resources.*')
+        return $this
+            ->select('character_resources.*, resources.*')
             ->join('resources', 'resources.id = character_resources.id_resources')
             ->where('resources.name', $resourceName)
             ->where('character_resources.id_characters', $characterId)
@@ -141,23 +118,16 @@ class CharacterResourceModel extends Model
     }
 
     /**
-     * Списание ресурсов с учетом имеющегося количества.
-     *
-     * @param string $resourceName Имя ресурса.
-     * @param int $characterId ID персонажа.
-     * @param int $amount Количество для списания.
-     * @return bool True, если списание прошло успешно, иначе false.
-     * @throws \ReflectionException
+     * СТАРЫЙ метод (не меняем!). Списывает ресурсы, но страдает той же проблемой alias'ов...
      */
     public function deductResource($resourceName, $characterId, $amount)
     {
-        $this->db->transStart(); // Начало транзакции
+        $this->db->transStart();
         $resource = $this->getResourceByNameAndCharacterId($resourceName, $characterId);
 
-        if ($resource && $resource['quantity'] >= $amount) {
+        if ($resource && isset($resource['quantity']) && $resource['quantity'] >= $amount) {
             $newQuantity = $resource['quantity'] - $amount;
 
-            // Преобразовать ID в int, если необходимо
             if (!is_int($resource['id'])) {
                 $resourceId = (int) $resource['id'];
             } else {
@@ -166,37 +136,66 @@ class CharacterResourceModel extends Model
 
             $affectedRows = $this->update($resourceId, ['quantity' => $newQuantity]);
 
-            if ($affectedRows > 0) {
-                log_message('info', "Ресурс успешно списан: $resourceName, ID: $characterId, новое количество: $newQuantity");
-                return true;
-            } else {
-                log_message('error', "Ошибка обновления количества ресурса: $resourceName, ID: $characterId");
-                return false;
-            }
+            $this->db->transComplete();
+            return ($affectedRows > 0);
         }
-        log_message('error', "Недостаточно ресурса для списания: $resourceName, ID: $characterId, требуется: $amount, наличие: " . ($resource ? $resource['quantity'] : '0'));
-        $this->db->transComplete(); // Фиксация транзакции
+        $this->db->transRollback();
         return false;
     }
 
-    public function getResourceByCharacterAndResourceId($characterId, $resourceId)
+    // === ДОБАВЛЯЕМ НОВЫЙ метод, который работает через alias'ы: ===
+
+    /**
+     * Новый метод для крафта (или любого механизма),
+     * где возвращаются алиасы: charResId, charResQty, resourceId, resourceName, resourceRarity.
+     * Он НЕ ЛОМАЕТ старые методы, т.к. у них другая сигнатура/название.
+     */
+    public function getResourceForCraft(string $resourceName, int $characterId)
     {
-        return $this->where('character_id', $characterId)
-            ->where('resource_id', $resourceId)
+        return $this
+            ->select(
+                'character_resources.id AS charResId, ' .
+                'character_resources.quantity AS charResQty, ' .
+                'resources.id AS resourceId, ' .
+                'resources.name AS resourceName, ' .
+                'resources.rarity AS resourceRarity'
+            )
+            ->join('resources', 'resources.id = character_resources.id_resources')
+            ->where('resources.name', $resourceName)
+            ->where('character_resources.id_characters', $characterId)
             ->first();
     }
 
-    public function subtractResource($resourceId, $amount): bool
+    /**
+     * Новый метод для "безопасного" списания ресурса через alias'ы.
+     */
+    public function deductResourceForCraft(string $resourceName, int $characterId, int $amount): bool
     {
-        $resource = $this->find($resourceId);
-        if (!$resource) {
+        $this->db->transStart();
+
+        $row = $this->getResourceForCraft($resourceName, $characterId);
+        if (!$row) {
+            $this->db->transRollback();
             return false;
         }
 
-        $newQuantity = $resource['current_quantity'] - $amount;
-        // Проверить на <0 и т.д.
-        return $this->update($resourceId, ['current_quantity' => $newQuantity]);
+        $charResId  = (int) $row['charResId'];
+        $currentQty = (int) $row['charResQty'];
+
+        if ($currentQty < $amount) {
+            $this->db->transRollback();
+            return false;
+        }
+
+        $newQty = $currentQty - $amount;
+
+        if ($newQty <= 0) {
+            $this->delete($charResId);
+        } else {
+            $this->update($charResId, ['quantity' => $newQty]);
+        }
+
+        $this->db->transComplete();
+        return true;
     }
-
 }
-

@@ -10,6 +10,11 @@ use App\Models\TaskModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
+/**
+ * Класс для запуска крафта «Грунт» (soil).
+ * Переписан с учётом новых методов CharacterResourceModel (getResourceForCraft / deductResourceForCraft),
+ * чтобы избежать проблем с alias'ами id.
+ */
 class SoilCraftActionStart extends BaseAction
 {
     protected $taskModel;
@@ -20,6 +25,7 @@ class SoilCraftActionStart extends BaseAction
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
+
         $this->taskModel             = new TaskModel();
         $this->eventModel            = new EventModel();
         $this->activeEventModel      = new ActiveEventModel();
@@ -33,42 +39,45 @@ class SoilCraftActionStart extends BaseAction
             return $this->sendError('Пользователь не найден в базе данных или персонаж не определён.');
         }
 
-        // 1) Ищем задачу "craftSoil" в базе
+        // 1) Ищем задачу "craftSoil"
         $craftTask = $this->taskModel->where('name', 'craftSoil')->first();
         if (!$craftTask) {
-            return $this->sendError('Задача "Крафт металлических компонентов" (craftSoil) не найдена в БД.');
+            return $this->sendError('Задача "Крафт грунта" (craftSoil) не найдена в БД.');
         }
 
-        // 2) Проверяем, нет ли уже активного крафта "craftSoil" у этого персонажа
+        // 2) Проверяем, нет ли уже активного крафта с task_id = $craftTask['id']
         $activeTask = $this->characterTaskModel
             ->where('character_id', $character['id'])
-            ->where('task_id', $craftTask['id'])
-            ->where('status', 'in_work')
+            ->where('task_id',      $craftTask['id'])
+            ->where('status',       'in_work')
             ->first();
-
         if ($activeTask) {
             return $this->sendError(
-                "Извини, но ты не многорукий и не всемогущ. "
-                . "Задача крафта \"Грунт\" уже выполняется. Немного терпения!"
+                "У тебя уже выполняется крафт \"Грунт\". " .
+                "Дождись завершения или прерви задачу!"
             );
         }
 
-        // 3) Проверяем, достаточно ли ресурсов (не списываем)
+        // 3) Проверяем ресурсы: хватает ли?
         if (!$this->hasEnoughResources($character['id'])) {
-            return $this->sendError('Недостаточно ресурсов для крафта: ничего не списано.');
+            return $this->sendError('Недостаточно ресурсов для крафта: списание не выполнено.');
         }
 
-        // 4) Раз ресурсов хватает — списываем, а затем запускаем процесс крафта
-        $this->deductResources($character['id']);
+        // 4) Списываем ресурсы и запускаем крафт
+        if (!$this->deductResources($character['id'])) {
+            // Теоретически, если вдруг не смогли списать
+            return $this->sendError('Возникла ошибка при списании ресурсов.');
+        }
+
         return $this->startCraftingProcess($character, $user['id'], $craftTask);
     }
 
     /**
-     * Проверяем, достаточно ли ресурсов (не списывая).
+     * Проверяем, хватает ли ресурсов (через alias-метод getResourceForCraft).
      */
-    private function hasEnoughResources(int $characterId): bool
+    private function hasEnoughResources(int $charId): bool
     {
-        // Список требуемых ресурсов
+        // Что нужно для крафта «Грунт»
         $requiredResources = [
             'Глина'     => 10,
             'Водоросли' => 5,
@@ -76,10 +85,32 @@ class SoilCraftActionStart extends BaseAction
             'Ил'        => 15,
         ];
 
-        foreach ($requiredResources as $resourceName => $requiredAmount) {
-            $resourceRow = $this->characterResourceModel
-                ->getResourceByNameAndCharacterId($resourceName, $characterId);
-            if (!$resourceRow || $resourceRow['quantity'] < $requiredAmount) {
+        foreach ($requiredResources as $resourceName => $neededAmount) {
+            // Берём ресурс через getResourceForCraft, смотрим на charResQty
+            $row = $this->characterResourceModel->getResourceForCraft($resourceName, $charId);
+            if (!$row || (int)$row['charResQty'] < $neededAmount) {
+                return false; // Не хватает
+            }
+        }
+        return true; // Всего достаточно
+    }
+
+    /**
+     * Списываем ресурсы (через alias-метод deductResourceForCraft),
+     * возвращаем true, если всё ок.
+     */
+    private function deductResources(int $charId): bool
+    {
+        $requiredResources = [
+            'Глина'     => 10,
+            'Водоросли' => 5,
+            'Песок'     => 26,
+            'Ил'        => 15,
+        ];
+
+        foreach ($requiredResources as $resourceName => $neededAmount) {
+            // Если вдруг не получилось списать — прерываем
+            if (!$this->characterResourceModel->deductResourceForCraft($resourceName, $charId, $neededAmount)) {
                 return false;
             }
         }
@@ -87,29 +118,7 @@ class SoilCraftActionStart extends BaseAction
     }
 
     /**
-     * Списываем ресурсы, когда уже знаем, что всего хватает.
-     */
-    private function deductResources(int $characterId): void
-    {
-        $requiredResources = [
-            'Глина'     => 10,
-            'Водоросли' => 5,
-            'Песок'     => 26,
-            'Ил'        => 15,
-        ];
-
-        foreach ($requiredResources as $resourceName => $requiredAmount) {
-            $resourceRow = $this->characterResourceModel
-                ->getResourceByNameAndCharacterId($resourceName, $characterId);
-
-            $this->characterResourceModel->update($resourceRow['id'], [
-                'quantity' => $resourceRow['quantity'] - $requiredAmount
-            ]);
-        }
-    }
-
-    /**
-     * Запуск процесса крафта: создаём запись в character_tasks со статусом in_work.
+     * Создаём запись в character_tasks (статус in_work) и уведомляем.
      */
     private function startCraftingProcess(array $character, int $userId, array $craftTask): ServerResponse
     {
@@ -130,35 +139,35 @@ class SoilCraftActionStart extends BaseAction
     }
 
     /**
-     * Пример расчёта длительности крафта на основе атрибутов персонажа.
+     * Пример расчёта длительности крафта, исходя из статов персонажа.
      */
     private function calculateCraftingDuration(array $character, array $craftTask): int
     {
-        $experience = $character['experience'] ?? 0;
-        $agility    = $character['agility']    ?? 0;
-        $intellect  = $character['intellect']  ?? 0;
+        $experience = (float)($character['experience'] ?? 0);
+        $agility    = (float)($character['agility']    ?? 0);
+        $intellect  = (float)($character['intellect']  ?? 0);
 
-        $expFactor = 0.3;
-        $agiFactor = 0.3;
-        $intFactor = 0.4;
+        $expFactor  = 0.3;
+        $agiFactor  = 0.3;
+        $intFactor  = 0.4;
 
-        $attributeScore   = ($experience * $expFactor)
-            + ($agility    * $agiFactor)
-            + ($intellect  * $intFactor);
-        $maxAttributeScore= 1000 * ($expFactor + $agiFactor + $intFactor);
-        $normalized       = min(1.0, $attributeScore / $maxAttributeScore);
+        $attrScore  = $experience * $expFactor
+            + $agility    * $agiFactor
+            + $intellect  * $intFactor;
+        $maxAttr    = 1000 * ($expFactor + $agiFactor + $intFactor);
+        $norm       = min(1.0, $attrScore / $maxAttr);
 
         $minDuration = $craftTask['min_duration'] ?? 5;
         $maxDuration = $craftTask['max_duration'] ?? 15;
 
-        $adjustedDuration = $minDuration + ($maxDuration - $minDuration) * (1 - $normalized);
-        $finalDuration    = (int) round($adjustedDuration);
+        $adjusted    = $minDuration + ($maxDuration - $minDuration) * (1 - $norm);
+        $final       = (int)round($adjusted);
 
-        return max($minDuration, min($finalDuration, $maxDuration));
+        return max($minDuration, min($final, $maxDuration));
     }
 
     /**
-     * Отправляем сообщение об успешно запущенном крафте.
+     * Уведомляем об успешном запуске крафта.
      */
     private function notifyCraftStarted(array $character, \DateTime $startTime, \DateTime $endTime): ServerResponse
     {
@@ -175,29 +184,31 @@ class SoilCraftActionStart extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting']
+                    ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting'],
                 ],
-            ]
+            ],
         ];
 
         $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         return Request::sendPhoto([
-            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'photo'      => Request::encodeFile($imagePath),
-            'caption'    => $text,
-            'parse_mode' => 'Markdown',
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
     }
 
     /**
-     * Удобный метод для отправки сообщения об ошибке.
+     * Универсальный метод для отправки ошибки и ответа на callback.
      */
     private function sendError(string $message): ServerResponse
     {
-        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+        Request::answerCallbackQuery([
+            'callback_query_id' => $this->callbackQuery->getId(),
+        ]);
         return Request::sendMessage([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
             'text'    => $message,
