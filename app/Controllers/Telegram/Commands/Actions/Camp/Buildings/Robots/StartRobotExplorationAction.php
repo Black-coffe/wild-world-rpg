@@ -22,11 +22,11 @@ class StartRobotExplorationAction extends BaseAction
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->characterTaskModel = new CharacterTaskModel();
-        $this->craftedItemsLogModel = new CraftedItemsLogModel();
-        $this->buildingModel = new BuildingModel();
+        $this->characterTaskModel     = new CharacterTaskModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel();
+        $this->buildingModel          = new BuildingModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
-        $this->taskModel = new TaskModel();
+        $this->taskModel              = new TaskModel();
     }
 
     public function handle(): ServerResponse
@@ -39,84 +39,162 @@ class StartRobotExplorationAction extends BaseAction
         }
 
         $characterId = $character['id'];
+        // Из callback_data извлекаем ID робота (startRobotExplorer_123 => 123)
         $robotId = str_replace('startRobotExplorer_', '', $this->callbackQuery->getData());
 
-        $roboticsWorkshopId = $this->buildingModel->where('name_en', 'RoboticsWorkshop')->first()['id'];
-        $taskId = $this->taskModel->where('name', 'ExploringLocationRobot')->first()['id'];
+        // 1) Ищем в справочнике здание RoboticsWorkshop
+        $roboticsWorkshopRow = $this->buildingModel->where('name_en', 'RoboticsWorkshop')->first();
+        if (!$roboticsWorkshopRow) {
+            return $this->sendError('Ошибка: не найдено здание RoboticsWorkshop в справочнике.');
+        }
+        $roboticsWorkshopId = $roboticsWorkshopRow['id'];
 
-        // Получаем уровень мастерской робототехники
+        // 2) Ищем в справочнике задачу "ExploringLocationRobot"
+        $taskRow = $this->taskModel->where('name', 'ExploringLocationRobot')->first();
+        if (!$taskRow) {
+            return $this->sendError('Ошибка: не найдена задача ExploringLocationRobot.');
+        }
+        $taskId = $taskRow['id'];
+
+        // 3) Проверяем, нет ли уже активной задачи именно "ExploringLocationRobot"
+        $existingRobotTask = $this->characterTaskModel
+            ->where('character_id', $characterId)
+            ->where('task_id', $taskId)
+            ->where('status', 'in_work')
+            ->first();
+
+        if ($existingRobotTask) {
+            return $this->sendError(
+                "У тебя уже запущен робот‐исследователь! " .
+                "Дождись завершения предыдущего, прежде чем запускать нового."
+            );
+        }
+
+        // 4) Узнаём уровень мастерской
         $roboticsWorkshop = $this->characterBuildingModel
             ->where('character_id', $characterId)
             ->where('building_id', $roboticsWorkshopId)
             ->first();
-
         $workshopLevel = $roboticsWorkshop['level'] ?? 1;
 
-        // Получаем количество роботов и их использований
-        $robotData = $this->craftedItemsLogModel
+        // 5) Ищем в crafted_items_log любую запись, где есть нужный робот (crafted_item_id = $robotId) и quantity > 0
+        $robotLogEntry = $this->craftedItemsLogModel
             ->where('character_id', $characterId)
             ->where('crafted_item_id', $robotId)
-            ->select('SUM(quantity) as total_quantity, SUM(durability_count * quantity) as total_durability')
+            ->where('quantity >', 0)
+            ->orderBy('id', 'ASC')
             ->first();
 
-        $totalQuantity = $robotData['total_quantity'] ?? 0;
-        $totalDurability = $robotData['total_durability'] ?? 0;
-
-        if ($totalQuantity <= 0) {
-            return $this->sendError('У вас нет доступных роботов для запуска.');
+        if (!$robotLogEntry) {
+            return $this->sendError(
+                "У тебя нет роботов данного типа. Возможно, они закончились или не были скрафчены."
+            );
         }
 
-        // Рассчитываем время до поломки робота
-        $hoursUntilBreakdown = $totalDurability * $workshopLevel;
+        // Текущее состояние для одной строки
+        $currentDurability = $robotLogEntry['durability_count']; // Прочность одного робота (сколько запусков осталось)
+        $currentQuantity   = $robotLogEntry['quantity'];         // Сколько таких роботов в записи
 
-        // Записываем задачу в базу данных
+        if ($currentDurability <= 0) {
+            return $this->sendError(
+                "Данный робот не имеет прочности (durability = 0). Нельзя запустить."
+            );
+        }
+
+        // 6) Списываем ровно 1 durability_count
+        $newDurability = $currentDurability - 1;
+
+        // Если теперь 0 — значит этот конкретный робот "умер"
+        if ($newDurability <= 0) {
+            $newQuantity = $currentQuantity - 1;  // списываем одного робота
+
+            if ($newQuantity <= 0) {
+                // Роботов не осталось совсем — удаляем всю запись
+                $this->craftedItemsLogModel->delete($robotLogEntry['id']);
+            } else {
+                // Остались ещё роботы. Нужно обнулить "умершего" и задать 50 прочности для оставшихся
+                $this->craftedItemsLogModel->update($robotLogEntry['id'], [
+                    // Новый остаток роботов
+                    'quantity'         => $newQuantity,
+                    // Остальным восстанавливаем 50 единиц прочности
+                    'durability_count' => 50
+                ]);
+            }
+        } else {
+            // Прочность ещё осталась > 0, значит просто уменьшаем на 1
+            $this->craftedItemsLogModel->update($robotLogEntry['id'], [
+                'durability_count' => $newDurability
+            ]);
+        }
+
+        // 7) Рассчитываем время работы: 6 ч * уровень мастерской
+        $hoursUntilBreakdown = 6 * $workshopLevel;
+
+        // 8) Создаём новую задачу в character_tasks
         $startTime = new \DateTime();
-        $endTime = (clone $startTime)->add(new \DateInterval('PT' . $hoursUntilBreakdown . 'H'));
+        $endTime   = (clone $startTime)->add(new \DateInterval('PT' . $hoursUntilBreakdown . 'H'));
 
         $this->characterTaskModel->save([
-            'character_id' => $character['id'],
+            'character_id'     => $characterId,
             'telegram_user_id' => $user['id'],
-            'task_id' => $taskId,
-            'start_time' => $startTime->format('Y-m-d H:i:s'),
-            'end_time' => $endTime->format('Y-m-d H:i:s'),
-            'status' => 'in_work',
+            'task_id'          => $taskId,
+            'start_time'       => $startTime->format('Y-m-d H:i:s'),
+            'end_time'         => $endTime->format('Y-m-d H:i:s'),
+            'status'           => 'in_work',
         ]);
 
-        // Формируем ответное сообщение
-        $text = "🚀 *Ты запустил робота Исследователя!* 🔍\n\n"
-            . "🔧 Этот робот начнет изучение новых локаций и сохранит данные в базу открытий.\n\n"
-            . "🔹 При текущем уровне \"Мастерская робототехники\" робот поломается и исчезнет через: *{$hoursUntilBreakdown}* часов\n\n"
-            . "🎉 *Удачи в исследовании новых территорий твоим атвтоматизированным механизмом!* 🎉";
+        // 9) Считаем, сколько роботов и «часов поиска (суммарно)» осталось — по всем строкам для этого robotId
+        $allRobotRows = $this->craftedItemsLogModel
+            ->where('character_id', $characterId)
+            ->where('crafted_item_id', $robotId)
+            ->findAll();
+
+        $sumQuantity   = 0;
+        $sumDurability = 0;
+        foreach ($allRobotRows as $row) {
+            $sumQuantity   += $row['quantity'];
+            $sumDurability += ($row['durability_count'] * $row['quantity']);
+        }
+
+        // 10) Формируем текст ответа
+        $text = "🚀 *Ты запустил робота-исследователя!* 🔍\n\n"
+            . "🔧 Он будет работать *{$hoursUntilBreakdown} ч.* (Уровень мастерской: {$workshopLevel}).\n\n"
+            . "📉 У тебя теперь осталось:\n"
+            . "   — Роботов: *{$sumQuantity}* шт.\n"
+            . "   — Общих часов поиска: *{$sumDurability}*\n\n"
+            . "🎉 Удачи в исследовании новых территорий! 🎉";
 
         $keyboard = [
             'inline_keyboard' => [
                 [
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🤖 Роботы', 'callback_data' => 'AllRobots'],
-                    ['text' => '🏠 База', 'callback_data' => 'Base'],
+                    ['text' => '🤖 Роботы',     'callback_data' => 'AllRobots'],
+                    ['text' => '🏠 База',       'callback_data' => 'Base'],
                 ],
             ]
         ];
 
         $imagePath = base_url('uploads/telegram/craft/standard/robot_explorer.jpg');
-
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         return Request::sendPhoto([
-            'chat_id' => $chatId,
-            'photo' => Request::encodeFile($imagePath),
-            'caption' => $text,
-            'parse_mode' => 'Markdown',
+            'chat_id'      => $chatId,
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
     }
 
+    /**
+     * Утилитарный метод, чтобы вернуть ошибку в Telegram (и сбросить анимацию нажатия кнопки).
+     */
     private function sendError($message): ServerResponse
     {
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text' => $message,
+            'text'    => $message,
         ]);
     }
 }

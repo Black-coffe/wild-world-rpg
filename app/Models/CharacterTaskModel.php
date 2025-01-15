@@ -19,6 +19,7 @@ class CharacterTaskModel extends Model
         'start_time',
         'end_time',
         'status',
+        'task_settings',
     ];
 
     protected $useTimestamps = true; // Использовать автоматические метки времени
@@ -33,6 +34,7 @@ class CharacterTaskModel extends Model
         'start_time'          => 'required|valid_date',
         'end_time'            => 'permit_empty|valid_date',
         'status'              => 'required|in_list[in_work,completed,interrupted]',
+        'task_settings'       => 'permit_empty',
     ];
 
     // Сообщения валидации

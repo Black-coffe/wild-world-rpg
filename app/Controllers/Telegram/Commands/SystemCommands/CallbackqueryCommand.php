@@ -119,7 +119,8 @@ class CallbackqueryCommand extends SystemCommand
 
             'AllRobots' =>              \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\AllRobotsHandler::class,
             'activateRobot' =>          \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\ActivateRobotHandler::class,
-            'startRobotExplorer' =>          \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\StartRobotExplorationAction::class,
+            'startRobotExplorer' =>     \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\StartRobotExplorationAction::class,
+            'setCoordinatesRobotExplorer' =>     \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\SetCoordinatesRobotExplorerAction::class,
 
             'generalCraft' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\GeneralCraftingAction::class,
             'medicinesCraft1' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\MedicalCraft1Action::class,

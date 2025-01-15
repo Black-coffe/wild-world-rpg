@@ -8,6 +8,10 @@ use App\Models\CraftedItemsModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
+/**
+ * Класс для отображения/активации всех роботов, доступных в мастерской.
+ * В нём мы считаем «фактический остаток» запусков для каждого робота.
+ */
 class AllRobotsHandler extends BaseAction
 {
     protected $craftedItemsLogModel;
@@ -17,94 +21,152 @@ class AllRobotsHandler extends BaseAction
     {
         parent::__construct($callbackQuery);
         $this->craftedItemsLogModel = new CraftedItemsLogModel();
-        $this->craftedItemsModel = new CraftedItemsModel();
+        $this->craftedItemsModel    = new CraftedItemsModel();
     }
 
+    /**
+     * Главный метод обработки (вызывается при нажатии inline-кнопки).
+     */
     public function handle(): ServerResponse
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
         [$user, $character] = $this->getUserAndCharacter();
 
+        // Если пользователя или персонажа не нашли — сообщаем об ошибке.
         if (!$user || !$character) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text' => 'Пользователь не найден в базе данных или персонаж не определён.',
+                'text'    => 'Пользователь не найден в базе данных или персонаж не определён.',
             ]);
         }
 
         $characterId = $character['id'];
 
-        // Получаем все ID роботов из таблицы crafted_items, где type = "robots"
-        $robotIds = $this->craftedItemsModel->where('type', 'robots')->findAll();
-        $robotIds = array_column($robotIds, 'id');
-
-        if (empty($robotIds)) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => 'У вас нет доступных роботов.',
-            ]);
-        }
-
-        // Получаем роботов, которые есть у персонажа
-        $robots = $this->craftedItemsLogModel->whereIn('crafted_item_id', $robotIds)
-            ->where('character_id', $characterId)
+        // 1) Ищем все записи в crafted_items, где type='robots'
+        $allRobots = $this->craftedItemsModel
+            ->where('type', 'robots')
             ->findAll();
 
-        if (empty($robots)) {
+        if (empty($allRobots)) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text' => 'У вас нет доступных роботов.',
+                'text'    => 'Похоже, ни одного робота пока не существует.',
             ]);
         }
 
-        // Сбор информации о роботах
+        // Собираем все их ID
+        $robotIds = array_column($allRobots, 'id');
+
+        // 2) Достаём все записи crafted_items_log (где quantity>0), принадлежащие персонажу
+        $robotsLogRows = $this->craftedItemsLogModel
+            ->whereIn('crafted_item_id', $robotIds)
+            ->where('character_id', $characterId)
+            ->where('quantity >', 0)
+            ->findAll();
+
+        if (empty($robotsLogRows)) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'У вас нет доступных роботов.',
+            ]);
+        }
+
+        /**
+         * 3) Будем группировать данные по ключу "name_rus" (русское название робота).
+         *    Для каждой строки лога считаем остаток запусков как:
+         *
+         *    leftoverUses = (quantity - 1) * baseDurability + currentDurability
+         *
+         *    где:
+         *      - baseDurability = поле durability_count из таблицы crafted_items (базовая прочность),
+         *      - currentDurability = durability_count из лога (остаток у «текущего» робота),
+         *      - quantity = общее кол-во роботов в данной записи (1 из них может быть частично использован).
+         */
         $robotInfo = [];
-        foreach ($robots as $robot) {
-            $robotDetails = $this->craftedItemsModel->find($robot['crafted_item_id']);
-            if (isset($robotDetails['name_rus'])) {
-                if (!isset($robotInfo[$robotDetails['name_rus']])) {
-                    $robotInfo[$robotDetails['name_rus']] = [
-                        'quantity' => 0,
-                        'durability_count' => 0,
-                    ];
-                }
-                $robotInfo[$robotDetails['name_rus']]['quantity'] += $robot['quantity'];
-                $robotInfo[$robotDetails['name_rus']]['durability_count'] += $robot['durability_count'] * $robot['quantity'];
+
+        foreach ($robotsLogRows as $robotLog) {
+            $craftedItemId = (int) $robotLog['crafted_item_id'];
+            $quantity      = (int) $robotLog['quantity'];
+            $usedDurability = (int) $robotLog['durability_count']; // остаток у «текущего» робота
+
+            // Находим в справочнике baseDurability (сколько у нового робота)
+            // и русское имя робота (name_rus).
+            $robotDetails = $this->craftedItemsModel->find($craftedItemId);
+            if (!$robotDetails) {
+                // Если почему-то не нашли, пропускаем
+                continue;
             }
+            $nameRus        = $robotDetails['name_rus'] ?? '???';
+            $baseDurability = (int) $robotDetails['durability_count'];
+
+            // Считаем «фактический остаток» по этой конкретной записи
+            // Если quantity=1, значит только один робот, у которого остаток = usedDurability.
+            // Если quantity>1, значит (quantity-1) роботов «новые» + 1 «частично израсходованный».
+            $freshRobots = max(0, $quantity - 1);
+            $leftoverUses = $freshRobots * $baseDurability + $usedDurability;
+
+            if (!isset($robotInfo[$nameRus])) {
+                $robotInfo[$nameRus] = [
+                    'crafted_item_id' => $craftedItemId,
+                    'total_quantity'  => 0,
+                    'total_leftover'  => 0
+                ];
+            }
+
+            // Добавляем кол-во роботов и суммарный leftoverUses
+            $robotInfo[$nameRus]['total_quantity'] += $quantity;
+            $robotInfo[$nameRus]['total_leftover'] += $leftoverUses;
         }
 
-        if (empty($robotInfo)) {
+        // 4) Убираем из итогового массива записи, у которых leftover=0 (нечего использовать)
+        $filteredRobots = array_filter($robotInfo, function ($info) {
+            return ($info['total_leftover'] > 0 && $info['total_quantity'] > 0);
+        });
+
+        if (empty($filteredRobots)) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text' => 'У вас нет доступных роботов.',
+                'text'    => 'Все роботы полностью израсходованы, запусков не осталось.',
             ]);
         }
 
-        $text = "*У тебя на базе доступны такие роботы:*\n\n";
-        foreach ($robotInfo as $name => $info) {
-            $text .= sprintf("- %s / %d шт. / %d использований\n", $name, $info['quantity'], $info['durability_count']);
+        // 5) Формируем сообщение
+        $text = "*У тебя в Мастерской робототехники доступны:* \n\n";
+        foreach ($filteredRobots as $robotName => $data) {
+            $text .= sprintf(
+                "🤖 %s / %d шт. / %d запусков (общее)\n",
+                $robotName,
+                $data['total_quantity'],
+                $data['total_leftover']
+            );
         }
-        $text .= "\n_Выбери внизу робота для его активации_";
+        $text .= "\n_Выбери внизу робота для его активации:_";
 
-        // Создание кнопок для каждого робота
-        $keyboardButtons = [];
-        foreach ($robotInfo as $name => $info) {
-            $craftedItemId = $this->craftedItemsModel->where('name_rus', $name)->first()['id'];
-            $keyboardButtons[] = [
-                'text' => $name,
-                'callback_data' => 'activateRobot_' . $craftedItemId
+        // 6) Генерируем Inline-кнопки
+        $inlineButtons = [];
+        foreach ($filteredRobots as $robotName => $data) {
+            $inlineButtons[] = [
+                'text'          => $robotName,
+                'callback_data' => 'activateRobot_' . $data['crafted_item_id'],
             ];
         }
 
-        $imagePath = base_url('uploads/telegram/craft/standard/all_robots.jpg');
+        $keyboard = [
+            'inline_keyboard' => [
+                $inlineButtons
+            ]
+        ];
 
+        // 7) Отправляем результат
+        $imagePath = base_url('uploads/telegram/craft/standard/all_robots.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         return Request::sendPhoto([
-            'chat_id' => $chatId,
-            'photo' => Request::encodeFile($imagePath),
-            'caption' => $text,
-            'parse_mode' => 'Markdown',
+            'chat_id'      => $chatId,
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
         ]);
     }
 }
