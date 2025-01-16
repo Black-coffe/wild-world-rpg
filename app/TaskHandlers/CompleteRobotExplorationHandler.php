@@ -20,14 +20,9 @@ use Longman\TelegramBot\Telegram;
 /**
  * Класс-обработчик завершения задачи, когда робот (или иная логика) завершил исследование.
  *
- * Логика "змейки" (snake) с движением ВВЕРХ (y уменьшается):
- *  - Начинаем с текущих координат (x,y) персонажа.
- *  - Движемся по горизонтали (вправо или влево) до границы (0..1000).
- *  - Когда упираемся в границу, переходим на строку выше (y--).
- *  - Меняем горизонтальное направление и продолжаем.
- *  - Если достигли y < 0, завершаем.
- *  - Если дошли до (x=1, y=1), "перепрыгиваем" на (x=1, y=1000) и продолжаем.
- *  - Открываем только те ячейки, которые в таблице map существуют (coordinate_x, coordinate_y) и которых нет в explored_cells.
+ * Если в task_settings (character_tasks) лежат координаты в формате "X,Y",
+ * мы используем их как стартовую позицию змейки.
+ * Иначе берём cell_number персонажа.
  */
 class CompleteRobotExplorationHandler extends Controller
 {
@@ -53,7 +48,7 @@ class CompleteRobotExplorationHandler extends Controller
 
     /**
      * Основной метод, вызываемый при завершении задачи (character_tasks).
-     * @param array $task — запись из character_tasks
+     * @param array $task — запись из character_tasks (включая [id, character_id, start_time, end_time, task_settings...])
      */
     public function handle($task)
     {
@@ -92,33 +87,51 @@ class CompleteRobotExplorationHandler extends Controller
 
         // 5) Уровень мастерской (опционально)
         $workshopLevel = 1;
+        // Если у вас реальный ID RoboticsWorkshop, подставьте. Ниже - "999"
         $roboticsWorkshop = $characterBuildingModel
             ->where('character_id', $character['id'])
-            ->where('building_id', 999) // Подставьте реальный ID RoboticsWorkshop, если нужно
+            ->where('building_id', 999)
             ->first();
         if ($roboticsWorkshop) {
             $workshopLevel = $roboticsWorkshop['level'] ?? 1;
         }
 
-        // 6) Рассчитываем, сколько ячеек хотим открыть
-        //    Формула: 50 + 10*(workshopLevel - 1) за час
+        // 6) Сколько ячеек хотим открыть
         $cellsPerHour = 50 + max(0, $workshopLevel - 1) * 10;
         $cellsToOpen  = (int) floor($hoursSpent * $cellsPerHour);
 
-        // 7) Запускаем "змейку"
+        // 7) Ищем, есть ли координаты запуска в task_settings
+        $startCoords = null;
+        if (!empty($task['task_settings'])) {
+            // Предполагаем формат "X,Y"
+            $pattern = '/^(\d+),(\d+)$/';
+            if (preg_match($pattern, $task['task_settings'], $m)) {
+                $xVal = (int) $m[1];
+                $yVal = (int) $m[2];
+                // Проверим допустимость [1..1000]
+                if ($xVal >= 1 && $xVal <= 1000 && $yVal >= 1 && $yVal <= 1000) {
+                    // Всё ок
+                    $startCoords = ['x' => $xVal, 'y' => $yVal];
+                }
+            }
+        }
+
+        // 8) Запускаем "змейку"
+        //    Если startCoords НЕ null, используем их, иначе используем cell_number персонажа
         $newCells = $this->calculateNewCellsSnake(
             $character,
             $cellsToOpen,
             $mapModel,
             $biomeModel,
             $exploredCellsModel,
-            $task
+            $task,
+            $startCoords
         );
 
-        // 8) Формируем сообщение
+        // 9) Формируем сообщение
         $text = $this->formatExplorationResultMessage($newCells, $hoursSpent, $cellsToOpen);
 
-        // 9) Кнопки
+        // 10) Кнопки
         $keyboard = [
             'inline_keyboard' => [
                 [
@@ -131,7 +144,7 @@ class CompleteRobotExplorationHandler extends Controller
             ]
         ];
 
-        // 10) Отправляем сообщение
+        // 11) Отправляем сообщение
         Request::sendMessage([
             'chat_id'      => $chatId,
             'text'         => $text,
@@ -139,7 +152,7 @@ class CompleteRobotExplorationHandler extends Controller
             'reply_markup' => json_encode($keyboard),
         ]);
 
-        // 11) PvP обнаружение
+        // 12) PvP обнаружение
         $this->playerDetectionService->detectNearbyPlayers($character['id']);
 
         return true;
@@ -147,11 +160,9 @@ class CompleteRobotExplorationHandler extends Controller
 
     /**
      * "Змейка" с движением вверх (y--):
-     *  1) Начинаем с текущих координат (x, y) персонажа.
-     *  2) Идём вправо (x++) пока x<=1000, затем y-- и идём влево (x--) пока x>=0, затем y-- и снова вправо...
-     *  3) Если y<0 => выходим (достигли верха).
-     *  4) Если в какой-то момент дошли до (x=1, y=1), то "перепрыгиваем" на (x=1, y=1000).
-     *  5) Проверяем, есть ли ячейка в map, и не открыта ли она уже. Если всё ок — открываем.
+     *
+     * Если переданы $startCoords (x,y), используем их как начальную точку.
+     * Иначе - смотрим cell_number у персонажа и берём оттуда (x,y).
      */
     private function calculateNewCellsSnake(
         array $character,
@@ -159,25 +170,29 @@ class CompleteRobotExplorationHandler extends Controller
         MapModel $mapModel,
         BiomeModel $biomeModel,
         ExploredCellsModel $exploredCellsModel,
-        array $task
+        array $task,
+        ?array $startCoords = null
     ): array {
         $newCells = [];
 
-        // Стартовые координаты
-        $currentCell = $mapModel
-            ->where('cell_number', $character['cell_number'])
-            ->first();
-        if (!$currentCell) {
-            return $newCells;
+        // Если есть $startCoords - используем их, иначе ищем cell_number
+        if ($startCoords !== null) {
+            $x = $startCoords['x'];
+            $y = $startCoords['y'];
+        } else {
+            // Стартовые координаты берём из карты, где cell_number = character['cell_number']
+            $currentCell = $mapModel
+                ->where('cell_number', $character['cell_number'])
+                ->first();
+            if (!$currentCell) {
+                return $newCells;
+            }
+            $x = $currentCell['coordinate_x'];
+            $y = $currentCell['coordinate_y'];
         }
 
-        $x = $currentCell['coordinate_x'];
-        $y = $currentCell['coordinate_y'];
-
-        // Идём ли вправо или влево?
+        // Флаг - идём вправо/влево
         $goingRight = true;
-
-        // Счётчик
         $openedCount = 0;
 
         // Для записи в explored_cells
@@ -185,34 +200,31 @@ class CompleteRobotExplorationHandler extends Controller
         $telegramUserId = $task['telegram_user_id'];
 
         while ($openedCount < $cellsToOpen) {
-
-            // 1) Если вышли за верхнюю границу
             if ($y < 0) {
-                // Всё, достигли "верха"
+                // Достигли верхней границы
                 break;
             }
 
-            // 2) Особое правило: если дошли до (x=1, y=1) => прыгаем на (x=1, y=1000)
+            // Если дошли до (x=1, y=1) => прыгаем на (x=1, y=1000)
             if ($x == 1 && $y == 1) {
                 $y = 1000;
-                // Считаем, что робот снова продолжает "змейку" с этой точки
-                // goingRight не трогаем — пусть логика продолжается
             }
 
-            // Проверяем текущую ячейку
+            // Проверяем ячейку
             $cell = $mapModel
                 ->where('coordinate_x', $x)
                 ->where('coordinate_y', $y)
                 ->first();
+
             if ($cell) {
-                // Проверяем, уже открыта?
+                // Проверяем, не открыта ли
                 $alreadyOpened = $exploredCellsModel
                     ->where('character_id', $characterId)
                     ->where('map_cell_id', $cell['cell_number'])
                     ->first();
 
                 if (!$alreadyOpened) {
-                    // Новая!
+                    // Открываем
                     $biome     = $biomeModel->find($cell['biome_id']);
                     $biomeName = $biome ? $biome['name'] : 'Неизвестный биом';
 
@@ -223,7 +235,7 @@ class CompleteRobotExplorationHandler extends Controller
                         'biome_id'    => $cell['biome_id'],
                     ];
 
-                    // Сохраняем в explored_cells
+                    // Записываем
                     $exploredCellsModel->insert([
                         'character_id'     => $characterId,
                         'telegram_user_id' => $telegramUserId,
@@ -238,25 +250,18 @@ class CompleteRobotExplorationHandler extends Controller
                     }
                 }
             }
-            // Если ячейки нет или она уже открыта — ничего не делаем, просто идём дальше
-
-            // 3) Двигаемся по горизонтали
+            // Двигаемся дальше по горизонтали
             if ($goingRight) {
-                // Если x < 1000 -> x++
                 if ($x < 1000) {
                     $x++;
                 } else {
-                    // Достигли правой границы -> поднимаемся (y--)
                     $y--;
-                    // Меняем направление
                     $goingRight = false;
                 }
             } else {
-                // Двигаемся влево
                 if ($x > 0) {
                     $x--;
                 } else {
-                    // Достигли левой границы
                     $y--;
                     $goingRight = true;
                 }
@@ -280,12 +285,10 @@ class CompleteRobotExplorationHandler extends Controller
         $biomeNames   = array_column($newCells, 'biome');
         $uniqueBiomes = array_unique($biomeNames);
 
-        // Допустим, $hoursSpent = 4.1833333333
-        $wholeHours = floor($hoursSpent); // 4 (целая часть)
-        $decimalPart = $hoursSpent - $wholeHours; // 0.1833333333
-        $minutes = floor($decimalPart * 60);      // floor(0.1833... * 60) = 11
-
-        // Формируем строку
+        // Преобразуем 4.183333 в "4 ч 11 мин"
+        $wholeHours = floor($hoursSpent);
+        $decimalPart = $hoursSpent - $wholeHours;
+        $minutes = floor($decimalPart * 60);
         $hoursSpentFormatted = "{$wholeHours} ч {$minutes} мин";
 
         $msg = "🚀 *Исследование роботом завершено!* 🤖\n\n"
