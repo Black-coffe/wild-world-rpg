@@ -434,6 +434,7 @@ class Worker extends Controller
         'craftRobotExplorer' => 'CraftCompletionRobotExplorerHandler',
         'craftRobotGatherer' => 'CraftCompletionRobotGathererHandler',
         'ExploringLocationRobot' => 'CompleteRobotExplorationHandler',
+        'GatheringResourcesRobot' => 'CompleteRobotGatheringHandler',
         // Другие соответствия названий задач и классов обработчиков
     ];
 
