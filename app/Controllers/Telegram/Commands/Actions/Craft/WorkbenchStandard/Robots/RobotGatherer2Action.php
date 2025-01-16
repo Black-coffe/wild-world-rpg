@@ -90,7 +90,7 @@ class RobotGatherer2Action extends BaseAction
         $goldQuantity = $goldAvailable ? $goldAvailable['gold'] : 0;
 
         $text = "*⛏️ Добытчик!*\n\n"
-            . "*Описание:* робот, который будет добывать ресурсы, он может собирать разного уровня ресурсы и приносить их на базу\n";
+            . "*Описание:* робот, который будет _добывать ресурсы_, он может собирать разного уровня ресурсы и приносить их на базу\n";
 
         $insufficientResources = [];
 
@@ -140,10 +140,7 @@ class RobotGatherer2Action extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ],
-                    [
                         ['text' => '💰 Продать', 'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить', 'callback_data' => 'buy']
                     ],
@@ -154,9 +151,6 @@ class RobotGatherer2Action extends BaseAction
                 'inline_keyboard' => [
                     [
                         ['text' => '🛠️ Крафт', 'callback_data' => 'craftRobotGatherer2'],
-                    ],
-                    [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                     ],
                 ]
