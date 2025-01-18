@@ -305,16 +305,6 @@ class StartCraftRobotExplorer2Action extends BaseAction
             . "*О готовности ты узнаешь в сообщении.* 🎁\n\n"
             . "P.S. _Не забудь поделиться своими достижениями!_ 🗣️\n";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
-                ],
-            ]
-        ];
-        $encodedKeyboard = json_encode($keyboard);
-
         $imagePath = base_url('uploads/telegram/craft/standard/standard_craft_area.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendPhoto([
@@ -322,7 +312,6 @@ class StartCraftRobotExplorer2Action extends BaseAction
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,
             'parse_mode' => 'Markdown',
-            'reply_markup' => $encodedKeyboard
         ]);
     }
 

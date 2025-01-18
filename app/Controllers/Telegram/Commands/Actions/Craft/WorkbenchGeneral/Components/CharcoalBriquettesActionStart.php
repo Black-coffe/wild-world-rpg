@@ -138,29 +138,19 @@ class CharcoalBriquettesActionStart extends BaseAction
             . "_Время крафта: ~{$minutes} мин._\n\n"
             . "О готовности узнаешь отдельным сообщением!";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафт',     'callback_data' => 'crafting'],
-                ],
-            ],
-        ];
-
         // Закрываем окошко с "Loading..."
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId(),
         ]);
 
         // Отправим именно фото, как вы хотели
-        $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg');
+        $imagePath = base_url('uploads/telegram/craft/components/craftCharcoalBriquettes.png'); // Исправлен путь к изображению
 
         return Request::sendPhoto([
             'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,
             'parse_mode'   => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
         ]);
     }
 

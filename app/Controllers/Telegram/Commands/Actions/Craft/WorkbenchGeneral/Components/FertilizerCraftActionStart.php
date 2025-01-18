@@ -170,31 +170,14 @@ class FertilizerCraftActionStart extends BaseAction
             . "*О готовности ты узнаешь в сообщении.* 🎁\n\n"
             . "P.S. _Не забудь поделиться своими находками!_ 🗣️\n";
 
-        // Формируем inline-кнопки (не удаляем).
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                ],
-                [
-                    ['text' => '🗺️ Изучить местность', 'callback_data' => 'explore'],
-                    ['text' => '🏠 База',             'callback_data' => 'Base'],
-                ],
-            ],
-        ];
-
-        // Закрываем "Loading..." в Telegram
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-
-        $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg');
+        $imagePath = base_url('uploads/telegram/craft/components/craftFertilizer.jpg');
 
         return Request::sendPhoto([
             'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,
             'parse_mode'   => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
         ]);
     }
 

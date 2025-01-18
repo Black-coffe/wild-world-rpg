@@ -159,32 +159,19 @@ class MetalFragmentsCraftActionStart extends BaseAction
         $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
         $text = "*Процесс крафта запущен*\n\n"
-            . "*Ты создаёшь: 🔩 Металл фрагменты*\n\n"
+            . "*Ты создаешь: 🔩 Металл фрагменты*\n\n"
             . "__*Время крафта: {$minutes} минут.*__ ⏱️\n\n"
             . "*О готовности ты узнаешь в сообщении.* 🎁\n\n"
             . "P.S. _Не забудь поделиться своими находками!_ 🗣️\n";
 
-        // Отправим фото (рабочий верстак, например)
-        $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg');
-
+        $imagePath = base_url('uploads/telegram/craft/components/craftMetalFragments.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-
-        // Можно добавить inline-кнопки
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафт',     'callback_data' => 'crafting'],
-                ],
-            ]
-        ];
 
         return Request::sendPhoto([
             'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,
             'parse_mode'   => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
         ]);
     }
 

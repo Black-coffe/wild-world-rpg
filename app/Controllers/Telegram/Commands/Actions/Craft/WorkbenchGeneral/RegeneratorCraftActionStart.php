@@ -160,7 +160,7 @@ class RegeneratorCraftActionStart extends BaseAction
         ];
         $encodedKeyboard = json_encode($keyboard);
 
-        $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg'); // Ensure this path is correctly configured
+        $imagePath = base_url('uploads/telegram/craft/health_and_strength_regenerator.jpg'); // Исправлен путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendPhoto([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),

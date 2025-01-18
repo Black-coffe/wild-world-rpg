@@ -152,18 +152,14 @@ class FabricCraftActionStart extends BaseAction
         $interval = $startTime->diff($endTime);
         $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
-        // Текст уведомления.
         $text = "*Процесс крафта запущен*\n\n"
-            . "*Ты создаёшь: 🧵 Ткань*\n\n"
+            . "*Ты создаешь: 🧵 Ткань*\n\n"
             . "__*Время крафта: {$minutes} минут.*__ ⏱️\n\n"
             . "*О готовности ты узнаешь в сообщении.* 🎁\n\n"
             . "P.S. _Не забудь поделиться своими находками!_";
 
-        // Закрываем "Loading..." у Telegram.
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-
-        // Путь к картинке.
-        $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg');
+        $imagePath = base_url('uploads/telegram/craft/components/craftFabric.jpg');
 
         return Request::sendPhoto([
             'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),

@@ -9,6 +9,11 @@ use Longman\TelegramBot\Commands\SystemCommand;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
+/**
+ * Class CallbackqueryCommand
+ * Обработчик всех callback_data, приходящих от inline-кнопок Telegram.
+ * Служит точкой входа, чтобы определить, какой Action-Class вызывать.
+ */
 class CallbackqueryCommand extends SystemCommand
 {
     protected $name = 'callbackquery';
@@ -17,7 +22,16 @@ class CallbackqueryCommand extends SystemCommand
     {
         $callbackQuery = $this->getCallbackQuery();
         $callbackData  = $callbackQuery->getData();
-        $action        = explode('_', $callbackData)[0]; // "character" и т.д.
+
+        // Простейший кейс: разбираем callback_data
+        // если это что-то вроде: "character_XYZ", "move_dir_north", "explore", etc.
+        $parts  = explode('_', $callbackData);
+        $action = $parts[0]; // Берём первую часть до "_"
+
+        // Пример: если callback_data = "move_dir_north",
+        // тогда $action = "move", но у нас условие: strpos(...)
+        // См. ниже проверку на "move_dir_".
+        // Или, если callback_data = "characterActions", $action = "characterActions" (целиком).
 
         // Если action==='character' — показываем персонажа через сервис
         if ($action === 'character') {
@@ -45,6 +59,18 @@ class CallbackqueryCommand extends SystemCommand
 
             $charService = new CharacterService();
             return $charService->showCharacterInfo($chatId, $characterRow);
+        }
+
+        // --- Новый блок обработки: move_dir_...
+        // Если callback_data начинается с "move_dir_", вызываем унифицированный экшн
+        if (strpos($callbackData, 'move_dir_') === 0) {
+            $handlerClass = \App\Controllers\Telegram\Commands\Actions\MoveCharacterToDirectionAction::class;
+            if (class_exists($handlerClass)) {
+                $handler = new $handlerClass($callbackQuery);
+                return $handler->handle();
+            } else {
+                return Request::emptyResponse();
+            }
         }
 
         // Иначе — прочие action
@@ -77,14 +103,6 @@ class CallbackqueryCommand extends SystemCommand
             'characterActions' =>       \App\Controllers\Telegram\Commands\Actions\CharacterGoActions::class,
             'cancelExploration' =>      \App\Controllers\Telegram\Commands\Actions\CancelExplorationAction::class,
             'move' =>                   \App\Controllers\Telegram\Commands\Actions\MoveCharacterAction::class,
-            'movetonorth' =>            \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToNorth::class,
-            'movetosouth' =>            \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToSouth::class,
-            'movetonorthwest' =>        \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToNorthWest::class,
-            'movetonortheast' =>        \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToNorthEast::class,
-            'movetowest' =>             \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToWest::class,
-            'movetoeast' =>             \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToEast::class,
-            'movetosouthwest' =>        \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToSouthWest::class,
-            'movetosoutheast' =>        \App\Controllers\Telegram\Commands\Actions\MoveNewLocationToSouthEast::class,
             'gather' =>                 \App\Controllers\Telegram\Commands\Actions\GatherAction::class,
             'cancelGather' =>           \App\Controllers\Telegram\Commands\Actions\CancelGatherAction::class,
             'inventory' =>              \App\Controllers\Telegram\Commands\Actions\InventoryAction::class,

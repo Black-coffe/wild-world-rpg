@@ -188,21 +188,12 @@ class WoodMaterialsCraftActionStart extends BaseAction
         $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
         $text = "*Процесс крафта запущен*\n\n"
-            . "*Ты создаёшь: 🪵 Древесные материалы*\n\n"
+            . "*Ты создаешь: 🪵 Древесные материалы*\n\n"
             . "__*Время крафта: {$minutes} минут.*__ ⏱️\n\n"
             . "*О готовности ты узнаешь в сообщении.* 🎁\n\n"
             . "P.S. _Не забудь поделиться своими находками!_ 🗣️\n";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting']
-                ],
-            ]
-        ];
-
-        $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg');
+        $imagePath = base_url('uploads/telegram/craft/components/craftWoodMaterials.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         return Request::sendPhoto([
@@ -210,7 +201,6 @@ class WoodMaterialsCraftActionStart extends BaseAction
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,
             'parse_mode'   => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
         ]);
     }
 }

@@ -149,24 +149,13 @@ class AntisepticCraftActionStart extends BaseAction
             . "*О готовности ты узнаешь в сообщении.* 🎁\n\n"
             . "P.S. _Не забудь поделиться своими находками!_ 🗣️\n";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting']
-                ],
-            ]
-        ];
-        $encodedKeyboard = json_encode($keyboard);
-
-        $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg'); // Ensure this path is correctly configured
+        $imagePath = base_url('uploads/telegram/craft/antiseptic_craft.jpg'); // Исправлен путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendPhoto([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,
             'parse_mode' => 'Markdown',
-            'reply_markup' => $encodedKeyboard
         ]);
     }
 }

@@ -148,24 +148,13 @@ class StonePickaxeCraftActionStart extends BaseAction
             . "__*Время крафта: " . $minutes . " минут.*__ ⏱️\n\n"
             . "*О готовности ты узнаешь в сообщении.* 🎁\n\n";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting']
-                ],
-            ]
-        ];
-        $encodedKeyboard = json_encode($keyboard);
-
-        $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg'); // Ensure this path is correctly configured
+        $imagePath = base_url('uploads/telegram/craft/create-an-image-of-an-ancient-stone-pickaxe.jpg'); // Исправлен путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendPhoto([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,
             'parse_mode' => 'Markdown',
-            'reply_markup' => $encodedKeyboard
         ]);
     }
 }

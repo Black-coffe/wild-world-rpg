@@ -41,10 +41,6 @@ class CraftService
 //                    ['text' => '⚙️ Профи крафт', 'callback_data' => 'proCraft'],
 //                    ['text' => '🏆 Уникальный крафт', 'callback_data' => 'uniqueCraft'],
 //                ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                ]
             ]
         ];
 

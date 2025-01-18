@@ -156,28 +156,13 @@ class GlassBagsCraftActionStart extends BaseAction
             . "Примерное время крафта: *{$minutes}* мин.\n\n"
             . "_О результате сообщим дополнительно!_\n";
 
-        // Добавляем inline-кнопки
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафт',     'callback_data' => 'crafting'],
-                ],
-            ],
-        ];
-
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-
-        // Можно отправить фото (как в других примерах)
-        // Но здесь оставим текст. Или, если хотите, отправьте картинку:
-        // $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg');
-        // return Request::sendPhoto([...]);
-
-        return Request::sendMessage([
+        $imagePath = base_url('uploads/telegram/craft/components/craftGlassBags.jpg');
+        return Request::sendPhoto([
             'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'         => $text,
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $text,
             'parse_mode'   => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
         ]);
     }
 

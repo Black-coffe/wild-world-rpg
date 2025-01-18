@@ -144,7 +144,7 @@ class SedativeCraftActionStart extends BaseAction
         $minutes = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
         $text = "*Процесс крафта запущен*\n\n"
-            . "*Ты создаешь: 🌡️ Обезболивающий порошок!*\n\n"
+            . "*Ты создаешь: 🫖 Успокоительное!*\n\n" // Исправлено название предмета
             . "__*Время крафта: " . $minutes . " минут.*__ ⏱️\n\n"
             . "*О готовности ты узнаешь в сообщении.* 🎁\n\n"
             . "P.S. _Не забудь поделиться своими находками!_ 🗣️\n";
@@ -159,7 +159,7 @@ class SedativeCraftActionStart extends BaseAction
         ];
         $encodedKeyboard = json_encode($keyboard);
 
-        $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg'); // Ensure this path is correctly configured
+        $imagePath = base_url('uploads/telegram/craft/dry_herb_tea.jpg'); // Исправлен путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendPhoto([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),

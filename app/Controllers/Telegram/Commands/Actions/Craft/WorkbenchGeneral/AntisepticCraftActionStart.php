@@ -138,35 +138,24 @@ class AntisepticCraftActionStart extends BaseAction
         ]);
     }
 
-    private function notifyCraftStarted($character, $startTime, $endTime): ServerResponse
+    private function notifyCraftStarted(array $character, \DateTime $startTime, \DateTime $endTime): ServerResponse
     {
         $interval = $startTime->diff($endTime);
-        $minutes = $interval->days * 1440 + $interval->h * 60 + $interval->i;
+        $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
         $text = "*Процесс крафта запущен*\n\n"
-            . "*Ты создаешь: 🧴 Антисептик!*\n\n"
+            . "*Ты создаёшь: 🧴 Антисептик!*\n\n" // Изменено название предмета
             . "__*Время крафта: " . $minutes . " минут.*__ ⏱️\n\n"
             . "*О готовности ты узнаешь в сообщении.* 🎁\n\n"
             . "P.S. _Не забудь поделиться своими находками!_ 🗣️\n";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting']
-                ],
-            ]
-        ];
-        $encodedKeyboard = json_encode($keyboard);
-
-        $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg'); // Ensure this path is correctly configured
+        $imagePath = base_url('uploads/telegram/craft/antiseptic_craft.jpg'); // Изменен путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendPhoto([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,
             'parse_mode' => 'Markdown',
-            'reply_markup' => $encodedKeyboard
         ]);
     }
 }
