@@ -150,8 +150,7 @@ class RobotGatherer2Action extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '🛠️ Крафт', 'callback_data' => 'craftRobotGatherer2'],
-                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                        ['text' => '🛠️ Крафтить', 'callback_data' => 'craftRobotGatherer2'],
                     ],
                 ]
             ];

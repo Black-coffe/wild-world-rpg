@@ -22,10 +22,6 @@ class StandardCraftingAction extends BaseAction
                 [
                     ['text' => '🤖 Роботы', 'callback_data' => 'robotsCraft2'],
                 ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
-                ]
             ]
         ];
 

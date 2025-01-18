@@ -131,10 +131,7 @@ class RobotExplorer2Action extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ],
-                    [
                         ['text' => '💰 Продать', 'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить', 'callback_data' => 'buy']
                     ],
@@ -144,11 +141,7 @@ class RobotExplorer2Action extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '🛠️ Крафт', 'callback_data' => 'craftRobotExplorer2'],
-                    ],
-                    [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                        ['text' => '🛠️ Крафтить', 'callback_data' => 'craftRobotExplorer2'],
                     ],
                 ]
             ];
