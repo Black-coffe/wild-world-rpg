@@ -2,10 +2,19 @@
 namespace App\TaskHandlers\Events;
 
 use CodeIgniter\Controller;
-use App\Models\{CharacterModel, EventModel, ActiveEventModel, BiomeModel, TelegramUserModel};
+use App\Models\{
+    CharacterModel,
+    EventModel,
+    ActiveEventModel,
+    BiomeModel,
+    TelegramUserModel
+};
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
+
+// Подключаем ваш сервис
+use App\Services\Player\PlayerStateService;
 
 class HurricaneHandler extends Controller
 {
@@ -14,21 +23,26 @@ class HurricaneHandler extends Controller
     protected $activeEventModel;
     protected $biomeModel;
     protected $telegramUserModel;
-    private $telegram;
+    protected $playerStateService;
+    private   $telegram;
 
     public function __construct()
     {
-        $this->characterModel = new CharacterModel();
-        $this->eventModel = new EventModel();
-        $this->activeEventModel = new ActiveEventModel();
-        $this->biomeModel = new BiomeModel();
+        $this->characterModel    = new CharacterModel();
+        $this->eventModel        = new EventModel();
+        $this->activeEventModel  = new ActiveEventModel();
+        $this->biomeModel        = new BiomeModel();
         $this->telegramUserModel = new TelegramUserModel();
+
+        // Инициализируем сервис проверок
+        $this->playerStateService = new PlayerStateService();
+
         $this->initTelegram();
     }
 
     private function initTelegram()
     {
-        $API_KEY = getenv('telegram.API_KEY');
+        $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
         try {
             $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
@@ -40,25 +54,33 @@ class HurricaneHandler extends Controller
 
     public function process()
     {
-        if (mt_rand(0, 100) >= 20) {
-            return; // 80% шанс на то, что событие не будет обработано
+        // 1) Вероятность ~35%
+        if (mt_rand(1, 100) > 35) {
+            return; // ~65% случаев событие не обрабатывается
         }
 
-        if (!$this->isEventActive('Hurricane')) {
-            return;
+        // 2) Проверяем, активно ли событие
+        $activeEvent = $this->isEventActive('Hurricane');
+        if (!$activeEvent) {
+            return; // Событие неактивно
         }
 
+        // 3) Получаем список персонажей, затронутых ураганом
         $affectedCharacters = $this->getAffectedCharacters();
-        $selectedCharacter = $affectedCharacters[array_rand($affectedCharacters)];
-        $this->applyHurricaneEffects($selectedCharacter);
+        if (empty($affectedCharacters)) {
+            return; // Никто не подходит
+        }
+
+        // 4) Выбираем одного случайного персонажа
+        $selectedCharacterId = $affectedCharacters[array_rand($affectedCharacters)];
+        $this->applyHurricaneEffects($selectedCharacterId);
     }
 
-    protected function isEventActive($eventNameEnglish)
+    protected function isEventActive(string $eventNameEnglish)
     {
         $eventInfo = $this->eventModel->where('name_english', $eventNameEnglish)->first();
-
         if (!$eventInfo || empty($eventInfo['biome_ids'])) {
-            return false;  // Event not active or malformed data
+            return false;
         }
 
         $activeEvent = $this->activeEventModel
@@ -67,19 +89,32 @@ class HurricaneHandler extends Controller
             ->first();
 
         if ($activeEvent) {
-            // Include biome_ids in the return to ensure downstream functions have access
-            $activeEvent['biome_ids'] = $eventInfo['biome_ids'];
-            return $activeEvent;  // Return the active event data including biome_ids
+            // Добавим нужные поля, если хотим (biome_ids, effect_value)
+            $activeEvent['biome_ids']   = $eventInfo['biome_ids'];
+            $activeEvent['effect_value'] = $eventInfo['effect_value'];
+            return $activeEvent;
         }
 
-        return false;  // Event is not active
+        return false;
     }
 
     protected function getAffectedCharacters()
     {
-        $activeBiomes = json_decode($this->isEventActive('Hurricane')['biome_ids'], true);
+        // Ищем, какие биомы охватывает ураган
+        $active = $this->isEventActive('Hurricane');
+        if (!$active) {
+            return [];
+        }
 
-        $db = db_connect(); // Получаем подключение к базе данных
+        $biomeIds = json_decode($active['biome_ids'], true);
+        if (!is_array($biomeIds)) {
+            return [];
+        }
+
+        // Подключение к БД
+        $db = db_connect();
+
+        // Идентификаторы задач (ExploreTheArea, Gather)
         $taskIds = $db->table('tasks')
             ->whereIn('name', ['ExploreTheArea', 'Gather'])
             ->select('id')
@@ -87,86 +122,163 @@ class HurricaneHandler extends Controller
             ->getResultArray();
         $taskIdsArray = array_column($taskIds, 'id');
 
+        // Находим персонажей, у которых есть активные (in_work) задачи из списка taskIds
+        // и которые находятся в затронутых биомах
         $characters = $db->table('character_tasks')
             ->select('character_id')
             ->whereIn('task_id', $taskIdsArray)
             ->where('status', 'in_work')
             ->join('characters', 'characters.id = character_tasks.character_id')
-            ->whereIn('biome_id', $activeBiomes)
+            ->whereIn('biome_id', $biomeIds)
             ->groupBy('character_id')
             ->get()
             ->getResultArray();
 
+        // Возвращаем список ID персонажей
         return array_column($characters, 'character_id');
     }
 
-    protected function applyHurricaneEffects($characterId)
+    protected function applyHurricaneEffects(int $characterId)
     {
         $character = $this->characterModel->find($characterId);
         if (!$character) {
-            return; // Если персонаж не найден, прекращаем выполнение
+            return;
         }
 
-        $biome = $this->biomeModel->find($character['biome_id']);
-        $event = $this->eventModel->where('name_english', 'Hurricane')->first();
+        // 1) Если персонаж на базе - урона нет, отправляем уведомление
+        if ($this->playerStateService->isCharacterOnBase($characterId)) {
+            $this->notifySafeOnBase($character);
+            return;
+        }
 
-        $damage = $this->calculateDamage($biome, $character, $event['effect_value']);
-        $newHealth = max(0.01, $character['health'] - $damage); // Удерживаем здоровье не ниже 0.01
+        // 2) Проверяем уровень урона (50% или 100%)
+        $fullDamage = $this->calculateDamageForCharacter($character);
 
+        // Если игрок НЕ собирает и НЕ изучает => 50% от fullDamage
+        $isGather = $this->playerStateService->isGathering($characterId);
+        $isExplore = $this->playerStateService->isExploring($characterId);
+
+        $damage = $fullDamage;
+        if (!$isGather && !$isExplore) {
+            $damage = $fullDamage * 0.50; // Половина
+        }
+        $damage = round($damage, 2);
+
+        // 3) Применяем урон (не опускаем здоровье ниже 1)
+        $newHealth = max(1, $character['health'] - $damage);
         $this->characterModel->update($characterId, ['health' => $newHealth]);
-        $this->notifyCharacter($character, $damage);
+
+        // 4) Уведомляем
+        $this->notifyCharacter($character, $damage, $newHealth);
     }
 
-    protected function calculateDamage($biome, $character, $effectValue)
+    /**
+     * Примерная формула расчета урона (берём effect_value=65 + факторы)
+     */
+    protected function calculateDamageForCharacter(array $character): float
     {
-        $levelFactor = max(1, 100 - $character['level']) / 100; // Меньше урона для высокоуровневых персонажей
-        $biomeFactor = ($biome['danger_level'] + $biome['survival_difficulty']) / 20; // Влияние биома на урон
-        $randomFactor = rand(50, 150) / 100; // Колебания урона
-        return $effectValue * $levelFactor * $biomeFactor * $randomFactor; // Формула урона
-    }
-
-    protected function notifyCharacter($character, $damage)
-    {
-        $telegramUserId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
-        if (!$telegramUserId) {
-            return; // Если телеграм-пользователь не найден, выходим из метода
+        $event = $this->eventModel->where('name_english', 'Hurricane')->first();
+        if (!$event) {
+            // Если нет данных, возвращаем базовое
+            return 0;
         }
-        $roundedDamage = round($damage, 2); // Округление урона до двух десятичных знаков
-        $newHealth = round($character['health'], 2); // Также округляем текущее здоровье до двух десятичных знаков
-        $chatId = $telegramUserId['telegram_id']; // ID чата пользователя в Telegram
 
-        // Сообщение пользователю
-        $message = "⚠️ *Внимание*, во время события: ➡️ *Ураган.*\n\n";
-        $message .= "ℹ️ *Вы потеряли:*\n";
-        $message .= "💖 *{$roundedDamage}* _Единиц здоровья_\n\n";
-        $message .= "💖 *Сейчас у вас: {$newHealth}* _Единиц здоровья_\n\n";
-        $message .= "_Вам нужно вернуться на базу или использовать аптечку во избежание смерти!_ ☠️\n\n";
-        $message .= "Посмотрите сколько времени еще будет данное событие, чтобы принять стратегические решения 👇";
+        $effectValue = $event['effect_value'] ?? 65;
 
+        // Допустим, делаем некую формулу
+        $biome = $this->biomeModel->find($character['biome_id']);
+        if (!$biome) {
+            // нет биома -> базовый
+            return (float)$effectValue;
+        }
+
+        $danger     = $biome['danger_level']        ?? 5;
+        $difficulty = $biome['survival_difficulty'] ?? 5;
+        $charLevel  = $character['level']           ?? 1;
+
+        $levelFactor = max(1, 100 - $charLevel) / 100.0;
+        $biomeFactor = ($danger + $difficulty) / 20.0;
+        $randomFactor= rand(50, 150) / 100.0; // +/-50%
+
+        $damage = $effectValue * $levelFactor * $biomeFactor * $randomFactor;
+        return round($damage, 2);
+    }
+
+    /**
+     * Если персонаж на базе — отправляем уведомление, что ураган не повредил.
+     */
+    protected function notifySafeOnBase(array $character)
+    {
+        $tgUser = $this->telegramUserModel->find($character['telegram_user_id']);
+        if (!$tgUser) {
+            return;
+        }
+        $chatId = $tgUser['telegram_id'];
+
+        $message = "🌪 *Ураган* промчался мимо...\n\n"
+            . "Но ты находишься в своей базе-крепости, и стихия не смогла тебе навредить!";
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ['text' => '🎉 События', 'callback_data' => 'events']
                 ]
             ]
         ];
-        // Путь к изображению для лесного пожара
-        $photo = base_url('uploads/telegram/strong_winds_and_downpours_causing_destruction.png'); // Необходимо указать реальный путь к изображению
 
-        Request::answerCallbackQuery(['callback_query_id' => $chatId]);
+        try {
+            Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => $message,
+                'parse_mode' => 'Markdown',
+                'reply_markup' => json_encode($keyboard),
+            ]);
+        } catch (TelegramException $e) {
+            log_message('error', "Ошибка при отправке safeOnBase: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Уведомление о полученном уроне
+     */
+    protected function notifyCharacter(array $character, float $damage, float $newHealth)
+    {
+        $tgUser = $this->telegramUserModel->find($character['telegram_user_id']);
+        if (!$tgUser) {
+            return;
+        }
+        $chatId = $tgUser['telegram_id'];
+
+        $roundedDamage = round($damage, 2);
+        $roundedHealth = round($newHealth, 2);
+
+        $message  = "⚠️ *Ураган* налетел!\n\n";
+        $message .= "Ты потерял примерно *{$roundedDamage}* единиц здоровья.\n";
+        $message .= "Текущее здоровье: *{$roundedHealth}*\n\n";
+        $message .= "_Совет: вернись на базу или прими меры для восстановления!_\n";
+
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                    ['text' => '🎉 События', 'callback_data' => 'events']
+                ]
+            ]
+        ];
+
+        // Допустим, есть какая-то картинка
+        $photoPath = base_url('uploads/telegram/strong_winds_and_downpours_causing_destruction.png');
+
         try {
             Request::sendPhoto([
                 'chat_id' => $chatId,
-                'photo' => Request::encodeFile($photo),
+                'photo'   => Request::encodeFile($photoPath),
                 'caption' => $message,
                 'parse_mode' => 'Markdown',
                 'reply_markup' => json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Ошибка при отправке сообщения: " . $e->getMessage());
+            log_message('error', "Ошибка при отправке notifyCharacter: " . $e->getMessage());
         }
     }
-
 }

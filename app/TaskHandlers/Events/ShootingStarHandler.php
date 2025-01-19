@@ -34,8 +34,8 @@ class ShootingStarHandler extends Controller
 
     public function process()
     {
-        if (mt_rand(0, 100) >= 2) {
-            return; // 98% шанс на то, что событие не будет обработано
+        if (mt_rand(0, 100) >= 20) {
+            return; // 80% шанс на то, что событие не будет обработано
         }
 
         $eventInfo = $this->eventModel->where('name_english', 'Starfall')->first();

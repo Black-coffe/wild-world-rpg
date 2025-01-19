@@ -12,6 +12,10 @@ use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
 
+// Не забудьте правильно подключить ваш сервис.
+// Допустим, он находится в App\Services\PlayerStateService:
+use App\Services\Player\PlayerStateService;
+
 class FeverHandler
 {
     protected $characterModel;
@@ -19,21 +23,27 @@ class FeverHandler
     protected $eventModel;
     protected $activeEventModel;
     protected $telegramUserModel;
-    private $telegram;
+    protected $playerStateService; // наш сервис проверок
+    private   $telegram;
 
     public function __construct()
     {
-        $this->characterModel = new CharacterModel();
-        $this->biomeModel = new BiomeModel();
-        $this->eventModel = new EventModel();
-        $this->activeEventModel = new ActiveEventModel();
-        $this->telegramUserModel = new TelegramUserModel();
+        $this->characterModel     = new CharacterModel();
+        $this->biomeModel         = new BiomeModel();
+        $this->eventModel         = new EventModel();
+        $this->activeEventModel   = new ActiveEventModel();
+        $this->telegramUserModel  = new TelegramUserModel();
+
+        // Инициализируем сервис, который умеет проверять,
+        // где находится игрок, чем занят и т.д.
+        $this->playerStateService = new PlayerStateService();
+
         $this->initTelegram();
     }
 
     private function initTelegram()
     {
-        $API_KEY = getenv('telegram.API_KEY');
+        $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
         try {
             $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
@@ -45,20 +55,30 @@ class FeverHandler
 
     public function process()
     {
+        // Ищем событие "Fever"
         $eventInfo = $this->eventModel->where('name_english', 'Fever')->first();
         if (!$eventInfo) {
             return; // Событие "Жаркая лихорадка" не найдено
         }
 
-        // Проверяем, активно ли событие
-        $isActiveEvent = $this->checkEventIsActive($eventInfo['event_id']);
-        if (!$isActiveEvent) {
+        // Проверяем, активно ли событие (в active_events)
+        if (!$this->checkEventIsActive($eventInfo['event_id'])) {
             return; // Событие не активно
         }
 
+        // Получаем список biomes из JSON
         $biomeIds = json_decode($eventInfo['biome_ids'], true);
-        $charactersInAffectedBiomes = $this->characterModel->whereIn('biome_id', $biomeIds)->findAll();
+        if (empty($biomeIds) || !is_array($biomeIds)) {
+            return; // нет биомов, где действует событие
+        }
 
+        // Выбираем всех персонажей, кто в затронутых биомах
+        $charactersInAffectedBiomes = $this->characterModel->whereIn('biome_id', $biomeIds)->findAll();
+        if (!$charactersInAffectedBiomes) {
+            return; // никто не попадает под событие
+        }
+
+        // Применяем эффект "лихорадки" к каждому
         foreach ($charactersInAffectedBiomes as $character) {
             $this->applyFeverEffects($character, $eventInfo);
         }
@@ -66,159 +86,216 @@ class FeverHandler
 
     protected function checkEventIsActive($eventId)
     {
-        $activeEventModel = new ActiveEventModel(); // Создаем экземпляр модели ActiveEventModel
-        $activeEvent = $activeEventModel
+        $activeEvent = $this->activeEventModel
             ->where('event_id', $eventId)
             ->where('status', 'active')
             ->first();
-
-        return !empty($activeEvent);
+        return (bool) $activeEvent;
     }
 
-    protected function applyFeverEffects($character, $eventInfo)
+    protected function applyFeverEffects(array $character, array $eventInfo)
     {
-        if (!in_array($character['biome_id'], json_decode($eventInfo['biome_ids'], true))) {
-            return; // Пропускаем персонажей, не находящихся в затронутых биомах
-        }
-
-        if (rand(1, 11) === 5) {
-            // Специфическая логика применения эффектов события
-            $debuffEffect = $this->calculateDebuffEffect($character, $eventInfo);
-            if ($debuffEffect) {
-                $this->logEventEffects($character['id'], $debuffEffect, $eventInfo['event_id']);
-                $this->notifyCharacter($character, $debuffEffect);
-            }
-        }else{
+        // Сначала делаем "первый" бросок: срабатывание события для данного персонажа = 50%
+        if (rand(1, 100) > 50) {
+            // Если > 50, нет эффекта
             return;
         }
-    }
 
-    // Оставляем методы logEventEffects, notifyCharacter, и translateParameter как в EpidemicHandler, но убираем или изменяем специфические для "Эпидемии" методы
+        // Теперь определяем дополнительный шанс в зависимости от того, чем игрок занят и где он:
+        $secondChance = $this->getSecondChance($character['id']);
 
-    protected function logEventEffects($characterId, $debuffEffect, $eventId)
-    {
-        $logModel = new EventEffectsLogModel();
-
-        // Подготавливаем детали эффекта для записи в лог. Преобразуем массив эффектов в JSON строку.
-        $effectDetails = json_encode($debuffEffect, JSON_UNESCAPED_UNICODE);
-
-        // Подготавливаем данные для записи в таблицу логов
-        $logData = [
-            'character_id' => $characterId,
-            'event_id' => $eventId,
-            'effect_details' => $effectDetails,
-            'event_time' => date('Y-m-d H:i:s'), // Фиксируем текущее время как время воздействия эффекта
-        ];
-
-        // Дополнительные данные, такие как номер ячейки и ID биома, можно добавить, если они нужны
-        // Это предполагает, что у модели CharacterModel есть методы для получения этой информации
-        $characterInfo = $this->characterModel->find($characterId);
-        if ($characterInfo) {
-            $logData['cell_number'] = $characterInfo['cell_number'] ?? null; // Если номер ячейки доступен
-            $logData['biome_id'] = $characterInfo['biome_id'] ?? null; // Если ID биома доступен
+        // Второй бросок:
+        if (rand(1, 100) > $secondChance) {
+            // Если не прошёл, значит эффекта нет
+            return;
         }
 
-        // Сохраняем информацию о воздействии события на персонажа в таблицу логов
-        $logModel->insert($logData);
+        // Если дошли сюда — применяем дебафф (health/tired не ниже 1).
+        $debuffEffect = $this->calculateDebuffEffect($character, $eventInfo);
+        if ($debuffEffect) {
+            // Логируем
+            $this->logEventEffects($character['id'], $debuffEffect, $eventInfo['event_id']);
+            // Уведомляем
+            $this->notifyCharacter($character, $debuffEffect);
+        }
     }
 
-    protected function calculateDebuffEffect($character, $eventInfo)
+    /**
+     * Определяем второй шанс (6% / 50% / 90%)
+     */
+    protected function getSecondChance(int $characterId): int
+    {
+        // Если игрок в процессе сбора или исследования => 90%
+        if ($this->playerStateService->isGathering($characterId) ||
+            $this->playerStateService->isExploring($characterId))
+        {
+            return 90;
+        }
+
+        // Если игрок на базе => 6%
+        if ($this->playerStateService->isCharacterOnBase($characterId)) {
+            return 6;
+        }
+
+        // Иначе => 50%
+        return 50;
+    }
+
+    /**
+     * Собственно расчёт дебаффа. Примерно, как было,
+     * но с гарантией что health/tired >= 1.
+     */
+    protected function calculateDebuffEffect(array $character, array $eventInfo)
     {
         $debuffEffects = [];
 
-        // Получаем информацию о биоме персонажа
-        $biome = $this->biomeModel->find($character['biome_id']);
+        // Подгружаем из БД (чтобы избежать расхождений)
+        $freshCharacter = $this->characterModel->find($character['id']);
+        if (!$freshCharacter) {
+            return null;
+        }
 
+        // Смотрим, какой это тип биома
+        $biome = $this->biomeModel->find($freshCharacter['biome_id']);
+        if (!$biome) {
+            return null;
+        }
+
+        // Допустим, логика как раньше:
         switch ($biome['biome_type']) {
-            case 'wet':
-                $healthDebuff = rand(5, 10); // Случайное уменьшение здоровья на 5-10%
-                $newHealth = max(0.01, $character['health'] - $healthDebuff);
-                $debuffEffects['health'] = $newHealth - $character['health']; // Фиксируем реальное изменение
-                $character['health'] = $newHealth;
+            case 'wet':  // влажный биом
+                // Уменьшаем health
+                $healthDebuff = rand(5, 10); // 5-10
+                $oldHealth = $freshCharacter['health'];
+                $newHealth = max(1, $oldHealth - $healthDebuff);
+
+                // Сохраняем, если есть изменения
+                if ($newHealth < $oldHealth) {
+                    $debuffEffects['health'] = $newHealth - $oldHealth; // будет отрицательное число
+                    $freshCharacter['health'] = $newHealth;
+                }
                 break;
 
-            case 'dry':
-                $tirednessDebuff = rand(3, 7); // Случайное уменьшение выносливости на 3-7%
-                $newTiredness = max(0.01, $character['tired'] - $tirednessDebuff);
-                $debuffEffects['tired'] = $newTiredness - $character['tired']; // Фиксируем реальное изменение
-                $character['tired'] = $newTiredness;
+            case 'dry':  // сухой биом
+                // Уменьшаем tired
+                $tiredDebuff = rand(3, 7);
+                $oldTired = $freshCharacter['tired'];
+                $newTired = max(1, $oldTired - $tiredDebuff);
+
+                if ($newTired < $oldTired) {
+                    $debuffEffects['tired'] = $newTired - $oldTired;
+                    $freshCharacter['tired'] = $newTired;
+                }
                 break;
 
             default:
+                // Уменьшаем и health, и tired понемногу
                 $healthDebuff = rand(1, 3);
-                $newHealth = max(0.01, $character['health'] - $healthDebuff);
-                $debuffEffects['health'] = $newHealth - $character['health']; // Фиксируем реальное изменение
-                $character['health'] = $newHealth;
+                $tiredDebuff  = rand(1, 3);
+
+                $oldHealth = $freshCharacter['health'];
+                $oldTired  = $freshCharacter['tired'];
+
+                $newHealth = max(1, $oldHealth - $healthDebuff);
+                $newTired  = max(1, $oldTired  - $tiredDebuff);
+
+                if ($newHealth < $oldHealth) {
+                    $debuffEffects['health'] = $newHealth - $oldHealth;
+                    $freshCharacter['health'] = $newHealth;
+                }
+                if ($newTired < $oldTired) {
+                    $debuffEffects['tired'] = $newTired - $oldTired;
+                    $freshCharacter['tired'] = $newTired;
+                }
                 break;
         }
 
-        // Обновляем параметры персонажа в базе данных
-        $this->characterModel->update($character['id'], [
-            'health' => $character['health'],
-            'tired' => $character['tired'] ?? null // Обновляем только если было изменено
+        // Если массив пуст, значит ничего не изменилось
+        if (empty($debuffEffects)) {
+            return null;
+        }
+
+        // Сохраняем в БД
+        $this->characterModel->update($freshCharacter['id'], [
+            'health' => $freshCharacter['health'],
+            'tired'  => $freshCharacter['tired'],
         ]);
 
         return $debuffEffects;
     }
 
-    protected function notifyCharacter($character, $debuffEffect)
+    protected function logEventEffects(int $characterId, array $debuffEffect, int $eventId)
     {
-        // Получаем Telegram ID пользователя, связанного с персонажем
-        $telegramUser = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
+        $logModel = new EventEffectsLogModel();
+
+        $effectDetails = json_encode($debuffEffect, JSON_UNESCAPED_UNICODE);
+
+        $logData = [
+            'character_id'  => $characterId,
+            'event_id'      => $eventId,
+            'effect_details'=> $effectDetails,
+            'event_time'    => date('Y-m-d H:i:s'),
+        ];
+
+        // Дополнительная инфа (ячейка, биом)
+        $characterInfo = $this->characterModel->find($characterId);
+        if ($characterInfo) {
+            $logData['cell_number'] = $characterInfo['cell_number'] ?? null;
+            $logData['biome_id']    = $characterInfo['biome_id']    ?? null;
+        }
+
+        $logModel->insert($logData);
+    }
+
+    protected function notifyCharacter(array $character, array $debuffEffect)
+    {
+        $telegramUser = $this->telegramUserModel->find($character['telegram_user_id']);
         if (!$telegramUser) {
-            return; // Если пользователь не найден, выходим из метода
+            return;
         }
-        $chatId = $telegramUser['telegram_id'];
 
-        // Формируем сообщение
-        $message = "⚠️ *Внимание!* Вас коснулась *Жаркая лихорадка* 🌡️.\n\n";
-        $message .= "🔥 Ваши параметры были изменены следующим образом:\n";
+        $chatId = $telegramUser['telegram_id'] ?? null;
+        if (!$chatId) {
+            return;
+        }
 
-        // Добавляем детали изменений
+        $message = "⚠️ *Жаркая лихорадка!* Тебя подкосило... \n\n";
+        $message .= "Твои показатели понизились:\n";
         foreach ($debuffEffect as $param => $change) {
-            $translatedParam = $this->translateParameter($param); // Предполагается, что метод translateParameter переводит название параметра и добавляет соответствующий эмоджи
-            $message .= "{$translatedParam}: {$change}\n";
+            $changeVal = (int)$change; // обычно отрицательное
+            $translatedParam = $this->translateParameter($param);
+            $message .= "- {$translatedParam}: {$changeVal}\n";
         }
-
-        $message .= "\n💊 *Рекомендуем принять меры для восстановления.*";
+        $message .= "\nНе забудь позаботиться о восстановлении!";
 
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🎉 События', 'callback_data' => 'events']
+                    ['text' => '🎉 События',         'callback_data' => 'events']
                 ]
             ]
         ];
 
-        Request::answerCallbackQuery(['callback_query_id' => $chatId]);
         try {
             Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => $message,
-                'parse_mode' => 'Markdown',
+                'chat_id'      => $chatId,
+                'text'         => $message,
+                'parse_mode'   => 'Markdown',
                 'reply_markup' => json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Ошибка при отправке фото: " . $e->getMessage());
-            // Можете отправить сообщение без изображения или с другим изображением
+            log_message('error', "Ошибка при отправке сообщения о Fever: " . $e->getMessage());
         }
     }
 
-    protected function translateParameter($parameter)
+    protected function translateParameter(string $parameter): string
     {
-        // Здесь можно добавить логику перевода параметров и выбора соответствующих эмоджи
-        $translations = [
-            'experience' => 'Опыт',
+        $map = [
             'health' => 'Здоровье',
-            'strength' => 'Сила',
-            'agility' => 'Ловкость',
-            'intellect' => 'Интеллект',
-            'tired' => 'Выносливость',
+            'tired'  => 'Выносливость',
+            // Если нужны другие параметры...
         ];
-
-        return $translations[$parameter] ?? '❓ Неизвестный параметр';
+        return $map[$parameter] ?? $parameter;
     }
-
 }

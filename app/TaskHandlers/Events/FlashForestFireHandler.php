@@ -13,6 +13,9 @@ use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
 use App\Models\TelegramUserModel;
 
+// Подключаем наш сервис проверок местоположения и статуса игрока
+use App\Services\Player\PlayerStateService;
+
 class FlashForestFireHandler extends Controller
 {
     protected $characterModel;
@@ -20,21 +23,28 @@ class FlashForestFireHandler extends Controller
     protected $eventModel;
     protected $activeEventModel;
     protected $telegramUserModel;
-    private $telegram;
+    private   $telegram;
+
+    // Наш сервис
+    protected $playerStateService;
 
     public function __construct()
     {
-        $this->characterModel = new CharacterModel();
-        $this->biomeModel = new BiomeModel();
-        $this->eventModel = new EventModel();
-        $this->activeEventModel = new ActiveEventModel();
+        $this->characterModel    = new CharacterModel();
+        $this->biomeModel        = new BiomeModel();
+        $this->eventModel        = new EventModel();
+        $this->activeEventModel  = new ActiveEventModel();
         $this->telegramUserModel = new TelegramUserModel();
+
+        // Инициализируем сервис
+        $this->playerStateService = new PlayerStateService();
+
         $this->initTelegram();
     }
 
     private function initTelegram()
     {
-        $API_KEY = getenv('telegram.API_KEY');
+        $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
         try {
             $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
@@ -46,41 +56,49 @@ class FlashForestFireHandler extends Controller
 
     public function process()
     {
-        if (mt_rand(0, 100) >= 20) {
-            return; // 80% шанс на то, что событие не будет обработано
+        // 1) Сначала случайный шанс 20% (как было в исходном коде)
+        if (mt_rand(1, 100) > 20) {
+            // 80% случаев - пожар не обрабатываем в этом цикле
+            return;
         }
 
+        // 2) Проверяем, активно ли событие "FlashForestFire"
         $activeEvent = $this->isEventActive('FlashForestFire');
         if (!$activeEvent) {
-            return;  // Событие не включено, остановить обработку
+            return;  // Событие неактивно
         }
 
+        // 3) Извлекаем biomes, где действует пожар
         if (!isset($activeEvent['biome_ids'])) {
-            return;  // Нет биомов в списке доступных, остановить обработку
+            return;
         }
-
         $affectedBiomes = json_decode($activeEvent['biome_ids'], true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            return;  // Ошибка декодирования JSON, остановка обработки
+        if (!is_array($affectedBiomes)) {
+            return; // Ошибка декодирования biomes
         }
 
+        // 4) Для каждого биома - ищем персонажей
         foreach ($affectedBiomes as $biomeId) {
-            $charactersInBiome = $this->characterModel->where('biome_id', $biomeId)->findAll();
+            $charactersInBiome = $this->characterModel
+                ->where('biome_id', $biomeId)
+                ->findAll();
+
+            // Применяем огонь к каждому
             foreach ($charactersInBiome as $character) {
-                if (!$this->isCharacterBusyWithTasks($character['id'])) {
-                    continue;  // Пропускаем не занятых персонажей
-                }
                 $this->applyFireEffects($character, $activeEvent);
             }
         }
     }
 
-    protected function isEventActive($eventNameEnglish)
+    /**
+     * Проверяем, есть ли запись в active_events для этого eventNameEnglish
+     * со статусом "active". Возвращаем массив или false.
+     */
+    protected function isEventActive(string $eventNameEnglish)
     {
         $eventInfo = $this->eventModel->where('name_english', $eventNameEnglish)->first();
-
-        if (!$eventInfo || empty($eventInfo['biome_ids'])) {
-            return false;  // Event not active or malformed data
+        if (!$eventInfo) {
+            return false;
         }
 
         $activeEvent = $this->activeEventModel
@@ -89,133 +107,144 @@ class FlashForestFireHandler extends Controller
             ->first();
 
         if ($activeEvent) {
-            // Include biome_ids in the return to ensure downstream functions have access
+            // Добавим biomes (чтобы downstream мог их взять)
             $activeEvent['biome_ids'] = $eventInfo['biome_ids'];
-            return $activeEvent;  // Return the active event data including biome_ids
+            $activeEvent['effect_value'] = $eventInfo['effect_value'];
+            return $activeEvent;
         }
 
-        return false;  // Event is not active
+        return false;
     }
 
-    protected function isCharacterBusyWithTasks($characterId)
+    /**
+     * Применяем пожар к конкретному персонажу (учитывая логику базы, gather, explore).
+     */
+    protected function applyFireEffects(array $character, array $activeEvent)
     {
-        $db = db_connect(); // Получаем подключение к базе данных
+        $characterId = $character['id'];
 
-        // Идентификаторы задач, связанных с событием (Изучение местности и Добыча ресурсов)
-        $taskIds = $db->table('tasks')
-            ->whereIn('name', ['ExploreTheArea', 'Gather'])
-            ->select('id')
-            ->get()
-            ->getResultArray();
+        // 1) Если игрок на базе -> пожар не касается
+        if ($this->playerStateService->isCharacterOnBase($characterId)) {
+            return;
+        }
 
-        // Преобразуем результат в массив ID задач
-        $taskIdsArray = array_column($taskIds, 'id');
+        // 2) Определяем шанс срабатывания урона:
+        //    - если gather или explore => 75%
+        //    - иначе => 50%
+        $chance = 50;
+        if ($this->playerStateService->isGathering($characterId) ||
+            $this->playerStateService->isExploring($characterId))
+        {
+            $chance = 75;
+        }
 
-        // Проверяем, занят ли персонаж этими задачами
-        $activeTasksCount = $db->table('character_tasks')
-            ->whereIn('task_id', $taskIdsArray)
-            ->where('character_id', $characterId)
-            ->where('status', 'in_work')
-            ->countAllResults();
+        // 3) Рандом: если бросок > chance, урона нет.
+        if (mt_rand(1, 100) > $chance) {
+            return;
+        }
 
-        return $activeTasksCount > 0;
+        // 4) Если дошли сюда - применяем урон.
+        //    Проверим, что есть поле 'effect_value' (например 78).
+        if (!isset($activeEvent['effect_value'])) {
+            return;
+        }
+
+        $damageValue = $activeEvent['effect_value'];
+
+        // Допустим, используем какую-то формулу
+        // (как в коде, calculateFireDamage). Упростим/воспользуемся
+        $damage = $this->calculateDamage($character, $damageValue);
+
+        // Уменьшаем health и tired, не ниже 1
+        $newHealth = max(1, $character['health'] - $damage);
+        // Если хотим снизить и выносливость, например вдвое меньше:
+        $tiredDamage = round($damage / 2);
+        $newTired  = max(1, $character['tired'] - $tiredDamage);
+
+        // Обновляем персонажа
+        $this->characterModel->update($characterId, [
+            'health' => $newHealth,
+            'tired'  => $newTired,
+        ]);
+
+        // Оповещение
+        $this->notifyCharacterAboutFire($character, $damage, $tiredDamage, $activeEvent);
     }
 
-    protected function applyFireEffects($character, $activeEvent)
+    /**
+     * Пример расчёта урона. Можно взять логику из original code (calculateFireDamage).
+     */
+    protected function calculateDamage(array $character, float $baseEffectValue): float
     {
-        // Проверяем, что текущее здоровье персонажа больше минимального порога
-        if ($character['health'] <= 0.01) {
-            return; // Если здоровье меньше или равно минимальному порогу, прекращаем дальнейшую обработку
-        }
-
-        // Получаем информацию о текущем событии лесного пожара
-        $event = $this->eventModel->where('name_english', 'FlashForestFire')->first();
-        if (!$event) {
-            return; // Если событие лесного пожара не найдено, прекращаем выполнение
-        }
-
-        // Получаем информацию о биоме, в котором находится персонаж
+        // Допустим, учитываем уровень, danger_level, randomFactor:
         $biome = $this->biomeModel->find($character['biome_id']);
         if (!$biome) {
-            return; // Если биом не найден, прекращаем выполнение
+            // если нет данных о биоме, вернём базовый
+            return $baseEffectValue;
         }
 
-        // Рассчитываем урон, который будет нанесен персонажу из-за лесного пожара
-        $effectValue = $event['effect_value'];
-        $damage = $this->calculateFireDamage($biome, $character['level'], $effectValue);
+        $danger     = $biome['danger_level']         ?? 5;
+        $difficulty = $biome['survival_difficulty']  ?? 5;
+        $charLevel  = $character['level']            ?? 1;
 
-        // Применяем урон к здоровью персонажа, учитывая минимальный порог в 0.01
-        $newHealth = max(0.01, $character['health'] - $damage);
-        $this->characterModel->update($character['id'], ['health' => $newHealth]);
+        $levelFactor = max(1, 100 - $charLevel) / 100.0;
+        $biomeFactor = ($danger + $difficulty) / 20.0;
 
-        $endTime = $this->formatEventEndTime($activeEvent); // Форматирование времени окончания события
-        $this->notifyCharacterAboutFire($character, $damage, $endTime); // Передайте все три параметра
-    }
+        // Бросок от 0.5 до 1.5 (плюс-минус 50%)
+        $randomFactor = rand(50, 150) / 100.0;
 
-    protected function calculateFireDamage($biome, $characterLevel, $effectValue)
-    {
-        // Предположим, что формула урона будет зависеть от эффекта события, уровня персонажа и специфики биома
-        $levelFactor = max(1, 100 - $characterLevel) / 100; // Чем выше уровень, тем меньше урона получит персонаж
-        $biomeFactor = ($biome['danger_level'] + $biome['survival_difficulty']) / 20; // Сложность биома влияет на урон
-        $damage = $effectValue * $levelFactor * $biomeFactor; // Базовая формула урона
-
-        // Внедряем элемент случайности в расчет урона
-        $randomFactor = rand(50, 150) / 100; // Колебание в пределах +/- 50%
-        $damage *= $randomFactor;
-
-        // Округляем урон до двух десятичных знаков
+        $damage = $baseEffectValue * $levelFactor * $biomeFactor * $randomFactor;
+        // округлим
         return round($damage, 2);
     }
 
-    protected function formatEventEndTime($isActiveEvent)
+    /**
+     * Отправляем сообщение о полученном уроне (health/tired).
+     */
+    protected function notifyCharacterAboutFire(array $character, float $damage, float $tiredDamage, array $activeEvent)
     {
-        $endDateTime = new DateTime($isActiveEvent['end_time']);
-        $currentDateTime = new DateTime();
-        $interval = $currentDateTime->diff($endDateTime);
-
-        $days = $interval->format('%a');
-        $hours = $interval->format('%H');
-        $minutes = $interval->format('%I');
-
-        return "⏳ Событие закончится через: {$days} дн. {$hours} чс. {$minutes} мин.";
-    }
-
-
-    protected function notifyCharacterAboutFire($character, $damage, $endTime)
-    {
-        $telegramUser = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
+        $telegramUser = $this->telegramUserModel->find($character['telegram_user_id']);
         if (!$telegramUser) {
             return;
         }
-        $chatId = $telegramUser['telegram_id'];
 
-        // Сформировать сообщение
-        $message = "🔥 *Внимание!* Ваш персонаж попал под воздействие *лесного пожара*.\n\n";
-        $message .= "🔥 Полученный урон: *{$damage}* HP.\n";
-        $message .= "*{$endTime}*.\n\n";
-        $message .= "🛑 Рекомендуется немедленно отойти на безопасное расстояние или вернуться на базу для избежания дальнейшего урона.";
+        $chatId = $telegramUser['telegram_id'] ?? null;
+        if (!$chatId) {
+            return;
+        }
+
+        // Сформируем текст
+        $message = "🔥 *Внезапный лесной пожар!* Тебя задело пламенем...\n\n";
+        $message .= "Получен урон по здоровью: *{$damage}*\n";
+        $message .= "Понижена выносливость на: *{$tiredDamage}*\n";
+
+        // (можно добавить время окончания события, если хотите)
+        // ...
+
+        $message .= "\nСовет: скорее отойди на безопасное расстояние или вернись на базу!";
 
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ['text' => '🎉 События', 'callback_data' => 'events']
                 ]
             ]
         ];
 
-        // Путь к изображению для лесного пожара
-        $photo = base_url('uploads/telegram/huge_forest_fires.png'); // Необходимо указать реальный путь к изображению
+        // Допустим, есть картинка для пожара
+        $photoPath = base_url('uploads/telegram/huge_forest_fires.png');
 
-        Request::answerCallbackQuery(['callback_query_id' => $chatId]);
-        Request::sendPhoto([
-            'chat_id' => $chatId,
-            'photo' => Request::encodeFile($photo),
-            'caption' => $message,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
+        try {
+            Request::sendPhoto([
+                'chat_id'    => $chatId,
+                'photo'      => Request::encodeFile($photoPath),
+                'caption'    => $message,
+                'parse_mode' => 'Markdown',
+                'reply_markup' => json_encode($keyboard),
+            ]);
+        } catch (TelegramException $e) {
+            log_message('error', "Ошибка при отправке фото (лесной пожар): " . $e->getMessage());
+        }
     }
-
 }

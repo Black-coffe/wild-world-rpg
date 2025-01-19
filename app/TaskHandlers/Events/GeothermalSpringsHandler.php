@@ -34,24 +34,36 @@ class GeothermalSpringsHandler extends Controller
 
     public function process()
     {
-        if (mt_rand(0, 100) >= 2) {
-            return; // 98% шанс на то, что событие не будет обработано
+        // Меняем условие с 2% на ~15%
+        // Если бросок > 15, значит событие не срабатывает (пропуск).
+        if (mt_rand(1, 100) > 15) {
+            return; // ~85% случаев событие не обрабатывается
         }
 
+        // Получаем информацию о событии
         $eventInfo = $this->eventModel->where('name_english', 'GeothermalFountains')->first();
         if (!$eventInfo) {
             log_message('error', 'Geothermal Springs event not found.');
-            return; // Если событие не найдено, останавливаем выполнение
+            return;
         }
 
+        // Проверяем, активно ли событие в active_events
         if (!$this->activeEventModel->isActive($eventInfo['event_id'])) {
             log_message('error', 'Geothermal Springs event is not active.');
-            return; // Если событие не активно, останавливаем выполнение
+            return;
         }
 
+        // Получаем, в каких биомах действует событие
         $biomeIds = json_decode($eventInfo['biome_ids'], true);
+        if (!is_array($biomeIds)) {
+            log_message('error', 'Invalid biome_ids data for Geothermal Springs event.');
+            return;
+        }
+
+        // Ищем всех персонажей, кто находится в этих биомах
         $characters = $this->characterModel->whereIn('biome_id', $biomeIds)->findAll();
 
+        // Применяем эффект к каждому
         foreach ($characters as $character) {
             $this->applyHealing($character);
         }
@@ -60,17 +72,20 @@ class GeothermalSpringsHandler extends Controller
     protected function applyHealing($character)
     {
         $healAmount = rand(1, 10); // Значение исцеления
-        $healedProperty = rand(0, 1) ? 'health' : 'tired'; // Выбор свойства для исцеления
+        // Случайный выбор: восстанавливаем либо здоровье (health), либо выносливость (tired)
+        $healedProperty = rand(0, 1) ? 'health' : 'tired';
 
-        // Гарантируем, что здоровье и усталость не превысят максимально допустимые значения
+        // Не превышаем 100
         if ($character[$healedProperty] + $healAmount > 100) {
             $healAmount = 100 - $character[$healedProperty];
         }
 
-        // Применяем исцеление
-        $this->characterModel->update($character['id'], [$healedProperty => $character[$healedProperty] + $healAmount]);
+        // Обновляем в БД
+        $this->characterModel->update($character['id'], [
+            $healedProperty => $character[$healedProperty] + $healAmount
+        ]);
 
-        // Отправляем уведомление персонажу
+        // Уведомляем пользователя
         $this->notifyCharacter($character, $healedProperty, $healAmount);
     }
 
@@ -78,29 +93,31 @@ class GeothermalSpringsHandler extends Controller
     {
         $telegramUserId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
         if (!$telegramUserId) {
-            return; // Если Telegram пользователя не найдено, прекращаем выполнение
+            return;
         }
 
         $chatId = $telegramUserId['telegram_id'];
         $boostTypeText = $boostType === 'health' ? 'здоровье' : 'выносливость';
+
         $message = sprintf(
             "🌋 *Благодаря событию 'Геотермальные фонтаны' ваш персонаж восстановил %s на %d единиц.*\n\n" .
             "_Наслаждайтесь природным источником здоровья и энергии..._",
             $boostTypeText,
             $boostValue
         );
-        $message .= "\n\nПосмотрите сколько времени еще будет данное событие, чтобы принять стратегические решения 👇";
+
+        $message .= "\n\nПосмотрите сколько времени ещё будет данное событие, чтобы принять стратегические решения 👇";
+
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ['text' => '🎉 События', 'callback_data' => 'events']
                 ]
             ]
         ];
-        // Путь к изображению для лесного пожара
-        $photo = base_url('uploads/telegram/geothermal__fountains.png'); // Необходимо указать реальный путь к изображению
+
+        $photo = base_url('uploads/telegram/geothermal__fountains.png'); // Укажите реальный путь к файлу
 
         Request::answerCallbackQuery(['callback_query_id' => $chatId]);
         try {

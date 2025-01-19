@@ -2,34 +2,48 @@
 
 namespace App\TaskHandlers\Events;
 
-use App\Models\ActiveEventModel;
-use App\Models\EventModel;
-use App\Models\CharacterModel;
-use App\Models\CharacterTaskModel;
-use App\Models\TaskModel;
+use App\Models\{
+    ActiveEventModel,
+    EventModel,
+    CharacterModel,
+    CharacterTaskModel,
+    TaskModel,
+    TelegramUserModel
+};
+use CodeIgniter\Controller;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
 use Longman\TelegramBot\Exception\TelegramException;
-use App\Models\TelegramUserModel;
 
-class SpringFloodHandler {
+// Подключаем сервис
+use App\Services\Player\PlayerStateService;
+
+class SpringFloodHandler extends Controller
+{
     protected $activeEventModel;
     protected $eventModel;
     protected $characterModel;
     protected $characterTaskModel;
     protected $taskModel;
     protected $telegramUserModel;
-    private $telegram;
+    private   $telegram;
 
-    public function __construct() {
-        $this->activeEventModel = new ActiveEventModel();
-        $this->eventModel = new EventModel();
-        $this->characterModel = new CharacterModel();
+    // Сервис для проверок
+    protected $playerStateService;
+
+    public function __construct()
+    {
+        $this->activeEventModel   = new ActiveEventModel();
+        $this->eventModel         = new EventModel();
+        $this->characterModel     = new CharacterModel();
         $this->characterTaskModel = new CharacterTaskModel();
-        $this->taskModel = new TaskModel();
-        $this->telegramUserModel = new TelegramUserModel();
+        $this->taskModel          = new TaskModel();
+        $this->telegramUserModel  = new TelegramUserModel();
 
-        $API_KEY = getenv('telegram.API_KEY');
+        // Создаём сервис
+        $this->playerStateService = new PlayerStateService();
+
+        $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
         try {
             $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
@@ -39,87 +53,183 @@ class SpringFloodHandler {
         }
     }
 
-    public function process() {
-        $eventInfo = $this->eventModel->where('name_english', 'SpringFlood')->first();
-        if (!$eventInfo) {
-            return; // Событие "SpringFlood" не найдено
+    public function process()
+    {
+        // 1) 30% шанс
+        if (mt_rand(1, 100) > 30) {
+            return; // 70% случаев — пропускаем
         }
 
+        // 2) Ищем событие "SpringFlood"
+        $eventInfo = $this->eventModel->where('name_english', 'SpringFlood')->first();
+        if (!$eventInfo) {
+            return; // событие не найдено
+        }
+
+        // 3) Проверяем, активно ли
         $activeEvent = $this->activeEventModel
             ->where('event_id', $eventInfo['event_id'])
             ->where('status', 'active')
             ->first();
 
         if (!$activeEvent) {
-            return; // Активное событие "SpringFlood" не найдено
+            return; // неактивно
         }
 
-        $biomeIds = json_decode($eventInfo['biome_ids'], true);
-        $characters = $this->characterModel->whereIn('biome_id', $biomeIds)->findAll();
-        $message = '';
+        // 4) Смотрим biomes
+        $biomeIdsJson = $eventInfo['biome_ids'] ?? null;
+        if (!$biomeIdsJson) {
+            return;
+        }
+        $biomeIds = json_decode($biomeIdsJson, true);
+        if (!is_array($biomeIds)) {
+            return;
+        }
 
+        // 5) Берём всех персонажей, находящихся в этих биомах
+        $characters = $this->characterModel
+            ->whereIn('biome_id', $biomeIds)
+            ->findAll();
+
+        if (!$characters) {
+            return;
+        }
+
+        // effect_value, например 20
+        $effectValue = $eventInfo['effect_value'] ?? 10;
+
+        // 6) Применяем к каждому
         foreach ($characters as $character) {
-            $tasksInWork = $this->characterTaskModel
-                ->where('character_id', $character['id'])
-                ->where('status', 'in_work')
-                ->findAll();
-
-            foreach ($tasksInWork as $taskInWork) {
-                $task = $this->taskModel->find($taskInWork['task_id']);
-                if (in_array($task['name'], ['Gather', 'ExploreTheArea'])) {
-                    // Проверяем уровень здоровья персонажа
-                    if ($character['health'] <= 0.1) {
-                        continue; // Если здоровье <= 0.1, пропускаем понижение здоровья
-                    }
-
-                    $damage = rand(1, $eventInfo['effect_value']);
-                    $levelCoefficient = max(1, min(999, $character['level']) / 100);
-                    $finalDamage = round($damage / $levelCoefficient);
-
-                    if (rand(1, 5) === 1) {
-                        $newHealth = max(0, $character['health'] - $finalDamage);
-                        $this->characterModel->update($character['id'], ['health' => $newHealth]);
-                        // Добавить уведомление пользователя о полученном уроне
-                        $message .= "⚠️ *Внимание*, во время события: ➡️ *Весенний паводок.*\n\n";
-                        $message .= "ℹ️ *Вы потеряли:*\n";
-                        $message .= "💖 *{$finalDamage}* _Единиц здоровья_\n\n";
-                        $message .= "💖 *Сейчас у вас: {$newHealth}* _Единиц здоровья_\n\n";
-                        $message .= "_Вам нужно вернуться на базу или использовать аптечку во избежание смерти!_\n\n";
-                        $message .= "Посмотрите сколько времени еще будет данное событие, чтобы принять стратегические решения";
-
-                        $imagePath = base_url('uploads/telegram/flooded_areas_by_the_river.jpg'); // Укажите актуальный путь к изображению
-                        $chatId = $this->telegramUserModel->where('id',  $character['telegram_user_id'])->first()['telegram_id'];
-
-                        $this->sendMessageToUsers($message, $imagePath, $chatId);
-                    }
-                }
-            }
+            $this->applySpringFlood($character, $effectValue, $activeEvent);
         }
     }
 
-    protected function sendMessageToUsers($message, $imagePath, $chatId) {
+    /**
+     * Основная логика применения урона с учётом базы / занятости.
+     */
+    protected function applySpringFlood(array $character, float $effectValue, array $activeEvent)
+    {
+        $charId = $character['id'];
+
+        // Проверяем состояние: база + занятость
+        $onBase      = $this->playerStateService->isCharacterOnBase($charId);
+        $isGathering = $this->playerStateService->isGathering($charId);
+        $isExploring = $this->playerStateService->isExploring($charId);
+
+        // 1) Если на базе и не занят => 0% урона
+        if ($onBase && !$isGathering && !$isExploring) {
+            $this->notifyProtected($character);
+            return;
+        }
+
+        // 2) Иначе считаем процент урона:
+        //    Если занят (gather||explore) => 100%,
+        //    Если не занят => 70%.
+        $damageRatio = ($isGathering || $isExploring) ? 1.0 : 0.7;
+
+        // Считаем урон. Примерно, как в прежнем коде:
+        $damage = rand(1, $effectValue); // напр. 1..20
+        // Допустим, учитываем уровень:
+        $levelCoefficient = max(1, min(999, $character['level']) / 100);
+        $finalDamage = round(($damage / $levelCoefficient) * $damageRatio);
+
+        // Не опускаем здоровье ниже 0.01
+        $oldHealth = $character['health'];
+        if ($oldHealth <= 0.01) {
+            return; // уже на минимуме
+        }
+        $newHealth = max(0.01, $oldHealth - $finalDamage);
+
+        // Обновляем
+        $this->characterModel->update($charId, [
+            'health' => $newHealth,
+        ]);
+
+        // Уведомляем
+        $this->notifyDamage($character, $oldHealth, $newHealth, $finalDamage, $damageRatio, $activeEvent);
+    }
+
+    /**
+     * Уведомление о том, что персонаж на базе и в безопасности.
+     */
+    protected function notifyProtected(array $character)
+    {
+        $tgUser = $this->telegramUserModel->find($character['telegram_user_id']);
+        if (!$tgUser) {
+            return;
+        }
+
+        $chatId = $tgUser['telegram_id'];
+
+        $message = "🌊 *Весенний паводок* бушует!\n\n"
+            . "Но ты находишься на своей базе и не занят опасными делами.\n"
+            . "Вода не смогла причинить тебе вреда!";
+
+        try {
+            Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => $message,
+                'parse_mode' => 'Markdown',
+            ]);
+        } catch (TelegramException $e) {
+            log_message('error', "Ошибка при notifyProtected: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Уведомление о полученном уроне.
+     */
+    protected function notifyDamage(
+        array $character,
+        float $oldHealth,
+        float $newHealth,
+        float $finalDamage,
+        float $ratio,
+        array $activeEvent
+    ) {
+        $tgUser = $this->telegramUserModel->find($character['telegram_user_id']);
+        if (!$tgUser) {
+            return;
+        }
+
+        $chatId = $tgUser['telegram_id'];
+
+        $damagePercent = ($ratio >= 1.0) ? "100%" : "70%";
+        $lostHealth = round($finalDamage, 2);
+
+        $message  = "⚠️ *Весенний паводок* обрушил на тебя потоки воды!\n\n";
+        $message .= "Ты потерял примерно *{$lostHealth}* здоровья ";
+        $message .= "(урон применён на *{$damagePercent}* силы).\n";
+        $message .= "Текущее здоровье: *" . round($newHealth, 2) . "*\n\n";
+        $message .= "_Можешь спастись, отойдя в биом, не затронутый паводком, или вернувшись на базу!_\n";
+
+        // добавим немного информации о конце события
+        $endTime = $activeEvent['end_time'] ?? '';
+        if ($endTime) {
+            $message .= "\nСобытие закончится примерно к: `{$endTime}`\n";
+        }
+
+        $imagePath = base_url('uploads/telegram/flooded_areas_by_the_river.jpg');
+
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🎉 События', 'callback_data' => 'events']
+                    ['text' => '🧑‍🌾 Действия 🛠️','callback_data' => 'characterActions'],
+                    ['text' => '🎉 События',       'callback_data' => 'events']
                 ]
             ]
         ];
 
-        Request::answerCallbackQuery(['callback_query_id' => $chatId]);
         try {
-            return Request::sendPhoto([
-                'chat_id' => $chatId,
-                'photo' => Request::encodeFile($imagePath),
-                'caption' => $message,
+            Request::sendPhoto([
+                'chat_id'    => $chatId,
+                'photo'      => Request::encodeFile($imagePath),
+                'caption'    => $message,
                 'parse_mode' => 'Markdown',
                 'reply_markup' => json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Ошибка при отправке фото: " . $e->getMessage());
-            // Можете отправить сообщение без изображения или с другим изображением
+            log_message('error', "Ошибка при отправке notifyDamage: " . $e->getMessage());
         }
     }
 }

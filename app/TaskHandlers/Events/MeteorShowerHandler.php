@@ -60,7 +60,7 @@ class MeteorShowerHandler extends Controller
         }
 
         // Randomly select 50 game cells
-        $selectedCells = $this->selectRandomCells(100);
+        $selectedCells = $this->selectRandomCells(1000);
 
         // Добавить тестовую ячейку '56451' в список выбранных ячеек
         //$selectedCells[] = 56451;
@@ -130,7 +130,6 @@ class MeteorShowerHandler extends Controller
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ['text' => '🎉 События', 'callback_data' => 'events']
                 ]

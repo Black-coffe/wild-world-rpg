@@ -7,9 +7,11 @@ use App\Models\BiomeModel;
 use App\Models\TelegramUserModel;
 use App\Models\EventEffectsLogModel;
 use App\Models\EventModel;
+use App\Models\ActiveEventModel;
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
+use App\Services\Player\PlayerStateService;
 
 class EpidemicHandler
 {
@@ -17,16 +19,22 @@ class EpidemicHandler
     protected $biomeModel;
     protected $eventModel;
     protected $telegramUserModel;
-    private $telegram;
+    protected $activeEventModel;
+    private   $telegram;
+    private   $playerStateService;
 
     public function __construct()
     {
-        $this->characterModel = new CharacterModel();
-        $this->biomeModel = new BiomeModel();
-        $this->eventModel = new EventModel();
-        $this->telegramUserModel = new TelegramUserModel();
+        $this->characterModel   = new CharacterModel();
+        $this->biomeModel       = new BiomeModel();
+        $this->eventModel       = new EventModel();
+        $this->telegramUserModel= new TelegramUserModel();
+        $this->activeEventModel = new ActiveEventModel();
 
-        $API_KEY = getenv('telegram.API_KEY');
+        // Сервис для проверки, находится ли игрок на базе, занимается ли Gather или Explore
+        $this->playerStateService = new PlayerStateService();
+
+        $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
         try {
             $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
@@ -36,69 +44,169 @@ class EpidemicHandler
         }
     }
 
+    /**
+     * Основной метод обработки эпидемии. Вызывается по расписанию или игровому циклу.
+     */
     public function process()
     {
-        if (mt_rand(0, 100) >= 10) {
-            return; // 90% шанс на то, что событие не будет обработано
+        // Сначала проверяем 10% шанс (как в старом коде): 90% случаев эпидемия "не срабатывает".
+        if (mt_rand(1, 100) > 10) {
+            return;
         }
 
+        // Проверяем, активно ли событие Epidemic (в таблице active_events)
         if (!$this->isEventActive('Epidemic')) {
-            return; // Прекращаем выполнение, если событие не активно
+            return;
         }
 
+        // Получаем всех персонажей
         $allCharacters = $this->characterModel->findAll();
         $characterCount = count($allCharacters);
-        $affectedCount = ceil($characterCount / 100); // Расчет количества заболевших в зависимости от общего числа персонажей
 
+        // Как в старом коде: 1% игроков (округляя вверх) потенциально заражаются
+        $affectedCount = ceil($characterCount / 100);
+        if ($affectedCount < 1 && $characterCount > 0) {
+            $affectedCount = 1; // Чтобы как минимум 1 персонаж
+        }
+
+        // Случайным образом выбираем нужное количество персонажей
         for ($i = 0; $i < $affectedCount; $i++) {
             $randomCharacter = $allCharacters[array_rand($allCharacters)];
             $this->applyEpidemicEffects($randomCharacter);
         }
     }
 
-    protected function applyEpidemicEffects($character)
+    /**
+     * Применяет эффекты эпидемии к выбранному персонажу.
+     */
+    protected function applyEpidemicEffects(array $character)
     {
+        // Смотрим биом, если он не найден — выходим
         $biome = $this->biomeModel->find($character['biome_id']);
         if (!$biome) {
             return;
         }
-        $epidemicRisk = $this->calculateEpidemicRisk($biome, $character['level']);
 
-        if (mt_rand(0, 100) >= 2) {
-            $parameterAffected = $this->affectCharacter($character, $biome);
+        // Определяем шанс заразиться в зависимости от того, где/чем занят персонаж
+        $infectionChance = $this->getInfectionChance($character['id']);
 
-            // Логируем эффекты эпидемии на персонажа
-            $this->logEpidemicEffects($character['id'], $parameterAffected);
-
-            $this->notifyCharacter($character, $parameterAffected);
+        // Выполняем проверку (случайный бросок)
+        $roll = mt_rand(1, 100);
+        if ($roll > $infectionChance) {
+            // Персонаж избежал заражения
+            return;
         }
+
+        // Если персонаж заражается, уменьшаем его health и tired
+        $this->infectCharacter($character, $biome);
     }
 
-    protected function logEpidemicEffects($characterId, $parameterAffected)
+    /**
+     * Определяет вероятность заражения.
+     * - Если игрок занят Gather/Explore => 90%
+     * - Иначе, если он на базе => 6%
+     * - Иначе (вне базы) => 50%
+     */
+    protected function getInfectionChance(int $characterId): int
     {
-        $logModel = new EventEffectsLogModel();
-        $effectDetails = json_encode([
-            'affectedParameter' => $parameterAffected,
+        // Проверяем, не занят ли он сбором или изучением
+        if ($this->playerStateService->isGathering($characterId) ||
+            $this->playerStateService->isExploring($characterId)
+        ) {
+            return 90;
+        }
+
+        // Иначе смотрим, на базе ли он
+        if ($this->playerStateService->isCharacterOnBase($characterId)) {
+            return 6;
+        }
+
+        // Если не на базе => 50%
+        return 50;
+    }
+
+    /**
+     * Собственно «заражает» игрока, уменьшая здоровье и выносливость
+     * (не опускаем ниже 1), логируем и уведомляем.
+     */
+    protected function infectCharacter(array $character, array $biome)
+    {
+        $characterId = $character['id'];
+
+        // Подгружаем актуальные данные (на случай изменений)
+        $freshCharacter = $this->characterModel->find($characterId);
+        if (!$freshCharacter) {
+            return;
+        }
+
+        // Если здоровье (health) уже <= 1, выводим критическое сообщение и ничего не меняем
+        if ($freshCharacter['health'] <= 1) {
+            $this->sendCriticalMessage($freshCharacter);
+            return;
+        }
+
+        // Аналогично для выносливости
+        if ($freshCharacter['tired'] <= 1) {
+            $this->sendCriticalMessage($freshCharacter);
+            return;
+        }
+
+        // Вычислим, насколько уменьшаем (пример: 1..5 для здоровья, 1..3 для выносливости).
+        // Либо можно взять из effect_value, если нужно.
+        $healthDecrement = mt_rand(1, 5);
+        $tiredDecrement  = mt_rand(1, 3);
+
+        // Новые значения, но не опускаем ниже 1
+        $newHealth = max(1, $freshCharacter['health'] - $healthDecrement);
+        $newTired  = max(1, $freshCharacter['tired']  - $tiredDecrement);
+
+        // Сохраняем
+        $this->characterModel->update($characterId, [
+            'health' => $newHealth,
+            'tired'  => $newTired,
         ]);
 
-        $logData = [
-            'character_id' => $characterId,
-            'event_id' => $this->eventModel->where('name_english', 'Epidemic')->first()['event_id'], // Предполагается, что у вас есть такое поле
-            'effect_details' => $effectDetails,
-            'event_time' => date('Y-m-d H:i:s'),
-        ];
+        // Логируем эффекты в event_effects_log
+        $this->logEpidemicEffects($characterId, $healthDecrement, $tiredDecrement);
 
-        // Добавляем информацию о биоме и ячейке персонажа, если необходимо
-        $characterInfo = $this->characterModel->find($characterId);
-        if ($characterInfo) {
-            $logData['cell_number'] = $characterInfo['cell_number'] ?? null;
-            $logData['biome_id'] = $characterInfo['biome_id'] ?? null;
+        // Отправляем уведомление игроку
+        $this->notifyCharacter($freshCharacter, $healthDecrement, $tiredDecrement, $newHealth, $newTired);
+    }
+
+    /**
+     * Запись в event_effects_log — какие поля уменьшили.
+     */
+    protected function logEpidemicEffects(int $characterId, int $healthDec, int $tiredDec)
+    {
+        $logModel = new EventEffectsLogModel();
+        $eventInfo = $this->eventModel->where('name_english', 'Epidemic')->first();
+        if (!$eventInfo) {
+            return;
         }
+
+        $effectDetails = json_encode([
+            'healthDec' => $healthDec,
+            'tiredDec'  => $tiredDec,
+        ]);
+
+        $characterInfo = $this->characterModel->find($characterId);
+
+        $logData = [
+            'character_id'  => $characterId,
+            'event_id'      => $eventInfo['event_id'],
+            'effect_details'=> $effectDetails,
+            'event_time'    => date('Y-m-d H:i:s'),
+            'cell_number'   => $characterInfo['cell_number'] ?? null,
+            'biome_id'      => $characterInfo['biome_id']   ?? null,
+        ];
 
         $logModel->addLog($logData);
     }
 
-    protected function notifyCharacter($character, $parameterAffected)
+    /**
+     * Уведомление Telegram о снижении health/tired.
+     */
+    protected function notifyCharacter(array $character, int $healthDec, int $tiredDec, int $newHealth, int $newTired)
     {
         $telegramUser = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
         if (!$telegramUser) {
@@ -106,14 +214,11 @@ class EpidemicHandler
         }
         $chatId = $telegramUser['telegram_id'];
 
-        $message = "⚠️ *Внимание!* На вашего персонажа повлияла эпидемия 🦠. \n\n";
+        $message = "⚠️ *Эпидемия!* Твой персонаж заразился!\n\n";
+        $message .= "💖 Здоровье: -{$healthDec} (текущее: {$newHealth})\n";
+        $message .= "🥱 Выносливость: -{$tiredDec} (текущее: {$newTired})\n\n";
+        $message .= "Берегись, ведь болезнь может прогрессировать. Используй лекарства, чтобы восстановиться! 💉";
 
-        foreach ($parameterAffected as $parameter => $value) {
-            $translated = $this->translateParameter($parameter, $value);
-            $message .= $translated . "\n";
-        }
-
-        $message .= "\nЧтобы уменьшить риск заражения или восстановить потерянные параметры, используйте препараты из аптечки против эпидемий 💉.";
         $keyboard = [
             'inline_keyboard' => [
                 [
@@ -123,107 +228,59 @@ class EpidemicHandler
             ]
         ];
 
-        Request::answerCallbackQuery(['callback_query_id' => $chatId]);
         try {
             Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => $message,
-                'parse_mode' => 'Markdown',
+                'chat_id'      => $chatId,
+                'text'         => $message,
+                'parse_mode'   => 'Markdown',
                 'reply_markup' => json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Ошибка при отправке фото: " . $e->getMessage());
+            log_message('error', "Ошибка при отправке сообщения: " . $e->getMessage());
         }
     }
 
-    protected function translateParameter($parameter, $value)
+    /**
+     * Если здоровье/выносливость уже 1 — пишем особое сообщение о критическом состоянии.
+     */
+    protected function sendCriticalMessage(array $character)
     {
-        $icons = [
-            'experience' => '🌟 Опыт',
-            'health' => '💖 Здоровье',
-            'strength' => '💪 Сила',
-            'agility' => '🤸‍♂️ Ловкость',
-            'intellect' => '🧠 Интеллект',
-            'tired' => '🥱 Выносливость',
-        ];
-
-        $translations = [
-            'experience' => 'Опыт',
-            'health' => 'Здоровье',
-            'strength' => 'Сила',
-            'agility' => 'Ловкость',
-            'intellect' => 'Интеллект',
-            'tired' => 'Выносливость',
-        ];
-
-        $icon = $icons[$parameter] ?? '❓';
-        $translatedParam = $translations[$parameter] ?? 'Неизвестный параметр';
-
-        return "{$icon}: -{$value}";
-    }
-
-    protected function calculateEpidemicRisk($biome, $characterLevel)
-    {
-        // Проверка наличия данных о уровне опасности и сложности выживания биома
-        if (!isset($biome['danger_level']) || !isset($biome['survival_difficulty'])) {
-            // Если данные отсутствуют, присваиваем случайные значения от 3 до 7
-            $biome['danger_level'] = rand(3, 7);
-            $biome['survival_difficulty'] = rand(3, 7);
+        $telegramUser = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
+        if (!$telegramUser) {
+            return;
         }
+        $chatId = $telegramUser['telegram_id'];
 
-        // Влияние биома и уровня персонажа на риск заражения
-        $biomeEffect = $biome['danger_level'] + $biome['survival_difficulty'];
-        $levelEffect = 100 - min(100, $characterLevel); // Чем выше уровень, тем меньше шанс заражения
+        $message = "⚠️ *Эпидемия!* У твоего персонажа критическое состояние (здоровье или выносливость уже на минимуме).\n";
+        $message .= "Кажется, болезнь может привести к летальному исходу... Береги героя и срочно найди лекарство!";
 
-        return ($biomeEffect * $levelEffect) / 100;
-    }
-
-    protected function affectCharacter($character, $biome)
-    {
-        $parameter = $this->selectRandomParameter();
-        $decrement = $this->calculateParameterDecrement($parameter, $biome);
-
-        $newValue = max(0.01, $character[$parameter] - $decrement);
-        $this->characterModel->update($character['id'], [$parameter => $newValue]);
-
-        // Возвращаем информацию о том, какой параметр был изменен и на сколько
-        return [$parameter => $decrement];
-    }
-
-    protected function selectRandomParameter()
-    {
-        $parameters = ['experience', 'health', 'strength', 'agility', 'intellect', 'tired'];
-        return $parameters[array_rand($parameters)];
-    }
-
-    protected function calculateParameterDecrement($parameter, $biome)
-    {
-        // Проверка наличия данных о уровне опасности и сложности выживания биома
-        if (!isset($biome['danger_level']) || !isset($biome['survival_difficulty'])) {
-            // Если данные отсутствуют, присваиваем случайные значения от 3 до 7
-            $biome['danger_level'] = rand(3, 7);
-            $biome['survival_difficulty'] = rand(3, 7);
+        try {
+            Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => $message,
+                'parse_mode' => 'Markdown',
+            ]);
+        } catch (TelegramException $e) {
+            log_message('error', "Ошибка при отправке сообщения о критическом состоянии: " . $e->getMessage());
         }
-        // Уменьшение зависит от типа параметра и характеристик биома
-        $baseDecrement = rand(1, 10) / 100; // Базовое уменьшение от 0.01 до 0.1
-        return $baseDecrement + ($biome['danger_level'] + $biome['survival_difficulty']) / 200; // Увеличиваем уменьшение на основе биома
     }
 
-    protected function isEventActive($eventNameEnglish)
+    /**
+     * Проверяет, активно ли событие Epidemic в active_events.
+     */
+    protected function isEventActive(string $eventNameEnglish): bool
     {
         $eventInfo = $this->eventModel->where('name_english', $eventNameEnglish)->first();
         if (!$eventInfo) {
-            return false; // Если событие не найдено в базе
+            return false;
         }
 
-        // Используем модель ActiveEventModel для проверки активности
-        $activeEventModel = new \App\Models\ActiveEventModel();
-        $activeEvent = $activeEventModel
+        // ActiveEventModel
+        $active = $this->activeEventModel
             ->where('event_id', $eventInfo['event_id'])
             ->where('status', 'active')
             ->first();
 
-        return !empty($activeEvent);
+        return (bool) $active;
     }
-
 }
