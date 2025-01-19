@@ -44,7 +44,7 @@ class ToolManager
         return $toolMultiplier;
     }
 
-    protected function getToolsForResource($resourceName)
+    public function getToolsForResource($resourceName)
     {
         $toolMapping = [
             'Древесина' => ['LumberjackAxe' => 0.30],
@@ -79,11 +79,12 @@ class ToolManager
         return $toolMapping[$resourceName] ?? [];
     }
 
-    protected function updateToolDurability($toolData)
+    public function updateToolDurability($toolData)
     {
         $newDurability = $toolData['durability_count'] - 1;
         if ($newDurability > 0) {
             $this->craftedItemsLogModel->update($toolData['id'], ['durability_count' => $newDurability]);
+            return true; // Успешно обновили прочность
         } else {
             // Если прочность инструмента достигает нуля
             if ($toolData['quantity'] > 1) {
@@ -93,11 +94,12 @@ class ToolManager
                     'durability_count' => $initialToolData['durability_count'],
                     'quantity' => $toolData['quantity'] - 1
                 ]);
+                return true;
             } else {
                 // Удаляем запись, если инструментов больше нет
                 $this->craftedItemsLogModel->delete($toolData['id']);
+                return false; // Инструмент закончился
             }
         }
     }
-
 }

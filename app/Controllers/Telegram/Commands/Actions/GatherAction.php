@@ -40,19 +40,18 @@ class GatherAction extends BaseAction
             ]);
         }
 
+        // Проверка усталости
         if (!$this->deductTiredness($character)) {
-            // Если усталость недостаточна для начала задания, сообщаем об этом пользователю
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text' => "Твоя выносливость слишком низкая (текущий уровень: {$character['tired']}), нужно отдохнуть перед следующим приключением!",
+                'text' => "Твоя выносливость слишком низкая (текущий уровень: {$character['tired']}), нужно отдохнуть!",
             ]);
         }
 
+        // Проверка параллельных задач
         if (!$this->checkParallelExecutionAllowed($character['id'])) {
             $response = $this->prepareBlockedTaskResponse('cancelGather');
-            Request::answerCallbackQuery([
-                'callback_query_id' => $this->callbackQuery->getId(),
-            ]);
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
                 'text' => $response['text'],
@@ -61,78 +60,137 @@ class GatherAction extends BaseAction
             ]);
         }
 
-        $cell = $this->mapModel->where('cell_number', $character['cell_number'])->first();
-        if (!$cell) {
+        // Узнаём, с каким колбеком мы зашли в этот класс:
+        $callbackData = $this->callbackQuery->getData(); // например 'gather' или 'gather_30'
+
+        if ($callbackData === 'gather') {
+            // 1) Пока только предлагаем выбрать время.
+            // Выводим предупреждение и набор кнопок:
+            $text = "Ты решил заняться добычей ресурсов.\n\n"
+                . "⚠️ *Внимание!* При прерывании задачи _никакие_ ресурсы не будут получены! "
+                . "Серьёзно отнесись к выбору времени!\n\n"
+                . "🕑 Базовый расчёт идёт за 10 минут,\n"
+                . "но если выберешь больше — лут будет больше (и риск тоже!).";
+
+            // Кнопки: 10 мин, 30 мин, 60 мин, 120 мин, 360 мин, 720 мин
+            $keyboard = [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '10 минут',   'callback_data' => 'gather_10'],
+                        ['text' => '30 минут',   'callback_data' => 'gather_30'],
+                    ],
+                    [
+                        ['text' => '1 час',      'callback_data' => 'gather_60'],
+                        ['text' => '2 часа',     'callback_data' => 'gather_120'],
+                    ],
+                    [
+                        ['text' => '6 часов',    'callback_data' => 'gather_360'],
+                        ['text' => '12 часов',   'callback_data' => 'gather_720'],
+                    ],
+                    [
+                        ['text' => '❌ Отмена',   'callback_data' => 'cancelGather']
+                    ],
+                ]
+            ];
+
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text' => 'Локация персонажа не найдена.',
+                'text'    => $text,
+                'parse_mode' => 'Markdown',
+                'reply_markup' => json_encode($keyboard),
             ]);
+
+        } else {
+            // 2) Похоже, пользователь выбрал один из вариантов 'gather_XX'
+            // Извлекаем из колбека, сколько минут хотел
+            // Например, gather_30 => 30 минут
+            $parts = explode('_', $callbackData);
+            if (count($parts) !== 2) {
+                // Некорректный колбек, просто завершим
+                return Request::sendMessage([
+                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text' => 'Непонятный запрос добычи ресурсов.',
+                ]);
+            }
+
+            $chosenMinutes = (int) $parts[1]; // 10, 30, 60, 120, 360, 720
+
+            // Дальше идёт обычная логика: проверяем локацию, биом, ресурсы, создаём задачу
+            $cell = $this->mapModel->where('cell_number', $character['cell_number'])->first();
+            if (!$cell) {
+                return Request::sendMessage([
+                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text' => 'Локация персонажа не найдена.',
+                ]);
+            }
+            $biome = $this->biomeModel->find($cell['biome_id']);
+            if (!$biome) {
+                return Request::sendMessage([
+                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text' => 'Биом для локации не найден.',
+                ]);
+            }
+
+            $resources = $this->resourcesModel
+                ->like('biome_id', (string)$biome['id'], 'both')
+                ->where('level_required <=', $character['level'])
+                ->findAll();
+
+            if (empty($resources)) {
+                return Request::sendMessage([
+                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text' => 'В данном биоме нет доступных ресурсов для сбора.',
+                ]);
+            }
+
+            $gatherTask = $this->taskModel->where('name', 'Gather')->first();
+            if (!$gatherTask) {
+                return Request::sendMessage([
+                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text' => 'Задача "Сбор ресурсов" не найдена.',
+                ]);
+            }
+
+            // Создаём задачу, но учитываем выбранные $chosenMinutes
+            // Вместо $gatherTask['max_duration'] используем $chosenMinutes
+            // (или присваиваем $gatherTask['max_duration'] = $chosenMinutes перед вызовом)
+            $originalMax = $gatherTask['max_duration'];
+            $gatherTask['max_duration'] = $chosenMinutes; // переопределяем
+
+            // Теперь создаём задачу
+            $taskID = $this->createGatherTask($character, $user, $gatherTask);
+
+            // Восстанавливаем исходное значение, если нужно
+            $gatherTask['max_duration'] = $originalMax;
+
+            // И отправляем ответ
+            return $this->sendGatherResponse($character, $biome, $gatherTask, $taskID);
         }
-
-        $biome = $this->biomeModel->find($cell['biome_id']);
-        if (!$biome) {
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text' => 'Биом для локации не найден.',
-            ]);
-        }
-
-        $resources = $this->resourcesModel
-            ->like('biome_id', (string)$biome['id'], 'both')
-            ->where('level_required <=', $character['level'])
-            ->findAll();
-
-        if (empty($resources)) {
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text' => 'В данном биоме нет доступных ресурсов для сбора.',
-            ]);
-        }
-
-        $gatherTask = $this->taskModel->where('name', 'Gather')->first();
-        if (!$gatherTask) {
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text' => 'Задача "Сбор ресурсов" не найдена.',
-            ]);
-        }
-
-        // Логика создания задачи сбора ресурсов
-        $taskID = $this->createGatherTask($character, $user, $gatherTask);
-        // Формирование и отправка ответного сообщения
-        return $this->sendGatherResponse($character, $biome, $gatherTask, $taskID);
     }
 
     protected function createGatherTask($character, $user, $gatherTask)
     {
         $startTime = new \DateTime();
-        $durationReduction = $this->calculateDurationReduction($character);
 
-        // Расчет максимального и минимального времени выполнения задачи
-        $maxDuration = max(0, $gatherTask['max_duration'] - $durationReduction);
-        $minDuration = $gatherTask['min_duration'];
-        if ($maxDuration < $minDuration) {
-            $maxDuration = $minDuration;
-        }
+        $playerChosenMinutes = $gatherTask['max_duration'];
 
-        // Проверка активности "Полярной ночи" и корректировка продолжительности
-        if ($this->isPolarNightActive() && $this->isCharacterInAffectedBiome($character)) {
-            $maxDuration = $this->adjustDurationForPolarNight($maxDuration);
-        }
+        // Если НЕ хотим полярную ночь влиять - просто:
+        $maxDuration = $playerChosenMinutes;
 
+        // Дальше считаем endTime
         $endTime = (clone $startTime)->add(new \DateInterval('PT' . $maxDuration . 'M'));
 
-        // Сохранение новой задачи в базе данных
+        // Сохранение задачи
         $this->characterTaskModel->save([
-            'character_id' => $character['id'],
-            'telegram_user_id' => $user['id'],
-            'task_id' => $gatherTask['id'],
-            'start_time' => $startTime->format('Y-m-d H:i:s'),
-            'end_time' => $endTime->format('Y-m-d H:i:s'),
-            'status' => 'in_work',
+            'character_id'      => $character['id'],
+            'telegram_user_id'  => $user['id'],
+            'task_id'           => $gatherTask['id'],
+            'start_time'        => $startTime->format('Y-m-d H:i:s'),
+            'end_time'          => $endTime->format('Y-m-d H:i:s'),
+            'status'            => 'in_work',
         ]);
 
-        // Получение ID последней вставленной строки
         return $this->characterTaskModel->insertID();
     }
 

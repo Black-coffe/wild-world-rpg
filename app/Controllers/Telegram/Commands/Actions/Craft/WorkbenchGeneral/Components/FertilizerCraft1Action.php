@@ -60,7 +60,6 @@ class FertilizerCraft1Action extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                     ],
                     [
@@ -74,9 +73,6 @@ class FertilizerCraft1Action extends BaseAction
                 'inline_keyboard' => [
                     [
                         ['text' => '🛠️ Крафтить', 'callback_data' => 'craftFertilizer'],
-                    ],
-                    [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                     ],
                 ]
