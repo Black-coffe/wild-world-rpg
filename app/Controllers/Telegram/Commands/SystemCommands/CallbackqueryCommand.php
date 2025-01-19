@@ -126,7 +126,7 @@ class CallbackqueryCommand extends SystemCommand
             'GuessNumber' =>            \App\Controllers\Telegram\Commands\Actions\Games\GuessNumberAction::class,
             'RockPaperScissors' =>      \App\Controllers\Telegram\Commands\Actions\Games\RockPaperScissorsAction::class,
             'events' =>                 \App\Controllers\Telegram\Commands\Actions\EventAction::class,
-            'finishAllTasks' =>         \App\Controllers\Telegram\Commands\Actions\FinishAllTasksAction::class,
+            'finishAllTasks' =>         \App\Controllers\Telegram\Commands\Actions\FinishTaskAction::class,
             'crafting' =>               \App\Controllers\Telegram\Commands\Actions\Craft\CraftingAction::class,
             'standardCraft' =>          \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\StandardCraftingAction::class,
             'robotsCraft2' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotsCraft2Select::class,

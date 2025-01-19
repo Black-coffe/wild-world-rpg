@@ -20,70 +20,110 @@ class TasksCommand extends UserCommand
     public function execute(): ServerResponse
     {
         $message = $this->getMessage();
-        $chatId = $message->getChat()->getId();
-        $userId = $message->getFrom()->getId();
+        $chatId  = $message->getChat()->getId();
+        $userId  = $message->getFrom()->getId();
 
-        $telegramUserModel  = new TelegramUserModel();
-        $telegramUser = $telegramUserModel->where('telegram_id', $userId)->first();
+        // 1) Находим TelegramUser и Character
+        $telegramUserModel = new TelegramUserModel();
+        $telegramUser      = $telegramUserModel->where('telegram_id', $userId)->first();
+
+        if (!$telegramUser) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'Telegram-пользователь не найден. Используйте /start для регистрации.',
+            ]);
+        }
 
         $characterModel = new CharacterModel();
-        $character = $characterModel->where('telegram_user_id', $telegramUser['id'])->first();
+        $character      = $characterModel->where('telegram_user_id', $telegramUser['id'])->first();
 
         if (!$character) {
             return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => 'Персонаж не найден. Пожалуйста, используйте /start для создания игрового персонажа.',
+                'chat_id'    => $chatId,
+                'text'       => 'Персонаж не найден. Используйте /start для создания персонажа.',
                 'parse_mode' => 'Markdown',
             ]);
         }
 
+        // 2) Загружаем активные задачи
         $characterTaskModel = new CharacterTaskModel();
-        $taskModel = new TaskModel();
+        $taskModel          = new TaskModel();
 
-        $tasks = $characterTaskModel->where('character_id', $character['id'])
+        // Получаем все in_work задачи
+        $tasks = $characterTaskModel
+            ->where('character_id', $character['id'])
             ->where('status', 'in_work')
             ->findAll();
 
-        $text = "\n*Активные задачи:*\n\n";
+        // Если нет задач
+        if (empty($tasks)) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => "Сейчас у вас нет никаких активных задач.",
+            ]);
+        }
 
-        foreach ($tasks as $task) {
-            $taskInfo = $taskModel->find($task['task_id']);
-            $endTime = Time::parse($task['end_time']);
-            $nowTime = Time::now();
+        // 3) Лимитируем: максимум 20 задач
+        $maxTasks = 20;
+        if (count($tasks) > $maxTasks) {
+            $tasks = array_slice($tasks, 0, $maxTasks);
+        }
 
-            // Расчет разницы во времени
-            $diff = $endTime->getTimestamp() - $nowTime->getTimestamp();
+        // 4) Формируем текст
+        $text = "*Активные задачи*\n\n";
+        $keyboardButtons = [];
+        $i = 1;
 
-            if ($diff > 0) {
-                // Переводим разницу в секундах в часы, минуты
-                $hours = floor($diff / 3600);
-                $mins = floor(($diff - ($hours * 3600)) / 60);
-
-                $timeLeft = "{$hours} чс. {$mins} мин.";
-            } else {
-                $timeLeft = "задача завершена";
+        foreach ($tasks as $taskRow) {
+            $taskInfo = $taskModel->find($taskRow['task_id']);
+            if (!$taskInfo) {
+                continue;
             }
 
-            $text .= "📌 *{$taskInfo['name_rus']}*\n";
-//            $text .= "_{$taskInfo['description']}_\n";
-            $text .= "⏳ *Времени осталось:* $timeLeft\n\n";
+            // Считаем остаток времени
+            $endTime = Time::parse($taskRow['end_time']);
+            $nowTime = Time::now();
+            $diffSec = $endTime->getTimestamp() - $nowTime->getTimestamp();
+
+            if ($diffSec > 0) {
+                $hours = floor($diffSec / 3600);
+                $mins  = floor(($diffSec % 3600) / 60);
+                $timeLeft = "{$hours} чс. {$mins} мин.";
+            } else {
+                $timeLeft = "Задача просрочена, но ещё in_work";
+            }
+
+            $text .= "{$i}) *{$taskInfo['name_rus']}*\n";
+            $text .= "   Осталось: `$timeLeft`\n\n";
+
+            // Формируем кнопку
+            // IMPORTANT: используем finishAllTasks_ для совместимости с FinishTaskAction
+            $keyboardButtons[] = [
+                'text' => (string)$i,
+                'callback_data' => 'finishAllTasks_' . $taskRow['id']
+            ];
+
+            $i++;
         }
 
-        if (empty($tasks)) {
-            $text = "Сейчас у вас нет никаких активных задач.";
-        }
+        // Дополнительная приписка
+        $text .= "---------------------------------\n";
+        $text .= "*Нажмите на соответствующую цифру, чтобы моментально снять задачу!*\n\n";
 
+        // 5) Разбиваем кнопки на строки
+        // Пример: по 5 кнопок в строке
+        $chunkSize = 5;
+        $inlineRows = array_chunk($keyboardButtons, $chunkSize);
+
+        // 6) Собираем клавиатуру
         $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🏁 Завершить все задачи', 'callback_data' => 'finishAllTasks']
-                ]
-            ]
+            'inline_keyboard' => $inlineRows
         ];
 
+        // Отправляем
         return Request::sendMessage([
             'chat_id' => $chatId,
-            'text' => $text,
+            'text'    => $text,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
