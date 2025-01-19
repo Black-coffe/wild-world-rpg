@@ -135,10 +135,7 @@ class CompleteRobotExplorationHandler extends Controller
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🚜 Переехать',  'callback_data' => 'move'],
-                ],
-                [
                     ['text' => '🗺️ Изучить местность', 'callback_data' => 'explore'],
                 ],
             ]

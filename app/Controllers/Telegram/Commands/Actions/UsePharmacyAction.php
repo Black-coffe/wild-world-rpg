@@ -32,103 +32,117 @@ class UsePharmacyAction extends BaseAction
         $callbackData = $this->callbackQuery->getData();
         $parts = explode('_', $callbackData);
 
-        if (count($parts) > 1) {
-            $medicineName = $parts[1];
-            $itemId = $this->getCraftedItemId($medicineName);
-            if (!$itemId) {
-                return $this->sendResponse("Препарат '{$medicineName}' не найден.");
-            }
-
-            switch ($medicineName) {
-                case 'TonicElixir':
-                    return $this->applyMedicineEffect($character, $itemId, [
-                        'health' => 18,
-                        'tired' => 16,
-                    ]);
-                case 'Antiseptic':
-                    return $this->applyMedicineEffect($character, $itemId, [
-                        'health' => 4,
-                        'tired' => 2,
-                    ]);
-                case 'Bandage':
-                    return $this->applyMedicineEffect($character, $itemId, [
-                        'health' => 2,
-                        'tired' => 1,
-                    ]);
-                case 'AnalgesicPowder':
-                    return $this->applyMedicineEffect($character, $itemId, [
-                        'health' => 18,
-                        'tired' => -4,
-                    ]);
-                case 'Sedative':
-                    return $this->applyMedicineEffect($character, $itemId, [
-                        'health' => 5,
-                        'tired' => 30,
-                    ]);
-                case 'Stimulator':
-                    return $this->applyMedicineEffect($character, $itemId, [
-                        'health' => 25,
-                        'tired' => 15,
-                    ]);
-                case 'Regenerator':
-                    return $this->applyMedicineEffect($character, $itemId, [
-                        'health' => 30,
-                        'tired' => 20,
-                    ]);
-                case 'FirstAidKit':
-                    return $this->applyMedicineEffect($character, $itemId, [
-                        'health' => 40,
-                        'tired' => 20,
-                    ]);
-                default:
-                    return $this->sendResponse('Препарат не найден.');
-            }
-        } else {
+        if (count($parts) <= 1) {
             return $this->sendResponse('Неправильные данные кнопки.');
+        }
+
+        $medicineName = $parts[1];
+        $itemId = $this->getCraftedItemId($medicineName);
+        if (!$itemId) {
+            return $this->sendResponse("Препарат '{$medicineName}' не найден.");
+        }
+
+        // Проверяем, есть ли вообще предмет (quantity > 0).
+        $itemUsage = $this->craftedItemsLogModel
+            ->where('character_id', $character['id'])
+            ->where('crafted_item_id', $itemId)
+            ->first();
+
+        if (!$itemUsage || $itemUsage['quantity'] <= 0) {
+            return $this->sendResponse("У тебя нет нужного препарата, или он закончился.");
+        }
+
+        // Здесь — логика, зависящая от имени (или сразу через БД)
+        switch ($medicineName) {
+            case 'TonicElixir':
+                return $this->applyMedicineEffect($character, $itemId, [
+                    'health' => 18,
+                    'tired'  => 16,
+                ]);
+            case 'Antiseptic':
+                return $this->applyMedicineEffect($character, $itemId, [
+                    'health' => 4,
+                    'tired'  => 2,
+                ]);
+            case 'Bandage':
+                return $this->applyMedicineEffect($character, $itemId, [
+                    'health' => 2,
+                    'tired'  => 1,
+                ]);
+            case 'AnalgesicPowder':
+                return $this->applyMedicineEffect($character, $itemId, [
+                    'health' => 18,
+                    'tired'  => -4,
+                ]);
+            case 'Sedative':
+                return $this->applyMedicineEffect($character, $itemId, [
+                    'health' => 5,
+                    'tired'  => 30,
+                ]);
+            case 'Stimulator':
+                return $this->applyMedicineEffect($character, $itemId, [
+                    'health' => 25,
+                    'tired'  => 15,
+                ]);
+            case 'Regenerator':
+                return $this->applyMedicineEffect($character, $itemId, [
+                    'health' => 30,
+                    'tired'  => 20,
+                ]);
+            case 'FirstAidKit':
+                return $this->applyMedicineEffect($character, $itemId, [
+                    'health' => 40,
+                    'tired'  => 20,
+                ]);
+            default:
+                return $this->sendResponse("Препарат '{$medicineName}' не найден в списке доступных.");
         }
     }
 
-    private function applyMedicineEffect($character, $itemId, $effects)
+    private function applyMedicineEffect(array $character, int $itemId, array $effects)
     {
+        // Сохраняем исходные значения
         $originalValues = [
-            'health' => $character['health'] ?? 0,
-            'tired' => $character['tired'] ?? 0,
-            'gold' => $character['gold'] ?? 0,
-            'experience' => $character['experience'] ?? 0,
-            'strength' => $character['strength'] ?? 0,
-            'agility' => $character['agility'] ?? 0,
-            'intellect' => $character['intellect'] ?? 0
+            'health'    => $character['health']     ?? 0,
+            'tired'     => $character['tired']      ?? 0,
+            'gold'      => $character['gold']       ?? 0,
+            'experience'=> $character['experience'] ?? 0,
+            'strength'  => $character['strength']   ?? 0,
+            'agility'   => $character['agility']    ?? 0,
+            'intellect' => $character['intellect']  ?? 0,
         ];
 
         $newValues = $originalValues;
 
+        // Применяем изменения (и ограничиваем health/tired максимумом 100)
         foreach ($effects as $key => $change) {
             if (array_key_exists($key, $newValues)) {
                 $newValue = $newValues[$key] + $change;
                 if ($key === 'health' || $key === 'tired') {
-                    $newValues[$key] = min(100, $newValue);
+                    $newValues[$key] = min(100, max(0, $newValue));
+                    // max(0, ...) чтобы не уходить в отрицательные значения
                 } else {
                     $newValues[$key] = $newValue;
                 }
             }
         }
 
+        // Обновляем персонажа
         $this->characterModel->update($character['id'], $newValues);
 
+        // Списываем 1 единицу препарата (учитывая durability_count)
         if (!$this->decrementItemUsage($character['id'], $itemId)) {
             return $this->sendResponse('Ошибка при списании использования препарата.');
         }
 
-        return $this->sendResponse('', $originalValues, $newValues);
+        // Формируем «красивое» игровое сообщение
+        return $this->sendUsageMessage($character['id'], $originalValues, $newValues, $itemId);
     }
 
-    private function getCraftedItemId($itemName)
-    {
-        $item = $this->craftedItemsModel->where('name_eng', $itemName)->first();
-        return $item ? $item['id'] : null;
-    }
-
-    private function decrementItemUsage($characterId, $itemId)
+    /**
+     * Логика для списания 1 шт. препарата.
+     */
+    private function decrementItemUsage(int $characterId, int $itemId): bool
     {
         $itemUsage = $this->craftedItemsLogModel->where([
             'character_id' => $characterId,
@@ -140,18 +154,28 @@ class UsePharmacyAction extends BaseAction
             return false;
         }
 
+        // Проверяем durability_count
+        if (!isset($itemUsage['durability_count'])) {
+            // Если нет поля, можем просто считать durability_count = 1
+            $itemUsage['durability_count'] = 1;
+        }
+
+        // Если в durability_count ещё есть запас, уменьшим его
         if ($itemUsage['durability_count'] > 1) {
             $this->craftedItemsLogModel->update($itemUsage['id'], [
                 'durability_count' => $itemUsage['durability_count'] - 1
             ]);
         } else {
+            // Иначе уменьшаем quantity на 1
             if ($itemUsage['quantity'] > 1) {
-                $baseDurability = $this->craftedItemsModel->find($itemId)['durability_count'];
+                // Обнуляем счётчик durability и уменьшаем quantity
+                $baseDurability = $this->craftedItemsModel->find($itemId)['durability_count'] ?? 1;
                 $this->craftedItemsLogModel->update($itemUsage['id'], [
                     'quantity' => $itemUsage['quantity'] - 1,
                     'durability_count' => $baseDurability
                 ]);
             } else {
+                // Если quantity = 1, то препарат заканчивается
                 $this->craftedItemsLogModel->delete($itemUsage['id']);
             }
         }
@@ -159,27 +183,93 @@ class UsePharmacyAction extends BaseAction
         return true;
     }
 
-    private function sendResponse($text, $originalValues = [], $newValues = [])
+    /**
+     * Отправляем итоговое сообщение (более «игровое»).
+     */
+    private function sendUsageMessage(int $characterId, array $originalValues, array $newValues, int $itemId)
     {
-        $formattedText = $text;
-        if (!empty($newValues)) {
-            $formattedText .= "\n\n🎉 *Твой герой получил бафы!* 🎉\n\n";
-            foreach ($newValues as $key => $newValue) {
-                if (isset($originalValues[$key]) && $newValue != $originalValues[$key]) {
-                    $oldValue = $originalValues[$key];
-                    $change = $newValue - $oldValue;
-                    $attributeName = $this->getAttributeName($key);
-                    $formattedText .= "**$attributeName:** было: $oldValue, стало: $newValue (изменение: $change)\n";
-                }
+        // Узнаем, сколько препарата осталось
+        $itemUsage = $this->craftedItemsLogModel->where([
+            'character_id' => $characterId,
+            'crafted_item_id' => $itemId
+        ])->first();
+
+        $qtyLeft = $itemUsage['quantity'] ?? 0;
+
+        // Узнаем название предмета
+        $item = $this->craftedItemsModel->find($itemId);
+        $itemName = $item ? ($item['name_rus'] ?? 'Препарат') : 'Препарат';
+
+        // Собираем текст изменений
+        $message  = "💊 *{$itemName} применён!* 💊\n\n";
+        $message .= "Ты осторожно используешь «{$itemName}», надеясь, что остатки былых знаний медицины тебя не подведут...\n\n";
+
+        // Подробно выводим изменения
+        // (Например, если HP выросло, показать +X, если усталость выросла/уменьшилась, тоже показать разницу)
+        $reportLines = [];
+
+        // Мапа названий для красоты
+        $attributeNames = [
+            'health'    => 'Здоровье',
+            'tired'     => 'Выносливость',
+            'gold'      => 'Золото',
+            'experience'=> 'Опыт',
+            'strength'  => 'Сила',
+            'agility'   => 'Ловкость',
+            'intellect' => 'Интеллект'
+        ];
+
+        foreach ($newValues as $key => $newVal) {
+            if (isset($originalValues[$key]) && $newVal != $originalValues[$key]) {
+                $diff = $newVal - $originalValues[$key];
+                $attrName = $attributeNames[$key] ?? ucfirst($key);
+                $sign = ($diff > 0) ? '+' : ''; // если diff +, показываем "+"
+                $reportLines[] = "• {$attrName}: {$originalValues[$key]} → *{$newVal}* (_{$sign}{$diff}_)";
             }
-            $formattedText .= "\n**Будь начеку и береги себя!** 🛡️\n\n*P.S.* Не забудь проверить свои новые характеристики! 😉";
         }
+
+        // Если никаких изменений нет (бывает, если уже был cap=100), можно добавить фразу
+        if (empty($reportLines)) {
+            $message .= "Кажется, твой организм уже достиг предела по этому параметру, и эффект не подействовал.\n";
+        } else {
+            $message .= "Вот как изменились твои характеристики:\n";
+            foreach ($reportLines as $line) {
+                $message .= $line . "\n";
+            }
+        }
+
+        // Сколько осталось единиц препарата
+        $message .= "\nОстаток «{$itemName}»: *{$qtyLeft} шт.*\n";
+        $message .= "\n_В этом жестоком пустоши каждый баф может спасти твою шкуру. Береги себя!_\n";
 
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
-                ],
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']
+                ]
+            ]
+        ];
+
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+        return Request::sendMessage([
+            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'       => $message,
+            'parse_mode' => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
+        ]);
+    }
+
+    private function getCraftedItemId($itemName)
+    {
+        $item = $this->craftedItemsModel->where('name_eng', $itemName)->first();
+        return $item ? $item['id'] : null;
+    }
+
+    private function sendResponse($text)
+    {
+        $keyboard = [
+            'inline_keyboard' => [
                 [
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']
@@ -190,24 +280,9 @@ class UsePharmacyAction extends BaseAction
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text' => $formattedText,
+            'text' => $text,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard)
         ]);
     }
-
-    private function getAttributeName($key)
-    {
-        $names = [
-            'health' => 'Здоровье',
-            'tired' => 'Выносливость',
-            'gold' => 'Золото',
-            'experience' => 'Опыт',
-            'strength' => 'Сила',
-            'agility' => 'Ловкость',
-            'intellect' => 'Интеллект'
-        ];
-        return $names[$key] ?? ucfirst($key);
-    }
-
 }

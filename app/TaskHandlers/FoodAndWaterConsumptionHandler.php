@@ -234,7 +234,6 @@ class FoodAndWaterConsumptionHandler
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '⛏️ Добыть ресурсы', 'callback_data' => 'gather'],
                 ],
                 [

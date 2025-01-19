@@ -115,10 +115,6 @@ class CraftCompletionRobotGathererHandler extends Controller
             'inline_keyboard' => [
                 [
                     ['text' => '🔄 Крафтить еще', 'callback_data' => 'craftRobotGatherer2'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting'],
-                ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                 ]
             ]

@@ -243,19 +243,6 @@ class CompleteRobotGatheringHandler extends Controller
             $msg = $this->formatGatheringResultMessage($biomeGroupedResources, $hoursSpent, $workshopLevel, $biomeCellCounts);
         }
 
-        // Отправляем
-        $keyboard=[
-            'inline_keyboard'=>[
-                [
-                    ['text'=>'👤 Персонаж','callback_data'=>'character'],
-                    ['text'=>'🎒 Инвентарь','callback_data'=>'inventory'],
-                ],
-                [
-                    ['text'=>'🏠 База','callback_data'=>'Base']
-                ]
-            ]
-        ];
-
         $imagePath= base_url('uploads/telegram/craft/standard/robot_gatherer.jpg');
         try {
             Request::sendPhoto([
@@ -263,7 +250,6 @@ class CompleteRobotGatheringHandler extends Controller
                 'photo'=> Request::encodeFile($imagePath),
                 'caption'=>$msg,
                 'parse_mode'=>'Markdown',
-                'reply_markup'=> json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
             log_message('error',"[CompleteRobotGatheringHandler] sendPhoto failed:".$e->getMessage());
@@ -271,7 +257,6 @@ class CompleteRobotGatheringHandler extends Controller
                 'chat_id'=>$chatId,
                 'text'=>$msg,
                 'parse_mode'=>'Markdown',
-                'reply_markup'=> json_encode($keyboard),
             ]);
         }
 

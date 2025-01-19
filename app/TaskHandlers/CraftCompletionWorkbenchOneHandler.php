@@ -115,10 +115,6 @@ class CraftCompletionWorkbenchOneHandler extends Controller
             'inline_keyboard' => [
                 [
                     ['text' => '🔄 Крафтить еще', 'callback_data' => 'craftWorkbenchOne'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting'],
-                ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                 ]
             ]

@@ -113,10 +113,6 @@ class CraftCompletionStonePickaxeHandler extends Controller
             'inline_keyboard' => [
                 [
                     ['text' => '🔄 Крафтить еще', 'callback_data' => 'craftStonePickaxe'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting'],
-                ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                 ]
             ]

@@ -34,6 +34,7 @@ class CraftedResourcesAction extends BaseAction
             ->select('crafted_items_log.quantity, crafted_items.name_rus, crafted_items.type, crafted_items.durability_count')
             ->join('crafted_items', 'crafted_items.id = crafted_items_log.crafted_item_id')
             ->where('crafted_items_log.character_id', $character['id'])
+            ->where('crafted_items_log.quantity >', 0)  // <--- Добавлен фильтр!
             ->findAll();
 
         $typeIcons = [
@@ -68,7 +69,6 @@ class CraftedResourcesAction extends BaseAction
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']
                 ],
                 [
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting'],
                     ['text' => '🛒 Магазин', 'callback_data' => 'shop']
                 ],
             ]
