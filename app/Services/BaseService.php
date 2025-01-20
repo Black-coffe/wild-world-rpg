@@ -58,7 +58,6 @@ class BaseService
                 'inline_keyboard' => [
                     [
                         ['text' => '🏕 Разбить лагерь', 'callback_data' => 'Camp'],
-                        ['text' => '👤 Персонаж',       'callback_data' => 'character'],
                     ],
                 ]
             ];
