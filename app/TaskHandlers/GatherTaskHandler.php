@@ -561,6 +561,7 @@ class GatherTaskHandler extends Controller
             }
         }
 
+        // Сортируем по убыванию редкости
         usort($resourcesWithRarity, function ($a, $b) {
             return $b['rarity'] - $a['rarity'];
         });
@@ -575,16 +576,30 @@ class GatherTaskHandler extends Controller
             $msg .= "<i>Не удалось найти ресурсы.</i>\n";
         } else {
             $msg .= "<b>Найдены следующие ресурсы:</b>\n";
-            foreach ($resourcesWithRarity as $resource) {
-                $resourceName = htmlspecialchars($resource['name'], ENT_QUOTES, 'UTF-8');
-                $amount       = $resource['amount'];
-                $rarity       = $resource['rarity'];
-                $rarityEmoji  = $rarityEmojis[$rarity] ?? ''; // Если нет эмодзи, то пустая строка
 
-                $msg .= "— <b>{$resourceName}</b>: {$amount} шт. | {$rarityEmoji}\n";
+            // Группируем ресурсы по редкости
+            $groupedResources = [];
+            foreach ($resourcesWithRarity as $resource) {
+                $rarity = $resource['rarity'];
+                if (!isset($groupedResources[$rarity])) {
+                    $groupedResources[$rarity] = [];
+                }
+                $groupedResources[$rarity][] = $resource;
+            }
+
+            // Выводим ресурсы, сгруппированные по редкости
+            foreach ($groupedResources as $rarity => $resources) {
+                $rarityEmoji = $rarityEmojis[$rarity] ?? $rarity;
+                $msg .= "\n<b>{$rarityEmoji} Редкость...</b>\n";
+                foreach ($resources as $resource) {
+                    $resourceName = htmlspecialchars($resource['name'], ENT_QUOTES, 'UTF-8');
+                    $amount       = $resource['amount'];
+                    $msg .= "— <b>{$resourceName}</b>: {$amount} шт.\n";
+                }
             }
         }
 
+        // Инструменты (с переводом на русский)
         if (!empty($this->usedToolsCount)) {
             $msg .= "\n<b>Использованные инструменты:</b>\n";
             foreach ($this->usedToolsCount as $toolNameEng => $countUsed) {
@@ -617,8 +632,9 @@ class GatherTaskHandler extends Controller
                 'parse_mode' => 'HTML',
                 'reply_markup' => json_encode($keyboard),
             ]);
-        } catch (TelegramException $e) {
+        } catch (\Longman\TelegramBot\Exception\TelegramException $e) {
             log_message('error', "Failed to send gather result message to chat_id={$chatId}: " . $e->getMessage());
         }
     }
+
 }
