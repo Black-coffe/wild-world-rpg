@@ -5,20 +5,29 @@ namespace App\Controllers\Telegram\Commands\Actions\Objects;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\BiomeModel;
 use App\Models\CharacterModel;
-use App\Models\CharacterResourceModel;
 use App\Models\MapModel;
 use App\Models\ResourceModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
-use App\TaskHandlers\Objects\ObjectHandlerInterface;
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Telegram;
+
 use App\Models\TelegramUserModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\BiomeWorldObjectMapModel;
 use App\Models\WorldObjectModel;
 
+/**
+ * Action-класс, вызываемый при нажатии "Взломать склад"
+ * (callbackData вида objectActionClosedWarehouse_objectId|X#objectMapId|Y).
+ * Здесь происходит финальная проверка:
+ * - статус объекта (active)
+ * - рядом ли персонаж
+ * - хватает ли инструментов
+ * - шанс пустоты (15%)
+ * - выдача лута.
+ */
 class ObjectCloseWarehouseAction extends BaseAction
 {
     private $telegram;
@@ -33,296 +42,337 @@ class ObjectCloseWarehouseAction extends BaseAction
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->telegramUserModel = new TelegramUserModel();
-        $this->craftedItemsLogModel = new CraftedItemsLogModel();
-        $this->craftedItemsModel = new CraftedItemsModel();
-        $this->biomeWorldObjectMapModel = new BiomeWorldObjectMapModel();
-        $this->resourceModel = new ResourceModel();
-        $this->worldObjectModel = new WorldObjectModel();
-        $this->mapModel = new MapModel();
 
-        $API_KEY = getenv('telegram.API_KEY');
+        $this->telegramUserModel         = new TelegramUserModel();
+        $this->craftedItemsLogModel      = new CraftedItemsLogModel();
+        $this->craftedItemsModel         = new CraftedItemsModel();
+        $this->biomeWorldObjectMapModel  = new BiomeWorldObjectMapModel();
+        $this->resourceModel             = new ResourceModel();
+        $this->worldObjectModel          = new WorldObjectModel();
+        $this->mapModel                  = new MapModel();
+
+        $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
 
         try {
             $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            // Инициализируем объект Telegram в Request
             Request::initialize($this->telegram);
         } catch (TelegramException $e) {
-            // Обработка исключений при инициализации бота
             log_message('error', $e->getMessage());
         }
     }
 
+    /**
+     * Главный метод. Парсим callbackData, проверяем условия и "вскрываем" склад.
+     */
     public function handle(): ServerResponse
     {
-        $callbackData = $this->callbackQuery->getData();
+        $cbQuery   = $this->callbackQuery;
+        $cbId      = $cbQuery->getId();
+        $callbackData = $cbQuery->getData();
+
+        // Парсим objectId и objectMapId
         $matches = [];
         preg_match('/objectId\|(\d+)#objectMapId\|(\d+)/', $callbackData, $matches);
-
-        if (count($matches) === 3) {
-            $objectId = $matches[1];
-            $objectMapId = $matches[2];
-        } else {
-            log_message('error', "Failed to extract objectId and objectMapId from callbackData: $callbackData");
-        }
-
-        [$user, $character] = $this->getUserAndCharacter();
-
-        if (!$user || !$character) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text' => 'Пользователь не найден в базе данных или персонаж не определён.',
+        if (count($matches) !== 3) {
+            // Ошибка, не сможем продолжить
+            log_message('error', "ObjectCloseWarehouseAction: Failed to parse objectId/mapId from callback: $callbackData");
+            Request::answerCallbackQuery([
+                'callback_query_id' => $cbId,
+                'text'             => 'Ошибка. Неверные данные склада.',
+                'show_alert'       => true
             ]);
+            return Request::emptyResponse();
         }
 
-        $biomeWorldObjectMapModelRow = $this->biomeWorldObjectMapModel
+        $objectId   = (int) $matches[1];
+        $objectMapId= (int) $matches[2];
+
+        // Ищем user + character
+        [$user, $character] = $this->getUserAndCharacter();
+        if (!$user || !$character) {
+            Request::answerCallbackQuery([
+                'callback_query_id' => $cbId,
+                'text'             => 'Персонаж не найден.',
+                'show_alert'       => true
+            ]);
+            return Request::emptyResponse();
+        }
+
+        // 1) Ищем запись в biome_world_object_map, чтобы проверить статус.
+        $bwoRow = $this->biomeWorldObjectMapModel
             ->where('world_object_id', $objectId)
             ->where('map_id', $objectMapId)
             ->where('status', 'active')
             ->first();
+        if (!$bwoRow) {
+            // Либо статус != active, либо нет такой записи
+            Request::answerCallbackQuery([
+                'callback_query_id' => $cbId,
+                'text'             => 'Этот склад уже недоступен!',
+                'show_alert'       => true
+            ]);
+            return Request::emptyResponse();
+        }
 
-        $worldObject = $this->worldObjectModel->where('id', $biomeWorldObjectMapModelRow['world_object_id'])->first();
-        $worldObjectCellNumber = $this->mapModel->where('id', $biomeWorldObjectMapModelRow['map_id'])->first()['cell_number'];
-        // Декодирование необходимых инструментов
+        // 2) Загружаем сам объект (world_objects).
+        $worldObject = $this->worldObjectModel->find($bwoRow['world_object_id']);
+        if (!$worldObject) {
+            Request::answerCallbackQuery([
+                'callback_query_id' => $cbId,
+                'text'             => 'Ошибка. Склад не найден.',
+                'show_alert'       => true
+            ]);
+            return Request::emptyResponse();
+        }
+
+        // Узнаем клетку, где склад
+        $mapRow = $this->mapModel->find($bwoRow['map_id']);
+        if (!$mapRow) {
+            Request::answerCallbackQuery([
+                'callback_query_id' => $cbId,
+                'text'             => 'Ошибка карты склада.',
+                'show_alert'       => true
+            ]);
+            return Request::emptyResponse();
+        }
+        $objectCellNumber = $mapRow['cell_number'];
+
+        // 3) Проверяем, находится ли персонаж рядом (или в той же клетке).
+        //    Если НЕ рядом → выводим сообщение / можно добавить show_alert
+        if (!$this->isCharacterNearCell($character, $objectCellNumber)) {
+            Request::answerCallbackQuery([
+                'callback_query_id' => $cbId,
+                'text'             => 'Ты слишком далеко от склада!',
+                'show_alert'       => true
+            ]);
+            return Request::emptyResponse();
+        }
+
+        // 4) Проверяем инструменты. Если не хватает → сообщение и return.
         $requiredTools = json_decode($worldObject['discovery_tools'], true);
-
-        // Проверка наличия каждого инструмента
-        foreach ($requiredTools[0] as $itemName => $quantity) {
-            $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemName, $character['id']);
-            if (!$item || $item['quantity'] < $quantity) {
-                // Недостаточно инструментов, отправка сообщения и выход
-                $this->sendInsufficientToolsMessage($character, $requiredTools[0]);
+        if (!empty($requiredTools[0])) {
+            foreach ($requiredTools[0] as $itemName => $quantity) {
+                $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemName, $character['id']);
+                if (!$item || $item['quantity'] < $quantity) {
+                    // Нет инструмента -> сообщение + return
+                    $this->sendInsufficientToolsMessage($character, $requiredTools[0], $cbId);
+                    return Request::emptyResponse();
+                }
             }
         }
 
-        // Если инструменты есть у игрока идем далее
-        $this->processDiscovery($worldObject, $character, $requiredTools, $worldObjectCellNumber);
+        // 5) Списываем инструменты
+        if (!empty($requiredTools[0])) {
+            foreach ($requiredTools[0] as $toolName => $qty) {
+                // Если вдруг subtractItem не сработает (мало предметов) -> log
+                $ok = $this->craftedItemsLogModel->subtractItem($character['id'], $toolName, $qty);
+                if (!$ok) {
+                    log_message('error', "Failed to subtract $qty of $toolName for char#{$character['id']}");
+                }
+            }
+        }
+
+        // 6) Шанс, что склад пуст (15%)
+        if (mt_rand(1, 100) <= 15) {
+            $this->sendEmptyWarehouseMessage($character, $cbId);
+            return Request::emptyResponse();
+        }
+
+        // 7) Выдача лута
+        $contents = json_decode($worldObject['contents'], true);
+        if (!empty($contents[0])) {
+            $this->awardContents($character, $contents[0], $cbId);
+        }
+
+        // 8) (Дополнительно) обновляем статус склада на "cleared", если надо
+        //    Закомментировано — раскомментируйте, если нужно
+        /*
+        $bwoId = $bwoRow['id'];
+        $this->biomeWorldObjectMapModel->update($bwoId, ['status' => 'cleared']);
+        */
+
         return Request::emptyResponse();
     }
 
-    private function processDiscovery($object, $character, $requiredTools, $worldObjectCellNumber) {
-        // Получаем текущую локацию и биомы вокруг
-        $mapModel = new MapModel();
-        $biomeModel = new BiomeModel();
-        $currentCell = $mapModel->where('cell_number', $character['cell_number'])->first();
-        // Передаем экземпляры моделей как аргументы
-        $surroundingCells = $this->getSurroundingCells($currentCell, $mapModel, $biomeModel);
+    /**
+     * Проверяем, находится ли персонаж в той же клетке или в соседней.
+     */
+    private function isCharacterNearCell(array $character, int $objectCellNumber): bool
+    {
+        // Текущий cell_number игрока
+        $charCell = (int) $character['cell_number'];
+        if ($charCell === $objectCellNumber) {
+            return true;
+        }
 
-        // Проверяем есть ли одна из ячеек совпадением ячейке с объектом в игровом мире
-        foreach ($surroundingCells as $cell) {
-            log_message('debug', "cell_number around: " . print_r($cell['cell_number'], true));
-            log_message('debug', "cell_number character: " . print_r($character['cell_number'], true));
-            log_message('debug', "cell_number objectCellNumber: " . print_r($worldObjectCellNumber, true));
-            if($cell['cell_number'] === $worldObjectCellNumber or $character['cell_number'] === $worldObjectCellNumber) {
-                //Списание инструментов
-                foreach ($requiredTools[0] as $tool => $quantity) {
-                    $this->craftedItemsLogModel->subtractItem($character['id'], $tool, $quantity);
-                }
-
-                // Шанс, что склад пустой = 15%
-                if (mt_rand(1, 100) <= 15) {
-                    // Склад пуст, отправляем сообщение об этом
-                    $this->sendEmptyWarehouseMessage($character);
-                    return;
-                }
-
-                // Разбор награды
-                $contents = json_decode($object['contents'], true);
-                $this->awardContents($character, $contents[0]);
-
-                    //Обновление статуса объекта на 'cleared'
-//        $biomeWorldObjectMapId = $this->biomeWorldObjectMapModel
-//            ->where('world_object_id', $object['world_object_id'])
-//            ->where('map_id', $object['map_id'])
-//            ->first()['id'];
-//
-//        if (!$this->biomeWorldObjectMapModel->updateStatus($biomeWorldObjectMapId,'cleared')) {
-//            log_message('error', 'Failed to update status for object ID: ' . $object['id']);
-//        }
-
+        // Смотрим 8 соседних ячеек
+        $neighbors = $this->mapModel->getNeighboringCells($charCell);
+        foreach ($neighbors as $nCell) {
+            if ((int)$nCell['cell_number'] === $objectCellNumber) {
+                return true;
             }
         }
+        return false;
     }
 
-    private function sendEmptyWarehouseMessage($character) {
-        $chatId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
+    /**
+     * Сообщение, если у игрока не хватает инструментов.
+     */
+    private function sendInsufficientToolsMessage($character, array $requiredTools, $callbackId)
+    {
+        $chatId = $this->telegramUserModel->find($character['telegram_user_id'])['telegram_id'] ?? 0;
+        Request::answerCallbackQuery([
+            'callback_query_id' => $callbackId,
+            'text'             => 'У тебя не хватает инструментов!',
+            'show_alert'       => true
+        ]);
 
-        $messageText = "😭 Ты потратил силы, время, но склад *оказался пустой!*\n\n";
-        $messageText .= "🎳 *15%* дается, что он будет пустой и ты попал в них.\n\n";
-        $messageText .= "🥳 _Продолжай свое выживание, иди вперед и не вешай нос!_\n\n";
-        $messageText .= "📝 *P.S.* _В этом мире еще много есть разных объектов и их величие и польза в разы выше этого дряхлого, никому не нужного склада!_";
+        $msg  = "🏚️ Склад закрыт. Не хватает инструментов:\n\n";
+        foreach ($requiredTools as $itemName => $qtyNeeded) {
+            $row = $this->craftedItemsModel->getRowByName($itemName);
+            $rus = $row ? $row['name_rus'] : $itemName;
+            $has = $this->craftedItemsLogModel
+                ->where('crafted_item_id', $row['id'] ?? 0)
+                ->where('character_id', $character['id'])
+                ->first();
+
+            $count = $has ? $has['quantity'] : 0;
+            $msg .= "*$rus:* нужно $qtyNeeded, есть $count\n";
+        }
+
+        $msg .= "\nПопробуй скрафтить или купить инструменты и вернуться.\n";
+
+        // Пример кнопок
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                    ['text' => '🧑‍🌾 Действия', 'callback_data' => 'characterActions'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                ],
-                [
                     ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
-                ],
-            ]
-        ];
-        $imagePath = base_url('uploads/telegram/objects/send_empty_warehouse.jpg');
-        Request::answerCallbackQuery(['callback_query_id' => $chatId]);
-        try {
-            return Request::sendPhoto([
-                'chat_id' => $chatId,
-                'photo'   => Request::encodeFile($imagePath),
-                'caption' => $messageText,
-                'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
-            ]);
-        } catch (TelegramException $e) {
-            log_message('error', "Failed to send message: " . $e->getMessage());
-        }
-    }
-
-    private function awardContents($character, $contents) {
-        $chatId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
-        $messageText = "😎 *Отличная работа*\n\n";
-        $messageText .= "🏚️ Успешно обыскал и унес с собой:\n\n";
-
-        if (isset($contents['resources'])) {
-            foreach ($contents['resources'] as $name => $amount) {
-                // Генерируем случайное количество от 1 до максимального
-                $awardedAmount = mt_rand(1, $amount);
-                // Выдаем только в случае положительного количества
-                if ($awardedAmount > 0) {
-                    $name = $this->resourceModel->getResourceByNameEn($name)['name'];
-                    $messageText .= "- *$name:* $awardedAmount\n";
-                    // Добавляем или увеличиваем ресурс с учетом случайного количества
-                    $this->resourceModel->addOrIncreaseResource($character['id'], $name, $awardedAmount);
-                }
-            }
-        }
-
-        if (isset($contents['crafted_items'])) {
-            foreach ($contents['crafted_items'] as $name => $amount) {
-                // Генерируем случайное количество от 1 до максимального
-                $awardedAmount = mt_rand(1, $amount);
-                // Выдаем только в случае положительного количества
-                if ($awardedAmount > 0) {
-                    $name = $this->craftedItemsModel->getRowByName($name)['name_rus'];
-                    $messageText .= "- *$name:* $awardedAmount шт.\n";
-                    // Добавляем или увеличиваем предмет с учетом случайного количества
-                    $this->craftedItemsModel->addOrIncreaseItem($character['id'], $name, $awardedAmount);
-                }
-            }
-        }
-
-        $messageText .= "\n_Продолжай исследования, чтобы находить еще больше полезных ресурсов, мест и объектов! НО ПОМНИ среди этого мира не все интересное, полезное и дружелюбное_";
-
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🗺️ Исследовать далее', 'callback_data' => 'explore']
                 ]
             ]
         ];
 
         try {
-            Request::answerCallbackQuery(['callback_query_id' => $chatId]);
-            Request::sendPhoto([
-                'chat_id' => $chatId,
-                'photo'   => Request::encodeFile(base_url('uploads/telegram/objects/an-old-long-abandoned-warehouse.jpg')),
-                'caption' => $messageText,
-                'parse_mode' => 'Markdown',
+            Request::sendMessage([
+                'chat_id'      => $chatId,
+                'text'         => $msg,
+                'parse_mode'   => 'Markdown',
                 'reply_markup' => json_encode($keyboard)
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Failed to send message: " . $e->getMessage());
+            log_message('error', "sendInsufficientToolsMessage: " . $e->getMessage());
         }
     }
 
-    private function sendInsufficientToolsMessage($character, $requiredTools) {
-        $chatId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
+    /**
+     * Склад пуст (15% шанс) — отправляем отдельное сообщение.
+     */
+    private function sendEmptyWarehouseMessage($character, $callbackId)
+    {
+        $chatId = $this->telegramUserModel->find($character['telegram_user_id'])['telegram_id'] ?? 0;
 
-        $messageText = "🌲 В процессе *Изучения местности* ты сделал открытие:.\n\n";
-        $messageText .= "🏚️ Нашел старый заброшенный склад, но он закрыт.\n\n";
-        $messageText .= "🛠️ _Для проникновения внутрь необходимы следующие инструменты:_\n\n";
-        foreach ($requiredTools as $itemName => $quantity) {
-            $item = $this->craftedItemsModel->getRowByName($itemName);
-            $inStock = $this->craftedItemsLogModel
-                ->where('crafted_item_id', $item['id'])
-                ->where('character_id', $character['id'])
-                ->countAllResults();
-            $messageText .= "*{$item['name_rus']}: {$quantity}* _шт._ | _в наличии:_ *{$inStock}*\n";
-        }
+        Request::answerCallbackQuery([
+            'callback_query_id' => $callbackId,
+            'text'             => 'Склад оказался пустым...',
+            'show_alert'       => false
+        ]);
 
-        $messageText .= "\n❌ К сожалению, их у тебя нет...\n\n";
-        $messageText .= "🛒 Оставайся на этой территории, приобрети или скрафти необходимые инструменты, и возвращайся.\n\n";
-        $messageText .= "📝 *P.S.* Чтобы повторно вскрыть склад, еще раз запусти *Изучение местности*. _И помни, склад может оказаться пустым, а ресурсы потратишь, или же наоборот сорвешь большой куш. Тебе решать!_";
+        $msg  = "😭 Ты потратил силы и время, но склад *оказался пустым!*\n";
+        $msg .= "Вероятность 15% — тебе не повезло.\n\n";
+        $msg .= "Зато это урок: не все склады везучие. Продолжай выживать!\n";
+
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                    ['text' => '🧑‍🌾 Действия', 'callback_data' => 'characterActions'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                ],
-                [
-                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
                 ],
             ]
         ];
-        $imagePath = base_url('uploads/telegram/objects/an-old-long-abandoned-warehouse.jpg');
 
         try {
-            Request::answerCallbackQuery(['callback_query_id' => $chatId]);
-            return Request::sendPhoto([
-                'chat_id' => $chatId,
-                'photo'   => Request::encodeFile($imagePath),
-                'caption' => $messageText,
-                'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
+            Request::sendMessage([
+                'chat_id'      => $chatId,
+                'text'         => $msg,
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode($keyboard)
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Failed to send message: " . $e->getMessage());
+            log_message('error', "sendEmptyWarehouseMessage: " . $e->getMessage());
         }
     }
 
-    private function getSurroundingCells($currentCell, MapModel $mapModel, BiomeModel $biomeModel) {
-        $x = $currentCell['coordinate_x'];
-        $y = $currentCell['coordinate_y'];
+    /**
+     * Выдача лута из contents.
+     * contents[0] -> {'resources': {...}, 'crafted_items': {...}}
+     * Генерируем случайное кол-во в пределах заявленного, добавляем в инвентарь.
+     */
+    private function awardContents($character, array $contents, $callbackId)
+    {
+        $chatId = $this->telegramUserModel->find($character['telegram_user_id'])['telegram_id'] ?? 0;
 
-        // Определение координат соседних ячеек
-        $neighboringPositions = [
-            ['x' => $x - 1, 'y' => $y - 1], // Северо-запад
-            ['x' => $x,     'y' => $y - 1], // Север
-            ['x' => $x + 1, 'y' => $y - 1], // Северо-восток
-            ['x' => $x - 1, 'y' => $y],     // Запад
-            ['x' => $x + 1, 'y' => $y],     // Восток
-            ['x' => $x - 1, 'y' => $y + 1], // Юго-запад
-            ['x' => $x,     'y' => $y + 1], // Юг
-            ['x' => $x + 1, 'y' => $y + 1], // Юго-восток
-        ];
+        Request::answerCallbackQuery([
+            'callback_query_id' => $callbackId,
+            'text'             => 'Взлом успешен, добыча получена!',
+            'show_alert'       => false
+        ]);
 
-        $surroundingCellsInfo = [];
+        $msg  = "😎 *Отличная работа*\n\n";
+        $msg .= "🏚️ Ты вскрыл склад и нашел:\n";
 
-        foreach ($neighboringPositions as $position) {
-            // Получение ячеек по координатам
-            $cell = $mapModel->where('coordinate_x', $position['x'])
-                ->where('coordinate_y', $position['y'])
-                ->first();
-
-            if ($cell) {
-                // Получение информации о биоме
-                $biome = $biomeModel->find($cell['biome_id']);
-                $biomeName = $biome ? $biome['name'] : 'Неизвестный биом';
-
-                $surroundingCellsInfo[] = [
-                    'cell_number' => $cell['cell_number'],
-                    'coordinates' => "X={$position['x']}, Y={$position['y']}",
-                    'biome' => $biomeName,
-                    'biome_id' => $cell['biome_id'], // Добавить эту строку
-                    'map_id' => $cell['id']  // Добавляем map_id, предполагая, что это primary key в таблице map
-                ];
+        // 1) Ресурсы
+        if (!empty($contents['resources']) && is_array($contents['resources'])) {
+            foreach ($contents['resources'] as $resNameEn => $maxQty) {
+                $awarded = mt_rand(1, (int)$maxQty);
+                if ($awarded > 0) {
+                    // Преобразуем в удобоваримое имя
+                    $r = $this->resourceModel->getResourceByNameEn($resNameEn);
+                    $displayName = $r ? $r['name'] : $resNameEn;
+                    $msg .= "- *{$displayName}:* {$awarded}\n";
+                    // Записываем в инвентарь
+                    $this->resourceModel->addOrIncreaseResource($character['id'], $resNameEn, $awarded);
+                }
             }
         }
 
-        return $surroundingCellsInfo;
+        // 2) Крафтовые предметы
+        if (!empty($contents['crafted_items']) && is_array($contents['crafted_items'])) {
+            foreach ($contents['crafted_items'] as $itemNameEng => $maxQty) {
+                $awarded = mt_rand(1, (int)$maxQty);
+                if ($awarded > 0) {
+                    // Смотрим, что за предмет, чтобы вывести русское название
+                    $ciRow = $this->craftedItemsModel->getRowByName($itemNameEng);
+                    $rusName = $ciRow ? $ciRow['name_rus'] : $itemNameEng;
+                    $msg .= "- *{$rusName}:* {$awarded} шт.\n";
+
+                    // Записываем в crafted_items_log
+                    $this->craftedItemsModel->addOrIncreaseItem($character['id'], $itemNameEng, $awarded);
+                }
+            }
+        }
+
+        $msg .= "\n_Продолжай поиски — в мире много чего интересного!_\n";
+
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '🧑‍🌾 Действия',       'callback_data' => 'characterActions'],
+                    ['text' => '🗺️ Исследовать ещё', 'callback_data' => 'explore']
+                ]
+            ]
+        ];
+
+        try {
+            Request::sendMessage([
+                'chat_id'      => $chatId,
+                'text'         => $msg,
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode($keyboard)
+            ]);
+        } catch (TelegramException $e) {
+            log_message('error', "awardContents sendMessage: " . $e->getMessage());
+        }
     }
 }

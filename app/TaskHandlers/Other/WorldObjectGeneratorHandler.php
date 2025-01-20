@@ -26,136 +26,197 @@ class WorldObjectGeneratorHandler extends Controller
 
     public function process()
     {
-        // Удаляем все записи, где поле 'status' равно 'cleared' из таблицы 'biome_world_object_map'
+        // Удаляем все записи, где поле 'status' равно 'cleared'
+        // Это означает, что объект был "очищен" (лут собран).
         $this->biomeWorldObjectMapModel->where('status', 'cleared')->delete();
 
-        // Получить все активные объекты мира
-        $activeObjects = $this->worldObjectModel->where('status', 'active')->findAll();
+        // Получить все объекты, у которых status='active' (в таблице world_objects)
+        $activeObjects = $this->worldObjectModel
+            ->where('status', 'active')
+            ->findAll();
 
         // Перебрать каждый объект
         foreach ($activeObjects as $object) {
-            // Получить параметры объекта
             $objectId = $object['id'];
             $maxCount = $object['max_count'];
 
-            // Получить количество сгенерированных объектов в соответствии с картой биомов
-            $generatedCount = $this->biomeWorldObjectMapModel->where('world_object_id',  $objectId)->countAllResults();
+            // Сколько уже есть в biome_world_object_map
+            $generatedCount = $this->biomeWorldObjectMapModel
+                ->where('world_object_id',  $objectId)
+                ->where('status', 'active')
+                ->countAllResults();
 
-            // Проверить, нужно ли генерировать новые объекты
+            // Нужно ли создавать ещё?
             if ($generatedCount < $maxCount) {
-                // Вызвать метод генерации объектов для данного типа объекта
                 $this->generateObjectByType($object);
             }
         }
     }
 
+    /**
+     * Вспомогательный метод, выбирает конкретный "генератор" для каждого объекта
+     * по его name_en.
+     */
     protected function generateObjectByType($object)
     {
-        // Получаем список разрешенных биомов для данного объекта
+        // 1) Определяем, сколько ещё нужно добавить
+        $currentCount   = $this->biomeWorldObjectMapModel
+            ->where('world_object_id', $object['id'])
+            ->where('status', 'active')
+            ->countAllResults();
+
+        $addNewRowCount = $object['max_count'] - $currentCount;
+        if ($addNewRowCount <= 0) {
+            return; // Уже хватает
+        }
+
+        // 2) В зависимости от name_en — разные генераторы
+        switch ($object['name_en']) {
+            case 'Abandoned truck':
+                $this->generateAbandonedTruck($object, $addNewRowCount);
+                break;
+            case 'Toolkit':
+                $this->generateToolkit($object, $addNewRowCount);
+                break;
+            case 'Closed warehouse':
+                $this->generateClosedWarehouse($object, $addNewRowCount);
+                break;
+            default:
+                // Если у нас будут другие типы, можно расширять
+                break;
+        }
+    }
+
+    /**
+     * Пример генерации "Abandoned truck".
+     */
+    protected function generateAbandonedTruck($object, $addNewRowCount)
+    {
+        // 1) Получаем разрешённые биомы
         $allowedBiomes = json_decode($object['biome_id'], true);
 
-        // Получаем количество уже сгенерированных объектов данного типа
-        $generatedCount = $this->biomeWorldObjectMapModel->where('world_object_id', $object['id'])->countAllResults();
-        $addNewRowCount  = $object['max_count'] - $generatedCount;
-        // Если количество сгенерированных объектов меньше максимально допустимого, генерируем новые
-        if ($generatedCount < $object['max_count']) {
-            // Вызываем соответствующий метод генерации объектов для данного типа
-            switch ($object['name_en']) {
-                case 'Abandoned truck':
-                    $this->generateAbandonedTruck($object, $addNewRowCount);
-                    break;
-                case 'Toolkit':
-                    $this->generateToolkit($object, $addNewRowCount);
-                    break;
-                case 'Closed warehouse':
-                    $this->generateClosedWarehouse($object, $addNewRowCount);
-                    break;
+        // 2) Собираем все ячейки карты, у которых biome_id в списке
+        $availableMapCells = [];
+        foreach ($allowedBiomes as $biomeId) {
+            $mapCells = $this->mapModel->where('biome_id', $biomeId)->findAll();
+            $availableMapCells = array_merge($availableMapCells, $mapCells);
+        }
+
+        // 3) Перемешиваем ячейки, чтобы не ставить всё в начале массива
+        shuffle($availableMapCells);
+
+        // 4) Идём по ячейкам, пока не поставим нужное кол-во
+        $created = 0;
+        foreach ($availableMapCells as $cell) {
+            // Если уже хватило
+            if ($created >= $addNewRowCount) {
+                break;
             }
-        }
-    }
+            // Проверяем, занята ли клетка
+            $exists = $this->biomeWorldObjectMapModel
+                ->where('map_id', $cell['id'])
+                ->where('status', 'active')
+                ->first();
 
-    protected function generateAbandonedTruck($resourceObject, $addNewRowCount)
-    {
-        // Получаем список разрешенных биомов для данного объекта
-        $allowedBiomes = json_decode($resourceObject['biome_id'], true);
+            if ($exists) {
+                // Уже есть объект в этой клетке, пропускаем
+                continue;
+            }
 
-        // Получаем все строки из таблицы map, соответствующие разрешенным биомам
-        $availableMapCells = [];
-        foreach ($allowedBiomes as $biomeId) {
-            $mapCells = $this->mapModel->where('biome_id', $biomeId)->findAll();
-            $availableMapCells = array_merge($availableMapCells, $mapCells);
-        }
-
-        // Запускаем цикл для генерации объектов
-        for ($i = 0; $i < $addNewRowCount; $i++) {
-            // Рандомно выбираем ячейку из доступных
-            $randomIndex = array_rand($availableMapCells);
-            $randomMapCell = $availableMapCells[$randomIndex];
-
-            // Записываем данные в таблицу biome_world_object_map
+            // Если свободна — вставляем
             $this->biomeWorldObjectMapModel->insert([
-                'biome_id' => $randomMapCell['biome_id'],
-                'world_object_id' => $resourceObject['id'],
-                'map_id' => $randomMapCell['id'],
-                'status' => 'active',
-                'object_type' => 'single_use'
+                'biome_id'       => $cell['biome_id'],
+                'world_object_id'=> $object['id'],
+                'map_id'         => $cell['id'],
+                'status'         => 'active',
+                'object_type'    => 'single_use'
             ]);
+            $created++;
         }
     }
 
-    protected function generateToolkit($toolkitObject, $addNewRowCount)
+    /**
+     * Пример генерации "Toolkit" (набор инструментов).
+     * Есть дополнительная логика "процента" по coordinate_y.
+     */
+    protected function generateToolkit($object, $addNewRowCount)
     {
-        // Получаем список разрешенных биомов для данного объекта
-        $allowedBiomes = json_decode($toolkitObject['biome_id'], true);
+        // 1) Получаем список биомов
+        $allowedBiomes = json_decode($object['biome_id'], true);
 
-        // Получаем все строки из таблицы map, соответствующие разрешенным биомам
+        // 2) Собираем ячейки карты
         $availableMapCells = [];
         foreach ($allowedBiomes as $biomeId) {
-            $mapCells = $this->mapModel->where('biome_id', $biomeId)->findAll();
-            $availableMapCells = array_merge($availableMapCells, $mapCells);
+            $cells = $this->mapModel->where('biome_id', $biomeId)->findAll();
+            $availableMapCells = array_merge($availableMapCells, $cells);
         }
 
-        // Распределение процента объектов по диапазонам координат
+        // --- "Процентное распределение" ---
+        // Для упрощения: будем в цикле $addNewRowCount раз генерировать:
+        //  - случайный процент
+        //  - отфильтровать ячейки, у которых coordinate_y <= некий порог
+        //  - выбрать свободную из этого списка (с проверкой).
         $percentageDistribution = [
-            1 => 1,   // 1% в диапазоне ячеек (coordinate_y <= 100)
-            2 => 2,   // 2% в диапазоне ячеек (coordinate_y <= 200 and coordinate_y > 100)
-            3 => 3,   // 3% в диапазоне ячеек (coordinate_y <= 300 and coordinate_y > 200)
-            5 => 5,   // 5% в диапазоне ячеек (coordinate_y <= 400 and coordinate_y > 300)
-            7 => 7,   // 7% в диапазоне ячеек (coordinate_y <= 500 and coordinate_y > 400)
-            9 => 9,   // 9% в диапазоне ячеек (coordinate_y <= 600 and coordinate_y > 500)
-            11 => 11, // 11% в диапазоне ячеек (coordinate_y <= 700 and coordinate_y > 600)
-            15 => 15, // 15% в диапазоне ячеек (coordinate_y <= 800 and coordinate_y > 700)
-            18 => 18, // 18% в диапазоне ячеек (coordinate_y <= 900 and coordinate_y > 800)
-            29 => 29  // 29% в диапазоне ячеек (coordinate_y > 900)
+            1 => 1,   // 1%
+            2 => 2,   // 2%
+            3 => 3,   // 3%
+            5 => 5,   // 5%
+            7 => 7,   // 7%
+            9 => 9,   // 9%
+            11 => 11, // 11%
+            15 => 15, // 15%
+            18 => 18, // 18%
+            29 => 29  // 29%
         ];
 
-        // Запускаем цикл для генерации объектов
-        for ($i = 0; $i < $addNewRowCount; $i++) {
-            // Рандомно выбираем процент для определения диапазона координат
-            $randomPercentage = mt_rand(1, 100);
-            $coordinateY = $this->getCoordinateYByPercentage($randomPercentage, $percentageDistribution);
+        $created = 0;
+        $attempts = 0; // чтобы избежать бесконечных циклов
+        while ($created < $addNewRowCount && $attempts < 5000) {
+            $attempts++;
 
-            // Получаем доступные ячейки с соответствующей координатой Y
-            $availableCells = array_filter($availableMapCells, function($cell) use ($coordinateY) {
-                return $cell['coordinate_y'] <= $coordinateY;
+            // Определяем предел coordinate_y
+            $randPercent = mt_rand(1, 100);
+            $coordYMax   = $this->getCoordinateYByPercentage($randPercent, $percentageDistribution);
+
+            // Собираем подходящие (и свободные) ячейки
+            $possibleCells = array_filter($availableMapCells, function($cell) use ($coordYMax) {
+                return ($cell['coordinate_y'] <= $coordYMax);
             });
+            if (empty($possibleCells)) {
+                // Нет ни одной подходящей
+                continue;
+            }
 
-            // Рандомно выбираем ячейку из доступных
-            $randomIndex = array_rand($availableCells);
-            $randomMapCell = $availableCells[$randomIndex];
+            // Выбираем случайную ячейку
+            $randomIndex   = array_rand($possibleCells);
+            $randomMapCell = $possibleCells[$randomIndex];
 
-            // Записываем данные в таблицу biome_world_object_map
+            // Проверяем, не занята ли она
+            $exists = $this->biomeWorldObjectMapModel
+                ->where('map_id', $randomMapCell['id'])
+                ->where('status', 'active')
+                ->first();
+            if ($exists) {
+                // Уже занята
+                continue;
+            }
+
+            // Свободна, вставляем
             $this->biomeWorldObjectMapModel->insert([
-                'biome_id' => $randomMapCell['biome_id'],
-                'world_object_id' => $toolkitObject['id'],
-                'map_id' => $randomMapCell['id'],
-                'status' => 'active',
-                'object_type' => 'single_use'
+                'biome_id'       => $randomMapCell['biome_id'],
+                'world_object_id'=> $object['id'],
+                'map_id'         => $randomMapCell['id'],
+                'status'         => 'active',
+                'object_type'    => 'single_use'
             ]);
+            $created++;
         }
     }
 
-// Функция для получения координаты Y по проценту
+    /**
+     * Сопоставление процентного распределения
+     * (1 => 1%, 2 => 2%, 3 => 3%, ...)
+     */
     protected function getCoordinateYByPercentage($percentage, $distribution)
     {
         $sum = 0;
@@ -165,37 +226,55 @@ class WorldObjectGeneratorHandler extends Controller
                 return $coordY;
             }
         }
-        // В случае некорректных данных возвращаем значение по умолчанию
+        // По умолчанию
         return 1000;
     }
 
-
-    protected function generateClosedWarehouse($closedWarehouse, $addNewRowCount)
+    /**
+     * Пример генерации "Closed warehouse".
+     * Просто берём ячейки биома, перемешиваем, вставляем если свободно.
+     */
+    protected function generateClosedWarehouse($object, $addNewRowCount)
     {
-        // Получаем список разрешенных биомов для данного объекта
-        $allowedBiomes = json_decode($closedWarehouse['biome_id'], true);
+        // 1) Список биомов
+        $allowedBiomes = json_decode($object['biome_id'], true);
 
-        // Получаем все строки из таблицы map, соответствующие разрешенным биомам
+        // 2) Собираем ячейки
         $availableMapCells = [];
         foreach ($allowedBiomes as $biomeId) {
             $mapCells = $this->mapModel->where('biome_id', $biomeId)->findAll();
             $availableMapCells = array_merge($availableMapCells, $mapCells);
         }
 
-        // Запускаем цикл для генерации объектов
-        for ($i = 0; $i < $addNewRowCount; $i++) {
-            // Рандомно выбираем ячейку из доступных
-            $randomIndex = array_rand($availableMapCells);
-            $randomMapCell = $availableMapCells[$randomIndex];
+        // 3) Перемешиваем
+        shuffle($availableMapCells);
 
-            // Записываем данные в таблицу biome_world_object_map
+        // 4) Идём по списку
+        $created = 0;
+        foreach ($availableMapCells as $cell) {
+            if ($created >= $addNewRowCount) {
+                break;
+            }
+            // Проверяем занятость
+            $exists = $this->biomeWorldObjectMapModel
+                ->where('map_id', $cell['id'])
+                ->where('status', 'active')
+                ->first();
+
+            if ($exists) {
+                // Занята, пропускаем
+                continue;
+            }
+
+            // Свободна, вставляем
             $this->biomeWorldObjectMapModel->insert([
-                'biome_id' => $randomMapCell['biome_id'],
-                'world_object_id' => $closedWarehouse['id'],
-                'map_id' => $randomMapCell['id'],
-                'status' => 'active',
-                'object_type' => 'single_use'
+                'biome_id'       => $cell['biome_id'],
+                'world_object_id'=> $object['id'],
+                'map_id'         => $cell['id'],
+                'status'         => 'active',
+                'object_type'    => 'single_use'
             ]);
+            $created++;
         }
     }
 }

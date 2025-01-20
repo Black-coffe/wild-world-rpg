@@ -85,7 +85,14 @@ class ExplorationTaskHandler extends Controller
             $biomeWorldObjectMapModel,
             $worldObjectModel
         );
+
+        /*
+        // СТАРАЯ логика: вызывала handlers для всех открытых ячеек
         $discoveryService->discoverObjects($surroundingCells, $character);
+        */
+
+        // НОВАЯ логика: вызывала handlers ТОЛЬКО в той ячейке, где герой
+        $discoveryService->discoverObjectsAtPlayerPosition($character);
 
         // 7) Запись информации об изученных ячейках
         $exploredCellsModel = new ExploredCellsModel();

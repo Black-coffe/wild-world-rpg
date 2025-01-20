@@ -13,8 +13,16 @@ use App\Models\BiomeWorldObjectMapModel;
 use App\Models\ResourceModel;
 use App\Models\CharacterModel;
 
-class ClosedWarehouseHandler implements ObjectHandlerInterface {
-
+/**
+ * Обработчик, вызываемый при "первичной" встрече со складом (на этапе "ты нашел склад").
+ * Он лишь проверяет инструменты и формирует кнопки:
+ * - Пройти мимо
+ * - Взломать
+ *
+ * Само "вскрытие" происходит в другом классе (ObjectCloseWarehouseAction).
+ */
+class ClosedWarehouseHandler implements ObjectHandlerInterface
+{
     private $telegram;
     protected $telegramUserModel;
     protected $craftedItemsLogModel;
@@ -25,126 +33,170 @@ class ClosedWarehouseHandler implements ObjectHandlerInterface {
 
     public function __construct()
     {
-        $this->telegramUserModel = new TelegramUserModel();
-        $this->craftedItemsLogModel = new CraftedItemsLogModel();
-        $this->craftedItemsModel = new CraftedItemsModel();
-        $this->biomeWorldObjectMapModel = new BiomeWorldObjectMapModel();
-        $this->resourceModel = new ResourceModel();
-        $this->characterModel = new CharacterModel();
+        $this->telegramUserModel       = new TelegramUserModel();
+        $this->craftedItemsLogModel    = new CraftedItemsLogModel();
+        $this->craftedItemsModel       = new CraftedItemsModel();
+        $this->biomeWorldObjectMapModel= new BiomeWorldObjectMapModel();
+        $this->resourceModel           = new ResourceModel();
+        $this->characterModel          = new CharacterModel();
 
-        $API_KEY = getenv('telegram.API_KEY');
+        $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
 
         try {
             $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            // Инициализируем объект Telegram в Request
+            // Инициализируем объект Telegram внутри Request
             Request::initialize($this->telegram);
         } catch (TelegramException $e) {
-            // Обработка исключений при инициализации бота
             log_message('error', $e->getMessage());
         }
     }
-    public function handle($object, $cell, $character) {
-        // Декодирование необходимых инструментов
+
+    /**
+     * Главный метод, вызывается при обнаружении склада.
+     */
+    public function handle($object, $cell, $character)
+    {
+        // 1) Парсим инструменты из JSON
         $requiredTools = json_decode($object['discovery_tools'], true);
 
-        // Обновляем характеристики персонажа
+        // 2) Немного прокачиваем персонажа (пример)
         $this->characterModel->update($character['id'], [
             'experience' => $character['experience'] + 1.25,
-            'strength' => $character['strength'] + 1.11,
-            'agility' => $character['agility'] + 1.01,
-            'intellect' => $character['intellect'] + 0.86,
+            'strength'   => $character['strength'] + 1.11,
+            'agility'    => $character['agility'] + 1.01,
+            'intellect'  => $character['intellect'] + 0.86,
         ]);
 
-        // Проверка наличия каждого инструмента
-        foreach ($requiredTools[0] as $itemName => $quantity) {
-            $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemName, $character['id']);
-            if (!$item || $item['quantity'] < $quantity) {
-                // Недостаточно инструментов, отправка сообщения и выход
-                $this->sendInsufficientToolsMessage($character, $requiredTools[0]);
-                return;
+        // 3) Проверяем наличие инструментов (только чтобы показать игроку "Можешь взломать" или "Нет")
+        //    Если нет — выводим InsufficientTools и прерываем.
+        if (!empty($requiredTools[0])) {
+            foreach ($requiredTools[0] as $itemName => $quantity) {
+                $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemName, $character['id']);
+                if (!$item || $item['quantity'] < $quantity) {
+                    $this->sendInsufficientToolsMessage($character, $requiredTools[0]);
+                    return;
+                }
             }
         }
 
+        // 4) Если инструменты есть → предлагаем выбор "Взломать / Пройти мимо"
         $this->sendActionMessage($object, $character);
     }
 
-    private function sendActionMessage($object, $character) {
-        $chatId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
-        $messageText = "🌲 В процессе *Изучения местности*:\n";
-        $messageText .= "🏚️ ты нашел *Старый, заброшенный склад*!\n\n";
+    /**
+     * Показать сообщение с кнопкой "Взломать склад" либо "Пройти мимо".
+     */
+    private function sendActionMessage($object, $character)
+    {
+        $telegramUser = $this->telegramUserModel->find($character['telegram_user_id']);
+        if (!$telegramUser) {
+            log_message('error', "Can't find telegram user for character ID: {$character['id']}");
+            return;
+        }
+        $chatId = $telegramUser['telegram_id'];
+
+        // Подпись
+        $messageText  = "🌲 В процессе *Изучения местности*:\n";
+        $messageText .= "🏚️ Ты нашел *Старый, заброшенный склад*!\n\n";
         $messageText .= "_У тебя выбор:_\n\n";
-        $messageText .= "1️⃣ Взломать склад использовав инструменты\n";
+        $messageText .= "1️⃣ Взломать склад (используя инструменты)\n";
         $messageText .= "2️⃣ Забыть и пройти мимо\n\n";
-        $messageText .= "🎓 _Если ты решишь взламывать склад, помни: тебе нужно оставаться на месте, не переезжать и надеяться,что пока ты думаешь или ищешь инструмент, кто-то  другой не сделает это первее тебя!_\n\n";
+        $messageText .= "🎓 _Важно: нужно оставаться на месте. Если кто-то другой взломает склад раньше, ты можешь остаться без лута!_\n\n";
 
-        $callbackData = "objectActionClosedWarehouse_objectId|" . $object['world_object_id'] . "#objectMapId|" . $object['map_id'];
+        // Формируем callback_data для экшена "ObjectCloseWarehouseAction"
+        // (ВНИМАНИЕ: проверяем, что в $object['world_object_id'] есть нужные данные)
+        $objId    = $object['world_object_id'] ?? $object['id'];
+        $mapId    = $object['map_id'] ?? $cell['map_id'] ?? 0; // иногда берут из параметра $cell
+        $callback = "objectActionClosedWarehouse_objectId|{$objId}#objectMapId|{$mapId}";
 
+        // Собираем inline-кнопки
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🚶🏽 Пройти мимо', 'callback_data' => 'character'],
-                    ['text' => '🔗 Взломать склад', 'callback_data' => $callbackData]
+                    ['text' => '🚶 Пройти мимо',    'callback_data' => 'character'],
+                    ['text' => '🔗 Взломать склад', 'callback_data' => $callback]
                 ]
             ]
         ];
-        Request::answerCallbackQuery(['callback_query_id' => $chatId]);
+
+        // Важно отвечать на колбэк (если есть).
+        // Но здесь handle() вызывается без CallbackQuery, значит ответ может быть пустым:
+        Request::answerCallbackQuery([
+            'callback_query_id' => '', // Или передаем реальный ID, если доступен
+            'text'             => '',
+            'show_alert'       => false
+        ]);
+
+        // Отправляем фото + текст
         try {
             Request::sendPhoto([
-                'chat_id' => $chatId,
-                'photo'   => Request::encodeFile(base_url('uploads/telegram/objects/an-old-long-abandoned-warehouse.jpg')),
-                'caption' => $messageText,
+                'chat_id'    => $chatId,
+                'photo'      => Request::encodeFile(base_url('uploads/telegram/objects/an-old-long-abandoned-warehouse.jpg')),
+                'caption'    => $messageText,
                 'parse_mode' => 'Markdown',
                 'reply_markup' => json_encode($keyboard)
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Failed to send message: " . $e->getMessage());
+            log_message('error', "Failed to send warehouse message: " . $e->getMessage());
         }
     }
 
-    private function sendInsufficientToolsMessage($character, $requiredTools) {
-        $chatId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
+    /**
+     * Если инструментов недостаточно, говорим пользователю, что склад "закрыт" и чего не хватает.
+     */
+    private function sendInsufficientToolsMessage($character, array $requiredTools)
+    {
+        $telegramUser = $this->telegramUserModel->find($character['telegram_user_id']);
+        if (!$telegramUser) {
+            log_message('error', "Can't find telegram user for character ID: {$character['id']} (insufficient tools msg).");
+            return;
+        }
+        $chatId = $telegramUser['telegram_id'];
 
-        $messageText = "🌲 В процессе *Изучения местности* ты сделал открытие:.\n\n";
-        $messageText .= "🏚️ Нашел старый заброшенный склад, но он закрыт.\n\n";
-        $messageText .= "🛠️ _Для проникновения внутрь необходимы следующие инструменты:_\n\n";
+        $messageText  = "🌲 При исследовании ты обнаружил склад, но он *закрыт*.\n\n";
+        $messageText .= "🛠️ _Для проникновения внутрь нужны инструменты:_\n\n";
         foreach ($requiredTools as $itemName => $quantity) {
-            $item = $this->craftedItemsModel->getRowByName($itemName);
+            $itemRow  = $this->craftedItemsModel->getRowByName($itemName);
+            $itemNameRus = $itemRow ? $itemRow['name_rus'] : $itemName;
             $inStock = $this->craftedItemsLogModel
-                ->where('crafted_item_id', $item['id'])
-                ->where('character_id', $character['id'])
+                ->where('crafted_item_id', $itemRow['id'] ?? 0)
+                ->where('character_id',     $character['id'])
                 ->countAllResults();
-            $messageText .= "*{$item['name_rus']}: {$quantity}* _шт._ | _в наличии:_ *{$inStock}*\n";
+
+            $messageText .= "*{$itemNameRus}: {$quantity} шт.* | _в наличии:_ *{$inStock}*\n";
         }
 
-        $messageText .= "\n❌ К сожалению, их у тебя нет...\n\n";
-        $messageText .= "🛒 Оставайся на этой территории, приобрети или скрафти необходимые инструменты, и возвращайся.\n\n";
-        $messageText .= "📝 *P.S.* Чтобы повторно вскрыть склад, еще раз запусти *Изучение местности*. _И помни, склад может оказаться пустым, а ресурсы потратишь, или же наоборот сорвешь большой куш. Тебе решать!_";
+        $messageText .= "\n❌ К сожалению, пока ты не можешь его вскрыть...\n";
+        $messageText .= "🛒 _Попробуй купить/скрафтить инструменты._\n\n";
+        $messageText .= "Если решишь вернуться, повторно запусти *Изучение местности*.\n";
+
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                ],
-                [
-                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
+                    ['text' => '🎒 Инвентарь',  'callback_data' => 'inventory'],
+                    ['text' => '🛒 Магазин',    'callback_data' => 'shop'],
                 ],
             ]
         ];
-        $imagePath = base_url('uploads/telegram/objects/an-old-long-abandoned-warehouse.jpg');
 
         try {
-            Request::answerCallbackQuery(['callback_query_id' => $chatId]);
-            return Request::sendPhoto([
-                'chat_id' => $chatId,
-                'photo'   => Request::encodeFile($imagePath),
-                'caption' => $messageText,
+            // Ответ на колбэк (если есть).
+            Request::answerCallbackQuery([
+                'callback_query_id' => '',
+                'text'             => '',
+                'show_alert'       => false
+            ]);
+
+            Request::sendPhoto([
+                'chat_id'    => $chatId,
+                'photo'      => Request::encodeFile(base_url('uploads/telegram/objects/an-old-long-abandoned-warehouse.jpg')),
+                'caption'    => $messageText,
                 'parse_mode' => 'Markdown',
                 'reply_markup' => json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Failed to send message: " . $e->getMessage());
+            log_message('error', "Failed to send insufficient tools message: " . $e->getMessage());
         }
     }
 }

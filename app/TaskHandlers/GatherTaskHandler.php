@@ -540,6 +540,7 @@ class GatherTaskHandler extends Controller
     ): void {
         $userRow = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
         if (!$userRow || empty($userRow['telegram_id'])) {
+            log_message('error', "sendResourcesFoundReply: No telegram_id for character_id={$character['id']}");
             return;
         }
         $chatId = $userRow['telegram_id'];
@@ -550,20 +551,25 @@ class GatherTaskHandler extends Controller
 
         $resourcesWithRarity = [];
         foreach ($foundResources as $item) {
-            $resData = $this->resourceModel->find($item['resource_id']);
-            if ($resData) {
+            $resourceData = $this->resourceModel->find($item['resource_id']);
+            if ($resourceData) {
                 $resourcesWithRarity[] = [
-                    'name'   => $resData['name'],
+                    'name'   => $resourceData['name'],
                     'amount' => $item['amount'],
-                    'rarity' => $resData['rarity'],
+                    'rarity' => $resourceData['rarity'],
                 ];
             }
         }
 
-        // Сортируем по убыванию редкости
         usort($resourcesWithRarity, function ($a, $b) {
             return $b['rarity'] - $a['rarity'];
         });
+
+        // Карта эмодзи для редкости
+        $rarityEmojis = [
+            1 => '1️⃣', 2 => '2️⃣', 3 => '3️⃣', 4 => '4️⃣', 5 => '5️⃣',
+            6 => '6️⃣', 7 => '7️⃣', 8 => '8️⃣', 9 => '9️⃣', 10 => '🔟'
+        ];
 
         if (empty($resourcesWithRarity)) {
             $msg .= "<i>Не удалось найти ресурсы.</i>\n";
@@ -573,7 +579,9 @@ class GatherTaskHandler extends Controller
                 $resourceName = htmlspecialchars($resource['name'], ENT_QUOTES, 'UTF-8');
                 $amount       = $resource['amount'];
                 $rarity       = $resource['rarity'];
-                $msg .= "➖ <b>{$resourceName}</b>: {$amount} шт. || редк. ➖ <b>{$rarity}</b>\n";
+                $rarityEmoji  = $rarityEmojis[$rarity] ?? ''; // Если нет эмодзи, то пустая строка
+
+                $msg .= "— <b>{$resourceName}</b>: {$amount} шт. | {$rarityEmoji}\n";
             }
         }
 
@@ -596,21 +604,21 @@ class GatherTaskHandler extends Controller
                 ],
                 [
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '🎉 События',   'callback_data' => 'events']
+                    ['text' => '🎉 События', 'callback_data' => 'events']
                 ]
             ]
         ];
 
         try {
-            Request::answerCallbackQuery(['callback_query_id' => $chatId]);
-            Request::sendMessage([
+            Request::sendPhoto([
                 'chat_id'    => $chatId,
-                'text'       => $msg,
+                'photo'      => Request::encodeFile(base_url('uploads/telegram/loot_resources_in_the_box.png')),
+                'caption'    => $msg,
                 'parse_mode' => 'HTML',
                 'reply_markup' => json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            // При желании можно записать сообщение об ошибке в лог.
+            log_message('error', "Failed to send gather result message to chat_id={$chatId}: " . $e->getMessage());
         }
     }
 }
