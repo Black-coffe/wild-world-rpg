@@ -39,17 +39,16 @@ class GatherTaskHandler extends Controller
     protected $biomeResourceModifier;
     protected $toolManager;
 
-    private $telegram;
-
     /**
      * Сохраняет, сколько инструментов мы использовали в рамках одного процесса сбора
      * (ключ: имя инструмента, значение: сколько раз применили).
      */
     protected array $usedToolsCount = [];
 
+    private $telegram;
+
     public function __construct()
     {
-        // Инициализация моделей
         $this->characterModel         = new CharacterModel();
         $this->characterResourceModel = new CharacterResourceModel();
         $this->characterTaskModel     = new CharacterTaskModel();
@@ -65,14 +64,13 @@ class GatherTaskHandler extends Controller
         $this->biomeResourceModifier  = new BiomeResourceModifier();
         $this->toolManager            = new ToolManager();
 
-        // Инициализация Telegram SDK
         $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
         try {
             $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
             Request::initialize($this->telegram);
         } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
+            // При желании можно обработать или записать ошибку в лог.
         }
     }
 
@@ -81,14 +79,11 @@ class GatherTaskHandler extends Controller
      */
     public function handle($task)
     {
-        // 1) Ищем персонажа
         $character = $this->characterModel->find($task['character_id']);
         if (!$character) {
-            log_message('error', "Character not found for task ID: {$task['id']}");
             return;
         }
 
-        // 2) Проверяем глобальное событие 'LocustExodus' (саранча)
         $locustExodusActive = $this->isEventActive('LocustExodus');
         $locustExodusEffect = 0;
         if ($locustExodusActive) {
@@ -96,13 +91,9 @@ class GatherTaskHandler extends Controller
             $locustExodusEffect = (float) $locustExodusEvent['effect_value'];
         }
 
-        // 3) Находим все потенциально доступные ресурсы для данного биома + level_required
-        $resources = $this->getAvailableResources($character);
-
-        // 4) Сколько реально времени прошло (в минутах)
+        $resources    = $this->getAvailableResources($character);
         $spentMinutes = $this->calculateSpentMinutes($task['start_time'], $task['end_time']);
 
-        // 5) Считаем добычу по новой формуле (блочной)
         $foundResources = $this->calculateFoundResources(
             resources: $resources,
             spentMinutes: $spentMinutes,
@@ -112,33 +103,24 @@ class GatherTaskHandler extends Controller
             locustExodusEffect: $locustExodusEffect
         );
 
-        // 6) Определяем биом (чтобы отобразить в сообщении)
         $currentCell = $this->mapModel->where('cell_number', $character['cell_number'])->first();
         $biome       = $currentCell ? $this->biomeModel->find($currentCell['biome_id']) : null;
         $biomeName   = $biome['name'] ?? '???';
 
-        // 7) Применяем модификатор биома (лес, пустыня и т.д.)
+        // Применяем возможные модификаторы биома
         $foundResources = $this->biomeResourceModifier->modifyResourcesByBiome($biome['id'] ?? null, $foundResources);
 
-        // 8) Сохраняем итог в БД, отмечаем задачу завершённой
+        // Сохраняем результаты
         $this->saveFoundResources($foundResources, $character, $task);
         $this->characterTaskModel->update($task['id'], ['status' => 'completed']);
 
-        // 9) Отправляем сообщение игроку (передаём $spentMinutes, $biomeName)
+        // Отправляем уведомление
         $this->sendResourcesFoundReply($foundResources, $character, $spentMinutes, $biomeName);
     }
 
-    // -------------------------------------------------------------------------
-    //                             ОСНОВНЫЕ МЕТОДЫ
-    // -------------------------------------------------------------------------
-
     /**
-     * Переработанный метод: блочная логика (1 инструмент = 1 блок = 10 мин).
-     * Все события, ±20% и здоровье/выносливость — применяем в конце, одним шагом.
-     */
-    /**
-     * Переработанный метод: блочная логика (1 инструмент = 1 блок = 10 мин).
-     * Все события, ±20% и здоровье/выносливость — применяем единоразово в конце.
+     * Основной метод расчёта добытых ресурсов
+     * (блочная логика по 10 минут + бонус от инструментов).
      */
     protected function calculateFoundResources(
         array $resources,
@@ -148,7 +130,6 @@ class GatherTaskHandler extends Controller
         bool $locustExodusActive,
         float $locustExodusEffect
     ): array {
-        // 1) Проверяем ивенты и т.д. (как у вас)
         $isFishStockActive       = $this->isEventActive('FishStock');
         $isExoticFloweringActive = $this->isEventActive('ExoticFlowering');
         $isBerryBoomActive       = $this->isEventActive('BerryBoom');
@@ -159,73 +140,48 @@ class GatherTaskHandler extends Controller
         $berryBoomEvent       = $isBerryBoomActive       ? $this->eventModel->where('name_english', 'BerryBoom')->first() : null;
         $drynessEvent         = $isDrynessActive         ? $this->eventModel->where('name_english', 'Dryness')->first() : null;
 
-        // 2) rarities
         $allowedRarities = $this->getAllowedRarities($character['level']);
 
-        // 3) Делим время на блоки
         $blocksCount = intdiv($spentMinutes, 10);
         $remainder   = $spentMinutes % 10;
 
-        // Сколько ресурсов «за один полноценный блок»
-        // Соберём это в массив вида:
-        //   $baseBlockResources[$resourceId] = [
-        //       'resource' => [...] (из БД),
-        //       'baseQty'  => (int) ...,
-        //   ];
         $baseBlockResources = [];
-
         foreach ($resources as $resource) {
             if (!in_array($resource['rarity'], $allowedRarities)) {
                 continue;
             }
-        $baseFor10Min = $this->getBaseQuantityByRarity($resource['rarity']);
+            $baseFor10Min = $this->getBaseQuantityByRarity($resource['rarity']);
 
-        $baseBlockResources[$resource['id']] = [
-            'resource' => $resource,
-            'baseQty'  => $baseFor10Min,
-        ];
-    }
+            $baseBlockResources[$resource['id']] = [
+                'resource' => $resource,
+                'baseQty'  => $baseFor10Min,
+            ];
+        }
 
-        // Это общий пул, который мы будем умножать (если есть инструменты),
-        // и складывать для blocksCount раз.
+        $foundAmounts = []; // resourceId => суммарное кол-во
 
-        // Итого, для хранения итогов:
-        $foundAmounts = []; // resourceId => суммарное кол-во (до события +/-20%)
-
-        // ----
-        // 4) Основной цикл по каждому блоку
-        // ----
+        // Цикл по блокам
         for ($blockIndex = 0; $blockIndex < $blocksCount; $blockIndex++) {
-            // Шаг 4.1: Выясняем, какие инструменты ПОТРЕБУЮТСЯ в этом блоке
-            //   (то есть у каких ресурсов есть «бонусный» инструмент).
-            //   Но НЕ списываем durability здесь по каждому ресурсу.
-
-            // Словарь "название_инструмента" => [ resource_id1, resource_id2, ... ] для всех ресурсов
             $toolsNeeded = [];
-            // А также массив "resource_id" => "лучшая_прибавка_бонус" (float)
             $resourceBonuses = [];
 
-            // Пробегаем все ресурсы, проверяем, какой инструмент подходит
+            // Определяем, какие инструменты нужны
             foreach ($baseBlockResources as $resId => $arr) {
                 $resourceName = $arr['resource']['name'];
                 $toolsMapping = $this->toolManager->getToolsForResource($resourceName);
+
                 if (empty($toolsMapping)) {
-                    // Не нужен никакой инструмент
                     $resourceBonuses[$resId] = 0.0;
                     continue;
                 }
 
-                // Ищем лучший бонус
-                $bestBonus = 0.0;
+                $bestBonus    = 0.0;
                 $bestToolName = null;
-
                 foreach ($toolsMapping as $toolName => $bonusValue) {
-                    // Проверяем, есть ли у персонажа вообще такой инструмент
                     $toolData = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($toolName, $character['id']);
                     if (!$toolData) {
-                        continue; // у персонажа нет такого инструмента
+                        continue;
                     }
-                    // Выбираем максимальный bonus
                     if ($bonusValue > $bestBonus) {
                         $bestBonus    = $bonusValue;
                         $bestToolName = $toolName;
@@ -233,88 +189,67 @@ class GatherTaskHandler extends Controller
                 }
 
                 if ($bestToolName) {
-                    // Запомним, что для ресурса $resId нужен инструмент $bestToolName
                     $resourceBonuses[$resId] = $bestBonus;
-                    // Добавим его в $toolsNeeded
                     $toolsNeeded[$bestToolName][] = $resId;
                 } else {
-                    // Нет подходящего инструмента — значит, bonus = 0
                     $resourceBonuses[$resId] = 0.0;
                 }
             }
 
-            // Шаг 4.2: Теперь списываем durability по 1 разу
-            //   для каждого инструмента, который действительно будет использован в этом блоке.
-            //
-            //   Но может быть так, что инструмент сломается при списании
-            //   (или не уменьшится прочность, если чего-то не хватает).
-            //   Тогда для ресурсов, которые требовали этот инструмент — бонус = 0.
-            $toolsActuallyUsed = []; // массив [ 'IronShovel', 'LumberjackAxe', ... ]
-
+            // Списываем прочность
             foreach ($toolsNeeded as $toolName => $listOfResources) {
-                // Проверяем наличие инструмента (свежий поиск, т.к. мог сломаться на предыдущих блоках)
                 $toolData = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($toolName, $character['id']);
                 if (!$toolData) {
-                    // инструмента больше нет — у всех ресурсов bonus = 0
                     foreach ($listOfResources as $resId) {
                         $resourceBonuses[$resId] = 0.0;
                     }
                     continue;
                 }
 
-                // Пробуем уменьшить прочность на 1
                 $ok = $this->toolManager->updateToolDurability($toolData);
                 if (!$ok) {
-                    // Инструмент сломался, списался, теперь его нет
-                    // => зануляем бонусы
                     foreach ($listOfResources as $resId) {
                         $resourceBonuses[$resId] = 0.0;
                     }
                     continue;
                 }
 
-                // Раз всё ок — фиксируем, что мы реально израсходовали инструмент 1 раз
-                // (для итогового отчёта)
                 if (!isset($this->usedToolsCount[$toolName])) {
                     $this->usedToolsCount[$toolName] = 0;
                 }
                 $this->usedToolsCount[$toolName]++;
-                $toolsActuallyUsed[] = $toolName;
             }
 
-            // Шаг 4.3: Подсчитываем добычу за этот блок
+            // Подсчёт добычи
             foreach ($baseBlockResources as $resId => $arr) {
                 $baseQty  = $arr['baseQty'];
-                $bonusVal = $resourceBonuses[$resId]; // может быть 0.0, если инструмент недоступен/сломался
+                $bonusVal = $resourceBonuses[$resId] ?? 0.0;
 
                 $resultQty = $baseQty;
                 if ($bonusVal > 0) {
                     $resultQty *= (1 + $bonusVal);
                 }
-                // Накапливаем в $foundAmounts
+
                 if ($resultQty > 0) {
                     $foundAmounts[$resId] = ($foundAmounts[$resId] ?? 0) + $resultQty;
                 }
             }
         }
 
-        // 5) Остаток (неполный блок), у вас по условию — без использования инструмента
-        //    (т.е. никакого списания инструмента, никакого бонуса)
+        // Остаток (меньше 10 мин)
         if ($remainder > 0) {
             $leftFactor = $remainder / 10.0;
             foreach ($baseBlockResources as $resId => $arr) {
-                $baseQty   = $arr['baseQty'];
-                $addQty    = $baseQty * $leftFactor;
+                $addQty = $arr['baseQty'] * $leftFactor;
                 if ($addQty > 0) {
                     $foundAmounts[$resId] = ($foundAmounts[$resId] ?? 0) + $addQty;
                 }
             }
         }
 
-        // 6) Теперь разово применяем ±20%, события, состояние здоровья и т.п.
+        // Применяем ±20% и прочие модификаторы (здоровье, события)
         $foundResources = [];
         foreach ($foundAmounts as $resId => $amountRaw) {
-            // ±20%
             $randFactor = rand(80, 120) / 100.0;
             $amt = $amountRaw * $randFactor;
 
@@ -322,7 +257,7 @@ class GatherTaskHandler extends Controller
             if (!$resInfo) {
                 continue;
             }
-            // События, саранча, бафы
+
             if ($isFishStockActive && $resInfo['name'] === 'Рыба') {
                 $amt *= (1 + $fishStockEvent['effect_value'] / 100.0);
             }
@@ -336,11 +271,11 @@ class GatherTaskHandler extends Controller
                 $amt *= (1 - $locustExodusEffect / 100.0);
             }
 
-            // здоровье/усталость
+            // Учет здоровья/усталости
             $htFactor = $this->getHealthTirednessFactor($character);
             $amt *= $htFactor;
 
-            $finalAmt = (int)round($amt);
+            $finalAmt = (int) round($amt);
             if ($finalAmt < 1) {
                 continue;
             }
@@ -352,21 +287,14 @@ class GatherTaskHandler extends Controller
             ];
         }
 
-        // Засуха?
+        // Проверка засухи
         if ($isDrynessActive && $drynessEvent) {
             $foundResources = $this->applyDrynessPenalty($foundResources, $drynessEvent);
         }
 
-        // Возвращаем готовый список
         return $foundResources;
     }
 
-
-    /**
-     * Метод подбора инструмента для ОДНОГО 10-минутного блока.
-     * Если находим лучший инструмент, уменьшаем прочность и возвращаем multiplier (1 + bonus).
-     * Если нет инструмента, возвращаем 1.
-     */
     protected function pickToolAndUpdate(array $resource, array $character): float
     {
         $tools = $this->toolManager->getToolsForResource($resource['name']);
@@ -374,7 +302,7 @@ class GatherTaskHandler extends Controller
             return 1.0;
         }
 
-        $bestBonus = 0.0;
+        $bestBonus    = 0.0;
         $bestToolName = null;
 
         foreach ($tools as $toolName => $bonus) {
@@ -382,43 +310,33 @@ class GatherTaskHandler extends Controller
             if (!$toolData) {
                 continue;
             }
-
             if ($bonus > $bestBonus) {
-                $bestBonus = $bonus;
-                $bestToolName = $toolName; // Запоминаем имя инструмента, а не запись из БД
+                $bestBonus    = $bonus;
+                $bestToolName = $toolName;
             }
         }
 
         if (!$bestToolName) {
-            return 1.0; // Инструмент не найден
+            return 1.0;
         }
 
-        // Проверяем наличие инструмента в инвентаре
         $toolData = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($bestToolName, $character['id']);
         if (!$toolData) {
-            return 1.0; // Инструмент не найден
+            return 1.0;
         }
 
-        // Уменьшаем прочность и получаем результат
         $durabilityResult = $this->toolManager->updateToolDurability($toolData);
-
-        // Если прочность успешно уменьшена
         if ($durabilityResult) {
-            // Увеличиваем счётчик использования инструмента
             if (!isset($this->usedToolsCount[$bestToolName])) {
                 $this->usedToolsCount[$bestToolName] = 0;
             }
             $this->usedToolsCount[$bestToolName]++;
-
-            return 1.0 + $bestBonus; // Инструмент найден и использован, возвращаем множитель
+            return 1.0 + $bestBonus;
         }
 
-        return 1.0; // Инструмент найден, но прочность не уменьшена (возможно, закончился)
+        return 1.0;
     }
 
-    /**
-     * Функция, определяющая, какие уровни редкости доступны при данном уровне персонажа.
-     */
     protected function getAllowedRarities(int $level): array
     {
         if ($level <= 1) {
@@ -440,14 +358,10 @@ class GatherTaskHandler extends Controller
         } elseif ($level <= 9) {
             return [2, 3, 4, 5, 6, 7, 8, 9, 10];
         } else {
-            // 10+ уровень => 1..10
             return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         }
     }
 
-    /**
-     * Таблица «базовое количество за 10 минут» для каждой редкости (1–10).
-     */
     protected function getBaseQuantityByRarity(int $rarity): int
     {
         return match ($rarity) {
@@ -465,11 +379,6 @@ class GatherTaskHandler extends Controller
         };
     }
 
-    /**
-     * Рассчитывает коэффициент здоровья/выносливости:
-     * при Health=100 и Tired=100 => +25% к итогам,
-     * при Health=1 и Tired=1 => -25% к итогам.
-     */
     protected function getHealthTirednessFactor(array $character): float
     {
         $healthVal = ($character['health'] - 50) / 50.0;
@@ -487,9 +396,6 @@ class GatherTaskHandler extends Controller
         return $factor;
     }
 
-    /**
-     * Применяет штраф «Засуха» (Dryness) к водным ресурсам (type содержит 'water', например).
-     */
     protected function applyDrynessPenalty(array $foundResources, array $drynessEvent): array
     {
         $penalty = 1 - ($drynessEvent['effect_value'] / 100.0);
@@ -505,13 +411,6 @@ class GatherTaskHandler extends Controller
         return $foundResources;
     }
 
-    // -------------------------------------------------------------------------
-    //                          ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
-    // -------------------------------------------------------------------------
-
-    /**
-     * Проверка, активно ли событие (по name_english).
-     */
     protected function isEventActive(string $eventNameEnglish): bool
     {
         $event = $this->eventModel->where('name_english', $eventNameEnglish)->first();
@@ -544,18 +443,16 @@ class GatherTaskHandler extends Controller
     {
         $cell = $this->mapModel->where('cell_number', $character['cell_number'])->first();
         if (!$cell) {
-            log_message('error', "Cell not found for character {$character['id']} (cell_number: {$character['cell_number']})");
             return [];
         }
 
         $biome = $this->biomeModel->find($cell['biome_id']);
         if (!$biome) {
-            log_message('error', "Biome ID {$cell['biome_id']} not found for cell_number {$cell['cell_number']}");
             return [];
         }
 
         return $this->resourceModel
-            ->like('biome_id', (string) $biome['id'], 'both')
+            ->like('biome_id', (string)$biome['id'], 'both')
             ->where('level_required <=', $character['level'])
             ->findAll();
     }
@@ -581,10 +478,12 @@ class GatherTaskHandler extends Controller
                 continue;
             }
 
-            $existingResource = $this->characterResourceModel->where([
-                'id_characters' => $character['id'],
-                'id_resources'  => $res['resource_id'],
-            ])->first();
+            $existingResource = $this->characterResourceModel
+                ->where([
+                    'id_characters' => $character['id'],
+                    'id_resources'  => $res['resource_id'],
+                ])
+                ->first();
 
             if ($existingResource) {
                 $newQuantity = $existingResource['quantity'] + $amount;
@@ -630,6 +529,9 @@ class GatherTaskHandler extends Controller
         $this->characterModel->update($character['id'], $updatedData);
     }
 
+    /**
+     * Отправляет сообщение (без картинки) об итогах сбора.
+     */
     protected function sendResourcesFoundReply(
         array $foundResources,
         array $character,
@@ -638,57 +540,55 @@ class GatherTaskHandler extends Controller
     ): void {
         $userRow = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
         if (!$userRow || empty($userRow['telegram_id'])) {
-            log_message('error', "Telegram ID not found for character {$character['id']}");
             return;
         }
         $chatId = $userRow['telegram_id'];
 
-        // Заголовок + потраченное время + биом
-        $msg = "*Успешная добыча ресурсов!*\n";
-        $msg .= "Время, затраченное на добычу: *{$spentMinutes}* мин.\n";
-        $msg .= "Биом: *{$biomeName}*\n\n";
+        $msg = "<b>Успешная добыча ресурсов!</b>\n";
+        $msg .= "Время, затраченное на добычу: <b>{$spentMinutes}</b> мин.\n";
+        $msg .= "Биом: <b>" . htmlspecialchars($biomeName, ENT_QUOTES, 'UTF-8') . "</b>\n\n";
 
-        // Выводим, какие инструменты были потрачены
-//        if (!empty($this->usedToolsCount)) {
-//            $msg .= "\n*Использованные инструменты:*\n";
-//            foreach ($this->usedToolsCount as $toolName => $countUsed) {
-//                // Проверяем, что имя инструмента не 'unknown_tool'
-//                if ($toolName !== 'unknown_tool') {
-//                    $msg .= "- {$toolName}: {$countUsed} раз(а)\n";
-//                }
-//            }
-//        }
+        $resourcesWithRarity = [];
+        foreach ($foundResources as $item) {
+            $resData = $this->resourceModel->find($item['resource_id']);
+            if ($resData) {
+                $resourcesWithRarity[] = [
+                    'name'   => $resData['name'],
+                    'amount' => $item['amount'],
+                    'rarity' => $resData['rarity'],
+                ];
+            }
+        }
 
-        // Список ресурсов
-        if (empty($foundResources)) {
-            $msg .= "_Не удалось найти ресурсы._\n";
+        // Сортируем по убыванию редкости
+        usort($resourcesWithRarity, function ($a, $b) {
+            return $b['rarity'] - $a['rarity'];
+        });
+
+        if (empty($resourcesWithRarity)) {
+            $msg .= "<i>Не удалось найти ресурсы.</i>\n";
         } else {
-            $msg .= "*Найдены следующие ресурсы:*\n";
-            foreach ($foundResources as $item) {
-                $resourceData = $this->resourceModel->find($item['resource_id']);
-                if (!$resourceData) {
-                    continue;
-                }
-                $resName = $resourceData['name'] ?? "???";
-                $rarity  = $resourceData['rarity'] ?? 0;
-                $amount  = (int) $item['amount'];
-
-                // Пример: "Песок: 105 шт. | редк. - 6"
-                $msg .= "- *{$resName}*: {$amount} шт. | редк. — {$rarity}\n";
+            $msg .= "<b>Найдены следующие ресурсы:</b>\n";
+            foreach ($resourcesWithRarity as $resource) {
+                $resourceName = htmlspecialchars($resource['name'], ENT_QUOTES, 'UTF-8');
+                $amount       = $resource['amount'];
+                $rarity       = $resource['rarity'];
+                $msg .= "➖ <b>{$resourceName}</b>: {$amount} шт. || редк. ➖ <b>{$rarity}</b>\n";
             }
         }
 
-        // Выводим, какие инструменты были потрачены
         if (!empty($this->usedToolsCount)) {
-            $msg .= "\n*Использованные инструменты:*\n";
-            foreach ($this->usedToolsCount as $toolName => $countUsed) {
-                $msg .= "- `{$toolName}`: {$countUsed} раз(а)\n";
+            $msg .= "\n<b>Использованные инструменты:</b>\n";
+            foreach ($this->usedToolsCount as $toolNameEng => $countUsed) {
+                $toolData = $this->craftedItemsModel->where('name_eng', $toolNameEng)->first();
+                $toolNameRus = $toolData ? $toolData['name_rus'] : $toolNameEng;
+                $toolNameEsc = htmlspecialchars($toolNameRus, ENT_QUOTES, 'UTF-8');
+                $msg .= "- {$toolNameEsc}: {$countUsed} раз(а)\n";
             }
         }
 
-        $msg .= "\n*Твои усилия были вознаграждены!*";
+        $msg .= "\n<b>Твои усилия были вознаграждены!</b>";
 
-        // Кнопки-ответы
         $keyboard = [
             'inline_keyboard' => [
                 [
@@ -702,16 +602,15 @@ class GatherTaskHandler extends Controller
         ];
 
         try {
-            Request::sendPhoto([
+            Request::answerCallbackQuery(['callback_query_id' => $chatId]);
+            Request::sendMessage([
                 'chat_id'    => $chatId,
-                'photo'      => Request::encodeFile(base_url('uploads/telegram/loot_resources_in_the_box.png')),
-                'caption'    => $msg,
-                'parse_mode' => 'Markdown',  // Обычная Markdown
+                'text'       => $msg,
+                'parse_mode' => 'HTML',
                 'reply_markup' => json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Failed to send gather result message: " . $e->getMessage());
+            // При желании можно записать сообщение об ошибке в лог.
         }
     }
-
 }
