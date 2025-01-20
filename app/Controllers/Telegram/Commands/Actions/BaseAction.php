@@ -97,14 +97,6 @@ abstract class BaseAction
         $timeLeft = $now > $endTime ? 0 : $now->diff($endTime);
         $minutesLeft = $now > $endTime ? 0 : ($timeLeft->days * 24 * 60 + $timeLeft->h * 60 + $timeLeft->i);
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '❌ Прервать действие', 'callback_data' => $callbackDataCancel]
-                ],
-            ]
-        ];
-
         $text = "*Вы не можете начать действие!* 😥\n\n"
             . "*Вы уже заняты выполнением задачи:*\n\n"
             . "👉 *{$this->blockingTaskDetails['name_rus']}* 👈\n"
@@ -116,7 +108,7 @@ abstract class BaseAction
 
         return [
             'text' => $text,
-            'reply_markup' => json_encode($keyboard)
+            'reply_markup' => json_encode(['inline_keyboard' => []]) // пустая клавиатура
         ];
     }
 

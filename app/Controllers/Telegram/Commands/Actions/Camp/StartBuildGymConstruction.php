@@ -238,16 +238,6 @@ class StartBuildGymConstruction extends BaseAction
             . "*О готовности ты узнаешь в сообщении.* 🎁\n\n"
             . "P.S. _Не забудь поделиться своими находками!_ 🗣️\n";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
-                ],
-            ]
-        ];
-        $encodedKeyboard = json_encode($keyboard);
-
         $imagePath = base_url('uploads/telegram/camp/Construction-by-improvised.jpg'); // Ensure this path is correctly configured
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendPhoto([
@@ -255,7 +245,6 @@ class StartBuildGymConstruction extends BaseAction
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,
             'parse_mode' => 'Markdown',
-            'reply_markup' => $encodedKeyboard
         ]);
     }
 

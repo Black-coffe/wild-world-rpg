@@ -87,9 +87,6 @@ class GatherAction extends BaseAction
                         ['text' => '6 часов',    'callback_data' => 'gather_360'],
                         ['text' => '12 часов',   'callback_data' => 'gather_720'],
                     ],
-                    [
-                        ['text' => '❌ Отмена',   'callback_data' => 'cancelGather']
-                    ],
                 ]
             ];
 

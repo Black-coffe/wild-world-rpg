@@ -11,6 +11,7 @@ use App\Models\CharacterModel;
 use App\Models\ExploredCellsModel;
 use App\Models\MapModel;
 use App\Models\BiomeModel;
+use App\Models\TaskModel;  // <-- ВАЖНО: подключаем TaskModel
 use DateTime;
 
 class CancelExplorationAction
@@ -21,6 +22,7 @@ class CancelExplorationAction
     protected $mapModel;
     protected $biomeModel;
     protected $exploredCellsModel;
+    protected $taskModel; // <-- ВАЖНО: свойство для TaskModel
 
     public function __construct(CallbackQuery $callbackQuery)
     {
@@ -30,6 +32,7 @@ class CancelExplorationAction
         $this->mapModel = new MapModel();
         $this->biomeModel = new BiomeModel();
         $this->exploredCellsModel = new ExploredCellsModel();
+        $this->taskModel = new TaskModel(); // <-- ВАЖНО: инициализация TaskModel
     }
 
     public function handle(): ServerResponse
@@ -56,8 +59,20 @@ class CancelExplorationAction
             ]);
         }
 
+        // 1. Ищем запись в таблице tasks, где name='ExploreTheArea'
+        $exploreTask = $this->taskModel->where('name', 'ExploreTheArea')->first(); // <-- ВАЖНО
+
+        if (!$exploreTask) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text' => 'Задача ExploreTheArea не найдена в таблице tasks.',
+            ]);
+        }
+
+        // 2. В character_tasks ищем конкретную строку для этого персонажа + task_id + статус 'in_work'
         $task = $this->characterTaskModel
             ->where('character_id', $character['id'])
+            ->where('task_id', $exploreTask['id']) // <-- ВАЖНО: проверяем соответствие задачи
             ->where('status', 'in_work')
             ->first();
 
@@ -69,26 +84,28 @@ class CancelExplorationAction
             ]);
         }
 
+        // 3. Прерываем задачу: меняем статус на 'interrupted'
         $this->characterTaskModel->update($task['id'], ['status' => 'interrupted']);
 
+        // Подсчёт, сколько времени прошло с момента начала
         $startTime = new DateTime($task['start_time']);
         $now = new DateTime();
         $interval = $now->diff($startTime);
         $minutesPassed = ($interval->days * 24 * 60) + ($interval->h * 60) + $interval->i;
 
-        // Если время выполнения задачи больше 5 минут, то обрабатываем результаты исследования
+        // 4. Если прошло более 5 минут, даём частичную награду / записываем клетки
         if ($minutesPassed >= 5) {
             $currentCell = $this->mapModel->where('cell_number', $character['cell_number'])->first();
             $surroundingCells = $this->getSurroundingCells($currentCell, $minutesPassed);
-            // Запись в базу данных информации о изученных ячейках
-            foreach ($surroundingCells as $cell) {
-                // Проверяем, существует ли уже запись для данной ячейки и персонажа
-                $query = $this->exploredCellsModel->where('character_id', $character['id'])
-                    ->where('map_cell_id', $cell['cell_number'])
-                    ->get();
 
-                // Если запись не найдена, то вставляем новую
-                if ($query->getNumRows() === 0) {
+            // Запись в таблицу explored_cells
+            foreach ($surroundingCells as $cell) {
+                $alreadyExplored = $this->exploredCellsModel
+                    ->where('character_id', $character['id'])
+                    ->where('map_cell_id', $cell['cell_number'])
+                    ->countAllResults();
+
+                if ($alreadyExplored == 0) {
                     $this->exploredCellsModel->insert([
                         'character_id' => $character['id'],
                         'telegram_user_id' => $task['telegram_user_id'],
@@ -100,13 +117,15 @@ class CancelExplorationAction
             }
             $text = $this->formatResultMessage($surroundingCells, true);
         } else {
-            // Иначе, если исследование было прервано раньше времени, не записываем результаты и отправляем соответствующее сообщение
+            // Если меньше 5 минут — ничего не открываем
             $text = $this->formatResultMessage([], false);
-            // Обновляем характеристики персонажа в минус 0.01
+            // Штрафуем опыт (пример из вашего кода)
             $this->characterModel->update($character['id'], [
-                'experience' => $character['experience'] - 0.01,]);
+                'experience' => $character['experience'] - 0.01,
+            ]);
         }
 
+        // Клавиатура для возврата к действиям
         $keyboard = [
             'inline_keyboard' => [
                 [
@@ -120,14 +139,13 @@ class CancelExplorationAction
         ];
         $encodedKeyboard = json_encode($keyboard);
 
-        $imagePath = base_url('uploads/telegram/character_rushes_back_to_his_base.png'); // Укажите актуальный путь к изображению
+        $imagePath = base_url('uploads/telegram/character_rushes_back_to_his_base.png');
 
-        // Ответ на колбек-запрос и отправка сообщения
+        // Ответ на колбэк и отправка фото со сообщением
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId(),
         ]);
 
-        // Отправляем ответное сообщение пользователю
         return Request::sendPhoto([
             'chat_id' => $chatId,
             'photo'   => Request::encodeFile($imagePath),
@@ -137,21 +155,21 @@ class CancelExplorationAction
         ]);
     }
 
-    private function getSurroundingCells($currentCell, $minutesPassed) {
-        $cellsToExplore = min(floor($minutesPassed / 5) * 2, 8); // Расчет количества изученных ячеек
+    private function getSurroundingCells($currentCell, $minutesPassed)
+    {
+        $cellsToExplore = min(floor($minutesPassed / 5) * 2, 8);
         $x = $currentCell['coordinate_x'];
         $y = $currentCell['coordinate_y'];
 
-        // Определение координат соседних ячеек
         $neighboringPositions = [
-            ['x' => $x - 1, 'y' => $y - 1], // Северо-запад
-            ['x' => $x,     'y' => $y - 1], // Север
-            ['x' => $x + 1, 'y' => $y - 1], // Северо-восток
-            ['x' => $x - 1, 'y' => $y],     // Запад
-            ['x' => $x + 1, 'y' => $y],     // Восток
-            ['x' => $x - 1, 'y' => $y + 1], // Юго-запад
-            ['x' => $x,     'y' => $y + 1], // Юг
-            ['x' => $x + 1, 'y' => $y + 1], // Юго-восток
+            ['x' => $x - 1, 'y' => $y - 1],
+            ['x' => $x,     'y' => $y - 1],
+            ['x' => $x + 1, 'y' => $y - 1],
+            ['x' => $x - 1, 'y' => $y],
+            ['x' => $x + 1, 'y' => $y],
+            ['x' => $x - 1, 'y' => $y + 1],
+            ['x' => $x,     'y' => $y + 1],
+            ['x' => $x + 1, 'y' => $y + 1],
         ];
 
         $surroundingCellsInfo = [];
@@ -165,10 +183,9 @@ class CancelExplorationAction
                 ->first();
 
             if ($cell) {
-                $biome = $this->biomeModel->find($cell['biome_id']);
                 $surroundingCellsInfo[] = [
                     'cell_number' => $cell['cell_number'],
-                    'biome_id' => $cell['biome_id'],
+                    'biome_id'    => $cell['biome_id'],
                 ];
             }
         }
@@ -176,19 +193,20 @@ class CancelExplorationAction
         return $surroundingCellsInfo;
     }
 
-    protected function formatResultMessage($exploredCells, $explorationCompleted) {
+    protected function formatResultMessage($exploredCells, $explorationCompleted)
+    {
+        $messageText = "*Пришлось прерваться!* 😥\n\n"
+            . "Неотложные дела заставили меня 🏃‍♂️ вернуться.\n\n";
 
-        $messageText = "*Пришлось прерваться!* 😥\n\n";
-        $messageText .= "Неотложные дела заставила меня 🏃‍♂️ домой.\n\n";
+        if ($explorationCompleted && !empty($exploredCells)) {
+            $messageText .= "Но я успел осмотреть несколько ячеек!\n";
+            $messageText .= "При следующей вылазке продолжу исследовать остров. 🏝️\n\n";
+        } else {
+            $messageText .= "К сожалению, я почти ничего не успел разведать.\n\n";
+            $messageText .= "Получил небольшой штраф к опыту, но главное — я жив! 👍\n\n";
+        }
 
-        // Добавление информации об изменении характеристик персонажа
-        $messageText .= "\n😠😠😠\n\n";
-        $messageText .= "💪 *Но я не сдаюсь!*\n";
-        $messageText .= "*Завтра я вернусь и продолжу свое дело!🤓*\n\n";
-        $messageText .= "*❤️ Сегодня я вернулся домой живым, а это уже победа!*\n\n";
-        $messageText .= "*Не вешай нос! 💪😜*\n\n";
-
+        $messageText .= "💪 *Не унывай!* Впереди нас ждут новые открытия!\n";
         return $messageText;
     }
-
 }
