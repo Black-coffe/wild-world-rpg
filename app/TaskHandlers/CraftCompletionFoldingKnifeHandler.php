@@ -23,13 +23,13 @@ class CraftCompletionFoldingKnifeHandler extends Controller
 
     public function __construct()
     {
-        $this->characterModel = new CharacterModel();
-        $this->characterTaskModel = new CharacterTaskModel();
-        $this->craftedItemsModel = new CraftedItemsModel();
-        $this->craftedItemsLogModel = new CraftedItemsLogModel();
-        $this->telegramUserModel = new TelegramUserModel();
+        $this->characterModel        = new CharacterModel();
+        $this->characterTaskModel    = new CharacterTaskModel();
+        $this->craftedItemsModel     = new CraftedItemsModel();
+        $this->craftedItemsLogModel  = new CraftedItemsLogModel();
+        $this->telegramUserModel     = new TelegramUserModel();
 
-        $API_KEY = getenv('telegram.API_KEY');
+        $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
 
         try {
@@ -40,101 +40,142 @@ class CraftCompletionFoldingKnifeHandler extends Controller
         }
     }
 
+    /**
+     * Основной метод, вызываемый при завершении задачи (CRON).
+     * @param array $task Запись из character_tasks (со статусом in_work, потом становится completed).
+     */
     public function handle($task)
     {
-        // Закрытие задачи
+        // 1. Переводим задачу в статус completed
         $this->characterTaskModel->update($task['id'], ['status' => 'completed']);
 
-        // Получение информации о крафтимом предмете
+        // 2. Ищем предмет "FoldingKnife" (name_eng='FoldingKnife')
         $craftedItem = $this->craftedItemsModel->where('name_eng', 'FoldingKnife')->first();
-
         if (!$craftedItem) {
-            // Ошибка, если предмет не найден
-            log_message('error', 'Crafted item not found in the database.');
+            log_message('error', 'Crafted item "FoldingKnife" not found in the database.');
             return;
         }
 
-        // Проверка, существует ли уже такой предмет в логе
+        // 3. Получаем quantity из task_settings
+        $quantityToAdd = $this->getQuantityFromTaskSettings($task);
+
+        // 4. Обновляем / создаём запись в crafted_items_log
         $existingLog = $this->craftedItemsLogModel->where([
-            'character_id' => $task['character_id'],
+            'character_id'    => $task['character_id'],
             'crafted_item_id' => $craftedItem['id']
         ])->first();
 
         if ($existingLog) {
-            // Увеличиваем количество, если предмет уже есть в логе
+            $newQty = $existingLog['quantity'] + $quantityToAdd;
             $this->craftedItemsLogModel->update($existingLog['id'], [
-                'quantity' => $existingLog['quantity'] + 1
+                'quantity' => $newQty
             ]);
         } else {
-            // Добавляем новую запись, если предмета еще нет
+            // Если предмета ещё нет, создаём запись
             $this->craftedItemsLogModel->insert([
-                'character_id' => $task['character_id'],
-                'task_id' => $task['task_id'],
-                'crafted_item_id' => $craftedItem['id'],
-                'type' => $craftedItem['type'],
-                'direction_craft' => $craftedItem['direction_craft'],
+                'character_id'      => $task['character_id'],
+                'task_id'           => $task['task_id'],
+                'crafted_item_id'   => $craftedItem['id'],
+                'type'              => $craftedItem['type'],
+                'direction_craft'   => $craftedItem['direction_craft'],
                 'crafting_location' => $craftedItem['crafting_location'],
-                'durability_count' => $craftedItem['durability_count'],
-                'durability_time' => NULL,
-                'quantity' => 1
+                'durability_count'  => $craftedItem['durability_count'],
+                'durability_time'   => null,
+                'quantity'          => $quantityToAdd
             ]);
         }
 
-        // Обновление атрибутов персонажа после крафта
+        // 5. Повышаем атрибуты персонажа (пример: +0.05 ловкости, +0.05 интеллекта)
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.05, // увеличение ловкости
-            0.05  // увеличение интеллекта
+            0.05,
+            0.05
         );
 
-        // Отправка уведомления в Telegram
-        $this->notifyUser($task['telegram_user_id'], $craftedItem, $task['character_id']);
+        // 6. Уведомляем пользователя
+        $this->notifyUser($task['telegram_user_id'], $craftedItem, $task['character_id'], $quantityToAdd);
     }
 
-    private function notifyUser($telegramUserId, $craftedItem, $characterId): \Longman\TelegramBot\Entities\ServerResponse
+    /**
+     * Считываем "quantity" из поля task_settings (JSON).
+     * Если нет / некорректно — возвращаем 1.
+     */
+    private function getQuantityFromTaskSettings(array $task): int
     {
-        // Получение Telegram ID пользователя
-        $telegram_id = $this->telegramUserModel->where('id', $telegramUserId)->first()['telegram_id'];
+        if (!empty($task['task_settings'])) {
+            $decoded = json_decode($task['task_settings'], true);
+            if (isset($decoded['quantity']) && is_numeric($decoded['quantity'])) {
+                return (int)$decoded['quantity'];
+            }
+        }
+        return 1;
+    }
 
-        // Получение текущего количества скрафченных предметов
-        $existingLog = $this->craftedItemsLogModel->where([
-            'character_id' => $characterId,
+    /**
+     * Уведомляем игрока об окончании крафта: сколько ножей добавлено, сколько всего теперь.
+     */
+    private function notifyUser(int $telegramUserId, array $craftedItem, int $characterId, int $quantityAdded)
+    {
+        // Получаем telegram_id
+        $userRow = $this->telegramUserModel->where('id', $telegramUserId)->first();
+        if (!$userRow) {
+            log_message('error', "Telegram user not found: ID {$telegramUserId}");
+            return;
+        }
+        $telegramId = $userRow['telegram_id'] ?? null;
+        if (!$telegramId) {
+            log_message('error', "No telegram_id found for user ID {$telegramUserId}.");
+            return;
+        }
+
+        // Узнаём, сколько теперь всего
+        $updatedLog = $this->craftedItemsLogModel->where([
+            'character_id'    => $characterId,
             'crafted_item_id' => $craftedItem['id']
         ])->first();
+        $totalNow = $updatedLog ? (int)$updatedLog['quantity'] : 0;
 
-        $quantity = $existingLog ? $existingLog['quantity'] : 0;
+        // Русское название, если есть
+        $itemNameRus = $craftedItem['name_rus'] ?? "Складной нож";
 
-        $text = "📌 Вы успешно скрафтили предмет:\n\n"
-            . "🔪 *{$craftedItem['name_rus']}*\n\n"
-            . "В наличии: *{$quantity} шт.*\n\n"
+        $text = "📌 *Крафт завершён!*\n\n"
+            . "Ты создал: 🔪 *{$itemNameRus}* x{$quantityAdded} шт.\n\n"
+            . "Теперь у тебя *{$totalNow} шт.* в инвентаре.\n\n"
             . "Зона применения: *Инструменты* 🛠️";
 
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🔄 Крафтить еще', 'callback_data' => 'craftFoldingKnife'],
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                    ['text' => '🔄 Крафтить еще', 'callback_data' => 'craftFoldingKnife_1'],
+                    ['text' => '🎒 Инвентарь',     'callback_data' => 'inventory'],
                 ]
             ]
         ];
         $imagePath = base_url('uploads/telegram/craft/an-old-but-sharp-folding-knife.jpg');
 
-        Request::answerCallbackQuery(['callback_query_id' => $telegram_id]);
+        // Пытаемся ответить на callbackQuery (если оно ещё актуально)
         try {
-            return Request::sendPhoto([
-                'chat_id' => $telegram_id,
-                'photo'   => Request::encodeFile($imagePath),
-                'caption' => $text,
-                'parse_mode' => 'Markdown',
+            Request::answerCallbackQuery(['callback_query_id' => $telegramId]);
+        } catch (TelegramException $e) {
+            log_message('error', "answerCallbackQuery error: ".$e->getMessage());
+        }
+
+        // Отправляем фото
+        try {
+            Request::sendPhoto([
+                'chat_id'      => $telegramId,
+                'photo'        => Request::encodeFile($imagePath),
+                'caption'      => $text,
+                'parse_mode'   => 'Markdown',
                 'reply_markup' => json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Telegram API error: " . $e->getMessage());
-            return Request::sendMessage([
-                'chat_id' => $telegram_id,
-                'text' => "Произошла ошибка: " . $e->getMessage(),
+            log_message('error', "Telegram API error: ".$e->getMessage());
+            // fallback
+            Request::sendMessage([
+                'chat_id' => $telegramId,
+                'text'    => "Произошла ошибка: ".$e->getMessage(),
             ]);
         }
     }
-
 }

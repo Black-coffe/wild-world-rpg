@@ -5,155 +5,261 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\ActiveEventModel;
 use App\Models\CharacterResourceModel;
+use App\Models\CraftedItemsModel;
+use App\Models\CraftedItemsLogModel;
 use App\Models\EventModel;
 use App\Models\TaskModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
-// Модель для доступа к ресурсам персонажа
-
+/**
+ * Класс запуска "Железной лопаты" (IronShovel) в количественном крафте.
+ */
 class IronShovelCraftActionStart extends BaseAction
 {
     protected $taskModel;
     protected $eventModel;
     protected $activeEventModel;
-    protected $characterResourceModel; // Добавление свойства для модели
+    protected $characterResourceModel;
+    protected $craftedItemsModel;
+    protected $craftedItemsLogModel;
+
+    /**
+     * Количество лопат, извлекаемое из callback_data. По умолчанию 1.
+     */
+    private int $quantity = 1;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->taskModel = new TaskModel();
-        $this->eventModel = new EventModel();
-        $this->activeEventModel = new ActiveEventModel();
-        $this->characterResourceModel = new CharacterResourceModel(); // Инициализация модели
+
+        $this->taskModel              = new TaskModel();
+        $this->eventModel             = new EventModel();
+        $this->activeEventModel       = new ActiveEventModel();
+        $this->characterResourceModel = new CharacterResourceModel();
+        $this->craftedItemsModel      = new CraftedItemsModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel();
+
+        // Пример: "craftIronShovel_10" => ["craftIronShovel","10"] => quantity=10
+        $data  = $callbackQuery->getData();
+        $parts = explode('_', $data);
+        if (isset($parts[1]) && is_numeric($parts[1])) {
+            $this->quantity = (int)$parts[1];
+        }
     }
 
     public function handle(): ServerResponse
     {
         [$user, $character] = $this->getUserAndCharacter();
         if (!$user || !$character) {
-            return $this->sendError('Пользователь не найден в базе данных или персонаж не определён.');
+            return $this->sendError("Пользователь или персонаж не найден.");
         }
 
-        // Проверка и списание необходимых ресурсов
-        if (!$this->checkAndDeductResources($character['id'])) {
-            return $this->sendError('Недостаточно ресурсов для крафта.');
+        // Проверяем и списываем ресурсы (× $this->quantity)
+        if (!$this->checkAndDeductResources($character['id'], $this->quantity)) {
+            return $this->sendError("Недостаточно ресурсов для крафта {$this->quantity} шт. лопат.");
         }
 
-        // Запуск процесса крафта
-        return $this->startCraftingProcess($character, $user['id']);
+        // Запуск процесса
+        return $this->startCraftingProcess($character, $user['id'], $this->quantity);
     }
 
-    private function checkAndDeductResources($characterId): bool
+    /**
+     * Проверяем/списываем ресурсы, умножая нормы на $qty.
+     */
+    private function checkAndDeductResources(int $characterId, int $qty): bool
     {
+        // Нормы на 1 шт.
         $requiredResources = [
-            'Древесина' => 50,
+            'Древесина'     => 50,
             'Железная руда' => 16,
         ];
 
-        foreach ($requiredResources as $resourceName => $requiredAmount) {
-            $resource = $this->characterResourceModel->getResourceByNameAndCharacterId($resourceName, $characterId);
-            if (!$resource || $resource['quantity'] < $requiredAmount) {
-                return false; // Не хватает ресурсов
-            }else{
-                $item = $this->characterResourceModel->where('id_characters', $characterId)->where('id_resources', $resource['id'])->first();
-                $this->characterResourceModel->update($item['id'], ['quantity' => $item['quantity'] - $requiredAmount]);
+        foreach ($requiredResources as $resName => $baseAmount) {
+            $totalNeeded = $baseAmount * $qty;
+            $resource    = $this->characterResourceModel->getResourceByNameAndCharacterId($resName, $characterId);
+
+            if (!$resource || $resource['quantity'] < $totalNeeded) {
+                return false;
             }
+
+            // Списываем
+            $charRes = $this->characterResourceModel
+                ->where('id_characters', $characterId)
+                ->where('id_resources', $resource['id'])
+                ->first();
+
+            $newQty = $charRes['quantity'] - $totalNeeded;
+            $this->characterResourceModel->update($charRes['id'], ['quantity' => $newQty]);
         }
 
         return true;
     }
 
-    private function startCraftingProcess($character, $userId): ServerResponse
+    /**
+     * Создаём запись в character_tasks, указывая quantity в task_settings.
+     * Рассчитываем общее время (время_на_1 × quantity).
+     */
+    private function startCraftingProcess(array $character, int $userId, int $qty): ServerResponse
     {
+        // Ищем задачу craftIronShovel
         $craftTask = $this->taskModel->where('name', 'craftIronShovel')->first();
         if (!$craftTask) {
-            return $this->sendError('Задача "Крафт 🥄Железной лопаты!" не найдена в базе данных.');
+            return $this->sendError('Задача "Железная лопата" (craftIronShovel) не найдена в базе.');
         }
 
-        // Проверка наличия активной задачи крафта
+        // Проверка, нет ли уже активной
         $activeTask = $this->characterTaskModel->where([
             'character_id' => $character['id'],
-            'task_id' => $craftTask['id'],
-            'status' => 'in_work'
+            'task_id'      => $craftTask['id'],
+            'status'       => 'in_work'
         ])->first();
 
         if ($activeTask) {
-            return $this->sendError("Извини, но ты не многорукий и не всемогущ. Данная задача крафта уже выполняется, ожидай. А чтобы не скучать пойди проведи время в разделе \"Развлечения\"");
+            return $this->sendError(
+                "У тебя уже идёт крафт лопаты! Подожди окончания или прерви," .
+                " но ресурсы не вернутся при прерывании."
+            );
         }
 
-        // Calculate adjusted crafting duration
-        $duration = $this->calculateCraftingDuration($character, $craftTask);
+        // Время на 1 шт.
+        $durationForOne = $this->calculateCraftingDuration($character, $craftTask);
+        // Умножаем на qty
+        $totalDuration  = $durationForOne * $qty;
 
         $startTime = new \DateTime();
-        $endTime = (clone $startTime)->add(new \DateInterval('PT' . $duration . 'M'));
+        $endTime   = (clone $startTime)->add(new \DateInterval('PT' . $totalDuration . 'M'));
 
+        // Пишем quantity в task_settings
+        $taskSettings = [
+            'quantity' => $qty
+        ];
+
+        // Создаём запись в character_tasks
         $this->characterTaskModel->save([
-            'character_id' => $character['id'],
+            'character_id'     => $character['id'],
             'telegram_user_id' => $userId,
-            'task_id' => $craftTask['id'],
-            'start_time' => $startTime->format('Y-m-d H:i:s'),
-            'end_time' => $endTime->format('Y-m-d H:i:s'),
-            'status' => 'in_work',
+            'task_id'          => $craftTask['id'],
+            'start_time'       => $startTime->format('Y-m-d H:i:s'),
+            'end_time'         => $endTime->format('Y-m-d H:i:s'),
+            'status'           => 'in_work',
+            'task_settings'    => json_encode($taskSettings),
         ]);
 
-        return $this->notifyCraftStarted($character, $startTime, $endTime);
+        return $this->notifyCraftStarted($character, $startTime, $endTime, $qty);
     }
 
-    private function calculateCraftingDuration($character, $craftTask)
+    /**
+     * Формула расчёта (на 1 шт.): чем выше атрибуты, тем меньше время.
+     */
+    private function calculateCraftingDuration(array $character, array $craftTask): int
     {
-        // Retrieve character attributes
         $experience = $character['experience'];
-        $agility = $character['agility'];
-        $intellect = $character['intellect'];
+        $agility    = $character['agility'];
+        $intellect  = $character['intellect'];
 
-        // Define weighting factors for each attribute
-        $expFactor = 0.3; // 30% weight to experience
-        $agiFactor = 0.3; // 30% weight to agility
-        $intFactor = 0.4; // 40% weight to intellect
+        $expFactor = 0.3;
+        $agiFactor = 0.3;
+        $intFactor = 0.4;
 
-        // Calculate attribute contribution
-        $attributeScore = ($experience * $expFactor) + ($agility * $agiFactor) + ($intellect * $intFactor);
-        $maxAttributeScore = 1000 * ($expFactor + $agiFactor + $intFactor); // Assuming maximum score for each is 1000
+        $attributeScore    = ($experience * $expFactor) + ($agility * $agiFactor) + ($intellect * $intFactor);
+        $maxAttributeScore = 1000 * ($expFactor + $agiFactor + $intFactor);
+        $normalizedScore   = $maxAttributeScore > 0 ? ($attributeScore / $maxAttributeScore) : 0;
 
-        // Normalize the score to a scale of 0 to 1
-        $normalizedScore = $attributeScore / $maxAttributeScore;
-
-        // Determine crafting time based on normalized score
         $minDuration = $craftTask['min_duration'];
         $maxDuration = $craftTask['max_duration'];
-        $adjustedDuration = $minDuration + ($maxDuration - $minDuration) * (1 - $normalizedScore); // Inverse relationship
 
-        // Ensure the duration is within task defined limits
-        return max($minDuration, min($maxDuration, round($adjustedDuration)));
+        $adjusted = $minDuration + ($maxDuration - $minDuration) * (1 - $normalizedScore);
+        return max($minDuration, min($maxDuration, round($adjusted)));
     }
 
-    private function sendError($message): ServerResponse
+    /**
+     * Уведомляем, сколько всего минут (переводим в дни/часы/минуты), и что прерывание - потеря ресурсов.
+     */
+    private function notifyCraftStarted(array $character, \DateTime $startTime, \DateTime $endTime, int $qty): ServerResponse
+    {
+        $interval     = $startTime->diff($endTime);
+        $totalMinutes = $interval->days * 1440 + $interval->h * 60 + $interval->i;
+        $timeString   = $this->formatMinutes($totalMinutes);
+
+        $text = "*Процесс крафта запущен*\n\n"
+            . "Ты создаёшь: *🥄 Железная лопата* x{$qty} шт.\n\n"
+            . "Время крафта: *{$timeString}* ⏱️\n\n"
+            . "После завершения будет добавлено *{$qty}* шт. в твой инвентарь.\n\n"
+            . "❗Прерывание задачи = потеря ресурсов!\n\n"
+            . "_О готовности узнаешь в сообщении._ 🎁";
+
+        $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg');
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+        return Request::sendPhoto([
+            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'photo'      => Request::encodeFile($imagePath),
+            'caption'    => $text,
+            'parse_mode' => 'Markdown',
+        ]);
+    }
+
+    /**
+     * Перевод totalMinutes в "X дней Y часов Z минут".
+     */
+    private function formatMinutes(int $totalMinutes): string
+    {
+        if ($totalMinutes <= 0) {
+            return "0 минут";
+        }
+
+        $days  = intdiv($totalMinutes, 1440);
+        $rem   = $totalMinutes % 1440;
+        $hours = intdiv($rem, 60);
+        $mins  = $rem % 60;
+
+        $parts = [];
+        if ($days > 0) {
+            $parts[] = "{$days} " . $this->pluralForm($days, ['день','дня','дней']);
+        }
+        if ($hours > 0) {
+            $parts[] = "{$hours} " . $this->pluralForm($hours, ['час','часа','часов']);
+        }
+        if ($mins > 0) {
+            $parts[] = "{$mins} " . $this->pluralForm($mins, ['минута','минуты','минут']);
+        }
+
+        return empty($parts) ? "0 минут" : implode(' ', $parts);
+    }
+
+    /**
+     * Подбираем форму слова в русском языке.
+     */
+    private function pluralForm(int $n, array $forms): string
+    {
+        $nMod10  = $n % 10;
+        $nMod100 = $n % 100;
+
+        if ($nMod100 >= 11 && $nMod100 <= 14) {
+            return $forms[2];
+        }
+        switch ($nMod10) {
+            case 1:
+                return $forms[0];
+            case 2:
+            case 3:
+            case 4:
+                return $forms[1];
+            default:
+                return $forms[2];
+        }
+    }
+
+    /**
+     * Универсальный вывод ошибки.
+     */
+    private function sendError(string $message): ServerResponse
     {
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text' => $message,
-        ]);
-    }
-
-    private function notifyCraftStarted($character, $startTime, $endTime): ServerResponse
-    {
-        $interval = $startTime->diff($endTime);
-        $minutes = $interval->days * 1440 + $interval->h * 60 + $interval->i;
-
-        $text = "*Процесс крафта запущен*\n\n"
-            . "*Ты создаешь: 🥄 Железную лопату!*\n\n"
-            . "__*Время крафта: " . $minutes . " минут.*__ ⏱️\n\n"
-            . "*О готовности ты узнаешь в сообщении.* 🎁\n\n";
-
-        $imagePath = base_url('uploads/telegram/craft/huge_mechanical_workbench.jpg'); // Ensure this path is correctly configured
-        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return Request::sendPhoto([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'photo'   => Request::encodeFile($imagePath),
-            'caption' => $text,
-            'parse_mode' => 'Markdown',
+            'text'    => $message,
         ]);
     }
 }

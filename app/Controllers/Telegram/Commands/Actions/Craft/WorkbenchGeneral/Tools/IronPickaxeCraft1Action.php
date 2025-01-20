@@ -5,7 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
-use App\Models\CraftedItemsLogModel; // <-- Добавляем для доступа к уже скрафченным предметам
+use App\Models\CraftedItemsLogModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -13,14 +13,19 @@ class IronPickaxeCraft1Action extends BaseAction
 {
     protected $characterResourceModel;
     protected $resourceModel;
-    protected $craftedItemsLogModel; // <-- Свойство для лога крафта
+    protected $craftedItemsLogModel;
+
+    /**
+     * Варианты количественного крафта.
+     */
+    private array $craftQuantities = [1, 5, 10, 25, 50, 100];
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
-        $this->craftedItemsLogModel   = new CraftedItemsLogModel(); // <-- Инициализация
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel();
     }
 
     public function handle(): ServerResponse
@@ -31,50 +36,55 @@ class IronPickaxeCraft1Action extends BaseAction
         if (!$user || !$character) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => 'Пользователь не найден в базе данных или персонаж не определён.',
+                'text'    => 'Пользователь не найден или персонаж не создан.',
             ]);
         }
 
         $characterId = $character['id'];
 
-        // Допустим, в базе у Железной кирки name_eng = 'IronPickaxe'.
-        // Если у вас другое название, подставьте его здесь:
+        // Название предмета в базе (английское)
         $pickaxeNameEng = 'IronPickaxe';
 
-        // Узнаём, сколько уже есть «Железных кирок» у игрока
+        // Сколько уже есть кирок у игрока
         $pickaxeQuantity = $this->getCraftedItemQuantity($characterId, $pickaxeNameEng);
 
-        // Формируем заголовок. Если у игрока есть хотя бы одна — отобразим в скобках
+        // Заголовок
         $pickaxeTitle = '⛏️ Железная кирка!';
         if ($pickaxeQuantity > 0) {
             $pickaxeTitle .= " (в инв. – {$pickaxeQuantity} шт.)";
         }
 
-        // Ниже — логика проверки ресурсов (без изменений)
+        // Ресурсы (на 1 шт.)
         $requiredResources = [
             'Древесина'     => 50,
             'Железная руда' => 25,
         ];
 
+        // Смотрим, сколько у игрока
         $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
+        // Определяем, на сколько шт. максимум хватает
+        $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
-        // Собираем текст, используя $pickaxeTitle
+        // Формируем описание
         $text = "*{$pickaxeTitle}*\n\n"
-            . "Для крафта предмета тебе нужны:\n\n";
+            . "Для крафта *1 шт.* тебе нужны:\n\n";
 
-        foreach ($resourcesAvailable as $resource) {
-            $text .= "📦 {$resource['name']} - {$requiredResources[$resource['name']]} ед. "
-                . "(в наличии {$resource['quantity']} ед. редк - {$resource['rarity']})\n";
+        foreach ($resourcesAvailable as $res) {
+            $need = $requiredResources[$res['name']] ?? 0;
+            $have = $res['quantity'];
+            $rar  = $res['rarity'];
+
+            $text .= "📦 {$res['name']} - {$need} ед. (в наличии {$have} ед., редк - {$rar})\n";
         }
 
         $text .= "\n*Стоимость на рынке:* _200_ 💰\n"
             . "*Одноразовый:* _Нет_\n"
-            . "*Время крафта:* _16 минут_\n\n"
-            . "*Описание:*  Прочная, металлическая кирка. "
-            . "Дает +40% к добыче ресурсов, связанных с рудами\n\n";
+            . "*Время крафта (1 шт.):* _16 минут_\n\n"
+            . "*Описание:* Прочная металлическая кирка, даёт +40% к добыче руды.\n\n";
 
-        if (!$this->areAllResourcesSufficient($resourcesAvailable, $requiredResources)) {
-            $text .= "__Вы не можете крафтить, так как у вас недостаточно ресурсов для крафта этого предмета.__";
+        // Проверка на 1 шт.
+        if ($maxCraftableItems < 1) {
+            $text .= "__Недостаточно ресурсов, чтобы даже 1 шт. кирки скрафтить.__";
             $keyboard = [
                 'inline_keyboard' => [
                     [
@@ -88,21 +98,24 @@ class IronPickaxeCraft1Action extends BaseAction
                 ]
             ];
         } else {
-            $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '🛠️ Крафтить', 'callback_data' => 'craftIronPickaxe'],
-                    ],
-                    [
-                        ['text' => '👨‍🎤 Персонаж',  'callback_data' => 'character'],
-                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ],
-                ]
+            // Можно крафтить несколько
+            $quantityButtons = $this->getAvailableQuantityButtons($maxCraftableItems);
+            $quantityRows    = array_chunk($quantityButtons, 3);
+
+            // Добавляем кнопки персонажа, инвентаря, торговли
+            $quantityRows[] = [
+                ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
             ];
+            $quantityRows[] = [
+                ['text' => '💰 Продать', 'callback_data' => 'sell'],
+                ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
+            ];
+
+            $keyboard = ['inline_keyboard' => $quantityRows];
         }
 
         $imagePath = base_url('uploads/telegram/craft/robust-iron-pickaxe.jpg');
-
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         return Request::sendPhoto([
@@ -115,37 +128,87 @@ class IronPickaxeCraft1Action extends BaseAction
     }
 
     /**
-     * Узнаёт, сколько уже есть «Железных кирок» (name_eng = $itemNameEng) у данного персонажа.
+     * Узнаём, сколько кирок уже есть (по name_eng).
      */
     private function getCraftedItemQuantity(int $characterId, string $itemNameEng): int
     {
-        // Ищем запись в crafted_items_log по name_eng и ID персонажа
-        $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
-        return $item ? (int) $item['quantity'] : 0;
+        $logEntry = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
+        return $logEntry ? (int)$logEntry['quantity'] : 0;
     }
 
-    private function checkResourcesAvailability($characterId, $requiredResources)
+    /**
+     * Проверяем, сколько ресурсов для 1 шт. есть у игрока.
+     */
+    private function checkResourcesAvailability(int $characterId, array $requiredResources): array
     {
         $results = [];
-        foreach ($requiredResources as $name => $amount) {
-            $resource = $this->resourceModel->getResourceByName($name);
-            if ($resource) {
-                $characterResource = $this->characterResourceModel
-                    ->getResourceByNameAndCharacterId($name, $characterId);
-                $results[] = [
-                    'name'     => $name,
-                    'quantity' => $characterResource ? $characterResource['quantity'] : 0,
-                    'rarity'   => $resource['rarity']
-                ];
+        foreach ($requiredResources as $resName => $req) {
+            $row = $this->resourceModel->getResourceByName($resName);
+            $qty = 0;
+            $rar = 0;
+
+            if ($row) {
+                $charRes = $this->characterResourceModel->getResourceByNameAndCharacterId($resName, $characterId);
+                $qty     = $charRes ? $charRes['quantity'] : 0;
+                $rar     = $row['rarity'];
             }
+
+            $results[] = [
+                'name'     => $resName,
+                'quantity' => $qty,
+                'rarity'   => $rar,
+            ];
         }
         return $results;
     }
 
-    private function areAllResourcesSufficient($resourcesAvailable, $requiredResources)
+    /**
+     * Определяем, на сколько штук всего хватает (мин. значение по всем ресурсам).
+     */
+    private function calculateMaxCraftableItems(array $resourcesAvailable, array $requiredResources): int
     {
-        foreach ($resourcesAvailable as $resource) {
-            if ($resource['quantity'] < $requiredResources[$resource['name']]) {
+        $maxCraftable = PHP_INT_MAX;
+
+        foreach ($resourcesAvailable as $res) {
+            $name = $res['name'];
+            $have = $res['quantity'];
+            $need = $requiredResources[$name] ?? 0;
+            if ($need > 0) {
+                $possible = (int) floor($have / $need);
+                if ($possible < $maxCraftable) {
+                    $maxCraftable = $possible;
+                }
+            }
+        }
+
+        return $maxCraftable === PHP_INT_MAX ? 0 : $maxCraftable;
+    }
+
+    /**
+     * Генерируем кнопки "Крафт N шт." (1,5,10,25,50,100), если N <= maxCraftableItems.
+     * Пример callback_data: "craftIronPickaxe_10"
+     */
+    private function getAvailableQuantityButtons(int $maxCraftableItems): array
+    {
+        $buttons = [];
+        foreach ($this->craftQuantities as $q) {
+            if ($q <= $maxCraftableItems) {
+                $buttons[] = [
+                    'text'          => "🛠️ Крафт {$q}шт",
+                    'callback_data' => "craftIronPickaxe_{$q}"
+                ];
+            }
+        }
+        return $buttons;
+    }
+
+    /**
+     * Старый метод проверки на 1 шт. — не обязателен с calculateMaxCraftableItems().
+     */
+    private function areAllResourcesSufficient(array $resourcesAvailable, array $requiredResources): bool
+    {
+        foreach ($resourcesAvailable as $res) {
+            if ($res['quantity'] < $requiredResources[$res['name']]) {
                 return false;
             }
         }

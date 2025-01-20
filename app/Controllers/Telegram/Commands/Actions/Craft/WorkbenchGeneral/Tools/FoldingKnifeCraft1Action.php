@@ -5,22 +5,31 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
-use App\Models\CraftedItemsLogModel; // <-- Добавляем импорт лога крафта
+use App\Models\CraftedItemsLogModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
+/**
+ * Класс, показывающий информацию о «Складном ноже» (FoldingKnife)
+ * и формирующий кнопки для крафта нескольких штук сразу (1,5,10,25,50,100).
+ */
 class FoldingKnifeCraft1Action extends BaseAction
 {
     protected $characterResourceModel;
     protected $resourceModel;
-    protected $craftedItemsLogModel; // <-- Свойство для лога крафта
+    protected $craftedItemsLogModel;
+
+    /**
+     * Список возможных количеств крафта.
+     */
+    private array $craftQuantities = [1, 5, 10, 25, 50, 100];
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
-        $this->craftedItemsLogModel   = new CraftedItemsLogModel(); // <-- Инициализируем
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel();
     }
 
     public function handle(): ServerResponse
@@ -37,19 +46,19 @@ class FoldingKnifeCraft1Action extends BaseAction
 
         $characterId = $character['id'];
 
-        // 1) Англ. название ножа в таблице crafted_items / crafted_items_log
+        // Англ. название ножа, например "FoldingKnife" в таблице crafted_items
         $knifeNameEng = 'FoldingKnife';
 
-        // 2) Узнаём, сколько уже есть «Складных ножей» у игрока
+        // Сколько уже есть «Складных ножей»
         $knifeQuantity = $this->getCraftedItemQuantity($characterId, $knifeNameEng);
 
-        // 3) Формируем заголовок с учётом количества
+        // Заголовок
         $knifeTitle = '🔪 Складной нож!';
         if ($knifeQuantity > 0) {
             $knifeTitle .= " (в инв. – {$knifeQuantity} шт.)";
         }
 
-        // -- Проверка ресурсов, как у вас было:
+        // Ресурсы, необходимые для 1 шт.
         $requiredResources = [
             'Древесина'     => 2,
             'Железная руда' => 36,
@@ -57,96 +66,157 @@ class FoldingKnifeCraft1Action extends BaseAction
             'Камни'         => 2,
         ];
 
+        // Проверяем, сколько у игрока есть ресурсов
         $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
+        // Определяем, на сколько шт. максимум хватает
+        $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
-        // 4) Собираем текст, используя $knifeTitle
+        // Собираем текст
         $text = "*{$knifeTitle}*\n\n"
-            . "Для крафта предмета тебе нужны:\n\n";
+            . "Для крафта *1 шт.* тебе нужны:\n\n";
 
-        foreach ($resourcesAvailable as $resource) {
-            $text .= "📦 {$resource['name']} - {$requiredResources[$resource['name']]} ед. "
-                . "(в наличии {$resource['quantity']} ед. редк - {$resource['rarity']})\n";
+        foreach ($resourcesAvailable as $res) {
+            $need = $requiredResources[$res['name']] ?? 0;
+            $have = $res['quantity'];
+            $rar  = $res['rarity'];
+            $text .= "📦 {$res['name']} - {$need} ед. (в наличии {$have} ед., редк - {$rar})\n";
         }
 
         $text .= "\n*Стоимость на рынке:* _164_ 💰\n"
             . "*Одноразовый:* _Нет_\n"
-            . "*Время крафта:* _14 минут_\n\n"
-            . "*Описание:* 🔪 Складной нож — это портативный режущий инструмент с лезвием, "
-            . "которое складывается в рукоятку, делая его безопасным для ношения и хранения. "
-            . "Он широко используется для различных задач, включая резку, вскрытие упаковок "
-            . "и даже в качестве инструмента для выживания.\n\n";
+            . "*Время крафта (1 шт.):* _14 минут_\n\n"
+            . "*Описание:* 🔪 Складной нож — портативный режущий инструмент... "
+            . "Широко используется для разных задач: резка, вскрытие упаковок, выживание.\n\n";
 
-        // 5) Проверяем, хватает ли ресурсов:
-        if (!$this->areAllResourcesSufficient($resourcesAvailable, $requiredResources)) {
-            $text .= "__Вы не можете крафтить, так как у вас недостаточно ресурсов для крафта этого предмета.__";
+        // Если ресурсов не хватает даже на 1 шт.
+        if ($maxCraftableItems < 1) {
+            $text .= "__Вы не можете крафтить, так как у вас недостаточно ресурсов.__";
             $keyboard = [
                 'inline_keyboard' => [
                     [
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                        ['text' => '💰 Продать',    'callback_data' => 'sell'],
-                        ['text' => '🛍️ Купить',    'callback_data' => 'buy'],
+                        ['text' => '💰 Продать',   'callback_data' => 'sell'],
+                        ['text' => '🛍️ Купить',   'callback_data' => 'buy'],
                     ],
                 ]
             ];
         } else {
-            $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '🛠️ Крафтить',    'callback_data' => 'craftFoldingKnife'],
-                    ],
-                    [
-                        ['text' => '👨‍🎤 Персонаж',  'callback_data' => 'character'],
-                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ],
-                ]
+            // Можно крафтить
+            // Формируем кнопки «Крафт N шт.» для N ≤ maxCraftableItems
+            $quantityButtons = $this->getAvailableQuantityButtons($maxCraftableItems);
+            // Разбиваем по 3 кнопки в ряд
+            $quantityRows    = array_chunk($quantityButtons, 3);
+
+            // Доп. кнопки (Персонаж, Инвентарь, Продать, Купить)
+            $quantityRows[] = [
+                ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
             ];
+            $quantityRows[] = [
+                ['text' => '💰 Продать', 'callback_data' => 'sell'],
+                ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
+            ];
+
+            $keyboard = ['inline_keyboard' => $quantityRows];
         }
 
         $imagePath = base_url('uploads/telegram/craft/an-old-but-sharp-folding-knife.jpg');
-
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         return Request::sendPhoto([
-            'chat_id'    => $chatId,
-            'photo'      => Request::encodeFile($imagePath),
-            'caption'    => $text,
-            'parse_mode' => 'Markdown',
+            'chat_id'      => $chatId,
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
     }
 
     /**
-     * Узнать, сколько ножей с name_eng = $itemNameEng уже скрафтил персонаж.
+     * Возвращает количество имеющихся ножей (name_eng) у персонажа.
      */
     private function getCraftedItemQuantity(int $characterId, string $itemNameEng): int
     {
-        // Ищем запись в crafted_items_log по name_eng и character_id
-        $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
-        return $item ? (int) $item['quantity'] : 0;
+        $itemLog = $this->craftedItemsLogModel
+            ->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
+        return $itemLog ? (int)$itemLog['quantity'] : 0;
     }
 
-    private function checkResourcesAvailability($characterId, $requiredResources)
+    /**
+     * Проверяем, сколько у игрока ресурсов (только для 1 шт.).
+     */
+    private function checkResourcesAvailability(int $characterId, array $requiredResources): array
     {
         $results = [];
-        foreach ($requiredResources as $name => $amount) {
-            $resource = $this->resourceModel->getResourceByName($name);
-            if ($resource) {
-                $characterResource = $this->characterResourceModel
+        foreach ($requiredResources as $name => $needed) {
+            $resRow = $this->resourceModel->getResourceByName($name);
+            $qty    = 0;
+            $rarity = 0;
+
+            if ($resRow) {
+                $charRes = $this->characterResourceModel
                     ->getResourceByNameAndCharacterId($name, $characterId);
-                $results[] = [
-                    'name'     => $name,
-                    'quantity' => $characterResource ? $characterResource['quantity'] : 0,
-                    'rarity'   => $resource['rarity']
-                ];
+
+                $qty    = $charRes ? $charRes['quantity'] : 0;
+                $rarity = $resRow['rarity'];
             }
+
+            $results[] = [
+                'name'     => $name,
+                'quantity' => $qty,
+                'rarity'   => $rarity,
+            ];
         }
         return $results;
     }
 
-    private function areAllResourcesSufficient($resourcesAvailable, $requiredResources)
+    /**
+     * Считаем, на сколько шт. максимум хватает (берём минимум по всем ресурсам).
+     */
+    private function calculateMaxCraftableItems(array $resourcesAvailable, array $requiredResources): int
     {
-        foreach ($resourcesAvailable as $resource) {
-            if ($resource['quantity'] < $requiredResources[$resource['name']]) {
+        $maxCraftable = PHP_INT_MAX;
+
+        foreach ($resourcesAvailable as $res) {
+            $name = $res['name'];
+            $have = $res['quantity'];
+            $need = $requiredResources[$name] ?? 0;
+            if ($need > 0) {
+                $possible = (int) floor($have / $need);
+                if ($possible < $maxCraftable) {
+                    $maxCraftable = $possible;
+                }
+            }
+        }
+
+        return $maxCraftable === PHP_INT_MAX ? 0 : $maxCraftable;
+    }
+
+    /**
+     * Генерируем кнопки "Крафт N шт.", если N <= $maxCraftableItems.
+     * Пример: "craftFoldingKnife_10"
+     */
+    private function getAvailableQuantityButtons(int $maxCraftableItems): array
+    {
+        $buttons = [];
+        foreach ($this->craftQuantities as $q) {
+            if ($q <= $maxCraftableItems) {
+                $buttons[] = [
+                    'text'          => "🛠️ Крафт {$q}шт",
+                    'callback_data' => "craftFoldingKnife_{$q}"
+                ];
+            }
+        }
+        return $buttons;
+    }
+
+    /**
+     * Старый метод (на 1 шт.) — не обязателен, если используем calculateMaxCraftableItems.
+     */
+    private function areAllResourcesSufficient(array $resourcesAvailable, array $requiredResources): bool
+    {
+        foreach ($resourcesAvailable as $res) {
+            if ($res['quantity'] < $requiredResources[$res['name']]) {
                 return false;
             }
         }
