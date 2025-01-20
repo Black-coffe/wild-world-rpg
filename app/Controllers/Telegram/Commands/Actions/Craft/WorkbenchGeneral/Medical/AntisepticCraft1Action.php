@@ -5,24 +5,38 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medic
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
-use App\Models\CraftedItemsLogModel; // <-- Подключаем модель логов крафта
+use App\Models\CraftedItemsLogModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
+/**
+ * Класс, отвечающий за вывод информации о крафте Антисептика (без запуска самого крафта).
+ * Показывает доступные количества крафта (1, 5, 10, 25, 50, 100) в виде кнопок,
+ * если у игрока достаточно ресурсов.
+ */
 class AntisepticCraft1Action extends BaseAction
 {
     protected $characterResourceModel;
     protected $resourceModel;
-    protected $craftedItemsLogModel; // <-- Добавляем свойство для лога крафта
+    protected $craftedItemsLogModel;
+
+    /**
+     * Набор вариантов количественного крафта.
+     * Можно изменить или вынести в конфиг.
+     */
+    private array $craftQuantities = [1, 5, 10, 25, 50, 100];
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
-        $this->craftedItemsLogModel   = new CraftedItemsLogModel(); // <-- Инициализируем модель лога
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel();
     }
 
+    /**
+     * Точка входа при отображении описания/кнопок крафта.
+     */
     public function handle(): ServerResponse
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
@@ -31,79 +45,89 @@ class AntisepticCraft1Action extends BaseAction
         if (!$user || !$character) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => 'Пользователь не найден в базе данных или персонаж не определён.',
+                'text'    => 'Пользователь не найден в базе или персонаж не определён.',
             ]);
         }
 
+        // Идентификатор персонажа
         $characterId = $character['id'];
 
-        // Название предмета в базе (англ. поле), например "Antiseptic"
+        // Название предмета в базе (англ. поле)
         $antisepticNameEng = 'Antiseptic';
-
-        // Узнаём, сколько уже есть «Антисептиков» у персонажа
+        // Сколько уже есть «Антисептиков» у персонажа
         $antisepticQuantity = $this->getCraftedItemQuantity($characterId, $antisepticNameEng);
 
-        // Формируем заголовок с учётом количества
+        // Заголовок с учётом количества
         $antisepticTitle = '🧴 Антисептик!';
         if ($antisepticQuantity > 0) {
             $antisepticTitle .= " (в инв. – {$antisepticQuantity} шт.)";
         }
 
+        // Список ресурсов, необходимых для 1 штуки
         $requiredResources = [
             'Кактус' => 3,
             'Грибы'  => 1,
             'Вода'   => 10,
         ];
 
+        // Узнаём, сколько у игрока ресурсов
         $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
+        // Определяем, сколько всего штук игрок может скрафтить максимально
+        $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
-        // Используем $antisepticTitle, а не жёсткую строку "*🧴 Антисептик!*"
+        // Формируем текст о том, какие ресурсы нужны для 1 шт.
         $text = "*{$antisepticTitle}*\n\n"
-            . "Для крафта предмета тебе нужны:\n\n";
+            . "Для крафта *1 шт.* нужно:\n\n";
 
         foreach ($resourcesAvailable as $resource) {
-            $text .= "📦 {$resource['name']} - {$requiredResources[$resource['name']]} ед. "
-                . "(в наличии {$resource['quantity']} ед. редк - {$resource['rarity']})\n";
+            $cost = $requiredResources[$resource['name']] ?? 0;
+            $text .= "📦 {$resource['name']} - {$cost} ед. "
+                . "(в наличии {$resource['quantity']} ед., редк - {$resource['rarity']})\n";
         }
 
         $text .= "\n*Стоимость на рынке:* _30_ 💰\n"
             . "*Одноразовый:* _Нет_\n"
-            . "*Время крафта:* _7 минут_\n\n"
-            . "*Описание:* Данный предмет из раздела лекарств, который помогает "
-            . "предотвратить некоторые виды болезней и укрепить здоровье на +4 ед., и выносливость +2 ед.\n\n";
+            . "*Время крафта (1 шт.):* _7 минут_\n\n"
+            . "*Описание:* Средство из раздела лекарств, которое помогает "
+            . "предотвратить болезни, даёт +4 к здоровью и +2 к выносливости.\n\n";
 
-        if (!$this->areAllResourcesSufficient($resourcesAvailable, $requiredResources)) {
-            $text .= "__Вы не можете крафтить, так как у вас недостаточно ресурсов для крафта этого предмета.__";
+        // Формируем inline-кнопки: либо только Инвентарь/Продать/Купить, либо и кнопки крафта
+        if ($maxCraftableItems < 1) {
+            // Недостаточно ресурсов даже на 1 шт.
+            $text .= "__Недостаточно ресурсов для крафта даже 1 шт.__";
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж',   'callback_data' => 'character'],
-                        ['text' => '🎒 Инвентарь',   'callback_data' => 'inventory'],
-                    ],
-                    [
-                        ['text' => '💰 Продать',     'callback_data' => 'sell'],
-                        ['text' => '🛍️ Купить',     'callback_data' => 'buy']
+                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                        ['text' => '💰 Продать',   'callback_data' => 'sell'],
+                        ['text' => '🛍️ Купить',   'callback_data' => 'buy']
                     ],
                 ]
             ];
         } else {
-            $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '🛠️ Крафтить',    'callback_data' => 'craftAntisepticCraft1'],
-                    ],
-                    [
-                        ['text' => '👨‍🎤 Персонаж',   'callback_data' => 'character'],
-                        ['text' => '🎒 Инвентарь',   'callback_data' => 'inventory'],
-                    ],
-                ]
+            // Можно крафтить как минимум 1 шт.
+            // Генерируем кнопки «Крафт X шт.»
+            $quantityButtons = $this->getAvailableQuantityButtons($maxCraftableItems);
+            // Разбиваем по 3 кнопки в строке (на ваше усмотрение)
+            $quantityRows = array_chunk($quantityButtons, 3);
+
+            // Добавим финальный ряд с Инвентарь/Продать/Купить
+            $quantityRows[] = [
+                ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                ['text' => '💰 Продать',   'callback_data' => 'sell'],
+                ['text' => '🛍️ Купить',   'callback_data' => 'buy'],
             ];
+
+            $keyboard = ['inline_keyboard' => $quantityRows];
         }
 
+        // Путь к картинке для Антисептика (меняется на ваш)
         $imagePath = base_url('uploads/telegram/craft/antiseptic_craft.jpg');
 
+        // Ответим на callbackQuery, чтобы убрать "часики" в Telegram
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
+        // Отправим сообщение/фото с разметкой
         return Request::sendPhoto([
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile($imagePath),
@@ -114,43 +138,91 @@ class AntisepticCraft1Action extends BaseAction
     }
 
     /**
-     * Узнаём, сколько «Антисептиков» (англ. name_eng) у персонажа в логе скрафченных предметов.
+     * Возвращает количество "Антисептика" (англ. name_eng) у персонажа.
      */
     private function getCraftedItemQuantity(int $characterId, string $itemNameEng): int
     {
-        // Если в вашей CraftedItemsLogModel есть метод
-        // getItemByNameEngAndCharacterId($itemNameEng, $characterId), используем его:
-        // Если нет, реализуйте его по аналогии с другими предметами.
         $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
         return $item ? (int) $item['quantity'] : 0;
     }
 
-    private function checkResourcesAvailability($characterId, $requiredResources)
+    /**
+     * Проверяем, сколько у персонажа есть каждого из требуемых ресурсов (для 1 шт.).
+     * Возвращает массив:
+     * [
+     *   ['name' => 'Кактус', 'quantity' => 10, 'rarity' => 2],
+     *   ...
+     * ]
+     */
+    private function checkResourcesAvailability(int $characterId, array $requiredResources): array
     {
         $results = [];
         foreach ($requiredResources as $name => $amount) {
-            $resource = $this->resourceModel->getResourceByName($name);
+            $resource       = $this->resourceModel->getResourceByName($name);
+            $currentQuantity = 0;
+            $rarity         = 0;
+
             if ($resource) {
                 $characterResource = $this->characterResourceModel
                     ->getResourceByNameAndCharacterId($name, $characterId);
 
-                $results[] = [
-                    'name'     => $name,
-                    'quantity' => $characterResource ? $characterResource['quantity'] : 0,
-                    'rarity'   => $resource['rarity']
-                ];
+                $currentQuantity = $characterResource ? $characterResource['quantity'] : 0;
+                $rarity          = $resource['rarity'];
             }
+
+            $results[] = [
+                'name'     => $name,
+                'quantity' => $currentQuantity,
+                'rarity'   => $rarity,
+            ];
         }
         return $results;
     }
 
-    private function areAllResourcesSufficient($resourcesAvailable, $requiredResources)
+    /**
+     * Рассчитываем, какое максимальное количество предметов возможно скрафтить,
+     * исходя из имеющегося набора ресурсов.
+     */
+    private function calculateMaxCraftableItems(array $resourcesAvailable, array $requiredResources): int
     {
-        foreach ($resourcesAvailable as $resource) {
-            if ($resource['quantity'] < $requiredResources[$resource['name']]) {
-                return false;
+        $maxCraftable = PHP_INT_MAX;
+
+        foreach ($resourcesAvailable as $res) {
+            $name     = $res['name'];
+            $have     = $res['quantity'];
+            $required = $requiredResources[$name] ?? 0;
+
+            if ($required > 0) {
+                $maxByThisResource = (int) floor($have / $required);
+                if ($maxByThisResource < $maxCraftable) {
+                    $maxCraftable = $maxByThisResource;
+                }
             }
         }
-        return true;
+
+        // Если ни один ресурс не ограничивал, вернём 0 (на всякий случай).
+        return ($maxCraftable === PHP_INT_MAX) ? 0 : $maxCraftable;
+    }
+
+    /**
+     * Генерирует массив кнопок «Крафт {количество} шт», только для доступных чисел.
+     * Пример результата: [
+     *   ['text' => '🛠 Крафт 1шт',   'callback_data' => 'craftAntisepticCraft1_1'],
+     *   ['text' => '🛠 Крафт 5шт',   'callback_data' => 'craftAntisepticCraft1_5'],
+     *   ...
+     * ]
+     */
+    private function getAvailableQuantityButtons(int $maxCraftableItems): array
+    {
+        $buttons = [];
+        foreach ($this->craftQuantities as $q) {
+            if ($q <= $maxCraftableItems) {
+                $buttons[] = [
+                    'text'          => "🛠️ Крафт {$q} шт",
+                    'callback_data' => "craftAntisepticCraft1_{$q}"
+                ];
+            }
+        }
+        return $buttons;
     }
 }
