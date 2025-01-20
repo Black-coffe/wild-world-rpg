@@ -5,6 +5,8 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Compo
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\ActiveEventModel;
 use App\Models\CharacterResourceModel;
+use App\Models\CraftedItemsModel;
+use App\Models\CraftedItemsLogModel;
 use App\Models\EventModel;
 use App\Models\TaskModel;
 use Longman\TelegramBot\Entities\ServerResponse;
@@ -12,7 +14,8 @@ use Longman\TelegramBot\Request;
 
 /**
  * Класс FertilizerCraftActionStart:
- * Запускает процесс крафта «Удобрение», списывая ресурсы через новые методы (alias) для безопасной работы.
+ * Запускает количественный крафт «Удобрение» (Fertilizer).
+ * Списывает ресурсы и сохраняет quantity в task_settings.
  */
 class FertilizerCraftActionStart extends BaseAction
 {
@@ -20,6 +23,13 @@ class FertilizerCraftActionStart extends BaseAction
     protected $eventModel;
     protected $activeEventModel;
     protected $characterResourceModel;
+    protected $craftedItemsModel;
+    protected $craftedItemsLogModel;
+
+    /**
+     * Количество (по умолчанию 1), извлекается из callback_data вида "craftFertilizer_10".
+     */
+    private int $quantity = 1;
 
     public function __construct($callbackQuery)
     {
@@ -29,90 +39,102 @@ class FertilizerCraftActionStart extends BaseAction
         $this->eventModel            = new EventModel();
         $this->activeEventModel      = new ActiveEventModel();
         $this->characterResourceModel= new CharacterResourceModel();
+        $this->craftedItemsModel     = new CraftedItemsModel();
+        $this->craftedItemsLogModel  = new CraftedItemsLogModel();
+
+        // Пример callback_data: "craftFertilizer_10" => ["craftFertilizer","10"] => quantity=10
+        $data  = $callbackQuery->getData();
+        $parts = explode('_', $data);
+        if (isset($parts[1]) && is_numeric($parts[1])) {
+            $this->quantity = (int)$parts[1];
+        }
     }
 
     /**
-     * Главный метод обработки нажатия «Крафт удобрений».
+     * Главный метод обработки нажатия «Крафтить» для «Удобрения».
      */
     public function handle(): ServerResponse
     {
-        // Получаем данные пользователя/персонажа
         [$user, $character] = $this->getUserAndCharacter();
         if (!$user || !$character) {
-            return $this->sendError('Пользователь не найден в базе данных или персонаж не определён.');
+            return $this->sendError("Пользователь или персонаж не найден.");
         }
 
-        // 1) Ищем задачу "craftFertilizer" в базе
+        // 1) Находим задачу "craftFertilizer" в таблице tasks
         $craftTask = $this->taskModel->where('name', 'craftFertilizer')->first();
         if (!$craftTask) {
-            return $this->sendError('Задача "Крафт удобрений" не найдена в базе данных.');
+            return $this->sendError('Задача "Крафт удобрений" (craftFertilizer) не найдена.');
         }
 
-        // 2) Проверяем, нет ли уже активной задачи этого крафта у персонажа
+        // 2) Проверяем, нет ли уже активной задачи "craftFertilizer"
         $activeTask = $this->characterTaskModel
             ->where('character_id', $character['id'])
             ->where('task_id', $craftTask['id'])
             ->where('status', 'in_work')
             ->first();
-
         if ($activeTask) {
-            // Уже идёт крафт
             return $this->sendError(
-                "Извини, но у тебя уже выполняется крафт удобрений. " .
-                "Дождись завершения, прежде чем начинать новый!"
+                "У тебя уже идёт крафт удобрений! Дождись завершения или прерви (ресурсы не вернутся)."
             );
         }
 
-        // 3) Проверяем и списываем ресурсы
-        if (!$this->checkAndDeductResources($character['id'])) {
-            return $this->sendError('Недостаточно ресурсов для крафта: ничего не списано.');
+        // 3) Проверка / списание ресурсов, учитывая $this->quantity
+        if (!$this->checkAndDeductResources($character['id'], $this->quantity)) {
+            return $this->sendError("Недостаточно ресурсов для крафта {$this->quantity} шт. удобрений.");
         }
 
-        // 4) Всё ок — запускаем крафт
-        return $this->startCraftingProcess($character, $user['id'], $craftTask);
+        // 4) Создаём запись о задаче (с quantity) + уведомляем игрока
+        return $this->startCraftingProcess($character, $user['id'], $craftTask, $this->quantity);
     }
 
     /**
-     * Проверяем ресурсы, используя alias-методы getResourceForCraft() и deductResourceForCraft().
+     * Проверяет и списывает ресурсы на $qty штук.
      */
-    private function checkAndDeductResources(int $characterId): bool
+    private function checkAndDeductResources(int $characterId, int $qty): bool
     {
-        // Необходимые ресурсы для крафта удобрений
+        // Нормы на 1 шт.
         $requiredResources = [
             'Кости животных' => 1,
-            'Вода'          => 5,
-            'Водоросли'     => 20,
+            'Вода'           => 5,
+            'Водоросли'      => 20,
             'Ил'            => 10,
         ];
 
         // Сначала убеждаемся, что всего хватает
-        foreach ($requiredResources as $resourceName => $requiredAmount) {
-            $row = $this->characterResourceModel->getResourceForCraft($resourceName, $characterId);
-            if (!$row || (int)$row['charResQty'] < $requiredAmount) {
+        foreach ($requiredResources as $resName => $perItem) {
+            $needTotal = $perItem * $qty;
+            $row       = $this->characterResourceModel->getResourceForCraft($resName, $characterId);
+            $have      = $row ? (int)$row['charResQty'] : 0;
+            if ($have < $needTotal) {
                 return false;
             }
         }
 
-        // Если хватает — списываем
-        foreach ($requiredResources as $resourceName => $requiredAmount) {
-            if (!$this->characterResourceModel->deductResourceForCraft($resourceName, $characterId, $requiredAmount)) {
-                // Если вдруг не получилось списать
+        // Если хватает, списываем
+        foreach ($requiredResources as $resName => $perItem) {
+            $needTotal = $perItem * $qty;
+            if (!$this->characterResourceModel->deductResourceForCraft($resName, $characterId, $needTotal)) {
                 return false;
             }
         }
-
         return true;
     }
 
     /**
-     * Создаём запись в character_tasks и шлём сообщение о старте крафта.
+     * Создаём запись в character_tasks, фиксируем quantity в task_settings.
      */
-    private function startCraftingProcess(array $character, int $userId, array $craftTask): ServerResponse
+    private function startCraftingProcess(array $character, int $userId, array $craftTask, int $qty): ServerResponse
     {
-        $duration = $this->calculateCraftingDuration($character, $craftTask);
+        // Время на 1 шт., умножаем на qty
+        $durationForOne = $this->calculateCraftingDuration($character, $craftTask);
+        $totalDuration  = $durationForOne * $qty;
 
         $startTime = new \DateTime();
-        $endTime   = (clone $startTime)->add(new \DateInterval('PT' . $duration . 'M'));
+        $endTime   = (clone $startTime)->add(new \DateInterval('PT' . $totalDuration . 'M'));
+
+        $taskSettings = [
+            'quantity' => $qty
+        ];
 
         $this->characterTaskModel->insert([
             'character_id'     => $character['id'],
@@ -121,63 +143,61 @@ class FertilizerCraftActionStart extends BaseAction
             'start_time'       => $startTime->format('Y-m-d H:i:s'),
             'end_time'         => $endTime->format('Y-m-d H:i:s'),
             'status'           => 'in_work',
+            'task_settings'    => json_encode($taskSettings),
         ]);
 
-        return $this->notifyCraftStarted($character, $startTime, $endTime);
+        return $this->notifyCraftStarted($character, $startTime, $endTime, $qty);
     }
 
     /**
-     * Примерный расчёт времени крафта.
+     * Примерный расчёт времени (для 1 шт.), зависящий от атрибутов персонажа.
      */
     private function calculateCraftingDuration(array $character, array $craftTask): int
     {
         $minDuration = $craftTask['min_duration'] ?? 5;
-        $maxDuration = $craftTask['max_duration'] ?? 15;
+        $maxDuration = $craftTask['max_duration'] ?? 12;
 
         $experience = $character['experience'] ?? 0;
         $agility    = $character['agility']    ?? 0;
         $intellect  = $character['intellect']  ?? 0;
 
-        // Условная формула для примерного расчёта
         $expFactor = 0.3;
         $agiFactor = 0.3;
         $intFactor = 0.4;
 
-        $attributeScore = ($experience * $expFactor) + ($agility * $agiFactor) + ($intellect * $intFactor);
+        $attributeScore    = ($experience * $expFactor) + ($agility * $agiFactor) + ($intellect * $intFactor);
         $maxAttributeScore = 1000 * ($expFactor + $agiFactor + $intFactor);
+        $normalized        = $maxAttributeScore > 0 ? ($attributeScore / $maxAttributeScore) : 0;
+        if ($normalized > 1) $normalized = 1;
 
-        $normalized = $attributeScore / $maxAttributeScore;
-        if ($normalized > 1) {
-            $normalized = 1;
-        }
+        $timeRaw = $minDuration + ($maxDuration - $minDuration) * (1 - $normalized);
+        $time    = (int)round($timeRaw);
 
-        // Чем выше norm, тем меньше фактическое время
-        $duration = $minDuration + ($maxDuration - $minDuration) * (1 - $normalized);
-        return (int) max($minDuration, min($maxDuration, round($duration)));
+        return max($minDuration, min($maxDuration, $time));
     }
 
     /**
-     * Сообщение об успехе: выдаём фото + клавиатуру.
+     * Отправляем сообщение о старте: X шт. удобрений, прерывание = потеря ресурсов.
      */
-    private function notifyCraftStarted(array $character, \DateTime $startTime, \DateTime $endTime): ServerResponse
+    private function notifyCraftStarted(array $character, \DateTime $startTime, \DateTime $endTime, int $qty): ServerResponse
     {
         $interval = $startTime->diff($endTime);
         $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
         $text = "*Процесс крафта запущен*\n\n"
-            . "*Ты создаешь: 🌿 Удобрение*\n\n"
-            . "__*Время крафта: {$minutes} минут.*__ ⏱️\n\n"
-            . "*О готовности ты узнаешь в сообщении.* 🎁\n\n"
-            . "P.S. _Не забудь поделиться своими находками!_ 🗣️\n";
+            . "Ты создаёшь: *🌿 Удобрение* x{$qty} шт.\n\n"
+            . "**Время крафта:** ~{$minutes} минут.\n\n"
+            . "❗Прерывание задачи = потеря ресурсов!\n\n"
+            . "_О готовности узнаешь в сообщении._";
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         $imagePath = base_url('uploads/telegram/craft/components/craftFertilizer.jpg');
 
         return Request::sendPhoto([
-            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'photo'        => Request::encodeFile($imagePath),
-            'caption'      => $text,
-            'parse_mode'   => 'Markdown',
+            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'photo'      => Request::encodeFile($imagePath),
+            'caption'    => $text,
+            'parse_mode' => 'Markdown',
         ]);
     }
 

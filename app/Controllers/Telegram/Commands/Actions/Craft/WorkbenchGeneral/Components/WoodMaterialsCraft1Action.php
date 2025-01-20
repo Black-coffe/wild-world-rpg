@@ -8,113 +8,188 @@ use App\Models\ResourceModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
+/**
+ * Пример экшена, который показывает информацию о крафте «Древесные материалы» (Wood Materials)
+ * и формирует кнопки для крафта сразу N штук (1, 5, 10, 25, 50, 100).
+ */
 class WoodMaterialsCraft1Action extends BaseAction
 {
     protected $characterResourceModel;
     protected $resourceModel;
 
+    /**
+     * Список доступных «пакетов» для крафта.
+     * Вы можете менять (добавлять/убирать) нужные вам варианты.
+     */
+    private $craftQuantities = [1, 5, 10, 25, 50, 100];
+
+    /**
+     * Базовый «рецепт» на 1 штуку.
+     * Если нужно 5 штук, мы умножаем каждое требование ресурсов на 5 и т.д.
+     */
+    private $requiredResourcesBase = [
+        'Древесина' => 50,
+        'Вода'      => 5,
+    ];
+
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
         $this->characterResourceModel = new CharacterResourceModel();
-        $this->resourceModel = new ResourceModel();
+        $this->resourceModel          = new ResourceModel();
     }
 
     public function handle(): ServerResponse
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
-        [$user, $character] = $this->getUserAndCharacter();
 
+        [$user, $character] = $this->getUserAndCharacter();
         if (!$user || !$character) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text' => 'Пользователь не найден в базе данных или персонаж не определён.',
+                'text'    => 'Пользователь или персонаж не найден.',
             ]);
         }
 
-        $characterId = $character['id'];
+        // Считаем, сколько есть ресурсов (всего)
+        $resourcesAvailable = $this->getResourcesInfo($character['id']);
 
-        $requiredResources = [
-            'Древесина' => 50,
-            'Вода' => 5,
-        ];
-
-        $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
-
+        // Генерируем основной текст описания
         $text = "*🪵 Древесные материалы!*\n\n"
-            . "Для крафта компонента тебе нужны:\n\n";
+            . "Для крафта ОДНОЙ штуки нужны ресурсы:\n\n";
 
-        foreach ($resourcesAvailable as $resource) {
-            $text .= "📦 {$resource['name']} - {$requiredResources[$resource['name']]} ед. (в наличии {$resource['quantity']} ед. редк - {$resource['rarity']})\n";
+        foreach ($this->requiredResourcesBase as $resName => $resAmount) {
+            $haveAmount = $resourcesAvailable[$resName]['quantity'] ?? 0;
+            $rarity     = $resourcesAvailable[$resName]['rarity']   ?? '-';
+            $text      .= "📦 {$resName} — {$resAmount} ед. "
+                . "(в наличии {$haveAmount} ед., редк: {$rarity})\n";
         }
 
         $text .= "\n*Стоимость на рынке:* _105_ 💰\n"
             . "*Одноразовый:* _Нет_\n"
-            . "*Время крафта:* _~4-16 мн._\n\n"
-            . "*Описание:* Компонент предназначенный для создания изделий из дерева, постройки, станки и т.д.\n\n";
+            . "*Время крафта:* _~4–16 мин._\n\n"
+            . "*Описание:* Компонент из дерева для постройки, станков и др.\n\n";
 
-        if (!$this->areAllResourcesSufficient($resourcesAvailable, $requiredResources)) {
-            $text .= "__Вы не можете крафтить, так как у вас недостаточно ресурсов для крафта этого предмета.__";
+        // Формируем список кнопок (количественный крафт)
+        // Показываем лишь те, на которые хватает ресурсов
+        $keyboardButtons = $this->makeQuantityButtons($resourcesAvailable);
+
+        // Если вообще нет ни одной кнопки (значит ресурсов не хватает даже на 1шт)
+        if (empty($keyboardButtons)) {
+            $text .= "__Недостаточно ресурсов даже на 1 шт.__";
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                        ['text' => '👨‍🎤 Персонаж',  'callback_data' => 'character'],
+                        ['text' => '🎒 Инвентарь',  'callback_data' => 'inventory'],
                     ],
                     [
-                        ['text' => '💰 Продать', 'callback_data' => 'sell'],
-                        ['text' => '🛍️ Купить', 'callback_data' => 'buy']
+                        ['text' => '💰 Продать',     'callback_data' => 'sell'],
+                        ['text' => '🛍️ Купить',     'callback_data' => 'buy'],
                     ],
                 ]
             ];
         } else {
-            $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '🛠️ Крафтить', 'callback_data' => 'craftWoodMaterials'],
-                    ],
-                    [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ],
-                ]
+            // Добавим «служебные» кнопки ниже основных
+            $keyboardButtons[] = [
+                ['text' => '👨‍🎤 Персонаж',  'callback_data' => 'character'],
+                ['text' => '🎒 Инвентарь',  'callback_data' => 'inventory'],
             ];
+            // Завершаем формирование клавиатуры
+            $keyboard = ['inline_keyboard' => $keyboardButtons];
         }
 
         $imagePath = base_url('uploads/telegram/craft/components/craftWoodMaterials.jpg');
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
+        // Возвращаем фото + текст
         return Request::sendPhoto([
-            'chat_id' => $chatId,
-            'photo' => Request::encodeFile($imagePath),
-            'caption' => $text,
-            'parse_mode' => 'Markdown',
+            'chat_id'      => $chatId,
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
     }
 
-    private function checkResourcesAvailability($characterId, $requiredResources)
+    /**
+     * Собираем информацию о ресурсах, имеющихся у игрока.
+     * Возвращаем массив вида:
+     *  [
+     *    "Древесина" => ["quantity"=>..., "rarity"=>...],
+     *    "Вода"      => [...],
+     *    ...
+     *  ]
+     */
+    private function getResourcesInfo(int $characterId): array
     {
-        $results = [];
-        foreach ($requiredResources as $name => $amount) {
-            $resource = $this->resourceModel->getResourceByName($name);
-            if ($resource) {
-                $characterResource = $this->characterResourceModel->getResourceByNameAndCharacterId($name, $characterId);
-                $results[] = [
-                    'name' => $name,
-                    'quantity' => $characterResource ? $characterResource['quantity'] : 0,
-                    'rarity' => $resource['rarity']
+        $allRes = [];
+        foreach ($this->requiredResourcesBase as $resName => $resAmount) {
+            $resRow = $this->resourceModel->getResourceByName($resName);
+            if ($resRow) {
+                $charRes = $this->characterResourceModel
+                    ->getResourceByNameAndCharacterId($resName, $characterId);
+
+                $allRes[$resName] = [
+                    'quantity' => $charRes ? (int)$charRes['quantity'] : 0,
+                    'rarity'   => $resRow['rarity'],
+                ];
+            } else {
+                // На случай, если ресурс не найден в справочнике
+                $allRes[$resName] = ['quantity'=>0, 'rarity'=>'?'];
+            }
+        }
+        return $allRes;
+    }
+
+    /**
+     * Генерируем кнопки вида:
+     *  [ [ "Крафт 1шт", "Крафт 5шт" ], [ "Крафт 10шт", "Крафт 25шт" ], ... ]
+     * Но только если хватает ресурсов на каждый объём.
+     */
+    private function makeQuantityButtons(array $resourcesAvailable): array
+    {
+        $buttonsRow = [];
+        foreach ($this->craftQuantities as $qty) {
+            // Проверим, достаточно ли ресурсов на qty
+            if ($this->canCraftQuantity($resourcesAvailable, $qty)) {
+                // В callback_data «craftWoodMaterials_5» (к примеру)
+                $buttonsRow[] = [
+                    'text'          => "🛠️ {$qty}шт.",
+                    'callback_data' => "craftWoodMaterials_{$qty}",
                 ];
             }
         }
-        return $results;
+
+        // Чтобы красиво разбивать по 3 кнопки в ряд (или 4) — можно группировать
+        // Например, сделаем по 3 в ряд
+        $rows = [];
+        $tmpRow = [];
+        foreach ($buttonsRow as $btn) {
+            $tmpRow[] = $btn;
+            if (count($tmpRow) >= 3) {
+                $rows[] = $tmpRow;
+                $tmpRow = [];
+            }
+        }
+        // Если что-то осталось
+        if (!empty($tmpRow)) {
+            $rows[] = $tmpRow;
+        }
+
+        return $rows;
     }
 
-    private function areAllResourcesSufficient($resourcesAvailable, $requiredResources)
+    /**
+     * Проверяем, достаточно ли ресурсов на крафт qty штук.
+     */
+    private function canCraftQuantity(array $resourcesAvailable, int $qty): bool
     {
-        foreach ($resourcesAvailable as $resource) {
-            if ($resource['quantity'] < $requiredResources[$resource['name']]) {
+        foreach ($this->requiredResourcesBase as $resName => $baseAmount) {
+            $need   = $baseAmount * $qty;
+            $have   = $resourcesAvailable[$resName]['quantity'] ?? 0;
+            if ($have < $need) {
                 return false;
             }
         }
