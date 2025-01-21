@@ -85,12 +85,20 @@ class TasksCommand extends UserCommand
             $nowTime = Time::now();
             $diffSec = $endTime->getTimestamp() - $nowTime->getTimestamp();
 
-            if ($diffSec > 0) {
-                $hours = floor($diffSec / 3600);
-                $mins  = floor(($diffSec % 3600) / 60);
-                $timeLeft = "{$hours} чс. {$mins} мин.";
+            if ($diffSec <= 0) {
+                // Значит формально время вышло, но статус всё ещё in_work
+                $timeLeft = "До завершения остались секунды";
             } else {
-                $timeLeft = "Задача просрочена, но ещё in_work";
+                // diffSec > 0
+                if ($diffSec < 60) {
+                    // Меньше минуты
+                    $timeLeft = "меньше минуты";
+                } else {
+                    // Считаем часы и минуты
+                    $hours = floor($diffSec / 3600);
+                    $mins  = floor(($diffSec % 3600) / 60);
+                    $timeLeft = "{$hours} чс. {$mins} мин.";
+                }
             }
 
             $text .= "{$i}) *{$taskInfo['name_rus']}*\n";
