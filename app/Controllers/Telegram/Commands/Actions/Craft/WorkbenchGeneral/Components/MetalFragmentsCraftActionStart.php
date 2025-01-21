@@ -30,12 +30,12 @@ class MetalFragmentsCraftActionStart extends BaseAction
     {
         parent::__construct($callbackQuery);
 
-        $this->taskModel             = new TaskModel();
-        $this->eventModel            = new EventModel();
-        $this->activeEventModel      = new ActiveEventModel();
-        $this->characterResourceModel= new CharacterResourceModel();
-        $this->craftedItemsModel     = new CraftedItemsModel();
-        $this->craftedItemsLogModel  = new CraftedItemsLogModel();
+        $this->taskModel              = new TaskModel();
+        $this->eventModel             = new EventModel();
+        $this->activeEventModel       = new ActiveEventModel();
+        $this->characterResourceModel = new CharacterResourceModel();
+        $this->craftedItemsModel      = new CraftedItemsModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel();
 
         // Парсим callback_data, например "craftMetalFragments_10" => quantity=10
         $data  = $callbackQuery->getData();
@@ -181,9 +181,12 @@ class MetalFragmentsCraftActionStart extends BaseAction
         $interval = $startTime->diff($endTime);
         $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
+        // Преобразуем минуты в "X д. Y ч. Z мин."
+        $durationStr = $this->formatDuration($minutes);
+
         $text = "*Процесс крафта запущен*\n\n"
             . "Ты создаёшь: 🔩 *Металл фрагменты* x{$qty} шт.\n\n"
-            . "**Время крафта:** ~{$minutes} минут.\n\n"
+            . "**Время крафта:** ~{$durationStr}\n\n"
             . "❗Прерывание задачи = потеря ресурсов.\n\n"
             . "_О готовности будет сообщено._";
 
@@ -196,6 +199,34 @@ class MetalFragmentsCraftActionStart extends BaseAction
             'caption'    => $text,
             'parse_mode' => 'Markdown',
         ]);
+    }
+
+    /**
+     * Вспомогательный метод: форматируем кол-во минут как "X д. Y ч. Z мин."
+     */
+    private function formatDuration(int $totalMinutes): string
+    {
+        $days = intdiv($totalMinutes, 1440); // 1 день = 1440 минут
+        $rem  = $totalMinutes % 1440;
+        $hours = intdiv($rem, 60);
+        $mins  = $rem % 60;
+
+        $parts = [];
+        if ($days > 0) {
+            $parts[] = "{$days} д.";
+        }
+        if ($hours > 0) {
+            $parts[] = "{$hours} ч.";
+        }
+        if ($mins > 0) {
+            $parts[] = "{$mins} мин.";
+        }
+
+        if (empty($parts)) {
+            $parts[] = "0 мин.";
+        }
+
+        return implode(' ', $parts);
     }
 
     /**

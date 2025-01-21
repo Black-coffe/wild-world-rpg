@@ -5,6 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Compo
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
+use App\Models\CraftedItemsLogModel; // (1) Подключаем модель логов
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -16,6 +17,7 @@ class MetalFragmentsCraft1Action extends BaseAction
 {
     protected $characterResourceModel;
     protected $resourceModel;
+    protected $craftedItemsLogModel; // (2) Поле для хранения модели логов
 
     /**
      * Набор "стандартных" количеств крафта
@@ -25,8 +27,10 @@ class MetalFragmentsCraft1Action extends BaseAction
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
+
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel(); // (2) Инициализируем модель
     }
 
     public function handle(): ServerResponse
@@ -43,6 +47,16 @@ class MetalFragmentsCraft1Action extends BaseAction
 
         $characterId = $character['id'];
 
+        // (3) Узнаём, сколько "Металлических фрагментов" уже есть у игрока
+        // Предположим, что в таблице crafted_items name_eng = "metalFragments".
+        $metalFragmentsQty = $this->getCraftedItemQuantity($characterId, 'metalFragments');
+
+        // Формируем заголовок: если qty>0, добавляем "(в инв. - X шт.)"
+        $title = '🔩 Металл фрагменты!';
+        if ($metalFragmentsQty > 0) {
+            $title .= " (в инв. – {$metalFragmentsQty} шт.)";
+        }
+
         // Ресурсы (на 1 шт.)
         $requiredResources = [
             'Железная руда' => 100,
@@ -50,13 +64,13 @@ class MetalFragmentsCraft1Action extends BaseAction
             'Песок'         => 1,
         ];
 
-        // Проверяем ресурсы для 1 шт.
+        // Проверяем ресурсы (для 1 шт.)
         $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
         // Считаем, на сколько штук всего хватает
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
-        // Формируем описание
-        $text = "*🔩 Металл фрагменты!*\n\n"
+        // Описание
+        $text = "*{$title}*\n\n"
             . "Для крафта *1 шт.* тебе нужны:\n\n";
         foreach ($resourcesAvailable as $res) {
             $req  = $requiredResources[$res['name']] ?? 0;
@@ -72,7 +86,7 @@ class MetalFragmentsCraft1Action extends BaseAction
             . "*Время крафта (1 шт.):* _~5–12 мин._\n\n"
             . "*Описание:* Компонент для создания металлических изделий, сооружений и станков.\n\n";
 
-        // Формируем клавиатуру
+        // Генерируем клавиатуру
         if ($maxCraftableItems < 1) {
             // Недостаточно на 1 шт.
             $text .= "__У вас недостаточно ресурсов даже на 1 шт.__";
@@ -109,6 +123,7 @@ class MetalFragmentsCraft1Action extends BaseAction
         $imagePath = base_url('uploads/telegram/craft/components/craftMetalFragments.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
+        // Отправляем ответ
         return Request::sendPhoto([
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile($imagePath),
@@ -116,6 +131,17 @@ class MetalFragmentsCraft1Action extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * Возвращает количество уже скрафченных "MetalFragments" (или любого itemNameEng) у игрока.
+     */
+    private function getCraftedItemQuantity(int $characterId, string $itemNameEng): int
+    {
+        // Предполагаем, что в CraftedItemsLogModel есть метод
+        // getItemByNameEngAndCharacterId($itemNameEng, $charId) => ['quantity' => ...] или null
+        $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
+        return $item ? (int)$item['quantity'] : 0;
     }
 
     /**
@@ -146,7 +172,7 @@ class MetalFragmentsCraft1Action extends BaseAction
     }
 
     /**
-     * Определяем, на сколько шт. всего хватает у игрока.
+     * Определяем, на сколько шт. всего хватает
      */
     private function calculateMaxCraftableItems(array $resourcesAvailable, array $requiredResources): int
     {
@@ -156,7 +182,6 @@ class MetalFragmentsCraft1Action extends BaseAction
             $name = $res['name'];
             $have = $res['quantity'];
             $need = $requiredResources[$name] ?? 0;
-
             if ($need > 0) {
                 $possible = (int) floor($have / $need);
                 if ($possible < $maxCraftable) {

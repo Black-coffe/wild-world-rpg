@@ -5,6 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Compo
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
+use App\Models\CraftedItemsLogModel; // <-- (1) Подключаем модель логов
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -16,18 +17,19 @@ class WoodMaterialsCraft1Action extends BaseAction
 {
     protected $characterResourceModel;
     protected $resourceModel;
+    protected $craftedItemsLogModel; // <-- (2) Добавляем поле для логов
 
     /**
      * Список доступных «пакетов» для крафта.
      * Вы можете менять (добавлять/убирать) нужные вам варианты.
      */
-    private $craftQuantities = [1, 5, 10, 25, 50, 100];
+    private array $craftQuantities = [1, 5, 10, 25, 50, 100];
 
     /**
      * Базовый «рецепт» на 1 штуку.
      * Если нужно 5 штук, мы умножаем каждое требование ресурсов на 5 и т.д.
      */
-    private $requiredResourcesBase = [
+    private array $requiredResourcesBase = [
         'Древесина' => 50,
         'Вода'      => 5,
     ];
@@ -37,6 +39,7 @@ class WoodMaterialsCraft1Action extends BaseAction
         parent::__construct($callbackQuery);
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel(); // <-- (2) Инициализируем модель логов
     }
 
     public function handle(): ServerResponse
@@ -51,11 +54,24 @@ class WoodMaterialsCraft1Action extends BaseAction
             ]);
         }
 
-        // Считаем, сколько есть ресурсов (всего)
-        $resourcesAvailable = $this->getResourcesInfo($character['id']);
+        $characterId = $character['id'];
 
-        // Генерируем основной текст описания
-        $text = "*🪵 Древесные материалы!*\n\n"
+        // 1) Узнаём, сколько "Древесных материалов" (англ. name_eng = "WoodMaterials") у игрока уже есть
+        $woodMaterialsNameEng = 'WoodMaterials'; // Проверьте соответствие вашей таблице crafted_items
+        $woodQty              = $this->getCraftedItemQuantity($characterId, $woodMaterialsNameEng);
+
+        // 2) Формируем заголовок
+        // Если уже есть хоть 1, добавим "(в инв. – X шт.)"
+        $title = '🪵 Древесные материалы!';
+        if ($woodQty > 0) {
+            $title .= " (в инв. – {$woodQty} шт.)";
+        }
+
+        // Считаем, сколько есть ресурсов (всего)
+        $resourcesAvailable = $this->getResourcesInfo($characterId);
+
+        // Генерируем основной текст описания, используя $title
+        $text = "*{$title}*\n\n"
             . "Для крафта ОДНОЙ штуки нужны ресурсы:\n\n";
 
         foreach ($this->requiredResourcesBase as $resName => $resAmount) {
@@ -100,7 +116,6 @@ class WoodMaterialsCraft1Action extends BaseAction
         }
 
         $imagePath = base_url('uploads/telegram/craft/components/craftWoodMaterials.jpg');
-
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         // Возвращаем фото + текст
@@ -111,6 +126,17 @@ class WoodMaterialsCraft1Action extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * Возвращает, сколько уже созданных "WoodMaterials" у игрока,
+     * если есть запись в crafted_items_log.
+     */
+    private function getCraftedItemQuantity(int $characterId, string $itemNameEng): int
+    {
+        // Предположим, что в CraftedItemsLogModel есть метод getItemByNameEngAndCharacterId(...)
+        $itemRow = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
+        return $itemRow ? (int) $itemRow['quantity'] : 0;
     }
 
     /**
@@ -154,7 +180,7 @@ class WoodMaterialsCraft1Action extends BaseAction
         foreach ($this->craftQuantities as $qty) {
             // Проверим, достаточно ли ресурсов на qty
             if ($this->canCraftQuantity($resourcesAvailable, $qty)) {
-                // В callback_data «craftWoodMaterials_5» (к примеру)
+                // Пример callback_data: "craftWoodMaterials_5"
                 $buttonsRow[] = [
                     'text'          => "🛠️ {$qty}шт.",
                     'callback_data' => "craftWoodMaterials_{$qty}",
@@ -162,8 +188,7 @@ class WoodMaterialsCraft1Action extends BaseAction
             }
         }
 
-        // Чтобы красиво разбивать по 3 кнопки в ряд (или 4) — можно группировать
-        // Например, сделаем по 3 в ряд
+        // Разбиваем по 3 в ряд для удобства
         $rows = [];
         $tmpRow = [];
         foreach ($buttonsRow as $btn) {
@@ -173,7 +198,6 @@ class WoodMaterialsCraft1Action extends BaseAction
                 $tmpRow = [];
             }
         }
-        // Если что-то осталось
         if (!empty($tmpRow)) {
             $rows[] = $tmpRow;
         }

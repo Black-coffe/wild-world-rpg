@@ -5,6 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Compo
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
+use App\Models\CraftedItemsLogModel; // (1) Подключаем модель логов
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -16,6 +17,7 @@ class SoilCraft1Action extends BaseAction
 {
     protected $characterResourceModel;
     protected $resourceModel;
+    protected $craftedItemsLogModel; // (2) Храним модель логов
 
     /**
      * Набор "стандартных" количеств для крафта
@@ -27,6 +29,7 @@ class SoilCraft1Action extends BaseAction
         parent::__construct($callbackQuery);
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel(); // (2) Инициализация
     }
 
     public function handle(): ServerResponse
@@ -43,6 +46,16 @@ class SoilCraft1Action extends BaseAction
 
         $characterId = $character['id'];
 
+        // 1) Узнаём, сколько "Грунта" (Soil) у игрока уже есть
+        $soilNameEng = 'Soil'; // Значение name_eng в вашей таблице crafted_items
+        $soilQty     = $this->getCraftedItemQuantity($characterId, $soilNameEng);
+
+        // 2) Формируем заголовок
+        $title = '🌱 Грунт!';
+        if ($soilQty > 0) {
+            $title .= " (в инв. – {$soilQty} шт.)";
+        }
+
         // Ресурсы на 1 шт. Грунта
         $requiredResources = [
             'Глина'     => 10,
@@ -56,8 +69,8 @@ class SoilCraft1Action extends BaseAction
         // Считаем, на сколько штук всего хватает
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
-        // Формируем основное описание
-        $text = "*🌱 Грунт!*\n\n"
+        // Формируем основное описание, используя $title
+        $text = "*{$title}*\n\n"
             . "Для крафта *1 шт.* тебе нужны:\n\n";
         foreach ($resourcesAvailable as $res) {
             $req  = $requiredResources[$res['name']] ?? 0;
@@ -73,7 +86,7 @@ class SoilCraft1Action extends BaseAction
             . "*Время крафта (1 шт.):* _~4–16 мин._\n\n"
             . "*Описание:* Компонент для фермерства. Является основой для постройки теплиц.\n\n";
 
-        // Формируем клавиатуру
+        // Проверяем, хватает ли хотя бы на 1 шт.
         if ($maxCraftableItems < 1) {
             // Не хватает ресурсов даже на 1 шт.
             $text .= "__Недостаточно ресурсов, чтобы создать даже 1 шт.__";
@@ -120,6 +133,17 @@ class SoilCraft1Action extends BaseAction
     }
 
     /**
+     * Возвращает, сколько уже есть "Soil" (или любого name_eng) у игрока,
+     * если в crafted_items_log существует соответствующая запись.
+     */
+    private function getCraftedItemQuantity(int $characterId, string $itemNameEng): int
+    {
+        // Предполагаем, что в модели CraftedItemsLogModel есть метод getItemByNameEngAndCharacterId()
+        $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
+        return $item ? (int) $item['quantity'] : 0;
+    }
+
+    /**
      * Проверяем наличие ресурсов (для 1 шт.) у игрока
      */
     private function checkResourcesAvailability(int $characterId, array $requiredResources): array
@@ -159,7 +183,7 @@ class SoilCraft1Action extends BaseAction
             $need = $requiredResources[$name] ?? 0;
 
             if ($need > 0) {
-                $possible = (int)floor($have / $need);
+                $possible = (int) floor($have / $need);
                 if ($possible < $maxCraftable) {
                     $maxCraftable = $possible;
                 }

@@ -25,7 +25,7 @@ class CharcoalBriquettesActionStart extends BaseAction
     protected $craftedItemsLogModel;
 
     /**
-     * Количество брикетов, извлекаемое из callback_data. По умолчанию 1.
+     * Количество брикетов (по умолчанию 1), извлекается из callback_data вида "craftCharcoalBriquettes_10"
      */
     private int $quantity = 1;
 
@@ -40,7 +40,7 @@ class CharcoalBriquettesActionStart extends BaseAction
         $this->craftedItemsModel      = new CraftedItemsModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
 
-        // Например: "craftCharcoalBriquettes_10" => ["craftCharcoalBriquettes", "10"] => quantity=10
+        // Пример: "craftCharcoalBriquettes_10" => ["craftCharcoalBriquettes", "10"] => quantity=10
         $data  = $callbackQuery->getData();
         $parts = explode('_', $data);
         if (isset($parts[1]) && is_numeric($parts[1])) {
@@ -56,13 +56,13 @@ class CharcoalBriquettesActionStart extends BaseAction
             return $this->sendError('Пользователь или персонаж не найден!');
         }
 
-        // 2) Находим задачу "craftCharcoalBriquettes"
+        // 2) Ищем задачу "craftCharcoalBriquettes"
         $craftTask = $this->taskModel->where('name', 'craftCharcoalBriquettes')->first();
         if (!$craftTask) {
             return $this->sendError('Задача "Крафт Угольные брикеты" не найдена в базе данных.');
         }
 
-        // 3) Проверяем, нет ли активной задачи этого типа
+        // 3) Проверяем, нет ли уже активной задачи
         $activeTask = $this->characterTaskModel
             ->where('character_id', $character['id'])
             ->where('task_id', $craftTask['id'])
@@ -72,7 +72,7 @@ class CharcoalBriquettesActionStart extends BaseAction
             return $this->sendError("Уже идёт крафт \"Угольные брикеты\". Дождись завершения или прерви (ресурсы пропадут)!");
         }
 
-        // 4) Проверка / списание ресурсов (× $this->quantity)
+        // 4) Проверка / списание ресурсов (× this->quantity)
         if (!$this->checkAndDeductResources($character['id'], $this->quantity)) {
             return $this->sendError("Недостаточно ресурсов для крафта {$this->quantity} шт. угольных брикетов.");
         }
@@ -150,23 +150,29 @@ class CharcoalBriquettesActionStart extends BaseAction
         $minDuration = $craftTask['min_duration'] ?? 5;
         $maxDuration = $craftTask['max_duration'] ?? 16;
 
-        $intellect  = (float)($character['intellect'] ?? 0);
-        $factor     = 1 - min(1.0, $intellect / 200.0);
+        $intellect = (float)($character['intellect'] ?? 0);
+        // Интеллект 200 = 100% сокращение (до min)
+        $factor = 1 - min(1.0, $intellect / 200.0);
 
-        $timeRaw    = $maxDuration - ($maxDuration - $minDuration) * (1 - $factor);
-        $time       = (int) round($timeRaw);
+        $timeRaw = $maxDuration - ($maxDuration - $minDuration) * (1 - $factor);
+        $time    = (int) round($timeRaw);
 
-        return max($minDuration, min($maxDuration, $time));
+        return max($minDuration, min($time, $maxDuration));
     }
 
     private function notifyCraftStarted(array $character, \DateTime $startTime, \DateTime $endTime, int $qty): ServerResponse
     {
+        // Рассчитываем общее кол-во минут
         $interval     = $startTime->diff($endTime);
         $totalMinutes = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
+        // (1) Превращаем $totalMinutes в дни, часы, минуты
+        $durationStr  = $this->formatDuration($totalMinutes);
+
+        // Формируем текст
         $text = "*Процесс крафта запущен!*\n\n"
             . "Ты создаёшь: 🪨 *Угольные брикеты* x{$qty} шт.\n\n"
-            . "Примерное время: ~{$totalMinutes} мин.\n\n"
+            . "*Время крафта:* ~{$durationStr}\n\n"
             . "❗Прерывание задачи = потеря ресурсов!\n\n"
             . "_О готовности узнаешь в отдельном сообщении._";
 
@@ -179,6 +185,39 @@ class CharcoalBriquettesActionStart extends BaseAction
             'caption'    => $text,
             'parse_mode' => 'Markdown',
         ]);
+    }
+
+    /**
+     * (2) Вспомогательный метод, который переводит общее кол-во минут в формат "X д. Y ч. Z мин."
+     */
+    private function formatDuration(int $totalMinutes): string
+    {
+        $days  = intdiv($totalMinutes, 1440);  // 1440 мин. = 1 день
+        $rem   = $totalMinutes % 1440;
+        $hours = intdiv($rem, 60);
+        $mins  = $rem % 60;
+
+        // Формируем итоговую строку
+        // Если дней = 0, можно их пропустить, и т.д.
+        // Ниже - один из вариантов:
+        $parts = [];
+        if ($days > 0) {
+            $parts[] = "{$days} д.";
+        }
+        if ($hours > 0) {
+            $parts[] = "{$hours} ч.";
+        }
+        if ($mins > 0) {
+            $parts[] = "{$mins} мин.";
+        }
+
+        // Если вышло, что все 0 => значит 0 мин (мгновенно)
+        if (empty($parts)) {
+            $parts[] = '0 мин.';
+        }
+
+        // Соединяем через пробел
+        return implode(' ', $parts);
     }
 
     /**

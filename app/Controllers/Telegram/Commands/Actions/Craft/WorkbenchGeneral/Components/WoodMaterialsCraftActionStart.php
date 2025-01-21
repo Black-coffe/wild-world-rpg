@@ -83,8 +83,7 @@ class WoodMaterialsCraftActionStart extends BaseAction
     }
 
     /**
-     * Проверяем, достаточно ли ресурсов, и сразу списываем их (чтобы не пришлось два раза гонять БД).
-     * Если вам удобнее сперва проверять — потом списывать, можно разбить логику на 2 метода (как в других примерах).
+     * Проверяем, достаточно ли ресурсов, и сразу списываем их.
      */
     private function checkResources(int $characterId, int $qty): bool
     {
@@ -94,7 +93,7 @@ class WoodMaterialsCraftActionStart extends BaseAction
             'Вода'      => 5,
         ];
 
-        // Сначала проверяем наличие
+        // Проверяем наличие
         foreach ($requiredResources as $resName => $baseNeed) {
             $totalNeed = $baseNeed * $qty;
             $row       = $this->characterResourceModel->getResourceForCraft($resName, $characterId);
@@ -104,7 +103,7 @@ class WoodMaterialsCraftActionStart extends BaseAction
             }
         }
 
-        // Если всего хватает — списываем
+        // Списываем
         foreach ($requiredResources as $resName => $baseNeed) {
             $totalNeed = $baseNeed * $qty;
             if (!$this->characterResourceModel->deductResourceForCraft($resName, $characterId, $totalNeed)) {
@@ -116,7 +115,7 @@ class WoodMaterialsCraftActionStart extends BaseAction
     }
 
     /**
-     * Записываем новую задачу (quantity в task_settings) и уведомляем игрока о начале.
+     * Записываем новую задачу (quantity в task_settings) и уведомляем игрока.
      */
     private function startCraftingProcess(array $character, int $userId, array $craftTask, int $qty): ServerResponse
     {
@@ -133,7 +132,6 @@ class WoodMaterialsCraftActionStart extends BaseAction
             'quantity' => $qty
         ];
 
-        // Создаём запись о задаче
         $this->characterTaskModel->insert([
             'character_id'     => $character['id'],
             'telegram_user_id' => $userId,
@@ -148,25 +146,23 @@ class WoodMaterialsCraftActionStart extends BaseAction
     }
 
     /**
-     * Пример расчёта времени на 1 шт. (можно брать из tasks: min_duration, max_duration).
+     * Пример расчёта времени на 1 шт.
      */
     private function calculateCraftingDuration(array $character, array $craftTask): int
     {
         $minDuration = (int)($craftTask['min_duration'] ?? 4);
         $maxDuration = (int)($craftTask['max_duration'] ?? 16);
 
-        // Условная формула
         $exp  = (float)($character['experience'] ?? 0);
         $agi  = (float)($character['agility']    ?? 0);
         $int  = (float)($character['intellect']  ?? 0);
 
-        // Можно гибко варьировать
         $expFactor = 0.2;
         $agiFactor = 0.3;
         $intFactor = 0.5;
 
         $score   = $exp * $expFactor + $agi * $agiFactor + $int * $intFactor;
-        $maxAttr = 1000 * ($expFactor + $agiFactor + $intFactor); // 1000 - условный кап
+        $maxAttr = 1000 * ($expFactor + $agiFactor + $intFactor);
         $ratio   = ($maxAttr > 0) ? min(1.0, $score / $maxAttr) : 0;
 
         $timeRaw = $minDuration + ($maxDuration - $minDuration) * (1 - $ratio);
@@ -176,16 +172,21 @@ class WoodMaterialsCraftActionStart extends BaseAction
     }
 
     /**
-     * Отправляем игроку уведомление о начале крафта (на X штук).
+     * Отправка уведомления о начале крафта.
+     * Здесь мы добавим форматирование времени: дни/часы/минуты.
      */
     private function notifyCraftStarted(array $character, \DateTime $startTime, \DateTime $endTime, int $qty): ServerResponse
     {
-        $interval = $startTime->diff($endTime);
-        $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
+        // Считаем разницу
+        $interval     = $startTime->diff($endTime);
+        $totalMinutes = $interval->days * 1440 + $interval->h * 60 + $interval->i;
+
+        // Преобразуем минуты в "X д. Y ч. Z мин."
+        $durationStr  = $this->formatDuration($totalMinutes);
 
         $text = "*Процесс крафта запущен!*\n\n"
             . "Ты создаёшь: 🪵 *Древесные материалы* x{$qty} шт.\n\n"
-            . "**Примерное время:** ~{$minutes} мин.\n\n"
+            . "**Примерное время:** ~{$durationStr}\n\n"
             . "❗Прерывание задачи = потеря ресурсов.\n\n"
             . "_Жди уведомления о завершении!_";
 
@@ -198,6 +199,35 @@ class WoodMaterialsCraftActionStart extends BaseAction
             'caption'    => $text,
             'parse_mode' => 'Markdown',
         ]);
+    }
+
+    /**
+     * (Новый) Метод для форматирования минут в вид "X д. Y ч. Z мин."
+     */
+    private function formatDuration(int $totalMinutes): string
+    {
+        $days  = intdiv($totalMinutes, 1440);  // 1 день = 1440 мин
+        $rem   = $totalMinutes % 1440;
+        $hours = intdiv($rem, 60);
+        $mins  = $rem % 60;
+
+        $parts = [];
+        if ($days > 0) {
+            $parts[] = "{$days} д.";
+        }
+        if ($hours > 0) {
+            $parts[] = "{$hours} ч.";
+        }
+        if ($mins > 0) {
+            $parts[] = "{$mins} мин.";
+        }
+
+        // Если все нули => "0 мин."
+        if (empty($parts)) {
+            $parts[] = '0 мин.';
+        }
+
+        return implode(' ', $parts);
     }
 
     /**

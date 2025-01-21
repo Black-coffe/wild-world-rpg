@@ -35,14 +35,14 @@ class FertilizerCraftActionStart extends BaseAction
     {
         parent::__construct($callbackQuery);
 
-        $this->taskModel             = new TaskModel();
-        $this->eventModel            = new EventModel();
-        $this->activeEventModel      = new ActiveEventModel();
-        $this->characterResourceModel= new CharacterResourceModel();
-        $this->craftedItemsModel     = new CraftedItemsModel();
-        $this->craftedItemsLogModel  = new CraftedItemsLogModel();
+        $this->taskModel              = new TaskModel();
+        $this->eventModel             = new EventModel();
+        $this->activeEventModel       = new ActiveEventModel();
+        $this->characterResourceModel = new CharacterResourceModel();
+        $this->craftedItemsModel      = new CraftedItemsModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel();
 
-        // Пример callback_data: "craftFertilizer_10" => ["craftFertilizer","10"] => quantity=10
+        // Пример: "craftFertilizer_10" => ["craftFertilizer","10"] => quantity=10
         $data  = $callbackQuery->getData();
         $parts = explode('_', $data);
         if (isset($parts[1]) && is_numeric($parts[1])) {
@@ -97,7 +97,7 @@ class FertilizerCraftActionStart extends BaseAction
             'Кости животных' => 1,
             'Вода'           => 5,
             'Водоросли'      => 20,
-            'Ил'            => 10,
+            'Ил'             => 10,
         ];
 
         // Сначала убеждаемся, что всего хватает
@@ -168,7 +168,9 @@ class FertilizerCraftActionStart extends BaseAction
         $attributeScore    = ($experience * $expFactor) + ($agility * $agiFactor) + ($intellect * $intFactor);
         $maxAttributeScore = 1000 * ($expFactor + $agiFactor + $intFactor);
         $normalized        = $maxAttributeScore > 0 ? ($attributeScore / $maxAttributeScore) : 0;
-        if ($normalized > 1) $normalized = 1;
+        if ($normalized > 1) {
+            $normalized = 1;
+        }
 
         $timeRaw = $minDuration + ($maxDuration - $minDuration) * (1 - $normalized);
         $time    = (int)round($timeRaw);
@@ -178,15 +180,20 @@ class FertilizerCraftActionStart extends BaseAction
 
     /**
      * Отправляем сообщение о старте: X шт. удобрений, прерывание = потеря ресурсов.
+     * Здесь добавим форматирование времени (дни/часы/минуты).
      */
     private function notifyCraftStarted(array $character, \DateTime $startTime, \DateTime $endTime, int $qty): ServerResponse
     {
+        // Подсчитаем общее количество минут
         $interval = $startTime->diff($endTime);
         $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
+        // Форматируем: "X д. Y ч. Z мин."
+        $timeString = $this->formatDuration($minutes);
+
         $text = "*Процесс крафта запущен*\n\n"
             . "Ты создаёшь: *🌿 Удобрение* x{$qty} шт.\n\n"
-            . "**Время крафта:** ~{$minutes} минут.\n\n"
+            . "**Время крафта:** ~{$timeString}\n\n"
             . "❗Прерывание задачи = потеря ресурсов!\n\n"
             . "_О готовности узнаешь в сообщении._";
 
@@ -199,6 +206,36 @@ class FertilizerCraftActionStart extends BaseAction
             'caption'    => $text,
             'parse_mode' => 'Markdown',
         ]);
+    }
+
+    /**
+     * Вспомогательный метод: разбивает количество минут на дни, часы, минуты.
+     * Возвращает строку вида "2 д. 3 ч. 15 мин." или "45 мин.", "0 мин." и т.д.
+     */
+    private function formatDuration(int $totalMinutes): string
+    {
+        $days  = intdiv($totalMinutes, 1440); // 1 день = 1440 мин.
+        $rem   = $totalMinutes % 1440;
+        $hours = intdiv($rem, 60);
+        $mins  = $rem % 60;
+
+        $parts = [];
+        if ($days > 0) {
+            $parts[] = "{$days} д.";
+        }
+        if ($hours > 0) {
+            $parts[] = "{$hours} ч.";
+        }
+        if ($mins > 0) {
+            $parts[] = "{$mins} мин.";
+        }
+
+        // Если все 0 => "0 мин."
+        if (empty($parts)) {
+            $parts[] = '0 мин.';
+        }
+
+        return implode(' ', $parts);
     }
 
     /**

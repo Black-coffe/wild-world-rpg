@@ -5,6 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Compo
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
+use App\Models\CraftedItemsLogModel; // 1) Подключаем модель логов
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -16,6 +17,7 @@ class FertilizerCraft1Action extends BaseAction
 {
     protected $characterResourceModel;
     protected $resourceModel;
+    protected $craftedItemsLogModel; // 2) Поле для модели логов
 
     /**
      * Возможные "пакеты" крафта
@@ -27,6 +29,7 @@ class FertilizerCraft1Action extends BaseAction
         parent::__construct($callbackQuery);
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel(); // 2) Инициализируем модель логов
     }
 
     public function handle(): ServerResponse
@@ -43,12 +46,22 @@ class FertilizerCraft1Action extends BaseAction
 
         $characterId = $character['id'];
 
+        // 1) Узнаём, сколько "Удобрения" (Fertilizer) уже есть в инвентаре у игрока
+        $fertNameEng   = 'Fertilizer';
+        $fertilizerQty = $this->getCraftedItemQuantity($characterId, $fertNameEng);
+
+        // 2) Формируем заголовок
+        $title = '🌿 Удобрение!';
+        if ($fertilizerQty > 0) {
+            $title .= " (в инв. – {$fertilizerQty} шт.)";
+        }
+
         // Ресурсы (на 1 шт.)
         $requiredResources = [
             'Кости животных' => 1,
             'Вода'           => 5,
             'Водоросли'      => 20,
-            'Ил'            => 10,
+            'Ил'             => 10,
         ];
 
         // Информация о текущих ресурсах (для 1 шт.)
@@ -56,16 +69,15 @@ class FertilizerCraft1Action extends BaseAction
         // Считаем, на сколько штук всего хватает
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
-        // Формируем описание
-        $text = "*🌿 Удобрение!*\n\n"
+        // 3) Формируем описание (теперь используя $title)
+        $text = "*{$title}*\n\n"
             . "Для крафта *1 шт.* тебе нужны:\n\n";
         foreach ($resourcesAvailable as $res) {
             $need = $requiredResources[$res['name']] ?? 0;
             $have = $res['quantity'];
             $rar  = $res['rarity'];
 
-            $text .= "📦 {$res['name']} - {$need} ед. "
-                . "(в наличии {$have} ед. редк - {$rar})\n";
+            $text .= "📦 {$res['name']} - {$need} ед. (в наличии {$have} ед. редк - {$rar})\n";
         }
 
         $text .= "\n*Стоимость на рынке:* _82_ 💰\n"
@@ -73,9 +85,10 @@ class FertilizerCraft1Action extends BaseAction
             . "*Время крафта (1 шт.):* _~5–12 мин._\n\n"
             . "*Описание:* Компонент для удобрения почвы и растений, важный для фермерства.\n\n";
 
-        // Если не хватает даже на 1 шт.
+        // 4) Генерируем клавиатуру
         if ($maxCraftableItems < 1) {
-            $text .= "__Вы не можете крафтить, так как у вас недостаточно ресурсов даже на 1 шт.__";
+            // Недостаточно ресурсов
+            $text .= "__Вы не можете крафтить, так как недостаточно ресурсов даже на 1 шт.__";
             $keyboard = [
                 'inline_keyboard' => [
                     [
@@ -92,20 +105,18 @@ class FertilizerCraft1Action extends BaseAction
             $quantityButtons = $this->getAvailableQuantityButtons($maxCraftableItems);
             $quantityRows    = array_chunk($quantityButtons, 3);
 
-            // Добавим кнопки:
-            // 1) Инвентарь
+            // Добавим кнопки "Инвентарь", "Продать/Купить" и т.д.
             $quantityRows[] = [
                 ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
             ];
-            // 2) Продать / Купить
             $quantityRows[] = [
                 ['text' => '💰 Продать', 'callback_data' => 'sell'],
                 ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
             ];
-
             $keyboard = ['inline_keyboard' => $quantityRows];
         }
 
+        // 5) Отправляем
         $imagePath = base_url('uploads/telegram/craft/components/craftFertilizer.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
@@ -116,6 +127,18 @@ class FertilizerCraft1Action extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * Узнать, сколько уже скрафченного "Fertilizer" (или любого itemNameEng) есть у игрока.
+     */
+    private function getCraftedItemQuantity(int $characterId, string $itemNameEng): int
+    {
+        // Если в CraftedItemsLogModel есть метод getItemByNameEngAndCharacterId,
+        // то используем его. Иначе — свой запрос.
+        // Возвращаем 0, если ничего не найдено.
+        $itemRow = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
+        return $itemRow ? (int)$itemRow['quantity'] : 0;
     }
 
     /**
@@ -165,6 +188,7 @@ class FertilizerCraft1Action extends BaseAction
             }
         }
 
+        // Если нет ограничивающего ресурса, вернём 0
         return ($maxCraftable === PHP_INT_MAX) ? 0 : $maxCraftable;
     }
 

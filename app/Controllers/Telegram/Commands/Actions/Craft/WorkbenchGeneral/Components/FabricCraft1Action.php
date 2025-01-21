@@ -5,6 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Compo
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
+use App\Models\CraftedItemsLogModel; // 1) Подключаем модель логов
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -16,6 +17,7 @@ class FabricCraft1Action extends BaseAction
 {
     protected $characterResourceModel;
     protected $resourceModel;
+    protected $craftedItemsLogModel; // 2) Поле для модели логов
 
     /**
      * Возможные "пакеты" крафта.
@@ -27,6 +29,7 @@ class FabricCraft1Action extends BaseAction
         parent::__construct($callbackQuery);
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel(); // 2) Инициализация модели логов
     }
 
     public function handle(): ServerResponse
@@ -43,6 +46,17 @@ class FabricCraft1Action extends BaseAction
 
         $characterId = $character['id'];
 
+        // 1) Узнаём, сколько «Ткани» (Fabric) уже есть у игрока
+        $fabricNameEng = 'Fabric'; // name_eng из таблицы crafted_items
+        $fabricQty     = $this->getCraftedItemQuantity($characterId, $fabricNameEng);
+
+        // 2) Формируем заголовок "🧵 Ткань!"
+        // если у игрока уже есть ткань, добавляем "(в инв. – N шт.)"
+        $title = '🧵 Ткань!';
+        if ($fabricQty > 0) {
+            $title .= " (в инв. – {$fabricQty} шт.)";
+        }
+
         // Ресурсы (на 1 шт.)
         $requiredResources = [
             'Шерсть животных'         => 10,
@@ -55,9 +69,10 @@ class FabricCraft1Action extends BaseAction
         // Считаем, на сколько штук всего хватает
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
-        // Текст
-        $text = "*🧵 Ткань!*\n\n"
+        // 3) Формируем текст, используя итоговый заголовок
+        $text = "*{$title}*\n\n"
             . "Для крафта *1 шт.* тебе нужны:\n\n";
+
         foreach ($resourcesAvailable as $res) {
             $need = $requiredResources[$res['name']] ?? 0;
             $have = $res['quantity'];
@@ -73,7 +88,7 @@ class FabricCraft1Action extends BaseAction
             . "*Описание:* Компонент, предназначенный для создания изделий из ткани: "
             . "одежды, накидок и проч.\n\n";
 
-        // Если не хватает даже на 1 шт.
+        // 4) Проверяем, хватает ли хотя бы на 1 шт.
         if ($maxCraftableItems < 1) {
             $text .= "__Недостаточно ресурсов даже на 1 шт.__";
             $keyboard = [
@@ -91,7 +106,6 @@ class FabricCraft1Action extends BaseAction
         } else {
             // Можно крафтить
             $quantityButtons = $this->getAvailableQuantityButtons($maxCraftableItems);
-            // Разбиваем кнопки по 3 в строке
             $quantityRows    = array_chunk($quantityButtons, 3);
 
             // Добавим кнопки персонажа/инвентаря
@@ -108,6 +122,7 @@ class FabricCraft1Action extends BaseAction
             $keyboard = ['inline_keyboard' => $quantityRows];
         }
 
+        // 5) Отправляем результат
         $imagePath = base_url('uploads/telegram/craft/components/craftFabric.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
@@ -118,6 +133,21 @@ class FabricCraft1Action extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * Возвращает количество «Ткани» (или любого itemNameEng) у игрока,
+     * если такое есть в crafted_items_log, иначе 0.
+     */
+    private function getCraftedItemQuantity(int $characterId, string $itemNameEng): int
+    {
+        // Предполагаем, что в модели есть метод:
+        // getItemByNameEngAndCharacterId($itemNameEng, $charId)
+        // возвращающий ['quantity' => ...] или null
+        // Если у вас метод называется иначе - подстройте под свой код.
+        // Или используйте where() вручную.
+        $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
+        return $item ? (int) $item['quantity'] : 0;
     }
 
     /**
@@ -167,13 +197,11 @@ class FabricCraft1Action extends BaseAction
             }
         }
 
-        // Если так и не нашли ограничений, вернём 0
         return ($maxCraftable === PHP_INT_MAX) ? 0 : $maxCraftable;
     }
 
     /**
      * Генерируем кнопки "Крафт N шт." (1,5,10,25,50,100) если N <= maxCraftable.
-     * Пример callback_data: "craftFabric_10"
      */
     private function getAvailableQuantityButtons(int $maxCraftableItems): array
     {

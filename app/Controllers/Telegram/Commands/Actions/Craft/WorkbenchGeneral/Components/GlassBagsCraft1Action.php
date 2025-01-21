@@ -5,6 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Compo
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
+use App\Models\CraftedItemsLogModel; // <-- (1) Подключаем модель логов
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -16,6 +17,7 @@ class GlassBagsCraft1Action extends BaseAction
 {
     protected $characterResourceModel;
     protected $resourceModel;
+    protected $craftedItemsLogModel; // <-- (2) Поле для модели логов
 
     /**
      * Набор "стандартных" количеств крафта
@@ -27,6 +29,7 @@ class GlassBagsCraft1Action extends BaseAction
         parent::__construct($callbackQuery);
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel(); // <-- (2) Инициализируем модель
     }
 
     public function handle(): ServerResponse
@@ -43,11 +46,21 @@ class GlassBagsCraft1Action extends BaseAction
 
         $characterId = $character['id'];
 
+        // 1) Узнаём, сколько "Стеклопакетов" (GlassBags) уже есть у игрока
+        $glassBagsNameEng = 'GlassBags'; // предполагаем, что в таблице crafted_items name_eng="GlassBags"
+        $glassBagsQty     = $this->getCraftedItemQuantity($characterId, $glassBagsNameEng);
+
+        // 2) Формируем заголовок. Если qty>0, добавляем "(в инв. – X шт.)"
+        $title = '🪟 Стекло пакеты!';
+        if ($glassBagsQty > 0) {
+            $title .= " (в инв. – {$glassBagsQty} шт.)";
+        }
+
         // Ресурсы (на 1 шт.)
         $requiredResources = [
-            'Древесина'    => 10,
-            'Песок'        => 50,
-            'Базальт'      => 10,
+            'Древесина'      => 10,
+            'Песок'          => 50,
+            'Базальт'        => 10,
             'Лавовый камень' => 8,
         ];
 
@@ -56,8 +69,8 @@ class GlassBagsCraft1Action extends BaseAction
         // Считаем, на сколько штук всего хватает
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
-        // Текст-описание
-        $text = "*🪟 Стекло пакеты!*\n\n"
+        // 3) Формируем текст-описание, используя итоговый $title
+        $text = "*{$title}*\n\n"
             . "Для крафта *1 шт.* тебе нужны:\n\n";
         foreach ($resourcesAvailable as $res) {
             $req  = $requiredResources[$res['name']] ?? 0;
@@ -73,7 +86,7 @@ class GlassBagsCraft1Action extends BaseAction
             . "*Время крафта (1 шт.):* _~4–8 мин._\n\n"
             . "*Описание:* Компонент для создания изделий из стекла, применяется во многих сооружениях.\n\n";
 
-        // Формируем клавиатуру
+        // 4) Формируем клавиатуру
         if ($maxCraftableItems < 1) {
             // Не хватает даже на 1 шт.
             $text .= "__Вы не можете крафтить, так как у вас недостаточно ресурсов даже на 1 шт.__";
@@ -94,7 +107,7 @@ class GlassBagsCraft1Action extends BaseAction
             $quantityButtons = $this->getAvailableQuantityButtons($maxCraftableItems);
             $quantityRows    = array_chunk($quantityButtons, 3);
 
-            // Добавим дополнительные кнопки в конце
+            // Добавим дополнительные кнопки
             $quantityRows[] = [
                 ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                 ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
@@ -107,6 +120,7 @@ class GlassBagsCraft1Action extends BaseAction
             $keyboard = ['inline_keyboard' => $quantityRows];
         }
 
+        // 5) Отправляем сообщение
         $imagePath = base_url('uploads/telegram/craft/components/craftGlassBags.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
@@ -117,6 +131,18 @@ class GlassBagsCraft1Action extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * Смотрим, сколько уже есть "Стеклопакетов" (GlassBags) у игрока в логе
+     */
+    private function getCraftedItemQuantity(int $characterId, string $itemNameEng): int
+    {
+        // Предполагаем, что в CraftedItemsLogModel есть метод:
+        // getItemByNameEngAndCharacterId($itemNameEng, $charId)
+        // Возвращающий ['quantity' => ...] или null
+        $itemRow = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
+        return $itemRow ? (int)$itemRow['quantity'] : 0;
     }
 
     /**

@@ -5,18 +5,20 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Compo
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
+use App\Models\CraftedItemsLogModel; // (1) Подключаем модель логов
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
 /**
  * Класс StoneBlocksCraft1Action:
- * Показывает информацию о крафте "Каменные блоки" и
+ * Показывает информацию о крафте "Каменные блоки" (StoneBlocks) и
  * формирует кнопки для количественного крафта (1..100).
  */
 class StoneBlocksCraft1Action extends BaseAction
 {
     protected $characterResourceModel;
     protected $resourceModel;
+    protected $craftedItemsLogModel; // (2) Храним экземпляр модели логов
 
     /**
      * Набор "стандартных" количеств для крафта.
@@ -29,6 +31,7 @@ class StoneBlocksCraft1Action extends BaseAction
         parent::__construct($callbackQuery);
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel(); // (2) Инициализация модели логов
     }
 
     public function handle(): ServerResponse
@@ -45,6 +48,16 @@ class StoneBlocksCraft1Action extends BaseAction
 
         $characterId = $character['id'];
 
+        // 1) Узнаём, сколько "Каменных блоков" (StoneBlocks) у игрока уже есть
+        $stoneBlocksNameEng = 'StoneBlocks'; // значение name_eng в вашей таблице crafted_items
+        $stoneBlocksQty     = $this->getCraftedItemQuantity($characterId, $stoneBlocksNameEng);
+
+        // 2) Формируем заголовок
+        $title = '🧱 Каменные блоки!';
+        if ($stoneBlocksQty > 0) {
+            $title .= " (в инв. – {$stoneBlocksQty} шт.)";
+        }
+
         // Ресурсы на 1 шт. "Каменных блоков"
         $requiredPerOne = [
             'Камни' => 36,
@@ -57,8 +70,8 @@ class StoneBlocksCraft1Action extends BaseAction
         // Считаем, на сколько штук всего хватит
         $maxCraftableItems = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredPerOne);
 
-        // Формируем основное описание
-        $text = "*🧱 Каменные блоки!*\n\n"
+        // Формируем описание (с учётом $title)
+        $text = "*{$title}*\n\n"
             . "Для крафта *1 шт.* нужны:\n\n";
         foreach ($resourcesAvailable as $res) {
             $need = $requiredPerOne[$res['name']] ?? 0;
@@ -102,7 +115,7 @@ class StoneBlocksCraft1Action extends BaseAction
             ];
             $quantityRows[] = [
                 ['text' => '💰 Продать', 'callback_data' => 'sell'],
-                ['text' => '🛍️ Купить',  'callback_data' => 'buy'],
+                ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
             ];
 
             $keyboard = [
@@ -111,7 +124,6 @@ class StoneBlocksCraft1Action extends BaseAction
         }
 
         $imagePath = base_url('uploads/telegram/craft/components/craftStoneBlocks.jpg');
-
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         return Request::sendPhoto([
@@ -121,6 +133,18 @@ class StoneBlocksCraft1Action extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * Возвращает, сколько "StoneBlocks" (или другого itemNameEng) у игрока,
+     * если есть запись в crafted_items_log.
+     */
+    private function getCraftedItemQuantity(int $characterId, string $itemNameEng): int
+    {
+        // Предполагаем, что есть метод в CraftedItemsLogModel:
+        // getItemByNameEngAndCharacterId($itemNameEng, $characterId)
+        $itemRow = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
+        return $itemRow ? (int) $itemRow['quantity'] : 0;
     }
 
     /**

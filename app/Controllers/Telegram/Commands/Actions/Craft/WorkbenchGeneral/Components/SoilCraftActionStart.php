@@ -53,7 +53,7 @@ class SoilCraftActionStart extends BaseAction
             return $this->sendError('Задача "Крафт грунта" (craftSoil) не найдена в базе данных.');
         }
 
-        // 2) Проверяем, нет ли уже активной задачи этого типа
+        // 2) Проверяем, нет ли уже активной задачи
         $activeTask = $this->characterTaskModel
             ->where('character_id', $character['id'])
             ->where('task_id', $craftTask['id'])
@@ -182,9 +182,12 @@ class SoilCraftActionStart extends BaseAction
         $interval = $startTime->diff($endTime);
         $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
+        // Теперь форматируем minutes -> "X д. Y ч. Z мин."
+        $timeString = $this->formatDuration($minutes);
+
         $text = "*Процесс крафта запущен*\n\n"
             . "Ты создаёшь: 🌱 *Грунт* x{$qty} шт.\n\n"
-            . "__*Время крафта: {$minutes} минут.*__ ⏱️\n\n"
+            . "__*Время крафта: {$timeString}*__ ⏱️\n\n"
             . "❗Прерывание задачи = потеря ресурсов.\n\n"
             . "_О готовности узнаешь в отдельном сообщении._";
 
@@ -197,6 +200,34 @@ class SoilCraftActionStart extends BaseAction
             'caption'    => $text,
             'parse_mode' => 'Markdown',
         ]);
+    }
+
+    /**
+     * (Новый) Метод для перевода общего кол-ва минут в "X д. Y ч. Z мин."
+     */
+    private function formatDuration(int $totalMinutes): string
+    {
+        $days  = intdiv($totalMinutes, 1440); // 1 день = 1440 мин.
+        $rem   = $totalMinutes % 1440;
+        $hours = intdiv($rem, 60);
+        $mins  = $rem % 60;
+
+        $parts = [];
+        if ($days > 0) {
+            $parts[] = "{$days} д.";
+        }
+        if ($hours > 0) {
+            $parts[] = "{$hours} ч.";
+        }
+        if ($mins > 0) {
+            $parts[] = "{$mins} мин.";
+        }
+
+        if (empty($parts)) {
+            $parts[] = '0 мин.';
+        }
+
+        return implode(' ', $parts);
     }
 
     /**

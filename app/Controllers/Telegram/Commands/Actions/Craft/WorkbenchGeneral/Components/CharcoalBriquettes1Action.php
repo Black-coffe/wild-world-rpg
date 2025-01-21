@@ -5,6 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Compo
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
+use App\Models\CraftedItemsLogModel; // <-- Добавляем модель логов
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -16,6 +17,7 @@ class CharcoalBriquettes1Action extends BaseAction
 {
     protected $characterResourceModel;
     protected $resourceModel;
+    protected $craftedItemsLogModel; // <-- Поле для хранения экземпляра модели логов
 
     /**
      * Возможные пакеты крафта: 1, 5, 10, 25, 50, 100
@@ -28,6 +30,7 @@ class CharcoalBriquettes1Action extends BaseAction
 
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel(); // <-- Инициализируем модель логов
     }
 
     public function handle(): ServerResponse
@@ -44,12 +47,22 @@ class CharcoalBriquettes1Action extends BaseAction
 
         $characterId = $character['id'];
 
+        // 1) Узнаём, сколько у игрока уже есть «Угольных брикетов» (англ. поле name_eng = "CharcoalBriquettes")
+        $charcoalItemNameEng = 'CharcoalBriquettes';
+        $charcoalQty = $this->getCraftedItemQuantity($characterId, $charcoalItemNameEng);
+
+        // 2) Формируем заголовок с учётом количества
+        $title = '🪨 Угольные брикеты!';
+        if ($charcoalQty > 0) {
+            $title .= " (в инв. – {$charcoalQty} шт.)";
+        }
+
         // Ресурсы на 1 шт. угольных брикетов
         $requiredResources = [
-            'Древесина'      => 10,
-            'Глина'          => 2,
-            'Вода'           => 2,
-            'Угольная порода'=> 20,
+            'Древесина'       => 10,
+            'Глина'           => 2,
+            'Вода'            => 2,
+            'Угольная порода' => 20,
         ];
 
         // Проверяем, сколько у игрока ресурсов
@@ -57,15 +70,14 @@ class CharcoalBriquettes1Action extends BaseAction
         // Считаем, на сколько штук хватает
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
-        // Текст описания
-        $text = "*🪨 Угольные брикеты!*\n\n"
+        // 3) Формируем описание
+        $text = "*{$title}*\n\n"
             . "Для крафта *1 шт.* тебе нужны:\n\n";
 
         foreach ($resourcesAvailable as $res) {
             $need = $requiredResources[$res['name']] ?? 0;
             $have = $res['quantity'];
             $rar  = $res['rarity'];
-
             $text .= "📦 {$res['name']} - {$need} ед. (в наличии {$have} ед., редк - {$rar})\n";
         }
 
@@ -75,8 +87,9 @@ class CharcoalBriquettes1Action extends BaseAction
             . "*Описание:* Компонент, предназначенный для производства изделий, "
             . "сооружений и плавки.\n\n";
 
-        // Если ресурсов не хватает на 1 шт.
+        // 4) Формируем клавиатуру
         if ($maxCraftableItems < 1) {
+            // Недостаточно ресурсов на 1 шт.
             $text .= "__Недостаточно ресурсов для крафта хотя бы 1 шт.__";
             $keyboard = [
                 'inline_keyboard' => [
@@ -93,10 +106,10 @@ class CharcoalBriquettes1Action extends BaseAction
         } else {
             // Можно крафтить
             $quantityButtons = $this->getAvailableQuantityButtons($maxCraftableItems);
-            // Разбиваем по 3 в строке (чтобы было удобнее)
+            // Разбиваем по 3 кнопки в строке
             $quantityRows = array_chunk($quantityButtons, 3);
 
-            // Кнопки персонажа, инвентарь и т.д.
+            // Добавим блок кнопок "Персонаж / Инвентарь" и "Продать / Купить"
             $quantityRows[] = [
                 ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                 ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
@@ -109,10 +122,10 @@ class CharcoalBriquettes1Action extends BaseAction
             $keyboard = ['inline_keyboard' => $quantityRows];
         }
 
+        // 5) Отправляем сообщение
         $imagePath = base_url('uploads/telegram/craft/components/craftCharcoalBriquettes.png');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        // Отправляем сообщение с фото
         return Request::sendPhoto([
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile($imagePath),
@@ -120,6 +133,18 @@ class CharcoalBriquettes1Action extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * Проверяем, сколько предмета (по name_eng) уже имеется в crafted_items_log
+     */
+    private function getCraftedItemQuantity(int $characterId, string $itemNameEng): int
+    {
+        // Предположим, у CraftedItemsLogModel есть метод:
+        // getItemByNameEngAndCharacterId($nameEng, $charId)
+        // Возвращает запись типа ['quantity' => ..., ...] или null
+        $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
+        return $item ? (int) $item['quantity'] : 0;
     }
 
     /**
@@ -150,7 +175,7 @@ class CharcoalBriquettes1Action extends BaseAction
     }
 
     /**
-     * Считаем, на сколько шт. максимум хватает: min( qty//need... ) по каждому компоненту.
+     * Считаем, на сколько шт. максимум хватает: min( floor(have/need) ) по каждому компоненту.
      */
     private function calculateMaxCraftableItems(array $resourcesAvailable, array $requiredResources): int
     {
@@ -160,6 +185,7 @@ class CharcoalBriquettes1Action extends BaseAction
             $name = $res['name'];
             $have = $res['quantity'];
             $need = $requiredResources[$name] ?? 0;
+
             if ($need > 0) {
                 $possible = (int) floor($have / $need);
                 if ($possible < $maxCraftable) {
@@ -172,7 +198,7 @@ class CharcoalBriquettes1Action extends BaseAction
     }
 
     /**
-     * Генерируем кнопки "Крафт X шт." (1,5,10,25,50,100) если X <= maxCraftable.
+     * Генерируем кнопки "Крафт X шт."
      * Пример callback_data: "craftCharcoalBriquettes_5"
      */
     private function getAvailableQuantityButtons(int $maxCraftableItems): array
@@ -187,18 +213,5 @@ class CharcoalBriquettes1Action extends BaseAction
             }
         }
         return $buttons;
-    }
-
-    /**
-     * Старый метод (проверка на 1 шт.) — не обязателен, если у нас есть calculateMaxCraftableItems().
-     */
-    private function areAllResourcesSufficient($resourcesAvailable, $requiredResources): bool
-    {
-        foreach ($resourcesAvailable as $resource) {
-            if ($resource['quantity'] < $requiredResources[$resource['name']]) {
-                return false;
-            }
-        }
-        return true;
     }
 }

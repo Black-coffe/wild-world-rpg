@@ -168,15 +168,21 @@ class FabricCraftActionStart extends BaseAction
 
     /**
      * Уведомляем игрока о запущенном крафте: X штук, прерывание = потеря ресурсов.
+     * Здесь добавим форматирование времени: дни / часы / минуты.
      */
     private function notifyCraftStarted(array $character, \DateTime $startTime, \DateTime $endTime, int $qty): ServerResponse
     {
+        // 1) Вычисляем общее количество минут
         $interval     = $startTime->diff($endTime);
         $totalMinutes = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
+        // 2) Форматируем в "X д. Y ч. Z мин."
+        $timeString = $this->formatDuration($totalMinutes);
+
+        // 3) Формируем текст
         $text = "*Процесс крафта запущен*\n\n"
             . "Ты создаешь: *🧵 Ткань* x{$qty} шт.\n\n"
-            . "**Время крафта** (примерно): {$totalMinutes} мин.\n\n"
+            . "**Время крафта** (примерно): {$timeString}\n\n"
             . "❗При прерывании ресурсы пропадут!\n\n"
             . "_О готовности узнаешь в сообщении._ 🎁";
 
@@ -189,6 +195,36 @@ class FabricCraftActionStart extends BaseAction
             'caption'    => $text,
             'parse_mode' => 'Markdown',
         ]);
+    }
+
+    /**
+     * Вспомогательный метод: разбивает totalMinutes на дни, часы, минуты.
+     * Возвращает строку вида "1 д. 2 ч. 30 мин." или "45 мин.", "0 мин." и т.п.
+     */
+    private function formatDuration(int $totalMinutes): string
+    {
+        $days  = intdiv($totalMinutes, 1440); // 1 день = 1440 мин
+        $rem   = $totalMinutes % 1440;
+        $hours = intdiv($rem, 60);
+        $mins  = $rem % 60;
+
+        $parts = [];
+        if ($days > 0) {
+            $parts[] = "{$days} д.";
+        }
+        if ($hours > 0) {
+            $parts[] = "{$hours} ч.";
+        }
+        if ($mins > 0) {
+            $parts[] = "{$mins} мин.";
+        }
+
+        // Если все 0, значит 0 мин.
+        if (empty($parts)) {
+            $parts[] = '0 мин.';
+        }
+
+        return implode(' ', $parts);
     }
 
     /**

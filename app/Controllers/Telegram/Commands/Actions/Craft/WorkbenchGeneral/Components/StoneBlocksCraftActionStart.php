@@ -35,11 +35,11 @@ class StoneBlocksCraftActionStart extends BaseAction
         $this->activeEventModel      = new ActiveEventModel();
         $this->characterResourceModel= new CharacterResourceModel();
 
-        // Парсим callback_data, чтобы понять, сколько шт. хотим крафтить
-        $data  = $callbackQuery->getData();              // например "craftStoneBlocks_25"
+        // Парсим callback_data, например "craftStoneBlocks_25" => $this->quantity=25
+        $data  = $callbackQuery->getData();
         $parts = explode('_', $data);
         if (isset($parts[1]) && is_numeric($parts[1])) {
-            $this->quantity = (int)$parts[1];
+            $this->quantity = (int) $parts[1];
         }
     }
 
@@ -51,7 +51,7 @@ class StoneBlocksCraftActionStart extends BaseAction
             return $this->sendError("Пользователь или персонаж не найден.");
         }
 
-        // 2) Ищем задачу "craftStoneBlocks" в таблице tasks
+        // 2) Ищем задачу "craftStoneBlocks"
         $craftTask = $this->taskModel->where('name', 'craftStoneBlocks')->first();
         if (!$craftTask) {
             return $this->sendError('Задача "Крафт каменных блоков" не найдена в базе данных.');
@@ -70,12 +70,11 @@ class StoneBlocksCraftActionStart extends BaseAction
         }
 
         // 4) Проверяем и списываем ресурсы
-        //    (учитывая, что на 1 шт. нужно [Камни=36, Вода=10], а всего $this->quantity шт.)
         if (!$this->checkAndDeductResources($character['id'], $this->quantity)) {
             return $this->sendError('Недостаточно ресурсов для крафта. Ничего не списано!');
         }
 
-        // 5) Запускаем процесс крафта (указываем quantity в task_settings)
+        // 5) Запуск крафта
         return $this->startCraftingProcess($character, $user['id'], $craftTask, $this->quantity);
     }
 
@@ -84,13 +83,12 @@ class StoneBlocksCraftActionStart extends BaseAction
      */
     private function checkAndDeductResources(int $charId, int $qty): bool
     {
-        // Потребление на 1 шт.
         $requirements = [
             'Камни' => 36,
             'Вода'  => 10,
         ];
 
-        // 1) Сначала убеждаемся, что всего хватает
+        // Сначала убеждаемся, что всего хватает
         foreach ($requirements as $resourceName => $needPerOne) {
             $needTotal = $needPerOne * $qty;
             $row = $this->characterResourceModel->getResourceForCraft($resourceName, $charId);
@@ -99,11 +97,11 @@ class StoneBlocksCraftActionStart extends BaseAction
             }
         }
 
-        // 2) Если хватает, списываем
+        // Если хватает, списываем
         foreach ($requirements as $resourceName => $needPerOne) {
             $needTotal = $needPerOne * $qty;
             if (!$this->characterResourceModel->deductResourceForCraft($resourceName, $charId, $needTotal)) {
-                return false; // вдруг ошибка при списании
+                return false;
             }
         }
         return true;
@@ -114,11 +112,10 @@ class StoneBlocksCraftActionStart extends BaseAction
      */
     private function startCraftingProcess(array $character, int $userId, array $craftTask, int $qty): ServerResponse
     {
-        $duration  = $this->calculateCraftingDuration($character, $craftTask, $qty);
+        $duration = $this->calculateCraftingDuration($character, $craftTask, $qty);
         $startTime = new \DateTime();
         $endTime   = (clone $startTime)->add(new \DateInterval('PT' . $duration . 'M'));
 
-        // Запишем количество в поле task_settings (JSON)
         $taskSettings = json_encode(['quantity' => $qty], JSON_UNESCAPED_UNICODE);
 
         $this->characterTaskModel->insert([
@@ -134,12 +131,10 @@ class StoneBlocksCraftActionStart extends BaseAction
         return $this->notifyCraftStarted($character, $startTime, $endTime, $qty);
     }
 
-    /**
-     * Примерная логика времени крафта (на 1 шт. × $qty).
-     */
     private function calculateCraftingDuration(array $character, array $craftTask, int $qty): int
     {
-        // Допустим, время на 1 шт. (используем min_duration..max_duration)
+        // ... логика расчёта
+        // Предположим, min_duration=4, max_duration=16
         $experience = (float)($character['experience'] ?? 0);
         $agility    = (float)($character['agility']    ?? 0);
         $intellect  = (float)($character['intellect']  ?? 0);
@@ -154,16 +149,14 @@ class StoneBlocksCraftActionStart extends BaseAction
         $maxAttr   = 1000 * ($expFactor + $agiFactor + $intFactor);
         $norm      = min(1.0, $attrScore / $maxAttr);
 
-        $minDur    = (int)($craftTask['min_duration'] ?? 4);  // 4 мин
-        $maxDur    = (int)($craftTask['max_duration'] ?? 16); // 16 мин
+        $minDur    = (int)($craftTask['min_duration'] ?? 4);
+        $maxDur    = (int)($craftTask['max_duration'] ?? 16);
 
         $oneItemDur = $minDur + ($maxDur - $minDur) * (1 - $norm);
         $oneItemDur = max($minDur, min($oneItemDur, $maxDur));
 
-        // Умножим на кол-во шт.
-        $totalDuration = (int)round($oneItemDur * $qty);
-
-        return max($qty, $totalDuration); // не меньше, чем qty (пример)
+        $totalDuration = (int) round($oneItemDur * $qty);
+        return max($qty, $totalDuration);
     }
 
     /**
@@ -179,9 +172,12 @@ class StoneBlocksCraftActionStart extends BaseAction
         $interval = $startTime->diff($endTime);
         $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
+        // Разбиваем на дни, часы, минуты
+        $timeStr = $this->formatDuration($minutes);
+
         $text = "*Процесс крафта запущен*\n\n"
             . "Ты создаёшь: *🧱 Каменные блоки x{$qty} шт.*\n\n"
-            . "Время крафта: *{$minutes} мин.* ⏱️\n\n"
+            . "Время крафта: *{$timeStr}* ⏱️\n\n"
             . "❗ Если прервать задачу — ресурсы теряются без возврата.\n\n"
             . "_О готовности узнаешь в сообщении!_";
 
@@ -194,6 +190,35 @@ class StoneBlocksCraftActionStart extends BaseAction
             'caption'    => $text,
             'parse_mode' => 'Markdown',
         ]);
+    }
+
+    /**
+     * (Новый) Метод для форматирования общего кол-ва минут в "X д. Y ч. Z мин."
+     */
+    private function formatDuration(int $totalMinutes): string
+    {
+        $days  = intdiv($totalMinutes, 1440); // 1 день = 1440 мин.
+        $rem   = $totalMinutes % 1440;
+        $hours = intdiv($rem, 60);
+        $mins  = $rem % 60;
+
+        $parts = [];
+        if ($days > 0) {
+            $parts[] = "{$days} д.";
+        }
+        if ($hours > 0) {
+            $parts[] = "{$hours} ч.";
+        }
+        if ($mins > 0) {
+            $parts[] = "{$mins} мин.";
+        }
+
+        // Если вышло всё 0, значит 0 мин.
+        if (empty($parts)) {
+            $parts[] = '0 мин.';
+        }
+
+        return implode(' ', $parts);
     }
 
     /**

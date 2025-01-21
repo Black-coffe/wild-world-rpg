@@ -35,14 +35,14 @@ class GlassBagsCraftActionStart extends BaseAction
     {
         parent::__construct($callbackQuery);
 
-        $this->taskModel             = new TaskModel();
-        $this->eventModel            = new EventModel();
-        $this->activeEventModel      = new ActiveEventModel();
-        $this->characterResourceModel= new CharacterResourceModel();
-        $this->craftedItemsModel     = new CraftedItemsModel();
-        $this->craftedItemsLogModel  = new CraftedItemsLogModel();
+        $this->taskModel              = new TaskModel();
+        $this->eventModel             = new EventModel();
+        $this->activeEventModel       = new ActiveEventModel();
+        $this->characterResourceModel = new CharacterResourceModel();
+        $this->craftedItemsModel      = new CraftedItemsModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel();
 
-        // Пример callback_data: "craftGlassBags_10" => ["craftGlassBags","10"] => quantity=10
+        // Пример: "craftGlassBags_10" => ["craftGlassBags","10"] => $quantity = 10
         $data  = $callbackQuery->getData();
         $parts = explode('_', $data);
         if (isset($parts[1]) && is_numeric($parts[1])) {
@@ -169,15 +169,19 @@ class GlassBagsCraftActionStart extends BaseAction
 
     /**
      * Уведомляем о старте крафта: X шт., прерывание = потеря ресурсов.
+     * Добавим форматирование времени (дни/часы/минуты).
      */
     private function notifyCraftStarted(array $character, \DateTime $startTime, \DateTime $endTime, int $qty): ServerResponse
     {
         $interval = $startTime->diff($endTime);
         $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
 
+        // Превращаем $minutes в "X д. Y ч. Z мин." строку
+        $timeString = $this->formatDuration($minutes);
+
         $text = "*Процесс крафта запущен*\n\n"
             . "Ты создаёшь: 🪟 *Стеклопакеты* x{$qty} шт.\n\n"
-            . "**Время крафта:** ~{$minutes} минут.\n\n"
+            . "**Время крафта:** ~{$timeString}\n\n"
             . "❗Прерывание задачи = потеря всех ресурсов!\n\n"
             . "_О готовности узнаешь в сообщении._";
 
@@ -190,6 +194,34 @@ class GlassBagsCraftActionStart extends BaseAction
             'caption'    => $text,
             'parse_mode' => 'Markdown',
         ]);
+    }
+
+    /**
+     * Вспомогательный метод: разбиваем общее кол-во минут на дни, часы, минуты.
+     */
+    private function formatDuration(int $totalMinutes): string
+    {
+        $days  = intdiv($totalMinutes, 1440); // 1440 мин. в сутках
+        $rem   = $totalMinutes % 1440;
+        $hours = intdiv($rem, 60);
+        $mins  = $rem % 60;
+
+        $parts = [];
+        if ($days > 0) {
+            $parts[] = "{$days} д.";
+        }
+        if ($hours > 0) {
+            $parts[] = "{$hours} ч.";
+        }
+        if ($mins > 0) {
+            $parts[] = "{$mins} мин.";
+        }
+
+        if (empty($parts)) {
+            $parts[] = '0 мин.'; // если вдруг 0
+        }
+
+        return implode(' ', $parts);
     }
 
     /**
