@@ -15,38 +15,46 @@ class WorldObjectGeneratorHandler extends Controller
     protected $biomeModel;
     protected $mapModel;
 
+    // Дополнительные параметры для усиленной рандомизации
+    // Вы можете вынести их в настройки .env или Config, если хочется
+    private int $skipFactor = 2;  // Шаг для пропуска ячеек (пример)
+    private int $maxDist    = 3;  // Расстояние (в координатах X/Y) для проверки "не слишком ли близко" (пример)
+    private int $randomSkipChance = 20; // Процент вероятности (1..100) пропустить ячейку просто так
+
     public function __construct()
     {
         // Инициализация моделей
-        $this->worldObjectModel = new WorldObjectModel();
+        $this->worldObjectModel         = new WorldObjectModel();
         $this->biomeWorldObjectMapModel = new BiomeWorldObjectMapModel();
-        $this->biomeModel = new BiomeModel();
-        $this->mapModel = new MapModel();
+        $this->biomeModel               = new BiomeModel();
+        $this->mapModel                 = new MapModel();
     }
 
+    /**
+     * Основной метод, который вызывается для генерации объектов.
+     */
     public function process()
     {
-        // Удаляем все записи, где поле 'status' равно 'cleared'
-        // Это означает, что объект был "очищен" (лут собран).
+        // 1) Удаляем все записи, где 'status'='cleared' (те, что игроки полностью лутанули)
         $this->biomeWorldObjectMapModel->where('status', 'cleared')->delete();
 
-        // Получить все объекты, у которых status='active' (в таблице world_objects)
+        // 2) Берём все типы объектов (world_objects) со status='active'
         $activeObjects = $this->worldObjectModel
             ->where('status', 'active')
             ->findAll();
 
-        // Перебрать каждый объект
+        // 3) Перебираем каждое описание объекта
         foreach ($activeObjects as $object) {
             $objectId = $object['id'];
             $maxCount = $object['max_count'];
 
-            // Сколько уже есть в biome_world_object_map
+            // Сколько уже стоит на карте (biome_world_object_map.status='active')
             $generatedCount = $this->biomeWorldObjectMapModel
                 ->where('world_object_id',  $objectId)
                 ->where('status', 'active')
                 ->countAllResults();
 
-            // Нужно ли создавать ещё?
+            // Нужно ли добросить?
             if ($generatedCount < $maxCount) {
                 $this->generateObjectByType($object);
             }
@@ -54,45 +62,47 @@ class WorldObjectGeneratorHandler extends Controller
     }
 
     /**
-     * Вспомогательный метод, выбирает конкретный "генератор" для каждого объекта
-     * по его name_en.
+     * Выбираем логику генерации по $object['name_en'].
      */
     protected function generateObjectByType($object)
     {
-        // 1) Определяем, сколько ещё нужно добавить
+        // Сколько ещё нужно добавить
         $currentCount   = $this->biomeWorldObjectMapModel
             ->where('world_object_id', $object['id'])
             ->where('status', 'active')
             ->countAllResults();
-
         $addNewRowCount = $object['max_count'] - $currentCount;
         if ($addNewRowCount <= 0) {
-            return; // Уже хватает
+            return;
         }
 
-        // 2) В зависимости от name_en — разные генераторы
+        // В зависимости от name_en применяем разные алгоритмы
         switch ($object['name_en']) {
             case 'Abandoned truck':
+                // Ниже - пример доработанного метода
                 $this->generateAbandonedTruck($object, $addNewRowCount);
                 break;
+
             case 'Toolkit':
                 $this->generateToolkit($object, $addNewRowCount);
                 break;
+
             case 'Closed warehouse':
                 $this->generateClosedWarehouse($object, $addNewRowCount);
                 break;
+
             default:
-                // Если у нас будут другие типы, можно расширять
+                // можно расширять
                 break;
         }
     }
 
     /**
-     * Пример генерации "Abandoned truck".
+     * Пример: генерация "Abandoned truck" с дополнительным рандомом и проверкой расстояния.
      */
     protected function generateAbandonedTruck($object, $addNewRowCount)
     {
-        // 1) Получаем разрешённые биомы
+        // 1) Разрешённые биомы (JSON массив)
         $allowedBiomes = json_decode($object['biome_id'], true);
 
         // 2) Собираем все ячейки карты, у которых biome_id в списке
@@ -102,28 +112,40 @@ class WorldObjectGeneratorHandler extends Controller
             $availableMapCells = array_merge($availableMapCells, $mapCells);
         }
 
-        // 3) Перемешиваем ячейки, чтобы не ставить всё в начале массива
+        // 3) Перемешиваем
         shuffle($availableMapCells);
 
-        // 4) Идём по ячейкам, пока не поставим нужное кол-во
+        // 4) Применим skipFactor: возьмём каждую N-ю ячейку, чтобы не ставить их слишком плотно
+        // (Это пример, вы можете использовать иначе)
+        $filteredCells = [];
+        for ($i = 0; $i < count($availableMapCells); $i += $this->skipFactor) {
+            $filteredCells[] = $availableMapCells[$i];
+        }
+
+        // 5) Идём по "отфильтрованным" ячейкам
         $created = 0;
-        foreach ($availableMapCells as $cell) {
-            // Если уже хватило
+        foreach ($filteredCells as $cell) {
             if ($created >= $addNewRowCount) {
                 break;
             }
-            // Проверяем, занята ли клетка
-            $exists = $this->biomeWorldObjectMapModel
-                ->where('map_id', $cell['id'])
-                ->where('status', 'active')
-                ->first();
 
-            if ($exists) {
-                // Уже есть объект в этой клетке, пропускаем
+            // Доп. проверка: случайно пропускаем с вероятностью $randomSkipChance
+            if (mt_rand(1, 100) <= $this->randomSkipChance) {
                 continue;
             }
 
-            // Если свободна — вставляем
+            // Проверяем, не занята ли клетка
+            if (!$this->isCellFree($cell['id'])) {
+                continue;
+            }
+
+            // Проверяем расстояние до уже активных объектов (чтобы не были слишком рядом)
+            if (!$this->distanceCheck($cell, $this->maxDist)) {
+                // distanceCheck вернёт false, если "слишком близко" — тогда пропускаем
+                continue;
+            }
+
+            // Если свободна и достаточно далеко
             $this->biomeWorldObjectMapModel->insert([
                 'biome_id'       => $cell['biome_id'],
                 'world_object_id'=> $object['id'],
@@ -136,72 +158,60 @@ class WorldObjectGeneratorHandler extends Controller
     }
 
     /**
-     * Пример генерации "Toolkit" (набор инструментов).
-     * Есть дополнительная логика "процента" по coordinate_y.
+     * Пример "Toolkit" (набор инструментов) - без дополнительных изменений,
+     * но вы можете добавить такую же логику distanceCheck / skipFactor и т.д.
      */
     protected function generateToolkit($object, $addNewRowCount)
     {
-        // 1) Получаем список биомов
+        // 1) Список биомов
         $allowedBiomes = json_decode($object['biome_id'], true);
 
-        // 2) Собираем ячейки карты
+        // 2) Собираем ячейки
         $availableMapCells = [];
         foreach ($allowedBiomes as $biomeId) {
             $cells = $this->mapModel->where('biome_id', $biomeId)->findAll();
             $availableMapCells = array_merge($availableMapCells, $cells);
         }
 
-        // --- "Процентное распределение" ---
-        // Для упрощения: будем в цикле $addNewRowCount раз генерировать:
-        //  - случайный процент
-        //  - отфильтровать ячейки, у которых coordinate_y <= некий порог
-        //  - выбрать свободную из этого списка (с проверкой).
+        // "Процентное распределение" из исходного кода
         $percentageDistribution = [
-            1 => 1,   // 1%
-            2 => 2,   // 2%
-            3 => 3,   // 3%
-            5 => 5,   // 5%
-            7 => 7,   // 7%
-            9 => 9,   // 9%
-            11 => 11, // 11%
-            15 => 15, // 15%
-            18 => 18, // 18%
-            29 => 29  // 29%
+            1 => 1,   2 => 2,   3 => 3,
+            5 => 5,   7 => 7,   9 => 9,
+            11 => 11, 15 => 15, 18 => 18,
+            29 => 29
         ];
 
         $created = 0;
-        $attempts = 0; // чтобы избежать бесконечных циклов
+        $attempts = 0;
         while ($created < $addNewRowCount && $attempts < 5000) {
             $attempts++;
 
-            // Определяем предел coordinate_y
             $randPercent = mt_rand(1, 100);
             $coordYMax   = $this->getCoordinateYByPercentage($randPercent, $percentageDistribution);
 
-            // Собираем подходящие (и свободные) ячейки
+            // Фильтруем те, у кого coordinate_y <= $coordYMax
             $possibleCells = array_filter($availableMapCells, function($cell) use ($coordYMax) {
                 return ($cell['coordinate_y'] <= $coordYMax);
             });
             if (empty($possibleCells)) {
-                // Нет ни одной подходящей
                 continue;
             }
 
-            // Выбираем случайную ячейку
+            // Выбираем случайную
             $randomIndex   = array_rand($possibleCells);
             $randomMapCell = $possibleCells[$randomIndex];
 
-            // Проверяем, не занята ли она
+            // Проверяем, не занята ли
             $exists = $this->biomeWorldObjectMapModel
                 ->where('map_id', $randomMapCell['id'])
                 ->where('status', 'active')
                 ->first();
             if ($exists) {
-                // Уже занята
                 continue;
             }
 
-            // Свободна, вставляем
+            // Можно вставить distanceCheck(...) и randomSkipChance, если хотите
+
             $this->biomeWorldObjectMapModel->insert([
                 'biome_id'       => $randomMapCell['biome_id'],
                 'world_object_id'=> $object['id'],
@@ -214,59 +224,38 @@ class WorldObjectGeneratorHandler extends Controller
     }
 
     /**
-     * Сопоставление процентного распределения
-     * (1 => 1%, 2 => 2%, 3 => 3%, ...)
-     */
-    protected function getCoordinateYByPercentage($percentage, $distribution)
-    {
-        $sum = 0;
-        foreach ($distribution as $coordY => $percent) {
-            $sum += $percent;
-            if ($percentage <= $sum) {
-                return $coordY;
-            }
-        }
-        // По умолчанию
-        return 1000;
-    }
-
-    /**
-     * Пример генерации "Closed warehouse".
-     * Просто берём ячейки биома, перемешиваем, вставляем если свободно.
+     * Пример "Closed warehouse"
+     * - тоже можно доработать skipFactor, distanceCheck и т.п.
      */
     protected function generateClosedWarehouse($object, $addNewRowCount)
     {
-        // 1) Список биомов
         $allowedBiomes = json_decode($object['biome_id'], true);
 
-        // 2) Собираем ячейки
         $availableMapCells = [];
         foreach ($allowedBiomes as $biomeId) {
             $mapCells = $this->mapModel->where('biome_id', $biomeId)->findAll();
             $availableMapCells = array_merge($availableMapCells, $mapCells);
         }
 
-        // 3) Перемешиваем
         shuffle($availableMapCells);
 
-        // 4) Идём по списку
         $created = 0;
         foreach ($availableMapCells as $cell) {
             if ($created >= $addNewRowCount) {
                 break;
             }
-            // Проверяем занятость
+
             $exists = $this->biomeWorldObjectMapModel
                 ->where('map_id', $cell['id'])
                 ->where('status', 'active')
                 ->first();
 
             if ($exists) {
-                // Занята, пропускаем
                 continue;
             }
 
-            // Свободна, вставляем
+            // Можно здесь добавить distanceCheck, skipChance, etc.
+
             $this->biomeWorldObjectMapModel->insert([
                 'biome_id'       => $cell['biome_id'],
                 'world_object_id'=> $object['id'],
@@ -277,4 +266,68 @@ class WorldObjectGeneratorHandler extends Controller
             $created++;
         }
     }
+
+    /**
+     * Вспомогательный метод: для "Toolkit" логики процента (coordinate_y).
+     */
+    protected function getCoordinateYByPercentage($percentage, $distribution)
+    {
+        $sum = 0;
+        foreach ($distribution as $coordY => $percent) {
+            $sum += $percent;
+            if ($percentage <= $sum) {
+                return $coordY;
+            }
+        }
+        return 1000; // по умолчанию если не попали в список
+    }
+
+    /**
+     * Проверяет, свободна ли клетка (нет активного объекта в biome_world_object_map).
+     */
+    protected function isCellFree(int $mapId): bool
+    {
+        $exists = $this->biomeWorldObjectMapModel
+            ->where('map_id', $mapId)
+            ->where('status', 'active')
+            ->first();
+        return $exists ? false : true;
+    }
+
+    /**
+     * Проверяем, нет ли поблизости другого активного объекта (radius = $maxDist).
+     * Возвращает true, если расстояние допустимо, и false, если слишком близко.
+     */
+    protected function distanceCheck(array $cell, int $maxDist): bool
+    {
+        // Берём все active-объекты
+        $allActive = $this->biomeWorldObjectMapModel
+            ->where('status', 'active')
+            ->findAll();
+
+        // Координаты текущей проверяемой ячейки
+        $cx = $cell['coordinate_x'];
+        $cy = $cell['coordinate_y'];
+
+        foreach ($allActive as $row) {
+            // Находим координаты уже существующего объекта
+            $mapRow = $this->mapModel->find($row['map_id']);
+            if (!$mapRow) continue;
+
+            $ox = $mapRow['coordinate_x'];
+            $oy = $mapRow['coordinate_y'];
+
+            // Манхэттеновское расстояние (или Евклидово — на ваш выбор)
+            // Для примера берём "квадрат" (|dx| <= maxDist, |dy| <= maxDist)
+            $dx = abs($ox - $cx);
+            $dy = abs($oy - $cy);
+            if ($dx <= $maxDist && $dy <= $maxDist) {
+                // Слишком близко
+                return false;
+            }
+        }
+        // Если не нашли слишком близкого — всё ок
+        return true;
+    }
+
 }
