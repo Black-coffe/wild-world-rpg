@@ -14,12 +14,15 @@ use App\Models\TaskModel;
 use App\Models\ExploredCellsModel;
 use App\Models\BiomeModel;
 
-// Сервис для граф. карты (старый), пока закомментирован
-use App\Services\World\MiniMapService;
+// Подключаем PlayerStateService
+use App\Services\Player\PlayerStateService;
 
 // Сервис для текстовой карты
 use App\Services\World\TextMapService;
 
+/**
+ * Класс, отвечающий за вывод кнопок перемещения и отрисовку мини‐карты.
+ */
 class MoveCharacterAction
 {
     protected $callbackQuery;
@@ -67,57 +70,65 @@ class MoveCharacterAction
             ]);
         }
 
-        // (Проверки здоровья, параллельные задачи и т.д. — опущены.)
+        // ============================
+        // 4) Проверка занятости игрока
+        // ============================
+        // Если игрок выполняет задачу "Gather" (сбор) или "ExploreTheArea" (изучение),
+        // запрещаем перемещение.
 
-        // 4) Кнопки для перемещения
+        $playerStateService = new PlayerStateService();
+        if ($playerStateService->isGathering($character['id'])) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => "Вы заняты сбором ресурсов. Сначала дождитесь окончания сбора."
+            ]);
+        }
+
+        if ($playerStateService->isExploring($character['id'])) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => "Вы заняты исследованием территории. Сначала дождитесь окончания исследования."
+            ]);
+        }
+
+        // Если все проверки пройдены, продолжаем:
+        // Формируем inline‐клавиатуру с направлениями + кнопка «База».
         $directionsKeyboard = [
             [
-                ['text' => '↖️ Сев-Запад', 'callback_data' => 'move_dir_northwest'],
-                ['text' => '⬆️ Север',     'callback_data' => 'move_dir_north'],
-                ['text' => '↗️ Сев-Восток','callback_data' => 'move_dir_northeast'],
+                ['text' => '↖️ Сев-Запад',  'callback_data' => 'move_dir_northwest'],
+                ['text' => '⬆️ Север',      'callback_data' => 'move_dir_north'],
+                ['text' => '↗️ Сев-Восток', 'callback_data' => 'move_dir_northeast'],
             ],
             [
-                ['text' => '⬅️ Запад',     'callback_data' => 'move_dir_west'],
-                ['text' => '➡️ Восток',    'callback_data' => 'move_dir_east'],
+                ['text' => '⬅️ Запад',      'callback_data' => 'move_dir_west'],
+                // Новая кнопка «База»:
+                ['text' => '🏕 База',       'callback_data' => 'Base'],
+                ['text' => '➡️ Восток',     'callback_data' => 'move_dir_east'],
             ],
             [
-                ['text' => '↙️ Юго-Запад', 'callback_data' => 'move_dir_southwest'],
-                ['text' => '⬇️ Юг',       'callback_data' => 'move_dir_south'],
-                ['text' => '↘️ Юго-Восток','callback_data' => 'move_dir_southeast'],
+                ['text' => '↙️ Юго-Запад',  'callback_data' => 'move_dir_southwest'],
+                ['text' => '⬇️ Юг',        'callback_data' => 'move_dir_south'],
+                ['text' => '↘️ Юго-Восток', 'callback_data' => 'move_dir_southeast'],
             ],
         ];
         $keyboard = [ 'inline_keyboard' => $directionsKeyboard ];
 
-        // 5) Небольшой текст
+        // Небольшой текст-приглашение
         $text = "🚜 *Куда переедем?*\n"
             . "Выберите направление (учтите здоровье и выносливость).";
 
+        // Ответ на callback (чтобы убрать "часики" в интерфейсе Telegram)
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId()
         ]);
 
-        // ======================================================
-        // =============== СТАРЫЙ ГРАФИЧЕСКИЙ СЕРВИС =============
-        // ======================================================
-        /*
-        $miniMapService = new MiniMapService();
-        $tempFile = $miniMapService->generateLocalMiniMap($character);
-        if ($tempFile && file_exists($tempFile)) {
-            ...
-        } else {
-            ...
-        }
-        */
-
-        // ======================================================
-        // ============== НОВЫЙ ТЕКСТОВЫЙ СЕРВИС ================
-        // ======================================================
-        // Допустим, TextMapService::build12x12Map($character)
-        // возвращает многострочный текст карты
+        // =================================
+        // 5) Отрисовка текстовой мини‐карты
+        // =================================
         $textMapService = new TextMapService();
         $mapText = $textMapService->build12x12Map($character);
 
-        // Формируем итоговое сообщение (текст + псевдо‐карта)
+        // Формируем итоговое сообщение (текст + псевдо-карта)
         $finalText = $text . "\n\n" . $mapText;
 
         return Request::sendMessage([

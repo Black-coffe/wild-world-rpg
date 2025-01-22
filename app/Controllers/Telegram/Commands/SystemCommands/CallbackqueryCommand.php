@@ -231,8 +231,9 @@ class CallbackqueryCommand extends SystemCommand
 
             'chooseFaction' =>              \App\Controllers\Telegram\Commands\Actions\Faction\ChooseFaction::class,
             'entrench' =>                   \App\Controllers\Telegram\Commands\Actions\Camp\EntrenchAction::class,
-            'Camp' =>                       \App\Controllers\Telegram\Commands\Actions\Camp\CampingAction::class,
-            'Base' =>                       \App\Controllers\Telegram\Commands\Actions\Camp\BaseInfoAction::class,
+            'Camp'                          => \App\Controllers\Telegram\Commands\Actions\Camp\CampShowCreationAction::class,
+            'CampCreateConfirm'             => \App\Controllers\Telegram\Commands\Actions\Camp\CampCreateConfirmAction::class,
+            'CancelCamp' =>                 \App\Controllers\Telegram\Commands\Actions\Camp\CampCancelAction::class,
             'construction' =>               \App\Controllers\Telegram\Commands\Actions\Camp\DetailedBaseInfoAction::class,
             'TeleportToCamp' =>             \App\Controllers\Telegram\Commands\Actions\Camp\TeleportAction::class,
             'TeleportUse' =>                \App\Controllers\Telegram\Commands\Actions\Camp\TeleportUseAction::class,
