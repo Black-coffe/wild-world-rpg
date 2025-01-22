@@ -90,9 +90,6 @@ class QuestExplore30CellsHandler
                 [
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                     ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
-                ],
-                [
                     ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
                 ]
             ]

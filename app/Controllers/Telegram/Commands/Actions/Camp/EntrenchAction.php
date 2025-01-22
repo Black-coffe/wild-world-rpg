@@ -39,11 +39,7 @@ class EntrenchAction extends BaseAction
                     [
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                         ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                        ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
-                    ],
-                    [
                         ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
-                        ['text' => '🏠 База', 'callback_data' => 'Base'],
                     ]
                 ]
             ];
@@ -62,11 +58,7 @@ class EntrenchAction extends BaseAction
                     [
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                         ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                        ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
-                    ],
-                    [
                         ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
-                        ['text' => '🏠 База', 'callback_data' => 'Base'],
                     ]
                 ]
             ];

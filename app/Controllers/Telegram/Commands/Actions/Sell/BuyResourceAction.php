@@ -81,10 +81,7 @@ class BuyResourceAction extends BaseAction
                 [
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                ],
-                [
                     ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                    ['text' => '🛠️ Крафт', 'callback_data' => 'crafting']
                 ],
             ]
         ];
