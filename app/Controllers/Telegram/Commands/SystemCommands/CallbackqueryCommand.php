@@ -73,6 +73,25 @@ class CallbackqueryCommand extends SystemCommand
             }
         }
 
+        // В методе execute() или getActionHandler():
+        if (strpos($callbackData, 'upgrade_building_') === 0) {
+            // Шаг 1: показать требования и спросить подтверждение
+            $handlerClass = \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\UpgradeBuildingAction::class;
+            if (class_exists($handlerClass)) {
+                $handler = new $handlerClass($this->getCallbackQuery());
+                return $handler->askForUpgrade(); // Вызовем отдельный метод
+            }
+        }
+
+        if (strpos($callbackData, 'confirm_upgrade_building_') === 0) {
+            // Шаг 2: действительно списываем и повышаем уровень
+            $handlerClass = \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\UpgradeBuildingAction::class;
+            if (class_exists($handlerClass)) {
+                $handler = new $handlerClass($this->getCallbackQuery());
+                return $handler->confirmUpgrade();
+            }
+        }
+
         // Иначе — прочие action
         // ... (старый код)
         $handlerClass = $this->getActionHandler($action);
