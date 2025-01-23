@@ -62,43 +62,49 @@ class FactionNotificationHandler
         }
     }
 
-    protected function sendFactionNotification($character, $factionEntry = null)
+    public function sendFactionNotification($character, $factionEntry = null)
     {
-        $telegramId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
+        $telegramId = $this->telegramUserModel
+            ->where('id', $character['telegram_user_id'])
+            ->first()['telegram_id'];
 
+        // Если запись о фракции уже есть (но notified_at нужно обновить)
         if ($factionEntry) {
-            // Обновляем запись, если она существует
             $this->characterFactionModel->update($factionEntry['id'], [
                 'notified_at' => date('Y-m-d H:i:s'),
                 'notification_count' => $factionEntry['notification_count'] + 1
             ]);
         } else {
-            // Создаем новую запись, если её не было
+            // ИНАЧЕ создаём запись. ИСПРАВЛЯЕМ: вместо faction_id=1 → faction_id=5
             $this->characterFactionModel->insert([
                 'character_id' => $character['id'],
-                'faction_id' => 1, // Пока фракция не выбрана
-                'joined_at' => null, // Пока не вступил в фракцию
+                'faction_id' => 5,  // <-- нейтральная фракция
+                'joined_at' => null, // не вступил пока
                 'notified_at' => date('Y-m-d H:i:s'),
                 'notification_status' => 'False',
                 'notification_count' => 1
             ]);
         }
 
-        $message = "*🎉 Поздравляем!*\n\nВаш персонаж достиг уровня 10. Теперь вы можете выбрать фракцию, за которую будете играть.\n\n*⚠️ Выберите мудро! Сменить фракцию будет невозможно аж до смерти вашего персонажа.*\n\n*Фракции с PVP режимом:*\n1. 🛡️ *Милитари* - Специальная фракция с упором на военное развитие.\n2. 🌲 *Партизаны* - Фракция с упором на скрытные операции, саботаж и партизанскую войну.\n\n*Фракции с PVE режимом:*\n3. 🛠️ *Инженеры* - Фракция с упором на постройку роботов и лабораторий.\n4. 🌾 *Фермеры* - Фракция с упором на производство продуктов питания.\n\n🔽 *Нажатие на кнопку ниже не выберет фракцию, а только предоставит подробное описание о каждой из них.*";
+        $message = "*\xF0\x9F\x8E\x89 Поздравляем!*\n\n"
+            . "Ваш персонаж достиг уровня 10. Теперь вы можете выбрать фракцию... (и т.д.)";
+
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🛡️ Милитари', 'callback_data' => 'chooseFaction_Military'],
+                    ['text' => '🛡️ Милитари',  'callback_data' => 'chooseFaction_Military'],
                     ['text' => '🌲 Партизаны', 'callback_data' => 'chooseFaction_Partisans'],
                 ],
                 [
-                    ['text' => '🛠️ Инженеры', 'callback_data' => 'chooseFaction_Engineers'],
-                    ['text' => '🌾 Фермеры', 'callback_data' => 'chooseFaction_Farmers'],
+                    ['text' => '🛠️ Инженеры',  'callback_data' => 'chooseFaction_Engineers'],
+                    ['text' => '🌾 Фермеры',   'callback_data' => 'chooseFaction_Farmers'],
                 ],
             ]
         ];
 
-        Request::answerCallbackQuery(['callback_query_id' => $telegramId]);
+        Request::answerCallbackQuery([
+            'callback_query_id' => $telegramId
+        ]);
         return Request::sendMessage([
             'chat_id' => $telegramId,
             'text'    => $message,

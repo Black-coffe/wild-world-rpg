@@ -138,89 +138,98 @@ class ChooseFaction extends BaseAction
     protected function fractionation($chatId, $character, $faction)
     {
         $factionIds = [
-            'Military' => 1,
-            'Partisans' => 2,
-            'Engineers' => 3,
-            'Farmers' => 4,
+            'Military'   => 1,
+            'Partisans'  => 2,
+            'Engineers'  => 3,
+            'Farmers'    => 4,
         ];
 
         if (!isset($factionIds[$faction])) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text' => 'Неверная фракция.',
-                'parse_mode' => 'Markdown',
+                'text'    => 'Неверная фракция.',
             ]);
         }
-
-        $characterFactionModel = new CharacterFactionModel();
-        $factionModel = new FactionModel();
 
         $factionId = $factionIds[$faction];
         $currentTime = date('Y-m-d H:i:s');
 
-        // Проверяем, не выбрана ли уже фракция
-        $existingFaction = $characterFactionModel->where('character_id', $character['id'])->first();
+        $characterFactionModel = new CharacterFactionModel();
+        $factionModel          = new FactionModel();
 
-        if ($existingFaction && !empty($existingFaction['joined_at']) && $existingFaction['notification_status'] === 'True') {
-            $message = "Ахах, думал самый умный, не выйдет!\n\n" .
-                "Фракция уже выбрана и будешь ты в ней до самой своей смерти. Удачи, братишка, и до встречи!";
+        // Узнаём, есть ли уже запись (обычно должна быть с faction_id=5, если ещё не выбрал)
+        $existingFaction = $characterFactionModel
+            ->where('character_id', $character['id'])
+            ->first();
+
+        // Если персонаж УЖЕ выбрал фракцию (joined_at не null, notification_status='True'), запрещаем
+        if ($existingFaction
+            && !empty($existingFaction['joined_at'])
+            && $existingFaction['notification_status'] === 'True'
+            && (int)$existingFaction['faction_id'] !== 5
+        ) {
+            $message = "Ахах, думал самый умный, не выйдет!\n\n"
+                . "Фракция уже выбрана... (и т.д.)";
 
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text' => $message,
+                'text'    => $message,
                 'parse_mode' => 'Markdown',
             ]);
         }
 
+        // Если это первая запись (или есть запись, но там faction_id=5), обновляем.
+        // Помечаем, что фракция выбрана окончательно
         $data = [
-            'faction_id' => $factionId,
-            'joined_at' => $currentTime,
+            'faction_id'          => $factionId,
+            'joined_at'           => $currentTime,
             'notification_status' => 'True',
+            'notified_at'         => $currentTime, // можно обновить, чтоб не слало напоминания
         ];
 
-        // Обновляем или вставляем запись в таблице character_factions
-        if ($characterFactionModel->where('character_id', $character['id'])->countAllResults() > 0) {
-            $characterFactionModel->where('character_id', $character['id'])->set($data)->update();
+        if ($existingFaction) {
+            // update
+            $characterFactionModel
+                ->where('id', $existingFaction['id'])
+                ->set($data)
+                ->update();
         } else {
+            // insert (если на момент вызова записи вообще не было)
             $data['character_id'] = $character['id'];
             $characterFactionModel->insert($data);
         }
 
-        // Получаем данные фракции для уведомления
+        // Получаем данные о новой фракции
         $factionDetails = $this->getFactionDetails($faction);
+        $message = "*🎉 Поздравляем!*\n\n"
+            . "Вы выбрали фракцию: {$factionDetails['title']}\n\n"
+            . "*Описание:*\n{$factionDetails['description']}\n\n"
+            . "*➕ Преимущества:*\n{$factionDetails['advantages']}\n\n"
+            . "*➖ Недостатки:*\n{$factionDetails['disadvantages']}";
 
-        // Формируем сообщение о присоединении к фракции
-        $message = "*🎉 Поздравляем!*\n\nВы выбрали фракцию: {$factionDetails['title']}\n\n" .
-            "Вы больше не сможете изменить фракцию до тех пор, пока персонаж не погибнет или не произойдет вайп.\n\n" .
-            "*Описание фракции:*\n{$factionDetails['description']}\n\n" .
-            "*➕ Преимущества:*\n{$factionDetails['advantages']}\n\n" .
-            "*➖ Недостатки:*\n{$factionDetails['disadvantages']}";
-
-        // Клавиатура для дальнейших действий
+        // Кнопки после выбора
         $keyboard = [
             'inline_keyboard' => [
                 [
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🚜 Переехать', 'callback_data' => 'move'],
+                    ['text' => '🚜 Переехать',  'callback_data' => 'move'],
                 ],
                 [
-                    ['text' => '🏕️ Окопаться', 'callback_data' => 'entrench'],
-                    ['text' => '📜 Квесты и задания', 'callback_data' => 'questAndTask'],
-                ],
-                [
-                    ['text' => '🗺️ Изучить местность', 'callback_data' => 'explore'],
-                    ['text' => '⛏️ Добыть ресурсы', 'callback_data' => 'gather'],
+                    ['text' => '🏕️ Окопаться',     'callback_data' => 'entrench'],
+                    ['text' => '📜 Квесты/задания', 'callback_data' => 'questAndTask'],
                 ],
             ],
         ];
 
-        // Отправляем ответ пользователю
-        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+        Request::answerCallbackQuery([
+            'callback_query_id' => $this->callbackQuery->getId()
+        ]);
         return Request::sendMessage([
             'chat_id' => $chatId,
-            'text' => $message,
+            'text'    => $message,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
     }
+
 }
