@@ -8,10 +8,8 @@ use App\Models\CharacterModel;
 use App\Models\ClaimedCellModel;
 
 /**
- * Сервис для текстовой мини‐карты 12x12 клеток в псевдографике (эмодзи).
- * Игрок — 🙎‍♂️ по центру (row=6, col=6).
- * База — 🏕, если в пределах отображаемой зоны.
- * Не изученные ячейки — ⬛️, изученные — эмодзи соответствующего биома.
+ * Пример: мы разделяем генерацию карты/легенды/строки расстояния
+ * на 3 разные методы.
  */
 class TextMapService
 {
@@ -21,19 +19,18 @@ class TextMapService
     protected ClaimedCellModel $claimedCellModel;
 
     /**
-     * Сопоставление biome_id -> эмодзи
+     * biome_id -> эмодзи
      */
     protected array $biomeEmojis = [
-        1 => "🌲", // Лес
-        2 => "⛰️", // Горы
-        3 => "❄️", // Тундра / лед. пустоши
-        4 => "🌊", // Реки
-        5 => "🌴", // Троп. джунгли
-        6 => "🌾", // Поля
-        7 => "🕳️", // Пещеры / подземелья
-        8 => "🌋", // Вулкан
-        9 => "🏜️", // Пустыни
-        // fallback
+        1 => "🌲",
+        2 => "⛰️",
+        3 => "❄️",
+        4 => "🌊",
+        5 => "🌴",
+        6 => "🌾",
+        7 => "🕳️",
+        8 => "🌋",
+        9 => "🏜️",
         0 => "❓",
     ];
 
@@ -46,12 +43,12 @@ class TextMapService
     }
 
     /**
-     * Формирует строку 12x12 псевдографики.
+     * Возвращает ТОЛЬКО 12x12 символов карты.
      *
-     * @param array $characterRow — данные персонажа (должны содержать cell_number, id и т.д.).
-     * @return string Многострочный текст карты + легенда
+     * @param array $characterRow
+     * @return string
      */
-    public function build12x12Map(array $characterRow): string
+    public function buildMapOnly(array $characterRow): string
     {
         // 1) Проверяем cell_number
         $cellNumber = $characterRow['cell_number'] ?? 0;
@@ -59,17 +56,17 @@ class TextMapService
             return "Нет cell_number у персонажа";
         }
 
-        // Находим координаты персонажа
+        // Находим координаты
         $mapRow = $this->mapModel->where('cell_number', $cellNumber)->first();
         if (!$mapRow) {
-            return "Не найдена запись в map для cell_number={$cellNumber}";
+            return "Map не найдена для cell_number={$cellNumber}";
         }
 
         $pX = (int)$mapRow['coordinate_x'];
         $pY = (int)$mapRow['coordinate_y'];
 
-        // 2) Диапазон (12x12, игрок в центре)
-        $offset = 6;   // «радиус»
+        // Границы для 12x12
+        $offset = 6;
         $width  = 12;
         $height = 12;
 
@@ -78,12 +75,11 @@ class TextMapService
         $yMin = $pY - $offset;
         $yMax = $pY + ($offset - 1);
 
-        // 3) Собираем «изученные» ячейки
+        // Собираем ID изученных ячеек
         $exploredRows = $this->exploredCellsModel
             ->select('map_cell_id')
             ->where('character_id', $characterRow['id'])
-            ->whereIn('map_cell_id', function($builder) use ($xMin, $xMax, $yMin, $yMax) {
-                // Подзапрос для ограничений по X и Y
+            ->whereIn('map_cell_id', function($builder) use($xMin, $xMax, $yMin, $yMax) {
                 $builder->select('cell_number')
                     ->from('map')
                     ->where("coordinate_x >= {$xMin}")
@@ -92,13 +88,12 @@ class TextMapService
                     ->where("coordinate_y <= {$yMax}");
             })
             ->findAll();
-
         $exploredSet = [];
         foreach ($exploredRows as $er) {
             $exploredSet[$er['map_cell_id']] = true;
         }
 
-        // 4) Достаём информацию о ячейках в данном диапазоне
+        // Достаём инфу о ячейках
         $mapData = $this->mapModel
             ->select('cell_number, biome_id, coordinate_x, coordinate_y')
             ->where('coordinate_x >=', $xMin)
@@ -107,7 +102,6 @@ class TextMapService
             ->where('coordinate_y <=', $yMax)
             ->findAll();
 
-        // key = "x_y" -> [biome_id, cell_number]
         $cells = [];
         foreach ($mapData as $row) {
             $xx = (int)$row['coordinate_x'];
@@ -118,7 +112,7 @@ class TextMapService
             ];
         }
 
-        // 5) Определяем координаты базы, если она активна
+        // Смотрим, есть ли у персонажа своя база
         $baseX = null;
         $baseY = null;
         $claimedRow = $this->claimedCellModel
@@ -133,88 +127,149 @@ class TextMapService
             }
         }
 
-        // 6) Генерируем карту построчно
-        $mapText = "Мини‐карта (12x12). Игрок по центру: X={$pX}, Y={$pY}\n";
+        // Собираем чужие базы
+        $otherBases = [];
+        $claimedInArea = $this->claimedCellModel
+            ->select('claimed_cells.character_id, claimed_cells.map_cell_id, map.coordinate_x, map.coordinate_y')
+            ->join('map', 'map.id = claimed_cells.map_cell_id', 'left')
+            ->where('claimed_cells.status', 'active')
+            ->where('coordinate_x >=', $xMin)
+            ->where('coordinate_x <=', $xMax)
+            ->where('coordinate_y >=', $yMin)
+            ->where('coordinate_y <=', $yMax)
+            ->findAll();
 
+        foreach ($claimedInArea as $cRow) {
+            if ((int)$cRow['character_id'] !== (int)$characterRow['id']) {
+                $xx = (int)$cRow['coordinate_x'];
+                $yy = (int)$cRow['coordinate_y'];
+                $key = "{$xx}_{$yy}";
+                $otherBases[$key] = true;
+            }
+        }
+
+        // Генерация 12 строк
+        $mapText = "";
         for ($localY = 0; $localY < $height; $localY++) {
             $worldY = $yMin + $localY;
 
             for ($localX = 0; $localX < $width; $localX++) {
                 $worldX = $xMin + $localX;
 
-                // Сначала проверяем, не вышли ли за границы «мира» (допустим, 1..1000)
+                // Пределы карты
                 if ($worldX < 1 || $worldX > 1000 || $worldY < 1 || $worldY > 1000) {
-                    $mapText .= "⬜"; // за пределами карты
+                    $mapText .= "⬜";
                     continue;
                 }
 
-                // Если клетка соответствует координатам игрока:
+                // Если это игрок
                 if ($worldX === $pX && $worldY === $pY) {
                     $mapText .= "🙎‍♂️";
                     continue;
                 }
 
-                // Если у нас есть база в пределах отображения
+                // Если своя база
                 if ($baseX !== null && $baseY !== null) {
-                    // Если это координата базы (и не совпадает с игроком)
                     if ($worldX === $baseX && $worldY === $baseY) {
                         $mapText .= "🏕";
                         continue;
                     }
                 }
 
-                // Ищем ключ "x_y" в $cells
-                $key = "{$worldX}_{$worldY}";
-                if (!isset($cells[$key])) {
-                    // Нет такой ячейки => чёрный квадрат
+                $cellKey = "{$worldX}_{$worldY}";
+                // Чужая база?
+                $isForeignBase = isset($otherBases[$cellKey]);
+
+                // Нет данных — чёрный
+                if (!isset($cells[$cellKey])) {
                     $mapText .= "⬛️";
                     continue;
                 }
 
-                $biomeId  = $cells[$key]['biome_id'];
-                $cellNum  = $cells[$key]['cell_number'];
+                $biomeId = $cells[$cellKey]['biome_id'];
+                $cellNum = $cells[$cellKey]['cell_number'];
 
-                // Проверяем, изучено ли
+                // Не изучено?
                 if (!isset($exploredSet[$cellNum])) {
-                    // Не изучено
                     $mapText .= "⬛️";
                 } else {
-                    // Изучено → эмодзи биома
-                    $emoji = $this->biomeEmojis[$biomeId] ?? $this->biomeEmojis[0];
-                    $mapText .= $emoji;
+                    if ($isForeignBase) {
+                        $mapText .= "🚫";
+                    } else {
+                        $emoji = $this->biomeEmojis[$biomeId] ?? $this->biomeEmojis[0];
+                        $mapText .= $emoji;
+                    }
                 }
             }
-            $mapText .= "\n"; // конец строки
-        }
-
-        // 7) Добавляем легенду
-        $mapText .= "\nЛегенда:\n";
-        $mapText .= "🙎‍♂️ — игрок\n";
-        $mapText .= "🏕 — база игрока\n";
-        $mapText .= "⬛️ — не изучено (или нет данных)\n";
-        $mapText .= "⬜ — за пределами мира\n\n";
-
-        // Биомы:
-        $mapText .= "1) 🌲 — Лес\n";
-        $mapText .= "2) ⛰️ — Горы\n";
-        $mapText .= "3) ❄️ — Тундра / Лед. пустоши\n";
-        $mapText .= "4) 🌊 — Реки\n";
-        $mapText .= "5) 🌴 — Троп. джунгли\n";
-        $mapText .= "6) 🌾 — Поля\n";
-        $mapText .= "7) 🕳️ — Пещеры / подзем.\n";
-        $mapText .= "8) 🌋 — Вулкан\n";
-        $mapText .= "9) 🏜️ — Пустыни\n";
-
-        // 8) Добавим строку с информацией о расстоянии (если база существует)
-        if ($baseX !== null && $baseY !== null) {
-            // Расстояние по метрике Чебышёва (если разрешено движение по диагонали без препятствий)
-            $deltaX = abs($pX - $baseX);
-            $deltaY = abs($pY - $baseY);
-            $distance = max($deltaX, $deltaY);
-
-            $mapText .= "\nОт 🙎‍♂️ до 🏕 = {$distance} ходов\n";
+            $mapText .= "\n";
         }
 
         return $mapText;
+    }
+
+    /**
+     * Возвращает легенду (текстом), без карты
+     */
+    public function getLegend(): string
+    {
+        return
+            "Легенда:\n"
+            . "🙎‍♂️ — игрок\n"
+            . "🏕 — ваша база\n"
+            . "🚫 — чужая база\n"
+            . "⬛️ — не изучено\n"
+            . "⬜ — за пределами мира\n\n"
+            . "1) 🌲 — Лес\n"
+            . "2) ⛰️ — Горы\n"
+            . "3) ❄️ — Тундра\n"
+            . "4) 🌊 — Реки\n"
+            . "5) 🌴 — Джунгли\n"
+            . "6) 🌾 — Поля\n"
+            . "7) 🕳️ — Пещеры\n"
+            . "8) 🌋 — Вулкан\n"
+            . "9) 🏜️ — Пустыни\n";
+    }
+
+    /**
+     * Если у персонажа есть база, возвращает строку вида
+     * "От 🙎‍♂️ до 🏕 = N ходов."
+     */
+    public function getDistanceLine(array $characterRow): string
+    {
+        // 1) Проверяем наличие базы
+        $claimedRow = $this->claimedCellModel
+            ->where('character_id', $characterRow['id'])
+            ->where('status', 'active')
+            ->first();
+        if (!$claimedRow) {
+            return ""; // нет базы
+        }
+
+        // 2) Получаем координаты игрока
+        $cellNumber = $characterRow['cell_number'] ?? 0;
+        if (!$cellNumber) {
+            return "";
+        }
+        $mapRowPlayer = $this->mapModel->where('cell_number', $cellNumber)->first();
+        if (!$mapRowPlayer) {
+            return "";
+        }
+        $pX = (int)$mapRowPlayer['coordinate_x'];
+        $pY = (int)$mapRowPlayer['coordinate_y'];
+
+        // 3) Координаты базы
+        $mapRowBase = $this->mapModel->find($claimedRow['map_cell_id']);
+        if (!$mapRowBase) {
+            return "";
+        }
+        $bX = (int)$mapRowBase['coordinate_x'];
+        $bY = (int)$mapRowBase['coordinate_y'];
+
+        // 4) Метрика Чебышёва
+        $deltaX = abs($pX - $bX);
+        $deltaY = abs($pY - $bY);
+        $distance = max($deltaX, $deltaY);
+
+        return "От 🙎‍♂️ до 🏕 = {$distance} ходов.\n";
     }
 }
