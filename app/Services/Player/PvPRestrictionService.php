@@ -4,11 +4,8 @@ namespace App\Services\Player;
 
 use App\Models\CharacterModel;
 use App\Models\MapModel;
-use Carbon\Carbon;
+use CodeIgniter\I18n\Time;
 
-/**
- * Сервис для проверки ограничений перед началом PvP.
- */
 class PvPRestrictionService
 {
     /** @var CharacterModel */
@@ -40,11 +37,10 @@ class PvPRestrictionService
             ];
         }
 
-        // 2. Координата Y >= 900 => зона респауна => запрет PvP
-        //    Для этого нужно знать cell_number и смотреть MapModel,
-        //    чтобы выяснить coordinate_y. Допустим, в $attacker и $defender уже есть cell_number.
+        // 2. Проверка зоны респауна (Y >= 900)
         $mapRowA = $this->mapModel->where('cell_number', $attacker['cell_number'])->first();
         $mapRowD = $this->mapModel->where('cell_number', $defender['cell_number'])->first();
+
         if (!$mapRowA || !$mapRowD) {
             return [
                 'allowed' => false,
@@ -59,19 +55,15 @@ class PvPRestrictionService
             ];
         }
 
-        // 3. Менее 10 дней с момента регистрации => нельзя атаковать / быть атакованным
-        //    Предположим, что в таблице characters есть поле 'created_at'.
-        //    Если у вас поле регистрации лежит в telegram_users — подстройтесь аналогичным образом.
-        //    Используем библиотеку Carbon для удобного сравнения дат.
-        //    Убедитесь, что Carbon подключён в composer.json и use Carbon\Carbon.
+        // 3. Менее 10 дней с момента регистрации => нельзя участвовать в PvP
+        //    (Предполагается наличие поля 'created_at' у персонажа.)
+        //    Если у вас хранится дата иначе — подкорректируйте логику.
+        $attackerCreatedAt = new Time($attacker['created_at'] ?? '1970-01-01');
+        $defenderCreatedAt = new Time($defender['created_at'] ?? '1970-01-01');
 
-        // Преобразуем created_at в объект Carbon
-        // (Если у вас нет поля created_at или называется иначе — подкорректируйте код)
-        $attackerCreationDate = Carbon::parse($attacker['created_at'] ?? '1970-01-01');
-        $defenderCreationDate = Carbon::parse($defender['created_at'] ?? '1970-01-01');
-
-        $daysSinceAttackerReg = $attackerCreationDate->diffInDays(Carbon::now());
-        $daysSinceDefenderReg = $defenderCreationDate->diffInDays(Carbon::now());
+        $now = Time::now();
+        $daysSinceAttackerReg = $attackerCreatedAt->difference($now)->getDays();
+        $daysSinceDefenderReg = $defenderCreatedAt->difference($now)->getDays();
 
         if ($daysSinceAttackerReg < 10 || $daysSinceDefenderReg < 10) {
             return [
@@ -80,7 +72,7 @@ class PvPRestrictionService
             ];
         }
 
-        // Если все проверки пройдены — разрешаем.
+        // Если все проверки пройдены — разрешаем
         return [
             'allowed' => true,
             'reason'  => 'Ok'
