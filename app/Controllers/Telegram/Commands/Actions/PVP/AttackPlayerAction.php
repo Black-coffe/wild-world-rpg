@@ -113,19 +113,19 @@ class AttackPlayerAction extends BaseAction
             return $this->sendError("Нельзя атаковать самого себя!");
         }
 
-        // Проверка близости (одна или соседняя ячейка)
+        // Проверка близости
         if (!$this->isCellsCloseEnough($attacker, $defender)) {
             return $this->sendError("Игрок слишком далеко. Атаковать можно только в одной или соседней ячейке!");
         }
 
-        // Проверка ограничений PvP (уровень <5, зона респауна, <10 дней и т.д.)
+        // Проверка PvP-ограничений
         $pvpRestrictionService = new PvPRestrictionService();
         $check = $pvpRestrictionService->checkPvPAllowed($attacker, $defender);
         if (!$check['allowed']) {
             return $this->sendError("PvP недоступно: {$check['reason']}");
         }
 
-        // Проверяем биом
+        // Проверка биома
         $mapRowAttacker = $this->mapModel->where('cell_number', $attacker['cell_number'])->first();
         if (!$mapRowAttacker) {
             return $this->sendError("Не найдена локация атакующего!");
@@ -142,10 +142,9 @@ class AttackPlayerAction extends BaseAction
         // Запускаем бой
         $fightResult = $this->simulateFight($attacker, $defender, $biome);
 
-        // Формируем итоговый "общий" текст (Markdown -> HTML переделаем позже)
+        // Формируем сводку
         $summaryText = $this->formatShortFightResult($fightResult);
 
-        // Подготовим вводные для отправки отдельным игрокам
         $attackerIntro = '';
         $defenderIntro = '';
         $loser  = $fightResult['loser']  ?? null;
@@ -154,70 +153,76 @@ class AttackPlayerAction extends BaseAction
         $attackerName = $attacker['name'];
         $defenderName = $defender['name'];
 
-        // Ничья
+        // --- Ничья ---
         if ($fightResult['type'] === 'exhausted') {
             $this->processMutualExhaustion($attacker, $defender);
             $summaryText .= "\n\n<b>Оба бойца изнемогли</b> и решили прекратить схватку!\n"
                 . "❤️ Здоровье и выносливость сброшены до 10.\n"
-                . "🚶 <i>Они отступили, размышляя о будущем.</i>";
+                . "🚶 <i>Они отступили, обдумывая ошибки...</i>";
 
-            $attackerIntro = "Ты участвовал в бою (оба выдохлись).";
-            $defenderIntro = "Тебя атаковали, но в итоге все выдохлись...";
+            $attackerIntro = "Ты участвовал в битве, но оба упали без сил.";
+            $defenderIntro = "Тебя атаковали, но сражение закончилось взаимным изнеможением.";
         }
-        // Есть победитель/проигравший
+        // --- Есть победитель/проигравший ---
         elseif ($loser !== null && $winner !== null) {
 
             // Проверяем страховку
             $wasInsuranceUsed = $this->checkAndProcessInsurance($loser);
-
             if (!$wasInsuranceUsed) {
-                // Списываем ресурсы/крафт/золото
+                // 1) Списываем ресурсы/крафт/золото и даём часть победителю
                 $deathService = new \App\Services\Player\DeathService();
-                $deathResult  = $deathService->handlePlayerDeath($loser['id']);
+                $deathResult  = $deathService->handlePlayerDeathAndReward($loser['id'], $winner['id']);
 
-                // Штраф (XP/статы)
+                // 2) -5% XP, -0.5% статов (ваша «старая» логика)
                 $loserBefore = $loser;
                 $this->processDeathAndRespawn($loser);
+                $loser       = $this->characterModel->find($loser['id']);
 
-                $loser = $this->characterModel->find($loser['id']);
-                $loserDiffText = $this->makeLoserDiffText($loserBefore);
-
-                // Процент потери
+                // Процент, который «срезали»
                 $penaltyPercent = (int)($deathResult['penalty'] * 100);
-                $penaltyText = ($deathResult['hasBase'])
-                    ? "Но раз у тебя <b>есть</b> база, ты потерял только <b>{$penaltyPercent}%</b> ресурсов, крафта и золота."
-                    : "А так как у тебя <b>нет</b> базы, ты потерял <b>{$penaltyPercent}%</b> ресурсов, крафта и золота.";
+                $loserDiffText  = $this->makeLoserDiffText($loserBefore);
 
-                $summaryText .= "\n\n❌ <b>{$loser['name']}</b> пал в бою и возродился...\n"
-                    . $loserDiffText . "\n"
-                    . "{$penaltyText} Цени жизнь, она слишком ДОРОГАЯ для тебя!";
+                // Текст о том, база или нет
+                if ($deathResult['hasBase']) {
+                    // У него есть база => 3% ушли победителю
+                    // (3% утеряно у проигравшего, 3% получил победитель)
+                    $summaryText .= "\n\n❌ <b>{$loser['name']}</b> повержен и возродился...\n"
+                        . $loserDiffText
+                        . "\nТы потерял лишь <b>{$penaltyPercent}%</b> ресурсов/крафта/золота, ведь база частично спасла запасы."
+                        . "\nНо <b>враг забрал</b> эти <b>{$penaltyPercent}%</b>!";
+                } else {
+                    // Без базы => 50% списано, 25% победителю, 25% вникуда
+                    $summaryText .= "\n\n❌ <b>{$loser['name']}</b> проиграл бой и был возрождён...\n"
+                        . $loserDiffText
+                        . "\nТы оказался <b>без базы</b>, так что потерял <b>50%</b> ресурсов/крафта/золота: "
+                        . "<i>половина исчезла бесследно, половина (25%) досталась врагу.</i>";
+                }
             } else {
-                $summaryText .= "\n\n❌ <b>{$loser['name']}</b> потерпел поражение, но страховка спасла!";
+                $summaryText .= "\n\n❌ <b>{$loser['name']}</b> потерпел поражение, но страховка спасла от потери имущества!";
             }
 
-            // Победитель
-            $winnerBefore = $winner;
+            // 3) Бонус для победителя
+            $winnerBefore     = $winner;
             $this->giveWinnerBonus($winner['id']);
-            $winner = $this->characterModel->find($winner['id']);
-            $winnerDiffText = $this->makeWinnerDiffText($winnerBefore);
+            $winner           = $this->characterModel->find($winner['id']);
+            $winnerDiffText   = $this->makeWinnerDiffText($winnerBefore);
+            $summaryText     .= "\n\n🏆 <b>{$winner['name']}</b> торжествует! {$winnerDiffText}";
 
-            $summaryText .= "\n\n🏆 <b>{$winner['name']}</b> почувствовал вкус победы! {$winnerDiffText}";
-
-            // Индивидуальные вводные
+            // Формируем короткие вводные
             $attackerIntro = ($attacker['id'] === $winner['id'])
-                ? "Ты атаковал и выиграл! Отличная работа."
-                : "Ты атаковал первым, но увы — проиграл бой...";
+                ? "Ты атаковал и разгромил врага!"
+                : "Ты начал бой, но оказался слабее в этот раз...";
 
             $defenderIntro = ($defender['id'] === $winner['id'])
-                ? "Ты оборонялся и сумел победить! Противник повержен."
-                : "Ты оборонялся, но удача отвернулась...";
+                ? "На тебя напали, но ты защитился и победил!"
+                : "Тебя атаковали, и ты пал в этом бою...";
         }
 
-        // Формируем сообщения для обоих:
+        // --- Подготовка финальных сообщений ---
         $attackerFinalText = "🤺 <b>{$attackerName}</b>, {$attackerIntro}\n\n{$summaryText}";
         $defenderFinalText = "🛡 <b>{$defenderName}</b>, {$defenderIntro}\n\n{$summaryText}";
 
-        // 1) Отправка атакующему
+        // Отправка атакующему
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId(),
         ]);
@@ -242,7 +247,7 @@ class AttackPlayerAction extends BaseAction
             'reply_markup' => json_encode($keyboard),
         ]);
 
-        // 2) Уведомление защищающемуся
+        // Уведомляем защищающегося
         $this->notifyDefender($defender, $attacker, $defenderFinalText);
 
         return Request::emptyResponse();

@@ -198,4 +198,23 @@ class CharacterResourceModel extends Model
         $this->db->transComplete();
         return true;
     }
+
+    /**
+     * Уменьшает quantity для строки с первичным ключом = $charResId на $amount.
+     * Если после уменьшения quantity <= 0, строка удаляется.
+     */
+    public function decreaseQtyById(int $charResId, int $amount): bool
+    {
+        $row = $this->find($charResId);
+        if (!$row) {
+            return false;
+        }
+
+        $newQty = (int)$row['quantity'] - $amount;
+        if ($newQty <= 0) {
+            return (bool) $this->delete($charResId);
+        }
+        return (bool) $this->update($charResId, ['quantity' => $newQty]);
+    }
+
 }
