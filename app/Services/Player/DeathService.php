@@ -307,12 +307,12 @@ class DeathService
         } else {
             // Создаём новую запись
             $this->craftedItemsLogModel->insert([
-                'character_id'    => $winnerId,
-                'crafted_item_id' => $craftedItemId,
-                'task_id'         => 0,     // или null, если поле не обязательно
-                'type'            => 'loot',
-                'direction_craft' => 'pvp_loot',
-                'crafting_location' => 'battlefield',
+                'character_id'     => $winnerId,
+                'crafted_item_id'  => $craftedItemId,
+                'task_id'          => null,  // <-- ставим NULL, а не 0
+                'type'             => 'loot',
+                'direction_craft'  => 'pvp_loot',
+                'crafting_location'=> 'battlefield',
                 'durability_count' => 0,
                 'quantity'         => $amount,
             ]);

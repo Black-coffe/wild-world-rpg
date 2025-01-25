@@ -34,7 +34,7 @@ class CraftedItemsLogModel extends Model
     // Правила валидации данных
     protected $validationRules = [
         'character_id'       => 'required|is_natural_no_zero',
-        'task_id'            => 'required|is_natural_no_zero',
+        'task_id'            => 'permit_empty',
         'crafted_item_id'    => 'required|is_natural_no_zero',
         'type'               => 'permit_empty|string|max_length[100]',
         'direction_craft'    => 'permit_empty|string|max_length[100]',
