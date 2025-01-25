@@ -165,7 +165,7 @@ class HurricaneHandler extends Controller
         $damage = round($damage, 2);
 
         // 3) Применяем урон (не опускаем здоровье ниже 1)
-        $newHealth = max(1, $character['health'] - $damage);
+        $newHealth = max(0.01, $character['health'] - $damage);
         $this->characterModel->update($characterId, ['health' => $newHealth]);
 
         // 4) Уведомляем

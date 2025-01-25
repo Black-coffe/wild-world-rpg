@@ -60,7 +60,6 @@ class DungeonOpeningHandler extends Controller
         // 1. Найти в таблице events запись для "RevealingHiddenCameras"
         $eventInfo = $this->eventModel->where('name_english', 'RevealingHiddenCameras')->first();
         if (!$eventInfo) {
-            log_message('info', 'Событие RevealingHiddenCameras не найдено в таблице events.');
             return;
         }
 
@@ -72,7 +71,6 @@ class DungeonOpeningHandler extends Controller
 
         if (!$active) {
             // Событие не активно, выходим
-            log_message('info', 'Событие RevealingHiddenCameras не активно. Логика не выполняется.');
             return;
         }
 
@@ -81,21 +79,18 @@ class DungeonOpeningHandler extends Controller
         $caveBiomeIds = array_column($caveBiomes, 'id');
 
         if (empty($caveBiomeIds)) {
-            log_message('info', 'Нет биомов типа cave, выходим.');
             return;
         }
 
         // 4. Ищем всех персонажей, кто сейчас в этих пещерах
         $charactersInCaves = $this->characterModel->whereIn('biome_id', $caveBiomeIds)->findAll();
         if (!$charactersInCaves) {
-            log_message('info', 'Нет персонажей в пещерах на данный момент.');
             return;
         }
 
         // 5. Ищем task_id для сбора ресурсов (Gather)
         $gatherTask = $this->taskModel->where('name', 'Gather')->first();
         if (!$gatherTask) {
-            log_message('info', 'Не найден Task "Gather" в таблице tasks.');
             return;
         }
         $gatherTaskId = $gatherTask['id'];
@@ -129,7 +124,6 @@ class DungeonOpeningHandler extends Controller
 
         // Если нечего давать — выходим
         if (empty($biomeResources)) {
-            log_message('error', "Нет ресурсов с keyword=RevealingHiddenCameras для biome_id={$character['biome_id']}.");
             return;
         }
 

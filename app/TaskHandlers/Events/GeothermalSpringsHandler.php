@@ -43,20 +43,17 @@ class GeothermalSpringsHandler extends Controller
         // Получаем информацию о событии
         $eventInfo = $this->eventModel->where('name_english', 'GeothermalFountains')->first();
         if (!$eventInfo) {
-            log_message('error', 'Geothermal Springs event not found.');
             return;
         }
 
         // Проверяем, активно ли событие в active_events
         if (!$this->activeEventModel->isActive($eventInfo['event_id'])) {
-            log_message('error', 'Geothermal Springs event is not active.');
             return;
         }
 
         // Получаем, в каких биомах действует событие
         $biomeIds = json_decode($eventInfo['biome_ids'], true);
         if (!is_array($biomeIds)) {
-            log_message('error', 'Invalid biome_ids data for Geothermal Springs event.');
             return;
         }
 

@@ -156,10 +156,10 @@ class FlashForestFireHandler extends Controller
         $damage = $this->calculateDamage($character, $damageValue);
 
         // Уменьшаем health и tired, не ниже 1
-        $newHealth = max(1, $character['health'] - $damage);
+        $newHealth = max(0.01, $character['health'] - $damage);
         // Если хотим снизить и выносливость, например вдвое меньше:
         $tiredDamage = round($damage / 2);
-        $newTired  = max(1, $character['tired'] - $tiredDamage);
+        $newTired  = max(0.01, $character['tired'] - $tiredDamage);
 
         // Обновляем персонажа
         $this->characterModel->update($characterId, [

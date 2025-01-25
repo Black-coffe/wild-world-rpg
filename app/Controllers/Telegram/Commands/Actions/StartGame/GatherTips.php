@@ -139,11 +139,6 @@ class GatherTips extends Controller
             ->like('biome_id', (string)$biome['id'], 'both') // Используем метод like для поиска
             ->where('level_required <=', $character['level'])
             ->findAll();
-
-        if (empty($resources)) {
-            log_message('info', "No resources found for biome {$biome['id']} and character level {$character['level']}.");
-        }
-
         return $resources;
     }
 

@@ -55,7 +55,6 @@ class NightAttacksHandler extends Controller
         // 2) Проверяем, что время примерно ночь (20:00..05:00)
         $currentTime = date('H:i');
         if (!($currentTime >= '20:00' || $currentTime <= '05:00')) {
-            log_message('error', 'Ночные нападения не срабатывают, т.к. не ночь');
             return;
         }
 
@@ -64,7 +63,6 @@ class NightAttacksHandler extends Controller
             ->where('name_english', 'NightAttacks')
             ->first();
         if (!$eventInfo) {
-            log_message('error', 'Event NightAttacks not found');
             return;
         }
 
@@ -74,7 +72,6 @@ class NightAttacksHandler extends Controller
             ->where('status', 'active')
             ->first();
         if (!$activeEvent) {
-            log_message('error', 'Active NightAttacks event not found');
             return;
         }
 
@@ -123,8 +120,8 @@ class NightAttacksHandler extends Controller
         $healthDamage = $character['health'] * ($finalEffectPercent / 100.0);
         $tiredDamage  = $character['tired']  * ($finalEffectPercent / 100.0);
 
-        $newHealth = max(1, $character['health'] - $healthDamage);
-        $newTired  = max(1, $character['tired']  - $tiredDamage);
+        $newHealth = max(0.01, $character['health'] - $healthDamage);
+        $newTired  = max(0.01, $character['tired']  - $tiredDamage);
 
         // Обновляем
         $this->characterModel->update($charId, [

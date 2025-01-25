@@ -196,8 +196,8 @@ class FeverHandler
                 $oldHealth = $freshCharacter['health'];
                 $oldTired  = $freshCharacter['tired'];
 
-                $newHealth = max(1, $oldHealth - $healthDebuff);
-                $newTired  = max(1, $oldTired  - $tiredDebuff);
+                $newHealth = max(0.01, $oldHealth - $healthDebuff);
+                $newTired  = max(0.01, $oldTired  - $tiredDebuff);
 
                 if ($newHealth < $oldHealth) {
                     $debuffEffects['health'] = $newHealth - $oldHealth;

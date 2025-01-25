@@ -157,8 +157,8 @@ class EpidemicHandler
         $tiredDecrement  = mt_rand(1, 3);
 
         // Новые значения, но не опускаем ниже 1
-        $newHealth = max(1, $freshCharacter['health'] - $healthDecrement);
-        $newTired  = max(1, $freshCharacter['tired']  - $tiredDecrement);
+        $newHealth = max(0.01, $freshCharacter['health'] - $healthDecrement);
+        $newTired  = max(0.01, $freshCharacter['tired']  - $tiredDecrement);
 
         // Сохраняем
         $this->characterModel->update($characterId, [

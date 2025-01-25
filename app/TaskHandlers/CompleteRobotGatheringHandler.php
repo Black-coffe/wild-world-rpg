@@ -319,7 +319,7 @@ class CompleteRobotGatheringHandler extends Controller
 
     private function sendNoWorkshopMessage(int $chatId): void
     {
-        $msg="⚙ *Робот-добытчик прибыл*\nНо мастерская отсутствует.";
+        $msg="⚙ *Робот-добытчик прибыл*\nНо 🤖Мастерская робототехники🤖 отсутствует.";
         Request::sendMessage([
             'chat_id'=>$chatId,
             'text'=>$msg,
