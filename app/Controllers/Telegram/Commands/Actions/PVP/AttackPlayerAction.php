@@ -227,12 +227,8 @@ class AttackPlayerAction extends BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👤 Персонаж',   'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь',  'callback_data' => 'inventory'],
-                ],
-                [
                     ['text' => '🗺️ Изучить местность','callback_data' => 'explore'],
-                    ['text' => '🏠 База',         'callback_data' => 'Base'],
                 ],
             ]
         ];

@@ -232,22 +232,11 @@ class DeathRouletteHandler extends Controller
         }
 
         // Можно расширить: если penalty=3 => "Тебя спасла база", penalty=50 => "Базы не было" и т.п.
-
-        // Кнопки под сообщением
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🏕 Вернуться в игру', 'callback_data' => 'backToGame'],
-                ],
-            ],
-        ];
-
         try {
             Request::sendMessage([
                 'chat_id'      => $chatId,
                 'text'         => $text,
                 'parse_mode'   => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
             log_message('error', 'Ошибка при отправке сообщения о смерти: ' . $e->getMessage());
