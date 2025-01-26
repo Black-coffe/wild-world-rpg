@@ -10,6 +10,7 @@ use App\Models\CharacterModel;
 /**
  * Сервис DeathService:
  * - Определяет, сколько % списать у проигравшего (3% или 50%).
+ * - Учитывает страховку (если включена и денег хватает).
  * - Списывает (ресурсы, крафт, золото).
  * - При наличии победителя отдаёт ему часть (3% или 25%).
  */
@@ -30,38 +31,69 @@ class DeathService
 
     /**
      * Главный метод:
-     * @param int      $loserId   — ID проигравшего
+     * @param int      $loserId   — ID проигравшего (умершего) персонажа
      * @param int|null $winnerId  — ID победителя (или null, если не нужно передавать ресурсы)
      * @return array Сводка данных (hasBase, penalty, что передали победителю и т.д.)
      */
     public function handlePlayerDeathAndReward(int $loserId, ?int $winnerId = null): array
     {
-        // 1) Проверяем, есть ли у проигравшего база?
-        $hasBase      = $this->checkIfPlayerHasActiveBase($loserId);
-        $deathPenalty = $hasBase ? 0.03 : 0.50; // 3% или 50%
+        $loserRow = $this->characterModel->find($loserId);
+        if (!$loserRow) {
+            return ['success' => false];
+        }
 
-        // 2) Собираем «имущество» проигравшего
-        $loserResources    = $this->getLoserResources($loserId);      // обычные ресурсы
-        $loserGold         = $this->getLoserGold($loserId);           // золото
-        $loserCraftedItems = $this->getLoserCraftedItems($loserId);   // крафтовые предметы
+        // 1) Проверяем, включена ли страховка (insurance=1)
+        if ($loserRow['insurance'] == 1) {
+            // Считаем стоимость страховки
+            $cost = $this->calculateInsuranceCost($loserRow);
 
-        // 3) Подсчитываем, сколько снимаем
+            if ($loserRow['gold'] >= $cost) {
+                // 2) Денег хватает => списываем страховку, штраф = 0%
+                $this->characterModel->update($loserId, [
+                    'gold'      => $loserRow['gold'] - $cost,
+                    'insurance' => 0, // одноразовый полис, сгорает
+                ]);
+
+                $deathPenalty = 0.0;
+                $hasBase = false; // При штрафе 0% неважно, есть база или нет
+            } else {
+                // 3) Денег не хватает => страховка не сработала
+                // Сбрасываем insurance => 0, переходим к обычной логике (3% или 50%)
+                $this->characterModel->update($loserId, ['insurance' => 0]);
+                $hasBase = $this->checkIfPlayerHasActiveBase($loserId);
+                $deathPenalty = $hasBase ? 0.03 : 0.50;
+            }
+        } else {
+            // Обычная логика: нет страховки
+            $hasBase = $this->checkIfPlayerHasActiveBase($loserId);
+            $deathPenalty = $hasBase ? 0.03 : 0.50;
+        }
+
+        // 4) Собираем имущество проигравшего
+        $loserResources    = $this->getLoserResources($loserId);
+        $loserGold         = $this->getLoserGold($loserId);
+        $loserCraftedItems = $this->getLoserCraftedItems($loserId);
+
+        // 5) Считаем, сколько снимаем
         $lostResources    = $this->computeResourceLoss($loserResources, $deathPenalty);
         $lostGold         = (int) floor($loserGold * $deathPenalty);
         $lostCraftedItems = $this->computeCraftLoss($loserCraftedItems, $deathPenalty);
 
-        // 4) «Физически» списываем у проигравшего
-        $this->applyLosses($loserId, $lostResources, $lostGold);        // Ресурсы + золото
-        $this->applyCraftLosses($loserId, $lostCraftedItems);           // Крафтовые предметы
+        // 6) «Физически» списываем у проигравшего (ресурсы, золото, крафтовые предметы)
+        $this->applyLosses($loserId, $lostResources, $lostGold);
+        $this->applyCraftLosses($loserId, $lostCraftedItems);
 
-        // 5) Если есть победитель — передаём ему часть
+        // 7) Передаём часть победителю (если есть winnerId)
         $transferredResources = [];
         $transferredCraft     = [];
         $transferredGold      = 0;
 
         if ($winnerId) {
+            // Если базы нет => penalty=50%. Победителю достаётся 25% (половина из 50%)
+            // Если база есть => penalty=3%. Победителю достаётся 3%
             if (!$hasBase) {
-                // Без базы => 50% списано. Победитель получает 25% (половину от 50%).
+                // penalty = 50%
+                // Победителю идёт 50% от lost (т.е. 25% от общего)
                 $transferredResources = $this->transferPartOfResources($winnerId, $lostResources, 0.5);
                 $transferredCraft     = $this->transferPartOfCraft($winnerId, $lostCraftedItems, 0.5);
 
@@ -71,7 +103,8 @@ class DeathService
                     $transferredGold = $transferGold;
                 }
             } else {
-                // Есть база => 3% списано, всё (3%) уходит победителю
+                // penalty = 3%
+                // Победителю отдаётся все 3% из потерянного
                 $transferredResources = $this->transferPartOfResources($winnerId, $lostResources, 1.0);
                 $transferredCraft     = $this->transferPartOfCraft($winnerId, $lostCraftedItems, 1.0);
 
@@ -82,7 +115,7 @@ class DeathService
             }
         }
 
-        // 6) Возвращаем сводку
+        // 8) Возвращаем сводку
         return [
             'hasBase'               => $hasBase,
             'penalty'               => $deathPenalty,
@@ -106,7 +139,7 @@ class DeathService
     }
 
     /**
-     * Возвращает массив записей из таблицы character_resources.
+     * Возвращает массив записей из таблицы character_resources (все ресурсы проигравшего).
      */
     protected function getLoserResources(int $charId): array
     {
@@ -125,7 +158,7 @@ class DeathService
     }
 
     /**
-     * Возвращает массив крафтовых предметов (таблица crafted_items_log)
+     * Возвращает массив крафтовых предметов (crafted_items_log) проигравшего.
      */
     protected function getLoserCraftedItems(int $charId): array
     {
@@ -135,7 +168,7 @@ class DeathService
     }
 
     /**
-     * Подсчитывает, сколько ресурсов (из character_resources) будет потеряно.
+     * Подсчитывает, сколько ресурсов (из character_resources) будет потеряно (lostAmount).
      */
     protected function computeResourceLoss(array $loserResources, float $deathPenalty): array
     {
@@ -148,8 +181,8 @@ class DeathService
             $lossAmount = (int) floor($oldQty * $deathPenalty);
             if ($lossAmount > 0) {
                 $lost[] = [
-                    'charResId'  => $res['id'],           // PK в таблице character_resources
-                    'resourceId' => $res['id_resources'], // ID самого ресурса
+                    'charResId'  => $res['id'],           // PK в character_resources
+                    'resourceId' => $res['id_resources'], // ID ресурса
                     'lossAmount' => $lossAmount,
                 ];
             }
@@ -185,7 +218,7 @@ class DeathService
      */
     protected function applyLosses(int $loserId, array $lostResources, int $lostGold): void
     {
-        // 1) Уменьшаем обычные ресурсы
+        // 1) Уменьшаем ресурсы
         foreach ($lostResources as $lr) {
             $this->characterResourceModel->decreaseQtyById(
                 $lr['charResId'],
@@ -204,7 +237,7 @@ class DeathService
     }
 
     /**
-     * Применяет списание крафтовых предметов (уменьшает quantity или удаляет, если дошло до 0).
+     * Применяет списание крафтовых предметов (уменьшает quantity или удаляет запись).
      */
     protected function applyCraftLosses(int $loserId, array $lostCraftedItems): void
     {
@@ -226,8 +259,8 @@ class DeathService
     }
 
     /**
-     * Отдаём победителю долю (factor) от потерянных ресурсов.
-     * Например, factor=0.5 => половина от lostAmount, factor=1.0 => всё.
+     * Передаём часть (factor) потерянных ресурсов (lostResources) победителю.
+     * factor=0.5 => половина от lostAmount, factor=1 => всё.
      */
     protected function transferPartOfResources(int $winnerId, array $lostResources, float $factor): array
     {
@@ -243,7 +276,7 @@ class DeathService
                 $lr['resourceId'],
                 $amtToWinner
             );
-            // Сохраняем для отчёта
+            // Для отчёта
             $transferred[] = [
                 'resourceId' => $lr['resourceId'],
                 'amount'     => $amtToWinner,
@@ -253,7 +286,7 @@ class DeathService
     }
 
     /**
-     * То же самое для крафтовых предметов.
+     * То же самое для крафтовых предметов (crafted_items_log).
      */
     protected function transferPartOfCraft(int $winnerId, array $lostCraftedItems, float $factor): array
     {
@@ -263,10 +296,9 @@ class DeathService
             if ($amtToWinner <= 0) {
                 continue;
             }
-            // Увеличиваем у победителя
+            // Добавляем крафт победителю
             $this->increaseCraftForWinner($winnerId, $lc['craftedItemId'], $amtToWinner);
 
-            // Сохраняем для отчёта
             $transferred[] = [
                 'craftedItemId' => $lc['craftedItemId'],
                 'amount'        => $amtToWinner,
@@ -289,8 +321,8 @@ class DeathService
     }
 
     /**
-     * Увеличивает крафтовый предмет победителю в таблице crafted_items_log.
-     * Если записи нет — создаёт.
+     * Увеличиваем крафтовый предмет победителю (crafted_items_log).
+     * Если записи нет — создаём новую.
      */
     protected function increaseCraftForWinner(int $winnerId, int $craftedItemId, int $amount): void
     {
@@ -305,11 +337,10 @@ class DeathService
                 'quantity' => $newQty,
             ]);
         } else {
-            // Создаём новую запись
             $this->craftedItemsLogModel->insert([
                 'character_id'     => $winnerId,
                 'crafted_item_id'  => $craftedItemId,
-                'task_id'          => null,  // <-- ставим NULL, а не 0
+                'task_id'          => null,  // нет задачи
                 'type'             => 'loot',
                 'direction_craft'  => 'pvp_loot',
                 'crafting_location'=> 'battlefield',
@@ -317,5 +348,42 @@ class DeathService
                 'quantity'         => $amount,
             ]);
         }
+    }
+
+    /**
+     * Считаем стоимость страховки (аналог CalculateInsuranceAction).
+     * При желании формулу можно упростить или скорректировать.
+     */
+    private function calculateInsuranceCost(array $char): int
+    {
+        // Сколько у персонажа ресурсов
+        $totalResources = $this->characterResourceModel
+            ->where('id_characters', $char['id'])
+            ->countAllResults();
+
+        // Сколько месяцев в игре
+        $createdAt = $char['created_at'] ?? '1970-01-01';
+        $dtCreated = new \DateTime($createdAt);
+        $monthsInGame = $dtCreated->diff(new \DateTime())->m + 1; // простой вариант
+
+        $level      = $char['level'];
+        $experience = $char['experience'];
+        $strength   = $char['strength'];
+        $agility    = $char['agility'];
+        $intellect  = $char['intellect'];
+        $tired      = $char['tired'];
+        $goldInChest= $char['gold'];
+
+        // Пример формулы
+        $resourceCost    = ($totalResources / 1000) * 10;
+        $timeCost        = ($monthsInGame / 12) * 5;
+        $levelCost       = ($level / 10) * 20;
+        $experienceCost  = ($experience / 10) * 5;
+        $attributesCost  = (($strength + $agility + $intellect + $tired) / 100) * 10;
+        $goldCost        = ($goldInChest / 10000) * 50;
+
+        $totalCost = $resourceCost + $timeCost + $levelCost + $experienceCost + $attributesCost + $goldCost;
+
+        return (int) round($totalCost);
     }
 }

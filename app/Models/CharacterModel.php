@@ -33,6 +33,7 @@ class CharacterModel extends Model
         'preferred_map_type',
         'has_renamed',        // Новое поле
         'last_name_change',   // Новое поле
+        'low_health_notified_at',
     ];
 
     protected $useTimestamps = true;

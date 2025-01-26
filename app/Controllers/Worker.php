@@ -82,8 +82,32 @@ class Worker extends Controller
         $this->questExplore300CellsHandler();
         $this->questFirstAidkitBasicHandler();
         $this->factionNotificationHandler();
+        $this->lowHealthWarningHandler();
+        $this->DeathRouletteHandler();
         (new \App\TaskHandlers\GreenhouseProductionHandler())->handle();
         (new \App\TaskHandlers\GymProductionHandler())->handle();
+    }
+
+    protected function DeathRouletteHandler()
+    {
+        $handlerClassName = 'App\\TaskHandlers\\DeathRouletteHandler';
+        if (class_exists($handlerClassName)) {
+            $handler = new $handlerClassName();
+            if (method_exists($handler, 'process')) {
+                $handler->process();
+            }
+        }
+    }
+
+    protected function lowHealthWarningHandler()
+    {
+        $handlerClassName = 'App\\TaskHandlers\\LowHealthWarningHandler';
+        if (class_exists($handlerClassName)) {
+            $handler = new $handlerClassName();
+            if (method_exists($handler, 'process')) {
+                $handler->process();
+            }
+        }
     }
 
     protected function factionNotificationHandler()
@@ -397,42 +421,42 @@ class Worker extends Controller
     protected $taskHandlerMap = [
         'ExploreTheArea' => 'ExplorationTaskHandler',
         'Gather' => 'GatherTaskHandler',
-        'craftStrengtheningElixir' => 'CraftCompletionStrengthElixirHandler',
-        'craftAntiseptic' => 'CraftCompletionAntisepticHandler',
-        'craftBandage' => 'CraftCompletionBandageHandler',
-        'craftPainReliefPower' => 'CraftCompletionPainReliefPowerHandler',
-        'craftSedative' => 'CraftCompletionSedativeHandler',
-        'craftStimulator' => 'CraftCompletionStimulatorHandler',
-        'craftRegenerator' => 'CraftCompletionRegeneratorHandler',
-        'craftBasicMedKit' => 'CraftCompletionBasicMedKitHandler',
-        'craftLumberjackAxe' => 'CraftCompletionLumberjackAxeHandler',
-        'craftStonePickaxe' => 'CraftCompletionStonePickaxeHandler',
-        'craftIronShovel' => 'CraftCompletionIronShovelHandler',
-        'craftFishingRod' => 'CraftCompletionFishingRodHandler',
-        'craftHoe' => 'CraftCompletionHoeHandler',
-        'craftFoldingKnife' => 'CraftCompletionFoldingKnifeHandler',
-        'craftIronPickaxe' => 'CraftCompletionIronPickaxeHandler',
-        'craftTireIron' => 'CraftCompletionTireIronHandler',
-        'craftMetalFragments' => 'CraftCompletionMetalFragmentsHandler',
-        'craftFabric' => 'CraftCompletionFabricHandler',
-        'craftStoneBlocks' => 'CraftCompletionStoneBlocksHandler',
-        'craftFertilizer' => 'CraftCompletionFertilizerHandler',
-        'craftWoodMaterials' => 'CraftCompletionWoodMaterialsHandler',
-        'craftSoil' => 'CraftCompletionSoilHandler',
-        'buildingManualPump' => 'BuiltCompletionHandPumpHandler',
-        'craftCharcoalBriquettes' => 'CraftCompletionCharcoalBriquettesHandler',
-        'buildBlastFurnace' => 'BuiltCompletionBlastFurnaceHandler',
-        'buildWorkshop' => 'BuiltCompletionWorkshopHandler',
-        'startBuildWarehouse' => 'BuiltCompletionWarehouseHandler',
-        'craftWorkbenchOne' => 'CraftCompletionWorkbenchOneHandler',
-        'craftGlassBags' => 'CraftCompletionGlassBagsHandler',
-        'startBuildSolarStation' => 'BuiltCompletionSolarStationHandler',
-        'startBuildGreenhouse' => 'BuiltCompletionGreenhouseHandler',
-        'startBuildGym' => 'BuiltCompletionGymHandler',
-        'startBuildLab' => 'BuiltCompletionLabHandler',
-        'startBuildRoboticsWorkshop' => 'BuiltCompletionRoboticsWorkshopHandler',
-        'craftRobotExplorer' => 'CraftCompletionRobotExplorerHandler',
-        'craftRobotGatherer' => 'CraftCompletionRobotGathererHandler',
+        'craftStrengtheningElixir' => 'Craft\CraftCompletionStrengthElixirHandler',
+        'craftAntiseptic' => 'Craft\CraftCompletionAntisepticHandler',
+        'craftBandage' => 'Craft\CraftCompletionBandageHandler',
+        'craftPainReliefPower' => 'Craft\CraftCompletionPainReliefPowerHandler',
+        'craftSedative' => 'Craft\CraftCompletionSedativeHandler',
+        'craftStimulator' => 'Craft\CraftCompletionStimulatorHandler',
+        'craftRegenerator' => 'Craft\CraftCompletionRegeneratorHandler',
+        'craftBasicMedKit' => 'Craft\CraftCompletionBasicMedKitHandler',
+        'craftLumberjackAxe' => 'Craft\CraftCompletionLumberjackAxeHandler',
+        'craftStonePickaxe' => 'Craft\CraftCompletionStonePickaxeHandler',
+        'craftIronShovel' => 'Craft\CraftCompletionIronShovelHandler',
+        'craftFishingRod' => 'Craft\CraftCompletionFishingRodHandler',
+        'craftHoe' => 'Craft\CraftCompletionHoeHandler',
+        'craftFoldingKnife' => 'Craft\CraftCompletionFoldingKnifeHandler',
+        'craftIronPickaxe' => 'Craft\CraftCompletionIronPickaxeHandler',
+        'craftTireIron' => 'Craft\CraftCompletionTireIronHandler',
+        'craftMetalFragments' => 'Craft\CraftCompletionMetalFragmentsHandler',
+        'craftFabric' => 'Craft\CraftCompletionFabricHandler',
+        'craftStoneBlocks' => 'Craft\CraftCompletionStoneBlocksHandler',
+        'craftFertilizer' => 'Craft\CraftCompletionFertilizerHandler',
+        'craftWoodMaterials' => 'Craft\CraftCompletionWoodMaterialsHandler',
+        'craftSoil' => 'Craft\CraftCompletionSoilHandler',
+        'buildingManualPump' => 'Built\BuiltCompletionHandPumpHandler',
+        'craftCharcoalBriquettes' => 'Craft\CraftCompletionCharcoalBriquettesHandler',
+        'buildBlastFurnace' => 'Built\BuiltCompletionBlastFurnaceHandler',
+        'buildWorkshop' => 'Built\BuiltCompletionWorkshopHandler',
+        'startBuildWarehouse' => 'Built\BuiltCompletionWarehouseHandler',
+        'craftWorkbenchOne' => 'Craft\CraftCompletionWorkbenchOneHandler',
+        'craftGlassBags' => 'Craft\CraftCompletionGlassBagsHandler',
+        'startBuildSolarStation' => 'Built\BuiltCompletionSolarStationHandler',
+        'startBuildGreenhouse' => 'Built\BuiltCompletionGreenhouseHandler',
+        'startBuildGym' => 'Built\BuiltCompletionGymHandler',
+        'startBuildLab' => 'Built\BuiltCompletionLabHandler',
+        'startBuildRoboticsWorkshop' => 'Built\BuiltCompletionRoboticsWorkshopHandler',
+        'craftRobotExplorer' => 'Craft\CraftCompletionRobotExplorerHandler',
+        'craftRobotGatherer' => 'Craft\CraftCompletionRobotGathererHandler',
         'ExploringLocationRobot' => 'CompleteRobotExplorationHandler',
         'GatheringResourcesRobot' => 'CompleteRobotGatheringHandler',
         // Другие соответствия названий задач и классов обработчиков
