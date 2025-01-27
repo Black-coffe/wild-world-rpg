@@ -311,7 +311,6 @@ class BaseService
             'inline_keyboard' => [
                 [
                     ['text' => '✅ Подтвердить', 'callback_data' => 'CampCreateConfirm'],
-                    ['text' => '❌ Отмена',      'callback_data' => 'CancelCamp'],
                 ],
             ]
         ];

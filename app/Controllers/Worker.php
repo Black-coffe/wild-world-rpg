@@ -459,6 +459,7 @@ class Worker extends Controller
         'craftRobotGatherer' => 'Craft\CraftCompletionRobotGathererHandler',
         'ExploringLocationRobot' => 'CompleteRobotExplorationHandler',
         'GatheringResourcesRobot' => 'CompleteRobotGatheringHandler',
+        'BaseRelocation' => 'Built\BaseRelocationCompletionHandler',
         // Другие соответствия названий задач и классов обработчиков
     ];
 
