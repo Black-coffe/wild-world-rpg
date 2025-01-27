@@ -146,6 +146,16 @@ class UpgradeBuildingAction extends BaseAction
                 'text'    => 'Пользователь или персонаж не найден.',
             ]);
         }
+
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         // Проверка: игрок на базе?
         if (!$this->playerStateService->isCharacterOnBase($character['id'])) {
             return Request::sendMessage([

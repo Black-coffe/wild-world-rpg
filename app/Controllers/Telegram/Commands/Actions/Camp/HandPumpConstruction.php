@@ -15,6 +15,7 @@ use App\Models\EventModel;
 use App\Models\TaskModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
+use App\Services\Tasks\ActiveTasksService;
 
 class HandPumpConstruction extends BaseAction
 {
@@ -51,6 +52,15 @@ class HandPumpConstruction extends BaseAction
         [$user, $character] = $this->getUserAndCharacter();
         if (!$user || !$character) {
             return $this->sendError('Пользователь не найден в базе данных или персонаж не определён.');
+        }
+
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
         }
 
         // 1. Проверка наличия лагеря

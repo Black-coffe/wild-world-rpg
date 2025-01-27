@@ -32,6 +32,15 @@ class BlastFurnaceHandler extends BaseAction
             ]);
         }
 
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         // Допустим, в таблице `buildings` у Доменной печи (BlastFurnace) — id=2
         $buildingId = 2;  // ID для BlastFurnace
 

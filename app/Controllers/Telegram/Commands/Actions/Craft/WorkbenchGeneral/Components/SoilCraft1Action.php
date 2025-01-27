@@ -44,6 +44,15 @@ class SoilCraft1Action extends BaseAction
             ]);
         }
 
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         $characterId = $character['id'];
 
         // 1) Узнаём, сколько "Грунта" (Soil) у игрока уже есть

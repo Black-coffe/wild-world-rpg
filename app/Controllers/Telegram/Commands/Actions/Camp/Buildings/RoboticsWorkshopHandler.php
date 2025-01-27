@@ -32,6 +32,15 @@ class RoboticsWorkshopHandler extends BaseAction
             ]);
         }
 
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         // Получаем информацию о постройке
         $buildingId = 9; // ID для Robotics Workshop (нужно заменить на правильный ID)
         $characterBuilding = $this->characterBuildingModel

@@ -32,6 +32,15 @@ class HandPumpHandler extends BaseAction
             ]);
         }
 
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         // Получаем информацию о постройке
         $buildingId = 1; // ID для HandPump
         $characterBuilding = $this->characterBuildingModel

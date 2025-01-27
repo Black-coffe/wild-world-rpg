@@ -52,6 +52,15 @@ abstract class BaseBuildingUpgradeAction extends BaseAction
         }
         $this->character = $character;
 
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         // Парсим callback_data вида: "upgrade_building_9"
         $parts = explode('_', $callbackData);
         $this->buildingId = $parts[2] ?? null;

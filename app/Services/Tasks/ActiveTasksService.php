@@ -1,11 +1,15 @@
 <?php
 
-namespace app\Services\Tasks;
+namespace App\Services\Tasks;
 
 use App\Models\CharacterTaskModel;
 use App\Models\TaskModel;
 use CodeIgniter\I18n\Time;
+use Longman\TelegramBot\Request;
 
+/**
+ * Сервис для работы с активными задачами персонажа.
+ */
 class ActiveTasksService
 {
     protected $characterTaskModel;
@@ -26,9 +30,6 @@ class ActiveTasksService
      */
     public function getActiveTasksWithDetails(int $characterId): array
     {
-        // Выбираем поля из character_tasks + поля из tasks
-        // например, name_rus, min_duration, max_duration и т. д.
-        // Ниже — упрощённый вариант:
         $builder = $this->characterTaskModel->builder();
         $builder->select('
             character_tasks.id AS charTaskId,
@@ -46,19 +47,16 @@ class ActiveTasksService
         $results = $builder->get()->getResultArray();
 
         // Дополнительно считаем "осталось времени" (end_time - now)
-        // и пишем в массив
         $now = Time::now();
 
         foreach ($results as &$row) {
             if (!empty($row['end_time'])) {
                 $diffSec = strtotime($row['end_time']) - $now->getTimestamp();
                 if ($diffSec < 0) {
-                    $diffSec = 0; // На всякий случай, если просрочено
+                    $diffSec = 0;
                 }
-                // Переведём в часы/минуты (упрощённо)
-                $hours = intdiv($diffSec, 3600);
+                $hours   = intdiv($diffSec, 3600);
                 $minutes = intdiv($diffSec % 3600, 60);
-
                 $row['time_left_str'] = "{$hours} чс. {$minutes} мин.";
             } else {
                 $row['time_left_str'] = "Неизвестно";
@@ -66,5 +64,47 @@ class ActiveTasksService
         }
 
         return $results;
+    }
+
+    /**
+     * Быстрый метод, который проверяет, нет ли у игрока задачи "BaseRelocation".
+     * Если есть, отправляет сообщение "Переезд активен" и возвращает true (блокируем).
+     * Если нет ― возвращает false (можно продолжать).
+     *
+     * @param int    $characterId
+     * @param string $callbackQueryId  ID колбэка для answerCallbackQuery (чтобы убрать "часики")
+     * @param int    $chatId           Куда отправить сообщение
+     * @return bool  true если переезд найден (и мы уже отправили блокирующее сообщение),
+     *              false если переезда нет ― логика может продолжиться
+     */
+    public function checkRelocationAndBlock(int $characterId, string $callbackQueryId, int $chatId): bool
+    {
+        // Получаем все задачи 'in_work'
+        $activeTasks = $this->getActiveTasksWithDetails($characterId);
+
+        // Ищем BaseRelocation
+        $hasRelocation = false;
+        foreach ($activeTasks as $task) {
+            if ($task['name'] === 'BaseRelocation') {
+                $hasRelocation = true;
+                break;
+            }
+        }
+
+        if ($hasRelocation) {
+            // Ответим callbackQuery
+            Request::answerCallbackQuery(['callback_query_id' => $callbackQueryId]);
+
+            // Отправим сообщение о блокировке
+            Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => "Сейчас идёт *Планируемый переезд базы*.\nПока эта задача активна, это действие недоступно!",
+                'parse_mode' => 'Markdown',
+            ]);
+
+            return true; // Действие заблокировано
+        }
+
+        return false; // Переезда нет, можно продолжать
     }
 }

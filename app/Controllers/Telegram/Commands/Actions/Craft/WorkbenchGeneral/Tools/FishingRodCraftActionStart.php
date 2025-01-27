@@ -53,6 +53,15 @@ class FishingRodCraftActionStart extends BaseAction
             return $this->sendError('Пользователь или персонаж не найден.');
         }
 
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         // Проверяем и списываем ресурсы (× $this->quantity)
         if (!$this->checkAndDeductResources($character['id'], $this->quantity)) {
             return $this->sendError("Недостаточно ресурсов для крафта {$this->quantity} шт. удочек.");

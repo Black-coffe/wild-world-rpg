@@ -43,6 +43,7 @@ class RobotExplorerActivator implements RobotActivatorInterface
             ]);
         }
 
+
         // 2) Суммируем кол-во роботов (totalQuantity) и кол-во «остаточных» запусков (totalDurability)
         //    (quantity-1)*baseDurability + currentDurability
         $totalQuantity   = 0;

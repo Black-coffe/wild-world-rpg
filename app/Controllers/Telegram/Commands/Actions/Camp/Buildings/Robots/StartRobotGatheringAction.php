@@ -43,6 +43,15 @@ class StartRobotGatheringAction extends BaseAction
             return $this->sendError('Пользователь не найден или персонаж не определён.');
         }
 
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         $characterId = $character['id'];
         // Из callback_data извлекаем ID робота (startRobotGatherer_123 => 123)
         $robotId = str_replace('startRobotGatherer_', '', $this->callbackQuery->getData());

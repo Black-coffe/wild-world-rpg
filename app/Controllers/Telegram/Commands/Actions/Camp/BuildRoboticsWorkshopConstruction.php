@@ -16,6 +16,7 @@ use App\Models\TaskModel;
 use App\Models\CharacterBuildingModel; // Импортируем модель
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
+use App\Services\Tasks\ActiveTasksService;
 
 class BuildRoboticsWorkshopConstruction extends BaseAction
 {
@@ -49,9 +50,29 @@ class BuildRoboticsWorkshopConstruction extends BaseAction
 
     public function handle(): ServerResponse
     {
+        // 1) answerCallbackQuery убираем "часики"
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+        // 2) Получаем user/character
         [$user, $character] = $this->getUserAndCharacter();
         if (!$user || !$character) {
-            return $this->sendError('Пользователь не найден в базе данных или персонаж не определён.');
+            return Request::sendMessage([
+                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'    => 'Ошибка: нет пользователя/персонажа.'
+            ]);
+        }
+
+        // 3) Проверяем переезд
+        $activeTasksService = new ActiveTasksService();
+        $blocked = $activeTasksService->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        );
+        if ($blocked) {
+            // true = переезд активен, сервис уже отправил сообщение.
+            // Дальнейшая логика не идёт.
+            return Request::emptyResponse();
         }
 
         // 1. Проверка наличия лагеря

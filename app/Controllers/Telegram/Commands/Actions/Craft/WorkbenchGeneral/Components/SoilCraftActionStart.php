@@ -47,6 +47,15 @@ class SoilCraftActionStart extends BaseAction
             return $this->sendError('Пользователь или персонаж не определён в БД.');
         }
 
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         // 1) Ищем задачу "craftSoil"
         $craftTask = $this->taskModel->where('name', 'craftSoil')->first();
         if (!$craftTask) {

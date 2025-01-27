@@ -55,6 +55,15 @@ class StartCraftWorkbenchOneAction extends BaseAction
 
         $characterId = $character['id'];
 
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         $requiredResources = [
             'Древесина' => 240,
             'Смола деревьев' => 40,

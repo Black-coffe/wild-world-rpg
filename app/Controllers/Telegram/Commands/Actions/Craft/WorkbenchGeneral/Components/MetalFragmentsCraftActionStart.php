@@ -55,6 +55,15 @@ class MetalFragmentsCraftActionStart extends BaseAction
             return $this->sendError('Пользователь не найден в базе или персонаж отсутствует.');
         }
 
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         // 1) Находим задачу "craftMetalFragments" (из таблицы tasks)
         $craftTask = $this->taskModel->where('name', 'craftMetalFragments')->first();
         if (!$craftTask) {

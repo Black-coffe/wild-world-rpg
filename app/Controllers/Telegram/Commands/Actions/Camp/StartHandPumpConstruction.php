@@ -53,6 +53,15 @@ class StartHandPumpConstruction extends BaseAction
             return $this->sendError('Пользователь не найден в базе данных или персонаж не определён.');
         }
 
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         // 1. Проверка наличия лагеря
         $claimedCells = $this->claimedCellModel->where('character_id', $character['id'])->findAll();
         if (empty($claimedCells)) {

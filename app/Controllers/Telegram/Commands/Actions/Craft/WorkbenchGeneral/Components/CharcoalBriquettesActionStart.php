@@ -56,6 +56,15 @@ class CharcoalBriquettesActionStart extends BaseAction
             return $this->sendError('Пользователь или персонаж не найден!');
         }
 
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         // 2) Ищем задачу "craftCharcoalBriquettes"
         $craftTask = $this->taskModel->where('name', 'craftCharcoalBriquettes')->first();
         if (!$craftTask) {

@@ -50,6 +50,15 @@ class SetCoordinatesRobotExplorerAction extends BaseAction
         }
         $characterId = $character['id'];
 
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         // 2) Ищем в справочнике задачу "ExploringLocationRobot"
         $taskRow = $this->taskModel->where('name', 'ExploringLocationRobot')->first();
         if (!$taskRow) {

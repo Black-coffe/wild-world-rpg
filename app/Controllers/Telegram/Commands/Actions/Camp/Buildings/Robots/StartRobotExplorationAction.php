@@ -38,6 +38,15 @@ class StartRobotExplorationAction extends BaseAction
             return $this->sendError('Пользователь не найден в базе данных или персонаж не определён.');
         }
 
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         $characterId = $character['id'];
         // Из callback_data извлекаем ID робота (startRobotExplorer_123 => 123)
         $robotId = str_replace('startRobotExplorer_', '', $this->callbackQuery->getData());

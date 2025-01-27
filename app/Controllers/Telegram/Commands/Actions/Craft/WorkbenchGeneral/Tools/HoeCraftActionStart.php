@@ -53,6 +53,15 @@ class HoeCraftActionStart extends BaseAction
             return $this->sendError("Пользователь не найден или персонаж не создан.");
         }
 
+        // Проверка активного переезда (BaseRelocation)
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
+            $character['id'],
+            $this->callbackQuery->getId(),
+            $this->callbackQuery->getMessage()->getChat()->getId()
+        )) {
+            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+        }
+
         // Списываем ресурсы с учётом количества
         if (!$this->checkAndDeductResources($character['id'], $this->quantity)) {
             return $this->sendError("Недостаточно ресурсов для крафта {$this->quantity} мотыги (мотыг).");
