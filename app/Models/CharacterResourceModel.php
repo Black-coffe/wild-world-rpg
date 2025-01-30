@@ -16,6 +16,7 @@ class CharacterResourceModel extends Model
         'id_characters',
         'id_resources',
         'quantity',
+        'custom_data',   // <-- Новое поле для произвольных данных
         'created_at',
         'updated_at'
     ];

@@ -6,7 +6,11 @@ use App\Models\CharacterBuildingModel;
 use App\Models\CharacterResourceModel;
 use App\Models\BuildingModel;
 use App\Models\ResourceModel;
+use App\Models\CharacterModel;
+use App\Models\TelegramUserModel;
 use CodeIgniter\Controller;
+use Longman\TelegramBot\Request;
+use Longman\TelegramBot\Telegram;
 
 class GreenhouseProductionHandler extends Controller
 {
@@ -14,60 +18,260 @@ class GreenhouseProductionHandler extends Controller
     protected $characterResourceModel;
     protected $buildingModel;
     protected $resourceModel;
+    protected $characterModel;
+    protected $telegramUserModel;
+    protected $telegram;
+
+    /**
+     * Хранит данные о расходе и добыче ресурсов в зависимости от уровня теплицы.
+     */
+    private $greenhouseLevels = [
+        1 => ['water' => 1,  'Fruit' => 2, 'Berries' => 1],
+        2 => ['water' => 2,  'Fruit' => 2, 'Berries' => 2],
+        3 => ['water' => 3,  'Fruit' => 3, 'Berries' => 2],
+        4 => ['water' => 4,  'Fruit' => 3, 'Berries' => 3],
+        5 => ['water' => 5,  'Fruit' => 3, 'Berries' => 3, 'Mushrooms' => 1],
+        6 => ['water' => 6,  'Fruit' => 4, 'Berries' => 3, 'Mushrooms' => 1],
+        7 => ['water' => 7,  'Fruit' => 4, 'Berries' => 4, 'Mushrooms' => 1],
+        8 => ['water' => 8,  'Fruit' => 4, 'Berries' => 4, 'Mushrooms' => 2],
+        9 => ['water' => 9,  'Fruit' => 4, 'Berries' => 4, 'Mushrooms' => 2, 'Crops' => 1],
+        10 => ['water' => 10, 'Fruit' => 5, 'Berries' => 5, 'Mushrooms' => 3, 'Crops' => 2],
+    ];
 
     public function __construct()
     {
         $this->characterBuildingModel = new CharacterBuildingModel();
         $this->characterResourceModel = new CharacterResourceModel();
-        $this->buildingModel = new BuildingModel(); // Изменено с ResourceModel на BuildingModel
-        $this->resourceModel = new ResourceModel();
+        $this->buildingModel          = new BuildingModel();
+        $this->resourceModel          = new ResourceModel();
+        $this->characterModel         = new CharacterModel();
+        $this->telegramUserModel      = new TelegramUserModel();
+
+        // Инициализируем Telegram SDK
+        $API_KEY      = getenv('telegram.API_KEY');
+        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
+        if ($API_KEY && $BOT_USERNAME) {
+            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
+            Request::initialize($this->telegram);
+        }
     }
 
+    /**
+     * Вызывается по крону. Обрабатывает всех игроков, у кого есть Теплица.
+     */
     public function handle()
     {
+        sleep(5);
+
+        // 1) Получаем ID здания "Greenhouse"
         $greenhouseId = $this->getGreenhouseId();
         if (!$greenhouseId) {
-            log_message('error', 'Greenhouse building ID not found.');
+            log_message('error', '[GreenhouseProductionHandler] "Greenhouse" building not found in DB.');
             return;
         }
 
-        $charactersWithGreenhouse = $this->characterBuildingModel->where('building_id', $greenhouseId)->findAll();
+        // 2) Ищем все character_buildings, указывающие на Greenhouse
+        $charsGreenhouse = $this->characterBuildingModel
+            ->where('building_id', $greenhouseId)
+            ->findAll();
 
-        foreach ($charactersWithGreenhouse as $characterBuilding) {
-            $characterId = $characterBuilding['character_id'];
-            $this->addResourceToCharacter($characterId, 'Fruit', 2);
-            $this->addResourceToCharacter($characterId, 'Berries', 1);
+        foreach ($charsGreenhouse as $charBuild) {
+            $characterId = $charBuild['character_id'];
+            $level       = (int) $charBuild['level'];
+
+            // Проверяем корректность уровня
+            if (!isset($this->greenhouseLevels[$level])) {
+                log_message('error', "[GreenhouseProductionHandler] Invalid greenhouse level: $level");
+                continue;
+            }
+
+            $waterNeeded = $this->greenhouseLevels[$level]['water'];
+
+            // Массив ресурсов, который теплица будет генерировать (Fruit, Berries и т.п.)
+            $harvest = $this->greenhouseLevels[$level];
+            unset($harvest['water']); // убираем ключ water, оставляем только еду
+
+            // Получаем ресурс "Water"
+            $waterResource = $this->resourceModel
+                ->where('name_en', 'Water')
+                ->first();
+            if (!$waterResource) {
+                log_message('error', '[GreenhouseProductionHandler] Resource "Water" not found in DB.');
+                continue;
+            }
+
+            // Ищем, сколько у персонажа сейчас воды
+            $charResWater = $this->characterResourceModel
+                ->where('id_characters', $characterId)
+                ->where('id_resources', $waterResource['id'])
+                ->first();
+
+            // Если у игрока нет воды / ноль
+            if (!$charResWater || $charResWater['quantity'] <= 0) {
+                continue;
+            }
+
+            // === (1) Проверяем, не надо ли отправить уведомление "мало воды" (<= 3) ===
+            //     (также в этой функции обновляется custom_data, если нужно)
+            if ($charResWater['quantity'] <= 3) {
+                $this->checkAndNotifyWaterShortage($charResWater, $characterId);
+            }
+
+            // === (2) Если воды меньше, чем нужно — пропускаем списание и генерацию ===
+            if ($charResWater['quantity'] < $waterNeeded) {
+                continue;
+            }
+
+            // === (3) Иначе списываем воду и добавляем еду ===
+            $newQuantity = $charResWater['quantity'] - $waterNeeded;
+            $this->characterResourceModel->update($charResWater['id'], ['quantity' => $newQuantity]);
+
+            // Начисляем harvest (Fruit / Berries / Mushrooms / Crops и т.д.)
+            foreach ($harvest as $resourceNameEn => $count) {
+                $this->addResourceToCharacter($characterId, $resourceNameEn, $count);
+            }
         }
     }
 
-    private function getGreenhouseId()
+    /**
+     * Проверяет, не пора ли отправить уведомление о малом количестве воды.
+     *
+     * Правила простые:
+     *  - Если quantity <= 3, тогда проверяем, сколько времени прошло с момента последней отправки (хранимой в custom_data).
+     *  - Если разница >= 30 минут — шлём новое уведомление и записываем новую дату отправки в custom_data.
+     *  - Если уведомление не отправлялось (либо не прошло 30 минут), ничего не меняем.
+     */
+    private function checkAndNotifyWaterShortage(array $charResWater, int $characterId): void
     {
-        $greenhouse = $this->buildingModel->where('name_en', 'Greenhouse')->first();
-        return $greenhouse ? $greenhouse['id'] : null;
+        // Если воды больше 3, ничего не делаем
+        if ($charResWater['quantity'] > 3) {
+            return;
+        }
+
+        // Извлекаем custom_data
+        $oldCustomData = $charResWater['custom_data'] ?? null;
+        $customData = $oldCustomData ? json_decode($oldCustomData, true) : [];
+        if (!is_array($customData)) {
+            $customData = [];
+        }
+
+        // Достаем дату последнего уведомления
+        $lastNotification = $customData['last_shortage_notification'] ?? null;
+        $now = new \DateTime();
+
+        // Проверяем, если в поле уже была дата
+        if ($lastNotification) {
+            // Вычисляем разницу во времени
+            $lastTime = new \DateTime($lastNotification);
+            $diff = $now->getTimestamp() - $lastTime->getTimestamp();
+            // Если прошло меньше 1800 секунд (30 минут), выходим — ничего не делаем
+            if ($diff < 1800) {
+                return;
+            }
+        }
+
+        // Если (a) даты нет, или (b) она есть, но прошло >= 30 минут — шлём уведомление
+        $this->notifyWaterShortage($characterId, $charResWater['quantity']);
+
+        // Запоминаем дату отправки (текущую)
+        $newNotificationDate = $now->format('Y-m-d H:i:s');
+        $customData['last_shortage_notification'] = $newNotificationDate;
+
+        // Преобразуем в JSON
+        $newCustomData = json_encode($customData);
+
+        // ПРЯМОЙ SQL-ЗАПРОС ДЛЯ ОБНОВЛЕНИЯ custom_data
+        try {
+            $db = \Config\Database::connect(); // получаем экземпляр соединения с БД
+            $sql = "UPDATE character_resources SET custom_data = ? WHERE id = ?";
+            $db->query($sql, [$newCustomData, $charResWater['id']]);
+        } catch (\Exception $e) {
+            log_message('error', 'Update custom_data exception: ' . $e->getMessage());
+        }
     }
 
-    private function addResourceToCharacter($characterId, $resourceName, $quantity)
+    /**
+     * Возвращает ID здания "Greenhouse" (по name_en).
+     */
+    private function getGreenhouseId(): ?int
     {
-        $resource = $this->resourceModel->where('name_en', $resourceName)->first();
+        $greenhouse = $this->buildingModel
+            ->where('name_en', 'Greenhouse')
+            ->first();
+        return $greenhouse ? (int) $greenhouse['id'] : null;
+    }
 
+    /**
+     * Начисляет (или создаёт) ресурс персонажу.
+     */
+    private function addResourceToCharacter(int $characterId, string $resourceNameEn, int $quantity): void
+    {
+        // Ищем ресурс
+        $resource = $this->resourceModel->where('name_en', $resourceNameEn)->first();
         if (!$resource) {
-            log_message('error', 'Resource ' . $resourceName . ' not found.');
+            log_message('error', "[GreenhouseProductionHandler] Resource {$resourceNameEn} not found.");
             return;
         }
 
-        $characterResource = $this->characterResourceModel->where('id_characters', $characterId)
+        // Ищем, есть ли такая запись у персонажа
+        $charRes = $this->characterResourceModel
+            ->where('id_characters', $characterId)
             ->where('id_resources', $resource['id'])
             ->first();
 
-        if ($characterResource) {
-            $newQuantity = $characterResource['quantity'] + $quantity;
-            $this->characterResourceModel->update($characterResource['id'], ['quantity' => $newQuantity]);
+        if ($charRes) {
+            // Увеличиваем quantity
+            $newQty = $charRes['quantity'] + $quantity;
+            $this->characterResourceModel->update($charRes['id'], ['quantity' => $newQty]);
         } else {
+            // Создаём новую запись
             $this->characterResourceModel->insert([
                 'id_characters' => $characterId,
-                'id_resources' => $resource['id'],
-                'quantity' => $quantity
+                'id_resources'  => $resource['id'],
+                'quantity'      => $quantity,
             ]);
         }
+    }
+
+    /**
+     * Отправляет предупреждение, что воды мало (<= 3).
+     */
+    private function notifyWaterShortage(int $characterId, int $waterQuantity): void
+    {
+        // 1) Найдём персонажа
+        $character = $this->characterModel->find($characterId);
+        if (!$character) {
+            log_message('error', "[GreenhouseProductionHandler] Character ID {$characterId} not found.");
+            return;
+        }
+
+        // 2) У персонажа должен быть telegram_user_id
+        $telegramUserId = $character['telegram_user_id'];
+        if (!$telegramUserId) {
+            return; // нет привязки к телеге
+        }
+
+        $telegramUser = $this->telegramUserModel->find($telegramUserId);
+        if (!$telegramUser || empty($telegramUser['telegram_id'])) {
+            log_message('error', "[GreenhouseProductionHandler] Telegram user not found for ID {$telegramUserId}.");
+            return;
+        }
+
+        // 3) Формируем и отправляем
+        $chatId = $telegramUser['telegram_id'];
+        $text = "Внимание!\n"
+            . "У вас осталось всего *{$waterQuantity}* единиц воды.\n"
+            . "Если вы не пополните запас, Теплица скоро перестанет приносить урожай!";
+
+        if (!isset($this->telegram)) {
+            log_message('error', '[GreenhouseProductionHandler] Telegram not initialized (no API key).');
+            return;
+        }
+
+        Request::sendMessage([
+            'chat_id'    => $chatId,
+            'text'       => $text,
+            'parse_mode' => 'Markdown',
+        ]);
     }
 }
