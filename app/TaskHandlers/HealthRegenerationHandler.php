@@ -39,9 +39,6 @@ class HealthRegenerationHandler
             // Пересчёт уровня персонажа может остаться без изменений
             $level = $this->calculateLevel($character);
             $this->characterModel->update($character['id'], ['level' => $level]);
-
-            // Добавление воды персонажу из-за ручной скважины
-            $this->addWaterFromHandPump($character['id']);
         }
     }
 
@@ -52,19 +49,5 @@ class HealthRegenerationHandler
         $level = floor($average);
 
         return max(1, $level); // Гарантируем, что уровень не опустится ниже 1
-    }
-
-    private function addWaterFromHandPump($characterId)
-    {
-        $handPump = $this->characterBuildingModel->where('character_id', $characterId)
-            ->where('building_id', 1)
-            ->first();
-
-        if ($handPump) {
-            $this->characterResourceModel->where('id_characters', $characterId)
-                ->where('id_resources', 17)
-                ->set('quantity', 'quantity + 1', false)
-                ->update();
-        }
     }
 }

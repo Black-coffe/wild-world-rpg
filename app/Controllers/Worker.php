@@ -86,6 +86,7 @@ class Worker extends Controller
         $this->DeathRouletteHandler();
         (new \App\TaskHandlers\GreenhouseProductionHandler())->handle();
         (new \App\TaskHandlers\GymProductionHandler())->handle();
+        (new \App\TaskHandlers\Built\HandPumpProductionHandler())->handle();
     }
 
     protected function DeathRouletteHandler()
