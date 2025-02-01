@@ -77,10 +77,10 @@ class DeleteBaseAction extends BaseAction
             . "   - База удаляется мгновенно.\n"
             . "   - Теряешь *70%* от ресурсов и *80%* от крафта.\n"
             . "   - Все здания безвозвратно сгорают.\n\n"
-            . "2) *Планируемый снос* (12 ч)\n"
+            . "2) *Планируемый снос* (8 ч)\n"
             . "   - Сохранение 100% ресурсов и построек.\n"
             . "   - Но база исчезает окончательно (без переноса).\n"
-            . "   - На время сноса (12 ч) блокируются другие действия.\n\n"
+            . "   - На время сноса (8 ч) блокируются другие действия.\n\n"
             . "3) *Полноценный переезд* (24 ч)\n"
             . "   - Сохранение 100% ресурсов и построек.\n"
             . "   - База будет перенесена в новую локацию (укажешь координаты).\n"
@@ -93,7 +93,7 @@ class DeleteBaseAction extends BaseAction
                     ['text' => '❌ Моментальный снос',   'callback_data' => 'DeleteBase_InstantDemolition'],
                 ],
                 [
-                    ['text' => '🐢 Планируемый снос / 12 часов',    'callback_data' => 'DeleteBase_PlannedRelocation'],
+                    ['text' => '🐢 Планируемый снос / 8 часов',    'callback_data' => 'DeleteBase_PlannedRelocation'],
                 ],
                 [
                     ['text' => '🚚 Полноценный переезд / 24 часа', 'callback_data' => 'DeleteBase_FullRelocation'],
@@ -275,9 +275,9 @@ class DeleteBaseAction extends BaseAction
             $taskId = $taskModel->insert([
                 'name'                 => 'BaseRelocation',
                 'name_rus'            => 'Планируемый снос',
-                'description'         => 'Перенос базы за 12 часов',
-                'min_duration'        => 720, // 12 * 60
-                'max_duration'        => 720,
+                'description'         => 'Перенос базы за 8 часов',
+                'min_duration'        => 480, // 8 * 60
+                'max_duration'        => 480,
                 'type'                => 'optionally',
                 'difficulty_level'    => 7,
                 'execution_limit'     => 0,
@@ -291,7 +291,7 @@ class DeleteBaseAction extends BaseAction
         // 4) Записываем новую задачу в character_tasks (12 ч)
         $charTaskModel = new CharacterTaskModel();
         $now = Time::now();
-        $endTime = $now->addHours(12);
+        $endTime = $now->addHours(8);
 
         $charTaskModel->insert([
             'character_id'     => $character['id'],
@@ -304,9 +304,9 @@ class DeleteBaseAction extends BaseAction
         ]);
 
         // 5) Сообщаем игроку
-        $text = "Ты запустил *Планируемый снос*! (12 ч)\n\n"
+        $text = "Ты запустил *Планируемый снос*! (8 ч)\n\n"
             . "База пока стоит на месте, но строительство/крафт и т.д. заблокированы.\n"
-            . "По истечении 12 часов база удалится без потерь ресурсов.\n\n"
+            . "По истечении 8 часов база удалится без потерь ресурсов.\n\n"
             . "Если отменишь задачу раньше — ничего не сносится.";
 
         $imagePath = base_url('uploads/telegram/camp/relocation.png');
