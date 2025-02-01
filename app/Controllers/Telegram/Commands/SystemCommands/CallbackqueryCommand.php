@@ -92,6 +92,21 @@ class CallbackqueryCommand extends SystemCommand
             }
         }
 
+        if (strpos($callbackData, 'StartRelocationConfirm_') === 0) {
+            // 1) Закроем "часики"
+            Request::answerCallbackQuery([
+                'callback_query_id' => $callbackQuery->getId(),
+            ]);
+
+            $cmd = new \App\Controllers\Telegram\Commands\BaseShiftingCommand(
+                $this->telegram,
+                null // можно и $this->getUpdate()
+            );
+            // вызываем метод
+            return $cmd->handleCallback($callbackQuery);
+
+        }
+
         // Иначе — прочие action
         // ... (старый код)
         $handlerClass = $this->getActionHandler($action);

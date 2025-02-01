@@ -224,6 +224,7 @@ class BaseService
                 ],
                 [
                     ['text' => '❌ Удалить базу', 'callback_data' => 'DeleteBase'],
+                    ['text' => '🚚 Полноценный переезд', 'callback_data' => 'DeleteBase_FullRelocation'],
                 ],
             ]
         ];

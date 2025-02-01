@@ -32,10 +32,10 @@ class Worker extends Controller
             }
         }
 
-        // Вызов метода для выполнения не связанных с задачами действий
+        // Выполняем различные периодические действия (не связанные напрямую с задачами):
         $this->processUnlinkedActions();
 
-        // Вызов TaxCollectionHandler только в 04:00 по серверному времени
+        // Вызов TaxCollectionHandler (налоги) — например, раз в сутки или каждый раз
         (new TaxCollectionHandler())->handle();
     }
 
@@ -84,6 +84,7 @@ class Worker extends Controller
         $this->factionNotificationHandler();
         $this->lowHealthWarningHandler();
         $this->DeathRouletteHandler();
+
         (new \App\TaskHandlers\GreenhouseProductionHandler())->handle();
         (new \App\TaskHandlers\Built\GymProductionHandler())->handle();
         (new \App\TaskHandlers\Built\HandPumpProductionHandler())->handle();
@@ -419,6 +420,9 @@ class Worker extends Controller
         }
     }
 
+    /**
+     * Сопоставляем name из таблицы tasks -> обработчику
+     */
     protected $taskHandlerMap = [
         'ExploreTheArea' => 'ExplorationTaskHandler',
         'Gather' => 'GatherTaskHandler',
@@ -461,7 +465,9 @@ class Worker extends Controller
         'ExploringLocationRobot' => 'CompleteRobotExplorationHandler',
         'GatheringResourcesRobot' => 'CompleteRobotGatheringHandler',
         'BaseRelocation' => 'Built\BaseRelocationCompletionHandler',
-        // Другие соответствия названий задач и классов обработчиков
+        'FullRelocation' => 'Built\BaseFullRelocationCompletionHandler',
+
+        // Другие соответствия
     ];
 
     protected function getHandlerClassName($taskName)
@@ -469,7 +475,8 @@ class Worker extends Controller
         if (array_key_exists($taskName, $this->taskHandlerMap)) {
             return 'App\\TaskHandlers\\' . $this->taskHandlerMap[$taskName];
         } else {
-            return str_replace(' ', '', ucwords($taskName)) . 'Handler';
+            // На случай, если нет в map, делаем "слепить" имя "SomeTaskName" => "App\TaskHandlers\SomeTaskNameHandler"
+            return 'App\\TaskHandlers\\' . str_replace(' ', '', ucwords($taskName)) . 'Handler';
         }
     }
 }

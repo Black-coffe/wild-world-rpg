@@ -18,8 +18,8 @@ use CodeIgniter\I18n\Time;
 
 /**
  * Класс DeleteBaseAction:
- * Показывает меню с «Моментальным сносом» и «Планируемым переездом»,
- * реализует обе логики, и проверяет "если переезд уже идёт, то прерываем".
+ * Показывает меню с «Моментальным сносом», «Планируемым сносом» и
+ * «Полноценным переездом», а также реализует логику моментального и планового сноса.
  */
 class DeleteBaseAction extends BaseAction
 {
@@ -41,7 +41,7 @@ class DeleteBaseAction extends BaseAction
 
         $callbackData = $this->callbackQuery->getData();
 
-        // Главное меню: выбор типа удаления базы
+        // Меню с вариантами
         if ($callbackData === 'DeleteBase') {
             return $this->showBaseRemovalOptions();
         }
@@ -49,9 +49,13 @@ class DeleteBaseAction extends BaseAction
         if ($callbackData === 'DeleteBase_InstantDemolition') {
             return $this->performInstantDemolition($character);
         }
-        // Планируемый переезд
+        // Планируемый снос
         if ($callbackData === 'DeleteBase_PlannedRelocation') {
             return $this->performPlannedRelocation($character);
+        }
+        // Полноценный переезд (24 ч)
+        if ($callbackData === 'DeleteBase_FullRelocation') {
+            return $this->showFullRelocationInstructions($character);
         }
 
         // Если не совпало ни с одним
@@ -62,29 +66,37 @@ class DeleteBaseAction extends BaseAction
     }
 
     /**
-     * Показываем меню с двумя вариантами: моментальный снос / планируемый переезд.
+     * Меню с тремя вариантами: Моментальный снос, Планируемый снос, Полноценный переезд.
      */
     private function showBaseRemovalOptions(): ServerResponse
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
-        $text = "Ты собираешься удалить (или перенести) свою базу. Есть два варианта:\n\n"
+        $text = "Ты собираешься удалить свою базу. Возможные варианты:\n\n"
             . "1) *Моментальный снос*\n"
             . "   - База удаляется мгновенно.\n"
             . "   - Теряешь *70%* от ресурсов и *80%* от крафта.\n"
             . "   - Все здания безвозвратно сгорают.\n\n"
-            . "2) *Планируемый переезд*\n"
-            . "   - Длится 24 часа.\n"
-            . "   - Позволяет сохранить 100% ресурсов и построек.\n\n"
+            . "2) *Планируемый снос* (12 ч)\n"
+            . "   - Сохранение 100% ресурсов и построек.\n"
+            . "   - Но база исчезает окончательно (без переноса).\n"
+            . "   - На время сноса (12 ч) блокируются другие действия.\n\n"
+            . "3) *Полноценный переезд* (24 ч)\n"
+            . "   - Сохранение 100% ресурсов и построек.\n"
+            . "   - База будет перенесена в новую локацию (укажешь координаты).\n"
+            . "   - Длится 24 ч, во время которых блокируются почти все действия.\n\n"
             . "Выбери нужный вариант:";
 
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '❌ Моментальный снос',  'callback_data' => 'DeleteBase_InstantDemolition'],
+                    ['text' => '❌ Моментальный снос',   'callback_data' => 'DeleteBase_InstantDemolition'],
                 ],
                 [
-                    ['text' => '🐢 Планируемый переезд','callback_data' => 'DeleteBase_PlannedRelocation'],
+                    ['text' => '🐢 Планируемый снос / 12 часов',    'callback_data' => 'DeleteBase_PlannedRelocation'],
+                ],
+                [
+                    ['text' => '🚚 Полноценный переезд / 24 часа', 'callback_data' => 'DeleteBase_FullRelocation'],
                 ],
             ]
         ];
@@ -98,16 +110,39 @@ class DeleteBaseAction extends BaseAction
     }
 
     /**
-     * Логика моментального сноса:
-     * 1) Прерываем, если есть "BaseRelocation" (переезд).
-     * 2) Списываем 70% ресурсов, 80% крафта.
-     * 3) Удаляем все здания и лагерь.
+     * Выводит подсказку игроку о том, как запустить «Полноценный переезд» через команду /base_shifting.
+     */
+    private function showFullRelocationInstructions(array $character): ServerResponse
+    {
+        $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
+
+        $text = "Ты выбрал *Полноценный переезд*, который занимает 24 часа.\n\n"
+            . "🚚 Чтобы перевезти базу в новую локацию, введи в чат команду:\n"
+            . "`/base_shifting X=123Y=543`\n\n"
+            . "Укажи **свои** координаты (X,Y) вместо 123,543.\n\n"
+            . "📝 *Важно!*:\n"
+            . "1) X и Y могут быть от 1 до 1000.\n"
+            . "2) Ты должен знать (изучить) эту ячейку (или разведать роботом). Иначе переезд не сработает.\n"
+            . "3) Если ячейка занята другим игроком или тобой не изучена, система предложит ближайшую свободную.\n"
+            . "4) ⏳ *Переезд базы доступен только раз в 10 дней*, не чаще!\n\n"
+            . "После ввода команды запустится 24-часовая задача, и все постройки/ресурсы сохранятся.";
+
+        return Request::sendMessage([
+            'chat_id'    => $chatId,
+            'text'       => $text,
+            'parse_mode' => 'Markdown',
+        ]);
+    }
+
+    /**
+     * Логика моментального сноса (InstantDemolition).
+     * Списываем часть ресурсов/крафта, удаляем все здания и лагерь.
      */
     private function performInstantDemolition(array $character): ServerResponse
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
-        // --- A) Проверяем и прерываем, если уже идёт переезд ---
+        // --- A) Прерываем, если уже идёт переезд ---
         $activeTasksService = new ActiveTasksService();
         $activeTasks        = $activeTasksService->getActiveTasksWithDetails($character['id']);
         $characterTaskModel = new CharacterTaskModel();
@@ -118,13 +153,11 @@ class DeleteBaseAction extends BaseAction
                 $characterTaskModel->update($taskRow['charTaskId'], [
                     'status' => 'interrupted'
                 ]);
-                // Можно дополнительно уведомить игрока,
-                // но здесь просто прерываем "в фоне".
                 break;
             }
         }
 
-        // --- B) Списываем 70% ресурсов (оставляем 30%) ---
+        // --- B) Списываем 70% ресурсов ---
         $resModel = new CharacterResourceModel();
         $allResources = $resModel->where('id_characters', $character['id'])->findAll();
 
@@ -143,7 +176,7 @@ class DeleteBaseAction extends BaseAction
             }
         }
 
-        // --- C) Списываем 80% крафта (оставляем 20%) ---
+        // --- C) Списываем 80% крафта ---
         $craftedItemsLogModel = new CraftedItemsLogModel();
         $allCraft = $craftedItemsLogModel->where('character_id', $character['id'])->findAll();
 
@@ -194,14 +227,13 @@ class DeleteBaseAction extends BaseAction
     }
 
     /**
-     * Логика планируемого переезда: сохраняем в task_settings здания,
-     * создаём задачу на 24 часа, сообщаем игроку.
+     * Логика "Планируемого сноса": 12 часов, сохраняет всё, но не переносит.
      */
     private function performPlannedRelocation(array $character): ServerResponse
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
-        // 1) Проверяем наличие других задач (если есть - недопустимо)
+        // 1) Проверяем, нет ли других активных задач
         $activeTasksService = new ActiveTasksService();
         $activeTasks        = $activeTasksService->getActiveTasksWithDetails($character['id']);
         if (!empty($activeTasks)) {
@@ -209,7 +241,7 @@ class DeleteBaseAction extends BaseAction
             foreach ($activeTasks as $idx => $t) {
                 $taskListText .= ($idx + 1). ") {$t['name_rus']} (осталось: {$t['time_left_str']})\n";
             }
-            $text = "Нельзя начать *Планируемый переезд*, так как есть незавершённые задачи:\n\n"
+            $text = "Нельзя начать *Планируемый снос*, так как есть незавершённые задачи:\n\n"
                 . $taskListText
                 . "\nДождись окончания или прерви задачу, затем повтори попытку!";
 
@@ -220,32 +252,32 @@ class DeleteBaseAction extends BaseAction
             ]);
         }
 
-        // 2) Сохраняем здания в task_settings
+        // 2) Собираем данные о зданиях
         $charBuildingModel = new CharacterBuildingModel();
         $allBuildings = $charBuildingModel->where('character_id', $character['id'])->findAll();
 
         $bArr = [];
         foreach ($allBuildings as $b) {
-            unset($b['id']); // Убираем первичный ключ
+            unset($b['id']);
             $bArr[] = $b;
         }
 
         $taskSettings = [
             'character_buildings' => $bArr,
-            'note' => 'Инфа о постройках на момент запуска переезда',
+            'note' => 'Инфа о постройках на момент запуска планового сноса',
         ];
         $settingsJson = json_encode($taskSettings, JSON_UNESCAPED_UNICODE);
 
-        // 3) Ищем/создаём задачу BaseRelocation в tasks
+        // 3) Создаём или ищем задачу BaseRelocation
         $taskModel = new TaskModel();
         $relocation = $taskModel->where('name', 'BaseRelocation')->first();
         if (!$relocation) {
             $taskId = $taskModel->insert([
                 'name'                 => 'BaseRelocation',
-                'name_rus'            => 'Планируемый переезд',
-                'description'         => 'Перенос базы за 24 часа',
-                'min_duration'        => 1440,
-                'max_duration'        => 1440,
+                'name_rus'            => 'Планируемый снос',
+                'description'         => 'Перенос базы за 12 часов',
+                'min_duration'        => 720, // 12 * 60
+                'max_duration'        => 720,
                 'type'                => 'optionally',
                 'difficulty_level'    => 7,
                 'execution_limit'     => 0,
@@ -256,10 +288,10 @@ class DeleteBaseAction extends BaseAction
             $taskId = $relocation['id'];
         }
 
-        // 4) Записываем новую задачу в character_tasks
+        // 4) Записываем новую задачу в character_tasks (12 ч)
         $charTaskModel = new CharacterTaskModel();
         $now = Time::now();
-        $endTime = $now->addHours(24);
+        $endTime = $now->addHours(12);
 
         $charTaskModel->insert([
             'character_id'     => $character['id'],
@@ -271,12 +303,11 @@ class DeleteBaseAction extends BaseAction
             'task_settings'    => $settingsJson,
         ]);
 
-        // 5) Отправляем сообщение (с картинкой)
-        $text = "Ты запустил *Планируемый переезд*! База пока на месте.\n\n"
-            . "Процесс займёт ~24 часа (до {$endTime->toDateTimeString()}).\n"
-            . "Все действия по строительству, крафту и т.д. будут заблокированы.\n"
-            . "Если отменишь задачу — база не сносится.\n\n"
-            . "Удачи в переезде!";
+        // 5) Сообщаем игроку
+        $text = "Ты запустил *Планируемый снос*! (12 ч)\n\n"
+            . "База пока стоит на месте, но строительство/крафт и т.д. заблокированы.\n"
+            . "По истечении 12 часов база удалится без потерь ресурсов.\n\n"
+            . "Если отменишь задачу раньше — ничего не сносится.";
 
         $imagePath = base_url('uploads/telegram/camp/relocation.png');
 
