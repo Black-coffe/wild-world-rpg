@@ -15,7 +15,7 @@ class DetailedBaseInfoAction extends BaseAction
 {
     public function handle(): ServerResponse
     {
-        // Отправляем ответ на CallbackQuery сразу (закрываем "часики")
+        // Отправляем ответ на CallbackQuery сразу
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         [$user, $character] = $this->getUserAndCharacter();
@@ -40,7 +40,7 @@ class DetailedBaseInfoAction extends BaseAction
         if (!$claimedCell) {
             // У персонажа нет разбитого лагеря
             $text = "🤖 Это снова я – *Роби*!\n\n"
-                . "У тебя нет ещё разбитого лагеря, а значит и нет базы. Для разбивки лагеря используй кнопки ниже.";
+                . "У тебя нет еще разбитого лагеря, а значит и нет базы. Для разбивки лагеря используй кнопки ниже.";
 
             $keyboard = [
                 'inline_keyboard' => [
@@ -62,17 +62,14 @@ class DetailedBaseInfoAction extends BaseAction
         // Проверяем, находится ли персонаж на ячейке базы
         if ($claimedCell['map_cell_id'] != $character['cell_number']) {
             $mapRow = $mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
-            $biomeRow = $biomeModel->find($mapRow['biome_id']);
-            $biomeName = $biomeRow['name'] ?? '???';
-
+            $biomeName = $biomeModel->where('id', $mapRow['biome_id'])->first()['name'];
             $coordinates = [
                 'x' => $mapRow['coordinate_x'],
                 'y' => $mapRow['coordinate_y']
             ];
 
             $text = "🤖 Это снова я – *Роби*!\n\n"
-                . "Твоя база находится в другой игровой ячейке, ты не дома! Чтобы начать строительство, вернись на базу, используя:\n\n"
-                . "1️⃣ переезд пешком\n2️⃣ телепорт на выбор\n\n"
+                . "Твоя база находится в другой игровой ячейке, ты не дома! Чтобы начать строительство вернись на базу, используя:\n\n1️⃣ переезд пешком\n2️⃣ телепорт на выбор.\n\n"
                 . "📍 *Координаты базы*: x={$coordinates['x']} y={$coordinates['y']}\n"
                 . "🌍 *Биом*: {$biomeName}";
 
@@ -84,71 +81,66 @@ class DetailedBaseInfoAction extends BaseAction
                     ],
                 ]
             ];
-            $imagePath = base_url('uploads/telegram/camp/an_empty_area.jpg'); // Укажите корректный путь к изображению
+            $imagePath = base_url('uploads/telegram/camp/an_empty_area.jpg'); // Укажите актуальный путь к изображению
 
             return Request::sendPhoto([
-                'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'photo'      => Request::encodeFile($imagePath),
-                'caption'    => $text,
+                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'photo'   => Request::encodeFile($imagePath),
+                'caption' => $text,
                 'parse_mode' => 'Markdown',
                 'reply_markup' => json_encode($keyboard),
             ]);
         }
 
         // Получаем список построек
-        $buildings = $characterBuildingModel
-            ->where('character_id', $character['id'])
-            ->where('map_cell_id', $claimedCell['map_cell_id'])
-            ->findAll();
-
+        $buildings = $characterBuildingModel->where('character_id', $character['id'])->findAll();
         if (empty($buildings)) {
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => "На вашей базе нет построек.",
+                'text' => 'На вашей базе нет построек.',
                 'parse_mode' => 'Markdown'
             ]);
         }
 
-        // Получаем данные о карте и биоме
         $mapRow = $mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
-        $biomeRow = $biomeModel->find($mapRow['biome_id']);
-        $biomeName = $biomeRow['name'] ?? '???';
+        $biomeName = $biomeModel->where('id', $mapRow['biome_id'])->first()['name'];
         $coordinates = [
             'x' => $mapRow['coordinate_x'],
             'y' => $mapRow['coordinate_y']
         ];
 
-        $text = "Перед тобой территория твоей базы – твои владения, твоя мощь и сила. Здесь ты можешь изучить более подробно каждое сооружение и его возможности.\n\n"
+        $text = "Перед тобой территория твоей базы, твои владения, мощь и сила. Здесь ты можешь изучить более подробно каждое сооружение и его возможности.\n\n"
             . "*Координаты базы*: x={$coordinates['x']} y={$coordinates['y']}\n"
-            . "*Биом*: {$biomeName}\n\n"
-            . "Список построек:";
+            . "*Биом*: {$biomeName}";
 
         $keyboardButtons = [];
         foreach ($buildings as $building) {
-            $bInfo = $buildingModel->find($building['building_id']);
-            if (!$bInfo) {
-                // Если нет информации о здании, пропускаем
-                continue;
-            }
-            $buildingNameRu = $bInfo['name_ru'] ?? 'Неизвестное строение';
-            $buildingNameEn = $bInfo['name_en'] ?? 'unknown';
-            $buildingIcon   = $this->getBuildingIcon($bInfo['id']);
-
+            $buildingInfo = $buildingModel->find($building['building_id']);
+            $buildingName = $buildingInfo['name_ru'] ?? 'Неизвестное строение';
+            $buildingNameEng = $buildingInfo['name_en'] ?? 'unknown';
+            $buildingIcon = $this->getBuildingIcon($building['building_id']);
             $keyboardButtons[] = [
-                'text'          => "{$buildingIcon} {$buildingNameRu}",
-                'callback_data' => "building_{$bInfo['id']}_{$buildingNameEn}"
+                'text' => "{$buildingIcon} {$buildingName}",
+                'callback_data' => 'building_' . $building['building_id'] . '_' . $buildingNameEng
             ];
         }
 
-        // Разбиваем кнопки по 2 в ряд (можно регулировать по вкусу)
         $keyboard = array_chunk($keyboardButtons, 2);
-
         $imagePath = base_url('uploads/telegram/camp/base_with_its_buildings.jpg'); // Укажите актуальный путь к изображению
 
+        // Проверка JSON на корректность
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            return Request::sendMessage([
+                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text' => 'Произошла ошибка при формировании кнопок.',
+                'parse_mode' => 'Markdown'
+            ]);
+        }
+
         return Request::sendPhoto([
-            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'photo'      => Request::encodeFile($imagePath),
-            'caption'    => $text,
+            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'photo'   => Request::encodeFile($imagePath),
+            'caption' => $text,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $keyboard]),
         ]);
@@ -163,16 +155,14 @@ class DetailedBaseInfoAction extends BaseAction
     private function getBuildingIcon(int $buildingId): string
     {
         $icons = [
-            1 => '🚰',  // Ручная скважина (HandPump)
-            2 => '🔥',  // Доменная печь (BlastFurnace)
-            3 => '🏚️', // Склад (Warehouse)
-            4 => '🔧',  // Мастерская (Workshop)
-            5 => '🌱',  // Теплица (Greenhouse)
-            6 => '☀️',  // Солнечная станция (SolarStation)
-            7 => '🥊',  // Спортзал (Gym)
-            8 => '🥼',  // Лаборатория (Laboratory)
-            9 => '🤖',  // Мастерская робототехники (RoboticsWorkshop)
-            10 => '🌀'  // Центр телепортации (TeleportationCenter) — новое здание
+            1 => '🚰',  // Пример иконки для здания с ID 1
+            2 => '🔥',  // Пример иконки для здания с ID 2
+            3 => '🏚️',  // Пример иконки для здания с ID 3
+            4 => '🔧',  // Пример иконки для здания с ID 4
+            5 => '🌱',  // Пример иконки для здания с ID 5
+            6 => '☀️',  // Пример иконки для здания с ID 6
+            7 => '🥊',  // Пример иконки для здания с ID 7
+            8 => '🥼'   // Пример иконки для здания с ID 8
         ];
 
         return $icons[$buildingId] ?? '🏠';  // Возвращает дефолтную иконку, если ID не найден

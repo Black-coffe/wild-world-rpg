@@ -43,53 +43,52 @@ class BuildListAction extends BaseAction
         $buildingsInfo = [
             [
                 'name' => "🚰 Ручная скважина",
-                'tax' => 24,
+                'tax' => 300,
                 'callback_data' => 'buildHandPump'
             ],
             [
                 'name' => "🔥 Доменная печь",
-                'tax' => 22,
+                'tax' => 450,
                 'callback_data' => 'buildBlastFurnace'
             ],
             [
                 'name' => "🏚️ Склад",
-                'tax' => 100,
+                'tax' => 900,
                 'callback_data' => 'buildWarehouse'
             ],
             [
                 'name' => "🔧 Мастерская",
-                'tax' => 96,
+                'tax' => 500,
                 'callback_data' => 'buildWorkshop'
             ],
             [
                 'name' => "🌱 Теплица",
-                'tax' => 80,
+                'tax' => 840,
                 'callback_data' => 'buildGreenhouse'
             ],
             [
                 'name' => "☀️ Солнечная станция",
-                'tax' => 62,
+                'tax' => 760,
                 'callback_data' => 'buildSolarStation'
             ],
             [
                 'name' => "🥊 Спортзал",
-                'tax' => 54,
+                'tax' => 900,
                 'callback_data' => 'buildGym'
             ],
             [
                 'name' => "🥼 Лаборатория",
-                'tax' => 200,
+                'tax' => 860,
                 'callback_data' => 'buildLaboratory'
             ],
             [
                 'name' => "🤖 Мастерская робототехники",
-                'tax' => 140,
+                'tax' => 1400,
                 'callback_data' => 'buildRoboticsWorkshop'
             ],
             [
-                // Новое здание: Центр телепортации
                 'name' => "🌀 Центр телепортации",
-                'tax' => 1200,
+                'tax' => 820,
                 'callback_data' => 'buildTeleportationCenter'
             ],
         ];

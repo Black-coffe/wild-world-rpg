@@ -468,6 +468,7 @@ class Worker extends Controller
         'FullRelocation' => 'Built\BaseFullRelocationCompletionHandler',
         'craftWiring' => 'Craft\CraftCompletionWiringHandler',
         'craftElectronicComponents' => 'Craft\CraftCompletionElectronicComponentsHandler',
+        'startBuildTeleportationCenter' => 'Built\BuiltCompletionTeleportationCenterHandler',
 
         // Другие соответствия
     ];

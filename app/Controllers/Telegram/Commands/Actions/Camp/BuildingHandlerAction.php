@@ -15,6 +15,7 @@ use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\LaboratoryHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\SolarStationHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\WarehouseHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\WorkshopHandler;
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportationCenterHandler;
 
 class BuildingHandlerAction extends BaseAction
 {
@@ -62,10 +63,13 @@ class BuildingHandlerAction extends BaseAction
             case 'Gym':
                 $handler = new GymHandler($this->callbackQuery);
                 break;
+            case 'TeleportationCenter':
+                $handler = new TeleportationCenterHandler($this->callbackQuery);
+                break;
             default:
                 return Request::sendMessage([
                     'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                    'text' => 'Неизвестное строение.',
+                    'text' => 'Неизвестное строение,в классе: BuildingHandlerAction',
                 ]);
         }
 

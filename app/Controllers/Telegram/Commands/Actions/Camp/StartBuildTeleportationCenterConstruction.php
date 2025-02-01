@@ -3,20 +3,18 @@
 namespace App\Controllers\Telegram\Commands\Actions\Camp;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Models\ActiveEventModel;
 use App\Models\ClaimedCellModel;
 use App\Models\CharacterModel;
 use App\Models\BuildingModel;
 use App\Models\ResourceModel;
 use App\Models\CharacterResourceModel;
-use App\Models\CraftedItemsModel;
 use App\Models\CraftedItemsLogModel;
-use App\Models\TaskModel;
-use App\Models\CharacterTaskModel;
+use App\Models\CraftedItemsModel;
 use App\Models\EventModel;
-use App\Models\ActiveEventModel;
+use App\Models\TaskModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
-use App\Services\Tasks\ActiveTasksService;
 
 class StartBuildTeleportationCenterConstruction extends BaseAction
 {
@@ -24,43 +22,40 @@ class StartBuildTeleportationCenterConstruction extends BaseAction
     protected $characterModel;
     protected $buildingModel;
     protected $resourceModel;
-    protected $characterResourceModel;
+    protected $caracterResourceModel;
+    protected $taskModel;
+    protected $eventModel;
     protected $craftedItemsModel;
     protected $craftedItemsLogModel;
-    protected $taskModel;
-    protected $characterTaskModel;
-    protected $eventModel;
     protected $activeEventModel;
+    protected $characterResourceModel;
+    protected $characterTaskModel;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-
-        $this->claimedCellModel       = new ClaimedCellModel();
-        $this->characterModel         = new CharacterModel();
-        $this->buildingModel          = new BuildingModel();
-        $this->resourceModel          = new ResourceModel();
+        $this->claimedCellModel = new ClaimedCellModel();
+        $this->characterModel = new CharacterModel();
+        $this->buildingModel = new BuildingModel();
+        $this->resourceModel = new ResourceModel();
+        $this->caracterResourceModel = new CharacterResourceModel();
+        $this->taskModel = new TaskModel();
+        $this->eventModel = new EventModel();
+        $this->craftedItemsModel = new CraftedItemsModel();
+        $this->craftedItemsLogModel = new CraftedItemsLogModel();
+        $this->activeEventModel = new ActiveEventModel();
         $this->characterResourceModel = new CharacterResourceModel();
-        $this->craftedItemsModel      = new CraftedItemsModel();
-        $this->craftedItemsLogModel   = new CraftedItemsLogModel();
-        $this->taskModel             = new TaskModel();
-        $this->characterTaskModel    = new CharacterTaskModel();
-        $this->eventModel            = new EventModel();
-        $this->activeEventModel      = new ActiveEventModel();
+        $this->characterTaskModel = new \App\Models\CharacterTaskModel();
     }
 
     public function handle(): ServerResponse
     {
-        // Закрываем "часики" на inline-кнопке
-        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-
         [$user, $character] = $this->getUserAndCharacter();
         if (!$user || !$character) {
-            return $this->sendError("Ошибка: пользователь или персонаж не найдены.");
+            return $this->sendError('Пользователь не найден в базе данных или персонаж не определён.');
         }
 
-        // 1. Проверка переезда
-        if ((new ActiveTasksService())->checkRelocationAndBlock(
+        if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
             $character['id'],
             $this->callbackQuery->getId(),
             $this->callbackQuery->getMessage()->getChat()->getId()
@@ -68,91 +63,169 @@ class StartBuildTeleportationCenterConstruction extends BaseAction
             return Request::emptyResponse();
         }
 
-        // 2. Проверка базы
         $claimedCells = $this->claimedCellModel->where('character_id', $character['id'])->findAll();
         if (empty($claimedCells)) {
-            return $this->sendError("У вас нет лагеря. Сначала разбейте лагерь.");
+            $keyboard = [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '🏕 Разбить лагерь', 'callback_data' => 'Camp'],
+                        ['text' => '👤 Персонаж', 'callback_data' => 'character'],
+                    ],
+                ]
+            ];
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'         => "У вас нет лагеря. Разбейте лагерь, чтобы продолжить.",
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode($keyboard),
+            ]);
         }
-        $campCellId = $claimedCells[0]['map_cell_id'];
 
-        // 3. Убедимся, что игрок на базе
-        if ($character['cell_number'] != $campCellId) {
-            return $this->sendError("Вы не на своей базе! Переместитесь в лагерь, чтобы строить здание.");
+        $character = $this->characterModel->find($character['id']);
+        $currentCell = $character['cell_number'];
+        $campCell = $claimedCells[0]['map_cell_id'];
+        if ($currentCell != $campCell) {
+            $keyboard = [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
+                        ['text' => '🚜 Переехать', 'callback_data' => 'move'],
+                    ],
+                ]
+            ];
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'         => "Вы находитесь не в лагере. Переместитесь в лагерь, чтобы продолжить строительство.",
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode($keyboard),
+            ]);
         }
 
-        // 4. Находим здание "TeleportationCenter"
         $building = $this->buildingModel->where('name_en', 'TeleportationCenter')->first();
-        if (!$building) {
-            return $this->sendError("Не найдено здание 'TeleportationCenter' в базе Buildings.");
+        if ($character['level'] < $building['level']) {
+            $keyboard = [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
+                        ['text' => '🚜 Переехать', 'callback_data' => 'move'],
+                    ],
+                ]
+            ];
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'         => "Ваш уровень слишком низкий для строительства *🌀Центра телепортации*.",
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode($keyboard),
+            ]);
         }
 
-        // 5. Проверка уровня
-        if ($character['level'] < $building['min_character_level']) {
-            return $this->sendError("Недостаточный уровень для строительства 'Центра телепортации'.");
+        $requiredResources = [
+            'RareMetals' => 100,
+            'RareOre'    => 50,
+            'Amber'      => 24,
+            'Oil'        => 48,
+        ];
+        $requiredCraftedItems = [
+            'GlassBags'            => 40,
+            'metalFragments'       => 80,
+            'stoneBlocks'          => 10,
+            'WoodMaterials'        => 10,
+            'wiring'               => 10,
+            'electronicComponents' => 6,
+            'WorkbenchOne'         => 1,
+        ];
+
+        $missingResources = $this->checkResources($character['id'], $requiredResources, $this->resourceModel, $this->characterResourceModel);
+        $missingCraftedItems = $this->checkCraftedItems($character['id'], $requiredCraftedItems, $this->craftedItemsModel, $this->craftedItemsLogModel);
+
+        if ($missingResources || $missingCraftedItems) {
+            $keyboard = [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '⛏️ Добыть ресурсы', 'callback_data' => 'gather'],
+                        ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
+                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                    ]
+                ]
+            ];
+            $missingResourcesText = $this->getMissingResourcesText($missingResources, $this->resourceModel);
+            $missingCraftedItemsText = $this->getMissingCraftedItemsText($missingCraftedItems, $this->craftedItemsModel);
+
+            $messageText = "Недостаточно ресурсов для строительства *🌀Центра телепортации*.\n\n";
+            if ($missingResourcesText) {
+                $messageText .= "Недостающие ресурсы:\n" . $missingResourcesText . "\n";
+            }
+            if ($missingCraftedItemsText) {
+                $messageText .= "Недостающие крафтовые предметы:\n" . $missingCraftedItemsText . "\n";
+            }
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'         => $messageText,
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode($keyboard),
+            ]);
         }
 
-        // 6. Проверка ресурсов
-        $requiredRes = json_decode($building['required_resources'], true) ?? [];
-        // + Если нужно, проверяем особые предметы (раскомментируйте при необходимости)
-        // $requiredCraftedItems = [
-        //     'TeleporterModule' => 1,
-        //     'EnergyCrystal' => 5,
-        // ];
-        $requiredCraftedItems = []; // Пусто, если не нужен дополнительный крафт
+        return $this->startBuildingProcess($character, $user, $requiredResources, $requiredCraftedItems);
+    }
 
-        $missingResources    = $this->checkResources($character['id'], $requiredRes);
-        $missingCraftedItems = $this->checkCraftedItems($character['id'], $requiredCraftedItems);
-
-        if (!empty($missingResources) || !empty($missingCraftedItems)) {
-            return $this->sendError("Недостаточно ресурсов/предметов для постройки 'Центра телепортации'.");
+    private function startBuildingProcess($character, $userId, $requiredResources, $requiredCraftedItems): ServerResponse
+    {
+        $craftTask = $this->taskModel->where('name', 'startBuildTeleportationCenter')->first();
+        if (!$craftTask) {
+            return $this->sendError('Задача "🌀 Центр телепортации!" не найдена в базе данных.');
         }
 
-        // 7. Проверяем, нет ли уже запущенной задачи на постройку этого здания
-        //    Для этого нужно иметь в таблице 'tasks' запись, напр. {name='startBuildTeleportationCenter'} или что-то подобное
-        $taskRow = $this->taskModel->where('name', 'startBuildTeleportationCenter')->first();
-        if (!$taskRow) {
-            return $this->sendError("Не найдена задача 'startBuildTeleportationCenter' в таблице tasks.");
-        }
-
-        // Проверяем, нет ли уже активной задачи на постройку этого здания
-        $activeTask = $this->characterTaskModel->where('character_id', $character['id'])
-            ->where('task_id', $taskRow['id'])
-            ->where('status', 'in_work')
-            ->first();
+        $activeTask = $this->characterTaskModel->where([
+            'character_id' => $character['id'],
+            'task_id'      => $craftTask['id'],
+            'status'       => 'in_work'
+        ])->first();
         if ($activeTask) {
-            return $this->sendError("Похоже, строительство 'Центра телепортации' уже запущено. Дождитесь окончания.");
+            return $this->sendError("Извини, но ты не многорукий и не всемогущ. Данная задача строительства уже выполняется, ожидай. А чтобы не скучать пойди проведи время в разделе \"Развлечения\"");
         }
 
-        // 8. Списываем ресурсы
-        $this->subtractResources($character['id'], $requiredRes);
-        $this->subtractCraftedItems($character['id'], $requiredCraftedItems);
+        $duration = $this->calculateCraftingDuration($character, $craftTask);
 
-        // 9. Создаём запись в character_tasks
         $startTime = new \DateTime();
-        // Время строительства — в минутах, берём из $building['construction_time'] или можно варьировать
-        $durationMinutes = $building['construction_time'] ?? 180;
-        $endTime = (clone $startTime)->modify("+{$durationMinutes} minutes");
+        $endTime = (clone $startTime)->add(new \DateInterval('PT' . $duration . 'M'));
 
-        $this->characterTaskModel->insert([
+        $saveData = [
             'character_id'     => $character['id'],
-            'telegram_user_id' => $user['id'],
-            'task_id'          => $taskRow['id'],
+            'telegram_user_id' => $userId['id'],
+            'task_id'          => $craftTask['id'],
             'start_time'       => $startTime->format('Y-m-d H:i:s'),
             'end_time'         => $endTime->format('Y-m-d H:i:s'),
             'status'           => 'in_work',
-            'task_settings'    => json_encode([
-                'map_cell_id' => $campCellId,
-                'building_id' => $building['id']
-            ])
-        ]);
+        ];
+        $this->characterTaskModel->save($saveData);
 
-        // Уведомим игрока об успешном запуске стройки
-        $minutes = $durationMinutes;
-        $text = "*Процесс строительства 'Центра телепортации' запущен!*\n\n"
-            . "⏳ Время строительства: ~{$minutes} минут.\n"
-            . "О готовности тебе придёт уведомление.\n";
+        $this->subtractResources($character['id'], $requiredResources, $this->resourceModel, $this->characterResourceModel);
 
-        $imagePath = base_url('uploads/telegram/camp/teleport_center_construction.jpg'); // Подставьте путь к вашему изображению
+        $subtractResult = $this->subtractCraftedItems($character['id'], $requiredCraftedItems, $this->craftedItemsModel, $this->craftedItemsLogModel);
+        if (!$subtractResult) {
+            return $this->sendError('Ошибка при списании предметов.');
+        }
+
+        return $this->notifyCraftStarted($character, $startTime, $endTime);
+    }
+
+    private function notifyCraftStarted($character, $startTime, $endTime): ServerResponse
+    {
+        $interval = $startTime->diff($endTime);
+        $minutes = $interval->days * 1440 + $interval->h * 60 + $interval->i;
+
+        $text = "*Процесс строительства запущен*\n\n"
+            . "*Ты строишь: 🌀 Центр телепортации*\n\n"
+            . "__*Время стройки: " . $minutes . " минут.*__ ⏱️\n\n"
+            . "*О готовности ты узнаешь в сообщении.* 🎁\n\n"
+            . "P.S. _Не забудь поделиться своими находками!_ 🗣️\n";
+        $imagePath = base_url('uploads/telegram/camp/Construction-by-improvised.jpg');
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendPhoto([
             'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'      => Request::encodeFile($imagePath),
@@ -161,111 +234,148 @@ class StartBuildTeleportationCenterConstruction extends BaseAction
         ]);
     }
 
-    /**
-     * Проверяем ресурсы
-     */
-    private function checkResources(int $characterId, array $requiredRes): array
+    private function calculateCraftingDuration($character, $craftTask)
     {
-        $missing = [];
-        foreach ($requiredRes as $resName => $resNeeded) {
-            $resRow = $this->resourceModel->getResourceByNameEn($resName);
-            if ($resRow) {
-                $charRes = $this->characterResourceModel
-                    ->where('id_characters', $characterId)
-                    ->where('id_resources', $resRow['id'])
+        $experience = $character['experience'];
+        $agility = $character['agility'];
+        $intellect = $character['intellect'];
+
+        $expFactor = 0.3;
+        $agiFactor = 0.3;
+        $intFactor = 0.4;
+
+        $attributeScore = ($experience * $expFactor) + ($agility * $agiFactor) + ($intellect * $intFactor);
+        $maxAttributeScore = 1000 * ($expFactor + $agiFactor + $intFactor);
+
+        $normalizedScore = $attributeScore / $maxAttributeScore;
+
+        $minDuration = $craftTask['min_duration'];
+        $maxDuration = $craftTask['max_duration'];
+        $adjustedDuration = $minDuration + ($maxDuration - $minDuration) * (1 - $normalizedScore);
+        $finalDuration = max($minDuration, min($maxDuration, round($adjustedDuration)));
+
+        return $finalDuration;
+    }
+
+    private function checkResources($characterId, $requiredResources, $resourceModel, $characterResourcesModel)
+    {
+        $missingResources = [];
+        foreach ($requiredResources as $resourceName => $requiredAmount) {
+            $resource = $resourceModel->getResourceByNameEn($resourceName);
+            if ($resource) {
+                $characterResource = $characterResourcesModel->where('id_characters', $characterId)
+                    ->where('id_resources', $resource['id'])
                     ->first();
-                $haveAmount = $charRes ? $charRes['quantity'] : 0;
-                if ($haveAmount < $resNeeded) {
-                    $missing[$resName] = [
-                        'have' => $haveAmount,
-                        'need' => $resNeeded
+                if (!$characterResource || $characterResource['quantity'] < $requiredAmount) {
+                    $missingResources[$resourceName] = [
+                        'required'  => $requiredAmount,
+                        'available' => $characterResource ? $characterResource['quantity'] : 0,
+                        'name'      => $resource['name']
                     ];
                 }
-            } else {
-                $missing[$resName] = [
-                    'have' => 0,
-                    'need' => $resNeeded
-                ];
             }
         }
-        return $missing;
+        return $missingResources;
     }
 
-    /**
-     * Проверяем крафтовые предметы
-     */
-    private function checkCraftedItems(int $characterId, array $requiredItems): array
+    private function checkCraftedItems($characterId, $requiredCraftedItems, $craftedItemsModel, $craftedItemsLogModel)
     {
-        $missing = [];
-        foreach ($requiredItems as $itemCode => $itemNeed) {
-            $itemRow = $this->craftedItemsModel->getRowByName($itemCode);
-            if ($itemRow) {
-                $logRow = $this->craftedItemsLogModel->getItemByCraftedItemIdAndCharacterId($itemRow['id'], $characterId);
-                $have = $logRow ? $logRow['quantity'] : 0;
-                if ($have < $itemNeed) {
-                    $missing[$itemCode] = ['have' => $have, 'need' => $itemNeed];
+        $missingCraftedItems = [];
+        foreach ($requiredCraftedItems as $itemName => $requiredAmount) {
+            $item = $craftedItemsModel->getRowByName($itemName);
+            if ($item) {
+                $craftedItem = $craftedItemsLogModel->getItemByCraftedItemIdAndCharacterId($item['id'], $characterId);
+                if (!$craftedItem || $craftedItem['quantity'] < $requiredAmount) {
+                    $missingCraftedItems[$itemName] = [
+                        'required'  => $requiredAmount,
+                        'available' => $craftedItem ? $craftedItem['quantity'] : 0,
+                        'name_rus'  => $item['name_rus']
+                    ];
                 }
-            } else {
-                $missing[$itemCode] = ['have' => 0, 'need' => $itemNeed];
             }
         }
-        return $missing;
+        return $missingCraftedItems;
     }
 
-    /**
-     * Списываем ресурсы
-     */
-    private function subtractResources(int $characterId, array $requiredRes): void
+    private function getMissingResourcesText($missingResources, $resourceModel)
     {
-        foreach ($requiredRes as $resName => $resNeed) {
-            $resRow = $this->resourceModel->getResourceByNameEn($resName);
-            if ($resRow) {
-                $this->characterResourceModel
-                    ->where('id_characters', $characterId)
-                    ->where('id_resources', $resRow['id'])
-                    ->set('quantity', 'quantity - '.$resNeed, false)
+        $text = "";
+        foreach ($missingResources as $resourceName => $resourceInfo) {
+            $text .= "- " . $resourceInfo['name'] . ": требуется " . $resourceInfo['required'] . ", в наличии " . $resourceInfo['available'] . "\n";
+        }
+        return $text;
+    }
+
+    private function getMissingCraftedItemsText($missingCraftedItems, $craftedItemsModel)
+    {
+        $text = "";
+        foreach ($missingCraftedItems as $itemName => $itemInfo) {
+            $text .= "- " . $itemInfo['name_rus'] . ": требуется " . $itemInfo['required'] . ", в наличии " . $itemInfo['available'] . "\n";
+        }
+        return $text;
+    }
+
+    private function sendError($message): ServerResponse
+    {
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+        return Request::sendMessage([
+            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'    => $message,
+        ]);
+    }
+
+    private function subtractResources($characterId, $requiredResources, $resourceModel, $characterResourcesModel)
+    {
+        foreach ($requiredResources as $resourceName => $requiredAmount) {
+            $resource = $resourceModel->getResourceByNameEn($resourceName);
+            if ($resource) {
+                $characterResourcesModel->where('id_characters', $characterId)
+                    ->where('id_resources', $resource['id'])
+                    ->set('quantity', 'quantity - ' . $requiredAmount, false)
                     ->update();
             }
         }
     }
 
-    /**
-     * Списываем крафтовые предметы
-     */
-    private function subtractCraftedItems(int $characterId, array $requiredItems): void
+    private function subtractCraftedItems($characterId, $requiredCraftedItems, $craftedItemsModel, $craftedItemsLogModel)
     {
-        if (empty($requiredItems)) {
-            return;
-        }
         $db = \Config\Database::connect();
         $db->transStart();
-        foreach ($requiredItems as $itemCode => $itemNeed) {
-            $itemRow = $this->craftedItemsModel->getRowByName($itemCode);
-            if ($itemRow) {
-                $logRow = $this->craftedItemsLogModel
-                    ->where('character_id', $characterId)
-                    ->where('crafted_item_id', $itemRow['id'])
+
+        foreach ($requiredCraftedItems as $itemName => $requiredAmount) {
+            $item = $craftedItemsModel->getRowByName($itemName);
+            if ($item) {
+                $logEntry = $craftedItemsLogModel->where('character_id', $characterId)
+                    ->where('crafted_item_id', $item['id'])
                     ->first();
-                if ($logRow) {
-                    $newQuantity = $logRow['quantity'] - $itemNeed;
-                    if ($newQuantity > 0) {
-                        $this->craftedItemsLogModel->update($logRow['id'], ['quantity' => $newQuantity]);
+                if ($logEntry) {
+                    if ($logEntry['quantity'] >= $requiredAmount) {
+                        $newQuantity = $logEntry['quantity'] - $requiredAmount;
+                        if ($newQuantity > 0) {
+                            $craftedItemsLogModel->update($logEntry['id'], ['quantity' => $newQuantity]);
+                        } else {
+                            $craftedItemsLogModel->delete($logEntry['id']);
+                        }
                     } else {
-                        // Если уходит в ноль или меньше — удаляем запись/обнуляем
-                        $this->craftedItemsLogModel->delete($logRow['id']);
+                        $db->transRollback();
+                        return false;
                     }
+                } else {
+                    $db->transRollback();
+                    return false;
                 }
+            } else {
+                $db->transRollback();
+                return false;
             }
         }
-        $db->transComplete();
-    }
 
-    private function sendError(string $message): ServerResponse
-    {
-        return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'    => $message,
-            'parse_mode' => 'Markdown'
-        ]);
+        $db->transComplete();
+
+        if ($db->transStatus() === FALSE) {
+            return false;
+        }
+
+        return true;
     }
 }
