@@ -8,25 +8,32 @@ class CharacterResourceModel extends Model
 {
     protected $table = 'character_resources';
     protected $primaryKey = 'id';
-
     protected $useAutoIncrement = true;
     protected $returnType    = 'array';
-
     protected $allowedFields = [
         'id_characters',
         'id_resources',
         'quantity',
-        'custom_data',   // <-- Новое поле для произвольных данных
+        'custom_data',
         'created_at',
         'updated_at'
     ];
-
     protected $useTimestamps = true;
     protected $createdField  = 'created_at';
     protected $updatedField  = 'updated_at';
     protected $dateFormat    = 'datetime';
 
-    // === СТАРЫЕ МЕТОДЫ НЕ ТРОГАЕМ, чтобы не ломать уже существующий код ===
+    // --- (ВСЕ ВАШИ СТАРЫЕ МЕТОДЫ И СУЩЕСТВУЮЩИЕ НОВЫЕ - БЕЗ ИЗМЕНЕНИЙ) ---
+
+    /**
+     * Новый метод-обёртка, чтобы не ломать вызовы deductResourceByName(...)
+     */
+    public function deductResourceByName(string $resourceName, int $characterId, int $amount): bool
+    {
+        // Внутри используем ваш метод deductResourceForCraft
+        // Если вы хотите иное поведение, скопируйте нужную логику сюда
+        return $this->deductResourceForCraft($resourceName, $characterId, $amount);
+    }
 
     public function increaseResources($characterId, $resourceId, $amount)
     {

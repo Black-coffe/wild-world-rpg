@@ -15,7 +15,7 @@ class BuildListAction extends BaseAction
 {
     public function handle(): ServerResponse
     {
-        // 1) answerCallbackQuery убираем "часики"
+        // 1) answerCallbackQuery — убираем "часики"
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         // 2) Получаем user/character
@@ -27,7 +27,7 @@ class BuildListAction extends BaseAction
             ]);
         }
 
-        // 3) Проверяем переезд
+        // 3) Проверяем переезд (если есть активная задача переезда, запрещаем строительство)
         $activeTasksService = new ActiveTasksService();
         $blocked = $activeTasksService->checkRelocationAndBlock(
             $character['id'],
@@ -35,20 +35,11 @@ class BuildListAction extends BaseAction
             $this->callbackQuery->getMessage()->getChat()->getId()
         );
         if ($blocked) {
-            // true = переезд активен, сервис уже отправил сообщение.
-            // Дальнейшая логика не идёт.
+            // true = переезд активен, сервис уже отправил сообщение об этом, ничего не делаем дальше
             return Request::emptyResponse();
         }
 
-        if (!$user || !$character) {
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => '🤖 Это снова я – *Роби*!\n\nПользователь не найден в базе данных или персонаж не определён.',
-                'parse_mode' => 'Markdown'
-            ]);
-        }
-
-        // Список построек с информацией
+        // Список построек с иконками, названием и суточным налогом
         $buildingsInfo = [
             [
                 'name' => "🚰 Ручная скважина",
@@ -95,26 +86,33 @@ class BuildListAction extends BaseAction
                 'tax' => 140,
                 'callback_data' => 'buildRoboticsWorkshop'
             ],
+            [
+                // Новое здание: Центр телепортации
+                'name' => "🌀 Центр телепортации",
+                'tax' => 1200,
+                'callback_data' => 'buildTeleportationCenter'
+            ],
         ];
 
         $buildingList = "";
         $keyboardButtons = [];
 
-        foreach ($buildingsInfo as $building) {
-            $buildingList .= "*{$building['name']}* | "
-                . "*Налог: {$building['tax']}* 💰 \n\n";
-
+        // Формируем список и кнопки
+        foreach ($buildingsInfo as $b) {
+            $buildingList .= "*{$b['name']}* | *Налог: {$b['tax']}* 💰\n\n";
             $keyboardButtons[] = [
-                'text' => "{$building['name']}",
-                'callback_data' => $building['callback_data']
+                'text' => $b['name'],
+                'callback_data' => $b['callback_data']
             ];
         }
 
+        // Разбиваем на ряды по 2 кнопки
         $keyboard = array_chunk($keyboardButtons, 2);
 
         $text = "🤖 Это я – *Роби*!\n\n"
-            . "Вот список доступных построек с стоимостью налога за сооружение в сутки:\n\n"
-            . "{$buildingList}";
+            . "Вот список доступных построек с указанием суточного налога:\n\n"
+            . "{$buildingList}"
+            . "_Выбери желаемое здание для строительства._";
 
         return Request::sendMessage([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),

@@ -34,12 +34,16 @@ class ComponentsCraft1Select extends BaseAction
                     ['text' => '🪨 Угольные брикеты', 'callback_data' => 'charcoalBriquettes'],
                     ['text' => '🪟 Стекло пакеты', 'callback_data' => 'glassBags'],
                 ],
+                [
+                    ['text' => '💻 Электронные компоненты', 'callback_data' => 'electronicComponents'],
+                    ['text' => '🔌 Проводка', 'callback_data' => 'wiring'],
+                ],
             ]
         ];
 
         $imagePath = base_url('uploads/telegram/craft/components/A_cozy_workshop_with_tools_and_crafting_materials.jpg'); // Укажите актуальный путь к изображению
 
-        // Ответ на callback запрос, чтобы убрать часики на кнопке
+        // Ответ на callback запрос, чтобы убрать "часики" на кнопке
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         // Отправляем сообщение с картинкой и клавиатурой

@@ -466,6 +466,8 @@ class Worker extends Controller
         'GatheringResourcesRobot' => 'CompleteRobotGatheringHandler',
         'BaseRelocation' => 'Built\BaseRelocationCompletionHandler',
         'FullRelocation' => 'Built\BaseFullRelocationCompletionHandler',
+        'craftWiring' => 'Craft\CraftCompletionWiringHandler',
+        'craftElectronicComponents' => 'Craft\CraftCompletionElectronicComponentsHandler',
 
         // Другие соответствия
     ];

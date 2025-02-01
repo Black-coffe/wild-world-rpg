@@ -215,6 +215,10 @@ class CallbackqueryCommand extends SystemCommand
             'craftWorkbenchOne' =>      \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Workbench\StartCraftWorkbenchOneAction::class,
             'glassBags' =>              \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\GlassBagsCraft1Action::class,
             'craftGlassBags' =>         \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\GlassBagsCraftActionStart::class,
+            'electronicComponents' =>   \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\ElectronicComponentsCraft1Action::class,
+            'wiring'               =>   \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\WiringCraft1Action::class,
+            'craftElectronicComponents' => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\ElectronicComponentsCraftActionStart::class,
+            'craftWiring'              => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\WiringCraftActionStart::class,
 
             'tools' =>                  \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\ToolsCraft1Action::class,
             'lumberjackAxe' =>          \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\LumberjackAxeCraft1Action::class,
@@ -273,6 +277,8 @@ class CallbackqueryCommand extends SystemCommand
             'buildRoboticsWorkshop' =>      \App\Controllers\Telegram\Commands\Actions\Camp\BuildRoboticsWorkshopConstruction::class,
             'startBuildRoboticsWorkshop' => \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildRoboticsWorkshopConstruction::class,
             'building' =>                   \App\Controllers\Telegram\Commands\Actions\Camp\BuildingHandlerAction::class,
+            'buildTeleportationCenter' => \App\Controllers\Telegram\Commands\Actions\Camp\BuildTeleportationCenterConstruction::class,
+            'startBuildTeleportCenter' => \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildTeleportationCenterConstruction::class,
 
             'objectActionClosedWarehouse' =>  \App\Controllers\Telegram\Commands\Actions\Objects\ObjectCloseWarehouseAction::class,
 

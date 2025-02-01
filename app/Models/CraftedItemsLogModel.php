@@ -114,4 +114,48 @@ class CraftedItemsLogModel extends Model
 
         return true; // успешное списание
     }
+
+    /**
+     * Списывает количество у крафтового предмета, используя crafted_item_id (числовой ID), а не name_eng.
+     *
+     * @param int $craftedItemId Идентификатор предмета в таблице crafted_items
+     * @param int $characterId   Идентификатор персонажа
+     * @param int $quantity      Сколько списать
+     * @return bool Успешность списания
+     */
+    public function deductCraftedItem(int $craftedItemId, int $characterId, int $quantity): bool
+    {
+        $this->db->transStart();
+
+        // Ищем запись о конкретном предмете в crafted_items_log:
+        $logRow = $this->where('crafted_item_id', $craftedItemId)
+            ->where('character_id', $characterId)
+            ->first();
+
+        if (!$logRow) {
+            // Предмет не найден в логе
+            $this->db->transRollback();
+            return false;
+        }
+
+        $currentQty = (int)$logRow['quantity'];
+        if ($currentQty < $quantity) {
+            // Недостаточно предметов для списания
+            $this->db->transRollback();
+            return false;
+        }
+
+        $newQty = $currentQty - $quantity;
+        if ($newQty <= 0) {
+            // Удаляем запись, если предметов больше нет
+            $this->delete($logRow['id']);
+        } else {
+            // Обновляем количество
+            $this->update($logRow['id'], ['quantity' => $newQty]);
+        }
+
+        $this->db->transComplete();
+        return $this->db->transStatus();
+    }
+
 }
