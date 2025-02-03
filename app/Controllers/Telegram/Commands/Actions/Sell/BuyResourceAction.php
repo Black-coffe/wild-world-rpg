@@ -9,6 +9,8 @@ use App\Models\ResourceModel;
 use App\Models\CharacterResourceModel;
 use App\Models\CharacterModel;
 use App\Models\ResourcesBankModel;
+// Если хотите после сделки тут же пересчитывать цены:
+use App\TaskHandlers\ResourceBankUpdateHandler;
 
 class BuyResourceAction extends BaseAction
 {
@@ -20,15 +22,16 @@ class BuyResourceAction extends BaseAction
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->resourceModel = new ResourceModel();
+        $this->resourceModel          = new ResourceModel();
         $this->characterResourceModel = new CharacterResourceModel();
-        $this->characterModel = new CharacterModel();
-        $this->resourcesBankModel = new ResourcesBankModel();
+        $this->characterModel         = new CharacterModel();
+        $this->resourcesBankModel     = new ResourcesBankModel();
     }
 
     public function handle(): ServerResponse
     {
-        $this->updateResourcePrices(); // Обновляем цены перед обработкой запроса
+        // При входе в покупку можно (опционально) обновить цены
+        // $this->updateResourcePrices();
 
         [$user, $character] = $this->getUserAndCharacter();
 
@@ -36,35 +39,42 @@ class BuyResourceAction extends BaseAction
             return $this->respondWithMessage('Пользователь не найден в базе данных или персонаж не определён.');
         }
 
+        // Минимальная проверка золота
         if ($character['gold'] < 10) {
-            return $this->respondWithMessage('К сожалению у вас недостаточно золотых монет для торговли!');
+            return $this->respondWithMessage('К сожалению, у вас недостаточно золотых монет для торговли!');
         }
 
         $callbackData = $this->callbackQuery->getData();
-        $params = explode('_', $callbackData);
+        $params       = explode('_', $callbackData);
 
-        // Проверяем, есть ли вообще параметры после 'buyResource'
+        // buyResource
+        //  └── rarity_{число}
+        //  └── select_{resourceId}
+        //  └── quantity_{resourceId}_{количество}
         if (!isset($params[1])) {
+            // Показываем стартовое окно выбора редкости
             return $this->showStartScreen($character);
         }
 
         switch ($params[1]) {
             case 'rarity':
                 $rarity = $params[2] ?? null;
-                if (!is_null($rarity)) {
-                    return $this->showResourcesOfRarity($character, $rarity);
+                if ($rarity) {
+                    return $this->showResourcesOfRarity($rarity);
                 }
                 break;
+
             case 'select':
                 $resourceId = $params[2] ?? null;
-                if (!is_null($resourceId)) {
-                    return $this->askForQuantity($character, $resourceId);
+                if ($resourceId) {
+                    return $this->askForQuantity($resourceId);
                 }
                 break;
+
             case 'quantity':
                 $resourceId = $params[2] ?? null;
-                $quantity = $params[3] ?? null;
-                if (!is_null($resourceId) && !is_null($quantity)) {
+                $quantity   = $params[3] ?? null;
+                if ($resourceId && $quantity) {
                     return $this->finalizePurchase($character, $resourceId, $quantity);
                 }
                 break;
@@ -74,32 +84,39 @@ class BuyResourceAction extends BaseAction
     }
 
 
-    protected function respondWithMessage(string $text)
+    /**
+     * Простой метод для отправки текстового сообщения с кнопками «Персонаж, Инвентарь, Магазин»
+     */
+    protected function respondWithMessage(string $text): ServerResponse
     {
         $keyboard = [
             'inline_keyboard' => [
                 [
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+                    ['text' => '🛒 Магазин',    'callback_data' => 'shop'],
                 ],
             ]
         ];
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text' => $text,
-            'parse_mode' => 'Markdown',
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
     }
 
-    protected function showStartScreen($character)
+    /**
+     * Стартовый экран, где игроку предлагают выбрать редкость для покупки
+     */
+    protected function showStartScreen(array $character): ServerResponse
     {
         $goldAmount = number_format($character['gold']);
         $text = "👉*У тебя есть* _{$goldAmount}_ *золотых монет*💰\n\n"
-            . "📌ВАЖНО📌 Чтобы и тебе, и мне, как торговцу, было проще, пересмотри ресурсы и обрати внимание на их редкость. Ниже отметь цифрой, какой редкости ресурсы ты готов купить. Если их там будет несколько, на следующем шаге ты выберешь конкретный ресурс.";
+            . "📌Выбери редкость ресурсов, которые хочешь купить:";
 
+        // Кнопки по редкостям
         $keyboard = [
             'inline_keyboard' => [
                 [
@@ -124,29 +141,41 @@ class BuyResourceAction extends BaseAction
                 ]
             ]
         ];
+
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text' => $text,
-            'parse_mode' => 'Markdown',
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
     }
 
-    protected function showResourcesOfRarity($character, $rarity)
+    /**
+     * Показать список ресурсов указанной редкости. Показываем buy_price.
+     */
+    protected function showResourcesOfRarity(int $rarity): ServerResponse
     {
         $resources = $this->resourceModel->where('rarity', $rarity)->findAll();
         if (empty($resources)) {
             return $this->respondWithMessage("*Ресурсы редкости {$rarity} не найдены.*");
         }
 
-        $text = "📦 *Ресурсы редкости {$rarity}:*\n\n";
+        $text            = "📦 *Ресурсы редкости {$rarity}:*\n\n";
         $keyboardButtons = [];
-        $row = []; // Текущий ряд для кнопок
+        $row             = [];
+
         foreach ($resources as $index => $resource) {
-            $text .= "🧺 *{$resource['name']}* | _Стоимость ресурса_: *{$resource['buy_price']}*💰\n\n";
-            $row[] = ['text' => $resource['name'], 'callback_data' => "buy_select_{$resource['id']}"];
-            // Каждый раз, когда в ряду две кнопки, добавляем его в keyboardButtons и очищаем для следующего ряда
+            // Показываем текущую цену:
+            $text .= "🧺 *{$resource['name']}* | _Цена покупки_: *{$resource['buy_price']}*💰\n\n";
+
+            // Добавляем кнопку для выбора конкретного ресурса
+            $row[] = [
+                'text'          => $resource['name'],
+                'callback_data' => "buy_select_{$resource['id']}"
+            ];
+
+            // каждые 2 кнопки в строке
             if (count($row) == 2 || $index == count($resources) - 1) {
                 $keyboardButtons[] = $row;
                 $row = [];
@@ -156,102 +185,91 @@ class BuyResourceAction extends BaseAction
         $keyboard = ['inline_keyboard' => $keyboardButtons];
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text' => $text,
-            'parse_mode' => 'Markdown',
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
-
     }
 
-    protected function askForQuantity($character, $resourceId)
-    {
-        $resource = $this->resourceModel->find($resourceId);
-        $text = "🧺 *Выберите желаемое количество ресурса*\n 📦 _{$resource['name']}_ *для покупки:*";
-
-        $keyboardButtons = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '1 ед.', 'callback_data' => "buy_quantity_{$resourceId}_1"],
-                    ['text' => '5 ед.', 'callback_data' => "buy_quantity_{$resourceId}_5"],
-                    ['text' => '10 ед.', 'callback_data' => "buy_quantity_{$resourceId}_10"],
-                ],
-                [
-                    ['text' => '25 ед.', 'callback_data' => "buy_quantity_{$resourceId}_25"],
-                    ['text' => '50 ед.', 'callback_data' => "buy_quantity_{$resourceId}_50"],
-                    ['text' => '100 ед.', 'callback_data' => "buy_quantity_{$resourceId}_100"],
-                ],
-                [
-                    ['text' => '250 ед.', 'callback_data' => "buy_quantity_{$resourceId}_250"],
-                    ['text' => '500 ед.', 'callback_data' => "buy_quantity_{$resourceId}_500"],
-                    ['text' => '1 000 ед.', 'callback_data' => "buy_quantity_{$resourceId}_1000"],
-                ],
-            ]
-        ];
-
-        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-
-        return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text' => $text,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($keyboardButtons),
-        ]);
-    }
-
-    protected function finalizePurchase($character, $resourceId, $quantity)
+    /**
+     * Спросить, сколько единиц купить
+     */
+    protected function askForQuantity(int $resourceId): ServerResponse
     {
         $resource = $this->resourceModel->find($resourceId);
         if (!$resource) {
             return $this->respondWithMessage("Ресурс не найден.");
         }
 
-        // Получаем запись о ресурсе у персонажа
-        $resourceRecord = $this->characterResourceModel
-            ->where('id_resources', $resourceId)
-            ->where('id_characters', $character['id'])
-            ->first();
+        $text = "🧺 *Выберите желаемое количество*\n📦 _{$resource['name']}_ *для покупки.*\n"
+            . "Текущая цена за 1 ед: *{$resource['buy_price']}* 💰";
 
-        // Инициализируем количество ресурса у персонажа нулём, если запись не найдена
-        $resourceCountInCharacter = $resourceRecord ? $resourceRecord['quantity'] : 0;
+        // Предустановленные варианты
+        $keyboardButtons = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '1 ед.',    'callback_data' => "buy_quantity_{$resourceId}_1"],
+                    ['text' => '5 ед.',    'callback_data' => "buy_quantity_{$resourceId}_5"],
+                    ['text' => '10 ед.',   'callback_data' => "buy_quantity_{$resourceId}_10"],
+                    ['text' => '15 ед.',   'callback_data' => "buy_quantity_{$resourceId}_15"],
+                ],
+                [
+                    ['text' => '25 ед.',   'callback_data' => "buy_quantity_{$resourceId}_25"],
+                    ['text' => '50 ед.',   'callback_data' => "buy_quantity_{$resourceId}_50"],
+                    ['text' => '100 ед.',  'callback_data' => "buy_quantity_{$resourceId}_100"],
+                    ['text' => '150 ед.',  'callback_data' => "buy_quantity_{$resourceId}_150"],
+                ],
+                [
+                    ['text' => '250 ед.',  'callback_data' => "buy_quantity_{$resourceId}_250"],
+                    ['text' => '500 ед.',  'callback_data' => "buy_quantity_{$resourceId}_500"],
+                    ['text' => '1000 ед.', 'callback_data' => "buy_quantity_{$resourceId}_1000"],
+                    ['text' => '5000 ед.', 'callback_data' => "buy_quantity_{$resourceId}_5000"],
+                ],
+            ]
+        ];
 
-
-        // Получение общего уровня персонажа (в твоем случае используется уровень текущего персонажа)
-        $sumOfLevels = $character['level'];
-
-        // Вычисление максимально возможного количества покупки
-        $maxPurchaseQuantity = round(
-            $resource['initial_quantity'] *
-            (1 + $sumOfLevels / 1000) *
-            (11 - $resource['rarity'])
-        );
-
-        $maxPurchaseQuantityFin = $maxPurchaseQuantity - $resourceCountInCharacter;
-
-        // Проверяем, не превышает ли запрашиваемое количество максимально допустимое
-        if ($quantity > $maxPurchaseQuantityFin and $maxPurchaseQuantityFin <= 0) {
-            return $this->respondWithMessage("Вы не можете купить такое количество данного ресурса. Лимит для вас: {$maxPurchaseQuantity} уже превышен.");
-        }elseif($quantity > $maxPurchaseQuantityFin and $maxPurchaseQuantityFin >= 1) {
-            return $this->respondWithMessage("Вы не можете купить такое количество данного ресурса. Максимально доступно: {$maxPurchaseQuantityFin}.");
-        }
-
-        $totalCost = $quantity * $resource['buy_price'];
-        if ($character['gold'] < $totalCost) {
-            return $this->respondWithMessage("У вас недостаточно золота для покупки этого количества.");
-        }
-
-        // Списание золота
-        $this->characterModel->decreaseGold($character['id'], $totalCost);
-
-        // Добавление ресурсов к персонажу
-        $this->characterResourceModel->addOrIncreaseResource($character['id'], $resourceId, $quantity);
-
-        // Обновление количества купленных ресурсов в банке
-        $this->resourcesBankModel->updatePurchasedQuantity($resourceId, $quantity);
-
-        $message = "Вы успешно купили $quantity единиц(ы) '{$resource['name']}' за $totalCost золотых монет.";
-        return $this->respondWithMessage($message);
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+        return Request::sendMessage([
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode($keyboardButtons),
+        ]);
     }
 
-}
+    /**
+     * Финальный этап — купить указанный ресурс
+     */
+    protected function finalizePurchase(array $character, int $resourceId, int $quantity): ServerResponse
+    {
+        $resource = $this->resourceModel->find($resourceId);
+        if (!$resource) {
+            return $this->respondWithMessage("Ресурс не найден в базе.");
+        }
 
+        // Проверка денег
+        $totalCost = $quantity * $resource['buy_price'];
+        if ($character['gold'] < $totalCost) {
+            return $this->respondWithMessage("У вас недостаточно золота для покупки {$quantity} ед.");
+        }
+
+        // Списываем золото
+        $this->characterModel->decreaseGold($character['id'], $totalCost);
+
+        // Добавляем ресурс игроку (в character_resources)
+        $this->characterResourceModel->addOrIncreaseResource($character['id'], $resourceId, $quantity);
+
+        // Увеличиваем счётчик purchases в resources_bank
+        $this->resourcesBankModel->updatePurchasedQuantity($resourceId, $quantity);
+
+        // (Необязательно) После сделки сразу пересчитываем buy_price/sell_price
+        // (new ResourceBankUpdateHandler())->process();
+
+        $message = "Вы успешно купили *{$quantity}* ед. ресурса *{$resource['name']}* "
+            . "по цене *{$resource['buy_price']}*💰 за штуку.\n\n"
+            . "Итого потрачено: *{$totalCost}* 💰";
+
+        return $this->respondWithMessage($message);
+    }
+}

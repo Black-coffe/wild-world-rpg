@@ -2,77 +2,68 @@
 
 namespace App\TaskHandlers;
 
-use App\Models\CharacterModel;
 use App\Models\ResourceModel;
 use App\Models\ResourcesBankModel;
 
 class ResourceBankUpdateHandler
 {
-    protected $characterModel;
     protected $resourceModel;
     protected $resourcesBankModel;
 
     public function __construct()
     {
-        $this->characterModel = new CharacterModel();
         $this->resourceModel = new ResourceModel();
         $this->resourcesBankModel = new ResourcesBankModel();
     }
 
     public function process()
     {
-        // Проверка временного диапазона
-        $currentTime = (int)date('G');
-
-        // Удалена временная проверка для демонстрации всего процесса
-        $totalPlayers = $this->characterModel->countAllResults();
-        $sumOfLevels = $this->characterModel->selectSum('level')->first()['level'];
-
-        // Проверка на деление на ноль
-        if ($totalPlayers == 0) {
-            throw new \Exception("Нет игроков в системе.");
-        }
-
+        // Получаем все ресурсы
         $resources = $this->resourceModel->findAll();
 
         foreach ($resources as $resource) {
-            if ($resource['rarity'] == 0) {
-                throw new \Exception("Редкость ресурса не может быть нулевой.");
+            // Ищем запись в resources_bank
+            $bankData = $this->resourcesBankModel
+                ->where('resource_id', $resource['id'])
+                ->first();
+
+            // Если записи нет, пропускаем (нет купленных/проданных)
+            if (!$bankData) {
+                continue;
             }
 
-            $stockQuantity = $this->calculateStockQuantity($totalPlayers, $sumOfLevels, $resource);
+            // Получаем показатели спроса/предложения
+            $purchased = (int)$bankData['resources_purchased'];
+            $sold      = (int)$bankData['resources_sold'];
 
-            // Обновляем или вставляем новое количество ресурса в банк ресурсов
-            $this->updateResourceStock($resource['id'], $stockQuantity);
-        }
-    }
+            // Считаем ratio, зажатый в коридор [0.35 .. 3.5]
+            $ratio = ($purchased + 1) / ($sold + 1);
+            $priceFactor = max(0.35, min(3.5, $ratio));
 
-    protected function calculateStockQuantity($totalPlayers, $sumOfLevels, $resource)
-    {
-        return round(
-            $totalPlayers *
-            $resource['initial_quantity'] *
-            (1 + $sumOfLevels / 1000) *
-            (11 / max(1, $resource['rarity'])) // Защита от деления на ноль
-        );
-    }
+            // Вычисляем новые цены, исходя из базовой price
+            $basePrice = $resource['price'];
+            $newPrice  = $basePrice * $priceFactor;
 
-    protected function updateResourceStock(int $resourceId, int $quantity)
-    {
-        $existingStock = $this->resourcesBankModel->where('resource_id', $resourceId)->first();
-        $currentTime = date('Y-m-d H:i:s'); // Получаем текущие дату и время
+            // Предположим, покупка на 5% дороже, продажа на 5% дешевле
+            $buyPrice  = round($newPrice * 1.05, 2);
+            $sellPrice = round($newPrice * 0.95, 2);
 
-        if ($existingStock) {
-            // Добавляем обновление поля 'last_update' с текущим временем
-            $this->resourcesBankModel->update($existingStock['id'], [
-                'current_quantity' => $quantity,
-                'last_update' => $currentTime
+            // Обновляем в таблице resources
+            $this->resourceModel->update($resource['id'], [
+                'buy_price'  => $buyPrice,
+                'sell_price' => $sellPrice,
             ]);
-        } else {
-            $this->resourcesBankModel->insert([
-                'resource_id' => $resourceId,
-                'current_quantity' => $quantity,
-                'last_update' => $currentTime
+
+            // "Состариваем" (уменьшаем) показатели purchased/sold
+            // чтобы при отсутствии сделок цена постепенно возвращалась к базовой
+            $newPurchased = max(0, $purchased - 1);
+            $newSold      = max(0, $sold - 1);
+
+            // Обновляем банк
+            $this->resourcesBankModel->update($bankData['id'], [
+                'resources_purchased' => $newPurchased,
+                'resources_sold'      => $newSold,
+                'last_update'         => date('Y-m-d H:i:s'),
             ]);
         }
     }
