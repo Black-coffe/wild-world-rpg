@@ -6,28 +6,30 @@ use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Models\TelegramUserModel;
-
+use App\Models\ClaimedCellModel; // <-- Нужно для проверки базы
 
 class CharacterGoActions
 {
     protected $callbackQuery;
+    protected $claimedCellModel;
 
     public function __construct(CallbackQuery $callbackQuery)
     {
-        $this->callbackQuery = $callbackQuery;
+        $this->callbackQuery     = $callbackQuery;
+        $this->claimedCellModel  = new ClaimedCellModel(); // Для проверки базы
     }
-
 
     public function handle(): ServerResponse
     {
-        $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
-
-        // Шаг 1: Определение ID телеграм пользователя
+        $chatId       = $this->callbackQuery->getMessage()->getChat()->getId();
         $telegramUserId = $this->callbackQuery->getFrom()->getId();
 
-        // Шаг 2: Поиск пользователя в базе
+        // Шаг 1: Поиск пользователя в базе
         $telegramUserModel = new TelegramUserModel();
         $user = $telegramUserModel->where('telegram_id', $telegramUserId)->first();
+
+        // Получаем ID персонажа
+        $character_id = $telegramUserModel->getCharacterIdByTelegramId($telegramUserId);
 
         if (!$user) {
             return Request::sendMessage([
@@ -36,7 +38,14 @@ class CharacterGoActions
             ]);
         }
 
+        // Проверяем, есть ли у этого игрока активная база
+        // (claimed_cells: status='active')
+        $hasBase = $this->claimedCellModel
+            ->where('character_id', $character_id)
+            ->where('status', 'active')
+            ->first();
 
+        // Текст сообщения
         $text = "*Привет, герой! 🙋‍♂️* 👋\n\n"
             . "**Скучно сидеть сложа руки? Не беда!** 🥱\n\n"
             . "**Мы найдем работу для самых трудолюбивых героев!** 💪\n\n"
@@ -44,40 +53,44 @@ class CharacterGoActions
             . "**Пусть тебе сопутствует удача!** 🍀\n\n"
             . "**P.S.** Делись своими достижениями в чате! 🗣️\n";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🚜 Переехать', 'callback_data' => 'move'],
-
-                ],
-                [
-                    ['text' => '🏕️ Окопаться', 'callback_data' => 'entrench'],
-                    ['text' => '📜 Квесты и задания', 'callback_data' => 'questAndTask'],
-                ],
-                [
-                    ['text' => '🗺️ Изучить местность', 'callback_data' => 'explore'],
-                    ['text' => '⛏️ Добыть ресурсы', 'callback_data' => 'gather'],
-                ]
-            ]
+        // Формируем кнопки
+        // Первая строка
+        $keyboardButtons = [
+            ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+            ['text' => '🚜 Переехать',       'callback_data' => 'move'],
         ];
-        $encodedKeyboard = json_encode($keyboard);
 
-        // Ответ на колбек-запрос для уведомления пользователя о приеме его запроса
+        // Вторая строка: "Окопаться" либо "Телепорт" — в зависимости от наличия базы
+        if (!$hasBase) {
+            // Нет базы => «Окопаться»
+            $keyboardButtons[] = ['text' => '🏕️ Окопаться', 'callback_data' => 'entrench'];
+        } else {
+            // База есть => «Телепорт»
+            $keyboardButtons[] = ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'];
+        }
+
+        // Добавим остальные кнопки (например, Квесты, Исследования...)
+        $keyboardButtons[] = ['text' => '📜 Квесты и задания', 'callback_data' => 'questAndTask'];
+        $keyboardButtons[] = ['text' => '🗺️ Изучить местность', 'callback_data' => 'explore'];
+        $keyboardButtons[] = ['text' => '⛏️ Добыть ресурсы',    'callback_data' => 'gather'];
+
+        // Превращаем список кнопок в массив по строкам (2 кнопки в строке)
+        $inlineKeyboard = array_chunk($keyboardButtons, 2);
+
+        // Ответ на колбэк, чтобы убрать "часики"
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId(),
         ]);
 
+        // Отправка картинки + надписи
+        $imagePath = base_url('uploads/telegram/character_ready_to_act.png');
 
-        // Шаг 5: Формирование и отправка сообщения с результатами
-        $imagePath = base_url('uploads/telegram/character_ready_to_act.png'); // Укажите актуальный путь к изображению
         return Request::sendPhoto([
-            'chat_id' => $chatId,
-            'photo'   => Request::encodeFile($imagePath),
-            'caption' => $text,
+            'chat_id'    => $chatId,
+            'photo'      => Request::encodeFile($imagePath),
+            'caption'    => $text,
             'parse_mode' => 'Markdown',
-            'reply_markup' => $encodedKeyboard
+            'reply_markup' => json_encode(['inline_keyboard' => $inlineKeyboard]),
         ]);
-
     }
 }

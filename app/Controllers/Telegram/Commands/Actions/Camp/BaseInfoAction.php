@@ -239,6 +239,7 @@ class BaseInfoAction extends BaseAction
                 [
                     ['text' => '🏗 Строить',    'callback_data' => 'Build'],
                     ['text' => '🏘 Постройки',  'callback_data' => 'construction'],
+                    ['text' => '📡 Маяки',  'callback_data' => 'teleportBeacon'],
                 ],
                 [
                     ['text' => '❌ Удалить базу', 'callback_data' => 'DeleteBase'],

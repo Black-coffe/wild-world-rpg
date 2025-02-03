@@ -291,6 +291,7 @@ class CallbackqueryCommand extends SystemCommand
 
             'runAway' =>                    \App\Controllers\Telegram\Commands\Actions\PVP\RunAwayAction::class,
             'attackPlayer' =>               \App\Controllers\Telegram\Commands\Actions\PVP\AttackPlayerAction::class,
+            'teleportBeacon' =>               \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportBeacon::class,
         ];
 
         // Проверяем, начинается ли $action с 'sellResource'
