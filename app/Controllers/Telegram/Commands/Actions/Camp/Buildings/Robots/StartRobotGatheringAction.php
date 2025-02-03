@@ -5,11 +5,15 @@ namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterTaskModel;
 use App\Models\CraftedItemsLogModel;
+use App\Models\CraftedItemsModel; // <-- добавляем, чтобы узнать baseDurability робота
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\TaskModel;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
+
+// Новое подключение нашего сервиса:
+use App\Services\Bases\BaseCheckService;
 
 /**
  * Класс, запускающий робота-добытчика ресурсов.
@@ -36,6 +40,7 @@ class StartRobotGatheringAction extends BaseAction
 
     public function handle(): ServerResponse
     {
+        // 1. Получаем пользователя, персонажа, чат
         [$user, $character] = $this->getUserAndCharacter();
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
@@ -49,11 +54,26 @@ class StartRobotGatheringAction extends BaseAction
             $this->callbackQuery->getId(),
             $this->callbackQuery->getMessage()->getChat()->getId()
         )) {
-            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+            return Request::emptyResponse(); // переезд есть, сервис уже отписался
         }
 
         $characterId = $character['id'];
-        // Из callback_data извлекаем ID робота (startRobotGatherer_123 => 123)
+
+        // --- NEW: проверка базы и местоположения ---
+        $baseCheckService = new BaseCheckService();
+        $baseStatus       = $baseCheckService->checkBaseStatus($characterId);
+
+        if (!$baseStatus['hasBase']) {
+            // Если базы нет
+            return $this->sendError("У тебя нет базы! Нельзя запустить робота-добытчика, пока не построишь базу.");
+        }
+        if (!$baseStatus['isOnBase']) {
+            // Если есть база, но персонаж не на своей базе
+            return $this->sendError("Ты не находишься на своей базе! Перейди на клетку своей базы для запуска робота-добытчика.");
+        }
+        // --- END of base-check ---
+
+        // Из callback_data извлекаем ID робота (например, "startRobotGatherer_82" => "82")
         $robotId = str_replace('startRobotGatherer_', '', $this->callbackQuery->getData());
 
         // 1) Ищем в справочнике здание RoboticsWorkshop
@@ -67,7 +87,6 @@ class StartRobotGatheringAction extends BaseAction
         $roboticsWorkshopId = $roboticsWorkshopRow['id'];
 
         // 2) Ищем в справочнике задачу "GatheringResourcesRobot"
-        //    (убедитесь, что такая запись реально существует в вашей task-таблице)
         $taskRow = $this->taskModel
             ->where('name', 'GatheringResourcesRobot')
             ->first();
@@ -77,7 +96,7 @@ class StartRobotGatheringAction extends BaseAction
         }
         $taskId = $taskRow['id'];
 
-        // 3) Проверяем, нет ли уже активной задачи "GatheringResourcesRobot" у персонажа
+        // 3) Проверяем, нет ли уже активной задачи "GatheringResourcesRobot"
         $existingRobotTask = $this->characterTaskModel
             ->where('character_id', $characterId)
             ->where('task_id', $taskId)
@@ -86,8 +105,7 @@ class StartRobotGatheringAction extends BaseAction
 
         if ($existingRobotTask) {
             return $this->sendError(
-                "У тебя уже запущен робот‐добытчик! "
-                . "Дождись завершения предыдущего, прежде чем запускать нового."
+                "У тебя уже запущен робот‐добытчик! Дождись завершения предыдущего."
             );
         }
 
@@ -113,9 +131,16 @@ class StartRobotGatheringAction extends BaseAction
             );
         }
 
-        // Текущее состояние для одной строки
-        $currentDurability = $robotLogEntry['durability_count']; // Прочность (сколько запусков осталось)
-        $currentQuantity   = $robotLogEntry['quantity'];         // Сколько таких роботов в записи
+        // Узнаём базовую прочность из таблицы crafted_items (поле durability_count)
+        $robotItemModel = new CraftedItemsModel();
+        $robotData      = $robotItemModel->find($robotId);
+        if (!$robotData) {
+            return $this->sendError("Ошибка: не найдено описание робота #{$robotId} в crafted_items.");
+        }
+
+        $baseDurability   = (int) $robotData['durability_count'];
+        $currentDurability = (int)$robotLogEntry['durability_count'];
+        $currentQuantity   = (int)$robotLogEntry['quantity'];
 
         if ($currentDurability <= 0) {
             return $this->sendError(
@@ -123,34 +148,46 @@ class StartRobotGatheringAction extends BaseAction
             );
         }
 
-        // 6) Списываем ровно 1 durability_count
-        $newDurability = $currentDurability - 1;
+        // 6) Рассчитываем время работы: 2 ч * уровень мастерской
+        $hoursUntilBreakdown = 2 * $workshopLevel;
 
+        // «Стоимость» в прочности = hoursUntilBreakdown
+        $requiredDurability = $hoursUntilBreakdown;
+
+        // Если не хватает прочности, берём «запасных» роботов
+        while ($currentDurability < $requiredDurability) {
+            if ($currentQuantity > 1) {
+                $currentQuantity--;
+                $currentDurability += $baseDurability;
+            } else {
+                // Остался один робот => частичный запуск
+                $requiredDurability = $currentDurability;
+                break;
+            }
+        }
+
+        // Списываем нужное количество
+        $newDurability = $currentDurability - $requiredDurability;
         if ($newDurability <= 0) {
-            // Этот конкретный экземпляр «умер»
             $newQuantity = $currentQuantity - 1;
-
             if ($newQuantity <= 0) {
-                // Роботов не осталось совсем — удаляем запись
+                // удаляем запись
                 $this->craftedItemsLogModel->delete($robotLogEntry['id']);
             } else {
-                // Остались ещё роботы, восстанавливаем им (например) 50 прочности
+                // обновляем
                 $this->craftedItemsLogModel->update($robotLogEntry['id'], [
                     'quantity'         => $newQuantity,
-                    'durability_count' => 50,
+                    'durability_count' => $baseDurability,
                 ]);
             }
         } else {
-            // Просто уменьшаем на 1 единицу прочности
             $this->craftedItemsLogModel->update($robotLogEntry['id'], [
-                'durability_count' => $newDurability
+                'quantity'         => $currentQuantity,
+                'durability_count' => $newDurability,
             ]);
         }
 
-        // 7) Рассчитываем время работы: 2 ч * уровень мастерской
-        $hoursUntilBreakdown = 2 * $workshopLevel;
-
-        // 8) Создаём новую задачу в character_tasks
+        // 7) Создаём новую задачу (GatheringResourcesRobot) в character_tasks
         $startTime = new \DateTime();
         $endTime   = (clone $startTime)->add(new \DateInterval('PT' . $hoursUntilBreakdown . 'H'));
 
@@ -163,7 +200,7 @@ class StartRobotGatheringAction extends BaseAction
             'status'           => 'in_work',
         ]);
 
-        // 9) Считаем, сколько роботов и «часов добычи (суммарно)» осталось
+        // 8) Считаем, сколько роботов и «общей прочности» осталось
         $allRobotRows = $this->craftedItemsLogModel
             ->where('character_id', $characterId)
             ->where('crafted_item_id', $robotId)
@@ -176,12 +213,12 @@ class StartRobotGatheringAction extends BaseAction
             $sumDurability += ($row['durability_count'] * $row['quantity']);
         }
 
-        // 10) Формируем текст ответа
+        // 9) Формируем текст ответа
         $text = "🚀 *Ты запустил робота-добытчика ресурсов!* ⚙\n\n"
             . "🔧 Он будет работать *{$hoursUntilBreakdown} ч.* (Уровень мастерской: {$workshopLevel}).\n\n"
-            . "📉 У тебя теперь осталось:\n"
+            . "📉 Остаток роботов после запуска:\n"
             . "   — Роботов: *{$sumQuantity}* шт.\n"
-            . "   — Общих часов добычи: *{$sumDurability}*\n\n"
+            . "   — Общая прочность: *{$sumDurability}*\n\n"
             . "⛏ Ожидай окончания работы, пока робот соберёт всё возможное!";
 
         // Кнопки для удобства
@@ -195,6 +232,7 @@ class StartRobotGatheringAction extends BaseAction
             ]
         ];
 
+        // Для наглядности выводим картинку
         $imagePath = base_url('uploads/telegram/craft/standard/robot_gatherer.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 

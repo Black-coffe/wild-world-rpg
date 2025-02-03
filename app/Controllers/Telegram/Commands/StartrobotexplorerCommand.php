@@ -7,6 +7,7 @@ use App\Models\CharacterBuildingModel;
 use App\Models\CharacterModel;
 use App\Models\CharacterTaskModel;
 use App\Models\CraftedItemsLogModel;
+use App\Models\CraftedItemsModel;
 use App\Models\TaskModel;
 use App\Models\TelegramUserModel;
 use DateInterval;
@@ -16,6 +17,9 @@ use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 use CodeIgniter\Log\Logger;
 use Config\Services;
+
+// <-- Добавляем:
+use App\Services\Bases\BaseCheckService;  // наш новый сервис
 
 class StartrobotexplorerCommand extends UserCommand
 {
@@ -45,9 +49,9 @@ class StartrobotexplorerCommand extends UserCommand
         $this->logger->debug('----- НАЧАЛО ОБРАБОТКИ КОМАНДЫ /startrobotexplorer -----');
 
         // 1) Получаем данные о сообщении
-        $message = $this->getMessage();
-        $chatId  = $message->getChat()->getId();
-        $userId  = $message->getFrom()->getId();
+        $message  = $this->getMessage();
+        $chatId   = $message->getChat()->getId();
+        $userId   = $message->getFrom()->getId();
         $fullText = $message->getText();
 
         $this->logger->debug("Получено сообщение от пользователя: {$userId} в чате: {$chatId}");
@@ -55,14 +59,14 @@ class StartrobotexplorerCommand extends UserCommand
 
         // 2) Извлекаем аргументы из полного текста сообщения
         $commandParts = explode(' ', $fullText, 2);
-        $arguments = $commandParts[1] ?? '';
+        $arguments    = $commandParts[1] ?? '';
 
         $this->logger->debug("Извлеченные аргументы: {$arguments}");
 
         // 3) Парсим формат "x=...,y=..."
         $pattern = '/^x=(\d+),y=(\d+)$/';
         if (!preg_match($pattern, $arguments, $matches)) {
-            $help = "Пример команды: `/startrobotexplorer x=100,y=500`\nКоординаты от 1 до 1000. Без пробелов!";
+            $help = "Пример команды: /startrobotexplorer x=100,y=500\nКоординаты от 1 до 1000. Без пробелов!";
             $this->logger->debug("Аргументы не соответствуют формату x=...,y=...");
             return $this->sendMessage($chatId, "Неверный формат ввода.\n{$help}");
         }
@@ -73,15 +77,16 @@ class StartrobotexplorerCommand extends UserCommand
 
         // Валидация x и y
         if ($x < 1 || $x > 1000 || $y < 1 || $y > 1000) {
-            $this->logger->debug("Координаты x или y находятся вне допустимого диапазона [1..1000].");
-            return $this->sendMessage($chatId,
-                "Координаты должны быть целыми числами в диапазоне [1..1000]. Получено x={$x}, y={$y}."
+            $this->logger->debug("Координаты x или y вне диапазона [1..1000].");
+            return $this->sendMessage(
+                $chatId,
+                "Координаты должны быть в диапазоне [1..1000]. Получено x={$x}, y={$y}."
             );
         }
 
         // 4) Ищем пользователя Telegram
         $telegramUserModel = new TelegramUserModel();
-        $telegramUser = $telegramUserModel->where('telegram_id', $userId)->first();
+        $telegramUser      = $telegramUserModel->where('telegram_id', $userId)->first();
         if (!$telegramUser) {
             $this->logger->error("Пользователь Telegram с ID: {$userId} не найден в базе данных.");
             return $this->sendMessage($chatId, "Не найден пользователь Telegram в базе. Сначала используйте /start!");
@@ -91,18 +96,35 @@ class StartrobotexplorerCommand extends UserCommand
 
         // 5) Ищем персонажа
         $characterModel = new CharacterModel();
-        $character = $characterModel->where('telegram_user_id', $telegramUser['id'])->first();
+        $character      = $characterModel->where('telegram_user_id', $telegramUser['id'])->first();
         if (!$character) {
             $this->logger->error("Персонаж для пользователя Telegram с ID: {$userId} не найден.");
-            return $this->sendMessage($chatId, "У вас нет персонажа. Сначала введите /start, чтобы его создать.");
+            return $this->sendMessage($chatId, "У вас нет персонажа. Сначала используйте /start, чтобы его создать.");
         }
         $characterId = $character['id'];
-
         $this->logger->debug("Найден персонаж: " . print_r($character, true));
+
+        // --- NEW PART: проверяем, есть ли база и находится ли игрок на базе ---
+        $baseCheckService = new BaseCheckService();
+        $baseStatus       = $baseCheckService->checkBaseStatus($characterId);
+
+        if (!$baseStatus['hasBase']) {
+            // Если базы нет, прерываем:
+            return $this->sendMessage($chatId,
+                "У тебя нет базы! Нельзя запустить робота-исследователя, пока не построишь базу."
+            );
+        }
+        if (!$baseStatus['isOnBase']) {
+            // Если есть база, но персонаж не на базе, тоже прерываем
+            return $this->sendMessage($chatId,
+                "Ты не находишься на своей базе! Робота-исследователя запускаем только со своей базы."
+            );
+        }
+        // --- END of base-check logic ---
 
         // 6) Проверяем наличие задачи "ExploringLocationRobot"
         $taskModel = new TaskModel();
-        $taskRow = $taskModel->where('name', 'ExploringLocationRobot')->first();
+        $taskRow   = $taskModel->where('name', 'ExploringLocationRobot')->first();
         if (!$taskRow) {
             $this->logger->debug("Задача ExploringLocationRobot не найдена.");
             return $this->sendMessage($chatId, "Не найдена задача ExploringLocationRobot.");
@@ -112,20 +134,21 @@ class StartrobotexplorerCommand extends UserCommand
 
         // 7) Проверяем, нет ли уже активной задачи
         $characterTaskModel = new CharacterTaskModel();
-        $existingRobotTask = $characterTaskModel
+        $existingRobotTask  = $characterTaskModel
             ->where('character_id', $characterId)
             ->where('task_id', $taskId)
             ->where('status', 'in_work')
             ->first();
         if ($existingRobotTask) {
             $this->logger->debug("У персонажа уже есть активная задача ExploringLocationRobot.");
-            return $this->sendMessage($chatId,
+            return $this->sendMessage(
+                $chatId,
                 "У тебя уже запущен робот-исследователь! Дождись завершения предыдущего."
             );
         }
 
         // 8) Проверяем RoboticsWorkshop
-        $buildingModel = new BuildingModel();
+        $buildingModel       = new BuildingModel();
         $roboticsWorkshopRow = $buildingModel->where('name_en', 'RoboticsWorkshop')->first();
         if (!$roboticsWorkshopRow) {
             $this->logger->debug("Здание RoboticsWorkshop не найдено в справочнике.");
@@ -140,87 +163,103 @@ class StartrobotexplorerCommand extends UserCommand
             ->where('building_id', $roboticsWorkshopId)
             ->first();
         if (!$roboticsWorkshop) {
-            $this->logger->debug("У персонажа не найдено здание RoboticsWorkshop.");
-            return $this->sendMessage($chatId,
+            $this->logger->debug("Не найдено здание RoboticsWorkshop у персонажа.");
+            return $this->sendMessage(
+                $chatId,
                 'У тебя нет построенной Мастерской робототехники, нельзя запустить робота-исследователя.'
             );
         }
         $workshopLevel = $roboticsWorkshop['level'] ?? 1;
-        $this->logger->debug("Уровень здания RoboticsWorkshop: {$workshopLevel}");
+        $this->logger->debug("Уровень мастерской: {$workshopLevel}");
 
-        // 9) Ищем робот "Робот-исследователь" (ID робота жестко задан)
-        $robotId = 81;
+        // 9) Ищем робот "Робот-исследователей" (ID=81)
+        $robotId             = 81;
         $craftedItemsLogModel = new CraftedItemsLogModel();
-        $robotLogEntry = $craftedItemsLogModel
+        $robotLogEntry        = $craftedItemsLogModel
             ->where('character_id', $characterId)
             ->where('crafted_item_id', $robotId)
-            ->where('durability_count >', 0)
+            ->where('quantity >', 0)
             ->orderBy('id', 'ASC')
             ->first();
 
         if (!$robotLogEntry) {
-            $this->logger->debug("Робот-исследователь с ID: {$robotId} не найден или закончился.");
-            return $this->sendMessage($chatId,
-                "Нет роботов нужного типа (ID={$robotId}) либо они закончились."
+            $this->logger->debug("Робот-исследователь (ID={$robotId}) не найден или закончился.");
+            return $this->sendMessage($chatId, "Нет роботов типа (ID={$robotId}) либо они закончились.");
+        }
+        $this->logger->debug("Робот-исследователь: " . print_r($robotLogEntry, true));
+
+        // 9.1) Получаем baseDurability из таблицы crafted_items
+        $robotItemModel = new CraftedItemsModel();
+        $robotItemData  = $robotItemModel->find($robotId);
+        if (!$robotItemData) {
+            return $this->sendMessage(
+                $chatId,
+                "Не удалось найти описание робота #{$robotId} в crafted_items."
             );
         }
-        $this->logger->debug("Найден робот-исследователь: " . print_r($robotLogEntry, true));
+        $baseDurability = (int)$robotItemData['durability_count'];
+        $this->logger->debug("baseDurability робота (ID={$robotId}): {$baseDurability}");
 
-        $currentDurability = $robotLogEntry['durability_count'];
-        $currentQuantity   = $robotLogEntry['quantity'];
-        if ($currentDurability <= 0) {
-            $this->logger->debug("У робота-исследователя прочность равна 0.");
-            return $this->sendMessage($chatId,
-                "Этот робот не имеет прочности (0). Нельзя запустить."
-            );
-        }
+        // Текущее состояние робота(ов)
+        $currentDurability = (int)$robotLogEntry['durability_count'];
+        $currentQuantity   = (int)$robotLogEntry['quantity'];
 
-        // 10) Расчёт времени работы: 6 часов * уровень мастерской
+        // 10) Время работы = 6 часов * уровень мастерской
         $hoursUntilBreakdown = 6 * $workshopLevel;
-        $this->logger->debug("Время работы робота-исследователя: {$hoursUntilBreakdown} часов.");
+        $this->logger->debug("Время работы робота-исследователя: {$hoursUntilBreakdown} ч.");
 
-        // Новый блок: проверяем, достаточно ли прочности у робота для исследования
-        $requiredDurability = $hoursUntilBreakdown; // расход прочности пропорционален времени работы
-        if ($currentDurability < $requiredDurability) {
-            $this->logger->debug("У робота-исследователя недостаточно прочности: требуется {$requiredDurability}, доступно {$currentDurability}.");
-            return $this->sendMessage($chatId,
-                "У этого робота недостаточно прочности для запуска исследования на {$hoursUntilBreakdown} часов. Попробуй использовать другого робота или дождись восстановления прочности."
-            );
+        $requiredDurability = $hoursUntilBreakdown;
+
+        // --- ЛОГИКА "ПОПОЛНЕНИЯ" (как в вашем коде) ---
+        while ($currentDurability < $requiredDurability) {
+            if ($currentQuantity > 1) {
+                $this->logger->debug("Недостаточно прочности, но есть запасные роботы. Уменьшаем quantity, добавляем baseDurability.");
+                $currentQuantity--;
+                $currentDurability += $baseDurability;
+            } else {
+                // Остался 1 робот, прочности не хватает => частичный запуск
+                $this->logger->debug("Нет запасных роботов, запускаем на текущую прочность = {$currentDurability}.");
+                $requiredDurability = $currentDurability;
+                break;
+            }
         }
 
-        // 11) Списываем необходимое количество прочности
+        // Контрольная проверка
+        if ($currentDurability <= 0) {
+            return $this->sendMessage($chatId, "Прочность робота равна 0, запуск невозможен.");
+        }
+
+        // Списываем
         $newDurability = $currentDurability - $requiredDurability;
+
+        // Если робот "умер" полностью
         if ($newDurability <= 0) {
-            // Робот "умер" в процессе запуска — уменьшаем количество роботов
-            $newQuantity = $currentQuantity - 1;
-            if ($newQuantity <= 0) {
+            $currentQuantity--;
+            if ($currentQuantity <= 0) {
                 $craftedItemsLogModel->delete($robotLogEntry['id']);
-                $this->logger->debug("Робот-исследователь с ID: {$robotId} израсходовал всю прочность и был удалён. Осталось: 0 шт.");
+                $this->logger->debug("Все роботы (ID={$robotId}) израсходованы, запись удалена.");
             } else {
-                // Для оставшихся роботов можно восстановить прочность до базового значения (например, 50)
                 $craftedItemsLogModel->update($robotLogEntry['id'], [
-                    'quantity' => $newQuantity,
-                    'durability_count' => 50 // можно заменить на значение из справочника
+                    'quantity'         => $currentQuantity,
+                    'durability_count' => $baseDurability,
                 ]);
-                $this->logger->debug("Робот-исследователь с ID: {$robotId} израсходовал всю прочность. Осталось: {$newQuantity} шт., прочность восстановлена до 50.");
             }
         } else {
-            // Обновляем запись: списываем ровно требуемое количество прочности
+            // Иначе просто обновляем
             $craftedItemsLogModel->update($robotLogEntry['id'], [
-                'durability_count' => $newDurability
+                'quantity'         => $currentQuantity,
+                'durability_count' => $newDurability,
             ]);
-            $this->logger->debug("У робота-исследователя с ID: {$robotId} списано {$requiredDurability} единиц прочности. Текущая прочность: {$newDurability}.");
         }
 
         // 12) Создаём задачу исследования
         $startTime = new DateTime();
         $endTime   = (clone $startTime)->add(new DateInterval('PT' . $hoursUntilBreakdown . 'H'));
 
-        // Вместо простых координат сохраняем настройки задачи в виде JSON:
         $taskSettings = json_encode([
             'coordinates'        => ['x' => $x, 'y' => $y],
             'duration_hours'     => $hoursUntilBreakdown,
-            'exploration_radius' => $workshopLevel  // например, радиус исследования равен уровню мастерской
+            'exploration_radius' => $workshopLevel
         ]);
 
         $characterTaskModel->insert([
@@ -232,10 +271,9 @@ class StartrobotexplorerCommand extends UserCommand
             'status'           => 'in_work',
             'task_settings'    => $taskSettings,
         ]);
+        $this->logger->debug("Создана задача ExploringLocationRobot для персонажа ID={$characterId}");
 
-        $this->logger->debug("Создана задача ExploringLocationRobot для персонажа с ID: {$characterId}");
-
-        // 13) Подсчитываем остатки роботов
+        // 13) Подсчитываем остаток роботов
         $allRobotRows = $craftedItemsLogModel
             ->where('character_id', $characterId)
             ->where('crafted_item_id', $robotId)
@@ -247,28 +285,24 @@ class StartrobotexplorerCommand extends UserCommand
             $sumQuantity   += $row['quantity'];
             $sumDurability += $row['durability_count'] * $row['quantity'];
         }
-        $this->logger->debug("Остаток роботов-исследователей: {$sumQuantity} шт., общая прочность: {$sumDurability}");
+        $this->logger->debug("Осталось роботов-исследователей: {$sumQuantity}, общая прочность: {$sumDurability}");
 
-        // 14) Итоговое сообщение
+        // 14) Ответное сообщение
         $text = "🚀 *Ты запустил робота-исследователя с указанными координатами!* 🔍\n\n"
-            . "Исследование продлится *{$hoursUntilBreakdown} ч.* (Мастерская: {$workshopLevel} ур.).\n"
+            . "Исследование продлится *{$hoursUntilBreakdown} ч.* (Уровень мастерской: {$workshopLevel}).\n"
             . "Робот стартует в точке: *X={$x}, Y={$y}*\n\n"
-            . "Если исследование запущено с координатами, наш железный друг отправится в эпическое круговое путешествие 🌐, изучая все ячейки по кругу и постепенно отдаляясь от исходной точки! 🔄✨\n\n"
+            . "Если исследование запущено с координатами, робот будет постепенно изучать все ячейки по кругу. 🔄✨\n\n"
             . "📉 Осталось:\n"
             . "  — Роботов: *{$sumQuantity}* шт.\n"
-            . "  — Общей прочности: *{$sumDurability}*\n\n"
-            . "🎉 Желаем удачи в освоении новых территорий, отважный искатель приключений! 🗺️🛡️";
+            . "  — Общая прочность: *{$sumDurability}*\n\n"
+            . "🎉 Удачи в освоении новых территорий, отважный искатель приключений! 🗺️🛡️";
 
         $this->logger->debug('----- КОНЕЦ ОБРАБОТКИ КОМАНДЫ /startrobotexplorer -----');
-
         return $this->sendMessage($chatId, $text);
     }
 
     /**
      * Устанавливает аргументы для команды.
-     *
-     * @param string $arguments
-     * @return $this
      */
     public function setArguments(string $arguments): self
     {
