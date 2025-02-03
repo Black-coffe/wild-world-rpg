@@ -18,9 +18,9 @@ class SellCraftAction extends BaseAction
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->characterModel = new CharacterModel();
+        $this->characterModel       = new CharacterModel();
         $this->craftedItemsLogModel = new CraftedItemsLogModel();
-        $this->craftedItemsModel = new CraftedItemsModel();
+        $this->craftedItemsModel    = new CraftedItemsModel();
     }
 
     public function handle(): ServerResponse
@@ -36,7 +36,10 @@ class SellCraftAction extends BaseAction
         }
 
         // Проверка наличия хотя бы одного скрафченного ресурса у персонажа
-        $craftedItemsLog = $this->craftedItemsLogModel->where('character_id', $character['id'])->findAll();
+        $craftedItemsLog = $this->craftedItemsLogModel
+            ->where('character_id', $character['id'])
+            ->findAll();
+
         if (empty($craftedItemsLog)) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
@@ -49,7 +52,7 @@ class SellCraftAction extends BaseAction
         foreach ($craftedItemsLog as $log) {
             $craftedItem = $this->craftedItemsModel->find($log['crafted_item_id']);
             if ($craftedItem) {
-                $type = $craftedItem['type'];
+                $type = $craftedItem['type'] ?? 'unknown';
                 if (!isset($craftedItems[$type])) {
                     $craftedItems[$type] = [
                         'type' => $type,
@@ -60,7 +63,10 @@ class SellCraftAction extends BaseAction
         }
 
         // Формирование сообщения и кнопок
-        $text = "*Привет друг*\nТы зашел ко мне в лавку и решил продать немного своего добра, которое ты так усердно крафтил.\nНу что ж, показывай, что там у тебя есть?\n";
+        $text = "*Привет друг!* \n"
+            . "Ты зашел ко мне в лавку и решил продать немного своего добра, "
+            . "которое ты так усердно крафтил.\n\n"
+            . "Ну что ж, показывай, что там у тебя есть?\n";
 
         $keyboardButtons = [];
 
@@ -71,16 +77,16 @@ class SellCraftAction extends BaseAction
             ];
         }
 
+        // Добавим кнопки персонаж / инвентарь
         $keyboardButtons[] = ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'];
         $keyboardButtons[] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];
 
         $keyboard = array_chunk($keyboardButtons, 2);
 
-        $imagePath = base_url('uploads/telegram/craft/vendor_kiosk_in_the_game_world.jpg'); // Укажите актуальный путь к изображению
+        $imagePath = base_url('uploads/telegram/craft/vendor_kiosk_in_the_game_world.jpg');
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        //log_message('debug', "SellCraftAction keyboard: " . print_r($keyboard, true));
         return Request::sendPhoto([
             'chat_id' => $chatId,
             'photo' => Request::encodeFile($imagePath),
@@ -90,17 +96,21 @@ class SellCraftAction extends BaseAction
         ]);
     }
 
+    /**
+     * Переводим type -> человекопонятное название с эмоджи.
+     */
     private function translateType($type)
     {
         $translations = [
             'workbench' => '🔬 Верстаки',
             'component' => '📐 Компоненты',
             'transport' => '🛴 Транспорт',
-            'tool' => '🛠️ Инструменты',
-            'drug' => '💊 Лекарства',
-            'robots' => '🤖 Роботы',
+            'tool'      => '🛠️ Инструменты',
+            'drug'      => '💊 Лекарства',
+            'robots'    => '🤖 Роботы',
+            'teleport'  => '🌀 Телепорт-маяки',   // <-- Добавлена новая группа
         ];
 
-        return $translations[$type] ?? $type;
+        return $translations[$type] ?? ("❓" . $type);
     }
 }

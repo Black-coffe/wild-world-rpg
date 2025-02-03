@@ -469,6 +469,7 @@ class Worker extends Controller
         'craftWiring' => 'Craft\CraftCompletionWiringHandler',
         'craftElectronicComponents' => 'Craft\CraftCompletionElectronicComponentsHandler',
         'startBuildTeleportationCenter' => 'Built\BuiltCompletionTeleportationCenterHandler',
+        'craftTeleportBeaconBasic' => 'Craft\WorkbenchStandard\CraftCompletionTeleportBeaconBasicHandler',
 
         // Другие соответствия
     ];

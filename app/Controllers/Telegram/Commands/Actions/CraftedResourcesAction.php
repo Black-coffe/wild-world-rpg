@@ -22,7 +22,6 @@ class CraftedResourcesAction extends BaseAction
     public function handle(): ServerResponse
     {
         [$user, $character] = $this->getUserAndCharacter();
-
         if (!$user || !$character) {
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
@@ -47,7 +46,6 @@ class CraftedResourcesAction extends BaseAction
         } else {
             // ---------------------------------------------------------
             // 1. Определяем группы и иконки (type -> название группы).
-            //    При желании можно переименовать/добавить/упорядочить.
             // ---------------------------------------------------------
             $groupMap = [
                 'component' => ['emoji' => '🧩', 'groupName' => 'Компоненты'],
@@ -56,20 +54,21 @@ class CraftedResourcesAction extends BaseAction
                 'robots'    => ['emoji' => '🤖', 'groupName' => 'Роботы'],
                 'workbench' => ['emoji' => '🔬', 'groupName' => 'Верстаки'],
                 'transport' => ['emoji' => '🛤', 'groupName' => 'Транспорт'],
-                // Если есть ещё типы — добавьте сюда
+                'teleport'  => ['emoji' => '🌀', 'groupName' => 'Телепорт-маяки'], // <-- НОВАЯ ГРУППА
             ];
 
-            // Предметы, которые не имеют type или он неизвестен
+            // Группа для незнакомых type
             $fallbackGroupKey = 'unknown';
 
             // ---------------------------------------------------------
-            // 2. Распихиваем предметы по группам (словарь groupKey -> массив предметов)
+            // 2. Распихиваем предметы по группам
             // ---------------------------------------------------------
-            $groups = [];   // [ 'component' => [...], 'drug' => [...], ... , 'unknown' => [...] ]
+            $groups = [];
+
             foreach ($craftedItemsLogs as $item) {
                 $type = $item['type'] ?? '';
                 if (!isset($groupMap[$type])) {
-                    $type = $fallbackGroupKey; // неизвестная группа
+                    $type = $fallbackGroupKey;
                 }
                 if (!isset($groups[$type])) {
                     $groups[$type] = [];
@@ -77,57 +76,43 @@ class CraftedResourcesAction extends BaseAction
                 $groups[$type][] = $item;
             }
 
+            // Если хотим явно отображать неизвестные предметы
+            if (!isset($groupMap[$fallbackGroupKey])) {
+                $groupMap[$fallbackGroupKey] = ['emoji' => '❓', 'groupName' => 'Прочее'];
+            }
+
             // ---------------------------------------------------------
-            // 3. Генерируем общий текст, группируя
+            // 3. Формируем общий текст, пробегаясь по $groupMap
             // ---------------------------------------------------------
             $text = "*Склад крафтовых предметов:*\n\n";
 
-            // Если хотим явно показывать «неизвестную группу»
-            // можно добавить её в конец или в начало.
-            // Или же не показывать совсем, если не нужно.
-            if (!isset($groupMap[$fallbackGroupKey])) {
-                // Можем прописать иконку / заголовок для неизвестных
-                $groupMap[$fallbackGroupKey] = ['emoji' => '🔧', 'groupName' => 'Прочее'];
-            }
-
-            // Проходим по имеющимся группам, в порядке описания в $groupMap
             foreach ($groupMap as $typeKey => $groupInfo) {
-                // Есть ли вообще предметы этой группы у игрока?
                 if (empty($groups[$typeKey])) {
-                    // Нет предметов в этой группе — пропускаем
+                    // Нет предметов такой группы
                     continue;
                 }
 
-                $emoji   = $groupInfo['emoji'];
-                $gName   = $groupInfo['groupName'];
-                $itemsInGroup = $groups[$typeKey]; // массив предметов
+                $emoji      = $groupInfo['emoji'];
+                $groupName  = $groupInfo['groupName'];
+                $itemsInGroup = $groups[$typeKey];
 
-                // Считаем суммарное кол-во предметов в группе
+                // Подсчёт суммарного количества
                 $groupTotal = 0;
                 foreach ($itemsInGroup as $it) {
                     $groupTotal += $it['quantity'];
                 }
 
-                // Заголовок группы
-                $text .= "{$emoji}Группа *{$gName}* _(всего " . number_format($groupTotal) . " шт.)_ {$emoji}\n";
-                // Начинаем блок кода (моноширинный) — тройные бэктики
-                $text .= "```";
+                $text .= "{$emoji}Группа *{$groupName}* _(всего " . number_format($groupTotal) . " шт.)_ {$emoji}\n";
+                $text .= "```"; // открываем блок кода
 
-                // Список предметов
                 foreach ($itemsInGroup as $it) {
                     $name   = $it['name_rus'];
                     $qty    = (int)$it['quantity'];
                     $dur    = (int)$it['durability_count'];
-                    // Для удобства форматируем qty и qty*dur:
                     $qtyStr = number_format($qty);
                     $useStr = number_format($qty * $dur);
-
-                    // Пример строчки:
-                    // -Антисептик | 12,587,531 шт. 62,937,655 исп.
-                    // (можно на ваш вкус оформить пробелы)
                     $text .= "\n-{$name} | {$qtyStr} шт. {$useStr} исп.";
                 }
-                // Заканчиваем блок кода
                 $text .= "\n```\n";
             }
 
@@ -147,7 +132,10 @@ class CraftedResourcesAction extends BaseAction
             ]
         ];
 
+        // Убираем часики
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+        // Отправляем результат
         return Request::sendMessage([
             'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
             'text'         => $text,

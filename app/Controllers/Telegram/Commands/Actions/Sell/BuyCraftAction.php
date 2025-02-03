@@ -22,11 +22,11 @@ class BuyCraftAction extends BaseAction
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->characterModel = new CharacterModel();
+        $this->characterModel         = new CharacterModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
-        $this->buildingModel = new BuildingModel();
-        $this->salesModel = new SalesModel();
-        $this->craftedItemsModel = new CraftedItemsModel();
+        $this->buildingModel          = new BuildingModel();
+        $this->salesModel             = new SalesModel();
+        $this->craftedItemsModel      = new CraftedItemsModel();
     }
 
     public function handle(): ServerResponse
@@ -41,6 +41,7 @@ class BuyCraftAction extends BaseAction
             ]);
         }
 
+        // Проверка золота
         if ($character['gold'] < 1000) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
@@ -48,6 +49,7 @@ class BuyCraftAction extends BaseAction
             ]);
         }
 
+        // Проверка склада
         $warehouseBuilding = $this->buildingModel->where('name_en', 'Warehouse')->first();
         if (!$warehouseBuilding) {
             return Request::sendMessage([
@@ -68,6 +70,7 @@ class BuyCraftAction extends BaseAction
             ]);
         }
 
+        // Список товаров, имеющихся у торговца
         $salesItems = $this->salesModel->findAll();
         if (empty($salesItems)) {
             return Request::sendMessage([
@@ -76,12 +79,12 @@ class BuyCraftAction extends BaseAction
             ]);
         }
 
-        // Группировка товаров по типу
+        // Группируем товары по их type (из crafted_items)
         $itemTypes = [];
         foreach ($salesItems as $item) {
             $craftedItem = $this->craftedItemsModel->find($item['crafted_item_id']);
             if ($craftedItem) {
-                $type = $craftedItem['type'];
+                $type = $craftedItem['type'] ?? 'unknown';
                 if (!isset($itemTypes[$type])) {
                     $itemTypes[$type] = 0;
                 }
@@ -89,7 +92,9 @@ class BuyCraftAction extends BaseAction
             }
         }
 
-        $text = "Привет мой друг, поторгуем?\n\nЯ здесь прикупил немного барахла, готов продать по дешевке тебе.\n*Вот что у меня есть:*\n";
+        $text = "Привет мой друг, поторгуем?\n\n"
+            . "Я тут прикупил немного барахла, готов продать по дешевке тебе.\n"
+            . "*Вот что у меня есть:*\n";
         $keyboardButtons = [];
 
         foreach ($itemTypes as $type => $quantity) {
@@ -101,30 +106,37 @@ class BuyCraftAction extends BaseAction
             ];
         }
 
+        // Дополнительные кнопки
         $keyboardButtons[] = ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'];
         $keyboardButtons[] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];
 
         $keyboard = array_chunk($keyboardButtons, 2);
-        $imagePath = base_url('uploads/telegram/craft/vendor_kiosk_in_the_game_world.jpg'); // Укажите актуальный путь к изображению
+
+        $imagePath = base_url('uploads/telegram/craft/vendor_kiosk_in_the_game_world.jpg');
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendPhoto([
-            'chat_id' => $chatId,
-            'photo' => Request::encodeFile($imagePath),
-            'caption' => $text,
+            'chat_id'    => $chatId,
+            'photo'      => Request::encodeFile($imagePath),
+            'caption'    => $text,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $keyboard]),
         ]);
     }
 
+    /**
+     * Добавлены пункты для роботов и телепорт-маяков.
+     */
     private function translateType($type)
     {
         $translations = [
             'workbench' => '🔬 Верстаки',
             'component' => '📐 Компоненты',
             'transport' => '🛴 Транспорт',
-            'tool' => '🛠️ Инструменты',
-            'drug' => '💊 Лекарства',
+            'tool'      => '🛠️ Инструменты',
+            'drug'      => '💊 Лекарства',
+            'robots'    => '🤖 Роботы',         // <-- Добавлено
+            'teleport'  => '🌀 Телепорт-маяки', // <-- Добавлено
         ];
 
         return $translations[$type] ?? $type;

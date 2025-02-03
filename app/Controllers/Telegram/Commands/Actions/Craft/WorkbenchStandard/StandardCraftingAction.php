@@ -21,6 +21,7 @@ class StandardCraftingAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '🤖 Роботы', 'callback_data' => 'robotsCraft2'],
+                    ['text' => '🌀 Телепорт маяк', 'callback_data' => 'teleportBeaconCraft2'],
                 ],
             ]
         ];
