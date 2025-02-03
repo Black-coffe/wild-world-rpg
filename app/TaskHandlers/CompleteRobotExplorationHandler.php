@@ -281,7 +281,7 @@ class CompleteRobotExplorationHandler extends Controller
     ): array {
         $newCells = [];
 
-        // Определяем центр поиска
+        // 1) Центр
         if ($startCoords !== null) {
             $centerX = $startCoords['x'];
             $centerY = $startCoords['y'];
@@ -294,65 +294,89 @@ class CompleteRobotExplorationHandler extends Controller
             $centerY = $currentCell['coordinate_y'];
         }
 
-        // Максимальный радиус – до края карты от центра
-        $maxRadius = max($centerX - 1, 1000 - $centerX, $centerY - 1, 1000 - $centerY);
+        // Учитываем, что в БД карта от 0 до 999
+        $centerX = max(0, min(999, $centerX));
+        $centerY = max(0, min(999, $centerY));
+
         $visited = [];
-        $characterId = $character['id'];
+        $characterId    = $character['id'];
         $telegramUserId = $task['telegram_user_id'];
 
-        // Перебираем радиусы от 0 до maxRadius, выбирая точки по кругу
-        for ($r = 0; $r <= $maxRadius && count($newCells) < $cellsToOpen; $r++) {
-            $steps = 36; // шаг по углам (каждые 10°)
-            for ($i = 0; $i < $steps && count($newCells) < $cellsToOpen; $i++) {
-                $angle = (2 * pi() * $i) / $steps;
-                $xCandidate = (int) round($centerX + $r * cos($angle));
-                $yCandidate = (int) round($centerY + $r * sin($angle));
+        $countOpened = 0;
+        $r = 0;
 
-                // Ограничиваем координаты диапазоном [1, 1000]
-                $xCandidate = max(1, min(1000, $xCandidate));
-                $yCandidate = max(1, min(1000, $yCandidate));
+        while ($countOpened < $cellsToOpen) {
+            // Допустим, если r превысит 999 — хватит
+            if ($r > 999) {
+                break;
+            }
 
-                $key = $xCandidate . '_' . $yCandidate;
-                if (isset($visited[$key])) {
-                    continue;
-                }
-                $visited[$key] = true;
+            // Границы обхода по x,y
+            $xMin = max(0, $centerX - $r);
+            $xMax = min(999, $centerX + $r);
+            $yMin = max(0, $centerY - $r);
+            $yMax = min(999, $centerY + $r);
 
-                $cell = $mapModel->where('coordinate_x', $xCandidate)
-                    ->where('coordinate_y', $yCandidate)
-                    ->first();
-                if (!$cell) {
-                    continue;
-                }
+            for ($x = $xMin; $x <= $xMax && $countOpened < $cellsToOpen; $x++) {
+                for ($y = $yMin; $y <= $yMax && $countOpened < $cellsToOpen; $y++) {
 
-                // Здесь мы не проверяем занятость или изученность – отмечаем все ячейки
-                $biomeModel = new BiomeModel();
-                $biome = $biomeModel->find($cell['biome_id']);
-                $biomeName = $biome ? $biome['name'] : 'Неизвестный биом';
+                    // Проверка, не добавляли ли уже
+                    $key = "{$x}_{$y}";
+                    if (isset($visited[$key])) {
+                        continue;
+                    }
 
-                $newCells[] = [
-                    'cell_number' => $cell['cell_number'],
-                    'coordinates' => "X={$xCandidate}, Y={$yCandidate}",
-                    'biome'       => $biomeName,
-                    'biome_id'    => $cell['biome_id'],
-                ];
+                    // Проверяем, действительно ли (x, y) в круге радиуса r
+                    // (x-centerX)^2 + (y-centerY)^2 <= r^2
+                    $dx = $x - $centerX;
+                    $dy = $y - $centerY;
+                    if (($dx * $dx + $dy * $dy) <= ($r * $r)) {
+                        $visited[$key] = true;  // помечаем как посещённую
 
-                // Пытаемся вставить запись в explored_cells, если её ещё нет
-                $existing = $exploredCellsModel
-                    ->where('character_id', $characterId)
-                    ->where('map_cell_id', $cell['cell_number'])
-                    ->first();
-                if (!$existing) {
-                    $exploredCellsModel->insert([
-                        'character_id'     => $characterId,
-                        'telegram_user_id' => $telegramUserId,
-                        'map_cell_id'      => $cell['cell_number'],
-                        'biome_id'         => $cell['biome_id'],
-                        'character_level'  => $character['level'],
-                    ]);
+                        // Ищем клетку в БД map
+                        $cell = $mapModel
+                            ->where('coordinate_x', $x)
+                            ->where('coordinate_y', $y)
+                            ->first();
+                        if (!$cell) {
+                            continue;
+                        }
+
+                        // Сохраняем в массив
+                        $biomeModel = new BiomeModel();
+                        $biome = $biomeModel->find($cell['biome_id']);
+                        $biomeName = $biome ? $biome['name'] : 'Неизвестный биом';
+
+                        $newCells[] = [
+                            'cell_number' => $cell['cell_number'],
+                            'coordinates' => "X={$x}, Y={$y}",
+                            'biome'       => $biomeName,
+                            'biome_id'    => $cell['biome_id'],
+                        ];
+
+                        // Пишем в explored_cells
+                        $existing = $exploredCellsModel
+                            ->where('character_id', $characterId)
+                            ->where('map_cell_id', $cell['cell_number'])
+                            ->first();
+                        if (!$existing) {
+                            $exploredCellsModel->insert([
+                                'character_id'     => $characterId,
+                                'telegram_user_id' => $telegramUserId,
+                                'map_cell_id'      => $cell['cell_number'],
+                                'biome_id'         => $cell['biome_id'],
+                                'character_level'  => $character['level'],
+                            ]);
+                        }
+
+                        $countOpened++;
+                    }
                 }
             }
+
+            $r++;
         }
+
         return $newCells;
     }
 
