@@ -17,15 +17,17 @@ use App\Models\CraftedItemsModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\BiomeModel;
 use App\Models\TeleportBeaconModel;
-use App\Models\TelegramUserModel; // чтобы уведомить старого владельца
+use App\Models\TelegramUserModel; // уведомление старому владельцу
 
 // Сервисы для проверки базы
 use App\Services\Bases\CampCheckService;
 
 /**
  * Класс TeleportBeaconSetAction:
- * Обрабатывает нажатие «Установить маяк» (X, Y).
- * + Логика перехвата чужого маяка в том же классе (через другой колбэк).
+ * 1) Обрабатывает попытку «Установить маяк» (callback_data: "teleportBeaconSet_x=.._y=..").
+ * 2) Если на точке есть чужой маяк -> предлагаем «Перехватить»/«Отменить».
+ * 3) При нажатии «Перехватить» (callback_data: "teleportBeaconSet_capture_id=..") меняем владельца,
+ *    уведомляем обоих игроков, пытаемся редактировать предыдущее сообщение и отправляем Alert.
  */
 class TeleportBeaconSetAction
 {
@@ -44,7 +46,7 @@ class TeleportBeaconSetAction
     protected TeleportBeaconModel    $teleportBeaconModel;
     protected TelegramUserModel      $telegramUserModel;
 
-    // Дополнительный сервис для проверки, занята ли ячейка базой
+    // Сервис для проверки, не стоит ли здесь база
     protected CampCheckService $campCheckService;
 
     public function __construct(CallbackQuery $callbackQuery)
@@ -66,14 +68,14 @@ class TeleportBeaconSetAction
     }
 
     /**
-     * Главный метод handle(), куда попадает callback_data вида:
-     * - "teleportBeaconSet_x=NNN_y=MMM" (попытка установить маяк)
-     * - "teleportBeaconSet_capture_id=XXX" (перехват чужого маяка)
-     * - "teleportBeaconSet_cancel" (отмена)
+     * Главный метод. Ожидаем callback_data одного из трёх видов:
+     * 1) "teleportBeaconSet_x=...,y=..." — установка маяка
+     * 2) "teleportBeaconSet_capture_id=..." — перехват чужого маяка
+     * 3) "teleportBeaconSet_cancel" — отмена
      */
     public function handle(): ServerResponse
     {
-        // Убираем «часики» на кнопке
+        // Убираем «часики»
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId(),
         ]);
@@ -81,20 +83,20 @@ class TeleportBeaconSetAction
         $chatId       = $this->callbackQuery->getMessage()->getChat()->getId();
         $callbackData = $this->callbackQuery->getData();
 
-        // 1. Проверяем, не идёт ли речь о "перехватить маяк"
+        // (A) Перехват?
         if (preg_match('/^teleportBeaconSet_capture_id=(\d+)$/', $callbackData, $m)) {
             $beaconId = (int)$m[1];
             return $this->captureBeacon($beaconId, $chatId);
         }
 
-        // 2. Проверяем, не идёт ли речь об «отменить» (cancel)
+        // (B) Отмена?
         if ($callbackData === 'teleportBeaconSet_cancel') {
             return $this->cancelSet($chatId);
         }
 
-        // 3. Остальное: ожидаем формат "teleportBeaconSet_x=NNN_y=MMM"
+        // (C) Иначе — ждём установку "teleportBeaconSet_x=..._y=..."
         if (!preg_match('/^teleportBeaconSet_x=(\d+)_y=(\d+)$/', $callbackData, $matches)) {
-            return $this->sendError($chatId, "Некорректные данные для установки маяка: {$callbackData}");
+            return $this->sendError($chatId, "Некорректные данные callback_data: {$callbackData}");
         }
 
         $coordX = (int)$matches[1];
@@ -104,32 +106,30 @@ class TeleportBeaconSetAction
     }
 
     /**
-     * Обработка установки маяка в координатах (coordX, coordY).
+     * Пытаемся установить маяк в (coordX, coordY).
      */
     private function processSetBeacon(int $chatId, int $coordX, int $coordY): ServerResponse
     {
-        // Шаги проверки (активная база, наличие предмета и т.д.):
-
-        // 1) Определяем characterId
+        // Определяем characterId
         $telegramUserId = $this->callbackQuery->getFrom()->getId();
         $characterId    = $this->characterModel->getCharacterIdByTelegramId($telegramUserId);
         if (!$characterId) {
             return $this->sendError($chatId, "Персонаж не найден (TG={$telegramUserId}).");
         }
 
-        // 2) Проверка активной базы
+        // Проверяем, есть ли активная база
         $activeBase = $this->claimedCellModel
             ->where('character_id', $characterId)
             ->where('status', 'active')
             ->first();
         if (!$activeBase) {
-            return $this->sendError($chatId, "Нет активной базы. Без неё нельзя ставить маяк!");
+            return $this->sendError($chatId, "У тебя нет активной базы — без неё нельзя ставить маяк!");
         }
 
-        // 3) Проверяем наличие «Центра телепортации»
+        // Проверяем, есть ли «Центр телепортации»
         $teleportCenter = $this->buildingModel->where('name_en', 'TeleportationCenter')->first();
         if (!$teleportCenter) {
-            return $this->sendError($chatId, "Ошибка: нет здания 'TeleportationCenter' в базе.");
+            return $this->sendError($chatId, "Ошибка: в базе нет 'TeleportationCenter'.");
         }
         $centerRow = $this->characterBuildingModel
             ->where('character_id', $characterId)
@@ -139,20 +139,20 @@ class TeleportBeaconSetAction
             return $this->sendError($chatId, "У тебя нет построенного Центра телепортации!");
         }
 
-        // 4) Предмет "TeleportBeaconBasic"
+        // Предмет "TeleportBeaconBasic"
         $beaconItem = $this->craftedItemsModel->where('name_eng', 'TeleportBeaconBasic')->first();
         if (!$beaconItem) {
-            return $this->sendError($chatId, "Предмет 'TeleportBeaconBasic' не найден.");
+            return $this->sendError($chatId, "Не найден предмет 'TeleportBeaconBasic'.");
         }
         $beaconLog = $this->craftedItemsLogModel
-            ->where('character_id', $characterId)
+            ->where('character_id',    $characterId)
             ->where('crafted_item_id', $beaconItem['id'])
             ->first();
         if (!$beaconLog || $beaconLog['quantity'] < 1) {
             return $this->sendError($chatId, "У тебя нет ни одного маяка в инвентаре!");
         }
 
-        // 5) Лимит маяков
+        // Проверяем лимит маяков
         $charRow       = $this->characterModel->find($characterId);
         $playerLevel   = (int)($charRow['level'] ?? 1);
         $buildingLevel = max(1, min(10, (int)$centerRow['level']));
@@ -160,16 +160,16 @@ class TeleportBeaconSetAction
         if ($baseMaxByPlayer > 10) {
             $baseMaxByPlayer = 10;
         }
-        $maxBeacons    = $baseMaxByPlayer + $buildingLevel;
+        $maxBeacons = $baseMaxByPlayer + $buildingLevel;
 
         $existingCount = $this->teleportBeaconModel
             ->where('character_id', $characterId)
             ->countAllResults();
         if ($existingCount >= $maxBeacons) {
-            return $this->sendError($chatId, "Ты достиг лимита маяков ({$maxBeacons}). Удали старый, чтобы поставить новый.");
+            return $this->sendError($chatId, "Ты достиг лимита маяков ({$maxBeacons}). Сначала удали старый маяк.");
         }
 
-        // 6) Ищем ячейку map
+        // Ищем ячейку map
         $mapRow = $this->mapModel
             ->where('coordinate_x', $coordX)
             ->where('coordinate_y', $coordY)
@@ -181,12 +181,12 @@ class TeleportBeaconSetAction
         $cellNumber = (int)$mapRow['cell_number'];
         $biomeId    = $mapRow['biome_id'] ?? null;
 
-        // 6.1) Проверка базы (чужой) на этой точке
+        // Проверка, нет ли базы на этой точке
         if ($this->campCheckService->isCellClaimedByAnyone($cellNumber)) {
-            return $this->sendError($chatId, "Невозможно установить маяк: здесь расположена база!");
+            return $this->sendError($chatId, "Здесь уже расположена чья-то база!");
         }
 
-        // 7) Проверка, нет ли другого маяка (remaining_uses>0) на этих координатах
+        // Проверка, нет ли чужого маяка
         $existingBeacon = $this->teleportBeaconModel
             ->where('coordinate_x', $coordX)
             ->where('coordinate_y', $coordY)
@@ -194,24 +194,23 @@ class TeleportBeaconSetAction
             ->first();
 
         if ($existingBeacon) {
-            if ($existingBeacon['character_id'] == $characterId) {
+            // Если наш — ругаемся
+            if ((int)$existingBeacon['character_id'] === $characterId) {
                 return $this->sendError($chatId, "У тебя уже есть маяк на этой точке!");
             } else {
-                // Чужой маяк
+                // Чужой маяк => предлагаем «Перехватить»/«Отменить»
                 return $this->showCaptureOption($chatId, $existingBeacon, $cellNumber);
             }
         }
 
-        // 8) Если дошли сюда — ставим маяк
+        // Если дошли сюда, ставим маяк
         $this->installBeacon($chatId, $characterId, $mapRow, $biomeId, $beaconItem, $playerLevel, $maxBeacons);
 
-        // Возвращаем пустую «заглушку» или уже отправили сообщение внутри installBeacon
-        return Request::emptyResponse();
+        return Request::emptyResponse(); // уже отправили сообщение об успехе
     }
 
     /**
-     * Вспомогательный метод, который действительно вставляет новую запись в teleport_beacons
-     * и отправляет финальное сообщение «Маяк установлен».
+     * Создаём запись в teleport_beacons, списываем маяк из инвентаря и отправляем сообщение.
      */
     private function installBeacon(
         int $chatId,
@@ -224,11 +223,11 @@ class TeleportBeaconSetAction
     ): void {
         $coordX = $mapRow['coordinate_x'];
         $coordY = $mapRow['coordinate_y'];
-        $mapCellId  = $mapRow['id'];
+        $mapCellId  = (int)$mapRow['id'];
         $cellNumber = (int)$mapRow['cell_number'];
 
-        // Вставляем
-        $dataForBeacon = [
+        // Вставляем новую строку
+        $this->teleportBeaconModel->insert([
             'character_id'             => $characterId,
             'faction_id'               => null,
             'player_level_at_creation' => $playerLevel,
@@ -240,63 +239,62 @@ class TeleportBeaconSetAction
             'last_teleport_at'         => null,
             'ownership_type'           => 'author',
             'settings_json'            => null,
-        ];
-        $this->teleportBeaconModel->insert($dataForBeacon);
+        ]);
 
-        // Теперь считаем общее
+        // Теперь считаем общее кол-во маяков
         $updatedCount = $this->teleportBeaconModel
             ->where('character_id', $characterId)
             ->countAllResults();
 
-        // Списываем 1 маяк
+        // Списываем 1 «TeleportBeaconBasic»
         $this->craftedItemsLogModel->subtractItem($characterId, 'TeleportBeaconBasic', 1);
 
-        // Узнаём, сколько осталось
+        // Сколько маяков осталось
         $beaconLogUpdated = $this->craftedItemsLogModel
             ->where('character_id',    $characterId)
             ->where('crafted_item_id', $beaconItem['id'])
             ->first();
         $beaconLeft = $beaconLogUpdated ? $beaconLogUpdated['quantity'] : 0;
 
-        // Описание биома
-        $biomeName          = '???';
-        $biomeDescription   = '';
-        $biomeType          = '';
-        $dangerLevelText    = '';
-        $biomeDangerLevel   = 0;
-        $survivalText       = '';
-        $survivalValue      = 0;
-        $occurrenceRate     = 0;
+        // Смотрим биом
+        $biomeName        = '???';
+        $biomeDescription = '';
+        $biomeType        = '';
+        $dangerLevelText  = '';
+        $biomeDangerLevel = 0;
+        $survivalText     = '';
+        $survivalValue    = 0;
+        $occurrenceRate   = 0;
 
         if ($biomeId) {
             $bRow = $this->biomeModel->find($biomeId);
             if ($bRow) {
-                $biomeName        = $bRow['name']                       ?? '???';
-                $biomeDescription = $bRow['description']                ?? '';
-                $biomeType        = $bRow['biome_type']                 ?? '';
-                $dangerLevelText  = $bRow['danger_level_text']          ?? '';
-                $biomeDangerLevel = (int)($bRow['danger_level']         ?? 0);
-                $survivalText     = $bRow['survival_difficulty_text']   ?? '';
-                $survivalValue    = (int)($bRow['survival_difficulty']  ?? 0);
-                $occurrenceRate   = (float)($bRow['occurrence_rate']    ?? 0);
+                $biomeName        = $bRow['name'] ?? '???';
+                $biomeDescription = $bRow['description'] ?? '';
+                $biomeType        = $bRow['biome_type'] ?? '';
+                $dangerLevelText  = $bRow['danger_level_text'] ?? '';
+                $biomeDangerLevel = (int)($bRow['danger_level'] ?? 0);
+                $survivalText     = $bRow['survival_difficulty_text'] ?? '';
+                $survivalValue    = (int)($bRow['survival_difficulty'] ?? 0);
+                $occurrenceRate   = (float)($bRow['occurrence_rate'] ?? 0);
             }
         }
 
-        // Сообщение
+        // Формируем сообщение
         $textMessage = "⚙️ *Установка телепорт-маяка завершена!*\n\n"
-            ."Ты успешно разместил маяк:\n"
-            ."• Координаты: `X={$coordX}, Y={$coordY}` (#{$cellNumber})\n"
-            ."• Биом: *{$biomeName}*\n"
-            ."   _{$biomeDescription}_\n\n"
-            ."🔋 *Запас прочности:* 100 использований\n\n"
-            ."📋 *Характеристики биома:*\n"
-            ."• Тип: `{$biomeType}`\n"
-            ."• Опасность: {$biomeDangerLevel}/10 «{$dangerLevelText}»\n"
-            ."• Сложность выживания: {$survivalValue}/10 «{$survivalText}»\n"
-            ."• Частота встречаемости: {$occurrenceRate}%\n\n"
-            ."📦 *Маяков в инвентаре:* {$beaconLeft}\n"
-            ."🏗 Теперь у тебя *{$updatedCount}* маяков из макс. *{$maxBeacons}*\n\n"
-            ."🔎 Надеюсь, никто не отыщет твой маяк и не разберёт его на детали...";
+            . "Ты успешно разместил маяк:\n"
+            . "• Координаты: `X={$coordX}, Y={$coordY}` (#{$cellNumber})\n"
+            . "• Биом: *{$biomeName}*\n"
+            . "   _{$biomeDescription}_\n\n"
+            . "🔋 *Запас прочности:* 100 использований\n\n"
+            . "📋 *Характеристики биома:*\n"
+            . "• Тип: `{$biomeType}`\n"
+            . "• Опасность: {$biomeDangerLevel}/10 «{$dangerLevelText}»\n"
+            . "• Сложность выживания: {$survivalValue}/10 «{$survivalText}»\n"
+            . "• Частота встречаемости: {$occurrenceRate}%\n\n"
+            . "📦 *Маяков в инвентаре:* {$beaconLeft}\n"
+            . "🏗 Теперь у тебя *{$updatedCount}* маяков из макс. *{$maxBeacons}*\n\n"
+            . "🔎 Надеюсь, никто не отыщет твой маяк и не разберёт его на детали...";
 
         $keyboard = [
             'inline_keyboard' => [
@@ -308,7 +306,7 @@ class TeleportBeaconSetAction
         ];
 
         Request::sendMessage([
-            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'chat_id'    => $chatId,
             'text'       => $textMessage,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
@@ -316,18 +314,17 @@ class TeleportBeaconSetAction
     }
 
     /**
-     * Показ диалогового окошка о найденном чужом маяке:
-     * Можно «Перехватить» или «Отменить».
+     * Показ диалога о найденном чужом маяке (remaining_uses>0):
+     * «Перехватить!» или «Отменить».
      */
     private function showCaptureOption(int $chatId, array $existingBeacon, int $cellNumber): ServerResponse
     {
         $uses = (int)$existingBeacon['remaining_uses'];
         $text = "На этой точке уже обнаружен *чужой* маяк!\n"
-            ."Остаток телепортов: {$uses}\n\n"
-            ."Ты можешь его *перехватить* (присвоить себе) или *отказаться* (ничего не делать).";
+            . "Остаток телепортов: {$uses}\n\n"
+            . "Ты можешь его *перехватить* (присвоить себе) или *отказаться* (ничего не делать).";
 
-        // Колбэк для перехвата: "teleportBeaconSet_capture_id=XXX"
-        // Колбэк для отмены:     "teleportBeaconSet_cancel"
+        // callback_data => "teleportBeaconSet_capture_id=XXX"
         $captureData = "teleportBeaconSet_capture_id={$existingBeacon['id']}";
         $cancelData  = "teleportBeaconSet_cancel";
 
@@ -349,13 +346,12 @@ class TeleportBeaconSetAction
     }
 
     /**
-     * Обработка нажатия «Перехватить».
-     * Меняем у маяка character_id, ownership_type = 'captured'.
-     * Уведомляем старого владельца, если он не совпадает с нами.
+     * Перехват чужого маяка: меняем владельца, уведомляем обоих.
+     * Также пытаемся редактировать предыдущее сообщение, если оно свежее.
      */
     private function captureBeacon(int $beaconId, int $chatId): ServerResponse
     {
-        // 1) Определяем текущего игрока
+        // 1) Текущий игрок (захватчик)
         $telegramUserId = $this->callbackQuery->getFrom()->getId();
         $characterId    = $this->characterModel->getCharacterIdByTelegramId($telegramUserId);
         if (!$characterId) {
@@ -368,33 +364,32 @@ class TeleportBeaconSetAction
             return $this->sendError($chatId, "Маяк #{$beaconId} не найден (возможно, уже удалён?).");
         }
 
-        // 3) Проверяем, не наш ли уже это маяк
+        // 3) Проверяем, не наш ли уже этот маяк
         if ((int)$beaconRow['character_id'] === $characterId) {
-            // Alert + сообщение — сообщаем, что уже твой
+            // Alert + сообщение
             Request::answerCallbackQuery([
                 'callback_query_id' => $this->callbackQuery->getId(),
                 'text'             => 'Уже твой маяк!',
                 'show_alert'       => true,
             ]);
-
             return $this->sendError($chatId, "Этот маяк уже принадлежит тебе!");
         }
 
         // 4) Старый владелец
         $oldOwnerId = (int)$beaconRow['character_id'];
 
-        // 5) Меняем character_id, ownership_type
+        // 5) Меняем поля
         $this->teleportBeaconModel->update($beaconId, [
             'character_id'   => $characterId,
             'ownership_type' => 'captured',
         ]);
 
-        // 6) Уведомляем прежнего владельца, если он действительно чужой
-        if ($oldOwnerId !== $characterId) {
+        // 6) Уведомляем старого владельца
+        if ($oldOwnerId && $oldOwnerId !== $characterId) {
             $this->notifyOldOwner($oldOwnerId, $beaconRow);
         }
 
-        // 7) Формируем текст для уведомления
+        // 7) Текст для нового владельца
         $x    = $beaconRow['coordinate_x'];
         $y    = $beaconRow['coordinate_y'];
         $uses = $beaconRow['remaining_uses'];
@@ -404,7 +399,7 @@ class TeleportBeaconSetAction
             . "Координаты: (X={$x}, Y={$y})\n"
             . "Остаток телепортов: {$uses}";
 
-        // 8) Попытка №1: редактирование исходного сообщения с кнопками
+        // 8) Пытаемся отредактировать текущее сообщение (убираем кнопки)
         $messageId  = $this->callbackQuery->getMessage()->getMessageId();
         $editResult = Request::editMessageText([
             'chat_id'    => $chatId,
@@ -414,8 +409,7 @@ class TeleportBeaconSetAction
             'reply_markup' => json_encode(['inline_keyboard' => []]), // убираем кнопки
         ]);
 
-        // 9) Попытка №2: если редактирование не удалось, отправляем новое сообщение
-        //  ПРОВЕРЯЕМ  $editResult  НА  null  !!!
+        // 9) Если редактирование не удалось, шлём новое сообщение
         if ($editResult === null || !$editResult->isOk()) {
             Request::sendMessage([
                 'chat_id'    => $chatId,
@@ -424,34 +418,33 @@ class TeleportBeaconSetAction
             ]);
         }
 
-        // 10) Попытка №3: показываем Alert (всплывающее окно) в любом случае
+        // 10) Alert захватчику в любом случае
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId(),
             'text'             => 'Маяк перехвачен!',
             'show_alert'       => true,
         ]);
 
-        // Возвращаем пустой ответ — все уведомления уже сделаны
         return Request::emptyResponse();
     }
 
     /**
-     * Уведомляем старого владельца, что маяк захвачен
+     * Уведомляем старого владельца
      */
     private function notifyOldOwner(int $oldOwnerId, array $beaconRow): void
     {
-        // 1. Найти characterRow
+        // 1) Найдём oldChar
         $oldChar = $this->characterModel->find($oldOwnerId);
         if (!$oldChar) {
-            return; // не нашли
+            return; // нет персонажа
         }
 
-        $tgUserId   = (int)$oldChar['telegram_user_id'];
+        $tgUserId = (int)$oldChar['telegram_user_id'];
         if (!$tgUserId) {
-            return; // нет связи с telegram_users
+            return; // нет связи
         }
 
-        // 2. Найти telegram_id
+        // 2) Ищем telegram_id
         $db = db_connect();
         $row = $db->table('telegram_users')
             ->select('telegram_id')
@@ -463,13 +456,13 @@ class TeleportBeaconSetAction
         }
         $oldOwnerTgId = (int)$row['telegram_id'];
 
-        // 3. Отправить сообщение
+        // 3) Отправляем
         $x    = $beaconRow['coordinate_x'];
         $y    = $beaconRow['coordinate_y'];
         $uses = $beaconRow['remaining_uses'];
 
         $text = "‼️ *Тревога!*\n"
-            ."Твой маяк на координатах (X={$x}, Y={$y}) был перехвачен.\n"
+            ."Твой маяк на координатах (X={$x}, Y={$y}) перехвачен.\n"
             ."Остаток телепортов: {$uses}\n"
             ."Теперь маяк тебе не принадлежит :(";
 
@@ -481,7 +474,7 @@ class TeleportBeaconSetAction
     }
 
     /**
-     * Обработка нажатия «Отменить» (ни маяк не ставим, ни чужой маяк не трогаем)
+     * Отмена (ни маяк не ставим, ни чужой не трогаем)
      */
     private function cancelSet(int $chatId): ServerResponse
     {
@@ -492,6 +485,9 @@ class TeleportBeaconSetAction
         ]);
     }
 
+    /**
+     * Универсальный метод для отправки ошибки в чат
+     */
     private function sendError(int $chatId, string $msg): ServerResponse
     {
         return Request::sendMessage([
