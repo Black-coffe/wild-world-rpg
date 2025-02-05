@@ -125,11 +125,12 @@ class CharacterService
                 [
                     ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
                     ['text' => '🎉 События',     'callback_data' => 'events'],
-                    ['text' => '🛒 Магазин',     'callback_data' => 'shop'],
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                 ],
                 [
+                    ['text' => '📡 Маяки',  'callback_data' => 'teleportBeacon'],
                     ['text' => '🎒 Инвентарь',   'callback_data' => 'inventory'],
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                    ['text' => '🛒 Магазин',     'callback_data' => 'shop'],
                 ],
                 [
                     ['text' => '🧍 Страховка',   'callback_data' => 'PersonalInsurance'],

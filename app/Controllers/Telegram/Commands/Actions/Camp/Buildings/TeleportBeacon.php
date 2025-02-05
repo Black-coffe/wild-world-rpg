@@ -157,7 +157,6 @@ class TeleportBeacon
             . "Здесь доступны действия:\n"
             . "• *Поставить маяк* (в текущей локации)\n"
             . "• *Переместиться* (на локацию, где уже стоит маяк)\n"
-            . "• *Собрать маяк* (демонтировать)\n\n"
 
             // Информация про лимиты:
             . "⚙ *Правила установки:*\n"
@@ -188,7 +187,7 @@ class TeleportBeacon
             $callbackForSet = "teleportBeaconSet_x={$coordX}_y={$coordY}";
             $keyboardRows[] = [
                 [
-                    'text' => "Установить маяк | (X={$coordX} Y={$coordY})",
+                    'text' => "Установить маяк здесь: (X={$coordX} Y={$coordY})",
                     'callback_data' => $callbackForSet
                 ],
             ];
@@ -197,12 +196,9 @@ class TeleportBeacon
             $text .= "\n_У тебя нет маяков, чтобы поставить на этой локации._\n";
         }
 
-        // Остальные кнопки — «Переместиться на маяк» и «Собрать маяк»
+        // Остальные кнопки — «Переместиться на маяк»
         $keyboardRows[] = [
             ['text' => 'Переместиться на маяк',  'callback_data' => 'teleportBeaconMove'],
-        ];
-        $keyboardRows[] = [
-            ['text' => 'Собрать маяк',           'callback_data' => 'teleportBeaconCollect'],
         ];
 
         $keyboard = [ 'inline_keyboard' => $keyboardRows ];
