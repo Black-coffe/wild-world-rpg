@@ -470,6 +470,7 @@ class Worker extends Controller
         'craftElectronicComponents' => 'Craft\CraftCompletionElectronicComponentsHandler',
         'startBuildTeleportationCenter' => 'Built\BuiltCompletionTeleportationCenterHandler',
         'craftTeleportBeaconBasic' => 'Craft\WorkbenchStandard\CraftCompletionTeleportBeaconBasicHandler',
+        'craftTeleportBackpack' => 'Craft\WorkbenchStandard\CraftCompletionTeleportBackpackHandler',
 
         // Другие соответствия
     ];

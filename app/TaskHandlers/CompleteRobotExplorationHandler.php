@@ -102,13 +102,11 @@ class CompleteRobotExplorationHandler extends Controller
         // 7) Проверяем, заданы ли стартовые координаты в task_settings (ожидается формат "X,Y")
         $startCoords = null;
         if (!empty($task['task_settings'])) {
-            $pattern = '/^(\d+),(\d+)$/';
-            if (preg_match($pattern, $task['task_settings'], $m)) {
-                $xVal = (int) $m[1];
-                $yVal = (int) $m[2];
-                if ($xVal >= 1 && $xVal <= 1000 && $yVal >= 1 && $yVal <= 1000) {
-                    $startCoords = ['x' => $xVal, 'y' => $yVal];
-                }
+            $settingsArr = json_decode($task['task_settings'], true);
+            if (!empty($settingsArr) && isset($settingsArr['coordinates'])) {
+                $xVal = (int) $settingsArr['coordinates']['x'];
+                $yVal = (int) $settingsArr['coordinates']['y'];
+                $startCoords = ['x' => $xVal, 'y' => $yVal];
             }
         }
 
@@ -315,10 +313,10 @@ class CompleteRobotExplorationHandler extends Controller
             $xMin = max(0, $centerX - $r);
             $xMax = min(999, $centerX + $r);
             $yMin = max(0, $centerY - $r);
-            $yMax = min(999, $centerY + $r);
+            $yMax = max(0, $centerY + $r);
 
-            for ($x = $xMin; $x <= $xMax && $countOpened < $cellsToOpen; $x++) {
-                for ($y = $yMin; $y <= $yMax && $countOpened < $cellsToOpen; $y++) {
+            for ($x = $xMin; $x <= $xMax; $x++) {
+                for ($y = $yMin; $y <= $yMax; $y++) {
 
                     // Проверка, не добавляли ли уже
                     $key = "{$x}_{$y}";
@@ -370,6 +368,9 @@ class CompleteRobotExplorationHandler extends Controller
                         }
 
                         $countOpened++;
+                        if ($countOpened >= $cellsToOpen) { // Проверка лимита здесь
+                            return $newCells; // Выход, если лимит достигнут
+                        }
                     }
                 }
             }

@@ -170,6 +170,8 @@ class CallbackqueryCommand extends SystemCommand
             'teleportBeaconCraft2' =>    \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\TeleportBeaconCraft2Select::class,
             'teleportBeaconBasic2' =>    \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\TeleportBeaconBasic2Action::class,
             'startCraftTeleportBeaconBasic2' =>    \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\StartCraftTeleportBeaconBasic2Action::class,
+            'teleportBackpack2' =>      \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\TeleportBackpack2Action::class,
+            'startCraftTeleportBackpack2' =>      \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\StartCraftTeleportBackpack2Action::class,
 
             'AllRobots' =>              \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\AllRobotsHandler::class,
             'activateRobot' =>          \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\ActivateRobotHandler::class,
