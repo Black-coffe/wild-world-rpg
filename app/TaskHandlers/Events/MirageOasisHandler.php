@@ -3,52 +3,103 @@
 namespace App\TaskHandlers\Events;
 
 use CodeIgniter\Controller;
-use App\Models\CharacterModel;
-use App\Models\EventModel;
-use App\Models\ActiveEventModel;
-use App\Models\CharacterTaskModel;
-use App\Models\TelegramUserModel;
+use App\Models\{
+    CharacterModel,
+    EventModel,
+    ActiveEventModel,
+    CharacterTaskModel,
+    TelegramUserModel
+};
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
 
+/**
+ * Класс MirageOasisHandler
+ *
+ * Обрабатывает событие "MirageOases" (Миражи оазиса).
+ * 1) С ~8% вероятностью (92% пропуск) при вызове process().
+ * 2) Проверяет, активно ли событие (в active_events).
+ * 3) Извлекает список биомов (biome_ids) из EventModel.
+ * 4) Для персонажей в этих биомах, если у них задачи Gather/Explore (in_work),
+ *    применяется эффект: потеря воды (напрямую не видно, но условно),
+ *    снижение health и tired, а также увеличение времени выполнения задач.
+ * 5) Уведомляет игрока в Telegram (с картинкой) о воздействии миража.
+ */
 class MirageOasisHandler extends Controller
 {
+    /** @var CharacterModel */
     protected $characterModel;
+
+    /** @var EventModel */
     protected $eventModel;
+
+    /** @var ActiveEventModel */
     protected $activeEventModel;
+
+    /** @var CharacterTaskModel */
     protected $characterTaskModel;
+
+    /** @var TelegramUserModel */
     protected $telegramUserModel;
+
+    /** @var Telegram */
     private $telegram;
 
     public function __construct()
     {
-        $this->characterModel = new CharacterModel();
-        $this->eventModel = new EventModel();
-        $this->activeEventModel = new ActiveEventModel();
-        $this->characterTaskModel = new CharacterTaskModel();
+        // Инициализация моделей
+        $this->characterModel    = new CharacterModel();
+        $this->eventModel        = new EventModel();
+        $this->activeEventModel  = new ActiveEventModel();
+        $this->characterTaskModel= new CharacterTaskModel();
         $this->telegramUserModel = new TelegramUserModel();
 
-        $API_KEY = getenv('telegram.API_KEY');
+        // Инициализация Telegram Bot
+        $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
         $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
         Request::initialize($this->telegram);
     }
 
+    /**
+     * Основной метод:
+     * 1) С вероятностью 8% вызываем логику события (92% случаев не обрабатываем).
+     * 2) Находим событие 'MirageOases' в EventModel, проверяем активность (active).
+     * 3) Ищем biomes, где действует событие, получаем персонажей, у которых biome_id в этом списке.
+     * 4) Из них выбираем тех, кто сейчас выполняет Gather/Explore (in_work).
+     * 5) Применяем эффект: уменьшение здоровья/выносливости и удлинение задач.
+     */
     public function process()
     {
+        // 1) 8% шанс
         if (mt_rand(0, 100) >= 8) {
-            return; // 92% шанс на то, что событие не будет обработано
+            return; // 92% шанс пропуска
         }
 
-        $eventInfo = $this->eventModel->where('name_english', 'MirageOases')->first();
+        // 2) Проверяем событие "MirageOases" (англ. name_english)
+        $eventInfo = $this->eventModel
+            ->where('name_english', 'MirageOases')
+            ->first();
+
+        // Если не найдено или не активно, завершаем
         if (!$eventInfo || !$this->activeEventModel->isActive($eventInfo['event_id'])) {
-            return; // Exit if the event is not found or not active
+            return;
         }
 
+        // 3) Список биомов из поля biome_ids
         $biomeIds = json_decode($eventInfo['biome_ids'], true);
-        $characters = $this->characterModel->whereIn('biome_id', $biomeIds)->findAll();
+        if (!is_array($biomeIds)) {
+            return;
+        }
 
+        // Ищем персонажей, у которых biome_id в $biomeIds
+        $characters = $this->characterModel
+            ->whereIn('biome_id', $biomeIds)
+            ->findAll();
+
+        // 4) Для каждого персонажа:
+        //    Проверяем, есть ли задачи (Gather, ExploreTheArea) in_work
         foreach ($characters as $character) {
             $activeTasks = \Config\Database::connect()
                 ->table('character_tasks')
@@ -61,80 +112,109 @@ class MirageOasisHandler extends Controller
                 ->getResultArray();
 
             if (empty($activeTasks)) {
-                continue; // Skip characters without active resource gathering or exploration tasks
+                // Нет подходящих задач => эффекта нет
+                continue;
             }
 
-            // Apply effects
+            // 5) Применяем эффект события (потеря воды, health, tired + увеличение времени)
             $this->applyEffects($character, $activeTasks);
         }
     }
 
-    protected function applyEffects($character, $activeTasks)
+    /**
+     * Применяем эффект "мираж" к персонажу:
+     * - waterLoss (1..10) — условное (здесь просто как текст)
+     * - healthLoss (1..10)
+     * - tirednessLoss (1..10)
+     * - tasks end_time += random(1..15) минут
+     */
+    protected function applyEffects(array $character, array $activeTasks)
     {
-        // Randomly decrease water supplies, health, and tiredness
-        $waterLoss = rand(1, 10);
-        $healthLoss = rand(1, 10);
+        // Случайные потери
+        $waterLoss     = rand(1, 10);
+        $healthLoss    = rand(1, 10);
         $tirednessLoss = rand(1, 10);
 
-        // Update character stats
-        $newHealth = max(0.01, $character['health'] - $healthLoss);
-        $newTiredness = max(0.01, $character['tired'] - $tirednessLoss);
+        // Обновляем здоровье/выносливость
+        $newHealth     = max(0.01, $character['health'] - $healthLoss);
+        $newTired      = max(0.01, $character['tired']  - $tirednessLoss);
 
-        // Update the character model
+        // Запись
         $this->characterModel->update($character['id'], [
             'health' => $newHealth,
-            'tired' => $newTiredness
+            'tired'  => $newTired
         ]);
 
-        // Calculate and store the extra time for tasks
+        // Удлиняем время задач (сложнее ориентироваться в пустыне)
         $totalExtraMinutes = 0;
         foreach ($activeTasks as $task) {
-            $extraMinutes = rand(1, 15);
+            $extraMinutes = rand(1, 15); // 1..15
             $totalExtraMinutes += $extraMinutes;
-            $newEndTime = date('Y-m-d H:i:s', strtotime($task['end_time'] . " +$extraMinutes minutes"));
-            $this->characterTaskModel->update($task['id'], ['end_time' => $newEndTime]);
+
+            $newEndTime = date(
+                'Y-m-d H:i:s',
+                strtotime($task['end_time'] . " +{$extraMinutes} minutes")
+            );
+            $this->characterTaskModel->update($task['id'], [
+                'end_time' => $newEndTime
+            ]);
         }
 
-        // Notify the character
+        // Уведомляем
         $this->notifyCharacter($character, $waterLoss, $healthLoss, $tirednessLoss, $totalExtraMinutes);
     }
 
-    protected function notifyCharacter($character, $waterLoss, $healthLoss, $tirednessLoss, $extraMinutes)
+    /**
+     * Уведомление в Telegram:
+     * - Показываем, сколько воды "потрачено" (waterLoss),
+     *   healthLoss, tirednessLoss, суммарно добавили X минут к задачам.
+     */
+    protected function notifyCharacter(array $character, int $waterLoss, int $healthLoss, int $tirednessLoss, int $extraMinutes)
     {
-        $telegramUserId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
+        // Ищем телеграм-пользователя
+        $telegramUserId = $this->telegramUserModel
+            ->where('id', $character['telegram_user_id'])
+            ->first();
         if (!$telegramUserId) {
-            return; // If the Telegram user is not found, stop execution
+            return;
         }
 
         $chatId = $telegramUserId['telegram_id'];
-        $message = "🏜️ *Внимание!* Вашего персонажа затронули миражи оазиса.\n\n";
-        $message .= "💧 Потеря воды: {$waterLoss} единиц,\n🩸 снижение здоровья: {$healthLoss} единиц,\n😓 увеличение усталости: {$tirednessLoss} единиц.\n\n";
-        $message .= "Время выполнения задач увеличено на {$extraMinutes} минут.\n";
-        $message .= "_Будьте осторожны и старайтесь безопасно передвигаться по пустыне!_";
+        if (!$chatId) {
+            return;
+        }
+
+        $message  = "🏜️ *Внимание!* Твой персонаж столкнулся с миражами оазиса.\n\n";
+        $message .= "• 💧 Потеря воды: {$waterLoss}\n";
+        $message .= "• 🩸 Здоровье уменьшилось на: {$healthLoss}\n";
+        $message .= "• 😓 Усталость увеличилась на: {$tirednessLoss}\n\n";
+        $message .= "Все активные задачи (Gather/Explore) стали дольше на *{$extraMinutes}* минут.\n";
+        $message .= "_Будь осторожен: пустыня не прощает ошибок!_\n";
 
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🎉 События', 'callback_data' => 'events']
+                    ['text' => '🎉 События',        'callback_data' => 'events']
                 ]
             ]
         ];
-        // Путь к изображению для лесного пожара
-        $photo = base_url('uploads/telegram/oasis__mirages.png'); // Необходимо указать реальный путь к изображению
 
+        // Изображение
+        $photoPath = base_url('uploads/telegram/oasis__mirages.png');
+
+        // Отправка
         Request::answerCallbackQuery(['callback_query_id' => $chatId]);
         try {
             Request::sendPhoto([
-                'chat_id' => $chatId,
-                'photo' => Request::encodeFile($photo),
-                'caption' => $message,
+                'chat_id'    => $chatId,
+                'photo'      => Request::encodeFile($photoPath),
+                'caption'    => $message,
                 'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
+                'reply_markup'=> json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Ошибка при отправке сообщения: " . $e->getMessage());
+            log_message('error', "Ошибка при отправке сообщения MirageOasis: " . $e->getMessage());
         }
     }
 }

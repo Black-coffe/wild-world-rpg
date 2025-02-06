@@ -3,142 +3,239 @@
 namespace App\TaskHandlers\Events;
 
 use CodeIgniter\Controller;
-use App\Models\CharacterModel;
-use App\Models\EventModel;
-use App\Models\ActiveEventModel;
-use App\Models\TelegramUserModel;
+use App\Models\{
+    CharacterModel,
+    EventModel,
+    ActiveEventModel,
+    TelegramUserModel,
+    CharacterTaskModel
+};
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
 
+/**
+ * Класс NorthernLightsHandler
+ *
+ * Обрабатывает событие "NorthernLights" (Северное сияние):
+ * 1) С вероятностью 18% (82% пропуск) вызывается процесс.
+ * 2) Проверяем, активно ли событие (в active_events).
+ * 3) Ищем персонажей, чей biome_id входит в указанное в eventModel->biome_ids.
+ * 4) Для каждого случайно выбираем boostType (experience, health, strength и т.д.),
+ *    вычисляем boostValue, и увеличиваем соответствующее поле:
+ *    - Для health/tired/gold — целое число (не выше 100).
+ *    - Для experience/strength/agility/intellect — дробное (1..1.11).
+ * 5) Отправляем уведомление игроку (телеграм) с описанием прироста.
+ */
 class NorthernLightsHandler extends Controller
 {
     protected $characterModel;
     protected $eventModel;
     protected $activeEventModel;
     protected $telegramUserModel;
-    private $telegram;
+    private   $telegram;
 
     public function __construct()
     {
-        $this->characterModel = new CharacterModel();
-        $this->eventModel = new EventModel();
-        $this->activeEventModel = new ActiveEventModel();
+        // Инициализация моделей
+        $this->characterModel    = new CharacterModel();
+        $this->eventModel        = new EventModel();
+        $this->activeEventModel  = new ActiveEventModel();
         $this->telegramUserModel = new TelegramUserModel();
 
-        $API_KEY = getenv('telegram.API_KEY');
+        // Инициализация Telegram
+        $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
         $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
         Request::initialize($this->telegram);
     }
 
+    /**
+     * Основной метод:
+     * 1) 18% шанс (82% пропуск).
+     * 2) Проверяем наличие события 'NorthernLights' + его активность.
+     * 3) Ищем characters, находящихся в biomes (из JSON).
+     * 4) Для каждого: выбираем boostType, считаем boostValue, применяем.
+     * 5) Уведомляем игрока.
+     */
     public function process()
     {
+        // 1) 18% вероятность
         if (mt_rand(0, 100) >= 18) {
-            return; // 82% шанс на то, что событие не будет обработано
+            return; // ~82% случаев событие пропускаем
         }
 
-        $eventInfo = $this->eventModel->where('name_english', 'NorthernLights')->first();
+        // 2) Ищем событие "NorthernLights"
+        $eventInfo = $this->eventModel
+            ->where('name_english', 'NorthernLights')
+            ->first();
         if (!$eventInfo) {
-            return; // If the event is not found, stop execution
+            return; // Нет события
         }
 
-        // Check if the event is active using the new method
+        // Проверяем, активно ли (через ActiveEventModel->isActive)
         if (!$this->activeEventModel->isActive($eventInfo['event_id'])) {
-            return; // If the event is not active, stop execution
+            return; // Неактивно
         }
 
+        // 3) Список biomes, где действует событие
         $biomeIds = json_decode($eventInfo['biome_ids'], true);
-        $characters = $this->characterModel->whereIn('biome_id', $biomeIds)->findAll();
+        if (empty($biomeIds) || !is_array($biomeIds)) {
+            return; // Нет биомов => выходим
+        }
+
+        // Находим персонажей по biome_id
+        $characters = $this->characterModel
+            ->whereIn('biome_id', $biomeIds)
+            ->findAll();
 
         foreach ($characters as $character) {
+            // 4) Случайно выбираем тип буста
             $boostType = $this->selectBoostType();
+            // Считаем значение буста
             $boostValue = $this->calculateBoostValue($boostType);
 
-            if (in_array($boostType, ['health', 'tired', 'gold'])) {
-                $boostValue = (int) $boostValue; // Приводим к целому числу для health, tired и gold
-                if ($character[$boostType] + $boostValue > 100) {
-                    $boostValue = 100 - $character[$boostType];
-                }
-                $this->characterModel->increment($character['id'], $boostType, $boostValue);
-            } else {
-                // Для типов, требующих сохранения дробных значений, обновляем напрямую
-                $newValue = $character[$boostType] + $boostValue;
-                $this->characterModel->update($character['id'], [$boostType => $newValue]);
-            }
+            // Применяем
+            $this->applyBoost($character, $boostType, $boostValue);
 
+            // 5) Уведомление
             $this->notifyCharacter($character, $boostType, $boostValue);
         }
     }
 
-    protected function selectBoostType()
+    /**
+     * Случайный выбор одного из:
+     * [experience, health, strength, agility, intellect, tired, gold]
+     */
+    protected function selectBoostType(): string
     {
         $types = ['experience', 'health', 'strength', 'agility', 'intellect', 'tired', 'gold'];
         return $types[array_rand($types)];
     }
 
-    protected function calculateBoostValue($type)
+    /**
+     * Рассчитываем сам boost:
+     * - если (experience/strength/agility/intellect) => random float [1..1.11]
+     * - иначе (health/tired/gold) => random int [1..100]
+     */
+    protected function calculateBoostValue(string $type): float
     {
         if (in_array($type, ['experience', 'strength', 'agility', 'intellect'])) {
-            return rand(1, 111) / 100; // Для дробных значений
+            // Дробное значение 1..1.11
+            return rand(1, 111) / 100.0;
         }
-        return rand(1, 100); // Для здоровья, выносливости и золота
+        // Для health, tired, gold => int [1..100]
+        return (float)rand(1, 100);
     }
 
-    protected function notifyCharacter($character, $boostType, $boostValue)
+    /**
+     * Применяем буст к персонажу.
+     * Для health/tired/gold не выходим за 100.
+     * Для остальных — добавляем дробно.
+     */
+    protected function applyBoost(array $character, string $boostType, float $boostValue)
     {
-        $telegramUserId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
-        if (!$telegramUserId) {
-            return; // Если Telegram пользователя не найдено, прекращаем выполнение
+        $charId  = $character['id'];
+        $oldVal  = $character[$boostType] ?? 0;
+
+        // Если буст health/tired/gold => целое, не выше 100
+        if (in_array($boostType, ['health', 'tired', 'gold'])) {
+            $boostValueInt = (int)$boostValue; // округляем
+            // Если sum > 100 => обрезаем
+            $sum = $oldVal + $boostValueInt;
+            if ($sum > 100) {
+                $boostValueInt = max(0, 100 - $oldVal);
+            }
+            if ($boostValueInt <= 0) {
+                // Если персонаж уже на 100
+                return;
+            }
+            // Обновляем
+            $this->characterModel
+                ->where('id', $charId)
+                ->set($boostType, "$boostType + $boostValueInt", false)
+                ->update();
+        } else {
+            // experience / strength / agility / intellect
+            $newVal = $oldVal + $boostValue;
+            // Можете добавить ограничения (например, max=999)
+            $this->characterModel->update($charId, [
+                $boostType => $newVal
+            ]);
+        }
+    }
+
+    /**
+     * Уведомляем игрока в Telegram.
+     */
+    protected function notifyCharacter(array $character, string $boostType, float $boostValue)
+    {
+        // Ищем телеграм-пользователя
+        $telegramUser = $this->telegramUserModel
+            ->where('id', $character['telegram_user_id'])
+            ->first();
+        if (!$telegramUser) {
+            return;
         }
 
-        $chatId = $telegramUserId['telegram_id'];
+        $chatId = $telegramUser['telegram_id'];
+        if (!$chatId) {
+            return;
+        }
 
-        $message = sprintf(
-            "🌌 *Благодаря событию 'Северное сияние'\n\nВаш персонаж получил надбавку к %s в количестве %s.*\n\n" .
-            "_Возрадуйтесь вместе с вашим персонажем..._",
-            $this->translateBoostType($boostType),
-            $boostValue
-        );
-        $message .= "\n\nПосмотрите сколько времени еще будет данное событие, чтобы принять стратегические решения 👇";
+        // Формируем текст
+        // Переводим boostType
+        $boostNameRus = $this->translateBoostType($boostType);
+
+        // Указываем boostValue (округлим при желании)
+        $formattedValue = round($boostValue, 2);
+
+        $message = "🌌 *Северное сияние!* \n\n"
+            . "Твой персонаж получил прибавку к *{$boostNameRus}* на +{$formattedValue}.\n\n"
+            . "_Полюбуйся прекрасным небом и используй полученный бонус с умом._";
+        $message .= "\n\nПосмотри, сколько ещё длится событие, чтобы спланировать дальнейшие действия:";
 
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🎉 События', 'callback_data' => 'events']
+                    ['text' => '🎉 События',        'callback_data' => 'events']
                 ]
             ]
         ];
-        // Путь к изображению для лесного пожара
-        $photo = base_url('uploads/telegram/beautiful_natural_phenomenon.png'); // Необходимо указать реальный путь к изображению
 
+        // Фото (пример)
+        $photo = base_url('uploads/telegram/beautiful_natural_phenomenon.png');
+
+        // Отправка
         Request::answerCallbackQuery(['callback_query_id' => $chatId]);
         try {
             Request::sendPhoto([
                 'chat_id' => $chatId,
-                'photo' => Request::encodeFile($photo),
+                'photo'   => Request::encodeFile($photo),
                 'caption' => $message,
                 'parse_mode' => 'Markdown',
                 'reply_markup' => json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Ошибка при отправке сообщения: " . $e->getMessage());
+            log_message('error', "Ошибка при отправке северного сияния: " . $e->getMessage());
         }
     }
 
-    protected function translateBoostType($type)
+    /**
+     * Перевод типа (experience => 'опыт', health => 'здоровье', ...)
+     */
+    protected function translateBoostType(string $type): string
     {
-        $translations = [
+        $map = [
             'experience' => 'опыту',
-            'health' => 'здоровью',
-            'strength' => 'силе',
-            'agility' => 'ловкости',
-            'intellect' => 'интеллекту',
-            'tired' => 'выносливости',
-            'gold' => 'золоту'
+            'health'     => 'здоровью',
+            'strength'   => 'силе',
+            'agility'    => 'ловкости',
+            'intellect'  => 'интеллекту',
+            'tired'      => 'выносливости',
+            'gold'       => 'золоту'
         ];
-        return $translations[$type] ?? 'неизвестному параметру';
+        return $map[$type] ?? $type;
     }
 }

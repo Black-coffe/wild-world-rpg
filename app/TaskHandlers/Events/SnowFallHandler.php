@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Events;
 
+use DateTime;
 use CodeIgniter\Controller;
 use App\Models\{
     CharacterModel,
@@ -14,9 +15,21 @@ use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
 
-// Подключаем наш сервис
+// Подключаем наш сервис (проверка базы, Gather, Explore)
 use App\Services\Player\PlayerStateService;
 
+/**
+ * Класс SnowFallHandler
+ *
+ * Обрабатывает событие "Snowfall" (Снежный обвал):
+ * 1) С вероятностью 30% (70% случаев пропуска).
+ * 2) Проверяем активность события (activeEventModel, status='active').
+ * 3) Для biomes (из eventModel->biome_ids) выбираем персонажей (CharacterModel->whereIn).
+ * 4) Для каждого персонажа:
+ *   - если на базе и не Gather/Explore => урона нет (notifySafeOnBase).
+ *   - иначе рассчитываем урон (случайно бьёт по здоровью ИЛИ по выносливости, 1..90),
+ *     учитываем общий damageRatio (100% или 70%), затем уведомляем обвальном уроне.
+ */
 class SnowFallHandler extends Controller
 {
     protected $characterModel;
@@ -26,31 +39,39 @@ class SnowFallHandler extends Controller
     protected $characterTaskModel;
     private   $telegram;
 
-    protected $playerStateService; // сервис проверок
+    // Сервис для проверок (isCharacterOnBase, isGathering, isExploring)
+    protected $playerStateService;
 
     public function __construct()
     {
+        // Инициализация моделей
         $this->characterModel     = new CharacterModel();
         $this->eventModel         = new EventModel();
         $this->activeEventModel   = new ActiveEventModel();
         $this->telegramUserModel  = new TelegramUserModel();
         $this->characterTaskModel = new CharacterTaskModel();
 
-        // Создаём сервис, где проверяем базу и т.д.
+        // Сервис проверок
         $this->playerStateService = new PlayerStateService();
 
-        // Telegram init
+        // Инициализация Telegram
         $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
         $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
         Request::initialize($this->telegram);
     }
 
+    /**
+     * Основной метод:
+     * 1) 30% шанс (70% skip).
+     * 2) Ищем событие Snowfall => проверяем, активно ли.
+     * 3) Список biome_ids => у кого biome_id там, обрабатываем applySnowfallEffects().
+     */
     public function process()
     {
-        // 1) Вероятность 30%
+        // 1) 30% вероятность
         if (mt_rand(1, 100) > 30) {
-            // В ~70% случаев событие не происходит
+            // ~70% случаев не обрабатываем
             return;
         }
 
@@ -62,7 +83,7 @@ class SnowFallHandler extends Controller
             return;
         }
 
-        // 3) Проверяем, активно ли
+        // Проверяем, активно ли
         $activeEvent = $this->activeEventModel
             ->where('event_id', $eventInfo['event_id'])
             ->where('status', 'active')
@@ -71,13 +92,13 @@ class SnowFallHandler extends Controller
             return;
         }
 
-        // 4) Берём biomes, на которых действует
+        // 3) biomes
         $biomeIds = json_decode($eventInfo['biome_ids'], true);
         if (!is_array($biomeIds)) {
             return;
         }
 
-        // 5) Ищем персонажей, кто в этих биомах
+        // Находим персонажей
         $characters = $this->characterModel
             ->whereIn('biome_id', $biomeIds)
             ->findAll();
@@ -86,91 +107,94 @@ class SnowFallHandler extends Controller
             return;
         }
 
-        // 6) Применяем эффект к тем, у кого есть активные задачи gather/explore
+        // 4) Для каждого — вызов applySnowfallEffects
         foreach ($characters as $character) {
-            // Старый код проверял activeTasks, но сейчас меняем логику:
-            // Мы проверяем "на базе?" и "собирает?" и "изучает?" через PlayerStateService
             $this->applySnowfallEffects($character, $eventInfo);
         }
     }
 
+    /**
+     * Применяем "снежный обвал" к персонажу:
+     * - Если на базе и не Gather/Explore => no damage
+     * - Иначе бьём либо health, либо tired (rand(1..90)),
+     *   умножая на 1.0 (100%) или 0.70 (70%) при отсутствии Gather/Explore,
+     *   notifyDamage
+     */
     protected function applySnowfallEffects(array $character, array $eventInfo)
     {
         $charId = $character['id'];
 
-        // 1) Если на базе => урон не наносим, просто уведомление
+        // Проверки базы и задач
         $onBase      = $this->playerStateService->isCharacterOnBase($charId);
         $isGathering = $this->playerStateService->isGathering($charId);
         $isExploring = $this->playerStateService->isExploring($charId);
 
         if ($onBase && !$isGathering && !$isExploring) {
-            // Сообщаем "Снежный обвал, но база защитила"
+            // База защищает
             $this->notifySafeOnBase($character);
             return;
         }
 
-        // 2) Если не на базе:
-        //    - gather || explore => 100%
-        //    - иначе => 70%
-        $damageRatio = 1.0;
+        // damageRatio
+        $damageRatio = 1.0; // если gather||explore
         if (!$isGathering && !$isExploring) {
-            $damageRatio = 0.70;
+            $damageRatio = 0.70; // иначе 70%
         }
 
-        // 3) Определяем, по какому параметру удар (health или tired).
-        //    И сколько (1..90, как в оригинальном коде).
-        $damageType   = rand(0, 1) ? 'health' : 'tired';
-        $damageAmount = rand(1, 90);
-
-        // Уменьшаем "damageAmount" с учётом damageRatio
+        // Выбираем: бьём по 'health' или 'tired'
+        $damageType = (mt_rand(0,1) === 0) ? 'health' : 'tired';
+        // Случайно 1..90
+        $damageAmount = mt_rand(1, 90);
+        // Умножаем на ratio
         $actualDamage = round($damageAmount * $damageRatio);
 
-        // 4) Считаем новое значение, не ниже 0.01
-        $oldValue = $character[$damageType];
-        $newValue = max(0.01, $oldValue - $actualDamage);
+        // Уменьшаем
+        $oldVal = $character[$damageType];
+        $newVal = max(0.01, $oldVal - $actualDamage);
 
-        // Сохраняем
         $this->characterModel->update($charId, [
-            $damageType => $newValue
+            $damageType => $newVal
         ]);
 
-        // 5) Уведомляем
+        // Уведомляем
         $this->notifyDamage($character, $damageType, $actualDamage, $damageRatio);
     }
 
     /**
-     * Уведомление, если персонаж на базе и не получает урона
+     * Уведомление, если персонаж на базе (без Gather/Explore)
      */
     protected function notifySafeOnBase(array $character)
     {
-        $tgUser = $this->telegramUserModel->find($character['telegram_user_id']);
+        $tgUser = $this->telegramUserModel
+            ->find($character['telegram_user_id']);
         if (!$tgUser) {
             return;
         }
+
         $chatId = $tgUser['telegram_id'];
 
-        $message = "❄️ *Снежный обвал* оказался не страшен!\n"
-            . "Ты находишься на своей базе, которая надёжно защищает тебя от стихии.\n\n"
-            . "_Всегда помни о безопасности и укрепляй свою базу!_";
+        $message = "❄️ *Снежный обвал* не страшен!\n"
+            . "Ты находишься в своей базе и не занят рискованными задачами.\n"
+            . "_База — твоя крепость в суровых условиях._";
 
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🧑‍🌾 Действия 🛠️','callback_data' => 'characterActions'],
-                    ['text' => '🎉 События',        'callback_data' => 'events']
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                    ['text' => '🎉 События',       'callback_data' => 'events']
                 ]
             ]
         ];
 
         try {
             Request::sendMessage([
-                'chat_id'      => $chatId,
-                'text'         => $message,
-                'parse_mode'   => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
+                'chat_id' => $chatId,
+                'text'    => $message,
+                'parse_mode' => 'Markdown',
+                'reply_markup'=> json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Ошибка при отправке notifySafeOnBase: " . $e->getMessage());
+            log_message('error', "Ошибка при notifySafeOnBase: " . $e->getMessage());
         }
     }
 
@@ -183,31 +207,32 @@ class SnowFallHandler extends Controller
         int $actualDamage,
         float $damageRatio
     ) {
-        $tgUser = $this->telegramUserModel->find($character['telegram_user_id']);
+        $tgUser = $this->telegramUserModel
+            ->find($character['telegram_user_id']);
         if (!$tgUser) {
             return;
         }
         $chatId = $tgUser['telegram_id'];
 
         $typeText = ($damageType === 'health') ? 'здоровье' : 'выносливость';
-        $ratioText = ($damageRatio >= 1.0)
-            ? "Полная сила удара (100%)"
-            : "Ослабленный урон (70%)";
+        // ratio: 1.0 => "полный урон", 0.7 => "70%"
+        $ratioTxt = ($damageRatio >= 1.0) ? "полной силой (100%)" : "частично (70%)";
 
-        $message  = "⚠️ *Снежный обвал* обрушился на тебя!\n\n";
-        $message .= "❄️ Потеряно *{$actualDamage}* единиц {$typeText}.\n";
-        $message .= "({$ratioText})\n\n";
-        $message .= "🗻 *Совет*: спасись в биоме, не затронутом обвалом, или вернись на свою базу — там будешь в безопасности.\n";
+        $message  = "⚠️ *Снежный обвал!* \n\n";
+        $message .= "Ты потерял *{$actualDamage}* единиц {$typeText}, \n"
+            . "так как тебя задел обвал {$ratioTxt}.\n\n"
+            . "☃️ Лучше переместиться в безопасный биом или на базу, пока ситуация не ухудшилась!";
 
         $keyboard = [
             'inline_keyboard' => [
                 [
                     ['text' => '🧑‍🌾 Действия 🛠️','callback_data' => 'characterActions'],
-                    ['text' => '🎉 События',        'callback_data' => 'events']
+                    ['text' => '🎉 События',       'callback_data' => 'events']
                 ]
             ]
         ];
 
+        // Допустим, есть картинка
         $photoPath = base_url('uploads/telegram/heavy_snowfalls_cause_avalanches_and_snowfalls.png');
 
         try {
@@ -216,10 +241,10 @@ class SnowFallHandler extends Controller
                 'photo'   => Request::encodeFile($photoPath),
                 'caption' => $message,
                 'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
+                'reply_markup'=> json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Ошибка при отправке notifyDamage: " . $e->getMessage());
+            log_message('error', "Ошибка при notifyDamage: " . $e->getMessage());
         }
     }
 }

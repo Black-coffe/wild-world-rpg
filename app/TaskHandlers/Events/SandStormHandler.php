@@ -3,19 +3,33 @@
 namespace App\TaskHandlers\Events;
 
 use DateTime;
-use App\Models\CharacterModel;
-use App\Models\BiomeModel;
-use App\Models\EventModel;
-use App\Models\ActiveEventModel;
 use CodeIgniter\Controller;
+use App\Models\{
+    CharacterModel,
+    BiomeModel,
+    EventModel,
+    ActiveEventModel,
+    TelegramUserModel
+};
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
-use App\Models\TelegramUserModel;
 
-// Подключаем сервис
+// Подключаем сервис, где лежат методы isCharacterOnBase, isGathering, isExploring
 use App\Services\Player\PlayerStateService;
 
+/**
+ * Класс SandStormHandler
+ *
+ * Обрабатывает событие "Sandstorm" (Песчаная буря):
+ * 1) С ~25% вероятностью (75% пропуск) запускает логику (process()).
+ * 2) Проверяем, активно ли событие (activeEvent).
+ * 3) Читаем biomes из eventModel->biome_ids, находим персонажей, находящихся в этих биомах.
+ * 4) Для каждого персонажа:
+ *    - если на базе и не выполняет Gather/Explore, урона нет;
+ *    - иначе рассчитываем урон по "усталости" (tired) и случайно снижаем один из атрибутов (experience/strength/agility/intellect);
+ * 5) Уведомляем игрока в Telegram, с учётом того, когда закончится событие.
+ */
 class SandStormHandler extends Controller
 {
     protected $characterModel;
@@ -25,23 +39,28 @@ class SandStormHandler extends Controller
     protected $telegramUserModel;
     private   $telegram;
 
-    // Наш сервис проверок
+    // Сервис проверок (на базе ли персонаж, Gathering/Explore)
     protected $playerStateService;
 
     public function __construct()
     {
-        $this->characterModel     = new CharacterModel();
-        $this->biomeModel         = new BiomeModel();
-        $this->eventModel         = new EventModel();
-        $this->activeEventModel   = new ActiveEventModel();
-        $this->telegramUserModel  = new TelegramUserModel();
+        // Инициализация моделей
+        $this->characterModel    = new CharacterModel();
+        $this->biomeModel        = new BiomeModel();
+        $this->eventModel        = new EventModel();
+        $this->activeEventModel  = new ActiveEventModel();
+        $this->telegramUserModel = new TelegramUserModel();
 
         // Инициализируем сервис проверок
         $this->playerStateService = new PlayerStateService();
 
+        // Инициализация Telegram
         $this->initTelegram();
     }
 
+    /**
+     * Настраиваем Telegram SDK
+     */
     private function initTelegram()
     {
         $API_KEY      = getenv('telegram.API_KEY');
@@ -54,52 +73,60 @@ class SandStormHandler extends Controller
         }
     }
 
+    /**
+     * Основной метод:
+     * 1) С ~25% вероятностью (25% success, 75% skip).
+     * 2) Проверяем, активно ли "Sandstorm".
+     * 3) Для каждого biomeId из activeEvent -> ищем персонажей, вызываем applySandStormEffects.
+     */
     public function process()
     {
-        // 1) Повышаем вероятность до ~25%
+        // 1) 25% шанс
         if (mt_rand(1, 100) > 25) {
             return; // 75% случаев пропускаем
         }
 
-        // 2) Проверяем, активно ли событие "Sandstorm"
+        // 2) Проверяем активное событие "Sandstorm"
         $activeEvent = $this->isEventActive('Sandstorm');
         if (!$activeEvent) {
-            return; // Неактивно, выходим
+            // Событие неактивно
+            return;
         }
 
-        // 3) Проверяем наличие biome_ids
+        // 3) biomes
         if (!isset($activeEvent['biome_ids'])) {
-            return; // Нет биомов в списке
+            return; // нет данных
         }
-
         $affectedBiomes = json_decode($activeEvent['biome_ids'], true);
         if (json_last_error() !== JSON_ERROR_NONE) {
-            return; // Ошибка JSON
+            return; // ошибка JSON
         }
 
-        // 4) Проходим по биомам → находим персонажей → применяем урон
+        // 4) Ищем персонажей в каждом из биомов
         foreach ($affectedBiomes as $biomeId) {
             $charactersInBiome = $this->characterModel
                 ->where('biome_id', $biomeId)
                 ->findAll();
 
+            // Для каждого персонажа вызываем
             foreach ($charactersInBiome as $character) {
-                // Урон применяем в любом случае, если в старом коде
-                // была проверка "не заняты", а сейчас изменим:
                 $this->applySandStormEffects($character, $activeEvent);
             }
         }
     }
 
     /**
-     * Проверяем, есть ли активное событие Sandstorm, возвращаем массив или false.
+     * Проверяем, есть ли активное событие "Sandstorm",
+     * возвращаем массив или false.
      */
     protected function isEventActive(string $eventNameEnglish)
     {
-        $eventInfo = $this->eventModel->where('name_english', $eventNameEnglish)->first();
+        $eventInfo = $this->eventModel
+            ->where('name_english', $eventNameEnglish)
+            ->first();
 
         if (!$eventInfo || empty($eventInfo['biome_ids'])) {
-            return false;  // Событие не найдено / неверные данные
+            return false;
         }
 
         $activeEvent = $this->activeEventModel
@@ -108,104 +135,108 @@ class SandStormHandler extends Controller
             ->first();
 
         if ($activeEvent) {
-            // Добавляем поля, если хотим
-            $activeEvent['biome_ids']   = $eventInfo['biome_ids'];
-            $activeEvent['effect_value']= $eventInfo['effect_value'];
+            // Дополнительно добавим нужные поля (effect_value, biome_ids)
+            $activeEvent['biome_ids']    = $eventInfo['biome_ids'];
+            $activeEvent['effect_value'] = $eventInfo['effect_value'];
             return $activeEvent;
         }
         return false;
     }
 
     /**
-     * Применяем логику песчаной бури к конкретному персонажу
-     * с учётом проверок базы и занятости.
+     * Логика применения бури к персонажу:
+     * - если на базе и не Gathering/Exploring => нет урона
+     * - иначе снижаем tired (calculateTiredDamage) ± ratio 100%/80%,
+     *   и случайно урезаем 1 атрибут (experience/strength/agility/intellect) на 0.01
+     * - отправляем уведомление
      */
     protected function applySandStormEffects(array $character, array $activeEvent)
     {
-        // Если у персонажа усталость уже 0.01, не трогаем
+        // 1) Если tired<=0.01, не обрабатываем
         if ($character['tired'] <= 0.01) {
             return;
         }
 
-        // Ищем effect_value (например 30)
-        $effectValue = $activeEvent['effect_value'] ?? 30;
+        $effectValue = $activeEvent['effect_value'] ?? 30; // Пример
+        $charId      = $character['id'];
 
-        // Проверяем, на базе ли он (isCharacterOnBase)
-        // и занятость (Gather/Explore)
-        $charId        = $character['id'];
-        $onBase        = $this->playerStateService->isCharacterOnBase($charId);
-        $isGathering   = $this->playerStateService->isGathering($charId);
-        $isExploring   = $this->playerStateService->isExploring($charId);
+        // Сервисные проверки
+        $onBase     = $this->playerStateService->isCharacterOnBase($charId);
+        $isGather   = $this->playerStateService->isGathering($charId);
+        $isExploring= $this->playerStateService->isExploring($charId);
 
-        // 1) Если на базе и не собирает/не изучает → вреда нет
-        if ($onBase && !$isGathering && !$isExploring) {
+        // (a) Если (onBase && !isGather && !isExploring) => noDamage
+        if ($onBase && !$isGather && !$isExploring) {
             $this->notifyNoDamage($character);
             return;
         }
 
-        // 2) Если не на базе:
-        //    - если (gather||explore), урон 100%
-        //    - иначе (не gather, не explore) => урон 80%
-        $damageRatio = 1.0; // 100%
-        if (!$isGathering && !$isExploring) {
-            $damageRatio = 0.8; // 80%
+        // (b) Иначе
+        // ratio = 1.0, если gather||exploring, иначе 0.8
+        $ratio = 1.0;
+        if (!$isGather && !$isExploring) {
+            $ratio = 0.8;
         }
 
-        // Расчитываем урон
-        $tiredDamage = $this->calculateTiredDamage($character, $effectValue) * $damageRatio;
+        // Считаем урон по tired
+        $tiredDamage = $this->calculateTiredDamage($character, $effectValue) * $ratio;
         $tiredDamage = round($tiredDamage, 2);
 
-        // Уменьшаем tired
         $newTired = max(0.01, $character['tired'] - $tiredDamage);
 
-        // Рандомно уменьшаем один из атрибутов (если > 0.01)
-        $attributes = ['experience', 'strength', 'agility', 'intellect'];
-        $attributeToReduce = $attributes[array_rand($attributes)];
-        $attrVal = $character[$attributeToReduce];
-        $reducedBy = 0.0;
-        if ($attrVal > 0.01) {
-            // допустим уменьшаем на 0.01
-            $reducedBy = 0.01;
-            $attrVal = max(0.01, $attrVal - $reducedBy);
+        // Случайно выберем 1 атрибут (exp/str/agi/int) для уменьшения на 0.01
+        $attributes = ['experience','strength','agility','intellect'];
+        $attr       = $attributes[array_rand($attributes)];
+        $oldVal     = $character[$attr];
+        $minus      = 0.0;
+        if ($oldVal > 0.01) {
+            $minus  = 0.01;
+            $oldVal = max(0.01, $oldVal - $minus);
         }
 
         // Сохраняем
         $this->characterModel->update($charId, [
             'tired' => $newTired,
-            $attributeToReduce => $attrVal,
+            $attr   => $oldVal,
         ]);
 
-        // Уведомляем
+        // Формируем время окончания события для уведомления
         $endTime = $this->formatEventEndTime($activeEvent);
-        $this->notifyDamage($character, $tiredDamage, $attributeToReduce, $reducedBy, $endTime, $onBase);
+
+        // Уведомляем
+        $this->notifyDamage($character, $tiredDamage, $attr, $minus, $endTime, $onBase);
     }
 
     /**
-     * Формула урона по усталости, аналогична старой calculateTiredDamage
+     * Расчет урона по tired,
+     * с учётом уровня, danger_level, random ±50%
      */
     protected function calculateTiredDamage(array $character, float $effectValue): float
     {
-        // Допустим, берём уровень, danger_level...
-        // Для упрощения используем что-то вроде:
-
         $biome = $this->biomeModel->find($character['biome_id']);
         if (!$biome) {
-            return $effectValue; // если нет биома
+            return $effectValue; // fallback
         }
 
-        $charLevel   = $character['level'] ?? 1;
-        $danger      = $biome['danger_level']        ?? 5;
-        $difficulty  = $biome['survival_difficulty'] ?? 5;
+        $charLevel  = (int)$character['level']      ?: 1;
+        $danger     = (int)$biome['danger_level']   ?: 5;
+        $difficulty = (int)$biome['survival_difficulty'] ?: 5;
 
-        $levelFactor = max(1, 100 - $charLevel) / 100;
-        $biomeFactor = ($danger + $difficulty) / 20;
-        $randomFactor= rand(50, 150) / 100.0; // ±50%
+        // levelFactor: (100 - level)/100, минимум 1
+        $levelFactor = max(1, 100 - $charLevel) / 100.0;
+        // biomeFactor: (danger + difficulty)/20
+        $biomeFactor = ($danger + $difficulty) / 20.0;
+        // randomFactor: [0.5..1.5]
+        $randomFactor = rand(50, 150) / 100.0;
 
         $damage = $effectValue * $levelFactor * $biomeFactor * $randomFactor;
         return round($damage, 2);
     }
 
-    protected function formatEventEndTime(array $activeEvent)
+    /**
+     * Формируем строку "событие закончится через X дн Y час Z мин"
+     */
+    protected function formatEventEndTime(array $activeEvent): string
     {
         $end = $activeEvent['end_time'] ?? null;
         if (!$end) {
@@ -214,52 +245,59 @@ class SandStormHandler extends Controller
 
         $endDateTime     = new DateTime($end);
         $currentDateTime = new DateTime();
-        $interval = $currentDateTime->diff($endDateTime);
+        if ($endDateTime < $currentDateTime) {
+            return '';
+        }
 
+        $interval = $currentDateTime->diff($endDateTime);
         $days    = $interval->format('%a');
         $hours   = $interval->format('%H');
         $minutes = $interval->format('%I');
 
-        return "⏳ Событие закончится через: {$days} дн. {$hours} чс. {$minutes} мин.";
+        return "⏳ Окончание песчаной бури через: {$days} дн. {$hours} ч. {$minutes} мин.";
     }
 
     /**
-     * Игрок на базе и не занят → урон не наносится
+     * Уведомление: нет урона (на базе, без Gather/Explore)
      */
     protected function notifyNoDamage(array $character)
     {
-        $tgUser = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
+        $tgUser = $this->telegramUserModel
+            ->where('id', $character['telegram_user_id'])
+            ->first();
         if (!$tgUser) {
             return;
         }
-        $chatId = $tgUser['telegram_id'];
 
-        $message = "🌪 *Песчаная буря* пронеслась, но ты находишься на своей базе и не занят тяжёлыми делами.\n"
-            . "Ты полностью защищён от бури!";
+        $chatId = $tgUser['telegram_id'];
+        $message = "🌪 *Песчаная буря* не повлияла на тебя,\n"
+            . "поскольку ты находишься на базе и не занят тяжелыми задачами.\n\n"
+            . "_База — твоя лучшая защита!_";
 
         $keyboard = [
             'inline_keyboard' => [
                 [
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🎉 События',         'callback_data' => 'events']
+                    ['text' => '🎉 События',       'callback_data' => 'events']
                 ]
             ]
         ];
 
         try {
             Request::sendMessage([
-                'chat_id'    => $chatId,
-                'text'       => $message,
-                'parse_mode' => 'Markdown',
+                'chat_id'     => $chatId,
+                'text'        => $message,
+                'parse_mode'  => 'Markdown',
                 'reply_markup'=> json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Ошибка при отправке notifyNoDamage: " . $e->getMessage());
+            log_message('error', "notifyNoDamage: " . $e->getMessage());
         }
     }
 
     /**
-     * Игрок получил урон (вне базы, или занят)
+     * Уведомляем о снижении выносливости (tiredDamage) и 1 атрибута на 0.01,
+     * выводим, когда событие закончится (endTime).
      */
     protected function notifyDamage(
         array $character,
@@ -267,37 +305,40 @@ class SandStormHandler extends Controller
         string $attributeReduced,
         float $reducedBy,
         string $endTime,
-        bool $wasOnBase
+        bool $onBase
     ) {
-        $tgUser = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
+        $tgUser = $this->telegramUserModel
+            ->where('id', $character['telegram_user_id'])
+            ->first();
         if (!$tgUser) {
             return;
         }
         $chatId = $tgUser['telegram_id'];
 
-        $roundedDamage = round($tiredDamage, 2);
-        $roundedAttr   = round($reducedBy, 4);
+        $roundedDamage   = round($tiredDamage, 2);
+        $roundedReduced  = round($reducedBy, 4);
 
-        // Если onBase=false, либо занят => получаем урон
-        $message  = "🌪 *Песчаная буря* нанесла тебе урон!\n\n";
-        $message .= "Твоя *выносливость* снизилась на ~{$roundedDamage}.\n";
-        if ($roundedAttr > 0) {
-            $message .= "Также *{$attributeReduced}* уменьшен на {$roundedAttr}.\n";
+        $message  = "🌪 *Песчаная буря* обрушилась на тебя!\n\n"
+            . "Твоя выносливость снизилась на ~{$roundedDamage}.\n";
+        if ($roundedReduced > 0) {
+            $message .= "Дополнительно *{$attributeReduced}* уменьшен на {$roundedReduced}.\n";
         }
-        $message .= "{$endTime}\n\n";
-        $message .= "🛑 Совет: укройся на базе (если есть) или в другом безопасном биоме,\n"
-            . "иначе буря может нанести ещё больший урон!";
+        if ($endTime) {
+            $message .= "\n{$endTime}\n";
+        }
+        $message .= "\n🛑 Совет: если у тебя есть база, укройся там или дождись окончания шторма!";
 
         $keyboard = [
             'inline_keyboard' => [
                 [
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🎉 События',         'callback_data' => 'events']
+                    ['text' => '🎉 События',        'callback_data' => 'events']
                 ]
             ]
         ];
 
-        $photo = base_url('uploads/telegram/sand_storm.png'); // Картинка бури
+        // Картинка
+        $photo = base_url('uploads/telegram/sand_storm.png');
 
         try {
             Request::sendPhoto([
@@ -305,10 +346,10 @@ class SandStormHandler extends Controller
                 'photo'   => Request::encodeFile($photo),
                 'caption' => $message,
                 'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
+                'reply_markup'=> json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Ошибка при отправке notifyDamage: " . $e->getMessage());
+            log_message('error', "notifyDamage: " . $e->getMessage());
         }
     }
 }

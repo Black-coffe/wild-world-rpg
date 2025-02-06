@@ -3,6 +3,7 @@
 namespace App\TaskHandlers\Events;
 
 use DateTime;
+use CodeIgniter\Controller;
 use App\Models\{
     CharacterModel,
     BiomeModel,
@@ -10,13 +11,26 @@ use App\Models\{
     ActiveEventModel,
     TelegramUserModel
 };
-use CodeIgniter\Controller;
 use Longman\TelegramBot\{Request, Telegram};
 use Longman\TelegramBot\Exception\TelegramException;
 
-// Подключаем сервис
+// Подключаем сервис (isCharacterOnBase, isGathering, isExploring)
 use App\Services\Player\PlayerStateService;
 
+/**
+ * Класс VolcanicEruptionHandler
+ *
+ * Обрабатывает событие "volcanic_eruption" (извержение вулкана):
+ * 1) С вероятностью 30% (70% случаев пропуска) вызывается метод process().
+ * 2) Проверяем, активно ли событие (activeEvent).
+ * 3) Находим ID "Вулканические территории" (через getBiomeIdByName()) или через biome_ids события.
+ * 4) Определяем, какие персонажи находятся в этом биоме.
+ * 5) Для каждого персонажа считаем урон (учитывая базу/задачи):
+ *    - Если (база + без Gather/Explore) => 0% урона
+ *    - Иначе ratio=70% (если не Gather/Explore) или 100% (Gather/Explore).
+ *    - Формула урона: учитывает effectValue, danger_level, survival_difficulty, уровень персонажа, random ±50%.
+ * 6) Уменьшаем здоровье, отправляем уведомление (с картинкой), информируем о конце события.
+ */
 class VolcanicEruptionHandler extends Controller
 {
     protected $characterModel;
@@ -26,23 +40,28 @@ class VolcanicEruptionHandler extends Controller
     protected $telegramUserModel;
     private   $telegram;
 
-    // Наш сервис
+    /** @var PlayerStateService */
     protected $playerStateService;
 
     public function __construct()
     {
-        $this->characterModel     = new CharacterModel();
-        $this->biomeModel         = new BiomeModel();
-        $this->eventModel         = new EventModel();
-        $this->activeEventModel   = new ActiveEventModel();
-        $this->telegramUserModel  = new TelegramUserModel();
+        // Инициализация моделей
+        $this->characterModel    = new CharacterModel();
+        $this->biomeModel        = new BiomeModel();
+        $this->eventModel        = new EventModel();
+        $this->activeEventModel  = new ActiveEventModel();
+        $this->telegramUserModel = new TelegramUserModel();
 
-        // Инициализация сервиса для проверок
+        // Инициализация сервиса
         $this->playerStateService = new PlayerStateService();
 
+        // Инициализация Telegram
         $this->initTelegram();
     }
 
+    /**
+     * Настраиваем Telegram (SDK)
+     */
     private function initTelegram()
     {
         $API_KEY      = getenv('telegram.API_KEY');
@@ -55,25 +74,33 @@ class VolcanicEruptionHandler extends Controller
         }
     }
 
+    /**
+     * Основной метод:
+     * 1) 30% шанс
+     * 2) Проверяем "volcanic_eruption" активно ли
+     * 3) Пытаемся найти biome_id "Вулканические территории"
+     * 4) Ищем персонажей -> applyVolcanicEruptionEffects()
+     */
     public function process()
     {
         // 1) Шанс 30%
         if (mt_rand(1, 100) > 30) {
-            return; // 70% случаев пропускаем
+            return; // 70% пропуск
         }
 
-        // 2) Проверяем, активно ли событие volcanic_eruption
+        // 2) Проверка активности
         if (!$this->isEventActive('volcanic_eruption')) {
             return;
         }
 
-        // 3) Ищем ID «Вулканические территории» (по имени или через biome_id)
+        // 3) Ищем ID биома "Вулканические территории"
         $biomeId = $this->getBiomeIdByName('Вулканические территории');
         if (!$biomeId) {
+            // Можем также получить biome_ids напрямую из eventModel->biome_ids
             return;
         }
 
-        // 4) Находим всех персонажей в этом биоме
+        // 4) Получаем всех персонажей в этом биоме
         $charactersInBiome = $this->characterModel
             ->where('biome_id', $biomeId)
             ->findAll();
@@ -81,11 +108,14 @@ class VolcanicEruptionHandler extends Controller
             return;
         }
 
-        // 5) Достаем данные самого события (effect_value, end_time, ...)
-        $event = $this->eventModel->where('name_english', 'volcanic_eruption')->first();
+        // Достаем данные события
+        $event = $this->eventModel
+            ->where('name_english', 'volcanic_eruption')
+            ->first();
         if (!$event) {
             return;
         }
+
         $isActiveEvent = $this->activeEventModel
             ->where('event_id', $event['event_id'])
             ->where('status', 'active')
@@ -94,17 +124,23 @@ class VolcanicEruptionHandler extends Controller
             return;
         }
 
-        $effectValue = $event['effect_value'] ?? 30; // например 30
+        // effect_value (пример: 30)
+        $effectValue = $event['effect_value'] ?? 30;
 
-        // 6) Применяем эффекты к каждому
+        // Применяем эффекты к персонажам
         foreach ($charactersInBiome as $character) {
             $this->applyVolcanicEruptionEffects($character, $event, $isActiveEvent, $effectValue);
         }
     }
 
-    protected function isEventActive($eventNameEnglish)
+    /**
+     * Проверяем, активно ли событие по name_english
+     */
+    protected function isEventActive(string $eventNameEnglish): bool
     {
-        $event = $this->eventModel->where('name_english', $eventNameEnglish)->first();
+        $event = $this->eventModel
+            ->where('name_english', $eventNameEnglish)
+            ->first();
         if (!$event) {
             return false;
         }
@@ -117,14 +153,17 @@ class VolcanicEruptionHandler extends Controller
         return !empty($isActive);
     }
 
-    protected function getBiomeIdByName($biomeName)
+    /**
+     * Получаем biome_id по русскому названию (например, "Вулканические территории").
+     */
+    protected function getBiomeIdByName(string $biomeName): ?int
     {
         $biome = $this->biomeModel->where('name', $biomeName)->first();
-        return $biome ? $biome['id'] : null;
+        return $biome ? (int)$biome['id'] : null;
     }
 
     /**
-     * Применяем урон с учётом базы/занятости.
+     * Применяем урон от извержения к персонажу
      */
     protected function applyVolcanicEruptionEffects(
         array $character,
@@ -132,38 +171,36 @@ class VolcanicEruptionHandler extends Controller
         array $isActiveEvent,
         float $effectValue
     ) {
-        // Проверяем, не на минимуме ли здоровье
+        // Если здоровье уже 0.01 => пропускаем
         if ($character['health'] <= 0.01) {
             return;
         }
 
-        // 1) Определяем, на базе ли игрок + занятый/не занятый
+        // Проверки (база+задачи)
         $charId       = $character['id'];
         $onBase       = $this->playerStateService->isCharacterOnBase($charId);
         $isGathering  = $this->playerStateService->isGathering($charId);
         $isExploring  = $this->playerStateService->isExploring($charId);
 
-        // Логика урона
-        // Если (onBase && !gather && !explore) => урона 0
+        // Если (onBase && !gather && !explore) => no damage
         if ($onBase && !$isGathering && !$isExploring) {
             $this->notifyNoDamage($character);
             return;
         }
 
-        // Иначе ratio=0.7, если неGather/notExplore, ratio=1.0 иначе
+        // ratio=0.7 если неGather/notExplore, иначе=1.0
         $ratio = 0.7;
         if ($isGathering || $isExploring) {
             $ratio = 1.0;
         }
 
-        // 2) Вычисляем базовый урон
+        // 2) Считаем урон
         $damage = $this->calculateDamage($character, $effectValue);
-        // Применяем ratio
         $finalDamage = round($damage * $ratio, 2);
 
-        // Вычитаем из здоровья, не опуская ниже 0.01
         $oldHealth = $character['health'];
         $newHealth = max(0.01, $oldHealth - $finalDamage);
+
         $this->characterModel->update($charId, ['health' => $newHealth]);
 
         // Уведомляем
@@ -172,41 +209,42 @@ class VolcanicEruptionHandler extends Controller
     }
 
     /**
-     * Логика урона (как раньше).
+     * Пример расчёта урона:
+     * effectValue => multiplier,
+     * danger+difficulty => biomeFactor,
+     * level => levelFactor,
+     * random ±50%.
      */
-    protected function calculateDamage(array $character, float $effectValue)
+    protected function calculateDamage(array $character, float $effectValue): float
     {
-        // Можно взять danger_level, survival_difficulty:
         $biome = $this->biomeModel->find($character['biome_id']);
         if (!$biome) {
             return $effectValue;
         }
-        $dangerLevel  = $biome['danger_level']        ?? 5;
-        $survDiff     = $biome['survival_difficulty'] ?? 5;
+        $danger     = $biome['danger_level']         ?? 5;
+        $difficulty= $biome['survival_difficulty']   ?? 5;
+        $charLevel  = max(1, $character['level']);
 
-        // Преобразуем effectValue в multiplier
-        // (например, effectValue=30 => 30/100=0.3)
+        // effectValue ~30 => effectMultiplier=0.30
         $effectMultiplier = $effectValue / 100.0;
 
-        // Уровень => levelFactor
-        $charLevel = max(1, $character['level']);
-        // Логарифмическая формула
+        // Уровень => levelFactor=1/(1+log(charLevel+1))
         $levelFactor = 1 / (1 + log($charLevel + 1));
 
-        // Интеграция danger
-        $biomeFactor = ($dangerLevel + $survDiff) / 20.0;
+        // biomeFactor=(danger+difficulty)/20
+        $biomeFactor = ($danger + $difficulty)/20.0;
 
-        // Базовое
-        $damage = 10 * $effectMultiplier * $biomeFactor * $levelFactor;
+        // damage=10 * effectMultiplier*biomeFactor*levelFactor
+        $baseDamage = 10 * $effectMultiplier * $biomeFactor * $levelFactor;
 
-        // Рандом ±50%
-        $randomFactor = rand(50, 150) / 100.0;
-        $damage *= $randomFactor;
+        // random(50..150)/100 => ±50%
+        $randomFactor = rand(50,150)/100.0;
+        $damage = $baseDamage * $randomFactor;
 
         return round($damage, 2);
     }
 
-    protected function formatEventEndTime(array $isActiveEvent)
+    protected function formatEventEndTime(array $isActiveEvent): string
     {
         $end = $isActiveEvent['end_time'] ?? null;
         if (!$end) {
@@ -215,17 +253,20 @@ class VolcanicEruptionHandler extends Controller
 
         $endDateTime     = new DateTime($end);
         $currentDateTime = new DateTime();
-        $interval = $currentDateTime->diff($endDateTime);
+        if ($endDateTime < $currentDateTime) {
+            return '';
+        }
 
+        $interval = $currentDateTime->diff($endDateTime);
         $days    = $interval->format('%a');
         $hours   = $interval->format('%H');
         $minutes = $interval->format('%I');
 
-        return "⏳ Событие закончится через: {$days} дн. {$hours} чс. {$minutes} мин.";
+        return "⏳ Извержение вулкана закончится через: {$days} д. {$hours} ч. {$minutes} мин.";
     }
 
     /**
-     * Если на базе + не занят => уведомляем, что урона нет
+     * Уведомление при 0 урона (на базе, не занят)
      */
     protected function notifyNoDamage(array $character)
     {
@@ -235,8 +276,8 @@ class VolcanicEruptionHandler extends Controller
         }
         $chatId = $telegramUser['telegram_id'];
 
-        $msg  = "🌋 *Извержение вулкана* поблизости...\n\n";
-        $msg .= "Но ты на базе и не занят: лава не может причинить вреда!\n";
+        $msg = "🌋 *Извержение вулкана*...\n\n"
+            . "Но ты на базе и без опасных занятий — лава не достаёт тебя!";
 
         try {
             Request::sendMessage([
@@ -245,10 +286,13 @@ class VolcanicEruptionHandler extends Controller
                 'parse_mode' => 'Markdown',
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Ошибка при notifyNoDamage: " . $e->getMessage());
+            log_message('error', "Ошибка notifyNoDamage: " . $e->getMessage());
         }
     }
 
+    /**
+     * Уведомление о полученном уроне
+     */
     protected function notifyCharacterAboutVolcanicEruption(
         array $character,
         float $damage,
@@ -263,26 +307,28 @@ class VolcanicEruptionHandler extends Controller
 
         $chatId = $telegramUser['telegram_id'];
 
-        $damagePercent = ($ratio >= 1.0) ? "100%" : "70%";
-        $msg  = "⚠️ *Извержение вулкана* обрушилось на твоего персонажа!\n\n";
-        $msg .= "🔥 Урон: *{$damage}* HP (применено ~{$damagePercent} от полной силы).\n";
+        $damagePercent = ($ratio>=1.0) ? "100%" : "70%";
+        $msg  = "⚠️ *Извержение вулкана!* \n\n";
+        $msg .= "🔥 Урон: *{$damage}* HP (примерно {$damagePercent} силы).\n";
         if ($endTime) {
-            $msg .= $endTime . "\n\n";
+            $msg .= $endTime."\n\n";
         } else {
             $msg .= "\n";
         }
-        $msg .= "🛑 Совет: можешь спастись, укрывшись в другом биоме или на базе (там лава не достанет).\n";
-        $msg .= "Текущее здоровье: *" . round($newHealth, 2) . "*\n";
+        $msg .= "🛑 Лучше укрыться в другом биоме или на базе!\n";
+        $msg .= "Текущее здоровье: *".round($newHealth,2)."*\n";
 
+        // Кнопки
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🧑‍🌾 Действия 🛠️','callback_data' => 'characterActions'],
-                    ['text' => '🎉 События',       'callback_data' => 'events']
+                    ['text' => '🧑‍🌾 Действия 🛠️','callback_data'=>'characterActions'],
+                    ['text' => '🎉 События',     'callback_data'=>'events']
                 ]
             ]
         ];
 
+        // Фото
         $photo = base_url('uploads/telegram/volcanic_eruption_image.png');
 
         try {
@@ -291,10 +337,10 @@ class VolcanicEruptionHandler extends Controller
                 'photo'      => Request::encodeFile($photo),
                 'caption'    => $msg,
                 'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
+                'reply_markup'=> json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Ошибка при отправке volcanic notify: " . $e->getMessage());
+            log_message('error', "Ошибка volcanic notify: " . $e->getMessage());
         }
     }
 }

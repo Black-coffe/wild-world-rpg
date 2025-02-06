@@ -14,7 +14,7 @@ class HealthRegenerationHandler
 
     public function __construct()
     {
-        $this->characterModel = new CharacterModel();
+        $this->characterModel         = new CharacterModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
         $this->characterResourceModel = new CharacterResourceModel();
     }
@@ -24,30 +24,46 @@ class HealthRegenerationHandler
         $characters = $this->characterModel->findAll();
 
         foreach ($characters as $character) {
+
+            // 1) Сначала вычислим (или обновим) уровень персонажа
+            $level = $this->calculateLevel($character);
+            // Запишем новый уровень (если изменился):
+            $this->characterModel->update($character['id'], ['level' => $level]);
+
+            // 2) Если уровень >= 20, пропускаем регенерацию
+            if ($level >= 20) {
+                // Ничего не восстанавливаем, переходим к следующему персонажу
+                continue;
+            }
+
+            // 3) Обычная логика регенерации, если уровень < 20
             // Регенерация здоровья
             if ($character['health'] < 100.0) {
-                $newHealth = min(100.0, $character['health'] + 0.05); // Увеличиваем здоровье на 0.05 единицы за цикл, но не более 100
+                $newHealth = min(100.0, $character['health'] + 0.05);
                 $this->characterModel->update($character['id'], ['health' => $newHealth]);
             }
 
             // Регенерация усталости
             if ($character['tired'] < 100.0) {
-                $newTired = min(100.0, $character['tired'] + 0.1); // Увеличиваем усталость на 0.1 единицы за цикл, но не более 100
+                $newTired = min(100.0, $character['tired'] + 0.1);
                 $this->characterModel->update($character['id'], ['tired' => $newTired]);
             }
-
-            // Пересчёт уровня персонажа может остаться без изменений
-            $level = $this->calculateLevel($character);
-            $this->characterModel->update($character['id'], ['level' => $level]);
         }
     }
 
-    private function calculateLevel($character)
+    /**
+     * Пример простейшего подсчёта уровня на основе (experience + strength + agility + intellect) / 4
+     */
+    private function calculateLevel(array $character): int
     {
-        $total = $character['experience'] + $character['strength'] + $character['agility'] + $character['intellect'];
-        $average = $total / 4;
-        $level = floor($average);
+        $total = $character['experience']
+            + $character['strength']
+            + $character['agility']
+            + $character['intellect'];
 
-        return max(1, $level); // Гарантируем, что уровень не опустится ниже 1
+        $average = $total / 4.0;
+        $level   = floor($average);
+
+        return max(1, (int)$level);
     }
 }

@@ -13,9 +13,25 @@ use App\Models\{
 };
 use Longman\TelegramBot\{Request, Telegram};
 use Longman\TelegramBot\Exception\TelegramException;
+use CodeIgniter\Controller;
+
+// Подключаем сервис (isCharacterOnBase, isGathering, isExploring)
 use App\Services\Player\PlayerStateService;
 
-class TremorHandler
+/**
+ * Класс TremorHandler
+ *
+ * Обрабатывает событие "Tremor" (Подземные толчки):
+ * 1) С вероятностью 30% — запускаем логику (70% пропуск).
+ * 2) Проверяем, активно ли событие (в active_event).
+ * 3) Ищем персонажей, чей biome_id в списке eventModel->biome_ids.
+ * 4) Для каждого:
+ *    - если (база + не Gather/Explore) => 0 урона (notifyNoDamage),
+ *    - иначе считаем урон (rand(1..effectValue)),
+ *      учитываем уровень персонажа (делим урон) и занятость (100% или 70%),
+ *      уменьшаем здоровье не ниже 0.01, логируем, уведомляем игрока.
+ */
+class TremorHandler extends Controller
 {
     protected $activeEventModel;
     protected $eventModel;
@@ -26,10 +42,13 @@ class TremorHandler
     protected $eventEffectsLogModel;
 
     private   $telegram;
+
+    /** @var PlayerStateService */
     protected $playerStateService;
 
     public function __construct()
     {
+        // Инициализация моделей
         $this->activeEventModel     = new ActiveEventModel();
         $this->eventModel           = new EventModel();
         $this->characterModel       = new CharacterModel();
@@ -38,8 +57,8 @@ class TremorHandler
         $this->telegramUserModel    = new TelegramUserModel();
         $this->eventEffectsLogModel = new EventEffectsLogModel();
 
-        // Сервис для проверок состояния игрока
-        $this->playerStateService = new PlayerStateService();
+        // Сервис для проверки состояния игрока
+        $this->playerStateService   = new PlayerStateService();
 
         // Инициализация Telegram
         $API_KEY      = getenv('telegram.API_KEY');
@@ -52,20 +71,27 @@ class TremorHandler
         }
     }
 
+    /**
+     * Основной метод:
+     * 1) 30% шанс (70% пропуск).
+     * 2) Ищем событие Tremor => проверяем активность.
+     * 3) Извлекаем biomes => находим персонажей, у которых biome_id в этом списке.
+     * 4) Для каждого персонажа вызываем applyTremorEffects.
+     */
     public function process()
     {
         // 1) 30% шанс
         if (mt_rand(1, 100) > 30) {
-            return; // 70% случаев выходим
+            return; // 70% пропускаем
         }
 
-        // 2) Ищем событие "Tremor"
+        // 2) Ищем событие Tremor
         $eventInfo = $this->eventModel->where('name_english', 'Tremor')->first();
         if (!$eventInfo) {
             return; // нет события
         }
 
-        // 3) Проверяем активность
+        // Проверяем, активно ли
         $activeEvent = $this->activeEventModel
             ->where('event_id', $eventInfo['event_id'])
             ->where('status', 'active')
@@ -74,7 +100,7 @@ class TremorHandler
             return; // неактивно
         }
 
-        // 4) Biomes
+        // 3) Смотрим, какие biomes
         if (empty($eventInfo['biome_ids'])) {
             return;
         }
@@ -83,16 +109,18 @@ class TremorHandler
             return;
         }
 
-        // effect_value (например 40)
+        // effect_value (напр. 40)
         $effectValue = $eventInfo['effect_value'] ?? 10;
 
-        // 5) Персонажи в biomes
-        $characters = $this->characterModel->whereIn('biome_id', $biomeIds)->findAll();
+        // Находим персонажей в biomes
+        $characters = $this->characterModel
+            ->whereIn('biome_id', $biomeIds)
+            ->findAll();
         if (!$characters) {
             return;
         }
 
-        // 6) Применяем логику к каждому
+        // 4) Применяем логику
         foreach ($characters as $character) {
             $this->applyTremorEffects($character, $effectValue, $activeEvent);
         }
@@ -104,32 +132,34 @@ class TremorHandler
     protected function applyTremorEffects(array $character, float $effectValue, array $activeEvent)
     {
         $charId      = $character['id'];
+
+        // Проверки базы + задач
         $onBase      = $this->playerStateService->isCharacterOnBase($charId);
         $isGathering = $this->playerStateService->isGathering($charId);
         $isExploring = $this->playerStateService->isExploring($charId);
 
-        // 1) Если база + не занятость => 0% урона
+        // 1) Если (база + !gather + !explore) => noDamage
         if ($onBase && !$isGathering && !$isExploring) {
             $this->notifyNoDamage($character);
             return;
         }
 
-        // 2) Определяем множитель урона: 70% (не на базе и не занят), либо 100% (gather/explore)
+        // 2) ratio = 100% (gather/explore) или 70% (иначе)
         $ratio = ($isGathering || $isExploring) ? 1.0 : 0.7;
 
-        // 3) Если здоровье уже на минимуме, не наносим
+        // 3) Если здоровье уже 0.01, skip
         if ($character['health'] <= 0.01) {
             return;
         }
 
-        // Генерируем базовый урон
+        // генерируем базовый урон rand(1..effectValue)
         $damage = rand(1, $effectValue);
 
-        // Учитываем уровень (как в старом коде: делим)
+        // Учитываем уровень (делим на level/100)
         $levelCoefficient = max(1, min(999, $character['level']) / 100);
         $finalDamage = round(($damage / $levelCoefficient) * $ratio);
 
-        // Уменьшаем здоровье, не опускаем ниже 0.01
+        // Уменьшаем здоровье
         $oldHealth = $character['health'];
         $newHealth = max(0.01, $oldHealth - $finalDamage);
 
@@ -144,7 +174,7 @@ class TremorHandler
     }
 
     /**
-     * Если персонаж защищён (на базе + не занят).
+     * Уведомляем, если персонаж не пострадал (на базе, без задач).
      */
     protected function notifyNoDamage(array $character)
     {
@@ -154,9 +184,8 @@ class TremorHandler
         }
         $chatId = $tgUser['telegram_id'];
 
-        $message = "🌎 *Подземные толчки* ощущаются...\n\n"
-            . "Но ты на своей базе и не занят опасной работой,\n"
-            . "Поэтому толчки не причинили вреда!";
+        $message = "🌎 *Подземные толчки*...\n\n"
+            . "Но ты на базе и не рискуешь — толчки не нанесли тебе урона!";
 
         try {
             Request::sendMessage([
@@ -165,12 +194,12 @@ class TremorHandler
                 'parse_mode' => 'Markdown',
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Ошибка при отправке notifyNoDamage: " . $e->getMessage());
+            log_message('error', "Ошибка notifyNoDamage: ".$e->getMessage());
         }
     }
 
     /**
-     * Уведомление о полученном уроне.
+     * Уведомляем об уроне
      */
     protected function notifyDamage(
         array $character,
@@ -184,50 +213,49 @@ class TremorHandler
         if (!$tgUser) {
             return;
         }
-
         $chatId = $tgUser['telegram_id'];
 
-        $damagePercent = ($ratio >= 1.0) ? "100%" : "70%";
+        $ratioText = ($ratio >= 1.0) ? "полной силой (100%)" : "частично (70%)";
+
         $message  = "⚠️ *Подземные толчки!* \n\n";
-        $message .= "Ты потерял *{$finalDamage}* здоровья (урон на {$damagePercent} силы).\n";
-        $message .= "Текущее здоровье: *" . round($newHealth, 2) . "*\n\n";
-        $message .= "_Можешь спастись, укрывшись на базе или перейдя в безопасный биом!_\n";
+        $message .= "Ты потерял ~*{$finalDamage}* здоровья ({$ratioText}).\n";
+        $message .= "Текущее здоровье: *" . round($newHealth,2) . "*\n\n";
+        $message .= "_Укройся на базе или уйди в безопасный биом!_\n";
 
         if (isset($activeEvent['end_time'])) {
-            $message .= "\nСобытие закончится к: `{$activeEvent['end_time']}`\n";
+            $message .= "\nСобытие завершится примерно к: `{$activeEvent['end_time']}`.\n";
         }
 
-        $imagePath = base_url('uploads/telegram/earthquake.png');
-
+        $photoPath = base_url('uploads/telegram/earthquake.png');
         try {
             Request::sendPhoto([
-                'chat_id'    => $chatId,
-                'photo'      => Request::encodeFile($imagePath),
-                'caption'    => $message,
+                'chat_id' => $chatId,
+                'photo'   => Request::encodeFile($photoPath),
+                'caption' => $message,
                 'parse_mode' => 'Markdown',
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Ошибка при отправке notifyDamage: " . $e->getMessage());
+            log_message('error', "Ошибка notifyDamage: ".$e->getMessage());
         }
     }
 
     /**
-     * Запись в event_effects_log.
+     * Логируем эффекты (damage,newHealth) в event_effects_log
      */
     protected function logTremorEffects(int $characterId, int $eventId, float $damage, float $newHealth)
     {
         $effectDetails = json_encode([
             'damage'    => $damage,
             'newHealth' => $newHealth,
-        ]);
+        ], JSON_UNESCAPED_UNICODE);
 
-        $logData = [
-            'character_id'  => $characterId,
-            'event_id'      => $eventId,
-            'effect_details'=> $effectDetails,
-            'event_time'    => date('Y-m-d H:i:s'),
+        $data = [
+            'character_id'   => $characterId,
+            'event_id'       => $eventId,
+            'effect_details' => $effectDetails,
+            'event_time'     => date('Y-m-d H:i:s'),
         ];
 
-        $this->eventEffectsLogModel->insert($logData);
+        $this->eventEffectsLogModel->insert($data);
     }
 }
