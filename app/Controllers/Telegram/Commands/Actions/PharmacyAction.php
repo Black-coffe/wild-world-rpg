@@ -44,7 +44,10 @@ class PharmacyAction extends BaseAction
         // Если ничего нет, предлагаем перейти к крафту
         if (empty($craftedItemsLogs)) {
             $text = "К сожалению, у тебя нет медицинских предметов! Нужно их сначала скрафтить.";
-            $inline_keyboard[] = ['text' => '🛠️ Крафтинг', 'callback_data' => 'crafting'];
+            $inline_keyboard[] = [
+                'text' => '🧑‍🌾 Действия 🛠️',
+                'callback_data' => 'characterActions'
+            ];
             $keyboard = ['inline_keyboard' => array_chunk($inline_keyboard, 2)];
 
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
