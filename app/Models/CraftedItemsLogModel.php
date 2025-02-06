@@ -23,8 +23,9 @@ class CraftedItemsLogModel extends Model
         'crafting_location',
         'durability_count',
         'durability_time',
-        'quantity'
-    ]; // Разрешенные для изменения поля
+        'quantity',
+        'custom_setting',
+    ];
 
     // Настройки даты и времени
     protected $useTimestamps = true; // Включить автоматическое управление метками времени
@@ -41,7 +42,8 @@ class CraftedItemsLogModel extends Model
         'crafting_location'  => 'permit_empty|string|max_length[255]',
         'durability_count'   => 'permit_empty|integer',
         'durability_time'    => 'permit_empty|valid_date',
-        'quantity'           => 'required|integer'
+        'quantity'           => 'required|integer',
+        'custom_setting'     => 'permit_empty|string',
     ];
 
     protected $validationMessages = [];

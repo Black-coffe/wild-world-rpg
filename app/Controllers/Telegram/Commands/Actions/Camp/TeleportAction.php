@@ -20,8 +20,8 @@ class TeleportAction extends BaseAction
 
         if (!$user || !$character) {
             return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => '🤖 Это снова я – *Роби*!\n\nПользователь не найден в базе данных или персонаж не определён.',
+                'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'       => '🤖 Это снова я – *Роби*!\n\nПользователь не найден или персонаж не определён.',
                 'parse_mode' => 'Markdown'
             ]);
         }
@@ -32,112 +32,128 @@ class TeleportAction extends BaseAction
             $this->callbackQuery->getId(),
             $this->callbackQuery->getMessage()->getChat()->getId()
         )) {
-            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+            return Request::emptyResponse();
         }
 
-        $craftedItemModel   = new CraftedItemsModel();
-        $craftedItemLogModel= new CraftedItemsLogModel();
-        $characterModel     = new CharacterModel();
+        // Модели для проверки предметов
+        $craftedItemModel    = new CraftedItemsModel();
+        $craftedItemLogModel = new CraftedItemsLogModel();
+        $characterModel      = new CharacterModel();
 
-        // (1) Проверяем наличие портативного телепорта
-        $portableTeleport = $craftedItemModel->where('name_eng', 'PortableTeleport')->first();
+        // 1. Проверяем "Портативный телепорт"
+        $portableTeleportRow = $craftedItemModel->where('name_eng', 'PortableTeleport')->first();
         $hasPortableTeleport = false;
-        if ($portableTeleport) {
-            $hasPortableTeleport = $craftedItemLogModel
-                    ->where('crafted_item_id', $portableTeleport['id'])
-                    ->where('character_id', $character['id'])
-                    ->countAllResults() > 0;
+        if ($portableTeleportRow) {
+            $countPortable = $craftedItemLogModel
+                ->where('crafted_item_id', $portableTeleportRow['id'])
+                ->where('character_id', $character['id'])
+                ->selectSum('quantity', 'total_qty')
+                ->first();
+            if ($countPortable && ($countPortable['total_qty'] ?? 0) >= 1) {
+                $hasPortableTeleport = true;
+            }
         }
 
-        // (2) Проверяем опыт
-        $character  = $characterModel->find($character['id']);
-        $hasEnoughExperience = ($character['experience'] ?? 0) > 1.01;
+        // 2. Проверяем "Рюкзак телепорт" (TeleportBackpack)
+        $teleportBackpackRow = $craftedItemModel->where('name_eng', 'TeleportBackpack')->first();
+        $hasTeleportBackpack = false;
+        $backpackUsesLeft = 0; // сколько раз можно использовать
+        if ($teleportBackpackRow) {
+            // 2) Ищем запись в crafted_items_log
+            $backpackLogRow = $craftedItemLogModel
+                ->where('crafted_item_id', $teleportBackpackRow['id'])
+                ->where('character_id', $character['id'])
+                ->first();
 
-        // (3) Проверяем золото через сервис
+            if ($backpackLogRow) {
+                // 3) Смотрим поле durability_count
+                $usesLeft = $backpackLogRow['durability_count'] ?? 0;
+                // при желании можно проверить ещё и quantity, если у игрока может быть несколько экземпляров
+                $qty = $backpackLogRow['quantity'] ?? 0;
+
+                if ($qty > 0 && $usesLeft > 0) {
+                    $hasTeleportBackpack = true;
+                    $backpackUsesLeft = $usesLeft;
+                }
+            }
+        }
+
+        // 3. Проверяем опыт / золото, используя CharacterModel и TeleportCostService
+        $characterData       = $characterModel->find($character['id']);
+        $hasEnoughExperience = ($characterData['experience'] ?? 0) > 1.01;
+
         $teleportCostService = new TeleportCostService();
-        $canPayGold = $teleportCostService->canPayTeleport($character);
-        // если true — значит золота достаточно для оплаты телепорта
+        $canPayGold = $teleportCostService->canPayTeleport($characterData);
 
-        // (4) Формируем различные сценарии
-        // Чтоб было удобнее, будем последовательно собирать текст и кнопки.
+        // Формируем текст и кнопки
         $text = "🤖 Это снова я – *Роби*!\n\n";
-        $keyboard = ['inline_keyboard' => []];
+        $availableButtons = [];
 
-        // Логика определения доступных способов телепорта
-        // -----------------------------------------------
-        // 1) У нас может быть портативный телепорт
-        // 2) Может быть достаточно опыта
-        // 3) Может быть достаточно золота
+        // --- Рюкзак телепорт
+        if ($hasTeleportBackpack) {
+            $text .= "*Рюкзак телепорт*\n"
+                . "_Позволяет вернуться на базу без затрат_\n"
+                . "_(осталось {$backpackUsesLeft} использований)_\n\n";
 
-        $availableButtons = [];  // массив кнопок, которые покажем
+            $availableButtons[] = [
+                'text' => '🎒 Рюкзак телепорт',
+                'callback_data' => 'TeleportUse_Backpack'
+            ];
+        }
 
-        // Портативный телепорт
+        // --- Портативный телепорт
         if ($hasPortableTeleport) {
-            // Добавим кнопку "Портативный телепорт"
+            $text .= "*Портативный телепорт*\n_Отнимет 1 заряд устройства_\n\n";
             $availableButtons[] = [
                 'text' => '📡 Портативный телепорт',
                 'callback_data' => 'TeleportUse_Portable'
             ];
         }
 
-        // Телепорт за опыт
+        // --- Телепорт за опыт
         if ($hasEnoughExperience) {
+            $text .= "*Телепорт за опыт*\n_Отнимет 1 единицу опыта_\n\n";
             $availableButtons[] = [
-                'text' => '🚜 Телепорт за опыт',
+                'text' => '🔮 За опыт',
                 'callback_data' => 'TeleportUse_WithExperience'
             ];
         }
 
-        // Телепорт за золото
+        // --- Телепорт за золото
         if ($canPayGold) {
+            $cost = $teleportCostService->calculateTeleportCost($character['level']);
+            $formattedCost = number_format($cost, 0, '.', ' ');
+            $text .= "*Телепорт за золото*\n_Снимет {$formattedCost} золота_\n\n";
             $availableButtons[] = [
-                'text' => '🪙 Телепорт за золото',
+                'text' => '🪙 За золото',
                 'callback_data' => 'TeleportUse_WithGold'
             ];
         }
 
-        // Если вообще хоть что-то доступно
-        if (!empty($availableButtons)) {
-            // Формируем текст, описывающий доступные варианты
-            $text .= "Ты можешь телепортироваться несколькими способами:\n\n";
-
-            if ($hasPortableTeleport) {
-                $text .= "*Портативный телепорт*\n_отнимет 1 единицу у твоего устройства_\n\n";
-            }
-            if ($hasEnoughExperience) {
-                $text .= "*Телепорт за опыт*\n_отнимет 1 единицу опыта у твоего персонажа_\n\n";
-            }
-            if ($canPayGold) {
-                // Узнаем стоимость
-                $cost = $teleportCostService->calculateTeleportCost($character['level']);
-                // Форматируем с пробелами
-                $formattedCost = number_format($cost, 0, '.', ' ');
-                $text .= "*Телепорт за золото*\n_снимет {$formattedCost} золота с твоего баланса_\n\n";
-            }
-
-            $text .= "Что выбираешь?";
-            // Вставляем наши доступные кнопки в одну строку или в несколько
-            // Для наглядности создаём одну "строку"
-            $keyboard['inline_keyboard'][] = $availableButtons;
-
-        } else {
-            // Если нет ни портативного, ни достаточно опыта, ни достаточно золота
-            $text .= "К сожалению, у тебя нет ни портативного телепорта, ни достаточно опыта, ни достаточно золота для телепортации.";
-
-            // Предложим альтернативные действия
-            $keyboard['inline_keyboard'][] = [
-                ['text' => '🚜 Переехать', 'callback_data' => 'move'],
-                ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+        if (empty($availableButtons)) {
+            // Нет ни одного способа телепорта
+            $text .= "Увы, у тебя нет доступа ни к одному способу телепортации.";
+            $keyboard = [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '🚜 Переехать пешком', 'callback_data' => 'move'],
+                        ['text' => '🧑‍🌾 Действия 🛠️',   'callback_data' => 'characterActions'],
+                    ],
+                ]
             ];
+        } else {
+            // Формируем общий набор кнопок
+            $text .= "Что выбираешь?\n";
+            $keyboard = ['inline_keyboard' => [ $availableButtons ]];
         }
 
-        // (5) Возвращаем ответ
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'    => $text,
-            'parse_mode' => 'Markdown',
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
     }
+
 }
