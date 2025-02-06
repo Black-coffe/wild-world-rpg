@@ -61,8 +61,8 @@ class CraftCompletionRobotGathererHandler extends Controller
         // Обновление атрибутов персонажа после крафта
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            1.55, // увеличение ловкости
-            1.55  // увеличение интеллекта
+            0.55, // увеличение ловкости
+            0.55  // увеличение интеллекта
         );
 
         // Отправка уведомления в Telegram
