@@ -13,6 +13,17 @@ use DateInterval;
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 
+/**
+ * Класс TaxCollectionHandler:
+ * Выполняется ежедневно (например, в 03:00).
+ * 1. Списывает налог за здания (если второй раз подряд не хватило денег — удаляет здание).
+ * 2. Списывает налог за маяки (аналогично, при втором недостатке денег — удаляет маяк).
+ * 3. По итогу отправляет сообщение с фото и детальной сводкой:
+ *    - Сколько списано за здания
+ *    - Сколько списано за маяки
+ *    - Итоговое золото
+ *    - Короткое описание механики «двойного предупреждения»
+ */
 class TaxCollectionHandler extends Controller
 {
     public function handle()
@@ -21,8 +32,8 @@ class TaxCollectionHandler extends Controller
         $now = $currentDateTime->format('Y-m-d H:i:s');
 
         // Допустим, скрипт должен запускаться ровно в 03:xx каждый день
-        $currentHour   = (int)$currentDateTime->format('H');
-        $currentMinute = (int)$currentDateTime->format('i');
+        $currentHour   = (int) $currentDateTime->format('H');
+        $currentMinute = (int) $currentDateTime->format('i');
         if ($currentHour !== 3 || $currentMinute > 10) {
             // Если сейчас не 3:xx, выходим
             return;
@@ -39,14 +50,13 @@ class TaxCollectionHandler extends Controller
             ->groupBy('character_id')
             ->findAll();
 
-        // Массив для (characterId => totalTaxBuildings)
+        // Массив вида (characterId => [total_tax, last_tax_collected, building_count])
         $buildingsTaxMap = [];
-        // Заполним для удобства
         foreach ($allBuildings as $charBld) {
-            $cId  = $charBld['character_id'];
-            $bTax = (int)$charBld['total_tax']; // сумма по зданиям
-            $bLast= $charBld['last_tax_collected'];
-            $count= (int)$charBld['building_count'];
+            $cId   = (int) $charBld['character_id'];
+            $bTax  = (int) $charBld['total_tax'];
+            $bLast = $charBld['last_tax_collected'];
+            $count = (int) $charBld['building_count'];
 
             $buildingsTaxMap[$cId] = [
                 'total_tax'         => $bTax,
@@ -58,18 +68,18 @@ class TaxCollectionHandler extends Controller
         // 2) Собираем всех персонажей, у которых есть хотя бы одно здание
         $processedCharacterIds = array_keys($buildingsTaxMap);
 
-        // 3) Для каждого персонажа — списываем налог за здания, а затем за маяки
+        // 3) Для каждого персонажа — списываем налог за здания, потом за маяки
         foreach ($processedCharacterIds as $characterId) {
             $charBuildings = $buildingsTaxMap[$characterId] ?? null;
             if (!$charBuildings) {
                 continue;
             }
 
-            $totalTaxBuildings = (int)$charBuildings['total_tax'];
+            $totalTaxBuildings = $charBuildings['total_tax'];
             $lastTaxCollected  = $charBuildings['last_tax_collected'];
-            $buildingCount     = (int)$charBuildings['building_count'];
+            $buildingCount     = (int) $charBuildings['building_count'];
 
-            // Проверяем, прошло ли 24 часа
+            // Проверяем, прошло ли 24 часа с момента последнего сбора
             if ($lastTaxCollected) {
                 $nextAllowedTime = (new DateTime($lastTaxCollected))->add(new DateInterval('PT24H'));
                 if ($nextAllowedTime > $currentDateTime) {
@@ -78,25 +88,28 @@ class TaxCollectionHandler extends Controller
                 }
             }
 
-            // Получаем инфу о персонаже
+            // Получаем информацию о персонаже
             $character = $characterModel->find($characterId);
             if (!$character) {
                 continue;
             }
 
+            // ---------------------
             // 3.1) Списываем налог за здания
-            $availableGold = (int)$character['gold'];
-            $newGoldAmount = $availableGold - $totalTaxBuildings;
-            $taxCollectionStatus = 'SUCCESS';
-            $collectedTaxBuildings = $totalTaxBuildings; // сколько получилось собрать фактически за здания
+            // ---------------------
+            $availableGold         = (int) $character['gold'];
+            $newGoldAmount         = $availableGold - $totalTaxBuildings;
+            $taxCollectionStatus  = 'SUCCESS';
+            $collectedTaxBuildings = $totalTaxBuildings; // сколько фактически списали
 
+            // Проверка на недостаток золота
             if ($newGoldAmount < 0) {
-                // Недостаточно золота на ВСЕ здания
-                $taxCollectionStatus = 'FAILURE';
+                // Не хватает золота на все здания
+                $taxCollectionStatus   = 'FAILURE';
                 $collectedTaxBuildings = $availableGold; // собираем всё, что есть
-                $newGoldAmount = 0;
+                $newGoldAmount         = 0;
 
-                // Проверяем, было ли ранее FAILURE
+                // Смотрим, был ли уже ранее FAILURE (значит это второй)
                 $lastFailedBuilding = $characterBuildingModel
                     ->where('character_id', $characterId)
                     ->where('tax_collection_status', 'FAILURE')
@@ -104,46 +117,51 @@ class TaxCollectionHandler extends Controller
                     ->first();
 
                 if ($lastFailedBuilding) {
-                    // второй раз подряд => удаляем самую "новую" постройку
+                    // Второй раз => удаляем самую новую постройку
                     $latestBuilding = $characterBuildingModel
                         ->where('character_id', $characterId)
                         ->orderBy('created_at', 'DESC')
                         ->first();
 
                     if ($latestBuilding) {
-                        $characterBuildingModel->delete($latestBuilding['id']);
+                        $buildingId = $latestBuilding['id'];
+                        $characterBuildingModel->delete($buildingId);
                         $this->sendTelegramNotification(
                             $character,
-                            "Постройка ID={$latestBuilding['id']} была удалена (второй раз подряд не хватает золота на налог за здания)."
+                            "🏚 Не хватило золота на налог во второй раз подряд!\n" .
+                            "Поэтому здание (ID={$buildingId}) было *удалено*."
                         );
                     }
                 } else {
-                    // Первый раз => предупреждение
+                    // Первый раз => лишь предупреждение
                     $this->sendTelegramNotification(
                         $character,
-                        "Внимание! Недостаточно золота для уплаты налогов за здания. Если в следующий раз не хватит золота, мы удалим последнюю постройку!"
+                        "⚠ Недостаточно золота, чтобы оплатить налог за *все здания*!\n" .
+                        "Если это произойдёт *снова*, будет удалена твоя последняя постройка!"
                     );
                 }
             }
 
-            // Обновляем золото
+            // Обновляем золото у персонажа
             $characterModel->update($characterId, ['gold' => $newGoldAmount]);
 
             // Обновляем поля в character_buildings
             $characterBuildingModel
                 ->where('character_id', $characterId)
                 ->set([
-                    'last_tax_collected'  => $now,
+                    'last_tax_collected'   => $now,
                     'tax_collection_status'=> $taxCollectionStatus
                 ])
                 ->update();
 
-            // 3.2) ***Теперь налог за МАЯКИ***
-            // Ищем все маяки игрока, у которых remaining_uses>=1
+            // ---------------------
+            // 3.2) Списываем налог за маяки
+            // ---------------------
+            // Ищем все маяки игрока, где remaining_uses >= 1
             $beacons = $teleportBeaconModel
                 ->where('character_id', $characterId)
                 ->where('remaining_uses >=', 1)
-                ->orderBy('created_at', 'ASC') // упорядочим от старых к новым или наоборот
+                ->orderBy('created_at', 'ASC')
                 ->findAll();
 
             $totalBeaconTax = 0;
@@ -153,39 +171,36 @@ class TaxCollectionHandler extends Controller
 
             $collectedTaxBeacons = 0;
 
-            // Если нет маяков — просто пропускаем
             if (!empty($beacons)) {
-                // Можно ли уплатить ВСЕ?
+                // Проверяем, хватает ли золота на все маяки
                 if ($totalBeaconTax <= $newGoldAmount) {
-                    // Хватает
+                    // Хватает на все
                     $collectedTaxBeacons = $totalBeaconTax;
-                    $newGoldAmount -= $totalBeaconTax;
-                    // Обновляем золото персонажа
+                    $newGoldAmount      -= $totalBeaconTax;
+                    // Обновляем золото
                     $characterModel->update($characterId, ['gold' => $newGoldAmount]);
 
-                    // Ставим (например) в settings_json маяков что "tax SUCCESS" если хотим
+                    // Ставим маякам статус SUCCESS
                     foreach ($beacons as $b) {
-                        $id  = (int)$b['id'];
+                        $id = $b['id'];
                         $oldSettings = json_decode($b['settings_json'] ?? '{}', true) ?: [];
                         $oldSettings['last_beacon_tax_status'] = 'SUCCESS';
                         $oldSettings['last_beacon_tax_date']   = $now;
-
                         $teleportBeaconModel->update($id, [
                             'settings_json' => json_encode($oldSettings)
                         ]);
                     }
+
                 } else {
-                    // Не хватает на все маяки => начинаем идти по маякам
-                    // (например, от старых к новым), собирая по одному
+                    // Не хватает на все маяки => идём по одному
                     $remainingGold = $newGoldAmount;
-                    $failedBeacons = []; // маяки, которым не хватило денег
-                    $warnedBeacons = []; // маяки, которые "первый раз FAIL"
-                    $deletedBeacons= []; // маяки, которые "второй раз FAIL" => удаляем
+                    $failedBeacons  = [];
+                    $warnedBeacons  = [];
+                    $deletedBeacons = [];
 
                     foreach ($beacons as $b) {
-                        $id     = (int)$b['id'];
-                        $tax    = (int)$b['tax_cost'];
-                        $uses   = (int)$b['remaining_uses'];
+                        $id  = $b['id'];
+                        $tax = (int)$b['tax_cost'];
                         $oldSet = json_decode($b['settings_json'] ?? '{}', true) ?: [];
 
                         if ($tax <= $remainingGold) {
@@ -199,13 +214,12 @@ class TaxCollectionHandler extends Controller
                                 'settings_json' => json_encode($oldSet)
                             ]);
                         } else {
-                            // Не хватает на этот маяк
-                            // Смотрим, был ли раньше FAIL
+                            // Не хватает
                             if (($oldSet['last_beacon_tax_status'] ?? '') === 'FAILURE') {
-                                // Второй раз => удаляем этот маяк
+                                // Второй раз => удаляем маяк
                                 $deletedBeacons[] = $id;
                             } else {
-                                // Первый раз => пишем FAIL
+                                // Первый раз => просто предупреждаем
                                 $warnedBeacons[] = $id;
                             }
                         }
@@ -220,7 +234,7 @@ class TaxCollectionHandler extends Controller
                         $teleportBeaconModel->delete($bId);
                     }
 
-                    // Для маяков, которые fail первый раз => обновим settings_json
+                    // Для маяков, которые fail впервые => обновим settings_json
                     foreach ($warnedBeacons as $bId) {
                         $bRow = $teleportBeaconModel->find($bId);
                         if (!$bRow) {
@@ -234,40 +248,48 @@ class TaxCollectionHandler extends Controller
                         ]);
                     }
 
-                    // Сообщаем игроку, если есть хоть один маяк, по которому не хватило денег
+                    // Если есть маяки, которые не оплатили налог
                     $totalFailCount = count($warnedBeacons) + count($deletedBeacons);
                     if ($totalFailCount > 0) {
-                        $msg = "Недостаточно золота на оплату налогов за *{$totalFailCount}* маяк(ов).";
+                        $msg = "⚠ Недостаточно золота для уплаты налогов за *{$totalFailCount}* маяк(ов)!\n";
                         if (!empty($deletedBeacons)) {
-                            $msg .= "\nНекоторые маяки удалены (второй раз подряд не хватало денег).";
+                            $msg .= "Некоторые маяки удалены (второй раз подряд не хватило денег).";
                         } else {
-                            $msg .= "\nВ следующий раз при повторном FAIL эти маяки будут удалены!";
+                            $msg .= "При повторном недоборе эти маяки будут *удалены*!";
                         }
                         $this->sendTelegramNotification($character, $msg);
                     }
                 }
             }
 
-            // 4) Итоговое уведомление:
-            //    Отправим одно сообщение о том, что «Сбор налогов произведён»
-            //    где укажем, сколько за здания, сколько за маяки, итоговое золото
+            // 4) Итоговое уведомление со сводкой:
             $collectedB = number_format($collectedTaxBuildings, 0, '', ' ');
             $collectedM = number_format($collectedTaxBeacons,   0, '', ' ');
             $finalGold  = number_format($newGoldAmount,         0, '', ' ');
 
-            $summaryMsg = "📣 *Сбор налогов завершён!*\n\n"
-                ."Здания: *{$buildingCount}*шт\n"
-                ."Золота за здания: *{$collectedB}*\n"
-                ."Маяки: *".count($beacons)."*шт\n"
-                ."Золота за маяки: *{$collectedM}*\n\n"
-                ."Итоговое золото: *{$finalGold}*";
+            // Формируем расширенное сообщение
+            // Описываем механику: "сначала налог за здания, потом маяки,
+            // если не хватило второй раз подряд — здание/маяк удаляется"
+            $summaryMsg = "💰 *Сбор налогов произведён!*\n\n"
+                . "1. *Сначала* списан налог за *здания*\n"
+                . "   - При первом недоборе лишь предупреждение,\n"
+                . "   - При втором подряд — удаляем последнее здание.\n\n"
+                . "2. *Затем* налог за *маяки*\n"
+                . "   - Логика та же: двойное предупреждение, при повторном — удаляем маяк.\n\n"
+                . "Вот твоя статистика:\n\n"
+                . "🏘 Зданий: *{$buildingCount}*\n"
+                . "   Налог собран: *{$collectedB}*\n"
+                . "🗼 Маяков: *" . count($beacons) . "*\n"
+                . "   Налог собран: *{$collectedM}*\n\n"
+                . "💎 *Итоговое золото*: {$finalGold}";
 
-            $this->sendTelegramNotification($character, $summaryMsg);
+            // Отправляем фото + итоговое сообщение
+            $this->sendTelegramNotificationPhoto($character, $summaryMsg);
         }
     }
 
     /**
-     * Уведомление игрока (character) в Telegram
+     * Уведомление игрока (character) в Telegram (просто текст).
      */
     private function sendTelegramNotification(array $character, string $message)
     {
@@ -279,12 +301,37 @@ class TaxCollectionHandler extends Controller
 
         try {
             Request::sendMessage([
-                'chat_id' => $tgUser['telegram_id'],
-                'text'    => $message,
+                'chat_id'    => $tgUser['telegram_id'],
+                'text'       => $message,
                 'parse_mode' => 'Markdown',
             ]);
         } catch (TelegramException $e) {
             log_message('error', 'Telegram API error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Уведомление с фото + текстом (итоговый отчёт о налогах).
+     */
+    private function sendTelegramNotificationPhoto(array $character, string $caption)
+    {
+        $telegramUserModel = new TelegramUserModel();
+        $tgUser = $telegramUserModel->find($character['telegram_user_id']);
+        if (!$tgUser) {
+            return;
+        }
+
+        $imagePath = base_url('uploads/telegram/camp/tax_for_building.png');
+
+        try {
+            Request::sendPhoto([
+                'chat_id'    => $tgUser['telegram_id'],
+                'photo'      => Request::encodeFile($imagePath),
+                'caption'    => $caption,
+                'parse_mode' => 'Markdown',
+            ]);
+        } catch (TelegramException $e) {
+            log_message('error', 'Telegram API error (photo): ' . $e->getMessage());
         }
     }
 }
