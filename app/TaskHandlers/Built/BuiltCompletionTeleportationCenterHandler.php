@@ -61,8 +61,8 @@ class BuiltCompletionTeleportationCenterHandler extends Controller
 
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            1.5,
-            1.5
+            0.05,
+            0.05
         );
 
         $this->notifyUser($task['telegram_user_id']);

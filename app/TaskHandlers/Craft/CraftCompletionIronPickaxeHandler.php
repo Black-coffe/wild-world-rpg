@@ -82,8 +82,8 @@ class CraftCompletionIronPickaxeHandler extends Controller
         // 5. Прокачиваем персонажу атрибуты (+0.05 ловкости / интеллекта, к примеру)
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.05,
-            0.05
+            0.01,
+            0.02
         );
 
         // 6. Уведомляем пользователя

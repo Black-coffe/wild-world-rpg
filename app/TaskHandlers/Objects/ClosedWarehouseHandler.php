@@ -62,10 +62,10 @@ class ClosedWarehouseHandler implements ObjectHandlerInterface
 
         // 2) Немного прокачиваем персонажа (пример)
         $this->characterModel->update($character['id'], [
-            'experience' => $character['experience'] + 1.25,
-            'strength'   => $character['strength'] + 1.11,
-            'agility'    => $character['agility'] + 1.01,
-            'intellect'  => $character['intellect'] + 0.86,
+            'experience' => $character['experience'] + 0.25,
+            'strength'   => $character['strength'] + 0.11,
+            'agility'    => $character['agility'] + 0.01,
+            'intellect'  => $character['intellect'] + 0.16,
         ]);
 
         // 3) Проверяем наличие инструментов (только чтобы показать игроку "Можешь взломать" или "Нет")

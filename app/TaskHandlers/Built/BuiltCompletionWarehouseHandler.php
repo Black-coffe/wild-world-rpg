@@ -62,8 +62,8 @@ class BuiltCompletionWarehouseHandler extends Controller
         // Обновление атрибутов персонажа после крафта
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            1.1, // увеличение ловкости
-            1.1  // увеличение интеллекта
+            0.01, // увеличение ловкости
+            0.01  // увеличение интеллекта
         );
 
         // Отправка уведомления в Telegram

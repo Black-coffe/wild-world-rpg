@@ -83,8 +83,8 @@ class CraftCompletionCharcoalBriquettesHandler extends Controller
         // 5) Улучшаем характеристики (пример: +0.05 к ловкости и интеллекту)
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.05,
-            0.05
+            0.01,
+            0.02
         );
 
         // 6) Отправляем уведомление игроку

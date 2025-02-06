@@ -89,8 +89,8 @@ class CraftCompletionSoilHandler extends Controller
         // 5. Повышаем атрибуты (пример: +0.05 ловкости и интеллекта)
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.05,  // + ловкость
-            0.05   // + интеллект
+            0.02,  // + ловкость
+            0.01   // + интеллект
         );
 
         // 6. Отправляем уведомление игроку

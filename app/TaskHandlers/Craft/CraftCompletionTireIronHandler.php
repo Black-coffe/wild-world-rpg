@@ -83,8 +83,8 @@ class CraftCompletionTireIronHandler extends Controller
         // 5) Улучшаем характеристики персонажа
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.05,  // + ловкость
-            0.05   // + интеллект
+            0.02,  // + ловкость
+            0.02   // + интеллект
         );
 
         // 6) Уведомляем игрока

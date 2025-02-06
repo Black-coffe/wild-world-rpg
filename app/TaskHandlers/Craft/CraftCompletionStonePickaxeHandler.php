@@ -83,8 +83,8 @@ class CraftCompletionStonePickaxeHandler extends Controller
         // 5) Улучшаем характеристики персонажа (например, +0.05 к ловкости и интеллекта)
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.05,
-            0.05
+            0.03,
+            0.02
         );
 
         // 6) Уведомляем игрока

@@ -75,8 +75,8 @@ class BuiltCompletionGreenhouseHandler extends Controller
         // 4) Обновление атрибутов
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            1.78, // ловкость
-            1.97  // интеллект
+            0.08, // ловкость
+            0.07  // интеллект
         );
 
         // 5) Отправка уведомления в Telegram

@@ -62,8 +62,8 @@ class BuiltCompletionGymHandler extends Controller
         // Обновление атрибутов персонажа после крафта
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.78, // увеличение ловкости
-            0.97  // увеличение интеллекта
+            0.08, // увеличение ловкости
+            0.07  // увеличение интеллекта
         );
 
         // Отправка уведомления в Telegram

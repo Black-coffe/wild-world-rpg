@@ -91,8 +91,8 @@ class CraftCompletionElectronicComponentsHandler extends Controller
         // 5. Немного прокачаем персонажу интеллект (или другое)
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.00,   // agility: не трогаем
-            0.15    // intellect: +0.15 (пример)
+            0.01,   // agility: не трогаем
+            0.02    // intellect: +0.15 (пример)
         );
 
         // 6. Уведомляем игрока

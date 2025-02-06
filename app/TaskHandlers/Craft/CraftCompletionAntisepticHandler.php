@@ -66,7 +66,7 @@ class CraftCompletionAntisepticHandler extends Controller
         $this->updateCraftLog($task, $craftedItem, $quantityToAdd);
 
         // 5. Даём персонажу бонусы (пример: +0.05 к ловкости/интеллекту).
-        $this->characterModel->updateAgilityAndIntellect($task['character_id'], 0.05, 0.05);
+        $this->characterModel->updateAgilityAndIntellect($task['character_id'], 0.01, 0.02);
 
         // 6. Уведомляем пользователя в Telegram
         $this->notifyUser($task['telegram_user_id'], $craftedItem, $task['character_id'], $quantityToAdd);

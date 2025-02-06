@@ -87,8 +87,8 @@ class CraftCompletionStoneBlocksHandler extends Controller
         // 6) Прокачиваем ловкость/интеллект персонажа
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.05, // +0.05 ловкости
-            0.05  // +0.05 интеллекта
+            0.01, // +0.05 ловкости
+            0.02  // +0.05 интеллекта
         );
 
         // 7) Уведомляем игрока

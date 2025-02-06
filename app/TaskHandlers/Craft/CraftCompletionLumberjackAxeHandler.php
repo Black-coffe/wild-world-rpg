@@ -83,8 +83,8 @@ class CraftCompletionLumberjackAxeHandler extends Controller
         // 5. Повышаем характеристики персонажа (пример: +0.05 ловкости и интеллекта)
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.05,
-            0.05
+            0.01,
+            0.02
         );
 
         // 6. Уведомляем игрока

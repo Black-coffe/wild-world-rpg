@@ -62,8 +62,8 @@ class BuiltCompletionBlastFurnaceHandler extends Controller
         // Обновление атрибутов персонажа после крафта
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            1, // увеличение ловкости
-            1.2  // увеличение интеллекта
+            0.07, // увеличение ловкости
+            0.02  // увеличение интеллекта
         );
 
         // Отправка уведомления в Telegram

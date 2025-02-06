@@ -53,10 +53,10 @@ class ExplorationTaskHandler extends Controller
 
         // 3) Небольшое улучшение характеристик
         $characterModel->update($character['id'], [
-            'experience' => $character['experience'] + 0.02,
-            'strength'   => $character['strength']   + 0.03,
+            'experience' => $character['experience'] + 0.01,
+            'strength'   => $character['strength']   + 0.01,
             'agility'    => $character['agility']    + 0.01,
-            'intellect'  => $character['intellect']  + 0.02,
+            'intellect'  => $character['intellect']  + 0.01,
         ]);
 
         // 4) Узнаём, сколько минут планировал (chosen_minutes) и сколько реально прошло

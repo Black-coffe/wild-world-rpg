@@ -510,10 +510,10 @@ class GatherTaskHandler extends Controller
         $intellect   = 0.0;
 
         foreach ($foundResources as $res) {
-            $strength   += 0.006;
-            $agility    += 0.001;
-            $intellect  += 0.001;
-            $healthGain += 0.005;
+            $strength   += 0.0006;
+            $agility    += 0.0001;
+            $intellect  += 0.0001;
+            $healthGain += 0.0005;
         }
 
         $newHealth = min(100, $character['health'] + $healthGain);

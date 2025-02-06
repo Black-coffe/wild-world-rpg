@@ -89,8 +89,8 @@ class CraftCompletionBandageHandler extends Controller
         // 5. Улучшаем статы персонажа (пример: +0.05 ловкости и интеллекта)
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.05,
-            0.05
+            0.02,
+            0.01
         );
 
         // 6. Уведомляем пользователя

@@ -104,8 +104,8 @@ class CraftCompletionTeleportBackpackHandler extends Controller
         // (пример - ловкость/интеллект, при желании замените)
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.75, // прирост ловкости
-            0.75  // прирост интеллекта
+            0.05, // прирост ловкости
+            0.05  // прирост интеллекта
         );
 
         // 5) Отправляем уведомление в Telegram

@@ -88,8 +88,8 @@ class CraftCompletionHoeHandler extends Controller
         // 5. Даём бонус персонажу (пример: +0.05 ловкости/интеллекта)
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.05,
-            0.05
+            0.02,
+            0.01
         );
 
         // 6. Уведомляем игрока

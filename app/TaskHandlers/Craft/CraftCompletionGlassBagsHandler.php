@@ -83,8 +83,8 @@ class CraftCompletionGlassBagsHandler extends Controller
         // 5) Прокачиваем персонажа (+0.15 к ловкости и интеллекту, как в примере)
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.15,
-            0.15
+            0.02,
+            0.01
         );
 
         // 6) Уведомляем игрока

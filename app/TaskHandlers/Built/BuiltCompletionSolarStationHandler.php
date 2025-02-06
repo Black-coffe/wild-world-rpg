@@ -62,8 +62,8 @@ class BuiltCompletionSolarStationHandler extends Controller
         // Обновление атрибутов персонажа после крафта
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            1.34, // увеличение ловкости
-            1.43  // увеличение интеллекта
+            0.04, // увеличение ловкости
+            0.03  // увеличение интеллекта
         );
 
         // Отправка уведомления в Telegram

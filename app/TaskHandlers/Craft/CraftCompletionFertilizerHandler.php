@@ -83,8 +83,8 @@ class CraftCompletionFertilizerHandler extends Controller
         // 5) Повышаем характеристики персонажа (пример: +0.05 к ловкости и интеллекту)
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.05,
-            0.05
+            0.02,
+            0.01
         );
 
         // 6) Уведомляем игрока

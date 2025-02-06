@@ -105,8 +105,8 @@ class CraftCompletionTeleportBeaconBasicHandler extends Controller
         // Вы можете выбрать другие показатели или не делать ничего
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.55, // прирост ловкости
-            0.55  // прирост интеллекта
+            0.05, // прирост ловкости
+            0.05  // прирост интеллекта
         );
 
         // 5) Отправляем уведомление в Telegram

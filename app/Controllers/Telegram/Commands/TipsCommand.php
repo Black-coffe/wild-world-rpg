@@ -77,9 +77,9 @@ class TipsCommand extends UserCommand
 
         // Обновляем характеристики персонажа
         $characterModel->update($character['id'], [
-            'experience' => $character['experience'] + 0.05,
-            'agility' => $character['agility'] + 0.08,
-            'intellect' => $character['intellect'] + 0.12,
+            'experience' => $character['experience'] + 0.01,
+            'agility' => $character['agility'] + 0.02,
+            'intellect' => $character['intellect'] + 0.04,
         ]);
 
         $text = "🤖 Это я – *Роби* и мой тебе игровой совет #: _{$tip['id']}_\n\n"

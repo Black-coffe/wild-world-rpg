@@ -93,8 +93,8 @@ class CraftCompletionWiringHandler extends Controller
         //    Допустим, у вас метод updateAgilityAndIntellect(...), либо любой другой:
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.00,    // агилити не трогаем
-            0.10     // интеллекта +0.10
+            0.02,    // агилити не трогаем
+            0.03     // интеллекта +0.10
         );
 
         // 6. Уведомляем игрока в Telegram

@@ -62,8 +62,8 @@ class BuiltCompletionRoboticsWorkshopHandler extends Controller
         // Обновление атрибутов персонажа после крафта
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            2.6, // увеличение ловкости
-            2.8  // увеличение интеллекта
+            0.06, // увеличение ловкости
+            0.08  // увеличение интеллекта
         );
 
         // Отправка уведомления в Telegram

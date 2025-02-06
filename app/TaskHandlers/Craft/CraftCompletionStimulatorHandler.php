@@ -84,8 +84,8 @@ class CraftCompletionStimulatorHandler extends Controller
         // 5. Даём игроку бонус к атрибутам (пример: +0.05 ловкости/интеллекта)
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.05, // увеличение ловкости
-            0.05  // увеличение интеллекта
+            0.02, // увеличение ловкости
+            0.03  // увеличение интеллекта
         );
 
         // 6. Уведомляем игрока

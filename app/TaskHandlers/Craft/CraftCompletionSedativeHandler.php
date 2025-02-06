@@ -89,8 +89,8 @@ class CraftCompletionSedativeHandler extends Controller
         // 5. Обновляем атрибуты персонажа (пример: +0.05 к ловкости/интеллекту)
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.05,
-            0.05
+            0.03,
+            0.01
         );
 
         // 6. Уведомляем пользователя

@@ -24,9 +24,9 @@ class GymProductionHandler extends Controller
         5  => 0.07,
         6  => 0.09,
         7  => 0.11,
-        8  => 0.14,
-        9  => 0.17,
-        10 => 0.20,
+        8  => 0.12,
+        9  => 0.14,
+        10 => 0.15,
     ];
 
     public function __construct()
@@ -43,7 +43,7 @@ class GymProductionHandler extends Controller
     {
         // Проверяем, делится ли текущее количество минут на 5
         $currentMinute = (int) date('i');
-        if ($currentMinute % 10 !== 0) {
+        if ($currentMinute % 30 !== 0) {
             return; // не время
         }
 

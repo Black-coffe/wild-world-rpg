@@ -88,8 +88,8 @@ class CraftCompletionBasicMedKitHandler extends Controller
         // 5. Прокачиваем персонажу атрибуты (пример: +0.05 ловкости и интеллекта)
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
-            0.05,
-            0.05
+            0.01,
+            0.02
         );
 
         // 6. Уведомляем игрока
