@@ -145,7 +145,7 @@ class FoodAndWaterConsumptionHandler
                     // Проверяем, есть ли у персонажа достаточно еды для потребления
                     if ($foodConsumed < $foodToConsume && $resource['quantity'] > 0 && (in_array('food', $types) || $resource['type'] == 'food')) {
                         $consumption = min($resource['quantity'], $foodToConsume - $foodConsumed);
-                        $this->resourceModel->subtractResource($characterId, $resource['id'], $consumption);
+                        $this->resourceModel->subtractResources($characterId, $resource['id'], $consumption);
                         $foodConsumed += $consumption;
                         $totalFoodResources += $consumption;
                         $missingFood -= $consumption;
@@ -154,7 +154,7 @@ class FoodAndWaterConsumptionHandler
                     // Проверяем, есть ли у персонажа достаточно воды для потребления
                     if ($waterConsumed < $waterToConsume && $resource['quantity'] > 0 && (in_array('water', $types) || $resource['type'] == 'water')) {
                         $consumption = min($resource['quantity'], $waterToConsume - $waterConsumed);
-                        $this->resourceModel->subtractResource($characterId, $resource['id'], $consumption);
+                        $this->resourceModel->subtractResources($characterId, $resource['id'], $consumption);
                         $waterConsumed += $consumption;
                         $totalWaterResources += $consumption;
                         $missingWater -= $consumption;

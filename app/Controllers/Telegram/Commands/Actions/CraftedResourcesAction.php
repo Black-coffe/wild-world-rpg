@@ -32,9 +32,9 @@ class CraftedResourcesAction extends BaseAction
 
         // Получение записей крафтинга для данного персонажа
         $craftedItemsLogs = $this->craftedItemsLogModel
-            ->select('crafted_items_logs.quantity, crafted_items.name_rus, crafted_items.type')
-            ->join('crafted_items', 'crafted_items.id = crafted_items_logs.crafted_item_id')
-            ->where('crafted_items_logs.character_id', $character['id'])
+            ->select('crafted_items_log.quantity, crafted_items.name_rus, crafted_items.type')
+            ->join('crafted_items', 'crafted_items.id = crafted_items_log.crafted_item_id')
+            ->where('crafted_items_log.character_id', $character['id'])
             ->findAll();
 
         if (empty($craftedItemsLogs)) {

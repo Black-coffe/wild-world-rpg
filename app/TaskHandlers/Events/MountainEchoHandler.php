@@ -14,16 +14,20 @@ use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
 
+// Добавляем использование сервиса, проверяющего базу
+use App\Services\Player\PlayerStateService;
+
 /**
  * Класс MountainEchoHandler
  *
  * Обрабатывает событие "MountainEcho" (Горное эхо):
  * 1) С вероятностью 10% (90% пропуск) вызывается логика process().
- * 2) Проверяет, активно ли событие (в ActiveEventModel).
- * 3) Для персонажей в определённом biоме (зависит от eventInfo['biome_ids'])
- *    пытается открыть "новые ячейки" (собранные через MapModel->getSurroundingCells).
- * 4) Количество открываемых ячеек зависит от уровня персонажа, effect_value и специальной таблицы процентов (см. determineNumberOfCells).
- * 5) Отправляет игроку (через Telegram) список новых ячеек (с их координатами, биомами).
+ * 2) Проверяем, активно ли событие (activeEvent).
+ * 3) Для персонажей в нужных biомах (eventInfo['biome_ids']),
+ *    вычисляем, сколько ячеек открыть (determineNumberOfCells).
+ * 4) Если персонаж на базе — эффект снижается на 75% (оставляем 25%).
+ * 5) Вызов getSurroundingCells() с range = numberOfCells.
+ * 6) Уведомляем игрока о новых ячейках.
  */
 class MountainEchoHandler extends Controller
 {
@@ -32,7 +36,12 @@ class MountainEchoHandler extends Controller
     protected $activeEventModel;
     protected $mapModel;
     protected $telegramUserModel;
-    private   $telegram;
+
+    /** @var PlayerStateService */
+    protected $playerStateService;
+
+    /** @var Telegram */
+    private $telegram;
 
     public function __construct()
     {
@@ -43,6 +52,9 @@ class MountainEchoHandler extends Controller
         $this->mapModel         = new MapModel();
         $this->telegramUserModel= new TelegramUserModel();
 
+        // Инициализация PlayerStateService
+        $this->playerStateService = new PlayerStateService();
+
         // Инициализация Telegram
         $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
@@ -52,85 +64,83 @@ class MountainEchoHandler extends Controller
 
     /**
      * Основной метод:
-     * 1) 10% шанс на запуск (если rand>=10 => return).
-     * 2) Проверяем, активно ли "MountainEcho" (eventModel, activeEventModel).
-     * 3) Если активно, смотрим biome_ids, выбираем персонажей, чьи biome_id в списке.
-     * 4) Для каждого персонажа считаем "сколько ячеек открыть" (determineNumberOfCells).
-     * 5) Если >0, вызываем mapModel->getSurroundingCells(...), уведомляем игрока.
+     * 1) 10% шанс (rand >= 10 => return).
+     * 2) Проверяем активность MountainEcho (active_events).
+     * 3) Извлекаем биомы, ищем персонажей (biome_id in ...).
+     * 4) determineNumberOfCells -> если >0, смотрим, на базе ли персонаж.
+     *    Если на базе => снижаем число ячеек на 75%.
+     * 5) Вызываем getSurroundingCells(range), уведомляем игрока.
      */
     public function process()
     {
-        // 1) 10% вероятность
+        // 1) Вероятность 10%
         if (mt_rand(0, 100) >= 10) {
-            return; // ~90% случаев событие не обрабатывается
+            return;
         }
 
         // 2) Проверяем событие "MountainEcho"
         $eventInfo = $this->eventModel
             ->where('name_english', 'MountainEcho')
             ->first();
-
         if (!$eventInfo) {
-            return; // Не нашли инфу о событии
+            return;
         }
 
-        // Проверяем, активно ли
+        // Активно ли
         $activeEvent = $this->activeEventModel
             ->where('event_id', $eventInfo['event_id'] ?? null)
             ->where('status', 'active')
             ->first();
         if (!$activeEvent) {
-            return; // Событие не активно
+            return;
         }
 
-        // Ищем biomes (JSON из eventInfo['biome_ids'])
+        // 3) Берём список biomes
         $biomeIds = json_decode($eventInfo['biome_ids'], true);
         if (empty($biomeIds)) {
             return;
         }
 
-        // Находим персонажей, чей biome_id входит в список
+        // Ищем персонажей, у кого biome_id в списке
         $characters = $this->characterModel
             ->whereIn('biome_id', $biomeIds)
             ->findAll();
 
-        // 3) Для каждого персонажа:
+        // 4) Для каждого персонажа
         foreach ($characters as $character) {
-            // determineNumberOfCells: сколько ячеек открыть
+            // Определяем, сколько ячеек можно открыть
             $numberOfCells = $this->determineNumberOfCells(
-                $character['level'],       // уровень персонажа
-                $eventInfo['effect_value'] // effect_value из event (пример: 55)
+                $character['level'],
+                $eventInfo['effect_value']
             );
 
+            // Если >0, применяем логику "база => -75%"
             if ($numberOfCells > 0) {
-                // Вызываем mapModel->getSurroundingCells(cell_number, range)
-                // где range = $numberOfCells
-                $surroundingCells = $this->mapModel->getSurroundingCells(
-                    $character['cell_number'],
-                    $numberOfCells
-                );
+                // Проверяем, находится ли персонаж на базе
+                $isOnBase = $this->playerStateService->isCharacterOnBase($character['id']);
+                if ($isOnBase) {
+                    // Уменьшаем на 75% => 25% остаётся
+                    $numberOfCells = (int)floor($numberOfCells * 0.25);
+                }
 
-                // Уведомляем игрока (telegram_user_id в самом character)
-                $this->notifyCharacter($character['telegram_user_id'], $surroundingCells);
+                if ($numberOfCells > 0) {
+                    $surroundingCells = $this->mapModel->getSurroundingCells(
+                        $character['cell_number'],
+                        $numberOfCells
+                    );
+                    // Уведомляем о новых ячейках
+                    $this->notifyCharacter($character['telegram_user_id'], $surroundingCells, $isOnBase);
+                }
             }
         }
     }
 
     /**
-     * Определяем, сколько ячеек (range) можно открыть в map,
-     * исходя из уровня персонажа, event effect_value,
-     * и таблицы "levelPercentages".
-     *
-     * Пример:
-     *   если level=50 => percent=5,
-     *   тогда range = floor((24 * 5 * effectValue)/10000)
-     *   или любая другая формула, которую вы заложите.
+     * Считаем, сколько ячеек открыть (range).
      */
     private function determineNumberOfCells(int $level, float $effectValue): int
     {
-        // Логика/таблица:
-        // Для каждого maxLevel => percent
-        // levelPercentages[10] => 0.1, [20]=>1, [50]=>5, [100]=>10, etc.
+        // Пример таблицы уровней
         $levelPercentages = [
             10  => 0.1,
             20  => 1,
@@ -138,59 +148,49 @@ class MountainEchoHandler extends Controller
             100 => 10,
             200 => 20,
             300 => 30,
-            400 => 40,
             500 => 50,
-            600 => 60,
-            700 => 70,
-            800 => 80,
-            900 => 90,
             999 => 99
         ];
 
-        // Определяем, какой процент взять
         foreach ($levelPercentages as $maxLevel => $percent) {
             if ($level <= $maxLevel) {
-                // Примерная формула:
-                // range = floor((24 * percent * effectValue)/10000)
-                // Можно изменить под нужды
+                // Примерная формула
                 $val = (24.0 * $percent * $effectValue) / 10000.0;
                 return (int)floor($val);
             }
         }
 
-        return 0; // Если уровень слишком высокий или не подошёл
+        return 0;
     }
 
     /**
-     * Отправляет игроку сообщение с "соседними ячейками" (surroundingCells),
-     * включая их cell_number, координаты (x,y) и имя биома.
+     * Уведомление игрока. Если $isOnBase=true, можно добавить фразу,
+     * что "Ты на базе, звук эха заглушен, открыто меньше ячеек".
      */
-    private function notifyCharacter(int $telegramUserId, array $surroundingCells)
+    private function notifyCharacter(int $telegramUserId, array $surroundingCells, bool $isOnBase)
     {
-        // Находим запись telegramUser
         $telegramUser = $this->telegramUserModel->find($telegramUserId);
         if (!$telegramUser || empty($surroundingCells)) {
             return;
         }
         $chatId = $telegramUser['telegram_id'];
 
-        // Формируем текст
-        $message = "*🎉 Поздравляем!* Событие *'Горное эхо'* дало вам возможность услышать отголоски далеких мест.\n\n";
-        $message .= "Вот какие ячейки (координаты/биомы) стали вам доступны:\n\n";
+        $message = "*🎉 Горное эхо* донесло до тебя отголоски дальних мест.\n\n";
+        if ($isOnBase) {
+            $message .= "_Ты находишься на базе, поэтому эхо ослаблено, и удалось открыть меньше ячеек._\n\n";
+        }
+
+        $message .= "Вот какие ячейки стали доступны:\n\n";
 
         foreach ($surroundingCells as $cell) {
-            // cell_number, x, y, biome_name
             if (isset($cell['cell_number'], $cell['x'], $cell['y'], $cell['biome_name'])) {
                 $message .= "🌍 *Ячейка №{$cell['cell_number']}*\n"
                     . "📍 Координаты: `X={$cell['x']}, Y={$cell['y']}`\n"
                     . "🌳 Биом: *{$cell['biome_name']}*\n\n";
-            } else {
-                log_message('error', "Invalid cell data for one of the surroundingCells.");
             }
         }
 
-        $message .= "🚀 Теперь вы можете наметить новые маршруты или сохранить данные для будущих путешествий.\n"
-            . "_Исследуйте мир с умом и наслаждайтесь эхо гор!_";
+        $message .= "_Планируй новые маршруты и вперед к приключениям!_";
 
         $keyboard = [
             'inline_keyboard' => [
@@ -201,10 +201,8 @@ class MountainEchoHandler extends Controller
             ]
         ];
 
-        // Путь к изображению (при желании)
         $photoPath = base_url('uploads/telegram/mountain_echoes.png');
 
-        // Ответ:
         Request::answerCallbackQuery(['callback_query_id' => $chatId]);
         try {
             Request::sendPhoto([
@@ -215,8 +213,7 @@ class MountainEchoHandler extends Controller
                 'reply_markup'=> json_encode($keyboard),
             ]);
         } catch (TelegramException $e) {
-            log_message('error', "Ошибка при отправке MountainEchoHandler: " . $e->getMessage());
-            // Опционально: fallback — обычное текстовое сообщение
+            log_message('error', "Ошибка отправки MountainEchoHandler: " . $e->getMessage());
         }
     }
 }
