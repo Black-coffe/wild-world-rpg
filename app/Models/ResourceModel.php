@@ -134,7 +134,7 @@ class ResourceModel extends Model
 
     public function getCharacterResources($characterId)
     {
-        return $this->select('resources.*, character_resources.quantity')
+        return $this->select('resources.*, character_resources.id AS charResId, character_resources.quantity')
             ->join('character_resources', 'resources.id = character_resources.id_resources')
             ->where('character_resources.id_characters', $characterId)
             ->findAll();
