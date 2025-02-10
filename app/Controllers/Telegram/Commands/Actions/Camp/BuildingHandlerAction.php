@@ -1,11 +1,12 @@
 <?php
 
-
 namespace App\Controllers\Telegram\Commands\Actions\Camp;
 
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+
+// Подключаем обработчики других строений
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\HandPumpHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\BlastFurnaceHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\RoboticsWorkshopHandler;
@@ -16,6 +17,8 @@ use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\SolarStationHandler
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\WarehouseHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\WorkshopHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportationCenterHandler;
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\ArsenalHandler;
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\CommunicationTowerHandler;
 
 class BuildingHandlerAction extends BaseAction
 {
@@ -66,14 +69,21 @@ class BuildingHandlerAction extends BaseAction
             case 'TeleportationCenter':
                 $handler = new TeleportationCenterHandler($this->callbackQuery);
                 break;
+            case 'Arsenal':
+                $handler = new ArsenalHandler($this->callbackQuery);
+                break;
+            case 'CommunicationTower':
+                $handler = new CommunicationTowerHandler($this->callbackQuery);
+                break;
+
             default:
                 return Request::sendMessage([
                     'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                    'text' => 'Неизвестное строение,в классе: BuildingHandlerAction',
+                    'text' => 'Неизвестное строение, в классе: BuildingHandlerAction',
                 ]);
         }
 
+        // Выполняем handle() конкретного обработчика
         return $handler->handle();
     }
 }
-

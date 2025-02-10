@@ -282,8 +282,12 @@ class CallbackqueryCommand extends SystemCommand
             'buildRoboticsWorkshop' =>      \App\Controllers\Telegram\Commands\Actions\Camp\BuildRoboticsWorkshopConstruction::class,
             'startBuildRoboticsWorkshop' => \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildRoboticsWorkshopConstruction::class,
             'building' =>                   \App\Controllers\Telegram\Commands\Actions\Camp\BuildingHandlerAction::class,
-            'buildTeleportationCenter' => \App\Controllers\Telegram\Commands\Actions\Camp\BuildTeleportationCenterConstruction::class,
-            'startBuildTeleportCenter' => \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildTeleportationCenterConstruction::class,
+            'buildTeleportationCenter' =>   \App\Controllers\Telegram\Commands\Actions\Camp\BuildTeleportationCenterConstruction::class,
+            'startBuildTeleportCenter' =>   \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildTeleportationCenterConstruction::class,
+            'actionNameForArsenal' =>       \App\Controllers\Telegram\Commands\Actions\Camp\BuildArsenalConstruction::class,
+            'startBuildArsenal'    =>       \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildArsenalConstruction::class,
+            'actionNameForCommunicationTower' => \App\Controllers\Telegram\Commands\Actions\Camp\BuildCommunicationTowerConstruction::class,
+            'startBuildCommunicationTower'    => \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildCommunicationTower::class,
 
             'objectActionClosedWarehouse' =>  \App\Controllers\Telegram\Commands\Actions\Objects\ObjectCloseWarehouseAction::class,
 

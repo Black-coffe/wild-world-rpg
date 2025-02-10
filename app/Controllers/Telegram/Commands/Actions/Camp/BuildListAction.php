@@ -91,6 +91,16 @@ class BuildListAction extends BaseAction
                 'tax' => 820,
                 'callback_data' => 'buildTeleportationCenter'
             ],
+            [
+                'name' => "⚔️ Арсенал",
+                'tax'  => 2000,
+                'callback_data' => 'actionNameForArsenal'
+            ],
+            [
+                'name' => "📢 Вышка связи",
+                'tax'  => 1300,
+                'callback_data' => 'actionNameForCommunicationTower'
+            ],
         ];
 
         $buildingList = "";
@@ -98,7 +108,7 @@ class BuildListAction extends BaseAction
 
         // Формируем список и кнопки
         foreach ($buildingsInfo as $b) {
-            $buildingList .= "*{$b['name']}* | *Налог: {$b['tax']}* 💰\n\n";
+            $buildingList .= "*{$b['name']}* | *Налог: {$b['tax']}* 💰\n";
             $keyboardButtons[] = [
                 'text' => $b['name'],
                 'callback_data' => $b['callback_data']
@@ -111,7 +121,7 @@ class BuildListAction extends BaseAction
         $text = "🤖 Это я – *Роби*!\n\n"
             . "Вот список доступных построек с указанием суточного налога:\n\n"
             . "{$buildingList}"
-            . "_Выбери желаемое здание для строительства._";
+            . "\n_Выбери желаемое здание для строительства._";
 
         return Request::sendMessage([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),

@@ -471,6 +471,8 @@ class Worker extends Controller
         'startBuildTeleportationCenter' => 'Built\BuiltCompletionTeleportationCenterHandler',
         'craftTeleportBeaconBasic' => 'Craft\WorkbenchStandard\CraftCompletionTeleportBeaconBasicHandler',
         'craftTeleportBackpack' => 'Craft\WorkbenchStandard\CraftCompletionTeleportBackpackHandler',
+        'startBuildArsenal' => 'Built\BuiltCompletionArsenalHandler',
+        'startBuildCommunicationTower' => 'Built\BuiltCompletionCommunicationTowerHandler',
 
         // Другие соответствия
     ];

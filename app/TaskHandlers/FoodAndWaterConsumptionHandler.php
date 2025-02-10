@@ -56,12 +56,8 @@ class FoodAndWaterConsumptionHandler
         // Получаем текущую минуту
         $currentMinute = (int)$now->format('i');
 
-        // Проверяем, соответствует ли текущее время интервалам времени для выполнения задачи
-        if (
-            ($currentHour === 7 && $currentMinute === 0) ||
-            ($currentHour === 15 && $currentMinute === 0) ||
-            ($currentHour === 22 && $currentMinute === 0)
-        ) {
+        // Проверяем, соответствует ли текущее время 21:33 по Киеву
+        if ($currentHour === 21 && $currentMinute === 33) {
             // ПОМЕНЯТЬ ПОТОМ УРОВЕНЬ НА 3 с 300
             $characters = $this->characterModel->where('level >=', 3)->findAll();
 
@@ -77,9 +73,9 @@ class FoodAndWaterConsumptionHandler
                     continue; // Пропускаем обработку персонажа, если биом не найден
                 }
 
-                // Расчет ресурсов еды и воды, которые нужно потребить
-                $foodToConsume = $this->calculateResourceConsumption($character['level'], $biome['survival_difficulty'], 'food');
-                $waterToConsume = $this->calculateResourceConsumption($character['level'], $biome['survival_difficulty'], 'water');
+                // Расчет ресурсов еды и воды, которые нужно потребить (умножаем на 3)
+                $foodToConsume = $this->calculateResourceConsumption($character['level'], $biome['survival_difficulty'], 'food') * 3;
+                $waterToConsume = $this->calculateResourceConsumption($character['level'], $biome['survival_difficulty'], 'water') * 3;
 
                 // Вычитание ресурсов и отправка сообщения
                 $result = $this->subtractResources($character, $foodToConsume, $waterToConsume);
@@ -98,7 +94,6 @@ class FoodAndWaterConsumptionHandler
             }
         }
     }
-
     private function calculateTotalResources($characterId)
     {
         $resources = $this->resourceModel->getCharacterResources($characterId);
@@ -116,7 +111,6 @@ class FoodAndWaterConsumptionHandler
 
         return [$totalFoodResources, $totalWaterResources];
     }
-
 
     private function subtractResources($character, $foodToConsume, $waterToConsume)
     {
@@ -178,12 +172,10 @@ class FoodAndWaterConsumptionHandler
         } else {
             log_message('error', 'Failed to retrieve resources for character ID: ' . $characterId);
         }
-
         // После вычитания ресурсов вызовите метод для проверки и удаления ресурса при необходимости
         $this->deleteResourceIfNeeded($characterId);
         // Возвращает актуальные остатки после вычитания
         list($totalFoodResources, $totalWaterResources) = $this->calculateTotalResources($characterId);
-
         // Возвращает массив с информацией о списании ресурсов и здоровья
         return [
             'healthSubtracted' => $healthSubtracted,
@@ -191,6 +183,7 @@ class FoodAndWaterConsumptionHandler
             'totalWaterResources' => $totalWaterResources
         ];
     }
+
 
     private function calculateResourceConsumption($level, $survivalDifficulty, $resourceType)
     {
@@ -207,6 +200,7 @@ class FoodAndWaterConsumptionHandler
 
         return $resourceToConsume;
     }
+
 
     private function subtractHealth($character, $healthToSubtract, $missingFood = 0, $missingWater = 0)
     {
@@ -258,12 +252,12 @@ class FoodAndWaterConsumptionHandler
     public function sendMessageToTelegram($telegramId, $foodToConsume, $waterToConsume, $totalFoodResources, $totalWaterResources)
     {
         $text = "👤 *Персонаж отлично покушал!* 😋\n\n"
-            . "*Съел и Выпил:*\n\n"
-            . "*🍔 Еды:* {$foodToConsume} 🍖\n\n"
-            . "*💧 Воды:* {$waterToConsume} 💦\n\n"
+            . "*Съел и Выпил (завтрак, обед, ужин):*\n\n"
+            . "*🍔 Еды:* " . number_format($foodToConsume, 2) . " 🍖\n\n"
+            . "*💧 Воды:* " . number_format($waterToConsume, 2) . " 💦\n\n"
             . "*Осталось ресурсов пропитания:*\n\n"
-            . "🔹*Еды:* ". number_format($totalFoodResources)." 🌾\n"
-            . "🔹*Воды:* ". number_format($totalWaterResources)." 💧\n\n"
+            . "🔹*Еды:* " . number_format($totalFoodResources) . " 🌾\n"
+            . "🔹*Воды:* " . number_format($totalWaterResources) . " 💧\n\n"
             . "*P.S.*: 👀 Не забудь пополнить запасы провизии! 😉\n\n";
 
         $keyboard = [
@@ -292,7 +286,6 @@ class FoodAndWaterConsumptionHandler
         ]);
 
     }
-
     private function deleteResourceIfNeeded($characterId)
     {
         // Получите список ресурсов у персонажа
@@ -305,6 +298,5 @@ class FoodAndWaterConsumptionHandler
             }
         }
     }
-
 
 }
