@@ -473,6 +473,7 @@ class Worker extends Controller
         'craftTeleportBackpack' => 'Craft\WorkbenchStandard\CraftCompletionTeleportBackpackHandler',
         'startBuildArsenal' => 'Built\BuiltCompletionArsenalHandler',
         'startBuildCommunicationTower' => 'Built\BuiltCompletionCommunicationTowerHandler',
+        'craftArmorRaggedShirt' => 'Craft\WorkbenchStandard\CraftCompletionRaggedShirtHandler',
 
         // Другие соответствия
     ];

@@ -17,26 +17,30 @@ class StandardCraftingAction extends BaseAction
             . "Все, что внизу можно крафтить имея *1й верстак* и *построенную базу*!\n\n"
             . "_Выбирай направление крафта и если у тебя достаточно ресурсов, ты получишь нужную вещь_ 👇\n";
 
+        // Клавиатура с двумя «старыми» кнопками и двумя новыми
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🤖 Роботы', 'callback_data' => 'robotsCraft2'],
+                    ['text' => '🤖 Роботы',    'callback_data' => 'robotsCraft2'],
                     ['text' => '🌀 Телепорты', 'callback_data' => 'teleportBeaconCraft2'],
+                ],
+                [
+                    ['text' => '🛡️ Броня',     'callback_data' => 'armorCraft2'],
+                    ['text' => '⚔️ Оружие',    'callback_data' => 'weaponsCraft2'],
                 ],
             ]
         ];
 
-
         $imagePath = base_url('uploads/telegram/craft/standard/standard_craft_area.jpg'); // Укажите актуальный путь к изображению
 
-        // Ответ на callback запрос, чтобы убрать часики на кнопке
+        // Ответ на callback-запрос, чтобы убрать "часики" на кнопке
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         // Отправляем сообщение с картинкой и клавиатурой
         return Request::sendPhoto([
-            'chat_id' => $chatId,
-            'photo' => Request::encodeFile($imagePath),
-            'caption' => $text,
+            'chat_id'    => $chatId,
+            'photo'      => Request::encodeFile($imagePath),
+            'caption'    => $text,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);

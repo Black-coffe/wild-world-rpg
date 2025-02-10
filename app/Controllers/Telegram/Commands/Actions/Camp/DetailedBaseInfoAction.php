@@ -11,136 +11,232 @@ use App\Models\CharacterBuildingModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
+// >>> Подключаем сервис вышки связи <<<
+use App\Services\Coverage\CommunicationTowerCoverageService;
+
 class DetailedBaseInfoAction extends BaseAction
 {
     public function handle(): ServerResponse
     {
-        // Отправляем ответ на CallbackQuery сразу
-        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+        // Сразу отвечаем на CallbackQuery (убираем «часики» в Telegram)
+        Request::answerCallbackQuery([
+            'callback_query_id' => $this->callbackQuery->getId()
+        ]);
 
+        // Достаём данные о пользователе / персонаже
         [$user, $character] = $this->getUserAndCharacter();
 
         if (!$user || !$character) {
             return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => '🤖 Это снова я – *Роби*!\n\nПользователь не найден в базе данных или персонаж не определён.',
+                'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'       => "🤖 Это снова я – *Роби*!\n\nПользователь не найден в базе данных или персонаж не определён.",
                 'parse_mode' => 'Markdown'
             ]);
         }
 
-        $claimedCellModel = new ClaimedCellModel();
-        $mapModel = new MapModel();
-        $biomeModel = new BiomeModel();
-        $buildingModel = new BuildingModel();
+        // Модели
+        $claimedCellModel       = new ClaimedCellModel();
+        $mapModel               = new MapModel();
+        $biomeModel             = new BiomeModel();
+        $buildingModel          = new BuildingModel();
         $characterBuildingModel = new CharacterBuildingModel();
 
+        // >>> Создаём сервис проверки вышки связи
+        $towerService           = new CommunicationTowerCoverageService();
+
         // Проверяем, есть ли у персонажа лагерь
-        $claimedCell = $claimedCellModel->where('character_id', $character['id'])->first();
+        $claimedCell = $claimedCellModel
+            ->where('character_id', $character['id'])
+            ->first();
 
+        // Если лагеря нет
         if (!$claimedCell) {
-            // У персонажа нет разбитого лагеря
-            $text = "🤖 Это снова я – *Роби*!\n\n"
-                . "У тебя нет еще разбитого лагеря, а значит и нет базы. Для разбивки лагеря используй кнопки ниже.";
+            return $this->handleNoBase($character);
+        }
 
-            $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '🏕 Разбить лагерь', 'callback_data' => 'Camp'],
-                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
-                    ],
-                ]
-            ];
+        // Если у персонажа есть лагерь, проверяем:
+        $onBasePhysically = ($claimedCell['map_cell_id'] == $character['cell_number']);
+        if ($onBasePhysically) {
+            // Физически на базе: показываем постройки
+            return $this->showBuildings($character, $claimedCell, $mapModel, $biomeModel, $buildingModel, $characterBuildingModel);
+        }
 
+        // Если не на базе, проверяем сигнал вышки
+        $coverageResult = $towerService->checkCoverage($character['id']);
+        if ($coverageResult['isCovered']) {
+            // Покрывает вышка → можно дистанционно посмотреть постройки
+            return $this->showBuildings(
+                $character,
+                $claimedCell,
+                $mapModel,
+                $biomeModel,
+                $buildingModel,
+                $characterBuildingModel,
+                $coverageResult
+            );
+        }
+
+        // Иначе нет покрытия — старое поведение
+        return $this->handleNotOnBasePhysically($character, $claimedCell, $mapModel, $biomeModel);
+    }
+
+    /**
+     * Случай: у персонажа нет базы вообще.
+     */
+    protected function handleNoBase(array $character): ServerResponse
+    {
+        $text = "🤖 Это снова я – *Роби*!\n\n"
+            . "У тебя нет ещё разбитого лагеря, а значит и нет базы. "
+            . "Для разбивки лагеря используй кнопки ниже.";
+
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '🏕 Разбить лагерь', 'callback_data' => 'Camp'],
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
+                ],
+            ]
+        ];
+
+        return Request::sendMessage([
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
+        ]);
+    }
+
+    /**
+     * Случай: у персонажа есть база, но он НЕ на ней и нет покрытия вышки.
+     */
+    protected function handleNotOnBasePhysically(
+        array $character,
+        array $claimedCell,
+        MapModel $mapModel,
+        BiomeModel $biomeModel
+    ): ServerResponse
+    {
+        $mapRow = $mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
+        if (!$mapRow) {
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => $text,
-                'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
+                'text'    => 'Ошибка: не удалось найти карту для базы.',
             ]);
         }
 
-        // Проверяем, находится ли персонаж на ячейке базы
-        if ($claimedCell['map_cell_id'] != $character['cell_number']) {
-            $mapRow = $mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
-            $biomeName = $biomeModel->where('id', $mapRow['biome_id'])->first()['name'];
-            $coordinates = [
-                'x' => $mapRow['coordinate_x'],
-                'y' => $mapRow['coordinate_y']
-            ];
+        $biomeRow  = $biomeModel->find($mapRow['biome_id']);
+        $biomeName = $biomeRow['name'] ?? '???';
+        $coordX    = $mapRow['coordinate_x'];
+        $coordY    = $mapRow['coordinate_y'];
 
-            $text = "🤖 Это снова я – *Роби*!\n\n"
-                . "Твоя база находится в другой игровой ячейке, ты не дома! Чтобы начать строительство вернись на базу, используя:\n\n1️⃣ переезд пешком\n2️⃣ телепорт на выбор.\n\n"
-                . "📍 *Координаты базы*: x={$coordinates['x']} y={$coordinates['y']}\n"
-                . "🌍 *Биом*: {$biomeName}";
+        $text = "🤖 Это снова я – *Роби*!\n\n"
+            . "Твоя база находится в другой игровой ячейке, ты не дома! "
+            . "Чтобы начать строительство или изучить сооружения, вернись на базу:\n"
+            . "1️⃣ пешком\n"
+            . "2️⃣ телепорт.\n\n"
+            . "📍 *Координаты базы*: x={$coordX} y={$coordY}\n"
+            . "🌍 *Биом*: {$biomeName}";
 
-            $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
-                        ['text' => '🚜 Переехать', 'callback_data' => 'move'],
-                    ],
-                ]
-            ];
-            $imagePath = base_url('uploads/telegram/camp/an_empty_area.jpg'); // Укажите актуальный путь к изображению
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
+                    ['text' => '🚜 Переехать', 'callback_data' => 'move'],
+                ],
+            ]
+        ];
+        $imagePath = base_url('uploads/telegram/camp/an_empty_area.jpg');
 
-            return Request::sendPhoto([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'photo'   => Request::encodeFile($imagePath),
-                'caption' => $text,
-                'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
-            ]);
-        }
+        return Request::sendPhoto([
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
+        ]);
+    }
 
+    /**
+     * Случай: игрок физически на базе ИЛИ покрывает вышка связи.
+     * Если $coverageResult['isCovered'] === true, добавляем пометку «дистанционно» в текст.
+     */
+    protected function showBuildings(
+        array $character,
+        array $claimedCell,
+        MapModel $mapModel,
+        BiomeModel $biomeModel,
+        BuildingModel $buildingModel,
+        CharacterBuildingModel $characterBuildingModel,
+        ?array $coverageResult = null
+    ): ServerResponse
+    {
         // Получаем список построек
-        $buildings = $characterBuildingModel->where('character_id', $character['id'])->findAll();
+        $buildings = $characterBuildingModel
+            ->where('character_id', $character['id'])
+            ->findAll();
+
         if (empty($buildings)) {
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text' => 'На вашей базе нет построек.',
+                'text'    => 'На вашей базе нет построек.',
                 'parse_mode' => 'Markdown'
             ]);
         }
 
+        // Достаём данные о карте/биоме
         $mapRow = $mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
-        $biomeName = $biomeModel->where('id', $mapRow['biome_id'])->first()['name'];
-        $coordinates = [
-            'x' => $mapRow['coordinate_x'],
-            'y' => $mapRow['coordinate_y']
-        ];
+        if (!$mapRow) {
+            return Request::sendMessage([
+                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'    => 'Ошибка: не удалось найти карту для базы.',
+            ]);
+        }
 
-        $text = "Перед тобой территория твоей базы, твои владения, мощь и сила. Здесь ты можешь изучить более подробно каждое сооружение и его возможности.\n\n"
-            . "*Координаты базы*: x={$coordinates['x']} y={$coordinates['y']}\n"
-            . "*Биом*: {$biomeName}";
+        $biomeRow  = $biomeModel->find($mapRow['biome_id']);
+        $biomeName = $biomeRow['name'] ?? '???';
+        $coordX    = $mapRow['coordinate_x'];
+        $coordY    = $mapRow['coordinate_y'];
+
+        // Формируем текст
+        $introText = "Перед тобой территория твоей базы. Здесь можно подробнее изучить каждое сооружение!\n\n"
+            . "*Координаты базы*: x={$coordX}, y={$coordY}\n"
+            . "*Биом*: {$biomeName}\n";
+
+        // Если есть coverageResult и isCovered=true, значит дистанционно
+        if ($coverageResult && $coverageResult['isCovered']) {
+            $towerLvl    = $coverageResult['towerLevel'] ?? 1;
+            $distance    = $coverageResult['distanceToBase'] ?? 0;
+            $maxCoverage = $coverageResult['maxCoverage'] ?? ($towerLvl * 100);
+
+            $introText  = "_Вы не на базе физически,_ но сигнал *Вышки связи* (ур. {$towerLvl}) "
+                . "покрывает расстояние {$distance}/{$maxCoverage}. "
+                . "**Можно управлять сооружениями удалённо!**\n\n"
+                . $introText;
+        }
 
         $keyboardButtons = [];
         foreach ($buildings as $building) {
-            $buildingInfo = $buildingModel->find($building['building_id']);
-            $buildingName = $buildingInfo['name_ru'] ?? 'Неизвестное строение';
-            $buildingNameEng = $buildingInfo['name_en'] ?? 'unknown';
-            $buildingIcon = $this->getBuildingIcon($building['building_id']);
+            $bInfo = $buildingModel->find($building['building_id']);
+            $bNameRu  = $bInfo['name_ru']  ?? 'Неизвестное строение';
+            $bNameEng = $bInfo['name_en']  ?? 'unknown';
+
+            // Иконку можете сделать отдельным методом
+            $icon = $this->getBuildingIcon($building['building_id']);
             $keyboardButtons[] = [
-                'text' => "{$buildingIcon} {$buildingName}",
-                'callback_data' => 'building_' . $building['building_id'] . '_' . $buildingNameEng
+                'text' => "{$icon} {$bNameRu}",
+                'callback_data' => 'building_' . $building['building_id'] . '_' . $bNameEng
             ];
         }
 
+        // Организуем кнопки по 2 в ряд
         $keyboard = array_chunk($keyboardButtons, 2);
-        $imagePath = base_url('uploads/telegram/camp/base_with_its_buildings.jpg'); // Укажите актуальный путь к изображению
 
-        // Проверка JSON на корректность
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text' => 'Произошла ошибка при формировании кнопок.',
-                'parse_mode' => 'Markdown'
-            ]);
-        }
+        $imagePath = base_url('uploads/telegram/camp/base_with_its_buildings.jpg');
 
         return Request::sendPhoto([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'photo'   => Request::encodeFile($imagePath),
-            'caption' => $text,
+            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'photo'      => Request::encodeFile($imagePath),
+            'caption'    => $introText,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $keyboard]),
         ]);
@@ -156,15 +252,16 @@ class DetailedBaseInfoAction extends BaseAction
     {
         $icons = [
             1 => '🚰',  // Пример иконки для здания с ID 1
-            2 => '🔥',  // Пример иконки для здания с ID 2
-            3 => '🏚️',  // Пример иконки для здания с ID 3
-            4 => '🔧',  // Пример иконки для здания с ID 4
-            5 => '🌱',  // Пример иконки для здания с ID 5
-            6 => '☀️',  // Пример иконки для здания с ID 6
-            7 => '🥊',  // Пример иконки для здания с ID 7
-            8 => '🥼'   // Пример иконки для здания с ID 8
+            2 => '🔥',
+            3 => '🏚️',
+            4 => '🔧',
+            5 => '🌱',
+            6 => '☀️',
+            7 => '🥊',
+            8 => '🥼',
+            // ... Добавьте ID "Arsenal" / "CommunicationTower" и т.д. при желании
         ];
 
-        return $icons[$buildingId] ?? '🏠';  // Возвращает дефолтную иконку, если ID не найден
+        return $icons[$buildingId] ?? '🏠';
     }
 }

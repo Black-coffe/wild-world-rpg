@@ -15,6 +15,9 @@ use App\Models\CharacterBuildingModel;
 // Подключаем сервис для проверки занятости ячейки (используется в showCampCreation)
 use App\Services\Bases\CampCheckService;
 
+// >>> Добавляем наш Coverage-сервис <<<
+use App\Services\Coverage\CommunicationTowerCoverageService;
+
 /**
  * Класс BaseService, в котором мы используем
  * логику по работе с базой/лагерем.
@@ -27,6 +30,10 @@ class BaseService
     protected $buildingModel;
     protected $characterBuildingModel;
 
+    // + добавим сервис в конструктор (по желанию),
+    //   но можно создавать инстанс CommunicationTowerCoverageService прямо в методе, по вкусу.
+    protected $towerCoverageService;
+
     public function __construct()
     {
         $this->claimedCellModel       = new ClaimedCellModel();
@@ -34,6 +41,9 @@ class BaseService
         $this->biomeModel             = new BiomeModel();
         $this->buildingModel          = new BuildingModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
+
+        // либо создаём сервис здесь:
+        $this->towerCoverageService   = new CommunicationTowerCoverageService();
     }
 
     /**
@@ -52,130 +62,174 @@ class BaseService
             ->first();
 
         // --------------------------------------------------------------------
-        // Если у персонажа НЕТ лагеря (базы)
+        // ЕСЛИ у персонажа НЕТ базы
         // --------------------------------------------------------------------
         if (!$claimedCell) {
-            // Подготовим строку с подробной информацией о текущем биоме
-            // (где сейчас персонаж), если возможно получить cell_number.
-            $cellNumber = $characterRow['cell_number'] ?? 0;
+            return $this->showNoBaseInfo($chatId, $characterRow);
+        }
 
-            // Значения по умолчанию (если не найдём ничего в map)
-            $coordX = '???';
-            $coordY = '???';
-            $biomeName = '???';
-            $biomeDesc = '';
-            $dangerLevel = 0;
-            $survivalDiff = 0;
+        // --------------------------------------------------------------------
+        // 2. Проверяем: "игрок ФИЗИЧЕСКИ на ячейке базы"?
+        // --------------------------------------------------------------------
+        $onBasePhysically = ($claimedCell['map_cell_id'] === $characterRow['cell_number']);
+        if ($onBasePhysically) {
+            // Если да — выводим все постройки + механику
+            return $this->showBaseBuildings($chatId, $characterRow, $claimedCell);
+        }
 
-            if ($cellNumber) {
-                $mapRow = $this->mapModel
-                    ->where('cell_number', $cellNumber)
-                    ->first();
-                if ($mapRow) {
-                    $coordX = $mapRow['coordinate_x'];
-                    $coordY = $mapRow['coordinate_y'];
+        // --------------------------------------------------------------------
+        // 2.1 Если игрок НЕ на базе, проверяем,
+        //     покрывает ли его сигнал Вышки связи (CommunicationTower).
+        // --------------------------------------------------------------------
+        $coverageResult = $this->towerCoverageService->checkCoverage($characterRow['id']);
+        if ($coverageResult['isCovered']) {
+            // Если покрытие есть — тоже покажем постройки,
+            // но добавим пометку «Вы находитесь в зоне вышки связи,
+            // управляете базой удалённо!»
 
-                    // Получаем биом
-                    $biomeId = $mapRow['biome_id'];
-                    $biomeRow = $this->biomeModel->find($biomeId);
-                    if ($biomeRow) {
-                        $biomeName    = $biomeRow['name'] ?? '???';
-                        $biomeDesc    = $biomeRow['description'] ?? '';
-                        $dangerLevel  = $biomeRow['danger_level'] ?? 0;
-                        $survivalDiff = $biomeRow['survival_difficulty'] ?? 0;
-                    }
+            return $this->showBaseBuildings($chatId, $characterRow, $claimedCell, $coverageResult);
+        } else {
+            // Если покрытия нет — старое поведение:
+            return $this->showNotOnBaseInfo($chatId, $claimedCell);
+        }
+    }
+
+    /**
+     * Показывает ситуацию, когда у игрока нет базы.
+     */
+    protected function showNoBaseInfo(int $chatId, array $characterRow): ServerResponse
+    {
+        $cellNumber = $characterRow['cell_number'] ?? 0;
+
+        // Значения по умолчанию
+        $coordX = '???';
+        $coordY = '???';
+        $biomeName = '???';
+        $biomeDesc = '';
+        $dangerLevel = 0;
+        $survivalDiff = 0;
+
+        if ($cellNumber) {
+            $mapRow = $this->mapModel
+                ->where('cell_number', $cellNumber)
+                ->first();
+            if ($mapRow) {
+                $coordX = $mapRow['coordinate_x'];
+                $coordY = $mapRow['coordinate_y'];
+
+                // Получаем биом
+                $biomeId = $mapRow['biome_id'];
+                $biomeRow = $this->biomeModel->find($biomeId);
+                if ($biomeRow) {
+                    $biomeName    = $biomeRow['name'] ?? '???';
+                    $biomeDesc    = $biomeRow['description'] ?? '';
+                    $dangerLevel  = $biomeRow['danger_level'] ?? 0;
+                    $survivalDiff = $biomeRow['survival_difficulty'] ?? 0;
                 }
             }
+        }
 
-            // Формируем текст для ситуации "базы нет"
-            $text = "🤖 Это снова я – *Роби*!\n\n"
-                . "У тебя *нет* ещё разбитого лагеря, а значит и нет базы.\n\n"
-                . "Ты сейчас находишься в локации:\n"
-                . "• Координаты: X={$coordX}, Y={$coordY}\n"
-                . "• Биом: *{$biomeName}*\n"
-                . "• Опасность: {$dangerLevel}\n"
-                . "• Сложность выживания: {$survivalDiff}\n";
+        // Формируем текст "базы нет"
+        $text = "🤖 Это снова я – *Роби*!\n\n"
+            . "У тебя *нет* ещё разбитого лагеря, а значит и нет базы.\n\n"
+            . "Ты сейчас находишься в локации:\n"
+            . "• Координаты: X={$coordX}, Y={$coordY}\n"
+            . "• Биом: *{$biomeName}*\n"
+            . "• Опасность: {$dangerLevel}\n"
+            . "• Сложность выживания: {$survivalDiff}\n";
 
-            // Если есть описание биома, добавим
-            if ($biomeDesc) {
-                $text .= "• _Описание_: {$biomeDesc}\n\n";
-            } else {
-                $text .= "\n";
-            }
+        if ($biomeDesc) {
+            $text .= "• _Описание_: {$biomeDesc}\n\n";
+        } else {
+            $text .= "\n";
+        }
 
-            $text .= "Для разбивки лагеря используй кнопку ниже:";
+        $text .= "Для разбивки лагеря используй кнопку ниже:";
 
-            // Кнопка «Разбить лагерь»
-            $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        // Нажатие этой кнопки будет обрабатывать колбэк 'Camp',
-                        // где мы можем вызвать showCampCreation(...)
-                        ['text' => '🏕 Разбить лагерь', 'callback_data' => 'Camp'],
-                    ],
-                ]
-            ];
+        // Кнопка «Разбить лагерь»
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '🏕 Разбить лагерь', 'callback_data' => 'Camp'],
+                ],
+            ]
+        ];
 
+        return Request::sendMessage([
+            'chat_id'      => $chatId,
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
+        ]);
+    }
+
+    /**
+     * Показывает ситуацию, когда у игрока есть база,
+     * но он НЕ находится физически (и нет покрытия).
+     */
+    protected function showNotOnBaseInfo(int $chatId, array $claimedCell): ServerResponse
+    {
+        $mapRow = $this->mapModel
+            ->where('cell_number', $claimedCell['map_cell_id'])
+            ->first();
+        if (!$mapRow) {
             return Request::sendMessage([
-                'chat_id'      => $chatId,
-                'text'         => $text,
-                'parse_mode'   => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
+                'chat_id' => $chatId,
+                'text'    => 'Ошибка: не удалось найти карту для базы.',
             ]);
         }
 
-        // --------------------------------------------------------------------
-        // 2. Проверяем, находится ли персонаж на ячейке базы
-        // --------------------------------------------------------------------
-        if ($claimedCell['map_cell_id'] !== $characterRow['cell_number']) {
-            // Если персонаж НЕ на своей базе, готовим другое сообщение
-            $mapRow = $this->mapModel
-                ->where('cell_number', $claimedCell['map_cell_id'])
-                ->first();
-            if (!$mapRow) {
-                return Request::sendMessage([
-                    'chat_id' => $chatId,
-                    'text'    => 'Ошибка: не удалось найти карту для базы.',
-                ]);
-            }
+        $biomeRow  = $this->biomeModel->where('id', $mapRow['biome_id'])->first();
+        $biomeName = $biomeRow['name'] ?? '???';
 
-            $biomeRow  = $this->biomeModel->where('id', $mapRow['biome_id'])->first();
-            $biomeName = $biomeRow['name'] ?? '???';
+        $coordX = $mapRow['coordinate_x'];
+        $coordY = $mapRow['coordinate_y'];
 
-            $coordX = $mapRow['coordinate_x'];
-            $coordY = $mapRow['coordinate_y'];
+        $text = "🤖 Это снова я – *Роби*!\n\n"
+            . "Твоя база находится в другой ячейке, и сигнал вышки связи туда не дотягивается.\n"
+            . "Чтобы начать строительство или управлять базой, вернись физически:\n\n"
+            . "1️⃣ дойти пешком\n"
+            . "2️⃣ телепорт\n\n"
+            . "📍 *Координаты базы*: x={$coordX} y={$coordY}\n"
+            . "🌍 *Биом*: {$biomeName}";
 
-            $text = "🤖 Это снова я – *Роби*!\n\n"
-                . "Твоя база находится в другой игровой ячейке, ты не дома! "
-                . "Чтобы начать строительство, вернись на базу, используя:\n\n"
-                . "1️⃣ переезд пешком\n"
-                . "2️⃣ телепорт на выбор\n\n"
-                . "📍 *Координаты базы*: x={$coordX} y={$coordY}\n"
-                . "🌍 *Биом*: {$biomeName}";
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
+                    ['text' => '🚜 Переехать', 'callback_data' => 'move'],
+                ],
+            ]
+        ];
 
-            $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
-                        ['text' => '🚜 Переехать', 'callback_data' => 'move'],
-                    ],
-                ]
-            ];
+        $imagePath = base_url('uploads/telegram/camp/an_empty_area.jpg');
 
-            $imagePath = base_url('uploads/telegram/camp/an_empty_area.jpg');
+        return Request::sendPhoto([
+            'chat_id'      => $chatId,
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
+        ]);
+    }
 
-            return Request::sendPhoto([
-                'chat_id'      => $chatId,
-                'photo'        => Request::encodeFile($imagePath),
-                'caption'      => $text,
-                'parse_mode'   => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
-            ]);
-        }
-
-        // --------------------------------------------------------------------
-        // 3. Если персонаж действительно на базе → показываем список построек
-        // --------------------------------------------------------------------
+    /**
+     * Показывает список построек (как если бы физически),
+     * но если coverageResult передан и isCovered=true,
+     * добавляет фразу «Вы управляете базой дистанционно через вышку связи» и т.д.
+     *
+     * @param array $claimedCell — запись из claimed_cells
+     * @param array|null $coverageResult — результат checkCoverage,
+     *        или null, если мы действительно физически на базе
+     */
+    protected function showBaseBuildings(
+        int $chatId,
+        array $characterRow,
+        array $claimedCell,
+        ?array $coverageResult = null
+    ): ServerResponse
+    {
+        // Собираем список построек
         $buildings = $this->characterBuildingModel
             ->where('character_id', $characterRow['id'])
             ->findAll();
@@ -202,12 +256,28 @@ class BaseService
         // Собираем строку списка построек
         $buildingList = '';
         foreach ($buildings as $b) {
-            $bld = $this->buildingModel->where('id', $b['building_id'])->first();
+            $bld = $this->buildingModel->find($b['building_id']);
             $bName = $bld['name_ru'] ?? 'Неизвестное строение';
             $buildingList .= "- {$bName}\n";
         }
 
+        // Если coverageResult != null и coverageResult['isCovered']=true,
+        // значит управляем "дистанционно"
+        $coverageText = "";
+        if ($coverageResult && $coverageResult['isCovered']) {
+            $towerLevel    = $coverageResult['towerLevel'];
+            $distance      = $coverageResult['distanceToBase'];
+            $maxCoverage   = $coverageResult['maxCoverage'];
+
+            $coverageText = "\n_Вы сейчас не физически на базе,_\n"
+                . "_но сигнал *Вышки связи* (ур. {$towerLevel}) покрывает *{$distance}* ходов_\n"
+                . "_(лимит: {$maxCoverage} ходов)._\n"
+                . "**Управление базой доступно дистанционно!**\n\n";
+        }
+
         $text = "🤖 Это я – *Роби*!\n\n"
+            // Если coverageText заполнен — добавим его
+            . ($coverageText ?: '')
             . "📍 *Координаты базы*: x={$coordX} y={$coordY}\n"
             . "🌍 *Биом*: {$biomeName}\n\n"
             . "*Твоя база содержит:*\n"
@@ -219,9 +289,9 @@ class BaseService
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🏗 Строить',    'callback_data' => 'Build'],
-                    ['text' => '🏘 Постройки',  'callback_data' => 'construction'],
-                    ['text' => '📡 Маяки',  'callback_data' => 'teleportBeacon'],
+                    ['text' => '🏗 Строить',      'callback_data' => 'Build'],
+                    ['text' => '🏘 Постройки',    'callback_data' => 'construction'],
+                    ['text' => '📡 Маяки',        'callback_data' => 'teleportBeacon'],
                 ],
                 [
                     ['text' => '❌ Удалить базу', 'callback_data' => 'DeleteBase'],
@@ -308,7 +378,7 @@ class BaseService
             . "все построенные сооружения будут утеряны!\n\n"
             . "Подтверждаешь создание лагеря?";
 
-        // Кнопки подтверждения/отмены
+        // Кнопки подтверждения
         $keyboard = [
             'inline_keyboard' => [
                 [
