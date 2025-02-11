@@ -1,16 +1,19 @@
 <?php
 
-namespace app\TaskHandlers\Craft\WorkbenchStandard;
+namespace app\TaskHandlers\Craft\WorkbenchStandard\Armor;
 
 use App\Models\CharacterModel;
+use App\Models\CharactersOutfitsModel;
 use App\Models\CharacterTaskModel;
+use App\Models\OutfitModel;
 use App\Models\TelegramUserModel;
-use App\Models\OutfitModel;            // <-- Чтобы взять RaggedShirt из outfits
-use App\Models\CharactersOutfitsModel; // <-- Индивидуальные записи амуниции
 use CodeIgniter\Controller;
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
+
+// <-- Чтобы взять RaggedShirt из outfits
+// <-- Индивидуальные записи амуниции
 
 /**
  * Класс, завершающий крафт "Рваной рубахи" (RaggedShirt).

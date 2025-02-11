@@ -39,18 +39,18 @@ class ArmorCraft2Select extends BaseAction
                     ['text' => '🧥 Кожаная куртка',       'callback_data' => 'armorLeatherJacket'],
                     ['text' => '🪡 Усил. кож. куртка',    'callback_data' => 'armorReinforcedLeather'],
                 ],
-                [
-                    ['text' => '🔩 Нагр. из металлолома', 'callback_data' => 'armorScrapChestplate'],
-                    ['text' => '🪖 Ст. арм. бронежилет',  'callback_data' => 'armorOldArmyVest'],
-                ],
-                [
-                    ['text' => '🦺 Охотничий жилет',      'callback_data' => 'armorHunterVest'],
-                    ['text' => '🤺 Полный латный (ржав.)','callback_data' => 'armorRustyPlate'],
-                ],
-                [
-                    ['text' => '🏴 Броня наёмника',       'callback_data' => 'armorMercArmor'],
-                    ['text' => '🥷 Самурайский доспех',   'callback_data' => 'armorSamuraiArmor'],
-                ],
+//                [
+//                    ['text' => '🔩 Нагр. из металлолома', 'callback_data' => 'armorScrapChestplate'],
+//                    ['text' => '🪖 Ст. арм. бронежилет',  'callback_data' => 'armorOldArmyVest'],
+//                ],
+//                [
+//                    ['text' => '🦺 Охотничий жилет',      'callback_data' => 'armorHunterVest'],
+//                    ['text' => '🤺 Полный латный (ржав.)','callback_data' => 'armorRustyPlate'],
+//                ],
+//                [
+//                    ['text' => '🏴 Броня наёмника',       'callback_data' => 'armorMercArmor'],
+//                    ['text' => '🥷 Самурайский доспех',   'callback_data' => 'armorSamuraiArmor'],
+//                ],
             ]
         ];
 

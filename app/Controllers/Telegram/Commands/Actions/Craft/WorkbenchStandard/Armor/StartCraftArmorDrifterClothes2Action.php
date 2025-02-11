@@ -16,10 +16,10 @@ use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
 /**
- * Шаг 2 (окончательный): запускаем крафт "Рваная рубаха" (RaggedShirt) — на X штук.
- * С учётом проверки, чтобы нельзя было повторно запустить тот же крафт, если он уже in_work.
+ * Аналог класса StartCraftArmorRaggedShirt2Action, но для "Одежды бродяги" (DrifterClothes).
+ * Содержит проверку, чтобы нельзя было запустить второй крафт "Одежды бродяги", если один уже выполняется.
  */
-class StartCraftArmorRaggedShirt2Action extends BaseAction
+class StartCraftArmorDrifterClothes2Action extends BaseAction
 {
     protected $characterResourceModel;
     protected $characterModel;
@@ -47,7 +47,7 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
         $this->characterTaskModel       = new CharacterTaskModel();
         $this->taskModel                = new TaskModel();
 
-        // Разбираем callback_data, напр. "startCraftRaggedShirt2_10" => quantity=10
+        // Разбираем кол-во из callback_data (например: startCraftDrifterClothes2_10)
         $data  = $callbackQuery->getData();
         $parts = explode('_', $data);
         if (isset($parts[1]) && is_numeric($parts[1])) {
@@ -59,12 +59,11 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
         [$user, $character] = $this->getUserAndCharacter();
-
         if (!$user || !$character) {
             return $this->sendError($chatId, 'Пользователь или персонаж не найден.');
         }
 
-        // 1) проверка переезда
+        // Проверка активного переезда
         if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
             $character['id'],
             $this->callbackQuery->getId(),
@@ -73,18 +72,16 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
             return Request::emptyResponse();
         }
 
-        // 2) наличие базы
-        $base = $this->claimedCellModel
-            ->where('character_id', $character['id'])
-            ->first();
+        // Проверяем наличие базы
+        $base = $this->claimedCellModel->where('character_id', $character['id'])->first();
         if (!$base) {
-            return $this->sendError($chatId, 'У вас нет построенной базы (лагеря).');
+            return $this->sendError($chatId, 'У вас нет построенной базы.');
         }
 
-        // 3) проверяем WorkbenchOne (крафтовый предмет)
+        // Проверяем наличие верстака 1 уровня (пример)
         $workbenchItem = $this->craftedItemsModel->where('name_eng', 'WorkbenchOne')->first();
         if (!$workbenchItem) {
-            return $this->sendError($chatId, 'Не найдена запись о WorkbenchOne (крафтовый предмет)!');
+            return $this->sendError($chatId, 'Не найдено "WorkbenchOne" в crafted_items!');
         }
         $wbLog = $this->craftedItemsLogModel
             ->where('character_id', $character['id'])
@@ -94,14 +91,15 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
             return $this->sendError($chatId, 'У вас нет Верстака 1-го уровня (WorkbenchOne).');
         }
 
-        // 4) требования
-        $requiredGold       = 300;
-        $requiredComponents = ['Ткань' => 6];
+        // Требования (за 1 шт.) — см. ArmorDrifterClothes2Action
+        $requiredGold = 500;
+        $requiredComponents = [
+            'Ткань' => 8,
+            'Складной нож' => 1,
+        ];
 
-        // умножаем на кол-во
+        // Считаем итог
         $totalGold = $requiredGold * $this->quantity;
-
-        // 4.1) золото
         $goldAmount = (int) $character['gold'];
         if ($goldAmount < $totalGold) {
             return $this->sendError(
@@ -110,90 +108,88 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
             );
         }
 
-        // 4.2) крафтовые компоненты
+        // Проверяем крафтовые предметы
         foreach ($requiredComponents as $itemName => $reqPerOne) {
-            $totalNeeded = $reqPerOne * $this->quantity;
+            $needed = $reqPerOne * $this->quantity;
             $craftedItem = $this->craftedItemsModel->getCraftedItemByName($itemName);
             if (!$craftedItem) {
-                return $this->sendError($chatId, "Не найден предмет «{$itemName}» в БД!");
+                return $this->sendError($chatId, "Предмет «{$itemName}» не найден в crafted_items!");
             }
-
             $logRow = $this->craftedItemsLogModel
                 ->where('character_id', $character['id'])
                 ->where('crafted_item_id', $craftedItem['id'])
                 ->first();
-            $haveQty = $logRow ? (int) $logRow['quantity'] : 0;
-            if ($haveQty < $totalNeeded) {
+            $haveQty = $logRow ? $logRow['quantity'] : 0;
+            if ($haveQty < $needed) {
                 return $this->sendError(
                     $chatId,
-                    "Недостаточно «{$itemName}». Нужно {$totalNeeded}, а есть {$haveQty}."
+                    "Недостаточно «{$itemName}»: нужно {$needed}, а есть {$haveQty}."
                 );
             }
         }
 
-        // 5) ищем/создаём задачу craftArmorRaggedShirt
-        $taskRow = $this->taskModel->where('name', 'craftArmorRaggedShirt')->first();
+        // Получаем (или создаём) сам taskRow
+        $taskRow = $this->taskModel->where('name', 'craftArmorDrifterClothes')->first();
         if (!$taskRow) {
-            // создаём
-            $taskData = [
-                'name'                       => 'craftArmorRaggedShirt',
-                'name_rus'                   => 'Крафт Рваной рубахи',
-                'description'                => 'Процесс крафта рубахи',
-                'min_duration'               => 3,
-                'max_duration'               => 10,
+            $newTaskId = $this->taskModel->insert([
+                'name'                       => 'craftArmorDrifterClothes',
+                'name_rus'                   => 'Крафт Одежды бродяги',
+                'description'                => 'Процесс крафта Одежды бродяги',
+                'min_duration'               => 5,
+                'max_duration'               => 15,
                 'type'                       => 'craft',
-                'difficulty_level'           => 3,
+                'difficulty_level'           => 4,
                 'execution_limit'            => 0,
                 'parallel_execution_allowed' => 1,
                 'interruptible'              => 1,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+            $taskRow = [
+                'id' => $newTaskId,
+                'name' => 'craftArmorDrifterClothes',
             ];
-            $newTaskId = $this->taskModel->insert($taskData);
-            if (!$newTaskId) {
-                return $this->sendError($chatId, 'Не удалось создать задачу craftArmorRaggedShirt.');
-            }
-            $taskRow = array_merge($taskData, ['id' => $newTaskId]);
         }
 
-        // === проверка на уже активный крафт рубахи ===
-        $activeTask = $this->characterTaskModel
+        // --- Новая проверка --- Нельзя создавать вторую задачу крафта "Одежда бродяги",
+        // если уже есть in_work
+        $existingInWork = $this->characterTaskModel
             ->where('character_id', $character['id'])
-            ->where('task_id', $taskRow['id'])
+            ->where('task_id', $taskRow['id']) // в том же task_id
             ->where('status', 'in_work')
             ->first();
-        if ($activeTask) {
-            return $this->sendError($chatId, "У вас уже идёт крафт Рваной рубахи!");
+
+        if ($existingInWork) {
+            return $this->sendError(
+                $chatId,
+                'У вас уже идёт крафт "Одежды бродяги"! Дождитесь завершения прежде чем начинать новый.'
+            );
         }
 
-        // 6) списываем золото и предметы
-        // 6.1) золото
+        // --- Списываем золото и предметы ---
         $this->characterModel
             ->where('id', $character['id'])
-            ->set('gold', 'gold - '.$totalGold, false)
+            ->set('gold', 'gold - ' . $totalGold, false)
             ->update();
 
-        // 6.2) предметы
+        // Списываем крафтовые компоненты
         foreach ($requiredComponents as $itemName => $reqPerOne) {
-            $totalNeeded = $reqPerOne * $this->quantity;
+            $needed = $reqPerOne * $this->quantity;
             $craftedItem = $this->craftedItemsModel->getCraftedItemByName($itemName);
-
             $logRow = $this->craftedItemsLogModel
                 ->where('character_id', $character['id'])
                 ->where('crafted_item_id', $craftedItem['id'])
                 ->first();
-            $newQty = $logRow['quantity'] - $totalNeeded;
+            $newQty = $logRow['quantity'] - $needed;
             $this->craftedItemsLogModel->update($logRow['id'], ['quantity' => $newQty]);
         }
 
-        // 7) считаем время крафта
-        $timeForOne = 5; // 5 мин на 1 шт.
+        // Создаём задачу
+        $timeForOne = 8; // 8 мин на 1 шт
         $totalTime  = $timeForOne * $this->quantity;
-
         $startTime = new \DateTime();
         $endTime   = (clone $startTime)->add(new \DateInterval("PT{$totalTime}M"));
 
-        // 8) создаём запись в character_tasks
         $this->characterTaskModel->insert([
             'character_id'     => $character['id'],
             'telegram_user_id' => $user['id'],
@@ -202,22 +198,21 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
             'end_time'         => $endTime->format('Y-m-d H:i:s'),
             'status'           => 'in_work',
             'task_settings'    => json_encode([
-                'item_crafted' => 'RaggedShirt',
+                'item_crafted' => 'DrifterClothes',
                 'quantity'     => $this->quantity,
             ]),
         ]);
 
-        // убираем "часики" на кнопке
+        // Убираем "часики" на inline-кнопке
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId()
         ]);
 
-        // 9) сообщаем успех
-        $text = "*Начат крафт {$this->quantity} шт. «Рваной рубахи»*\n\n"
-            . "Общее время крафта: ~{$totalTime} мин.\n"
-            . "После завершения получишь {$this->quantity} шт.\n";
+        $text = "*Начат крафт {$this->quantity} шт. «Одежды бродяги»*\n"
+            . "Общее время крафта: ~{$totalTime} минут.\n"
+            . "По завершении вы получите {$this->quantity} шт.\n";
 
-        $imagePath = base_url('uploads/telegram/craft/standard/ragged_shirt.jpg');
+        $imagePath = base_url('uploads/telegram/craft/standard/drifter_clothes.jpg');
         return Request::sendPhoto([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
@@ -231,11 +226,10 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId()
         ]);
-
         return Request::sendMessage([
             'chat_id'    => $chatId,
             'text'       => $msg,
-            'parse_mode' => 'Markdown'
+            'parse_mode' => 'Markdown',
         ]);
     }
 }

@@ -176,6 +176,12 @@ class CallbackqueryCommand extends SystemCommand
             'weaponsCraft2' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Weapons\WeaponsCraft2Select::class,
             'armorRaggedShirt' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Armor\ArmorRaggedShirt2Action::class,
             'startCraftRaggedShirt2' =>     \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Armor\StartCraftArmorRaggedShirt2Action::class,
+            'armorDrifterClothes' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Armor\ArmorDrifterClothes2Action::class,
+            'startCraftDrifterClothes2' =>     \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Armor\StartCraftArmorDrifterClothes2Action::class,
+            'armorLeatherJacket' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Armor\ArmorLeatherJacket2Action::class,
+            'startCraftLeatherJacket2' =>     \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Armor\StartCraftLeatherJacket2Action::class,
+            'armorReinforcedLeather' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Armor\ArmorReinforcedLeather2Action::class,
+            'startCraftReinforcedLeather2' =>     \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Armor\StartCraftReinforcedLeather2Action::class,
 
             'AllRobots' =>              \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\AllRobotsHandler::class,
             'activateRobot' =>          \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\ActivateRobotHandler::class,
