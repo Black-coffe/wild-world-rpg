@@ -477,6 +477,10 @@ class Worker extends Controller
         'craftArmorDrifterClothes' => 'Craft\WorkbenchStandard\Armor\CraftCompletionDrifterClothesHandler',
         'craftLeatherJacket' => 'Craft\WorkbenchStandard\Armor\CraftCompletionLeatherJacketHandler',
         'craftReinforcedLeatherJacket' => 'Craft\WorkbenchStandard\Armor\CraftCompletionReinforcedLeatherHandler',
+        'craftMetalSpear' => 'Craft\WorkbenchStandard\Weapons\CraftCompletionMetalSpearHandler',
+        'craftPipeGun' => 'Craft\WorkbenchStandard\Weapons\CraftCompletionPipeGunHandler',
+        'craftWiredBat' => 'Craft\WorkbenchStandard\Weapons\CraftCompletionWiredBatHandler',
+        'craftCrossbowMk1' => 'Craft\WorkbenchStandard\Weapons\CraftCompletionCrossbowMk1Handler',
 
         // Другие соответствия
     ];

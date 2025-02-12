@@ -115,7 +115,7 @@ class BuiltCompletionBlastFurnaceHandler extends Controller
                 'tax' => $buildingBlock['tax'],
                 'usage' => $buildingBlock['usage'],
             ];
-            log_message('debug', 'Inserting new building: ' . print_r($data, true));
+//            log_message('debug', 'Inserting new building: ' . print_r($data, true));
             $this->characterBuildingModel->insert($data);
             if ($this->characterBuildingModel->errors()) {
                 log_message('error', 'Insert errors: ' . print_r($this->characterBuildingModel->errors(), true));

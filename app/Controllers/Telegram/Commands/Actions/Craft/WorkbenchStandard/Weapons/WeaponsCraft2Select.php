@@ -14,7 +14,7 @@ class WeaponsCraft2Select extends BaseAction
 
         // Краткое описание раздела с эмоджи
         $text = "*Ты в разделе ⚔️ Оружие!* 🏭\n\n"
-            . "Ниже — 10 менее эффективных образцов (по возрастанию урона), которые можно скрафтить на стандартном верстаке.\n\n"
+            . "Ниже — 10 образцов (по возрастанию урона), которые можно скрафтить на стандартном верстаке.\n\n"
             . "Выбирай нужную модель и приступай к изготовлению:\n\n"
             . "1) 🗡️ *Металлическое копьё*\n"
             . "2) 🔫 *Трубчатый пистолет (Pipe Gun)*\n"
@@ -38,18 +38,18 @@ class WeaponsCraft2Select extends BaseAction
                     ['text' => '🏏 Усоверш. бита',       'callback_data' => 'craftWiredBat'],
                     ['text' => '🏹 Арбалет Mk.I',        'callback_data' => 'craftCrossbowMk1'],
                 ],
-                [
-                    ['text' => '🔫 Полуавт. пистолет',  'callback_data' => 'craftSemiAutoPistol'],
-                    ['text' => '⚡ Электрошок дубинка',  'callback_data' => 'craftElectroBaton'],
-                ],
-                [
-                    ['text' => '🔫 Тактический ПП',      'callback_data' => 'craftTacticalSMG'],
-                    ['text' => '🔫 Обрез (усил.)',       'callback_data' => 'craftShortShotgun'],
-                ],
-                [
-                    ['text' => '⚡ «Тесла-кастет»',       'callback_data' => 'craftTeslaKnuckles'],
-                    ['text' => '🔫 Боевой дробовик',     'callback_data' => 'craftCombatShotgun'],
-                ],
+//                [
+//                    ['text' => '🔫 Полуавт. пистолет',  'callback_data' => 'craftSemiAutoPistol'],
+//                    ['text' => '⚡ Электрошок дубинка',  'callback_data' => 'craftElectroBaton'],
+//                ],
+//                [
+//                    ['text' => '🔫 Тактический ПП',      'callback_data' => 'craftTacticalSMG'],
+//                    ['text' => '🔫 Обрез (усил.)',       'callback_data' => 'craftShortShotgun'],
+//                ],
+//                [
+//                    ['text' => '⚡ «Тесла-кастет»',       'callback_data' => 'craftTeslaKnuckles'],
+//                    ['text' => '🔫 Боевой дробовик',     'callback_data' => 'craftCombatShotgun'],
+//                ],
             ]
         ];
 

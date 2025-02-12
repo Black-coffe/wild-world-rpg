@@ -168,4 +168,22 @@ class CharacterModel extends Model
             'intellect' => $newIntellect
         ]);
     }
+
+    public function updateStrengthAndAgility(int $characterId, float $strPlus, float $agiPlus): bool
+    {
+        $row = $this->find($characterId);
+        if (!$row) {
+            log_message('error', "Character #$characterId not found for Strength/Agility update.");
+            return false;
+        }
+
+        $newStr = round($row['strength'] + $strPlus, 2);
+        $newAgi = round($row['agility'] + $agiPlus, 2);
+
+        return $this->update($characterId, [
+            'strength' => $newStr,
+            'agility'  => $newAgi,
+        ]);
+    }
+
 }
