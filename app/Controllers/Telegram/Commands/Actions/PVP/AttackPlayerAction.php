@@ -11,6 +11,7 @@ use App\Models\CharacterFactionModel;
 use App\Models\FactionModel;
 use App\Models\ExploredCellsModel;
 use App\Models\ClaimedCellModel;
+use App\Models\BattleLogModel;
 
 // Новые модели для оружия и брони:
 use App\Models\CharactersWeaponsModel;
@@ -91,6 +92,7 @@ class AttackPlayerAction extends BaseAction
     protected $weaponsModel;
     protected $charactersOutfitsModel;
     protected $outfitsModel;
+    protected $battleLogModel;
 
     public function __construct($callbackQuery)
     {
@@ -110,6 +112,9 @@ class AttackPlayerAction extends BaseAction
         $this->weaponsModel           = new WeaponModel();
         $this->charactersOutfitsModel = new CharactersOutfitsModel();
         $this->outfitsModel           = new OutfitModel();
+
+        // Новое свойство для записи логов боёв:
+        $this->battleLogModel = new BattleLogModel();
     }
 
     /**
@@ -117,6 +122,9 @@ class AttackPlayerAction extends BaseAction
      */
     public function handle(): ServerResponse
     {
+        // Новое: фиксируем время начала боя (для created_at)
+        $battleStartTime = date('Y-m-d H:i:s');
+
         // Ожидаем callback_data вида "attackPlayer_###"
         $callbackData = $this->callbackQuery->getData();
         $parts        = explode('_', $callbackData);
@@ -166,10 +174,10 @@ class AttackPlayerAction extends BaseAction
         $attacker['faction'] = $this->getCharacterFaction($attacker['id']);
         $defender['faction'] = $this->getCharacterFaction($defender['id']);
 
-        // 1) Симуляция боя
+        // --- (1) СИМУЛЯЦИЯ БОЯ ---
         $fightResult = $this->simulateFight($attacker, $defender, $biome);
 
-        // 2) Короткий текст о ходе боя
+        // --- (2) Итоговое описание (для Телеграм) ---
         $summaryText = $this->formatShortFightResult($fightResult);
 
         $attackerIntro = '';
@@ -180,7 +188,7 @@ class AttackPlayerAction extends BaseAction
         $attackerName = $attacker['name'];
         $defenderName = $defender['name'];
 
-        // --- Случай: ничья, оба выдохлись ---
+        // Сценарий ничья (оба упали без сил)
         if ($fightResult['type'] === 'exhausted') {
             $this->processMutualExhaustion($attacker, $defender);
             $summaryText .= "\n\n<b>Оба бойца изнемогли</b> и решили прекратить схватку!\n"
@@ -190,45 +198,39 @@ class AttackPlayerAction extends BaseAction
             $attackerIntro = "Ты участвовал в битве, но оба упали без сил.";
             $defenderIntro = "Тебя атаковали, но сражение закончилось взаимным изнеможением.";
         }
-        // --- Есть победитель и проигравший ---
+        // Сценарий есть победитель
         elseif ($loser !== null && $winner !== null) {
             // DeathService
             $deathService = new DeathService();
             $deathResult  = $deathService->handlePlayerDeathAndReward($loser['id'], $winner['id']);
-            // penalty=0 => страховка; 0.03 => есть база; 0.5 => нет базы
             $penaltyPercent = (int)($deathResult['penalty'] * 100);
 
             if ($penaltyPercent === 0) {
                 $summaryText .= "\n\n❌ <b>{$loser['name']}</b> потерпел поражение, но страховка спасла от потери имущества!";
             } else {
-                // -5% XP, -0.5% статов
                 $loserBefore = $loser;
                 $this->processDeathAndRespawn($loser);
                 $loser = $this->characterModel->find($loser['id']); // обновлённый
-
                 $loserDiffText = $this->makeLoserDiffText($loserBefore);
 
                 if ($deathResult['hasBase']) {
-                    // База => 3%
                     $summaryText .= "\n\n❌ <b>{$loser['name']}</b> повержен и возродился...\n"
                         . $loserDiffText
-                        . "\nТы потерял лишь <b>{$penaltyPercent}%</b> ресурсов/крафта/золота, ведь база частично спасла запасы."
+                        . "\nТы потерял лишь <b>{$penaltyPercent}%</b> ресурсов, ведь база частично спасла запасы."
                         . "\nНо <b>враг забрал</b> эти <b>{$penaltyPercent}%</b>!";
                 } else {
-                    // Нет базы => 50%
                     $summaryText .= "\n\n❌ <b>{$loser['name']}</b> проиграл бой и был возрождён...\n"
                         . $loserDiffText
                         . "\nТы оказался <b>без базы</b>, так что потерял <b>50%</b> ресурсов/крафта/золота: "
                         . "<i>половина исчезла бесследно, половина (25%) досталась врагу.</i>";
                 }
             }
-
             // Награда победителю
-            $winnerBefore     = $winner;
+            $winnerBefore = $winner;
             $this->giveWinnerBonus($winner['id']);
-            $winner           = $this->characterModel->find($winner['id']);
-            $winnerDiffText   = $this->makeWinnerDiffText($winnerBefore);
-            $summaryText     .= "\n\n🏆 <b>{$winner['name']}</b> торжествует! {$winnerDiffText}";
+            $winner = $this->characterModel->find($winner['id']);
+            $winnerDiffText = $this->makeWinnerDiffText($winnerBefore);
+            $summaryText   .= "\n\n🏆 <b>{$winner['name']}</b> торжествует! {$winnerDiffText}";
 
             $attackerIntro = ($attacker['id'] === $winner['id'])
                 ? "Ты атаковал и разгромил врага!"
@@ -239,11 +241,11 @@ class AttackPlayerAction extends BaseAction
                 : "Тебя атаковали, и ты пал в этом бою...";
         }
 
-        // Итоговые сообщения
+        // Формируем финальные тексты
         $attackerFinalText = "🤺 <b>{$attackerName}</b>, {$attackerIntro}\n\n{$summaryText}";
         $defenderFinalText = "🛡 <b>{$defenderName}</b>, {$defenderIntro}\n\n{$summaryText}";
 
-        // Отправка атакующему
+        // Отправка ответов
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId(),
         ]);
@@ -267,6 +269,64 @@ class AttackPlayerAction extends BaseAction
         // Уведомляем защищающегося
         $this->notifyDefender($defender, $attacker, $defenderFinalText);
 
+        // --- НОВОЕ: Логируем бой в таблицу battle_logs ---
+        $endTime = date('Y-m-d H:i:s');   // Время окончания боя
+
+        // Определяем тип боя — тут всегда PVP. Если бы был NPC, можно ставить 'PVE'.
+        $battleType = 'PVP';
+
+        // ID победителя (или null, если ничья)
+        $winnerId = ($winner) ? $winner['id'] : null;
+
+        // Подготовим подробный JSON:
+        $logDetails = [
+            'characters' => [
+                'attacker' => [
+                    'id'       => $attacker['id'],
+                    'name'     => $attacker['name'],
+                    'level'    => $attacker['level'],
+                    'faction'  => $attacker['faction']['name'] ?? null,
+                    'strength' => $attacker['strength'],
+                    'agility'  => $attacker['agility'],
+                    'intellect'=> $attacker['intellect'],
+                    'health'   => $attacker['health'],
+                ],
+                'defender' => [
+                    'id'       => $defender['id'],
+                    'name'     => $defender['name'],
+                    'level'    => $defender['level'],
+                    'faction'  => $defender['faction']['name'] ?? null,
+                    'strength' => $defender['strength'],
+                    'agility'  => $defender['agility'],
+                    'intellect'=> $defender['intellect'],
+                    'health'   => $defender['health'],
+                ],
+            ],
+            'rounds' => $fightResult['roundLogs'] ?? [],
+            'outcome' => [
+                'type'     => $fightResult['type'],
+                'winnerId' => $winnerId,
+                'loserId'  => ($loser) ? $loser['id'] : null,
+            ],
+        ];
+
+        $logJson = json_encode($logDetails, JSON_UNESCAPED_UNICODE);
+
+        // Сформируем массив для модели:
+        $battleData = [
+            'battle_type' => $battleType,
+            'player1_id'  => $attacker['id'],
+            'player2_id'  => $defender['id'],
+            'winner_id'   => $winnerId,
+            'created_at'  => $battleStartTime,
+            'finished_at' => $endTime,
+            'log_data'    => $logJson
+        ];
+
+        // Запишем в таблицу
+        $this->battleLogModel->insert($battleData);
+        // -- конец логирования --
+
         return Request::emptyResponse();
     }
 
@@ -276,6 +336,9 @@ class AttackPlayerAction extends BaseAction
      */
     private function simulateFight(array $p1, array $p2, array $biome): array
     {
+        // Массив для логов раундов
+        $roundLogs = [];
+
         $attacker = $this->determineInitiative($p1, $p2);
         $defender = ($attacker['id'] === $p1['id']) ? $p2 : $p1;
 
@@ -290,39 +353,72 @@ class AttackPlayerAction extends BaseAction
         while ($attacker['health'] > 0 && $defender['health'] > 0 && $round < $maxRounds) {
             $round++;
 
+            // Каждые N раундов повышаем damageBoost
             if ($round % self::ROUNDS_PER_DAMAGE_INCREASE === 0) {
                 $damageBoost += self::DAMAGE_INCREASE_PER_STEP;
             }
 
-            // LuckyStrike
+            // Проверка LuckyStrike (влияет ли оно перед computeDamage?)
             $luckyStrikeActive = $this->checkLuckyStrike($attacker, $defender);
 
-            // Рассчитываем урон
-            $damage = $this->computeDamage(
-                $attacker,
-                $defender,
-                $biome,
-                $luckyStrikeActive,
-                $isFirstHit
-            );
+            // Получаем подробные расчёты урона
+            $calc = $this->computeDamage($attacker, $defender, $biome, $luckyStrikeActive, $isFirstHit);
 
-            // Увеличение damageBoost
-            $damage *= $damageBoost;
-
-            // Если LuckyStrike => x1.5 + debuff
+            // Исходное "finalDamage" от computeDamage (без учёта LuckyStrike x1.5)
+            $damage = $calc['finalDamage'];
+            // Умножаем, если сработал LuckyStrike
+            $luckyStrikeApplied = false;
             if ($luckyStrikeActive) {
-                $damage *= self::LUCKY_STRIKE_DAMAGE_MULT;
+                $damage             *= self::LUCKY_STRIKE_DAMAGE_MULT; // x1.5
                 $this->applyLuckyStrikeDebuff($defender);
+                $luckyStrikeApplied = true;
             }
 
-            // Наносим урон
+            // damageBoost
+            $damage *= $damageBoost;
+
+            // Перед ударом запоминаем здоровье
+            $defHealthBefore = $defender['health'];
+
+            // Применяем урон
             $defender['health'] = max(0, $defender['health'] - $damage);
 
             // Проверяем смерть
             if ($defender['health'] <= 0) {
                 $loser  = $defender;
                 $winner = $attacker;
-                break;
+            }
+
+            // Логируем текущий раунд
+            $roundLogs[] = [
+                'round'   => $round,
+                'attacker'=> $attacker['name'],
+                'defender'=> $defender['name'],
+
+                // Промежуточные расчёты
+                'D_equip'      => round($calc['D_equip'], 2),
+                'D_level'      => round($calc['D_level'], 2),
+                'D_stats'      => round($calc['D_stats'], 2),
+                'D_init'       => round($calc['D_init'], 2),
+                'dodgeChance'  => round($calc['dodgeChance'], 2),
+                'dodgeRoll'    => $calc['dodgeRoll'],
+                'critChance'   => round($calc['critChance'], 2),
+                'critRoll'     => $calc['critRoll'],
+                'biomeCoeff'   => round($calc['biomeCoeff'], 2),
+                'oneShotChance'=> round($calc['oneShotChance'], 2),
+                'oneShotRoll'  => $calc['oneShotRoll'],
+
+                'baseDamageBeforeBoost' => round($calc['finalDamage'], 2),
+                'luckyStrikeApplied'    => $luckyStrikeApplied,
+                'damageBoost'           => $damageBoost,
+                'finalDamage'           => round($damage, 2),
+
+                'defenderHealthBefore'  => round($defHealthBefore, 2),
+                'defenderHealthAfter'   => round($defender['health'], 2),
+            ];
+
+            if ($loser !== null) {
+                break; // бой окончен
             }
 
             // Меняем роли
@@ -331,19 +427,20 @@ class AttackPlayerAction extends BaseAction
             $isFirstHit = false;
         }
 
+        // Проверка на ничью (оба живы, но вышли за maxRounds)
         if ($round >= $maxRounds && $attacker['health'] > 0 && $defender['health'] > 0) {
-            // ничья
             return [
                 'type'          => 'exhausted',
                 'rounds'        => $round,
                 'firstAttacker' => $firstName,
                 'winner'        => null,
                 'loser'         => null,
+                'roundLogs'     => $roundLogs,
             ];
         }
 
+        // Если в конце цикла нет winner/loser, проверяем ещё раз (случай, когда в последнем раунде упал)
         if (!$winner && !$loser) {
-            // Проверим, не погиб ли кто после выхода из цикла
             if ($attacker['health'] <= 0) {
                 $loser  = $attacker;
                 $winner = $defender;
@@ -359,6 +456,7 @@ class AttackPlayerAction extends BaseAction
             'firstAttacker' => $firstName,
             'winner'        => $winner,
             'loser'         => $loser,
+            'roundLogs'     => $roundLogs,
         ];
     }
 
@@ -373,47 +471,103 @@ class AttackPlayerAction extends BaseAction
         array $biome,
         bool  $luckyStrikeActive,
         bool  $isFirstHit
-    ): float
+    ): array
     {
-        // --- 1) D_экип (примерно 75%)
+        // Подсчет экипировки (75%)
         $D_equip = $this->computeEquipmentDamage($attacker, $defender);
 
-        // --- 2) D_level (около 10%)
-        $levelBonus = $this->computeLevelBonus($attacker, $defender);
-        $D_level    = $levelBonus * $D_equip;
+        // Уровневой бонус (10%)
+        $levelBonus  = $this->computeLevelBonus($attacker, $defender);
+        $D_level     = $levelBonus * $D_equip;
 
-        // --- 3) D_stats (около 10%)
-        $statsBonus = $this->computeStatsBonus($attacker);
-        $D_stats    = $statsBonus * $D_equip;
+        // Бонус статов (10%)
+        $statsBonus  = $this->computeStatsBonus($attacker);
+        $D_stats     = $statsBonus * $D_equip;
 
-        // --- 4) D_init (5% только на первый удар)
-        $D_init = $isFirstHit ? (0.05 * $D_equip) : 0;
+        // Инициатива (5%) — только на первый удар
+        $D_init      = $isFirstHit ? (0.05 * $D_equip) : 0.0;
 
-        // Сумма
-        $damage = $D_equip + $D_level + $D_stats + $D_init;
+        // Суммарный базовый урон до уворота/биома/OneShot
+        $baseDamage  = $D_equip + $D_level + $D_stats + $D_init;
 
-        // --- Уворот
-        $dodgeChance = $this->getDodgeChance($defender);
-        if ($this->rollPercent($dodgeChance)) {
-            return 0.0; // уворот
-        }
-
-        // --- Бонус danger_level
+        // Заранее считаем biomeCoeff, чтобы вернуть в любом случае (уворот/неуворот)
         $danger     = $biome['danger_level'] ?? 1;
         $biomeCoeff = 1 + ((max(1, $danger) - 1) * self::DAMAGE_BIOME_BASE);
-        $damage    *= $biomeCoeff;
 
-        // --- One-Shot при diff >= 50
+        // Готовим поля для возвращаемого массива
+        // (oneShotChance / rolls тоже ставим по умолчанию, вдруг не пригодятся)
+        $critChance     = 0;
+        $critRoll       = 0;
+        $oneShotChance  = 0;
+        $oneShotRoll    = 0;
+
+        // Шанс уворота
+        $dodgeChance    = $this->getDodgeChance($defender);
+        $dodgeRoll      = mt_rand(0, 100);
+
+        // Проверяем уворот
+        if ($dodgeRoll < $dodgeChance) {
+            // Возвращаем полный набор ключей, biomeCoeff = 1.0 (или оставим, как вычислили)
+            return [
+                'D_equip'       => $D_equip,
+                'D_level'       => $D_level,
+                'D_stats'       => $D_stats,
+                'D_init'        => $D_init,
+                'dodgeChance'   => $dodgeChance,
+                'dodgeRoll'     => $dodgeRoll,
+                'critChance'    => $critChance,
+                'critRoll'      => $critRoll,
+                'biomeCoeff'    => $biomeCoeff,   // Или 1.0, но лучше вернуть так же
+                'oneShotChance' => $oneShotChance,
+                'oneShotRoll'   => $oneShotRoll,
+                'finalDamage'   => 0.0,           // Уворот -> урон ноль
+                'notes'         => 'Defender dodged'
+            ];
+        }
+
+        // Применяем biome
+        $damageAfterBiome = $baseDamage * $biomeCoeff;
+
+        // Проверяем крит (примерная логика)
+        $critRoll   = mt_rand(0, 100);
+        // У вас может быть реальный critChance из оружия => здесь можно подставить.
+        // Ниже для примера жестко = 15:
+        // $critChance = 15;
+        $isCrit     = ($critRoll < $critChance);
+        if ($isCrit) {
+            $damageAfterBiome *= 2; // x2 при критическом ударе
+        }
+
+        // One-shot при diff >= 50
         $levelDiff = $attacker['level'] - $defender['level'];
         if ($levelDiff >= self::ONESHOT_LEVELDIFF_THRESHOLD) {
             $oneShotChance = min(self::ONESHOT_MAX_CHANCE, ($levelDiff / 1000) * 100);
-            if ($this->rollPercent($oneShotChance)) {
-                // Мгновенная смерть
-                $damage = $defender['health'];
+            $oneShotRoll   = mt_rand(0, 100);
+
+            if ($oneShotRoll < $oneShotChance) {
+                // Убить на месте
+                $damageAfterBiome = $defender['health'];
             }
         }
 
-        return max(0, $damage);
+        // Итог без учёта LuckyStrike (который в simulateFight)
+        $final = max(0, $damageAfterBiome);
+
+        return [
+            'D_equip'       => $D_equip,
+            'D_level'       => $D_level,
+            'D_stats'       => $D_stats,
+            'D_init'        => $D_init,
+            'dodgeChance'   => $dodgeChance,
+            'dodgeRoll'     => $dodgeRoll,
+            'critChance'    => $critChance,
+            'critRoll'      => $critRoll,
+            'biomeCoeff'    => $biomeCoeff,
+            'oneShotChance' => $oneShotChance,
+            'oneShotRoll'   => $oneShotRoll,
+            'finalDamage'   => $final,
+            'notes'         => $isCrit ? 'Crit!' : '',
+        ];
     }
 
     // ----------------------------------------------------------------
