@@ -294,6 +294,10 @@ class BaseService
                     ['text' => '📡 Маяки',        'callback_data' => 'teleportBeacon'],
                 ],
                 [
+                    ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
+                    ['text' => '🚜 Переехать', 'callback_data' => 'move'],
+                ],
+                [
                     ['text' => '❌ Удалить базу', 'callback_data' => 'DeleteBase'],
                     ['text' => '🚚 Полноценный переезд', 'callback_data' => 'DeleteBase_FullRelocation'],
                 ],

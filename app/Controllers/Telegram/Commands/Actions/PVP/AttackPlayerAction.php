@@ -12,16 +12,27 @@ use App\Models\FactionModel;
 use App\Models\ExploredCellsModel;
 use App\Models\ClaimedCellModel;
 
+// Новые модели для оружия и брони:
+use App\Models\CharactersWeaponsModel;
+use App\Models\WeaponModel;
+use App\Models\CharactersOutfitsModel;
+use App\Models\OutfitModel;
+
 use App\Services\Player\PvPRestrictionService;
-use App\Services\Player\DeathService;  // <-- Для списания ресурсов/страховки
+use App\Services\Player\DeathService;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Exception\TelegramException;
 
 /**
  * Класс AttackPlayerAction:
- * Производит PvP-атаку одного игрока на другого, обрабатывает бой, распределяет награды и штрафы.
- * Учитвает новую логику DeathService (штрафы, страховка, ресурсы).
+ * - Производит PvP-атаку одного игрока на другого
+ * - Использует расширенную формулу урона:
+ *     75% экипировка (оружие+броня+штраф дистанции+крит ≤50%)
+ *     10% уровень
+ *     10% характеристики
+ *     5% инициатива (первый удар)
+ * - Плюс LuckyStrike, OneShot, DeathService и т.д.
  */
 class AttackPlayerAction extends BaseAction
 {
@@ -42,24 +53,29 @@ class AttackPlayerAction extends BaseAction
     private const WINNER_ATTR_BONUS_CHANCE   = 20;   // 20% шанс слегка повысить стат
     private const WINNER_ATTR_BONUS_FACTOR   = 0.001;// +0.1%
 
-    // DODGE / ЗАЩИТА
+    // ДОП. УВОРот
     private const MAX_DODGE_CHANCE_PERCENT   = 75;   // Макс. шанс уворота 75%
-    private const DEFENDER_STR_FACTOR        = 0.2;  // 20% силы идёт в защиту
-    private const DEFENDER_TIRED_FACTOR      = 0.1;  // 10% tired идёт в защиту
 
     // БИОМ
-    private const DAMAGE_BIOME_BASE = 0.1;   // Усиление урона в зависимости от danger_level
+    private const DAMAGE_BIOME_BASE = 0.1; // Усиление урона в зависимости от danger_level
 
-    // УДАЧНЫЙ УДАР (Lucky Strike)
-    private const LUCKY_STRIKE_DIFF_FACTOR     = 0.3;
-    private const LUCKY_STRIKE_MAX_CHANCE      = 40;
-    private const LUCKY_STRIKE_DAMAGE_MULT     = 1.5;
-    private const LUCKY_STRIKE_DEBUFF_PERCENT  = 0.10;
-    private const LUCKY_STRIKE_CHANCE_PER_AGI  = 0.02;
+    // LUCKY STRIKE
+    private const LUCKY_STRIKE_DIFF_FACTOR    = 0.3;
+    private const LUCKY_STRIKE_MAX_CHANCE     = 40;
+    private const LUCKY_STRIKE_DAMAGE_MULT    = 1.5;
+    private const LUCKY_STRIKE_DEBUFF_PERCENT = 0.10;
+    private const LUCKY_STRIKE_CHANCE_PER_AGI = 0.02;
 
-    // ВАНШОТ (One-Shot)
-    private const ONESHOT_LEVELDIFF_THRESHOLD  = 50;
-    private const ONESHOT_MAX_CHANCE           = 50;
+    // ONE-SHOT
+    private const ONESHOT_LEVELDIFF_THRESHOLD = 50;
+    private const ONESHOT_MAX_CHANCE          = 50;
+
+    // Разница уровней => ±2% за уровень до макс 5 => ±10%
+    private const LEVEL_DIFF_BONUS_PER_LVL = 0.02;
+    private const LEVEL_DIFF_CAP           = 5;
+
+    // Бонус статов => 100 нужного стата = +10%
+    private const STATS_BONUS_FACTOR       = 0.001;
 
     protected $characterModel;
     protected $mapModel;
@@ -69,6 +85,12 @@ class AttackPlayerAction extends BaseAction
     protected $factionModel;
     protected $claimedCellModel;
     protected $exploredCellsModel;
+
+    // Новые модели для оружия/брони
+    protected $charactersWeaponsModel;
+    protected $weaponsModel;
+    protected $charactersOutfitsModel;
+    protected $outfitsModel;
 
     public function __construct($callbackQuery)
     {
@@ -82,10 +104,16 @@ class AttackPlayerAction extends BaseAction
         $this->factionModel          = new FactionModel();
         $this->claimedCellModel      = new ClaimedCellModel();
         $this->exploredCellsModel    = new ExploredCellsModel();
+
+        // Инициализируем модели:
+        $this->charactersWeaponsModel = new CharactersWeaponsModel();
+        $this->weaponsModel           = new WeaponModel();
+        $this->charactersOutfitsModel = new CharactersOutfitsModel();
+        $this->outfitsModel           = new OutfitModel();
     }
 
     /**
-     * Главный метод обработки PvP-атаки.
+     * Главный метод обработки PvP-атаки (логика из старого класса).
      */
     public function handle(): ServerResponse
     {
@@ -164,23 +192,20 @@ class AttackPlayerAction extends BaseAction
         }
         // --- Есть победитель и проигравший ---
         elseif ($loser !== null && $winner !== null) {
-            // Используем DeathService для списания ресурсов/страховки
+            // DeathService
             $deathService = new DeathService();
             $deathResult  = $deathService->handlePlayerDeathAndReward($loser['id'], $winner['id']);
-            // penalty=0 => страховка спасла; penalty=0.03 => есть база; penalty=0.5 => нет базы
-
+            // penalty=0 => страховка; 0.03 => есть база; 0.5 => нет базы
             $penaltyPercent = (int)($deathResult['penalty'] * 100);
 
-            // Если penalty=0.0 => страховка => нет потерь, нет -5% XP
             if ($penaltyPercent === 0) {
                 $summaryText .= "\n\n❌ <b>{$loser['name']}</b> потерпел поражение, но страховка спасла от потери имущества!";
             } else {
-                // 2) Применяем -5% XP, -0.5% статов
+                // -5% XP, -0.5% статов
                 $loserBefore = $loser;
                 $this->processDeathAndRespawn($loser);
-                $loser       = $this->characterModel->find($loser['id']); // обновлённый
+                $loser = $this->characterModel->find($loser['id']); // обновлённый
 
-                // Показываем, сколько потерял
                 $loserDiffText = $this->makeLoserDiffText($loserBefore);
 
                 if ($deathResult['hasBase']) {
@@ -198,14 +223,13 @@ class AttackPlayerAction extends BaseAction
                 }
             }
 
-            // 3) Выдаём бонус победителю (опыт, шанс на статы)
+            // Награда победителю
             $winnerBefore     = $winner;
             $this->giveWinnerBonus($winner['id']);
             $winner           = $this->characterModel->find($winner['id']);
             $winnerDiffText   = $this->makeWinnerDiffText($winnerBefore);
             $summaryText     .= "\n\n🏆 <b>{$winner['name']}</b> торжествует! {$winnerDiffText}";
 
-            // Формируем вводные
             $attackerIntro = ($attacker['id'] === $winner['id'])
                 ? "Ты атаковал и разгромил врага!"
                 : "Ты начал бой, но оказался слабее в этот раз...";
@@ -215,7 +239,7 @@ class AttackPlayerAction extends BaseAction
                 : "Тебя атаковали, и ты пал в этом бою...";
         }
 
-        // --- Финальные тексты ---
+        // Итоговые сообщения
         $attackerFinalText = "🤺 <b>{$attackerName}</b>, {$attackerIntro}\n\n{$summaryText}";
         $defenderFinalText = "🛡 <b>{$defenderName}</b>, {$defenderIntro}\n\n{$summaryText}";
 
@@ -227,7 +251,7 @@ class AttackPlayerAction extends BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🎒 Инвентарь',  'callback_data' => 'inventory'],
+                    ['text' => '🎒 Инвентарь',    'callback_data' => 'inventory'],
                     ['text' => '🗺️ Изучить местность','callback_data' => 'explore'],
                 ],
             ]
@@ -247,9 +271,8 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * Пошаговая симуляция боя:
-     * damageBoost каждые 15 раундов,
-     * проверка Lucky Strike (x1.5) и One-Shot (разница >= 50).
+     * Симуляция боя — пошаговый цикл, пока один не упадёт
+     * или не превысили MAX_ROUNDS (тогда ничья).
      */
     private function simulateFight(array $p1, array $p2, array $biome): array
     {
@@ -261,28 +284,55 @@ class AttackPlayerAction extends BaseAction
         $winner     = null;
         $loser      = null;
         $firstName  = $attacker['name'];
-
-        $damageBoost = 1.0;
+        $damageBoost= 1.0;
+        $isFirstHit = true; // инициатива
 
         while ($attacker['health'] > 0 && $defender['health'] > 0 && $round < $maxRounds) {
             $round++;
 
-            // Каждые 15 раундов повышаем урон
             if ($round % self::ROUNDS_PER_DAMAGE_INCREASE === 0) {
                 $damageBoost += self::DAMAGE_INCREASE_PER_STEP;
             }
 
+            // LuckyStrike
             $luckyStrikeActive = $this->checkLuckyStrike($attacker, $defender);
-            $damage = $this->computeDamage($attacker, $defender, $biome, $luckyStrikeActive);
+
+            // Рассчитываем урон
+            $damage = $this->computeDamage(
+                $attacker,
+                $defender,
+                $biome,
+                $luckyStrikeActive,
+                $isFirstHit
+            );
+
+            // Увеличение damageBoost
             $damage *= $damageBoost;
 
+            // Если LuckyStrike => x1.5 + debuff
+            if ($luckyStrikeActive) {
+                $damage *= self::LUCKY_STRIKE_DAMAGE_MULT;
+                $this->applyLuckyStrikeDebuff($defender);
+            }
+
+            // Наносим урон
             $defender['health'] = max(0, $defender['health'] - $damage);
+
+            // Проверяем смерть
+            if ($defender['health'] <= 0) {
+                $loser  = $defender;
+                $winner = $attacker;
+                break;
+            }
 
             // Меняем роли
             [$attacker, $defender] = [$defender, $attacker];
+            // После первого удара убираем +5% инициативы
+            $isFirstHit = false;
         }
 
         if ($round >= $maxRounds && $attacker['health'] > 0 && $defender['health'] > 0) {
+            // ничья
             return [
                 'type'          => 'exhausted',
                 'rounds'        => $round,
@@ -292,12 +342,15 @@ class AttackPlayerAction extends BaseAction
             ];
         }
 
-        if ($attacker['health'] <= 0) {
-            $loser  = $attacker;
-            $winner = $defender;
-        } elseif ($defender['health'] <= 0) {
-            $loser  = $defender;
-            $winner = $attacker;
+        if (!$winner && !$loser) {
+            // Проверим, не погиб ли кто после выхода из цикла
+            if ($attacker['health'] <= 0) {
+                $loser  = $attacker;
+                $winner = $defender;
+            } elseif ($defender['health'] <= 0) {
+                $loser  = $defender;
+                $winner = $attacker;
+            }
         }
 
         return [
@@ -310,94 +363,295 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * Подсчёт урона (учёт логарифмического роста уровня, разницы lvl, биома).
-     * + Lucky Strike (x1.5) и One-Shot при разнице >= 50.
+     * Основная формула урона на один удар:
+     * - 75% экип + 10% lvl + 10% статы + 5% инициатива
+     * - затем уворот, biome, OneShot
      */
     private function computeDamage(
         array $attacker,
         array $defender,
         array $biome,
-        bool  $luckyStrikeActive = false
+        bool  $luckyStrikeActive,
+        bool  $isFirstHit
     ): float
     {
-        $baseDamage  = $attacker['strength'];
-        $attackerLvl = max(1, $attacker['level']);
-        $lvlCoeffA   = 1 + \log($attackerLvl, 10);
+        // --- 1) D_экип (примерно 75%)
+        $D_equip = $this->computeEquipmentDamage($attacker, $defender);
 
-        $levelDiff = $attacker['level'] - $defender['level'];
-        $levelDiffCoeff = 1.0;
-        if ($levelDiff > 0) {
-            $levelDiffCoeff = 1 + min($levelDiff, 300) / 300 * 0.5;
-        } elseif ($levelDiff < 0) {
-            $levelDiffCoeff = max(0.5, 1 - abs($levelDiff) / 300 * 0.5);
-        }
+        // --- 2) D_level (около 10%)
+        $levelBonus = $this->computeLevelBonus($attacker, $defender);
+        $D_level    = $levelBonus * $D_equip;
 
-        $danger     = $biome['danger_level'] ?? 1;
-        $biomeCoeff = 1 + ((max(1, $danger) - 1) * self::DAMAGE_BIOME_BASE);
+        // --- 3) D_stats (около 10%)
+        $statsBonus = $this->computeStatsBonus($attacker);
+        $D_stats    = $statsBonus * $D_equip;
 
-        // Уворот (макс 75%)
-        $rawDodgeChance = $defender['agility'] * 0.25;
-        $dodgeChance    = min(self::MAX_DODGE_CHANCE_PERCENT, $rawDodgeChance);
-        if (mt_rand(0, 100) < $dodgeChance) {
+        // --- 4) D_init (5% только на первый удар)
+        $D_init = $isFirstHit ? (0.05 * $D_equip) : 0;
+
+        // Сумма
+        $damage = $D_equip + $D_level + $D_stats + $D_init;
+
+        // --- Уворот
+        $dodgeChance = $this->getDodgeChance($defender);
+        if ($this->rollPercent($dodgeChance)) {
             return 0.0; // уворот
         }
 
-        // Защита
-        $defPower = ($defender['strength'] * self::DEFENDER_STR_FACTOR)
-            + ($defender['tired']    * self::DEFENDER_TIRED_FACTOR);
+        // --- Бонус danger_level
+        $danger     = $biome['danger_level'] ?? 1;
+        $biomeCoeff = 1 + ((max(1, $danger) - 1) * self::DAMAGE_BIOME_BASE);
+        $damage    *= $biomeCoeff;
 
-        $damage = $baseDamage * $lvlCoeffA * $levelDiffCoeff * $biomeCoeff;
-        $damage = max(0, $damage - $defPower);
-
-        if ($luckyStrikeActive) {
-            $damage *= self::LUCKY_STRIKE_DAMAGE_MULT; // +50%
-            $this->applyLuckyStrikeDebuff($defender);
-        }
-
-        // One-Shot при разнице >= 50
+        // --- One-Shot при diff >= 50
+        $levelDiff = $attacker['level'] - $defender['level'];
         if ($levelDiff >= self::ONESHOT_LEVELDIFF_THRESHOLD) {
             $oneShotChance = min(self::ONESHOT_MAX_CHANCE, ($levelDiff / 1000) * 100);
-            if (mt_rand(0, 100) < $oneShotChance) {
+            if ($this->rollPercent($oneShotChance)) {
                 // Мгновенная смерть
                 $damage = $defender['health'];
             }
         }
 
-        return $damage;
+        return max(0, $damage);
+    }
+
+    // ----------------------------------------------------------------
+    // Методы для подсчёта "экипировки" (оружие + броня)
+    // ----------------------------------------------------------------
+
+    /**
+     * Возвращаем ~75% урона: D_base * K_rar * F_type * F_range * F_spec(крит).
+     */
+    private function computeEquipmentDamage(array $attacker, array $defender): float
+    {
+        // 1) Найдём экипированное оружие
+        $weapon = $this->getEquippedWeapon($attacker);
+        if (!$weapon) {
+            // нет оружия => кулаки
+            $D_base      = 2.0;
+            $rarityCoeff = 1.0;
+            $damageType  = 'Physical';
+            $rangeVal    = 1.0;
+            $critChance  = 0.0;
+        } else {
+            $D_base      = (float)($weapon['damage_value']  ?? 5.0);
+            $rarity      = $weapon['rarity']                ?? 'Common';
+            $rarityCoeff = $this->getRarityCoefficient($rarity);
+            $damageType  = $weapon['damage_type']           ?? 'Physical';
+            $rangeVal    = (float)($weapon['range_value']   ?? 1.0);
+
+            // critChance (ограничим 50%)
+            $weaponCrit  = !empty($weapon['crit_chance']) ? (float)$weapon['crit_chance'] : 0.0;
+            $critChance  = min($weaponCrit, 50.0);
+        }
+
+        // 2) Считаем сопротивление брони у цели
+        $R_armor = $this->computeArmorResistance($defender, $damageType);
+        $F_type  = max(0, 1 - $R_armor);
+
+        // 3) Штраф дистанции
+        $distance = $this->computeDistance($attacker, $defender);
+        $F_range  = $this->computeRangePenalty($rangeVal, $distance);
+
+        // 4) Разыгрываем крит?
+        $isCrit = $this->rollPercent($critChance);
+        $critMultiplier = 2.0;
+        $F_spec = $isCrit ? $critMultiplier : 1.0;
+
+        // Итог
+        $D_equip = $D_base * $rarityCoeff * $F_type * $F_range * $F_spec;
+        return max(0, $D_equip);
     }
 
     /**
-     * Удачный удар, если атакующий слабее (levelDiff < 0).
+     * Ищем запись в characters_weapons, где equipped=1.
+     * Возвращаем данные + поля из weapons (join) или отдельный поиск.
+     */
+    private function getEquippedWeapon(array $attacker): ?array
+    {
+        // 1) Ищем в characters_weapons
+        $row = $this->charactersWeaponsModel
+            ->where('character_id', $attacker['id'])
+            ->where('equipped', 1)
+            ->first();
+
+        if (!$row) {
+            return null; // нет экипированного оружия
+        }
+
+        // 2) Находим weaponRow в таблице weapons
+        $weapon = $this->weaponsModel->find($row['weapon_id']);
+        if (!$weapon) {
+            return null;
+        }
+
+        // Можно вернуть "слитый" массив с ключевыми полями (damage_value, range_value etc.)
+        // + crit_chance, если хранится
+        // Допустим, в weapons таблице есть поле "crit_chance", "damage_type", "rarity"
+        // Если нет, адаптируйте:
+        $weaponData = [
+            'damage_value' => (float)$weapon['damage_value'],
+            'range_value'  => (float)$weapon['range_value'],
+            'damage_type'  => $weapon['damage_type'],
+            'rarity'       => $weapon['rarity'],
+            // предположим, у нас есть поле crit_chance
+            'crit_chance'  => isset($weapon['special_effect']) ? 10.0 : 0.0 // упрощённо
+        ];
+
+        return $weaponData;
+    }
+
+    /**
+     * Суммируем сопротивление (R_armor) по всем надетым предметам. (0..0.9)
+     * Если damageType = Physical, суммируем physical_resistance и т.д.
+     */
+    private function computeArmorResistance(array $defender, string $damageType): float
+    {
+        $equippedOutfits = $this->charactersOutfitsModel
+            ->where('character_id', $defender['id'])
+            ->where('equipped', 1)
+            ->findAll();
+
+        $resSum = 0.0;
+        foreach ($equippedOutfits as $eq) {
+            $outfit = $this->outfitsModel->find($eq['outfit_id']);
+            if (!$outfit) continue;
+
+            // Например, если physical, то берём $outfit['physical_resistance']
+            // fire => $outfit['fire_resistance'], poison => poison_resistance, etc.
+            switch (strtolower($damageType)) {
+                case 'physical':
+                default:
+                    $resSum += ($outfit['physical_resistance'] ?? 0) / 100.0;
+                    break;
+                case 'fire':
+                    $resSum += ($outfit['fire_resistance']     ?? 0) / 100.0;
+                    break;
+                case 'poison':
+                    $resSum += ($outfit['poison_resistance']   ?? 0) / 100.0;
+                    break;
+            }
+        }
+        // ограничим максимум 90% (0.9), чтобы не было 100% иммунитета
+        $resSum = min(0.9, $resSum);
+
+        return $resSum;
+    }
+
+    /**
+     * Вычисляем штраф по дистанции:
+     * Если distance <= weaponRange => 1.0
+     * Иначе линейное снижение. (Можно усложнить.)
+     */
+    private function computeRangePenalty(float $weaponRange, float $distance): float
+    {
+        if ($distance <= $weaponRange) {
+            return 1.0;
+        }
+        // линейная функция
+        $ratio = $weaponRange / $distance; // 0..1
+        return max(0.0, $ratio);
+    }
+
+    /**
+     * Считаем дистанцию (короткий метод, можно по координатам).
+     */
+    private function computeDistance(array $charA, array $charB): float
+    {
+        $mapA = $this->mapModel->where('cell_number', $charA['cell_number'])->first();
+        $mapB = $this->mapModel->where('cell_number', $charB['cell_number'])->first();
+        if (!$mapA || !$mapB) {
+            // fallback
+            return 1.0;
+        }
+        $dx = abs($mapA['coordinate_x'] - $mapB['coordinate_x']);
+        $dy = abs($mapA['coordinate_y'] - $mapB['coordinate_y']);
+        return sqrt($dx*$dx + $dy*$dy);
+    }
+
+    // ----------------------------------------------------------------
+    // Методы для расчёта 10% уровня, 10% статов, уворота
+    // ----------------------------------------------------------------
+
+    /**
+     * Разница уровня ±2% за шаг до 5 => ±10% макс
+     * Возвращаем коэффициент, который потом умножаем на D_equip (F_lvl-1).
+     */
+    private function computeLevelBonus(array $attacker, array $defender): float
+    {
+        $diff = $attacker['level'] - $defender['level'];
+        $bounded = max(-self::LEVEL_DIFF_CAP, min(self::LEVEL_DIFF_CAP, $diff));
+        return $bounded * self::LEVEL_DIFF_BONUS_PER_LVL; // -0.1 .. +0.1
+    }
+
+    /**
+     * Простой вариант: 100 силы даёт +10%.
+     * Возвращаем число 0..0.1
+     */
+    private function computeStatsBonus(array $attacker): float
+    {
+        // Можно решить, какой стат влияет: физ => strength, дальний => agility, итд.
+        // Здесь для упрощения — берём strength.
+        $statVal = (float)($attacker['strength'] ?? 0);
+        $bonus   = $statVal * self::STATS_BONUS_FACTOR;  // 100 => 0.1
+        return min(0.1, $bonus);
+    }
+
+    /**
+     * Уворот: agility * 0.25, макс 75%.
+     */
+    private function getDodgeChance(array $defender): float
+    {
+        $raw = ($defender['agility'] ?? 0) * 0.25;
+        return min((float)$raw, self::MAX_DODGE_CHANCE_PERCENT);
+    }
+
+    /**
+     * Кидаем кубик (0..100) < chance?
+     */
+    private function rollPercent(float $chance): bool
+    {
+        $roll = mt_rand(0, 10000)/100.0;
+        return ($roll < $chance);
+    }
+
+    // ----------------------------------------------------------------
+    // Старая логика LuckyStrike, DeathService, Respawn и т.д.
+    // ----------------------------------------------------------------
+
+    /**
+     * Удачный удар, если аттакер слабее (diff<0).
      */
     private function checkLuckyStrike(array $attacker, array $defender): bool
     {
-        $levelDiff = $attacker['level'] - $defender['level'];
-        if ($levelDiff >= 0) {
-            return false;
-        }
-        $absDiff = abs($levelDiff);
-        $chance  = $absDiff * self::LUCKY_STRIKE_DIFF_FACTOR;
+        $lvlDiff = $attacker['level'] - $defender['level'];
+        if ($lvlDiff >= 0) return false;
+
+        $absDiff = abs($lvlDiff);
+        $chance  = $absDiff * self::LUCKY_STRIKE_DIFF_FACTOR; // base
+        // прибавим разницу ловкости
         $agiDiff = $attacker['agility'] - $defender['agility'];
         if ($agiDiff > 0) {
             $chance += ($agiDiff * self::LUCKY_STRIKE_CHANCE_PER_AGI * 100);
         }
-        $chance = min(self::LUCKY_STRIKE_MAX_CHANCE, $chance);
+        $chance = min($chance, self::LUCKY_STRIKE_MAX_CHANCE);
 
-        return (mt_rand(0, 100) < $chance);
+        return $this->rollPercent($chance);
     }
 
     /**
-     * Debuff при Lucky Strike.
+     * Debuff: -10% к одному стату.
      */
     private function applyLuckyStrikeDebuff(array &$defender): void
     {
-        $stats = ['strength', 'agility', 'intellect'];
-        $stat  = $stats[array_rand($stats)];
-        $defender[$stat] = max(1, $defender[$stat] * (1 - self::LUCKY_STRIKE_DEBUFF_PERCENT));
+        $stats = ['strength','agility','intellect'];
+        $st = $stats[array_rand($stats)];
+        $defender[$st] = max(1, $defender[$st] * (1 - self::LUCKY_STRIKE_DEBUFF_PERCENT));
     }
 
     /**
-     * Оба изнемогли -> здоровье/тired =10, перемещение на respawnCell.
+     * Если оба выдохлись -> set health/tired=10, move to respawn
      */
     private function processMutualExhaustion(array $pA, array $pB): void
     {
@@ -418,39 +672,33 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * Штраф по XP/статам (старый -5% XP, -0.5% статы) + respawn.
+     * processDeathAndRespawn: -5% XP, -0.5% статы, health=0, затем respawn
      */
     private function processDeathAndRespawn(array $loser): void
     {
         $before = $this->characterModel->find($loser['id']);
-        if (!$before) {
-            return;
-        }
+        if (!$before) return;
 
         $loserOldExp = $before['experience'];
         $loserOldStr = $before['strength'];
         $loserOldAgi = $before['agility'];
         $loserOldInt = $before['intellect'];
 
-        $updatedLoser = [
+        $upd = [
             'experience' => max(0, $loserOldExp * (1 - self::DEATH_EXP_LOSS_PERCENT)),
+            'strength'   => max($loser['strength'],  $loserOldStr * (1 - self::DEATH_STAT_LOSS_PERCENT)),
+            'agility'    => max($loser['agility'],   $loserOldAgi * (1 - self::DEATH_STAT_LOSS_PERCENT)),
+            'intellect'  => max($loser['intellect'], $loserOldInt * (1 - self::DEATH_STAT_LOSS_PERCENT)),
+            'health'     => 0,
         ];
+        $upd['experience'] = round($upd['experience'], 2);
+        $upd['strength']   = round($upd['strength'],   2);
+        $upd['agility']    = round($upd['agility'],    2);
+        $upd['intellect']  = round($upd['intellect'],  2);
 
-        // -0.5% статов
-        $updatedLoser['strength']  = max($loser['strength'],  $loserOldStr * (1 - self::DEATH_STAT_LOSS_PERCENT));
-        $updatedLoser['agility']   = max($loser['agility'],   $loserOldAgi * (1 - self::DEATH_STAT_LOSS_PERCENT));
-        $updatedLoser['intellect'] = max($loser['intellect'], $loserOldInt * (1 - self::DEATH_STAT_LOSS_PERCENT));
+        $this->characterModel->update($loser['id'], $upd);
 
-        $updatedLoser['health'] = 0; // кратко сбрасываем health в 0
-
-        $updatedLoser['experience'] = round($updatedLoser['experience'], 2);
-        $updatedLoser['strength']   = round($updatedLoser['strength'],   2);
-        $updatedLoser['agility']    = round($updatedLoser['agility'],    2);
-        $updatedLoser['intellect']  = round($updatedLoser['intellect'],  2);
-
-        $this->characterModel->update($loser['id'], $updatedLoser);
-
-        // Респаун
+        // Respawn
         $respawnCell = $this->findRespawnCell($loser['id']);
         $this->characterModel->update($loser['id'], [
             'health'     => round(($loser['max_health'] ?? 100), 2),
@@ -460,14 +708,13 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * +EXP / +статов победителю.
+     * Выдаём победителю +exp, шанс +stat
      */
     private function giveWinnerBonus(int $winnerId): void
     {
         $winner = $this->characterModel->find($winnerId);
         if (!$winner) return;
 
-        // Находим любого "проигравшего" в той же ячейке (для определения разницы уровней?)
         $loser = $this->characterModel
             ->where('cell_number', $winner['cell_number'])
             ->where('id !=', $winner['id'])
@@ -480,13 +727,11 @@ class AttackPlayerAction extends BaseAction
 
         $expBonus = self::WINNER_EXP_BASE_BONUS; // 5%
         if ($levelDiff > 0) {
-            // Если враг был сильнее, +доп. до 10%
-            $expBonus += min($levelDiff, 100) / 100 * self::WINNER_EXP_MAX_ADDITIVE;
+            $expBonus += min($levelDiff, 100)/100 * self::WINNER_EXP_MAX_ADDITIVE;
         }
 
         $winner['experience'] *= (1 + $expBonus);
 
-        // Шанс слегка повысить стат
         if (mt_rand(0, 100) < self::WINNER_ATTR_BONUS_CHANCE) {
             $winner['strength']  *= (1 + self::WINNER_ATTR_BONUS_FACTOR);
         }
@@ -506,7 +751,7 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * Вычисляем, насколько проигравший просел по XP/статам.
+     * Считаем, что потерял проигравший (XP/статы).
      */
     private function makeLoserDiffText(array $loserBefore): string
     {
@@ -529,7 +774,7 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * Вычисляем, что получил победитель (EXP/статы).
+     * Что получил победитель
      */
     private function makeWinnerDiffText(array $winnerBefore): string
     {
@@ -552,24 +797,24 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * Находим клетку для респауна (либо claimed_cell, либо случайно из explored, либо #1).
+     * Респаун-локация — либо claimed_cells, либо random explored_cell, либо #1
      */
     private function findRespawnCell(int $charId): int
     {
         $claimed = $this->claimedCellModel->where('character_id', $charId)->first();
         if ($claimed) {
-            return (int) $claimed['map_cell_id'];
+            return (int)$claimed['map_cell_id'];
         }
         $explored = $this->exploredCellsModel->where('character_id', $charId)->findAll();
         if (!empty($explored)) {
-            $rnd = $explored[\array_rand($explored)];
-            return (int) $rnd['map_cell_id'];
+            $rnd = $explored[array_rand($explored)];
+            return (int)$rnd['map_cell_id'];
         }
         return 1; // fallback
     }
 
     /**
-     * Определяем фракцию персонажа (если есть).
+     * Узнаём фракцию (опционально).
      */
     private function getCharacterFaction(int $charId)
     {
@@ -581,7 +826,7 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * Уведомляем защищающегося игрока отдельным сообщением.
+     * Уведомляем защищающегося
      */
     private function notifyDefender(array $defender, array $attacker, string $finalDefenderText): void
     {
@@ -600,7 +845,7 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * Проверяем, достаточно ли близко ячейки (<= 1 по x и y).
+     * Проверка, достаточно ли близко ячейки (dx<=1 && dy<=1).
      */
     private function isCellsCloseEnough(array $charA, array $charB): bool
     {
@@ -612,13 +857,13 @@ class AttackPlayerAction extends BaseAction
         if (!$mapA || !$mapB) {
             return false;
         }
-        $dx = \abs($mapA['coordinate_x'] - $mapB['coordinate_x']);
-        $dy = \abs($mapA['coordinate_y'] - $mapB['coordinate_y']);
+        $dx = abs($mapA['coordinate_x'] - $mapB['coordinate_x']);
+        $dy = abs($mapA['coordinate_y'] - $mapB['coordinate_y']);
         return ($dx <= 1 && $dy <= 1);
     }
 
     /**
-     * Определяем, кто ходит первым (инициатива).
+     * Инициатива: c1 => i1= agility + (level+1)*0.5
      */
     private function determineInitiative(array $c1, array $c2): array
     {
@@ -628,7 +873,7 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * Короткий отчёт о результатах боя.
+     * Короткий итог боя.
      */
     private function formatShortFightResult(array $res): string
     {
@@ -645,6 +890,7 @@ class AttackPlayerAction extends BaseAction
         $w = $res['winner'];
         $l = $res['loser'];
         if (!$l) {
+            // Допустим, теоретическая ничья
             return "<b>PvP-бой завершён</b>\n"
                 . "⚔️ <b>Первым атаковал:</b> {$fa}\n"
                 . "🔁 <b>Раундов:</b> {$rounds}\n"
@@ -658,22 +904,42 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * Отправка ошибки (alert + сообщение).
+     * Отправка ошибки
      */
     private function sendError(string $msg): ServerResponse
     {
-        // Показываем alert
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId(),
             'text'              => $msg,
             'show_alert'        => true,
         ]);
 
-        // Также обычное сообщение
         return Request::sendMessage([
             'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
             'text'       => "⚠️ <b>Ошибка:</b> {$msg}",
             'parse_mode' => 'HTML',
         ]);
     }
+
+    /**
+     * Возвращает коэффициент редкости (K_rar) в зависимости от строки rarity.
+     * Используется в computeEquipmentDamage().
+     */
+    private function getRarityCoefficient(string $rarity): float
+    {
+        switch (strtolower($rarity)) {
+            case 'uncommon':
+                return 1.1;
+            case 'rare':
+                return 1.3;
+            case 'epic':
+                return 1.5;
+            case 'legendary':
+                return 1.7;
+            default:
+                // По умолчанию 'common'
+                return 1.0;
+        }
+    }
+
 }
