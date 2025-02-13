@@ -7,6 +7,8 @@ use App\Models\CraftedItemsModel;
 use App\Models\CharacterBuildingModel;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
+use App\Services\Bases\BaseCheckService;
+use App\Services\Coverage\CommunicationTowerCoverageService;
 
 /**
  * Класс для отображения/активации робота-добытчика ресурсов (Resource Gatherer).
@@ -37,7 +39,33 @@ class RobotGathererActivator implements RobotActivatorInterface
     {
         $characterId = $character['id'];
 
-        // 1) Проверяем, есть ли в crafted_items_log роботы данного типа
+        // 0. Проверяем, есть ли вообще база у игрока
+        $baseCheckService = new BaseCheckService();
+        $baseStatus = $baseCheckService->checkBaseStatus($characterId);
+        if (!$baseStatus['hasBase']) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => "У тебя нет базы! Сначала построй её, чтобы запустить робота-добытчика."
+            ]);
+        }
+
+        // 1. Если игрок не на базе физически, проверяем наличие «дистанционного управления»
+        if (!$baseStatus['isOnBase']) {
+            $coverageService = new CommunicationTowerCoverageService();
+            $coverageResult  = $coverageService->checkCoverage($characterId);
+            if (!$coverageResult['isCovered']) {
+                // Ни физически, ни через вышку связи => отказываем
+                return Request::sendMessage([
+                    'chat_id' => $chatId,
+                    'text'    => "Ты не находишься на своей базе, и сигнал Вышки связи не покрывает твоё текущее положение. "
+                        . "Пройдись до базы или окажись в зоне связи!",
+                ]);
+            }
+            // Если покрытие есть — продолжаем код: считаем, что «виртуально» мы имеем доступ к базе
+        }
+
+        // --- ниже идёт уже ваш прежний код ---
+        // 2) Проверяем, есть ли в crafted_items_log роботы данного типа
         $logRows = $this->craftedItemsLogModel
             ->where('character_id', $characterId)
             ->where('crafted_item_id', $this->robotId)

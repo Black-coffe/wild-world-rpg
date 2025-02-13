@@ -8,6 +8,13 @@ use App\Models\CharacterBuildingModel;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 
+// 1. Подключаем нужные сервисы
+use App\Services\Bases\BaseCheckService;
+use App\Services\Coverage\CommunicationTowerCoverageService;
+
+/**
+ * Класс RobotExplorerActivator для вывода информации и активации робота-исследователя.
+ */
 class RobotExplorerActivator implements RobotActivatorInterface
 {
     protected $craftedItemsLogModel;
@@ -15,17 +22,60 @@ class RobotExplorerActivator implements RobotActivatorInterface
     protected $characterBuildingModel;
     protected $robotId;
 
+    // (Необязательно) Можно хранить сервисы в полях класса,
+    // чтобы не создавать их каждый раз в методе
+    protected $baseCheckService;
+    protected $coverageService;
+
     public function __construct($robotId)
     {
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
         $this->craftedItemsModel      = new CraftedItemsModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
         $this->robotId                = $robotId;
+
+        // 2. Создаём инстансы сервисов (по желанию — прямо в методе activate)
+        $this->baseCheckService       = new BaseCheckService();
+        $this->coverageService        = new CommunicationTowerCoverageService();
     }
 
+    /**
+     * Метод активации робота-исследователя (показывает инфу и кнопки «Запуск»).
+     *
+     * @param int   $chatId
+     * @param array $character
+     * @return ServerResponse
+     */
     public function activate($chatId, $character): ServerResponse
     {
         $characterId = $character['id'];
+
+        // 3. Сначала проверяем, есть ли база, и где персонаж
+        $baseStatus = $this->baseCheckService->checkBaseStatus($characterId);
+
+        if (!$baseStatus['hasBase']) {
+            // У игрока вообще нет базы
+            $text = "У тебя нет базы! Сначала построи базу, чтобы запускать роботов-исследователей.";
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => $text,
+            ]);
+        }
+
+        // Если персонаж НЕ на базе, но возможно есть вышка связи
+        if (!$baseStatus['isOnBase']) {
+            $coverageResult = $this->coverageService->checkCoverage($characterId);
+            if (!$coverageResult['isCovered']) {
+                // Ни физически, ни через вышку связи — отказываем
+                $text = "Ты не на своей базе и сигнал Вышки связи сюда не дотягивается. "
+                    . "Вернись на базу или в зону покрытия, чтобы запустить робота-исследователя!";
+                return Request::sendMessage([
+                    'chat_id' => $chatId,
+                    'text'    => $text,
+                ]);
+            }
+            // Если покрытие есть — продолжим, как будто игрок «виртуально» имеет доступ к базе
+        }
 
         // 1) Ищем все записи в crafted_items_log для данного робота (robotId), где quantity>0
         $logRows = $this->craftedItemsLogModel

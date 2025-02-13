@@ -12,12 +12,13 @@ use App\Models\TaskModel;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 
+// Новое: подключаем проверку базы и покрытие вышки связи
+use App\Services\Bases\BaseCheckService;
+use App\Services\Coverage\CommunicationTowerCoverageService;
+
 /**
  * Класс, в который попадает пользователь после нажатия:
  * "📍 Указать координаты запуска".
- * Он проверяет, есть ли ещё роботы, не запущена ли уже задача "ExploringLocationRobot",
- * есть ли в справочнике RoboticsWorkshop, и если всё ок,
- * даёт инструкцию, как ввести координаты в чат.
  */
 class SetCoordinatesRobotExplorerAction extends BaseAction
 {
@@ -31,6 +32,7 @@ class SetCoordinatesRobotExplorerAction extends BaseAction
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
+
         $this->characterTaskModel     = new CharacterTaskModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
         $this->craftedItemsModel      = new CraftedItemsModel();
@@ -54,10 +56,37 @@ class SetCoordinatesRobotExplorerAction extends BaseAction
         if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
             $character['id'],
             $this->callbackQuery->getId(),
-            $this->callbackQuery->getMessage()->getChat()->getId()
+            $chatId
         )) {
-            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+            return Request::emptyResponse();
         }
+
+        // --- NEW BLOCK: проверка базы и потенциального «дистанционного» доступа ---
+        $baseCheckService = new BaseCheckService();
+        $baseStatus       = $baseCheckService->checkBaseStatus($characterId);
+
+        if (!$baseStatus['hasBase']) {
+            return $this->sendError(
+                "У тебя нет базы! Сначала построй базу, чтобы задать координаты для робота-исследователя."
+            );
+        }
+
+        if (!$baseStatus['isOnBase']) {
+            // У игрока есть база, но он физически на другой клетке
+            // Проверяем вышку связи
+            $coverageService = new CommunicationTowerCoverageService();
+            $coverageResult  = $coverageService->checkCoverage($characterId);
+
+            if (!$coverageResult['isCovered']) {
+                // Нет физ. присутствия и нет покрытия
+                return $this->sendError(
+                    "Ты не на базе и вышка связи не покрывает твоё текущее положение. "
+                    . "Вернись на базу или в зону связи, чтобы задать координаты!"
+                );
+            }
+            // Если покрытие есть — продолжаем дальше
+        }
+        // --- END of new block ---
 
         // 2) Ищем в справочнике задачу "ExploringLocationRobot"
         $taskRow = $this->taskModel->where('name', 'ExploringLocationRobot')->first();
@@ -86,7 +115,7 @@ class SetCoordinatesRobotExplorerAction extends BaseAction
         }
         $roboticsWorkshopId = $roboticsWorkshopRow['id'];
 
-        // 4) Проверяем, есть ли у персонажа построенная мастерская (building_id = roboticsWorkshopId)
+        // 4) Проверяем, построил ли персонаж мастерскую
         $roboticsWorkshop = $this->characterBuildingModel
             ->where('character_id', $characterId)
             ->where('building_id', $roboticsWorkshopId)
@@ -97,15 +126,12 @@ class SetCoordinatesRobotExplorerAction extends BaseAction
                 . 'значит нельзя запускать робота-исследователя.'
             );
         }
-        $workshopLevel = $roboticsWorkshop['level'] ?? 1;
 
         // 5) Из callback_data извлекаем robotId
-        //    setCoordinates_<robotId>, напр. setCoordinates_81 => robotId=81
         $callbackData = $this->callbackQuery->getData();
         $robotId = str_replace('setCoordinatesRobotExplorer_', '', $callbackData);
 
-        // 6) Проверяем, есть ли у пользователя роботы этого типа (в crafted_items_log)
-        //    и quantity > 0
+        // 6) Проверяем, есть ли у пользователя роботы этого типа (quantity>0)
         $robotLogEntry = $this->craftedItemsLogModel
             ->where('character_id', $characterId)
             ->where('crafted_item_id', $robotId)
@@ -114,11 +140,12 @@ class SetCoordinatesRobotExplorerAction extends BaseAction
             ->first();
 
         if (!$robotLogEntry) {
-            // Записи либо нет, либо quantity=0
-            return $this->sendError("У тебя нет роботов данного типа. Возможно, они закончились или не были скрафчены.");
+            return $this->sendError(
+                "У тебя нет роботов данного типа. Возможно, они закончились или не были скрафчены."
+            );
         }
 
-        // Проверяем прочность (durability_count)
+        // Проверяем прочность
         if ($robotLogEntry['durability_count'] <= 0) {
             return $this->sendError("У твоего робота уже 0 прочности. Нельзя запустить.");
         }
@@ -132,7 +159,7 @@ class SetCoordinatesRobotExplorerAction extends BaseAction
             . "Например, `/startrobotexplorer x=100,y=500` — если хочешь начать в X=100, Y=500.\n\n"
             . "Как только отправишь команду, робот будет запущен с этих координат!";
 
-        // Кнопка «Назад» (например, к списку роботов или другому меню)
+        // Кнопка «Назад»
         $keyboard = [
             'inline_keyboard' => [
                 [

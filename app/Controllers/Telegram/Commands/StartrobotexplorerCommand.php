@@ -18,8 +18,9 @@ use Longman\TelegramBot\Request;
 use CodeIgniter\Log\Logger;
 use Config\Services;
 
-// <-- Добавляем:
-use App\Services\Bases\BaseCheckService;  // наш новый сервис
+// Подключаем наши сервисы:
+use App\Services\Bases\BaseCheckService;
+use App\Services\Coverage\CommunicationTowerCoverageService;
 
 class StartrobotexplorerCommand extends UserCommand
 {
@@ -104,21 +105,32 @@ class StartrobotexplorerCommand extends UserCommand
         $characterId = $character['id'];
         $this->logger->debug("Найден персонаж: " . print_r($character, true));
 
-        // --- NEW PART: проверяем, есть ли база и находится ли игрок на базе ---
+        // --- NEW PART: проверяем, есть ли база и «дистанционный» доступ, если не на базе ---
         $baseCheckService = new BaseCheckService();
         $baseStatus       = $baseCheckService->checkBaseStatus($characterId);
 
         if (!$baseStatus['hasBase']) {
-            // Если базы нет, прерываем:
-            return $this->sendMessage($chatId,
+            // Если базы нет, прерываем
+            return $this->sendMessage(
+                $chatId,
                 "У тебя нет базы! Нельзя запустить робота-исследователя, пока не построишь базу."
             );
         }
+
+        // Если игрок не на базе, проверяем покрытие вышки связи
         if (!$baseStatus['isOnBase']) {
-            // Если есть база, но персонаж не на базе, тоже прерываем
-            return $this->sendMessage($chatId,
-                "Ты не находишься на своей базе! Робота-исследователя запускаем только со своей базы."
-            );
+            $coverageService = new CommunicationTowerCoverageService();
+            $coverageResult  = $coverageService->checkCoverage($characterId);
+
+            if (!$coverageResult['isCovered']) {
+                // Нет физ. нахождения и нет сигнала вышки
+                return $this->sendMessage(
+                    $chatId,
+                    "Ты не находишься на своей базе, и вышка связи не покрывает твоё текущее положение. "
+                    . "Для запуска робота нужно либо находиться на базе, либо попасть в зону покрытия!"
+                );
+            }
+            // Если покрытие есть — продолжаем
         }
         // --- END of base-check logic ---
 
@@ -172,8 +184,8 @@ class StartrobotexplorerCommand extends UserCommand
         $workshopLevel = $roboticsWorkshop['level'] ?? 1;
         $this->logger->debug("Уровень мастерской: {$workshopLevel}");
 
-        // 9) Ищем робот "Робот-исследователей" (ID=81)
-        $robotId             = 81;
+        // 9) Ищем робот (ID=81) - робот-исследователь
+        $robotId              = 81;
         $craftedItemsLogModel = new CraftedItemsLogModel();
         $robotLogEntry        = $craftedItemsLogModel
             ->where('character_id', $characterId)
@@ -188,7 +200,7 @@ class StartrobotexplorerCommand extends UserCommand
         }
         $this->logger->debug("Робот-исследователь: " . print_r($robotLogEntry, true));
 
-        // 9.1) Получаем baseDurability из таблицы crafted_items
+        // 9.1) Получаем baseDurability
         $robotItemModel = new CraftedItemsModel();
         $robotItemData  = $robotItemModel->find($robotId);
         if (!$robotItemData) {
@@ -200,31 +212,32 @@ class StartrobotexplorerCommand extends UserCommand
         $baseDurability = (int)$robotItemData['durability_count'];
         $this->logger->debug("baseDurability робота (ID={$robotId}): {$baseDurability}");
 
-        // Текущее состояние робота(ов)
+        // Текущее состояние роботов
         $currentDurability = (int)$robotLogEntry['durability_count'];
         $currentQuantity   = (int)$robotLogEntry['quantity'];
 
-        // 10) Время работы = 6 часов * уровень мастерской
+        // 10) Время работы = 6 ч * уровень мастерской
         $hoursUntilBreakdown = 6 * $workshopLevel;
         $this->logger->debug("Время работы робота-исследователя: {$hoursUntilBreakdown} ч.");
 
         $requiredDurability = $hoursUntilBreakdown;
 
-        // --- ЛОГИКА "ПОПОЛНЕНИЯ" (как в вашем коде) ---
+        // --- ЛОГИКА "ПОПОЛНЕНИЯ" ---
         while ($currentDurability < $requiredDurability) {
             if ($currentQuantity > 1) {
-                $this->logger->debug("Недостаточно прочности, но есть запасные роботы. Уменьшаем quantity, добавляем baseDurability.");
+                $this->logger->debug(
+                    "Недостаточно прочности, но есть запасные роботы. Уменьшаем quantity, добавляем baseDurability."
+                );
                 $currentQuantity--;
                 $currentDurability += $baseDurability;
             } else {
-                // Остался 1 робот, прочности не хватает => частичный запуск
+                // Остался 1 робот
                 $this->logger->debug("Нет запасных роботов, запускаем на текущую прочность = {$currentDurability}.");
                 $requiredDurability = $currentDurability;
                 break;
             }
         }
 
-        // Контрольная проверка
         if ($currentDurability <= 0) {
             return $this->sendMessage($chatId, "Прочность робота равна 0, запуск невозможен.");
         }
@@ -232,7 +245,6 @@ class StartrobotexplorerCommand extends UserCommand
         // Списываем
         $newDurability = $currentDurability - $requiredDurability;
 
-        // Если робот "умер" полностью
         if ($newDurability <= 0) {
             $currentQuantity--;
             if ($currentQuantity <= 0) {
@@ -245,7 +257,6 @@ class StartrobotexplorerCommand extends UserCommand
                 ]);
             }
         } else {
-            // Иначе просто обновляем
             $craftedItemsLogModel->update($robotLogEntry['id'], [
                 'quantity'         => $currentQuantity,
                 'durability_count' => $newDurability,
@@ -302,7 +313,7 @@ class StartrobotexplorerCommand extends UserCommand
     }
 
     /**
-     * Устанавливает аргументы для команды.
+     * Устанавливает аргументы для команды (необязательно).
      */
     public function setArguments(string $arguments): self
     {

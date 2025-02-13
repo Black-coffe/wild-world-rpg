@@ -14,7 +14,12 @@ use Longman\TelegramBot\Entities\ServerResponse;
 
 // Новая интеграция:
 use App\Services\Bases\BaseCheckService;
+use App\Services\Coverage\CommunicationTowerCoverageService;
 
+/**
+ * Класс StartRobotExplorationAction.
+ * Отвечает за запуск робота-исследователя (рандомная точка).
+ */
 class StartRobotExplorationAction extends BaseAction
 {
     protected $characterTaskModel;
@@ -26,6 +31,7 @@ class StartRobotExplorationAction extends BaseAction
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
+
         $this->characterTaskModel     = new CharacterTaskModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
         $this->buildingModel          = new BuildingModel();
@@ -47,7 +53,7 @@ class StartRobotExplorationAction extends BaseAction
         if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
             $character['id'],
             $this->callbackQuery->getId(),
-            $this->callbackQuery->getMessage()->getChat()->getId()
+            $chatId
         )) {
             return Request::emptyResponse(); // переезд идёт, сервис уже выдал ответ
         }
@@ -57,13 +63,26 @@ class StartRobotExplorationAction extends BaseAction
         // --- NEW BLOCK: проверяем базу и положение игрока через BaseCheckService ---
         $baseCheckService = new BaseCheckService();
         $baseStatus       = $baseCheckService->checkBaseStatus($characterId);
+
         if (!$baseStatus['hasBase']) {
             // Нет базы => завершаем
             return $this->sendError("У тебя нет базы! Нельзя запускать робота-исследователя без базы.");
         }
+
+        // Если у игрока ЕСТЬ база, но он НЕ на базе:
         if (!$baseStatus['isOnBase']) {
-            // У игрока есть база, но он не на своей базе
-            return $this->sendError("Ты находишься не на своей базе. Перейди на клетку своей базы, чтобы запустить робота-исследователя!");
+            // Проверяем покрытие вышки связи
+            $coverageService = new CommunicationTowerCoverageService();
+            $coverageResult  = $coverageService->checkCoverage($characterId);
+
+            if (!$coverageResult['isCovered']) {
+                // Ни физически, ни по вышке связи
+                return $this->sendError(
+                    "Ты находишься не на своей базе, и вышка связи не покрывает твою позицию. "
+                    . "Перейди на клетку своей базы или в зону покрытия, чтобы запустить робота!"
+                );
+            }
+            // Если покрытие есть, пропускаем дальше (виртуально «на базе»)
         }
         // --- END of new block ---
 
@@ -97,8 +116,8 @@ class StartRobotExplorationAction extends BaseAction
 
         if ($existingRobotTask) {
             return $this->sendError(
-                "У тебя уже запущен робот‐исследователь! " .
-                "Дождись завершения предыдущего, прежде чем запускать нового."
+                "У тебя уже запущен робот‐исследователь! "
+                . "Дождись завершения предыдущего, прежде чем запускать нового."
             );
         }
 
@@ -143,7 +162,7 @@ class StartRobotExplorationAction extends BaseAction
         $hoursUntilBreakdown = 6 * $workshopLevel;
         $requiredDurability  = $hoursUntilBreakdown;
 
-        // --- ЛОГИКА «ПОПОЛНЕНИЯ» прочности ---
+        // --- Логика «пополнения» прочности ---
         while ($currentDurability < $requiredDurability) {
             if ($currentQuantity > 1) {
                 $currentQuantity--;
@@ -163,7 +182,6 @@ class StartRobotExplorationAction extends BaseAction
             if ($newQuantity <= 0) {
                 $this->craftedItemsLogModel->delete($robotLogEntry['id']);
             } else {
-                // Остались ещё роботы => восстанавливаем одного из них (baseDurability)
                 $this->craftedItemsLogModel->update($robotLogEntry['id'], [
                     'quantity'         => $newQuantity,
                     'durability_count' => $baseDurability,
@@ -189,7 +207,7 @@ class StartRobotExplorationAction extends BaseAction
             'status'           => 'in_work',
         ]);
 
-        // 11. Считаем, сколько роботов и суммарная прочность остались
+        // 11. Считаем, сколько роботов и суммарной прочности осталось
         $allRobotRows = $this->craftedItemsLogModel
             ->where('character_id', $characterId)
             ->where('crafted_item_id', $robotId)

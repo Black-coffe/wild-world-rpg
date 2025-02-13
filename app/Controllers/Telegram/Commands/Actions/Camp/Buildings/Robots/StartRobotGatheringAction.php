@@ -12,8 +12,9 @@ use App\Models\TaskModel;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 
-// Новое подключение нашего сервиса:
+// Подключаем наши сервисы
 use App\Services\Bases\BaseCheckService;
+use App\Services\Coverage\CommunicationTowerCoverageService;
 
 /**
  * Класс, запускающий робота-добытчика ресурсов.
@@ -52,26 +53,38 @@ class StartRobotGatheringAction extends BaseAction
         if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
             $character['id'],
             $this->callbackQuery->getId(),
-            $this->callbackQuery->getMessage()->getChat()->getId()
+            $chatId
         )) {
             return Request::emptyResponse(); // переезд есть, сервис уже отписался
         }
 
         $characterId = $character['id'];
 
-        // --- NEW: проверка базы и местоположения ---
+        // --- NEW: проверка базы и потенциальной «дистанционной» возможности ---
         $baseCheckService = new BaseCheckService();
-        $baseStatus       = $baseCheckService->checkBaseStatus($characterId);
+        $baseStatus = $baseCheckService->checkBaseStatus($characterId);
 
         if (!$baseStatus['hasBase']) {
             // Если базы нет
-            return $this->sendError("У тебя нет базы! Нельзя запустить робота-добытчика, пока не построишь базу.");
+            return $this->sendError(
+                "У тебя нет базы! Нельзя запустить робота-добытчика, пока не построишь базу."
+            );
         }
+
+        // Если персонаж НЕ на базе, пытаемся узнать, покрывает ли его вышка связи
         if (!$baseStatus['isOnBase']) {
-            // Если есть база, но персонаж не на своей базе
-            return $this->sendError("Ты не находишься на своей базе! Перейди на клетку своей базы для запуска робота-добытчика.");
+            $coverageService = new CommunicationTowerCoverageService();
+            $coverageResult  = $coverageService->checkCoverage($characterId);
+
+            if (!$coverageResult['isCovered']) {
+                // Нет физического нахождения на базе и нет сигнала вышки
+                return $this->sendError(
+                    "Ты не находишься на своей базе, а вышка связи не покрывает твою позицию. "
+                    . "Вернись на базу или в зону покрытия, чтобы запустить робота!"
+                );
+            }
+            // Если покрытие есть — продолжаем, как будто «виртуально» на базе
         }
-        // --- END of base-check ---
 
         // Из callback_data извлекаем ID робота (например, "startRobotGatherer_82" => "82")
         $robotId = str_replace('startRobotGatherer_', '', $this->callbackQuery->getData());
@@ -138,9 +151,9 @@ class StartRobotGatheringAction extends BaseAction
             return $this->sendError("Ошибка: не найдено описание робота #{$robotId} в crafted_items.");
         }
 
-        $baseDurability   = (int) $robotData['durability_count'];
-        $currentDurability = (int)$robotLogEntry['durability_count'];
-        $currentQuantity   = (int)$robotLogEntry['quantity'];
+        $baseDurability    = (int) $robotData['durability_count'];
+        $currentDurability = (int) $robotLogEntry['durability_count'];
+        $currentQuantity   = (int) $robotLogEntry['quantity'];
 
         if ($currentDurability <= 0) {
             return $this->sendError(
