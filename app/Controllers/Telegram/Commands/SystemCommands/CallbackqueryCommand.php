@@ -193,6 +193,10 @@ class CallbackqueryCommand extends SystemCommand
             'equipMenu' =>              \App\Controllers\Telegram\Commands\Profile\GearAction::class,
             'gearArmor' =>              \App\Controllers\Telegram\Commands\Profile\GearArmorAction::class,
             'gearWeapons' =>              \App\Controllers\Telegram\Commands\Profile\GearWeaponsAction::class,
+            'gearWeaponDetail' =>              \App\Controllers\Telegram\Commands\Profile\GearWeaponDetailAction::class,
+            'toggleEquipWeapon' =>              \App\Controllers\Telegram\Commands\Profile\ToggleEquipWeaponAction::class,
+            'gearArmorDetail' =>              \App\Controllers\Telegram\Commands\Profile\GearArmorDetailAction::class,
+            'toggleEquipArmor' =>              \App\Controllers\Telegram\Commands\Profile\ToggleEquipArmorAction::class,
 
             'AllRobots' =>              \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\AllRobotsHandler::class,
             'activateRobot' =>          \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\ActivateRobotHandler::class,
