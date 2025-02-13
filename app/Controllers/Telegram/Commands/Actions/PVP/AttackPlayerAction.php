@@ -122,7 +122,7 @@ class AttackPlayerAction extends BaseAction
      */
     public function handle(): ServerResponse
     {
-        // Новое: фиксируем время начала боя (для created_at)
+        // Фиксируем время начала боя
         $battleStartTime = date('Y-m-d H:i:s');
 
         // Ожидаем callback_data вида "attackPlayer_###"
@@ -174,22 +174,21 @@ class AttackPlayerAction extends BaseAction
         $attacker['faction'] = $this->getCharacterFaction($attacker['id']);
         $defender['faction'] = $this->getCharacterFaction($defender['id']);
 
-        // --- (1) СИМУЛЯЦИЯ БОЯ ---
+        // 1) Симуляция боя
         $fightResult = $this->simulateFight($attacker, $defender, $biome);
 
-        // --- (2) Итоговое описание (для Телеграм) ---
-        $summaryText = $this->formatShortFightResult($fightResult);
+        // 2) Формируем короткий текст итогов (для Телеграм)
+        $summaryText    = $this->formatShortFightResult($fightResult);
+        $loser          = $fightResult['loser']  ?? null;
+        $winner         = $fightResult['winner'] ?? null;
+        $attackerName   = $attacker['name'];
+        $defenderName   = $defender['name'];
+        $attackerIntro  = '';
+        $defenderIntro  = '';
 
-        $attackerIntro = '';
-        $defenderIntro = '';
-        $loser  = $fightResult['loser']  ?? null;
-        $winner = $fightResult['winner'] ?? null;
-
-        $attackerName = $attacker['name'];
-        $defenderName = $defender['name'];
-
-        // Сценарий ничья (оба упали без сил)
+        // Проверка состояний
         if ($fightResult['type'] === 'exhausted') {
+            // Оба выдохлись
             $this->processMutualExhaustion($attacker, $defender);
             $summaryText .= "\n\n<b>Оба бойца изнемогли</b> и решили прекратить схватку!\n"
                 . "❤️ Здоровье и выносливость сброшены до 10.\n"
@@ -198,40 +197,43 @@ class AttackPlayerAction extends BaseAction
             $attackerIntro = "Ты участвовал в битве, но оба упали без сил.";
             $defenderIntro = "Тебя атаковали, но сражение закончилось взаимным изнеможением.";
         }
-        // Сценарий есть победитель
         elseif ($loser !== null && $winner !== null) {
-            // DeathService
-            $deathService = new DeathService();
-            $deathResult  = $deathService->handlePlayerDeathAndReward($loser['id'], $winner['id']);
+            // Есть победитель
+            $deathService   = new DeathService();
+            $deathResult    = $deathService->handlePlayerDeathAndReward($loser['id'], $winner['id']);
             $penaltyPercent = (int)($deathResult['penalty'] * 100);
 
             if ($penaltyPercent === 0) {
                 $summaryText .= "\n\n❌ <b>{$loser['name']}</b> потерпел поражение, но страховка спасла от потери имущества!";
             } else {
-                $loserBefore = $loser;
+                $loserBefore  = $loser;
                 $this->processDeathAndRespawn($loser);
-                $loser = $this->characterModel->find($loser['id']); // обновлённый
-                $loserDiffText = $this->makeLoserDiffText($loserBefore);
+                $loser        = $this->characterModel->find($loser['id']); // обновлённый
+                $loserDiffText= $this->makeLoserDiffText($loserBefore);
 
                 if ($deathResult['hasBase']) {
+                    // Есть база
                     $summaryText .= "\n\n❌ <b>{$loser['name']}</b> повержен и возродился...\n"
                         . $loserDiffText
                         . "\nТы потерял лишь <b>{$penaltyPercent}%</b> ресурсов, ведь база частично спасла запасы."
                         . "\nНо <b>враг забрал</b> эти <b>{$penaltyPercent}%</b>!";
                 } else {
+                    // Нет базы => 50%
                     $summaryText .= "\n\n❌ <b>{$loser['name']}</b> проиграл бой и был возрождён...\n"
                         . $loserDiffText
                         . "\nТы оказался <b>без базы</b>, так что потерял <b>50%</b> ресурсов/крафта/золота: "
                         . "<i>половина исчезла бесследно, половина (25%) досталась врагу.</i>";
                 }
             }
-            // Награда победителю
-            $winnerBefore = $winner;
-            $this->giveWinnerBonus($winner['id']);
-            $winner = $this->characterModel->find($winner['id']);
-            $winnerDiffText = $this->makeWinnerDiffText($winnerBefore);
-            $summaryText   .= "\n\n🏆 <b>{$winner['name']}</b> торжествует! {$winnerDiffText}";
 
+            // Награда победителю
+            $winnerBefore    = $winner;
+            $this->giveWinnerBonus($winner['id']);
+            $winner          = $this->characterModel->find($winner['id']);
+            $winnerDiffText  = $this->makeWinnerDiffText($winnerBefore);
+            $summaryText    .= "\n\n🏆 <b>{$winner['name']}</b> торжествует! {$winnerDiffText}";
+
+            // Вступления
             $attackerIntro = ($attacker['id'] === $winner['id'])
                 ? "Ты атаковал и разгромил врага!"
                 : "Ты начал бой, но оказался слабее в этот раз...";
@@ -241,44 +243,21 @@ class AttackPlayerAction extends BaseAction
                 : "Тебя атаковали, и ты пал в этом бою...";
         }
 
-        // Формируем финальные тексты
+        // Формируем финальные тексты (без ссылки)
         $attackerFinalText = "🤺 <b>{$attackerName}</b>, {$attackerIntro}\n\n{$summaryText}";
         $defenderFinalText = "🛡 <b>{$defenderName}</b>, {$defenderIntro}\n\n{$summaryText}";
 
-        // Отправка ответов
+        // Ответ на callback, но пока не отправляем сообщение
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId(),
         ]);
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🎒 Инвентарь',    'callback_data' => 'inventory'],
-                    ['text' => '🗺️ Изучить местность','callback_data' => 'explore'],
-                ],
-            ]
-        ];
-
-        Request::sendMessage([
-            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'         => $attackerFinalText,
-            'parse_mode'   => 'HTML',
-            'reply_markup' => json_encode($keyboard),
-        ]);
-
-        // Уведомляем защищающегося
-        $this->notifyDefender($defender, $attacker, $defenderFinalText);
-
-        // --- НОВОЕ: Логируем бой в таблицу battle_logs ---
-        $endTime = date('Y-m-d H:i:s');   // Время окончания боя
-
-        // Определяем тип боя — тут всегда PVP. Если бы был NPC, можно ставить 'PVE'.
+        // --- Логирование боя в базу ---
+        $endTime    = date('Y-m-d H:i:s');
         $battleType = 'PVP';
+        $winnerId   = $winner ? $winner['id'] : null;
 
-        // ID победителя (или null, если ничья)
-        $winnerId = ($winner) ? $winner['id'] : null;
-
-        // Подготовим подробный JSON:
+        // Готовим JSON-лог
         $logDetails = [
             'characters' => [
                 'attacker' => [
@@ -309,10 +288,8 @@ class AttackPlayerAction extends BaseAction
                 'loserId'  => ($loser) ? $loser['id'] : null,
             ],
         ];
-
         $logJson = json_encode($logDetails, JSON_UNESCAPED_UNICODE);
 
-        // Сформируем массив для модели:
         $battleData = [
             'battle_type' => $battleType,
             'player1_id'  => $attacker['id'],
@@ -323,9 +300,49 @@ class AttackPlayerAction extends BaseAction
             'log_data'    => $logJson
         ];
 
-        // Запишем в таблицу
-        $this->battleLogModel->insert($battleData);
-        // -- конец логирования --
+        // Сохраняем и получаем ID боя
+        $battleId = $this->battleLogModel->insert($battleData);
+
+        // Формируем ссылку на просмотр боя (основной домен)
+        $battleUrl = base_url('battles/view/') . $battleId;
+
+        // Добавляем ссылку в тексты
+        $attackerFinalText .= "\n\n<a href=\"{$battleUrl}\">[Посмотреть детали боя]</a>";
+        $defenderFinalText .= "\n\n<a href=\"{$battleUrl}\">[Посмотреть детали боя]</a>";
+
+        // Клавиатура
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                    ['text' => '🗺️ Изучить местность', 'callback_data' => 'explore'],
+                ],
+            ]
+        ];
+
+        // Теперь отправляем сообщение атакующему (уже с ссылкой)
+        Request::sendMessage([
+            'chat_id'                  => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'                     => $attackerFinalText,
+            'parse_mode'               => 'HTML',
+            'reply_markup'             => json_encode($keyboard),
+            'disable_web_page_preview' => true,
+        ]);
+
+        // Отправляем сообщение проигравшему/защищающемуся (также с ссылкой)
+        try {
+            $defUser = $this->telegramUserModel->find($defender['telegram_user_id']);
+            if ($defUser && !empty($defUser['telegram_id'])) {
+                Request::sendMessage([
+                    'chat_id'                  => $defUser['telegram_id'],
+                    'text'                     => $defenderFinalText,
+                    'parse_mode'               => 'HTML',
+                    'disable_web_page_preview' => true,
+                ]);
+            }
+        } catch (TelegramException $e) {
+            log_message('error', "notifyDefender error: " . $e->getMessage());
+        }
 
         return Request::emptyResponse();
     }

@@ -12,6 +12,9 @@ $routes->get('/cbgsvd-d-dw/worker', 'Worker::processTasks');
 $routes->get('/pvp', 'PvPController::index');
 $routes->post('/pvp/startFight', 'PvPController::startFight');
 
+$routes->get('battles', 'BattlesController::index');
+$routes->get('battles/view/(:num)', 'BattlesController::view/$1');
+
 $routes->group('admin', ['filter' => 'login'], function($routes) {
     // Quest routes
     $routes->get('quests', 'Admin\QuestController::index'); // List all quests
