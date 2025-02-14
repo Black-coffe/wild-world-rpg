@@ -88,6 +88,8 @@ class Worker extends Controller
         (new \App\TaskHandlers\GreenhouseProductionHandler())->handle();
         (new \App\TaskHandlers\Built\GymProductionHandler())->handle();
         (new \App\TaskHandlers\Built\HandPumpProductionHandler())->handle();
+        (new \App\TaskHandlers\NPC\SpawnSandyWolfRaidersCron())->run();
+        (new \App\TaskHandlers\NPC\AutoPveHandler())->run();
     }
 
     protected function DeathRouletteHandler()

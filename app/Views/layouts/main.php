@@ -27,7 +27,7 @@
 <nav class="navbar navbar-expand-lg navbar-light bg-light">
     <div class="container">
         <!-- Логотип / название -->
-        <a href="/" class="navbar-brand">My Game</a>
+        <a href="/" class="navbar-brand">Wildworld</a>
 
         <!-- Кнопка-гамбургер (для мобильных) -->
         <button class="navbar-toggler" type="button"
@@ -43,16 +43,16 @@
         <div class="collapse navbar-collapse" id="navbarMain">
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item">
-                    <a href="/" class="nav-link">Главная</a>
+                    <a href="https://wildworld.fun/" class="nav-link">Wildworld</a>
                 </li>
                 <li class="nav-item">
-                    <a href="/battles" class="nav-link">Список боёв</a>
+                    <a href="<?= base_url('battles')?>" class="nav-link">Список боёв</a>
                 </li>
                 <li class="nav-item">
-                    <a href="/inventory" class="nav-link">Инвентарь</a>
+                    <a href="https://wildworld.fun/devblog/" class="nav-link">DevBlog</a>
                 </li>
                 <li class="nav-item">
-                    <a href="/map" class="nav-link">Карта</a>
+                    <a href="https://wildworld.fun/about/" class="nav-link">О нас</a>
                 </li>
                 <!-- Добавьте иконку/аватар или выпадающее меню профиля, если нужно -->
             </ul>

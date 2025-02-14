@@ -10,12 +10,14 @@ use App\Models\ExploredCellsModel;
 use App\Models\FactionModel;
 use App\Models\MapModel;
 use App\Models\ResourceModel;
+use App\Models\CharactersWeaponsModel;
+use App\Models\WeaponModel;
+use App\Models\CharactersOutfitsModel;
+use App\Models\OutfitModel;
 use DateTime;
 use Longman\TelegramBot\Entities\Keyboard;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
-
-// Модели
 
 class CharacterService
 {
@@ -27,6 +29,10 @@ class CharacterService
     protected $characterResourceModel;
     protected $characterFactionModel;
     protected $factionModel;
+    protected $charactersWeaponsModel;
+    protected $weaponsModel;
+    protected $charactersOutfitsModel;
+    protected $outfitsModel;
 
     public function __construct()
     {
@@ -38,18 +44,20 @@ class CharacterService
         $this->resourceModel          = new ResourceModel();
         $this->characterFactionModel  = new CharacterFactionModel();
         $this->factionModel           = new FactionModel();
+        $this->charactersWeaponsModel = new CharactersWeaponsModel();
+        $this->weaponsModel           = new WeaponModel();
+        $this->charactersOutfitsModel = new CharactersOutfitsModel();
+        $this->outfitsModel           = new OutfitModel();
     }
 
     /**
-     * Показ информации о персонаже + установка постоянной клавиатуры.
+     * Показ информации о персонаже + установка клавиатуры.
      */
     public function showCharacterInfo(int $chatId, array $characterRow): ServerResponse
     {
-        // 1. Устанавливаем «ReplyKeyboard»
+        // 1. Устанавливаем клавиатуру
         $replyKeyboard = new Keyboard([
-            'keyboard' => [
-                ['Перс', 'База', 'Крафт', 'Карта'],
-            ],
+            'keyboard' => [['Перс', 'База', 'Крафт', 'Карта']],
             'resize_keyboard'   => true,
             'one_time_keyboard' => false,
             'selective'         => false,
@@ -61,19 +69,12 @@ class CharacterService
             'reply_markup' => $replyKeyboard,
         ]);
 
-        // 2. Собираем сведения
-        $exploredCount = $this->exploredCellsModel
-            ->where('character_id', $characterRow['id'])
-            ->countAllResults();
-
-        $totalResources = $this->characterResourceModel
-            ->where('id_characters', $characterRow['id'])
-            ->countAllResults();
+        // 2. Собираем сведения о персонаже
+        $exploredCount = $this->exploredCellsModel->where('character_id', $characterRow['id'])->countAllResults();
+        $totalResources = $this->characterResourceModel->where('id_characters', $characterRow['id'])->countAllResults();
 
         $cell  = $this->mapModel->where('cell_number', $characterRow['cell_number'])->first();
-        $biome = ($cell)
-            ? $this->biomeModel->find($cell['biome_id'])
-            : null;
+        $biome = ($cell) ? $this->biomeModel->find($cell['biome_id']) : null;
 
         $createdDate = new DateTime($characterRow['created_at']);
         $interval   = $createdDate->diff(new DateTime());
@@ -84,17 +85,19 @@ class CharacterService
             ? "🧰 Есть 💰*" . number_format($gold) . "* золота"
             : "🧰 Золото отсутствует!";
 
-        // Фракция
+        // Фракция персонажа
         $factionName = '';
-        $charFaction = $this->characterFactionModel
-            ->where('character_id', $characterRow['id'])
-            ->first();
+        $charFaction = $this->characterFactionModel->where('character_id', $characterRow['id'])->first();
         if ($charFaction) {
             $faction = $this->factionModel->find($charFaction['faction_id']);
             if ($faction) {
                 $factionName = $faction['name'];
             }
         }
+
+        // Получаем экипировку (броня и оружие)
+        $equippedWeapon = $this->getEquippedWeapon($characterRow['id']);
+        $equippedArmor  = $this->getEquippedArmor($characterRow['id']);
 
         // Итоговый текст
         $cleanName  = $this->sanitizeName($characterRow['name'] ?? '');
@@ -119,6 +122,10 @@ class CharacterService
             . "💹 *Карма торговли:* {$characterRow['trading_karma']}\n"
             . $goldText . "\n\n";
 
+        // Добавляем броню и оружие
+        $text .= "🛡 *Броня:* " . ($equippedArmor ?: "❌ Нет") . "\n";
+        $text .= "⚔️ *Оружие:* " . ($equippedWeapon ?: "❌ Нет") . "\n";
+
         // Инлайн-кнопки
         $inlineKeyboard = [
             'inline_keyboard' => [
@@ -140,20 +147,47 @@ class CharacterService
             ]
         ];
 
-        // 3. Отправляем сообщение + картинка
-        $imagePath = base_url('uploads/telegram/picture_of_the_playable_character.png');
-        return Request::sendPhoto([
+        return Request::sendMessage([
             'chat_id'    => $chatId,
-            'photo'      => Request::encodeFile($imagePath),
-            'caption'    => $text,
+            'text'       => $text,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($inlineKeyboard),
         ]);
     }
 
+    private function getEquippedWeapon(int $characterId): ?string
+    {
+        $row = $this->charactersWeaponsModel->where('character_id', $characterId)->where('equipped', 1)->first();
+        return $row ? ($this->weaponsModel->find($row['weapon_id'])['name'] ?? null) : null;
+    }
+
+    private function getEquippedArmor(int $characterId): ?string
+    {
+        // Берём все экипированные предметы
+        $equippedItems = $this->charactersOutfitsModel
+            ->where('character_id', $characterId)
+            ->where('equipped', 1)
+            ->findAll();
+
+        if (empty($equippedItems)) {
+            return null;
+        }
+
+        $armorNames = [];
+        foreach ($equippedItems as $item) {
+            // Для каждого предмета достаём запись из outfits
+            $outfitRow = $this->outfitsModel->find($item['outfit_id']);
+            if ($outfitRow) {
+                $armorNames[] = $outfitRow['name'];
+            }
+        }
+
+        // Склеиваем все названия запятой или любым нужным разделителем
+        return !empty($armorNames) ? implode(', ', $armorNames) : null;
+    }
+
     private function sanitizeName(string $name): string
     {
-        $name = str_replace(['_', '-'], ' ', $name);
-        return preg_replace('/[^a-zA-Zа-яА-ЯёЁґҐєЄїЇ0-9 ]/u', '', $name);
+        return preg_replace('/[^a-zA-Zа-яА-ЯёЁґҐєЄїЇ0-9 ]/u', '', str_replace(['_', '-'], ' ', $name));
     }
 }

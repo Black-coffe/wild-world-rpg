@@ -7,13 +7,6 @@ use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CharacterModel;
 
-/**
- * Сервис DeathService:
- * - Определяет, сколько % списать у проигравшего (3% или 50%).
- * - Учитывает страховку (если включена и денег хватает).
- * - Списывает (ресурсы, крафт, золото).
- * - При наличии победителя отдаёт ему часть (3% или 25%).
- */
 class DeathService
 {
     protected $claimedCellModel;
@@ -48,23 +41,21 @@ class DeathService
             $cost = $this->calculateInsuranceCost($loserRow);
 
             if ($loserRow['gold'] >= $cost) {
-                // 2) Денег хватает => списываем страховку, штраф = 0%
+                // Денег хватает => списываем страховку, штраф = 0%
                 $this->characterModel->update($loserId, [
                     'gold'      => $loserRow['gold'] - $cost,
-                    'insurance' => 0, // одноразовый полис, сгорает
+                    'insurance' => 0, // страховка одноразовая
                 ]);
 
                 $deathPenalty = 0.0;
-                $hasBase = false; // При штрафе 0% неважно, есть база или нет
+                $hasBase = false;
             } else {
-                // 3) Денег не хватает => страховка не сработала
-                // Сбрасываем insurance => 0, переходим к обычной логике (3% или 50%)
+                // Денег не хватает => страховка не сработала
                 $this->characterModel->update($loserId, ['insurance' => 0]);
                 $hasBase = $this->checkIfPlayerHasActiveBase($loserId);
                 $deathPenalty = $hasBase ? 0.03 : 0.50;
             }
         } else {
-            // Обычная логика: нет страховки
             $hasBase = $this->checkIfPlayerHasActiveBase($loserId);
             $deathPenalty = $hasBase ? 0.03 : 0.50;
         }
@@ -89,25 +80,17 @@ class DeathService
         $transferredGold      = 0;
 
         if ($winnerId) {
-            // Если базы нет => penalty=50%. Победителю достаётся 25% (половина из 50%)
-            // Если база есть => penalty=3%. Победителю достаётся 3%
             if (!$hasBase) {
-                // penalty = 50%
-                // Победителю идёт 50% от lost (т.е. 25% от общего)
                 $transferredResources = $this->transferPartOfResources($winnerId, $lostResources, 0.5);
                 $transferredCraft     = $this->transferPartOfCraft($winnerId, $lostCraftedItems, 0.5);
-
                 $transferGold = (int) floor($lostGold / 2);
                 if ($transferGold > 0) {
                     $this->increaseGoldForWinner($winnerId, $transferGold);
                     $transferredGold = $transferGold;
                 }
             } else {
-                // penalty = 3%
-                // Победителю отдаётся все 3% из потерянного
                 $transferredResources = $this->transferPartOfResources($winnerId, $lostResources, 1.0);
                 $transferredCraft     = $this->transferPartOfCraft($winnerId, $lostCraftedItems, 1.0);
-
                 if ($lostGold > 0) {
                     $this->increaseGoldForWinner($winnerId, $lostGold);
                     $transferredGold = $lostGold;
@@ -115,7 +98,10 @@ class DeathService
             }
         }
 
-        // 8) Возвращаем сводку
+        // 9) Перемещаем игрока на базу или в новую ячейку (respawn)
+        $this->respawnPlayer($loserId);
+
+        // 10) Возвращаем сводку
         return [
             'hasBase'               => $hasBase,
             'penalty'               => $deathPenalty,
@@ -124,6 +110,46 @@ class DeathService
             'transferredGold'       => $transferredGold,
             'success'               => true,
         ];
+    }
+
+    /**
+     * Метод перемещения (respawn) игрока после смерти.
+     * Если у игрока есть активная база (claimed_cells, status = active),
+     * то перемещаем его туда. Если базы нет, выбираем случайную ячейку из таблицы map,
+     * где coordinate_y находится в диапазоне 900-999, а biome_id входит в [1,2,3,6].
+     *
+     * @param int $characterId
+     * @return void
+     */
+    private function respawnPlayer(int $characterId): void
+    {
+        // Проверяем наличие активной базы
+        $claimed = $this->claimedCellModel
+            ->where('character_id', $characterId)
+            ->where('status', 'active')
+            ->first();
+
+        if ($claimed) {
+            // Если база есть, берем map_cell_id базы
+            $respawnCell = (int)$claimed['map_cell_id'];
+        } else {
+            // Если базы нет, выбираем случайную ячейку из таблицы map по условиям
+            $mapModel = new \App\Models\MapModel();
+            $cells = $mapModel->where('coordinate_y >=', 900)
+                ->where('coordinate_y <=', 999)
+                ->whereIn('biome_id', [1, 2, 3, 6])
+                ->findAll();
+            if (!empty($cells)) {
+                $randomCell = $cells[array_rand($cells)];
+                $respawnCell = (int)$randomCell['cell_number'];
+            } else {
+                // На всякий случай, если не найдено ни одной ячейки, ставим fallback-значение
+                $respawnCell = 1;
+            }
+        }
+
+        // Обновляем запись персонажа, устанавливая новое значение cell_number
+        $this->characterModel->update($characterId, ['cell_number' => $respawnCell]);
     }
 
     /**
