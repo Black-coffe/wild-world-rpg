@@ -19,44 +19,86 @@ use Longman\TelegramBot\Request;
 
 class PvEService
 {
-    // --- Константы (боевая механика) ------------------
-    private const ROUNDS_PER_DAMAGE_INCREASE = 15;   // Каждые 15 раундов повышаем damageBoost
-    private const DAMAGE_INCREASE_PER_STEP   = 0.15;
-    private const MAX_ROUNDS                 = 100;  // PvE-бой короче, чем PvP
+    // --- Константы (старые + новые) ------------------
 
-    // Смерть/штрафы
+    /**
+     * Каждые 15 раундов боя повышаем damageBoost на 0.15 (то есть +15%)
+     * Это «усталость» защиты или «ярость» атаки в затяжном бою.
+     */
+    private const ROUNDS_PER_DAMAGE_INCREASE = 10;
+    private const DAMAGE_INCREASE_PER_STEP   = 0.15;
+
+    /**
+     * Лимит раундов боя (в PvE короче, чем в PvP)
+     */
+    private const MAX_ROUNDS                 = 60;
+
+    /**
+     * Штрафы при смерти (непосредственно не используем тут,
+     * но оставляем для наглядности, если захотим углубить механику).
+     */
     private const DEATH_EXP_LOSS_PERCENT     = 0.05;
     private const DEATH_STAT_LOSS_PERCENT    = 0.005;
 
-    // Награда победителю (для игрока)
+    /**
+     * Награда за победу (пример: игрок получает +5% к текущему опыту).
+     */
     private const WINNER_EXP_BASE_BONUS      = 0.05;
-    private const WINNER_EXP_MAX_ADDITIVE    = 0.1;
-    private const WINNER_ATTR_BONUS_CHANCE   = 20;
-    private const WINNER_ATTR_BONUS_FACTOR   = 0.001;
 
-    // Уклонение
-    private const MAX_DODGE_CHANCE_PERCENT   = 75;
+    /**
+     * Используемая в базовом коде «граничная» логика:
+     * разница уровней зажимается до -5…+5, а на каждый уровень даёт 0.02 (2%).
+     * Ниже мы для демонстрации оставим её, но можем ослабить/убрать.
+     */
+    private const LEVEL_DIFF_BONUS_PER_LVL   = 0.02;
+    private const LEVEL_DIFF_CAP             = 5;
 
-    // Модификатор биома
+    /**
+     * Аналогично для силы (Strength) есть фактор 0.001,
+     * но жёсткий кап min(0.1, $bonus) => максимум +10% к урону.
+     * В новом подходе мы частично ослабим эти ограничения,
+     * но оставим для совместимости.
+     */
+    private const STATS_BONUS_FACTOR         = 0.001;
+
+    /**
+     * Модификатор урона от «опасного» биома:
+     * если danger_level=6 => 1 + ((6-1) * 0.1) = 1.5 (то есть +50%).
+     */
     private const DAMAGE_BIOME_BASE = 0.1;
 
-    // Lucky Strike
-    private const LUCKY_STRIKE_DIFF_FACTOR    = 0.3;
-    private const LUCKY_STRIKE_MAX_CHANCE     = 40;
-    private const LUCKY_STRIKE_DAMAGE_MULT    = 1.5;
-    private const LUCKY_STRIKE_DEBUFF_PERCENT = 0.10;
-    private const LUCKY_STRIKE_CHANCE_PER_AGI = 0.02;
+    /**
+     * --------------------------------------------------------------------------------
+     *  Ниже — новые для нас поля/константы, связанные с «Боевой силой» (Combat Power).
+     * --------------------------------------------------------------------------------
+     */
 
-    // One-Shot
-    private const ONESHOT_LEVELDIFF_THRESHOLD = 50;
-    private const ONESHOT_MAX_CHANCE          = 50;
+    /**
+     * Если разница CombatPower > 100, мы хотим дать ~99% шанс победы игроку
+     * (или сильно повысить урон).
+     * Но в данном примере мы будем использовать ratio-логику (см. computeDamageRatio).
+     * Вдобавок приведён «шкальный» пример для лога.
+     */
+    private const POWER_DIFF_SCALE = [
+        10   => 0.20,  // при разнице >10 => 50% базовый ориентир
+        20   => 0.30,
+        30   => 0.50,
+        40   => 0.60,
+        50   => 0.80,
+        100  => 0.99,  // 100+ => 99%
+    ];
 
-    // Бонусы за уровень и статы
-    private const LEVEL_DIFF_BONUS_PER_LVL = 0.02;
-    private const LEVEL_DIFF_CAP           = 5;
-    private const STATS_BONUS_FACTOR       = 0.001;
+    /**
+     * Минимум и максимум ratio, который мы будем применять при раундовом бое.
+     * Например, если difference слишком большой, ratio = 2.0 =>
+     * игрок бьёт в 2 раза больнее, а получает урон в 2 раза меньше.
+     */
+    private const MIN_DAMAGE_RATIO = 0.3;  // игрок на порядок слабее => NPC бьёт в ~2.5 раза сильнее
+    private const MAX_DAMAGE_RATIO = 2.1;  // игрок на порядок сильнее => бьёт в 1.6 раза сильнее
 
-    // Модели
+    /**
+     * Внутренние модели
+     */
     protected $characterModel;
     protected $npcModel;
     protected $npcSpawnModel;
@@ -67,6 +109,12 @@ class PvEService
     protected $weaponsModel;
     protected $charactersOutfitsModel;
     protected $outfitsModel;
+
+    /**
+     * Вспомогательное поле: мы будем хранить отдельно подсчитанную ratio,
+     * чтобы использовать её в методе computeDamage(...).
+     */
+    private $damageRatioForThisFight = 1.0;
 
     public function __construct()
     {
@@ -83,11 +131,7 @@ class PvEService
     }
 
     /**
-     * Основной метод запуска PvE-боя между игроком и NPC.
-     *
-     * @param int $playerId
-     * @param int $npcSpawnId
-     * @return array ['message' => string, 'fightLog' => array]
+     * Основной метод PvE-атаки.
      */
     public function attack(int $playerId, int $npcSpawnId): array
     {
@@ -105,11 +149,11 @@ class PvEService
             return ['error' => "Запись о NPC не найдена"];
         }
 
-        // Проставляем здоровье и cell_number
-        $npc['health'] = $npcSpawn['current_health'];
+        // Проставляем здоровье и координаты NPC
+        $npc['health']      = $npcSpawn['current_health'];
         $npc['cell_number'] = $npcSpawn['cell_number'];
 
-        // Биом
+        // Находим биом
         $mapRow = $this->mapModel->where('cell_number', $player['cell_number'])->first();
         if (!$mapRow) {
             return ['error' => "Локация игрока не найдена"];
@@ -119,192 +163,271 @@ class PvEService
             return ['error' => "Биом не найден"];
         }
 
+        // Считаем combatPower (player / npc), определяем ratio
+        $playerPower  = $this->computeCombatPower($player, true);
+        $npcPower     = $this->computeCombatPower($npc, false);
+        $difference   = $playerPower - $npcPower;
+        $this->damageRatioForThisFight = $this->computeDamageRatio($difference);
+
         // Тип NPC
         $npcType = strtolower($npc['npc_type']);
 
-        // Запуск симуляции
+        // Запускаем бой
         $fightResult = $this->simulateFight($player, $npc, $biome, $npcType);
 
-        // Обработка исхода
-        if (isset($fightResult['winner']['id']) && $fightResult['winner']['id'] == $player['id']) {
+        // Проверяем исход
+        if (!empty($fightResult['winner']) && $fightResult['winner']['id'] === $player['id']) {
             // Победа игрока
             $this->grantRewards($player, $npc, $fightResult);
             $this->npcSpawnModel->markAsDead($npcSpawnId);
-        } elseif (isset($fightResult['winner']['id']) && $fightResult['winner']['id'] != $player['id']) {
+
+            // --- ВАЖНО: Игрок выжил => сохраним итоговое здоровье и случайную выносливость ---
+            // Предполагаем, что после боя в $player['health'] лежит остаток HP игрока
+            $finalHealth = max(1, (int) floor($player['health']));
+            // Выносливость = рандом от 1 до finalHealth
+            $randomTired = rand(1, $finalHealth);
+
+            $player['health'] = $finalHealth;
+            $player['tired']  = $randomTired;
+
+            // Записываем в БД
+            $this->characterModel->update($player['id'], [
+                'health' => $player['health'],
+                'tired'  => $player['tired'],
+            ]);
+
+        } elseif (!empty($fightResult['winner']) && $fightResult['winner']['id'] !== $player['id']) {
             // Поражение игрока
             $deathService = new DeathService();
             $deathService->handlePlayerDeathAndReward($player['id'], null);
         }
 
-        // Логируем
+        // Логируем бой
         $this->logBattle($player, $npc, $fightResult, 'PVE');
 
-        // Формируем финальный текст
-        // (подобно PVP, где мы писали "Ты начал бой, но оказался слабее" и т.д.)
+        // Формируем текст
         $finalText = $this->buildFightResultMessage($player, $npc, $fightResult);
-
-        // Отправляем игроку уведомление
+        // Отправляем уведомление
         $this->sendTelegramNotification($player, $finalText);
 
         return [
             'message'  => $finalText,
-            'fightLog' => $fightResult['roundLogs']
+            'fightLog' => $fightResult['roundLogs'],
         ];
     }
 
     /**
-     * Строим текст сообщения по аналогии с PVP:
-     * - Кто атаковал первым
-     * - Сколько раундов
-     * - Кто победил/проиграл
-     * - "Потери" или "Награда"
+     * === Новый метод ===
+     * Считаем «боевую силу» персонажа (или NPC), чтобы понять разницу.
+     * В реальном проекте формулу можно усложнить/упростить.
+     *
+     * $isPlayer — флажок, чтобы использовать методы (getEquippedWeapon и т.д.)
      */
-    private function buildFightResultMessage(array $player, array $npc, array $fightResult): string
+    private function computeCombatPower(array $charData, bool $isPlayer): float
     {
-        // Начинаем с заголовка
-        $text = "🤖 <b>PvE-бой завершён</b>\n";
+        $power = 0.0;
 
-        // Кто атаковал первым
-        $first = $fightResult['firstAttacker'] ?? '???';
-        $rounds = $fightResult['rounds'] ?? 0;
-        $text .= "⚔️ <b>Первым атаковал:</b> {$first}\n";
-        $text .= "🔁 <b>Раундов:</b> {$rounds}\n";
+        // 1) Уровень:
+        $lvl = $charData['level'] ?? 1;
+        $power += $lvl;  // базовая добавка
 
-        // Если нет loser, возможно бой прерван (friendly NPC) или вышли за MAX_ROUNDS
-        if (empty($fightResult['loser'])) {
-            // Ничья / истощение
-            if ($fightResult['type'] === 'exhausted') {
-                $text .= "<b>Оба выдохлись или бой прерван.</b>";
-            } else {
-                $text .= "<b>Не определён победитель?</b>";
+        // 2) Сумма статов
+        // (strength + agility + intellect) * 0.5
+        // Или любая формула на ваш вкус
+        $str = $charData['strength']  ?? 0;
+        $agi = $charData['agility']   ?? 0;
+        $int = $charData['intellect'] ?? 0;
+
+        $statsSum = $str + $agi + $int;
+        $power += ($statsSum * 0.5);
+
+        // 3) Если это игрок, учитываем оружие/броню
+        if ($isPlayer) {
+            // Оружие
+            $weaponRow = $this->getEquippedWeapon($charData);
+            if ($weaponRow) {
+                $wDmg  = $weaponRow['damage_value'];
+                $wRare = $weaponRow['rarity'] ?? 'Common';
+                $wMult = $this->getRarityCoefficient($wRare);
+                // Пусть weaponPower = урон * редкость * 2
+                $weaponPower = $wDmg * $wMult * 2;
+                $power += $weaponPower;
             }
-            return $text;
+
+            // Броня: суммируем все виды резиста
+            $armorRes = $this->getTotalArmorResistance($charData);
+            // пусть 1% резиста = +0.5 к силе
+            $power += (0.5 * $armorRes);
+        } else {
+            // Если NPC, тоже можно учесть его damage_value и уровень.
+            // Но у нас уже добавили lvl и можно добавить weaponPower = damage_value * 2 (например)
+            if (!empty($charData['damage_value'])) {
+                $power += ($charData['damage_value'] * 2);
+            }
         }
 
-        // Есть winner/loser
-        $winner = $fightResult['winner'];
-        $loser  = $fightResult['loser'];
-
-        // Определяем имена (если NPC — берём npc_name_ru, если игрок — name)
-        $winnerName = $winner['name'] ?? $winner['npc_name_ru'] ?? '???';
-        $loserName  = $loser['name']  ?? $loser['npc_name_ru']  ?? '???';
-
-        $text .= "❌ <b>Проиграл:</b> {$loserName}\n"
-            . "🏆 <b>Победил:</b> {$winnerName}\n\n";
-
-        // Если победитель — сам игрок
-        if (isset($winner['id']) && $winner['id'] === $player['id']) {
-            // "Награда"
-            $text .= "🏆 <b>Ты одержал верх над {$npc['npc_name_ru']}!</b>\n";
-            // Здесь можно расписать, что именно получил (exp, gold).
-            // Пример (если grantRewards что-то начисляет):
-            $gainedExp = $npc['experience_reward'] ?? 0;
-            $gainedGold = $npc['gold_reward'] ?? 0;
-            $text .= "Награда:\n"
-                . "• Опыт: +{$gainedExp}\n"
-                . "• Золото: +{$gainedGold}\n"
-                . "🔥 <i>Твой триумф вдохновляет!</i>";
-        }
-        // Если проиграл сам игрок
-        elseif (isset($loser['id']) && $loser['id'] === $player['id']) {
-            // "Потери"
-            $text .= "❌ <b>Ты пал в бою против {$npc['npc_name_ru']}...</b>\n";
-            $text .= "Потери:\n"
-                . "• Часть ресурсов\n"
-                . "• Уменьшился опыт/характеристики\n"
-                . "😰 <i>Горький привкус поражения...</i>";
-        }
-
-        return $text;
+        return max(1.0, $power); // чтобы не было нуля
     }
 
     /**
-     * Отправка сообщения в Telegram (по аналогии с PvP).
-     * Берём telegram_user_id из $player, находим в TelegramUserModel => telegram_id => sendMessage.
+     * === Новый метод ===
+     * Получаем суммарный physical_resistance + fire + poison (в %) у игрока,
+     * но не более 90 (т.к. computeArmorResistance даёт min(0.9).
      */
-    private function sendTelegramNotification(array $player, string $message): void
+    private function getTotalArmorResistance(array $charData): float
     {
-        if (empty($player['telegram_user_id'])) {
-            return; // у игрока нет связи с telegram_users
-        }
+        $equippedOutfits = $this->charactersOutfitsModel
+            ->where('character_id', $charData['id'])
+            ->where('equipped', 1)
+            ->findAll();
 
-        // Загружаем модель, чтобы найти telegram_id
-        $tgUserModel = new TelegramUserModel();
-        $tgUser = $tgUserModel->find($player['telegram_user_id']);
-        if (!$tgUser || empty($tgUser['telegram_id'])) {
-            return; // не знаем chat_id, не можем отправить
+        $resSum = 0.0;
+        foreach ($equippedOutfits as $eq) {
+            $outfit = $this->outfitsModel->find($eq['outfit_id']);
+            if (!$outfit) {
+                continue;
+            }
+            // сложим все 3 типа резиста
+            $resSum += ($outfit['physical_resistance'] ?? 0);
+            $resSum += ($outfit['fire_resistance'] ?? 0);
+            $resSum += ($outfit['poison_resistance'] ?? 0);
         }
-
-        // Отправляем сообщение
-        Request::sendMessage([
-            'chat_id'    => $tgUser['telegram_id'],
-            'text'       => $message,
-            'parse_mode' => 'HTML',
-        ]);
+        // чтобы не зашкаливало, допустим до 90
+        return min(90, $resSum);
     }
 
     /**
-     * Симуляция боя (пошаговая логика) между игроком и NPC.
-     * @param array $player
-     * @param array $npc
-     * @param array $biome
-     * @param string $npcType
-     * @return array
+     * === Новый метод ===
+     * На основе разницы (playerPower - npcPower) вычисляем ratio.
+     * Если difference > 100, ratio = 2.0 (игрок бьёт в 2 раза больнее и получает в 2 раза меньше урона).
+     * Если difference < -100, ratio = 0.4 (или 0.2?), то NPC намного сильнее.
      */
-    protected function simulateFight(array $player, array $npc, array $biome, string $npcType): array
+    private function computeDamageRatio(float $difference): float
     {
+        // Можно сделать логику, что за каждые +/- X difference
+        // мы меняем ratio на +/-. Или взять «классический» подход:
+        if ($difference > 100) {
+            return self::MAX_DAMAGE_RATIO; // 2.0
+        } elseif ($difference < -100) {
+            return self::MIN_DAMAGE_RATIO; // 0.4
+        }
+
+        // Для промежуточных значений — пропорция. Пример (линейная):
+        // difference=0 => ratio=1.0
+        // difference=100 => ratio=2.0
+        // difference=-100 => ratio=0.4
+        // Можно придумать формулу:
+        $rangeHigh = 100;  // при +100 => ratio=2
+        $rangeLow  = -100; // при -100 => ratio=0.4
+        $span = $rangeHigh - $rangeLow; // 200
+        $ratioSpan = self::MAX_DAMAGE_RATIO - self::MIN_DAMAGE_RATIO; // 2.0 - 0.4=1.6
+
+        $position = ($difference - $rangeLow) / $span; // (diff +100)/200 => от 0..1
+        $rawRatio = self::MIN_DAMAGE_RATIO + $ratioSpan * $position;
+        // Гарантируем диапазон
+        $finalRatio = max(self::MIN_DAMAGE_RATIO, min(self::MAX_DAMAGE_RATIO, $rawRatio));
+
+        return $finalRatio;
+    }
+
+    /**
+     * Пошаговая логика боя.
+     * При каждом ударе, если игрок является защитником, обновляем $player['health'].
+     * После боя сохраняем обновлённые показатели в БД и возвращаем результаты.
+     */
+    public function simulateFight(array $player, array $enemy, array $biome, string $npcType)
+    {
+        // Логируем начальные параметры
+        log_message('info', sprintf(
+            "simulateFight() START: Player#%d HP=%s, NPC#%d HP=%s, Biome=%s, NPC-Type=%s",
+            $player['id'] ?? 0, $player['health'] ?? '??',
+            $enemy['id'] ?? 0, $enemy['health'] ?? '??',
+            $biome['name'] ?? 'unknown',
+            $npcType
+        ));
+
         $roundLogs = [];
-
-        // Определяем, кто атакует первым:
+        // Определяем, кто бьёт первым
         if ($npcType === 'hostile' || $npcType === 'boss') {
-            $attacker = $npc;
+            $attacker = $enemy;
             $defender = $player;
         } else {
-            // Для neutral и friendly игрок атакует первым
             $attacker = $player;
-            $defender = $npc;
+            $defender = $enemy;
         }
 
         $round = 0;
-        $damageBoost = 1.0;
+        $damageBoost = 1.0; // растёт каждые N раундов
         $isFirstHit = true;
         $winner = null;
         $loser = null;
-        $firstAttackerName = isset($attacker['name']) ? $attacker['name'] : $attacker['npc_name_ru'];
+        $firstAttackerName = $attacker['name'] ?? $attacker['npc_name_ru'] ?? '???';
 
-        while ($player['health'] > 0 && $npc['health'] > 0 && $round < self::MAX_ROUNDS) {
+        // Основной цикл боя
+        while ($player['health'] > 0 && $enemy['health'] > 0 && $round < self::MAX_ROUNDS) {
             $round++;
             if ($round % self::ROUNDS_PER_DAMAGE_INCREASE === 0) {
                 $damageBoost += self::DAMAGE_INCREASE_PER_STEP;
+                log_message('debug', "Round={$round}: damageBoost вырос до {$damageBoost}");
             }
 
-            // Для friendly NPC: после 5 раундов прекращаем активную атаку
             if ($npcType === 'friendly' && $round >= 5) {
                 $roundLogs[] = [
                     'round' => $round,
-                    'event' => "Дружелюбный NPC перестал атаковать после 5 раундов."
+                    'event' => "Дружелюбный NPC прекратил бой после 5 раундов."
                 ];
+                log_message('debug', "Round={$round}: Friendly NPC вышел из боя");
                 break;
             }
 
+            // Вычисляем базовый урон
             $calc = $this->computeDamage($attacker, $defender, $biome, $isFirstHit);
-            $damage = $calc['finalDamage'] * $damageBoost;
+            $baseDamage = $calc['finalDamage'];
+
+            if (isset($attacker['npc_name_ru'])) {
+                $damage = $baseDamage / $this->damageRatioForThisFight;
+            } else {
+                $damage = $baseDamage * $this->damageRatioForThisFight;
+            }
+            $damage *= $damageBoost;
 
             $defenderHealthBefore = $defender['health'];
             $defender['health'] = max(0, $defender['health'] - $damage);
 
-            $roundLogs[] = [
-                'round' => $round,
-                'attacker' => isset($attacker['name']) ? $attacker['name'] : $attacker['npc_name_ru'],
-                'defender' => isset($defender['name']) ? $defender['name'] : $defender['npc_name_ru'],
-                'damage' => round($damage, 2),
+            // Если защитник — это игрок, то:
+            if ((int)$defender['id'] === (int)$player['id']) {
+                $player['health'] = $defender['health'];
+            } elseif ((int)$attacker['id'] === (int)$player['id']) {
+                $player['health'] = $attacker['health'];
+            }
+
+            $roundInfo = [
+                'round'                => $round,
+                'attacker'             => $attacker['name'] ?? $attacker['npc_name_ru'],
+                'defender'             => $defender['name'] ?? $defender['npc_name_ru'],
+                'damage'               => round($damage, 2),
+                'ratioApplied'         => round($this->damageRatioForThisFight, 2),
+                'damageBoost'          => round($damageBoost, 2),
                 'defenderHealthBefore' => round($defenderHealthBefore, 2),
-                'defenderHealthAfter' => round($defender['health'], 2)
+                'defenderHealthAfter'  => round($defender['health'], 2),
             ];
+            $roundLogs[] = $roundInfo;
+            log_message('debug', sprintf(
+                "Round=%d Attacker=%s => Defender=%s: Damage=%.2f, ratio=%.2f, boost=%.2f, HPbefore=%.2f, HPafter=%.2f",
+                $round,
+                $roundInfo['attacker'],
+                $roundInfo['defender'],
+                $roundInfo['damage'],
+                $roundInfo['ratioApplied'],
+                $roundInfo['damageBoost'],
+                $roundInfo['defenderHealthBefore'],
+                $roundInfo['defenderHealthAfter']
+            ));
 
             if ($defender['health'] <= 0) {
                 $loser = $defender;
                 $winner = $attacker;
+                log_message('info', "simulateFight() - Бой завершён на round={$round}, победитель={$winner['id']} проигравший={$loser['id']}");
                 break;
             }
 
@@ -315,72 +438,101 @@ class PvEService
         $resultType = 'normal';
         if ($round >= self::MAX_ROUNDS) {
             $resultType = 'exhausted';
+            log_message('info', "simulateFight() - Бой достиг лимита раундов (MAX_ROUNDS={$round})");
         }
 
+        log_message('debug', "simulateFight() BEFORE clamp: player[#{$player['id']}] HP={$player['health']}");
+        $finalHealth = max(1, (int) floor($player['health']));
+        $randomTired = rand(1, $finalHealth);
+        $player['health'] = $finalHealth;
+        $player['tired']  = $randomTired;
+        log_message('info', "simulateFight() AFTER clamp => Player[#{$player['id']}] finalHP=$finalHealth, tired=$randomTired");
+
+        $this->characterModel->update($player['id'], [
+            'health' => $player['health'],
+            'tired'  => $player['tired'],
+        ]);
+        log_message('info', sprintf(
+            "simulateFight() DB-update: Player[#%d] -> health=%d, tired=%d (СОХРАНЕНО В characters)",
+            $player['id'],
+            $player['health'],
+            $player['tired']
+        ));
+
         return [
-            'type' => $resultType,
-            'rounds' => $round,
+            'type'          => $resultType,
+            'rounds'        => $round,
             'firstAttacker' => $firstAttackerName,
-            'winner' => $winner,
-            'loser' => $loser,
-            'roundLogs' => $roundLogs
+            'winner'        => $winner,
+            'loser'         => $loser,
+            'roundLogs'     => $roundLogs,
         ];
     }
 
     /**
-     * Вычисление урона с адаптацией PvP-формулы.
-     * Для NPC базовый урон берется из поля damage_value,
-     * для игрока используется логика вычисления экипировки.
-     *
-     * @param array $attacker
-     * @param array $defender
-     * @param array $biome
-     * @param bool  $isFirstHit
-     * @return array
+     * Стандартный метод расчёта базового урона (ещё до учёта ratio).
+     * Сюда мы встроили старые механики: levelBonus, statsBonus, biome.
      */
     protected function computeDamage(array $attacker, array $defender, array $biome, bool $isFirstHit): array
     {
+        // Определяем базу (если NPC, берём damage_value, если игрок — считаем оружие).
         if (isset($attacker['npc_name_ru'])) {
             $D_equip = (float)$attacker['damage_value'];
         } else {
             $D_equip = $this->computeEquipmentDamage($attacker, $defender);
         }
 
+        // Старый levelBonus (но кап до ±5)
         $levelBonus = $this->computeLevelBonus($attacker, $defender);
+        // Старый statsBonus (но макс +10%)
         $statsBonus = $this->computeStatsBonus($attacker);
+
+        // initBonus 5% от $D_equip (только в первый удар данного атакующего)
         $initBonus = $isFirstHit ? (0.05 * $D_equip) : 0.0;
 
-        $baseDamage = $D_equip + ($levelBonus * $D_equip) + ($statsBonus * $D_equip) + $initBonus;
-        $danger = isset($biome['danger_level']) ? $biome['danger_level'] : 1;
+        // Складываем
+        $baseDamage = $D_equip
+            + ($levelBonus * $D_equip)
+            + ($statsBonus * $D_equip)
+            + $initBonus;
+
+        // Учитываем biome
+        $danger = $biome['danger_level'] ?? 1;
         $biomeCoeff = 1 + (($danger - 1) * self::DAMAGE_BIOME_BASE);
         $damageAfterBiome = $baseDamage * $biomeCoeff;
 
-        return ['finalDamage' => max(0, $damageAfterBiome)];
+        return [
+            'finalDamage' => max(0, $damageAfterBiome),
+        ];
     }
 
     /**
-     * Вычисление урона от экипировки для игрока.
+     * Считаем урон игрока от оружия (старая логика).
      */
     private function computeEquipmentDamage(array $attacker, array $defender): float
     {
         $weapon = $this->getEquippedWeapon($attacker);
         if (!$weapon) {
+            // Если нет оружия, берём что-то условное
             $D_base = 2.0;
             $rarityCoeff = 1.0;
             $damageType = 'Physical';
-            $rangeVal = 1.0;
+            $rangeVal   = 1.0;
         } else {
-            $D_base = (float)$weapon['damage_value'];
-            $rarity = $weapon['rarity'] ?? 'Common';
-            $rarityCoeff = $this->getRarityCoefficient($rarity);
+            $D_base     = (float)$weapon['damage_value'];
+            $rarity     = $weapon['rarity'] ?? 'Common';
+            $rarityCoeff= $this->getRarityCoefficient($rarity);
             $damageType = $weapon['damage_type'] ?? 'Physical';
-            $rangeVal = (float)($weapon['range_value'] ?? 1.0);
+            $rangeVal   = (float)($weapon['range_value'] ?? 1.0);
         }
 
+        // Armor (defender)
         $R_armor = $this->computeArmorResistance($defender, $damageType);
-        $F_type = max(0, 1 - $R_armor);
+        $F_type  = max(0, 1 - $R_armor);
+
+        // Distance
         $distance = $this->computeDistance($attacker, $defender);
-        $F_range = $this->computeRangePenalty($rangeVal, $distance);
+        $F_range  = $this->computeRangePenalty($rangeVal, $distance);
 
         $D_equip = $D_base * $rarityCoeff * $F_type * $F_range;
         return max(0, $D_equip);
@@ -388,7 +540,8 @@ class PvEService
 
     private function getEquippedWeapon(array $attacker): ?array
     {
-        $row = $this->charactersWeaponsModel->where('character_id', $attacker['id'])
+        $row = $this->charactersWeaponsModel
+            ->where('character_id', $attacker['id'])
             ->where('equipped', 1)
             ->first();
         if (!$row) {
@@ -403,19 +556,27 @@ class PvEService
             'range_value'  => (float)$weapon['range_value'],
             'damage_type'  => $weapon['damage_type'],
             'rarity'       => $weapon['rarity'],
-            'crit_chance'  => isset($weapon['special_effect']) ? 10.0 : 0.0
+            'crit_chance'  => isset($weapon['special_effect']) ? 10.0 : 0.0,
         ];
     }
 
+    /**
+     * Подсчитываем броню (резист) защитника (если у него есть экипированная броня).
+     * Возвращаем от 0 до 0.9 (то есть 90%).
+     */
     private function computeArmorResistance(array $defender, string $damageType): float
     {
-        $equippedOutfits = $this->charactersOutfitsModel->where('character_id', $defender['id'])
+        $equippedOutfits = $this->charactersOutfitsModel
+            ->where('character_id', $defender['id'] ?? 0)
             ->where('equipped', 1)
             ->findAll();
+
         $resSum = 0.0;
         foreach ($equippedOutfits as $eq) {
             $outfit = $this->outfitsModel->find($eq['outfit_id']);
-            if (!$outfit) continue;
+            if (!$outfit) {
+                continue;
+            }
             switch (strtolower($damageType)) {
                 case 'physical':
                 default:
@@ -432,6 +593,9 @@ class PvEService
         return min(0.9, $resSum);
     }
 
+    /**
+     * Штраф за слишком большую дистанцию (если distance > weaponRange).
+     */
     private function computeRangePenalty(float $weaponRange, float $distance): float
     {
         if ($distance <= $weaponRange) {
@@ -441,12 +605,14 @@ class PvEService
         return max(0.0, $ratio);
     }
 
+    /**
+     * Вычисление дистанции через mapModel (координаты).
+     */
     private function computeDistance(array $charA, array $charB): float
     {
-        $cellA = isset($charA['cell_number']) ? $charA['cell_number'] : null;
-        $cellB = isset($charB['cell_number']) ? $charB['cell_number'] : null;
+        $cellA = $charA['cell_number'] ?? null;
+        $cellB = $charB['cell_number'] ?? null;
         if ($cellA === null || $cellB === null) {
-            // Если информация о ячейке отсутствует, возвращаем значение по умолчанию
             return 1.0;
         }
 
@@ -460,6 +626,9 @@ class PvEService
         return sqrt($dx * $dx + $dy * $dy);
     }
 
+    /**
+     * Старая формула разницы уровней (bounded: ±5).
+     */
     protected function computeLevelBonus(array $attacker, array $defender): float
     {
         $diff = ($attacker['level'] ?? 1) - ($defender['level'] ?? 1);
@@ -467,6 +636,9 @@ class PvEService
         return $bounded * self::LEVEL_DIFF_BONUS_PER_LVL;
     }
 
+    /**
+     * Старая формула силы: (strength * 0.001), max=0.1
+     */
     protected function computeStatsBonus(array $attacker): float
     {
         $statVal = $attacker['strength'] ?? 0;
@@ -474,40 +646,37 @@ class PvEService
         return min(0.1, $bonus);
     }
 
-    protected function determineInitiative(array $c1, array $c2): array
-    {
-        $i1 = ($c1['agility'] ?? 0) + (($c1['level'] ?? 1) + 1) * 0.5;
-        $i2 = ($c2['agility'] ?? 0) + (($c2['level'] ?? 1) + 1) * 0.5;
-        return ($i1 >= $i2) ? $c1 : $c2;
-    }
-
+    /**
+     * Логирование боя в таблицу battle_logs.
+     */
     private function logBattle(array $player, array $npc, array $fightResult, string $battleType): void
     {
         $logDetails = [
             'player' => [
-                'id' => $player['id'],
-                'name' => $player['name'],
-                'level' => $player['level'],
+                'id'     => $player['id'],
+                'name'   => $player['name'],
+                'level'  => $player['level'],
                 'health' => $player['health']
             ],
             'npc' => [
-                'id' => $npc['id'],
-                'name' => $npc['npc_name_ru'],
-                'level' => $npc['level'],
+                'id'     => $npc['id'],
+                'name'   => $npc['npc_name_ru'],
+                'level'  => $npc['level'],
                 'health' => $npc['health']
             ],
-            'rounds' => $fightResult['roundLogs'] ?? [],
+            'rounds'  => $fightResult['roundLogs'] ?? [],
             'outcome' => [
-                'winnerId' => isset($fightResult['winner']['id']) ? $fightResult['winner']['id'] : null,
-                'loserId' => isset($fightResult['loser']['id']) ? $fightResult['loser']['id'] : null,
+                'winnerId' => $fightResult['winner']['id'] ?? null,
+                'loserId'  => $fightResult['loser']['id']  ?? null,
             ]
         ];
         $logJson = json_encode($logDetails, JSON_UNESCAPED_UNICODE);
+
         $battleData = [
             'battle_type' => $battleType,
             'player1_id'  => $player['id'],
             'player2_id'  => $npc['id'],
-            'winner_id'   => isset($fightResult['winner']['id']) ? $fightResult['winner']['id'] : null,
+            'winner_id'   => $fightResult['winner']['id'] ?? null,
             'created_at'  => date('Y-m-d H:i:s'),
             'finished_at' => date('Y-m-d H:i:s'),
             'log_data'    => $logJson
@@ -515,23 +684,105 @@ class PvEService
         $this->battleLogModel->insert($battleData);
     }
 
-    protected function formatFightSummary(array $fightResult, array $player, array $npc): string
+    /**
+     * Строим финальное сообщение.
+     */
+    private function buildFightResultMessage(array $player, array $npc, array $fightResult): string
     {
-        if (isset($fightResult['winner']['id']) && $fightResult['winner']['id'] == $player['id']) {
-            return "Ты победил NPC «{$npc['npc_name_ru']}» за {$fightResult['rounds']} раундов!";
-        } else {
-            return "Твой бой с NPC «{$npc['npc_name_ru']}» завершился поражением.";
+        $text = "🤖 <b>PvE-бой завершён</b>\n";
+
+        $first = $fightResult['firstAttacker'] ?? '???';
+        $rounds= $fightResult['rounds'] ?? 0;
+        $text .= "⚔️ <b>Первым атаковал:</b> {$first}\n";
+        $text .= "🔁 <b>Раундов:</b> {$rounds}\n";
+
+        // Если не определён loser => ничья/прерывание
+        if (empty($fightResult['loser'])) {
+            if ($fightResult['type'] === 'exhausted') {
+                $text .= "<b>Оба выдохлись или бой прерван (MAX_ROUNDS)</b>";
+            } else {
+                $text .= "<b>Не определён победитель (возможно дружелюбный NPC)</b>";
+            }
+            return $text;
         }
+
+        $winner = $fightResult['winner'];
+        $loser  = $fightResult['loser'];
+
+        $winnerName = $winner['name'] ?? $winner['npc_name_ru'] ?? '???';
+        $loserName  = $loser['name']  ?? $loser['npc_name_ru']  ?? '???';
+
+        $text .= "❌ <b>Проиграл:</b> {$loserName}\n"
+            . "🏆 <b>Победил:</b> {$winnerName}\n\n";
+
+        // Победил сам игрок?
+        if (!empty($winner['id']) && $winner['id'] === $player['id']) {
+            $text .= "🏆 <b>Ты одержал верх над {$npc['npc_name_ru']}!</b>\n";
+            $gainedExp  = $npc['experience_reward'] ?? 0;
+            $gainedGold = $npc['gold_reward'] ?? 0;
+            $text .= "Награда:\n"
+                . "• Опыт: +{$gainedExp}\n"
+                . "• Золото: +{$gainedGold}\n"
+                . "🔥 <i>Твой триумф вдохновляет!</i>";
+
+            // --- ДОБАВЛЕННЫЕ СТРОКИ: сообщаем текущее здоровье/выносливость ---
+            $curHP    = $player['health'] ?? 1;  // то что мы сохранили
+            $curTired = $player['tired']  ?? 1;
+            $text .= "\n\n<u>Текущее состояние:</u>\n";
+            $text .= "❤️ Осталось здоровья: {$curHP}\n";
+            $text .= "💤 Усталость (выносливость): {$curTired}\n";
+            $text .= "⚠️ Будь осторожен, следующий бой может стать последним!";
+            // --- КОНЕЦ ДОП. СТРОК ---
+
+        } elseif (!empty($loser['id']) && $loser['id'] === $player['id']) {
+            $text .= "❌ <b>Ты пал в бою против {$npc['npc_name_ru']}...</b>\n"
+                . "Потери:\n"
+                . "• Часть ресурсов\n"
+                . "• Уменьшился опыт/характеристики\n"
+                . "😰 <i>Горький привкус поражения...</i>";
+        }
+
+        return $text;
     }
 
+    /**
+     * Отправка итогового сообщения игроку в Telegram.
+     */
+    private function sendTelegramNotification(array $player, string $message): void
+    {
+        if (empty($player['telegram_user_id'])) {
+            return;
+        }
+        $tgUserModel = new TelegramUserModel();
+        $tgUser = $tgUserModel->find($player['telegram_user_id']);
+        if (!$tgUser || empty($tgUser['telegram_id'])) {
+            return;
+        }
+
+        Request::sendMessage([
+            'chat_id'    => $tgUser['telegram_id'],
+            'text'       => $message,
+            'parse_mode' => 'HTML',
+        ]);
+    }
+
+    /**
+     * Пример награды за победу: игрок получает +5% к опыту (WINNER_EXP_BASE_BONUS).
+     * Можно было бы добавить золото, предметы и т.д.
+     */
     private function grantRewards(array $player, array $npc, array $fightResult): void
     {
-        $exp = $npc['experience_reward'] ?? 0;
-        $gold = $npc['gold_reward'] ?? 0;
+        // К примеру, +5% к текущему experience
         $player['experience'] *= (1 + self::WINNER_EXP_BASE_BONUS);
         $this->characterModel->update($player['id'], $player);
+
+        // Если хотим учесть $npc['experience_reward'] / $npc['gold_reward'],
+        // тоже делаем player['experience'] += ..., player['gold'] += ...
     }
 
+    /**
+     * Коэффициент редкости оружия/брони.
+     */
     private function getRarityCoefficient(string $rarity): float
     {
         switch (strtolower($rarity)) {
