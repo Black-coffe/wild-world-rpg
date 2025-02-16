@@ -68,6 +68,7 @@ class NpcModel extends Model
         'loot_table_id',
         'ai_behavior',
         'custom_settings',
+        'is_rage', // ✅ Добавили флаг "ярости"
         // Обычно 'created_at' и 'updated_at' можно не указывать,
         // если они работают автоматически. Но при желании можно оставить и здесь:
         'created_at',

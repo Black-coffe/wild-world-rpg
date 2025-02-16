@@ -8,6 +8,10 @@ use CodeIgniter\Router\RouteCollection;
 $routes->get('/', 'Login::new');
 $routes->get('/migrate', 'MigrationController::index');
 $routes->get('/cbgsvd-d-dw/worker', 'Worker::processTasks');
+$routes->get('pve-test', 'PvETestController::fight');
+$routes->get('pve-test-view', function() {
+    return view('pve_test');
+});
 
 $routes->get('/pvp', 'PvPController::index');
 $routes->post('/pvp/startFight', 'PvPController::startFight');
