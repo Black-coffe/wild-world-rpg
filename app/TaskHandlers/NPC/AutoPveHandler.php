@@ -88,32 +88,71 @@ class AutoPveHandler
 
     protected function startNpcCombat(int $playerId, int $npcSpawnId): void
     {
+        log_message('debug', "Запуск PvE боя: PlayerID={$playerId}, NPC SpawnID={$npcSpawnId}");
+
         $playerData = $this->characterModel
             ->select('characters.*, telegram_users.telegram_id as telegram_chat_id')
             ->join('telegram_users', 'telegram_users.id = characters.telegram_user_id')
             ->where('characters.id', $playerId)
             ->first();
+
         if (!$playerData) {
+            log_message('error', "Ошибка: Персонаж с ID {$playerId} не найден!");
             return;
         }
 
         $npcData = $this->npcSpawnModel->find($npcSpawnId);
+
         if (!$npcData) {
+            log_message('error', "Ошибка: NPC спавн ID {$npcSpawnId} не найден!");
             return;
         }
+
+        $npcModel = new \App\Models\NpcModel();
+        $npcInfo = $npcModel->find($npcData['npc_id']);
+
+        if (!$npcInfo) {
+            log_message('error', "Ошибка: NPC ID {$npcData['npc_id']} не найден в npcs!");
+            return;
+        }
+
+        $npcData['name'] = $npcInfo['npc_name_ru'] ?? 'Неизвестный враг';
 
         $biome = "Grasslands";
         $fightResult = $this->pveService->attack($playerData, $npcData, $biome);
 
-        $this->characterModel->update($playerId, [
-            'health' => max(1, $playerData['health']),
-            'tired' => max(1, rand(1, (int) floor($playerData['health']))),
-            'experience' => $playerData['experience'] + ($fightResult['rewards']['exp'] ?? 0),
-            'gold' => $playerData['gold'] + ($fightResult['rewards']['gold'] ?? 0)
-        ]);
+        // Логируем результат боя
+        log_message('debug', "PvE Бой завершён. Итоги: " . json_encode($fightResult));
 
-        if (!empty($fightResult['winner']) && $fightResult['winner'] === $playerData['name']) {
+        if (!isset($fightResult['player']) || !is_object($fightResult['player'])) {
+            log_message('error', "Ошибка: PvE бой завершён, но нет данных о игроке!");
+            return;
+        }
+
+        if (!isset($fightResult['winner']) || !is_object($fightResult['winner'])) {
+            log_message('error', "Ошибка: PvE бой завершён, но победитель не является объектом!");
+            return;
+        }
+
+        $updatedPlayer = $fightResult['player'];
+        $winner = $fightResult['winner'];
+
+        $newTired = max(1, rand(1, (int) floor($updatedPlayer->health)));
+
+        $this->characterModel
+            ->set('health', max(1, $updatedPlayer->health))
+            ->set('tired', $newTired)
+            ->set('experience', 'experience + ' . ($fightResult['rewards']['exp'] ?? 0), false)
+            ->set('gold', 'gold + ' . ($fightResult['rewards']['gold'] ?? 0), false)
+            ->where('id', $playerId)
+            ->update();
+
+        log_message('info', "Обновлены данные игрока: ID={$playerId}, Здоровье={$updatedPlayer->health}, Выносливость={$newTired}");
+
+        if (!empty($fightResult['winner']) && is_object($fightResult['winner']) && $fightResult['winner']->name === $playerData['name']) {
             $this->npcSpawnModel->update($npcSpawnId, ['status' => 'dead']);
+            log_message('info', "NPC ID={$npcSpawnId} помечен как 'dead'");
         }
     }
+
 }
