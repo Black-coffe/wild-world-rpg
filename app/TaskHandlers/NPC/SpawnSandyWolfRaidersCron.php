@@ -34,15 +34,21 @@ class SpawnSandyWolfRaidersCron
      */
     public function run()
     {
-        CLI::write("=== SpawnSandyWolfRaidersCron started ===", 'yellow');
+        // ✅ Проверяем текущий день недели и время
+        date_default_timezone_set('Europe/Kiev');
+        $dayOfWeek = date('N'); // 1 (Пн) ... 7 (Вс)
+        $currentTime = date('H:i');
 
-        // 1) Находим NPC "SandyWolfRaider" в таблице npcs
+        if (!in_array($dayOfWeek, [4, 7]) || $currentTime !== '04:14') {
+            return;
+        }
+
+        // 1️⃣ Находим NPC "SandyWolfRaider" в таблице npcs
         $sandyWolf = $this->npcModel
             ->where('npc_name_en', 'SandyWolfRaider')
             ->first();
 
         if (!$sandyWolf) {
-            CLI::error("SandyWolfRaider not found in npcs table!");
             return;
         }
 
@@ -65,20 +71,16 @@ class SpawnSandyWolfRaidersCron
             ->findAll();
 
         $cellCount = count($mapRows);
-        CLI::write("Found {$cellCount} map cells matching conditions...");
 
         if ($cellCount === 0) {
-            CLI::write("No cells to spawn SandyWolfRaider. Aborting.", 'red');
             return;
         }
 
         // 3) Определяем нужное кол-во спавнов: cellCount / 15
         $spawnsNeeded = (int) floor($cellCount / 15);
         if ($spawnsNeeded <= 0) {
-            CLI::write("Computed spawnsNeeded=0 (cellCount/15). Aborting...", 'red');
             return;
         }
-        CLI::write("Planned spawns for SandyWolfRaider: {$spawnsNeeded}.");
 
         // -- ДОПОЛНИТЕЛЬНЫЙ ФУНКЦИОНАЛ --
 
@@ -87,9 +89,6 @@ class SpawnSandyWolfRaidersCron
             ->where('npc_id', $npcId)
             ->where('status', 'dead')
             ->delete();
-        if ($deleted) {
-            CLI::write("Removed {$deleted} dead spawns of SandyWolfRaider from npc_spawns.", 'blue');
-        }
 
         // B) Смотрим, сколько уже "alive" SandyWolfRaider в npc_spawns
         $currentAlive = $this->npcSpawnModel
@@ -97,18 +96,13 @@ class SpawnSandyWolfRaidersCron
             ->where('status', 'alive')
             ->countAllResults();
 
-        CLI::write("Currently alive: {$currentAlive} of SandyWolfRaider.");
-
         // Если уже есть столько же или больше — не спавним новых
         if ($currentAlive >= $spawnsNeeded) {
-            CLI::write("We already have {$currentAlive} alive raiders => no new spawns needed.", 'green');
-            CLI::write("=== SpawnSandyWolfRaidersCron finished ===", 'yellow');
             return;
         }
 
         // C) Вычисляем, сколько нужно доспавнить
         $difference = $spawnsNeeded - $currentAlive;
-        CLI::write("We need to spawn additional: {$difference} SandyWolfRaiders.");
 
         // 4) Случайным образом выбираем ячейки, но исключаем те, где уже есть SandyWolf со status='alive'.
         //    4.1 перемешаем mapRows
@@ -138,11 +132,8 @@ class SpawnSandyWolfRaidersCron
         }
 
         $freeCount = count($freeCells);
-        CLI::write("Total free cells for new raiders: {$freeCount}.");
 
         if ($freeCount === 0) {
-            CLI::write("No free cells to spawn new raiders. Aborting...", 'red');
-            CLI::write("=== SpawnSandyWolfRaidersCron finished ===", 'yellow');
             return;
         }
 
@@ -173,7 +164,5 @@ class SpawnSandyWolfRaidersCron
             $spawnedCount++;
         }
 
-        CLI::write("Spawned {$spawnedCount} new NPC(s) (SandyWolfRaider).", 'green');
-        CLI::write("=== SpawnSandyWolfRaidersCron finished ===", 'yellow');
     }
 }

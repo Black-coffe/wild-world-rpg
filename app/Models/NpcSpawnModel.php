@@ -104,15 +104,25 @@ class NpcSpawnModel extends Model
     }
 
     /**
-     * Пометить спавн как убитый (dead) и вернуть кол-во затронутых строк.
+     * Пометить спавн как убитый (dead).
      *
      * @param int $spawnId
      * @return int
      */
     public function markAsDead(int $spawnId): int
     {
-        return $this->update($spawnId, [
-            'status' => 'dead',
-        ]);
+        return $this->update($spawnId, ['status' => 'dead']);
+    }
+
+    /**
+     * Удалить спавн NPC после победы игрока.
+     *
+     * @param int $spawnId
+     * @return bool
+     */
+    public function deleteNpcSpawn(int $spawnId): bool
+    {
+        log_message('debug', "Удаляем NPC Spawn ID={$spawnId} из npc_spawns.");
+        return $this->delete($spawnId);
     }
 }
