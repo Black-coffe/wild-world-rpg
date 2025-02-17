@@ -1,6 +1,6 @@
 <?php
 
-namespace app\TaskHandlers\NPC;
+namespace App\TaskHandlers\NPC;
 
 use App\Models\NpcModel;
 use App\Models\NpcSpawnModel;
@@ -10,6 +10,10 @@ use CodeIgniter\CLI\CLI;
 /**
  * Класс, который вызывается раз в сутки через CRON
  * и генерирует SandyWolfRaider в таблице npc_spawns по заданной логике.
+ *
+ * Теперь базовые характеристики NPC (уровень, сила, ловкость, интеллект, урон, броня)
+ * берутся из таблицы npcs – их корректировка производится там, а при спавне
+ * изменяется только показатель здоровья (current_health), увеличенный в зависимости от яруса.
  */
 class SpawnSandyWolfRaidersCron
 {
@@ -29,22 +33,25 @@ class SpawnSandyWolfRaidersCron
      */
     public function run()
     {
-        // ✅ Проверяем текущее время (Киев, раз в сутки в 04:14)
+        // Устанавливаем таймзону и проверяем время (Киев, 04:14)
         date_default_timezone_set('Europe/Kiev');
         $currentTime = date('H:i');
         if ($currentTime !== '04:14') {
             return;
         }
 
+        // Конфигурация ярусов – диапазоны по оси Y и требуемое количество NPC.
+        // Здесь значения min_lvl и max_lvl больше не используются для масштабирования остальных характеристик,
+        // поскольку они берутся из таблицы npcs, а при спавне меняется только здоровье.
         $yarusConfig = [
-            2 => ['y_min' => 801, 'y_max' => 900, 'npc_count' => 2000, 'min_lvl' => 20,  'max_lvl' => 120],
-            3 => ['y_min' => 701, 'y_max' => 800, 'npc_count' => 1800, 'min_lvl' => 120, 'max_lvl' => 220],
-            4 => ['y_min' => 601, 'y_max' => 700, 'npc_count' => 1600, 'min_lvl' => 220, 'max_lvl' => 320],
-            5 => ['y_min' => 501, 'y_max' => 600, 'npc_count' => 1400, 'min_lvl' => 320, 'max_lvl' => 420],
-            6 => ['y_min' => 401, 'y_max' => 500, 'npc_count' => 1200, 'min_lvl' => 420, 'max_lvl' => 520],
-            7 => ['y_min' => 301, 'y_max' => 400, 'npc_count' => 800, 'min_lvl' => 520, 'max_lvl' => 620],
-            8 => ['y_min' => 201, 'y_max' => 300, 'npc_count' => 600, 'min_lvl' => 620, 'max_lvl' => 720],
-            9 => ['y_min' => 101, 'y_max' => 200, 'npc_count' => 350, 'min_lvl' => 720, 'max_lvl' => 900],
+            2 => ['y_min' => 801, 'y_max' => 900, 'npc_count' => 2000],
+            3 => ['y_min' => 701, 'y_max' => 800, 'npc_count' => 1800],
+            4 => ['y_min' => 601, 'y_max' => 700, 'npc_count' => 1600],
+            5 => ['y_min' => 501, 'y_max' => 600, 'npc_count' => 1400],
+            6 => ['y_min' => 401, 'y_max' => 500, 'npc_count' => 1200],
+            7 => ['y_min' => 301, 'y_max' => 400, 'npc_count' => 800],
+            8 => ['y_min' => 201, 'y_max' => 300, 'npc_count' => 600],
+            9 => ['y_min' => 101, 'y_max' => 200, 'npc_count' => 350],
         ];
 
         foreach ($yarusConfig as $yarus => $config) {
@@ -63,14 +70,13 @@ class SpawnSandyWolfRaidersCron
             return;
         }
 
-        // 2️⃣ Определяем текущее количество живых NPC в этом ярусе
+        // 2️⃣ Определяем текущее количество живых NPC в этом ярусе (по координате Y)
         $currentAlive = $this->npcSpawnModel
             ->where('coordinate_y >=', $config['y_min'])
             ->where('coordinate_y <=', $config['y_max'])
             ->where('status', 'alive')
             ->countAllResults();
 
-        // Если уже достаточно, ничего не делаем
         if ($currentAlive >= $config['npc_count']) {
             return;
         }
@@ -78,7 +84,7 @@ class SpawnSandyWolfRaidersCron
         // 3️⃣ Определяем недостающее количество NPC
         $neededNPCs = $config['npc_count'] - $currentAlive;
 
-        // 4️⃣ Определяем подходящие клетки на карте
+        // 4️⃣ Выбираем подходящие клетки на карте в заданном диапазоне
         $mapRows = $this->mapModel
             ->where('coordinate_y >=', $config['y_min'])
             ->where('coordinate_y <=', $config['y_max'])
@@ -99,9 +105,19 @@ class SpawnSandyWolfRaidersCron
         }
     }
 
+    /**
+     * Генерирует (спавнит) NPC в указанной клетке с параметрами,
+     * при этом для всех характеристик, кроме здоровья, используются базовые значения из таблицы npcs.
+     * Текущее здоровье (current_health) NPC вычисляется как:
+     * finalHealth = базовое здоровье * (1.0 + (yarus - 1) * 0.2)
+     *
+     * @param array $cell  Данные клетки карты.
+     * @param array $npc   Данные NPC из таблицы npcs (шаблон).
+     * @param int   $yarus Номер яруса.
+     */
     private function spawnNPCInCell(array $cell, array $npc, int $yarus)
     {
-        // Проверяем, что в этой клетке нет живого NPC
+        // Проверяем, что в этой клетке ещё нет живого NPC
         $exists = $this->npcSpawnModel
             ->where('cell_number', $cell['cell_number'])
             ->where('status', 'alive')
@@ -111,25 +127,23 @@ class SpawnSandyWolfRaidersCron
             return;
         }
 
-        // Увеличение характеристик NPC каждые 100 Y
-        $levelBoost = ($yarus - 1) * 10;
-        $finalLevel = min($npc['level'] + $levelBoost, 999);
+        // Масштабирование только показателя здоровья:
         $finalHealth = round($npc['health'] * (1.0 + ($yarus - 1) * 0.2), 2);
-        $finalStrength = round($npc['strength'] * (1.0 + ($yarus - 1) * 0.15), 2);
-        $finalAgility = round($npc['agility'] * (1.0 + ($yarus - 1) * 0.15), 2);
-        $finalDamage = round($npc['damage_value'] * (1.0 + ($yarus - 1) * 0.15), 2);
 
-        // Вставка NPC в базу
+        // Остальные характеристики остаются такими, как заданы в таблице npcs
         $data = [
-            'npc_id'         => (int) $npc['id'],
-            'cell_number'    => (int) $cell['cell_number'],
-            'coordinate_x'   => (int) $cell['coordinate_x'],
-            'coordinate_y'   => (int) $cell['coordinate_y'],
-            'current_health' => $finalHealth,
-            'level'          => $finalLevel,
-            'strength'       => $finalStrength,
-            'agility'        => $finalAgility,
-            'damage_value'   => $finalDamage,
+            'npc_id'         => (int)$npc['id'],
+            'cell_number'    => (int)$cell['cell_number'],
+            'coordinate_x'   => (int)$cell['coordinate_x'],
+            'coordinate_y'   => (int)$cell['coordinate_y'],
+            'current_health' => $finalHealth, // единственный изменяемый параметр при спавне
+            // Остальные статические параметры копируются без изменений:
+            'level'          => $npc['level'],
+            'strength'       => $npc['strength'],
+            'agility'        => $npc['agility'],
+            'intellect'      => $npc['intellect'],
+            'damage_value'   => $npc['damage_value'],
+            'armor'          => $npc['armor'],
             'spawned_at'     => date('Y-m-d H:i:s'),
             'status'         => 'alive'
         ];
