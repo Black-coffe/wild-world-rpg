@@ -8,18 +8,13 @@ use App\Models\MapModel;
 use CodeIgniter\CLI\CLI;
 
 /**
- * Класс, который вызывается раз в час через CRON
+ * Класс, который вызывается раз в сутки через CRON
  * и генерирует SandyWolfRaider в таблице npc_spawns по заданной логике.
  */
 class SpawnSandyWolfRaidersCron
 {
-    /** @var NpcModel */
     protected $npcModel;
-
-    /** @var NpcSpawnModel */
     protected $npcSpawnModel;
-
-    /** @var MapModel */
     protected $mapModel;
 
     public function __construct()
@@ -30,139 +25,115 @@ class SpawnSandyWolfRaidersCron
     }
 
     /**
-     * Метод, который надо вызывать раз в час (например, cron job).
+     * Запуск генерации NPC по ярусам (раз в сутки в 04:14 по Киевскому времени).
      */
     public function run()
     {
-        // ✅ Проверяем текущий день недели и время
+        // ✅ Проверяем текущее время (Киев, раз в сутки в 04:14)
         date_default_timezone_set('Europe/Kiev');
-        $dayOfWeek = date('N'); // 1 (Пн) ... 7 (Вс)
         $currentTime = date('H:i');
-
-        if (!in_array($dayOfWeek, [4, 7]) || $currentTime !== '04:14') {
+        if ($currentTime !== '04:14') {
             return;
         }
 
-        // 1️⃣ Находим NPC "SandyWolfRaider" в таблице npcs
-        $sandyWolf = $this->npcModel
+        $yarusConfig = [
+            2 => ['y_min' => 801, 'y_max' => 900, 'npc_count' => 2000, 'min_lvl' => 20,  'max_lvl' => 120],
+            3 => ['y_min' => 701, 'y_max' => 800, 'npc_count' => 1800, 'min_lvl' => 120, 'max_lvl' => 220],
+            4 => ['y_min' => 601, 'y_max' => 700, 'npc_count' => 1600, 'min_lvl' => 220, 'max_lvl' => 320],
+            5 => ['y_min' => 501, 'y_max' => 600, 'npc_count' => 1400, 'min_lvl' => 320, 'max_lvl' => 420],
+            6 => ['y_min' => 401, 'y_max' => 500, 'npc_count' => 1200, 'min_lvl' => 420, 'max_lvl' => 520],
+            7 => ['y_min' => 301, 'y_max' => 400, 'npc_count' => 800, 'min_lvl' => 520, 'max_lvl' => 620],
+            8 => ['y_min' => 201, 'y_max' => 300, 'npc_count' => 600, 'min_lvl' => 620, 'max_lvl' => 720],
+            9 => ['y_min' => 101, 'y_max' => 200, 'npc_count' => 350, 'min_lvl' => 720, 'max_lvl' => 900],
+        ];
+
+        foreach ($yarusConfig as $yarus => $config) {
+            $this->replenishNPCsForYarus($yarus, $config);
+        }
+    }
+
+    private function replenishNPCsForYarus(int $yarus, array $config)
+    {
+        // 1️⃣ Находим NPC "SandyWolfRaider"
+        $npc = $this->npcModel
             ->where('npc_name_en', 'SandyWolfRaider')
             ->first();
 
-        if (!$sandyWolf) {
+        if (!$npc) {
             return;
         }
 
-        $baseHealth = (float) $sandyWolf['health'];
-        $npcId      = (int)   $sandyWolf['id'];
-
-        // 2) Собираем ячейки карты, удовлетворя условиям:
-        //    - Y от 800 до 900
-        //    - X от 0 до 999
-        //    - biome_id IN (2, 6, 9)
-        $validBiomes = [2, 6, 9]; // горы(2), поля(6), пустыни(9)
-
-        // Запрос к map
-        $mapRows = $this->mapModel
-            ->where('coordinate_y >=', 800)
-            ->where('coordinate_y <=', 900)
-            ->where('coordinate_x >=', 0)
-            ->where('coordinate_x <=', 999)
-            ->whereIn('biome_id', $validBiomes)
-            ->findAll();
-
-        $cellCount = count($mapRows);
-
-        if ($cellCount === 0) {
-            return;
-        }
-
-        // 3) Определяем нужное кол-во спавнов: cellCount / 15
-        $spawnsNeeded = (int) floor($cellCount / 15);
-        if ($spawnsNeeded <= 0) {
-            return;
-        }
-
-        // -- ДОПОЛНИТЕЛЬНЫЙ ФУНКЦИОНАЛ --
-
-        // A) Удаляем все "dead" записи этого NPC (чтобы не копились)
-        $deleted = $this->npcSpawnModel
-            ->where('npc_id', $npcId)
-            ->where('status', 'dead')
-            ->delete();
-
-        // B) Смотрим, сколько уже "alive" SandyWolfRaider в npc_spawns
+        // 2️⃣ Определяем текущее количество живых NPC в этом ярусе
         $currentAlive = $this->npcSpawnModel
-            ->where('npc_id', $npcId)
+            ->where('coordinate_y >=', $config['y_min'])
+            ->where('coordinate_y <=', $config['y_max'])
             ->where('status', 'alive')
             ->countAllResults();
 
-        // Если уже есть столько же или больше — не спавним новых
-        if ($currentAlive >= $spawnsNeeded) {
+        // Если уже достаточно, ничего не делаем
+        if ($currentAlive >= $config['npc_count']) {
             return;
         }
 
-        // C) Вычисляем, сколько нужно доспавнить
-        $difference = $spawnsNeeded - $currentAlive;
+        // 3️⃣ Определяем недостающее количество NPC
+        $neededNPCs = $config['npc_count'] - $currentAlive;
 
-        // 4) Случайным образом выбираем ячейки, но исключаем те, где уже есть SandyWolf со status='alive'.
-        //    4.1 перемешаем mapRows
-        shuffle($mapRows);
-
-        // 4.2 Сформируем список "занятых" coordinate_x/coordinate_y
-        //     (можно также ориентироваться на cell_number, если хотим исключить любой NPC в той же ячейке)
-        $occupiedCells = $this->npcSpawnModel
-            ->select('cell_number')
-            ->where('npc_id', $npcId)
-            ->where('status', 'alive')
+        // 4️⃣ Определяем подходящие клетки на карте
+        $mapRows = $this->mapModel
+            ->where('coordinate_y >=', $config['y_min'])
+            ->where('coordinate_y <=', $config['y_max'])
+            ->where('coordinate_x >=', 0)
+            ->where('coordinate_x <=', 999)
+            ->whereIn('biome_id', [1, 2, 3, 5, 6, 7, 8, 9])
             ->findAll();
 
-        $occupiedMap = [];
-        foreach ($occupiedCells as $oc) {
-            $occupiedMap[$oc['cell_number']] = true;
-        }
-
-        // 4.3 Пробежимся по mapRows, пропуская клетки, где уже есть SandyWolf.
-        $freeCells = [];
-        foreach ($mapRows as $cell) {
-            $cn = (int) $cell['cell_number'];
-            if (!isset($occupiedMap[$cn])) {
-                // значит в этой ячейке нет живого SandyWolfRaider
-                $freeCells[] = $cell;
-            }
-        }
-
-        $freeCount = count($freeCells);
-
-        if ($freeCount === 0) {
+        if (empty($mapRows)) {
             return;
         }
 
-        // 4.4 берем нужное кол-во (difference) клеток из freeCells
-        $selectedCells = array_slice($freeCells, 0, $difference);
-        $selectedCount = count($selectedCells);
+        shuffle($mapRows);
+        $selectedCells = array_slice($mapRows, 0, $neededNPCs);
 
-        // 5) Для каждой выбранной ячейки вставляем запись
-        $spawnedCount = 0;
         foreach ($selectedCells as $cell) {
-            // Генерируем случайное увеличение здоровья от +1% до +100% базового
-            // => rand(1..100)/100 => [0.01..1.00]
-            $randomFactor = (float) rand(1, 100) / 100.0;
-            $finalHealth  = $baseHealth * (1.0 + $randomFactor);
-            $finalHealth  = round($finalHealth, 2);
+            $this->spawnNPCInCell($cell, $npc, $yarus);
+        }
+    }
 
-            $data = [
-                'npc_id'         => $npcId,
-                'cell_number'    => (int) $cell['cell_number'],
-                'coordinate_x'   => (int) $cell['coordinate_x'],
-                'coordinate_y'   => (int) $cell['coordinate_y'],
-                'current_health' => $finalHealth,
-                'spawned_at'     => date('Y-m-d H:i:s'),
-                'status'         => 'alive'
-            ];
+    private function spawnNPCInCell(array $cell, array $npc, int $yarus)
+    {
+        // Проверяем, что в этой клетке нет живого NPC
+        $exists = $this->npcSpawnModel
+            ->where('cell_number', $cell['cell_number'])
+            ->where('status', 'alive')
+            ->countAllResults();
 
-            $this->npcSpawnModel->insert($data);
-            $spawnedCount++;
+        if ($exists > 0) {
+            return;
         }
 
+        // Увеличение характеристик NPC каждые 100 Y
+        $levelBoost = ($yarus - 1) * 10;
+        $finalLevel = min($npc['level'] + $levelBoost, 999);
+        $finalHealth = round($npc['health'] * (1.0 + ($yarus - 1) * 0.2), 2);
+        $finalStrength = round($npc['strength'] * (1.0 + ($yarus - 1) * 0.15), 2);
+        $finalAgility = round($npc['agility'] * (1.0 + ($yarus - 1) * 0.15), 2);
+        $finalDamage = round($npc['damage_value'] * (1.0 + ($yarus - 1) * 0.15), 2);
+
+        // Вставка NPC в базу
+        $data = [
+            'npc_id'         => (int) $npc['id'],
+            'cell_number'    => (int) $cell['cell_number'],
+            'coordinate_x'   => (int) $cell['coordinate_x'],
+            'coordinate_y'   => (int) $cell['coordinate_y'],
+            'current_health' => $finalHealth,
+            'level'          => $finalLevel,
+            'strength'       => $finalStrength,
+            'agility'        => $finalAgility,
+            'damage_value'   => $finalDamage,
+            'spawned_at'     => date('Y-m-d H:i:s'),
+            'status'         => 'alive'
+        ];
+
+        $this->npcSpawnModel->insert($data);
     }
 }

@@ -49,7 +49,8 @@ class PvEService
     {
         log_message('debug', "Атака: Игрок {$playerData['name']} против NPC ID={$npcData['npc_id']}");
 
-        $npcModel = new \App\Models\NpcModel();
+        // Находим запись NPC в таблице npcs
+        $npcModel  = new \App\Models\NpcModel();
         $npcRecord = $npcModel->find($npcData['npc_id']);
 
         if (!$npcRecord) {
@@ -57,27 +58,32 @@ class PvEService
             return ['error' => "NPC ID {$npcData['npc_id']} не найден"];
         }
 
+        // Назначаем имя врага
         $npcData['name'] = $npcRecord['npc_name_ru'] ?? 'Неизвестный враг';
 
+        // Оборачиваем игрока и противника в CharacterEntity
         $player = new CharacterEntity($playerData);
-        $npc = new CharacterEntity($npcData);
+        $npc    = new CharacterEntity($npcData);
 
+        // Применяем бонусы от экипировки
         $this->equipmentService->applyEquipmentBonuses($player);
 
+        // Запускаем бой
         $fightResult = $this->battleService->startFight($player, $npc, $biome);
-
         log_message('debug', "Результаты боя: " . json_encode($fightResult));
 
+        // Если победитель не объект (или не обнаружен), заканчиваем
         if (!isset($fightResult['winner']) || !is_object($fightResult['winner'])) {
             log_message('error', "Ошибка: Победитель боя — строка, а не объект!");
             return ['message' => "Ошибка в логике боя."];
         }
 
+        // Выдача наград
         $rewards = $this->rewardService->grantRewards($fightResult['winner'], $fightResult['loser']);
+        log_message('info', "Игрок {$player->name} получил: +{$rewards['exp']} опыта, +{$rewards['gold']} золота, "
+            . "Ресурс: " . ($rewards['resource'] ?? 'Нет') . ", Крафт: " . ($rewards['craftedItem'] ?? 'Нет'));
 
-        log_message('info', "Игрок {$player->name} получил: +{$rewards['exp']} опыта, +{$rewards['gold']} золота");
-
-        // 🔹 Обновляем БД перед формированием сообщения
+        // Обновляем здоровье, выносливость, опыт и золото после боя
         $this->characterModel->update($player->id, [
             'health'     => max(1, $player->health),
             'tired'      => max(1, rand(1, (int) floor($player->health))),
@@ -85,56 +91,64 @@ class PvEService
             'gold'       => $player->gold + ($rewards['gold'] ?? 0),
         ]);
 
-        // 🔹 Получаем обновлённые данные из БД
+        // Получаем свежие данные из БД (т.к. модель уже могла поменять поля)
         $updatedPlayerData = $this->characterModel->find($player->id);
 
-        // 🔹 Лог перед вызовом `buildFightResultMessage()`
-        log_message('debug', "Передаём обновлённые данные игрока в buildFightResultMessage: tired={$updatedPlayerData['tired']}");
+        // Формируем текст сообщения (HTML)
+        $mapLocation = [
+            'coordinate_x' => $player->cell_number % 1000,
+            'coordinate_y' => floor($player->cell_number / 1000),
+        ];
+        $finalText = $this->buildFightResultMessage(
+            $updatedPlayerData,
+            $npcData['name'],
+            $fightResult,
+            $mapLocation,
+            $rewards
+        );
 
-        // 🔹 Формируем сообщение
-        $mapLocation = ['coordinate_x' => $player->cell_number % 1000, 'coordinate_y' => floor($player->cell_number / 1000)];
-        $finalText = $this->buildFightResultMessage($updatedPlayerData, $npcData['name'], $fightResult, $mapLocation);
+        // Отправляем уведомление в Telegram
+        $this->sendTelegramNotification($updatedPlayerData, $finalText);
 
-        // 🔹 Лог перед отправкой в Telegram
-        log_message('debug', "Вызываем `sendTelegramNotification()` для игрока {$playerData['name']}");
-
-        // 🔹 Отправляем уведомление
-        $this->sendTelegramNotification($playerData, $finalText);
-
+        // Возвращаем результат боя
         return [
             'message' => "Бой завершён! Победитель: " . ($fightResult['winner']->name ?? "Ничья"),
             'rewards' => $rewards,
             'log'     => $fightResult['log'],
             'winner'  => $fightResult['winner'],
-            'player'  => $updatedPlayerData, // 🔹 Теперь возвращаем обновленные данные
+            'player'  => $updatedPlayerData,
         ];
     }
 
     /**
-     * Формируем итоговое сообщение с использованием HTML и небольшого "лорного" описания.
+     * Формирует итоговое сообщение о бое
      */
-    private function buildFightResultMessage(array $playerData, string $npcName, array $fightResult, array $mapLocation): string
-    {
-        $winner = $fightResult['winner'] ?? null;
-        $loser = $fightResult['loser'] ?? null;
-        $rewards = $fightResult['rewards'] ?? ['exp' => 0, 'gold' => 0];
+    private function buildFightResultMessage(
+        array $playerData,
+        string $npcName,
+        array $fightResult,
+        array $mapLocation,
+        array $rewards
+    ): string {
+        $winner       = $fightResult['winner']       ?? null;
+        $loser        = $fightResult['loser']        ?? null;
+        $winnerName   = $winner ? $winner->name      : '???';
+        $loserName    = $loser ? $loser->name        : '???';
+        $rounds       = $fightResult['rounds']       ?? 0;
+        $firstAttacker= $fightResult['firstAttacker']?? 'Неизвестен';
+        $x            = $mapLocation['coordinate_x'] ?? '???';
+        $y            = $mapLocation['coordinate_y'] ?? '???';
 
-        $winnerName = $winner ? $winner->name : '???';
-        $loserName = $loser ? $loser->name : '???';
-        $rounds = $fightResult['rounds'] ?? 0;
-        $firstAttacker = $fightResult['firstAttacker'] ?? 'Неизвестен';
-        $x = $mapLocation['coordinate_x'] ?? '???';
-        $y = $mapLocation['coordinate_y'] ?? '???';
+        // Признак, что NPC гораздо слабее (можно сравнивать уровень,
+        // или «сумму статов», как хотите)
+        $npcMuchWeaker = ($loser && $winner && $winner->level >= 2 * $loser->level);
 
-        // 🔹 Логируем перед формированием сообщения
-        log_message('debug', "Выносливость перед формированием сообщения: tired={$playerData['tired']}");
-
-        // 🔹 Лорная предыстория
+        // --- Лорная предыстория
         $loreText = "Долгие странствия привели тебя в этот зловещий край.\n"
             . "И на пути ты встретил: <b>{$npcName}</b>\n"
             . "Не имея времени, ты вынужден сражаться!\n\n";
 
-        // 🔹 Сводка боя
+        // --- Сводка боя
         $battleText  = "<u>Сводка боя:</u>\n";
         $battleText .= "• <b>Раундов:</b> {$rounds} ⚔️\n";
         $battleText .= "• <b>Первым атаковал:</b> {$firstAttacker} 🎯\n";
@@ -142,24 +156,61 @@ class PvEService
         $battleText .= "• <b>Победитель:</b> {$winnerName} 🏆\n";
         $battleText .= "• <b>Координаты:</b> X={$x}, Y={$y}\n\n";
 
-        // 🔹 Итог боя
+        // --- Итог боя
         $resultText  = "<b>Итог боя:</b>\n";
         $resultText .= "В ожесточённой схватке <b>{$loserName}</b> пал, "
             . "а <b>{$winnerName}</b> одержал верх!\n\n"
             . "⚔️ <i>Ты проявил отвагу, {$playerData['name']}!</i>\n\n";
 
-        // 🔹 Сколько осталось здоровья и выносливости (используем `playerData` после обновления БД)
-        $healthLeft = number_format($playerData['health'], 2, '.', '');
-        $tiredLeft  = number_format($playerData['tired'], 2, '.', ''); // 🔹 Используем `tired` из `playerData`
-        $resultText .= "У тебя осталось: 💖 <b>Здоровье: {$healthLeft}</b>, "
-            . "🥱 <b>Выносливость: {$tiredLeft}</b>\n\n";
+        // --- Текущее здоровье/выносливость
+        $currentHealth = number_format($playerData['health'], 2, '.', '');
+        $currentTired  = number_format($playerData['tired'], 2, '.', '');
+        $resultText .= "У тебя осталось: 💖 Здоровье: {$currentHealth}, 🥱 Выносливость: {$currentTired}\n\n";
 
-        // 🔹 Награды
-        $rewardText = "🎖 <b>Награды за победу:</b>\n";
-        $rewardText .= "• ✨ Опыт: <b>+{$rewards['exp']}</b>\n";
-        $rewardText .= "• 💰 Золото: <b>+{$rewards['gold']}</b>\n\n";
+        // --- Награды
+        // Вместо жёстких строк — собираем динамически
+        $rewardLines = [];
+        if (!empty($rewards['exp'])) {
+            // Если опыт > 0
+            $rewardLines[] = "• ✨ Опыт: +{$rewards['exp']}";
+        }
+        if (!empty($rewards['gold'])) {
+            // Если золото > 0
+            $rewardLines[] = "• 💰 Золото: +{$rewards['gold']}";
+        }
+        if (!empty($rewards['resource'])) {
+            $rewardLines[] = "• 📦 Ресурс: <b>{$rewards['resource']}</b>";
+        }
+        if (!empty($rewards['craftedItem'])) {
+            $rewardLines[] = "• 🛠 Крафт-предмет: <b>{$rewards['craftedItem']}</b>";
+        }
 
-        return "🤖 <b>PvE-бой завершён!</b>\n\n" . $loreText . $battleText . $resultText . $rewardText;
+        // Если NPC был сильно слабее, и наград очень мало — пишем коммент
+        // (или если у rewardLines вообще пусто)
+        $extraComment = '';
+        if ($npcMuchWeaker) {
+            $extraComment = "Противник был в разы слабее, поэтому ты получил не так уж много наград.\n\n";
+        }
+
+        // Формируем блок наград:
+        // Если rewardLines не пустой — выводим заголовок + сами строки
+        // Если вообще нет наград, можно указать, что «Ты ничего не получил»,
+        // либо просто оставить «Противник слишком слаб»
+        $rewardText = '';
+        if (!empty($rewardLines)) {
+            $rewardText = "🎖 <b>Награды за победу:</b>\n" . implode("\n", $rewardLines) . "\n\n";
+        } else {
+            // Полная пустота (все нули) — можно выводить что-то вроде:
+            $rewardText = "Противник был слишком слаб, ничего ценного не досталось.\n\n";
+        }
+
+        // Склеиваем всё
+        return "🤖 <b>PvE-бой завершён!</b>\n\n"
+            . $loreText
+            . $battleText
+            . $resultText
+            . $extraComment
+            . $rewardText;
     }
 
     /**
@@ -169,16 +220,17 @@ class PvEService
     {
         log_message('debug', "Пытаемся отправить сообщение в Telegram для {$playerData['name']}");
 
+        // Предполагаем, что у персонажа в поле telegram_user_id хранится ID записи в telegram_users
         if (empty($playerData['telegram_user_id'])) {
-            log_message('error', "Ошибка: `telegram_user_id` отсутствует для игрока {$playerData['name']}");
+            log_message('error', "Ошибка: `telegram_user_id` отсутствует у игрока {$playerData['name']}");
             return;
         }
 
-        $tgUserModel = new \App\Models\TelegramUserModel();
-        $tgUser = $tgUserModel->find($playerData['telegram_user_id']);
+        $tgUserModel = new TelegramUserModel();
+        $tgUser      = $tgUserModel->find($playerData['telegram_user_id']);
 
         if (!$tgUser) {
-            log_message('error', "Ошибка: Telegram-пользователь не найден в БД для ID={$playerData['telegram_user_id']}");
+            log_message('error', "Ошибка: Telegram-пользователь не найден (ID={$playerData['telegram_user_id']})");
             return;
         }
 
@@ -189,20 +241,19 @@ class PvEService
 
         log_message('debug', "Отправка сообщения в Telegram: chat_id={$tgUser['telegram_id']}");
 
-        // 🔹 Проверяем длину сообщения (если Telegram блокирует слишком длинные)
+        // Telegram обычно ограничивает ~4096 символов, если нужно — обрезаем
         if (strlen($finalText) > 4000) {
-            log_message('warning', "Сообщение слишком длинное для Telegram! Обрезаем.");
+            log_message('warning', "Сообщение слишком длинное для Telegram! Обрезаем до 4000 символов.");
             $finalText = substr($finalText, 0, 4000) . "...";
         }
 
-        // 🔹 Отправляем сообщение через Telegram API
-        $result = \Longman\TelegramBot\Request::sendMessage([
+        // Отправляем сообщение
+        $result = Request::sendMessage([
             'chat_id'    => $tgUser['telegram_id'],
             'text'       => $finalText,
             'parse_mode' => 'HTML',
         ]);
 
-        // 🔹 Логируем ответ от Telegram API
         if (!$result->isOk()) {
             log_message('error', "Ошибка отправки сообщения в Telegram: " . $result->getDescription());
         } else {
