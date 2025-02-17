@@ -14,52 +14,51 @@ class DamageService
         $this->logger = $logger;
     }
 
+    /**
+     * Рассчитывает итоговый урон, учитывая бонусы, разницу уровней и броню (с учетом бонуса).
+     *
+     * @param CharacterEntity $attacker
+     * @param CharacterEntity $defender
+     * @param string $biome
+     * @return float
+     */
     public function calculateDamage(CharacterEntity $attacker, CharacterEntity $defender, string $biome): float
     {
         $baseDamage = $attacker->damageValue;
         $levelDifference = ($attacker->level - $defender->level) * 0.02;
-        $strengthBonus = $attacker->strength * 0.0025; // 🔹 Усилили влияние силы
-        $agilityBonus = $attacker->agility * 0.0015;  // 🔹 Усилили влияние ловкости
-        $armorEffect = $defender->armor / (100 + $defender->armor);
+        $strengthBonus = $attacker->strength * 0.0025;
+        $agilityBonus  = $attacker->agility * 0.0015;
+        $totalArmor = $defender->armor + ($defender->armorBonus ?? 0);
+        $armorEffect = $totalArmor / (100 + $totalArmor);
 
-        // 🔹 Логирование расчёта урона
-        log_message('debug', "Расчет урона: {$attacker->name} бьет {$defender->name}. 
+        $this->logger->debug("Расчет урона: {$attacker->name} бьет {$defender->name}. 
         Базовый урон: {$baseDamage}, 
         Сила: {$attacker->strength}, 
         Ловкость: {$attacker->agility}, 
         Разница уровней: {$levelDifference}, 
-        Эффект брони: {$armorEffect}");
+        Общая броня: {$totalArmor} (Эффект: {$armorEffect})");
 
-        // 🔹 Коррекция урона для слабых NPC
         if ($attacker->strength < 5 && $attacker->agility < 5) {
-            $multiplier = 1 + (1 - ($attacker->level / max(1, $defender->level))) * 0.5; // 🔹 Масштабируем бонус урона
+            $multiplier = 1 + (1 - ($attacker->level / max(1, $defender->level))) * 0.5;
             $baseDamage *= $multiplier;
-            log_message('warning', "{$attacker->name} слишком слаб, добавляем динамическое усиление: x{$multiplier}");
+            $this->logger->warning("{$attacker->name} слишком слаб, добавляем динамическое усиление: x{$multiplier}");
         }
 
-        // 🔹 Применяем бонусы и броню
         $finalDamage = $baseDamage * (1 + $levelDifference + $strengthBonus + $agilityBonus) * (1 - $armorEffect);
-
-        // 🔹 Минимальный урон всегда >= 50% от базового
         $finalDamage = max($baseDamage * 0.5, round($finalDamage, 2));
 
-        log_message('info', "Урон, нанесённый {$attacker->name}: {$finalDamage}");
-
+        $this->logger->info("Урон, нанесённый {$attacker->name}: {$finalDamage}");
         return $finalDamage;
     }
 
     public function computeDamageRatio(float $difference): float
     {
-        // Ограничиваем разницу до 1.2x максимум
         if ($difference > 100) {
             return 1.2;
         } elseif ($difference < -100) {
             return 0.8;
         }
-
-        // Уменьшаем влияние разницы уровней (чтобы NPC не умирал сразу)
         $ratio = 1 + ($difference / 400);
-
-        return max(0.8, min(1.2, $ratio)); // Ограничиваем от 0.8 до 1.2
+        return max(0.8, min(1.2, $ratio));
     }
 }

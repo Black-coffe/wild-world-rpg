@@ -13,10 +13,10 @@ class BattleService
     private LoggerInterface $logger;
 
     private const MAX_ROUNDS = 100;
-    private const PANIC_THRESHOLD = 10; // HP, при котором NPC паникует
-    private const ESCAPE_CHANCE_LOW_HP = 40; // % шанс убежать, если HP < 30%
-    private const ESCAPE_CHANCE_HIGH_DAMAGE = 50; // % шанс убежать, если урон > 40% HP за 1 ход
-    private const RAGE_HP_THRESHOLD = 20; // % HP, при котором босс входит в ярость
+    private const PANIC_THRESHOLD = 10;
+    private const ESCAPE_CHANCE_LOW_HP = 40;
+    private const ESCAPE_CHANCE_HIGH_DAMAGE = 50;
+    private const RAGE_HP_THRESHOLD = 20;
 
     public function __construct(
         DamageService $damageService,
@@ -31,56 +31,70 @@ class BattleService
     }
 
     /**
-     * Запускает бой между игроком и NPC
+     * Запускает бой между игроком и NPC с подробным логированием каждого раунда.
+     *
+     * @param CharacterEntity $player
+     * @param CharacterEntity $npc
+     * @param string $biome
+     * @return array Итог боя, подробный лог, победитель, проигравший, номер раундов и имя первого атакующего.
      */
     public function startFight(CharacterEntity $player, CharacterEntity $npc, string $biome): array
     {
         $round = 0;
         $battleLog = [];
-
-        // Добавляем переменную для "первого атакующего"
         $firstAttackerName = null;
 
         while ($player->health > 0 && $npc->health > 0 && $round < self::MAX_ROUNDS) {
             $round++;
-
-            // Определяем атакующего (каждый ход атакуют оба, но по очереди)
+            // Чередование атак: в нечетном раунде атакует игрок, в четном – NPC.
             $attacker = ($round % 2 === 0) ? $npc : $player;
             $defender = ($attacker === $player) ? $npc : $player;
 
-            // Если это первый раунд, запоминаем атакующего
             if ($round === 1) {
                 $firstAttackerName = $attacker->name;
             }
 
-            // Рассчитываем урон
-            $damage = $this->damageService->calculateDamage($attacker, $defender, $biome);
+            // Сбор подробных параметров для логирования:
+            $baseDamage = $attacker->damageValue;
+            $levelDifference = ($attacker->level - $defender->level) * 0.02;
+            $strengthBonus = $attacker->strength * 0.0025;
+            $agilityBonus  = $attacker->agility * 0.0015;
+            $totalArmor = $defender->armor + ($defender->armorBonus ?? 0);
+            $armorEffect = $totalArmor / (100 + $totalArmor);
 
-            // Применяем урон
-            $defender->health = max(0, $defender->health - $damage);
+            // Вычисляем итоговый урон через DamageService
+            $finalDamage = $this->damageService->calculateDamage($attacker, $defender, $biome);
+            $defender->health = max(0, $defender->health - $finalDamage);
 
-            // Логируем
-            $battleLog[] = [
-                'round'          => $round,
-                'attacker'       => $attacker->name,
-                'defender'       => $defender->name,
-                'damage'         => round($damage, 2),
-                'defender_health'=> round($defender->health, 2),
+            // Формируем подробный лог раунда
+            $roundLog = [
+                'round'                => $round,
+                'attacker'             => $attacker->name,
+                'defender'             => $defender->name,
+                'base_damage'          => $baseDamage,
+                'level_difference'     => $levelDifference,
+                'strength_bonus'       => $strengthBonus,
+                'agility_bonus'        => $agilityBonus,
+                'total_armor'          => $totalArmor,
+                'armor_effect'         => $armorEffect,
+                'final_damage'         => round($finalDamage, 2),
+                'defender_health_after'=> round($defender->health, 2),
             ];
+            $battleLog[] = $roundLog;
+
+            // (Опционально можно вызвать $this->battleLogger->logRound($roundLog);)
 
             if ($defender->health <= 0) {
-                // Победа
                 return [
                     'winner'        => $attacker,
                     'loser'         => $defender,
                     'rounds'        => $round,
                     'log'           => $battleLog,
-                    'firstAttacker' => $firstAttackerName,  // <-- ВАЖНО
+                    'firstAttacker' => $firstAttackerName,
                 ];
             }
         }
 
-        // Если вышли из цикла по лимиту
         return [
             'winner'        => null,
             'loser'         => null,
@@ -93,28 +107,27 @@ class BattleService
     private function npcShouldFlee(CharacterEntity $npc): bool
     {
         if ($npc->isBoss) {
-            return false; // 🔥 Боссы не убегают
+            return false;
         }
-
-        if ($npc->health < 10 && rand(1, 100) <= 80) { // 🔥 Теперь убегает только при HP < 10
+        if ($npc->health < 10 && rand(1, 100) <= 80) {
             return true;
         }
-
         return false;
     }
 
     private function npcShouldPanic(CharacterEntity $npc): bool
     {
-        if ($npc->health < 20 && rand(1, 100) <= 50) { // 🔥 Было 85%
+        if ($npc->health < 20 && rand(1, 100) <= 50) {
             return true;
         }
-
         return false;
     }
 
-
     /**
-     * Определяет, должен ли босс перейти в режим "Ярость"
+     * Определяет, должен ли босс перейти в режим "Ярость".
+     *
+     * @param CharacterEntity $npc
+     * @return bool
      */
     private function shouldEnterRageMode(CharacterEntity $npc): bool
     {
