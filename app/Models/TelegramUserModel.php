@@ -9,7 +9,20 @@ class TelegramUserModel extends Model
 
     protected $useAutoIncrement = true;
     protected $returnType = 'array';
-    protected $allowedFields = ['telegram_id', 'username', 'first_name', 'last_name'];
+
+    /**
+     * Добавляем два новых поля:
+     *  - last_map_message_id
+     *  - last_map_message_created_at
+     */
+    protected $allowedFields = [
+        'telegram_id',
+        'username',
+        'first_name',
+        'last_name',
+        'last_map_message_id',
+        'last_map_message_created_at',
+    ];
 
     protected $useTimestamps = true;
     protected $createdField = 'created_at';
@@ -37,4 +50,3 @@ class TelegramUserModel extends Model
         }
     }
 }
-

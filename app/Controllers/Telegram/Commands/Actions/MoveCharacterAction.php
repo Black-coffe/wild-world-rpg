@@ -17,14 +17,17 @@ use App\Services\Player\PlayerStateService;
 use App\Services\World\TextMapService;
 
 /**
- * Класс, отвечающий за вывод кнопок перемещения и
- * построение итогового текста в заданном порядке.
+ * Класс, вызываемый при нажатии кнопки "Переехать" из основного меню "ДЕЙСТВИЯ".
+ * Он отправляет НОВОЕ текстовое сообщение с картой (12×12),
+ * легендой, здоровьем, и inline-кнопками направлений.
+ *
+ * Все последующие перемещения по кнопкам (move_dir_...) будут
+ * лишь редактировать ЭТО сообщение, если получится.
  */
 class MoveCharacterAction
 {
     protected $callbackQuery;
 
-    // модели
     protected $characterModel;
     protected $mapModel;
     protected $characterTaskModel;
@@ -50,7 +53,12 @@ class MoveCharacterAction
         $chatId         = $this->callbackQuery->getMessage()->getChat()->getId();
         $telegramUserId = $this->callbackQuery->getFrom()->getId();
 
-        // Проверяем пользователя
+        // Отвечаем на колбэк, чтобы убрать "часики"
+        Request::answerCallbackQuery([
+            'callback_query_id' => $this->callbackQuery->getId()
+        ]);
+
+        // Ищем telegram-пользователя
         $user = $this->telegramUserModel->where('telegram_id', $telegramUserId)->first();
         if (!$user) {
             return Request::sendMessage([
@@ -59,8 +67,11 @@ class MoveCharacterAction
             ]);
         }
 
-        // Проверяем персонажа
-        $character = $this->characterModel->where('telegram_user_id', $user['id'])->first();
+        // Ищем персонажа
+        $character = $this->characterModel
+            ->where('telegram_user_id', $user['id'])
+            ->first();
+
         if (!$character) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
@@ -68,31 +79,35 @@ class MoveCharacterAction
             ]);
         }
 
-        // Проверка активного переезда (BaseRelocation)
+        // Проверяем, нет ли блокирующих задач (например, переезд, исследование, сбор)
         if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
             $character['id'],
             $this->callbackQuery->getId(),
-            $this->callbackQuery->getMessage()->getChat()->getId()
+            $chatId
         )) {
-            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+            // Если идёт переезд — выходим. Сервис уже отправил сообщение.
+            return Request::emptyResponse();
         }
 
-        // Проверка занятости
         $playerStateService = new PlayerStateService();
         if ($playerStateService->isGathering($character['id'])) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => "Вы заняты сбором ресурсов. Сначала дождитесь окончания сбора."
+                'text'    => "Вы заняты сбором ресурсов. Дождитесь завершения."
             ]);
         }
         if ($playerStateService->isExploring($character['id'])) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => "Вы заняты исследованием территории. Сначала дождитесь окончания исследования."
+                'text'    => "Вы заняты исследованием территории. Дождитесь завершения."
             ]);
         }
 
-        // inline‐клавиатура
+        // 1) Строим большой текст с картой
+        $textMapService = new TextMapService();
+        $finalText = $this->buildMapText($character, $textMapService);
+
+        // 2) Готовим inline-кнопки (8 направлений)
         $directionsKeyboard = [
             [
                 ['text' => '↖️ Сев-Запад', 'callback_data' => 'move_dir_northwest'],
@@ -100,66 +115,78 @@ class MoveCharacterAction
                 ['text' => '↗️ Сев-Восток','callback_data' => 'move_dir_northeast'],
             ],
             [
-                ['text' => '⬅️ Запад',     'callback_data' => 'move_dir_west'],
-                ['text' => '🏕',            'callback_data' => 'Base'],
-                ['text' => '🧑‍🌾 🛠️',        'callback_data' => 'characterActions'],
-                ['text' => '➡️ Восток',    'callback_data' => 'move_dir_east'],
+                ['text' => '⬅️ Запад', 'callback_data' => 'move_dir_west'],
+                ['text' => '🏕',       'callback_data' => 'Base'],
+                ['text' => '🧑‍🌾 🛠️','callback_data' => 'characterActions'],
+                ['text' => '➡️ Восток','callback_data' => 'move_dir_east'],
             ],
             [
-                ['text' => '↙️ Юго-Запад', 'callback_data' => 'move_dir_southwest'],
-                ['text' => '⬇️ Юг',       'callback_data' => 'move_dir_south'],
+                ['text' => '↙️ Юго-Запад','callback_data' => 'move_dir_southwest'],
+                ['text' => '⬇️ Юг',      'callback_data' => 'move_dir_south'],
                 ['text' => '↘️ Юго-Восток','callback_data' => 'move_dir_southeast'],
             ],
         ];
-
         $keyboard = ['inline_keyboard' => $directionsKeyboard];
 
-        // Убираем "часики"
-        Request::answerCallbackQuery([
-            'callback_query_id' => $this->callbackQuery->getId()
-        ]);
-
-        // ============================================
-        // Формируем ПОРЯДОК вывода, как вы хотите
-        // ============================================
-        $textMapService = new TextMapService();
-
-        // 1) «Куда пойдём? Выберите направление...»
-        $finalText = "Куда пойдём? Выберите направление с клавиатуры ниже:\n";
-
-        // 2) Легенда
-        $legend    = $textMapService->getLegend();
-        $finalText .= $legend . "\n";
-
-        // 3) «От 🙎‍♂️ до 🏕 = ... ходов» (если есть)
-        $distanceLine = $textMapService->getDistanceLine($character);
-        if ($distanceLine) {
-            $finalText .= $distanceLine . "\n";
-        }
-
-        // 4) Пример: здоровье/усталость
-        $hp      = (float)($character['health'] ?? 0);
-        $tired   = (float)($character['tired'] ?? 0);
-        $finalText .= "❤️ Здоровье: {$hp}\n"
-            . "💤 Усталость: {$tired}\n\n";
-
-        // 5) КАРТА (12 строк)
-        $mapOnly  = $textMapService->buildMapOnly($character);
-        $finalText .= $mapOnly . "\n";
-
-        // 6) Надпись «Игрок по центру (X=..., Y=...)»
-        $mapRow = $this->mapModel->where('cell_number', $character['cell_number'])->first();
-        if ($mapRow) {
-            $px = $mapRow['coordinate_x'];
-            $py = $mapRow['coordinate_y'];
-            $finalText .= "Игрок по центру (X={$px}, Y={$py})";
-        }
-
-        return Request::sendMessage([
+        // 3) Отправляем новое сообщение (sendMessage), т.к. это «первый показ»
+        //    (в дальнейшем при нажатии «move_dir_...»
+        //     мы будем редактировать это сообщение)
+        $response = Request::sendMessage([
             'chat_id'    => $chatId,
             'text'       => $finalText,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+
+        // 4) Если всё удачно, сохраним message_id
+        if ($response->isOk()) {
+            $messageId = $response->getResult()->getMessageId();
+            $this->telegramUserModel->update($user['id'], [
+                'last_map_message_id' => $messageId,
+                // Можно хранить "last_map_message_type" = 'move' или что-то подобное
+                // если хотите определять, что пользователь ушел в другое окно.
+            ]);
+        }
+
+        return $response;
+    }
+
+    /**
+     * Собираем текст (12×12 карта + легенда + здоровье и т.д.)
+     */
+    protected function buildMapText(array $character, TextMapService $textMapService): string
+    {
+        // Шапка
+        $text = "Куда пойдём? Выберите направление с клавиатуры ниже:\n\n";
+
+        // Легенда
+        $legend  = $textMapService->getLegend();
+        $text   .= $legend . "\n";
+
+        // Расстояние до базы
+        $distanceLine = $textMapService->getDistanceLine($character);
+        if ($distanceLine) {
+            $text .= $distanceLine . "\n";
+        }
+
+        // Здоровье / усталость
+        $hp    = (float)($character['health'] ?? 0);
+        $tired = (float)($character['tired'] ?? 0);
+        $text .= "❤️ Здоровье: {$hp}\n"
+            . "💤 Усталость: {$tired}\n\n";
+
+        // Карта 12x12
+        $mapOnly = $textMapService->buildMapOnly($character);
+        $text   .= $mapOnly . "\n";
+
+        // Координаты
+        $mapRow = $this->mapModel->where('cell_number', $character['cell_number'])->first();
+        if ($mapRow) {
+            $px = $mapRow['coordinate_x'];
+            $py = $mapRow['coordinate_y'];
+            $text .= "Игрок по центру (X={$px}, Y={$py})\n";
+        }
+
+        return $text;
     }
 }

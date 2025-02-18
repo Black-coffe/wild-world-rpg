@@ -10,26 +10,26 @@ use App\Models\ExploredCellsModel;
 use App\Models\MapModel;
 use App\Models\TelegramUserModel;
 use App\Services\Player\PlayerDetectionService;
+use App\Services\World\TextMapService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
 /**
- * Универсальный класс для перемещения персонажа в одно из 8 направлений
- * через колбэк "move_dir_{direction}".
+ * Класс, обрабатывающий перемещение персонажа в одно из 8 направлений
+ * через колбэк "move_dir_{direction}"
  *
- * Учитываются все основные проверки:
- *  1) Активные блокирующие задачи (например, исследование, добыча),
- *  2) Предварительный расчёт списания здоровья/усталости (чтобы не уходить в минус),
- *  3) Проверка "исследована ли ячейка?",
- *  4) Разрешаем нескольким игрокам находиться в одной ячейке (для PvP),
- *  5) Обновляем статы и в конце вызываем detectNearbyPlayers(...) — оно само покажет,
- *     если рядом или в этой же клетке обнаружены другие игроки (с вопросом "атаковать/убежать?").
+ * 1) Проверяем ресурсы, исследования, блокировки
+ * 2) Меняем координаты персонажа
+ * 3) Формируем НОВЫЙ текст карты (в том же формате, что в MoveCharacterAction)
+ * 4) Пытаемся "editMessageText", используя last_map_message_id
+ * 5) Если неудачно (например, исходное сообщение удалено) — делаем sendMessage (fallback).
  */
 class MoveCharacterToDirectionAction
 {
     protected $callbackQuery;
 
+    // Модели
     protected $characterModel;
     protected $characterTaskModel;
     protected $taskModel;
@@ -37,9 +37,10 @@ class MoveCharacterToDirectionAction
     protected $telegramUserModel;
     protected $exploredCellsModel;
     protected $biomeModel;
+
     protected $playerDetectionService;
 
-    // Словарь направлений: ключ => [dx, dy]
+    // Словарь направлений
     protected $directions = [
         'north'      => [ 0, -1 ],
         'south'      => [ 0,  1 ],
@@ -51,193 +52,168 @@ class MoveCharacterToDirectionAction
         'southeast'  => [ 1,  1 ],
     ];
 
-    // Базовые «расходы» на перемещение
-    protected $baseHealthCost = 5;   // Сколько здоровья списываем
-    protected $baseTiredCost  = 10;  // Сколько усталости списываем
+    // Расходы на перемещение
+    protected $baseHealthCost = 0.1;
+    protected $baseTiredCost  = 3.35;
 
     public function __construct(CallbackQuery $callbackQuery)
     {
         $this->callbackQuery = $callbackQuery;
 
-        $this->characterModel        = new CharacterModel();
-        $this->characterTaskModel    = new CharacterTaskModel();
-        $this->taskModel             = new TaskModel();
-        $this->mapModel              = new MapModel();
-        $this->telegramUserModel     = new TelegramUserModel();
-        $this->exploredCellsModel    = new ExploredCellsModel();
-        $this->biomeModel            = new BiomeModel();
+        $this->characterModel         = new CharacterModel();
+        $this->characterTaskModel     = new CharacterTaskModel();
+        $this->taskModel              = new TaskModel();
+        $this->mapModel               = new MapModel();
+        $this->telegramUserModel      = new TelegramUserModel();
+        $this->exploredCellsModel     = new ExploredCellsModel();
+        $this->biomeModel             = new BiomeModel();
         $this->playerDetectionService = new PlayerDetectionService();
     }
 
     public function handle(): ServerResponse
     {
-        // 1. Общие данные
         $chatId         = $this->callbackQuery->getMessage()->getChat()->getId();
-        $from           = $this->callbackQuery->getFrom();
-        $telegramUserId = $from->getId();
+        $telegramUserId = $this->callbackQuery->getFrom()->getId();
 
-        $callbackData = $this->callbackQuery->getData(); // например, "move_dir_north"
+        // Снимаем "часики"
+        Request::answerCallbackQuery([
+            'callback_query_id' => $this->callbackQuery->getId()
+        ]);
 
-        // 2. Извлекаем направление из callback_data
-        $direction = str_replace('move_dir_', '', $callbackData);
+        $callbackData = $this->callbackQuery->getData(); // "move_dir_north" etc
+        $direction    = str_replace('move_dir_', '', $callbackData);
 
+        // Валидируем направление
         if (!isset($this->directions[$direction])) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => "Ошибка: неизвестное направление {$direction}."
+                'text'    => "Неизвестное направление: {$direction}."
             ]);
         }
 
-        // 3. Ищем пользователя
+        // Ищем telegram-пользователя
         $user = $this->telegramUserModel->where('telegram_id', $telegramUserId)->first();
         if (!$user) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => 'Пользователь не найден в базе.'
+                'text'    => 'Пользователь не найден.'
             ]);
         }
 
-        // 4. Ищем персонажа
-        $character = $this->characterModel
-            ->where('telegram_user_id', $user['id'])
-            ->first();
-
+        // Ищем персонажа
+        $character = $this->characterModel->where('telegram_user_id', $user['id'])->first();
         if (!$character || !$character['cell_number']) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => 'Персонаж не найден или не имеет локации.'
+                'text'    => 'Персонаж не найден или нет cell_number.'
             ]);
         }
 
-        // Проверка активного переезда (BaseRelocation)
+        // Проверка активного переезда
         if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
             $character['id'],
             $this->callbackQuery->getId(),
-            $this->callbackQuery->getMessage()->getChat()->getId()
+            $chatId
         )) {
-            return Request::emptyResponse(); // Переезд есть, сервис уже отписался
+            return Request::emptyResponse();
         }
 
-        // === 5. Проверка активных блокирующих задач (исследование, добыча) ===
+        // Проверка других блокирующих задач
         $activeTasks = $this->characterTaskModel
             ->where('character_id', $character['id'])
             ->where('telegram_user_id', $user['id'])
             ->where('status', 'in_work')
             ->findAll();
 
-        $blockingTasks = [];
         foreach ($activeTasks as $taskRow) {
             $taskInfo = $this->taskModel->find($taskRow['task_id']);
-            if (!$taskInfo) {
-                continue;
-            }
-            // Критерий блокировки: parallel_execution_allowed == 0
-            if ($taskInfo['parallel_execution_allowed'] == 0) {
-                $blockingTasks[] = $taskInfo['name_rus'] ?? $taskInfo['name'];
+            if ($taskInfo && $taskInfo['parallel_execution_allowed'] == 0) {
+                $taskName = $taskInfo['name_rus'] ?? $taskInfo['name'];
+                $text = "🚫 Невозможно переместиться!\n"
+                    . "У вас идёт задача: {$taskName}\n"
+                    . "Сначала дождитесь окончания.";
+                return Request::sendMessage([
+                    'chat_id'    => $chatId,
+                    'text'       => $text,
+                    'parse_mode' => 'Markdown'
+                ]);
             }
         }
 
-        if (!empty($blockingTasks)) {
-            $taskName = $blockingTasks[0];
-            $text = "🚫 *Невозможно переместиться!* У вас идёт задача: "
-                . "\n*{$taskName}*\n"
-                . "Сначала завершите или дождитесь окончания.";
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => $text,
-                'parse_mode' => 'Markdown',
-            ]);
-        }
-
-        // === 6. Текущая ячейка
-        $currentCell = $this->mapModel->where('cell_number', $character['cell_number'])->first();
+        // Текущая ячейка
+        $currentCell = $this->mapModel
+            ->where('cell_number', $character['cell_number'])
+            ->first();
         if (!$currentCell) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => 'Текущая локация не найдена.'
+                'text'    => "Текущая локация не найдена!"
             ]);
         }
 
-        // === 7. Координаты целевой ячейки
+        // Координаты новой ячейки
         [$dx, $dy] = $this->directions[$direction];
         $newX = $currentCell['coordinate_x'] + $dx;
         $newY = $currentCell['coordinate_y'] + $dy;
 
+        // Целевая ячейка
         $targetCell = $this->mapModel
             ->where('coordinate_x', $newX)
             ->where('coordinate_y', $newY)
             ->first();
-
         if (!$targetCell) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => "Нет ячейки по направлению '{$direction}'."
+                'text'    => "Нет ячейки по направлению {$direction}."
             ]);
         }
 
-        // === 8. Проверяем, исследована ли эта ячейка
+        // Проверяем, изучена ли
         $explored = $this->exploredCellsModel
             ->where('character_id', $character['id'])
             ->where('map_cell_id', $targetCell['id'])
             ->first();
 
         if (!$explored) {
-            $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '🧑‍🌾 Действия', 'callback_data' => 'characterActions'],
-                        ['text' => '🗺️ Изучить',    'callback_data' => 'explore'],
-                    ],
+            // Если ячейка не изучена
+            $keyboard = ['inline_keyboard' => [
+                [
+                    ['text' => '🧑‍🌾 Действия', 'callback_data' => 'characterActions'],
+                    ['text' => '🗺️ Изучить',    'callback_data' => 'explore'],
                 ]
-            ];
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            ]];
             return Request::sendMessage([
-                'chat_id'      => $chatId,
-                'text'         => 'Локация не исследована! Невозможно переехать.',
-                'reply_markup' => json_encode($keyboard),
+                'chat_id' => $chatId,
+                'text'    => "Локация не исследована! Невозможно переехать.",
+                'reply_markup' => json_encode($keyboard)
             ]);
         }
 
-        // === 9. Предварительно считаем списание статов
+        // Списываем здоровье/усталость
         $healthCost = $this->baseHealthCost;
         $tiredCost  = $this->baseTiredCost;
 
-        // Пример: если биом опасен (danger_level >=8), чуть больше урон
+        // Если биом опасный
         $biome = $this->biomeModel->find($targetCell['biome_id']);
         if ($biome && $biome['danger_level'] >= 8) {
-            $healthCost += 2;
+            $healthCost += 1.15;
         }
 
         $futureHealth = $character['health'] - $healthCost;
         $futureTired  = $character['tired']  - $tiredCost;
-
-        // Если уходим в минус — блокируем
         if ($futureHealth < 0 || $futureTired < 0) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            $text = "Недостаточно ресурсов на перемещение:\n"
+            $text = "Недостаточно ресурсов на перемещение!\n"
                 . "Здоровье после перехода: {$futureHealth}\n"
-                . "Усталость после перехода: {$futureTired}\n\n"
-                . "Перемещение отменено.";
+                . "Усталость после перехода: {$futureTired}";
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text'    => $text,
+                'text'    => $text
             ]);
         }
 
-        // === 10. Разрешаем PvP, поэтому не блокируем, если есть другие игроки
-        //     (Старая логика "if (!empty($playersInTargetCell)) { return ... }" УДАЛЕНА)
-        //     Просто пропускаем. После перемещения PlayerDetectionService сообщит, если рядом/вместе есть игроки.
-
-        // === 11. Обновляем персонажа
-        $addedStrength   = 0.1;
-        $addedExperience = 0.05;
-
+        // Обновляем персонажа
+        $addedStrength   = 0.02;
+        $addedExperience = 0.03;
         $this->characterModel->update($character['id'], [
             'cell_number' => $targetCell['cell_number'],
             'biome_id'    => $targetCell['biome_id'],
@@ -247,48 +223,131 @@ class MoveCharacterToDirectionAction
             'experience'  => $character['experience'] + $addedExperience,
         ]);
 
-        // === 12. Формируем итоговое сообщение
-        $biomeName       = $biome['name'] ?? '???';
-        $dangerLevel     = $biome['danger_level'] ?? '?';
-        $survivalDiff    = $biome['survival_difficulty'] ?? '?';
+        // Теперь нужно заново нарисовать 12×12 карту, легенду и т.д.,
+        // как в MoveCharacterAction
+        $textMapService = new TextMapService();
+        $updatedText    = $this->buildUpdatedMapText($character['id'], $textMapService);
 
-        $text = "🚚 *Вы двинулись на: *`{$direction}`\n\n"
-            . "🔲 *Новая ячейка:* #{$targetCell['cell_number']}\n"
-            . "🧭 Координаты: X = {$targetCell['coordinate_x']}, Y = {$targetCell['coordinate_y']}\n\n"
-            . "🌿 Биом: {$biomeName}\n"
-            . "⚠️ Уровень опасности: {$dangerLevel}\n"
-            . "💪 Сложность выживания: {$survivalDiff}\n\n"
-            . "Здоровье: *{$futureHealth}%*, Усталость: *{$futureTired}%*\n"
-            . "Сила: *" . round($character['strength'] + $addedStrength, 2) . "*\n"
-            . "Опыт: *" . round($character['experience'] + $addedExperience, 2) . "*";
+        // Дополнительно можно приписать "Вы двинулись: {direction}"
+        // Либо вписать в карту, на ваше усмотрение:
+        $directionTranslated = $this->directionsTranslation[$direction] ?? $direction;
+        $updatedText .= "\nВы двинулись на: *{$directionTranslated}*\n";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🧑‍🌾 Действия', 'callback_data' => 'characterActions'],
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']
-                ],
-                [
-                    ['text' => '🎉 События',   'callback_data' => 'events']
-                ]
-            ]
+        // Кнопки те же самые, чтобы можно было продолжать двигаться
+        $directionsKeyboard = [
+            [
+                ['text' => '↖️ Сев-Запад', 'callback_data' => 'move_dir_northwest'],
+                ['text' => '⬆️ Север',     'callback_data' => 'move_dir_north'],
+                ['text' => '↗️ Сев-Восток','callback_data' => 'move_dir_northeast'],
+            ],
+            [
+                ['text' => '⬅️ Запад', 'callback_data' => 'move_dir_west'],
+                ['text' => '🏕',       'callback_data' => 'Base'],
+                ['text' => '🧑‍🌾 🛠️','callback_data' => 'characterActions'],
+                ['text' => '➡️ Восток','callback_data' => 'move_dir_east'],
+            ],
+            [
+                ['text' => '↙️ Юго-Запад','callback_data' => 'move_dir_southwest'],
+                ['text' => '⬇️ Юг',      'callback_data' => 'move_dir_south'],
+                ['text' => '↘️ Юго-Восток','callback_data' => 'move_dir_southeast'],
+            ],
         ];
+        $keyboard = ['inline_keyboard' => $directionsKeyboard];
 
-        $imagePath = base_url('uploads/telegram/map-lines-coordinates.jpg');
-        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        $response = Request::sendPhoto([
-            'chat_id'      => $chatId,
-            'photo'        => Request::encodeFile($imagePath),
-            'caption'      => $text,
-            'parse_mode'   => 'Markdown',
+        // Пытаемся отредактировать старое сообщение
+        $lastMsgId = $user['last_map_message_id'] ?? null;
+        if ($lastMsgId) {
+            // editMessageText
+            $editResponse = Request::editMessageText([
+                'chat_id'    => $chatId,
+                'message_id' => $lastMsgId,
+                'text'       => $updatedText,
+                'parse_mode' => 'Markdown',
+                'reply_markup' => json_encode($keyboard),
+            ]);
+
+            if ($editResponse->isOk()) {
+                // Успешно отредактировали
+                // Вызываем detectNearbyPlayers для PvP
+                $this->playerDetectionService->detectNearbyPlayers($character['id']);
+                return $editResponse;
+            }
+        }
+
+        // Если дошли сюда, значит либо нет last_map_message_id,
+        // либо editMessageText вернул ошибку.
+        // => отправляем новое сообщение
+        $newMsgResponse = Request::sendMessage([
+            'chat_id'    => $chatId,
+            'text'       => $updatedText,
+            'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
 
-        // === 13. По окончании вызываем detectNearbyPlayers,
-        //         чтобы сервис (PlayerDetectionService) показал
-        //         "Обнаружен игрок <...> хотите атаковать/убежать?"
-        $this->playerDetectionService->detectNearbyPlayers($character['id']);
+        if ($newMsgResponse->isOk()) {
+            // Сохраняем новый message_id
+            $messageId = $newMsgResponse->getResult()->getMessageId();
+            $this->telegramUserModel->update($user['id'], [
+                'last_map_message_id' => $messageId
+            ]);
+        }
 
-        return $response;
+        $this->playerDetectionService->detectNearbyPlayers($character['id']);
+        return $newMsgResponse;
+    }
+
+    protected $directionsTranslation = [
+        'north'      => 'север',
+        'south'      => 'юг',
+        'west'       => 'запад',
+        'east'       => 'восток',
+        'northwest'  => 'северо-запад',
+        'northeast'  => 'северо-восток',
+        'southwest'  => 'юго-запад',
+        'southeast'  => 'юго-восток',
+    ];
+
+    /**
+     * Собираем заново 12×12 карту, легенду и т.д. для уже ОБНОВЛЁННОГО персонажа.
+     * (аналогично тому, что делали в MoveCharacterAction)
+     */
+    protected function buildUpdatedMapText(int $characterId, TextMapService $textMapService): string
+    {
+        $character = $this->characterModel->find($characterId);
+        if (!$character) {
+            return "Ошибка: персонаж не найден!";
+        }
+
+        $text = "Куда пойдём? Выберите направление:\n\n";
+
+        // Легенда
+        $legend  = $textMapService->getLegend();
+        $text   .= $legend . "\n";
+
+        // Расстояние до базы
+        $distanceLine = $textMapService->getDistanceLine($character);
+        if ($distanceLine) {
+            $text .= $distanceLine . "\n";
+        }
+
+        // Здоровье / усталость (уже обновлённые)
+        $hp    = (float)($character['health'] ?? 0);
+        $tired = (float)($character['tired'] ?? 0);
+        $text .= "❤️ Здоровье: {$hp}\n"
+            . "💤 Усталость: {$tired}\n\n";
+
+        // 12×12 карта
+        $mapOnly = $textMapService->buildMapOnly($character);
+        $text   .= $mapOnly . "\n";
+
+        // Координаты
+        $mapRow = $this->mapModel->where('cell_number', $character['cell_number'])->first();
+        if ($mapRow) {
+            $px = $mapRow['coordinate_x'];
+            $py = $mapRow['coordinate_y'];
+            $text .= "Игрок по центру (X={$px}, Y={$py})\n";
+        }
+
+        return $text;
     }
 }
