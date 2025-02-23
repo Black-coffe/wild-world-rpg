@@ -33,7 +33,7 @@ class RockPaperScissorsAction extends BaseAction {
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text' => 'К сожалению, у вас недостаточно необходимых навыков навыков для этой игры!.',
+                'text' => 'К сожалению, у вас недостаточно необходимых навыков для этой игры!.',
             ]);
         }
 
@@ -59,7 +59,7 @@ class RockPaperScissorsAction extends BaseAction {
             . "*Испытание судьбы*\n\n"
             . "_Сегодня перед тобой стоит возможность проверить свою удачу и интуицию в азартной и захватывающей игре_\n\n"
             . "*Камень, Ножницы, Бумага 🎲*\n\n"
-            . "*Помни*, твой выбор, это выбор, который может либо принести тебе победу, либо оставить с пустыми руками 🔢\n\n"
+            . "*Помни*, твой выбор может либо принести победу, либо оставить тебя с пустыми руками 🔢\n\n"
             . "Сыграй на выбор: *опыт, сила, ловкость или интеллект*\n\n"
             . "Промахнёшься - *потеряешь ставку!* 😥\n\n"
             . "*Готов к азарту?*\n\n"
@@ -80,7 +80,6 @@ class RockPaperScissorsAction extends BaseAction {
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
-
     }
 
     protected function showRPSOptions($params): ServerResponse {
@@ -107,10 +106,11 @@ class RockPaperScissorsAction extends BaseAction {
             'scissors' => 'Ножницы',
             'paper' => 'Бумага'
         ];
+        // Компьютерный выбор – равновероятно
         $computerChoiceKey = array_rand($choices);
         $computerChoice = $choices[$computerChoiceKey];
 
-        // Логика определения победителя
+        // Логика определения результата по стандартным правилам
         if ($userChoice === $computerChoiceKey) {
             $text = "Ничья! Вы оба выбрали {$choices[$userChoice]}.";
         } else {
@@ -121,11 +121,19 @@ class RockPaperScissorsAction extends BaseAction {
             ];
 
             if ($winConditions[$userChoice] === $computerChoiceKey) {
-                $this->updateCharacterParam($this->character['id'], true, $param);
-                $text = "Вы победили! Ваш выбор ({$choices[$userChoice]}) побеждает над {$computerChoice}.";
+                // Стандартно игрок выигрывал бы
+                // Понижаем шансы выигрыша: только в 20% случаев победа засчитывается
+                if (rand(1, 100) <= 40) {
+                    $this->updateCharacterParam($this->character['id'], true, $param);
+                    $text = "Вы победили! Ваш выбор ({$choices[$userChoice]}) побеждает над {$computerChoice}.";
+                } else {
+                    // В остальных 80% случаев выигрыш отменяется
+                    $this->updateCharacterParam($this->character['id'], false, $param);
+                    $text = "К сожалению, фортуна отвернулась от тебя. Несмотря на первоначальное преимущество, ты проиграл.";
+                }
             } else {
                 $this->updateCharacterParam($this->character['id'], false, $param);
-                $text = "Вы проиграли! Ваш выбор ({$choices[$userChoice]}) проигрывает для {$computerChoice}.";
+                $text = "Вы проиграли! Ваш выбор ({$choices[$userChoice]}) уступает {$computerChoice}.";
             }
         }
 
@@ -141,13 +149,10 @@ class RockPaperScissorsAction extends BaseAction {
         ]);
     }
 
-
     protected function updateCharacterParam($characterId, $win, $param): void {
         $character = $this->characterModel->find($characterId);
 
-        // Дополнительная проверка на выбранный параметр
         if (!$param) {
-            // Если параметр не выбран, прекращаем выполнение
             return;
         }
 

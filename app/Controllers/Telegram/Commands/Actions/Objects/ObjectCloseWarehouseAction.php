@@ -187,10 +187,9 @@ class ObjectCloseWarehouseAction extends BaseAction
 
         // 8) (Дополнительно) обновляем статус склада на "cleared", если надо
         //    Закомментировано — раскомментируйте, если нужно
-        /*
+
         $bwoId = $bwoRow['id'];
         $this->biomeWorldObjectMapModel->update($bwoId, ['status' => 'cleared']);
-        */
 
         return Request::emptyResponse();
     }

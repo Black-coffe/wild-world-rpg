@@ -46,9 +46,8 @@ class FortuneWheelAction extends BaseAction
         $callbackData = $this->callbackQuery->getData();
         $params = explode('_', $callbackData);
 
-        // Проверяем наличие дополнительных параметров
+        // Если дополнительных параметров нет, показываем стартовое меню или экран
         if (count($params) == 1) {
-            // Если дополнительных параметров нет, показываем стартовое меню или экран
             return $this->showStartScreen($character);
         }
 
@@ -71,9 +70,9 @@ class FortuneWheelAction extends BaseAction
             . "*Фортуна твоего колеса* уже ждёт! 🎡\n\n"
             . "*Испытай свою смекалку и вдохновение, сражаясь с капризной Фортуной!* 🤑\n\n"
             . "💰 1 монета - шанс на *массовые ресурсы* (x1) 📦\n"
-            . "💰 5 монета - шанс на *частые ресурсы* (x3) 📦\n"
-            . "💰 10 монета - шанс на *редкие ресурсы* (x5) 📦\n"
-            . "💰 50 монета - шанс на *уникальные ресурсы* (x8) 📦\n\n"
+            . "💰 5 монет - шанс на *частые ресурсы* (x3) 📦\n"
+            . "💰 10 монет - шанс на *редкие ресурсы* (x5) 📦\n"
+            . "💰 50 монет - шанс на *уникальные ресурсы* (x8) 📦\n\n"
             . "*Крутани колесо и покори Фортуну!* ✊\n\n"
             . "*P.S.* _И нет, это не лагание, это ожидание пока твое колесо фортуны остановится_ 😜\n";
 
@@ -105,7 +104,6 @@ class FortuneWheelAction extends BaseAction
         $bet = $params[2];
         $result = $this->spinWheel($character, $bet);
 
-        // В зависимости от результатов, отправляем соответствующее сообщение
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
@@ -119,19 +117,16 @@ class FortuneWheelAction extends BaseAction
 
     protected function spinWheel($character, $bet)
     {
-        sleep(10);
-        // Вычисление коэффициента везения
-        $luckFactor = ($character['agility'] + $character['intellect'] + $character['experience']) / $character['level'];
-
-        // Определение шансов на выигрыш с учетом коэффициента везения
-        $winChance = $luckFactor >= 3 ? 0.50 : 0.30; // 75% шанс, если коэффициент везения >= 3, иначе 50%
-        $win = rand(0, 99) < $winChance * 100; // Преобразование шанса в выигрыш
+        sleep(2);
+        // Получаем вероятность выигрыша, зависящую от ставки
+        $winChance = $this->getWinChanceForBet($bet);
+        $win = rand(0, 99) < ($winChance * 100);
 
         if ($win) {
             // Выбор ресурса для награды
             $resources = $this->resourceModel->where('rarity', $this->getRarityForBet($bet))->findAll();
             $randomResource = $resources[array_rand($resources)];
-            $quantity = $this->getQuantityForBet($bet); // Количество выигранного ресурса в зависимости от ставки
+            $quantity = $this->getQuantityForBet($bet);
 
             // Добавление ресурса к персонажу
             $this->addOrUpdateCharacterResource($character, $randomResource['id'], $quantity);
@@ -141,9 +136,9 @@ class FortuneWheelAction extends BaseAction
                 'agility' => $character['agility'] + 0.02,
                 'intellect' => $character['intellect'] + 0.03,
             ]);
-            $message = "Поздравляем! Вы выиграли {$quantity} штк. ресурса '{$randomResource['name']}'!";
+            $message = "Поздравляем! Вы выиграли {$quantity} штук ресурса '{$randomResource['name']}'!";
         } else {
-            // Проигрыш: вычитание золота
+            // Проигрыш: списывание золота и незначительное снижение характеристик
             $this->subtractGoldFromCharacter($character['id'], $bet);
             $this->characterModel->update($character['id'], [
                 'experience' => $character['experience'] - 0.01,
@@ -156,21 +151,40 @@ class FortuneWheelAction extends BaseAction
         return ['message' => $message];
     }
 
+    /**
+     * Возвращает вероятность выигрыша в зависимости от ставки.
+     *
+     * @param mixed $bet Ставка, передаваемая как строка или число.
+     * @return float Вероятность выигрыша (от 0 до 1).
+     */
+    protected function getWinChanceForBet($bet): float
+    {
+        $bet = (int) $bet;
+        switch ($bet) {
+            case 1:
+                return 0.50;
+            case 5:
+                return 0.35;
+            case 10:
+                return 0.15;
+            case 50:
+                return 0.07;
+            default:
+                return 0.25; // Безопасное значение по умолчанию
+        }
+    }
 
     protected function addOrUpdateCharacterResource($character, $resourceId, $quantity)
     {
-        // Поиск существующей записи с данным ресурсом у персонажа
         $existingResource = $this->characterResourceModel->where([
             'id_characters' => $character['id'],
             'id_resources' => $resourceId
         ])->first();
 
         if ($existingResource) {
-            // Если ресурс уже есть, обновляем количество
             $newQuantity = $existingResource['quantity'] + $quantity;
             $this->characterResourceModel->update($existingResource['id'], ['quantity' => $newQuantity]);
         } else {
-            // Если ресурса нет, добавляем новую запись
             $this->characterResourceModel->insert([
                 'id_characters' => $character['id'],
                 'id_resources' => $resourceId,
@@ -180,22 +194,19 @@ class FortuneWheelAction extends BaseAction
         }
     }
 
-
     protected function subtractGoldFromCharacter($characterId, $amount)
     {
         $character = $this->characterModel->find($characterId);
         if (!$character) {
-            // Обработка ошибки: персонаж не найден
             return;
         }
 
-        $newGoldAmount = max(0, $character['gold'] - $amount); // Предотвращаем отрицательный баланс
+        $newGoldAmount = max(0, $character['gold'] - $amount);
         $this->characterModel->update($characterId, ['gold' => $newGoldAmount]);
     }
 
     protected function getRarityForBet($bet)
     {
-        // Возвращает редкость ресурса в зависимости от ставки
         switch ($bet) {
             case 1:
                 return 10;
@@ -206,13 +217,12 @@ class FortuneWheelAction extends BaseAction
             case 50:
                 return 2;
             default:
-                return 10; // Безопасный вариант
+                return 10;
         }
     }
 
     protected function getQuantityForBet($bet)
     {
-        // Возвращает количество ресурсов в зависимости от ставки
         switch ($bet) {
             case 1:
                 return 1;
@@ -223,8 +233,7 @@ class FortuneWheelAction extends BaseAction
             case 50:
                 return 10;
             default:
-                return 2; // Безопасный вариант
+                return 2;
         }
     }
-
 }

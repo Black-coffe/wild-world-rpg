@@ -13,7 +13,6 @@ class GuessNumberAction extends BaseAction {
     protected $character;
     protected $user;
 
-
     public function __construct($callbackQuery) {
         parent::__construct($callbackQuery);
         $this->characterModel = new CharacterModel();
@@ -60,7 +59,7 @@ class GuessNumberAction extends BaseAction {
             . "*💰 Условия:*\n\n"
             . "Ставь золото 🤑 (от 5 до 50)\n"
             . "Выбери 1 из 3 чисел 🔢\n"
-            . "Угадай - забери *вдвое больше!* 🤑\n"
+            . "Угадай - забери *вдвое меньше выигрыша!* 🤑\n"
             . "Промахнёшься - *потеряешь ставку!* 😥\n\n"
             . "*Готов к азарту?*\n\n"
             . "*⬇️ Выбери ставку:*\n";
@@ -86,7 +85,7 @@ class GuessNumberAction extends BaseAction {
         $betAmount = $params[2];
         $numbers = range(1, 99);
         shuffle($numbers);
-        $text = "Я загадал и запомнил одно из этих трех чисел, если ты верно угадаешь какое, я умножу твою ставку и получишь сверху столько же сколько поставил. НО! Если ты не угадаешь, я заберу твою ставку себе))";
+        $text = "Я загадал и запомнил одно из этих трех чисел. Если ты угадаешь верно, получишь выигрыш согласно твоей ставке, но если не угадаешь — ставка списывается.";
         $keyboard = new InlineKeyboard([
             ['text' => $numbers[0], 'callback_data' => 'GuessNumber_choose_' . $betAmount . '_1'],
             ['text' => $numbers[1], 'callback_data' => 'GuessNumber_choose_' . $betAmount . '_2'],
@@ -105,17 +104,17 @@ class GuessNumberAction extends BaseAction {
         $chosenNumber = $params[3];
         $correctNumber = rand(1, 4);
 
-        if($betAmount === 25){
+        if ($betAmount === '25') {
             $correctNumber = rand(1, 5);
-        }elseif ($betAmount === 50){
+        } elseif ($betAmount === '50') {
             $correctNumber = rand(1, 7);
         }
 
         if ($chosenNumber == $correctNumber) {
-            // Победа
-            //$betAmount = $betAmount * 2;
+            // Победа: теперь выигрыш составит 1.2 * ставка
+            $winGold = intval(round($betAmount * 1.2));
             $this->updateCharacterGold($this->character['id'], $betAmount, true);
-            $text = "Поздравляем! Вы угадали число. Ваш выигрыш: {$betAmount} золота.";
+            $text = "Поздравляем! Вы угадали число. Ваш выигрыш: {$winGold} золота.";
         } else {
             // Проигрыш
             $this->updateCharacterGold($this->character['id'], $betAmount, false);
@@ -139,17 +138,16 @@ class GuessNumberAction extends BaseAction {
         $amount = intval($amount);
 
         if ($win) {
-            $newGold = $character['gold'] + (2 * $amount); // Удваиваем ставку при выигрыше
-            // Обновляем характеристики персонажа при победе
+            // При выигрыше теперь прибавляем 1.2 * ставка, а прирост характеристик снижен
+            $newGold = $character['gold'] + intval(round($amount * 1.2));
             $this->characterModel->update($characterId, [
                 'gold' => $newGold,
-                'experience' => $character['experience'] + 0.02,
-                'agility' => $character['agility'] + 0.03,
-                'intellect' => $character['intellect'] + 0.04,
+                'experience' => $character['experience'] + 0.01,
+                'agility' => $character['agility'] + 0.015,
+                'intellect' => $character['intellect'] + 0.02,
             ]);
         } else {
-            $newGold = max(0, $character['gold'] - $amount); // Вычитаем ставку при проигрыше
-            // Обновляем характеристики персонажа при проигрыше
+            $newGold = max(0, $character['gold'] - $amount);
             $this->characterModel->update($characterId, [
                 'gold' => $newGold,
                 'experience' => $character['experience'] - 0.01,
@@ -158,5 +156,4 @@ class GuessNumberAction extends BaseAction {
             ]);
         }
     }
-
 }

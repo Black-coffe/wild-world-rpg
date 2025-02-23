@@ -154,7 +154,8 @@ class BuyCraftConfirmAction extends BaseAction
             ->update();
 
         // Уменьшение кармы торговли
-        $this->updateTradingKarma($character['id'], -$quantity * 0.03);
+        $penaltyFactor = 0.0002;
+        $this->updateTradingKarma($character['id'], - ($totalPrice * $penaltyFactor));
 
         // Отправка сообщения игроку
         $text = "*Поздравляю с покупкой!*\n\nТы купил: *{$itemName}*\nВ количестве: *{$quantity}* штук\nИ потратил денег: *{$totalPrice}$*";

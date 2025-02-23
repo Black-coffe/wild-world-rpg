@@ -100,20 +100,25 @@ class SellResourceAction extends BaseAction
         foreach ($characterResources as $cr) {
             // Смотрим ресурс из $resources, у которого id = $cr['id_resources']
             $res = $this->resourceModel->find($cr['id_resources']);
-            if (!$res) continue;
+            if (!$res) {
+                continue;
+            }
 
-            $quantity   = $cr['quantity'];
-            if ($quantity <= 0) continue;
+            $quantity = $cr['quantity'];
+            if ($quantity <= 0) {
+                continue;
+            }
 
-            // Считаем «на сумму» исходя из sell_price
+            // Считаем «на сумму» исходя из sell_price, добавляем "~" перед значением
             $totalValue = $quantity * $res['sell_price'];
             $text .= "*{$res['name']}* | "
                 . "Единиц: *" . number_format($quantity) . "* | "
-                . "На сумму: *" . number_format($totalValue) . "*💰\n\n";
+                . "На сумму: ~" . number_format($totalValue) . "💰\n";
 
+            // Формируем текст кнопки
             $btnText = "{$res['name']} | "
                 . "📦 " . number_format($quantity) . " | "
-                . number_format($totalValue) . "💰";
+                . "~" . number_format($totalValue) . "💰";
 
             // Кнопка для выбора этого ресурса
             $keyboardButtons[] = [[
@@ -125,10 +130,14 @@ class SellResourceAction extends BaseAction
         // Если не нашлось ничего
         if (empty($keyboardButtons)) {
             $text = "У вас нет ресурсов редкости {$rarity} для продажи.";
+        } else {
+            // Добавляем пояснение о том, что цена может отличаться
+            $text .= "\n*❗️Реальная цена может быть другой исходя из спроса ресурса❗️*";
         }
 
         $keyboard = ['inline_keyboard' => $keyboardButtons];
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
         return Request::sendMessage([
             'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
             'text'         => $text,

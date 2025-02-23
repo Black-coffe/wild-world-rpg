@@ -9,7 +9,6 @@ use App\Models\ResourceModel;
 use App\Models\CharacterResourceModel;
 use App\Models\CharacterModel;
 use App\Models\ResourcesBankModel;
-// Если хотите после сделки тут же пересчитывать цены:
 use App\TaskHandlers\ResourceBankUpdateHandler;
 
 class BuyResourceAction extends BaseAction
@@ -30,7 +29,7 @@ class BuyResourceAction extends BaseAction
 
     public function handle(): ServerResponse
     {
-        // При входе в покупку можно (опционально) обновить цены
+        // (Опционально) обновляем цены:
         // $this->updateResourcePrices();
 
         [$user, $character] = $this->getUserAndCharacter();
@@ -51,6 +50,7 @@ class BuyResourceAction extends BaseAction
         //  └── rarity_{число}
         //  └── select_{resourceId}
         //  └── quantity_{resourceId}_{количество}
+
         if (!isset($params[1])) {
             // Показываем стартовое окно выбора редкости
             return $this->showStartScreen($character);
@@ -82,7 +82,6 @@ class BuyResourceAction extends BaseAction
 
         return Request::emptyResponse();
     }
-
 
     /**
      * Простой метод для отправки текстового сообщения с кнопками «Персонаж, Инвентарь, Магазин»
@@ -153,6 +152,7 @@ class BuyResourceAction extends BaseAction
 
     /**
      * Показать список ресурсов указанной редкости. Показываем buy_price.
+     * Добавляем «~» перед buy_price и фразу о том, что реальная цена может отличаться.
      */
     protected function showResourcesOfRarity(int $rarity): ServerResponse
     {
@@ -166,8 +166,8 @@ class BuyResourceAction extends BaseAction
         $row             = [];
 
         foreach ($resources as $index => $resource) {
-            // Показываем текущую цену:
-            $text .= "🧺 *{$resource['name']}* | _Цена покупки_: *{$resource['buy_price']}*💰\n\n";
+            // Показываем текущую (примерную) цену:
+            $text .= "🧺 *{$resource['name']}* | _Цена покупки_: ~*{$resource['buy_price']}*💰\n";
 
             // Добавляем кнопку для выбора конкретного ресурса
             $row[] = [
@@ -175,12 +175,15 @@ class BuyResourceAction extends BaseAction
                 'callback_data' => "buy_select_{$resource['id']}"
             ];
 
-            // каждые 2 кнопки в строке
+            // Каждые 2 кнопки в строке
             if (count($row) == 2 || $index == count($resources) - 1) {
                 $keyboardButtons[] = $row;
                 $row = [];
             }
         }
+
+        // Добавляем фразу о том, что цена может отличаться
+        $text .= "*\n❗️Реальная цена может быть другой исходя из спроса ресурса❗️*";
 
         $keyboard = ['inline_keyboard' => $keyboardButtons];
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
@@ -194,6 +197,7 @@ class BuyResourceAction extends BaseAction
 
     /**
      * Спросить, сколько единиц купить
+     * Аналогично добавляем «~» и фразу о возможном отличии цены.
      */
     protected function askForQuantity(int $resourceId): ServerResponse
     {
@@ -202,8 +206,10 @@ class BuyResourceAction extends BaseAction
             return $this->respondWithMessage("Ресурс не найден.");
         }
 
-        $text = "🧺 *Выберите желаемое количество*\n📦 _{$resource['name']}_ *для покупки.*\n"
-            . "Текущая цена за 1 ед: *{$resource['buy_price']}* 💰";
+        $text = "🧺 *Выберите желаемое количество*\n"
+            . "📦 _{$resource['name']}_ *для покупки.*\n"
+            . "Текущая цена за 1 ед: ~*{$resource['buy_price']}* 💰\n\n"
+            . "Реальная цена может быть другой исходя из спроса ресурса.";
 
         // Предустановленные варианты
         $keyboardButtons = [

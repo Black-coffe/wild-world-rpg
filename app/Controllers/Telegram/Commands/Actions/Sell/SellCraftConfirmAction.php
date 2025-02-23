@@ -104,7 +104,8 @@ class SellCraftConfirmAction extends BaseAction
             ->update();
 
         // Увеличение кармы торговли
-        $this->updateTradingKarma($character['id'], $quantity * 0.01);
+        $bonusFactor = 0.0002; // 0.2%
+        $this->updateTradingKarma($character['id'], ($totalPrice * $bonusFactor));
 
         // Отправка сообщения игроку
         $text = "*Поздравляю с продажей*\n\nТы продал: *{$itemName}*\nВ количестве: *{$quantity}* штук\nИ заработал денег: *{$totalPrice}$*";
