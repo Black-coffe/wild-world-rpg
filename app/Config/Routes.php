@@ -20,6 +20,16 @@ $routes->get('battles', 'BattlesController::index');
 $routes->get('battles/view/(:num)', 'BattlesController::view/$1');
 
 $routes->group('admin', ['filter' => 'login'], function($routes) {
+    // Маршруты для опросов
+    $routes->get('polls', 'Admin\PollController::index'); // Список всех опросов
+    $routes->get('polls/create', 'Admin\PollController::createPollForm'); // Форма создания опроса
+    $routes->post('polls/store', 'Admin\PollController::storePoll'); // Сохранение опроса
+    $routes->get('polls/edit/(:segment)', 'Admin\PollController::editPollForm/$1'); // Форма редактирования опроса
+    $routes->post('polls/update/(:segment)', 'Admin\PollController::updatePoll/$1'); // Обновление опроса
+    $routes->get('polls/delete/(:segment)', 'Admin\PollController::deletePoll/$1'); // Удаление опроса
+    $routes->get('polls/statistics/(:segment)', 'Admin\PollController::statistics/$1'); // Статистика опроса
+    $routes->get('polls/stop/(:segment)', 'Admin\PollController::stopPoll/$1'); // Остановка (прекращение голосования)
+    $routes->get('polls/send/(:segment)', 'Admin\PollController::sendPoll/$1');
     // Quest routes
     $routes->get('quests', 'Admin\QuestController::index'); // List all quests
     $routes->get('quests/create', 'Admin\QuestController::createQuestForm'); // Form for creating a quest

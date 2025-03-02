@@ -73,6 +73,26 @@ class CallbackqueryCommand extends SystemCommand
             }
         }
 
+        if (strpos($callbackData, 'pollVote_') === 0) {
+            // Ожидаем формат: pollVote_{pollId}_{answerId}
+            $parts = explode('_', $callbackData);
+            // [0] => pollVote
+            // [1] => pollId
+            // [2] => answerId
+            if (count($parts) >= 3) {
+                $pollId   = (int) $parts[1];
+                $answerId = (int) $parts[2];
+
+                // Подключаем наш новый класс
+                $handlerClass = \App\Controllers\Telegram\Commands\Actions\Poll\PollVoteAction::class;
+                if (class_exists($handlerClass)) {
+                    $handler = new $handlerClass($this->getCallbackQuery());
+                    return $handler->handleVote($pollId, $answerId);
+                }
+            }
+            return Request::emptyResponse();
+        }
+
         // В методе execute() или getActionHandler():
         if (strpos($callbackData, 'upgrade_building_') === 0) {
             // Шаг 1: показать требования и спросить подтверждение
@@ -108,7 +128,6 @@ class CallbackqueryCommand extends SystemCommand
         }
 
         // Иначе — прочие action
-        // ... (старый код)
         $handlerClass = $this->getActionHandler($action);
         if ($handlerClass && class_exists($handlerClass)) {
             $handler = new $handlerClass($callbackQuery);

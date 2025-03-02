@@ -1,3 +1,4 @@
+<!--/Views/templates/admin.php-->
 <!DOCTYPE html>
 <html>
 <head>

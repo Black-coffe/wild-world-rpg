@@ -60,8 +60,6 @@ class AutoPveHandler
 
     public function run()
     {
-        log_message('debug', "\u{1F504} Запуск AutoPveHandler...");
-
         $players = $this->characterModel->findAll();
         $handledCount = 0;
 
@@ -78,7 +76,6 @@ class AutoPveHandler
                 ->findAll();
 
             if (empty($npcsInCell)) {
-                log_message('debug', "✅ Нет живых NPC в клетке игрока ID={$playerId}.");
                 continue;
             }
 
@@ -89,19 +86,14 @@ class AutoPveHandler
                 }
                 $npcSpawnId = (int) $npcSpawn['id'];
 
-                log_message('debug', "\u{1F680} Запуск PvE боя: PlayerID={$playerId}, NPC SpawnID={$npcSpawnId}");
                 $this->startNpcCombat($playerId, $npcSpawnId);
                 $handledCount++;
             }
         }
-
-        log_message('debug', "⚔️ Всего обработано PvE боёв: {$handledCount}");
     }
 
     protected function startNpcCombat(int $playerId, int $npcSpawnId): void
     {
-        log_message('debug', "🎯 Начинаем бой: PlayerID={$playerId}, NPC SpawnID={$npcSpawnId}");
-
         // Получаем данные игрока (вместе с telegram_id для уведомления)
         $playerData = $this->characterModel
             ->select('characters.*, telegram_users.telegram_id as telegram_chat_id')
@@ -110,20 +102,17 @@ class AutoPveHandler
             ->first();
 
         if (!$playerData) {
-            log_message('error', "⛔ Ошибка: Персонаж с ID {$playerId} не найден!");
             return;
         }
 
         // Получаем данные NPC (конкретный spawn)
         $npcData = $this->npcSpawnModel->find($npcSpawnId);
         if (!$npcData) {
-            log_message('error', "⛔ Ошибка: NPC спавн ID {$npcSpawnId} не найден!");
             return;
         }
 
         // Проверяем, что игрок и NPC действительно в одной клетке
         if ($playerData['cell_number'] !== $npcData['cell_number']) {
-            log_message('warning', "⚠️ Игрок ID={$playerId} и NPC ID={$npcSpawnId} в разных клетках! Бой не начинается.");
             return;
         }
 
@@ -131,7 +120,6 @@ class AutoPveHandler
         $npcModel = new NpcModel();
         $npcInfo  = $npcModel->find($npcData['npc_id']);
         if (!$npcInfo) {
-            log_message('error', "⛔ Ошибка: NPC ID {$npcData['npc_id']} не найден в npcs!");
             return;
         }
         $npcData['name'] = $npcInfo['npc_name_ru'] ?? 'Неизвестный враг';
@@ -140,64 +128,30 @@ class AutoPveHandler
         $biome = "Grasslands";
         $fightResult = $this->pveService->attack($playerData, $npcData, $biome);
 
-        log_message('debug', "🏆 PvE Бой завершён. Итоги: " . json_encode($fightResult));
-
         // Проверяем корректность результата
         if (!isset($fightResult['player']) || !is_array($fightResult['player'])) {
-            log_message('error', "⛔ Ошибка: PvE бой завершён, но нет данных о игроке (массив)!");
             return;
         }
         if (!isset($fightResult['winner']) || !is_object($fightResult['winner'])) {
-            log_message('error', "⛔ Ошибка: PvE бой завершён, но победитель не является объектом!");
             return;
         }
 
         $updatedPlayer = $fightResult['player'];
         $winner = $fightResult['winner'];
-        // Защищённо получаем данные проигравшего
-        $loser = $fightResult['loser'] ?? null;
-        $loserName = (is_object($loser) && isset($loser->name)) ? $loser->name : 'Неизвестный';
-
-        log_message('debug', "🏆 Победитель: {$winner->name} | Проигравший: {$loserName}");
 
         // Если победил игрок — удаляем NPC
         if ($winner->name === $playerData['name']) {
             sleep(2); // для наглядности лога
 
-            log_message('debug', "✅ Игрок победил. Начинаем удаление NPC Spawn ID={$npcSpawnId}...");
-
-            // 1. Просмотр записи перед удалением
-            $existsBeforeDelete = $this->npcSpawnModel->find($npcSpawnId);
-            log_message('debug', "🔎 NPC перед удалением: " . json_encode($existsBeforeDelete));
-
             // 2. Обновляем статус в базе (необязательно)
-            log_message('debug', "📝 Ставим status='dead'...");
             $this->npcSpawnModel->update($npcSpawnId, ['status' => 'dead']);
-            log_message('debug', "📝 update() -> error: " . json_encode($this->npcSpawnModel->db->error()));
 
             // 3. Пытаемся удалить через метод delete() модели
-            log_message('debug', "🗑️ Попытка delete({$npcSpawnId}) через модель...");
             // Если soft delete включен, используйте delete($npcSpawnId, true)
             $deleteResult = $this->npcSpawnModel->delete($npcSpawnId);
-            log_message('debug', "🗑️ Результат delete() моделью: " . json_encode($deleteResult));
-            log_message('debug', "🗑️ db->error() после delete(): " . json_encode($this->npcSpawnModel->db->error()));
-            log_message('debug', "🗑️ db->affectedRows() после delete(): " . $this->npcSpawnModel->db->affectedRows());
 
             // 4. Дополнительное удаление через сырой SQL (на случай soft delete)
-            log_message('debug', "🔥 Принудительный raw SQL: DELETE FROM npc_spawns WHERE id=?");
             $this->npcSpawnModel->db->query("DELETE FROM npc_spawns WHERE id = ?", [$npcSpawnId]);
-            log_message('debug', "🔥 db->error(): " . json_encode($this->npcSpawnModel->db->error()));
-            log_message('debug', "🔥 db->affectedRows(): " . $this->npcSpawnModel->db->affectedRows());
-
-            // 5. Проверяем, осталась ли запись
-            $existsAfterDelete = $this->npcSpawnModel->find($npcSpawnId);
-            log_message('debug', "🔎 NPC после удаления: " . json_encode($existsAfterDelete));
-
-            if ($existsAfterDelete === null) {
-                log_message('info', "✅ NPC Spawn ID={$npcSpawnId} успешно удален.");
-            } else {
-                log_message('error', "❌ Ошибка: NPC Spawn ID={$npcSpawnId} всё ещё в базе данных!");
-            }
         }
 
         // Обновляем характеристики игрока
@@ -209,8 +163,6 @@ class AutoPveHandler
             ->set('gold', 'gold + ' . ($fightResult['rewards']['gold'] ?? 0), false)
             ->where('id', $playerId)
             ->update();
-
-        log_message('info', "✅ Обновлены данные игрока: ID={$playerId}, Здоровье={$updatedPlayer['health']}, Выносливость={$newTired}");
     }
 
 }

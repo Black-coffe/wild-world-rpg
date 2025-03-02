@@ -3,13 +3,12 @@
 
     <!-- Brand Logo Light -->
     <a href="<?= base_url('dashboard')?>" class="logo logo-light">
-                    <span class="logo-lg">
-                        <img src="<?= base_url('images/logo.png')?>" alt="logo">
-
-                    </span>
+        <span class="logo-lg">
+            <img src="<?= base_url('images/logo.png')?>" alt="logo">
+        </span>
         <span class="logo-sm">
-                        <img src="<?= base_url('images/logo-sm.png')?>" alt="small logo">
-                    </span>
+            <img src="<?= base_url('images/logo-sm.png')?>" alt="small logo">
+        </span>
     </a>
 
     <!-- Sidebar Hover Menu Toggle Button -->
@@ -81,6 +80,26 @@
                     <span> Сброс персонажа </span>
                 </a>
             </li>
+
+            <!-- Новый пункт меню: Опросы -->
+            <li class="side-nav-item">
+                <a data-bs-toggle="collapse" href="#pollsMenu" aria-expanded="false" aria-controls="pollsMenu" class="side-nav-link collapsed">
+                    <i class="uil-comment-alt"></i>
+                    <span> Опросы </span>
+                    <span class="menu-arrow"></span>
+                </a>
+                <div class="collapse" id="pollsMenu" style="">
+                    <ul class="side-nav-second-level">
+                        <li>
+                            <a href="<?= base_url('admin/polls')?>">Список опросов</a>
+                        </li>
+                        <li>
+                            <a href="<?= base_url('admin/polls/create')?>">Создать опрос</a>
+                        </li>
+                    </ul>
+                </div>
+            </li>
+            <!-- Конец нового пункта меню -->
 
         </ul>
         <!--- End Sidemenu -->
