@@ -60,13 +60,15 @@ class BuiltCompletionGreenhouseHandler extends Controller
 
         if (!$buildingBlock) {
             log_message('error', 'Созданный элемент: Greenhouse, не найден в базе данных');
-            // Здесь тоже надо что-то вернуть типа ServerResponse:
-            return Request::sendMessage([
-                'chat_id' => 'YOUR_ADMIN_CHAT_ID', // либо пустая заглушка
-                'text'    => 'Ошибка: Greenhouse не найден в БД',
-            ]);
-            // Или, как вариант, Request::emptyResponse()
-            // return Request::emptyResponse();
+            // Return error response to admin chat
+            $adminChatId = getenv('telegram.MY_CHAT_ID');
+            if ($adminChatId) {
+                return Request::sendMessage([
+                    'chat_id' => $adminChatId,
+                    'text'    => 'Ошибка: Greenhouse не найден в БД',
+                ]);
+            }
+            return Request::emptyResponse();
         }
 
         // 3) Обновление/создание лога крафта

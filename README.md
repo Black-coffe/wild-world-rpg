@@ -1,68 +1,251 @@
-# CodeIgniter 4 Application Starter
+# Wild World RPG
 
-## What is CodeIgniter?
+<div align="center">
 
-CodeIgniter is a PHP full-stack web framework that is light, fast, flexible and secure.
-More information can be found at the [official site](https://codeigniter.com).
+![PHP](https://img.shields.io/badge/PHP-8.1+-777BB4?style=for-the-badge&logo=php&logoColor=white)
+![CodeIgniter](https://img.shields.io/badge/CodeIgniter-4.4-EF4223?style=for-the-badge&logo=codeigniter&logoColor=white)
+![Telegram](https://img.shields.io/badge/Telegram-Bot-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
-This repository holds a composer-installable app starter.
-It has been built from the
-[development repository](https://github.com/codeigniter4/CodeIgniter4).
+**A text-based MMORPG game powered by Telegram Bot API**
 
-More information about the plans for version 4 can be found in [CodeIgniter 4](https://forum.codeigniter.com/forumdisplay.php?fid=28) on the forums.
+[Features](#features) | [Installation](#installation) | [Game Systems](#game-systems) | [Contributing](#contributing)
 
-You can read the [user guide](https://codeigniter.com/user_guide/)
-corresponding to the latest version of the framework.
+</div>
 
-## Installation & updates
+---
 
-`composer create-project codeigniter4/appstarter` then `composer update` whenever
-there is a new release of the framework.
+## About
 
-When updating, check the release notes to see if there are any changes you might need to apply
-to your `app` folder. The affected files can be copied or merged from
-`vendor/codeigniter4/framework/app`.
+Wild World RPG is a persistent multiplayer role-playing game that runs entirely within Telegram. Players explore a procedurally generated world, gather resources, craft items, build bases, and engage in PvE/PvP combat - all through an intuitive chat interface.
 
-## Setup
+Built with **CodeIgniter 4** and the **Longman Telegram Bot** library, this project demonstrates how to create complex game mechanics using a messaging platform as the primary interface.
 
-Copy `env` to `.env` and tailor for your app, specifically the baseURL
-and any database settings.
+## Features
 
-## Important Change with index.php
+### Core Gameplay
+- **Exploration** - Navigate a cell-based world map with multiple biomes (forests, deserts, mountains, swamps, etc.)
+- **Resource Gathering** - Collect materials based on your location and biome modifiers
+- **Crafting System** - Multi-tier crafting with Workbench General and Workbench Standard
+- **Base Building** - Establish camps with various buildings (Workshop, Arsenal, Laboratory, Greenhouse, and more)
+- **PvE Combat** - Battle NPCs with a detailed damage and effects system
+- **PvP System** - Player detection and combat mechanics
+- **Quests** - Dynamic quest system with multiple objectives
 
-`index.php` is no longer in the root of the project! It has been moved inside the *public* folder,
-for better security and separation of components.
+### Technical Features
+- Asynchronous task processing for time-based actions
+- Real-time world events affecting gameplay
+- Faction system with territory control
+- Robot automation (Explorer, Gatherer)
+- Teleportation network with beacons
+- Admin panel for game management
 
-This means that you should configure your web server to "point" to your project's *public* folder, and
-not to the project root. A better practice would be to configure a virtual host to point there. A poor practice would be to point your web server to the project root and expect to enter *public/...*, as the rest of your logic and the
-framework are exposed.
+## Game Systems
 
-**Please** read the user guide for a better explanation of how CI4 works!
+### World & Biomes
+The game world is divided into cells, each belonging to a specific biome:
+- **Forest** - Rich in wood and herbs
+- **Desert** - Minerals and rare materials
+- **Mountains** - Stone and ore deposits
+- **Swamp** - Unique flora and fauna
+- **Plains** - Balanced resources
 
-## Repository Management
+### Buildings
+Players can construct various structures at their base:
 
-We use GitHub issues, in our main repository, to track **BUGS** and to track approved **DEVELOPMENT** work packages.
-We use our [forum](http://forum.codeigniter.com) to provide SUPPORT and to discuss
-FEATURE REQUESTS.
+| Building | Function |
+|----------|----------|
+| Workshop | Basic crafting station |
+| Arsenal | Weapon storage and upgrades |
+| Laboratory | Research and special items |
+| Greenhouse | Food production |
+| Solar Station | Energy generation |
+| Robotics Workshop | Build and manage robots |
+| Teleportation Center | Fast travel network |
+| Gym | Character training |
+| Warehouse | Resource storage |
 
-This repository is a "distribution" one, built by our release preparation script.
-Problems with it can be raised on our forum, or as issues in the main repository.
+### Crafting Tiers
+1. **Basic Workbench** - Components, medical supplies, basic tools
+2. **Standard Workbench** - Armor, weapons, robots, teleport beacons
 
-## Server Requirements
+## Installation
 
-PHP version 7.4 or higher is required, with the following extensions installed:
+### Requirements
+- PHP 8.1 or higher
+- MySQL 8.0 or MariaDB 10.6+
+- Composer
+- Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
 
-- [intl](http://php.net/manual/en/intl.requirements.php)
-- [mbstring](http://php.net/manual/en/mbstring.installation.php)
+### Quick Start
 
-> [!WARNING]
-> The end of life date for PHP 7.4 was November 28, 2022.
-> The end of life date for PHP 8.0 was November 26, 2023.
-> If you are still using PHP 7.4 or 8.0, you should upgrade immediately.
-> The end of life date for PHP 8.1 will be November 25, 2024.
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/Black-coffe/wild-world-rpg.git
+   cd wild-world-rpg
+   ```
 
-Additionally, make sure that the following extensions are enabled in your PHP:
+2. **Install dependencies**
+   ```bash
+   composer install
+   ```
 
-- json (enabled by default - don't turn it off)
-- [mysqlnd](http://php.net/manual/en/mysqlnd.install.php) if you plan to use MySQL
-- [libcurl](http://php.net/manual/en/curl.requirements.php) if you plan to use the HTTP\CURLRequest library
+3. **Configure environment**
+   ```bash
+   cp .env.example .env
+   ```
+   Edit `.env` and set your credentials:
+   - Database connection
+   - Telegram Bot API key
+   - SMTP settings (optional)
+
+4. **Run database migrations**
+   ```bash
+   php spark migrate
+   ```
+
+5. **Set up Telegram webhook**
+   ```bash
+   # Point your bot webhook to:
+   # https://your-domain.com/telegram/webhook
+   ```
+
+6. **Start the development server**
+   ```bash
+   php spark serve
+   ```
+
+### Configuration
+
+Key environment variables in `.env`:
+
+```env
+# Application
+CI_ENVIRONMENT = production
+app.baseURL = 'https://your-domain.com/'
+
+# Database
+database.default.hostname = localhost
+database.default.database = your_db_name
+database.default.username = your_db_user
+database.default.password = your_db_password
+
+# Telegram Bot
+telegram.API_KEY = 'your_bot_token'
+telegram.BOT_USERNAME = '@your_bot_username'
+telegram.HOOK_URL = 'https://your-domain.com/telegram/webhook'
+telegram.MY_CHAT_ID = 'your_admin_chat_id'
+```
+
+## Project Structure
+
+```
+app/
+├── Config/              # Application configuration
+├── Controllers/
+│   ├── Admin/          # Admin panel controllers
+│   └── Telegram/       # Bot command handlers
+│       └── Commands/
+│           └── Actions/ # Game action handlers
+├── Database/
+│   └── Migrations/     # Database schema
+├── Libraries/          # Core game libraries
+├── Models/             # Data models
+├── Services/           # Business logic
+│   ├── PVE/           # Combat system
+│   ├── Player/        # Player management
+│   └── World/         # Map and world services
+├── TaskHandlers/       # Background task processors
+│   ├── Built/         # Building completion
+│   ├── Craft/         # Crafting completion
+│   ├── Events/        # World events
+│   └── Quests/        # Quest handlers
+└── Views/              # Admin panel templates
+```
+
+## Development
+
+### Running Tests
+```bash
+composer test
+# or
+vendor/bin/phpunit
+```
+
+### Database Commands
+```bash
+# Run migrations
+php spark migrate
+
+# Check migration status
+php spark migrate:status
+
+# Rollback
+php spark migrate:rollback
+```
+
+### Adding New Features
+
+**New Telegram Commands:**
+1. Create command class in `app/Controllers/Telegram/Commands/`
+2. Extend `BaseShiftingCommand`
+3. Register action handlers in `Actions/` directory
+
+**New Crafting Items:**
+1. Add migration with item definition
+2. Create action handler for crafting UI
+3. Add completion handler in `TaskHandlers/Craft/`
+4. Place visual assets in `public/uploads/telegram/craft/`
+
+## Screenshots
+
+<details>
+<summary>Click to view game screenshots</summary>
+
+The game uses visual assets for an immersive experience:
+- Character creation screens
+- World map exploration
+- Crafting interface
+- Building management
+- Combat encounters
+
+</details>
+
+## Tech Stack
+
+- **Backend Framework:** CodeIgniter 4.4
+- **Bot Library:** [longman/telegram-bot](https://github.com/php-telegram-bot/core)
+- **HTTP Client:** Guzzle
+- **Database:** MySQL/MariaDB
+- **Testing:** PHPUnit
+
+## Contributing
+
+Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) before submitting a pull request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- [CodeIgniter](https://codeigniter.com/) - The PHP framework
+- [Longman Telegram Bot](https://github.com/php-telegram-bot/core) - Telegram Bot API implementation
+- All contributors and testers
+
+---
+
+<div align="center">
+
+**Made with passion in Ukraine**
+
+[Report Bug](https://github.com/Black-coffe/wild-world-rpg/issues) | [Request Feature](https://github.com/Black-coffe/wild-world-rpg/issues)
+
+</div>

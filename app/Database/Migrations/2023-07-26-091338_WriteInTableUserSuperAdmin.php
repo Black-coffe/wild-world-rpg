@@ -8,12 +8,19 @@ class WriteInTableUserSuperAdmin extends Migration
 {
     public function up()
     {
+        // NOTE: This migration creates a default admin user.
+        // IMPORTANT: After deployment, immediately change the admin password!
+        // Default credentials should be updated via environment configuration.
+
+        $adminEmail = env('admin.email', 'admin@example.com');
+        $adminPassword = env('admin.password', 'ChangeThisPassword123!');
+
         $this->db->table('users')->insert([
             'name' => 'Administrator',
-            'email' => 'super@admin.com',
-            'password_hash' => '$2y$10$nCM15SZW.rmvNHTTebzD..shN4ZcHwa75S9zCLwT1sZv/FAedccYG',
-            'created_at' => '2023-07-26 11:58:49',
-            'updated_at' => '2023-07-26 11:58:49',
+            'email' => $adminEmail,
+            'password_hash' => password_hash($adminPassword, PASSWORD_DEFAULT),
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
             'is_admin' => 1,
             'photo_url' => NULL
         ]);
@@ -21,7 +28,8 @@ class WriteInTableUserSuperAdmin extends Migration
 
     public function down()
     {
+        $adminEmail = env('admin.email', 'admin@example.com');
         $this->db->table('users')
-            ->delete(['email' => 'super@admin.com']);
+            ->delete(['email' => $adminEmail]);
     }
 }

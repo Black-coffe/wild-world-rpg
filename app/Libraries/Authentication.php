@@ -78,7 +78,8 @@ class Authentication
             return false;
         }
 
-        if ($currentUser->email != "super@admin.com" and $currentUser->name != "Administrator") {
+        // Check if user is a super admin based on is_admin flag and admin name
+        if ($currentUser->is_admin != 1 || $currentUser->name != "Administrator") {
             return false;
         }
 

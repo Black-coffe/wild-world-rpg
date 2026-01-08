@@ -35,7 +35,7 @@
 
         <div class="form-group">
             <label for="telegram_ids">ID Telegram пользователей (через запятую, необязательно)</label>
-            <input type="text" class="form-control" name="telegram_ids" id="telegram_ids" value="352706554,">
+            <input type="text" class="form-control" name="telegram_ids" id="telegram_ids" value="">
         </div>
 
         <button type="submit" class="btn btn-primary" id="submitBtn" disabled>Отправить сообщение</button>

@@ -58,7 +58,7 @@
 
                             <div class="form-group mb-3">
                                 <label for="email" class="form-label">Email:</label>
-                                <input type="email" class="form-control" name="email" id="email" placeholder="andrei818@gmail.com" value="<?= old('email', $data->email ?? '') ?>" required>
+                                <input type="email" class="form-control" name="email" id="email" placeholder="admin@example.com" value="<?= old('email', $data->email ?? '') ?>" required>
                             </div>
 
                             <div class="form-group mb-3">

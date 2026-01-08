@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "C:\\laragon\\www\\mmorpg\\logs\\.cf8bc35e41b3c51dcfd9365ee0af27c584fc2a7a-audit.json",
+    "files": [
+        {
+            "date": 1767887519884,
+            "name": "C:\\laragon\\www\\mmorpg\\logs\\mcp-puppeteer-2026-01-08.log",
+            "hash": "7cfce0b83e5a524c1c2f0a2b49e5e24f2d455a83a02e557bbf253e3eca9dfb9f"
+        }
+    ],
+    "hashType": "sha256"
+}

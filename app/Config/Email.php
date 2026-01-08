@@ -6,7 +6,7 @@ use CodeIgniter\Config\BaseConfig;
 
 class Email extends BaseConfig
 {
-    public string $fromEmail  = 'welcome@rishuchi.im';
+    public string $fromEmail  = '';
     public string $fromName   = 'Administrator';
     public string $recipients = '';
 
@@ -28,22 +28,34 @@ class Email extends BaseConfig
     /**
      * SMTP Server Hostname
      */
-    public string $SMTPHost = 'mail.andrievskii.site';
+    public string $SMTPHost = '';
 
     /**
      * SMTP Username
      */
-    public string $SMTPUser = 'andrievskii@andrievskii.site';
+    public string $SMTPUser = '';
 
     /**
      * SMTP Password
      */
-    public string $SMTPPass = '3)?JtNmCe0?9tQvw';
+    public string $SMTPPass = '';
 
     /**
      * SMTP Port
      */
-    public int $SMTPPort = 465;
+    public int $SMTPPort = 587;
+
+    public function __construct()
+    {
+        parent::__construct();
+
+        // Load SMTP settings from environment variables
+        $this->fromEmail = env('email.fromEmail', '');
+        $this->SMTPHost  = env('email.SMTPHost', '');
+        $this->SMTPUser  = env('email.SMTPUser', '');
+        $this->SMTPPass  = env('email.SMTPPass', '');
+        $this->SMTPPort  = (int) env('email.SMTPPort', 587);
+    }
 
     /**
      * SMTP Timeout (in seconds)

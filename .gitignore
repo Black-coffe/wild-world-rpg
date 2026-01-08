@@ -42,8 +42,21 @@ $RECYCLE.BIN/
 # These should never be under version control,
 # as it poses a security risk.
 .env
+.env.local
+.env.*.local
+.env.production
+.env.staging
 .vagrant
 Vagrantfile
+
+#-------------------------
+# Database Files
+#-------------------------
+*.sqlite
+*.sqlite3
+*.db
+*.sql.bak
+*.dump
 
 #-------------------------
 # Temporary Files
@@ -125,4 +138,55 @@ nb-configuration.xml
 /results/
 /phpunit*.xml
 /.phpunit.*.cache
+
+#-------------------------
+# IDE Cache Files
+#-------------------------
+.phpstorm.meta.php
+.php-cs-fixer.cache
+.phpstan.cache
+*.phpunit.result.cache
+
+#-------------------------
+# Vim/Neovim
+#-------------------------
+*.swp
+*.swo
+*.swn
+.vim/
+
+#-------------------------
+# Backup Files
+#-------------------------
+*.backup
+*.bak
+*.tmp
+*.patch
+
+#-------------------------
+# Security - Additional
+#-------------------------
+# Credential files
+auth.json
+.composer/auth.json
+
+# SSH keys
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+
+# Log files that may contain sensitive data
+*.log
+
+#-------------------------
+# Claude Code / AI Tools
+#-------------------------
+.claude/
+
+#-------------------------
+# Misc Artifacts
+#-------------------------
+nul
+*.patch
 

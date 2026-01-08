@@ -12,8 +12,7 @@
     "require": {
         "php": "^8.0",
         "codeigniter4/framework": "^v4.4.6",
-        "longman/telegram-bot": "0.81.0",
-        "nesbot/carbon": "^3.8"
+        "longman/telegram-bot": "^0.81.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.9",

@@ -26,7 +26,7 @@
             <div class="row">
                 <div class="mb-3 col-md-6">
                     <label for="id_telegram" class="form-label">ID телеграм пользователя</label>
-                    <input type="number" class="form-control" id="id_telegram" name="id_telegram" required value="352706554">
+                    <input type="number" class="form-control" id="id_telegram" name="id_telegram" required value="">
                 </div>
                 <div class="mb-3 col-md-6">
                     <label for="id_character" class="form-label">ID персонажа в игре</label>
