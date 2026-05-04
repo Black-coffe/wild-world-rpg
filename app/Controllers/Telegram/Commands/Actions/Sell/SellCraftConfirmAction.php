@@ -74,6 +74,7 @@ class SellCraftConfirmAction extends BaseAction
         $craftedItemLog = $logQuery->getRowArray();
         if (!$craftedItemLog || $craftedItemLog['quantity'] < $quantity) {
             $db->transRollback();
+            $this->logRejected($character['id'], 'SELL_CRAFT', 'insufficient_inventory', ['item_id' => $craftedItemId, 'requested' => $quantity, 'have' => $craftedItemLog['quantity'] ?? 0]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => 'Извини, но у тебя нет достаточного количества этого предмета для продажи!',

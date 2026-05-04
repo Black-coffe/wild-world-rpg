@@ -48,6 +48,7 @@ class BuyCraftConfirmAction extends BaseAction
         }
 
         if ($character['gold'] < 1000) {
+            $this->logRejected($character['id'], 'BUY_CRAFT', 'min_gold_threshold', ['gold' => $character['gold']]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => 'Для торговли необходимо иметь не менее 1000 золотых монет.',
@@ -68,6 +69,7 @@ class BuyCraftConfirmAction extends BaseAction
             ->first();
 
         if (!$characterWarehouse) {
+            $this->logRejected($character['id'], 'BUY_CRAFT', 'no_warehouse');
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => 'Для покупки крафтовых предметов, необходимо иметь постройку "Склад".',
@@ -120,6 +122,7 @@ class BuyCraftConfirmAction extends BaseAction
         $saleItem = $saleItemQuery->getRowArray();
         if (!$saleItem || $saleItem['quantity'] < $quantity) {
             $db->transRollback();
+            $this->logRejected($character['id'], 'BUY_CRAFT', 'vendor_out_of_stock', ['item_id' => $craftedItemId, 'requested' => $quantity, 'available' => $saleItem['quantity'] ?? 0]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => 'Извините, у торговца недостаточно этого предмета.',
@@ -135,6 +138,7 @@ class BuyCraftConfirmAction extends BaseAction
         // Финальная проверка золота — уже после блокировки строки персонажа
         if ($charRefresh['gold'] < $totalPrice) {
             $db->transRollback();
+            $this->logRejected($character['id'], 'BUY_CRAFT', 'insufficient_gold', ['need' => $totalPrice, 'have' => $charRefresh['gold']]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => 'У вас недостаточно золота для этой покупки.',

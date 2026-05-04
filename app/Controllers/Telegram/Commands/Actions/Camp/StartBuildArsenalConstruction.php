@@ -136,6 +136,10 @@ class StartBuildArsenalConstruction extends BaseAction
         $missItems = $this->checkCraftedItems($character['id'], $requiredItems);
 
         if (!empty($missRes) || !empty($missItems)) {
+            $this->logRejected($character['id'], 'BUILD_ARSENAL', 'missing_materials', [
+                'missing_resources' => $missRes,
+                'missing_items'     => $missItems,
+            ]);
             $text  = "Нельзя начать строительство: не хватает материалов!\n\n";
             $text .= $this->formatMissing($missRes, $missItems);
             return $this->sendError($text);
