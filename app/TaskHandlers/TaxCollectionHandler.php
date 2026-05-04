@@ -31,11 +31,14 @@ class TaxCollectionHandler extends Controller
         $currentDateTime = new DateTime();
         $now = $currentDateTime->format('Y-m-d H:i:s');
 
-        // Допустим, скрипт должен запускаться ровно в 03:xx каждый день
+        // F2.10 wire-in: час сбора налогов через config/GameBalance вместо hardcoded.
+        // Дефолт 3 (03:xx Europe/Kiev), можно переопределить через .env
+        // переменной `gamebalance.taxCollectionHour`.
+        $taxHour = config('GameBalance')->taxCollectionHour;
         $currentHour   = (int) $currentDateTime->format('H');
         $currentMinute = (int) $currentDateTime->format('i');
-        if ($currentHour !== 3 || $currentMinute > 10) {
-            // Если сейчас не 3:xx, выходим
+        if ($currentHour !== $taxHour || $currentMinute > 10) {
+            // Окно 10 минут после $taxHour:00 — внутри запускаемся, иначе skip.
             return;
         }
 
