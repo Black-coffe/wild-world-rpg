@@ -99,6 +99,9 @@ class AttackPlayerAction extends BaseAction
     // F2.3b Step 1: DB-чтения экипировки/карты/фракции вынесены в репо
     // (+ N+1 fix на outfits).
     private \App\Services\PVE\PvpEquipmentRepository $equipmentRepo;
+    // F2.3b Step 2: формулы урона (computeDamage / Equipment / Armor /
+    // Distance / Biome) — pure-ish сервис с DI.
+    private \App\Services\PVE\PvpDamageCalculator $damageCalc;
 
     public function __construct($callbackQuery)
     {
@@ -133,6 +136,13 @@ class AttackPlayerAction extends BaseAction
             $this->mapModel,
             $this->characterFactionModel,
             $this->factionModel
+        );
+
+        // F2.3b Step 2: damage calculator, использует те же formulas+repo.
+        $this->damageCalc = new \App\Services\PVE\PvpDamageCalculator(
+            $this->pvpFormulas,
+            $this->equipmentRepo,
+            null // GameBalance — config('GameBalance') по умолчанию
         );
     }
 
@@ -497,9 +507,9 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * Основная формула урона на один удар:
-     * - 75% экип + 10% lvl + 10% статы + 5% инициатива
-     * - затем уворот, biome, OneShot
+     * F2.3b Step 2: вся формула урона делегирована в PvpDamageCalculator.
+     * Метод-обёртка оставлен для backward-compat внутреннего вызова из
+     * simulateFight (Step 3 переедет в RoundOrchestrator).
      */
     private function computeDamage(
         array $attacker,
@@ -509,149 +519,18 @@ class AttackPlayerAction extends BaseAction
         bool  $isFirstHit
     ): array
     {
-        // Подсчет экипировки (75%)
-        $D_equip = $this->computeEquipmentDamage($attacker, $defender);
-
-        // Уровневой бонус (10%)
-        $levelBonus  = $this->computeLevelBonus($attacker, $defender);
-        $D_level     = $levelBonus * $D_equip;
-
-        // Бонус статов (10%)
-        $statsBonus  = $this->computeStatsBonus($attacker);
-        $D_stats     = $statsBonus * $D_equip;
-
-        // Инициатива (5%) — только на первый удар
-        $D_init      = $isFirstHit ? (0.05 * $D_equip) : 0.0;
-
-        // Суммарный базовый урон до уворота/биома/OneShot
-        $baseDamage  = $D_equip + $D_level + $D_stats + $D_init;
-
-        // Заранее считаем biomeCoeff, чтобы вернуть в любом случае (уворот/неуворот)
-        $danger     = $biome['danger_level'] ?? 1;
-        $biomeCoeff = 1 + ((max(1, $danger) - 1) * self::DAMAGE_BIOME_BASE);
-
-        // Готовим поля для возвращаемого массива
-        // (oneShotChance / rolls тоже ставим по умолчанию, вдруг не пригодятся)
-        $critChance     = 0;
-        $critRoll       = 0;
-        $oneShotChance  = 0;
-        $oneShotRoll    = 0;
-
-        // Шанс уворота
-        $dodgeChance    = $this->getDodgeChance($defender);
-        $dodgeRoll      = mt_rand(0, 100);
-
-        // Проверяем уворот
-        if ($dodgeRoll < $dodgeChance) {
-            // Возвращаем полный набор ключей, biomeCoeff = 1.0 (или оставим, как вычислили)
-            return [
-                'D_equip'       => $D_equip,
-                'D_level'       => $D_level,
-                'D_stats'       => $D_stats,
-                'D_init'        => $D_init,
-                'dodgeChance'   => $dodgeChance,
-                'dodgeRoll'     => $dodgeRoll,
-                'critChance'    => $critChance,
-                'critRoll'      => $critRoll,
-                'biomeCoeff'    => $biomeCoeff,   // Или 1.0, но лучше вернуть так же
-                'oneShotChance' => $oneShotChance,
-                'oneShotRoll'   => $oneShotRoll,
-                'finalDamage'   => 0.0,           // Уворот -> урон ноль
-                'notes'         => 'Defender dodged'
-            ];
-        }
-
-        // Применяем biome
-        $damageAfterBiome = $baseDamage * $biomeCoeff;
-
-        // Проверяем крит (примерная логика)
-        $critRoll   = mt_rand(0, 100);
-        // У вас может быть реальный critChance из оружия => здесь можно подставить.
-        // Ниже для примера жестко = 15:
-        // $critChance = 15;
-        $isCrit     = ($critRoll < $critChance);
-        if ($isCrit) {
-            $damageAfterBiome *= 2; // x2 при критическом ударе
-        }
-
-        // One-shot при diff >= 50
-        $levelDiff = $attacker['level'] - $defender['level'];
-        if ($levelDiff >= self::ONESHOT_LEVELDIFF_THRESHOLD) {
-            $oneShotChance = min(self::ONESHOT_MAX_CHANCE, ($levelDiff / 1000) * 100);
-            $oneShotRoll   = mt_rand(0, 100);
-
-            if ($oneShotRoll < $oneShotChance) {
-                // Убить на месте
-                $damageAfterBiome = $defender['health'];
-            }
-        }
-
-        // Итог без учёта LuckyStrike (который в simulateFight)
-        $final = max(0, $damageAfterBiome);
-
-        return [
-            'D_equip'       => $D_equip,
-            'D_level'       => $D_level,
-            'D_stats'       => $D_stats,
-            'D_init'        => $D_init,
-            'dodgeChance'   => $dodgeChance,
-            'dodgeRoll'     => $dodgeRoll,
-            'critChance'    => $critChance,
-            'critRoll'      => $critRoll,
-            'biomeCoeff'    => $biomeCoeff,
-            'oneShotChance' => $oneShotChance,
-            'oneShotRoll'   => $oneShotRoll,
-            'finalDamage'   => $final,
-            'notes'         => $isCrit ? 'Crit!' : '',
-        ];
+        return $this->damageCalc->computeDamage($attacker, $defender, $biome, $luckyStrikeActive, $isFirstHit);
     }
 
     // ----------------------------------------------------------------
-    // Методы для подсчёта "экипировки" (оружие + броня)
+    // F2.3b Step 2: computeEquipmentDamage делегирован в DamageCalculator.
+    // Оставлен thin wrapper для совместимости с возможными внешними
+    // вызовами (хотя метод private — на всякий случай в Step 3 уберём).
     // ----------------------------------------------------------------
 
-    /**
-     * Возвращаем ~75% урона: D_base * K_rar * F_type * F_range * F_spec(крит).
-     */
     private function computeEquipmentDamage(array $attacker, array $defender): float
     {
-        // 1) Найдём экипированное оружие
-        $weapon = $this->getEquippedWeapon($attacker);
-        if (!$weapon) {
-            // нет оружия => кулаки
-            $D_base      = 2.0;
-            $rarityCoeff = 1.0;
-            $damageType  = 'Physical';
-            $rangeVal    = 1.0;
-            $critChance  = 0.0;
-        } else {
-            $D_base      = (float)($weapon['damage_value']  ?? 5.0);
-            $rarity      = $weapon['rarity']                ?? 'Common';
-            $rarityCoeff = $this->getRarityCoefficient($rarity);
-            $damageType  = $weapon['damage_type']           ?? 'Physical';
-            $rangeVal    = (float)($weapon['range_value']   ?? 1.0);
-
-            // critChance (ограничим 50%)
-            $weaponCrit  = !empty($weapon['crit_chance']) ? (float)$weapon['crit_chance'] : 0.0;
-            $critChance  = min($weaponCrit, 50.0);
-        }
-
-        // 2) Считаем сопротивление брони у цели
-        $R_armor = $this->computeArmorResistance($defender, $damageType);
-        $F_type  = max(0, 1 - $R_armor);
-
-        // 3) Штраф дистанции
-        $distance = $this->computeDistance($attacker, $defender);
-        $F_range  = $this->computeRangePenalty($rangeVal, $distance);
-
-        // 4) Разыгрываем крит?
-        $isCrit = $this->rollPercent($critChance);
-        $critMultiplier = 2.0;
-        $F_spec = $isCrit ? $critMultiplier : 1.0;
-
-        // Итог
-        $D_equip = $D_base * $rarityCoeff * $F_type * $F_range * $F_spec;
-        return max(0, $D_equip);
+        return $this->damageCalc->computeEquipmentDamage($attacker, $defender);
     }
 
     /**
@@ -664,29 +543,13 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * F2.3b Step 1: DB-чтения консолидированы в репо (N+1 fix на outfits).
-     * Чистая агрегация resistance остаётся здесь до Step 2.
+     * F2.3b Step 2: делегирует в DamageCalculator (выборка outfit'ов
+     * через repo + sum + clamp 0.9).
      */
     private function computeArmorResistance(array $defender, string $damageType): float
     {
         $outfits = $this->equipmentRepo->getEquippedOutfitsWithDetails((int) $defender['id']);
-
-        $resSum = 0.0;
-        foreach ($outfits as $outfit) {
-            switch (strtolower($damageType)) {
-                case 'physical':
-                default:
-                    $resSum += ($outfit['physical_resistance'] ?? 0) / 100.0;
-                    break;
-                case 'fire':
-                    $resSum += ($outfit['fire_resistance']     ?? 0) / 100.0;
-                    break;
-                case 'poison':
-                    $resSum += ($outfit['poison_resistance']   ?? 0) / 100.0;
-                    break;
-            }
-        }
-        return min(0.9, $resSum);
+        return $this->damageCalc->computeArmorResistance($outfits, $damageType);
     }
 
     /**
@@ -701,19 +564,14 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * Считаем дистанцию (короткий метод, можно по координатам).
-     * F2.3b Step 1: map lookups через репо.
+     * F2.3b Step 2: делегирует в DamageCalculator (pure dx/dy после
+     * фетча клеток через репо).
      */
     private function computeDistance(array $charA, array $charB): float
     {
         $mapA = $this->equipmentRepo->getMapCell((int) $charA['cell_number']);
         $mapB = $this->equipmentRepo->getMapCell((int) $charB['cell_number']);
-        if (!$mapA || !$mapB) {
-            return 1.0;
-        }
-        $dx = abs($mapA['coordinate_x'] - $mapB['coordinate_x']);
-        $dy = abs($mapA['coordinate_y'] - $mapB['coordinate_y']);
-        return sqrt($dx*$dx + $dy*$dy);
+        return $this->damageCalc->computeDistance($mapA, $mapB);
     }
 
     // ----------------------------------------------------------------

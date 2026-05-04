@@ -166,7 +166,7 @@ final class AttackPlayerActionFixtureFenceTest extends CIUnitTestCase
         $charFactionRP       = $rc->getProperty('characterFactionModel');  $charFactionRP->setAccessible(true);
         $factionRP           = $rc->getProperty('factionModel');           $factionRP->setAccessible(true);
 
-        $rp->setValue($action, new \App\Services\PVE\PvpEquipmentRepository(
+        $repo = new \App\Services\PVE\PvpEquipmentRepository(
             $charactersWeaponsRP->getValue($action),
             $weaponsRP->getValue($action),
             $charactersOutfitsRP->getValue($action),
@@ -174,6 +174,19 @@ final class AttackPlayerActionFixtureFenceTest extends CIUnitTestCase
             $mapRP->getValue($action),
             $charFactionRP->getValue($action),
             $factionRP->getValue($action)
+        );
+        $rp->setValue($action, $repo);
+
+        // F2.3b Step 2: PvpDamageCalculator (формулы) — DI с уже-созданным
+        // formulas + repo, чтобы тесты ходили в test DB.
+        $rp = $rc->getProperty('damageCalc');
+        $rp->setAccessible(true);
+        $formulasRP = $rc->getProperty('pvpFormulas');
+        $formulasRP->setAccessible(true);
+        $rp->setValue($action, new \App\Services\PVE\PvpDamageCalculator(
+            $formulasRP->getValue($action),
+            $repo,
+            null
         ));
 
         return $action;
