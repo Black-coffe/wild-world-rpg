@@ -123,9 +123,12 @@ class BandageCraftActionStart extends BaseAction
         $startTime = new \DateTime();
         $endTime   = (clone $startTime)->add(new \DateInterval('PT' . $totalDuration . 'M'));
 
-        // Сохраняем кол-во в task_settings
+        // Сохраняем кол-во и recipe key в task_settings.
+        // recipe ОБЯЗАТЕЛЕН для GenericCraftCompletionHandler (F2.2 cutover) —
+        // без него handler логирует error и не завершает task → игрок теряет ресурсы.
         $taskSettings = json_encode([
-            'quantity' => $qty
+            'quantity' => $qty,
+            'recipe'   => 'Bandage',
         ]);
 
         // Создаём запись в character_tasks
