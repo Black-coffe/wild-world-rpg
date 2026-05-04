@@ -2,25 +2,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $title ?></title>
-
     <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
 
-    <meta content="Система, помогающая в своевременном и регулируемом режиме проводить технические проверки (чекины) автомобилей с использованием онлайн-сервиса." name="description" />
-    <meta content="Checking of cars" name="author" />
-
-    <!-- App favicon -->
-    <link rel="shortcut icon" href="<?= base_url('images/favicon.ico') ?>">
-    <!-- Theme Config Js -->
-    <script src="<?= base_url('js/hyper-config.js') ?>"></script>
-    <!-- App css -->
-    <link href="<?= base_url('css/app-saas.min.css') ?>" rel="stylesheet" type="text/css" id="app-style" />
-    <!-- Icons css -->
-    <link href="<?= base_url('css/icons.min.css') ?>" rel="stylesheet" type="text/css" />
-    <!-- My css -->
-    <link href="<?= base_url('css/my.css') ?>" rel="stylesheet" type="text/css" />
+    <?= $this->include('admin/partials/_head_common') ?>
 
     <!-- Google Maps API -->
     <!-- prettier-ignore -->
@@ -53,17 +37,7 @@
 
         <?= $this->renderSection('content') ?>
 
-        <!-- Footer Start -->
-        <footer class="footer">
-            <div class="container-fluid">
-                <div class="row">
-                    <div class="col-md-6">
-                        <script>document.write(new Date().getFullYear())</script> © <a target="_blank" href="https://www.youtube.com/@andrievskii">Andrievskii</a>
-                    </div>
-                </div>
-            </div>
-        </footer>
-        <!-- end Footer -->
+        <?= $this->include('admin/partials/_footer') ?>
 
     </div>
 
@@ -74,10 +48,9 @@
 </div>
 <!-- END wrapper -->
 
-<!-- Vendor js -->
-<script src="<?= base_url('js/vendor.min.js')?>"></script>
+<?= $this->include('admin/partials/_scripts_common') ?>
 
-<!-- Apex  Charts js -->
+<!-- Apex Charts js -->
 <script src="<?= base_url('vendor/apexcharts/apexcharts.min.js')?>"></script>
 
 <!-- Todo js -->
@@ -86,11 +59,7 @@
 <!-- CRM Dashboard Demo App Js -->
 <script src="<?= base_url('js/pages/demo.crm-dashboard.js')?>"></script>
 
-<!-- App js -->
-<script src="<?= base_url('js/app.min.js')?>"></script>
-
-<!-- My js -->
-<script src="<?= base_url('js/my.js')?>"></script>
+<!-- PDF.js viewer -->
 <script src="<?= base_url('js/pdf.js')?>"></script>
 
 </body>
