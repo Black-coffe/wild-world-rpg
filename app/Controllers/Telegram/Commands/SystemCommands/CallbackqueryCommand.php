@@ -61,16 +61,15 @@ class CallbackqueryCommand extends SystemCommand
             return $charService->showCharacterInfo($chatId, $characterRow);
         }
 
-        // --- Новый блок обработки: move_dir_...
-        // Если callback_data начинается с "move_dir_", вызываем унифицированный экшн
-        if (strpos($callbackData, 'move_dir_') === 0) {
-            $handlerClass = \App\Controllers\Telegram\Commands\Actions\MoveCharacterToDirectionAction::class;
-            if (class_exists($handlerClass)) {
-                $handler = new $handlerClass($callbackQuery);
-                return $handler->handle();
-            } else {
-                return Request::emptyResponse();
-            }
+        // F2.5 wire-in: wildcard routing через CallbackRouter.
+        // Pattern 'move_dir_*' матчит move_dir_north, move_dir_south, move_dir_east, move_dir_west.
+        // По мере мигрирования других if(strpos)-блоков сюда же подключим.
+        $router = (new \App\Services\Telegram\CallbackRouter())
+            ->register('move_dir_*', \App\Controllers\Telegram\Commands\Actions\MoveCharacterToDirectionAction::class);
+        $routedClass = $router->resolve($callbackData);
+        if ($routedClass !== null && class_exists($routedClass)) {
+            $handler = new $routedClass($callbackQuery);
+            return $handler->handle();
         }
 
         if (strpos($callbackData, 'pollVote_') === 0) {
