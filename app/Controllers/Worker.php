@@ -483,7 +483,10 @@ class Worker extends Controller
         'Gather' => 'GatherTaskHandler',
         'craftStrengtheningElixir' => 'Craft\CraftCompletionStrengthElixirHandler',
         'craftAntiseptic' => 'Craft\CraftCompletionAntisepticHandler',
-        'craftBandage' => 'Craft\CraftCompletionBandageHandler',
+        // F2.2 cutover: Bandage идёт через GenericCraftCompletionHandler,
+        // рецепт читается из app/Config/CraftRecipes.php (ключ task_settings.recipe
+        // или fallback на legacy task_settings.item_crafted).
+        'craftBandage' => 'Craft\GenericCraftCompletionHandler',
         'craftPainReliefPower' => 'Craft\CraftCompletionPainReliefPowerHandler',
         'craftSedative' => 'Craft\CraftCompletionSedativeHandler',
         'craftStimulator' => 'Craft\CraftCompletionStimulatorHandler',

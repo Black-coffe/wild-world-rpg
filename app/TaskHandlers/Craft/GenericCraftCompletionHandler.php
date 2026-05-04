@@ -136,7 +136,12 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         if (!is_array($decoded)) {
             return null;
         }
-        return $decoded['recipe'] ?? null;
+        // F2.2 fallback: legacy start-actions writes 'item_crafted', new ones
+        // write 'recipe'. Pre-cutover тасков уже в БД может быть ~12-24h —
+        // обрабатываем оба формата.
+        return $decoded['recipe']
+            ?? $decoded['item_crafted']
+            ?? null;
     }
 
     private function extractQuantity(array $task): int
@@ -186,7 +191,9 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
             ],
         ];
 
-        $imagePath = base_url($recipe['image_completed']);
+        // F2.2: encodeFile делает fopen() — нужен ЛОКАЛЬНЫЙ путь, не URL.
+        // base_url() при пустом app.baseURL (cron) валится на localhost:8080.
+        $imagePath = FCPATH . $recipe['image_completed'];
 
         // Безопасная отправка (BaseTaskHandler::safeSendPhoto ловит TelegramException).
         $this->safeSendPhoto($telegramId, $imagePath, $text, [
