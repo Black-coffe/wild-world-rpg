@@ -72,6 +72,15 @@ class Buildings extends BaseConfig
             ],
             'dependencies'      => ['Workshop', 'BlastFurnace', 'SolarStation', 'Laboratory'],
             'image_in_progress' => 'uploads/telegram/camp/arsenal_in_progress.jpg',
+            // F3.B4 completion fields
+            'completion_image'           => 'uploads/telegram/camp/arsenal.png',
+            'completion_text'            => "🎉 *Поздравляем!*\n\n"
+                                          . "Вы успешно завершили строительство *⚔️ Арсенала*.\n"
+                                          . "Теперь у вас есть здание для хранения и улучшения оружия, производства боеприпасов!\n"
+                                          . "_Время действовать!_",
+            'completion_bonus_agility'   => 0.05,
+            'completion_bonus_intellect' => 0.05,
+            'completion_building_type'   => null, // используем buildings.building_type
         ],
 
         // F3.B1 (v0.17.0) — 5 простых tier-1 построек.
@@ -96,6 +105,11 @@ class Buildings extends BaseConfig
             ],
             'dependencies'      => [],
             'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+            'completion_image'           => 'uploads/telegram/camp/WorkShop.png',
+            'completion_text'            => "📌 Вы успешно построили:\n\n*🔧 Мастерскую*\n\nЗона применения: *База* 🏚️",
+            'completion_bonus_agility'   => 0.03,
+            'completion_bonus_intellect' => 0.03,
+            'completion_building_type'   => 'farming',
         ],
 
         'BlastFurnace' => [
@@ -114,6 +128,11 @@ class Buildings extends BaseConfig
             ],
             'dependencies'      => [],
             'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+            'completion_image'           => 'uploads/telegram/camp/blast_furnace.png',
+            'completion_text'            => "📌 Вы успешно построили:\n\n🔥 *Доменную печь*\n\nЗона применения: *База* 🏚️",
+            'completion_bonus_agility'   => 0.07,
+            'completion_bonus_intellect' => 0.02,
+            'completion_building_type'   => 'farming',
         ],
 
         'Warehouse' => [
@@ -136,6 +155,11 @@ class Buildings extends BaseConfig
             ],
             'dependencies'      => [],
             'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+            'completion_image'           => 'uploads/telegram/camp/Warehouse.png',
+            'completion_text'            => "📌 Вы успешно построили:\n\n*🏚️ Склад*\n\nЗона применения: *База* 🏚️",
+            'completion_bonus_agility'   => 0.01,
+            'completion_bonus_intellect' => 0.01,
+            'completion_building_type'   => 'farming',
         ],
 
         'Laboratory' => [
@@ -153,6 +177,11 @@ class Buildings extends BaseConfig
             ],
             'dependencies'      => [],
             'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+            'completion_image'           => 'uploads/telegram/camp/laboratory.jpg',
+            'completion_text'            => "📌 Вы успешно построили:\n\n*🥼 Лабораторию*\n\nЗона применения: *База* 🏚️",
+            'completion_bonus_agility'   => 0.08,
+            'completion_bonus_intellect' => 0.07,
+            'completion_building_type'   => 'farming',
         ],
 
         'SolarStation' => [
@@ -172,6 +201,11 @@ class Buildings extends BaseConfig
             ],
             'dependencies'      => [],
             'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+            'completion_image'           => 'uploads/telegram/camp/solar_power_station.jpg',
+            'completion_text'            => "📌 Вы успешно построили:\n\n*☀️ Солнечную станцию*\n\nЗона применения: *База* 🏚️",
+            'completion_bonus_agility'   => 0.04,
+            'completion_bonus_intellect' => 0.03,
+            'completion_building_type'   => 'farming',
         ],
 
         // F3.B2 (v0.18.0) — 5 medium-tier построек.
@@ -202,6 +236,11 @@ class Buildings extends BaseConfig
             ],
             'dependencies'      => [],
             'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+            'completion_image'           => 'uploads/telegram/camp/Gym.png',
+            'completion_text'            => "📌 Вы успешно построили:\n\n*🥊 Спортзал*\n\nЗона применения: *База* 🏚️",
+            'completion_bonus_agility'   => 0.08,
+            'completion_bonus_intellect' => 0.07,
+            'completion_building_type'   => 'farming',
         ],
 
         'Greenhouse' => [
@@ -221,6 +260,11 @@ class Buildings extends BaseConfig
             ],
             'dependencies'      => [],
             'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+            'completion_image'           => 'uploads/telegram/camp/Greenhouse_craft.png',
+            'completion_text'            => "📌 Вы успешно построили:\n\n*🌱 Теплицу*\n\nЗона применения: *База* 🏚️",
+            'completion_bonus_agility'   => 0.08,
+            'completion_bonus_intellect' => 0.07,
+            'completion_building_type'   => 'farming',
         ],
 
         'HandPump' => [
@@ -239,6 +283,11 @@ class Buildings extends BaseConfig
             ],
             'dependencies'      => [],
             'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+            'completion_image'           => 'uploads/telegram/camp/hand_pump.jpg',
+            'completion_text'            => "📌 Вы успешно построили:\n\n🚰 *Ручную скважину!*\n\nЗона применения: *База* 🏚️",
+            'completion_bonus_agility'   => 0.06,
+            'completion_bonus_intellect' => 0.02,
+            'completion_building_type'   => 'farming',
         ],
 
         'RoboticsWorkshop' => [
@@ -259,6 +308,11 @@ class Buildings extends BaseConfig
             ],
             'dependencies'      => [],
             'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+            'completion_image'           => 'uploads/telegram/camp/Robotics-Workshop.jpg',
+            'completion_text'            => "📌 Вы успешно построили:\n\n*🤖 Мастерскую робототехники*\n\nЗона применения: *База* 🏚️",
+            'completion_bonus_agility'   => 0.06,
+            'completion_bonus_intellect' => 0.08,
+            'completion_building_type'   => 'farming',
         ],
 
         'TeleportationCenter' => [
@@ -283,6 +337,11 @@ class Buildings extends BaseConfig
             ],
             'dependencies'      => [],
             'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+            'completion_image'           => 'uploads/telegram/camp/teleport_center.png',
+            'completion_text'            => "📌 Вы успешно построили:\n\n*🌀 Центр телепортации*\n\nТеперь телепортация доступна по сниженной цене и с расширенным лимитом маяков!",
+            'completion_bonus_agility'   => 0.05,
+            'completion_bonus_intellect' => 0.05,
+            'completion_building_type'   => 'engineering',
         ],
 
         // F3.B3-mini (v0.19.0) — последний building start-side.
@@ -307,6 +366,15 @@ class Buildings extends BaseConfig
             ],
             'dependencies'      => [],
             'image_in_progress' => 'uploads/telegram/camp/communication_tower_in_progress.jpg',
+            'completion_image'           => 'uploads/telegram/camp/communication_tower.png',
+            'completion_text'            => "🎉 *Поздравляем!*\n\n"
+                                          . "Вы завершили строительство *📡Вышки связи*!\n"
+                                          . "Теперь ваша база доступна для удалённого управления.\n"
+                                          . "Каждый уровень — +100 радиус связи!\n\n"
+                                          . "_Удачи в развитии вашей колонии!_",
+            'completion_bonus_agility'   => 0.05,
+            'completion_bonus_intellect' => 0.05,
+            'completion_building_type'   => null, // используем buildings.building_type
         ],
     ];
 
