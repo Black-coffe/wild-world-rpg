@@ -100,8 +100,19 @@ final class PvpRewardOrchestrator
     }
 
     /**
-     * Смерть проигравшего: -5% XP, -0.5% статов, health=0, потом respawn
-     * с восстановлением health/tired.
+     * Смерть проигравшего: -5% XP, -0.5% статов, восстановление health/tired.
+     *
+     * BUG FIX (v0.14.1): убран дублирующий respawn вызов.
+     *
+     * Legacy v0.14.0 в этом методе вызывал findRespawnCell + UPDATE cell_number.
+     * Но AttackPlayerAction.handle() ПЕРЕД этим методом вызывает
+     * DeathService.handlePlayerDeathAndReward, который внутри уже выполнил
+     * PlayerRespawner.respawn (с biome-aware фильтром). Второй UPDATE
+     * cell_number в PvpRewardOrchestrator переписывал корректный выбор
+     * PlayerRespawner на explored_cells choice.
+     *
+     * После fix: cell_number сохранён как установил PlayerRespawner.respawn.
+     * Этот метод теперь отвечает только за статы / XP / HP / tired.
      */
     public function processDeathAndRespawn(array $loser): void
     {
@@ -129,11 +140,11 @@ final class PvpRewardOrchestrator
 
         $this->characterModel->update($loser['id'], $upd);
 
-        $respawnCell = $this->findRespawnCell((int) $loser['id']);
+        // Восстанавливаем health/tired (cell_number уже выставлен PlayerRespawner
+        // в DeathService → handlePlayerDeathAndReward → respawner.respawn).
         $this->characterModel->update($loser['id'], [
-            'health'      => round(($loser['max_health'] ?? 100), 2),
-            'tired'       => round(($loser['max_tired']  ?? 100), 2),
-            'cell_number' => $respawnCell,
+            'health' => round(($loser['max_health'] ?? 100), 2),
+            'tired'  => round(($loser['max_tired']  ?? 100), 2),
         ]);
     }
 
