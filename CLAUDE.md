@@ -6,6 +6,95 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a Telegram-based MMORPG game built with CodeIgniter 4 and the Longman Telegram Bot library. The game features exploration, resource gathering, crafting, PvE combat, base building, and PvP mechanics within a persistent world managed through Telegram chat interactions.
 
+**Master documents (north star):**
+- [`GAME_DESCRIPTION.md`](./GAME_DESCRIPTION.md) — слитный канон геймплея. **Атомарные ноты** канона по подсистемам — в [`mmorpg-vault/lore/`](file:///C:/Projects/mmorpg-vault/lore/index.md).
+- [`OBSIDIAN-MIGRATION-PLAN.md`](./OBSIDIAN-MIGRATION-PLAN.md) — обоснование структуры vault'а и фильтрация практик.
+- [`mmorpg-vault/`](file:///C:/Projects/mmorpg-vault/README.md) — Obsidian vault соседом репо (см. ADR-009 в самом vault'е). Tech-writing wiki, glossary, daily journal, hot-context для Claude.
+
+---
+
+## 🗂️ ОБЯЗАТЕЛЬНОЕ ЧТЕНИЕ В НАЧАЛЕ КАЖДОЙ СЕССИИ
+
+**Перед началом любой задачи Claude обязан:**
+
+**Vault лежит соседом репо в `C:\Projects\mmorpg-vault\`** — это обычные markdown-файлы, читаются через стандартный `Read` (никаких MCP / плагинов / специальных инструментов). См. [[mmorpg-vault/decisions/ADR-009-Vault-without-MCP]].
+
+1. **Прочитать [`mmorpg-vault/wiki/hot.md`](file:///C:/Projects/mmorpg-vault/wiki/hot.md)** — что в работе СЕЙЧАС, какие активные блоки, какие открытые вопросы.
+2. **Прочитать соответствующий [`mmorpg-vault/apps/<подсистема>/index.md`](file:///C:/Projects/mmorpg-vault/apps/index.md)** если задача касается конкретного домена — там список моделей, сервисов, handler'ов, контроллеров с обратными ссылками.
+3. **При работе с термином из канона** — заглядывать в [`mmorpg-vault/glossary/<термин>.md`](file:///C:/Projects/mmorpg-vault/glossary/index.md) для точного определения.
+4. **При архитектурном решении** — найти существующий ADR в [`mmorpg-vault/decisions/`](file:///C:/Projects/mmorpg-vault/decisions/index.md), не повторять обсуждение.
+
+**МЕТАЦЕЛЬ:** не вкачивать весь контекст в системный промпт. Selective reading через адресные `Read` к нужным нотам — главная экономика подхода.
+
+---
+
+## 📚 КОНСТИТУЦИОННОЕ ПРАВИЛО TECH-WRITING (зафиксировано 2026-05-04, ADR-009)
+
+**ЛЮБОЕ изменение в коде, затрагивающее модель / сервис / Telegram action-handler / task-handler / контроллер — ОБЯЗАНО сопровождаться синхронным обновлением соответствующей ноты в `mmorpg-vault/tech-writing/`.**
+
+### Где какая нота
+
+| Категория | Путь | Шаблон |
+|---|---|---|
+| CI4-модели | `tech-writing/models/<ModelName>.md` | `_templates/model-doc.md` |
+| Сервисы | `tech-writing/services/<ServiceName>.md` | `_templates/service-doc.md` |
+| Telegram action-handler'ы | `tech-writing/handlers/<group>/<HandlerName>.md` | `_templates/handler-doc.md` |
+| Task-handler'ы | `tech-writing/tasks/<group>/<HandlerName>.md` | `_templates/handler-doc.md` |
+| Web/Admin контроллеры | `tech-writing/controllers/<ControllerName>.md` | `_templates/service-doc.md` |
+| Миграции (карта таблиц) | `tech-writing/db/<table>.md` | (структура аналогична model-doc) |
+
+### Что включает обязательное обновление
+
+**При создании нового кода:**
+- Создать ноту по соответствующему шаблону.
+- Заполнить frontmatter: `type`, `kind`, `class`, `file`, `last_reviewed: <today>`, `source: human` (или `mixed` если генерил Claude), `verified: true`.
+- Проставить ссылки на смежные ноты (`apps/<подсистема>/index.md` уже знает про эту сущность? — обновить и там).
+- Указать связанные ADR (если новое решение — создать ADR в `decisions/`).
+- В блок «Где используется» — добавить актуальные callers.
+
+**При изменении кода:**
+- API изменился (новый метод / параметр / поле модели) → обновить раздел «Публичный API» или «Поля».
+- Триггер task-handler'а сменился → обновить раздел «Триггер».
+- Добавили новый action_name в `ActionLogModel` → обновить «Audit-коды».
+- Зависимости изменились → обновить «Зависимости».
+- Обновить `last_reviewed: <today>` в frontmatter.
+
+**При удалении кода:**
+- Не удалять ноту, а пометить frontmatter `status: deprecated` + причину.
+- В шапке — ссылка на замещающую ноту (если есть).
+
+### Зачем это правило
+
+🔍 **Навигируемость на масштабе.** На сегодня — 49 моделей, ~30 сервисов, ~80 action-handler'ов, ~70 task-handler'ов. Без wiki будет невозможно найти «где это лежит, что делает, кто вызывает».
+
+🧠 **Selective reading для Claude.** Claude адресным `Read` тянет нужную ноту (`apps/pve/index.md`, `tech-writing/services/BattleService.md`) вместо вкачивания целой подсистемы в контекст.
+
+🔗 **Граф связей.** Wiki-links между моделями/сервисами/handler'ами строят граф. Obsidian Graph View показывает кластеры. Видно сирот.
+
+⏰ **Anti-drift.** Без правила доки разойдутся с кодом за 3-4 месяца. Правило заставляет обновлять синхронно.
+
+### Что считается «завершённой задачей»
+
+- ✅ Код написан
+- ✅ PHPUnit-тесты зелёные (`composer test`)
+- ✅ Миграция применена и протестирована (если меняли схему)
+- ✅ Документация в репо обновлена (`CLAUDE.md`, `GAME_DESCRIPTION.md` если задели лор)
+- ✅ **Tech-writing нота обновлена в vault'е**
+- ✅ **Если значимое решение — ADR создан в `mmorpg-vault/decisions/`**
+- ✅ **`mmorpg-vault/wiki/hot.md` обновлён** (если контекст сменился)
+- ✅ Коммит с осмысленным русским сообщением
+
+### Workflow в конце сессии Claude
+
+Перед `/clear` или завершением работы — Claude обязан:
+
+1. **Обновить `mmorpg-vault/daily/<сегодня>.md`** с разделами «Сделано», «Решения», «Открытые вопросы», «Завтра».
+2. **Обновить `mmorpg-vault/wiki/hot.md`** под актуальный фокус (если изменился).
+3. **Создать/обновить tech-writing ноту** для каждой затронутой сущности.
+4. **Создать ADR** если приняли архитектурное решение.
+
+---
+
 ## Development Commands
 
 ### Testing
