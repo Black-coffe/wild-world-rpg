@@ -3,6 +3,8 @@
 namespace App\Controllers\Telegram\Commands\Actions;
 
 use Longman\TelegramBot\Entities\CallbackQuery;
+use Longman\TelegramBot\Request;
+use App\Models\ActionLogModel;
 use App\Models\CharacterModel;
 use App\Models\ResourceModel;
 use App\Models\TelegramUserModel;
@@ -173,6 +175,69 @@ abstract class BaseAction
     protected function updateResourcePrices()
     {
         $this->resourceModel->updateResourcePrices();
+    }
+
+    /**
+     * F1.6 — общий boilerplate для action-handler'ов.
+     *
+     * Каждый из ~80 action-handler'ов начинается с одинаковых строк:
+     *   [$user, $character] = $this->getUserAndCharacter();
+     *   if (!$user || !$character) { return Request::sendMessage([...]); }
+     *
+     * Этот метод инкапсулирует это в одну точку. Подклассу достаточно
+     * передать closure, которая получит уже валидную пару.
+     *
+     * Пример:
+     *   public function handle(): ServerResponse {
+     *       return $this->executeWithCharacter(function($user, $character) {
+     *           // основная логика action-handler'а
+     *       });
+     *   }
+     *
+     * Полная миграция всех 80 action-handler'ов запланирована в F2 — здесь
+     * только инфраструктура.
+     */
+    protected function executeWithCharacter(callable $handler)
+    {
+        [$user, $character] = $this->getUserAndCharacter();
+        if (!$user || !$character) {
+            return Request::sendMessage([
+                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'    => 'Пользователь не найден в базе или персонаж не определён. Попробуйте /start.',
+            ]);
+        }
+        return $handler($user, $character);
+    }
+
+    /**
+     * F1.10 — централизованная запись REJECTED действий в action_log.
+     *
+     * Использовать в каждом `return Request::sendMessage([...ошибка...])`
+     * перед самим return'ом, например:
+     *   $this->logRejected($character['id'], 'BUY_CRAFT', 'not_enough_gold');
+     *   return Request::sendMessage([...]);
+     *
+     * Цель: forensics при разборе попыток эксплоитов и UX-проблем.
+     * Defensive: никогда не выбрасывает наружу, не валит action.
+     */
+    protected function logRejected(?int $characterId, string $actionName, string $reason, array $extra = []): void
+    {
+        try {
+            $logModel = new ActionLogModel();
+            $description = $reason;
+            if (!empty($extra)) {
+                $description .= ' | ' . json_encode($extra, JSON_UNESCAPED_UNICODE);
+            }
+            $logModel->save([
+                'character_id'  => $characterId,
+                'chat_id'       => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'action_name'   => $actionName,
+                'action_status' => 'REJECTED',
+                'description'   => mb_substr($description, 0, 500),
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[logRejected] insert failed: ' . $e->getMessage());
+        }
     }
 
 
