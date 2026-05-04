@@ -22,10 +22,12 @@ use Longman\TelegramBot\Exception\TelegramException;
 use App\Libraries\BiomeResourceModifier;
 use App\Libraries\ToolManager;
 use App\Services\Player\Gather\GatherFormulaService;
+use App\Services\Player\Gather\ToolDurabilityProcessor;
 
 class GatherTaskHandler extends Controller
 {
     private GatherFormulaService $formulaService;
+    private ToolDurabilityProcessor $toolDurability;
 
     protected $characterModel;
     protected $characterResourceModel;
@@ -68,8 +70,15 @@ class GatherTaskHandler extends Controller
         $this->toolManager            = new ToolManager();
         // F2.7 first slice: чистые формулы (rarities/baseQty/healthFactor/spentMinutes)
         // вынесены в GatherFormulaService. Полная декомпозиция (event modifiers,
-        // tool durability, save resources, notify) — F2.7b.
+        // save resources, notify) — F2.7c.
         $this->formulaService         = new GatherFormulaService();
+        // F2.7b: фикс N+1 на инструментах. Один batch + cache вместо
+        // ~920 SQL/добычу.
+        $this->toolDurability         = new ToolDurabilityProcessor(
+            $this->craftedItemsLogModel,
+            $this->craftedItemsModel,
+            $this->toolManager
+        );
 
         $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
@@ -165,6 +174,17 @@ class GatherTaskHandler extends Controller
             ];
         }
 
+        // F2.7b: один batch — все инструменты персонажа, релевантные хотя бы
+        // одному ресурсу. Заменяет ~920 SQL на ~2 + рефреши после расхода.
+        $resourceNames = [];
+        foreach ($baseBlockResources as $arr) {
+            $resourceNames[] = $arr['resource']['name'];
+        }
+        $availableTools = $this->toolDurability->loadAvailableTools(
+            (int) $character['id'],
+            $resourceNames
+        );
+
         $foundAmounts = []; // resourceId => суммарное кол-во
 
         // Цикл по блокам
@@ -172,48 +192,27 @@ class GatherTaskHandler extends Controller
             $toolsNeeded = [];
             $resourceBonuses = [];
 
-            // Определяем, какие инструменты нужны
+            // Определяем лучший инструмент per resource из cached map.
             foreach ($baseBlockResources as $resId => $arr) {
                 $resourceName = $arr['resource']['name'];
-                $toolsMapping = $this->toolManager->getToolsForResource($resourceName);
+                $best = $this->toolDurability->pickBestTool($resourceName, $availableTools);
 
-                if (empty($toolsMapping)) {
+                if ($best === null) {
                     $resourceBonuses[$resId] = 0.0;
                     continue;
                 }
 
-                $bestBonus    = 0.0;
-                $bestToolName = null;
-                foreach ($toolsMapping as $toolName => $bonusValue) {
-                    $toolData = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($toolName, $character['id']);
-                    if (!$toolData) {
-                        continue;
-                    }
-                    if ($bonusValue > $bestBonus) {
-                        $bestBonus    = $bonusValue;
-                        $bestToolName = $toolName;
-                    }
-                }
-
-                if ($bestToolName) {
-                    $resourceBonuses[$resId] = $bestBonus;
-                    $toolsNeeded[$bestToolName][] = $resId;
-                } else {
-                    $resourceBonuses[$resId] = 0.0;
-                }
+                $resourceBonuses[$resId]      = $best['bonus'];
+                $toolsNeeded[$best['name']][] = $resId;
             }
 
-            // Списываем прочность
+            // Списываем прочность; cache самообновляется.
             foreach ($toolsNeeded as $toolName => $listOfResources) {
-                $toolData = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($toolName, $character['id']);
-                if (!$toolData) {
-                    foreach ($listOfResources as $resId) {
-                        $resourceBonuses[$resId] = 0.0;
-                    }
-                    continue;
-                }
-
-                $ok = $this->toolManager->updateToolDurability($toolData);
+                $ok = $this->toolDurability->consumeAndRefresh(
+                    $toolName,
+                    $availableTools,
+                    (int) $character['id']
+                );
                 if (!$ok) {
                     foreach ($listOfResources as $resId) {
                         $resourceBonuses[$resId] = 0.0;
