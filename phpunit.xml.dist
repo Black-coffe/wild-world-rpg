@@ -44,14 +44,17 @@
         <const name="CONFIGPATH" value="./app/Config/"/>
         <!-- Directory containing the front controller (index.php) -->
         <const name="PUBLICPATH" value="./public/"/>
-        <!-- Database configuration -->
-        <!-- Uncomment to provide your own database for testing
-        <env name="database.tests.hostname" value="localhost"/>
-        <env name="database.tests.database" value="tests"/>
-        <env name="database.tests.username" value="tests_user"/>
+        <!-- Database configuration —
+             integration-тесты используют отдельную MySQL БД (wildworld_tests).
+             Локально: laragon root без пароля.
+             В CI: GitHub Actions service container с теми же creds (см. .github/workflows/deploy.yml).
+             DBPrefix не используем — F2.6 CharacterRepository пишет raw SQL без префиксов. -->
+        <env name="database.tests.hostname" value="127.0.0.1"/>
+        <env name="database.tests.database" value="wildworld_tests"/>
+        <env name="database.tests.username" value="root"/>
         <env name="database.tests.password" value=""/>
         <env name="database.tests.DBDriver" value="MySQLi"/>
-        <env name="database.tests.DBPrefix" value="tests_"/>
-        -->
+        <env name="database.tests.DBPrefix" value=""/>
+        <env name="database.tests.port" value="3306"/>
     </php>
 </phpunit>
