@@ -329,7 +329,11 @@ class CallbackqueryCommand extends SystemCommand
             'buildTeleportationCenter' =>   \App\Controllers\Telegram\Commands\Actions\Camp\BuildTeleportationCenterConstruction::class,
             'startBuildTeleportCenter' =>   \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildTeleportationCenterConstruction::class,
             'actionNameForArsenal' =>       \App\Controllers\Telegram\Commands\Actions\Camp\BuildArsenalConstruction::class,
-            'startBuildArsenal'    =>       \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildArsenalConstruction::class,
+            // F2.1 cutover (v0.3.0): Arsenal confirm-кнопка теперь шлёт
+            // 'genericStartBuild_Arsenal' и попадает сюда. Legacy
+            // StartBuildArsenalConstruction.php удалён — на любой rollback
+            // через deploy/rollback.sh старая версия вернётся за <1 сек.
+            'genericStartBuild'    =>       \App\Controllers\Telegram\Commands\Actions\Camp\GenericBuildingAction::class,
             'actionNameForCommunicationTower' => \App\Controllers\Telegram\Commands\Actions\Camp\BuildCommunicationTowerConstruction::class,
             'startBuildCommunicationTower'    => \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildCommunicationTower::class,
 
