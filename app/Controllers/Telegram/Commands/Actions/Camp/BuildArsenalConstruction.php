@@ -222,8 +222,11 @@ class BuildArsenalConstruction extends BaseAction
             && empty($missingResources)
             && empty($missingCraftedItems)
         ) {
+            // F2.1 cutover (v0.3.0): callback_data маршрутизируется в
+            // GenericBuildingAction, который читает рецепт из
+            // app/Config/Buildings.php (см. CallbackqueryCommand mapping).
             array_unshift($keyboard['inline_keyboard'], [
-                ['text' => '🛠️ Построить Арсенал', 'callback_data' => 'startBuildArsenal']
+                ['text' => '🛠️ Построить Арсенал', 'callback_data' => 'genericStartBuild_Arsenal']
             ]);
         }
 

@@ -8,6 +8,8 @@ use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemModel;
 use App\Models\CraftedItemsLogModel;
+use App\Repositories\CI4CharacterRepository;
+use App\Repositories\Contracts\CharacterRepositoryInterface;
 use Psr\Log\LoggerInterface;
 
 class RewardService
@@ -18,15 +20,24 @@ class RewardService
     private ResourceModel $resourceModel;
     private CraftedItemModel $craftedItemModel;
     private CraftedItemsLogModel $craftedItemsLogModel;
+    private CharacterRepositoryInterface $characterRepo;
 
-    public function __construct(LoggerInterface $logger)
-    {
+    /**
+     * F2.6 wire-in: $characterRepo с дефолтом на CI4CharacterRepository.
+     * Существующие caller'ы (`new RewardService($logger)`) продолжают
+     * работать без изменений. Тесты могут подсунуть InMemory или mock.
+     */
+    public function __construct(
+        LoggerInterface $logger,
+        ?CharacterRepositoryInterface $characterRepo = null
+    ) {
         $this->logger                  = $logger;
         $this->characterModel          = new CharacterModel();
         $this->characterResourceModel  = new CharacterResourceModel();
         $this->resourceModel           = new ResourceModel();
         $this->craftedItemModel        = new CraftedItemModel();
         $this->craftedItemsLogModel    = new CraftedItemsLogModel();
+        $this->characterRepo           = $characterRepo ?? new CI4CharacterRepository();
     }
 
     /**
@@ -60,19 +71,21 @@ class RewardService
             $goldGained    = mt_rand(100, 1000);
         }
 
-        // 2. Обновляем статы игрока:
-        //    У игрока есть поля (experience, gold, strength, agility, intellect).
-        //    Предположим, что 'experience' — это «числовой» показатель, а не «уровень»:
+        // 2. Обновляем статы игрока.
+        //    F2.6 wire-in: gold обновляется атомарно через CharacterRepository
+        //    (raw SQL `gold = gold + ?`), исключает TOCTOU при двойных
+        //    callback-кликах. Остальные статы (exp/agi/int/str) — через
+        //    update(), пока read-modify-write; race-эффект на них меньше,
+        //    мигрируются позже расширением Repository.
+        $this->characterRepo->adjustGold($winner->id, (float) $goldGained);
+
         $newExp       = $winner->experience + $expGain;
-        $newGold      = $winner->gold + $goldGained;
         $newStrength  = $winner->strength + $strGain;
         $newAgility   = $winner->agility + $agiGain;
         $newIntellect = $winner->intellect + $intGain;
 
-        // Записываем в таблицу characters
         $this->characterModel->update($winner->id, [
             'experience' => $newExp,
-            'gold'       => $newGold,
             'strength'   => $newStrength,
             'agility'    => $newAgility,
             'intellect'  => $newIntellect,

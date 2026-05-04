@@ -51,7 +51,8 @@ class GenericBuildingAction extends BaseAction
     private CharacterResourceModel $characterResourceModel;
     private CraftedItemsModel      $craftedItemsModel;
     private CraftedItemsLogModel   $craftedItemsLogModel;
-    private TaskModel              $taskModel;
+    // $taskModel — наследуется от BaseAction (protected). Переопределение
+    // как private здесь даёт PHP 8 fatal "access level must be ... or weaker".
 
     public function __construct($callbackQuery)
     {
@@ -62,7 +63,7 @@ class GenericBuildingAction extends BaseAction
         $this->characterResourceModel = new CharacterResourceModel();
         $this->craftedItemsModel      = new CraftedItemsModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
-        $this->taskModel              = new TaskModel();
+        // $this->taskModel инициализируется в BaseAction::__construct()
     }
 
     public function handle(): ServerResponse
