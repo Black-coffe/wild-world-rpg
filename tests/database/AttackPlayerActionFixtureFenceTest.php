@@ -153,6 +153,29 @@ final class AttackPlayerActionFixtureFenceTest extends CIUnitTestCase
         $rp->setAccessible(true);
         $rp->setValue($action, new \App\Services\PVE\PvpFormulaService());
 
+        // F2.3b Step 1: PvpEquipmentRepository (DB reads).
+        // Используем те же модели, что инжектировали выше — repo не делает
+        // отдельного fresh-инстанцирования.
+        $rp = $rc->getProperty('equipmentRepo');
+        $rp->setAccessible(true);
+        $charactersWeaponsRP = $rc->getProperty('charactersWeaponsModel'); $charactersWeaponsRP->setAccessible(true);
+        $weaponsRP           = $rc->getProperty('weaponsModel');           $weaponsRP->setAccessible(true);
+        $charactersOutfitsRP = $rc->getProperty('charactersOutfitsModel'); $charactersOutfitsRP->setAccessible(true);
+        $outfitsRP           = $rc->getProperty('outfitsModel');           $outfitsRP->setAccessible(true);
+        $mapRP               = $rc->getProperty('mapModel');               $mapRP->setAccessible(true);
+        $charFactionRP       = $rc->getProperty('characterFactionModel');  $charFactionRP->setAccessible(true);
+        $factionRP           = $rc->getProperty('factionModel');           $factionRP->setAccessible(true);
+
+        $rp->setValue($action, new \App\Services\PVE\PvpEquipmentRepository(
+            $charactersWeaponsRP->getValue($action),
+            $weaponsRP->getValue($action),
+            $charactersOutfitsRP->getValue($action),
+            $outfitsRP->getValue($action),
+            $mapRP->getValue($action),
+            $charFactionRP->getValue($action),
+            $factionRP->getValue($action)
+        ));
+
         return $action;
     }
 
