@@ -285,7 +285,29 @@ class Buildings extends BaseConfig
             'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
         ],
 
-        // TODO (F3.B3): CommunicationTower
+        // F3.B3-mini (v0.19.0) — последний building start-side.
+        // После B3-mini все 12 buildings start полностью мигрированы.
+        // Completion-side остаётся legacy до B4 (GenericBuildingCompletionHandler).
+
+        'CommunicationTower' => [
+            'name_rus'          => 'Вышка связи',
+            'level_required'    => 1,
+            'task_name'         => 'startBuildCommunicationTower',
+            'task_settings'     => ['building' => 'CommunicationTower'],
+            'resources'         => [
+                'Ironstone'  => 100,
+                'RareMetals' => 20,
+                'Oil'        => 30,
+                'Sulfur'     => 15,
+            ],
+            'crafted_items'     => [
+                'metalFragments'       => 100,
+                'electronicComponents' => 12,
+                'wiring'               => 12,
+            ],
+            'dependencies'      => [],
+            'image_in_progress' => 'uploads/telegram/camp/communication_tower_in_progress.jpg',
+        ],
     ];
 
     /**

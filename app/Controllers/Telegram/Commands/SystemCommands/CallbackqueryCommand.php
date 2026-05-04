@@ -334,7 +334,7 @@ class CallbackqueryCommand extends SystemCommand
             // через deploy/rollback.sh старая версия вернётся за <1 сек.
             'genericStartBuild'    =>       \App\Controllers\Telegram\Commands\Actions\Camp\GenericBuildingAction::class,
             'actionNameForCommunicationTower' => \App\Controllers\Telegram\Commands\Actions\Camp\BuildCommunicationTowerConstruction::class,
-            'startBuildCommunicationTower'    => \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildCommunicationTower::class,
+            // F3.B3-mini (v0.19.0): startBuildCommunicationTower → genericStartBuild_CommunicationTower
 
             'objectActionClosedWarehouse' =>  \App\Controllers\Telegram\Commands\Actions\Objects\ObjectCloseWarehouseAction::class,
 

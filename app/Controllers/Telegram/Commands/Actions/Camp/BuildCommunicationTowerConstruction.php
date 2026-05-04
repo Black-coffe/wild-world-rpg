@@ -215,7 +215,7 @@ class BuildCommunicationTowerConstruction extends BaseAction
             && empty($missingCraftedItems)
         ) {
             array_unshift($keyboard['inline_keyboard'], [
-                ['text' => '🛠️ Построить Вышку связи', 'callback_data' => 'startBuildCommunicationTower']
+                ['text' => '🛠️ Построить Вышку связи', 'callback_data' => 'genericStartBuild_CommunicationTower']
             ]);
         }
 
