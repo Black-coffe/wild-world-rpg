@@ -36,8 +36,12 @@ class Filters extends BaseConfig
      */
     public array $globals = [
         'before' => [
+            // F0.7 — CSRF включён глобально для всех POST-запросов.
+            // Исключение: telegram/webhook — это API endpoint от Telegram,
+            // у Telegram нет токена нашего фреймворка. Защиту webhook'а
+            // обеспечивает X-Telegram-Bot-API-Secret-Token (см. F0.9).
+            'csrf' => ['except' => ['telegram/webhook']],
             // 'honeypot',
-            // 'csrf',
             // 'invalidchars',
         ],
         'after' => [
