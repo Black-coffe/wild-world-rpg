@@ -141,10 +141,19 @@ class StartBuildArsenalConstruction extends BaseAction
             return $this->sendError($text);
         }
 
-        // 8) Списываем
+        // 8) Списание ресурсов + крафтовых предметов + создание задачи —
+        //    F0.6: всё в одной транзакции. Раньше subtractCraftedItems имел
+        //    свою transaction-обёртку, а subtractResources — нет; на
+        //    исключении между ними состояние БД разъезжалось (ресурсы
+        //    списаны, items не списаны, character_tasks не создан).
+        $db = \Config\Database::connect();
+        $db->transStart();
+
         $this->subtractResources($character['id'], $requiredResources);
+
         $ok = $this->subtractCraftedItems($character['id'], $requiredItems);
         if (!$ok) {
+            $db->transRollback();
             return $this->sendError("Ошибка при списании крафтовых предметов. Попробуй ещё раз!");
         }
 
@@ -164,6 +173,12 @@ class StartBuildArsenalConstruction extends BaseAction
             'status'           => 'in_work',
             'task_settings'    => json_encode(['building' => 'Arsenal']),
         ]);
+
+        $db->transComplete();
+        if ($db->transStatus() === false) {
+            log_message('error', "[StartBuildArsenal] транзакция упала для character {$character['id']}");
+            return $this->sendError("Ошибка при создании задачи строительства. Попробуй ещё раз!");
+        }
 
         // 11) Уведомляем пользователя
         $dif    = $startTime->diff($endTime);
