@@ -2,6 +2,7 @@
 
 namespace App\Controllers\Admin;
 
+use App\Models\AdminAuditLogModel;
 use App\Models\TelegramUserModel;
 use CodeIgniter\Controller;
 use Longman\TelegramBot\Telegram;
@@ -35,12 +36,30 @@ class MessageController extends Controller
 
         $message = "*ℹ️ $title ℹ️*\n\n$messageContent";
 
-        if (empty($telegramIds)) {
+        $isBroadcast = empty($telegramIds);
+        if ($isBroadcast) {
             $this->sendToAllUsers($message);
+            $recipientsInfo = ['scope' => 'all'];
         } else {
             $telegramIdsArray = array_map('trim', explode(',', $telegramIds));
             $this->sendToSpecificUsers($message, $telegramIdsArray);
+            $recipientsInfo = ['scope' => 'specific', 'count' => count($telegramIdsArray)];
         }
+
+        // F1.9 — audit-лог рассылки. Сохраняем title и длину текста, чтобы
+        // понимать что именно рассылал админ, не храня весь текст много раз.
+        $auth = service('auth');
+        $adminUserId = method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
+        (new AdminAuditLogModel())->record(
+            $adminUserId,
+            'BROADCAST_SEND',
+            'telegram_chat',
+            null,
+            array_merge($recipientsInfo, [
+                'title'          => mb_substr($title, 0, 160),
+                'message_length' => mb_strlen($messageContent),
+            ])
+        );
 
         return redirect()->back()->with('success', 'Сообщение успешно отправлено.');
     }

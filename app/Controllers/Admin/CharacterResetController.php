@@ -3,6 +3,7 @@
 namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
+use App\Models\AdminAuditLogModel;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Models\GeneralModel;
@@ -97,16 +98,32 @@ class CharacterResetController extends BaseController
 
     public function confirmReset()
     {
-        $characterId = $this->request->getPost('characterId');
+        $characterId = (int) $this->request->getPost('characterId');
         $telegramId = $this->request->getPost('telegramId');
         $db = db_connect();
         $resetConfig = new ResetTables();
 
+        $deletedTotals = [];
         foreach ($resetConfig->tables as $table => $column) {
             if ($db->tableExists($table) && $db->fieldExists($column, $table)) {
                 $db->table($table)->where($column, $characterId)->delete();
+                $deletedTotals[$table] = $db->affectedRows();
             }
         }
+
+        // F1.9 — audit-лог destructive админского действия.
+        $auth = service('auth');
+        $adminUserId = method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
+        (new AdminAuditLogModel())->record(
+            $adminUserId,
+            'CHARACTER_RESET',
+            'character',
+            $characterId,
+            [
+                'telegram_id'     => $telegramId,
+                'tables_affected' => $deletedTotals,
+            ]
+        );
 
         if ($telegramId) {
             $botController = new BotController();
