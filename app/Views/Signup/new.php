@@ -55,6 +55,7 @@
                         </div>
 
                         <form action="<?= site_url('/signup/create') ?>" method="post">
+                            <?= csrf_field() ?>
 
                             <div class="form-group mb-3">
                                 <label for="name" class="form-label">Имя:</label>

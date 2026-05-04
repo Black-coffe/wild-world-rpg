@@ -55,6 +55,7 @@
                         </div>
 
                         <form action="<?= site_url('/login/authenticate') ?>" method="post">
+                            <?= csrf_field() ?>
 
                             <div class="form-group mb-3">
                                 <label for="email" class="form-label">Email:</label>

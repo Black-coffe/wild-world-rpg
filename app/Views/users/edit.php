@@ -11,6 +11,7 @@
 
             ?>
             <form action="<?= site_url('/users/' . $user->id) ?>" method="post" enctype="multipart/form-data">
+                <?= csrf_field() ?>
 
                 <div class="mb-3 form-group">
                     <div class="row">

@@ -19,6 +19,7 @@
                 <div class="alert alert-danger"><?= $validation->listErrors() ?></div>
             <?php endif;?>
             <form action="<?= site_url('/auth/login') ?>" method="post">
+                <?= csrf_field() ?>
                 <div class="form-group">
                     <label for="email">Email:</label>
                     <input type="text" class="form-control" name="email" id="email">
