@@ -96,6 +96,9 @@ class AttackPlayerAction extends BaseAction
 
     // F2.3 first slice: чистые PvP-формулы вынесены в сервис.
     private \App\Services\PVE\PvpFormulaService $pvpFormulas;
+    // F2.3b Step 1: DB-чтения экипировки/карты/фракции вынесены в репо
+    // (+ N+1 fix на outfits).
+    private \App\Services\PVE\PvpEquipmentRepository $equipmentRepo;
 
     public function __construct($callbackQuery)
     {
@@ -119,6 +122,18 @@ class AttackPlayerAction extends BaseAction
 
         // Новое свойство для записи логов боёв:
         $this->battleLogModel = new BattleLogModel();
+
+        // F2.3b Step 1: repo переиспользует уже-созданные модели,
+        // чтобы тесты могли подменить их через Reflection.
+        $this->equipmentRepo = new \App\Services\PVE\PvpEquipmentRepository(
+            $this->charactersWeaponsModel,
+            $this->weaponsModel,
+            $this->charactersOutfitsModel,
+            $this->outfitsModel,
+            $this->mapModel,
+            $this->characterFactionModel,
+            $this->factionModel
+        );
     }
 
     /**
@@ -640,61 +655,24 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * Ищем запись в characters_weapons, где equipped=1.
-     * Возвращаем данные + поля из weapons (join) или отдельный поиск.
+     * F2.3b Step 1: DB-чтения вынесены в PvpEquipmentRepository.
+     * Делегирующий метод оставлен — на Step 2 переедет в DamageCalculator.
      */
     private function getEquippedWeapon(array $attacker): ?array
     {
-        // 1) Ищем в characters_weapons
-        $row = $this->charactersWeaponsModel
-            ->where('character_id', $attacker['id'])
-            ->where('equipped', 1)
-            ->first();
-
-        if (!$row) {
-            return null; // нет экипированного оружия
-        }
-
-        // 2) Находим weaponRow в таблице weapons
-        $weapon = $this->weaponsModel->find($row['weapon_id']);
-        if (!$weapon) {
-            return null;
-        }
-
-        // Можно вернуть "слитый" массив с ключевыми полями (damage_value, range_value etc.)
-        // + crit_chance, если хранится
-        // Допустим, в weapons таблице есть поле "crit_chance", "damage_type", "rarity"
-        // Если нет, адаптируйте:
-        $weaponData = [
-            'damage_value' => (float)$weapon['damage_value'],
-            'range_value'  => (float)$weapon['range_value'],
-            'damage_type'  => $weapon['damage_type'],
-            'rarity'       => $weapon['rarity'],
-            // предположим, у нас есть поле crit_chance
-            'crit_chance'  => isset($weapon['special_effect']) ? 10.0 : 0.0 // упрощённо
-        ];
-
-        return $weaponData;
+        return $this->equipmentRepo->getEquippedWeapon((int) $attacker['id']);
     }
 
     /**
-     * Суммируем сопротивление (R_armor) по всем надетым предметам. (0..0.9)
-     * Если damageType = Physical, суммируем physical_resistance и т.д.
+     * F2.3b Step 1: DB-чтения консолидированы в репо (N+1 fix на outfits).
+     * Чистая агрегация resistance остаётся здесь до Step 2.
      */
     private function computeArmorResistance(array $defender, string $damageType): float
     {
-        $equippedOutfits = $this->charactersOutfitsModel
-            ->where('character_id', $defender['id'])
-            ->where('equipped', 1)
-            ->findAll();
+        $outfits = $this->equipmentRepo->getEquippedOutfitsWithDetails((int) $defender['id']);
 
         $resSum = 0.0;
-        foreach ($equippedOutfits as $eq) {
-            $outfit = $this->outfitsModel->find($eq['outfit_id']);
-            if (!$outfit) continue;
-
-            // Например, если physical, то берём $outfit['physical_resistance']
-            // fire => $outfit['fire_resistance'], poison => poison_resistance, etc.
+        foreach ($outfits as $outfit) {
             switch (strtolower($damageType)) {
                 case 'physical':
                 default:
@@ -708,10 +686,7 @@ class AttackPlayerAction extends BaseAction
                     break;
             }
         }
-        // ограничим максимум 90% (0.9), чтобы не было 100% иммунитета
-        $resSum = min(0.9, $resSum);
-
-        return $resSum;
+        return min(0.9, $resSum);
     }
 
     /**
@@ -727,13 +702,13 @@ class AttackPlayerAction extends BaseAction
 
     /**
      * Считаем дистанцию (короткий метод, можно по координатам).
+     * F2.3b Step 1: map lookups через репо.
      */
     private function computeDistance(array $charA, array $charB): float
     {
-        $mapA = $this->mapModel->where('cell_number', $charA['cell_number'])->first();
-        $mapB = $this->mapModel->where('cell_number', $charB['cell_number'])->first();
+        $mapA = $this->equipmentRepo->getMapCell((int) $charA['cell_number']);
+        $mapB = $this->equipmentRepo->getMapCell((int) $charB['cell_number']);
         if (!$mapA || !$mapB) {
-            // fallback
             return 1.0;
         }
         $dx = abs($mapA['coordinate_x'] - $mapB['coordinate_x']);
@@ -968,14 +943,11 @@ class AttackPlayerAction extends BaseAction
 
     /**
      * Узнаём фракцию (опционально).
+     * F2.3b Step 1: делегирует в репо.
      */
     private function getCharacterFaction(int $charId)
     {
-        $cf = $this->characterFactionModel->where('character_id', $charId)->first();
-        if (!$cf) {
-            return null;
-        }
-        return $this->factionModel->find($cf['faction_id']);
+        return $this->equipmentRepo->getCharacterFaction($charId);
     }
 
     /**
@@ -999,14 +971,15 @@ class AttackPlayerAction extends BaseAction
 
     /**
      * Проверка, достаточно ли близко ячейки (dx<=1 && dy<=1).
+     * F2.3b Step 1: map lookups через репо.
      */
     private function isCellsCloseEnough(array $charA, array $charB): bool
     {
         if ($charA['cell_number'] === $charB['cell_number']) {
             return true;
         }
-        $mapA = $this->mapModel->where('cell_number', $charA['cell_number'])->first();
-        $mapB = $this->mapModel->where('cell_number', $charB['cell_number'])->first();
+        $mapA = $this->equipmentRepo->getMapCell((int) $charA['cell_number']);
+        $mapB = $this->equipmentRepo->getMapCell((int) $charB['cell_number']);
         if (!$mapA || !$mapB) {
             return false;
         }
