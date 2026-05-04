@@ -19,35 +19,88 @@ class Worker extends Controller
 
     public function processTasks()
     {
-        $now = date('Y-m-d H:i:s');
-        $activeTasks = $this->characterTaskModel
-            ->where('status', 'in_work')
-            ->where('end_time <', $now)
-            ->findAll();
-
-        foreach ($activeTasks as $task) {
-            $taskDetails = $this->taskModel->find($task['task_id']);
-            if ($taskDetails) {
-                $this->handleTask($task, $taskDetails);
-            }
+        // F0.1 — flock-mutex на весь Worker.
+        // Cron каждую минуту дёргает этот endpoint. Если предыдущий запуск
+        // не уложился в минуту — следующий нашёл бы те же character_tasks
+        // в статусе 'in_work' и обработал их повторно (двойная выдача наград).
+        // LOCK_NB = non-blocking: если уже занято — тихо выходим.
+        $lockPath = WRITEPATH . 'worker.lock';
+        $lockHandle = @fopen($lockPath, 'c');
+        if ($lockHandle === false) {
+            log_message('error', "[Worker] Не удалось открыть lock-файл {$lockPath}");
+            return;
         }
+        if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
+            log_message('info', '[Worker] Предыдущий запуск ещё работает — пропускаем тик.');
+            fclose($lockHandle);
+            return;
+        }
+        // Lock освобождается автоматически при завершении процесса
+        // (на Linux — также если PHP-FPM убивает воркер).
 
-        // Выполняем различные периодические действия (не связанные напрямую с задачами):
-        $this->processUnlinkedActions();
+        try {
+            $now = date('Y-m-d H:i:s');
+            $activeTasks = $this->characterTaskModel
+                ->where('status', 'in_work')
+                ->where('end_time <', $now)
+                ->findAll();
 
-        // Вызов TaxCollectionHandler (налоги) — например, раз в сутки или каждый раз
-        (new TaxCollectionHandler())->handle();
+            foreach ($activeTasks as $task) {
+                $taskDetails = $this->taskModel->find($task['task_id']);
+                if ($taskDetails) {
+                    $this->handleTask($task, $taskDetails);
+                }
+            }
+
+            // Выполняем различные периодические действия (не связанные напрямую с задачами):
+            $this->processUnlinkedActions();
+
+            // Вызов TaxCollectionHandler (налоги) — например, раз в сутки или каждый раз
+            (new TaxCollectionHandler())->handle();
+        } finally {
+            flock($lockHandle, LOCK_UN);
+            fclose($lockHandle);
+        }
     }
 
     protected function handleTask($task, $taskDetails)
     {
         $handlerClassName = $this->getHandlerClassName($taskDetails['name']);
 
-        if (class_exists($handlerClassName)) {
+        if (!class_exists($handlerClassName)) {
+            log_message('error', "[Worker] Handler-класс не найден: {$handlerClassName} (task #{$task['id']})");
+            return;
+        }
+
+        // F0.3 — atomic claim задачи перед обработкой.
+        // Помечаем задачу как 'completed' ДО запуска handler'а одним атомарным
+        // UPDATE с условием WHERE status='in_work'. Если другой Worker уже
+        // забрал задачу — affected rows = 0, мы её пропускаем.
+        // На исключение в handler'е ставим статус 'interrupted' для расследования.
+        $db = \Config\Database::connect();
+        $claimed = $db->table('character_tasks')
+            ->where('id', $task['id'])
+            ->where('status', 'in_work')
+            ->update(['status' => 'completed', 'updated_at' => date('Y-m-d H:i:s')]);
+
+        if (!$claimed || $db->affectedRows() === 0) {
+            log_message('info', "[Worker] task #{$task['id']} уже взят другим воркером — пропуск.");
+            return;
+        }
+
+        try {
             $handler = new $handlerClassName();
             if (method_exists($handler, 'handle')) {
                 $handler->handle($task);
             }
+        } catch (\Throwable $e) {
+            // Откатываем статус, чтобы handler можно было перезапустить вручную
+            // или расследовать. Не бросаем дальше — иначе один упавший handler
+            // ломает весь tick.
+            $db->table('character_tasks')
+                ->where('id', $task['id'])
+                ->update(['status' => 'interrupted', 'updated_at' => date('Y-m-d H:i:s')]);
+            log_message('error', "[Worker] Handler {$handlerClassName} упал на task #{$task['id']}: " . $e->getMessage());
         }
     }
 
