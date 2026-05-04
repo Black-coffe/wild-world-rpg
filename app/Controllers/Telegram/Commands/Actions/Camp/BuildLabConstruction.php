@@ -173,7 +173,7 @@ class BuildLabConstruction extends BaseAction
         ];
 
         if ($workshopExists && empty($missingResources) && empty($missingCraftedItems)) {
-            array_unshift($keyboard['inline_keyboard'], [['text' => '🛠️ Строить', 'callback_data' => 'startBuildLab']]);
+            array_unshift($keyboard['inline_keyboard'], [['text' => '🛠️ Строить', 'callback_data' => 'genericStartBuild_Laboratory']]);
         }
 
         $text = "*🥼 Лаборатория*\n"

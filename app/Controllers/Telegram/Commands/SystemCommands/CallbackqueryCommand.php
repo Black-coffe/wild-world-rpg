@@ -309,19 +309,19 @@ class CallbackqueryCommand extends SystemCommand
             'buildHandPump' =>              \App\Controllers\Telegram\Commands\Actions\Camp\HandPumpConstruction::class,
             'startBuildHandPump' =>         \App\Controllers\Telegram\Commands\Actions\Camp\StartHandPumpConstruction::class,
             'buildBlastFurnace' =>          \App\Controllers\Telegram\Commands\Actions\Camp\BlastFurnaceConstruction::class,
-            'startBuildBlastFurnace' =>     \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildBlastFurnaceConstruction::class,
+            // F3.B1 (v0.17.0): startBuildBlastFurnace → genericStartBuild_BlastFurnace (Buildings.php config)
             'buildWorkshop' =>              \App\Controllers\Telegram\Commands\Actions\Camp\WorkshopConstruction::class,
-            'startBuildWorkshop' =>         \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildWorkshopConstruction::class,
+            // F3.B1 (v0.17.0): startBuildWorkshop → genericStartBuild_Workshop
             'buildWarehouse' =>             \App\Controllers\Telegram\Commands\Actions\Camp\BuildWarehouseConstruction::class,
-            'startBuildWarehouse' =>        \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildWarehouseConstruction::class,
+            // F3.B1 (v0.17.0): startBuildWarehouse → genericStartBuild_Warehouse
             'buildSolarStation' =>          \App\Controllers\Telegram\Commands\Actions\Camp\BuildSolarStationConstruction::class,
-            'startBuildSolarStation' =>     \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildSolarStationConstruction::class,
+            // F3.B1 (v0.17.0): startBuildSolarStation → genericStartBuild_SolarStation
             'buildGreenhouse' =>            \App\Controllers\Telegram\Commands\Actions\Camp\BuildGreenHouseConstruction::class,
             'startBuildGreenhouse' =>       \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildGreenhouseConstruction::class,
             'buildGym' =>                   \App\Controllers\Telegram\Commands\Actions\Camp\BuildGymConstruction::class,
             'startBuildGym' =>              \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildGymConstruction::class,
             'buildLaboratory' =>            \App\Controllers\Telegram\Commands\Actions\Camp\BuildLabConstruction::class,
-            'startBuildLab' =>              \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildLabConstruction::class,
+            // F3.B1 (v0.17.0): startBuildLab → genericStartBuild_Laboratory
             'buildRoboticsWorkshop' =>      \App\Controllers\Telegram\Commands\Actions\Camp\BuildRoboticsWorkshopConstruction::class,
             'startBuildRoboticsWorkshop' => \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildRoboticsWorkshopConstruction::class,
             'building' =>                   \App\Controllers\Telegram\Commands\Actions\Camp\BuildingHandlerAction::class,

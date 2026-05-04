@@ -177,7 +177,7 @@ class WorkshopConstruction extends BaseAction
             }
         } else {
             // Добавляем кнопку "Строить" если ресурсов достаточно
-            $keyboard['inline_keyboard'][] = [['text' => '🛠️ Строить', 'callback_data' => 'startBuildWorkshop']];
+            $keyboard['inline_keyboard'][] = [['text' => '🛠️ Строить', 'callback_data' => 'genericStartBuild_Workshop']];
         }
 
         $imagePath = base_url('uploads/telegram/camp/WorkShop.png');

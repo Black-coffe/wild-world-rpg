@@ -178,7 +178,7 @@ class BuildWarehouseConstruction extends BaseAction
         ];
 
         if ($workshopExists && empty($missingResources) && empty($missingCraftedItems)) {
-            array_unshift($keyboard['inline_keyboard'], [['text' => '🛠️ Строить', 'callback_data' => 'startBuildWarehouse']]);
+            array_unshift($keyboard['inline_keyboard'], [['text' => '🛠️ Строить', 'callback_data' => 'genericStartBuild_Warehouse']]);
         }
 
         $text = "*🏚️ Склад*\n\n"

@@ -165,7 +165,7 @@ class BlastFurnaceConstruction extends BaseAction
         ];
 
         if (empty($missingResources) && empty($missingCraftedItems)) {
-            array_unshift($keyboard['inline_keyboard'], [['text' => '🛠️ Строить', 'callback_data' => 'startBuildBlastFurnace']]);
+            array_unshift($keyboard['inline_keyboard'], [['text' => '🛠️ Строить', 'callback_data' => 'genericStartBuild_BlastFurnace']]);
         }
 
         $text = "*🔥 Доменная печь!*\n\n"

@@ -74,10 +74,108 @@ class Buildings extends BaseConfig
             'image_in_progress' => 'uploads/telegram/camp/arsenal_in_progress.jpg',
         ],
 
-        // TODO (F2.1 sprint, постепенно): Workshop, BlastFurnace, Lab,
-        // Greenhouse, HandPump, Gym, SolarStation, CommunicationTower,
-        // Warehouse, TeleportationCenter, RoboticsWorkshop.
-        // Каждое здание = ~10 строк JSON-config против 449 строк копипасты.
+        // F3.B1 (v0.17.0) — 5 простых tier-1 построек.
+        // level_required = `buildings.level` колонка (1:1 с legacy `$character['level'] < $building['level']`),
+        // НЕ `min_character_level` (это отдельная колонка, использовалась по-разному в legacy).
+        // Все используют generic image `Construction-by-improvised.jpg` — отличается только Arsenal.
+
+        'Workshop' => [
+            'name_rus'          => 'Мастерская',
+            'level_required'    => 1,
+            'task_name'         => 'buildWorkshop',
+            'task_settings'     => ['building' => 'Workshop'],
+            'resources'         => [
+                'Wood'  => 1500,
+                'Water' => 800,
+                'Clay'  => 400,
+            ],
+            'crafted_items'     => [
+                'metalFragments' => 15,
+                'WoodMaterials'  => 14,
+                'stoneBlocks'    => 10,
+            ],
+            'dependencies'      => [],
+            'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+        ],
+
+        'BlastFurnace' => [
+            'name_rus'          => 'Доменная печь',
+            'level_required'    => 1,
+            'task_name'         => 'buildBlastFurnace',
+            'task_settings'     => ['building' => 'BlastFurnace'],
+            'resources'         => [
+                'Wood'  => 160,
+                'Water' => 800,
+                'Clay'  => 300,
+            ],
+            'crafted_items'     => [
+                'metalFragments'      => 10,
+                'CharcoalBriquettes'  => 5,
+            ],
+            'dependencies'      => [],
+            'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+        ],
+
+        'Warehouse' => [
+            'name_rus'          => 'Склад',
+            'level_required'    => 1,
+            'task_name'         => 'startBuildWarehouse',
+            'task_settings'     => ['building' => 'Warehouse'],
+            'resources'         => [
+                'Wood'          => 160,
+                'Water'         => 1100,
+                'Clay'          => 120,
+                'Pebble'        => 300,
+                'HideOfAnimals' => 100,
+            ],
+            'crafted_items'     => [
+                'metalFragments' => 10,
+                'WoodMaterials'  => 20,
+                'stoneBlocks'    => 15,
+                'Fabric'         => 15,
+            ],
+            'dependencies'      => [],
+            'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+        ],
+
+        'Laboratory' => [
+            'name_rus'          => 'Лаборатория',
+            'level_required'    => 5,
+            'task_name'         => 'startBuildLab',
+            'task_settings'     => ['building' => 'Laboratory'],
+            'resources'         => [
+                'Wood' => 10000,
+            ],
+            'crafted_items'     => [
+                'GlassBags'       => 50,
+                'metalFragments'  => 100,
+                'stoneBlocks'     => 24,
+            ],
+            'dependencies'      => [],
+            'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+        ],
+
+        'SolarStation' => [
+            'name_rus'          => 'Солнечная станция',
+            'level_required'    => 1,
+            'task_name'         => 'startBuildSolarStation',
+            'task_settings'     => ['building' => 'SolarStation'],
+            'resources'         => [
+                'VolcanicAsh' => 15,
+            ],
+            'crafted_items'     => [
+                'GlassBags'       => 29,
+                'metalFragments'  => 11,
+                'stoneBlocks'     => 5,
+                'WoodMaterials'   => 10,
+                'WorkbenchOne'    => 1,
+            ],
+            'dependencies'      => [],
+            'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+        ],
+
+        // TODO (F3.B2): Gym, Greenhouse, HandPump, RoboticsWorkshop, TeleportCenter
+        // TODO (F3.B3): CommunicationTower
     ];
 
     /**
