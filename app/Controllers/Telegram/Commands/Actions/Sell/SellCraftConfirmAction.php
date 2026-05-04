@@ -44,53 +44,84 @@ class SellCraftConfirmAction extends BaseAction
         // Извлечение количества и ID предмета из колбека
         $callbackData = $this->callbackQuery->getData();
         list($action, $quantity, $craftedItemId) = explode('_', $callbackData);
+        $quantity = (int) $quantity;
+        $craftedItemId = (int) $craftedItemId;
 
-        // Проверка наличия предмета у персонажа
-        $craftedItemLog = $this->craftedItemsLogModel
-            ->where('character_id', $character['id'])
-            ->where('crafted_item_id', $craftedItemId)
-            ->first();
+        // Информация о предмете (read-only, нужна для формулы цены и UI)
+        $craftedItem = $this->craftedItemsModel->find($craftedItemId);
+        if (!$craftedItem) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text' => 'Предмет не найден.',
+            ]);
+        }
+        $itemName = $craftedItem['name_rus'];
+        $basePrice = (float) $craftedItem['price'];
 
+        // F0.5 — все мутации внутри транзакции с FOR UPDATE-блокировкой
+        // строки лога предмета и кармы персонажа.
+        // Без транзакции двойной callback приводил к продаже того же предмета
+        // дважды (двойное золото при единственном списании со склада).
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        // Перечитываем лог предмета у персонажа FOR UPDATE
+        $logQuery = $db->query(
+            'SELECT id, quantity FROM crafted_items_log
+             WHERE character_id = ? AND crafted_item_id = ? FOR UPDATE',
+            [$character['id'], $craftedItemId]
+        );
+        $craftedItemLog = $logQuery->getRowArray();
         if (!$craftedItemLog || $craftedItemLog['quantity'] < $quantity) {
+            $db->transRollback();
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => 'Извини, но у тебя нет достаточного количества этого предмета для продажи!',
             ]);
         }
 
-        // Получение информации о предмете
-        $craftedItem = $this->craftedItemsModel->find($craftedItemId);
-        $itemName = $craftedItem['name_rus'];
-        $basePrice = $craftedItem['price'];
+        // Перечитываем карму персонажа FOR UPDATE
+        $charRefreshQuery = $db->query(
+            'SELECT trading_karma FROM characters WHERE id = ? FOR UPDATE',
+            [$character['id']]
+        );
+        $charRefresh = $charRefreshQuery->getRowArray();
+        if (!$charRefresh) {
+            $db->transRollback();
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text' => 'Персонаж не найден.',
+            ]);
+        }
 
-        // Расчет цены с учетом кармы торговли (с ограничением)
-        $price = $basePrice * (1 + ($character['trading_karma'] - 100) / 200);
-        $price = max($basePrice * 0.33, min($price, $basePrice * 10.5)); // Ограничение цены
+        // Расчёт цены с учётом кармы торговли (0.33x..10.5x ограничение)
+        $price = $basePrice * (1 + ($charRefresh['trading_karma'] - 100) / 200);
+        $price = max($basePrice * 0.33, min($price, $basePrice * 10.5));
         $totalPrice = $price * $quantity;
 
-        // Обновление таблицы sales
+        // 1) Обновление таблицы sales
         $sale = $this->salesModel->where('crafted_item_id', $craftedItemId)->first();
         if ($sale) {
             $this->salesModel->updateSaleQuantity($craftedItemId, $quantity);
         } else {
             $this->salesModel->addSale([
                 'crafted_item_id' => $craftedItemId,
-                'quantity' => $quantity,
-                'price' => $price,
+                'quantity'        => $quantity,
+                'price'           => $price,
             ]);
         }
 
-        // Обновление таблицы transactions
+        // 2) Обновление таблицы transactions
         $this->transactionModel->addTransaction([
-            'character_id' => $character['id'],
+            'character_id'    => $character['id'],
             'crafted_item_id' => $craftedItemId,
-            'type' => 'sell',
-            'quantity' => $quantity,
-            'price' => $totalPrice,
+            'type'            => 'sell',
+            'quantity'        => $quantity,
+            'price'           => $totalPrice,
             'transaction_date' => date('Y-m-d H:i:s'),
         ]);
 
-        // Списание количества предметов у персонажа
+        // 3) Списание количества предметов у персонажа
         $newQuantity = $craftedItemLog['quantity'] - $quantity;
         if ($newQuantity > 0) {
             $this->craftedItemsLogModel->update($craftedItemLog['id'], ['quantity' => $newQuantity]);
@@ -98,14 +129,24 @@ class SellCraftConfirmAction extends BaseAction
             $this->craftedItemsLogModel->delete($craftedItemLog['id']);
         }
 
-        // Увеличение количества золота у персонажа
-        $this->characterModel->where('id', $character['id'])
-            ->set('gold', 'gold + ' . $totalPrice, false)
-            ->update();
+        // 4) Прибавление золота + 5) увеличение кармы — одним апдейтом
+        $bonusFactor = 0.0002;
+        $karmaDelta = $totalPrice * $bonusFactor;
+        $newKarma = $charRefresh['trading_karma'] + $karmaDelta;
+        $db->query(
+            'UPDATE characters SET gold = gold + ?, trading_karma = ? WHERE id = ?',
+            [$totalPrice, $newKarma, $character['id']]
+        );
 
-        // Увеличение кармы торговли
-        $bonusFactor = 0.0002; // 0.2%
-        $this->updateTradingKarma($character['id'], ($totalPrice * $bonusFactor));
+        $db->transComplete();
+
+        if ($db->transStatus() === false) {
+            log_message('error', "[SellCraftConfirm] транзакция упала для character {$character['id']}, item {$craftedItemId}");
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text' => 'Произошла ошибка при продаже. Попробуйте позже.',
+            ]);
+        }
 
         // Отправка сообщения игроку
         $text = "*Поздравляю с продажей*\n\nТы продал: *{$itemName}*\nВ количестве: *{$quantity}* штук\nИ заработал денег: *{$totalPrice}$*";
@@ -129,15 +170,6 @@ class SellCraftConfirmAction extends BaseAction
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $keyboard]),
         ]);
-    }
-
-    private function updateTradingKarma($characterId, $value)
-    {
-        $character = $this->characterModel->find($characterId);
-        if ($character) {
-            $newKarma = $character['trading_karma'] + $value;
-            $this->characterModel->update($characterId, ['trading_karma' => $newKarma]);
-        }
     }
 
 }
