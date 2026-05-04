@@ -18,6 +18,12 @@ class CharacterResetController extends BaseController
 {
     use ResponseTrait;
 
+    /**
+     * CI4 4.5+ breaking change в ResponseTrait — строки по умолчанию теперь
+     * возвращаются как JSON. Сохраняем старое поведение (HTML) явно.
+     */
+    protected bool $stringAsHtml = true;
+
     protected $characterModel;
     protected $telegramUserModel;
     protected $generalModel;

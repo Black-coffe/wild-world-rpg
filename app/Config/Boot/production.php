@@ -10,7 +10,9 @@
  | If you set 'display_errors' to '1', CI4's detailed error report will show.
  */
 ini_set('display_errors', '0');
-error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED & ~E_STRICT & ~E_USER_NOTICE & ~E_USER_DEPRECATED);
+// CI4 4.5+ — рекомендованный набор флагов для production.
+// E_STRICT и E_USER_* deprecated в PHP 8.2+, оставлены только E_DEPRECATED.
+error_reporting(E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED);
 
 /*
  |--------------------------------------------------------------------------

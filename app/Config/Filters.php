@@ -4,14 +4,18 @@ namespace Config;
 
 use App\Filters\LoginFilter;
 use App\Filters\TelegramRateLimitFilter;
-use CodeIgniter\Config\BaseConfig;
+use CodeIgniter\Config\Filters as BaseFilters;
+use CodeIgniter\Filters\Cors;
 use CodeIgniter\Filters\CSRF;
 use CodeIgniter\Filters\DebugToolbar;
+use CodeIgniter\Filters\ForceHTTPS;
 use CodeIgniter\Filters\Honeypot;
 use CodeIgniter\Filters\InvalidChars;
+use CodeIgniter\Filters\PageCache;
+use CodeIgniter\Filters\PerformanceMetrics;
 use CodeIgniter\Filters\SecureHeaders;
 
-class Filters extends BaseConfig
+class Filters extends BaseFilters
 {
     /**
      * Configures aliases for Filter classes to
@@ -26,8 +30,32 @@ class Filters extends BaseConfig
         'honeypot'          => Honeypot::class,
         'invalidchars'      => InvalidChars::class,
         'secureheaders'     => SecureHeaders::class,
+        // CI4 4.5+ — built-in фильтры для $required.
+        'cors'              => Cors::class,
+        'forcehttps'        => ForceHTTPS::class,
+        'pagecache'         => PageCache::class,
+        'performance'       => PerformanceMetrics::class,
+        // Кастомные:
         'login'             => LoginFilter::class,
         'telegramRateLimit' => TelegramRateLimitFilter::class,
+    ];
+
+    /**
+     * CI4 4.5+ — фильтры всегда применяемые. Не отключать кроме как с
+     * полным пониманием.
+     *
+     * @var array{before: list<string>, after: list<string>}
+     */
+    public array $required = [
+        'before' => [
+            'forcehttps', // Force Global Secure Requests
+            'pagecache',  // Web Page Caching
+        ],
+        'after' => [
+            'pagecache',   // Web Page Caching
+            'performance', // Performance Metrics
+            'toolbar',     // Debug Toolbar
+        ],
     ];
 
     /**
@@ -47,7 +75,7 @@ class Filters extends BaseConfig
             // 'invalidchars',
         ],
         'after' => [
-            'toolbar',
+            // toolbar теперь в $required, дублировать не нужно
             // 'honeypot',
             // 'secureheaders',
         ],
