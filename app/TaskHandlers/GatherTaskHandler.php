@@ -21,6 +21,7 @@ use Longman\TelegramBot\Telegram;
 use Longman\TelegramBot\Exception\TelegramException;
 use App\Libraries\BiomeResourceModifier;
 use App\Libraries\ToolManager;
+use App\Services\Player\Gather\GatherEventModifierService;
 use App\Services\Player\Gather\GatherFormulaService;
 use App\Services\Player\Gather\ToolDurabilityProcessor;
 
@@ -28,6 +29,7 @@ class GatherTaskHandler extends Controller
 {
     private GatherFormulaService $formulaService;
     private ToolDurabilityProcessor $toolDurability;
+    private GatherEventModifierService $eventService;
 
     protected $characterModel;
     protected $characterResourceModel;
@@ -69,8 +71,7 @@ class GatherTaskHandler extends Controller
         $this->biomeResourceModifier  = new BiomeResourceModifier();
         $this->toolManager            = new ToolManager();
         // F2.7 first slice: чистые формулы (rarities/baseQty/healthFactor/spentMinutes)
-        // вынесены в GatherFormulaService. Полная декомпозиция (event modifiers,
-        // save resources, notify) — F2.7c.
+        // вынесены в GatherFormulaService.
         $this->formulaService         = new GatherFormulaService();
         // F2.7b: фикс N+1 на инструментах. Один batch + cache вместо
         // ~920 SQL/добычу.
@@ -78,6 +79,11 @@ class GatherTaskHandler extends Controller
             $this->craftedItemsLogModel,
             $this->craftedItemsModel,
             $this->toolManager
+        );
+        // F2.7c: батч событий. ~12 SQL → 2 SQL на handle.
+        $this->eventService           = new GatherEventModifierService(
+            $this->eventModel,
+            $this->activeEventModel
         );
 
         $API_KEY      = getenv('telegram.API_KEY');
@@ -100,12 +106,8 @@ class GatherTaskHandler extends Controller
             return;
         }
 
-        $locustExodusActive = $this->isEventActive('LocustExodus');
-        $locustExodusEffect = 0;
-        if ($locustExodusActive) {
-            $locustExodusEvent  = $this->eventModel->where('name_english', 'LocustExodus')->first();
-            $locustExodusEffect = (float) $locustExodusEvent['effect_value'];
-        }
+        // F2.7c: один batch на все 5 relevant событий вместо ~12 индивидуальных SQL.
+        $loadedEvents = $this->eventService->loadActiveEvents();
 
         $resources    = $this->getAvailableResources($character);
         $spentMinutes = $this->calculateSpentMinutes($task['start_time'], $task['end_time']);
@@ -115,8 +117,7 @@ class GatherTaskHandler extends Controller
             spentMinutes: $spentMinutes,
             character: $character,
             task: $task,
-            locustExodusActive: $locustExodusActive,
-            locustExodusEffect: $locustExodusEffect
+            loadedEvents: $loadedEvents
         );
 
         $currentCell = $this->mapModel->where('cell_number', $character['cell_number'])->first();
@@ -143,19 +144,8 @@ class GatherTaskHandler extends Controller
         int $spentMinutes,
         array $character,
         array $task,
-        bool $locustExodusActive,
-        float $locustExodusEffect
+        array $loadedEvents
     ): array {
-        $isFishStockActive       = $this->isEventActive('FishStock');
-        $isExoticFloweringActive = $this->isEventActive('ExoticFlowering');
-        $isBerryBoomActive       = $this->isEventActive('BerryBoom');
-        $isDrynessActive         = $this->isDrynessEventActive();
-
-        $fishStockEvent       = $isFishStockActive       ? $this->eventModel->where('name_english', 'FishStock')->first() : null;
-        $exoticFloweringEvent = $isExoticFloweringActive ? $this->eventModel->where('name_english', 'ExoticFlowering')->first() : null;
-        $berryBoomEvent       = $isBerryBoomActive       ? $this->eventModel->where('name_english', 'BerryBoom')->first() : null;
-        $drynessEvent         = $isDrynessActive         ? $this->eventModel->where('name_english', 'Dryness')->first() : null;
-
         $allowedRarities = $this->getAllowedRarities($character['level']);
 
         $blocksCount = intdiv($spentMinutes, 10);
@@ -264,18 +254,13 @@ class GatherTaskHandler extends Controller
                 continue;
             }
 
-            if ($isFishStockActive && $resInfo['name'] === 'Рыба') {
-                $amt *= (1 + $fishStockEvent['effect_value'] / 100.0);
-            }
-            if ($isExoticFloweringActive && $resInfo['name'] === 'Цветы орхидей') {
-                $amt *= (1 + $exoticFloweringEvent['effect_value'] / 100.0);
-            }
-            if ($isBerryBoomActive && $resInfo['name'] === 'Ягоды') {
-                $amt *= (1 + $berryBoomEvent['effect_value'] / 100.0);
-            }
-            if ($locustExodusActive) {
-                $amt *= (1 - $locustExodusEffect / 100.0);
-            }
+            // F2.7c: per-resource модификаторы (FishStock/ExoticFlowering/
+            // BerryBoom/LocustExodus) консолидированы в eventService.
+            $amt = $this->eventService->applyResourceModifiers(
+                $amt,
+                (string) ($resInfo['name'] ?? ''),
+                $loadedEvents
+            );
 
             // Учет здоровья/усталости
             $htFactor = $this->getHealthTirednessFactor($character);
@@ -293,54 +278,10 @@ class GatherTaskHandler extends Controller
             ];
         }
 
-        // Проверка засухи
-        if ($isDrynessActive && $drynessEvent) {
-            $foundResources = $this->applyDrynessPenalty($foundResources, $drynessEvent);
-        }
+        // F2.7c: проверка засухи делегирована eventService.
+        $foundResources = $this->eventService->applyDrynessPenalty($foundResources, $loadedEvents);
 
         return $foundResources;
-    }
-
-    protected function pickToolAndUpdate(array $resource, array $character): float
-    {
-        $tools = $this->toolManager->getToolsForResource($resource['name']);
-        if (empty($tools)) {
-            return 1.0;
-        }
-
-        $bestBonus    = 0.0;
-        $bestToolName = null;
-
-        foreach ($tools as $toolName => $bonus) {
-            $toolData = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($toolName, $character['id']);
-            if (!$toolData) {
-                continue;
-            }
-            if ($bonus > $bestBonus) {
-                $bestBonus    = $bonus;
-                $bestToolName = $toolName;
-            }
-        }
-
-        if (!$bestToolName) {
-            return 1.0;
-        }
-
-        $toolData = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($bestToolName, $character['id']);
-        if (!$toolData) {
-            return 1.0;
-        }
-
-        $durabilityResult = $this->toolManager->updateToolDurability($toolData);
-        if ($durabilityResult) {
-            if (!isset($this->usedToolsCount[$bestToolName])) {
-                $this->usedToolsCount[$bestToolName] = 0;
-            }
-            $this->usedToolsCount[$bestToolName]++;
-            return 1.0 + $bestBonus;
-        }
-
-        return 1.0;
     }
 
     // F2.7 first slice: getAllowedRarities / getBaseQuantityByRarity /
@@ -360,49 +301,6 @@ class GatherTaskHandler extends Controller
     protected function getHealthTirednessFactor(array $character): float
     {
         return $this->formulaService->getHealthTirednessFactor($character);
-    }
-
-    protected function applyDrynessPenalty(array $foundResources, array $drynessEvent): array
-    {
-        $penalty = 1 - ($drynessEvent['effect_value'] / 100.0);
-        foreach ($foundResources as &$res) {
-            if (isset($res['type']) && str_contains($res['type'], 'water')) {
-                $res['amount'] = (int) round($res['amount'] * $penalty);
-                if ($res['amount'] < 1) {
-                    $res['amount'] = 1;
-                }
-            }
-        }
-        unset($res);
-        return $foundResources;
-    }
-
-    protected function isEventActive(string $eventNameEnglish): bool
-    {
-        $event = $this->eventModel->where('name_english', $eventNameEnglish)->first();
-        if (!$event) {
-            return false;
-        }
-
-        $activeEvent = $this->activeEventModel
-            ->where('event_id', $event['event_id'])
-            ->where('status', 'active')
-            ->first();
-
-        return !empty($activeEvent);
-    }
-
-    protected function isDrynessEventActive(): bool
-    {
-        $drynessEvent = $this->eventModel->where('name_english', 'Dryness')->first();
-        if ($drynessEvent) {
-            $active = $this->activeEventModel
-                ->where('event_id', $drynessEvent['event_id'])
-                ->where('status', 'active')
-                ->first();
-            return !empty($active);
-        }
-        return false;
     }
 
     protected function getAvailableResources(array $character): array
