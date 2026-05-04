@@ -118,8 +118,11 @@ final class AttackPlayerActionFixtureFenceTest extends CIUnitTestCase
 
     /**
      * Строит AttackPlayerAction в обход конструктора (нет CallbackQuery
-     * в тестах). Все нужные модели — реальные, бьются по test DB через
-     * DatabaseTestTrait.
+     * в тестах). Модели создаём локально (DatabaseTestTrait уже свапнул
+     * default group на `tests`) и пробрасываем через DI в сервисы.
+     *
+     * F2.3b Step 5: после слима controller'а 8 model properties удалены
+     * из AttackPlayerAction (теперь они только локальные в __construct).
      */
     private function buildAction(): AttackPlayerAction
     {
@@ -127,94 +130,63 @@ final class AttackPlayerActionFixtureFenceTest extends CIUnitTestCase
         /** @var AttackPlayerAction $action */
         $action = $rc->newInstanceWithoutConstructor();
 
-        // Инициализируем все модели вручную — то же что делает реальный конструктор.
+        // Persisted properties controller'а (используются прямо в handle()).
         $models = [
-            'characterModel'          => \App\Models\CharacterModel::class,
-            'mapModel'                => \App\Models\MapModel::class,
-            'biomeModel'              => \App\Models\BiomeModel::class,
-            'telegramUserModel'       => \App\Models\TelegramUserModel::class,
-            'characterFactionModel'   => \App\Models\CharacterFactionModel::class,
-            'factionModel'            => \App\Models\FactionModel::class,
-            'claimedCellModel'        => \App\Models\ClaimedCellModel::class,
-            'exploredCellsModel'      => \App\Models\ExploredCellsModel::class,
-            'charactersWeaponsModel'  => \App\Models\CharactersWeaponsModel::class,
-            'weaponsModel'            => \App\Models\WeaponModel::class,
-            'charactersOutfitsModel'  => \App\Models\CharactersOutfitsModel::class,
-            'outfitsModel'            => \App\Models\OutfitModel::class,
-            'battleLogModel'          => \App\Models\BattleLogModel::class,
+            'characterModel'    => new \App\Models\CharacterModel(),
+            'mapModel'          => new \App\Models\MapModel(),
+            'biomeModel'        => new \App\Models\BiomeModel(),
+            'telegramUserModel' => new \App\Models\TelegramUserModel(),
+            'battleLogModel'    => new \App\Models\BattleLogModel(),
         ];
-        foreach ($models as $prop => $cls) {
+        foreach ($models as $prop => $instance) {
             $rp = $rc->getProperty($prop);
             $rp->setAccessible(true);
-            $rp->setValue($action, new $cls());
+            $rp->setValue($action, $instance);
         }
-        // PvpFormulaService (F2.3 first slice).
+
+        // Локальные модели для DI в сервисы.
+        $charactersWeapons = new \App\Models\CharactersWeaponsModel();
+        $weapons           = new \App\Models\WeaponModel();
+        $charactersOutfits = new \App\Models\CharactersOutfitsModel();
+        $outfits           = new \App\Models\OutfitModel();
+        $characterFaction  = new \App\Models\CharacterFactionModel();
+        $faction           = new \App\Models\FactionModel();
+        $claimedCell       = new \App\Models\ClaimedCellModel();
+        $exploredCells     = new \App\Models\ExploredCellsModel();
+
+        $formulas = new \App\Services\PVE\PvpFormulaService();
         $rp = $rc->getProperty('pvpFormulas');
         $rp->setAccessible(true);
-        $rp->setValue($action, new \App\Services\PVE\PvpFormulaService());
-
-        // F2.3b Step 1: PvpEquipmentRepository (DB reads).
-        // Используем те же модели, что инжектировали выше — repo не делает
-        // отдельного fresh-инстанцирования.
-        $rp = $rc->getProperty('equipmentRepo');
-        $rp->setAccessible(true);
-        $charactersWeaponsRP = $rc->getProperty('charactersWeaponsModel'); $charactersWeaponsRP->setAccessible(true);
-        $weaponsRP           = $rc->getProperty('weaponsModel');           $weaponsRP->setAccessible(true);
-        $charactersOutfitsRP = $rc->getProperty('charactersOutfitsModel'); $charactersOutfitsRP->setAccessible(true);
-        $outfitsRP           = $rc->getProperty('outfitsModel');           $outfitsRP->setAccessible(true);
-        $mapRP               = $rc->getProperty('mapModel');               $mapRP->setAccessible(true);
-        $charFactionRP       = $rc->getProperty('characterFactionModel');  $charFactionRP->setAccessible(true);
-        $factionRP           = $rc->getProperty('factionModel');           $factionRP->setAccessible(true);
+        $rp->setValue($action, $formulas);
 
         $repo = new \App\Services\PVE\PvpEquipmentRepository(
-            $charactersWeaponsRP->getValue($action),
-            $weaponsRP->getValue($action),
-            $charactersOutfitsRP->getValue($action),
-            $outfitsRP->getValue($action),
-            $mapRP->getValue($action),
-            $charFactionRP->getValue($action),
-            $factionRP->getValue($action)
+            $charactersWeapons,
+            $weapons,
+            $charactersOutfits,
+            $outfits,
+            $models['mapModel'],
+            $characterFaction,
+            $faction
         );
+        $rp = $rc->getProperty('equipmentRepo');
+        $rp->setAccessible(true);
         $rp->setValue($action, $repo);
 
-        // F2.3b Step 2: PvpDamageCalculator (формулы) — DI с уже-созданным
-        // formulas + repo, чтобы тесты ходили в test DB.
+        $damageCalc = new \App\Services\PVE\PvpDamageCalculator($formulas, $repo);
         $rp = $rc->getProperty('damageCalc');
         $rp->setAccessible(true);
-        $formulasRP = $rc->getProperty('pvpFormulas');
-        $formulasRP->setAccessible(true);
-        $damageCalc = new \App\Services\PVE\PvpDamageCalculator(
-            $formulasRP->getValue($action),
-            $repo,
-            null
-        );
         $rp->setValue($action, $damageCalc);
 
-        // F2.3b Step 3: PvpRoundOrchestrator (simulateFight loop).
         $rp = $rc->getProperty('roundOrchestrator');
         $rp->setAccessible(true);
-        $rp->setValue($action, new \App\Services\PVE\PvpRoundOrchestrator(
-            $damageCalc,
-            $formulasRP->getValue($action),
-            null
-        ));
+        $rp->setValue($action, new \App\Services\PVE\PvpRoundOrchestrator($damageCalc, $formulas));
 
-        // F2.3b Step 4: PvpRewardOrchestrator (DB writes для reward/death).
-        // Не вызывается из simulateFight (вызывается из handle), но
-        // инжектируем для байт-эквивалентности конструкции экземпляра.
         $rp = $rc->getProperty('rewardOrchestrator');
         $rp->setAccessible(true);
-        $charModelRP        = $rc->getProperty('characterModel');
-        $charModelRP->setAccessible(true);
-        $claimedCellRP      = $rc->getProperty('claimedCellModel');
-        $claimedCellRP->setAccessible(true);
-        $exploredCellsRP    = $rc->getProperty('exploredCellsModel');
-        $exploredCellsRP->setAccessible(true);
         $rp->setValue($action, new \App\Services\PVE\PvpRewardOrchestrator(
-            $charModelRP->getValue($action),
-            $claimedCellRP->getValue($action),
-            $exploredCellsRP->getValue($action),
-            null
+            $models['characterModel'],
+            $claimedCell,
+            $exploredCells
         ));
 
         return $action;
@@ -222,9 +194,14 @@ final class AttackPlayerActionFixtureFenceTest extends CIUnitTestCase
 
     private function callSimulateFight(AttackPlayerAction $action, array $p1, array $p2, array $biome): array
     {
-        $rm = new ReflectionMethod(AttackPlayerAction::class, 'simulateFight');
-        $rm->setAccessible(true);
-        return $rm->invoke($action, $p1, $p2, $biome);
+        // F2.3b Step 5: simulateFight thin wrapper удалён из AttackPlayerAction.
+        // Достаём roundOrchestrator через рефлексию и вызываем напрямую —
+        // это та же цепочка, что handle() выполняет в проде.
+        $rc = new ReflectionClass(AttackPlayerAction::class);
+        $rp = $rc->getProperty('roundOrchestrator');
+        $rp->setAccessible(true);
+        $orchestrator = $rp->getValue($action);
+        return $orchestrator->simulateFight($p1, $p2, $biome);
     }
 
     private function makeCharacter(int $id, string $name, int $level = 50, int $cellNumber = 100, float $health = 100.0, float $strength = 50.0, float $agility = 50.0, float $intellect = 50.0): array
