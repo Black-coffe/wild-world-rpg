@@ -173,7 +173,7 @@ class BuildSolarStationConstruction extends BaseAction
         ];
 
         if ($workshopExists && empty($missingResources) && empty($missingCraftedItems)) {
-            array_unshift($keyboard['inline_keyboard'], [['text' => '🛠️ Строить', 'callback_data' => 'startBuildSolarStation']]);
+            array_unshift($keyboard['inline_keyboard'], [['text' => '🛠️ Строить', 'callback_data' => 'genericStartBuild_SolarStation']]);
         }
 
         $text = "*☀️ Солнечная станция*\n"
