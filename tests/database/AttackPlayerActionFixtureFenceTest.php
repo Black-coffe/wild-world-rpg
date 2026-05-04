@@ -199,6 +199,24 @@ final class AttackPlayerActionFixtureFenceTest extends CIUnitTestCase
             null
         ));
 
+        // F2.3b Step 4: PvpRewardOrchestrator (DB writes для reward/death).
+        // Не вызывается из simulateFight (вызывается из handle), но
+        // инжектируем для байт-эквивалентности конструкции экземпляра.
+        $rp = $rc->getProperty('rewardOrchestrator');
+        $rp->setAccessible(true);
+        $charModelRP        = $rc->getProperty('characterModel');
+        $charModelRP->setAccessible(true);
+        $claimedCellRP      = $rc->getProperty('claimedCellModel');
+        $claimedCellRP->setAccessible(true);
+        $exploredCellsRP    = $rc->getProperty('exploredCellsModel');
+        $exploredCellsRP->setAccessible(true);
+        $rp->setValue($action, new \App\Services\PVE\PvpRewardOrchestrator(
+            $charModelRP->getValue($action),
+            $claimedCellRP->getValue($action),
+            $exploredCellsRP->getValue($action),
+            null
+        ));
+
         return $action;
     }
 
