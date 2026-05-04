@@ -182,7 +182,7 @@ class BuildGymConstruction extends BaseAction
         ];
 
         if ($workshopExists && empty($missingResources) && empty($missingCraftedItems)) {
-            array_unshift($keyboard['inline_keyboard'], [['text' => '🛠️ Строить', 'callback_data' => 'startBuildGym']]);
+            array_unshift($keyboard['inline_keyboard'], [['text' => '🛠️ Строить', 'callback_data' => 'genericStartBuild_Gym']]);
         }
 
         $text = "*🥊 Спортзал*\n\n"
