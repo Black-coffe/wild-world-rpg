@@ -40,25 +40,31 @@
                     </td>
                     <td>
                         <?php if ($poll['active'] == 0): ?>
-                            <!-- Если опрос не активен, добавим кнопку "Запустить опрос" -->
-                            <a href="<?= site_url('admin/polls/send/' . $poll['id']) ?>"
-                               class="btn btn-sm btn-success"
-                               onclick="return confirm('Отправить опрос всем игрокам?')">
-                                Запустить опрос
-                            </a>
+                            <!-- Если опрос не активен — кнопки "Запустить" и "Удалить" через POST-формы (защита от случайного клика по URL) -->
+                            <form action="<?= site_url('admin/polls/send/' . $poll['id']) ?>" method="post" style="display:inline">
+                                <?= csrf_field() ?>
+                                <button type="submit" class="btn btn-sm btn-success"
+                                        onclick="return confirm('Отправить опрос всем игрокам?')">
+                                    Запустить опрос
+                                </button>
+                            </form>
                             <a href="<?= site_url('admin/polls/edit/' . $poll['id']) ?>" class="btn btn-sm btn-info">Редактировать</a>
-                            <a href="<?= site_url('admin/polls/delete/' . $poll['id']) ?>"
-                               class="btn btn-sm btn-danger"
-                               onclick="return confirm('Удалить опрос?')">
-                                Удалить
-                            </a>
+                            <form action="<?= site_url('admin/polls/delete/' . $poll['id']) ?>" method="post" style="display:inline">
+                                <?= csrf_field() ?>
+                                <button type="submit" class="btn btn-sm btn-danger"
+                                        onclick="return confirm('Удалить опрос?')">
+                                    Удалить
+                                </button>
+                            </form>
                         <?php else: ?>
-                            <!-- Если опрос активен, показываем кнопку "Остановить" и т.д. -->
-                            <a href="<?= site_url('admin/polls/stop/' . $poll['id']) ?>"
-                               class="btn btn-sm btn-warning"
-                               onclick="return confirm('Остановить опрос?')">
-                                Остановить
-                            </a>
+                            <!-- Активный опрос — кнопка "Остановить" через POST -->
+                            <form action="<?= site_url('admin/polls/stop/' . $poll['id']) ?>" method="post" style="display:inline">
+                                <?= csrf_field() ?>
+                                <button type="submit" class="btn btn-sm btn-warning"
+                                        onclick="return confirm('Остановить опрос?')">
+                                    Остановить
+                                </button>
+                            </form>
                         <?php endif; ?>
 
                         <!-- Кнопка "Статистика" общая -->
