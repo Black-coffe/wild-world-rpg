@@ -63,6 +63,12 @@ class PollController extends BaseController
             return redirect()->back()->with('error', 'Минимум два варианта ответа должны быть заполнены.');
         }
 
+        // F0.8 — санитизация HTML до сохранения. Опрос отправляется в Telegram
+        // с parse_mode='HTML', и без фильтрации админ мог бы внедрить
+        // <a href="evil.com"> для фишинговой рассылки 635 игрокам.
+        // Пропускаем только теги, которые Telegram действительно поддерживает.
+        $question = $this->sanitizeTelegramHtml($question);
+
         // Создаём опрос (active=0 => черновик)
         $pollData = [
             'question'   => $question,
@@ -126,6 +132,9 @@ class PollController extends BaseController
 
         $existingAnswers = $this->request->getPost('existingAnswers');
         $newAnswers      = $this->request->getPost('newAnswers');
+
+        // F0.8 — санитизация HTML (см. storePoll() выше).
+        $question = $this->sanitizeTelegramHtml($question);
 
         // Обновляем поля опроса
         $this->pollModel->update($id, [
@@ -300,6 +309,21 @@ class PollController extends BaseController
         } catch (TelegramException $e) {
             log_message('error', 'Ошибка при отправке опроса: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * F0.8 — оставляет только теги, которые Telegram parse_mode='HTML'
+     * официально поддерживает: b, strong, i, em, u, s, strike, del, a, code, pre.
+     * Защищает игроков от фишинговых ссылок, скриптов, iframe и т.п.,
+     * если у админа взломан аккаунт или один из админов недобросовестный.
+     */
+    private function sanitizeTelegramHtml(?string $html): string
+    {
+        if ($html === null) {
+            return '';
+        }
+        $allowed = '<b><strong><i><em><u><s><strike><del><a><code><pre>';
+        return strip_tags($html, $allowed);
     }
 
 }
