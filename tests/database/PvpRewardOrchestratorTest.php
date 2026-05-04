@@ -194,7 +194,7 @@ final class PvpRewardOrchestratorTest extends CIUnitTestCase
         $this->assertEqualsWithDelta(99.5, (float) $after['intellect'], 0.01);
     }
 
-    public function testProcessDeathRestoresHealthAndTiredOnRespawn(): void
+    public function testProcessDeathRestoresHealthAndTired(): void
     {
         $db = Database::connect('tests');
         $loserId = $this->insertChar('Loser', ['max_health' => 100, 'max_tired' => 100]);
@@ -202,23 +202,33 @@ final class PvpRewardOrchestratorTest extends CIUnitTestCase
 
         $this->orch->processDeathAndRespawn($loser);
 
-        $after = $db->query('SELECT health, tired, cell_number FROM characters WHERE id = ?', [$loserId])->getRowArray();
+        $after = $db->query('SELECT health, tired FROM characters WHERE id = ?', [$loserId])->getRowArray();
         $this->assertSame('100.00', $after['health']);
         $this->assertSame('100.00', $after['tired']);
-        $this->assertSame(1, (int) $after['cell_number']); // fallback т.к. нет claimed/explored
     }
 
-    public function testProcessDeathRespawnsToClaimedCellIfPresent(): void
+    /**
+     * v0.14.1 bug fix: processDeathAndRespawn НЕ должен трогать cell_number.
+     * Это ответственность DeathService → PlayerRespawner.respawn (вызов
+     * раньше в handle()). Старая legacy логика переписывала cell_number
+     * через findRespawnCell, что было багом — двойной respawn с
+     * конфликтующими правилами (biome filter vs explored_cells).
+     */
+    public function testProcessDeathDoesNotOverwriteCellNumber(): void
     {
         $db = Database::connect('tests');
-        $loserId = $this->insertChar('Loser');
+        // Симулируем: PlayerRespawner уже выставил cell_number = 7777.
+        $loserId = $this->insertChar('Loser', ['cell_number' => 7777]);
+        // Дополнительно: claimed_cell + explored_cell в БД, но они НЕ должны
+        // переписать cell_number (legacy так делал — это и был баг).
         $db->query('INSERT INTO claimed_cells (character_id, map_cell_id, status) VALUES (?, 555, ?)', [$loserId, 'active']);
-        $loser = $db->query('SELECT * FROM characters WHERE id = ?', [$loserId])->getRowArray();
+        $db->query('INSERT INTO explored_cells (character_id, map_cell_id) VALUES (?, 333)', [$loserId]);
 
+        $loser = $db->query('SELECT * FROM characters WHERE id = ?', [$loserId])->getRowArray();
         $this->orch->processDeathAndRespawn($loser);
 
         $after = $db->query('SELECT cell_number FROM characters WHERE id = ?', [$loserId])->getRowArray();
-        $this->assertSame(555, (int) $after['cell_number']);
+        $this->assertSame(7777, (int) $after['cell_number'], 'cell_number должен сохраниться от PlayerRespawner');
     }
 
     // ---- findRespawnCell ----
