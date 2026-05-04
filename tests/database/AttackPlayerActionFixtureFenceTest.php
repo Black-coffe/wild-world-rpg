@@ -183,9 +183,19 @@ final class AttackPlayerActionFixtureFenceTest extends CIUnitTestCase
         $rp->setAccessible(true);
         $formulasRP = $rc->getProperty('pvpFormulas');
         $formulasRP->setAccessible(true);
-        $rp->setValue($action, new \App\Services\PVE\PvpDamageCalculator(
+        $damageCalc = new \App\Services\PVE\PvpDamageCalculator(
             $formulasRP->getValue($action),
             $repo,
+            null
+        );
+        $rp->setValue($action, $damageCalc);
+
+        // F2.3b Step 3: PvpRoundOrchestrator (simulateFight loop).
+        $rp = $rc->getProperty('roundOrchestrator');
+        $rp->setAccessible(true);
+        $rp->setValue($action, new \App\Services\PVE\PvpRoundOrchestrator(
+            $damageCalc,
+            $formulasRP->getValue($action),
             null
         ));
 

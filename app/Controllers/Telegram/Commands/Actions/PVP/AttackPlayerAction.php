@@ -102,6 +102,9 @@ class AttackPlayerAction extends BaseAction
     // F2.3b Step 2: формулы урона (computeDamage / Equipment / Armor /
     // Distance / Biome) — pure-ish сервис с DI.
     private \App\Services\PVE\PvpDamageCalculator $damageCalc;
+    // F2.3b Step 3: simulateFight loop + checkLuckyStrike +
+    // applyLuckyStrikeDebuff + determineInitiative.
+    private \App\Services\PVE\PvpRoundOrchestrator $roundOrchestrator;
 
     public function __construct($callbackQuery)
     {
@@ -143,6 +146,14 @@ class AttackPlayerAction extends BaseAction
             $this->pvpFormulas,
             $this->equipmentRepo,
             null // GameBalance — config('GameBalance') по умолчанию
+        );
+
+        // F2.3b Step 3: round orchestrator. Использует уже инициализированный
+        // damageCalc + formulas, чтобы fence test инжектил one-source-of-truth.
+        $this->roundOrchestrator = new \App\Services\PVE\PvpRoundOrchestrator(
+            $this->damageCalc,
+            $this->pvpFormulas,
+            null
         );
     }
 
@@ -377,133 +388,11 @@ class AttackPlayerAction extends BaseAction
     }
 
     /**
-     * Симуляция боя — пошаговый цикл, пока один не упадёт
-     * или не превысили MAX_ROUNDS (тогда ничья).
+     * F2.3b Step 3: simulateFight полностью делегирован в PvpRoundOrchestrator.
      */
     private function simulateFight(array $p1, array $p2, array $biome): array
     {
-        // Массив для логов раундов
-        $roundLogs = [];
-
-        $attacker = $this->determineInitiative($p1, $p2);
-        $defender = ($attacker['id'] === $p1['id']) ? $p2 : $p1;
-
-        $round      = 0;
-        $maxRounds  = self::MAX_ROUNDS;
-        $winner     = null;
-        $loser      = null;
-        $firstName  = $attacker['name'];
-        $damageBoost= 1.0;
-        $isFirstHit = true; // инициатива
-
-        while ($attacker['health'] > 0 && $defender['health'] > 0 && $round < $maxRounds) {
-            $round++;
-
-            // Каждые N раундов повышаем damageBoost
-            if ($round % self::ROUNDS_PER_DAMAGE_INCREASE === 0) {
-                $damageBoost += self::DAMAGE_INCREASE_PER_STEP;
-            }
-
-            // Проверка LuckyStrike (влияет ли оно перед computeDamage?)
-            $luckyStrikeActive = $this->checkLuckyStrike($attacker, $defender);
-
-            // Получаем подробные расчёты урона
-            $calc = $this->computeDamage($attacker, $defender, $biome, $luckyStrikeActive, $isFirstHit);
-
-            // Исходное "finalDamage" от computeDamage (без учёта LuckyStrike x1.5)
-            $damage = $calc['finalDamage'];
-            // Умножаем, если сработал LuckyStrike
-            $luckyStrikeApplied = false;
-            if ($luckyStrikeActive) {
-                $damage             *= self::LUCKY_STRIKE_DAMAGE_MULT; // x1.5
-                $this->applyLuckyStrikeDebuff($defender);
-                $luckyStrikeApplied = true;
-            }
-
-            // damageBoost
-            $damage *= $damageBoost;
-
-            // Перед ударом запоминаем здоровье
-            $defHealthBefore = $defender['health'];
-
-            // Применяем урон
-            $defender['health'] = max(0, $defender['health'] - $damage);
-
-            // Проверяем смерть
-            if ($defender['health'] <= 0) {
-                $loser  = $defender;
-                $winner = $attacker;
-            }
-
-            // Логируем текущий раунд
-            $roundLogs[] = [
-                'round'   => $round,
-                'attacker'=> $attacker['name'],
-                'defender'=> $defender['name'],
-
-                // Промежуточные расчёты
-                'D_equip'      => round($calc['D_equip'], 2),
-                'D_level'      => round($calc['D_level'], 2),
-                'D_stats'      => round($calc['D_stats'], 2),
-                'D_init'       => round($calc['D_init'], 2),
-                'dodgeChance'  => round($calc['dodgeChance'], 2),
-                'dodgeRoll'    => $calc['dodgeRoll'],
-                'critChance'   => round($calc['critChance'], 2),
-                'critRoll'     => $calc['critRoll'],
-                'biomeCoeff'   => round($calc['biomeCoeff'], 2),
-                'oneShotChance'=> round($calc['oneShotChance'], 2),
-                'oneShotRoll'  => $calc['oneShotRoll'],
-
-                'baseDamageBeforeBoost' => round($calc['finalDamage'], 2),
-                'luckyStrikeApplied'    => $luckyStrikeApplied,
-                'damageBoost'           => $damageBoost,
-                'finalDamage'           => round($damage, 2),
-
-                'defenderHealthBefore'  => round($defHealthBefore, 2),
-                'defenderHealthAfter'   => round($defender['health'], 2),
-            ];
-
-            if ($loser !== null) {
-                break; // бой окончен
-            }
-
-            // Меняем роли
-            [$attacker, $defender] = [$defender, $attacker];
-            // После первого удара убираем +5% инициативы
-            $isFirstHit = false;
-        }
-
-        // Проверка на ничью (оба живы, но вышли за maxRounds)
-        if ($round >= $maxRounds && $attacker['health'] > 0 && $defender['health'] > 0) {
-            return [
-                'type'          => 'exhausted',
-                'rounds'        => $round,
-                'firstAttacker' => $firstName,
-                'winner'        => null,
-                'loser'         => null,
-                'roundLogs'     => $roundLogs,
-            ];
-        }
-
-        // Если в конце цикла нет winner/loser, проверяем ещё раз (случай, когда в последнем раунде упал)
-        if (!$winner && !$loser) {
-            if ($attacker['health'] <= 0) {
-                $loser  = $attacker;
-                $winner = $defender;
-            } elseif ($defender['health'] <= 0) {
-                $loser  = $defender;
-                $winner = $attacker;
-            }
-        }
-
-        return [
-            'type'          => 'normal',
-            'rounds'        => $round,
-            'firstAttacker' => $firstName,
-            'winner'        => $winner,
-            'loser'         => $loser,
-            'roundLogs'     => $roundLogs,
-        ];
+        return $this->roundOrchestrator->simulateFight($p1, $p2, $biome);
     }
 
     /**
@@ -603,38 +492,10 @@ class AttackPlayerAction extends BaseAction
     }
 
     // ----------------------------------------------------------------
-    // Старая логика LuckyStrike, DeathService, Respawn и т.д.
+    // F2.3b Step 3: checkLuckyStrike, applyLuckyStrikeDebuff,
+    // determineInitiative — переехали в PvpRoundOrchestrator.
+    // Старая логика DeathService, Respawn остаётся пока (Step 4).
     // ----------------------------------------------------------------
-
-    /**
-     * Удачный удар, если аттакер слабее (diff<0).
-     */
-    private function checkLuckyStrike(array $attacker, array $defender): bool
-    {
-        $lvlDiff = $attacker['level'] - $defender['level'];
-        if ($lvlDiff >= 0) return false;
-
-        $absDiff = abs($lvlDiff);
-        $chance  = $absDiff * self::LUCKY_STRIKE_DIFF_FACTOR; // base
-        // прибавим разницу ловкости
-        $agiDiff = $attacker['agility'] - $defender['agility'];
-        if ($agiDiff > 0) {
-            $chance += ($agiDiff * self::LUCKY_STRIKE_CHANCE_PER_AGI * 100);
-        }
-        $chance = min($chance, self::LUCKY_STRIKE_MAX_CHANCE);
-
-        return $this->rollPercent($chance);
-    }
-
-    /**
-     * Debuff: -10% к одному стату.
-     */
-    private function applyLuckyStrikeDebuff(array &$defender): void
-    {
-        $stats = ['strength','agility','intellect'];
-        $st = $stats[array_rand($stats)];
-        $defender[$st] = max(1, $defender[$st] * (1 - self::LUCKY_STRIKE_DEBUFF_PERCENT));
-    }
 
     /**
      * Если оба выдохлись -> set health/tired=10, move to respawn
@@ -844,16 +705,6 @@ class AttackPlayerAction extends BaseAction
         $dx = abs($mapA['coordinate_x'] - $mapB['coordinate_x']);
         $dy = abs($mapA['coordinate_y'] - $mapB['coordinate_y']);
         return ($dx <= 1 && $dy <= 1);
-    }
-
-    /**
-     * Инициатива: c1 => i1= agility + (level+1)*0.5
-     */
-    private function determineInitiative(array $c1, array $c2): array
-    {
-        $i1 = $c1['agility'] + ($c1['level'] + 1)*0.5;
-        $i2 = $c2['agility'] + ($c2['level'] + 1)*0.5;
-        return ($i1 >= $i2) ? $c1 : $c2;
     }
 
     /**
