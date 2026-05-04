@@ -1,0 +1,120 @@
+name: Deploy
+
+on:
+  push:
+    branches: [develop]
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: PHPUnit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, intl, mysqli, curl, gd
+          coverage: none
+
+      - name: Cache composer
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: composer-
+
+      - name: Composer install
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Run PHPUnit
+        run: vendor/bin/phpunit --no-coverage
+
+  deploy:
+    name: Deploy ${{ github.ref_type == 'tag' && 'production' || 'preprod' }}
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.ref_type == 'tag' && 'production' || 'preprod' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute deploy target
+        id: target
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "user=${{ secrets.PROD_USER }}" >> "$GITHUB_OUTPUT"
+            echo "domain=bot.wildworld.fun" >> "$GITHUB_OUTPUT"
+            echo "bot_token=${{ secrets.PROD_BOT_TOKEN }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "user=${{ secrets.PREPROD_USER }}" >> "$GITHUB_OUTPUT"
+            echo "domain=testbot.wildworld.fun" >> "$GITHUB_OUTPUT"
+            echo "bot_token=${{ secrets.PREPROD_BOT_TOKEN }}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "ts=$(date -u +%Y-%m-%d-%H%M%S)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Trust SSH host
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stamp release SHA
+        run: echo "${{ github.sha }}" > .release-sha
+
+      - name: Rsync release
+        env:
+          USER: ${{ steps.target.outputs.user }}
+          HOST: ${{ secrets.SSH_HOST }}
+          TS: ${{ steps.target.outputs.ts }}
+        run: |
+          ssh "$USER@$HOST" "mkdir -p ~/releases/$TS"
+          rsync -az --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='vendor' \
+            --exclude='writable' \
+            --exclude='node_modules' \
+            --exclude='tests/_output' \
+            --exclude='build' \
+            ./ "$USER@$HOST:~/releases/$TS/"
+
+      - name: Run post-deploy
+        id: postdeploy
+        env:
+          USER: ${{ steps.target.outputs.user }}
+          HOST: ${{ secrets.SSH_HOST }}
+          DOMAIN: ${{ steps.target.outputs.domain }}
+          TS: ${{ steps.target.outputs.ts }}
+        run: |
+          ssh "$USER@$HOST" "bash ~/releases/$TS/deploy/post-deploy.sh '$DOMAIN' '$TS'"
+
+      - name: Smoke test (Telegram getMe)
+        id: smoke
+        env:
+          BOT_TOKEN: ${{ steps.target.outputs.bot_token }}
+        run: |
+          response=$(curl -fsS --max-time 10 "https://api.telegram.org/bot${BOT_TOKEN}/getMe")
+          echo "$response"
+          echo "$response" | grep -q '"ok":true'
+
+      - name: Auto-rollback on smoke failure
+        if: failure() && steps.smoke.outcome == 'failure' && steps.postdeploy.outcome == 'success'
+        env:
+          USER: ${{ steps.target.outputs.user }}
+          HOST: ${{ secrets.SSH_HOST }}
+          DOMAIN: ${{ steps.target.outputs.domain }}
+        run: |
+          ssh "$USER@$HOST" "bash ~/htdocs/$DOMAIN/deploy/rollback.sh '$DOMAIN'"

@@ -1,0 +1,49 @@
+#!/bin/bash
+set -euo pipefail
+
+DOMAIN="${1:?usage: post-deploy.sh <domain> <ts>}"
+TS="${2:?usage: post-deploy.sh <domain> <ts>}"
+
+BASE="$HOME"
+RELEASES="$BASE/releases"
+SHARED="$BASE/shared"
+WEBROOT="$BASE/htdocs/$DOMAIN"
+NEW_RELEASE="$RELEASES/$TS"
+
+if [[ ! -d "$NEW_RELEASE" ]]; then
+    echo "ERROR: release dir $NEW_RELEASE missing — rsync did not run?" >&2
+    exit 1
+fi
+
+if [[ ! -L "$WEBROOT" ]]; then
+    echo "ERROR: $WEBROOT is not a symlink — run zero-release.sh first" >&2
+    exit 1
+fi
+
+if [[ ! -f "$SHARED/.env" ]]; then
+    echo "ERROR: $SHARED/.env missing — create it manually before first deploy" >&2
+    exit 1
+fi
+
+cd "$NEW_RELEASE"
+
+echo ">>> [post-deploy] composer install"
+composer install --no-dev --optimize-autoloader --no-progress --no-interaction
+
+echo ">>> [post-deploy] symlink .env and writable/"
+ln -sfn "$SHARED/.env" .env
+rm -rf writable
+ln -sfn "$SHARED/writable" writable
+
+echo ">>> [post-deploy] migrate"
+php spark migrate --all -n
+
+echo ">>> [post-deploy] atomic switch"
+ln -sfn "$NEW_RELEASE" "$WEBROOT.tmp"
+mv -Tf "$WEBROOT.tmp" "$WEBROOT"
+
+echo ">>> [post-deploy] cleanup old releases (keep 5 newest)"
+cd "$RELEASES"
+ls -1dt */ 2>/dev/null | sed 's:/$::' | tail -n +6 | xargs -r rm -rf
+
+echo ">>> [post-deploy] done: $WEBROOT -> $NEW_RELEASE"
