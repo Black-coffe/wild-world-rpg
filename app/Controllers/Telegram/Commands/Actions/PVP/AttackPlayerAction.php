@@ -105,6 +105,8 @@ class AttackPlayerAction extends BaseAction
     // F2.3b Step 3: simulateFight loop + checkLuckyStrike +
     // applyLuckyStrikeDebuff + determineInitiative.
     private \App\Services\PVE\PvpRoundOrchestrator $roundOrchestrator;
+    // F2.3b Step 4: reward / death / exhaustion DB writes.
+    private \App\Services\PVE\PvpRewardOrchestrator $rewardOrchestrator;
 
     public function __construct($callbackQuery)
     {
@@ -153,6 +155,14 @@ class AttackPlayerAction extends BaseAction
         $this->roundOrchestrator = new \App\Services\PVE\PvpRoundOrchestrator(
             $this->damageCalc,
             $this->pvpFormulas,
+            null
+        );
+
+        // F2.3b Step 4: reward orchestrator (DB writes).
+        $this->rewardOrchestrator = new \App\Services\PVE\PvpRewardOrchestrator(
+            $this->characterModel,
+            $this->claimedCellModel,
+            $this->exploredCellsModel,
             null
         );
     }
@@ -497,167 +507,33 @@ class AttackPlayerAction extends BaseAction
     // Старая логика DeathService, Respawn остаётся пока (Step 4).
     // ----------------------------------------------------------------
 
-    /**
-     * Если оба выдохлись -> set health/tired=10, move to respawn
-     */
+    // F2.3b Step 4: reward / death / exhaustion DB writes делегированы
+    // в PvpRewardOrchestrator. Тонкие обёртки сохранены чтобы handle()
+    // не пришлось переписывать (это сделаем в Step 5).
+
     private function processMutualExhaustion(array $pA, array $pB): void
     {
-        $this->moveExhaustedPlayer($pA['id']);
-        $this->moveExhaustedPlayer($pB['id']);
+        $this->rewardOrchestrator->processMutualExhaustion($pA, $pB);
     }
 
-    private function moveExhaustedPlayer(int $charId): void
-    {
-        $this->characterModel->update($charId, [
-            'health' => 10,
-            'tired'  => 10,
-        ]);
-        $respawnCell = $this->findRespawnCell($charId);
-        $this->characterModel->update($charId, [
-            'cell_number' => $respawnCell,
-        ]);
-    }
-
-    /**
-     * processDeathAndRespawn: -5% XP, -0.5% статы, health=0, затем respawn
-     */
     private function processDeathAndRespawn(array $loser): void
     {
-        $before = $this->characterModel->find($loser['id']);
-        if (!$before) return;
-
-        $loserOldExp = $before['experience'];
-        $loserOldStr = $before['strength'];
-        $loserOldAgi = $before['agility'];
-        $loserOldInt = $before['intellect'];
-
-        $upd = [
-            'experience' => max(0, $loserOldExp * (1 - self::DEATH_EXP_LOSS_PERCENT)),
-            'strength'   => max($loser['strength'],  $loserOldStr * (1 - self::DEATH_STAT_LOSS_PERCENT)),
-            'agility'    => max($loser['agility'],   $loserOldAgi * (1 - self::DEATH_STAT_LOSS_PERCENT)),
-            'intellect'  => max($loser['intellect'], $loserOldInt * (1 - self::DEATH_STAT_LOSS_PERCENT)),
-            'health'     => 0,
-        ];
-        $upd['experience'] = round($upd['experience'], 2);
-        $upd['strength']   = round($upd['strength'],   2);
-        $upd['agility']    = round($upd['agility'],    2);
-        $upd['intellect']  = round($upd['intellect'],  2);
-
-        $this->characterModel->update($loser['id'], $upd);
-
-        // Respawn
-        $respawnCell = $this->findRespawnCell($loser['id']);
-        $this->characterModel->update($loser['id'], [
-            'health'     => round(($loser['max_health'] ?? 100), 2),
-            'tired'      => round(($loser['max_tired']  ?? 100), 2),
-            'cell_number'=> $respawnCell,
-        ]);
+        $this->rewardOrchestrator->processDeathAndRespawn($loser);
     }
 
-    /**
-     * Выдаём победителю +exp, шанс +stat
-     */
     private function giveWinnerBonus(int $winnerId): void
     {
-        $winner = $this->characterModel->find($winnerId);
-        if (!$winner) return;
-
-        $loser = $this->characterModel
-            ->where('cell_number', $winner['cell_number'])
-            ->where('id !=', $winner['id'])
-            ->first();
-
-        $levelDiff = 0;
-        if ($loser) {
-            $levelDiff = $loser['level'] - $winner['level'];
-        }
-
-        $expBonus = self::WINNER_EXP_BASE_BONUS; // 5%
-        if ($levelDiff > 0) {
-            $expBonus += min($levelDiff, 100)/100 * self::WINNER_EXP_MAX_ADDITIVE;
-        }
-
-        $winner['experience'] *= (1 + $expBonus);
-
-        if (mt_rand(0, 100) < self::WINNER_ATTR_BONUS_CHANCE) {
-            $winner['strength']  *= (1 + self::WINNER_ATTR_BONUS_FACTOR);
-        }
-        if (mt_rand(0, 100) < self::WINNER_ATTR_BONUS_CHANCE) {
-            $winner['agility']   *= (1 + self::WINNER_ATTR_BONUS_FACTOR);
-        }
-        if (mt_rand(0, 100) < self::WINNER_ATTR_BONUS_CHANCE) {
-            $winner['intellect'] *= (1 + self::WINNER_ATTR_BONUS_FACTOR);
-        }
-
-        $winner['experience'] = round($winner['experience'], 2);
-        $winner['strength']   = round($winner['strength'],   2);
-        $winner['agility']    = round($winner['agility'],    2);
-        $winner['intellect']  = round($winner['intellect'],  2);
-
-        $this->characterModel->update($winnerId, $winner);
+        $this->rewardOrchestrator->giveWinnerBonus($winnerId);
     }
 
-    /**
-     * Считаем, что потерял проигравший (XP/статы).
-     */
     private function makeLoserDiffText(array $loserBefore): string
     {
-        $loserAfter = $this->characterModel->find($loserBefore['id']);
-        if (!$loserAfter) {
-            return "";
-        }
-
-        $lostExp = max(0, round($loserBefore['experience'] - $loserAfter['experience'], 2));
-        $lostStr = max(0, round($loserBefore['strength']   - $loserAfter['strength'],   2));
-        $lostAgi = max(0, round($loserBefore['agility']    - $loserAfter['agility'],    2));
-        $lostInt = max(0, round($loserBefore['intellect']  - $loserAfter['intellect'],  2));
-
-        return "\n<b>Потери:</b> \n"
-            . "• Опыт: -{$lostExp}\n"
-            . "• Сила: -{$lostStr}\n"
-            . "• Ловкость: -{$lostAgi}\n"
-            . "• Интеллект: -{$lostInt}\n"
-            . "😰 <b>Горький привкус поражения...</b>";
+        return $this->rewardOrchestrator->makeLoserDiffText($loserBefore);
     }
 
-    /**
-     * Что получил победитель
-     */
     private function makeWinnerDiffText(array $winnerBefore): string
     {
-        $winnerAfter = $this->characterModel->find($winnerBefore['id']);
-        if (!$winnerAfter) {
-            return "";
-        }
-
-        $gainExp = round($winnerAfter['experience'] - $winnerBefore['experience'], 2);
-        $gainStr = round($winnerAfter['strength']   - $winnerBefore['strength'],   2);
-        $gainAgi = round($winnerAfter['agility']    - $winnerBefore['agility'],    2);
-        $gainInt = round($winnerAfter['intellect']  - $winnerBefore['intellect'],  2);
-
-        return "\n<b>Награда за победу:</b>\n"
-            . "• Опыт: +{$gainExp}\n"
-            . "• Сила: +{$gainStr}\n"
-            . "• Ловкость: +{$gainAgi}\n"
-            . "• Интеллект: +{$gainInt}\n"
-            . "🔥 <b>Вкус триумфа вдохновляет!</b>";
-    }
-
-    /**
-     * Респаун-локация — либо claimed_cells, либо random explored_cell, либо #1
-     */
-    private function findRespawnCell(int $charId): int
-    {
-        $claimed = $this->claimedCellModel->where('character_id', $charId)->first();
-        if ($claimed) {
-            return (int)$claimed['map_cell_id'];
-        }
-        $explored = $this->exploredCellsModel->where('character_id', $charId)->findAll();
-        if (!empty($explored)) {
-            $rnd = $explored[array_rand($explored)];
-            return (int)$rnd['map_cell_id'];
-        }
-        return 1; // fallback
+        return $this->rewardOrchestrator->makeWinnerDiffText($winnerBefore);
     }
 
     /**
