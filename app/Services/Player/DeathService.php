@@ -6,6 +6,8 @@ use App\Models\ClaimedCellModel;
 use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CharacterModel;
+use App\Services\Player\Death\DeathPenaltyCalculator;
+use App\Services\Player\Death\InsuranceCalculator;
 
 class DeathService
 {
@@ -13,13 +15,22 @@ class DeathService
     protected $characterResourceModel;
     protected $craftedItemsLogModel;
     protected $characterModel;
+    private InsuranceCalculator    $insuranceCalculator;
+    private DeathPenaltyCalculator $penaltyCalculator;
 
-    public function __construct()
-    {
+    public function __construct(
+        ?InsuranceCalculator $insuranceCalculator = null,
+        ?DeathPenaltyCalculator $penaltyCalculator = null
+    ) {
         $this->claimedCellModel       = new ClaimedCellModel();
         $this->characterResourceModel = new CharacterResourceModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
         $this->characterModel         = new CharacterModel();
+        // F2.8 first slice: чистые калькуляторы (insurance cost + penalty rate)
+        // вынесены в Services/Player/Death/. Можно подсунуть mock в тестах.
+        // Остальные responsibilities (LootProcessor, PlayerRespawner) — F2.8b.
+        $this->insuranceCalculator = $insuranceCalculator ?? new InsuranceCalculator();
+        $this->penaltyCalculator   = $penaltyCalculator   ?? new DeathPenaltyCalculator();
     }
 
     /**
@@ -35,30 +46,30 @@ class DeathService
             return ['success' => false];
         }
 
-        // 1) Проверяем, включена ли страховка (insurance=1)
-        if ($loserRow['insurance'] == 1) {
-            // Считаем стоимость страховки
-            $cost = $this->calculateInsuranceCost($loserRow);
+        // 1) Insurance check (F2.8: вычисление стоимости через InsuranceCalculator).
+        $insuranceCovered = false;
+        if ((int) $loserRow['insurance'] === 1) {
+            $totalResourceRows = $this->characterResourceModel
+                ->where('id_characters', $loserId)
+                ->countAllResults();
+            $cost = $this->insuranceCalculator->calculate($loserRow, $totalResourceRows);
 
-            if ($loserRow['gold'] >= $cost) {
-                // Денег хватает => списываем страховку, штраф = 0%
+            if ((int) $loserRow['gold'] >= $cost) {
+                // Денег хватило → списываем страховку, штраф 0%
                 $this->characterModel->update($loserId, [
-                    'gold'      => $loserRow['gold'] - $cost,
-                    'insurance' => 0, // страховка одноразовая
+                    'gold'      => (int) $loserRow['gold'] - $cost,
+                    'insurance' => 0,
                 ]);
-
-                $deathPenalty = 0.0;
-                $hasBase = false;
+                $insuranceCovered = true;
             } else {
-                // Денег не хватает => страховка не сработала
+                // Денег не хватило → страховка сгорает без эффекта
                 $this->characterModel->update($loserId, ['insurance' => 0]);
-                $hasBase = $this->checkIfPlayerHasActiveBase($loserId);
-                $deathPenalty = $hasBase ? 0.03 : 0.50;
             }
-        } else {
-            $hasBase = $this->checkIfPlayerHasActiveBase($loserId);
-            $deathPenalty = $hasBase ? 0.03 : 0.50;
         }
+
+        // 2) Penalty rate (F2.8: чистая функция через DeathPenaltyCalculator).
+        $hasBase = $insuranceCovered ? false : $this->checkIfPlayerHasActiveBase($loserId);
+        $deathPenalty = $this->penaltyCalculator->decide($insuranceCovered, $hasBase);
 
         // 4) Собираем имущество проигравшего
         $loserResources    = $this->getLoserResources($loserId);
@@ -376,40 +387,7 @@ class DeathService
         }
     }
 
-    /**
-     * Считаем стоимость страховки (аналог CalculateInsuranceAction).
-     * При желании формулу можно упростить или скорректировать.
-     */
-    private function calculateInsuranceCost(array $char): int
-    {
-        // Сколько у персонажа ресурсов
-        $totalResources = $this->characterResourceModel
-            ->where('id_characters', $char['id'])
-            ->countAllResults();
-
-        // Сколько месяцев в игре
-        $createdAt = $char['created_at'] ?? '1970-01-01';
-        $dtCreated = new \DateTime($createdAt);
-        $monthsInGame = $dtCreated->diff(new \DateTime())->m + 1; // простой вариант
-
-        $level      = $char['level'];
-        $experience = $char['experience'];
-        $strength   = $char['strength'];
-        $agility    = $char['agility'];
-        $intellect  = $char['intellect'];
-        $tired      = $char['tired'];
-        $goldInChest= $char['gold'];
-
-        // Пример формулы
-        $resourceCost    = ($totalResources / 1000) * 10;
-        $timeCost        = ($monthsInGame / 12) * 5;
-        $levelCost       = ($level / 10) * 20;
-        $experienceCost  = ($experience / 10) * 5;
-        $attributesCost  = (($strength + $agility + $intellect + $tired) / 100) * 10;
-        $goldCost        = ($goldInChest / 10000) * 50;
-
-        $totalCost = $resourceCost + $timeCost + $levelCost + $experienceCost + $attributesCost + $goldCost;
-
-        return (int) round($totalCost);
-    }
+    // F2.8 first slice: calculateInsuranceCost вынесен в
+    // App\Services\Player\Death\InsuranceCalculator. Старая private-версия
+    // удалена в этом коммите — никто её снаружи DeathService не вызывал.
 }
