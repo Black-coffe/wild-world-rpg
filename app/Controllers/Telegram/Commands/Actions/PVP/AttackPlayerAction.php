@@ -94,9 +94,13 @@ class AttackPlayerAction extends BaseAction
     protected $outfitsModel;
     protected $battleLogModel;
 
+    // F2.3 first slice: чистые PvP-формулы вынесены в сервис.
+    private \App\Services\PVE\PvpFormulaService $pvpFormulas;
+
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
+        $this->pvpFormulas = new \App\Services\PVE\PvpFormulaService();
 
         $this->characterModel        = new CharacterModel();
         $this->mapModel              = new MapModel();
@@ -717,12 +721,8 @@ class AttackPlayerAction extends BaseAction
      */
     private function computeRangePenalty(float $weaponRange, float $distance): float
     {
-        if ($distance <= $weaponRange) {
-            return 1.0;
-        }
-        // линейная функция
-        $ratio = $weaponRange / $distance; // 0..1
-        return max(0.0, $ratio);
+        // F2.3 first slice: вынесено в PvpFormulaService.
+        return $this->pvpFormulas->computeRangePenalty($weaponRange, $distance);
     }
 
     /**
@@ -751,40 +751,22 @@ class AttackPlayerAction extends BaseAction
      */
     private function computeLevelBonus(array $attacker, array $defender): float
     {
-        $diff = $attacker['level'] - $defender['level'];
-        $bounded = max(-self::LEVEL_DIFF_CAP, min(self::LEVEL_DIFF_CAP, $diff));
-        return $bounded * self::LEVEL_DIFF_BONUS_PER_LVL; // -0.1 .. +0.1
+        return $this->pvpFormulas->computeLevelBonus($attacker, $defender);
     }
 
-    /**
-     * Простой вариант: 100 силы даёт +10%.
-     * Возвращаем число 0..0.1
-     */
     private function computeStatsBonus(array $attacker): float
     {
-        // Можно решить, какой стат влияет: физ => strength, дальний => agility, итд.
-        // Здесь для упрощения — берём strength.
-        $statVal = (float)($attacker['strength'] ?? 0);
-        $bonus   = $statVal * self::STATS_BONUS_FACTOR;  // 100 => 0.1
-        return min(0.1, $bonus);
+        return $this->pvpFormulas->computeStatsBonus($attacker);
     }
 
-    /**
-     * Уворот: agility * 0.25, макс 75%.
-     */
     private function getDodgeChance(array $defender): float
     {
-        $raw = ($defender['agility'] ?? 0) * 0.25;
-        return min((float)$raw, self::MAX_DODGE_CHANCE_PERCENT);
+        return $this->pvpFormulas->getDodgeChance($defender);
     }
 
-    /**
-     * Кидаем кубик (0..100) < chance?
-     */
     private function rollPercent(float $chance): bool
     {
-        $roll = mt_rand(0, 10000)/100.0;
-        return ($roll < $chance);
+        return $this->pvpFormulas->rollPercent($chance);
     }
 
     // ----------------------------------------------------------------
@@ -1098,19 +1080,8 @@ class AttackPlayerAction extends BaseAction
      */
     private function getRarityCoefficient(string $rarity): float
     {
-        switch (strtolower($rarity)) {
-            case 'uncommon':
-                return 1.1;
-            case 'rare':
-                return 1.3;
-            case 'epic':
-                return 1.5;
-            case 'legendary':
-                return 1.7;
-            default:
-                // По умолчанию 'common'
-                return 1.0;
-        }
+        // F2.3 first slice: вынесено в PvpFormulaService.
+        return $this->pvpFormulas->getRarityCoefficient($rarity);
     }
 
 }
