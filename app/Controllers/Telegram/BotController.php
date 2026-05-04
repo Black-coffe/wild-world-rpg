@@ -27,9 +27,32 @@ class BotController extends Controller
 
     /**
      * Обрабатывает входящие обновления от Telegram.
+     *
+     * F0.9 — верификация заголовка X-Telegram-Bot-API-Secret-Token.
+     * Если в .env задан telegram.WEBHOOK_SECRET — проверяем что Telegram
+     * прислал тот же токен в заголовке. Если значения не совпадают — 403.
+     * Без этого любой, кто узнал webhook URL, мог постить fake updates.
+     *
+     * Если переменная не задана (legacy / dev) — проверка пропускается,
+     * чтобы не сломать существующие установки. Чтобы включить:
+     *   1) сгенерировать random-токен и положить в .env как
+     *      telegram.WEBHOOK_SECRET = '<random_64_chars>'
+     *   2) переустановить webhook у бота:
+     *      curl -X POST https://api.telegram.org/bot<TOKEN>/setWebhook \
+     *           -d "url=https://bot.wildworld.fun/telegram/webhook" \
+     *           -d "secret_token=<random_64_chars>"
      */
     public function webhook()
     {
+        $expected = getenv('telegram.WEBHOOK_SECRET');
+        if (!empty($expected)) {
+            $received = $this->request->getHeaderLine('X-Telegram-Bot-API-Secret-Token');
+            if (!hash_equals($expected, $received)) {
+                log_message('warning', '[Bot.webhook] secret_token mismatch — отклонено');
+                return $this->response->setStatusCode(403)->setBody('forbidden');
+            }
+        }
+
         try {
             $this->telegram->handle();
         } catch (TelegramException $e) {
