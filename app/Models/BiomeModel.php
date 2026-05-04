@@ -43,6 +43,15 @@ class BiomeModel extends Model
         ],
     ];
 
+    // F1.7 — bust кеша при любом изменении справочника биомов.
+    protected $afterInsert = ['bustListCache'];
+    protected $afterUpdate = ['bustListCache'];
+    protected $afterDelete = ['bustListCache'];
+
+    /** Cache key и TTL — выровнены с другими reference-моделями. */
+    private const CACHE_KEY = 'ref_biomes_all';
+    private const CACHE_TTL = 3600; // 1 час; bust происходит при любой правке через админку.
+
     // Callback валидации для проверки допустимости уровня опасности
     protected $validationCallbacks = [
         'beforeInsert' => 'validateDangerLevel',
@@ -66,5 +75,42 @@ class BiomeModel extends Model
     {
         $biome = $this->find($id);
         return $biome ? $biome['name'] : null;
+    }
+
+    /**
+     * F1.7 — закешированный findAll для справочника.
+     * Биомов всего 9, статичны 99% времени; вызывается из Worker'а сотни
+     * раз в минуту → переходим из БД в кеш.
+     */
+    public function findAllCached(): array
+    {
+        $cache = \Config\Services::cache();
+        $cached = $cache->get(self::CACHE_KEY);
+        if (is_array($cached)) {
+            return $cached;
+        }
+        $rows = $this->findAll();
+        $cache->save(self::CACHE_KEY, $rows, self::CACHE_TTL);
+        return $rows;
+    }
+
+    /**
+     * F1.7 — закешированный find по id.
+     */
+    public function findCached(int $id): ?array
+    {
+        foreach ($this->findAllCached() as $row) {
+            if ((int) $row['id'] === $id) {
+                return $row;
+            }
+        }
+        return null;
+    }
+
+    /** F1.7 — bust callback для afterInsert/Update/Delete. */
+    protected function bustListCache(array $data): array
+    {
+        \Config\Services::cache()->delete(self::CACHE_KEY);
+        return $data;
     }
 }

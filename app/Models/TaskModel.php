@@ -48,4 +48,40 @@ class TaskModel extends Model
 
     protected $validationMessages = []; // Сообщения валидации
     protected $skipValidation     = false; // Пропускать ли валидацию
+
+    // F1.7 — кеш справочника шаблонов задач (58 строк, меняются редко).
+    private const CACHE_KEY = 'ref_tasks_all';
+    private const CACHE_TTL = 3600;
+
+    protected $afterInsert = ['bustListCache'];
+    protected $afterUpdate = ['bustListCache'];
+    protected $afterDelete = ['bustListCache'];
+
+    public function findAllCached(): array
+    {
+        $cache = \Config\Services::cache();
+        $cached = $cache->get(self::CACHE_KEY);
+        if (is_array($cached)) {
+            return $cached;
+        }
+        $rows = $this->findAll();
+        $cache->save(self::CACHE_KEY, $rows, self::CACHE_TTL);
+        return $rows;
+    }
+
+    public function findCached(int $id): ?array
+    {
+        foreach ($this->findAllCached() as $row) {
+            if ((int) $row['id'] === $id) {
+                return $row;
+            }
+        }
+        return null;
+    }
+
+    protected function bustListCache(array $data): array
+    {
+        \Config\Services::cache()->delete(self::CACHE_KEY);
+        return $data;
+    }
 }

@@ -96,5 +96,34 @@ class EventModel extends Model
     ];
 
 
-    // Методы для работы с моделью могут быть добавлены здесь
+    // F1.7 — кеширование статичного справочника событий (24 строки, меняются редко).
+    private const CACHE_KEY = 'ref_events_all';
+    private const CACHE_TTL = 3600;
+
+    protected $afterInsert = ['bustListCache'];
+    protected $afterUpdate = ['bustListCache'];
+    protected $afterDelete = ['bustListCache'];
+
+    /**
+     * F1.7 — закешированный findAll. Используется внутри Worker'а на каждом
+     * тике для подбора активных событий.
+     */
+    public function findAllCached(): array
+    {
+        $cache = \Config\Services::cache();
+        $cached = $cache->get(self::CACHE_KEY);
+        if (is_array($cached)) {
+            return $cached;
+        }
+        $rows = $this->findAll();
+        $cache->save(self::CACHE_KEY, $rows, self::CACHE_TTL);
+        return $rows;
+    }
+
+    /** F1.7 — bust callback. */
+    protected function bustListCache(array $data): array
+    {
+        \Config\Services::cache()->delete(self::CACHE_KEY);
+        return $data;
+    }
 }

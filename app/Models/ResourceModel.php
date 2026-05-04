@@ -196,4 +196,30 @@ class ResourceModel extends Model
 
         return true;
     }
+
+    // F1.7 — кеш справочника ресурсов (70 строк, меняется редко).
+    private const CACHE_KEY = 'ref_resources_all';
+    private const CACHE_TTL = 3600;
+
+    protected $afterInsert = ['bustListCache'];
+    protected $afterUpdate = ['bustListCache'];
+    protected $afterDelete = ['bustListCache'];
+
+    public function findAllCached(): array
+    {
+        $cache = \Config\Services::cache();
+        $cached = $cache->get(self::CACHE_KEY);
+        if (is_array($cached)) {
+            return $cached;
+        }
+        $rows = $this->findAll();
+        $cache->save(self::CACHE_KEY, $rows, self::CACHE_TTL);
+        return $rows;
+    }
+
+    protected function bustListCache(array $data): array
+    {
+        \Config\Services::cache()->delete(self::CACHE_KEY);
+        return $data;
+    }
 }
