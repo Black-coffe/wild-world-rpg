@@ -29,23 +29,15 @@ fi
 
 echo ">>> [zero-release] preparing $DOMAIN"
 
-mkdir -p "$RELEASES" "$SHARED/writable"
-
-echo ">>> [zero-release] create writable subdirs (CI4 layout)"
-mkdir -p "$SHARED/writable/cache" \
-         "$SHARED/writable/logs" \
-         "$SHARED/writable/session" \
-         "$SHARED/writable/uploads" \
-         "$SHARED/writable/debugbar"
+mkdir -p "$RELEASES" "$SHARED"
 
 echo ">>> [zero-release] move $WEBROOT -> $INITIAL"
 mv "$WEBROOT" "$INITIAL"
 
-if [[ -f "$INITIAL/.env" ]]; then
-    echo ">>> [zero-release] migrate .env to shared/"
-    cp "$INITIAL/.env" "$SHARED/.env"
+if [[ -f "$INITIAL/.env" && ! -L "$INITIAL/.env" ]]; then
+    echo ">>> [zero-release] migrate .env to shared/ (rename)"
+    mv "$INITIAL/.env" "$SHARED/.env"
     chmod 600 "$SHARED/.env"
-    rm "$INITIAL/.env"
 else
     echo "WARNING: no .env found in $INITIAL — creating empty $SHARED/.env"
     touch "$SHARED/.env"
@@ -53,11 +45,16 @@ else
 fi
 ln -sfn "$SHARED/.env" "$INITIAL/.env"
 
-if [[ -d "$INITIAL/writable" ]]; then
-    echo ">>> [zero-release] merge writable/ into shared/"
-    cp -a "$INITIAL/writable/." "$SHARED/writable/" 2>/dev/null || true
-    rm -rf "$INITIAL/writable"
+if [[ -d "$INITIAL/writable" && ! -L "$INITIAL/writable" ]]; then
+    echo ">>> [zero-release] migrate writable/ to shared/ (rename, instant)"
+    rm -rf "$SHARED/writable"
+    mv "$INITIAL/writable" "$SHARED/writable"
 fi
+mkdir -p "$SHARED/writable/cache" \
+         "$SHARED/writable/logs" \
+         "$SHARED/writable/session" \
+         "$SHARED/writable/uploads" \
+         "$SHARED/writable/debugbar"
 ln -sfn "$SHARED/writable" "$INITIAL/writable"
 
 echo ">>> [zero-release] atomic switch"
