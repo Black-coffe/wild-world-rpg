@@ -174,7 +174,117 @@ class Buildings extends BaseConfig
             'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
         ],
 
-        // TODO (F3.B2): Gym, Greenhouse, HandPump, RoboticsWorkshop, TeleportCenter
+        // F3.B2 (v0.18.0) — 5 medium-tier построек.
+        // Greenhouse/Gym/HandPump имеют связанные production-handlers
+        // (recurring tasks для производства ресурсов) — это отдельный
+        // паттерн, остаётся legacy. F3.B2 мигрирует только START side.
+
+        'Gym' => [
+            'name_rus'          => 'Спортзал',
+            'level_required'    => 5,
+            'task_name'         => 'startBuildGym',
+            'task_settings'     => ['building' => 'Gym'],
+            'resources'         => [
+                'Wood'          => 1400,
+                'Water'         => 1000,
+                'Clay'          => 120,
+                'Pebble'        => 1600,
+                'HideOfAnimals' => 50,
+                'Amber'         => 12,
+                'Minerals'      => 8,
+            ],
+            'crafted_items'     => [
+                'GlassBags'       => 10,
+                'metalFragments'  => 16,
+                'stoneBlocks'     => 10,
+                'WoodMaterials'   => 10,
+                'WorkbenchOne'    => 1,
+            ],
+            'dependencies'      => [],
+            'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+        ],
+
+        'Greenhouse' => [
+            'name_rus'          => 'Теплица',
+            'level_required'    => 1,
+            'task_name'         => 'startBuildGreenhouse',
+            'task_settings'     => ['building' => 'Greenhouse'],
+            'resources'         => [
+                'Wood' => 20000,
+            ],
+            'crafted_items'     => [
+                'GlassBags'       => 55,
+                'metalFragments'  => 28,
+                'stoneBlocks'     => 15,
+                'WoodMaterials'   => 17,
+                'WorkbenchOne'    => 1,
+            ],
+            'dependencies'      => [],
+            'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+        ],
+
+        'HandPump' => [
+            'name_rus'          => 'Ручная скважина',
+            'level_required'    => 1,
+            'task_name'         => 'buildingManualPump',
+            'task_settings'     => ['building' => 'HandPump'],
+            'resources'         => [
+                'Wood'  => 2000,
+                'Water' => 1200,
+                'Clay'  => 600,
+            ],
+            'crafted_items'     => [
+                'metalFragments' => 10,
+                'WoodMaterials'  => 5,
+            ],
+            'dependencies'      => [],
+            'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+        ],
+
+        'RoboticsWorkshop' => [
+            'name_rus'          => 'Мастерская робототехники',
+            'level_required'    => 10,
+            'task_name'         => 'startBuildRoboticsWorkshop',
+            'task_settings'     => ['building' => 'RoboticsWorkshop'],
+            'resources'         => [
+                'RareMetals' => 150,
+                'RareOre'    => 150,
+            ],
+            'crafted_items'     => [
+                'GlassBags'       => 40,
+                'metalFragments'  => 80,
+                'stoneBlocks'     => 10,
+                'WoodMaterials'   => 10,
+                'WorkbenchOne'    => 1,
+            ],
+            'dependencies'      => [],
+            'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+        ],
+
+        'TeleportationCenter' => [
+            'name_rus'          => 'Центр телепортации',
+            'level_required'    => 12,
+            'task_name'         => 'startBuildTeleportationCenter',
+            'task_settings'     => ['building' => 'TeleportationCenter'],
+            'resources'         => [
+                'RareMetals' => 100,
+                'RareOre'    => 50,
+                'Amber'      => 24,
+                'Oil'        => 48,
+            ],
+            'crafted_items'     => [
+                'GlassBags'            => 40,
+                'metalFragments'       => 80,
+                'stoneBlocks'          => 10,
+                'WoodMaterials'        => 10,
+                'wiring'               => 10,
+                'electronicComponents' => 6,
+                'WorkbenchOne'         => 1,
+            ],
+            'dependencies'      => [],
+            'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+        ],
+
         // TODO (F3.B3): CommunicationTower
     ];
 

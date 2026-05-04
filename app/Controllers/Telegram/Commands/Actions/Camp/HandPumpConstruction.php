@@ -177,7 +177,7 @@ class HandPumpConstruction extends BaseAction
             }
         } else {
             // Добавляем кнопку "Строить" если ресурсов достаточно
-            $keyboard['inline_keyboard'][] = [['text' => '🛠️ Строить', 'callback_data' => 'startBuildHandPump']];
+            $keyboard['inline_keyboard'][] = [['text' => '🛠️ Строить', 'callback_data' => 'genericStartBuild_HandPump']];
         }
 
         $imagePath = base_url('uploads/telegram/camp/hand_pump.jpg');

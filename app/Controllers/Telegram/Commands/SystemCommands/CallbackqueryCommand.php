@@ -307,7 +307,7 @@ class CallbackqueryCommand extends SystemCommand
             'DeleteBase' =>                 \App\Controllers\Telegram\Commands\Actions\Camp\DeleteBaseAction::class,
             'Build' =>                      \App\Controllers\Telegram\Commands\Actions\Camp\BuildListAction::class,
             'buildHandPump' =>              \App\Controllers\Telegram\Commands\Actions\Camp\HandPumpConstruction::class,
-            'startBuildHandPump' =>         \App\Controllers\Telegram\Commands\Actions\Camp\StartHandPumpConstruction::class,
+            // F3.B2 (v0.18.0): startBuildHandPump → genericStartBuild_HandPump
             'buildBlastFurnace' =>          \App\Controllers\Telegram\Commands\Actions\Camp\BlastFurnaceConstruction::class,
             // F3.B1 (v0.17.0): startBuildBlastFurnace → genericStartBuild_BlastFurnace (Buildings.php config)
             'buildWorkshop' =>              \App\Controllers\Telegram\Commands\Actions\Camp\WorkshopConstruction::class,
@@ -317,16 +317,16 @@ class CallbackqueryCommand extends SystemCommand
             'buildSolarStation' =>          \App\Controllers\Telegram\Commands\Actions\Camp\BuildSolarStationConstruction::class,
             // F3.B1 (v0.17.0): startBuildSolarStation → genericStartBuild_SolarStation
             'buildGreenhouse' =>            \App\Controllers\Telegram\Commands\Actions\Camp\BuildGreenHouseConstruction::class,
-            'startBuildGreenhouse' =>       \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildGreenhouseConstruction::class,
+            // F3.B2 (v0.18.0): startBuildGreenhouse → genericStartBuild_Greenhouse
             'buildGym' =>                   \App\Controllers\Telegram\Commands\Actions\Camp\BuildGymConstruction::class,
-            'startBuildGym' =>              \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildGymConstruction::class,
+            // F3.B2 (v0.18.0): startBuildGym → genericStartBuild_Gym
             'buildLaboratory' =>            \App\Controllers\Telegram\Commands\Actions\Camp\BuildLabConstruction::class,
             // F3.B1 (v0.17.0): startBuildLab → genericStartBuild_Laboratory
             'buildRoboticsWorkshop' =>      \App\Controllers\Telegram\Commands\Actions\Camp\BuildRoboticsWorkshopConstruction::class,
-            'startBuildRoboticsWorkshop' => \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildRoboticsWorkshopConstruction::class,
+            // F3.B2 (v0.18.0): startBuildRoboticsWorkshop → genericStartBuild_RoboticsWorkshop
             'building' =>                   \App\Controllers\Telegram\Commands\Actions\Camp\BuildingHandlerAction::class,
             'buildTeleportationCenter' =>   \App\Controllers\Telegram\Commands\Actions\Camp\BuildTeleportationCenterConstruction::class,
-            'startBuildTeleportCenter' =>   \App\Controllers\Telegram\Commands\Actions\Camp\StartBuildTeleportationCenterConstruction::class,
+            // F3.B2 (v0.18.0): startBuildTeleportCenter → genericStartBuild_TeleportationCenter
             'actionNameForArsenal' =>       \App\Controllers\Telegram\Commands\Actions\Camp\BuildArsenalConstruction::class,
             // F2.1 cutover (v0.3.0): Arsenal confirm-кнопка теперь шлёт
             // 'genericStartBuild_Arsenal' и попадает сюда. Legacy
