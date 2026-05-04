@@ -48,9 +48,6 @@ class DeathRouletteHandler extends Controller
      */
     public function process()
     {
-        // 1) Делаем задержку на 7 секунд (по условию)
-        sleep(7);
-
         // 2) Подключаем модели и DeathService
         $characterModel    = new CharacterModel();
         $deathService      = new DeathService();

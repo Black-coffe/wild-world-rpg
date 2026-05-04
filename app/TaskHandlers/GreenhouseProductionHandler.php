@@ -61,8 +61,6 @@ class GreenhouseProductionHandler extends Controller
      */
     public function handle()
     {
-        sleep(5);
-
         // 1) Получаем ID здания "Greenhouse"
         $greenhouseId = $this->getGreenhouseId();
         if (!$greenhouseId) {

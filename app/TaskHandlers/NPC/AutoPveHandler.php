@@ -141,8 +141,6 @@ class AutoPveHandler
 
         // Если победил игрок — удаляем NPC
         if ($winner->name === $playerData['name']) {
-            sleep(2); // для наглядности лога
-
             // 2. Обновляем статус в базе (необязательно)
             $this->npcSpawnModel->update($npcSpawnId, ['status' => 'dead']);
 

@@ -47,8 +47,6 @@ class BaseRelocationCompletionHandler extends Controller
      */
     public function handle(array $task)
     {
-        // 0) Делаем паузу на 25 секунд (по условию)
-        sleep(11);
         $db = \Config\Database::connect();
         $db->reconnect();
 

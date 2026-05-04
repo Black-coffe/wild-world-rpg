@@ -182,8 +182,11 @@ class EventActivationHandler
         $counter = 0; // Счетчик отправленных сообщений
 
         foreach ($allTelegramUsers as $telegramUser) {
-            if ($counter > 0 && $counter % 50 == 0) { // После каждых 50 сообщений
-                sleep(5); // Пауза на 5 секунд
+            // Telegram global rate limit ≈ 30 msg/sec.
+            // 35 ms между сообщениями = ~28 msg/sec — под лимитом, без блока всего Worker'а.
+            // TODO (F1.2): заменить на codeigniter4/queue с rate-limit consumer'ом.
+            if ($counter > 0) {
+                usleep(35000);
             }
             $this->sendMessageToAllUsers($message, $imgPath, $telegramUser['telegram_id']);
             $counter++;

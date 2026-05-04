@@ -37,7 +37,6 @@ class QuestFirstAidkitBasicHandler
 
     public function process()
     {
-        sleep(5);
         $quest = $this->questModel->where('title_en', 'FirstAidkitBasic')->first();
         if (!$quest) {
             log_message('error', "Квест Крафт аптечки базовой не найден в базе");
