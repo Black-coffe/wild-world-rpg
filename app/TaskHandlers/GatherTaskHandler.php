@@ -21,9 +21,12 @@ use Longman\TelegramBot\Telegram;
 use Longman\TelegramBot\Exception\TelegramException;
 use App\Libraries\BiomeResourceModifier;
 use App\Libraries\ToolManager;
+use App\Services\Player\Gather\GatherFormulaService;
 
 class GatherTaskHandler extends Controller
 {
+    private GatherFormulaService $formulaService;
+
     protected $characterModel;
     protected $characterResourceModel;
     protected $characterTaskModel;
@@ -63,6 +66,10 @@ class GatherTaskHandler extends Controller
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
         $this->biomeResourceModifier  = new BiomeResourceModifier();
         $this->toolManager            = new ToolManager();
+        // F2.7 first slice: чистые формулы (rarities/baseQty/healthFactor/spentMinutes)
+        // вынесены в GatherFormulaService. Полная декомпозиция (event modifiers,
+        // tool durability, save resources, notify) — F2.7b.
+        $this->formulaService         = new GatherFormulaService();
 
         $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
@@ -337,63 +344,23 @@ class GatherTaskHandler extends Controller
         return 1.0;
     }
 
+    // F2.7 first slice: getAllowedRarities / getBaseQuantityByRarity /
+    // getHealthTirednessFactor вынесены в App\Services\Player\Gather\GatherFormulaService.
+    // Делегирующие методы оставлены для backward-compat внутреннего вызова
+    // calculateFoundResources в этом классе.
     protected function getAllowedRarities(int $level): array
     {
-        if ($level <= 1) {
-            return [10];
-        } elseif ($level <= 2) {
-            return [9, 10];
-        } elseif ($level <= 3) {
-            return [8, 9, 10];
-        } elseif ($level <= 4) {
-            return [7, 8, 9, 10];
-        } elseif ($level <= 5) {
-            return [6, 7, 8, 9, 10];
-        } elseif ($level <= 6) {
-            return [5, 6, 7, 8, 9, 10];
-        } elseif ($level <= 7) {
-            return [4, 5, 6, 7, 8, 9, 10];
-        } elseif ($level <= 8) {
-            return [3, 4, 5, 6, 7, 8, 9, 10];
-        } elseif ($level <= 9) {
-            return [2, 3, 4, 5, 6, 7, 8, 9, 10];
-        } else {
-            return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        }
+        return $this->formulaService->getAllowedRarities($level);
     }
 
     protected function getBaseQuantityByRarity(int $rarity): int
     {
-        return match ($rarity) {
-            10 => 60,
-            9  => 58,
-            8  => 50,
-            7  => 38,
-            6  => 25,
-            5  => 18,
-            4  => 10,
-            3  => 5,
-            2  => 3,
-            1  => 2,
-            default => 0,
-        };
+        return $this->formulaService->getBaseQuantityByRarity($rarity);
     }
 
     protected function getHealthTirednessFactor(array $character): float
     {
-        $healthVal = ($character['health'] - 50) / 50.0;
-        $tiredVal  = ($character['tired']  - 50) / 50.0;
-
-        $sumHT = $healthVal + $tiredVal;
-        $factor = 1 + (0.125 * $sumHT);
-
-        if ($factor < 0.1) {
-            $factor = 0.1;
-        } elseif ($factor > 2.0) {
-            $factor = 2.0;
-        }
-
-        return $factor;
+        return $this->formulaService->getHealthTirednessFactor($character);
     }
 
     protected function applyDrynessPenalty(array $foundResources, array $drynessEvent): array
@@ -459,15 +426,8 @@ class GatherTaskHandler extends Controller
 
     protected function calculateSpentMinutes(string $startTime, string $endTime): int
     {
-        $start = new DateTime($startTime);
-        $end   = new DateTime($endTime);
-        $diff  = $start->diff($end);
-
-        $minutes = $diff->days * 24 * 60;
-        $minutes += $diff->h * 60;
-        $minutes += $diff->i;
-
-        return $minutes;
+        // F2.7 first slice: вынесено в GatherFormulaService.
+        return $this->formulaService->calculateSpentMinutes($startTime, $endTime);
     }
 
     protected function saveFoundResources(array $foundResources, array $character, array $task): void
