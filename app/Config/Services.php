@@ -28,4 +28,24 @@ class Services extends BaseService
         return new \App\Libraries\Authentication;
     }
 
+    /**
+     * F2.6 — singleton-репозиторий персонажа.
+     *
+     * Использовать так:
+     *   $repo = service('characterRepository');
+     *   $character = $repo->findByTelegramUserId($userId);
+     *
+     * В тестах подменяется через `Services::injectMock()`, что позволяет
+     * домен-сервисам работать с in-memory implementation вместо БД.
+     *
+     * @return \App\Repositories\Contracts\CharacterRepositoryInterface
+     */
+    public static function characterRepository($getShared = true)
+    {
+        if ($getShared) {
+            return static::getSharedInstance('characterRepository');
+        }
+        return new \App\Repositories\CI4CharacterRepository();
+    }
+
 }

@@ -270,8 +270,9 @@ class FlashForestFireHandler extends Controller
             ]
         ];
 
-        // Путь к картинке (допустим, forest_fire.png)
-        $photoPath = base_url('uploads/telegram/huge_forest_fires.png');
+        // Путь к картинке. encodeFile делает fopen() — нужен ЛОКАЛЬНЫЙ путь,
+        // не URL. base_url() даёт URL и при пустом app.baseURL (cron) валится.
+        $photoPath = FCPATH . 'uploads/telegram/huge_forest_fires.png';
 
         try {
             Request::sendPhoto([
