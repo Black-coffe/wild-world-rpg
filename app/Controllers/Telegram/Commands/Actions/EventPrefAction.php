@@ -2,6 +2,7 @@
 
 namespace App\Controllers\Telegram\Commands\Actions;
 
+use App\Services\Events\KindLabels;
 use Longman\TelegramBot\Request;
 
 /**
@@ -82,13 +83,14 @@ final class EventPrefAction extends BaseAction
             if ($kind === '') {
                 return null;
             }
+            $label = KindLabels::ru($kind);
             $muted = (array)($pref['muted_kinds'] ?? []);
             if (in_array($kind, $muted, true)) {
                 $muted   = array_values(array_filter($muted, fn($k) => $k !== $kind));
-                $confirm = "🔔 Нотіфікації типу '{$kind}' знов увімкнено";
+                $confirm = "🔔 Подій {$label} знов увімкнено";
             } else {
                 $muted[] = $kind;
-                $confirm = "🚫 Нотіфікації типу '{$kind}' вимкнено";
+                $confirm = "🚫 Подій {$label} більше не буде";
             }
             $pref['muted_kinds'] = $muted;
             return ['pref' => $pref, 'confirm' => $confirm];

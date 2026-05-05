@@ -369,6 +369,8 @@ final class NotificationPolicy
      */
     private function buildStartKeyboard(string $effectKind): array
     {
+        $kindLabel = KindLabels::ru($effectKind);
+
         return [
             'inline_keyboard' => [
                 [
@@ -377,7 +379,7 @@ final class NotificationPolicy
                 ],
                 [
                     ['text' => '🚫 Не показывать 1 час', 'callback_data' => 'eventPref_mute_1h'],
-                    ['text' => "🚫 Не такие события", 'callback_data' => "eventPref_muteKind_{$effectKind}"],
+                    ['text' => "🚫 Без подій {$kindLabel}", 'callback_data' => "eventPref_muteKind_{$effectKind}"],
                 ],
             ],
         ];
