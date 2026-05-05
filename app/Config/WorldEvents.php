@@ -26,6 +26,10 @@ use CodeIgniter\Config\BaseConfig;
  *                             F7.10 migration; зараз DB має значно більші)
  *   - 'frequency_weight'    : вага в weighted random_choice (F7.9 семантика;
  *                             замінює DB.frequency_per_week)
+ *   - 'tick_chance'         : float 0..1 — ймовірність dispatch'а на одному tick'у.
+ *                             Дзеркало legacy `mt_rand(1,100) > X` гейтів усередині
+ *                             handler'ів (Hurricane=0.35, Epidemic=0.10, Fever=1.0).
+ *                             Дисспетчер F7.3 гейтить compute() по цьому полю.
  *   - 'protection_item'     : keyword crafted_item, який застосовує -50% damage
  *                             або +50% buff коли є в інвентарі (F7.7)
  *   - 'notification_kind'   : 'lifecycle' (start+end summary) | 'silent' | 'critical'
@@ -115,6 +119,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
+            'tick_chance'       => 0.35,  // legacy HurricaneHandler 35% gate
             'protection_item'   => 'Bandage',
             'notification_kind' => 'lifecycle',
         ],
@@ -136,6 +141,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
+            'tick_chance'       => 0.10,  // legacy NightAttacksHandler 10% gate
             'protection_item'   => null,  // F7.7: будь-яка зброя в інвентарі
             'notification_kind' => 'lifecycle',
         ],
@@ -150,6 +156,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 30,
             'frequency_weight'  => 1,
+            'tick_chance'       => 1.0,   // MeteorRain — apply on tick (rework з legacy random-cells)
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
@@ -170,6 +177,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 90,
             'frequency_weight'  => 1,
+            'tick_chance'       => 0.10,  // legacy EpidemicHandler 10% gate
             'protection_item'   => 'Antiseptic',
             'notification_kind' => 'lifecycle',
         ],
@@ -190,6 +198,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
+            'tick_chance'       => 0.20,  // legacy FlashForestFireHandler 20% gate
             'protection_item'   => 'WoodMaterials',  // символічна вогнезахисна обробка
             'notification_kind' => 'lifecycle',
         ],
@@ -205,6 +214,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
+            'tick_chance'       => 0.30,  // legacy SnowFallHandler 30% gate
             'protection_item'   => 'Bandage',
             'notification_kind' => 'lifecycle',
         ],
@@ -220,6 +230,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
+            'tick_chance'       => 0.30,  // legacy SpringFloodHandler 30% gate
             'protection_item'   => 'Bandage',
             'notification_kind' => 'lifecycle',
         ],
@@ -235,6 +246,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
+            'tick_chance'       => 0.30,  // legacy TremorHandler 30% gate
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
@@ -254,6 +266,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
+            'tick_chance'       => 0.30,  // legacy VolcanicEruptionHandler 30% gate
             'protection_item'   => null,  // F7.7: можливо HeatResistantGear
             'notification_kind' => 'lifecycle',
         ],
@@ -276,6 +289,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 90,
             'frequency_weight'  => 1,
+            'tick_chance'       => 0.25,  // legacy SandStormHandler 25% gate
             'protection_item'   => null,  // F7.7: SandGoggles
             'notification_kind' => 'lifecycle',
         ],
@@ -293,6 +307,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 90,  // було 860 (14г) — кардинально скорочено
             'frequency_weight'  => 1,
+            'tick_chance'       => 1.0,   // gather_debuff — це state, не tick
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
@@ -315,6 +330,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
+            'tick_chance'       => 1.0,   // legacy FeverHandler не мав top-level gate (тільки two_stage внутрі)
             'protection_item'   => 'Antiseptic',
             'notification_kind' => 'lifecycle',
         ],
@@ -329,6 +345,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 90,
             'frequency_weight'  => 1,
+            'tick_chance'       => 1.0,   // gather_debuff — це state, не tick
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
@@ -348,6 +365,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 90,
             'frequency_weight'  => 1,
+            'tick_chance'       => 0.18,  // legacy NorthernLightsHandler 18% gate
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
@@ -363,6 +381,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 35,    // швидка подія (як зараз)
             'frequency_weight'  => 5,     // має бути найчастішою (лор: «сотні падаючих зірок»)
+            'tick_chance'       => 0.20,  // legacy ShootingStarHandler 20% gate
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
@@ -379,6 +398,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
+            'tick_chance'       => 1.0,   // GoldGrant.compute робить власний chance_per_tick=0.06
             'protection_item'   => null,
             'notification_kind' => 'critical',  // золото > 5000 = override throttle
         ],
@@ -393,6 +413,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 90,
             'frequency_weight'  => 2,
+            'tick_chance'       => 0.15,  // legacy GeothermalSpringsHandler 15% gate
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
@@ -415,6 +436,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 45,
             'frequency_weight'  => 3,
+            'tick_chance'       => 0.10,  // legacy MountainEchoHandler 10% gate
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
@@ -435,6 +457,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 2,
+            'tick_chance'       => 1.0,   // RareResource.compute робить власний chance_per_tick=0.20
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
@@ -451,6 +474,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 90,
             'frequency_weight'  => 2,
+            'tick_chance'       => 1.0,   // RareResource.compute робить власний chance_per_tick=0.15
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
@@ -467,6 +491,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 2,
+            'tick_chance'       => 1.0,   // RareResource.compute робить власний chance_per_tick=0.10
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
@@ -483,6 +508,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 56,
             'frequency_weight'  => 2,
+            'tick_chance'       => 1.0,   // RareResource.compute робить власний chance_per_tick=0.10
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
@@ -509,6 +535,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 90,
             'frequency_weight'  => 1,
+            'tick_chance'       => 0.08,  // legacy MirageOasisHandler 8% gate
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
@@ -530,6 +557,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 90,
             'frequency_weight'  => 1,
+            'tick_chance'       => 0.10,  // нова подія, помірний gate (раз/10 хв apply)
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],

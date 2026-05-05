@@ -87,62 +87,29 @@ class Tasks extends BaseTasks
             ->everyMinute()->singleInstance()->named('handpump.produce');
 
         // ============================================================
-        // WORLD EVENTS — handler внутри сам делает probabilistic activate
+        // WORLD EVENTS — F7.3 cutover: 1 dispatcher замість 19 окремих
         // ============================================================
+        //
+        // EventActivationHandler — лишається (окрема відповідальність:
+        // активувати нові події з пулу events).
+        //
+        // EventTickHandler — НОВИЙ. Замінив 19 окремих event.* schedules
+        // (Hurricane, Snowfall, Fever, Volcanic, MeteorShower, Tremor, ...).
+        // Внутрі — EventDispatcher::tickAllActive() читає active_events,
+        // resolve через WorldEvents.php config + EffectResolver, dispatch
+        // на 10 effect-strategy classes (Damage/Heal/Boost/...).
+        //
+        // Старі handler-файли в app/TaskHandlers/Events/*Handler.php
+        // НЕ видалені — залишилися для швидкого rollback через git revert
+        // (F7.10 cleanup видалить їх після prod-stabilization).
+        //
+        // Див. mmorpg-vault/lore/refactor/F7-Audit.md (Step F7.3).
 
         $schedule->call(static fn() => (new \App\TaskHandlers\Events\EventActivationHandler())->process())
             ->everyMinute()->singleInstance()->named('event.activation');
 
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\EpidemicHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.epidemic');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\TremorHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.tremor');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\FeverHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.fever');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\VolcanicEruptionHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.volcanic');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\FlashForestFireHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.forest-fire');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\HurricaneHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.hurricane');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\SandStormHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.sandstorm');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\MeteorShowerHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.meteor-shower');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\DungeonOpeningHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.dungeon-opening');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\MountainEchoHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.mountain-echo');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\NightAttacksHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.night-attacks');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\GoldVeinHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.gold-vein');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\SnowFallHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.snowfall');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\NorthernLightsHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.northern-lights');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\ShootingStarHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.shooting-star');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\GeothermalSpringsHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.geothermal');
-
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\MirageOasisHandler())->process())
-            ->everyMinute()->singleInstance()->named('event.mirage-oasis');
+        $schedule->call(static fn() => (new \App\TaskHandlers\Events\EventTickHandler())->process())
+            ->everyMinute()->singleInstance()->named('event.tick');
 
         // ============================================================
         // WORLD CONTENT — генерация объектов и NPC-спавн
