@@ -50,8 +50,9 @@ final class EventPrefActionTest extends CIUnitTestCase
         $update = EventPrefAction::computeUpdate('eventPref_muteKind_damage_health', []);
         $this->assertNotNull($update);
         $this->assertSame(['damage_health'], $update['pref']['muted_kinds']);
-        $this->assertStringContainsString("'damage_health'", $update['confirm']);
-        $this->assertStringContainsString('вимкнено', $update['confirm']);
+        // v0.32.1: confirm має human-readable label замість enum-ID
+        $this->assertStringContainsString('з уроном', $update['confirm']);
+        $this->assertStringContainsString('більше не буде', $update['confirm']);
     }
 
     public function testMuteKindTogglesOff(): void
@@ -61,6 +62,7 @@ final class EventPrefActionTest extends CIUnitTestCase
 
         $this->assertSame(['heal'], $update['pref']['muted_kinds'],
             'damage_health має бути видалено з muted_kinds');
+        $this->assertStringContainsString('з уроном', $update['confirm']);
         $this->assertStringContainsString('увімкнено', $update['confirm']);
     }
 
