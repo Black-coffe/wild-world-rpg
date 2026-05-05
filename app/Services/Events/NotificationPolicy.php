@@ -12,20 +12,20 @@ use Longman\TelegramBot\Telegram;
 use Throwable;
 
 /**
- * F7.5 — центральна політика анти-спам нотіфікацій для world events.
+ * F7.5 — центральная политика анти-спам уведомлений для world events.
  *
- * Owns ВСІ event-related Telegram messaging:
- *   - sendStart() : однократне повідомлення про новий event (тільки гравцям у
- *                   affected biomes — sectoring замість broadcast)
- *   - sendEnd()   : однократна end-summary з агрегатом (з EventCloseHandler)
+ * Управляет ВСЕ event-related Telegram messaging:
+ *   - sendStart() : однократное сообщение про новый event (только игрокам у
+ *                   affected biomes — sectoring вместо broadcast)
+ *   - sendEnd()   : однократное end-summary с агрегатом (с EventCloseHandler)
  *
  * Правила анти-спаму:
- *   - **Sectoring**: для local подій шлемо тільки гравцям з biome_id у event.biome_ids;
- *     для global (всі 9 біомів) — все ж таки broadcast.
- *   - **Throttle**: 1 нотіфікація / користувач / година (за `event_pref.last_event_notification_at`).
- *     Override якщо magnitude >= critical thresholds (HP loss > 25%, gold > 5000, ...).
- *   - **Mute**: якщо `event_pref.silenced_until > NOW` → skip усіх нотіфікацій.
- *   - **Kind-mute**: якщо `effect_kind` у `event_pref.muted_kinds` → skip.
+ *   - **Sectoring**: для local событий шлемо только игрокам с biome_id в event.biome_ids;
+ *     для global (все 9 биомов) — все ж равно broadcast.
+ *   - **Throttle**: 1 уведомления / пользователь / час (за `event_pref.last_event_notification_at`).
+ *     Override если magnitude >= critical thresholds (HP loss > 25%, gold > 5000, ...).
+ *   - **Mute**: если `event_pref.silenced_until > NOW` → skip всех уведомлений.
+ *   - **Kind-mute**: если `effect_kind` в `event_pref.muted_kinds` → skip.
  *
  * Структура `event_pref`:
  * ```json
@@ -63,7 +63,7 @@ final class NotificationPolicy
     // ============================================================
 
     /**
-     * Надіслати start-нотіфікацію (sectored + throttled).
+     * Отправить start-уведомлению (sectored + throttled).
      *
      * @return array{sent: int, skipped_throttle: int, skipped_mute: int, skipped_no_chat: int, errors: int}
      */
@@ -94,8 +94,8 @@ final class NotificationPolicy
                     continue;
                 }
 
-                // Start-нотіфікації НЕ throttle'ються (це разова подія, не tick'и).
-                // Throttle більше актуальний для end-summary в спаммерських сценаріях.
+                // Start-уведомлении НЕ throttle'ються (це разова событие, не tick'и).
+                // Throttle больше актуальний для end-summary в спамерских сценариях.
                 $sent = $this->doSend((int)$tgUser['telegram_id'], $message, $imgPath, $keyboard);
                 if ($sent) {
                     $this->recordSent((int)$tgUser['id'], $pref);
@@ -118,9 +118,9 @@ final class NotificationPolicy
     }
 
     /**
-     * Надіслати end-summary з аккумульованими deltas.
+     * Отправить end-summary с аккумулированими deltas.
      *
-     * @return bool true якщо повідомлення надіслано (false = skipped/error)
+     * @return bool true если сообщение отправлено (false = skipped/error)
      */
     public function sendEnd(array $char, array $eventRow, array $eventConfig, array $aggregate): bool
     {
@@ -136,8 +136,8 @@ final class NotificationPolicy
             return false;
         }
 
-        // End-summary throttle: skip якщо нещодавно вже шли,
-        // КРІМ випадку коли magnitude critical (override).
+        // End-summary throttle: skip если недавно уже отправляли,
+        // КРОМЕ случав когда magnitude critical (override).
         if (!$this->magnitudeOverrides($aggregate) && $this->isThrottled($pref)) {
             return false;
         }
@@ -162,7 +162,7 @@ final class NotificationPolicy
     // ============================================================
 
     /**
-     * Прочитати event_pref з telegram_user row (resilient до NULL/невалідного JSON).
+     * Прочитать event_pref с telegram_user row (resilient до NULL/невалидного JSON).
      */
     public function readUserPref(array $tgUser): array
     {
@@ -175,7 +175,7 @@ final class NotificationPolicy
     }
 
     /**
-     * Перевірити чи muted (silenced_until активний АБО kind у muted_kinds).
+     * Проверить, muted (silenced_until активный АБО kind в muted_kinds).
      */
     public function isMuted(array $pref, string $effectKind = ''): bool
     {
@@ -193,7 +193,7 @@ final class NotificationPolicy
     }
 
     /**
-     * Чи юзер throttled (відправляли нотіфікацію менше cfg.notificationThrottleMinutes тому).
+     * Если юзер throttled (отправляли уведомлению меньше cfg.notificationThrottleMinutes назад).
      */
     public function isThrottled(array $pref): bool
     {
@@ -206,16 +206,16 @@ final class NotificationPolicy
     }
 
     /**
-     * Чи magnitude події перевищує critical threshold (override throttle).
+     * Если magnitude события превышуесть critical threshold (override throttle).
      *
-     * Працює з aggregate (з accumulator) АБО з single-tick magnitude (з compute).
+     * Работает с Aggregate (с Accumulator) АБО с single-tick magnitude (з compute).
      */
     public function magnitudeOverrides(array $magnitudeOrAggregate): bool
     {
         $triggers = $this->cfg->criticalMagnitudeTriggers;
 
-        // 1) HP loss percent (аккумульовано: agg['health_delta'] negative;
-        //    одиничний tick: magnitude['health_loss_percent'])
+        // 1) HP loss percent (аккумулировано: agg['health_delta'] negative;
+        //    единичний tick: magnitude['health_loss_percent'])
         $hpLossPct = (float)($magnitudeOrAggregate['health_loss_percent'] ?? 0);
         if ($hpLossPct >= (float)$triggers['health_loss_percent_above']) {
             return true;
@@ -248,7 +248,7 @@ final class NotificationPolicy
     }
 
     /**
-     * Записати last_event_notification_at в event_pref.
+     * Записать last_event_notification_at в event_pref.
      */
     public function recordSent(int $tgUserId, array $pref): void
     {
@@ -263,7 +263,7 @@ final class NotificationPolicy
     // ============================================================
 
     /**
-     * Резолв biome_ids з events.biome_ids JSON. Empty array означає global → ALL biomes.
+     * Резолвинг biome_ids с events.biome_ids JSON. Empty array означает global → ALL biomes.
      *
      * @return list<int>
      */
@@ -278,7 +278,7 @@ final class NotificationPolicy
     }
 
     /**
-     * Знайти characters в зазначених biomes (або всіх якщо порожній список = global).
+     * Найти characters в зазначених biomes (або всех если порожній список = global).
      *
      * @param list<int> $biomeIds
      * @return list<array<string, mixed>>
@@ -306,7 +306,7 @@ final class NotificationPolicy
             $msg .= "_{$description}_\n\n";
         }
         $msg .= "⏳ Продлится приблизительно: {$duration} мин.\n";
-        $msg .= "_Сводку отправим когда событие закончится._";
+        $msg .= "_Сводкв отправим когда событие закончится._";
 
         return $msg;
     }
@@ -357,15 +357,15 @@ final class NotificationPolicy
     }
 
     /**
-     * Кнопки для start-нотіфікації.
+     * Кнопки для start-уведомлении.
      *
      * Callback formats (F7.5b — handler EventPrefAction):
      *   - 'eventPref_mute_1h'              — silenced_until +1h
-     *   - 'eventPref_muteKind_<kind>'      — toggle kind у muted_kinds
+     *   - 'eventPref_muteKind_<kind>'      — toggle kind в muted_kinds
      *
-     * Двокрапки `:` НЕ використовуємо — Telegram передає, але CallbackRouter
-     * матчить через `_*` wildcard. Underscores у kind ('damage_health') —
-     * EventPrefAction парсить весь суфікс після prefix'а.
+     * Двоеточия `:` НЕ используем — Telegram передает, але CallbackRouter
+     * матчить через `_*` wildcard. Underscores в kind ('damage_health') —
+     * EventPrefAction парсить весь суффикс после prefix'а.
      */
     private function buildStartKeyboard(string $effectKind): array
     {
@@ -397,7 +397,7 @@ final class NotificationPolicy
             ],
         ];
 
-        // Додаткова кнопка якщо HP loss значний
+        // Додаткова кнопка если HP loss значний
         $hd = (float)($aggregate['health_delta'] ?? 0);
         if ($hd < -10) {
             $rows[] = [
@@ -413,11 +413,11 @@ final class NotificationPolicy
     }
 
     // ============================================================
-    // Telegram I/O (єдина точка)
+    // Telegram I/O (единствена точка)
     // ============================================================
 
     /**
-     * Універсальний send: photo якщо img_path, інакше text.
+     * Универсальний send: photo если img_path, иначе text.
      */
     private function doSend(int $chatId, string $text, ?string $imgPath, array $keyboard): bool
     {

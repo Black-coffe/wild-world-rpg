@@ -5,14 +5,14 @@ namespace App\Services\Events\Effects;
 use App\Services\Events\EventEffectInterface;
 
 /**
- * F7.2 — видача rare ресурсу. Використовується DungeonOpening (RevealingHiddenCameras),
+ * F7.2 — видача rare ресурсу. Используетться DungeonOpening (RevealingHiddenCameras),
  * BerryBoom, FishStock, ExoticFlowering.
  *
- * Pure-strategy: повертає `resource_grant_intents` (intent), а dispatcher F7.3
+ * Pure-strategy: возвращает `resource_grant_intents` (intent), а dispatcher F7.3
  * робить SQL-resolution: знаходить ResourceModel rows за keyword/biome_id/rarity
- * і додає в character_resources.
+ * и додаесть в character_resources.
  *
- * Підтримувані params:
+ * Підтримувани params:
  *   - resource_keyword   : string  — фільтр resources.keyword
  *   - rarity_filter      : ?int    — null або 1
  *   - amount_range       : [min, max]
@@ -38,7 +38,7 @@ final class RareResourceGrantEffect implements EventEffectInterface
             return EffectResultFactory::skipped('Не gathering');
         }
 
-        // Фільтр: biome_type_filter (наприклад, 'cave' для DungeonOpening)
+        // Фільтр: biome_type_filter (например, 'cave' для DungeonOpening)
         $biomeFilter = $params['biome_type_filter'] ?? null;
         if ($biomeFilter !== null) {
             $playerBiomeType = $context['biome']['biome_type'] ?? null;

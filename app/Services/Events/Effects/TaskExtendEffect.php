@@ -5,18 +5,18 @@ namespace App\Services\Events\Effects;
 use App\Services\Events\EventEffectInterface;
 
 /**
- * F7.2 — подовження активних задач + опційні side_effects (h/t/water loss).
- * Використовується MirageOases, PolarNight.
+ * F7.2 — подовження активних задач + опційни side_effects (h/t/water loss).
+ * Используетться MirageOases, PolarNight.
  *
- * Pure-strategy: повертає `task_extension_intent` (intent з filter + extra_minutes),
+ * Pure-strategy: возвращает `task_extension_intent` (intent с filter + extra_minutes),
  * dispatcher F7.3 робить SQL UPDATE на character_tasks.end_time.
  *
- * Підтримувані params:
- *   - task_filter         : list<string>  — наприклад ['Gather','ExploreTheArea']
+ * Підтримувани params:
+ *   - task_filter         : list<string>  — например ['Gather','ExploreTheArea']
  *   - extra_minutes_range : [min, max]
- *   - state_modifier      : array — на базі ефект ослаблений (як у damage_health)
+ *   - state_modifier      : array — на бази ефект ослаблений (як в damage_health)
  *   - side_effects        : array — опційно: water_loss_range / health_loss_range / tired_loss_range
- *   - grants_immunity_to  : list<string> — informational, dispatcher використовує для skip-ів
+ *   - grants_immunity_to  : list<string> — informational, dispatcher использует для skip-ів
  *
  * NB: фільтрацію власне activeEvent тасків (gather/explore in_work) робить dispatcher.
  */
@@ -58,7 +58,7 @@ final class TaskExtendEffect implements EventEffectInterface
             $tiredDelta  = -$loss;
             $logParts[]  = "-{$loss} вынос.";
         }
-        // water_loss_range — якщо буде окремий water-stat у characters; зараз skip.
+        // water_loss_range — если будет окремий water-stat в characters; зараз skip.
 
         return EffectResultFactory::make([
             'applied'              => true,

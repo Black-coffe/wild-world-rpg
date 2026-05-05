@@ -9,16 +9,16 @@ use App\Models\ResourceModel;
 use App\Models\TaskModel;
 
 /**
- * F7.3 — застосовує EffectResult intents до DB.
+ * F7.3 — применуесть EffectResult intents до DB.
  *
- * Effect-класи — чисті компуторы, повертають intent-array. IntentApplier
- * перетворює це в реальні DB-записи (CharacterModel update, character_resources
+ * Effect-классы — чисти компуторы, повертають intent-array. IntentApplier
+ * преобразует це в реальни DB-записи (CharacterModel update, character_resources
  * insert/update, character_tasks end_time +N minutes, тощо).
  *
- * Використовується з EventDispatcher::tickAllActive() для кожного character'а
- * після того як effect.compute() повернув applied=true.
+ * Используетться с EventDispatcher::tickAllActive() для кожного character'а
+ * после того як effect.compute() повернув applied=true.
  *
- * Усі моделі ін'єктовані через конструктор — легко мочити в тестах.
+ * Все модели ін'єктовани через конструктор — легко мочити в тестах.
  */
 final class IntentApplier
 {
@@ -34,9 +34,9 @@ final class IntentApplier
     /**
      * Застосувати ввесь EffectResult intent-array до конкретного character'а.
      *
-     * @param array<string, mixed> $character Поточний row з characters
-     * @param array<string, mixed> $result    EffectResult з effect.compute()
-     * @return array<string, mixed> Оновлений character (перечитаний з DB після writes)
+     * @param array<string, mixed> $character Поточний row с characters
+     * @param array<string, mixed> $result    EffectResult с effect.compute()
+     * @return array<string, mixed> Оновлений character (перечитаний с DB после writes)
      */
     public function apply(array $character, array $result): array
     {
@@ -96,23 +96,23 @@ final class IntentApplier
 
         // ============================================================
         // 5. Reveal cells intent (MountainEcho)
-        //    NB: dispatcher вирішує чи робити та як шле — тут не апалай.
-        //    Залишається в result як hint для notification.
+        //    NB: dispatcher вирішуесть или робити та як шле — тут не апалай.
+        //    Оставається в result як hint для notification.
         // ============================================================
 
         // ============================================================
         // 6. Gather modifier (Dryness, Locust)
         //    Не апалай — це state, читається GatherTaskHandler через
-        //    GatherEventModifierService (F2.7c вже існує).
-        //    Залишається в active_events як state.
+        //    GatherEventModifierService (F2.7c уже існує).
+        //    Оставається в active_events як state.
         // ============================================================
 
-        // Перечитати оновлений character (для caller'а — наприклад end-summary)
+        // Перечитати обновлений character (для caller'а — например end-summary)
         return $this->charModel->find($charId) ?? $character;
     }
 
     /**
-     * Знайти resource по keyword/biome/rarity та додати в character_resources.
+     * Найти resource по keyword/biome/rarity та додати в character_resources.
      *
      * @param array{keyword: ?string, biome_id: ?int, rarity: ?int, amount: int} $intent
      */
@@ -157,7 +157,7 @@ final class IntentApplier
     }
 
     /**
-     * MeteorRain — % втрата у всіх ресурсів character'а.
+     * MeteorRain — % втрата в всех ресурсів character'а.
      */
     private function applyResourceLossPercent(int $charId, float $percent): void
     {
@@ -190,7 +190,7 @@ final class IntentApplier
             return;
         }
 
-        // Знайти task_ids по name
+        // Найти task_ids по name
         $taskIds = array_column(
             $this->taskModel->whereIn('name', $filter)->findAll(),
             'id'
@@ -199,7 +199,7 @@ final class IntentApplier
             return;
         }
 
-        // Знайти активні character_tasks
+        // Найти активни character_tasks
         $activeTasks = $this->charTaskModel
             ->where('character_id', $charId)
             ->whereIn('task_id', $taskIds)

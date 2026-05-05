@@ -5,15 +5,15 @@ namespace App\Services\Events\Effects;
 use App\Services\Events\EventEffectInterface;
 
 /**
- * F7.2 — heal health/tired. Використовується GeothermalFountains.
+ * F7.2 — heal health/tired. Используетться GeothermalFountains.
  *
- * Підтримувані params:
+ * Підтримувани params:
  *   - heal_target       : 'health' | 'tired' | 'random_h_or_t' | 'both'
  *   - amount_range      : [min, max] — random rand(min, max)
- *   - cap               : float — не перевищувати (зазвичай 100)
- *   - one_shot_at_start : bool  — застосовувати раз/event/гравець (dispatcher вирішує)
+ *   - cap               : float — не превышувати (зазвичай 100)
+ *   - one_shot_at_start : bool  — применувати раз/event/игрок (dispatcher вирішує)
  *
- * Protection item НЕ застосовується (це buff, не damage).
+ * Protection item НЕ применується (це buff, не damage).
  */
 final class HealEffect implements EventEffectInterface
 {
@@ -57,7 +57,7 @@ final class HealEffect implements EventEffectInterface
         }
 
         if ($healthDelta === 0.0 && $tiredDelta === 0.0) {
-            return EffectResultFactory::skipped("Уже на капу ({$cap})");
+            return EffectResultFactory::skipped("Уже на капв ({$cap})");
         }
 
         return EffectResultFactory::make([

@@ -22,7 +22,7 @@ use Longman\TelegramBot\Telegram;
  * 4) Случайным образом выбирает 1 событие и "активирует" его:
  *    - рассчитывает продолжительность с учётом ±35% вариации,
  *    - записывает в active_events со статусом 'active',
- *    - уведомляет всех пользователей в Telegram, прикрепляя картинку и описание.
+ *    - уведомляет всех пользователей в Telegram, прикрепляя картинкв и описание.
  */
 class EventActivationHandler
 {
@@ -77,7 +77,7 @@ class EventActivationHandler
 
     /**
      * Основной метод, вызываемый планировщиком (cron) или внутренним игровым циклом.
-     * 1) Снимаем статус 'active' у событий, у которых end_time < $this->now => 'completed'.
+     * 1) Снимаем статус 'active' в событий, в которых end_time < $this->now => 'completed'.
      * 2) Проверяем, не превышено ли кол-во активных событий.
      * 3) Выбираем из таблицы events те, которые ещё не активировались на этой неделе и не превышают frequency_per_week.
      * 4) Проверяем интервал с момента последнего активированного события (540..1240 минут).
@@ -128,7 +128,7 @@ class EventActivationHandler
             // Активируем
             $this->activateEvent($randomEvent);
 
-            // Уведомляем всех игроков (транслируем картинку + описание)
+            // Уведомляем всех игроков (транслируем картинкв + описание)
             $this->notifyPlayersAboutEvent($randomEvent);
         }
     }
@@ -167,7 +167,7 @@ class EventActivationHandler
             }
         }
 
-        // Fallback (не повинно статись)
+        // Fallback (не должно статись)
         return $events[array_key_first($events)];
     }
 
@@ -232,10 +232,10 @@ class EventActivationHandler
             ->where('end_time <', $this->now)
             ->findAll();
 
-        // F7.4: перед закриттям події викликаємо EventCloseHandler який
-        // прочитає накопичений effect_log та надішле кожному гравцеві
-        // ОДНУ end-summary з агрегатом (замість 30 tick-нотіфікацій що
-        // були у legacy/F7.3).
+        // F7.4: перед закрыттям события вызоваємо EventCloseHandler який
+        // прочитаесть накопичений effect_log та надішле каждомв гравцеви
+        // ОДНУ end-summary с агрегатом (вместо 30 tick-нотіфікацій що
+        // були в legacy/F7.3).
         $closer = new \App\Services\Events\EventCloseHandler();
 
         foreach ($expiredEvents as $event) {
@@ -251,7 +251,7 @@ class EventActivationHandler
 
     /**
      * Активируем событие: рассчитываем случайную продолжительность (±35%),
-     * записываем новую строку в active_events со статусом 'active'.
+     * записываем новую строкв в active_events со статусом 'active'.
      *
      * @param array $event Информация о событии из таблицы events
      */
@@ -263,7 +263,7 @@ class EventActivationHandler
         // Считаем 35% от оригинальной длительности
         $variation = round($originalDuration * 0.35);
 
-        // Случайный выбор между -variation и +variation
+        // Случайный выбор междв -variation и +variation
         $randomVariation = rand(-$variation, $variation);
 
         // Итоговая длительность (не меньше 1 минуты)
@@ -313,10 +313,10 @@ class EventActivationHandler
     }
 
     /**
-     * F7.5 — делегує всю логіку нотіфікацій у NotificationPolicy:
-     *   - sectoring (тільки гравцям з biome_id у event.biome_ids)
+     * F7.5 — делегуесть всю логікв нотіфікацій в NotificationPolicy:
+     *   - sectoring (только гравцям с biome_id в event.biome_ids)
      *   - mute pref (silenced_until / muted_kinds)
-     *   - інтерактивні кнопки (mute_1h, mute_kind)
+     *   - інтерактивни кнопки (mute_1h, mute_kind)
      *
      * @param array $event Запись из таблицы events
      */
@@ -325,7 +325,7 @@ class EventActivationHandler
         $cfg    = config('WorldEvents');
         $config = $cfg->get($event['name_english']);
         if ($config === null) {
-            log_message('warning', "[EventActivation] event '{$event['name_english']}' немає в WorldEvents config — fallback на legacy broadcast");
+            log_message('warning', "[EventActivation] event '{$event['name_english']}' немаесть в WorldEvents config — fallback на legacy broadcast");
             // Fallback — legacy broadcast без sectoring
             $this->legacyBroadcast($event);
             return;
@@ -341,8 +341,8 @@ class EventActivationHandler
     }
 
     /**
-     * Legacy broadcast — тільки якщо WorldEvents.php не містить config події
-     * (наприклад для нової події, ще не зареєстрованої). Тимчасова compat-сітка.
+     * Legacy broadcast — только если WorldEvents.php не містить config подіи
+     * (например для новои подіи, ще не зареєстрованои). Временна compat-сітка.
      */
     private function legacyBroadcast(array $event): void
     {
@@ -362,7 +362,7 @@ class EventActivationHandler
     }
 
     /**
-     * Форматирует minutes в строку "X дн. Y чс. Z мин."
+     * Форматирует minutes в строкв "X дн. Y чс. Z мин."
      */
     protected function formatDuration(int $minutes): string
     {

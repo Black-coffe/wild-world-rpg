@@ -9,11 +9,11 @@ use Config\WorldEvents;
 use Throwable;
 
 /**
- * F7.4/F7.5 — обробка завершення події: читає накопичений effect_log
- * та делегує end-summary у NotificationPolicy (F7.5).
+ * F7.4/F7.5 — обробка завершення подіи: читаесть накопичений effect_log
+ * та делегуесть end-summary в NotificationPolicy (F7.5).
  *
- * Викликається з EventActivationHandler::updateExpiredEventsStatus()
- * перед тим як event row перейде у status='completed'.
+ * Вызовається с EventActivationHandler::updateExpiredEventsStatus()
+ * перед тим як event row перейде в status='completed'.
  */
 final class EventCloseHandler
 {
@@ -44,8 +44,8 @@ final class EventCloseHandler
     }
 
     /**
-     * Закрити подію: прочитати effect_log → надіслати summary кожному
-     * гравцеві → повернути stats.
+     * Закрыти подію: прочитать effect_log → отправитьи summary каждому
+     * игрокв → повернути stats.
      *
      * @return array{summaries_sent: int, summaries_skipped: int, errors: int}
      */
@@ -96,7 +96,7 @@ final class EventCloseHandler
     }
 
     /**
-     * Чи агрегат «порожній» (нічого корисного для summary).
+     * Если агрегат «порожній» (нічого корисного для summary).
      */
     private function isEmpty(array $agg): bool
     {

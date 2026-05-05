@@ -18,8 +18,8 @@ use InvalidArgumentException;
 /**
  * F7.2 — резолвер `effect_kind` enum → конкретного Effect-класу.
  *
- * Використовуватиметься у F7.3 EventTickHandler dispatcher'і для виклику
- * правильного Effect-класу за конфігом події.
+ * Використовуватиметься в F7.3 EventTickHandler dispatcher'и для вызову
+ * правильного Effect-класв за конфігом подіи.
  *
  * Use:
  *     $effect = EffectResolver::resolve('damage_health'); // returns DamageHealthEffect instance
@@ -44,7 +44,7 @@ final class EffectResolver
     ];
 
     /**
-     * Cache instances (всі ефект-класи stateless, можна reuse).
+     * Cache instances (все ефект-классы stateless, можна reuse).
      *
      * @var array<string, EventEffectInterface>
      */
@@ -76,8 +76,8 @@ final class EffectResolver
     }
 
     /**
-     * Перевірити, що всі VALID_EFFECT_KINDS мають mapping.
-     * Використовується тестом WorldEventsTest для конзистентності.
+     * Проверити, що все VALID_EFFECT_KINDS должны mapping.
+     * Используетться тестом WorldEventsTest для конзистентности.
      *
      * @return list<string> kinds без mapping (порожній список = ОК).
      */

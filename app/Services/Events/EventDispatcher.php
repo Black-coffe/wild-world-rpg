@@ -19,23 +19,23 @@ use Config\WorldEvents;
 use Throwable;
 
 /**
- * F7.3 — diспетчер для всіх 24 world events.
+ * F7.3 — diспетчер для всех 24 world events.
  *
- * Замінює функціональність 19 hand-rolled handler'ів через один прохід:
- *   1. Прочитати active_events (1 SQL).
+ * Замінюесть функциональність 19 hand-rolled handler'ів через один прохід:
+ *   1. Прочитать active_events (1 SQL).
  *   2. Для кожного active event:
- *      - Resolve config з WorldEvents.php
+ *      - Resolve config с WorldEvents.php
  *      - Tick chance gate (legacy parity)
  *      - Resolve effect class через EffectResolver
- *      - Знайти affected players (1 SQL per event)
+ *      - Найти affected players (1 SQL per event)
  *      - Для кожного: build context + compute + apply intents + notify
  *
- * Викликається з EventTickHandler::process() через Tasks.php scheduler
- * `event.tick` (everyMinute → singleInstance → один dispatcher замість 19).
+ * Вызовається с EventTickHandler::process() через Tasks.php scheduler
+ * `event.tick` (everyMinute → singleInstance → один dispatcher вместо 19).
  *
  * Notification policy F7.3:
- *   - Тимчасово зберігаємо tick-нотіфікації (legacy fidelity).
- *   - Уніфікований формат: фото з img_path + log_summary.
+ *   - Временно сохранаємо tick-уведомлении (legacy fidelity).
+ *   - Уніфікований формат: фото с img_path + log_summary.
  *   - F7.5 NotificationPolicy v2 переробить на start+end summary без tick spam.
  */
 final class EventDispatcher
@@ -90,7 +90,7 @@ final class EventDispatcher
     }
 
     /**
-     * Entry point — викликається з EventTickHandler.
+     * Entry point — вызовається с EventTickHandler.
      *
      * @return array<string, mixed> stats для логів: ['active_events' => N, 'players_affected' => M, ...]
      */
@@ -134,10 +134,10 @@ final class EventDispatcher
     {
         $eventId = (int)$activeEvent['event_id'];
 
-        // Резолв канонічного event row для name_english + biome_ids + img_path
+        // Резолвинг канонічного event row для name_english + biome_ids + img_path
         $eventRow = $this->eventModel->find($eventId);
         if (!$eventRow) {
-            log_message('warning', "[EventDispatcher] event_id={$eventId} відсутній у events");
+            log_message('warning', "[EventDispatcher] event_id={$eventId} отсутствій в events");
             return false;
         }
 
@@ -145,7 +145,7 @@ final class EventDispatcher
         $config = $this->cfg->get($nameEn);
 
         if ($config === null) {
-            log_message('warning', "[EventDispatcher] event '{$nameEn}' немає в WorldEvents.php config");
+            log_message('warning', "[EventDispatcher] event '{$nameEn}' немаесть в WorldEvents.php config");
             return false;
         }
 
@@ -158,10 +158,10 @@ final class EventDispatcher
         // Resolve effect class
         $effect = EffectResolver::resolve($config['effect_kind']);
 
-        // Знайти affected players
+        // Найти affected players
         $players = $this->findAffectedPlayers($eventRow);
 
-        // Збагатити activeEvent даними з canonical events row (effect_value)
+        // Збагатити activeEvent даними с canonical events row (effect_value)
         $enrichedActive = array_merge($activeEvent, [
             'effect_value' => $eventRow['effect_value'] ?? null,
             'name'         => $eventRow['name'],
@@ -179,12 +179,12 @@ final class EventDispatcher
                 $result  = $effect->compute($char, $config, $enrichedActive, $context);
 
                 if ($result['applied'] ?? false) {
-                    // Immediate apply (game state коректний у real-time)
+                    // Immediate apply (game state коректний в real-time)
                     $this->applier->apply($char, $result);
                     $this->handleRevealCells($char, $result);
-                    // Audit log (історія всіх дій)
+                    // Audit log (історія всех дій)
                     $this->logToDb($char, $eventId, $result);
-                    // F7.4: накопичуємо для end-summary (замість tick-нотіфікації)
+                    // F7.4: накопичуємо для end-summary (вместо tick-уведомлении)
                     $this->accumulator->accumulate(
                         (int)$activeEvent['id'],
                         (int)$char['id'],
@@ -192,8 +192,8 @@ final class EventDispatcher
                     );
                     $stats['effects_applied']++;
                 }
-                // F7.4: tick-нотіфікації прибрано. End-summary з агрегатом
-                // надсилає EventCloseHandler коли event переходить у completed.
+                // F7.4: tick-уведомлении убрано. End-summary с агрегатом
+                // посылааесть EventCloseHandler когда event переходить в completed.
             } catch (Throwable $e) {
                 $stats['errors']++;
                 log_message('error', "[EventDispatcher] char_id={$char['id']}: " . $e->getMessage());
@@ -204,7 +204,7 @@ final class EventDispatcher
     }
 
     /**
-     * Знайти characters в biomes events.biome_ids (або global = ALL).
+     * Найти characters в biomes events.biome_ids (або global = ALL).
      *
      * @return list<array<string, mixed>>
      */
@@ -214,19 +214,19 @@ final class EventDispatcher
         $biomes     = json_decode($biomesJson, true);
 
         if (!is_array($biomes) || empty($biomes)) {
-            // Global: усі characters
+            // Global: все characters
             return $this->charModel->findAll();
         }
 
-        // Local: characters в обраних біомах
+        // Local: characters в обраних биомах
         return $this->charModel->whereIn('biome_id', $biomes)->findAll();
     }
 
     /**
-     * Зібрати context для effect.compute() — на одному гравцеві.
+     * Собрать context для effect.compute() — на одномв игроку.
      *
      * @param array<string, mixed> $char
-     * @param ?string $protectionItem name_eng з WorldEvents config (F7.7)
+     * @param ?string $protectionItem name_eng с WorldEvents config (F7.7)
      * @return array<string, mixed>
      */
     private function buildContext(array $char, ?string $protectionItem = null): array
@@ -239,7 +239,7 @@ final class EventDispatcher
 
         $biome = $char['biome_id'] ? $this->biomeModel->find($char['biome_id']) : null;
 
-        // F7.7: перевірити чи є protection_item у інвентарі (-50% damage в effect)
+        // F7.7: проверити или есть protection_item в інвентари (-50% damage в effect)
         $hasProtection = false;
         if ($protectionItem !== null && $protectionItem !== '') {
             $row = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($protectionItem, $charId);
@@ -258,7 +258,7 @@ final class EventDispatcher
     }
 
     /**
-     * MountainEcho — викликає mapModel->getSurroundingCells() з compute-intent.
+     * MountainEcho — вызоваесть mapModel->getSurroundingCells() с compute-intent.
      */
     private function handleRevealCells(array $char, array $result): void
     {
@@ -272,17 +272,17 @@ final class EventDispatcher
             return;
         }
 
-        // Виклик MapModel — побічний ефект (відкриває cells), результат
-        // використовується dispatcher'ом для UX-нотіфікації.
+        // Вызов MapModel — побічний ефект (відкриваесть cells), результат
+        // используется dispatcher'ом для UX-уведомлении.
         $cells = $this->mapModel->getSurroundingCells($char['cell_number'], $count);
 
-        // Відмітимо cells у результаті, щоб notification міг показати coords
-        // (поки що — log_summary вже готовий).
+        // Відмітимо cells в результати, щоб notification міг показати coords
+        // (поки що — log_summary уже готовий).
         unset($cells);
     }
 
     /**
-     * Лог в event_effects_log (унифіковано для всіх effect kinds).
+     * Лог в event_effects_log (унифіковано для всех effect kinds).
      */
     private function logToDb(array $char, int $eventId, array $result): void
     {
@@ -308,6 +308,6 @@ final class EventDispatcher
     }
 
     // F7.4: sendTickNotification + ensureTelegramInitialized + resolveTelegramId
-    // переїхали в EventCloseHandler (формує end-summary при завершенні події).
-    // EventDispatcher більше не торкається Telegram'у на tick'ах.
+    // переихали в EventCloseHandler (формуесть end-summary при завершенни подіи).
+    // EventDispatcher больше не торкається Telegram'в на tick'ах.
 }

@@ -7,9 +7,9 @@ use App\Models\ActiveEventModel;
 /**
  * F7.4 — accumulator per-character deltas в active_events.effect_log JSON.
  *
- * Замість того щоб шлити tick-нотіфікацію на кожен dispatch, EventDispatcher
- * накопичує deltas сюди → EventCloseHandler читає при event end → формує
- * ОДНУ end-summary з агрегатом ("за подію Hurricane ти втратив сумарно 23 HP").
+ * Вместо того щоб шлити tick-уведомлению на каждый dispatch, EventDispatcher
+ * накопичуесть deltas сюди → EventCloseHandler читаесть при event end → формуесть
+ * ОДНУ end-summary с агрегатом ("за подію Hurricane ти втратив сумарно 23 HP").
  *
  * Структура effect_log JSON:
  * ```json
@@ -39,7 +39,7 @@ final class EffectAccumulator
     }
 
     /**
-     * Накопичити result в effect_log поточного active_event для гравця.
+     * Накопичити result в effect_log поточного active_event для игрока.
      */
     public function accumulate(int $activeEventId, int $charId, array $result): void
     {
@@ -92,7 +92,7 @@ final class EffectAccumulator
     }
 
     /**
-     * Прочитати акумульований лог для конкретного active_event.
+     * Прочитать акумульований лог для конкретного active_event.
      *
      * @return array<int, array<string, mixed>> map char_id → aggregated deltas
      */
@@ -105,7 +105,7 @@ final class EffectAccumulator
 
         $log = $this->decodeLog($row['effect_log'] ?? null);
 
-        // Повертаємо з int-ключами для зручності caller'а
+        // Возвращаетмо с int-ключами для зручности caller'а
         $out = [];
         foreach ($log as $charKey => $agg) {
             $out[(int)$charKey] = $agg;
@@ -114,8 +114,8 @@ final class EffectAccumulator
     }
 
     /**
-     * Перевірити, чи дано start-нотіфікацію конкретному гравцеві в цій події.
-     * Використовується для one_shot_at_start логіки.
+     * Проверити, или дано start-уведомлению конкретномв игрокв в цій подіи.
+     * Используетться для one_shot_at_start логіки.
      */
     public function isUserNotified(int $activeEventId, int $charId): bool
     {
@@ -128,7 +128,7 @@ final class EffectAccumulator
     }
 
     /**
-     * Позначити гравця як notified (start- або one_shot нотіфікація вже відправлена).
+     * Позначити игрока як notified (start- або one_shot уведомления уже отправлена).
      */
     public function markUserNotified(int $activeEventId, int $charId): void
     {
@@ -159,8 +159,8 @@ final class EffectAccumulator
     }
 
     /**
-     * Витягнути resource_grant_intents з compute-result для збереження.
-     * Тільки {keyword, amount} — biome_id не критичний для summary.
+     * Витягнути resource_grant_intents с compute-result для збереження.
+     * Только {keyword, amount} — biome_id не критичний для summary.
      *
      * @return list<array{keyword: ?string, amount: int}>
      */
@@ -178,7 +178,7 @@ final class EffectAccumulator
     }
 
     /**
-     * Поелементне додавання attribute deltas (могло бути strength у двох tick'ах).
+     * Поэлементне додавання attribute deltas (могло бути strength в двох tick'ах).
      *
      * @param array<string, float|int> $a
      * @param array<string, float|int> $b

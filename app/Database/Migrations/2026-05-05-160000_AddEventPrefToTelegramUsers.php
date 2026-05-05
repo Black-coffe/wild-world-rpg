@@ -5,7 +5,7 @@ namespace App\Database\Migrations;
 use CodeIgniter\Database\Migration;
 
 /**
- * F7.5 — додаємо event_pref JSON колонку в telegram_users.
+ * F7.5 — додаємо event_pref JSON колонкв в telegram_users.
  *
  * Структура event_pref:
  * ```json
@@ -16,12 +16,12 @@ use CodeIgniter\Database\Migration;
  * }
  * ```
  *
- * Використовується NotificationPolicy для:
- *   - throttle: max 1 event-нотіфікація/година (override на critical magnitude)
- *   - mute: silenced_until > now → skip нотіфікації
- *   - kind-mute: muted_kinds містить effect_kind події → skip
+ * Используетться NotificationPolicy для:
+ *   - throttle: max 1 event-уведомления/час (override на critical magnitude)
+ *   - mute: silenced_until > now → skip уведомлении
+ *   - kind-mute: muted_kinds містить effect_kind события → skip
  *
- * Nullable — backward compat (legacy users матимуть NULL = усі дефолти).
+ * Nullable — backward compat (legacy users матимуть NULL = все дефолти).
  *
  * Див. mmorpg-vault/lore/refactor/F7-Audit.md (Step F7.5).
  */

@@ -5,19 +5,19 @@ namespace App\Services\Events\Effects;
 use App\Services\Events\EventEffectInterface;
 
 /**
- * F7.2 — видача золота за формулою. Використовується GoldMine.
+ * F7.2 — видача золота за формулою. Используетться GoldMine.
  *
- * Формула 1:1 з GoldVeinHandler::calculateGoldFound:
+ * Формула 1:1 с GoldVeinHandler::calculateGoldFound:
  *   baseGold = rand(base_range)
  *   final = baseGold × (exp+agi+int)/stat_divisor × (effect_value/100)
  *
  * F7-новинки:
- *   - chance_per_tick    : 0.06 (6%) — gate перед обчисленням
- *   - requires_state     : 'gather' — не дає золота якщо не gathering
+ *   - chance_per_tick    : 0.06 (6%) — gate перед вычисленням
+ *   - requires_state     : 'gather' — не даесть золота если не gathering
  *   - cap_formula        : 'level_50' → min(gold, max(500, char.level × 50))
  *                          анти-power-creep: на 1 лвл до 500g, на 300 лвл до 15k
  *
- * Підтримувані cap_formula:
+ * Підтримувани cap_formula:
  *   - 'level_50'  : min(gold, max(500, level × 50))
  *   - 'level_100' : min(gold, max(1000, level × 100))
  *   - 'none'      : без cap (legacy behavior, ~50k variance)
@@ -72,7 +72,7 @@ final class GoldGrantEffect implements EventEffectInterface
         $gold = min($gold, $cap);
 
         if ($gold <= 0) {
-            return EffectResultFactory::skipped('Gold = 0 після формули');
+            return EffectResultFactory::skipped('Gold = 0 после формули');
         }
 
         return EffectResultFactory::make([

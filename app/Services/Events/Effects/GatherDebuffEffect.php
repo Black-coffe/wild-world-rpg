@@ -5,18 +5,18 @@ namespace App\Services\Events\Effects;
 use App\Services\Events\EventEffectInterface;
 
 /**
- * F7.2 — debuff на gather rate. Використовується Dryness, LocustExodus.
+ * F7.2 — debuff на gather rate. Используетться Dryness, LocustExodus.
  *
- * Pure-strategy: повертає `gather_modifier` (наприклад -0.30 для Dryness).
- * Реальне застосування — у GatherTaskHandler через GatherEventModifierService
- * (F2.7c вже існує і читає active_events; розширимо його щоб дивився Events.php
- * config у F7.3).
+ * Pure-strategy: возвращает `gather_modifier` (например -0.30 для Dryness).
+ * Реальне применення — в GatherTaskHandler через GatherEventModifierService
+ * (F2.7c уже існуесть и читаесть active_events; розширимо його щоб дивився Events.php
+ * config в F7.3).
  *
- * Підтримувані params:
- *   - gather_rate_modifier         : float — наприклад -0.30 (-30% gather)
- *   - water_consumption_multiplier : float — наприклад 2.0 (×2 водоспоживання)
+ * Підтримувани params:
+ *   - gather_rate_modifier         : float — например -0.30 (-30% gather)
+ *   - water_consumption_multiplier : float — например 2.0 (×2 водоспоживання)
  *   - food_only                    : bool — модифікатор лише для food-resources
- *   - biome_type_filter            : ?string — null = global; інакше тільки в типі біому
+ *   - biome_type_filter            : ?string — null = global; иначе только в типи биому
  */
 final class GatherDebuffEffect implements EventEffectInterface
 {
@@ -35,8 +35,8 @@ final class GatherDebuffEffect implements EventEffectInterface
 
         $modifier = (float)($params['gather_rate_modifier'] ?? 0.0);
 
-        // Це не tick-effect, це state — гравець має бути в курсі через start-нотіфікацію,
-        // а реальне застосування — у GatherTaskHandler. compute() повертає intent.
+        // Це не tick-effect, це state — игрок маесть бути в курси через start-уведомлению,
+        // а реальне применення — в GatherTaskHandler. compute() возвращает intent.
         return EffectResultFactory::make([
             'applied'         => true,
             'gather_modifier' => $modifier,

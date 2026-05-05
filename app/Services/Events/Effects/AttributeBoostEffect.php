@@ -5,18 +5,18 @@ namespace App\Services\Events\Effects;
 use App\Services\Events\EventEffectInterface;
 
 /**
- * F7.2 — буст випадкового атрибуту. Використовується Starfall, NorthernLights.
+ * F7.2 — буст случаового атрибуту. Используетться Starfall, NorthernLights.
  *
- * Поведінка 1:1 з ShootingStarHandler/NorthernLightsHandler:
- *   - Випадково з пулу: experience/health/strength/agility/intellect/tired/gold
- *   - Якщо атрибут health/tired/gold → integer rand(large_boost_range), cap=100
- *   - Якщо атрибут exp/str/agi/int → дробове rand(small_boost_range)
+ * Поведінка 1:1 с ShootingStarHandler/NorthernLightsHandler:
+ *   - Випадково с пулу: experience/health/strength/agility/intellect/tired/gold
+ *   - Если атрибут health/tired/gold → integer rand(large_boost_range), cap=100
+ *   - Если атрибут exp/str/agi/int → дробове rand(small_boost_range)
  *
- * Підтримувані params:
+ * Підтримувани params:
  *   - attribute_pool    : list<string>
  *   - small_boost_range : [min, max] — для stats
  *   - large_boost_range : [min, max] — для health/tired/gold
- *   - cap_h_t_g         : float — не перевищувати (зазвичай 100)
+ *   - cap_h_t_g         : float — не превышувати (зазвичай 100)
  *   - one_shot_at_start : bool  — раз за подію
  */
 final class AttributeBoostEffect implements EventEffectInterface
@@ -41,7 +41,7 @@ final class AttributeBoostEffect implements EventEffectInterface
             $value    = min($value, $headroom);
 
             if ($value <= 0) {
-                return EffectResultFactory::skipped("Атрибут {$attr} вже на капу");
+                return EffectResultFactory::skipped("Атрибут {$attr} уже на капу");
             }
         } else {
             $range = $params['small_boost_range'] ?? [1.00, 1.11];

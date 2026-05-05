@@ -5,13 +5,13 @@ namespace App\Services\Events\Effects;
 use App\Services\Events\EventEffectInterface;
 
 /**
- * F7.2 — обчислення health/tired damage для подій типу:
+ * F7.2 — вычислення health/tired damage для событий типа:
  * Hurricane, NightAttacks, Epidemic, FlashForestFire, Snowfall, SpringFlood,
  * Tremor, volcanic_eruption, Sandstorm, Fever.
  *
- * Об'єднує логіку 9 hand-rolled handler'ів через effect_params.
+ * Об'єднуесть логікв 9 hand-rolled handler'ів через effect_params.
  *
- * Підтримувані params (з WorldEvents.php):
+ * Підтримувани params (з WorldEvents.php):
  *   - damage_target           : 'health' | 'tired' | 'random_h_or_t' | 'both' | 'biome_type_specific'
  *   - state_modifier          : array{base_idle: float, biome_idle: float, biome_active: float}
  *   - level_scaling           : bool — застосувати (100-level)/100 коефіцієнт
@@ -22,15 +22,15 @@ use App\Services\Events\EventEffectInterface;
  *   - tired_ratio             : float — для damage_target='both', tired = damage * ratio
  *   - two_stage_chance        : float — додатковий первинний фільтр (0..1) перед state_modifier
  *   - biome_type_specific     : array — для Fever (wet/dry/default)
- *   - health_loss_range       : [min, max] — для Epidemic (з'єднується з biome_type_specific)
+ *   - health_loss_range       : [min, max] — для Epidemic (з'єднується с biome_type_specific)
  *   - tired_loss_range        : [min, max] — для Epidemic
- *   - sample_percent          : float — Epidemic обробляє 1% chars (sampling робить dispatcher)
- *   - time_window             : [HH:MM, HH:MM] — лише в нічні години (NightAttacks)
- *   - sleeping_player_skip    : int — skip якщо last_seen > N годин тому
- *   - attr_drain_pool         : list<string> — Sandstorm drain'ить 1 з атрибутів
- *   - attr_drain_value        : float — на скільки drain'ить (наприклад 0.01)
+ *   - sample_percent          : float — Epidemic обробляесть 1% chars (sampling робить dispatcher)
+ *   - time_window             : [HH:MM, HH:MM] — лише в нічни часа (NightAttacks)
+ *   - sleeping_player_skip    : int — skip если last_seen > N часов назад
+ *   - attr_drain_pool         : list<string> — Sandstorm drain'ить 1 с атрибутів
+ *   - attr_drain_value        : float — на скільки drain'ить (например 0.01)
  *
- * Усі формули збережено 1:1 з оригінальних handler'ів. Зміни в balance — окремо.
+ * Все формули збережено 1:1 с оригінальних handler'ів. Зміни в balance — окремо.
  */
 final class DamageHealthEffect implements EventEffectInterface
 {
@@ -56,7 +56,7 @@ final class DamageHealthEffect implements EventEffectInterface
         if (isset($params['sleeping_player_skip'])) {
             $lastSeenH = $context['last_seen_hours_ago'] ?? null;
             if ($lastSeenH !== null && $lastSeenH > $params['sleeping_player_skip']) {
-                return EffectResultFactory::skipped("Гравець спить ({$lastSeenH}г тому last_seen)");
+                return EffectResultFactory::skipped("Игрок спить ({$lastSeenH}г томв last_seen)");
             }
         }
 
@@ -71,7 +71,7 @@ final class DamageHealthEffect implements EventEffectInterface
         }
 
         // ====================================================
-        // Фільтр 4: state_modifier (база захищає, gather/explore = повний удар)
+        // Фільтр 4: state_modifier (база захищаесть, gather/explore = повний удар)
         // ====================================================
         $stateModifier = $params['state_modifier'] ?? ['base_idle' => 0.0, 'biome_idle' => 0.7, 'biome_active' => 1.0];
         $stateCoef     = EffectResultFactory::stateCoefficient($stateModifier, $context);
@@ -80,7 +80,7 @@ final class DamageHealthEffect implements EventEffectInterface
             return EffectResultFactory::skipped('Захищений (state_coef=0)');
         }
 
-        // Якщо state_coef є chance (Epidemic) — додатковий roll
+        // Если state_coef есть chance (Epidemic) — додатковий roll
         if ($stateCoef <= 1.0 && ($params['state_modifier_is_chance'] ?? false)) {
             $roll = mt_rand(1, 100) / 100.0;
             if ($roll > $stateCoef) {
@@ -90,11 +90,11 @@ final class DamageHealthEffect implements EventEffectInterface
         }
 
         // ====================================================
-        // Обчислення базового damage
+        // Вычислення базового damage
         // ====================================================
         $effectValue = (float)($activeEvent['effect_value'] ?? $eventConfig['effect_params']['effect_value'] ?? 30.0);
 
-        // damage_range має пріоритет (Snowfall: rand(1, 90))
+        // damage_range маесть пріоритет (Snowfall: rand(1, 90))
         if (isset($params['damage_range'])) {
             [$dmgMin, $dmgMax] = $params['damage_range'];
             $base = (float)mt_rand((int)$dmgMin, (int)$dmgMax);
@@ -114,7 +114,7 @@ final class DamageHealthEffect implements EventEffectInterface
             $base *= $levelFactor;
         }
 
-        // biome_factor (важче в небезпечних біомах)
+        // biome_factor (важче в небезпечних биомах)
         if (!empty($params['biome_factor'])) {
             $biome      = $context['biome'] ?? null;
             $danger     = (int)($biome['danger_level'] ?? 5);
@@ -122,13 +122,13 @@ final class DamageHealthEffect implements EventEffectInterface
             $base *= ($danger + $difficulty) / 20.0;
         }
 
-        // random_factor (±50% за замовчуванням)
+        // random_factor (±50% за умолчануванням)
         if (isset($params['random_factor'])) {
             [$rMin, $rMax] = $params['random_factor'];
             $base *= mt_rand((int)($rMin * 100), (int)($rMax * 100)) / 100.0;
         }
 
-        // Final damage з урахуванням state coefficient
+        // Final damage с урахуванням state coefficient
         $damage = round($base * $stateCoef, 2);
 
         // Protection item (F7.7) — -50% урону
@@ -194,7 +194,7 @@ final class DamageHealthEffect implements EventEffectInterface
         }
 
         // ====================================================
-        // Sandstorm: додаткова drain'ка випадкового атрибуту
+        // Sandstorm: додаткова drain'ка случаового атрибуту
         // ====================================================
         $attributeDeltas = [];
         if (isset($params['attr_drain_pool']) && isset($params['attr_drain_value'])) {

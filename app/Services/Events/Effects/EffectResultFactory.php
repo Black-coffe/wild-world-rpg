@@ -3,11 +3,11 @@
 namespace App\Services\Events\Effects;
 
 /**
- * F7.2 — фабрика для побудови EffectResult-array'їв.
+ * F7.2 — фабрика для побудови EffectResult-array'ив.
  *
- * Усі ефекти повертають однотипний array згідно EventEffectInterface contract.
- * Цей factory гарантує консистентну структуру, заповнюючи default'ами
- * усі поля, які конкретний effect не використовує.
+ * Все ефекти повертають однотипний array згідно EventEffectInterface contract.
+ * Цей factory гарантуесть консистентнв структуру, заповнююили default'ами
+ * все поля, яки конкретний effect не использует.
  *
  * Use:
  *     $r = EffectResultFactory::skipped('Не пройшов state-фільтр');
@@ -31,7 +31,7 @@ final class EffectResultFactory
     ];
 
     /**
-     * Зібрати EffectResult з override-полів. Усі необхідні дефолти вже заповнено.
+     * Собрать EffectResult с override-полів. Все необхідни дефолти уже заповнено.
      *
      * @param array<string, mixed> $overrides
      * @return array<string, mixed>
@@ -42,7 +42,7 @@ final class EffectResultFactory
     }
 
     /**
-     * Skipped result (effect не спрацював через probability/state/cooldown).
+     * Skipped result (effect не сработав через probability/state/cooldown).
      */
     public static function skipped(string $reason = ''): array
     {
@@ -53,8 +53,8 @@ final class EffectResultFactory
     }
 
     /**
-     * Resolve player_state з context.
-     * Повертає одне з: 'base_idle', 'biome_idle', 'biome_active'.
+     * Resolve player_state с context.
+     * Возвращает одне з: 'base_idle', 'biome_idle', 'biome_active'.
      */
     public static function playerStateKey(array $context): string
     {
@@ -78,7 +78,7 @@ final class EffectResultFactory
      * Apply state_modifier coefficient (0.0..1.0) до effect-magnitude
      * згідно поточного player state.
      *
-     * @param array<string, float> $stateModifier із eventConfig.effect_params.state_modifier
+     * @param array<string, float> $stateModifier іс eventConfig.effect_params.state_modifier
      */
     public static function stateCoefficient(array $stateModifier, array $context): float
     {

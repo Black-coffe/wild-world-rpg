@@ -6,18 +6,18 @@ use App\Services\Events\KindLabels;
 use Longman\TelegramBot\Request;
 
 /**
- * F7.5b — обробка кнопок mute/throttle на event-нотіфікаціях.
+ * F7.5b — обробка кнопок mute/throttle на event-уведомлениях.
  *
- * Підтримувані callback patterns (зареєстровано у CallbackqueryCommand):
+ * Підтримувани callback patterns (зареєстровано в CallbackqueryCommand):
  *   - 'eventPref_mute_1h'       → silenced_until = NOW + 1 година
- *   - 'eventPref_muteKind_<X>'  → toggle X у muted_kinds (X може містити
- *                                 '_': наприклад 'damage_health' → суфікс
- *                                 'damage_health' після prefix 'eventPref_muteKind_')
+ *   - 'eventPref_muteKind_<X>'  → toggle X в muted_kinds (X може містити
+ *                                 '_': например 'damage_health' → суффикс
+ *                                 'damage_health' после prefix 'eventPref_muteKind_')
  *
  * Поведінка:
- *   - Зчитує/оновлює telegram_users.event_pref JSON
- *   - answerCallbackQuery з підтвердженням (toast на 3 сек)
- *   - Не міняє оригінальне повідомлення (щоб гравець бачив контекст події)
+ *   - Зчитує/обновляесть telegram_users.event_pref JSON
+ *   - answerCallbackQuery с підтвердженням (toast на 3 сек)
+ *   - Не міняесть оригінальне сообщение (щоб игрок бачив контекст подіи)
  */
 final class EventPrefAction extends BaseAction
 {
@@ -59,8 +59,8 @@ final class EventPrefAction extends BaseAction
     }
 
     /**
-     * Pure-logic: обчислити новий pref + confirmation text для callback_data.
-     * Returns null якщо callback не зматчено.
+     * Pure-logic: вычислити новый pref + confirmation text для callback_data.
+     * Returns null если callback не зматчено.
      *
      * @param array<string, mixed> $currentPref
      * @return array{pref: array<string, mixed>, confirm: string}|null
@@ -109,7 +109,7 @@ final class EventPrefAction extends BaseAction
     }
 
     /**
-     * Прочитати event_pref JSON resilient (NULL/invalid → []).
+     * Прочитать event_pref JSON resilient (NULL/invalid → []).
      *
      * @param array<string, mixed> $user
      * @return array<string, mixed>

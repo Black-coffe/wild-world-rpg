@@ -5,33 +5,33 @@ namespace Config;
 use CodeIgniter\Config\BaseConfig;
 
 /**
- * F7.1 — декларативний registry усіх 24 world events (game-доменних подій).
+ * F7.1 — декларативний registry всех 24 world events (game-доменних событий).
  *
- * Назва `WorldEvents` (а не `Events`) тому що `Config\Events` зайнятий
+ * Названа `WorldEvents` (а не `Events`) томв що `Config\Events` зайнятий
  * фреймворком CodeIgniter для системних event-listeners (`pre_system` тощо).
  *
- * НЕ ENABLED у v0.27.0 — це паралельний source-of-truth для перевірки
- * через WorldEventsConfigTest. Реальне dispatch'ування з'явиться у F7.3
- * (EventTickHandler), коли effect-strategy classes будуть готові (F7.2).
+ * НЕ ENABLED в v0.27.0 — це паралельний source-of-truth для проверки
+ * через WorldEventsConfigTest. Реальне dispatch'ування з'явиться в F7.3
+ * (EventTickHandler), когда effect-strategy classes будут готови (F7.2).
  *
- * Замінює (поетапно, через F7.10 cleanup):
- *   - 19 hand-rolled handler'ів у app/TaskHandlers/Events/ (~5389 LOC)
- *   - hardcoded probability-gates у кожному handler'і
+ * Замінюесть (поетапно, через F7.10 cleanup):
+ *   - 19 hand-rolled handler'ів в app/TaskHandlers/Events/ (~5389 LOC)
+ *   - hardcoded probability-gates в каждомв handler'и
  *   - hardcoded `eventModel->where('name_english', X)->first()` lookup'и
  *
  * Структура запису:
- *   - 'effect_kind'         : один з 10 enum'ів — який клас Effect застосовувати
+ *   - 'effect_kind'         : один с 10 enum'ів — який клас Effect применувати
  *   - 'effect_params'       : kind-specific параметри
- *   - 'duration_minutes'    : цільова дюрація (замінює DB events.duration після
- *                             F7.10 migration; зараз DB має значно більші)
+ *   - 'duration_minutes'    : цільова дюрація (замінюесть DB events.duration после
+ *                             F7.10 migration; зараз DB маесть значительно більші)
  *   - 'frequency_weight'    : вага в weighted random_choice (F7.9 семантика;
- *                             замінює DB.frequency_per_week)
- *   - 'tick_chance'         : float 0..1 — ймовірність dispatch'а на одному tick'у.
- *                             Дзеркало legacy `mt_rand(1,100) > X` гейтів усередині
+ *                             замінюесть DB.frequency_per_week)
+ *   - 'tick_chance'         : float 0..1 — ймовірність dispatch'а на одномв tick'у.
+ *                             Дзеркало legacy `mt_rand(1,100) > X` гейтів усередини
  *                             handler'ів (Hurricane=0.35, Epidemic=0.10, Fever=1.0).
- *                             Дисспетчер F7.3 гейтить compute() по цьому полю.
- *   - 'protection_item'     : keyword crafted_item, який застосовує -50% damage
- *                             або +50% buff коли є в інвентарі (F7.7)
+ *                             Диспетчер F7.3 гейтить compute() по цьомв полю.
+ *   - 'protection_item'     : keyword crafted_item, який применуесть -50% damage
+ *                             або +50% buff когда есть в інвентари (F7.7)
  *   - 'notification_kind'   : 'lifecycle' (start+end summary) | 'silent' | 'critical'
  *
  * Effect kinds enum (10):
@@ -39,25 +39,25 @@ use CodeIgniter\Config\BaseConfig;
  *   - damage_resources     : відсоткова втрата stack ресурсів (MeteorRain rework)
  *   - heal                 : відновлення health/tired (GeothermalFountains)
  *   - attribute_boost      : +до stat або gold (Starfall, NorthernLights)
- *   - reveal_cells         : відкриває нові ячейки на мапі (MountainEcho)
- *   - gold_grant           : додає gold за формулою (GoldMine)
- *   - rare_resource_grant  : додає rare resource (DungeonOpening, BerryBoom, ...)
- *   - task_extend          : подовжує end_time активних задач (MirageOases, PolarNight)
- *   - gather_debuff        : знижує gather rate / збільшує водоспоживання (Dryness, ...)
- *   - noop                 : без механічного ефекту (резерв для майбутніх thematic подій)
+ *   - reveal_cells         : відкриваесть нови ячейки на мапи (MountainEcho)
+ *   - gold_grant           : додаесть gold за формулою (GoldMine)
+ *   - rare_resource_grant  : додаесть rare resource (DungeonOpening, BerryBoom, ...)
+ *   - task_extend          : подовжуесть end_time активних задач (MirageOases, PolarNight)
+ *   - gather_debuff        : знижуесть gather rate / збільшуесть водоспоживання (Dryness, ...)
+ *   - noop                 : без механічного ефектв (резерв для майбутніх thematic событий)
  *
  * State modifier (поширений):
  *   ['base_idle' => 0, 'biome_idle' => 0.7, 'biome_active' => 1.0]
- *   - base_idle    : гравець на базі, не Gather/Explore  → захищений (0%)
- *   - biome_idle   : гравець не на базі, не Gather/Explore → частковий ефект (~70%)
- *   - biome_active : гравець у Gather/Explore             → повний ефект (100%)
+ *   - base_idle    : игрок на бази, не Gather/Explore  → захищений (0%)
+ *   - biome_idle   : игрок не на бази, не Gather/Explore → частковий ефект (~70%)
+ *   - biome_active : игрок в Gather/Explore             → повний ефект (100%)
  *
  * Див. mmorpg-vault/lore/refactor/F7-Audit.md
  */
 class WorldEvents extends BaseConfig
 {
     /**
-     * Перелік валідних effect_kind enum'ів. Використовується WorldEventsConfigTest.
+     * Перелік валідних effect_kind enum'ів. Используетться WorldEventsConfigTest.
      */
     public const VALID_EFFECT_KINDS = [
         'damage_health',
@@ -77,8 +77,8 @@ class WorldEvents extends BaseConfig
      */
     public const VALID_NOTIFICATION_KINDS = [
         'lifecycle',  // start + end summary (default)
-        'silent',     // зовсім без нотіфікацій (фоновий ефект)
-        'critical',   // тільки якщо magnitude перевищує threshold
+        'silent',     // зовсем без уведомлений (фоновый ефект)
+        'critical',   // только если magnitude превышуесть threshold
     ];
 
     /**
@@ -100,12 +100,12 @@ class WorldEvents extends BaseConfig
      *     notification_kind: string,
      * }>
      *
-     * Ключ — `events.name_english` з БД (точне співпадіння). Поки що ключ
-     * залишається сполучною ланкою; у F7.10 додамо UUID-стабільний ключ.
+     * Ключ — `events.name_english` с БД (точне співпадіння). Поки що ключ
+     * оставається сполучною ланкою; в F7.10 додамо UUID-стабільний ключ.
      */
     public array $events = [
         // ============================================================
-        // 🌪 Damage-events (10 шт): погодні катаклізми, біом-специфічні
+        // 🌪 Damage-events (10 шт): погодни катаклізми, биом-специфічни
         // ============================================================
 
         'Hurricane' => [
@@ -133,8 +133,8 @@ class WorldEvents extends BaseConfig
                     'biome_idle'   => 0.5,
                     'biome_active' => 1.0,
                 ],
-                'time_window'          => ['20:00', '05:00'],  // лише в нічні години
-                'sleeping_player_skip' => 12,                  // skip якщо last_seen > 12h
+                'time_window'          => ['20:00', '05:00'],  // лише в нічни години
+                'sleeping_player_skip' => 12,                  // skip если last_seen > 12h
                 'level_scaling'        => false,
                 'biome_factor'         => false,
                 'random_factor'        => [0.7, 1.3],
@@ -142,7 +142,7 @@ class WorldEvents extends BaseConfig
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
             'tick_chance'       => 0.10,  // legacy NightAttacksHandler 10% gate
-            'protection_item'   => null,  // F7.7: будь-яка зброя в інвентарі
+            'protection_item'   => null,  // F7.7: будь-яка зброя в інвентари
             'notification_kind' => 'lifecycle',
         ],
 
@@ -156,7 +156,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 30,
             'frequency_weight'  => 1,
-            'tick_chance'       => 1.0,   // MeteorRain — apply on tick (rework з legacy random-cells)
+            'tick_chance'       => 1.0,   // MeteorRain — apply on tick (rework с legacy random-cells)
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
@@ -166,7 +166,7 @@ class WorldEvents extends BaseConfig
             'effect_params' => [
                 'damage_target'    => 'both',
                 'state_modifier'   => [
-                    'base_idle'    => 0.06,  // 6% chance заразитись на базі
+                    'base_idle'    => 0.06,  // 6% chance заразитись на бази
                     'biome_idle'   => 0.5,
                     'biome_active' => 0.9,
                 ],
@@ -252,8 +252,8 @@ class WorldEvents extends BaseConfig
         ],
 
         // ⚠️ name_english в БД = 'volcanic_eruption' (snake_case). НЕ міняємо ключ
-        // щоб lookup працював. У F7.10 переімінуємо в 'VolcanicEruption' разом з
-        // міграцією іменування у БД.
+        // щоб lookup работав. У F7.10 переімінуємо в 'VolcanicEruption' разом з
+        // міграцією іменування в БД.
         'volcanic_eruption' => [
             'effect_kind'   => 'damage_health',
             'effect_params' => [
@@ -262,7 +262,7 @@ class WorldEvents extends BaseConfig
                 'level_scaling'   => true,
                 'biome_factor'    => true,
                 'random_factor'   => [0.5, 1.5],
-                'base_damage_mul' => 10,  // calculateDamage у Volcanic множить на 10
+                'base_damage_mul' => 10,  // calculateDamage в Volcanic множить на 10
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
@@ -283,7 +283,7 @@ class WorldEvents extends BaseConfig
                 'level_scaling'    => true,
                 'biome_factor'     => true,
                 'random_factor'    => [0.5, 1.5],
-                // Додатковий ефект: -0.01 до випадкового атрибуту
+                // Додатковий ефект: -0.01 до случаового атрибуту
                 'attr_drain_pool'  => ['experience', 'strength', 'agility', 'intellect'],
                 'attr_drain_value' => 0.01,
             ],
@@ -330,7 +330,7 @@ class WorldEvents extends BaseConfig
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
-            'tick_chance'       => 1.0,   // legacy FeverHandler не мав top-level gate (тільки two_stage внутрі)
+            'tick_chance'       => 1.0,   // legacy FeverHandler не мав top-level gate (только two_stage внутрі)
             'protection_item'   => 'Antiseptic',
             'notification_kind' => 'lifecycle',
         ],
@@ -341,7 +341,7 @@ class WorldEvents extends BaseConfig
                 'gather_rate_modifier'         => -0.50,
                 'water_consumption_multiplier' => 1.0,
                 'food_only'                    => true,
-                'biome_type_filter'            => null,  // біом 6 (Поля) задається через DB.biome_ids
+                'biome_type_filter'            => null,  // биом 6 (Поля) задаеться через DB.biome_ids
             ],
             'duration_minutes'  => 90,
             'frequency_weight'  => 1,
@@ -351,7 +351,7 @@ class WorldEvents extends BaseConfig
         ],
 
         // ============================================================
-        // ✨ Buff events (5 шт): атрибутні бонуси
+        // ✨ Buff events (5 шт): атрибутни бонуси
         // ============================================================
 
         'NorthernLights' => [
@@ -361,7 +361,7 @@ class WorldEvents extends BaseConfig
                 'small_boost_range' => [1.00, 1.11],   // для exp/str/agi/int
                 'large_boost_range' => [1, 100],        // для health/tired/gold
                 'cap_h_t_g'         => 100,
-                'one_shot_at_start' => true,            // 1 boost / гравець / подія (не tick)
+                'one_shot_at_start' => true,            // 1 boost / игрок / событие (не tick)
             ],
             'duration_minutes'  => 90,
             'frequency_weight'  => 1,
@@ -379,8 +379,8 @@ class WorldEvents extends BaseConfig
                 'cap_h_t_g'         => 100,
                 'one_shot_at_start' => true,
             ],
-            'duration_minutes'  => 35,    // швидка подія (як зараз)
-            'frequency_weight'  => 5,     // має бути найчастішою (лор: «сотні падаючих зірок»)
+            'duration_minutes'  => 35,    // швидка событие (як зараз)
+            'frequency_weight'  => 5,     // маесть бути найчастішою (лор: «сотни падаючих зірок»)
             'tick_chance'       => 0.20,  // legacy ShootingStarHandler 20% gate
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
@@ -394,7 +394,7 @@ class WorldEvents extends BaseConfig
                 'effect_value_mul'  => true,             // × event.effect_value/100
                 'cap_formula'       => 'level_50',       // min(gold, max(500, level × 50))
                 'requires_state'    => 'gather',
-                'chance_per_tick'   => 0.06,             // 6% (1:1 з GoldVeinHandler)
+                'chance_per_tick'   => 0.06,             // 6% (1:1 с GoldVeinHandler)
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
@@ -431,7 +431,7 @@ class WorldEvents extends BaseConfig
                     500 => 50,
                     999 => 99,
                 ],
-                'on_base_modifier'  => 0.25,  // на базі ефект ослаблений (як зараз)
+                'on_base_modifier'  => 0.25,  // на бази ефект ослаблений (як зараз)
                 'one_shot_at_start' => true,
             ],
             'duration_minutes'  => 45,
@@ -451,9 +451,9 @@ class WorldEvents extends BaseConfig
                 'resource_keyword'   => 'berry',
                 'rarity_filter'      => null,
                 'amount_range'       => [2, 5],
-                'chance_per_tick'    => 0.20,            // 20% за tick (часта подія)
+                'chance_per_tick'    => 0.20,            // 20% за tick (часта событие)
                 'requires_state'     => 'gather',
-                'biome_type_filter'  => null,            // біом 1 (Лісостеп) задається DB.biome_ids
+                'biome_type_filter'  => null,            // биом 1 (Лісостеп) задаеться DB.biome_ids
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 2,
@@ -470,7 +470,7 @@ class WorldEvents extends BaseConfig
                 'amount_range'       => [1, 3],
                 'chance_per_tick'    => 0.15,
                 'requires_state'     => 'gather',
-                'biome_type_filter'  => null,            // біом 4 (Ріки) через DB
+                'biome_type_filter'  => null,            // биом 4 (Ріки) через DB
             ],
             'duration_minutes'  => 90,
             'frequency_weight'  => 2,
@@ -483,11 +483,11 @@ class WorldEvents extends BaseConfig
             'effect_kind'   => 'rare_resource_grant',
             'effect_params' => [
                 'resource_keyword'   => 'rare_flower',
-                'rarity_filter'      => 1,               // тільки rarity=1
+                'rarity_filter'      => 1,               // только rarity=1
                 'amount_range'       => [1, 2],
                 'chance_per_tick'    => 0.10,
                 'requires_state'     => 'gather',
-                'biome_type_filter'  => null,            // біом 5 (Тропіки) через DB
+                'biome_type_filter'  => null,            // биом 5 (Тропіки) через DB
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 2,
@@ -499,7 +499,7 @@ class WorldEvents extends BaseConfig
         'RevealingHiddenCameras' => [
             'effect_kind'   => 'rare_resource_grant',
             'effect_params' => [
-                'resource_keyword'   => 'RevealingHiddenCameras',  // 1:1 з handler
+                'resource_keyword'   => 'RevealingHiddenCameras',  // 1:1 с handler
                 'rarity_filter'      => 1,
                 'amount_range'       => [1, 3],
                 'chance_per_tick'    => 0.10,
@@ -514,7 +514,7 @@ class WorldEvents extends BaseConfig
         ],
 
         // ============================================================
-        // ⏱ Task-extend events (2 шт): подовжують активні задачі
+        // ⏱ Task-extend events (2 шт): подовжують активни задачи
         // ============================================================
 
         'MirageOases' => [
@@ -523,7 +523,7 @@ class WorldEvents extends BaseConfig
                 'task_filter'         => ['Gather', 'ExploreTheArea'],
                 'extra_minutes_range' => [1, 15],
                 'state_modifier'      => [
-                    'base_idle'    => 0.25,  // на базі ефект ослаблений
+                    'base_idle'    => 0.25,  // на бази ефект ослаблений
                     'biome_idle'   => 1.0,
                     'biome_active' => 1.0,
                 ],
@@ -553,31 +553,31 @@ class WorldEvents extends BaseConfig
                 'side_effects' => [
                     'tired_loss_range' => [1, 5],
                 ],
-                'grants_immunity_to' => ['NightAttacks'],  // компенсація: при Polar Night нічних нападників немає
+                'grants_immunity_to' => ['NightAttacks'],  // компенсація: при Polar Night нічних нападників немаесть
             ],
             'duration_minutes'  => 90,
             'frequency_weight'  => 1,
-            'tick_chance'       => 0.10,  // нова подія, помірний gate (раз/10 хв apply)
+            'tick_chance'       => 0.10,  // нова событие, помірний gate (раз/10 хв apply)
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
     ];
 
     /**
-     * Стандартний default для відсутнього protection_item factor.
-     * Якщо у player'а в інвентарі є вказаний crafted_item — застосовується
+     * Стандартний default для отсутствього protection_item factor.
+     * Если в player'а в інвентари есть вказаний crafted_item — применується
      * множник 0.5 (для damage) або 1.5 (для buff).
      */
     public float $protectionItemFactor = 0.5;
 
     /**
-     * Стандартний throttle для notifications: max 1 нотіфікація про події/година
-     * на гравця. Override magnitude triggers визначені у NotificationPolicy.
+     * Стандартний throttle для notifications: max 1 уведомления про подіи/година
+     * на игрока. Override magnitude triggers определени в NotificationPolicy.
      */
     public int $notificationThrottleMinutes = 60;
 
     /**
-     * Magnitude triggers, які пробивають throttle (надсилають незалежно від cap):
+     * Magnitude triggers, яки пробитають throttle (посылаають незалежно від cap):
      */
     public array $criticalMagnitudeTriggers = [
         'health_loss_percent_above'   => 25,    // > 25% HP loss від current
@@ -588,7 +588,7 @@ class WorldEvents extends BaseConfig
     ];
 
     /**
-     * @return array<string,mixed>|null Подія по name_english ключу, або null якщо
+     * @return array<string,mixed>|null Событие по name_english ключу, або null если
      *                                  ключ не зареєстрований.
      */
     public function get(string $eventKey): ?array
@@ -597,7 +597,7 @@ class WorldEvents extends BaseConfig
     }
 
     /**
-     * @return list<string> Зареєстровані ключі подій (name_english з БД).
+     * @return list<string> Зареєстровани ключи событий (name_english с БД).
      */
     public function keys(): array
     {

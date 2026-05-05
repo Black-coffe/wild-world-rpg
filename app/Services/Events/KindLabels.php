@@ -3,21 +3,21 @@
 namespace App\Services\Events;
 
 /**
- * v0.32.1 — людиномовні підписи для effect_kind enum.
+ * v0.32.1 — людиномовни підписи для effect_kind enum.
  *
- * Використовується:
- *   - NotificationPolicy.buildStartKeyboard / buildEndKeyboard — для тексту кнопки
- *     «🚫 Без подій з уроном» (замість незрозумілого «Не такие события»)
+ * Используетться:
+ *   - NotificationPolicy.buildStartKeyboard / buildEndKeyboard — для текств кнопки
+ *     «🚫 Без событий с уроном» (вместо незрозумілого «Не такие события»)
  *   - EventPrefAction.computeUpdate — для toast-confirmation
  *
- * Single source of truth — не дублюємо mapping у двох місцях.
+ * Single source of truth — не дублюємо mapping в двох місцях.
  *
- * Якщо у F7-серіях додасться новий effect_kind — додати рядок у $labels.
+ * Если в F7-серіях додасться новый effect_kind — додати рядок в $labels.
  */
 final class KindLabels
 {
     /**
-     * effect_kind → человеко-читаемое название (предложный падеж мн.:
+     * effect_kind → человеко-читаемое названание (предложный падеж мн.:
      * «без событий с ...»).
      */
     private const LABELS_RU = [
@@ -45,7 +45,7 @@ final class KindLabels
     }
 
     /**
-     * Чи відомий нам цей kind (для валідаційних тестів).
+     * Если відомий нам цей kind (для валідаційних тестів).
      */
     public static function isKnown(string $effectKind): bool
     {
