@@ -7,6 +7,7 @@ use App\Models\BiomeModel;
 use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Models\CharacterTaskModel;
+use App\Models\CraftedItemsLogModel;
 use App\Models\EventEffectsLogModel;
 use App\Models\EventModel;
 use App\Models\MapModel;
@@ -50,6 +51,7 @@ final class EventDispatcher
     private PlayerStateService $playerState;
     private IntentApplier $applier;
     private EffectAccumulator $accumulator;
+    private CraftedItemsLogModel $craftedItemsLogModel;
 
     public function __construct(
         ?WorldEvents $cfg = null,
@@ -63,6 +65,7 @@ final class EventDispatcher
         ?PlayerStateService $playerState = null,
         ?IntentApplier $applier = null,
         ?EffectAccumulator $accumulator = null,
+        ?CraftedItemsLogModel $craftedItemsLogModel = null,
     ) {
         $this->cfg              = $cfg              ?? config('WorldEvents');
         $this->eventModel       = $eventModel       ?? new EventModel();
@@ -73,6 +76,7 @@ final class EventDispatcher
         $this->mapModel         = $mapModel         ?? new MapModel();
         $this->logModel         = $logModel         ?? new EventEffectsLogModel();
         $this->playerState      = $playerState      ?? new PlayerStateService();
+        $this->craftedItemsLogModel = $craftedItemsLogModel ?? new CraftedItemsLogModel();
 
         $this->applier = $applier ?? new IntentApplier(
             $this->charModel,
@@ -165,11 +169,13 @@ final class EventDispatcher
             'img_path'     => $eventRow['img_path'] ?? null,
         ]);
 
+        $protectionItem = $config['protection_item'] ?? null;
+
         foreach ($players as $char) {
             $stats['players_evaluated']++;
 
             try {
-                $context = $this->buildContext($char);
+                $context = $this->buildContext($char, $protectionItem);
                 $result  = $effect->compute($char, $config, $enrichedActive, $context);
 
                 if ($result['applied'] ?? false) {
@@ -219,9 +225,11 @@ final class EventDispatcher
     /**
      * Зібрати context для effect.compute() — на одному гравцеві.
      *
+     * @param array<string, mixed> $char
+     * @param ?string $protectionItem name_eng з WorldEvents config (F7.7)
      * @return array<string, mixed>
      */
-    private function buildContext(array $char): array
+    private function buildContext(array $char, ?string $protectionItem = null): array
     {
         $charId = (int)$char['id'];
 
@@ -231,6 +239,13 @@ final class EventDispatcher
 
         $biome = $char['biome_id'] ? $this->biomeModel->find($char['biome_id']) : null;
 
+        // F7.7: перевірити чи є protection_item у інвентарі (-50% damage в effect)
+        $hasProtection = false;
+        if ($protectionItem !== null && $protectionItem !== '') {
+            $row = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($protectionItem, $charId);
+            $hasProtection = $row !== null && (int)($row['quantity'] ?? 0) > 0;
+        }
+
         return [
             'on_base'              => $onBase,
             'is_gathering'         => $isGather,
@@ -238,7 +253,7 @@ final class EventDispatcher
             'biome'                => $biome,
             'now_time'             => date('H:i'),
             'last_seen_hours_ago'  => null,  // F7.6: додати telegram_users.last_seen
-            'has_protection_item'  => false, // F7.7: hook
+            'has_protection_item'  => $hasProtection,
         ];
     }
 

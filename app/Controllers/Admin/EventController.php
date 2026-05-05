@@ -44,10 +44,14 @@ class EventController extends BaseController
         // Загрузка данных о биомах
         $biomes = $this->biomeModel->findAll(); // Убедитесь, что у вас есть модель для биомов и она загружена в контроллере
 
+        // F7.11: WorldEvents config для отображения effect_kind / tick_chance / etc. (read-only)
+        $worldConfig = config('WorldEvents')->get($event['name_english']);
+
         return view('admin/event_edit_form', [
-            'event' => $event,
-            'biomes' => $biomes, // Передача данных о биомах в представление
-            'title' => 'Редактирование события: ' . $event['name']
+            'event'       => $event,
+            'biomes'      => $biomes, // Передача данных о биомах в представление
+            'worldConfig' => $worldConfig,  // F7.11: ?array — null если name_english не зарегистрирован
+            'title'       => 'Редактирование события: ' . $event['name']
         ]);
     }
 
