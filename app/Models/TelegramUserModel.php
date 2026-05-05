@@ -22,6 +22,7 @@ class TelegramUserModel extends Model
         'last_name',
         'last_map_message_id',
         'last_map_message_created_at',
+        'event_pref',  // F7.5 — JSON для NotificationPolicy (throttle/mute prefs)
     ];
 
     protected $useTimestamps = true;
