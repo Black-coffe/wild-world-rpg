@@ -234,6 +234,236 @@ class CraftRecipes extends BaseConfig
             'image_completed'      => 'uploads/telegram/craft/simple_craft_kit.jpg',
             'craft_again_callback' => 'genericCraft_BasicMedKit_1',
         ],
+
+        // ============================================================
+        // F3.B6 (v0.22.0) — Components 10 крафтов
+        // ============================================================
+
+        'Wiring' => [
+            'task_name'            => 'craftWiring',
+            'resources'            => ['Мхи' => 2],
+            'crafted_items'        => ['metalFragments' => 3],
+            'image_in_progress'    => 'uploads/telegram/craft/components/wiring_craft.jpg',
+            'start_caption_name'   => '🔌 *Проводку*',
+            'info_callback'        => 'wiring',
+
+            'item_name_eng'        => 'wiring',
+            'item_name_rus'        => 'Проводка',
+            'icon_emoji'           => '🔌',
+            'zone_emoji'           => '🏭',
+            'zone_name'            => 'производство',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.03,
+            'image_completed'      => 'uploads/telegram/craft/components/wiring_craft.jpg',
+            'craft_again_callback' => 'genericCraft_Wiring_1',
+        ],
+
+        'Fabric' => [
+            'task_name'            => 'craftFabric',
+            'resources'            => [
+                'Шерсть животных'         => 10,
+                'Шёлк пауков-пустынников' => 1,
+                'Текстильные культуры'    => 10,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/components/craftFabric.jpg',
+            'start_caption_name'   => '🧵 *Ткань*',
+            'info_callback'        => 'fabric',
+
+            'item_name_eng'        => 'Fabric',
+            'item_name_rus'        => 'Ткань',
+            'icon_emoji'           => '🧵',
+            'zone_emoji'           => '🏭',
+            'zone_name'            => 'производство',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/components/craftFabric.jpg',
+            'craft_again_callback' => 'genericCraft_Fabric_1',
+        ],
+
+        'Soil' => [
+            'task_name'            => 'craftSoil',
+            'resources'            => [
+                'Глина'     => 10,
+                'Водоросли' => 5,
+                'Песок'     => 26,
+                'Ил'        => 15,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/components/craftSoil.jpg',
+            'start_caption_name'   => '🌱 *Грунт*',
+            'info_callback'        => 'soil',
+
+            'item_name_eng'        => 'Soil',
+            'item_name_rus'        => 'Грунт',
+            'icon_emoji'           => '🌱',
+            'zone_emoji'           => '🏭',
+            'zone_name'            => 'производство',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/components/craftSoil.jpg',
+            'craft_again_callback' => 'genericCraft_Soil_1',
+        ],
+
+        'ElectronicComponents' => [
+            'task_name'            => 'craftElectronicComponents',
+            'resources'            => ['Нефть' => 3],
+            'crafted_items'        => ['metalFragments' => 5],
+            'image_in_progress'    => 'uploads/telegram/craft/components/electronic_components.jpg',
+            'start_caption_name'   => '💻 *Электронные компоненты*',
+            'info_callback'        => 'electronicComponents',
+
+            'item_name_eng'        => 'electronicComponents',
+            'item_name_rus'        => 'Электронные компоненты',
+            'icon_emoji'           => '💻',
+            'zone_emoji'           => '🏭',
+            'zone_name'            => 'производство',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/components/electronic_components.jpg',
+            'craft_again_callback' => 'genericCraft_ElectronicComponents_1',
+        ],
+
+        'StoneBlocks' => [
+            'task_name'            => 'craftStoneBlocks',
+            'resources'            => [
+                'Камни' => 36,
+                'Вода'  => 10,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/components/craftStoneBlocks.jpg',
+            'start_caption_name'   => '🧱 *Каменные блоки*',
+            'info_callback'        => 'stoneBlocks',
+
+            'item_name_eng'        => 'stoneBlocks',
+            'item_name_rus'        => 'Каменные блоки',
+            'icon_emoji'           => '🧱',
+            'zone_emoji'           => '🏭',
+            'zone_name'            => 'производство',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/components/craftStoneBlocks.jpg',
+            'craft_again_callback' => 'genericCraft_StoneBlocks_1',
+        ],
+
+        'MetalFragments' => [
+            'task_name'            => 'craftMetalFragments',
+            'resources'            => [
+                'Железная руда' => 100,
+                'Древесина'     => 10,
+                'Песок'         => 1,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/components/craftMetalFragments.jpg',
+            'start_caption_name'   => '🔩 *Металл фрагменты*',
+            'info_callback'        => 'metalFragments',
+
+            'item_name_eng'        => 'metalFragments',
+            'item_name_rus'        => 'Металл фрагменты',
+            'icon_emoji'           => '🔩',
+            'zone_emoji'           => '🏭',
+            'zone_name'            => 'производство',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/components/craftMetalFragments.jpg',
+            'craft_again_callback' => 'genericCraft_MetalFragments_1',
+        ],
+
+        'Fertilizer' => [
+            'task_name'            => 'craftFertilizer',
+            'resources'            => [
+                'Кости животных' => 1,
+                'Вода'           => 5,
+                'Водоросли'      => 20,
+                'Ил'             => 10,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/components/craftFertilizer.jpg',
+            'start_caption_name'   => '🌿 *Удобрение*',
+            'info_callback'        => 'fertilizer',
+
+            'item_name_eng'        => 'Fertilizer',
+            'item_name_rus'        => 'Удобрение',
+            'icon_emoji'           => '🌿',
+            'zone_emoji'           => '🌿',
+            'zone_name'            => 'фермерство',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/components/craftFertilizer.jpg',
+            'craft_again_callback' => 'genericCraft_Fertilizer_1',
+        ],
+
+        'WoodMaterials' => [
+            'task_name'            => 'craftWoodMaterials',
+            'resources'            => [
+                'Древесина' => 50,
+                'Вода'      => 5,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/components/craftWoodMaterials.jpg',
+            'start_caption_name'   => '🪵 *Древесные материалы*',
+            'info_callback'        => 'woodMaterials',
+
+            'item_name_eng'        => 'WoodMaterials',
+            'item_name_rus'        => 'Древесные материалы',
+            'icon_emoji'           => '🪵',
+            'zone_emoji'           => '🏭',
+            'zone_name'            => 'производство',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.03,
+            'image_completed'      => 'uploads/telegram/craft/components/craftWoodMaterials.jpg',
+            'craft_again_callback' => 'genericCraft_WoodMaterials_1',
+        ],
+
+        'CharcoalBriquettes' => [
+            'task_name'            => 'craftCharcoalBriquettes',
+            'resources'            => [
+                'Древесина'       => 10,
+                'Глина'           => 2,
+                'Вода'            => 2,
+                'Угольная порода' => 20,
+            ],
+            'crafted_items'        => [],
+            // Внимание: для CharcoalBriquettes картинка с расширением .png
+            // (исторически так сложилось, остальные components — .jpg).
+            'image_in_progress'    => 'uploads/telegram/craft/components/craftCharcoalBriquettes.png',
+            'start_caption_name'   => '🪨 *Угольные брикеты*',
+            'info_callback'        => 'charcoalBriquettes',
+
+            'item_name_eng'        => 'CharcoalBriquettes',
+            'item_name_rus'        => 'Угольные брикеты',
+            'icon_emoji'           => '🪨',
+            'zone_emoji'           => '🏭',
+            'zone_name'            => 'производство',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/components/craftCharcoalBriquettes.png',
+            'craft_again_callback' => 'genericCraft_CharcoalBriquettes_1',
+        ],
+
+        'GlassBags' => [
+            'task_name'            => 'craftGlassBags',
+            'resources'            => [
+                'Древесина'      => 10,
+                'Песок'          => 50,
+                'Базальт'        => 10,
+                'Лавовый камень' => 8,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/components/craftGlassBags.jpg',
+            'start_caption_name'   => '🪟 *Стеклопакеты*',
+            'info_callback'        => 'glassBags',
+
+            'item_name_eng'        => 'GlassBags',
+            'item_name_rus'        => 'Стеклопакеты',
+            'icon_emoji'           => '🪟',
+            'zone_emoji'           => '🏭',
+            'zone_name'            => 'производство',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/components/craftGlassBags.jpg',
+            'craft_again_callback' => 'genericCraft_GlassBags_1',
+        ],
     ];
 
     /**

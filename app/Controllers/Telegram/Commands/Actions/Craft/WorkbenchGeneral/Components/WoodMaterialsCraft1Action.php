@@ -192,7 +192,7 @@ class WoodMaterialsCraft1Action extends BaseAction
                 // Пример callback_data: "craftWoodMaterials_5"
                 $buttonsRow[] = [
                     'text'          => "🛠️ {$qty}шт.",
-                    'callback_data' => "craftWoodMaterials_{$qty}",
+                    'callback_data' => "genericCraft_WoodMaterials_{$qty}",
                 ];
             }
         }

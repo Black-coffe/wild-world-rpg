@@ -215,7 +215,7 @@ class StoneBlocksCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q}шт",
-                    'callback_data' => "craftStoneBlocks_{$q}",
+                    'callback_data' => "genericCraft_StoneBlocks_{$q}",
                 ];
             }
         }

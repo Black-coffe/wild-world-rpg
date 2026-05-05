@@ -211,7 +211,7 @@ class SoilCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q}шт",
-                    'callback_data' => "craftSoil_{$q}"
+                    'callback_data' => "genericCraft_Soil_{$q}"
                 ];
             }
         }
