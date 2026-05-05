@@ -103,6 +103,8 @@ final class CraftRecipesTest extends CIUnitTestCase
             // Tools (B7)
             'StonePickaxe', 'IronShovel', 'IronPickaxe', 'LumberjackAxe',
             'FishingRod', 'Hoe', 'FoldingKnife', 'TireIron',
+            // Workbench + Robots (B8)
+            'WorkbenchOne', 'RobotExplorer', 'RobotGatherer',
         ];
 
         foreach ($expectedKeys as $key) {
@@ -198,5 +200,40 @@ final class CraftRecipesTest extends CIUnitTestCase
         $rod = $this->cfg->get('FishingRod');
         $this->assertSame($rod['image_in_progress'], $rod['image_completed']);
         $this->assertStringContainsString('fishing-rod', $rod['image_in_progress']);
+    }
+
+    /**
+     * F3.B8 — WorkbenchOne, RobotExplorer, RobotGatherer требуют золото
+     * (новое поле gold_required, обрабатывается GenericCraftActionStart).
+     */
+    public function testB8RecipesRequireGold(): void
+    {
+        $expectedGold = [
+            'WorkbenchOne'   => 20000,
+            'RobotExplorer'  => 15000,
+            'RobotGatherer'  => 21000,
+        ];
+        foreach ($expectedGold as $key => $gold) {
+            $recipe = $this->cfg->get($key);
+            $this->assertSame($gold, $recipe['gold_required'] ?? null, "{$key} gold_required mismatch");
+            $this->assertTrue($recipe['requires_base'] ?? false, "{$key} should require base");
+        }
+    }
+
+    /**
+     * F3.B8 — RobotExplorer/RobotGatherer требуют RoboticsWorkshop;
+     * RobotGatherer дополнительно требует Workshop.
+     */
+    public function testB8RobotsRequireBuildings(): void
+    {
+        $explorer = $this->cfg->get('RobotExplorer');
+        $this->assertSame(['RoboticsWorkshop'], $explorer['required_buildings'] ?? null);
+
+        $gatherer = $this->cfg->get('RobotGatherer');
+        $this->assertSame(['RoboticsWorkshop', 'Workshop'], $gatherer['required_buildings'] ?? null);
+
+        // WorkbenchOne — только база, без зданий
+        $workbench = $this->cfg->get('WorkbenchOne');
+        $this->assertSame([], $workbench['required_buildings'] ?? null);
     }
 }

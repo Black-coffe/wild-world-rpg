@@ -181,10 +181,12 @@ class CallbackqueryCommand extends SystemCommand
             'finishAllTasks' =>         \App\Controllers\Telegram\Commands\Actions\FinishTaskAction::class,
             'standardCraft' =>          \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\StandardCraftingAction::class,
             'robotsCraft2' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotsCraft2Select::class,
+            // F3.B8 (v0.24.0): action-start RobotExplorer/RobotGatherer мигрирован
+            // в GenericCraftActionStart через `genericCraft_RobotExplorer_1` /
+            // `genericCraft_RobotGatherer_1`. Старые callback'и (craftRobotExplorer2,
+            // craftRobotGatherer2) удалены вместе с legacy *CraftActionStart.
             'robotExplorer' =>          \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotExplorer2Action::class,
-            'craftRobotExplorer2' =>    \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\StartCraftRobotExplorer2Action::class,
             'robotGatherer' =>          \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotGatherer2Action::class,
-            'craftRobotGatherer2' =>    \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\StartCraftRobotGatherer2Action::class,
             'teleportBeaconCraft2' =>    \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\TeleportBeaconCraft2Select::class,
             'teleportBeaconBasic2' =>    \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\TeleportBeaconBasic2Action::class,
             'startCraftTeleportBeaconBasic2' =>    \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\StartCraftTeleportBeaconBasic2Action::class,
@@ -261,7 +263,8 @@ class CallbackqueryCommand extends SystemCommand
             'charcoalBriquettes' =>     \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\CharcoalBriquettes1Action::class,
             'WorkbenchChoice' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Workbench\WorkbenchCraft1Select::class,
             'workbenchOne' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Workbench\WorkbenchOneAction::class,
-            'craftWorkbenchOne' =>      \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Workbench\StartCraftWorkbenchOneAction::class,
+            // F3.B8 (v0.24.0): WorkbenchOne action-start мигрирован
+            // в GenericCraftActionStart через `genericCraft_WorkbenchOne_1`.
             'glassBags' =>              \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\GlassBagsCraft1Action::class,
             'electronicComponents' =>   \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\ElectronicComponentsCraft1Action::class,
             'wiring' =>                 \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\WiringCraft1Action::class,

@@ -150,7 +150,7 @@ class RobotExplorer2Action extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '🛠️ Крафтить', 'callback_data' => 'craftRobotExplorer2'],
+                        ['text' => '🛠️ Крафтить', 'callback_data' => 'genericCraft_RobotExplorer_1'],
                     ],
                 ]
             ];
