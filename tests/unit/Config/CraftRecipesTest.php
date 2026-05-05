@@ -105,6 +105,8 @@ final class CraftRecipesTest extends CIUnitTestCase
             'FishingRod', 'Hoe', 'FoldingKnife', 'TireIron',
             // Workbench + Robots (B8)
             'WorkbenchOne', 'RobotExplorer', 'RobotGatherer',
+            // Weapons (B9, output_type=weapon)
+            'MetalSpear', 'PipeGun', 'WiredBat', 'CrossbowMk1',
         ];
 
         foreach ($expectedKeys as $key) {
@@ -122,7 +124,13 @@ final class CraftRecipesTest extends CIUnitTestCase
             // Completion-side поля (для GenericCraftCompletionHandler)
             $this->assertArrayHasKey('item_name_eng', $recipe, "{$key} missing item_name_eng");
             $this->assertArrayHasKey('agility_bonus', $recipe);
-            $this->assertArrayHasKey('intellect_bonus', $recipe);
+            // Weapons (B9) используют strength_bonus вместо intellect_bonus
+            // (handleWeaponOutput → updateStrengthAndAgility, НЕ updateAgilityAndIntellect)
+            if (($recipe['output_type'] ?? 'crafted_item') === 'weapon') {
+                $this->assertArrayHasKey('strength_bonus', $recipe, "{$key} weapon must have strength_bonus");
+            } else {
+                $this->assertArrayHasKey('intellect_bonus', $recipe);
+            }
             $this->assertArrayHasKey('image_completed', $recipe);
 
             // Унифицированный callback
@@ -235,5 +243,46 @@ final class CraftRecipesTest extends CIUnitTestCase
         // WorkbenchOne — только база, без зданий
         $workbench = $this->cfg->get('WorkbenchOne');
         $this->assertSame([], $workbench['required_buildings'] ?? null);
+    }
+
+    /**
+     * F3.B9 — все 4 weapon-рецепта имеют output_type='weapon' + weapon_name_en
+     * + weapon_slot. GenericCraftCompletionHandler по этому полю
+     * диспетчеризует на handleWeaponOutput (characters_weapons вместо
+     * crafted_items_log) и применяет updateStrengthAndAgility.
+     */
+    public function testB9WeaponsHaveCorrectOutputType(): void
+    {
+        $weaponKeys = ['MetalSpear', 'PipeGun', 'WiredBat', 'CrossbowMk1'];
+        foreach ($weaponKeys as $key) {
+            $recipe = $this->cfg->get($key);
+            $this->assertSame('weapon', $recipe['output_type'] ?? null, "{$key} must have output_type=weapon");
+            $this->assertNotEmpty($recipe['weapon_name_en'] ?? null, "{$key} must have weapon_name_en");
+            $this->assertContains($recipe['weapon_slot'] ?? null, ['hand', 'twohand'], "{$key} weapon_slot invalid");
+            $this->assertArrayHasKey('strength_bonus', $recipe, "{$key} must have strength_bonus");
+            $this->assertGreaterThanOrEqual(1, $recipe['required_level'] ?? 0, "{$key} must require level >= 1");
+            $this->assertTrue($recipe['requires_base'] ?? false, "{$key} should require base");
+        }
+    }
+
+    /**
+     * F3.B9 — WiredBat имеет историческое расхождение:
+     * recipe-key/callback = 'WiredBat', но в БД weapons.name_en = 'EnhancedBat'.
+     */
+    public function testWiredBatRecipeMapsToEnhancedBatWeapon(): void
+    {
+        $recipe = $this->cfg->get('WiredBat');
+        $this->assertSame('EnhancedBat', $recipe['weapon_name_en']);
+    }
+
+    /**
+     * F3.B9 — CrossbowMk1 единственный weapon с required_agility check
+     * и slot='twohand'.
+     */
+    public function testCrossbowMk1IsTwoHandedAndRequiresAgility(): void
+    {
+        $recipe = $this->cfg->get('CrossbowMk1');
+        $this->assertSame('twohand', $recipe['weapon_slot']);
+        $this->assertSame(10, $recipe['required_agility'] ?? null);
     }
 }

@@ -290,7 +290,7 @@ class WeaponCrossbowMk1Action extends BaseAction
                 if ($q <= $maxCraftable) {
                     $quantityButtons[] = [
                         'text' => "🛠 Крафт {$q}шт",
-                        'callback_data' => "startCraftCrossbowMk1_{$q}",
+                        'callback_data' => "genericCraft_CrossbowMk1_{$q}",
                     ];
                 }
             }

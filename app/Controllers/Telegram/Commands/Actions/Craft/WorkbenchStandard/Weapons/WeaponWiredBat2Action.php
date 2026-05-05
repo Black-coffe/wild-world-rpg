@@ -292,7 +292,7 @@ class WeaponWiredBat2Action extends BaseAction
                 if ($q <= $maxCraftable) {
                     $quantityButtons[] = [
                         'text' => "🛠 Крафт {$q}шт",
-                        'callback_data' => "startCraftWiredBat_{$q}",
+                        'callback_data' => "genericCraft_WiredBat_{$q}",
                     ];
                 }
             }
