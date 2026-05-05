@@ -184,14 +184,15 @@ class Tasks extends BaseTasks
         // CHARACTER TASKS DISPATCHER (главный Worker loop)
         // ============================================================
 
-        // Это завершение длительных character_tasks (gather/explore/build/craft).
-        // Сейчас живёт в Worker::processTasks(); включаем strangler-режим:
-        // НЕ запускаем здесь, чтобы не было двойного pickup'а с старым cron'ом.
-        // После того, как новый scheduler стабилен и старый cron отключён,
-        // раскомментировать:
-        //
-        // $schedule->call(static fn() => (new \App\Controllers\Worker())->processTasks())
-        //     ->everyMinute()->singleInstance(2 * MINUTE)->named('worker.tasks');
+        // F4.1 (v0.X.0): включён через scheduler. Worker::processTasks()
+        // обрабатывает character_tasks с end_time<=NOW (gather/explore/build/craft).
+        // Двойная защита: ->singleInstance(2 * MINUTE) на schedule + flock на
+        // worker.lock внутри метода (F0.1). Параллельный legacy curl-cron на
+        // /cbgsvd-d-dw/worker URL продолжает дёргать тот же endpoint в
+        // strangler-режиме F4.1; тот тихо выходит на flock conflict. F4.2
+        // удалит curl-cron + URL.
+        $schedule->call(static fn() => (new \App\Controllers\Worker())->processTasks())
+            ->everyMinute()->singleInstance(2 * MINUTE)->named('worker.character-tasks');
 
         // ============================================================
         // CLEANUP
