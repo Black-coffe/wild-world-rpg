@@ -25,11 +25,11 @@ final class EventPrefActionTest extends CIUnitTestCase
 
         $until = strtotime($update['pref']['silenced_until']);
         $this->assertGreaterThan(time() + 3500, $until,
-            'silenced_until має бути ~+1год');
+            'silenced_until должен быть ~+1час');
         $this->assertLessThanOrEqual(time() + 3700, $until);
 
         $this->assertStringContainsString('🚫', $update['confirm']);
-        $this->assertStringContainsString('вимкнено', $update['confirm']);
+        $this->assertStringContainsString('выключены', $update['confirm']);
     }
 
     public function testMute1hPreservesOtherFields(): void
@@ -50,9 +50,9 @@ final class EventPrefActionTest extends CIUnitTestCase
         $update = EventPrefAction::computeUpdate('eventPref_muteKind_damage_health', []);
         $this->assertNotNull($update);
         $this->assertSame(['damage_health'], $update['pref']['muted_kinds']);
-        // v0.32.1: confirm має human-readable label замість enum-ID
-        $this->assertStringContainsString('з уроном', $update['confirm']);
-        $this->assertStringContainsString('більше не буде', $update['confirm']);
+        // v0.32.1+0.33.1: confirm имеет human-readable label вместо enum-ID
+        $this->assertStringContainsString('с уроном', $update['confirm']);
+        $this->assertStringContainsString('больше показываться не будут', $update['confirm']);
     }
 
     public function testMuteKindTogglesOff(): void
@@ -61,9 +61,9 @@ final class EventPrefActionTest extends CIUnitTestCase
         $update  = EventPrefAction::computeUpdate('eventPref_muteKind_damage_health', $current);
 
         $this->assertSame(['heal'], $update['pref']['muted_kinds'],
-            'damage_health має бути видалено з muted_kinds');
-        $this->assertStringContainsString('з уроном', $update['confirm']);
-        $this->assertStringContainsString('увімкнено', $update['confirm']);
+            'damage_health должен быть удалён из muted_kinds');
+        $this->assertStringContainsString('с уроном', $update['confirm']);
+        $this->assertStringContainsString('снова включены', $update['confirm']);
     }
 
     public function testMuteKindParsesUnderscoresInKind(): void
@@ -96,8 +96,8 @@ final class EventPrefActionTest extends CIUnitTestCase
         $this->assertNull($update['pref']['silenced_until']);
         $this->assertSame([], $update['pref']['muted_kinds']);
         $this->assertSame('2026-05-05 10:00:00', $update['pref']['last_event_notification_at'],
-            'last_event_notification_at не очищаємо');
-        $this->assertStringContainsString('увімкнено', $update['confirm']);
+            'last_event_notification_at не очищаем');
+        $this->assertStringContainsString('включены', $update['confirm']);
     }
 
     // ============================================================

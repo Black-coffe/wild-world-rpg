@@ -30,7 +30,7 @@ final class EventPrefAction extends BaseAction
         if ($user === null) {
             return Request::answerCallbackQuery([
                 'callback_query_id' => $callbackId,
-                'text'              => 'Користувач не знайдений',
+                'text'              => 'Пользователь не найден',
                 'show_alert'        => false,
             ]);
         }
@@ -74,7 +74,7 @@ final class EventPrefAction extends BaseAction
             $pref['silenced_until'] = $until;
             return [
                 'pref'    => $pref,
-                'confirm' => "🚫 Нотіфікації подій вимкнено до " . date('H:i', strtotime($until)),
+                'confirm' => "🚫 Уведомления событий выключены до " . date('H:i', strtotime($until)),
             ];
         }
 
@@ -87,10 +87,10 @@ final class EventPrefAction extends BaseAction
             $muted = (array)($pref['muted_kinds'] ?? []);
             if (in_array($kind, $muted, true)) {
                 $muted   = array_values(array_filter($muted, fn($k) => $k !== $kind));
-                $confirm = "🔔 Подій {$label} знов увімкнено";
+                $confirm = "🔔 События {$label} снова включены";
             } else {
                 $muted[] = $kind;
-                $confirm = "🚫 Подій {$label} більше не буде";
+                $confirm = "🚫 События {$label} больше показываться не будут";
             }
             $pref['muted_kinds'] = $muted;
             return ['pref' => $pref, 'confirm' => $confirm];
@@ -101,7 +101,7 @@ final class EventPrefAction extends BaseAction
             $pref['muted_kinds']    = [];
             return [
                 'pref'    => $pref,
-                'confirm' => '🔔 Усі нотіфікації знов увімкнено',
+                'confirm' => '🔔 Все уведомления снова включены',
             ];
         }
 

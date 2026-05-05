@@ -301,12 +301,12 @@ final class NotificationPolicy
         $description = $eventRow['description'] ?? '';
         $duration    = (int)($eventConfig['duration_minutes'] ?? $eventRow['duration'] ?? 60);
 
-        $msg  = "⚠️ *Подія: {$name}*\n\n";
+        $msg  = "⚠️ *Событие: {$name}*\n\n";
         if ($description !== '') {
             $msg .= "_{$description}_\n\n";
         }
-        $msg .= "⏳ Триватиме приблизно: {$duration} хв.\n";
-        $msg .= "_Підсумок надішлемо коли подія завершиться._";
+        $msg .= "⏳ Продлится приблизительно: {$duration} мин.\n";
+        $msg .= "_Сводку отправим когда событие закончится._";
 
         return $msg;
     }
@@ -315,22 +315,22 @@ final class NotificationPolicy
     {
         $name       = $eventRow['name'] ?? $eventRow['name_english'];
         $appliedCnt = (int)($aggregate['applied_count'] ?? 0);
-        $lines      = ["✅ *Подія завершилась: {$name}*\n"];
-        $lines[]    = "_За {$appliedCnt} тіків діяло на тебе. Підсумок:_\n";
+        $lines      = ["✅ *Событие завершилось: {$name}*\n"];
+        $lines[]    = "_За {$appliedCnt} тиков действовало на тебя. Сводка:_\n";
 
         $hd = (float)($aggregate['health_delta'] ?? 0);
         $td = (float)($aggregate['tired_delta']  ?? 0);
         $gd = (int)  ($aggregate['gold_delta']   ?? 0);
 
         if ($hd < 0) {
-            $lines[] = "❤️ Здоров'я: " . round($hd, 2);
+            $lines[] = "❤️ Здоровье: " . round($hd, 2);
         } elseif ($hd > 0) {
-            $lines[] = "❤️ Здоров'я: +" . round($hd, 2);
+            $lines[] = "❤️ Здоровье: +" . round($hd, 2);
         }
         if ($td < 0) {
-            $lines[] = "💪 Витривалість: " . round($td, 2);
+            $lines[] = "💪 Выносливость: " . round($td, 2);
         } elseif ($td > 0) {
-            $lines[] = "💪 Витривалість: +" . round($td, 2);
+            $lines[] = "💪 Выносливость: +" . round($td, 2);
         }
         if ($gd > 0) {
             $lines[] = "🪙 Золото: +{$gd}";
@@ -379,7 +379,7 @@ final class NotificationPolicy
                 ],
                 [
                     ['text' => '🚫 Не показывать 1 час', 'callback_data' => 'eventPref_mute_1h'],
-                    ['text' => "🚫 Без подій {$kindLabel}", 'callback_data' => "eventPref_muteKind_{$effectKind}"],
+                    ['text' => "🚫 Без событий {$kindLabel}", 'callback_data' => "eventPref_muteKind_{$effectKind}"],
                 ],
             ],
         ];
