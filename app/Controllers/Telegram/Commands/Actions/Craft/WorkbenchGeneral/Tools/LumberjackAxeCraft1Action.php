@@ -198,7 +198,7 @@ class LumberjackAxeCraft1Action extends BaseAction
                     // Важно указать callback_data. Чтобы далее класс-стартер понял, сколько шт. крафтить.
                     // Обычно callback_data = "craftLumberjackAxeCraft1_{$q}"
                     // или как у вас условлено: "craftLumberjackAxe_X"
-                    'callback_data' => "craftLumberjackAxeCraft1_{$q}"
+                    'callback_data' => "genericCraft_LumberjackAxe_{$q}"
                 ];
             }
         }

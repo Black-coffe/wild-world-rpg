@@ -205,7 +205,7 @@ class FishingRodCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q} шт",
-                    'callback_data' => "craftFishingRod_{$q}"
+                    'callback_data' => "genericCraft_FishingRod_{$q}"
                 ];
             }
         }

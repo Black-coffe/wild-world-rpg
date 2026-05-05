@@ -266,23 +266,21 @@ class CallbackqueryCommand extends SystemCommand
             'electronicComponents' =>   \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\ElectronicComponentsCraft1Action::class,
             'wiring' =>                 \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\WiringCraft1Action::class,
 
+            // F3.B7 (v0.23.0): action-start всех 8 tools крафтов мигрирован
+            // в GenericCraftActionStart через `genericCraft_<RecipeKey>_<qty>`.
+            // Старые callback'и (craftStonePickaxe, craftIronShovel,
+            // craftIronPickaxe, craftLumberjackAxeCraft1, craftFishingRod,
+            // craftHoe, craftFoldingKnife, craftTireIron) удалены вместе
+            // с legacy *CraftActionStart. Info-screens сохранены.
             'tools' =>                  \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\ToolsCraft1Action::class,
             'lumberjackAxe' =>          \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\LumberjackAxeCraft1Action::class,
-            'craftLumberjackAxeCraft1' => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\LumberjackAxeCraftActionStart::class,
             'stonePickaxe' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\StonePickaxeCraft1Action::class,
-            'craftStonePickaxe' =>      \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\StonePickaxeCraftActionStart::class,
             'ironShovel' =>             \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\IronShovelCraft1Action::class,
-            'craftIronShovel' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\IronShovelCraftActionStart::class,
             'fishingRod' =>             \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\FishingRodCraft1Action::class,
-            'craftFishingRod' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\FishingRodCraftActionStart::class,
             'hoe' =>                    \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\HoeCraft1Action::class,
-            'craftHoe' =>               \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\HoeCraftActionStart::class,
             'foldingKnife' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\FoldingKnifeCraft1Action::class,
-            'craftFoldingKnife' =>      \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\FoldingKnifeCraftActionStart::class,
             'ironPickaxe' =>            \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\IronPickaxeCraft1Action::class,
-            'craftIronPickaxe' =>       \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\IronPickaxeCraftActionStart::class,
             'tireIron' =>               \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\TireIronCraft1Action::class,
-            'craftTireIron' =>          \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools\TireIronCraftActionStart::class,
             'questInfo' =>              \App\Controllers\Telegram\Commands\Actions\Quest\QuestsInfo::class,
             'questAndTask' =>          \App\Controllers\Telegram\Commands\Actions\Quest\QuestAndTaskAction::class,
             'availableQuests' =>          \App\Controllers\Telegram\Commands\Actions\Quest\AvailableQuests::class,

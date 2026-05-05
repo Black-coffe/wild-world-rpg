@@ -204,7 +204,7 @@ class IronPickaxeCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q}шт",
-                    'callback_data' => "craftIronPickaxe_{$q}"
+                    'callback_data' => "genericCraft_IronPickaxe_{$q}"
                 ];
             }
         }

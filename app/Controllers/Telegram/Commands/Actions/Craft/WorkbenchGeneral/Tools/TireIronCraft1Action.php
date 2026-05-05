@@ -206,7 +206,7 @@ class TireIronCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q}шт",
-                    'callback_data' => "craftTireIron_{$q}"
+                    'callback_data' => "genericCraft_TireIron_{$q}"
                 ];
             }
         }

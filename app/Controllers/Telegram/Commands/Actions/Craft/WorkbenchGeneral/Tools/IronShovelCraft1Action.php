@@ -210,7 +210,7 @@ class IronShovelCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q}шт",
-                    'callback_data' => "craftIronShovel_{$q}"
+                    'callback_data' => "genericCraft_IronShovel_{$q}"
                 ];
             }
         }
