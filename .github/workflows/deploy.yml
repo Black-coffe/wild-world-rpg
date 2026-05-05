@@ -55,6 +55,12 @@ jobs:
             sleep 2
           done
 
+      # F1.3: PHPStan static analysis (level 5, baseline для legacy).
+      # Любая новая ошибка типа в новом коде блочит deploy. Baseline
+      # обновляется отдельным коммитом с ясным intention.
+      - name: Run PHPStan
+        run: composer phpstan
+
       - name: Run PHPUnit
         run: vendor/bin/phpunit --no-coverage
 

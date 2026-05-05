@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers\Telegram\Commands\Actions\Craft;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;

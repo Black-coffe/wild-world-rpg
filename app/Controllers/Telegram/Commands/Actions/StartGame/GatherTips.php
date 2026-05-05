@@ -116,6 +116,10 @@ class GatherTips extends Controller
                 'reply_markup' => json_encode($keyboard),
             ]);
         }
+
+        // F1.3 phpstan fix: fallback при отсутствии lastAction. Без этого PHP 8
+        // кидает TypeError так как метод декларирует return ServerResponse.
+        return Request::emptyResponse();
     }
 
     protected function getAvailableResources($character)
