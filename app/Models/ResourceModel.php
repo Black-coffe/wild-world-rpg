@@ -2,15 +2,24 @@
 
 namespace App\Models;
 
+use App\Entities\ResourceEntity;
 use CodeIgniter\Model;
 
+/**
+ * F1.4.2 — Model returnType = ResourceEntity. @method анотації потрібні бо
+ * CI4 Model::find()/findAll() generic mixed без template propagation.
+ *
+ * @method ResourceEntity|null find($id = null)
+ * @method list<ResourceEntity> findAll(?int $limit = null, int $offset = 0)
+ * @method ResourceEntity|null first()
+ */
 class ResourceModel extends Model
 {
     protected $table = 'resources';
     protected $primaryKey = 'id';
 
     protected $useAutoIncrement = true;
-    protected $returnType = 'array';
+    protected $returnType = ResourceEntity::class; // F1.4.2 (v0.45.0) — типизованная Entity замість 'array'
     protected $useSoftDeletes = false;
 
     protected $allowedFields = [
@@ -107,10 +116,11 @@ class ResourceModel extends Model
 
     protected $skipValidation = false;
 
-    public function updateResourcePrices() {
+    public function updateResourcePrices(): void
+    {
         $resources = $this->findAll();
         foreach ($resources as $resource) {
-            $bankData = (new ResourcesBankModel())->where('resource_id', $resource['id'])->first();
+            $bankData = (new ResourcesBankModel())->where('resource_id', $resource->id)->first();
             if ($bankData) {
                 $currentQuantity = max($bankData['current_quantity'], 1);
 
@@ -118,13 +128,13 @@ class ResourceModel extends Model
                     min(10, max(1, $bankData['resources_purchased'] / $currentQuantity * 10)) :
                     max(0.1, min(1, $currentQuantity / $bankData['resources_sold'] * 10));
 
-                $basePriceAdjustment = $resource['price'] * $multiplier;
-                $finalSellPrice = max(min($basePriceAdjustment, $resource['price'] * 10), $resource['price'] * 0.1);
+                $basePriceAdjustment = $resource->price * $multiplier;
+                $finalSellPrice = max(min($basePriceAdjustment, $resource->price * 10), $resource->price * 0.1);
 
                 $buyPriceAdjustment = rand(2, 12) / 100;
                 $finalBuyPrice = $finalSellPrice * (1 + $buyPriceAdjustment);
 
-                $this->update($resource['id'], [
+                $this->update($resource->id, [
                     'buy_price' => round($finalBuyPrice, 2),
                     'sell_price' => round($finalSellPrice, 2),
                 ]);
@@ -212,11 +222,17 @@ class ResourceModel extends Model
     protected $afterUpdate = ['bustListCache'];
     protected $afterDelete = ['bustListCache'];
 
+    /**
+     * F1.4.2: returns list of ResourceEntity (cache stores serialized entities).
+     *
+     * @return list<ResourceEntity>
+     */
     public function findAllCached(): array
     {
         $cache = \Config\Services::cache();
         $cached = $cache->get(self::CACHE_KEY);
         if (is_array($cached)) {
+            /** @var list<ResourceEntity> $cached */
             return $cached;
         }
         $rows = $this->findAll();
