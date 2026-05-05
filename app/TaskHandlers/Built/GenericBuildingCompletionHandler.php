@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\TaskHandlers\Built;
 
 use App\Models\BuildingModel;

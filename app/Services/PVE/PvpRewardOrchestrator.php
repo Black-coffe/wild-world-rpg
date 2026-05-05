@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services\PVE;
 
 use App\Models\CharacterModel;
@@ -91,10 +93,12 @@ final class PvpRewardOrchestrator
             $winner['intellect'] *= (1 + $this->balance->winnerAttrBonusFactor);
         }
 
-        $winner['experience'] = round($winner['experience'], 2);
-        $winner['strength']   = round($winner['strength'],   2);
-        $winner['agility']    = round($winner['agility'],    2);
-        $winner['intellect']  = round($winner['intellect'],  2);
+        // F1.3 strict_types: explicit float cast — characters table возвращает
+        // strings из MySQL, без cast TypeError на round().
+        $winner['experience'] = round((float)$winner['experience'], 2);
+        $winner['strength']   = round((float)$winner['strength'],   2);
+        $winner['agility']    = round((float)$winner['agility'],    2);
+        $winner['intellect']  = round((float)$winner['intellect'],  2);
 
         $this->characterModel->update($winnerId, $winner);
     }
@@ -133,18 +137,19 @@ final class PvpRewardOrchestrator
             'intellect'  => max($loser['intellect'], $loserOldInt * (1 - $this->balance->deathStatLossPercent)),
             'health'     => 0,
         ];
-        $upd['experience'] = round($upd['experience'], 2);
-        $upd['strength']   = round($upd['strength'],   2);
-        $upd['agility']    = round($upd['agility'],    2);
-        $upd['intellect']  = round($upd['intellect'],  2);
+        // F1.3 strict_types: explicit float cast (см. winnerHandle выше).
+        $upd['experience'] = round((float)$upd['experience'], 2);
+        $upd['strength']   = round((float)$upd['strength'],   2);
+        $upd['agility']    = round((float)$upd['agility'],    2);
+        $upd['intellect']  = round((float)$upd['intellect'],  2);
 
         $this->characterModel->update($loser['id'], $upd);
 
         // Восстанавливаем health/tired (cell_number уже выставлен PlayerRespawner
         // в DeathService → handlePlayerDeathAndReward → respawner.respawn).
         $this->characterModel->update($loser['id'], [
-            'health' => round(($loser['max_health'] ?? 100), 2),
-            'tired'  => round(($loser['max_tired']  ?? 100), 2),
+            'health' => round((float)($loser['max_health'] ?? 100), 2),
+            'tired'  => round((float)($loser['max_tired']  ?? 100), 2),
         ]);
     }
 

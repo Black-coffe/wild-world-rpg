@@ -1,0 +1,1789 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^@readonly property cannot have a default value\.$#'
+			identifier: property.readOnlyByPhpDocDefaultValue
+			count: 4
+			path: app/Config/Autoload.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between ''testing'' and ''testing'' will always evaluate to true\.$#'
+			identifier: identical.alwaysTrue
+			count: 1
+			path: app/Config/Database.php
+
+		-
+			message: '#^@readonly property cannot have a default value\.$#'
+			identifier: property.readOnlyByPhpDocDefaultValue
+			count: 2
+			path: app/Config/DocTypes.php
+
+		-
+			message: '#^Left side of && is always true\.$#'
+			identifier: booleanAnd.leftAlwaysTrue
+			count: 1
+			path: app/Config/Events.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between ''testing'' and ''testing'' will always evaluate to false\.$#'
+			identifier: notIdentical.alwaysFalse
+			count: 1
+			path: app/Config/Events.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between ''testing'' and ''development'' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Config/Events.php
+
+		-
+			message: '#^PHPDoc type array\<string, array\<int\<0, max\>\|string, array\<string, string\>\|string\>\> of property Config\\Filters\:\:\$globals is not covariant with PHPDoc type array\{before\: array\<int\<0, max\>\|string, array\{except\: list\<string\>\|string\}\|string\>, after\: array\<int\<0, max\>\|string, array\{except\: list\<string\>\|string\}\|string\>\} of overridden property CodeIgniter\\Config\\Filters\:\:\$globals\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Config/Filters.php
+
+		-
+			message: '#^Property Config\\Filters\:\:\$globals \(array\<string, array\<int\<0, max\>\|string, array\<string, string\>\|string\>\>\) does not accept default value of type array\{before\: array\{csrf\: array\{except\: array\{''telegram/webhook''\}\}\}, after\: array\{\}\}\.$#'
+			identifier: property.defaultValue
+			count: 1
+			path: app/Config/Filters.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between ''testing'' and ''production'' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Config/Logger.php
+
+		-
+			message: '#^@readonly property cannot have a default value\.$#'
+			identifier: property.readOnlyByPhpDocDefaultValue
+			count: 1
+			path: app/Config/Mimes.php
+
+		-
+			message: '#^@readonly property cannot have a default value\.$#'
+			identifier: property.readOnlyByPhpDocDefaultValue
+			count: 4
+			path: app/Config/Modules.php
+
+		-
+			message: '#^Class app\\TaskHandlers\\Built\\GymProductionHandler referenced with incorrect case\: App\\TaskHandlers\\Built\\GymProductionHandler\.$#'
+			identifier: class.nameCase
+			count: 1
+			path: app/Config/Tasks.php
+
+		-
+			message: '#^PHPDoc type array\<class\-string\<CodeIgniter\\View\\ViewDecoratorInterface\>\> of property Config\\View\:\:\$decorators is not covariant with PHPDoc type list\<class\-string\<CodeIgniter\\View\\ViewDecoratorInterface\>\> of overridden property CodeIgniter\\Config\\View\:\:\$decorators\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Config/View.php
+
+		-
+			message: '#^PHPDoc type array\<string, array\<callable\(mixed\)\: mixed&string\>\|\(callable\(mixed\)\: mixed\)\> of property Config\\View\:\:\$plugins is not covariant with PHPDoc type array\<string, \(callable\(mixed\)\: mixed\)\|\(list\<callable\(mixed\)\: mixed&string\>\)\> of overridden property CodeIgniter\\Config\\View\:\:\$plugins\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Config/View.php
+
+		-
+			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:deleteCharacterData\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Admin/CharacterResetController.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: app/Controllers/Admin/CharacterResetController.php
+
+		-
+			message: '#^PHPDoc type array of property App\\Controllers\\BaseController\:\:\$helpers is not covariant with PHPDoc type list\<string\> of overridden property CodeIgniter\\Controller\:\:\$helpers\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Controllers/BaseController.php
+
+		-
+			message: '#^Method CodeIgniter\\HTTP\\MessageInterface\:\:setHeader\(\) invoked with 1 parameter, 2 required\.$#'
+			identifier: arguments.count
+			count: 1
+			path: app/Controllers/Errors.php
+
+		-
+			message: '#^Class App\\Services\\Player\\PvEService constructor invoked with 4 parameters, 8 required\.$#'
+			identifier: arguments.count
+			count: 1
+			path: app/Controllers/PvETestController.php
+
+		-
+			message: '#^Parameter \#1 \$data of method CodeIgniter\\RESTful\\ResourceController\:\:respond\(\) expects array\<string, mixed\>\|string\|null, list\<array\<string, array\|int\<1, max\>\|string\>\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/PvETestController.php
+
+		-
+			message: '#^Access to an undefined property App\\Entities\\User\:\:\$is_admin\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Controllers/Signup.php
+
+		-
+			message: '#^Access to an undefined property App\\Controllers\\Telegram\\Commands\\Actions\\BaseAction\:\:\$character\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/BaseAction.php
+
+		-
+			message: '#^Call to an undefined method App\\Controllers\\Telegram\\Commands\\Actions\\BaseAction\:\:getDefaultKeyboard\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/BaseAction.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:sendError\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:sendError\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:sendError\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildHandPumpAction\:\:handle\(\) should return Longman\\TelegramBot\\Entities\\ServerResponse but returns true\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildHandPumpAction.php
+
+		-
+			message: '#^Negated boolean expression is always false\.$#'
+			identifier: booleanNot.alwaysFalse
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildHandPumpAction.php
+
+		-
+			message: '#^Result of \|\| is always false\.$#'
+			identifier: booleanOr.alwaysFalse
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildHandPumpAction.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:sendError\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:sendError\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:sendError\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:sendError\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:sendError\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
+
+		-
+			message: '#^Class app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler referenced with incorrect case\: App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler\.$#'
+			identifier: class.nameCase
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildingHandlerAction.php
+
+		-
+			message: '#^Parameter \#1 \$minutesWithinHour of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeaconMoveConfirmAction\:\:calculateMultiplier\(\) expects int, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconMoveConfirmAction.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between Longman\\TelegramBot\\Entities\\ServerResponse and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
+
+		-
+			message: '#^Access to an undefined property app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampCancelAction\:\:\$callbackQuery\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/CampCancelAction.php
+
+		-
+			message: '#^Call to static method answerCallbackQuery\(\) on an unknown class app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Request\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/CampCancelAction.php
+
+		-
+			message: '#^Call to static method sendMessage\(\) on an unknown class app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Request\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/CampCancelAction.php
+
+		-
+			message: '#^Method app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampCancelAction\:\:handle\(\) has invalid return type app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\ServerResponse\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/CampCancelAction.php
+
+		-
+			message: '#^Comparison operation "\>\=" between int\<1, max\> and 1 is always true\.$#'
+			identifier: greaterOrEqual.alwaysTrue
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/DeleteBaseAction.php
+
+		-
+			message: '#^Comparison operation "\>" between 1000\.0 and 0 is always true\.$#'
+			identifier: greater.alwaysTrue
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\BandageCraft1Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/BandageCraft1Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\BasicMedKitCraft1Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/BasicMedKitCraft1Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\PainReliefPowerCraft1Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/PainReliefPowerCraft1Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\RegeneratorCraft1Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/RegeneratorCraft1Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\SedativeCraft1Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/SedativeCraft1Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\StimulatorCraft1Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/StimulatorCraft1Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\StrengthElixirCraft1Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/StrengthElixirCraft1Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\FishingRodCraft1Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/FishingRodCraft1Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\FoldingKnifeCraft1Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/FoldingKnifeCraft1Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\HoeCraft1Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/HoeCraft1Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\IronPickaxeCraft1Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/IronPickaxeCraft1Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\IronShovelCraft1Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/IronShovelCraft1Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\LumberjackAxeCraft1Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/LumberjackAxeCraft1Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\StonePickaxeCraft1Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/StonePickaxeCraft1Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\TireIronCraft1Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/TireIronCraft1Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Workbench\\WorkbenchOneAction\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Workbench/WorkbenchOneAction.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Robots\\RobotExplorer2Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchStandard/Robots/RobotExplorer2Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Robots\\RobotGatherer2Action\:\:areAllResourcesSufficient\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchStandard/Robots/RobotGatherer2Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\TeleportBeacon\\StartCraftTeleportBeaconBasic2Action\:\:checkHasBase\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchStandard/TeleportBeacon/StartCraftTeleportBeaconBasic2Action.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\TeleportBeacon\\StartCraftTeleportBeaconBasic2Action\:\:sendInsufficientResponse\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchStandard/TeleportBeacon/StartCraftTeleportBeaconBasic2Action.php
+
+		-
+			message: '#^Left side of && is always true\.$#'
+			identifier: booleanAnd.leftAlwaysTrue
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Faction/ChooseFaction.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between mixed and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Games/FortuneWheelAction.php
+
+		-
+			message: '#^Comparison operation "\>" between int\<1, max\> and 0 is always true\.$#'
+			identifier: greater.alwaysTrue
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Objects/ObjectCloseWarehouseAction.php
+
+		-
+			message: '#^Method App\\Models\\QuestModel\:\:getAvailableQuests\(\) invoked with 2 parameters, 1 required\.$#'
+			identifier: arguments.count
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Quest/AvailableQuests.php
+
+		-
+			message: '#^Parameter \#1 \$rarity of method App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyResourceAction\:\:showResourcesOfRarity\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyResourceAction.php
+
+		-
+			message: '#^Parameter \#1 \$resourceId of method App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyResourceAction\:\:askForQuantity\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyResourceAction.php
+
+		-
+			message: '#^Parameter \#2 \$resourceId of method App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyResourceAction\:\:finalizePurchase\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyResourceAction.php
+
+		-
+			message: '#^Parameter \#3 \$quantity of method App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyResourceAction\:\:finalizePurchase\(\) expects int, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyResourceAction.php
+
+		-
+			message: '#^Call to an undefined method App\\Models\\ExploredCellsModel\:\:get\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/StartGame/ExploreAreaTipsAction.php
+
+		-
+			message: '#^PHPDoc tag @param references unknown parameter\: \$exploredCells$#'
+			identifier: parameter.notFound
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/StartGame/ExploreAreaTipsAction.php
+
+		-
+			message: '#^Class app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampCancelAction referenced with incorrect case\: App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampCancelAction\.$#'
+			identifier: class.nameCase
+			count: 1
+			path: app/Controllers/Telegram/Commands/SystemCommands/CallbackqueryCommand.php
+
+		-
+			message: '#^Class app\\Controllers\\Telegram\\Commands\\Profile\\GearAction referenced with incorrect case\: App\\Controllers\\Telegram\\Commands\\Profile\\GearAction\.$#'
+			identifier: class.nameCase
+			count: 1
+			path: app/Controllers/Telegram/Commands/SystemCommands/CallbackqueryCommand.php
+
+		-
+			message: '#^Call to an undefined static method App\\Controllers\\BaseController\:\:__construct\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: app/Controllers/UserController.php
+
+		-
+			message: '#^Access to an undefined property App\\Entities\\User\:\:\$activation_hash\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Entities/User.php
+
+		-
+			message: '#^Access to an undefined property App\\Entities\\User\:\:\$is_active\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Entities/User.php
+
+		-
+			message: '#^Access to an undefined property App\\Entities\\User\:\:\$password_hash\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Entities/User.php
+
+		-
+			message: '#^Access to an undefined property App\\Entities\\User\:\:\$reset_expires_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Entities/User.php
+
+		-
+			message: '#^Access to an undefined property App\\Entities\\User\:\:\$reset_hash\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Entities/User.php
+
+		-
+			message: '#^Access to an undefined property App\\Entities\\User\:\:\$reset_token\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Entities/User.php
+
+		-
+			message: '#^Access to an undefined property App\\Entities\\User\:\:\$token\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Entities/User.php
+
+		-
+			message: '#^Method App\\Filters\\LoginFilter\:\:after\(\) should return CodeIgniter\\HTTP\\ResponseInterface\|null but return statement is missing\.$#'
+			identifier: return.missing
+			count: 1
+			path: app/Filters/LoginFilter.php
+
+		-
+			message: '#^Method App\\Filters\\LoginFilter\:\:before\(\) should return CodeIgniter\\HTTP\\RequestInterface\|CodeIgniter\\HTTP\\ResponseInterface\|string\|null but return statement is missing\.$#'
+			identifier: return.missing
+			count: 1
+			path: app/Filters/LoginFilter.php
+
+		-
+			message: '#^Method App\\Filters\\TelegramRateLimitFilter\:\:after\(\) should return CodeIgniter\\HTTP\\ResponseInterface\|null but return statement is missing\.$#'
+			identifier: return.missing
+			count: 1
+			path: app/Filters/TelegramRateLimitFilter.php
+
+		-
+			message: '#^Method App\\Filters\\TelegramRateLimitFilter\:\:before\(\) should return CodeIgniter\\HTTP\\RequestInterface\|CodeIgniter\\HTTP\\ResponseInterface\|string\|null but empty return statement found\.$#'
+			identifier: return.empty
+			count: 3
+			path: app/Filters/TelegramRateLimitFilter.php
+
+		-
+			message: '#^Method App\\Filters\\TelegramRateLimitFilter\:\:before\(\) should return CodeIgniter\\HTTP\\RequestInterface\|CodeIgniter\\HTTP\\ResponseInterface\|string\|null but return statement is missing\.$#'
+			identifier: return.missing
+			count: 2
+			path: app/Filters/TelegramRateLimitFilter.php
+
+		-
+			message: '#^Call to function is_array\(\) with string\|null will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 1
+			path: app/Helpers/MyRules.php
+
+		-
+			message: '#^Access to an undefined property App\\Libraries\\TelegramLogger\:\:\$telegram\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Libraries/TelegramLogger.php
+
+		-
+			message: '#^PHPDoc type array of property App\\Models\\BattleLogModel\:\:\$allowedFields is not covariant with PHPDoc type list\<string\> of overridden property CodeIgniter\\BaseModel\:\:\$allowedFields\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Models/BattleLogModel.php
+
+		-
+			message: '#^PHPDoc type string of property App\\Models\\BattleLogModel\:\:\$returnType is not covariant with PHPDoc type ''array''\|''object''\|class\-string of overridden property CodeIgniter\\BaseModel\:\:\$returnType\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Models/BattleLogModel.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\BiomeModel\:\:\$validationErrors\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/BiomeModel.php
+
+		-
+			message: '#^Call to an undefined method App\\Models\\CharacterGameTipModel\:\:whereNotNull\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/CharacterGameTipModel.php
+
+		-
+			message: '#^PHPDoc type array of property App\\Models\\CharactersOutfitsModel\:\:\$allowedFields is not covariant with PHPDoc type list\<string\> of overridden property CodeIgniter\\BaseModel\:\:\$allowedFields\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Models/CharactersOutfitsModel.php
+
+		-
+			message: '#^PHPDoc type array of property App\\Models\\CharactersOutfitsModel\:\:\$validationMessages is not covariant with PHPDoc type array\<string, array\<string, string\>\> of overridden property CodeIgniter\\BaseModel\:\:\$validationMessages\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Models/CharactersOutfitsModel.php
+
+		-
+			message: '#^PHPDoc type array of property App\\Models\\CharactersOutfitsModel\:\:\$validationRules is not covariant with PHPDoc type array\<string, array\<string, array\<string, string\>\|string\>\|string\>\|string of overridden property CodeIgniter\\BaseModel\:\:\$validationRules\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Models/CharactersOutfitsModel.php
+
+		-
+			message: '#^PHPDoc type string of property App\\Models\\CharactersOutfitsModel\:\:\$returnType is not covariant with PHPDoc type ''array''\|''object''\|class\-string of overridden property CodeIgniter\\BaseModel\:\:\$returnType\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Models/CharactersOutfitsModel.php
+
+		-
+			message: '#^PHPDoc tag @param references unknown parameter\: \$itemName$#'
+			identifier: parameter.notFound
+			count: 1
+			path: app/Models/CraftedItemsLogModel.php
+
+		-
+			message: '#^PHPDoc type array of property App\\Models\\NpcModel\:\:\$allowedFields is not covariant with PHPDoc type list\<string\> of overridden property CodeIgniter\\BaseModel\:\:\$allowedFields\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Models/NpcModel.php
+
+		-
+			message: '#^PHPDoc type string of property App\\Models\\NpcModel\:\:\$returnType is not covariant with PHPDoc type ''array''\|''object''\|class\-string of overridden property CodeIgniter\\BaseModel\:\:\$returnType\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Models/NpcModel.php
+
+		-
+			message: '#^Method App\\Models\\NpcSpawnModel\:\:markAsDead\(\) should return int but returns bool\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/NpcSpawnModel.php
+
+		-
+			message: '#^PHPDoc type array of property App\\Models\\NpcSpawnModel\:\:\$allowedFields is not covariant with PHPDoc type list\<string\> of overridden property CodeIgniter\\BaseModel\:\:\$allowedFields\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Models/NpcSpawnModel.php
+
+		-
+			message: '#^PHPDoc type string of property App\\Models\\NpcSpawnModel\:\:\$returnType is not covariant with PHPDoc type ''array''\|''object''\|class\-string of overridden property CodeIgniter\\BaseModel\:\:\$returnType\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Models/NpcSpawnModel.php
+
+		-
+			message: '#^PHPDoc type array of property App\\Models\\TeleportBeaconModel\:\:\$allowedFields is not covariant with PHPDoc type list\<string\> of overridden property CodeIgniter\\BaseModel\:\:\$allowedFields\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Models/TeleportBeaconModel.php
+
+		-
+			message: '#^PHPDoc type string of property App\\Models\\TeleportBeaconModel\:\:\$returnType is not covariant with PHPDoc type ''array''\|''object''\|class\-string of overridden property CodeIgniter\\BaseModel\:\:\$returnType\.$#'
+			identifier: property.phpDocType
+			count: 1
+			path: app/Models/TeleportBeaconModel.php
+
+		-
+			message: '#^Cannot access property \$reset_expires_at on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Models/UserModel.php
+
+		-
+			message: '#^Cannot call method activate\(\) on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Models/UserModel.php
+
+		-
+			message: '#^Call to an undefined method App\\Models\\WorldObjectModel\:\:prepareJson\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/WorldObjectModel.php
+
+		-
+			message: '#^Offset ''attribute_boost''\|''damage_health''\|''damage_resources''\|''gather_debuff''\|''gold_grant''\|''heal''\|''noop''\|''rare_resource_grant''\|''reveal_cells''\|''task_extend'' on array\{damage_health\: ''App\\\\Services\\\\Events\\\\Effects\\\\DamageHealthEffect'', damage_resources\: ''App\\\\Services\\\\Events\\\\Effects\\\\DamageResourcesEffect'', heal\: ''App\\\\Services\\\\Events\\\\Effects\\\\HealEffect'', attribute_boost\: ''App\\\\Services\\\\Events\\\\Effects\\\\AttributeBoostEffect'', reveal_cells\: ''App\\\\Services\\\\Events\\\\Effects\\\\RevealCellsEffect'', gold_grant\: ''App\\\\Services\\\\Events\\\\Effects\\\\GoldGrantEffect'', rare_resource_grant\: ''App\\\\Services\\\\Events\\\\Effects\\\\RareResourceGrantEffect'', task_extend\: ''App\\\\Services\\\\Events\\\\Effects\\\\TaskExtendEffect'', \.\.\.\} in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.offset
+			count: 1
+			path: app/Services/Events/EffectResolver.php
+
+		-
+			message: '#^Offset ''applied'' on array\{applied\: bool, health_delta\: float, tired_delta\: float, gold_delta\: int, attribute_deltas\: array\<string, float\>, resource_grant_intents\: list\<array\{keyword\: string\|null, biome_id\: int\|null, rarity\: int\|null, amount\: int\}\>, resource_loss_percent\: float, task_extension_intent\: array\{filter\: list\<string\>, extra_minutes\: int\}\|null, \.\.\.\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/Events/EventDispatcher.php
+
+		-
+			message: '#^Property App\\Services\\Events\\EventDispatcher\:\:\$tgUserModel is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Services/Events/EventDispatcher.php
+
+		-
+			message: '#^Offset ''amount'' on array\{keyword\: string\|null, biome_id\: int\|null, rarity\: int\|null, amount\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/Events/IntentApplier.php
+
+		-
+			message: '#^Offset ''extra_minutes'' on array\{filter\: list\<string\>, extra_minutes\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/Events/IntentApplier.php
+
+		-
+			message: '#^Offset ''filter'' on array\{filter\: list\<string\>, extra_minutes\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/Events/IntentApplier.php
+
+		-
+			message: '#^Property App\\Services\\Events\\NotificationPolicy\:\:\$biomeModel is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Services/Events/NotificationPolicy.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between 0 and 0 will always evaluate to true\.$#'
+			identifier: identical.alwaysTrue
+			count: 1
+			path: app/Services/Events/NotificationPolicy.php
+
+		-
+			message: '#^Constant App\\Services\\PVE\\BattleService\:\:ESCAPE_CHANCE_HIGH_DAMAGE is unused\.$#'
+			identifier: classConstant.unused
+			count: 1
+			path: app/Services/PVE/BattleService.php
+
+		-
+			message: '#^Constant App\\Services\\PVE\\BattleService\:\:ESCAPE_CHANCE_LOW_HP is unused\.$#'
+			identifier: classConstant.unused
+			count: 1
+			path: app/Services/PVE/BattleService.php
+
+		-
+			message: '#^Constant App\\Services\\PVE\\BattleService\:\:PANIC_THRESHOLD is unused\.$#'
+			identifier: classConstant.unused
+			count: 1
+			path: app/Services/PVE/BattleService.php
+
+		-
+			message: '#^Method App\\Services\\PVE\\BattleService\:\:npcShouldFlee\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Services/PVE/BattleService.php
+
+		-
+			message: '#^Method App\\Services\\PVE\\BattleService\:\:npcShouldPanic\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Services/PVE/BattleService.php
+
+		-
+			message: '#^Method App\\Services\\PVE\\BattleService\:\:shouldEnterRageMode\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Services/PVE/BattleService.php
+
+		-
+			message: '#^Property App\\Services\\PVE\\BattleService\:\:\$battleLogger is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Services/PVE/BattleService.php
+
+		-
+			message: '#^Property App\\Services\\PVE\\BattleService\:\:\$effectService is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Services/PVE/BattleService.php
+
+		-
+			message: '#^Property App\\Services\\PVE\\BattleService\:\:\$logger is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Services/PVE/BattleService.php
+
+		-
+			message: '#^Access to an undefined property App\\Entities\\CharacterEntity\:\:\$armorBonus\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PVE/EquipmentService.php
+
+		-
+			message: '#^Access to an undefined property App\\Entities\\CharacterEntity\:\:\$attackSpeedBonus\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PVE/EquipmentService.php
+
+		-
+			message: '#^Comparison operation "\<" between int\<0, 100\> and 0 is always false\.$#'
+			identifier: smaller.alwaysFalse
+			count: 1
+			path: app/Services/PVE/PvpDamageCalculator.php
+
+		-
+			message: '#^If condition is always false\.$#'
+			identifier: if.alwaysFalse
+			count: 1
+			path: app/Services/PVE/PvpDamageCalculator.php
+
+		-
+			message: '#^Ternary operator condition is always false\.$#'
+			identifier: ternary.alwaysFalse
+			count: 1
+			path: app/Services/PVE/PvpDamageCalculator.php
+
+		-
+			message: '#^Property App\\Services\\PVE\\RewardService\:\:\$logger is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Services/PVE/RewardService.php
+
+		-
+			message: '#^Method App\\Services\\Player\\DeathService\:\:handlePlayerDeathAndReward\(\) should return array\{hasBase\: bool, penalty\: float, transferredResources\: list\<array\{resourceId\: int, amount\: int\}\>, transferredCraftItems\: list\<array\{craftedItemId\: int, amount\: int\}\>, transferredGold\: int, success\: bool\} but returns array\{success\: false\}\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Player/DeathService.php
+
+		-
+			message: '#^Offset ''type'' on array\{resource_id\: int, amount\: int, type\: string\} in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.offset
+			count: 1
+			path: app/Services/Player/Gather/GatherEventModifierService.php
+
+		-
+			message: '#^Access to property \$agility on an unknown class app\\Services\\Player\\NPC\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Access to property \$ai_behavior on an unknown class app\\Services\\Player\\NPC\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Access to property \$armor on an unknown class app\\Services\\Player\\NPC\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Access to property \$armor on an unknown class app\\Services\\Player\\Player\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Access to property \$damage_value on an unknown class app\\Services\\Player\\NPC\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Access to property \$health on an unknown class app\\Services\\Player\\NPC\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Access to property \$health on an unknown class app\\Services\\Player\\Player\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Access to property \$intellect on an unknown class app\\Services\\Player\\NPC\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Access to property \$max_health on an unknown class app\\Services\\Player\\NPC\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Access to property \$name on an unknown class app\\Services\\Player\\NPC\.$#'
+			identifier: class.notFound
+			count: 11
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Access to property \$name on an unknown class app\\Services\\Player\\Player\.$#'
+			identifier: class.notFound
+			count: 7
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Access to property \$strength on an unknown class app\\Services\\Player\\NPC\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Call to method attackDamage\(\) on an unknown class app\\Services\\Player\\Player\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Call to static method create\(\) on an unknown class app\\Services\\Player\\BattleLog\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Class app\\Services\\Player\\NPC not found\.$#'
+			identifier: class.notFound
+			count: 2
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Function now not found\.$#'
+			identifier: function.notFound
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Negated boolean expression is always true\.$#'
+			identifier: booleanNot.alwaysTrue
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Parameter \#1 \$min of function mt_rand expects int, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Parameter \#2 \$max of function mt_rand expects int, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Parameter \$notificationService of method app\\Services\\Player\\NpcCombatService\:\:__construct\(\) has invalid type App\\Services\\NotificationService\.$#'
+			identifier: class.notFound
+			count: 1
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Parameter \$npc of method app\\Services\\Player\\NpcCombatService\:\:calculateDamage\(\) has invalid type app\\Services\\Player\\NPC\.$#'
+			identifier: class.notFound
+			count: 2
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Parameter \$npc of method app\\Services\\Player\\NpcCombatService\:\:isMiss\(\) has invalid type app\\Services\\Player\\NPC\.$#'
+			identifier: class.notFound
+			count: 2
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Parameter \$npc of method app\\Services\\Player\\NpcCombatService\:\:startCombat\(\) has invalid type app\\Services\\Player\\NPC\.$#'
+			identifier: class.notFound
+			count: 2
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Parameter \$player of method app\\Services\\Player\\NpcCombatService\:\:startCombat\(\) has invalid type app\\Services\\Player\\Player\.$#'
+			identifier: class.notFound
+			count: 2
+			path: app/Services/Player/NpcCombatService.php
+
+		-
+			message: '#^Property App\\Services\\Player\\PvEService\:\:\$logger is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Services/Player/PvEService.php
+
+		-
+			message: '#^Property App\\Services\\Player\\PvEService\:\:\$mapModel is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Services/Player/PvEService.php
+
+		-
+			message: '#^Call to function method_exists\(\) with App\\Models\\TaskModel and ''findCached'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Services/Tasks/TaskDispatcher.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between int and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Services/World/TextMapService.php
+
+		-
+			message: '#^Offset 1\|2\|3 on array\{3\: 0\.9, 2\: 0\.8, 1\: 0\.7\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/TaskHandlers/CompleteRobotGatheringHandler.php
+
+		-
+			message: '#^Call to function method_exists\(\) with App\\Models\\CharacterModel and ''updateAgilityAndInt…'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
+
+		-
+			message: '#^Call to function method_exists\(\) with App\\Models\\CharacterModel and ''updateStrengthAndAg…'' will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
+
+		-
+			message: '#^Binary operation "%%" between string and 7 results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 1
+			path: app/TaskHandlers/Events/EventActivationHandler.php
+
+		-
+			message: '#^Binary operation "\-" between 6 and string results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 1
+			path: app/TaskHandlers/Events/EventActivationHandler.php
+
+		-
+			message: '#^Offset ''errors'' on array\{sent\: int, skipped_throttle\: int, skipped_mute\: int, skipped_no_chat\: int, errors\: int\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/TaskHandlers/Events/EventActivationHandler.php
+
+		-
+			message: '#^Offset ''sent'' on array\{sent\: int, skipped_throttle\: int, skipped_mute\: int, skipped_no_chat\: int, errors\: int\<1, max\>\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/TaskHandlers/Events/EventActivationHandler.php
+
+		-
+			message: '#^Offset ''skipped_mute'' on array\{sent\: int, skipped_throttle\: int, skipped_mute\: int, skipped_no_chat\: int, errors\: int\<1, max\>\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/TaskHandlers/Events/EventActivationHandler.php
+
+		-
+			message: '#^Parameter \#1 \$min of function rand expects int, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/TaskHandlers/Events/EventActivationHandler.php
+
+		-
+			message: '#^Parameter \#2 \$max of function rand expects int, float given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/TaskHandlers/Events/EventActivationHandler.php
+
+		-
+			message: '#^Variable \$cell on left side of \?\? is never defined\.$#'
+			identifier: nullCoalesce.variable
+			count: 1
+			path: app/TaskHandlers/Objects/ClosedWarehouseHandler.php
+
+		-
+			message: '#^Property App\\TaskHandlers\\Quests\\QuestExploreAllBiomesHandler\:\:\$telegram is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/TaskHandlers/Quests/QuestExploreAllBiomesHandler.php
+
+		-
+			message: '#^Property App\\TaskHandlers\\Quests\\QuestFirstAidkitBasicHandler\:\:\$telegram is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/TaskHandlers/Quests/QuestFirstAidkitBasicHandler.php
+
+		-
+			message: '#^Function form_open not found\.$#'
+			identifier: function.notFound
+			count: 1
+			path: app/Views/Password/forgot.php
+
+		-
+			message: '#^Variable \$title might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/Password/forgot.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/Password/resent_sent.php
+
+		-
+			message: '#^Function form_open not found\.$#'
+			identifier: function.notFound
+			count: 1
+			path: app/Views/Password/reset.php
+
+		-
+			message: '#^Variable \$errors might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/Password/reset.php
+
+		-
+			message: '#^Variable \$token might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/Password/reset.php
+
+		-
+			message: '#^Variable \$token might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/Password/reset_email.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/Password/reset_sent.php
+
+		-
+			message: '#^File ends with a trailing whitespace\. This may cause problems when running the code in the web browser\. Remove the closing \?\> mark or remove the whitespace\.$#'
+			identifier: whitespace.fileEnd
+			count: 1
+			path: app/Views/Password/reset_success.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/Password/reset_success.php
+
+		-
+			message: '#^File ends with a trailing whitespace\. This may cause problems when running the code in the web browser\. Remove the closing \?\> mark or remove the whitespace\.$#'
+			identifier: whitespace.fileEnd
+			count: 1
+			path: app/Views/Signup/stop.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/Signup/stop.php
+
+		-
+			message: '#^Variable \$biome might not be defined\.$#'
+			identifier: variable.undefined
+			count: 43
+			path: app/Views/admin/biome_edit_form.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/biome_edit_form.php
+
+		-
+			message: '#^Variable \$biomes might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/biome_index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/biome_index.php
+
+		-
+			message: '#^Variable \$characterId might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/character_reset_index.php
+
+		-
+			message: '#^Variable \$telegramId might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/character_reset_index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/character_reset_index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/create_tip.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/dashboard.php
+
+		-
+			message: '#^File ends with a trailing whitespace\. This may cause problems when running the code in the web browser\. Remove the closing \?\> mark or remove the whitespace\.$#'
+			identifier: whitespace.fileEnd
+			count: 1
+			path: app/Views/admin/event_create_form.php
+
+		-
+			message: '#^Function set_checkbox not found\.$#'
+			identifier: function.notFound
+			count: 1
+			path: app/Views/admin/event_create_form.php
+
+		-
+			message: '#^Variable \$bioms might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/event_create_form.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/event_create_form.php
+
+		-
+			message: '#^Function set_value not found\.$#'
+			identifier: function.notFound
+			count: 1
+			path: app/Views/admin/event_edit_form.php
+
+		-
+			message: '#^Variable \$biomes might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/event_edit_form.php
+
+		-
+			message: '#^Variable \$event might not be defined\.$#'
+			identifier: variable.undefined
+			count: 20
+			path: app/Views/admin/event_edit_form.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/event_edit_form.php
+
+		-
+			message: '#^Variable \$worldConfig might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/event_edit_form.php
+
+		-
+			message: '#^Variable \$events might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/event_index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/event_index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 6
+			path: app/Views/admin/layouts/default.php
+
+		-
+			message: '#^Variable \$statusLog might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/map_index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/map_index.php
+
+		-
+			message: '#^Variable \$mapData might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/map_view.php
+
+		-
+			message: '#^Variable \$title might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/partials/_head_common.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/polls/create.php
+
+		-
+			message: '#^Variable \$poll might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/polls/edit.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/polls/edit.php
+
+		-
+			message: '#^Function character_limiter not found\.$#'
+			identifier: function.notFound
+			count: 1
+			path: app/Views/admin/polls/index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/polls/index.php
+
+		-
+			message: '#^Variable \$answers might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/polls/statistics.php
+
+		-
+			message: '#^Variable \$poll might not be defined\.$#'
+			identifier: variable.undefined
+			count: 4
+			path: app/Views/admin/polls/statistics.php
+
+		-
+			message: '#^Variable \$stats might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/polls/statistics.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/polls/statistics.php
+
+		-
+			message: '#^Variable \$totalVotes might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/admin/polls/statistics.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/quest_create.php
+
+		-
+			message: '#^Variable \$quest might not be defined\.$#'
+			identifier: variable.undefined
+			count: 10
+			path: app/Views/admin/quest_edit_form.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/quest_edit_form.php
+
+		-
+			message: '#^Variable \$quests might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/quest_index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/quest_index.php
+
+		-
+			message: '#^Parameter \#2 \$default of function old expects string\|null, array given\.$#'
+			identifier: argument.type
+			count: 5
+			path: app/Views/admin/resource_create.php
+
+		-
+			message: '#^Variable \$biomes might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/resource_create.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/resource_create.php
+
+		-
+			message: '#^Variable \$biomes might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/resource_edit_form.php
+
+		-
+			message: '#^Variable \$resource might not be defined\.$#'
+			identifier: variable.undefined
+			count: 14
+			path: app/Views/admin/resource_edit_form.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/resource_edit_form.php
+
+		-
+			message: '#^Variable \$resources might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/resource_index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/resource_index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/send_message.php
+
+		-
+			message: '#^Parameter \#2 \$default of function old expects string\|null, int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Views/admin/task_create.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/task_create.php
+
+		-
+			message: '#^Variable \$task might not be defined\.$#'
+			identifier: variable.undefined
+			count: 18
+			path: app/Views/admin/task_edit_form.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/task_edit_form.php
+
+		-
+			message: '#^Variable \$tasks might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/task_index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/task_index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/tip_create.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/tip_edit_form.php
+
+		-
+			message: '#^Variable \$tip might not be defined\.$#'
+			identifier: variable.undefined
+			count: 12
+			path: app/Views/admin/tip_edit_form.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/tips_index.php
+
+		-
+			message: '#^Variable \$tips might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/tips_index.php
+
+		-
+			message: '#^Parameter \#2 \$default of function old expects string\|null, array given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Views/admin/world_object_create.php
+
+		-
+			message: '#^Variable \$biomes might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/world_object_create.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/world_object_create.php
+
+		-
+			message: '#^Variable \$biomes might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/world_object_edit_form.php
+
+		-
+			message: '#^Variable \$object might not be defined\.$#'
+			identifier: variable.undefined
+			count: 10
+			path: app/Views/admin/world_object_edit_form.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/world_object_edit_form.php
+
+		-
+			message: '#^Variable \$objects might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/world_object_index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/world_object_index.php
+
+		-
+			message: '#^Variable \$objects might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/world_objects.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/world_objects.php
+
+		-
+			message: '#^Variable \$battles might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/battles/index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 5
+			path: app/Views/battles/index.php
+
+		-
+			message: '#^Variable \$battle might not be defined\.$#'
+			identifier: variable.undefined
+			count: 7
+			path: app/Views/battles/view.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 5
+			path: app/Views/battles/view.php
+
+		-
+			message: '#^Variable \$code might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/errors/cli/error_404.php
+
+		-
+			message: '#^Variable \$message might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/errors/cli/error_404.php
+
+		-
+			message: '#^Parameter \#1 \$string of function str_pad expects string, \(float\|int\) given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Views/errors/cli/error_exception.php
+
+		-
+			message: '#^Right side of && is always true\.$#'
+			identifier: booleanAnd.rightAlwaysTrue
+			count: 1
+			path: app/Views/errors/cli/error_exception.php
+
+		-
+			message: '#^Variable \$exception might not be defined\.$#'
+			identifier: variable.undefined
+			count: 4
+			path: app/Views/errors/cli/error_exception.php
+
+		-
+			message: '#^Variable \$message might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/errors/cli/error_exception.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between ''testing'' and ''production'' will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Views/errors/html/error_404.php
+
+		-
+			message: '#^Variable \$message might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/errors/html/error_404.php
+
+		-
+			message: '#^Calling static\:\:describeMemory\(\) outside of class scope\.$#'
+			identifier: outOfClass.static
+			count: 2
+			path: app/Views/errors/html/error_exception.php
+
+		-
+			message: '#^Calling static\:\:highlightFile\(\) outside of class scope\.$#'
+			identifier: outOfClass.static
+			count: 2
+			path: app/Views/errors/html/error_exception.php
+
+		-
+			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\) of echo cannot be converted to string\.$#'
+			identifier: echo.nonString
+			count: 1
+			path: app/Views/errors/html/error_exception.php
+
+		-
+			message: '#^Right side of && is always true\.$#'
+			identifier: booleanAnd.rightAlwaysTrue
+			count: 1
+			path: app/Views/errors/html/error_exception.php
+
+		-
+			message: '#^Variable \$exception might not be defined\.$#'
+			identifier: variable.undefined
+			count: 4
+			path: app/Views/errors/html/error_exception.php
+
+		-
+			message: '#^Variable \$file might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/errors/html/error_exception.php
+
+		-
+			message: '#^Variable \$line might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/errors/html/error_exception.php
+
+		-
+			message: '#^Variable \$title might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/errors/html/error_exception.php
+
+		-
+			message: '#^Variable \$trace might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/errors/html/error_exception.php
+
+		-
+			message: '#^Variable \$biomes might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/front/pvp_form.php
+
+		-
+			message: '#^Variable \$characters might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/front/pvp_form.php
+
+		-
+			message: '#^Variable \$about might not be defined\.$#'
+			identifier: variable.undefined
+			count: 22
+			path: app/Views/layouts/about.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/layouts/default.php
+
+		-
+			message: '#^Variable \$textBlocks might not be defined\.$#'
+			identifier: variable.undefined
+			count: 9
+			path: app/Views/layouts/footer.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 4
+			path: app/Views/layouts/main.php
+
+		-
+			message: '#^Variable \$portfolio might not be defined\.$#'
+			identifier: variable.undefined
+			count: 19
+			path: app/Views/layouts/portfolio-slider.php
+
+		-
+			message: '#^Variable \$pricing might not be defined\.$#'
+			identifier: variable.undefined
+			count: 19
+			path: app/Views/layouts/pricing.php
+
+		-
+			message: '#^Variable \$services might not be defined\.$#'
+			identifier: variable.undefined
+			count: 15
+			path: app/Views/layouts/services.php
+
+		-
+			message: '#^Variable \$textBlocks might not be defined\.$#'
+			identifier: variable.undefined
+			count: 8
+			path: app/Views/layouts/stats.php
+
+		-
+			message: '#^Variable \$testimonials might not be defined\.$#'
+			identifier: variable.undefined
+			count: 17
+			path: app/Views/layouts/testimonials.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 6
+			path: app/Views/templates/admin.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 6
+			path: app/Views/templates/dashboard.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/templates/front.php
+
+		-
+			message: '#^Variable \$title might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/templates/front.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/users/edit.php
+
+		-
+			message: '#^Variable \$title might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/users/edit.php
+
+		-
+			message: '#^Variable \$user might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/users/edit.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/users/index.php
+
+		-
+			message: '#^Variable \$users might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/users/index.php

@@ -1,0 +1,36 @@
+includes:
+    # Baseline — auto-generated через `vendor/bin/phpstan analyse --generate-baseline`.
+    # Содержит legacy-ошибки которые мы не фиксим прямо сейчас. Каждый новый
+    # коммит должен быть baseline-clean (или baseline обновлен). При исправлении
+    # legacy — просто перегенерируем baseline.
+    - phpstan-baseline.neon
+
+parameters:
+    # F1.3 — стартовый level. Поднимать поэтапно:
+    #   5 — гарантирует найти typo bug'и (отсутствующие методы, неправильные
+    #       аргументы, мисматч type-hint vs return) — но не требует full typing.
+    #   6 — полное typing у параметров.
+    #   7 — strict null checking.
+    #   8 — strict_types-aware mixed handling.
+    #   9 — все strict.
+    level: 5
+
+    paths:
+        - app
+
+    excludePaths:
+        - app/Database/Migrations
+        - app/ThirdParty
+        - vendor
+
+    # Оптимизация — параллельные процессы
+    parallel:
+        maximumNumberOfProcesses: 4
+
+    # CI4-specific bootstrap
+    bootstrapFiles:
+        - vendor/codeigniter4/framework/system/Test/bootstrap.php
+
+    # CI4 моделі — typed properties через universalObjectCrates
+    universalObjectCratesClasses:
+        - stdClass
