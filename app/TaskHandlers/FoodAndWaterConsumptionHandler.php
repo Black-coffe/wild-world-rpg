@@ -170,7 +170,24 @@ class FoodAndWaterConsumptionHandler
                 $healthSubtracted = true; // Устанавливаем флаг, что здоровье было списано
             }
         } else {
-            log_message('error', 'Failed to retrieve resources for character ID: ' . $characterId);
+            // F1.4-postmortem (2026-05-05): character має 0 рядків у character_resources —
+            // повний голод. Це нормальна ситуація (новачки після /start, або старі гравці
+            // які витратили все), НЕ помилка → log_message прибраний (раніше створював
+            // recurring noise: 7 chars × 1 ERROR/день у логах 34+ днів поспіль).
+            //
+            // Game-design fix: chars з 0 inventory тепер ОТРИМУЮТЬ health damage (раніше
+            // мали "free pass" — несправедливо vs chars з 1 одиницею food/water).
+            // Захист нових гравців: skip damage якщо level < 5 АБО створений < 24h тому
+            // (UX grace period — нові юзери не встигли зрозуміти як збирати ресурси).
+            $createdAt = $character['created_at'] ?? null;
+            $isWithin24h = is_string($createdAt) && strtotime($createdAt) > time() - 86400;
+            $isNewPlayer = ((int) $character['level'] < 5) || $isWithin24h;
+
+            if (!$isNewPlayer && $health > 0.02) {
+                $healthToSubtract = max(0.01, $health * 0.5);
+                $this->subtractHealth($character, $healthToSubtract, $foodToConsume, $waterToConsume);
+                $healthSubtracted = true;
+            }
         }
         // После вычитания ресурсов вызовите метод для проверки и удаления ресурса при необходимости
         $this->deleteResourceIfNeeded($characterId);
