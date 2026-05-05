@@ -29,6 +29,10 @@ class PollVoteModel extends Model
         $builder->join('poll_votes as pv', 'pv.answer_id = pa.id', 'left');
         $builder->where('pa.poll_id', $pollId);
         $builder->groupBy('pa.id');
-        return $builder->get()->getResultArray();
+        $query = $builder->get();
+        if ($query === false) {
+            return [];
+        }
+        return $query->getResultArray();
     }
 }

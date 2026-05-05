@@ -452,6 +452,9 @@ class BaseShiftingCommand extends UserCommand
                 'ymax' => $Y+$r,
             ];
             $query   = $db->query($sql, $bind);
+            if (!$query instanceof \CodeIgniter\Database\BaseResult) {
+                return null;
+            }
             $results = $query->getResultArray();
 
             if (!empty($results)) {
@@ -493,12 +496,15 @@ class BaseShiftingCommand extends UserCommand
     private function getBiomeNameByMapId(int $mapId): string
     {
         $db = \Config\Database::connect();
-        $row = $db->table('map')
+        $query = $db->table('map')
             ->select('biomes.name AS biome_name')
             ->join('biomes','biomes.id=map.biome_id','left')
             ->where('map.id',$mapId)
-            ->get()
-            ->getRowArray();
+            ->get();
+        if ($query === false) {
+            return "Неизвестный биом";
+        }
+        $row = $query->getRowArray();
         if ($row && !empty($row['biome_name'])) {
             return $row['biome_name'];
         }

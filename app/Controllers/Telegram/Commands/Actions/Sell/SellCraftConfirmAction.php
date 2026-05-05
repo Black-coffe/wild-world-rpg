@@ -71,7 +71,7 @@ class SellCraftConfirmAction extends BaseAction
              WHERE character_id = ? AND crafted_item_id = ? FOR UPDATE',
             [$character['id'], $craftedItemId]
         );
-        $craftedItemLog = $logQuery->getRowArray();
+        $craftedItemLog = $logQuery instanceof \CodeIgniter\Database\BaseResult ? $logQuery->getRowArray() : null;
         if (!$craftedItemLog || $craftedItemLog['quantity'] < $quantity) {
             $db->transRollback();
             $this->logRejected($character['id'], 'SELL_CRAFT', 'insufficient_inventory', ['item_id' => $craftedItemId, 'requested' => $quantity, 'have' => $craftedItemLog['quantity'] ?? 0]);
@@ -86,7 +86,7 @@ class SellCraftConfirmAction extends BaseAction
             'SELECT trading_karma FROM characters WHERE id = ? FOR UPDATE',
             [$character['id']]
         );
-        $charRefresh = $charRefreshQuery->getRowArray();
+        $charRefresh = $charRefreshQuery instanceof \CodeIgniter\Database\BaseResult ? $charRefreshQuery->getRowArray() : null;
         if (!$charRefresh) {
             $db->transRollback();
             return Request::sendMessage([

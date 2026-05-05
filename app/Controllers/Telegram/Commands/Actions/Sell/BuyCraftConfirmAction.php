@@ -105,7 +105,7 @@ class BuyCraftConfirmAction extends BaseAction
             'SELECT gold, trading_karma FROM characters WHERE id = ? FOR UPDATE',
             [$character['id']]
         );
-        $charRefresh = $charRefreshQuery->getRowArray();
+        $charRefresh = $charRefreshQuery instanceof \CodeIgniter\Database\BaseResult ? $charRefreshQuery->getRowArray() : null;
         if (!$charRefresh) {
             $db->transRollback();
             return Request::sendMessage([
@@ -119,7 +119,7 @@ class BuyCraftConfirmAction extends BaseAction
             'SELECT id, price, quantity FROM sales WHERE crafted_item_id = ? FOR UPDATE',
             [$craftedItemId]
         );
-        $saleItem = $saleItemQuery->getRowArray();
+        $saleItem = $saleItemQuery instanceof \CodeIgniter\Database\BaseResult ? $saleItemQuery->getRowArray() : null;
         if (!$saleItem || $saleItem['quantity'] < $quantity) {
             $db->transRollback();
             $this->logRejected($character['id'], 'BUY_CRAFT', 'vendor_out_of_stock', ['item_id' => $craftedItemId, 'requested' => $quantity, 'available' => $saleItem['quantity'] ?? 0]);

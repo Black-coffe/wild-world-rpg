@@ -86,6 +86,9 @@ class CharacterResourceModel extends Model
         $builder->groupBy('character_resources.id_characters');
 
         $query = $builder->get();
+        if ($query === false) {
+            return 0;
+        }
 
         $result = $query->getRow();
         return $result ? (int)$result->total_quantity : 0;

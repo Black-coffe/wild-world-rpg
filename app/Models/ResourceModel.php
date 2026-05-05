@@ -143,10 +143,13 @@ class ResourceModel extends Model
     public function subtractResourceQuantity($characterId, $resourceId, $quantity)
     {
         $builder = $this->db->table('character_resources');
-        $characterResource = $builder->where('id_characters', $characterId)
+        $query = $builder->where('id_characters', $characterId)
             ->where('id_resources', $resourceId)
-            ->get()
-            ->getRowArray();
+            ->get();
+        if ($query === false) {
+            return false;
+        }
+        $characterResource = $query->getRowArray();
 
         if ($characterResource && $characterResource['quantity'] >= $quantity) {
             $builder->where('id_characters', $characterId)
@@ -181,7 +184,11 @@ class ResourceModel extends Model
         }
 
         $builder = $this->db->table('character_resources');
-        $existing = $builder->where('id_characters', $characterId)->where('id_resources', $resource['id'])->get()->getRow();
+        $query = $builder->where('id_characters', $characterId)->where('id_resources', $resource['id'])->get();
+        if ($query === false) {
+            return false;
+        }
+        $existing = $query->getRow();
 
         if ($existing) {
             $newQuantity = $existing->quantity + $quantity;

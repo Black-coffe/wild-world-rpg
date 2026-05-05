@@ -446,11 +446,14 @@ class TeleportBeaconSetAction
 
         // 2) Ищем telegram_id
         $db = db_connect();
-        $row = $db->table('telegram_users')
+        $query = $db->table('telegram_users')
             ->select('telegram_id')
             ->where('id', $tgUserId)
-            ->get()
-            ->getRowArray();
+            ->get();
+        if ($query === false) {
+            return;
+        }
+        $row = $query->getRowArray();
         if (!$row) {
             return;
         }

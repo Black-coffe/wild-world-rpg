@@ -30,7 +30,7 @@
                 </div>
                 <div class="mb-3 col-md-6">
                     <label for="id_character" class="form-label">ID персонажа в игре</label>
-                    <input type="number" class="form-control" id="id_character" name="characterId" <?= $characterId !== null ? 'required value="' . esc($characterId) . '"' : '' ?>>
+                    <input type="number" class="form-control" id="id_character" name="characterId" <?= $characterId !== null ? 'required value="' . esc((string) $characterId) . '"' : '' ?>>
                 </div>
             </div>
             <button type="submit" class="btn btn-primary">Проверить данные</button>

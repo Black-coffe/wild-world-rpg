@@ -46,6 +46,10 @@ class CleanupCharacterTasks extends BaseCommand
                AND updated_at < DATE_SUB(NOW(), INTERVAL ? DAY)',
             ['completed', 'interrupted', $days]
         );
+        if (!$countQuery instanceof \CodeIgniter\Database\BaseResult) {
+            CLI::error('Не вдалося отримати лічильник із БД.');
+            return;
+        }
         $count = (int) $countQuery->getRow('cnt');
 
         CLI::write("Найдено для удаления: {$count} строк (status IN completed/interrupted, старше {$days} дней)", 'yellow');

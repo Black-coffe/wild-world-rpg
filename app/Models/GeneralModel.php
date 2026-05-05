@@ -9,6 +9,9 @@ class GeneralModel extends Model
     {
         $tables = $this->db->listTables();
         $countData = [];
+        if ($tables === false) {
+            return $countData;
+        }
         foreach ($tables as $table) {
             if ($this->db->fieldExists('character_id', $table)) {
                 $builder = $this->db->table($table);
@@ -24,6 +27,9 @@ class GeneralModel extends Model
     public function deleteCharacterData($characterId)
     {
         $tables = $this->db->listTables();
+        if ($tables === false) {
+            return;
+        }
         foreach ($tables as $table) {
             if ($this->db->fieldExists('character_id', $table)) {
                 $builder = $this->db->table($table);

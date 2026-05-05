@@ -9,11 +9,11 @@ parameters:
     # F1.3 — стартовый level. Поднимать поэтапно:
     #   5 — typo bug'и (отсутствующие методы, неправильные аргументы, мисматч
     #       type-hint vs return) — без full typing. F1.3 (v0.38.0).
-    #   6 — полное typing у параметров. ← CURRENT (v0.39.0)
-    #   7 — strict null checking.
+    #   6 — полное typing у параметров. F1.3.1 (v0.39.0).
+    #   7 — strict null checking. ← CURRENT (v0.40.0)
     #   8 — strict_types-aware mixed handling.
     #   9 — все strict.
-    level: 6
+    level: 7
 
     paths:
         - app
@@ -21,6 +21,7 @@ parameters:
     excludePaths:
         - app/Database/Migrations
         - app/ThirdParty
+        - app/Views/errors    # CI4 framework default templates
         - vendor
 
     # Оптимизация — параллельные процессы

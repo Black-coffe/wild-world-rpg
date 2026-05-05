@@ -72,10 +72,13 @@ class CraftedItemsModel extends Model
         }
 
         $builder = $this->db->table('crafted_items_log');
-        $existing = $builder->where('character_id', $characterId)
+        $query = $builder->where('character_id', $characterId)
             ->where('crafted_item_id', $item['id'])
-            ->get()
-            ->getRow();
+            ->get();
+        if ($query === false) {
+            return false;
+        }
+        $existing = $query->getRow();
 
         if ($existing) {
             $newQuantity = $existing->quantity + $quantity;

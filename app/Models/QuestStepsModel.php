@@ -62,7 +62,11 @@ class QuestStepsModel extends Model
                     ->where('character_id', $characterId)
                     ->groupBy('quest_id');
             });
-        return $builder->get()->getResultArray();
+        $query = $builder->get();
+        if ($query === false) {
+            return [];
+        }
+        return $query->getResultArray();
     }
 
     public function getActiveQuestStepsForCharacter($characterId, $quests)

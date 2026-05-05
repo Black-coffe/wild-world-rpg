@@ -77,10 +77,14 @@ class CI4CharacterRepository implements CharacterRepositoryInterface
         // вызывающего кода. Используется в Buy/Sell handler'ах (F0.5)
         // для перепроверки балансов после получения lock'а.
         $db = Database::connect();
-        $row = $db->query(
+        $query = $db->query(
             'SELECT gold, trading_karma FROM characters WHERE id = ? FOR UPDATE',
             [$characterId]
-        )->getRowArray();
+        );
+        if (!$query instanceof \CodeIgniter\Database\BaseResult) {
+            return null;
+        }
+        $row = $query->getRowArray();
         if ($row === null) {
             return null;
         }

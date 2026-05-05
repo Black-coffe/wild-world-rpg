@@ -43,6 +43,9 @@ class TelegramUserModel extends Model
         $builder->join('telegram_users', 'telegram_users.id = characters.telegram_user_id', 'inner');
         $builder->where('telegram_users.telegram_id', $telegramId);
         $query = $builder->get();
+        if ($query === false) {
+            return null;
+        }
 
         if ($row = $query->getRowArray()) {
             return (int) $row['id'];

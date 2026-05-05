@@ -17,7 +17,7 @@
             <tr><td><strong>tick_chance</strong></td><td><?= esc($worldConfig['tick_chance']) ?> (<?= round($worldConfig['tick_chance'] * 100) ?>%/тик)</td></tr>
             <tr><td><strong>duration_minutes</strong> (target)</td><td><?= esc($worldConfig['duration_minutes']) ?> мин (текущая в БД: <?= esc($event['duration']) ?> мин)</td></tr>
             <tr><td><strong>frequency_weight</strong></td><td><?= esc($worldConfig['frequency_weight']) ?> (вес для weighted random в активаторе)</td></tr>
-            <tr><td><strong>protection_item</strong></td><td><?= $worldConfig['protection_item'] !== null ? '<code>' . esc($worldConfig['protection_item']) . '</code> (-50% damage если в инвентаре)' : '<em>—</em>' ?></td></tr>
+            <tr><td><strong>protection_item</strong></td><td><?= $worldConfig['protection_item'] !== null ? '<code>' . esc((string) $worldConfig['protection_item']) . '</code> (-50% damage если в инвентаре)' : '<em>—</em>' ?></td></tr>
             <tr><td><strong>notification_kind</strong></td><td><code><?= esc($worldConfig['notification_kind']) ?></code></td></tr>
         </table>
     </div>

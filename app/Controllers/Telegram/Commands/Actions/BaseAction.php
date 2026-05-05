@@ -96,8 +96,12 @@ abstract class BaseAction
     {
         $endTime = new \DateTime($this->blockingTaskDetails['end_time']);
         $now = new \DateTime();
-        $timeLeft = $now > $endTime ? 0 : $now->diff($endTime);
-        $minutesLeft = $now > $endTime ? 0 : ($timeLeft->days * 24 * 60 + $timeLeft->h * 60 + $timeLeft->i);
+        if ($now >= $endTime) {
+            $minutesLeft = 0;
+        } else {
+            $diff = $now->diff($endTime);
+            $minutesLeft = $diff->days * 24 * 60 + $diff->h * 60 + $diff->i;
+        }
 
         $text = "*Вы не можете начать действие!* 😥\n\n"
             . "*Вы уже заняты выполнением задачи:*\n\n"
