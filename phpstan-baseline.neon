@@ -865,12 +865,6 @@ parameters:
 			path: app/Controllers/BaseController.php
 
 		-
-			message: '#^Cannot access offset ''log_data'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/BattlesController.php
-
-		-
 			message: '#^Method App\\Controllers\\BattlesController\:\:index\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1

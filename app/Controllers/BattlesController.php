@@ -45,7 +45,8 @@ class BattlesController extends Controller
         }
 
         // Декодируем JSON из log_data
-        $logData = json_decode($battle['log_data'], true);
+        // F1.4.3: $battle тепер BattleLogEntity (Model returnType) — typed property access.
+        $logData = json_decode($battle->log_data, true);
 
         // Передаём все данные в шаблон
         return view('battles/view', [
