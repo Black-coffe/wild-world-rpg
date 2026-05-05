@@ -206,7 +206,7 @@ class RegeneratorCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q} шт",
-                    'callback_data' => "craftRegenerator_{$q}"
+                    'callback_data' => "genericCraft_Regenerator_{$q}"
                 ];
             }
         }

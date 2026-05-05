@@ -213,7 +213,7 @@ class PainReliefPowerCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q}шт",
-                    'callback_data' => "craftPainReliefPower_{$q}"
+                    'callback_data' => "genericCraft_PainReliefPower_{$q}"
                 ];
             }
         }

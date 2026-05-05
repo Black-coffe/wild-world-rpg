@@ -238,7 +238,7 @@ class BasicMedKitCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q}шт",
-                    'callback_data' => "craftBasicMedKit_{$q}"
+                    'callback_data' => "genericCraft_BasicMedKit_{$q}"
                 ];
             }
         }
