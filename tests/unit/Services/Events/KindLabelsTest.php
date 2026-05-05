@@ -9,8 +9,8 @@ use Config\WorldEvents;
 /**
  * v0.32.1 — KindLabels test.
  *
- * Інваріант: КОЖЕН з 10 VALID_EFFECT_KINDS у WorldEvents має human-readable
- * label у KindLabels. Інакше з'явиться UI з кнопкою "🚫 Без подій damage_health"
+ * Инвариант: КОЖЕН з 10 VALID_EFFECT_KINDS у WorldEvents должен human-readable
+ * label у KindLabels. Иначе з'явиться UI з кнопкою "🚫 Без подій damage_health"
  * (raw enum-ID) — не gracefully.
  *
  * @internal
@@ -22,7 +22,7 @@ final class KindLabelsTest extends CIUnitTestCase
         foreach (WorldEvents::VALID_EFFECT_KINDS as $kind) {
             $this->assertTrue(
                 KindLabels::isKnown($kind),
-                "Kind '{$kind}' відсутній у KindLabels::LABELS_RU. Додай людиномовний переклад."
+                "Kind '{$kind}' отсутствій у KindLabels::LABELS_RU. Додай людиномовний переклад."
             );
         }
     }

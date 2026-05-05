@@ -7,17 +7,17 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\WorldEvents;
 
 /**
- * F7.1 — unit-тести на declarative registry WorldEvents.php.
+ * F7.1 — unit-тесты на declarative registry WorldEvents.php.
  *
- * Перевіряємо:
- *   1. Кожен row у БД `events` має відповідник у WorldEvents::$events
+ * Проверяем:
+ *   1. Кожен row у БД `events` должен відповідник у WorldEvents::$events
  *      (по `name_english` ключу). Це гарантує що F7 cutover не пропустить
- *      жодної існуючої події.
- *   2. Усі effect_kind у конфігу — валідні enum'и (10 дозволених kinds).
- *   3. Усі notification_kind — валідні enum'и (3 дозволених kinds).
- *   4. Структурні інваріанти per-kind (наприклад, damage_health МАЄ
- *      damage_target і state_modifier).
- *   5. Дюрації — не довші за 90 хв (анти-spam policy).
+ *      ни однои існуючои подіи.
+ *   2. Все effect_kind у конфігу — валідни enum'и (10 дозволених kinds).
+ *   3. Все notification_kind — валідни enum'и (3 дозволених kinds).
+ *   4. Структурни инварианти per-kind (наприклад, damage_health МАЕ
+ *      damage_target и state_modifier).
+ *   5. Дюраціи — не довши за 90 хв (анти-spam policy).
  *   6. Frequency_weight — позитивне ціле.
  *
  * @internal
@@ -38,19 +38,19 @@ final class WorldEventsTest extends CIUnitTestCase
     }
 
     // ============================================================
-    // Coverage: всі 24 події з БД є в конфігу
+    // Coverage: вси 24 подіи з БД есть в конфігу
     // ============================================================
 
     /**
      * Helper: returns DB rows or null if events table doesn't exist
-     * (e.g., test DB не засіяна; запускати на testbot/проді з реальною DB).
+     * (e.g., test DB не засіяна; запускати на testbot/проди з реальною DB).
      */
     private function fetchDbEventRowsOrSkip(): ?array
     {
         $db = \Config\Database::connect();
         if (!$db->tableExists('events')) {
             $this->markTestSkipped(
-                "Test DB не має таблиці 'events'. Тест passes на testbot/проді з реальною БД. " .
+                "Test DB не должен таблици 'events'. Тест passes на testbot/проди з реальною БД. " .
                 "Для локального прогону — імпортувати prod dump або запустити seed."
             );
             return null;
@@ -73,7 +73,7 @@ final class WorldEventsTest extends CIUnitTestCase
             $this->assertContains(
                 $name,
                 $configKeys,
-                "DB event '{$name}' відсутній у WorldEvents::\$events. " .
+                "DB event '{$name}' отсутствій у WorldEvents::\$events. " .
                 "Або додай у конфіг, або видали row з БД."
             );
         }
@@ -92,7 +92,7 @@ final class WorldEventsTest extends CIUnitTestCase
             $this->assertContains(
                 $configKey,
                 $dbKeys,
-                "WorldEvents config має '{$configKey}' але DB.events не має. " .
+                "WorldEvents config должен '{$configKey}' але DB.events не має. " .
                 "Або додай у БД, або прибери з конфіга."
             );
         }
@@ -100,13 +100,13 @@ final class WorldEventsTest extends CIUnitTestCase
 
     public function testConfigHasExactly24Events(): void
     {
-        // 2026-05-05: у БД зареєстровано 24 події. Якщо це число змінюється,
-        // оновити тут і в hot.md/Events-actual.md.
-        $this->assertCount(24, $this->cfg->keys(), 'Очікується 24 події у конфігу');
+        // 2026-05-05: у БД зареєстровано 24 подіи. Если це число изменяетться,
+        // оновити тут и в hot.md/Events-actual.md.
+        $this->assertCount(24, $this->cfg->keys(), 'Очікується 24 подіи у конфігу');
     }
 
     // ============================================================
-    // Schema: усі обов'язкові поля заповнені
+    // Schema: все обов'язкови поля заповнени
     // ============================================================
 
     public function testEveryEventHasAllRequiredTopLevelFields(): void
@@ -137,11 +137,11 @@ final class WorldEventsTest extends CIUnitTestCase
         foreach ($this->cfg->events as $key => $event) {
             $tc = $event['tick_chance'] ?? null;
             $this->assertIsFloat($tc,
-                "tick_chance у '{$key}' має бути float, отримано: " . gettype($tc));
+                "tick_chance у '{$key}' должен бути float, отримано: " . gettype($tc));
             $this->assertGreaterThanOrEqual(0.0, $tc,
-                "tick_chance у '{$key}' має бути >= 0");
+                "tick_chance у '{$key}' должен бути >= 0");
             $this->assertLessThanOrEqual(1.0, $tc,
-                "tick_chance у '{$key}' має бути <= 1");
+                "tick_chance у '{$key}' должен бути <= 1");
         }
     }
 
@@ -155,7 +155,7 @@ final class WorldEventsTest extends CIUnitTestCase
             $this->assertContains(
                 $event['effect_kind'],
                 WorldEvents::VALID_EFFECT_KINDS,
-                "Подія '{$key}' має невалідний effect_kind '{$event['effect_kind']}'. " .
+                "Подія '{$key}' должен невалидний effect_kind '{$event['effect_kind']}'. " .
                 "Дозволені: " . implode(', ', WorldEvents::VALID_EFFECT_KINDS)
             );
         }
@@ -167,7 +167,7 @@ final class WorldEventsTest extends CIUnitTestCase
             $this->assertContains(
                 $event['notification_kind'],
                 WorldEvents::VALID_NOTIFICATION_KINDS,
-                "Подія '{$key}' має невалідний notification_kind '{$event['notification_kind']}'"
+                "Подія '{$key}' должен невалидний notification_kind '{$event['notification_kind']}'"
             );
         }
     }
@@ -182,13 +182,13 @@ final class WorldEventsTest extends CIUnitTestCase
             $this->assertLessThanOrEqual(
                 90,
                 $event['duration_minutes'],
-                "Подія '{$key}' має duration_minutes={$event['duration_minutes']}, " .
+                "Подія '{$key}' должен duration_minutes={$event['duration_minutes']}, " .
                 "максимум 90 за анти-spam policy F7."
             );
             $this->assertGreaterThan(
                 0,
                 $event['duration_minutes'],
-                "Подія '{$key}' має нульову/від'ємну дюрацію"
+                "Подія '{$key}' должен нульову/від'ємну дюрацію"
             );
         }
     }
@@ -199,11 +199,11 @@ final class WorldEventsTest extends CIUnitTestCase
             $this->assertGreaterThan(
                 0,
                 $event['frequency_weight'],
-                "Подія '{$key}' має невалідний frequency_weight={$event['frequency_weight']}"
+                "Подія '{$key}' должен невалидний frequency_weight={$event['frequency_weight']}"
             );
             $this->assertIsInt(
                 $event['frequency_weight'],
-                "Подія '{$key}' frequency_weight має бути int"
+                "Подія '{$key}' frequency_weight должен бути int"
             );
         }
     }
@@ -219,14 +219,14 @@ final class WorldEventsTest extends CIUnitTestCase
                 continue;
             }
             $this->assertArrayHasKey('damage_target', $event['effect_params'],
-                "damage_health подія '{$key}' має містити effect_params.damage_target");
+                "damage_health подія '{$key}' должен містити effect_params.damage_target");
             $this->assertArrayHasKey('state_modifier', $event['effect_params'],
-                "damage_health подія '{$key}' має містити effect_params.state_modifier");
+                "damage_health подія '{$key}' должен містити effect_params.state_modifier");
 
             $sm = $event['effect_params']['state_modifier'];
             foreach (['base_idle', 'biome_idle', 'biome_active'] as $stateKey) {
                 $this->assertArrayHasKey($stateKey, $sm,
-                    "state_modifier у '{$key}' має містити '{$stateKey}'");
+                    "state_modifier у '{$key}' должен містити '{$stateKey}'");
             }
         }
     }
@@ -238,11 +238,11 @@ final class WorldEventsTest extends CIUnitTestCase
                 continue;
             }
             $this->assertArrayHasKey('gather_rate_modifier', $event['effect_params'],
-                "gather_debuff '{$key}' має містити effect_params.gather_rate_modifier");
+                "gather_debuff '{$key}' должен містити effect_params.gather_rate_modifier");
             $this->assertLessThanOrEqual(
                 0,
                 $event['effect_params']['gather_rate_modifier'],
-                "gather_rate_modifier у '{$key}' має бути <=0 (це debuff)"
+                "gather_rate_modifier у '{$key}' должен бути <=0 (це debuff)"
             );
         }
     }
@@ -254,11 +254,11 @@ final class WorldEventsTest extends CIUnitTestCase
                 continue;
             }
             $this->assertArrayHasKey('resource_keyword', $event['effect_params'],
-                "rare_resource_grant '{$key}' має містити effect_params.resource_keyword");
+                "rare_resource_grant '{$key}' должен містити effect_params.resource_keyword");
             $this->assertArrayHasKey('amount_range', $event['effect_params'],
-                "rare_resource_grant '{$key}' має містити effect_params.amount_range");
+                "rare_resource_grant '{$key}' должен містити effect_params.amount_range");
             $this->assertArrayHasKey('chance_per_tick', $event['effect_params'],
-                "rare_resource_grant '{$key}' має містити effect_params.chance_per_tick");
+                "rare_resource_grant '{$key}' должен містити effect_params.chance_per_tick");
         }
     }
 
@@ -269,7 +269,7 @@ final class WorldEventsTest extends CIUnitTestCase
                 continue;
             }
             $this->assertArrayHasKey('cap_formula', $event['effect_params'],
-                "gold_grant '{$key}' має містити effect_params.cap_formula (анти-power-creep)");
+                "gold_grant '{$key}' должен містити effect_params.cap_formula (анти-power-creep)");
         }
     }
 
@@ -280,23 +280,23 @@ final class WorldEventsTest extends CIUnitTestCase
                 continue;
             }
             $this->assertArrayHasKey('task_filter', $event['effect_params'],
-                "task_extend '{$key}' має містити effect_params.task_filter");
+                "task_extend '{$key}' должен містити effect_params.task_filter");
             $this->assertNotEmpty($event['effect_params']['task_filter'],
                 "task_filter у '{$key}' порожній — нічого подовжувати");
         }
     }
 
     // ============================================================
-    // Spot checks (важливі рішення з audit'а)
+    // Spot checks (важливи рішення з audit'а)
     // ============================================================
 
     public function testDrynessShortenedDramatically(): void
     {
         // Audit decision: Засуха 14г → 90 хв
         $event = $this->cfg->get('Dryness');
-        $this->assertNotNull($event, 'Dryness має бути в конфігу (раніше dead handler)');
+        $this->assertNotNull($event, 'Dryness должен бути в конфігу (ранее dead handler)');
         $this->assertSame(90, $event['duration_minutes'],
-            'Dryness має бути 90 хв (з 860 хв у legacy DB)');
+            'Dryness должен бути 90 хв (з 860 хв у legacy DB)');
         $this->assertSame('gather_debuff', $event['effect_kind']);
     }
 
@@ -305,7 +305,7 @@ final class WorldEventsTest extends CIUnitTestCase
         $event = $this->cfg->get('volcanic_eruption');
         $this->assertNotNull($event);
         $this->assertSame(60, $event['duration_minutes'],
-            'volcanic_eruption має бути 60 хв (з 256 хв у legacy DB)');
+            'volcanic_eruption должен бути 60 хв (з 256 хв у legacy DB)');
     }
 
     public function testBerryBoomImplementedNotStub(): void
@@ -321,7 +321,7 @@ final class WorldEventsTest extends CIUnitTestCase
         $event = $this->cfg->get('Starfall');
         $this->assertNotNull($event);
         $this->assertSame(5, $event['frequency_weight'],
-            'Starfall — найчастіша подія за лором («сотні падаючих зірок»)');
+            'Starfall — найчащеа подія за лором («сотни падаючих зірок»)');
     }
 
     public function testGoldMineHasCapFormulaToFightPowerCreep(): void
@@ -329,7 +329,7 @@ final class WorldEventsTest extends CIUnitTestCase
         $event = $this->cfg->get('GoldMine');
         $this->assertNotNull($event);
         $this->assertSame('level_50', $event['effect_params']['cap_formula'],
-            'GoldMine має cap_formula=level_50 (анти-power-creep, 1500g на рівні 30)');
+            'GoldMine должен cap_formula=level_50 (анти-power-creep, 1500g на рівни 30)');
     }
 
     public function testPolarNightGrantsImmunityToNightAttacks(): void
@@ -337,7 +337,7 @@ final class WorldEventsTest extends CIUnitTestCase
         $event = $this->cfg->get('PolarNight');
         $this->assertNotNull($event);
         $this->assertContains('NightAttacks', $event['effect_params']['grants_immunity_to'] ?? [],
-            'PolarNight має давати immunity до NightAttacks (lore: постійна темрява = немає звичайних нічних нападників)');
+            'PolarNight должен давати immunity до NightAttacks (lore: постійна темрява = недолжен обычних нічних нападників)');
     }
 
     public function testNightAttacksSkipsSleepingPlayers(): void
@@ -345,7 +345,7 @@ final class WorldEventsTest extends CIUnitTestCase
         $event = $this->cfg->get('NightAttacks');
         $this->assertNotNull($event);
         $this->assertSame(12, $event['effect_params']['sleeping_player_skip'] ?? null,
-            'NightAttacks має skip гравців з last_seen > 12 годин (не караємо сов)');
+            'NightAttacks должен skip игрокив з last_seen > 12 годин (не караємо сов)');
     }
 
     public function testHurricaneHasBandageAsProtection(): void

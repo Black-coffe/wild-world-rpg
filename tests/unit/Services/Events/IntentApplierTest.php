@@ -6,12 +6,12 @@ use App\Services\Events\IntentApplier;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
- * F7.3 — тести на IntentApplier через mock-моделі (анонімні extends).
+ * F7.3 — тесты на IntentApplier через mock-модели (анонимни extends).
  *
- * Перевіряємо що apply():
+ * Проверяем що apply():
  *   1. Конвертує health/tired/gold/attribute deltas → CharacterModel::update
- *   2. Застосовує floor=0.01 на health/tired (не йдемо в мінус)
- *   3. Викликає resource_grant правильно (resolution через ResourceModel)
+ *   2. Применяет floor=0.01 на health/tired (не йдемо в мінус)
+ *   3. Вызоває resource_grant правильно (resolution через ResourceModel)
  *   4. Не валиться на порожньому result
  *
  * @internal
@@ -42,13 +42,13 @@ final class IntentApplierTest extends CIUnitTestCase
             new \App\Models\TaskModel(),
         );
 
-        // Гравець з health=10, отримує -50 → floor 0.01
+        // Игрок з health=10, отримує -50 → floor 0.01
         $character = ['id' => 99, 'health' => 10.0, 'tired' => 100.0, 'gold' => 0];
         $result    = ['health_delta' => -50.0, 'tired_delta' => 0, 'gold_delta' => 0];
 
         $applier->apply($character, $result);
 
-        $this->assertNotEmpty($captured, 'update() мало бути викликано');
+        $this->assertNotEmpty($captured, 'update() мало бути вызовано');
         $this->assertSame(99, $captured[0]['id']);
         $this->assertSame(0.01, $captured[0]['data']['health'], 'health не йде нижче 0.01');
     }
@@ -150,6 +150,6 @@ final class IntentApplierTest extends CIUnitTestCase
             ['health_delta' => 0, 'tired_delta' => 0, 'gold_delta' => 0]
         );
 
-        $this->assertEmpty($captured, 'Empty deltas → жодного DB-запису');
+        $this->assertEmpty($captured, 'Empty deltas → ни одного DB-запису');
     }
 }

@@ -6,7 +6,7 @@ use App\Services\Events\Effects\HealEffect;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
- * F7.2 — тести на HealEffect (GeothermalFountains).
+ * F7.2 — тесты на HealEffect (GeothermalFountains).
  * @internal
  */
 final class HealEffectTest extends CIUnitTestCase
@@ -21,7 +21,7 @@ final class HealEffectTest extends CIUnitTestCase
 
     public function testHealRespectsCap(): void
     {
-        // Гравець уже на 95 HP, cap=100, range=[1,10] → max +5
+        // Игрок уже на 95 HP, cap=100, range=[1,10] → max +5
         for ($i = 0; $i < 50; $i++) {
             $r = $this->effect->compute(
                 ['health' => 95, 'tired' => 95],

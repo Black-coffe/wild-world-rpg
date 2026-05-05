@@ -7,7 +7,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use Config\WorldEvents;
 
 /**
- * F7.9 — тести на pickWeighted (заміна array_rand → weighted random).
+ * F7.9 — тесты на pickWeighted (заміна array_rand → weighted random).
  *
  * Pure-static method, тестується без I/O.
  *
@@ -48,17 +48,17 @@ final class EventActivationHandlerWeightedTest extends CIUnitTestCase
 
         $this->assertSame($iterations, $hurricaneCount + $starfallCount);
 
-        // Очікувано: Hurricane ~166 (1/6), Starfall ~833 (5/6)
-        // Дозволяємо ±25% варіацію (statistical noise)
+        // Ожидается: Hurricane ~166 (1/6), Starfall ~833 (5/6)
+        // Допускаем ±25% варіацію (statistical noise)
         $this->assertGreaterThan($hurricaneCount * 3, $starfallCount,
-            "Starfall (weight 5) має бути значно частіше за Hurricane (weight 1). " .
+            "Starfall (weight 5) должен бути значительно чаще за Hurricane (weight 1). " .
             "Got Starfall={$starfallCount}, Hurricane={$hurricaneCount}");
     }
 
     public function testEqualWeightsRoughlyEqualDistribution(): void
     {
         $cfg = new WorldEvents();
-        // Hurricane і Snowfall обидва weight=1
+        // Hurricane и Snowfall обидва weight=1
         $events = [
             ['name_english' => 'Hurricane', 'event_id' => 1],
             ['name_english' => 'Snowfall',  'event_id' => 9],
@@ -75,9 +75,9 @@ final class EventActivationHandlerWeightedTest extends CIUnitTestCase
             }
         }
 
-        // Очікуємо ~500/500. Дозволяємо ±15%
-        $this->assertGreaterThan(350, $h, 'Hurricane має бути ~500 з 1000');
-        $this->assertGreaterThan(350, $s, 'Snowfall має бути ~500 з 1000');
+        // Ожидаемо ~500/500. Допускаем ±15%
+        $this->assertGreaterThan(350, $h, 'Hurricane должен бути ~500 з 1000');
+        $this->assertGreaterThan(350, $s, 'Snowfall должен бути ~500 з 1000');
     }
 
     public function testUnknownEventGetsDefaultWeightOf1(): void
@@ -100,7 +100,7 @@ final class EventActivationHandlerWeightedTest extends CIUnitTestCase
             }
         }
 
-        // Starfall (5) має бути значно частіше за NotInConfig (1)
+        // Starfall (5) должен бути значительно чаще за NotInConfig (1)
         $this->assertGreaterThan($unknown * 3, $star);
     }
 
@@ -120,7 +120,7 @@ final class EventActivationHandlerWeightedTest extends CIUnitTestCase
             $seen[$picked['name_english']] = ($seen[$picked['name_english']] ?? 0) + 1;
         }
 
-        // Усі 4 події мають з'явитись хоча б раз за 500 спроб
+        // Все 4 подіи должны з'явитись хоча б раз за 500 попыток
         $this->assertCount(4, $seen);
     }
 }

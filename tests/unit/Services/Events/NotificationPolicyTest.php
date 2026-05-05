@@ -7,7 +7,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 use Config\WorldEvents;
 
 /**
- * F7.5 — тести NotificationPolicy для throttle/mute/magnitude logic.
+ * F7.5 — тесты NotificationPolicy для throttle/mute/magnitude logic.
  *
  * Pure-logic частини (readUserPref, isMuted, isThrottled, magnitudeOverrides)
  * тестуються тут. sendStart/sendEnd — потребують Telegram + DB → smoke на testbot.
@@ -97,18 +97,18 @@ final class NotificationPolicyTest extends CIUnitTestCase
 
     public function testIsThrottledTrueRecent(): void
     {
-        $recent = date('Y-m-d H:i:s', time() - 300);  // 5 хв тому, throttle=60min
+        $recent = date('Y-m-d H:i:s', time() - 300);  // 5 хв назад, throttle=60min
         $this->assertTrue($this->policy->isThrottled(['last_event_notification_at' => $recent]));
     }
 
     public function testIsThrottledFalseAfterThrottle(): void
     {
-        $old = date('Y-m-d H:i:s', time() - 7200);  // 2 год тому
+        $old = date('Y-m-d H:i:s', time() - 7200);  // 2 год назад
         $this->assertFalse($this->policy->isThrottled(['last_event_notification_at' => $old]));
     }
 
     // ============================================================
-    // magnitudeOverrides — критичні події пробивають throttle
+    // magnitudeOverrides — критични подіи попытивають throttle
     // ============================================================
 
     public function testMagnitudeOverridesHpLossBigEnough(): void

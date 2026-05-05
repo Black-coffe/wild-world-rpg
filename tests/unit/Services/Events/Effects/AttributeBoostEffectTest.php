@@ -6,7 +6,7 @@ use App\Services\Events\Effects\AttributeBoostEffect;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
- * F7.2 — тести на AttributeBoostEffect (Starfall, NorthernLights).
+ * F7.2 — тесты на AttributeBoostEffect (Starfall, NorthernLights).
  * @internal
  */
 final class AttributeBoostEffectTest extends CIUnitTestCase
@@ -21,7 +21,7 @@ final class AttributeBoostEffectTest extends CIUnitTestCase
 
     public function testSmallStatsBoostInRange(): void
     {
-        // Запускаємо багато разів, перевіряємо що exp/str/agi/int отримують [1.00, 1.11]
+        // Запускаем багато разів, проверяем що exp/str/agi/int отримують [1.00, 1.11]
         for ($i = 0; $i < 100; $i++) {
             $r = $this->effect->compute(
                 ['health' => 50, 'tired' => 50, 'gold' => 0, 'experience' => 5, 'strength' => 5, 'agility' => 5, 'intellect' => 5],
@@ -50,7 +50,7 @@ final class AttributeBoostEffectTest extends CIUnitTestCase
         $r = $this->effect->compute(
             ['health' => 100, 'tired' => 0, 'gold' => 0],
             ['effect_params' => [
-                'attribute_pool'    => ['health'],  // тільки health
+                'attribute_pool'    => ['health'],  // только health
                 'large_boost_range' => [50, 100],
                 'cap_h_t_g'         => 100,
             ]],
@@ -62,10 +62,10 @@ final class AttributeBoostEffectTest extends CIUnitTestCase
 
     public function testLargeBoostGoldNotCapped(): void
     {
-        // gold не має cap у great_boost_range — large_boost_range стрясає [1..100]
+        // gold не должен cap у great_boost_range — large_boost_range стрясає [1..100]
         // але cap_h_t_g обрізає до 100. Тут cap не релевантний для gold-grant
         // (для gold AttributeBoost вкладає [1..100] незалежно від поточного gold).
-        // Перевірка: at least one з 100 спроб дав gold > 0
+        // Проверка: at least one з 100 попыток дав gold > 0
         $hits = 0;
         for ($i = 0; $i < 50; $i++) {
             $r = $this->effect->compute(
@@ -82,7 +82,7 @@ final class AttributeBoostEffectTest extends CIUnitTestCase
                 $hits++;
             }
         }
-        $this->assertGreaterThan(20, $hits, 'gold має падати в більшості спроб');
+        $this->assertGreaterThan(20, $hits, 'gold должен падати в більшости попыток');
     }
 
     public function testMagnitudeReportsAttribute(): void

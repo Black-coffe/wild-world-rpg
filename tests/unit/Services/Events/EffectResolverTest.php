@@ -19,7 +19,7 @@ use Config\WorldEvents;
 use InvalidArgumentException;
 
 /**
- * F7.2 — тести на EffectResolver: правильна map kind→class + всі enum'и мають mapping.
+ * F7.2 — тесты на EffectResolver: правильна map kind→class + вси enum'и должны mapping.
  * @internal
  */
 final class EffectResolverTest extends CIUnitTestCase
@@ -42,7 +42,7 @@ final class EffectResolverTest extends CIUnitTestCase
         foreach (WorldEvents::VALID_EFFECT_KINDS as $kind) {
             $effect = EffectResolver::resolve($kind);
             $this->assertInstanceOf(EventEffectInterface::class, $effect,
-                "{$kind} має повертати EventEffectInterface");
+                "{$kind} должен возвращать EventEffectInterface");
         }
     }
 
@@ -69,7 +69,7 @@ final class EffectResolverTest extends CIUnitTestCase
 
         foreach ($expected as $kind => $class) {
             $effect = EffectResolver::resolve($kind);
-            $this->assertInstanceOf($class, $effect, "{$kind} має повертати {$class}");
+            $this->assertInstanceOf($class, $effect, "{$kind} должен возвращать {$class}");
         }
     }
 
@@ -77,6 +77,6 @@ final class EffectResolverTest extends CIUnitTestCase
     {
         $a = EffectResolver::resolve('damage_health');
         $b = EffectResolver::resolve('damage_health');
-        $this->assertSame($a, $b, 'Resolver має reuse інстанси (effects stateless)');
+        $this->assertSame($a, $b, 'Resolver должен reuse инстансы (effects stateless)');
     }
 }

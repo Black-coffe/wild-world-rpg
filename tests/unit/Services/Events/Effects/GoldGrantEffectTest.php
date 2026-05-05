@@ -6,7 +6,7 @@ use App\Services\Events\Effects\GoldGrantEffect;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
- * F7.2 — тести на GoldGrantEffect (GoldMine) — особливо cap_formula
+ * F7.2 — тесты на GoldGrantEffect (GoldMine) — особливо cap_formula
  * для боротьби з power-creep'ом.
  * @internal
  */
@@ -40,7 +40,7 @@ final class GoldGrantEffectTest extends CIUnitTestCase
 
     public function testCapFormulaLevel50LowLevel(): void
     {
-        // На 1 рівні cap = max(500, 1×50) = 500
+        // На 1 рівни cap = max(500, 1×50) = 500
         for ($i = 0; $i < 50; $i++) {
             $r = $this->effect->compute(
                 ['level' => 1, 'experience' => 1000, 'agility' => 1000, 'intellect' => 1000, 'gold' => 0],
@@ -65,7 +65,7 @@ final class GoldGrantEffectTest extends CIUnitTestCase
 
     public function testCapFormulaLevel50HighLevel(): void
     {
-        // На 300 рівні cap = max(500, 300×50) = 15000
+        // На 300 рівни cap = max(500, 300×50) = 15000
         for ($i = 0; $i < 30; $i++) {
             $r = $this->effect->compute(
                 ['level' => 300, 'experience' => 1000, 'agility' => 1000, 'intellect' => 1000, 'gold' => 0],
@@ -110,13 +110,13 @@ final class GoldGrantEffectTest extends CIUnitTestCase
                 $maxSeen = max($maxSeen, $r['gold_delta']);
             }
         }
-        // Без cap'а очікуємо що принаймні раз перевищило 5000 (level 100 × 50)
-        $this->assertGreaterThan(5000, $maxSeen, "'none' формула має давати > level_50 cap");
+        // Без cap'а ожидаемо що принаймни раз перевищило 5000 (level 100 × 50)
+        $this->assertGreaterThan(5000, $maxSeen, "'none' формула должен давати > level_50 cap");
     }
 
     public function testChancePerTickGate(): void
     {
-        // chance_per_tick=0 → завжди skip
+        // chance_per_tick=0 → всегда skip
         $applied = 0;
         for ($i = 0; $i < 50; $i++) {
             $r = $this->effect->compute(

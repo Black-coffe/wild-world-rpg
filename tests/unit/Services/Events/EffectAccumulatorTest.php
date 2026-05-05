@@ -7,15 +7,15 @@ use App\Services\Events\EffectAccumulator;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
- * F7.4 — тести на EffectAccumulator через анонімну mock-модель.
+ * F7.4 — тесты на EffectAccumulator через анонимный mock-модель.
  *
- * Перевіряємо:
- *   - Перший accumulate — створює entry в effect_log
- *   - Другий accumulate того ж char — додає deltas (не перезаписує)
+ * Проверяем:
+ *   - Первый accumulate — создает entry в effect_log
+ *   - Вторий accumulate того ж char — добавляет deltas (не перезаписывает)
  *   - applied=false → no-op
- *   - readForEvent повертає int-keyed array
- *   - Attribute deltas мерджаться (поелементно)
- *   - Resource grants накопичуються (append)
+ *   - readForEvent возвращает int-keyed array
+ *   - Attribute deltas мерджатся (поелементно)
+ *   - Resource grants накапливаься (append)
  *   - notified_users tracking (markUserNotified / isUserNotified)
  *
  * @internal
@@ -23,7 +23,7 @@ use CodeIgniter\Test\CIUnitTestCase;
 final class EffectAccumulatorTest extends CIUnitTestCase
 {
     /**
-     * In-memory mock ActiveEventModel — зберігає одну row у $this->row.
+     * In-memory mock ActiveEventModel — сохраняє одну row у $this->row.
      */
     private function makeMockModel(): ActiveEventModel
     {
@@ -85,7 +85,7 @@ final class EffectAccumulatorTest extends CIUnitTestCase
 
         $acc->accumulate(100, 486, ['applied' => false, 'health_delta' => -100]);
 
-        $this->assertEmpty($acc->readForEvent(100), 'applied=false → log не змінюється');
+        $this->assertEmpty($acc->readForEvent(100), 'applied=false → log не изменяетться');
     }
 
     public function testGoldAccumulates(): void
@@ -182,11 +182,11 @@ final class EffectAccumulatorTest extends CIUnitTestCase
         $acc   = new EffectAccumulator($model);
 
         $acc->markUserNotified(100, 486);
-        $acc->markUserNotified(100, 486);  // повторний виклик
+        $acc->markUserNotified(100, 486);  // повторний вызов
         $acc->markUserNotified(100, 486);
 
         $list = json_decode($model->row['notified_users'], true);
-        $this->assertCount(1, $list, 'не дублюємо запис');
+        $this->assertCount(1, $list, 'не дублиємо запис');
     }
 
     public function testMarkUserNotifiedDistinguishesUsers(): void

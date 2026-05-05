@@ -6,7 +6,7 @@ use App\Controllers\Telegram\Commands\Actions\EventPrefAction;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
- * F7.5b — pure-logic тести EventPrefAction (parsing callback_data + pref update).
+ * F7.5b — pure-logic тесты EventPrefAction (parsing callback_data + pref update).
  *
  * Реальний handle() з Telegram I/O — smoke на testbot.
  *
@@ -68,7 +68,7 @@ final class EventPrefActionTest extends CIUnitTestCase
 
     public function testMuteKindParsesUnderscoresInKind(): void
     {
-        // kind='gather_debuff' має 1 underscore — суфікс після prefix'а 'eventPref_muteKind_'
+        // kind='gather_debuff' должен 1 underscore — суфікс после prefix'а 'eventPref_muteKind_'
         $update = EventPrefAction::computeUpdate('eventPref_muteKind_gather_debuff', []);
         $this->assertNotNull($update);
         $this->assertContains('gather_debuff', $update['pref']['muted_kinds']);

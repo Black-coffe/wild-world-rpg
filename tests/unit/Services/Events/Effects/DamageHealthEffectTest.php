@@ -6,12 +6,12 @@ use App\Services\Events\Effects\DamageHealthEffect;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
- * F7.2 — тести на DamageHealthEffect.
+ * F7.2 — тесты на DamageHealthEffect.
  *
  * Покриває 9 з 10 damage-подій (Hurricane, NightAttacks, Epidemic, ForestFire,
  * Snowfall, SpringFlood, Tremor, Volcanic, Sandstorm, Fever).
  *
- * Перевіряємо:
+ * Проверяем:
  *   - state_modifier (база захищає, gather/explore = повний удар)
  *   - time_window (NightAttacks 20:00-05:00)
  *   - sleeping_player_skip (NightAttacks)
@@ -190,7 +190,7 @@ final class DamageHealthEffectTest extends CIUnitTestCase
 
     public function testDamageTargetRandomHorT(): void
     {
-        // Запускаємо багато разів — статистично в обох є шанс
+        // Запускаем багато разів — статистично в обох есть шанс
         $hCount = 0;
         $tCount = 0;
         for ($i = 0; $i < 200; $i++) {
@@ -207,9 +207,9 @@ final class DamageHealthEffectTest extends CIUnitTestCase
                 $tCount++;
             }
         }
-        // 50/50 — у 200 спробах має бути хоча б 50 кожного
-        $this->assertGreaterThan(50, $hCount, 'health має зачіпатись');
-        $this->assertGreaterThan(50, $tCount, 'tired має зачіпатись');
+        // 50/50 — у 200 попытках должен бути хоча б 50 кожного
+        $this->assertGreaterThan(50, $hCount, 'health должен зачіпатись');
+        $this->assertGreaterThan(50, $tCount, 'tired должен зачіпатись');
     }
 
     // ============================================================
@@ -241,7 +241,7 @@ final class DamageHealthEffectTest extends CIUnitTestCase
         );
 
         $this->assertLessThan(abs($low['health_delta']), abs($high['health_delta']),
-            'високий level має отримувати менше damage');
+            'високий level должен отримувати меньше damage');
     }
 
     // ============================================================
