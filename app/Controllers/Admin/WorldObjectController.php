@@ -6,13 +6,14 @@ use App\Controllers\BaseController;
 use App\Models\WorldObjectModel;
 use App\Models\BiomeModel;
 use CodeIgniter\API\ResponseTrait;
+use CodeIgniter\HTTP\ResponseInterface;
 
 class WorldObjectController extends BaseController
 {
     use ResponseTrait;
 
-    protected $worldObjectModel;
-    protected $biomeModel;
+    protected WorldObjectModel $worldObjectModel;
+    protected BiomeModel $biomeModel;
 
     public function __construct()
     {
@@ -20,7 +21,11 @@ class WorldObjectController extends BaseController
         $this->biomeModel = new BiomeModel();
     }
 
-    private function prepareJsonData($data) {
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function prepareJsonData(array $data): array {
         if (isset($data['biome_id']) && is_array($data['biome_id'])) {
             // Преобразование массива biome_id в строку JSON
             $data['biome_id'] = json_encode($data['biome_id']);
@@ -41,14 +46,14 @@ class WorldObjectController extends BaseController
         return $data;
     }
 
-    private function trimRecursive($input) {
+    private function trimRecursive(mixed $input): mixed {
         if (!is_array($input)) {
-            return trim($input);
+            return trim((string) $input);
         }
         return array_map([$this, 'trimRecursive'], $input);
     }
 
-    public function index()
+    public function index(): string
     {
         $objects = $this->worldObjectModel->orderBy('created_at', 'DESC')->findAll();
         foreach ($objects as &$object) {
@@ -67,7 +72,7 @@ class WorldObjectController extends BaseController
         ]);
     }
 
-    public function createObjectForm()
+    public function createObjectForm(): string
     {
         $biomes = $this->biomeModel->findAll();
         return view('admin/world_object_create', [
@@ -76,7 +81,7 @@ class WorldObjectController extends BaseController
         ]);
     }
 
-    public function storeObject() {
+    public function storeObject(): ResponseInterface {
         $data = $this->request->getPost();
 
         // Подготовка данных JSON для 'discovery_tools' и 'contents'
@@ -95,7 +100,7 @@ class WorldObjectController extends BaseController
         return redirect()->to(site_url('admin/world-objects'));
     }
 
-    public function editObjectForm($objectId)
+    public function editObjectForm(int|string $objectId): string|ResponseInterface
     {
         $object = $this->worldObjectModel->find($objectId);
         $biomes = $this->biomeModel->findAll();
@@ -115,7 +120,7 @@ class WorldObjectController extends BaseController
         ]);
     }
 
-    public function updateObject($objectId)
+    public function updateObject(int|string $objectId): ResponseInterface
     {
         $data = $this->request->getPost();
 
@@ -143,7 +148,7 @@ class WorldObjectController extends BaseController
         }
     }
 
-    public function deleteObject($objectId)
+    public function deleteObject(int|string $objectId): ResponseInterface
     {
         if (!$this->worldObjectModel->delete($objectId)) {
             session()->setFlashdata('error', 'Не удалось удалить объект.');

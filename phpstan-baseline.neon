@@ -313,104 +313,38 @@ parameters:
 			path: app/Controllers/Admin/CharacterReset.php
 
 		-
-			message: '#^Cannot cast array\|bool\|float\|int\|object\|string\|null to int\.$#'
-			identifier: cast.int
+			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Admin/CharacterResetController.php
 
 		-
-			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:check\(\) has no return type specified\.$#'
-			identifier: missingType.return
+			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Admin/CharacterResetController.php
 
 		-
-			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:confirmReset\(\) has no return type specified\.$#'
-			identifier: missingType.return
+			message: '#^Cannot access offset ''telegram_user_id'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Admin/CharacterResetController.php
 
 		-
-			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:deleteCharacterData\(\) has no return type specified\.$#'
-			identifier: missingType.return
+			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:getAffectedTablesData\(\) should return array\<string, int\> but returns array\<int\<1, max\>\|string\>\.$#'
+			identifier: return.type
 			count: 1
 			path: app/Controllers/Admin/CharacterResetController.php
 
 		-
-			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:deleteCharacterData\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/CharacterResetController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:deleteCharacterData\(\) is unused\.$#'
-			identifier: method.unused
-			count: 1
-			path: app/Controllers/Admin/CharacterResetController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:getAffectedTablesData\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/CharacterResetController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:getAffectedTablesData\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/CharacterResetController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:index\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/CharacterResetController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:resetAllCharacters\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/CharacterResetController.php
-
-		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			message: '#^Parameter \#1 \$characterId of method App\\Controllers\\Admin\\CharacterResetController\:\:getAffectedTablesData\(\) expects int\|string, array\|bool\|float\|int\|object\|string\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Admin/CharacterResetController.php
 
 		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			message: '#^Parameter \#1 \$id of method CodeIgniter\\BaseModel\:\:find\(\) expects int\|list\<int\|string\>\|string\|null, array\|bool\|float\|int\|object\|string\|null given\.$#'
 			identifier: argument.type
-			count: 1
-			path: app/Controllers/Admin/CharacterResetController.php
-
-		-
-			message: '#^Property App\\Controllers\\Admin\\CharacterResetController\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Admin/CharacterResetController.php
-
-		-
-			message: '#^Property App\\Controllers\\Admin\\CharacterResetController\:\:\$generalModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Admin/CharacterResetController.php
-
-		-
-			message: '#^Property App\\Controllers\\Admin\\CharacterResetController\:\:\$telegram has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Admin/CharacterResetController.php
-
-		-
-			message: '#^Property App\\Controllers\\Admin\\CharacterResetController\:\:\$telegramUserModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Admin/CharacterResetController.php
-
-		-
-			message: '#^Unreachable statement \- code above always terminates\.$#'
-			identifier: deadCode.unreachable
 			count: 1
 			path: app/Controllers/Admin/CharacterResetController.php
 
@@ -625,94 +559,22 @@ parameters:
 			path: app/Controllers/Admin/MapController.php
 
 		-
-			message: '#^Cannot access offset ''telegram_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Parameter \#1 \$telegramId of method App\\Controllers\\Admin\\MessageController\:\:sendTelegramMessage\(\) expects int\|string, bool\|float\|int\|object\|string\|null given\.$#'
+			identifier: argument.type
 			count: 1
 			path: app/Controllers/Admin/MessageController.php
 
 		-
-			message: '#^Cannot cast array\|bool\|float\|int\|object\|string\|null to string\.$#'
-			identifier: cast.string
+			message: '#^Cannot access offset ''active'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 4
+			path: app/Controllers/Admin/PollController.php
+
+		-
+			message: '#^Cannot access offset ''question'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 2
-			path: app/Controllers/Admin/MessageController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\MessageController\:\:index\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/MessageController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\MessageController\:\:sendMessage\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/MessageController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\MessageController\:\:sendTelegramMessage\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/MessageController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\MessageController\:\:sendTelegramMessage\(\) has parameter \$message with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/MessageController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\MessageController\:\:sendTelegramMessage\(\) has parameter \$telegramId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/MessageController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\MessageController\:\:sendToAllUsers\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/MessageController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\MessageController\:\:sendToAllUsers\(\) has parameter \$message with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/MessageController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\MessageController\:\:sendToSpecificUsers\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/MessageController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\MessageController\:\:sendToSpecificUsers\(\) has parameter \$message with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/MessageController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\MessageController\:\:sendToSpecificUsers\(\) has parameter \$telegramIds with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Admin/MessageController.php
-
-		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Admin/MessageController.php
-
-		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Admin/MessageController.php
-
-		-
-			message: '#^Parameter \#2 \$string of function explode expects string, array\|float\|int\<min, \-1\>\|int\<1, max\>\|object\|string\|true given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Admin/MessageController.php
+			path: app/Controllers/Admin/PollController.php
 
 		-
 			message: '#^Cannot access offset ''telegram_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
@@ -721,158 +583,44 @@ parameters:
 			path: app/Controllers/Admin/PollController.php
 
 		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:auditAdminAction\(\) has parameter \$payload with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:createPollForm\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:deletePoll\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:deletePoll\(\) has parameter \$id with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:editPollForm\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:editPollForm\(\) has parameter \$id with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:index\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:sendPoll\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:sendPoll\(\) has parameter \$id with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:sendPollToAllUsers\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:sendPollToAllUsers\(\) has parameter \$answers with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:sendPollToAllUsers\(\) has parameter \$poll with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:statistics\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:statistics\(\) has parameter \$id with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:stopPoll\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:stopPoll\(\) has parameter \$id with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:storePoll\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:updatePoll\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\PollController\:\:updatePoll\(\) has parameter \$id with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/PollController.php
-
-		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			message: '#^Parameter \#1 \$poll of method App\\Controllers\\Admin\\PollController\:\:sendPollToAllUsers\(\) expects array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Admin/PollController.php
 
 		-
-			message: '#^Parameter \#1 \$html of method App\\Controllers\\Admin\\PollController\:\:sanitizeTelegramHtml\(\) expects string\|null, array\|bool\|float\|int\|object\|string\|null given\.$#'
+			message: '#^Parameter \#1 \$pollId of method App\\Models\\PollVoteModel\:\:getStatistics\(\) expects int, int\|string given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Admin/PollController.php
 
 		-
-			message: '#^Parameter \#1 \$html of method App\\Controllers\\Admin\\PollController\:\:sanitizeTelegramHtml\(\) expects string\|null, array\|float\|int\<min, \-1\>\|int\<1, max\>\|object\|string\|true given\.$#'
+			message: '#^Parameter \#1 \$row of method CodeIgniter\\Model\:\:insert\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null, array\<string, array\|float\|int\|object\|string\|true\|null\> given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Admin/PollController.php
 
 		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			message: '#^Parameter \#2 \$answers of method App\\Controllers\\Admin\\PollController\:\:sendPollToAllUsers\(\) expects array\<int, array\<string, mixed\>\>, list\<array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\> given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Admin/PollController.php
 
 		-
-			message: '#^Property App\\Controllers\\Admin\\PollController\:\:\$pollAnswerModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Parameter \#2 \$row of method CodeIgniter\\Model\:\:update\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null, array\<string, array\|float\|int\<min, \-1\>\|int\<1, max\>\|object\|string\|true\|null\> given\.$#'
+			identifier: argument.type
 			count: 1
 			path: app/Controllers/Admin/PollController.php
 
 		-
-			message: '#^Property App\\Controllers\\Admin\\PollController\:\:\$pollModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Part \$answer\[''id''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
 			count: 1
 			path: app/Controllers/Admin/PollController.php
 
 		-
-			message: '#^Property App\\Controllers\\Admin\\PollController\:\:\$pollVoteModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Part \$poll\[''id''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
 			count: 1
 			path: app/Controllers/Admin/PollController.php
 
@@ -1057,93 +805,51 @@ parameters:
 			path: app/Controllers/Admin/TaskController.php
 
 		-
-			message: '#^Method App\\Controllers\\Admin\\WorldObjectController\:\:createObjectForm\(\) has no return type specified\.$#'
-			identifier: missingType.return
+			message: '#^Cannot access offset ''biome_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Admin/WorldObjectController.php
 
 		-
-			message: '#^Method App\\Controllers\\Admin\\WorldObjectController\:\:deleteObject\(\) has no return type specified\.$#'
-			identifier: missingType.return
+			message: '#^Cannot access offset ''biome_name'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Admin/WorldObjectController.php
 
 		-
-			message: '#^Method App\\Controllers\\Admin\\WorldObjectController\:\:deleteObject\(\) has parameter \$objectId with no type specified\.$#'
-			identifier: missingType.parameter
+			message: '#^Cannot access offset ''discovery_tools'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: app/Controllers/Admin/WorldObjectController.php
+
+		-
+			message: '#^Cannot access offset ''name'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Admin/WorldObjectController.php
 
 		-
-			message: '#^Method App\\Controllers\\Admin\\WorldObjectController\:\:editObjectForm\(\) has no return type specified\.$#'
-			identifier: missingType.return
+			message: '#^Cannot cast mixed to string\.$#'
+			identifier: cast.string
 			count: 1
 			path: app/Controllers/Admin/WorldObjectController.php
 
 		-
-			message: '#^Method App\\Controllers\\Admin\\WorldObjectController\:\:editObjectForm\(\) has parameter \$objectId with no type specified\.$#'
-			identifier: missingType.parameter
+			message: '#^Parameter \#1 \$data of method App\\Controllers\\Admin\\WorldObjectController\:\:prepareJsonData\(\) expects array\<string, mixed\>, array\|bool\|float\|int\|object\|string\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Controllers/Admin/WorldObjectController.php
+
+		-
+			message: '#^Parameter \#1 \$row of method CodeIgniter\\Model\:\:insert\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null, array\<string, mixed\> given\.$#'
+			identifier: argument.type
 			count: 1
 			path: app/Controllers/Admin/WorldObjectController.php
 
 		-
-			message: '#^Method App\\Controllers\\Admin\\WorldObjectController\:\:index\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/WorldObjectController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\WorldObjectController\:\:prepareJsonData\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/WorldObjectController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\WorldObjectController\:\:prepareJsonData\(\) has parameter \$data with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/WorldObjectController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\WorldObjectController\:\:storeObject\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/WorldObjectController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\WorldObjectController\:\:trimRecursive\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/WorldObjectController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\WorldObjectController\:\:trimRecursive\(\) has parameter \$input with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/WorldObjectController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\WorldObjectController\:\:updateObject\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/WorldObjectController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\WorldObjectController\:\:updateObject\(\) has parameter \$objectId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/WorldObjectController.php
-
-		-
-			message: '#^Property App\\Controllers\\Admin\\WorldObjectController\:\:\$biomeModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Admin/WorldObjectController.php
-
-		-
-			message: '#^Property App\\Controllers\\Admin\\WorldObjectController\:\:\$worldObjectModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
+			message: '#^Parameter \#2 \$row of method CodeIgniter\\Model\:\:update\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null, array\<string, mixed\> given\.$#'
+			identifier: argument.type
+			count: 2
 			path: app/Controllers/Admin/WorldObjectController.php
 
 		-

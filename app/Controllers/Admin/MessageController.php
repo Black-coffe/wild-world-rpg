@@ -5,6 +5,7 @@ namespace App\Controllers\Admin;
 use App\Models\AdminAuditLogModel;
 use App\Models\TelegramUserModel;
 use CodeIgniter\Controller;
+use CodeIgniter\HTTP\RedirectResponse;
 use Longman\TelegramBot\Telegram;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Exception\TelegramException;
@@ -12,7 +13,7 @@ use Longman\TelegramBot\Exception\TelegramException;
 class MessageController extends Controller
 {
     // Метод для отображения формы в админке
-    public function index()
+    public function index(): string
     {
         return view('admin/send_message', [
             'title' => 'Сообщение всем игрокам'
@@ -20,28 +21,29 @@ class MessageController extends Controller
     }
 
     // Метод для отправки сообщений
-    public function sendMessage()
+    public function sendMessage(): RedirectResponse
     {
-        $title          = $this->request->getPost('title');
-        $messageContent = $this->request->getPost('message');
-        $telegramIds    = $this->request->getPost('telegram_ids');
+        $titleRaw          = $this->request->getPost('title');
+        $messageContentRaw = $this->request->getPost('message');
+        $telegramIdsRaw    = $this->request->getPost('telegram_ids');
 
         // F0.8 — серверная санитизация. Фронт-валидация через JS обходится,
         // а Markdown parse_mode чувствителен к * _ [ ] ( ) ~ # + - которые
         // могут поломать формат в чужих чатах. Минимум — strip_tags (на
         // случай если parse_mode сменится на HTML) и обрезка длины
         // (Telegram caption limit ≈ 1024, message limit ≈ 4096).
-        $title          = mb_substr(strip_tags((string) $title), 0, 160);
-        $messageContent = mb_substr(strip_tags((string) $messageContent), 0, 3500);
+        $title          = mb_substr(strip_tags(is_scalar($titleRaw) ? (string) $titleRaw : ''), 0, 160);
+        $messageContent = mb_substr(strip_tags(is_scalar($messageContentRaw) ? (string) $messageContentRaw : ''), 0, 3500);
 
         $message = "*ℹ️ $title ℹ️*\n\n$messageContent";
 
-        $isBroadcast = empty($telegramIds);
+        $isBroadcast = empty($telegramIdsRaw);
         if ($isBroadcast) {
             $this->sendToAllUsers($message);
             $recipientsInfo = ['scope' => 'all'];
         } else {
-            $telegramIdsArray = array_map('trim', explode(',', $telegramIds));
+            $telegramIdsString = is_string($telegramIdsRaw) ? $telegramIdsRaw : '';
+            $telegramIdsArray  = array_map('trim', explode(',', $telegramIdsString));
             $this->sendToSpecificUsers($message, $telegramIdsArray);
             $recipientsInfo = ['scope' => 'specific', 'count' => count($telegramIdsArray)];
         }
@@ -65,18 +67,25 @@ class MessageController extends Controller
     }
 
     // Метод для отправки сообщения всем пользователям
-    protected function sendToAllUsers($message)
+    protected function sendToAllUsers(string $message): void
     {
         $telegramUserModel = new TelegramUserModel();
         $users = $telegramUserModel->findAll();
 
         foreach ($users as $user) {
+            if (!is_array($user)) {
+                continue;
+            }
             $this->sendTelegramMessage($user['telegram_id'], $message);
         }
     }
 
-    // Метод для отправки сообщения конкретным пользователям
-    protected function sendToSpecificUsers($message, array $telegramIds)
+    /**
+     * Метод для отправки сообщения конкретным пользователям.
+     *
+     * @param array<int, string> $telegramIds
+     */
+    protected function sendToSpecificUsers(string $message, array $telegramIds): void
     {
         foreach ($telegramIds as $telegramId) {
             $this->sendTelegramMessage($telegramId, $message);
@@ -84,10 +93,10 @@ class MessageController extends Controller
     }
 
     // Метод для отправки сообщения через Telegram
-    protected function sendTelegramMessage($telegramId, $message)
+    protected function sendTelegramMessage(int|string $telegramId, string $message): void
     {
-        $API_KEY = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
+        $API_KEY = (string) getenv('telegram.API_KEY');
+        $BOT_USERNAME = (string) getenv('telegram.BOT_USERNAME');
 
         try {
             $telegram = new Telegram($API_KEY, $BOT_USERNAME);

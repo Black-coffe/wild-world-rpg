@@ -6,15 +6,16 @@ use App\Models\PollModel;
 use App\Models\PollAnswerModel;
 use App\Models\PollVoteModel;
 use App\Models\TelegramUserModel;
+use CodeIgniter\HTTP\RedirectResponse;
 use Longman\TelegramBot\Telegram;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Exception\TelegramException;
 
 class PollController extends BaseController
 {
-    protected $pollModel;
-    protected $pollAnswerModel;
-    protected $pollVoteModel;
+    protected PollModel $pollModel;
+    protected PollAnswerModel $pollAnswerModel;
+    protected PollVoteModel $pollVoteModel;
 
     public function __construct()
     {
@@ -26,7 +27,7 @@ class PollController extends BaseController
     /**
      * Список опросов.
      */
-    public function index()
+    public function index(): string
     {
         helper('text'); // загружаем text helper для character_limiter
         $data = [
@@ -39,7 +40,7 @@ class PollController extends BaseController
     /**
      * Форма создания нового опроса.
      */
-    public function createPollForm()
+    public function createPollForm(): string
     {
         $data = [
             'title' => 'Создать новый опрос'
@@ -50,7 +51,7 @@ class PollController extends BaseController
     /**
      * Сохранение нового опроса (минимум 2 варианта ответа).
      */
-    public function storePoll()
+    public function storePoll(): RedirectResponse
     {
         $question   = $this->request->getPost('question');
         $answers    = $this->request->getPost('answers');
@@ -59,7 +60,7 @@ class PollController extends BaseController
         if (empty($question) || empty($answers) || !is_array($answers)) {
             return redirect()->back()->with('error', 'Заполните вопрос и как минимум два варианта ответа.');
         }
-        $filtered = array_filter($answers, fn($ans) => trim($ans) !== '');
+        $filtered = array_filter($answers, fn($ans) => trim((string) $ans) !== '');
         if (count($filtered) < 2) {
             return redirect()->back()->with('error', 'Минимум два варианта ответа должны быть заполнены.');
         }
@@ -68,7 +69,7 @@ class PollController extends BaseController
         // с parse_mode='HTML', и без фильтрации админ мог бы внедрить
         // <a href="evil.com"> для фишинговой рассылки 635 игрокам.
         // Пропускаем только теги, которые Telegram действительно поддерживает.
-        $question = $this->sanitizeTelegramHtml($question);
+        $question = $this->sanitizeTelegramHtml(is_string($question) ? $question : null);
 
         // Создаём опрос (active=0 => черновик)
         $pollData = [
@@ -85,7 +86,7 @@ class PollController extends BaseController
         foreach ($filtered as $answerText) {
             $this->pollAnswerModel->insert([
                 'poll_id'     => $pollId,
-                'answer_text' => trim($answerText),
+                'answer_text' => trim((string) $answerText),
             ]);
         }
 
@@ -95,7 +96,7 @@ class PollController extends BaseController
     /**
      * Форма редактирования (доступно, если опрос не отправлен).
      */
-    public function editPollForm($id)
+    public function editPollForm(int|string $id): string|RedirectResponse
     {
         $poll = $this->pollModel->find($id);
         if (!$poll) {
@@ -118,7 +119,7 @@ class PollController extends BaseController
     /**
      * Обновление опроса.
      */
-    public function updatePoll($id)
+    public function updatePoll(int|string $id): RedirectResponse
     {
         $poll = $this->pollModel->find($id);
         if (!$poll) {
@@ -135,7 +136,7 @@ class PollController extends BaseController
         $newAnswers      = $this->request->getPost('newAnswers');
 
         // F0.8 — санитизация HTML (см. storePoll() выше).
-        $question = $this->sanitizeTelegramHtml($question);
+        $question = $this->sanitizeTelegramHtml(is_string($question) ? $question : null);
 
         // Обновляем поля опроса
         $this->pollModel->update($id, [
@@ -146,7 +147,7 @@ class PollController extends BaseController
         // Обработка существующих вариантов
         if (is_array($existingAnswers)) {
             foreach ($existingAnswers as $answerId => $answerText) {
-                $answerText = trim($answerText);
+                $answerText = trim((string) $answerText);
                 if ($answerText === '') {
                     // Удаляем вариант
                     $this->pollAnswerModel->delete($answerId);
@@ -158,7 +159,7 @@ class PollController extends BaseController
         // Новые варианты
         if (is_array($newAnswers)) {
             foreach ($newAnswers as $text) {
-                $text = trim($text);
+                $text = trim((string) $text);
                 if ($text !== '') {
                     $this->pollAnswerModel->insert([
                         'poll_id'     => $id,
@@ -174,7 +175,7 @@ class PollController extends BaseController
     /**
      * Удаление опроса (если не отправлен).
      */
-    public function deletePoll($id)
+    public function deletePoll(int|string $id): RedirectResponse
     {
         $poll = $this->pollModel->find($id);
         if (!$poll) {
@@ -192,7 +193,7 @@ class PollController extends BaseController
     /**
      * Отображение статистики голосования.
      */
-    public function statistics($id)
+    public function statistics(int|string $id): string|RedirectResponse
     {
         $poll = $this->pollModel->find($id);
         if (!$poll) {
@@ -203,7 +204,7 @@ class PollController extends BaseController
 
         $totalVotes = 0;
         foreach ($stats as $s) {
-            $totalVotes += $s['votes'];
+            $totalVotes += (int) $s['votes'];
         }
 
         $data = [
@@ -219,7 +220,7 @@ class PollController extends BaseController
     /**
      * Остановка опроса (прекращение приёма голосов).
      */
-    public function stopPoll($id)
+    public function stopPoll(int|string $id): RedirectResponse
     {
         $poll = $this->pollModel->find($id);
         if (!$poll) {
@@ -233,7 +234,7 @@ class PollController extends BaseController
     /**
      * Отправка (запуск) опроса игрокам.
      */
-    public function sendPoll($id)
+    public function sendPoll(int|string $id): RedirectResponse
     {
         $poll = $this->pollModel->find($id);
         if (!$poll) {
@@ -264,6 +265,8 @@ class PollController extends BaseController
 
     /**
      * F1.9 — единая запись destructive админских действий по опросам.
+     *
+     * @param array<string, mixed> $payload
      */
     private function auditAdminAction(string $action, ?string $targetType, ?int $targetId, array $payload = []): void
     {
@@ -274,12 +277,15 @@ class PollController extends BaseController
 
     /**
      * Логика массовой рассылки опроса всем игрокам через Telegram.
+     *
+     * @param array<string, mixed> $poll
+     * @param array<int, array<string, mixed>> $answers
      */
-    private function sendPollToAllUsers(array $poll, array $answers)
+    private function sendPollToAllUsers(array $poll, array $answers): void
     {
         // Подключаемся к Telegram
-        $API_KEY      = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
+        $API_KEY      = (string) getenv('telegram.API_KEY');
+        $BOT_USERNAME = (string) getenv('telegram.BOT_USERNAME');
 
         try {
             $telegram = new Telegram($API_KEY, $BOT_USERNAME);

@@ -7,6 +7,7 @@ use App\Models\AdminAuditLogModel;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Models\GeneralModel;
+use CodeIgniter\HTTP\RedirectResponse;
 use Config\ResetTables;
 use CodeIgniter\API\ResponseTrait;
 use App\Controllers\Telegram\BotController;
@@ -24,10 +25,10 @@ class CharacterResetController extends BaseController
      */
     protected bool $stringAsHtml = true;
 
-    protected $characterModel;
-    protected $telegramUserModel;
-    protected $generalModel;
-    private $telegram;
+    protected CharacterModel $characterModel;
+    protected TelegramUserModel $telegramUserModel;
+    protected GeneralModel $generalModel;
+    private ?Telegram $telegram = null;
 
     public function __construct()
     {
@@ -35,8 +36,8 @@ class CharacterResetController extends BaseController
         $this->telegramUserModel = new TelegramUserModel();
         $this->generalModel = new GeneralModel();
 
-        $API_KEY = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
+        $API_KEY = (string) getenv('telegram.API_KEY');
+        $BOT_USERNAME = (string) getenv('telegram.BOT_USERNAME');
 
         try {
             $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
@@ -46,7 +47,7 @@ class CharacterResetController extends BaseController
         }
     }
 
-    public function index()
+    public function index(): string
     {
         $telegramUserId = 1; // Здесь нужно указать ID телеграм пользователя
         $characterId = null;
@@ -62,7 +63,7 @@ class CharacterResetController extends BaseController
         ]);
     }
 
-    public function check()
+    public function check(): string|RedirectResponse
     {
         $telegramId = $this->request->getPost('id_telegram');
         $characterId = $this->request->getPost('characterId');
@@ -86,7 +87,10 @@ class CharacterResetController extends BaseController
         ]);
     }
 
-    private function getAffectedTablesData($characterId)
+    /**
+     * @return array<string, int>
+     */
+    private function getAffectedTablesData(int|string $characterId): array
     {
         $resetConfig = new ResetTables();
         $db = db_connect();
@@ -102,9 +106,10 @@ class CharacterResetController extends BaseController
         return $affectedRows;
     }
 
-    public function confirmReset()
+    public function confirmReset(): RedirectResponse
     {
-        $characterId = (int) $this->request->getPost('characterId');
+        $rawCid = $this->request->getPost('characterId');
+        $characterId = (int) (is_scalar($rawCid) ? $rawCid : 0);
         $telegramId = $this->request->getPost('telegramId');
         $db = db_connect();
         $resetConfig = new ResetTables();
@@ -147,61 +152,10 @@ class CharacterResetController extends BaseController
         return redirect()->to('/admin/character-reset')->with('message', 'Персонаж успешно обнулён.');
     }
 
-    private function deleteCharacterData($characterId)
+    public function resetAllCharacters(): RedirectResponse
     {
-        $resetConfig = new ResetTables();
-        $db = db_connect();
-        $totalDeleted = 0;
-
-        foreach ($resetConfig->tables as $table => $column) {
-            $totalDeleted += $db->table($table)->where($column, $characterId)->delete();
-        }
-
-        return $totalDeleted;
-    }
-
-    public function resetAllCharacters()
-    {
-        dd("Обеуление всех персонажей отключено");
-        exit();
-        $db = db_connect();
-        $resetConfig = new ResetTables();
-        $characters = $this->characterModel->findAll(); // Получаем всех персонажей
-
-        $db->transStart(); // Начало транзакции
-
-        foreach ($characters as $character) {
-            foreach ($resetConfig->tables as $table => $column) {
-                if ($db->tableExists($table) && $db->fieldExists($column, $table)) {
-                    $db->table($table)->where($column, $character['id'])->delete();
-                }
-            }
-
-            // Если нужно, отправляем уведомление каждому пользователю
-            if (isset($character['telegram_user_id'])) {
-                $telegramId = $this->telegramUserModel->find($character['telegram_user_id'])['telegram_id'];
-                if ($telegramId) {
-                    $botController = new BotController();
-                    $message = "🔥 *Внимание!* Твой персонаж был сброшен (обнулен) до стартовых показателей. 🎲\n" .
-                        "🧹 Все, что было до этого, удалено и забыто. Даже исторические кнопки, которые у тебя сохранились в ленте чата, не будут работать. 🚫 Советую:\n\n" .
-                        "1⃣ Почистить всю переписку (историю чата).\n" .
-                        "2⃣ Написать мне в сообщении: `/start`.\n\n" .
-                        "🚀 *Готов начать новое приключение? Напиши `/start` и вперёд к новым горизонтам!* 🌌";
-
-                    $imagePath = base_url('uploads/telegram/character/reset_character.jpg'); // Assuming the image path is correct
-
-                    $botController->sendMessage($telegramId, $message, $imagePath);
-                }
-            }
-        }
-
-        $db->transComplete(); // Завершение транзакции
-
-        if ($db->transStatus() === false) {
-            return redirect()->back()->with('errors', ['Ошибка при сбросе данных всех персонажей.']);
-        }
-
-        return redirect()->to('/admin/character-reset')->with('message', 'Все персонажи успешно обнулены.');
+        return redirect()->to('/admin/character-reset')
+            ->with('errors', ['Обнуление всех персонажей отключено.']);
     }
 
 }
