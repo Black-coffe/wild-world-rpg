@@ -4,8 +4,25 @@ namespace App\Controllers;
 use App\Models\CharacterTaskModel;
 use App\Models\TaskModel;
 use CodeIgniter\Controller;
-use App\TaskHandlers\TaxCollectionHandler;
 
+/**
+ * Главный dispatcher для character_tasks (gather/explore/build/craft completion).
+ *
+ * Запускается каждую минуту через codeigniter4/tasks scheduler
+ * (см. app/Config/Tasks.php → 'worker.character-tasks'). Параллельно с
+ * scheduler'ом legacy curl-cron (CloudPanel) дёргает GET /cbgsvd-d-dw/worker
+ * — strangler-режим F4.1 до cutover в F4.2.
+ *
+ * Recurring handlers (HealthRegen, EventActivation, FoodAndWater, Greenhouse
+ * production и др.) живут в Tasks.php, НЕ здесь. F4.1 удалил их wrapper-методы
+ * из этого контроллера (~300 LOC blob processUnlinkedActions).
+ *
+ * Защита от race-conditions:
+ *   - F0.1: flock() mutex на worker.lock (никогда два processTasks параллельно)
+ *   - F0.3: atomic claim через UPDATE ... WHERE status='in_work' (если другой
+ *     воркер успел — affected_rows=0, пропускаем)
+ *   - Tasks.php singleInstance(2*MINUTE) сверху лока — двойная защита
+ */
 class Worker extends Controller
 {
     protected $characterTaskModel;
@@ -51,12 +68,6 @@ class Worker extends Controller
                     $this->handleTask($task, $taskDetails);
                 }
             }
-
-            // Выполняем различные периодические действия (не связанные напрямую с задачами):
-            $this->processUnlinkedActions();
-
-            // Вызов TaxCollectionHandler (налоги) — например, раз в сутки или каждый раз
-            (new TaxCollectionHandler())->handle();
         } finally {
             flock($lockHandle, LOCK_UN);
             fclose($lockHandle);
@@ -104,379 +115,8 @@ class Worker extends Controller
         }
     }
 
-    protected function processUnlinkedActions()
-    {
-        // Здесь можно вызвать любые методы других классов, которые должны выполняться по расписанию
-        $this->executeHealthRegeneration();
-        $this->resourceBankUpdate();
-        $this->foodAndWaterConsumption();
-        $this->characterData();
-        $this->eventActivation();
-        $this->epidemicHandler();
-        $this->tremorHandler();
-        $this->feverHandler();
-        $this->volcanicEruptionHandler();
-        $this->flashForestFireHandler();
-        $this->hurricaneHandler();
-        $this->sandStormHandler();
-        $this->meteorShowerHandler();
-        $this->dungeonOpeningHandler();
-        $this->mountainEchoHandler();
-        $this->nightAttacksHandler();
-        $this->goldVeinHandler();
-        $this->snowFallHandler();
-        $this->northernLightsHandler();
-        $this->shootingStarHandler();
-        $this->geothermalSpringsHandler();
-        $this->mirageOasisHandler();
-        $this->worldObjectGeneratorHandler();
-        $this->questExplore30CellsHandler();
-        $this->questExploreAllBiomesHandler();
-        $this->questExplore300CellsHandler();
-        $this->questFirstAidkitBasicHandler();
-        $this->factionNotificationHandler();
-        $this->lowHealthWarningHandler();
-        $this->DeathRouletteHandler();
-
-        (new \App\TaskHandlers\GreenhouseProductionHandler())->handle();
-        (new \App\TaskHandlers\Built\GymProductionHandler())->handle();
-        (new \App\TaskHandlers\Built\HandPumpProductionHandler())->handle();
-        (new \App\TaskHandlers\NPC\SpawnSandyWolfRaidersCron())->run();
-        (new \App\TaskHandlers\NPC\AutoPveHandler())->run();
-    }
-
-    protected function DeathRouletteHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\DeathRouletteHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function lowHealthWarningHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\LowHealthWarningHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function factionNotificationHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Other\\FactionNotificationHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function questFirstAidkitBasicHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Quests\\QuestFirstAidkitBasicHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function questExplore300CellsHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Quests\\QuestExplore300CellsHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function questExploreAllBiomesHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Quests\\QuestExploreAllBiomesHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function questExplore30CellsHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Quests\\QuestExplore30CellsHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function worldObjectGeneratorHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Other\\WorldObjectGeneratorHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function mirageOasisHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\MirageOasisHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function geothermalSpringsHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\GeothermalSpringsHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function shootingStarHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\ShootingStarHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function northernLightsHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\NorthernLightsHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function snowFallHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\SnowFallHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function goldVeinHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\GoldVeinHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function nightAttacksHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\NightAttacksHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function mountainEchoHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\MountainEchoHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function dungeonOpeningHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\DungeonOpeningHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function meteorShowerHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\MeteorShowerHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function sandStormHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\SandStormHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function hurricaneHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\HurricaneHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function flashForestFireHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\FlashForestFireHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function volcanicEruptionHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\VolcanicEruptionHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function feverHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\FeverHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function epidemicHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\EpidemicHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function tremorHandler()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\TremorHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function executeHealthRegeneration()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\HealthRegenerationHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function characterData()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\CharacterDataHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function foodAndWaterConsumption()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\FoodAndWaterConsumptionHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function eventActivation()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\Events\\EventActivationHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
-    protected function resourceBankUpdate()
-    {
-        $handlerClassName = 'App\\TaskHandlers\\ResourceBankUpdateHandler';
-        if (class_exists($handlerClassName)) {
-            $handler = new $handlerClassName();
-            if (method_exists($handler, 'process')) {
-                $handler->process();
-            }
-        }
-    }
-
     /**
-     * Сопоставляем name из таблицы tasks -> обработчику
+     * Сопоставляем name из таблицы tasks -> обработчику character_tasks completion.
      */
     protected $taskHandlerMap = [
         'ExploreTheArea' => 'ExplorationTaskHandler',
@@ -544,8 +184,6 @@ class Worker extends Controller
         'craftPipeGun'              => 'Craft\GenericCraftCompletionHandler',
         'craftWiredBat'             => 'Craft\GenericCraftCompletionHandler',
         'craftCrossbowMk1'          => 'Craft\GenericCraftCompletionHandler',
-
-        // Другие соответствия
     ];
 
     protected function getHandlerClassName($taskName)
