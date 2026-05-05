@@ -81,16 +81,16 @@ final class PvpRewardOrchestrator
             $expBonus += min($levelDiff, 100) / 100 * $this->balance->winnerExpMaxAdditive;
         }
 
-        $winner['experience'] *= (1 + $expBonus);
+        $winner['experience'] = (float) $winner['experience'] * (1 + $expBonus);
 
         if (mt_rand(0, 100) < $this->balance->winnerAttrBonusChance) {
-            $winner['strength']  *= (1 + $this->balance->winnerAttrBonusFactor);
+            $winner['strength']  = (float) $winner['strength']  * (1 + $this->balance->winnerAttrBonusFactor);
         }
         if (mt_rand(0, 100) < $this->balance->winnerAttrBonusChance) {
-            $winner['agility']   *= (1 + $this->balance->winnerAttrBonusFactor);
+            $winner['agility']   = (float) $winner['agility']   * (1 + $this->balance->winnerAttrBonusFactor);
         }
         if (mt_rand(0, 100) < $this->balance->winnerAttrBonusChance) {
-            $winner['intellect'] *= (1 + $this->balance->winnerAttrBonusFactor);
+            $winner['intellect'] = (float) $winner['intellect'] * (1 + $this->balance->winnerAttrBonusFactor);
         }
 
         // F1.3 strict_types: explicit float cast — characters table возвращает

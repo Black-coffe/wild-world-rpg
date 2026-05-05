@@ -215,9 +215,8 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         // F2.2 fallback: legacy start-actions writes 'item_crafted', new ones
         // write 'recipe'. Pre-cutover тасков уже в БД может быть ~12-24h —
         // обрабатываем оба формата.
-        return $decoded['recipe']
-            ?? $decoded['item_crafted']
-            ?? null;
+        $key = $decoded['recipe'] ?? $decoded['item_crafted'] ?? null;
+        return is_string($key) ? $key : null;
     }
 
     private function extractQuantity(array $task): int

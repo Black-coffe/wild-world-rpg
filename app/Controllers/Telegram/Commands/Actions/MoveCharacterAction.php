@@ -140,12 +140,13 @@ class MoveCharacterAction
 
         // 4) Если всё удачно, сохраним message_id
         if ($response->isOk()) {
-            $messageId = $response->getResult()->getMessageId();
-            $this->telegramUserModel->update($user['id'], [
-                'last_map_message_id' => $messageId,
-                // Можно хранить "last_map_message_type" = 'move' или что-то подобное
-                // если хотите определять, что пользователь ушел в другое окно.
-            ]);
+            $result = $response->getResult();
+            if (is_object($result) && method_exists($result, 'getMessageId')) {
+                $messageId = $result->getMessageId();
+                $this->telegramUserModel->update($user['id'], [
+                    'last_map_message_id' => $messageId,
+                ]);
+            }
         }
 
         return $response;

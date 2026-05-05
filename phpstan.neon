@@ -11,9 +11,9 @@ parameters:
     #       type-hint vs return) — без full typing. F1.3 (v0.38.0).
     #   6 — полное typing у параметров. F1.3.1 (v0.39.0).
     #   7 — strict null checking. F1.3.2 (v0.40.0).
-    #   8 — strict_types-aware mixed handling. ← CURRENT (v0.41.0)
-    #   9 — все strict.
-    level: 8
+    #   8 — strict_types-aware mixed handling. F1.3.3 (v0.41.0).
+    #   9 — все strict (mixed type isolation). ← CURRENT (v0.42.0)
+    level: 9
 
     paths:
         - app

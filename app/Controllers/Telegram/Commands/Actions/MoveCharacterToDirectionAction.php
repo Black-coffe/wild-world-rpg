@@ -285,11 +285,13 @@ class MoveCharacterToDirectionAction
         ]);
 
         if ($newMsgResponse->isOk()) {
-            // Сохраняем новый message_id
-            $messageId = $newMsgResponse->getResult()->getMessageId();
-            $this->telegramUserModel->update($user['id'], [
-                'last_map_message_id' => $messageId
-            ]);
+            $result = $newMsgResponse->getResult();
+            if (is_object($result) && method_exists($result, 'getMessageId')) {
+                $messageId = $result->getMessageId();
+                $this->telegramUserModel->update($user['id'], [
+                    'last_map_message_id' => $messageId
+                ]);
+            }
         }
 
         $this->playerDetectionService->detectNearbyPlayers($character['id']);

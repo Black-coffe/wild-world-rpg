@@ -182,12 +182,15 @@ class NpcCombatService
         $attackerType = ($attacker instanceof NPC) ? 'NPC' : 'Player';
         $targetType   = ($target instanceof NPC)   ? 'NPC' : 'Player';
 
+        $attackerId = is_object($attacker) && isset($attacker->id) ? $attacker->id : null;
+        $targetId   = is_object($target)   && isset($target->id)   ? $target->id   : null;
+
         // Создаем запись лога боя
         BattleLog::create([
             'battle_type'   => 'PVE',                 // тип боя (PVE - игрок против окружения)
-            'attacker_id'   => $attacker->id ?? null, // ID атакующего (если есть)
+            'attacker_id'   => $attackerId,           // ID атакующего (если есть)
             'attacker_type' => $attackerType,
-            'target_id'     => $target->id ?? null,   // ID цели (если есть)
+            'target_id'     => $targetId,             // ID цели (если есть)
             'target_type'   => $targetType,
             'event_type'    => $eventType,
             'description'   => $description,
