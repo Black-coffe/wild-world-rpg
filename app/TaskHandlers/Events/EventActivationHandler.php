@@ -273,57 +273,50 @@ class EventActivationHandler
     }
 
     /**
-     * Уведомляем всех пользователей, что стартовало новое событие,
-     * прикрепляя картинку (img_path) и описание.
+     * F7.5 — делегує всю логіку нотіфікацій у NotificationPolicy:
+     *   - sectoring (тільки гравцям з biome_id у event.biome_ids)
+     *   - mute pref (silenced_until / muted_kinds)
+     *   - інтерактивні кнопки (mute_1h, mute_kind)
      *
      * @param array $event Запись из таблицы events
      */
     protected function notifyPlayersAboutEvent(array $event)
     {
-        // Собираем текст сообщения
-        $message = '';
-
-        // $event['biome_ids'] — JSON-список ID биомов
-        $allBiomes = json_decode($event['biome_ids'], true) ?: [];
-        $biomsStr  = '';
-        $imgPath   = $event['img_path'];
-
-        foreach ($allBiomes as $biom) {
-            $biomeName = $this->biomeModel->where('id', $biom)->first()['name'] ?? '???';
-            $biomsStr .= "🔹 $biomeName\n";
+        $cfg    = config('WorldEvents');
+        $config = $cfg->get($event['name_english']);
+        if ($config === null) {
+            log_message('warning', "[EventActivation] event '{$event['name_english']}' немає в WorldEvents config — fallback на legacy broadcast");
+            // Fallback — legacy broadcast без sectoring
+            $this->legacyBroadcast($event);
+            return;
         }
 
-        // Форматируем длительность (в минутах)
-        $durationFormatted = $this->formatDuration($event['duration']);
+        $stats = (new \App\Services\Events\NotificationPolicy())->sendStart($event, $config);
 
-        // Перевод effect_type (damage/heal/buff/debuff/none)
-        $effectTypeTranslated = $this->translateEffectType($event['effect_type']);
+        if (($stats['errors'] ?? 0) > 0) {
+            log_message('warning', '[EventActivation] sendStart errors=' . $stats['errors']
+                . ' sent=' . ($stats['sent'] ?? 0)
+                . ' muted=' . ($stats['skipped_mute'] ?? 0));
+        }
+    }
 
-        // Перевод event_type (local/global)
-        $territoryTranslated = $this->translateTerritory($event['event_type']);
-
-        // Формируем само сообщение
-        $message .= "⚠️ *Внимание, началось событие: ➡️ {$event['name']}.*\n\n";
-        $message .= "ℹ️ *Описание:*\n";
+    /**
+     * Legacy broadcast — тільки якщо WorldEvents.php не містить config події
+     * (наприклад для нової події, ще не зареєстрованої). Тимчасова compat-сітка.
+     */
+    private function legacyBroadcast(array $event): void
+    {
+        $message  = "⚠️ *Внимание, началось событие: ➡️ {$event['name']}.*\n\n";
         $message .= "_{$event['description']}_\n\n";
-        $message .= "⌛️ Продлится: $durationFormatted\n\n";
-        $message .= "🔔 Эффект влияния: $effectTypeTranslated\n\n";
-        $message .= "🗾 Территория: $territoryTranslated\n\n";
-        $message .= $biomsStr;
-        $message .= "\nБудьте осторожны, или наоборот — воспользуйтесь преимуществами этого события!";
+        $message .= "⌛️ Продлится: " . $this->formatDuration($event['duration']) . "\n";
 
-        // Отправляем всем пользователям
         $allTelegramUsers = $this->telegramUserModel->findAll();
         $counter = 0;
-
-        foreach ($allTelegramUsers as $telegramUser) {
-            // Telegram global rate limit ≈ 30 msg/sec.
-            // 35 ms между сообщениями = ~28 msg/sec — под лимитом, без блока всего Worker'а.
-            // TODO (F1.2): заменить на codeigniter4/queue с rate-limit consumer'ом.
+        foreach ($allTelegramUsers as $tg) {
             if ($counter > 0) {
                 usleep(35000);
             }
-            $this->sendMessageToAllUsers($message, $imgPath, $telegramUser['telegram_id']);
+            $this->sendMessageToAllUsers($message, $event['img_path'] ?? null, $tg['telegram_id']);
             $counter++;
         }
     }
