@@ -464,6 +464,197 @@ class CraftRecipes extends BaseConfig
             'image_completed'      => 'uploads/telegram/craft/components/craftGlassBags.jpg',
             'craft_again_callback' => 'genericCraft_GlassBags_1',
         ],
+
+        // ============================================================
+        // F3.B7 (v0.23.0) — Tools 8 крафтов
+        // image_in_progress = единая картинка верстака для всех (FishingRod —
+        // отдельная), image_completed — уникальная картинка инструмента.
+        // ============================================================
+
+        'StonePickaxe' => [
+            'task_name'            => 'craftStonePickaxe',
+            'resources'            => [
+                'Древесина' => 50,
+                'Базальт'   => 1,
+                'Камни'     => 10,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/huge_mechanical_workbench.jpg',
+            'start_caption_name'   => '⛏️ *Каменная кирка*',
+            'info_callback'        => 'stonePickaxe',
+
+            'item_name_eng'        => 'StonePickaxe',
+            'item_name_rus'        => 'Каменная кирка',
+            'icon_emoji'           => '⛏️',
+            'zone_emoji'           => '🛠️',
+            'zone_name'            => 'инструменты',
+            'agility_bonus'        => 0.03,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/create-an-image-of-an-ancient-stone-pickaxe.jpg',
+            'craft_again_callback' => 'genericCraft_StonePickaxe_1',
+        ],
+
+        'IronShovel' => [
+            'task_name'            => 'craftIronShovel',
+            'resources'            => [
+                'Древесина'     => 50,
+                'Железная руда' => 16,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/huge_mechanical_workbench.jpg',
+            'start_caption_name'   => '🥄 *Железная лопата*',
+            'info_callback'        => 'ironShovel',
+
+            'item_name_eng'        => 'IronShovel',
+            'item_name_rus'        => 'Железная лопата',
+            'icon_emoji'           => '🥄',
+            'zone_emoji'           => '🛠️',
+            'zone_name'            => 'инструменты',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/image-of-a-typical-metal-shovel.jpg',
+            'craft_again_callback' => 'genericCraft_IronShovel_1',
+        ],
+
+        'IronPickaxe' => [
+            'task_name'            => 'craftIronPickaxe',
+            'resources'            => [
+                'Древесина'     => 50,
+                'Железная руда' => 25,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/huge_mechanical_workbench.jpg',
+            'start_caption_name'   => '⛏️ *Железная кирка*',
+            'info_callback'        => 'ironPickaxe',
+
+            'item_name_eng'        => 'IronPickaxe',
+            'item_name_rus'        => 'Железная кирка',
+            'icon_emoji'           => '⛏️',
+            'zone_emoji'           => '🛠️',
+            'zone_name'            => 'инструменты',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/robust-iron-pickaxe.jpg',
+            'craft_again_callback' => 'genericCraft_IronPickaxe_1',
+        ],
+
+        'LumberjackAxe' => [
+            'task_name'            => 'craftLumberjackAxe',
+            'resources'            => [
+                'Древесина' => 50,
+                'Базальт'   => 1,
+                'Камни'     => 10,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/huge_mechanical_workbench.jpg',
+            'start_caption_name'   => '🪓 *Топор дровосека*',
+            'info_callback'        => 'lumberjackAxe',
+
+            'item_name_eng'        => 'LumberjackAxe',
+            'item_name_rus'        => 'Топор дровосека',
+            'icon_emoji'           => '🪓',
+            'zone_emoji'           => '🛠️',
+            'zone_name'            => 'инструменты',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/old-stone-primitive-axe-of-stone-and-logs.jpg',
+            'craft_again_callback' => 'genericCraft_LumberjackAxe_1',
+        ],
+
+        'FishingRod' => [
+            'task_name'            => 'craftFishingRod',
+            'resources'            => [
+                'Древесина'                => 10,
+                'Кожа животных'            => 1,
+                'Шёлк пауков-пустынников'  => 5,
+                'Улитки и моллюски'        => 15,
+                'Шерсть животных'          => 3,
+                'Лианы'                    => 5,
+            ],
+            'crafted_items'        => [],
+            // FishingRod единственный tool с собственной картинкой процесса
+            // (остальные используют общий верстак).
+            'image_in_progress'    => 'uploads/telegram/craft/high-quality-fishing-rod.jpg',
+            'start_caption_name'   => '🎣 *Удочка*',
+            'info_callback'        => 'fishingRod',
+
+            'item_name_eng'        => 'FishingRod',
+            'item_name_rus'        => 'Удочка',
+            'icon_emoji'           => '🎣',
+            'zone_emoji'           => '🛠️',
+            'zone_name'            => 'инструменты',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/high-quality-fishing-rod.jpg',
+            'craft_again_callback' => 'genericCraft_FishingRod_1',
+        ],
+
+        'Hoe' => [
+            'task_name'            => 'craftHoe',
+            'resources'            => [
+                'Древесина'     => 50,
+                'Железная руда' => 16,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/huge_mechanical_workbench.jpg',
+            'start_caption_name'   => '🌾 *Мотыга*',
+            'info_callback'        => 'hoe',
+
+            'item_name_eng'        => 'Hoe',
+            'item_name_rus'        => 'Мотыга',
+            'icon_emoji'           => '🌾',
+            'zone_emoji'           => '🛠️',
+            'zone_name'            => 'инструменты',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/traditional-hoe.jpg',
+            'craft_again_callback' => 'genericCraft_Hoe_1',
+        ],
+
+        'FoldingKnife' => [
+            'task_name'            => 'craftFoldingKnife',
+            'resources'            => [
+                'Древесина'     => 2,
+                'Железная руда' => 36,
+                'Кожа животных' => 1,
+                'Камни'         => 2,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/huge_mechanical_workbench.jpg',
+            'start_caption_name'   => '🔪 *Складной нож*',
+            'info_callback'        => 'foldingKnife',
+
+            'item_name_eng'        => 'FoldingKnife',
+            'item_name_rus'        => 'Складной нож',
+            'icon_emoji'           => '🔪',
+            'zone_emoji'           => '🛠️',
+            'zone_name'            => 'инструменты',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/an-old-but-sharp-folding-knife.jpg',
+            'craft_again_callback' => 'genericCraft_FoldingKnife_1',
+        ],
+
+        'TireIron' => [
+            'task_name'            => 'craftTireIron',
+            'resources'            => [
+                'Железная руда' => 54,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/huge_mechanical_workbench.jpg',
+            'start_caption_name'   => '🪛 *Монтировка*',
+            'info_callback'        => 'tireIron',
+
+            'item_name_eng'        => 'TireIron',
+            'item_name_rus'        => 'Монтировка',
+            'icon_emoji'           => '🪛',
+            'zone_emoji'           => '🛠️',
+            'zone_name'            => 'инструменты',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/craftTireIron.jpg',
+            'craft_again_callback' => 'genericCraft_TireIron_1',
+        ],
     ];
 
     /**

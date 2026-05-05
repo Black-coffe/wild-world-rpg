@@ -213,7 +213,7 @@ class StonePickaxeCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q}шт",
-                    'callback_data' => "craftStonePickaxe_{$q}"
+                    'callback_data' => "genericCraft_StonePickaxe_{$q}"
                 ];
             }
         }

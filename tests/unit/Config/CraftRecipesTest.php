@@ -86,8 +86,9 @@ final class CraftRecipesTest extends CIUnitTestCase
     }
 
     /**
-     * F3.B5 (v0.21.0) + F3.B6 (v0.22.0): 8 medical + 10 components = 18 рецептов
-     * с единой схемой (start-side + completion-side + унифицированный callback).
+     * F3.B5 (v0.21.0) + F3.B6 (v0.22.0) + F3.B7 (v0.23.0):
+     * 8 medical + 10 components + 8 tools = 26 рецептов с единой схемой
+     * (start-side + completion-side + унифицированный callback).
      */
     public function testAllMedicalRecipesPresentWithFullSchema(): void
     {
@@ -99,6 +100,9 @@ final class CraftRecipesTest extends CIUnitTestCase
             'Wiring', 'Fabric', 'Soil', 'ElectronicComponents', 'StoneBlocks',
             'MetalFragments', 'Fertilizer', 'WoodMaterials', 'CharcoalBriquettes',
             'GlassBags',
+            // Tools (B7)
+            'StonePickaxe', 'IronShovel', 'IronPickaxe', 'LumberjackAxe',
+            'FishingRod', 'Hoe', 'FoldingKnife', 'TireIron',
         ];
 
         foreach ($expectedKeys as $key) {
@@ -164,5 +168,35 @@ final class CraftRecipesTest extends CIUnitTestCase
         $recipe = $this->cfg->get('CharcoalBriquettes');
         $this->assertStringEndsWith('.png', $recipe['image_completed']);
         $this->assertStringEndsWith('.png', $recipe['image_in_progress']);
+    }
+
+    /**
+     * F3.B7 — у tools картинка процесса крафта (image_in_progress) общая
+     * (huge_mechanical_workbench.jpg) для всех инструментов кроме FishingRod.
+     * Картинка завершения (image_completed) уникальна для каждого инструмента.
+     */
+    public function testToolsShareWorkbenchImageInProgress(): void
+    {
+        $sharedImage = 'uploads/telegram/craft/huge_mechanical_workbench.jpg';
+
+        $sharedKeys = ['StonePickaxe', 'IronShovel', 'IronPickaxe', 'LumberjackAxe', 'Hoe', 'FoldingKnife', 'TireIron'];
+        foreach ($sharedKeys as $key) {
+            $recipe = $this->cfg->get($key);
+            $this->assertSame(
+                $sharedImage,
+                $recipe['image_in_progress'],
+                "{$key} should use shared workbench image_in_progress"
+            );
+            $this->assertNotSame(
+                $sharedImage,
+                $recipe['image_completed'],
+                "{$key} should have unique image_completed (not workbench)"
+            );
+        }
+
+        // FishingRod — exception, использует свою картинку и для start и для completion
+        $rod = $this->cfg->get('FishingRod');
+        $this->assertSame($rod['image_in_progress'], $rod['image_completed']);
+        $this->assertStringContainsString('fishing-rod', $rod['image_in_progress']);
     }
 }

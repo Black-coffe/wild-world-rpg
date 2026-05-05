@@ -212,7 +212,7 @@ class FoldingKnifeCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q}шт",
-                    'callback_data' => "craftFoldingKnife_{$q}"
+                    'callback_data' => "genericCraft_FoldingKnife_{$q}"
                 ];
             }
         }
