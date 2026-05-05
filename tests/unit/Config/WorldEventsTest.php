@@ -116,6 +116,7 @@ final class WorldEventsTest extends CIUnitTestCase
             'effect_params',
             'duration_minutes',
             'frequency_weight',
+            'tick_chance',
             'protection_item',
             'notification_kind',
         ];
@@ -128,6 +129,19 @@ final class WorldEventsTest extends CIUnitTestCase
                     "Подія '{$key}' не містить обов'язкове поле '{$field}'"
                 );
             }
+        }
+    }
+
+    public function testTickChanceWithinValidRange(): void
+    {
+        foreach ($this->cfg->events as $key => $event) {
+            $tc = $event['tick_chance'] ?? null;
+            $this->assertIsFloat($tc,
+                "tick_chance у '{$key}' має бути float, отримано: " . gettype($tc));
+            $this->assertGreaterThanOrEqual(0.0, $tc,
+                "tick_chance у '{$key}' має бути >= 0");
+            $this->assertLessThanOrEqual(1.0, $tc,
+                "tick_chance у '{$key}' має бути <= 1");
         }
     }
 
