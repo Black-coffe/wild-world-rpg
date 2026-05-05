@@ -119,9 +119,11 @@ class EventActivationHandler
             return $activationCountThisWeek < $event['frequency_per_week'];
         });
 
-        // 6) Если список не пуст, берём случайное событие
+        // 6) Если список не пуст, берём событие с весом из WorldEvents config
+        //    (F7.9 — frequency_weight: Starfall=5, MountainEcho=3, rare_resource=2,
+        //    остальные=1. Старая semantic frequency_per_week теперь cap, не вес).
         if (!empty($filteredEvents)) {
-            $randomEvent = $filteredEvents[array_rand($filteredEvents)];
+            $randomEvent = self::pickWeighted(array_values($filteredEvents), config('WorldEvents'));
 
             // Активируем
             $this->activateEvent($randomEvent);
@@ -129,6 +131,44 @@ class EventActivationHandler
             // Уведомляем всех игроков (транслируем картинку + описание)
             $this->notifyPlayersAboutEvent($randomEvent);
         }
+    }
+
+    /**
+     * F7.9 — weighted random selection.
+     * Берёт frequency_weight из WorldEvents config по name_english.
+     * Fallback weight = 1 если нет в config.
+     *
+     * @param list<array<string, mixed>> $events
+     * @param \Config\WorldEvents $cfg
+     * @return array<string, mixed>
+     */
+    public static function pickWeighted(array $events, \Config\WorldEvents $cfg): array
+    {
+        if (count($events) === 1) {
+            return $events[0];
+        }
+
+        $weights = [];
+        $total   = 0;
+        foreach ($events as $i => $event) {
+            $config       = $cfg->get($event['name_english']);
+            $weight       = (int)($config['frequency_weight'] ?? 1);
+            $weight       = max(1, $weight);
+            $weights[$i]  = $weight;
+            $total       += $weight;
+        }
+
+        $roll = mt_rand(1, $total);
+        $cum  = 0;
+        foreach ($weights as $i => $w) {
+            $cum += $w;
+            if ($roll <= $cum) {
+                return $events[$i];
+            }
+        }
+
+        // Fallback (не повинно статись)
+        return $events[array_key_first($events)];
     }
 
     /**
