@@ -278,7 +278,7 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
 
         // F2.2: encodeFile делает fopen() — нужен ЛОКАЛЬНЫЙ путь, не URL.
         // base_url() при пустом app.baseURL (cron) валится на localhost:8080.
-        $imagePath = FCPATH . $recipe['image_completed'];
+        $imagePath = FCPATH . (string) $recipe['image_completed'];
 
         // Безопасная отправка (BaseTaskHandler::safeSendPhoto ловит TelegramException).
         $this->safeSendPhoto($telegramId, $imagePath, $text, [

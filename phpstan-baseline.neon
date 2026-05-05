@@ -19573,12 +19573,6 @@ parameters:
 			path: app/TaskHandlers/CompleteRobotGatheringHandler.php
 
 		-
-			message: '#^Binary operation "\." between ''C\:\\\\laragon\\\\www…'' and mixed results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 1
-			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
-
-		-
 			message: '#^Binary operation "\." between ''\[GenericCraftComple…'' and mixed results in an error\.$#'
 			identifier: binaryOp.invalid
 			count: 1
@@ -19654,6 +19648,12 @@ parameters:
 			message: '#^Cannot cast mixed to int\.$#'
 			identifier: cast.int
 			count: 2
+			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
+
+		-
+			message: '#^Cannot cast mixed to string\.$#'
+			identifier: cast.string
+			count: 1
 			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
 
 		-
