@@ -35,9 +35,9 @@ final class KindLabelsTest extends CIUnitTestCase
 
     public function testRuReturnsHumanLabel(): void
     {
-        $this->assertSame('з уроном', KindLabels::ru('damage_health'));
-        $this->assertSame('з лікуванням', KindLabels::ru('heal'));
-        $this->assertSame('із золотом', KindLabels::ru('gold_grant'));
+        $this->assertSame('с уроном', KindLabels::ru('damage_health'));
+        $this->assertSame('с лечением', KindLabels::ru('heal'));
+        $this->assertSame('с золотом', KindLabels::ru('gold_grant'));
     }
 
     public function testAllReturnsAllLabels(): void

@@ -17,26 +17,27 @@ namespace App\Services\Events;
 final class KindLabels
 {
     /**
-     * effect_kind → людиномовна назва (родовий відмінок мн.: «без подій з ...»).
+     * effect_kind → человеко-читаемое название (предложный падеж мн.:
+     * «без событий с ...»).
      */
     private const LABELS_RU = [
-        'damage_health'       => 'з уроном',
-        'damage_resources'    => 'з втратою ресурсів',
-        'heal'                => 'з лікуванням',
-        'attribute_boost'     => 'з буфами',
-        'reveal_cells'        => 'з розвідкою мапи',
-        'gold_grant'          => 'із золотом',
-        'rare_resource_grant' => 'з рідкісними ресурсами',
-        'task_extend'         => 'з затримкою задач',
-        'gather_debuff'       => 'з debuff збору',
-        'noop'                => 'фонові',
+        'damage_health'       => 'с уроном',
+        'damage_resources'    => 'с потерей ресурсов',
+        'heal'                => 'с лечением',
+        'attribute_boost'     => 'с бафами',
+        'reveal_cells'        => 'с разведкой карты',
+        'gold_grant'          => 'с золотом',
+        'rare_resource_grant' => 'с редкими ресурсами',
+        'task_extend'         => 'с задержкой задач',
+        'gather_debuff'       => 'с debuff сбора',
+        'noop'                => 'фоновые',
     ];
 
     /**
-     * Повертає підпис «з ...» для use в шаблонах:
-     *   «🚫 Без подій з уроном» / «Подій з уроном більше не буде».
+     * Возвращает подпись «с ...» для использования в шаблонах:
+     *   «🚫 Без событий с уроном» / «Событий с уроном больше не будет».
      *
-     * Невідомий kind → fallback на сам kind ('damage_health' як є).
+     * Неизвестный kind → fallback на сам kind ('damage_health' как есть).
      */
     public static function ru(string $effectKind): string
     {
