@@ -15,9 +15,6 @@ use App\Models\TaskModel;
 use App\Models\TelegramUserModel;
 use App\Services\Player\PlayerStateService;
 use Config\WorldEvents;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
 use Throwable;
 
 /**
@@ -52,7 +49,7 @@ final class EventDispatcher
     private EventEffectsLogModel $logModel;
     private PlayerStateService $playerState;
     private IntentApplier $applier;
-    private ?Telegram $telegram = null;
+    private EffectAccumulator $accumulator;
 
     public function __construct(
         ?WorldEvents $cfg = null,
@@ -65,6 +62,7 @@ final class EventDispatcher
         ?EventEffectsLogModel $logModel = null,
         ?PlayerStateService $playerState = null,
         ?IntentApplier $applier = null,
+        ?EffectAccumulator $accumulator = null,
     ) {
         $this->cfg              = $cfg              ?? config('WorldEvents');
         $this->eventModel       = $eventModel       ?? new EventModel();
@@ -83,6 +81,8 @@ final class EventDispatcher
             new ResourceModel(),
             new TaskModel(),
         );
+
+        $this->accumulator = $accumulator ?? new EffectAccumulator($this->activeEventModel);
     }
 
     /**
@@ -173,12 +173,21 @@ final class EventDispatcher
                 $result  = $effect->compute($char, $config, $enrichedActive, $context);
 
                 if ($result['applied'] ?? false) {
+                    // Immediate apply (game state коректний у real-time)
                     $this->applier->apply($char, $result);
                     $this->handleRevealCells($char, $result);
+                    // Audit log (історія всіх дій)
                     $this->logToDb($char, $eventId, $result);
-                    $this->sendTickNotification($char, $enrichedActive, $config, $result);
+                    // F7.4: накопичуємо для end-summary (замість tick-нотіфікації)
+                    $this->accumulator->accumulate(
+                        (int)$activeEvent['id'],
+                        (int)$char['id'],
+                        $result
+                    );
                     $stats['effects_applied']++;
                 }
+                // F7.4: tick-нотіфікації прибрано. End-summary з агрегатом
+                // надсилає EventCloseHandler коли event переходить у completed.
             } catch (Throwable $e) {
                 $stats['errors']++;
                 log_message('error', "[EventDispatcher] char_id={$char['id']}: " . $e->getMessage());
@@ -283,79 +292,7 @@ final class EventDispatcher
         }
     }
 
-    /**
-     * F7.3 — уніфікована tick notification. F7.5 переробить на start+end summary.
-     */
-    private function sendTickNotification(array $char, array $activeEvent, array $config, array $result): void
-    {
-        $tgId = $this->resolveTelegramId($char);
-        if ($tgId === null) {
-            return;
-        }
-
-        // F7.3: пропускаємо нотіфікації якщо log_summary порожній (skipped)
-        $summary = trim($result['log_summary'] ?? '');
-        if ($summary === '' || str_starts_with($summary, '[skipped]')) {
-            return;
-        }
-
-        $name = $activeEvent['name'] ?? $activeEvent['name_english'];
-        $text = "⚠️ *{$name}*\n\n{$summary}\n\n_Подія активна. Подробиці у меню «🎉 События»._";
-
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🎉 События',       'callback_data' => 'events'],
-                ],
-            ],
-        ];
-
-        $this->ensureTelegramInitialized();
-
-        $imgPath = $activeEvent['img_path'] ?? null;
-        try {
-            if ($imgPath) {
-                Request::sendPhoto([
-                    'chat_id'      => $tgId,
-                    'photo'        => Request::encodeFile(FCPATH . $imgPath),
-                    'caption'      => $text,
-                    'parse_mode'   => 'Markdown',
-                    'reply_markup' => json_encode($keyboard),
-                ]);
-            } else {
-                Request::sendMessage([
-                    'chat_id'      => $tgId,
-                    'text'         => $text,
-                    'parse_mode'   => 'Markdown',
-                    'reply_markup' => json_encode($keyboard),
-                ]);
-            }
-        } catch (TelegramException $e) {
-            log_message('error', "[EventDispatcher] sendNotification failed: " . $e->getMessage());
-        }
-    }
-
-    private function resolveTelegramId(array $char): ?int
-    {
-        $tgUserId = $char['telegram_user_id'] ?? null;
-        if (!$tgUserId) {
-            return null;
-        }
-        $tgUser = $this->tgUserModel->find($tgUserId);
-        return $tgUser ? (int)$tgUser['telegram_id'] : null;
-    }
-
-    private function ensureTelegramInitialized(): void
-    {
-        if ($this->telegram !== null) {
-            return;
-        }
-        try {
-            $this->telegram = new Telegram(getenv('telegram.API_KEY'), getenv('telegram.BOT_USERNAME'));
-            Request::initialize($this->telegram);
-        } catch (TelegramException $e) {
-            log_message('error', "[EventDispatcher] Telegram init failed: " . $e->getMessage());
-        }
-    }
+    // F7.4: sendTickNotification + ensureTelegramInitialized + resolveTelegramId
+    // переїхали в EventCloseHandler (формує end-summary при завершенні події).
+    // EventDispatcher більше не торкається Telegram'у на tick'ах.
 }

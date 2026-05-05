@@ -192,8 +192,19 @@ class EventActivationHandler
             ->where('end_time <', $this->now)
             ->findAll();
 
+        // F7.4: перед закриттям події викликаємо EventCloseHandler який
+        // прочитає накопичений effect_log та надішле кожному гравцеві
+        // ОДНУ end-summary з агрегатом (замість 30 tick-нотіфікацій що
+        // були у legacy/F7.3).
+        $closer = new \App\Services\Events\EventCloseHandler();
+
         foreach ($expiredEvents as $event) {
-            // Ставим 'completed'
+            try {
+                $closer->closeEvent($event);
+            } catch (\Throwable $e) {
+                log_message('error', "[EventActivation] closeEvent fail event_id={$event['event_id']}: " . $e->getMessage());
+            }
+
             $this->activeEventModel->update($event['id'], ['status' => 'completed']);
         }
     }
