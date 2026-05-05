@@ -154,7 +154,7 @@ class WorkbenchOneAction extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '🛠️ Крафтить', 'callback_data' => 'craftWorkbenchOne'],
+                        ['text' => '🛠️ Крафтить', 'callback_data' => 'genericCraft_WorkbenchOne_1'],
                     ],
                     [
                         ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],

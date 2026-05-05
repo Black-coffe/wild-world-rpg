@@ -655,6 +655,110 @@ class CraftRecipes extends BaseConfig
             'image_completed'      => 'uploads/telegram/craft/craftTireIron.jpg',
             'craft_again_callback' => 'genericCraft_TireIron_1',
         ],
+
+        // ============================================================
+        // F3.B8 (v0.24.0) — Workbench + Robots (3 крафта).
+        // Особенности относительно B5-B7:
+        //   - `gold_required` (новое поле): крафт требует списания золота.
+        //   - `required_buildings` (новое поле): крафт требует наличия
+        //     перечисленных построек у персонажа (RoboticsWorkshop, Workshop).
+        //   - `requires_base` (новое поле): крафт требует наличия лагеря.
+        // Расширения GenericCraftActionStart B8.
+        // ============================================================
+
+        'WorkbenchOne' => [
+            'task_name'            => 'craftWorkbenchOne',
+            'resources'            => [
+                'Древесина'      => 240,
+                'Смола деревьев' => 40,
+                'Базальт'        => 20,
+                'Лавовый камень' => 10,
+            ],
+            // crafted_items используют `name_eng` (через CraftedItemsModel::getRowByName).
+            'crafted_items'        => [
+                'stoneBlocks'    => 14,
+                'WoodMaterials'  => 24,
+                'metalFragments' => 20,
+            ],
+            'gold_required'        => 20000,
+            'requires_base'        => true,
+            'required_buildings'   => [],
+            'image_in_progress'    => 'uploads/telegram/craft/huge_mechanical_workbench.jpg',
+            'start_caption_name'   => '🔬 *Верстак 1!*',
+            'info_callback'        => 'workbenchOne',
+
+            'item_name_eng'        => 'WorkbenchOne',
+            'item_name_rus'        => 'Верстак 1',
+            'icon_emoji'           => '🔬',
+            'zone_emoji'           => '🏚️',
+            'zone_name'            => 'база',
+            'agility_bonus'        => 0.04,
+            'intellect_bonus'      => 0.03,
+            'image_completed'      => 'uploads/telegram/workbench/workbench_one.png',
+            'craft_again_callback' => 'genericCraft_WorkbenchOne_1',
+        ],
+
+        'RobotExplorer' => [
+            'task_name'            => 'craftRobotExplorer',
+            'resources'            => [
+                'Янтарь'           => 6,
+                'Смола деревьев'   => 40,
+                'Солнечные камни'  => 30,
+            ],
+            'crafted_items'        => [
+                'GlassBags'      => 2,
+                'Fabric'         => 12,
+                'metalFragments' => 36,
+            ],
+            'gold_required'        => 15000,
+            'requires_base'        => true,
+            'required_buildings'   => ['RoboticsWorkshop'],
+            'image_in_progress'    => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'start_caption_name'   => 'робота 🔍 *Исследователя!*',
+            'info_callback'        => 'robotExplorer',
+
+            // ВНИМАНИЕ: name_eng в crafted_items = 'RobotExplorer'
+            // (НЕ 'RobotExplorer2' — это callback-имя, исторически).
+            'item_name_eng'        => 'RobotExplorer',
+            'item_name_rus'        => 'Робот-Исследователь',
+            'icon_emoji'           => '🔍',
+            'zone_emoji'           => '🌳',
+            'zone_name'            => 'биом',
+            'agility_bonus'        => 0.05,
+            'intellect_bonus'      => 0.05,
+            'image_completed'      => 'uploads/telegram/craft/standard/robot_explorer.jpg',
+            'craft_again_callback' => 'genericCraft_RobotExplorer_1',
+        ],
+
+        'RobotGatherer' => [
+            'task_name'            => 'craftRobotGatherer',
+            'resources'            => [
+                'Янтарь'           => 6,
+                'Смола деревьев'   => 40,
+                'Солнечные камни'  => 30,
+            ],
+            'crafted_items'        => [
+                'GlassBags'      => 3,
+                'Fabric'         => 15,
+                'metalFragments' => 42,
+            ],
+            'gold_required'        => 21000,
+            'requires_base'        => true,
+            'required_buildings'   => ['RoboticsWorkshop', 'Workshop'],
+            'image_in_progress'    => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'start_caption_name'   => 'робота ⛏️ *Добытчика!*',
+            'info_callback'        => 'robotGatherer',
+
+            'item_name_eng'        => 'RobotGatherer',
+            'item_name_rus'        => 'Робот-Добытчик',
+            'icon_emoji'           => '⛏️',
+            'zone_emoji'           => '🌳',
+            'zone_name'            => 'биом',
+            'agility_bonus'        => 0.05,
+            'intellect_bonus'      => 0.05,
+            'image_completed'      => 'uploads/telegram/craft/standard/craftRobotGatherer.jpg',
+            'craft_again_callback' => 'genericCraft_RobotGatherer_1',
+        ],
     ];
 
     /**
