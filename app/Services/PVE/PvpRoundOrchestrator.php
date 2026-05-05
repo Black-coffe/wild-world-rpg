@@ -58,8 +58,15 @@ final class PvpRoundOrchestrator
      *    'roundLogs' => array]
      *
      * Контракт идентичен AttackPlayerAction::simulateFight v0.12.0.
+     *
+     * F1.4.1: $biome signature widened — BiomeModel returnType = BiomeEntity.
+     * Старі тести passing raw array, prod — Entity. ArrayAccess trait робить $biome['x'] working для обох.
+     *
+     * @param array<string, mixed> $p1
+     * @param array<string, mixed> $p2
+     * @param array<string, mixed>|\App\Entities\BiomeEntity $biome
      */
-    public function simulateFight(array $p1, array $p2, array $biome): array
+    public function simulateFight(array $p1, array $p2, array|\App\Entities\BiomeEntity $biome): array
     {
         $roundLogs = [];
 

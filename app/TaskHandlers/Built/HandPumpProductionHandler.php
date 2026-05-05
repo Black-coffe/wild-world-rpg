@@ -178,8 +178,13 @@ class HandPumpProductionHandler extends Controller
     /**
      * Возвращаем множитель, исходя из типа биома.
      * По умолчанию = 1.0, если вдруг тип не найден.
+     *
+     * F1.4.1: signature widened — BiomeModel тепер returnType = BiomeEntity,
+     * а тести passing raw arrays. ArrayAccess trait у Entity робить $biome['biome_type'] working для обох.
+     *
+     * @param array<string, mixed>|\App\Entities\BiomeEntity $biome
      */
-    private function getBiomeMultiplier(array $biome): float
+    private function getBiomeMultiplier(array|\App\Entities\BiomeEntity $biome): float
     {
         $type = $biome['biome_type'] ?? '';
         return $this->biomeTypeMultipliers[$type] ?? 1.0;

@@ -59,10 +59,18 @@ final class PvpDamageCalculator
      * Возвращает array с детальным разложением урона и rolls (для логирования
      * раундов в roundLogs).
      */
+    /**
+     * F1.4.1: $biome widened — BiomeEntity (BiomeModel returnType) або raw array (legacy/tests).
+     *
+     * @param array<string, mixed> $attacker
+     * @param array<string, mixed> $defender
+     * @param array<string, mixed>|\App\Entities\BiomeEntity $biome
+     * @return array<string, mixed>
+     */
     public function computeDamage(
         array $attacker,
         array $defender,
-        array $biome,
+        array|\App\Entities\BiomeEntity $biome,
         bool  $luckyStrikeActive,  // see DEAD CODE NOTE in class docblock
         bool  $isFirstHit
     ): array {
