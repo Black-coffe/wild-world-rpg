@@ -3,10 +3,12 @@
 namespace App\TaskHandlers\Craft;
 
 use App\Models\CharacterModel;
+use App\Models\CharactersWeaponsModel;
 use App\Models\CharacterTaskModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\TelegramUserModel;
+use App\Models\WeaponModel;
 use App\TaskHandlers\BaseTaskHandler;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Exception\TelegramException;
@@ -44,19 +46,24 @@ use Longman\TelegramBot\Request;
  */
 class GenericCraftCompletionHandler extends BaseTaskHandler
 {
-    private CharacterModel        $characterModel;
-    private CharacterTaskModel    $characterTaskModel;
-    private CraftedItemsModel     $craftedItemsModel;
-    private CraftedItemsLogModel  $craftedItemsLogModel;
-    private TelegramUserModel     $telegramUserModel;
+    private CharacterModel          $characterModel;
+    private CharacterTaskModel      $characterTaskModel;
+    private CraftedItemsModel       $craftedItemsModel;
+    private CraftedItemsLogModel    $craftedItemsLogModel;
+    private TelegramUserModel       $telegramUserModel;
+    // F3.B9: weapons output_type — отдельная пара моделей.
+    private WeaponModel             $weaponModel;
+    private CharactersWeaponsModel  $charactersWeaponsModel;
 
     public function __construct()
     {
-        $this->characterModel       = new CharacterModel();
-        $this->characterTaskModel   = new CharacterTaskModel();
-        $this->craftedItemsModel    = new CraftedItemsModel();
-        $this->craftedItemsLogModel = new CraftedItemsLogModel();
-        $this->telegramUserModel    = new TelegramUserModel();
+        $this->characterModel         = new CharacterModel();
+        $this->characterTaskModel     = new CharacterTaskModel();
+        $this->craftedItemsModel      = new CraftedItemsModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel();
+        $this->telegramUserModel      = new TelegramUserModel();
+        $this->weaponModel            = new WeaponModel();
+        $this->charactersWeaponsModel = new CharactersWeaponsModel();
     }
 
     public function handle(array $task = []): void
@@ -81,15 +88,24 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
             $this->characterTaskModel->update($task['id'], ['status' => 'completed']);
         }
 
-        // 3. Lookup item в БД по name_eng
+        // 3. quantity
+        $quantityToAdd = $this->extractQuantity($task);
+
+        // F3.B9: dispatch на output_type. Default = 'crafted_item' (B5-B8).
+        $outputType = $recipe['output_type'] ?? 'crafted_item';
+        if ($outputType === 'weapon') {
+            $this->handleWeaponOutput($task, $recipe, $quantityToAdd);
+            return;
+        }
+
+        // ========== Default flow: crafted_item (B5-B8) ==========
+
+        // 4. Lookup item в БД по name_eng
         $craftedItem = $this->craftedItemsModel->where('name_eng', $recipe['item_name_eng'])->first();
         if (!$craftedItem) {
             log_message('error', "[GenericCraftCompletion] crafted_item '{$recipe['item_name_eng']}' не найден в БД");
             return;
         }
-
-        // 4. quantity
-        $quantityToAdd = $this->extractQuantity($task);
 
         // 5. update / insert crafted_items_log
         $existingLog = $this->craftedItemsLogModel->where([
@@ -125,6 +141,64 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
 
         // 7. notify
         $this->notifyUser((int) $task['telegram_user_id'], $craftedItem, (int) $task['character_id'], $quantityToAdd, $recipe);
+    }
+
+    /**
+     * F3.B9 — completion path для weapons. Записывает в `characters_weapons`
+     * (вместо `crafted_items_log`), обновляет силу/ловкость через
+     * `updateStrengthAndAgility`, уведомляет игрока.
+     */
+    private function handleWeaponOutput(array $task, array $recipe, int $quantityToAdd): void
+    {
+        $weaponNameEn = $recipe['weapon_name_en'] ?? null;
+        if ($weaponNameEn === null) {
+            log_message('error', "[GenericCraftCompletion] recipe '{$recipe['item_name_eng']}' output_type=weapon, но нет weapon_name_en");
+            return;
+        }
+
+        $weapon = $this->weaponModel->where('name_en', $weaponNameEn)->first();
+        if (!$weapon) {
+            log_message('error', "[GenericCraftCompletion] weapon '{$weaponNameEn}' не найден в БД");
+            return;
+        }
+
+        // Add or increment quantity in characters_weapons
+        $row = $this->charactersWeaponsModel
+            ->where('character_id', $task['character_id'])
+            ->where('weapon_id', $weapon['id'])
+            ->first();
+
+        if ($row) {
+            $newQty = (int) $row['quantity'] + $quantityToAdd;
+            $this->charactersWeaponsModel->update($row['id'], ['quantity' => $newQty]);
+        } else {
+            $this->charactersWeaponsModel->insert([
+                'character_id'       => $task['character_id'],
+                'weapon_id'          => $weapon['id'],
+                'quantity'           => $quantityToAdd,
+                'current_durability' => 100,
+                'equipped'           => 0,
+                'slot'               => $recipe['weapon_slot'] ?? 'hand',
+            ]);
+        }
+
+        // Stat bump: для weapons → updateStrengthAndAgility (НЕ updateAgilityAndIntellect).
+        if (method_exists($this->characterModel, 'updateStrengthAndAgility')) {
+            $this->characterModel->updateStrengthAndAgility(
+                $task['character_id'],
+                (float) ($recipe['strength_bonus'] ?? 0),
+                (float) ($recipe['agility_bonus']  ?? 0)
+            );
+        }
+
+        // notify — переиспользуем notifyUser, передавая weapon-row (используем
+        // weapons.name как name_rus + weapon_id для recount итога).
+        $weaponAsItem = [
+            'id'       => (int) $weapon['id'],
+            'name_rus' => $weapon['name'] ?? $recipe['item_name_rus'],
+            '__weapon' => true,
+        ];
+        $this->notifyUser((int) $task['telegram_user_id'], $weaponAsItem, (int) $task['character_id'], $quantityToAdd, $recipe);
     }
 
     private function extractRecipeKey(array $task): ?string
@@ -169,11 +243,21 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         }
         $telegramId = $userRow['telegram_id'];
 
-        $updatedLog = $this->craftedItemsLogModel->where([
-            'character_id'    => $characterId,
-            'crafted_item_id' => $craftedItem['id'],
-        ])->first();
-        $totalNow = $updatedLog ? (int) $updatedLog['quantity'] : 0;
+        // F3.B9: для weapons итого считаем из characters_weapons,
+        // для crafted_item — из crafted_items_log (default).
+        if (!empty($craftedItem['__weapon'])) {
+            $row = $this->charactersWeaponsModel->where([
+                'character_id' => $characterId,
+                'weapon_id'    => $craftedItem['id'],
+            ])->first();
+            $totalNow = $row ? (int) $row['quantity'] : 0;
+        } else {
+            $updatedLog = $this->craftedItemsLogModel->where([
+                'character_id'    => $characterId,
+                'crafted_item_id' => $craftedItem['id'],
+            ])->first();
+            $totalNow = $updatedLog ? (int) $updatedLog['quantity'] : 0;
+        }
 
         $itemNameRus = $craftedItem['name_rus'] ?? $recipe['item_name_rus'];
 

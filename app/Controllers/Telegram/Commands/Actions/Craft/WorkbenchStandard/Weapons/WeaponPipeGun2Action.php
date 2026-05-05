@@ -299,7 +299,7 @@ class WeaponPipeGun2Action extends BaseAction
                 if ($q <= $maxCraftable) {
                     $quantityButtons[] = [
                         'text' => "🛠 Крафт {$q}шт",
-                        'callback_data' => "startCraftPipeGun_{$q}",
+                        'callback_data' => "genericCraft_PipeGun_{$q}",
                     ];
                 }
             }

@@ -301,7 +301,7 @@ class WeaponMetalSpear2Action extends BaseAction
                     $quantityButtons[] = [
                         'text' => "🛠 Крафт {$q}шт",
                         // Можно назвать `startCraftMetalSpear_{$q}`
-                        'callback_data' => "startCraftMetalSpear_{$q}",
+                        'callback_data' => "genericCraft_MetalSpear_{$q}",
                     ];
                 }
             }

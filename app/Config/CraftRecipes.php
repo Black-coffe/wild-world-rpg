@@ -759,6 +759,163 @@ class CraftRecipes extends BaseConfig
             'image_completed'      => 'uploads/telegram/craft/standard/craftRobotGatherer.jpg',
             'craft_again_callback' => 'genericCraft_RobotGatherer_1',
         ],
+
+        // ============================================================
+        // F3.B9 (v0.25.0) — WorkbenchStandard Weapons (4 крафта).
+        // Особенности относительно B5-B8:
+        //   - `output_type` = 'weapon' (новое поле): результат пишется в
+        //     `characters_weapons` через `WeaponModel` lookup, а не в
+        //     `crafted_items_log`. Stat bump → `updateStrengthAndAgility`.
+        //   - `weapon_name_en` (новое поле): ключ для `weapons.name_en`.
+        //   - `weapon_slot` (новое поле): 'hand' | 'twohand'.
+        //   - `strength_bonus` (новое поле): прибавка к силе при completion.
+        //   - `required_strength`, `required_agility`, `required_level`
+        //     (новые поля): stat-checks персонажа в action-start.
+        // Все поля опциональны — B5-B8 рецепты работают без изменений.
+        // ============================================================
+
+        'MetalSpear' => [
+            'task_name'            => 'craftMetalSpear',
+            'output_type'          => 'weapon',
+            'weapon_name_en'       => 'MetalSpear',
+            'weapon_slot'          => 'hand',
+            'required_strength'    => 3,
+            'required_level'       => 1,
+            'gold_required'        => 200,
+            'requires_base'        => true,
+            'resources'            => [
+                'Древесина'      => 3,
+                'Редкие металлы' => 2,
+            ],
+            'crafted_items'        => [
+                // English keys (CraftedItemsModel::getRowByName ищет по name_eng).
+                'TireIron'       => 1,  // "Монтировка" из B7
+                'Fabric'         => 2,  // "Ткань" из B6
+                'metalFragments' => 2,  // "Металл фрагменты" из B6
+            ],
+            'image_in_progress'    => 'uploads/telegram/craft/standard/metal_spear.jpg',
+            'start_caption_name'   => '🗡 *Металлическое копьё*',
+            'info_callback'        => 'craftMetalSpear',
+
+            'item_name_eng'        => 'MetalSpear',
+            'item_name_rus'        => 'Металлическое копьё',
+            'icon_emoji'           => '🗡',
+            'zone_emoji'           => '⚔',
+            'zone_name'            => 'оружие',
+            'strength_bonus'       => 0.05,
+            'agility_bonus'        => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/standard/metal_spear.jpg',
+            'craft_again_callback' => 'genericCraft_MetalSpear_1',
+        ],
+
+        'PipeGun' => [
+            'task_name'            => 'craftPipeGun',
+            'output_type'          => 'weapon',
+            'weapon_name_en'       => 'PipeGun',
+            'weapon_slot'          => 'hand',
+            'required_strength'    => 0,  // weapons.required_strength dynamic, fallback 0
+            'required_level'       => 1,
+            'gold_required'        => 600,
+            'requires_base'        => true,
+            'resources'            => [
+                'Древесина'      => 2,
+                'Кожа животных'  => 2,
+                'Смола деревьев' => 2,
+            ],
+            'crafted_items'        => [
+                'metalFragments' => 4,
+                'FoldingKnife'   => 1,  // "Складной нож" из B7
+                'Fabric'         => 4,
+            ],
+            'image_in_progress'    => 'uploads/telegram/craft/standard/pipe_gun.jpg',
+            'start_caption_name'   => '🔫 *Трубчатый пистолет*',
+            'info_callback'        => 'craftPipeGun',
+
+            'item_name_eng'        => 'PipeGun',
+            'item_name_rus'        => 'Трубчатый пистолет',
+            'icon_emoji'           => '🔫',
+            'zone_emoji'           => '⚔',
+            'zone_name'            => 'оружие',
+            'strength_bonus'       => 0.03,
+            'agility_bonus'        => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/standard/pipe_gun.jpg',
+            'craft_again_callback' => 'genericCraft_PipeGun_1',
+        ],
+
+        'WiredBat' => [
+            'task_name'            => 'craftWiredBat',
+            'output_type'          => 'weapon',
+            // ВНИМАНИЕ: callback и task name 'WiredBat', но в БД weapons.name_en = 'EnhancedBat'!
+            // Это историческая особенность.
+            'weapon_name_en'       => 'EnhancedBat',
+            'weapon_slot'          => 'hand',
+            'required_strength'    => 5,
+            'required_level'       => 2,
+            'gold_required'        => 250,
+            'requires_base'        => true,
+            'resources'            => [
+                'Кости животных' => 2,
+                'Кожа животных'  => 2,
+                'Смола деревьев' => 2,
+                'Базальт'        => 1,
+                'Древесина'      => 16,
+            ],
+            'crafted_items'        => [
+                'Fabric'         => 3,
+                'metalFragments' => 3,
+                'TireIron'       => 1,
+            ],
+            'image_in_progress'    => 'uploads/telegram/craft/standard/wired_bat.jpg',
+            'start_caption_name'   => '🏏 *Усовершенствованная бита*',
+            'info_callback'        => 'craftWiredBat',
+
+            'item_name_eng'        => 'EnhancedBat',  // matches weapons.name_en
+            'item_name_rus'        => 'Усовершенствованная бита',
+            'icon_emoji'           => '🏏',
+            'zone_emoji'           => '⚔',
+            'zone_name'            => 'оружие',
+            'strength_bonus'       => 0.04,
+            'agility_bonus'        => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/standard/wired_bat.jpg',
+            'craft_again_callback' => 'genericCraft_WiredBat_1',
+        ],
+
+        'CrossbowMk1' => [
+            'task_name'            => 'craftCrossbowMk1',
+            'output_type'          => 'weapon',
+            'weapon_name_en'       => 'CrossbowMk1',
+            'weapon_slot'          => 'twohand',
+            'required_strength'    => 3,
+            'required_agility'     => 10,  // единственный weapon с agility check
+            'required_level'       => 2,
+            'gold_required'        => 1800,
+            'requires_base'        => true,
+            'resources'            => [
+                'Шкура животных'  => 2,
+                'Водные растения' => 5,
+                'Смола деревьев'  => 5,
+                'Шерсть животных' => 7,
+                'Лианы'           => 3,
+                'Древесина'       => 3,
+            ],
+            'crafted_items'        => [
+                'metalFragments' => 1,
+                'Fabric'         => 4,
+            ],
+            'image_in_progress'    => 'uploads/telegram/craft/standard/crossbow_mk1.jpg',
+            'start_caption_name'   => '🏹 *Арбалет Mk.I*',
+            'info_callback'        => 'craftCrossbowMk1',
+
+            'item_name_eng'        => 'CrossbowMk1',
+            'item_name_rus'        => 'Арбалет Mk.I',
+            'icon_emoji'           => '🏹',
+            'zone_emoji'           => '⚔',
+            'zone_name'            => 'оружие',
+            'strength_bonus'       => 0.02,
+            'agility_bonus'        => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/standard/crossbow_mk1.jpg',
+            'craft_again_callback' => 'genericCraft_CrossbowMk1_1',
+        ],
     ];
 
     /**

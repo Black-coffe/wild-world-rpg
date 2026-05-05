@@ -146,6 +146,27 @@ class GenericCraftActionStart extends BaseAction
             return $this->sendError("Недостаточно золота. Нужно *{$goldRequired}* ед., есть *" . ((int) $character['gold']) . "* ед.");
         }
 
+        // F3.B9: проверка stat-требований персонажа (для weapons).
+        // Поля опциональны; для B5-B8 рецептов = 0 (skip check).
+        $statChecks = [
+            'strength' => (int) ($recipe['required_strength'] ?? 0),
+            'agility'  => (int) ($recipe['required_agility']  ?? 0),
+            'level'    => (int) ($recipe['required_level']    ?? 0),
+        ];
+        foreach ($statChecks as $stat => $needed) {
+            if ($needed <= 0) {
+                continue;
+            }
+            $have = (int) ($character[$stat] ?? 0);
+            if ($have < $needed) {
+                $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", "insufficient_{$stat}", [
+                    'need' => $needed, 'have' => $have,
+                ]);
+                $statRus = ['strength' => 'силы', 'agility' => 'ловкости', 'level' => 'уровня'][$stat];
+                return $this->sendError("Недостаточно {$statRus}. Нужно *{$needed}*, есть *{$have}*.");
+            }
+        }
+
         $missRes   = $this->checkResources($character['id'], $recipe['resources'], $this->quantity);
         $missItems = $this->checkCraftedItems($character['id'], $recipe['crafted_items'] ?? [], $this->quantity);
         if (!empty($missRes) || !empty($missItems)) {

@@ -538,10 +538,12 @@ class Worker extends Controller
         'craftArmorDrifterClothes' => 'Craft\WorkbenchStandard\Armor\CraftCompletionDrifterClothesHandler',
         'craftLeatherJacket' => 'Craft\WorkbenchStandard\Armor\CraftCompletionLeatherJacketHandler',
         'craftReinforcedLeatherJacket' => 'Craft\WorkbenchStandard\Armor\CraftCompletionReinforcedLeatherHandler',
-        'craftMetalSpear' => 'Craft\WorkbenchStandard\Weapons\CraftCompletionMetalSpearHandler',
-        'craftPipeGun' => 'Craft\WorkbenchStandard\Weapons\CraftCompletionPipeGunHandler',
-        'craftWiredBat' => 'Craft\WorkbenchStandard\Weapons\CraftCompletionWiredBatHandler',
-        'craftCrossbowMk1' => 'Craft\WorkbenchStandard\Weapons\CraftCompletionCrossbowMk1Handler',
+        // F3.B9 (v0.25.0) cutover: 4 weapon крафтов через GenericCraftCompletionHandler
+        // (output_type=weapon dispatch на characters_weapons + updateStrengthAndAgility).
+        'craftMetalSpear'           => 'Craft\GenericCraftCompletionHandler',
+        'craftPipeGun'              => 'Craft\GenericCraftCompletionHandler',
+        'craftWiredBat'             => 'Craft\GenericCraftCompletionHandler',
+        'craftCrossbowMk1'          => 'Craft\GenericCraftCompletionHandler',
 
         // Другие соответствия
     ];

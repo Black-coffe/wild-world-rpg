@@ -202,14 +202,15 @@ class CallbackqueryCommand extends SystemCommand
             'startCraftLeatherJacket2' =>     \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Armor\StartCraftLeatherJacket2Action::class,
             'armorReinforcedLeather' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Armor\ArmorReinforcedLeather2Action::class,
             'startCraftReinforcedLeather2' =>     \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Armor\StartCraftReinforcedLeather2Action::class,
+            // F3.B9 (v0.25.0): action-start всех 4 weapon крафтов мигрирован
+            // в GenericCraftActionStart через `genericCraft_<RecipeKey>_<qty>`.
+            // Старые callback'и (startCraftMetalSpear, startCraftPipeGun,
+            // startCraftWiredBat, startCraftCrossbowMk1) удалены вместе
+            // с legacy *CraftActionStart. Info-screens (craftMetalSpear etc.) сохранены.
             'craftMetalSpear' =>            \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Weapons\WeaponMetalSpear2Action::class,
-            'startCraftMetalSpear' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Weapons\StartCraftMetalSpear2Action::class,
-            'craftPipeGun' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Weapons\WeaponPipeGun2Action::class,
-            'startCraftPipeGun' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Weapons\StartCraftPipeGun2Action::class,
-            'craftWiredBat' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Weapons\WeaponWiredBat2Action::class,
-            'startCraftWiredBat' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Weapons\StartCraftWiredBat2Action::class,
-            'craftCrossbowMk1' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Weapons\WeaponCrossbowMk1Action::class,
-            'startCraftCrossbowMk1' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Weapons\StartCraftCrossbowMk1Action::class,
+            'craftPipeGun' =>               \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Weapons\WeaponPipeGun2Action::class,
+            'craftWiredBat' =>              \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Weapons\WeaponWiredBat2Action::class,
+            'craftCrossbowMk1' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Weapons\WeaponCrossbowMk1Action::class,
             'equipMenu' =>              \App\Controllers\Telegram\Commands\Profile\GearAction::class,
             'gearArmor' =>              \App\Controllers\Telegram\Commands\Profile\GearArmorAction::class,
             'gearWeapons' =>              \App\Controllers\Telegram\Commands\Profile\GearWeaponsAction::class,
