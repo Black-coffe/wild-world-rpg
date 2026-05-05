@@ -63,9 +63,12 @@ class CallbackqueryCommand extends SystemCommand
 
         // F2.5 wire-in: wildcard routing через CallbackRouter.
         // Pattern 'move_dir_*' матчит move_dir_north, move_dir_south, move_dir_east, move_dir_west.
+        // F7.5b: 'eventPref_*' матчить eventPref_mute_1h + eventPref_muteKind_<kind> +
+        // eventPref_unmute. Handler сам парсить суфікс.
         // По мере мигрирования других if(strpos)-блоков сюда же подключим.
         $router = (new \App\Services\Telegram\CallbackRouter())
-            ->register('move_dir_*', \App\Controllers\Telegram\Commands\Actions\MoveCharacterToDirectionAction::class);
+            ->register('move_dir_*',  \App\Controllers\Telegram\Commands\Actions\MoveCharacterToDirectionAction::class)
+            ->register('eventPref_*', \App\Controllers\Telegram\Commands\Actions\EventPrefAction::class);
         $routedClass = $router->resolve($callbackData);
         if ($routedClass !== null && class_exists($routedClass)) {
             $handler = new $routedClass($callbackQuery);

@@ -358,7 +358,14 @@ final class NotificationPolicy
 
     /**
      * Кнопки для start-нотіфікації.
-     * Action handlers будуть у F7.5b — поки що callback_data заплейсхолджені.
+     *
+     * Callback formats (F7.5b — handler EventPrefAction):
+     *   - 'eventPref_mute_1h'              — silenced_until +1h
+     *   - 'eventPref_muteKind_<kind>'      — toggle kind у muted_kinds
+     *
+     * Двокрапки `:` НЕ використовуємо — Telegram передає, але CallbackRouter
+     * матчить через `_*` wildcard. Underscores у kind ('damage_health') —
+     * EventPrefAction парсить весь суфікс після prefix'а.
      */
     private function buildStartKeyboard(string $effectKind): array
     {
@@ -369,8 +376,8 @@ final class NotificationPolicy
                     ['text' => '🎉 События',       'callback_data' => 'events'],
                 ],
                 [
-                    ['text' => '🚫 Не показывать 1 час', 'callback_data' => 'event_pref:mute_1h'],
-                    ['text' => "🚫 Не такие события", 'callback_data' => "event_pref:mute_kind:{$effectKind}"],
+                    ['text' => '🚫 Не показывать 1 час', 'callback_data' => 'eventPref_mute_1h'],
+                    ['text' => "🚫 Не такие события", 'callback_data' => "eventPref_muteKind_{$effectKind}"],
                 ],
             ],
         ];
@@ -397,7 +404,7 @@ final class NotificationPolicy
         }
 
         $rows[] = [
-            ['text' => '🚫 Не показывать 1 час', 'callback_data' => 'event_pref:mute_1h'],
+            ['text' => '🚫 Не показывать 1 час', 'callback_data' => 'eventPref_mute_1h'],
         ];
 
         return ['inline_keyboard' => $rows];
