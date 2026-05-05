@@ -823,12 +823,6 @@ parameters:
 			path: app/Controllers/Admin/WorldObjectController.php
 
 		-
-			message: '#^Cannot access offset ''name'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Admin/WorldObjectController.php
-
-		-
 			message: '#^Cannot cast mixed to string\.$#'
 			identifier: cast.string
 			count: 1
@@ -1447,49 +1441,13 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
 
 		-
-			message: '#^Cannot access offset ''danger_level'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Cannot access offset ''description'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
 			message: '#^Cannot access offset ''map_cell_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
 
 		-
-			message: '#^Cannot access offset ''name'' on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Cannot access offset ''name'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Cannot access offset ''name'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
 			message: '#^Cannot access offset ''name_ru'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Cannot access offset ''survival_difficulty'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
@@ -1539,6 +1497,36 @@ parameters:
 		-
 			message: '#^Parameter \#2 \$claimedCell of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BaseInfoAction\:\:showBaseBuildings\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
+
+		-
+			message: '#^Part \$bDesc \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
+
+		-
+			message: '#^Part \$bName \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
+
+		-
+			message: '#^Part \$biomeName \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
+
+		-
+			message: '#^Part \$dLevel \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
+
+		-
+			message: '#^Part \$sDiff \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
 
@@ -4315,14 +4303,14 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeacon.php
 
 		-
-			message: '#^Cannot access offset ''name'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeacon.php
 
 		-
-			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Part \$biomeName \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeacon.php
 
@@ -4363,14 +4351,14 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconMoveAction.php
 
 		-
-			message: '#^Cannot access offset ''name'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			message: '#^Cannot access offset ''remaining_uses'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconMoveAction.php
 
 		-
-			message: '#^Cannot access offset ''remaining_uses'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Part \$biomeName \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconMoveAction.php
 
@@ -4402,12 +4390,6 @@ parameters:
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconMoveConfirmAction.php
-
-		-
-			message: '#^Cannot access offset ''name'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconMoveConfirmAction.php
 
 		-
@@ -4471,13 +4453,13 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconMoveConfirmAction.php
 
 		-
-			message: '#^Cannot access offset ''biome_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Part \$biomeName \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconMoveConfirmAction.php
 
 		-
-			message: '#^Cannot access offset ''biome_type'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			message: '#^Cannot access offset ''biome_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
@@ -4507,24 +4489,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
 		-
-			message: '#^Cannot access offset ''danger_level'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
-
-		-
-			message: '#^Cannot access offset ''danger_level_text'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
-
-		-
-			message: '#^Cannot access offset ''description'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
-
-		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 3
@@ -4543,18 +4507,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
 		-
-			message: '#^Cannot access offset ''name'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
-
-		-
-			message: '#^Cannot access offset ''occurrence_rate'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
-
-		-
 			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 2
@@ -4567,21 +4519,21 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
 		-
-			message: '#^Cannot access offset ''survival_difficulty'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
-
-		-
-			message: '#^Cannot access offset ''survival_difficulty_text'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
-
-		-
 			message: '#^Cannot access offset ''telegram_user_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
+
+		-
+			message: '#^Cannot cast mixed to float\.$#'
+			identifier: cast.double
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 2
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
 		-
@@ -4629,6 +4581,36 @@ parameters:
 		-
 			message: '#^Parameter \#5 \$beaconItem of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeaconSetAction\:\:installBeacon\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
+
+		-
+			message: '#^Part \$biomeDescription \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
+
+		-
+			message: '#^Part \$biomeName \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
+
+		-
+			message: '#^Part \$biomeType \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
+
+		-
+			message: '#^Part \$dangerLevelText \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
+
+		-
+			message: '#^Part \$survivalText \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
@@ -5071,12 +5053,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
 
 		-
-			message: '#^Cannot access offset ''name'' on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
-
-		-
 			message: '#^Cannot access offset ''name_en'' on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -5133,6 +5109,12 @@ parameters:
 		-
 			message: '#^Parameter \#2 \$claimedCell of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\DetailedBaseInfoAction\:\:showBuildings\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
+
+		-
+			message: '#^Part \$biomeName \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
 			count: 2
 			path: app/Controllers/Telegram/Commands/Actions/Camp/DetailedBaseInfoAction.php
 
@@ -11707,12 +11689,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/StartGame/ExploreAreaTipsAction.php
 
 		-
-			message: '#^Cannot access offset ''name'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/StartGame/ExploreAreaTipsAction.php
-
-		-
 			message: '#^Cannot access offset ''telegram_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -13753,12 +13729,6 @@ parameters:
 			path: app/Models/BiomeModel.php
 
 		-
-			message: '#^Cannot access offset ''name'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Models/BiomeModel.php
-
-		-
 			message: '#^Method App\\Models\\BiomeModel\:\:bustListCache\(\) has parameter \$data with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -13767,30 +13737,6 @@ parameters:
 		-
 			message: '#^Method App\\Models\\BiomeModel\:\:bustListCache\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
-			count: 1
-			path: app/Models/BiomeModel.php
-
-		-
-			message: '#^Method App\\Models\\BiomeModel\:\:findAllCached\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Models/BiomeModel.php
-
-		-
-			message: '#^Method App\\Models\\BiomeModel\:\:findCached\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Models/BiomeModel.php
-
-		-
-			message: '#^Method App\\Models\\BiomeModel\:\:getBiomeNameById\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Models/BiomeModel.php
-
-		-
-			message: '#^Method App\\Models\\BiomeModel\:\:getBiomeNameById\(\) has parameter \$id with no type specified\.$#'
-			identifier: missingType.parameter
 			count: 1
 			path: app/Models/BiomeModel.php
 
@@ -16441,12 +16387,6 @@ parameters:
 			path: app/Services/Events/EventDispatcher.php
 
 		-
-			message: '#^Parameter \#1 \$id of method CodeIgniter\\BaseModel\:\:find\(\) expects int\|list\<int\|string\>\|string\|null, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Events/EventDispatcher.php
-
-		-
 			message: '#^Parameter \#2 \$protectionItem of method App\\Services\\Events\\EventDispatcher\:\:buildContext\(\) expects string\|null, mixed given\.$#'
 			identifier: argument.type
 			count: 1
@@ -19003,12 +18943,6 @@ parameters:
 			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
 
 		-
-			message: '#^Cannot access offset ''name'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
-
-		-
 			message: '#^Cannot access offset ''telegram_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -20677,12 +20611,6 @@ parameters:
 			path: app/TaskHandlers/ExplorationTaskHandler.php
 
 		-
-			message: '#^Cannot access offset ''name'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/TaskHandlers/ExplorationTaskHandler.php
-
-		-
 			message: '#^Cannot access offset ''strength'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -20697,6 +20625,12 @@ parameters:
 		-
 			message: '#^Method App\\TaskHandlers\\ExplorationTaskHandler\:\:formatExplorationResult\(\) has parameter \$newCells with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
+			count: 1
+			path: app/TaskHandlers/ExplorationTaskHandler.php
+
+		-
+			message: '#^Method App\\TaskHandlers\\ExplorationTaskHandler\:\:getBiomeName\(\) should return string but returns mixed\.$#'
+			identifier: return.type
 			count: 1
 			path: app/TaskHandlers/ExplorationTaskHandler.php
 

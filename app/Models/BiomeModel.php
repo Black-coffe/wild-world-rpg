@@ -2,15 +2,25 @@
 
 namespace App\Models;
 
+use App\Entities\BiomeEntity;
 use CodeIgniter\Model;
 
+/**
+ * F1.4.1 — Model returnType = BiomeEntity. Аннотации @method
+ * нужны потому что CI4 Model::find()/findAll() сигнатуры
+ * generic (`array|object|null`) и PHPStan не пропагирует $returnType.
+ *
+ * @method BiomeEntity|null find($id = null)
+ * @method list<BiomeEntity> findAll(?int $limit = null, int $offset = 0)
+ * @method BiomeEntity|null first()
+ */
 class BiomeModel extends Model
 {
     protected $table = 'biomes';
     protected $primaryKey = 'id';
     protected $allowedFields = ['name', 'description', 'biome_type', 'danger_level_text', 'danger_level', 'survival_difficulty_text', 'survival_difficulty', 'occurrence_rate', 'created_at', 'updated_at'];
     protected $useTimestamps = true;
-    protected $returnType = 'array'; // Можно использовать 'object' если вам удобнее работать с объектами
+    protected $returnType = BiomeEntity::class; // F1.4.1 (v0.44.0) — типизированная Entity замість 'array'
 
     // Валидация данных
     protected $validationRules = [
@@ -71,22 +81,25 @@ class BiomeModel extends Model
     }
 
     // Метод для получения названия биома по его ID
-    public function getBiomeNameById($id)
+    public function getBiomeNameById(int|string $id): ?string
     {
         $biome = $this->find($id);
-        return $biome ? $biome['name'] : null;
+        return $biome ? $biome->name : null;
     }
 
     /**
      * F1.7 — закешированный findAll для справочника.
      * Биомов всего 9, статичны 99% времени; вызывается из Worker'а сотни
      * раз в минуту → переходим из БД в кеш.
+     *
+     * @return array<int, BiomeEntity>
      */
     public function findAllCached(): array
     {
         $cache = \Config\Services::cache();
         $cached = $cache->get(self::CACHE_KEY);
         if (is_array($cached)) {
+            /** @var list<BiomeEntity> $cached */
             return $cached;
         }
         $rows = $this->findAll();
@@ -97,10 +110,10 @@ class BiomeModel extends Model
     /**
      * F1.7 — закешированный find по id.
      */
-    public function findCached(int $id): ?array
+    public function findCached(int $id): ?BiomeEntity
     {
         foreach ($this->findAllCached() as $row) {
-            if ((int) $row['id'] === $id) {
+            if ($row->id === $id) {
                 return $row;
             }
         }
