@@ -86,14 +86,19 @@ final class CraftRecipesTest extends CIUnitTestCase
     }
 
     /**
-     * F3.B5 (v0.21.0): 8 medical рецептов мигрированы. Каждый должен иметь
-     * start-side поля + completion-side поля + унифицированный callback.
+     * F3.B5 (v0.21.0) + F3.B6 (v0.22.0): 8 medical + 10 components = 18 рецептов
+     * с единой схемой (start-side + completion-side + унифицированный callback).
      */
     public function testAllMedicalRecipesPresentWithFullSchema(): void
     {
         $expectedKeys = [
+            // Medical (B5)
             'Bandage', 'Antiseptic', 'PainReliefPower', 'StrengthElixir',
             'Sedative', 'Stimulator', 'Regenerator', 'BasicMedKit',
+            // Components (B6)
+            'Wiring', 'Fabric', 'Soil', 'ElectronicComponents', 'StoneBlocks',
+            'MetalFragments', 'Fertilizer', 'WoodMaterials', 'CharcoalBriquettes',
+            'GlassBags',
         ];
 
         foreach ($expectedKeys as $key) {
@@ -132,5 +137,32 @@ final class CraftRecipesTest extends CIUnitTestCase
         $recipe = $this->cfg->get('BasicMedKit');
         $this->assertArrayHasKey('crafted_items', $recipe);
         $this->assertSame(5, $recipe['crafted_items']['Bandage'] ?? null);
+    }
+
+    /**
+     * F3.B6 — Wiring и ElectronicComponents требуют metalFragments
+     * (cross-craft зависимость на products самого components-цеха).
+     */
+    public function testWiringRequiresMetalFragments(): void
+    {
+        $recipe = $this->cfg->get('Wiring');
+        $this->assertSame(3, $recipe['crafted_items']['metalFragments'] ?? null);
+    }
+
+    public function testElectronicComponentsRequiresMetalFragments(): void
+    {
+        $recipe = $this->cfg->get('ElectronicComponents');
+        $this->assertSame(5, $recipe['crafted_items']['metalFragments'] ?? null);
+    }
+
+    /**
+     * F3.B6 — у CharcoalBriquettes картинка с расширением .png
+     * (исторически у остальных components — .jpg).
+     */
+    public function testCharcoalBriquettesUsesPngExtension(): void
+    {
+        $recipe = $this->cfg->get('CharcoalBriquettes');
+        $this->assertStringEndsWith('.png', $recipe['image_completed']);
+        $this->assertStringEndsWith('.png', $recipe['image_in_progress']);
     }
 }

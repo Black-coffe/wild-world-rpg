@@ -219,7 +219,7 @@ class FabricCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q}шт",
-                    'callback_data' => "craftFabric_{$q}"
+                    'callback_data' => "genericCraft_Fabric_{$q}"
                 ];
             }
         }

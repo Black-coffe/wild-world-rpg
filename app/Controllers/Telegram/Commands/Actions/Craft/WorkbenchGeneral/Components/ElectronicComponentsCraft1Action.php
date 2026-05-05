@@ -263,7 +263,7 @@ class ElectronicComponentsCraft1Action extends BaseAction
             if ($q <= $maxCraftable) {
                 $buttons[] = [
                     'text' => "🛠 Крафт {$q} шт",
-                    'callback_data' => "craftElectronicComponents_{$q}"
+                    'callback_data' => "genericCraft_ElectronicComponents_{$q}"
                 ];
             }
         }

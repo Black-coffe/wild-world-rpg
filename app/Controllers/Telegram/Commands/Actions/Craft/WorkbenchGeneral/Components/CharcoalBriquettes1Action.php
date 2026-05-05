@@ -217,7 +217,7 @@ class CharcoalBriquettes1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q}шт",
-                    'callback_data' => "craftCharcoalBriquettes_{$q}"
+                    'callback_data' => "genericCraft_CharcoalBriquettes_{$q}"
                 ];
             }
         }

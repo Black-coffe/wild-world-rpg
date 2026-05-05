@@ -244,7 +244,7 @@ class WiringCraft1Action extends BaseAction
             if ($q <= $maxItems) {
                 $btns[] = [
                     'text' => "🛠 {$q} шт",
-                    'callback_data' => "craftWiring_{$q}"
+                    'callback_data' => "genericCraft_Wiring_{$q}"
                 ];
             }
         }

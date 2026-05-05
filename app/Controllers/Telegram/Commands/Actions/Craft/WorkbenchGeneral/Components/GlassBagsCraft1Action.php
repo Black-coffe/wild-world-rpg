@@ -213,7 +213,7 @@ class GlassBagsCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q} шт",
-                    'callback_data' => "craftGlassBags_{$q}"
+                    'callback_data' => "genericCraft_GlassBags_{$q}"
                 ];
             }
         }

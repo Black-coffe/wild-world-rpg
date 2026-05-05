@@ -212,7 +212,7 @@ class FertilizerCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q}шт",
-                    'callback_data' => "craftFertilizer_{$q}"
+                    'callback_data' => "genericCraft_Fertilizer_{$q}"
                 ];
             }
         }

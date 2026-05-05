@@ -211,7 +211,7 @@ class MetalFragmentsCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q}шт",
-                    'callback_data' => "craftMetalFragments_{$q}"
+                    'callback_data' => "genericCraft_MetalFragments_{$q}"
                 ];
             }
         }
