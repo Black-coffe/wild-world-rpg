@@ -13,7 +13,8 @@ class ActiveEventModel extends Model
     protected $returnType = 'array'; // Формат возвращаемых данных
 
     protected $allowedFields = [
-        'event_id', 'start_time', 'end_time', 'status', 'effect_applied'
+        'event_id', 'start_time', 'end_time', 'status', 'effect_applied',
+        'effect_log', 'notified_users',  // F7.4 — JSON columns для accumulator + start-notify tracking
     ]; // Поля, разрешенные для массового назначения
 
     protected $useTimestamps = true; // Использование автоматических меток времени
