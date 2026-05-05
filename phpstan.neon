@@ -7,13 +7,13 @@ includes:
 
 parameters:
     # F1.3 — стартовый level. Поднимать поэтапно:
-    #   5 — гарантирует найти typo bug'и (отсутствующие методы, неправильные
-    #       аргументы, мисматч type-hint vs return) — но не требует full typing.
-    #   6 — полное typing у параметров.
+    #   5 — typo bug'и (отсутствующие методы, неправильные аргументы, мисматч
+    #       type-hint vs return) — без full typing. F1.3 (v0.38.0).
+    #   6 — полное typing у параметров. ← CURRENT (v0.39.0)
     #   7 — strict null checking.
     #   8 — strict_types-aware mixed handling.
     #   9 — все strict.
-    level: 5
+    level: 6
 
     paths:
         - app
