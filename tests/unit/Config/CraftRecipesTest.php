@@ -69,8 +69,10 @@ final class CraftRecipesTest extends CIUnitTestCase
 
     public function testCraftAgainCallbackFormat(): void
     {
+        // F3.B5 (v0.21.0): callback переехал на унифицированный формат
+        // genericCraft_<RecipeKey>_<qty> — обрабатывается GenericCraftActionStart.
         $recipe = $this->cfg->get('Bandage');
-        $this->assertSame('craftBandage_1', $recipe['craft_again_callback']);
+        $this->assertSame('genericCraft_Bandage_1', $recipe['craft_again_callback']);
     }
 
     public function testUnknownRecipeReturnsNull(): void
@@ -81,5 +83,54 @@ final class CraftRecipesTest extends CIUnitTestCase
     public function testKeysIncludesBandage(): void
     {
         $this->assertContains('Bandage', $this->cfg->keys());
+    }
+
+    /**
+     * F3.B5 (v0.21.0): 8 medical рецептов мигрированы. Каждый должен иметь
+     * start-side поля + completion-side поля + унифицированный callback.
+     */
+    public function testAllMedicalRecipesPresentWithFullSchema(): void
+    {
+        $expectedKeys = [
+            'Bandage', 'Antiseptic', 'PainReliefPower', 'StrengthElixir',
+            'Sedative', 'Stimulator', 'Regenerator', 'BasicMedKit',
+        ];
+
+        foreach ($expectedKeys as $key) {
+            $recipe = $this->cfg->get($key);
+            $this->assertNotNull($recipe, "Recipe missing: {$key}");
+
+            // Start-side поля (для GenericCraftActionStart)
+            $this->assertArrayHasKey('task_name', $recipe, "{$key} missing task_name");
+            $this->assertArrayHasKey('resources', $recipe, "{$key} missing resources");
+            $this->assertArrayHasKey('image_in_progress', $recipe, "{$key} missing image_in_progress");
+            $this->assertArrayHasKey('start_caption_name', $recipe, "{$key} missing start_caption_name");
+            $this->assertIsArray($recipe['resources'], "{$key} resources must be array");
+            $this->assertNotEmpty($recipe['resources'], "{$key} resources must not be empty");
+
+            // Completion-side поля (для GenericCraftCompletionHandler)
+            $this->assertArrayHasKey('item_name_eng', $recipe, "{$key} missing item_name_eng");
+            $this->assertArrayHasKey('agility_bonus', $recipe);
+            $this->assertArrayHasKey('intellect_bonus', $recipe);
+            $this->assertArrayHasKey('image_completed', $recipe);
+
+            // Унифицированный callback
+            $this->assertSame(
+                "genericCraft_{$key}_1",
+                $recipe['craft_again_callback'],
+                "{$key} craft_again_callback must follow genericCraft_<Key>_1 convention"
+            );
+        }
+    }
+
+    /**
+     * F3.B5 — BasicMedKit требует Bandage:5 (crafted_items).
+     * GenericCraftActionStart должен проверять и списывать.
+     */
+    public function testBasicMedKitRequiresBandageCraftedItem(): void
+    {
+        $recipe = $this->cfg->get('BasicMedKit');
+        $this->assertArrayHasKey('crafted_items', $recipe);
+        $this->assertSame(5, $recipe['crafted_items']['Bandage'] ?? null);
     }
 }

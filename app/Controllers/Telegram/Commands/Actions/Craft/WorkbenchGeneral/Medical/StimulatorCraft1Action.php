@@ -198,7 +198,7 @@ class StimulatorCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q}шт",
-                    'callback_data' => "craftStimulator_{$q}"
+                    'callback_data' => "genericCraft_Stimulator_{$q}"
                 ];
             }
         }

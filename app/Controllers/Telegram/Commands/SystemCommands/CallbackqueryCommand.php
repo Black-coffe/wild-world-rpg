@@ -225,21 +225,22 @@ class CallbackqueryCommand extends SystemCommand
             'generalCraft' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\GeneralCraftingAction::class,
             'medicinesCraft1' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\MedicalCraft1Action::class,
             'strengtheningElixir' =>    \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\StrengthElixirCraft1Action::class,
-            'craftStrengtheningElixir' => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\StrengthElixirCraftActionStart::class,
-            'craftAntisepticCraft1' =>  \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\AntisepticCraftActionStart::class,
+            // F3.B5 (v0.21.0): action-start всех 8 medical крафтов (включая
+            // craftStrengtheningElixir) мигрирован в GenericCraftActionStart
+            // через callback `genericCraft_<RecipeKey>_<qty>`.
+            // Старые callback'и (craftBandage, craftAntisepticCraft1, craftSedative,
+            // craftStimulator, craftPainReliefPower, craftStrengtheningElixir,
+            // craftRegenerator, craftBasicMedKit) удалены вместе с legacy *CraftActionStart.
+            // Info-screen экраны (antiseptic, bandage, sedative, stimulator,
+            // painReliefPowder, strengtheningElixir, regenerator, basicMedKit)
+            // остаются — они показывают карточку предмета и кнопки крафта.
             'antiseptic' =>             \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\AntisepticCraft1Action::class,
             'bandage' =>                \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\BandageCraft1Action::class,
             'stimulator' =>             \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\StimulatorCraft1Action::class,
             'painReliefPowder' =>       \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\PainReliefPowerCraft1Action::class,
-            'craftBandage' =>           \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\BandageCraftActionStart::class,
-            'craftPainReliefPower' =>   \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\PainReliefPowerCraftActionStart::class,
-            'craftSedative' =>          \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\SedativeCraftActionStart::class,
-            'craftStimulator' =>        \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\StimulatorCraftActionStart::class,
             'sedative' =>               \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\SedativeCraft1Action::class,
             'regenerator' =>            \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\RegeneratorCraft1Action::class,
-            'craftRegenerator' =>       \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\RegeneratorCraftActionStart::class,
             'basicMedKit' =>            \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\BasicMedKitCraft1Action::class,
-            'craftBasicMedKit' =>       \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\BasicMedKitCraftActionStart::class,
             'resourcesCrafting' =>      \App\Controllers\Telegram\Commands\Actions\CraftedResourcesAction::class,
             'pharmacy' =>               \App\Controllers\Telegram\Commands\Actions\PharmacyAction::class,
             'usePharmacy' =>            \App\Controllers\Telegram\Commands\Actions\UsePharmacyAction::class,
@@ -333,6 +334,9 @@ class CallbackqueryCommand extends SystemCommand
             // StartBuildArsenalConstruction.php удалён — на любой rollback
             // через deploy/rollback.sh старая версия вернётся за <1 сек.
             'genericStartBuild'    =>       \App\Controllers\Telegram\Commands\Actions\Camp\GenericBuildingAction::class,
+            // F3.B5 (v0.21.0): generic action-start для крафтов
+            // (callback `genericCraft_<RecipeKey>_<qty>`).
+            'genericCraft'         =>       \App\Controllers\Telegram\Commands\Actions\Craft\GenericCraftActionStart::class,
             'actionNameForCommunicationTower' => \App\Controllers\Telegram\Commands\Actions\Camp\BuildCommunicationTowerConstruction::class,
             // F3.B3-mini (v0.19.0): startBuildCommunicationTower → genericStartBuild_CommunicationTower
 

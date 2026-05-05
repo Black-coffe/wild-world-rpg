@@ -207,7 +207,7 @@ class StrengthElixirCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q}шт",
-                    'callback_data' => "craftStrengtheningElixir_{$q}"
+                    'callback_data' => "genericCraft_StrengthElixir_{$q}"
                 ];
             }
         }

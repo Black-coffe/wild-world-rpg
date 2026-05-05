@@ -204,7 +204,7 @@ class BandageCraft1Action extends BaseAction
             if ($q <= $maxCraftableItems) {
                 $buttons[] = [
                     'text'          => "🛠️ Крафт {$q} шт",
-                    'callback_data' => "craftBandage_{$q}"
+                    'callback_data' => "genericCraft_Bandage_{$q}"
                 ];
             }
         }

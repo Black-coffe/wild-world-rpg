@@ -481,17 +481,18 @@ class Worker extends Controller
     protected $taskHandlerMap = [
         'ExploreTheArea' => 'ExplorationTaskHandler',
         'Gather' => 'GatherTaskHandler',
-        'craftStrengtheningElixir' => 'Craft\CraftCompletionStrengthElixirHandler',
-        'craftAntiseptic' => 'Craft\CraftCompletionAntisepticHandler',
-        // F2.2 cutover: Bandage идёт через GenericCraftCompletionHandler,
-        // рецепт читается из app/Config/CraftRecipes.php (ключ task_settings.recipe
-        // или fallback на legacy task_settings.item_crafted).
-        'craftBandage' => 'Craft\GenericCraftCompletionHandler',
-        'craftPainReliefPower' => 'Craft\CraftCompletionPainReliefPowerHandler',
-        'craftSedative' => 'Craft\CraftCompletionSedativeHandler',
-        'craftStimulator' => 'Craft\CraftCompletionStimulatorHandler',
-        'craftRegenerator' => 'Craft\CraftCompletionRegeneratorHandler',
-        'craftBasicMedKit' => 'Craft\CraftCompletionBasicMedKitHandler',
+        // F3.B5 (v0.21.0) cutover: все 8 medical крафтов идут через
+        // GenericCraftCompletionHandler. Рецепт читается из
+        // app/Config/CraftRecipes.php (ключ task_settings.recipe).
+        // Action-side контракт обеспечивает GenericCraftActionStart.
+        'craftStrengtheningElixir' => 'Craft\GenericCraftCompletionHandler',
+        'craftAntiseptic'          => 'Craft\GenericCraftCompletionHandler',
+        'craftBandage'             => 'Craft\GenericCraftCompletionHandler',
+        'craftPainReliefPower'     => 'Craft\GenericCraftCompletionHandler',
+        'craftSedative'            => 'Craft\GenericCraftCompletionHandler',
+        'craftStimulator'          => 'Craft\GenericCraftCompletionHandler',
+        'craftRegenerator'         => 'Craft\GenericCraftCompletionHandler',
+        'craftBasicMedKit'         => 'Craft\GenericCraftCompletionHandler',
         'craftLumberjackAxe' => 'Craft\CraftCompletionLumberjackAxeHandler',
         'craftStonePickaxe' => 'Craft\CraftCompletionStonePickaxeHandler',
         'craftIronShovel' => 'Craft\CraftCompletionIronShovelHandler',

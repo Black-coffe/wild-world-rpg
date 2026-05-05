@@ -5,89 +5,239 @@ namespace Config;
 use CodeIgniter\Config\BaseConfig;
 
 /**
- * F2.2 — рецепты крафтовых предметов для GenericCraftCompletionHandler.
+ * F3.B5 (v0.21.0) — рецепты крафта для GenericCraftActionStart +
+ * GenericCraftCompletionHandler. Расширяет F2.2-схему start-side полями
+ * (task_name, resources, crafted_items, image_in_progress, info_callback).
  *
- * Заменяет 42 копипастных файла в `app/TaskHandlers/Craft/` (~7560 строк
- * дубля). Каждый предмет = одна запись в `$recipes`. Вся логика
- * (mark task completed, find item, update inventory log, bump stats,
- * notify user) живёт в одном `GenericCraftCompletionHandler`.
+ * Каждый рецепт описывает обе стороны крафта:
+ *   - Start (GenericCraftActionStart) — ресурсы, длительность, картинка процесса.
+ *   - Completion (GenericCraftCompletionHandler) — name_eng для lookup,
+ *     бонусы агилити/интеллекта, картинка результата, зона применения.
  *
- * Сейчас (F2.2 PoC) описан только **Bandage** — paritetно с
- * `CraftCompletionBandageHandler.php` v0.1.0. Тот же name_eng,
- * agility_bonus, intellect_bonus, картинка, текст, keyboard.
+ * Callback-конвенция: `genericCraft_<RecipeKey>_<qty>`.
+ *   Пример: `genericCraft_Bandage_5` → recipe='Bandage', quantity=5.
  *
- * После прод-validation (sprint после F2.2):
- *   1. Перенести оставшиеся 41 предмет — каждый = ~10 строк config.
- *   2. Регистрация в `Worker::getHandlerClassName()` (или TaskDispatcher
- *      из F2.4) — все `tasks.name='craft<X>'` → один `GenericCraftCompletionHandler`
- *      с `task_settings.recipe = '<X>'`.
- *   3. Удалить старые 42 `CraftCompletion*Handler.php`.
+ * Worker `tasks.name` (legacy DB-id) маппится на handler через
+ * `Worker::getHandlerClassName()`. Ключ recipe в `task_settings.recipe`
+ * берётся из callback-данных и пишется action-стартером.
  *
- * Структура одной записи:
- *   - `item_name_eng`     : `crafted_items.name_eng` (lookup-ключ).
- *   - `item_name_rus`     : запасной name_rus, если в БД его нет.
- *   - `icon_emoji`        : строка с эмодзи для UI ("🩹", "💊").
- *   - `zone_emoji`        : контекстная зона применения ("💊", "⚒").
- *   - `zone_name`         : "медицина", "ремесло", "оружие".
- *   - `agility_bonus`     : float, прибавка к ловкости персонажа.
- *   - `intellect_bonus`   : float, прибавка к интеллекту персонажа.
- *   - `image_completed`   : путь к картинке завершения крафта.
- *   - `craft_again_callback` : callback_data для кнопки «Крафтить ещё»
- *                              (например 'craftBandage_1' → 1 шт.).
- *
- * Все значения первой записи (Bandage) взяты 1:1 из
- * `CraftCompletionBandageHandler.php` v0.1.0.
- *
- * См. mmorpg-vault/lore/refactor/Architecture.md (P0 item 3).
+ * Поля рецепта:
+ *   - `task_name`            : `tasks.name` для lookup длительности крафта.
+ *   - `resources`            : map name_rus → quantity на 1 шт.
+ *   - `crafted_items`        : map name_eng → quantity на 1 шт. (для крафтов,
+ *                              требующих другие крафты как материал).
+ *   - `image_in_progress`    : картинка для action-start уведомления.
+ *   - `start_caption_name`   : строка для "Ты создаёшь: <iconRus>" (включает
+ *                              эмодзи, например "🩹 *Повязку*").
+ *   - `info_callback`        : callback-data для возврата на info-screen
+ *                              (необязательно, для будущей кнопки "Назад").
+ *   - `item_name_eng`        : `crafted_items.name_eng` (lookup-ключ).
+ *   - `item_name_rus`        : запасной name_rus.
+ *   - `icon_emoji`           : строка с эмодзи для completion ("🩹").
+ *   - `zone_emoji`           : контекстная зона ("💊").
+ *   - `zone_name`            : "медицина".
+ *   - `agility_bonus`        : float, прибавка к ловкости.
+ *   - `intellect_bonus`      : float, прибавка к интеллекту.
+ *   - `image_completed`      : картинка completion-уведомления.
+ *   - `craft_again_callback` : callback для кнопки «Крафтить ещё»
+ *                              (ставим `genericCraft_<X>_1`).
  */
 class CraftRecipes extends BaseConfig
 {
-    /**
-     * @var array<string, array{
-     *     item_name_eng: string,
-     *     item_name_rus: string,
-     *     icon_emoji: string,
-     *     zone_emoji: string,
-     *     zone_name: string,
-     *     agility_bonus: float,
-     *     intellect_bonus: float,
-     *     image_completed: string,
-     *     craft_again_callback: string,
-     * }>
-     */
     public array $recipes = [
         'Bandage' => [
-            'item_name_eng'         => 'Bandage',
-            'item_name_rus'         => 'Повязка',
-            'icon_emoji'            => '🩹',
-            'zone_emoji'            => '💊',
-            'zone_name'             => 'медицина',
-            'agility_bonus'         => 0.02,
-            'intellect_bonus'       => 0.01,
-            'image_completed'       => 'uploads/telegram/craft/bandage_that_is_made_in_the_wild.jpg',
-            'craft_again_callback'  => 'craftBandage_1',
+            'task_name'            => 'craftBandage',
+            'resources'            => [
+                'Травы'         => 2,
+                'Кора деревьев' => 2,
+                'Водоросли'     => 3,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/bandage_that_is_made_in_the_wild.jpg',
+            'start_caption_name'   => '🩹 *Повязку*',
+            'info_callback'        => 'bandage',
+
+            'item_name_eng'        => 'Bandage',
+            'item_name_rus'        => 'Повязка',
+            'icon_emoji'           => '🩹',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/bandage_that_is_made_in_the_wild.jpg',
+            'craft_again_callback' => 'genericCraft_Bandage_1',
         ],
 
-        // TODO (F2.2 sprint): перенести оставшиеся 41 предмет:
-        // craftAntiseptic, craftSedative, craftPainReliefPower,
-        // craftStrengtheningElixir, craftStimulator, craftRegenerator,
-        // craftBasicMedKit, craftFabric, craftWiring, craftSoil,
-        // craftElectronicComponents, craftStoneBlocks, craftMetalFragments,
-        // craftFertilizer, craftWoodMaterials, craftCharcoalBriquettes,
-        // craftGlassBags, craftHoe, craftFishingRod, craftFoldingKnife,
-        // craftIronShovel, craftStonePickaxe, craftLumberjackAxe,
-        // craftIronPickaxe, craftTireIron, craftWorkbenchOne,
-        // craftRobotExplorer, craftRobotGatherer, craftTeleportBeaconBasic,
-        // craftTeleportBackpack, craftArmorRaggedShirt,
-        // craftArmorDrifterClothes, craftLeatherJacket,
-        // craftReinforcedLeatherJacket, craftPipeGun, craftCrossbowMk1,
-        // craftWiredBat, craftMetalSpear, и т.д.
-        // Каждый = ~10 строк JSON-config против 187 строк копипасты.
+        'Antiseptic' => [
+            'task_name'            => 'craftAntiseptic',
+            'resources'            => [
+                'Кактус' => 3,
+                'Грибы'  => 1,
+                'Вода'   => 10,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/antiseptic_craft.jpg',
+            'start_caption_name'   => '🧴 *Антисептик*',
+            'info_callback'        => 'antiseptic',
+
+            'item_name_eng'        => 'Antiseptic',
+            'item_name_rus'        => 'Антисептик',
+            'icon_emoji'           => '🧴',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/antiseptic_craft.jpg',
+            'craft_again_callback' => 'genericCraft_Antiseptic_1',
+        ],
+
+        'PainReliefPower' => [
+            'task_name'            => 'craftPainReliefPower',
+            'resources'            => [
+                'Ядовитые растения'        => 1,
+                'Кора деревьев'            => 3,
+                'Береговая растительность' => 2,
+                'Цветы орхидей'            => 1,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/analgesic_powder.jpg',
+            'start_caption_name'   => '🌡️ *Обезболивающий порошок*',
+            'info_callback'        => 'painReliefPowder',
+
+            'item_name_eng'        => 'AnalgesicPowder',
+            'item_name_rus'        => 'Обезболивающий порошок',
+            'icon_emoji'           => '🌡️',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/analgesic_powder.jpg',
+            'craft_again_callback' => 'genericCraft_PainReliefPower_1',
+        ],
+
+        'StrengthElixir' => [
+            'task_name'            => 'craftStrengtheningElixir',
+            'resources'            => [
+                'Мед'   => 2,
+                'Ягоды' => 3,
+                'Вода'  => 20,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/tonic_elixir.jpg',
+            'start_caption_name'   => '🧪 *Укрепляющий эликсир*',
+            'info_callback'        => 'strengtheningElixir',
+
+            'item_name_eng'        => 'TonicElixir',
+            'item_name_rus'        => 'Укрепляющий эликсир',
+            'icon_emoji'           => '🧪',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/tonic_elixir.jpg',
+            'craft_again_callback' => 'genericCraft_StrengthElixir_1',
+        ],
+
+        'Sedative' => [
+            'task_name'            => 'craftSedative',
+            'resources'            => [
+                'Цветы орхидей' => 1,
+                'Травы'         => 2,
+                'Вода'          => 25,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/dry_herb_tea.jpg',
+            'start_caption_name'   => '🫖 *Успокоительное*',
+            'info_callback'        => 'sedative',
+
+            'item_name_eng'        => 'Sedative',
+            'item_name_rus'        => 'Успокоительное',
+            'icon_emoji'           => '🫖',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.03,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/dry_herb_tea.jpg',
+            'craft_again_callback' => 'genericCraft_Sedative_1',
+        ],
+
+        'Stimulator' => [
+            'task_name'            => 'craftStimulator',
+            'resources'            => [
+                'Грибы' => 3,
+                'Мед'   => 2,
+                'Алоэ'  => 3,
+                'Вода'  => 12,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/liquid_mixture_of_very_invigorating_acid-green_beverage.jpg',
+            'start_caption_name'   => '💉 *Стимулятор*',
+            'info_callback'        => 'stimulator',
+
+            'item_name_eng'        => 'Stimulator',
+            'item_name_rus'        => 'Стимулятор',
+            'icon_emoji'           => '💉',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.03,
+            'image_completed'      => 'uploads/telegram/craft/liquid_mixture_of_very_invigorating_acid-green_beverage.jpg',
+            'craft_again_callback' => 'genericCraft_Stimulator_1',
+        ],
+
+        'Regenerator' => [
+            'task_name'            => 'craftRegenerator',
+            'resources'            => [
+                'Мясо диких животных' => 2,
+                'Водные растения'     => 2,
+                'Травы'               => 6,
+                'Вода'                => 30,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/health_and_strength_regenerator.jpg',
+            'start_caption_name'   => '🔋 *Регенератор*',
+            'info_callback'        => 'regenerator',
+
+            'item_name_eng'        => 'Regenerator',
+            'item_name_rus'        => 'Регенератор',
+            'icon_emoji'           => '🔋',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.03,
+            'image_completed'      => 'uploads/telegram/craft/health_and_strength_regenerator.jpg',
+            'craft_again_callback' => 'genericCraft_Regenerator_1',
+        ],
+
+        'BasicMedKit' => [
+            'task_name'            => 'craftBasicMedKit',
+            'resources'            => [
+                'Грибы' => 4,
+                'Мед'   => 2,
+                'Алоэ'  => 4,
+                'Вода'  => 11,
+            ],
+            'crafted_items'        => [
+                'Bandage' => 5,
+            ],
+            'image_in_progress'    => 'uploads/telegram/craft/simple_craft_kit.jpg',
+            'start_caption_name'   => '🚑 *Базовая аптечка*',
+            'info_callback'        => 'basicMedKit',
+
+            'item_name_eng'        => 'FirstAidKit',
+            'item_name_rus'        => 'Базовая аптечка',
+            'icon_emoji'           => '🚑',
+            'zone_emoji'           => '💊',
+            'zone_name'            => 'медицина',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/simple_craft_kit.jpg',
+            'craft_again_callback' => 'genericCraft_BasicMedKit_1',
+        ],
     ];
 
     /**
-     * @return array<string,mixed>|null Рецепт по ключу, или null если
-     *                                  ключ не зарегистрирован.
+     * @return array<string,mixed>|null
      */
     public function get(string $recipeKey): ?array
     {
@@ -95,7 +245,7 @@ class CraftRecipes extends BaseConfig
     }
 
     /**
-     * @return list<string> Зарегистрированные ключи рецептов.
+     * @return list<string>
      */
     public function keys(): array
     {
