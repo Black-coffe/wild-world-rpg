@@ -55,8 +55,8 @@ class AdminAuditLogModel extends Model
             'target_type'   => $targetType,
             'target_id'     => $targetId,
             'payload'       => empty($payload) ? null : json_encode($payload, JSON_UNESCAPED_UNICODE),
-            'ip_address'    => method_exists($request, 'getIPAddress') ? $request->getIPAddress() : null,
-            'user_agent'    => method_exists($request, 'getUserAgent') ? (string) $request->getUserAgent() : null,
+            'ip_address'    => is_object($request) && method_exists($request, 'getIPAddress') ? $request->getIPAddress() : null,
+            'user_agent'    => is_object($request) && method_exists($request, 'getUserAgent') ? (string) $request->getUserAgent() : null,
             'created_at'    => date('Y-m-d H:i:s'),
         ];
 

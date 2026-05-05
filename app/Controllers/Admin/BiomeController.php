@@ -63,7 +63,7 @@ class BiomeController extends BaseController
 
         // Проводим валидацию данных
         if (!$this->validate($this->biomeModel->getValidationRules())) {
-            return $this->failValidationErrors($this->validator->getErrors());
+            return $this->failValidationErrors($this->validator?->getErrors() ?? []);
         }
 
         // Обновляем информацию о биоме

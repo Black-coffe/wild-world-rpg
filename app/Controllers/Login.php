@@ -17,7 +17,7 @@ class Login extends BaseController
         ];
 
         if (!$this->validate($validationRules)) {
-            return redirect()->back()->withInput()->with('validation', $this->validator->getErrors());
+            return redirect()->back()->withInput()->with('validation', $this->validator?->getErrors() ?? []);
         }
 
         $email = $this->request->getPost('email');

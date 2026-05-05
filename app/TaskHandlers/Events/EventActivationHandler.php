@@ -323,7 +323,7 @@ class EventActivationHandler
     protected function notifyPlayersAboutEvent(array $event)
     {
         $cfg    = config('WorldEvents');
-        $config = $cfg->get($event['name_english']);
+        $config = $cfg?->get($event['name_english']);
         if ($config === null) {
             log_message('warning', "[EventActivation] event '{$event['name_english']}' немає в WorldEvents config — fallback на legacy broadcast");
             // Fallback — legacy broadcast без sectoring

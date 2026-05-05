@@ -83,7 +83,7 @@ class WorldObjectController extends BaseController
         $data = $this->prepareJsonData($data);
 
         if (!$this->validate($this->worldObjectModel->getValidationRules())) {
-            return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+            return redirect()->back()->withInput()->with('errors', $this->validator?->getErrors() ?? []);
         }
 
         $id = $this->worldObjectModel->insert($data);
@@ -123,8 +123,8 @@ class WorldObjectController extends BaseController
         $data = $this->prepareJsonData($data);
 
         if (!$this->validate($this->worldObjectModel->getValidationRules())) {
-            log_message('error', 'Validation errors: ' . print_r($this->validator->getErrors(), true));
-            return $this->failValidationErrors($this->validator->getErrors());
+            log_message('error', 'Validation errors: ' . print_r($this->validator?->getErrors() ?? [], true));
+            return $this->failValidationErrors($this->validator?->getErrors() ?? []);
         }
 
         $result = $this->worldObjectModel->update($objectId, $data);

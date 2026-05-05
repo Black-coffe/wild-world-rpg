@@ -31,7 +31,7 @@ class BaseShiftingCommand extends UserCommand
         $message   = $this->getMessage();
         $chatId    = $message->getChat()->getId();
         $from      = $message->getFrom();
-        $userText  = $message->getText(true);
+        $userText  = $message->getText(true) ?? '';
 
         // 1) Парсим "X=123Y=456"
         if (!preg_match('/X=(\d+)Y=(\d+)/', $userText, $m)) {

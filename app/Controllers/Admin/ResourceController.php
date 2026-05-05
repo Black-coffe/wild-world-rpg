@@ -78,7 +78,7 @@ class ResourceController extends BaseController
 
         // Проводим валидацию данных
         if (!$this->validate($this->resourceModel->getValidationRules())) {
-            return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+            return redirect()->back()->withInput()->with('errors', $this->validator?->getErrors() ?? []);
         }
 
         // Сохраняем ресурс
@@ -135,7 +135,7 @@ class ResourceController extends BaseController
 
         // Проводим валидацию данных
         if (!$this->validate($this->resourceModel->getValidationRules())) {
-            return $this->failValidationErrors($this->validator->getErrors());
+            return $this->failValidationErrors($this->validator?->getErrors() ?? []);
         }
 
         // Обновляем информацию о ресурсе

@@ -23,7 +23,7 @@ class GenericmessageCommand extends SystemCommand
     public function execute(): ServerResponse
     {
         $message = $this->getMessage();
-        $text    = mb_strtolower(trim($message->getText(true)));  // приводим к нижнему регистру
+        $text    = mb_strtolower(trim($message->getText(true) ?? ''));  // приводим к нижнему регистру
         $chatId  = $message->getChat()->getId();
 
         switch ($text) {

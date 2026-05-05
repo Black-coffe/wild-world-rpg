@@ -38,7 +38,7 @@ class GameTipsController extends BaseController
         $data = $this->request->getPost();
 
         if (!$this->validate($this->gameTipsModel->getValidationRules())) {
-            return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+            return redirect()->back()->withInput()->with('errors', $this->validator?->getErrors() ?? []);
         }
 
         $id = $this->gameTipsModel->insert($data);
@@ -72,7 +72,7 @@ class GameTipsController extends BaseController
         }
 
         if (!$this->validate($this->gameTipsModel->getValidationRules())) {
-            return $this->failValidationErrors($this->validator->getErrors());
+            return $this->failValidationErrors($this->validator?->getErrors() ?? []);
         }
 
         $updated = $this->gameTipsModel->update($tipId, $data);

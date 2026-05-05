@@ -36,7 +36,7 @@ class QuestController extends BaseController
         $data = $this->request->getPost();
 
         if (!$this->validate($this->questModel->getValidationRules())) {
-            return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+            return redirect()->back()->withInput()->with('errors', $this->validator?->getErrors() ?? []);
         }
 
         $id = $this->questModel->insert($data);
@@ -67,7 +67,7 @@ class QuestController extends BaseController
         $data = $this->request->getPost();
 
         if (!$this->validate($this->questModel->getValidationRules())) {
-            return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+            return redirect()->back()->withInput()->with('errors', $this->validator?->getErrors() ?? []);
         }
 
         $result = $this->questModel->update($questId, $data);

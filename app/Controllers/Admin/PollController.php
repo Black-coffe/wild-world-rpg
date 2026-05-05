@@ -268,7 +268,7 @@ class PollController extends BaseController
     private function auditAdminAction(string $action, ?string $targetType, ?int $targetId, array $payload = []): void
     {
         $auth = service('auth');
-        $adminUserId = method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
+        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
         (new AdminAuditLogModel())->record($adminUserId, $action, $targetType, $targetId, $payload);
     }
 

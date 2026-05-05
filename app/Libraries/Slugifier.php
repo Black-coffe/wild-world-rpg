@@ -17,8 +17,8 @@ class Slugifier
 
         // Преобразование в нижний регистр и удаление нежелательных символов
         $text = strtolower($text);
-        $text = preg_replace('/[^a-z0-9-]/', '-', $text);
-        $text = preg_replace('/-+/', '-', $text);
+        $text = preg_replace('/[^a-z0-9-]/', '-', $text) ?? '';
+        $text = preg_replace('/-+/', '-', $text) ?? '';
         $text = trim($text, '-');
 
         return $text;

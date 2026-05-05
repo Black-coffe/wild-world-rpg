@@ -15,7 +15,7 @@ class MyRules
             $str = implode(',', $str);
         }
 
-        $biomeIds = explode(',', $str);
+        $biomeIds = explode(',', (string) $str);
         foreach ($biomeIds as $id) {
             if (!is_numeric($id) || !$biomeModel->find($id)) {
                 $error = 'Invalid biome ID: ' . $id;

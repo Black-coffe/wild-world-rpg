@@ -1189,14 +1189,14 @@ parameters:
 			path: app/Controllers/Errors.php
 
 		-
-			message: '#^Call to an undefined method object\:\:login\(\)\.$#'
-			identifier: method.notFound
+			message: '#^Cannot call method login\(\) on object\|null\.$#'
+			identifier: method.nonObject
 			count: 1
 			path: app/Controllers/Login.php
 
 		-
-			message: '#^Call to an undefined method object\:\:logout\(\)\.$#'
-			identifier: method.notFound
+			message: '#^Cannot call method logout\(\) on object\|null\.$#'
+			identifier: method.nonObject
 			count: 1
 			path: app/Controllers/Login.php
 
@@ -1225,30 +1225,6 @@ parameters:
 			path: app/Controllers/MigrationController.php
 
 		-
-			message: '#^Call to an undefined method object\:\:send\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Controllers/Password.php
-
-		-
-			message: '#^Call to an undefined method object\:\:setMessage\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Controllers/Password.php
-
-		-
-			message: '#^Call to an undefined method object\:\:setSubject\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Controllers/Password.php
-
-		-
-			message: '#^Call to an undefined method object\:\:setTo\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Controllers/Password.php
-
-		-
 			message: '#^Cannot access offset ''password'' on array\|bool\|float\|int\|object\|string\|null\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -1257,6 +1233,30 @@ parameters:
 		-
 			message: '#^Cannot access offset ''password_confirmation'' on array\|bool\|float\|int\|object\|string\|null\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Password.php
+
+		-
+			message: '#^Cannot call method send\(\) on object\|null\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Controllers/Password.php
+
+		-
+			message: '#^Cannot call method setMessage\(\) on object\|null\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Controllers/Password.php
+
+		-
+			message: '#^Cannot call method setSubject\(\) on object\|null\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Controllers/Password.php
+
+		-
+			message: '#^Cannot call method setTo\(\) on object\|null\.$#'
+			identifier: method.nonObject
 			count: 1
 			path: app/Controllers/Password.php
 
@@ -13231,8 +13231,8 @@ parameters:
 			path: app/Entities/User.php
 
 		-
-			message: '#^Call to an undefined method object\:\:isAdmin\(\)\.$#'
-			identifier: method.notFound
+			message: '#^Cannot call method isAdmin\(\) on object\|null\.$#'
+			identifier: method.nonObject
 			count: 1
 			path: app/Filters/LoginFilter.php
 
@@ -13249,8 +13249,8 @@ parameters:
 			path: app/Filters/LoginFilter.php
 
 		-
-			message: '#^Call to an undefined method object\:\:setStatusCode\(\)\.$#'
-			identifier: method.notFound
+			message: '#^Cannot call method setStatusCode\(\) on object\|null\.$#'
+			identifier: method.nonObject
 			count: 1
 			path: app/Filters/TelegramRateLimitFilter.php
 
@@ -13291,8 +13291,8 @@ parameters:
 			path: app/Helpers/MyRules.php
 
 		-
-			message: '#^Call to an undefined method object\:\:getCurrentUser\(\)\.$#'
-			identifier: method.notFound
+			message: '#^Cannot call method getCurrentUser\(\) on object\|null\.$#'
+			identifier: method.nonObject
 			count: 1
 			path: app/Helpers/auth_helper.php
 
@@ -13478,6 +13478,12 @@ parameters:
 
 		-
 			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Libraries/TelegramLogger.php
+
+		-
+			message: '#^Parameter \#1 \$config of method CodeIgniter\\Log\\Handlers\\BaseHandler\:\:__construct\(\) expects array\{handles\?\: list\<string\>\}, array\{handles\?\: list\<string\>\}\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Libraries/TelegramLogger.php
@@ -20929,12 +20935,6 @@ parameters:
 			path: app/TaskHandlers/ResourceBankUpdateHandler.php
 
 		-
-			message: '#^Access to an undefined property object\:\:\$taxCollectionHour\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/TaskHandlers/TaxCollectionHandler.php
-
-		-
 			message: '#^Cannot access offset ''building_count'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -21901,8 +21901,8 @@ parameters:
 			path: app/Views/templates/front.php
 
 		-
-			message: '#^Call to an undefined method object\:\:getCurrentUser\(\)\.$#'
-			identifier: method.notFound
+			message: '#^Cannot call method getCurrentUser\(\) on object\|null\.$#'
+			identifier: method.nonObject
 			count: 1
 			path: app/Views/templates/navbar_custome.php
 
@@ -21925,8 +21925,8 @@ parameters:
 			path: app/Views/users/edit.php
 
 		-
-			message: '#^Call to an undefined method object\:\:getCurrentUser\(\)\.$#'
-			identifier: method.notFound
+			message: '#^Cannot call method getCurrentUser\(\) on object\|null\.$#'
+			identifier: method.nonObject
 			count: 1
 			path: app/Views/users/index.php
 

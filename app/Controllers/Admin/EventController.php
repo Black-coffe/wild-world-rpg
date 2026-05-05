@@ -45,7 +45,7 @@ class EventController extends BaseController
         $biomes = $this->biomeModel->findAll(); // Убедитесь, что у вас есть модель для биомов и она загружена в контроллере
 
         // F7.11: WorldEvents config для отображения effect_kind / tick_chance / etc. (read-only)
-        $worldConfig = config('WorldEvents')->get($event['name_english']);
+        $worldConfig = config('WorldEvents')?->get($event['name_english']);
 
         return view('admin/event_edit_form', [
             'event'       => $event,
@@ -74,7 +74,7 @@ class EventController extends BaseController
         // Валидация данных, используя правила, определенные в модели EventModel
         if (!$this->validate($this->eventModel->getValidationRules(), $this->eventModel->getValidationMessages())) {
             // Если данные не проходят валидацию, возвращаем пользователя обратно на форму с ошибками валидации
-            return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+            return redirect()->back()->withInput()->with('errors', $this->validator?->getErrors() ?? []);
         }
 
         // Проверяем, существует ли событие, которое мы хотим обновить
@@ -120,7 +120,7 @@ class EventController extends BaseController
 
         // Валидация данных
         if (!$this->validate($this->eventModel->getValidationRules(), $this->eventModel->getValidationMessages())) {
-            return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+            return redirect()->back()->withInput()->with('errors', $this->validator?->getErrors() ?? []);
         }
 
         // Сохранение данных

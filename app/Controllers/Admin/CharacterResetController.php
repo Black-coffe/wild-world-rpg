@@ -119,7 +119,7 @@ class CharacterResetController extends BaseController
 
         // F1.9 — audit-лог destructive админского действия.
         $auth = service('auth');
-        $adminUserId = method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
+        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
         (new AdminAuditLogModel())->record(
             $adminUserId,
             'CHARACTER_RESET',

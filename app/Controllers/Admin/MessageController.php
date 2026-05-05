@@ -49,7 +49,7 @@ class MessageController extends Controller
         // F1.9 — audit-лог рассылки. Сохраняем title и длину текста, чтобы
         // понимать что именно рассылал админ, не храня весь текст много раз.
         $auth = service('auth');
-        $adminUserId = method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
+        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
         (new AdminAuditLogModel())->record(
             $adminUserId,
             'BROADCAST_SEND',

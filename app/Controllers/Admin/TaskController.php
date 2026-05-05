@@ -44,7 +44,7 @@ class TaskController extends BaseController
 
         // Проводим валидацию данных
         if (!$this->validate($this->taskModel->getValidationRules())) {
-            return redirect()->back()->withInput()->with('errors', $this->validator->getErrors());
+            return redirect()->back()->withInput()->with('errors', $this->validator?->getErrors() ?? []);
         }
 
         // Сохраняем задачу
@@ -87,7 +87,7 @@ class TaskController extends BaseController
 
         // Проводим валидацию данных
         if (!$this->validate($this->taskModel->getValidationRules())) {
-            return $this->failValidationErrors($this->validator->getErrors());
+            return $this->failValidationErrors($this->validator?->getErrors() ?? []);
         }
 
         // Обновляем информацию о задаче

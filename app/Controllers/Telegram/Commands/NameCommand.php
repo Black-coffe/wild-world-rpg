@@ -23,7 +23,7 @@ class NameCommand extends UserCommand
         $telegramId = $from->getId();
 
         // Извлекаем желаемое имя (после /name)
-        $commandText = trim($message->getText());
+        $commandText = trim($message->getText() ?? '');
         $name = trim(str_ireplace('/name', '', $commandText));
 
         // Если имя не указано

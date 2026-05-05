@@ -53,7 +53,7 @@ class StartrobotexplorerCommand extends UserCommand
         $message  = $this->getMessage();
         $chatId   = $message->getChat()->getId();
         $userId   = $message->getFrom()->getId();
-        $fullText = $message->getText();
+        $fullText = $message->getText() ?? '';
 
         $this->logger->debug("Получено сообщение от пользователя: {$userId} в чате: {$chatId}");
         $this->logger->debug("Текст сообщения: {$fullText}");

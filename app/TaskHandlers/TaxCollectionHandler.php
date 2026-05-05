@@ -34,7 +34,7 @@ class TaxCollectionHandler extends Controller
         // F2.10 wire-in: час сбора налогов через config/GameBalance вместо hardcoded.
         // Дефолт 3 (03:xx Europe/Kiev), можно переопределить через .env
         // переменной `gamebalance.taxCollectionHour`.
-        $taxHour = config('GameBalance')->taxCollectionHour;
+        $taxHour = config('GameBalance')->taxCollectionHour ?? 3;
         $currentHour   = (int) $currentDateTime->format('H');
         $currentMinute = (int) $currentDateTime->format('i');
         if ($currentHour !== $taxHour || $currentMinute > 10) {
