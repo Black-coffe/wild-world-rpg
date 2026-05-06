@@ -235,6 +235,36 @@ parameters:
 			path: app/Config/WorldEvents.php
 
 		-
+			message: '#^Cannot call method getResultArray\(\) on bool\|CodeIgniter\\Database\\BaseResult\<mixed, mixed\>\|CodeIgniter\\Database\\Query\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Controllers/Admin/AuditLogController.php
+
+		-
+			message: '#^Cannot cast bool\|float\|int\|object\|string to int\.$#'
+			identifier: cast.int
+			count: 1
+			path: app/Controllers/Admin/AuditLogController.php
+
+		-
+			message: '#^Parameter \#1 \$array \(array\<int\<0, max\>, mixed\>\) to function array_filter does not contain falsy values, the array will always stay the same\.$#'
+			identifier: arrayFilter.same
+			count: 2
+			path: app/Controllers/Admin/AuditLogController.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\)\: mixed\)\|null, Closure\(array\)\: int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Admin/AuditLogController.php
+
+		-
+			message: '#^Variable \$entries on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.variable
+			count: 2
+			path: app/Controllers/Admin/AuditLogController.php
+
+		-
 			message: '#^Method App\\Controllers\\Admin\\BiomeController\:\:editBiomeForm\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1
@@ -20045,6 +20075,54 @@ parameters:
 			identifier: variable.undefined
 			count: 3
 			path: app/Views/Signup/stop.php
+
+		-
+			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
+			identifier: echo.nonString
+			count: 12
+			path: app/Views/admin/audit_log_index.php
+
+		-
+			message: '#^Variable \$distinctActions might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/audit_log_index.php
+
+		-
+			message: '#^Variable \$distinctTargets might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/audit_log_index.php
+
+		-
+			message: '#^Variable \$filterAction might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/audit_log_index.php
+
+		-
+			message: '#^Variable \$filterTarget might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/audit_log_index.php
+
+		-
+			message: '#^Variable \$pager might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/audit_log_index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/audit_log_index.php
+
+		-
+			message: '#^Variable \$title might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/audit_log_index.php
 
 		-
 			message: '#^Parameter \#1 \(array\|string\|null\) of echo cannot be converted to string\.$#'

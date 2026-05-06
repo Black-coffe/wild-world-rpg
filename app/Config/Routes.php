@@ -96,6 +96,9 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->get('send-message', 'Admin\MessageController::index'); // Для отображения формы
     $routes->post('send-message', 'Admin\MessageController::sendMessage'); // Для обработки отправки
 
+    // F1.9 dashboard (v0.51.17): read-only viewer для admin_audit_log table
+    $routes->get('audit-log', 'Admin\AuditLogController::index');
+
 });
 
 
