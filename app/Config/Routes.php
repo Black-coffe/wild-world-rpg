@@ -6,12 +6,10 @@ use CodeIgniter\Router\RouteCollection;
  * @var RouteCollection $routes
  */
 $routes->get('/', 'Login::new');
-$routes->get('/migrate', 'MigrationController::index');
-$routes->get('pve-test', 'PvETestController::fight');
-$routes->get('pve-test-view', function() {
-    return view('pve_test');
-});
-
+// v0.51.6 security cleanup: removed public unprotected routes
+// - /migrate -> MigrationController (CRITICAL: anyone could trigger migrations->latest() via GET)
+// - /pve-test, /pve-test-view -> PvETestController (dead test scaffolding, replaced by PHPUnit)
+// Use CLI `php spark migrate` for migrations (proper deploy flow).
 $routes->get('/pvp', 'PvPController::index');
 $routes->post('/pvp/startFight', 'PvPController::startFight');
 
