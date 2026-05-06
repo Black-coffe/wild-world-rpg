@@ -8,6 +8,7 @@ use App\Models\TelegramUserModel;
 use App\Models\ClaimedCellModel;
 use App\Models\ExploredCellsModel;
 use App\Services\Player\DeathService;
+use Config\GameBalance;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
 use Longman\TelegramBot\Exception\TelegramException;
@@ -25,12 +26,17 @@ class DeathRouletteHandler extends Controller
     /** @var Telegram */
     private $telegram;
 
-    // Те же "штрафные" коэффициенты, что и в PvP:
-    private const DEATH_EXP_LOSS_PERCENT  = 0.05;  // 5% потери опыта
-    private const DEATH_STAT_LOSS_PERCENT = 0.005; // 0.5% потери strength/agility/intellect
+    private GameBalance $cfg;
 
-    public function __construct()
+    /**
+     * F2.10 wire-in (v0.51.2): deathExpLossPercent + deathStatLossPercent
+     * читаются из config('GameBalance') вместо hardcoded private const.
+     * Раньше: self::DEATH_EXP_LOSS_PERCENT (0.05) / DEATH_STAT_LOSS_PERCENT (0.005).
+     */
+    public function __construct(?GameBalance $cfg = null)
     {
+        $this->cfg = $cfg ?? config('GameBalance');
+
         $API_KEY      = getenv('telegram.API_KEY');
         $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
 
@@ -137,12 +143,12 @@ class DeathRouletteHandler extends Controller
         $loserOldInt = $before['intellect'];
 
         $updatedLoser = [
-            'experience' => max(0, $loserOldExp * (1 - self::DEATH_EXP_LOSS_PERCENT)),
+            'experience' => max(0, $loserOldExp * (1 - $this->cfg->deathExpLossPercent)),
         ];
 
-        $updatedLoser['strength']  = max($loser['strength'],  $loserOldStr * (1 - self::DEATH_STAT_LOSS_PERCENT));
-        $updatedLoser['agility']   = max($loser['agility'],   $loserOldAgi * (1 - self::DEATH_STAT_LOSS_PERCENT));
-        $updatedLoser['intellect'] = max($loser['intellect'], $loserOldInt * (1 - self::DEATH_STAT_LOSS_PERCENT));
+        $updatedLoser['strength']  = max($loser['strength'],  $loserOldStr * (1 - $this->cfg->deathStatLossPercent));
+        $updatedLoser['agility']   = max($loser['agility'],   $loserOldAgi * (1 - $this->cfg->deathStatLossPercent));
+        $updatedLoser['intellect'] = max($loser['intellect'], $loserOldInt * (1 - $this->cfg->deathStatLossPercent));
 
         // Здоровье в 0 (считаем "умер")
         $updatedLoser['health'] = 0;

@@ -17941,6 +17941,12 @@ parameters:
 			path: app/TaskHandlers/DeathRouletteHandler.php
 
 		-
+			message: '#^Property App\\TaskHandlers\\DeathRouletteHandler\:\:\$cfg \(Config\\GameBalance\) does not accept object\|null\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/TaskHandlers/DeathRouletteHandler.php
+
+		-
 			message: '#^Binary operation "%%" between string and 7 results in an error\.$#'
 			identifier: binaryOp.invalid
 			count: 1
