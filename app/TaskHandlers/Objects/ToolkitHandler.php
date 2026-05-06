@@ -7,13 +7,13 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\ResourceModel;
 use App\Models\TelegramUserModel;
-use App\TaskHandlers\Objects\ObjectHandlerInterface;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
 
-class ToolkitHandler implements ObjectHandlerInterface {
-    private $telegram;
+/**
+ * v0.51.39 (F2.9 batch-4): extends BaseObjectHandler. Раніше manual Telegram
+ * init у constructor + Request::sendPhoto raw call.
+ */
+class ToolkitHandler extends BaseObjectHandler implements ObjectHandlerInterface
+{
     protected $telegramUserModel;
     protected $craftedItemsLogModel;
     protected $craftedItemsModel;
@@ -27,24 +27,13 @@ class ToolkitHandler implements ObjectHandlerInterface {
         $this->craftedItemsModel = new CraftedItemsModel();
         $this->biomeWorldObjectMapModel = new BiomeWorldObjectMapModel();
         $this->resourceModel = new ResourceModel();
-
-        $API_KEY = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-
-        try {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            // Инициализируем объект Telegram в Request
-            Request::initialize($this->telegram);
-        } catch (TelegramException $e) {
-            // Обработка исключений при инициализации бота
-            log_message('error', $e->getMessage());
-        }
     }
+
     public function handle($object, $cell, $character) {
         $this->processDiscovery($object, $cell, $character, $requiredTools=null);
     }
 
-    private function processDiscovery($object, $cell, $character, $requiredTools) {
+    private function processDiscovery($object, $cell, $character, $requiredTools): void {
         // Разбор награды
         $contents = json_decode($object['contents'], true);
         $this->awardContents($character, $contents[0]);
@@ -60,7 +49,7 @@ class ToolkitHandler implements ObjectHandlerInterface {
         }
     }
 
-    private function awardContents($character, $contents) {
+    private function awardContents($character, $contents): void {
         $foundItems = []; // Создаем пустой массив для найденных предметов
 
         if (isset($contents['resources'])) {
@@ -97,7 +86,7 @@ class ToolkitHandler implements ObjectHandlerInterface {
         $this->sendRewardMessage($character, $foundItems);
     }
 
-    private function sendRewardMessage($character, $contents) {
+    private function sendRewardMessage($character, $contents): void {
         $chatId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
         $messageText = "🌲 В процессе *Изучения местности* ты нашел схрон:.\n\n";
         $messageText .= "Это ящик с ⚒ *Набором инструментов*\n";
@@ -136,17 +125,11 @@ class ToolkitHandler implements ObjectHandlerInterface {
             ]
         ];
 
-        try {
-            Request::sendPhoto([
-                'chat_id' => $chatId,
-                'photo'   => Request::encodeFile(base_url('uploads/telegram/objects/collection-of-rusted-and-weathered-tools-including.jpg')),
-                'caption' => $messageText,
-                'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard)
-            ]);
-        } catch (TelegramException $e) {
-            log_message('error', "Failed to send message: " . $e->getMessage());
-        }
+        $this->safeSendPhoto(
+            $chatId,
+            base_url('uploads/telegram/objects/collection-of-rusted-and-weathered-tools-including.jpg'),
+            $messageText,
+            ['parse_mode' => 'Markdown', 'reply_markup' => json_encode($keyboard)]
+        );
     }
-
 }

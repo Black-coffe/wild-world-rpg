@@ -2,10 +2,6 @@
 
 namespace App\TaskHandlers\Objects;
 
-use App\TaskHandlers\Objects\ObjectHandlerInterface;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
 use App\Models\TelegramUserModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
@@ -20,10 +16,14 @@ use App\Models\CharacterModel;
  * - Взломать
  *
  * Само "вскрытие" происходит в другом классе (ObjectCloseWarehouseAction).
+ *
+ * v0.51.39 (F2.9 batch-4): extends BaseObjectHandler. Раніше manual Telegram
+ * init у constructor + 2× broken `Request::answerCallbackQuery(['callback_query_id' => ''])`
+ * (empty string — invalid argument завжди, fires every discovery silently).
+ * Markdown parse_mode передається через extra щоб не override на 'HTML' у safeSendPhoto.
  */
-class ClosedWarehouseHandler implements ObjectHandlerInterface
+class ClosedWarehouseHandler extends BaseObjectHandler implements ObjectHandlerInterface
 {
-    private $telegram;
     protected $telegramUserModel;
     protected $craftedItemsLogModel;
     protected $craftedItemsModel;
@@ -39,17 +39,6 @@ class ClosedWarehouseHandler implements ObjectHandlerInterface
         $this->biomeWorldObjectMapModel= new BiomeWorldObjectMapModel();
         $this->resourceModel           = new ResourceModel();
         $this->characterModel          = new CharacterModel();
-
-        $API_KEY      = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-
-        try {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            // Инициализируем объект Telegram внутри Request
-            Request::initialize($this->telegram);
-        } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
-        }
     }
 
     /**
@@ -87,7 +76,7 @@ class ClosedWarehouseHandler implements ObjectHandlerInterface
     /**
      * Показать сообщение с кнопкой "Взломать склад" либо "Пройти мимо".
      */
-    private function sendActionMessage($object, $character)
+    private function sendActionMessage($object, $character): void
     {
         $telegramUser = $this->telegramUserModel->find($character['telegram_user_id']);
         if (!$telegramUser) {
@@ -104,10 +93,12 @@ class ClosedWarehouseHandler implements ObjectHandlerInterface
         $messageText .= "2️⃣ Забыть и пройти мимо\n\n";
         $messageText .= "🎓 _Важно: нужно оставаться на месте. Если кто-то другой взломает склад раньше, ты можешь остаться без лута!_\n\n";
 
-        // Формируем callback_data для экшена "ObjectCloseWarehouseAction"
-        // (ВНИМАНИЕ: проверяем, что в $object['world_object_id'] есть нужные данные)
+        // Формируем callback_data для экшена "ObjectCloseWarehouseAction".
+        // Раніше було `$object['map_id'] ?? $cell['map_id'] ?? 0` — latent bug: $cell
+        // не передавався у sendActionMessage, тому $cell['map_id'] викликав би TypeError
+        // на null. Спрощено до прямого lookup в $object.
         $objId    = $object['world_object_id'] ?? $object['id'];
-        $mapId    = $object['map_id'] ?? $cell['map_id'] ?? 0; // иногда берут из параметра $cell
+        $mapId    = $object['map_id'] ?? 0;
         $callback = "objectActionClosedWarehouse_objectId|{$objId}#objectMapId|{$mapId}";
 
         // Собираем inline-кнопки
@@ -120,32 +111,18 @@ class ClosedWarehouseHandler implements ObjectHandlerInterface
             ]
         ];
 
-        // Важно отвечать на колбэк (если есть).
-        // Но здесь handle() вызывается без CallbackQuery, значит ответ может быть пустым:
-        Request::answerCallbackQuery([
-            'callback_query_id' => '', // Или передаем реальный ID, если доступен
-            'text'             => '',
-            'show_alert'       => false
-        ]);
-
-        // Отправляем фото + текст
-        try {
-            Request::sendPhoto([
-                'chat_id'    => $chatId,
-                'photo'      => Request::encodeFile(base_url('uploads/telegram/objects/an-old-long-abandoned-warehouse.jpg')),
-                'caption'    => $messageText,
-                'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard)
-            ]);
-        } catch (TelegramException $e) {
-            log_message('error', "Failed to send warehouse message: " . $e->getMessage());
-        }
+        $this->safeSendPhoto(
+            $chatId,
+            base_url('uploads/telegram/objects/an-old-long-abandoned-warehouse.jpg'),
+            $messageText,
+            ['parse_mode' => 'Markdown', 'reply_markup' => json_encode($keyboard)]
+        );
     }
 
     /**
      * Если инструментов недостаточно, говорим пользователю, что склад "закрыт" и чего не хватает.
      */
-    private function sendInsufficientToolsMessage($character, array $requiredTools)
+    private function sendInsufficientToolsMessage($character, array $requiredTools): void
     {
         $telegramUser = $this->telegramUserModel->find($character['telegram_user_id']);
         if (!$telegramUser) {
@@ -180,23 +157,11 @@ class ClosedWarehouseHandler implements ObjectHandlerInterface
             ]
         ];
 
-        try {
-            // Ответ на колбэк (если есть).
-            Request::answerCallbackQuery([
-                'callback_query_id' => '',
-                'text'             => '',
-                'show_alert'       => false
-            ]);
-
-            Request::sendPhoto([
-                'chat_id'    => $chatId,
-                'photo'      => Request::encodeFile(base_url('uploads/telegram/objects/an-old-long-abandoned-warehouse.jpg')),
-                'caption'    => $messageText,
-                'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
-            ]);
-        } catch (TelegramException $e) {
-            log_message('error', "Failed to send insufficient tools message: " . $e->getMessage());
-        }
+        $this->safeSendPhoto(
+            $chatId,
+            base_url('uploads/telegram/objects/an-old-long-abandoned-warehouse.jpg'),
+            $messageText,
+            ['parse_mode' => 'Markdown', 'reply_markup' => json_encode($keyboard)]
+        );
     }
 }
