@@ -3,6 +3,7 @@
 namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
+use App\Models\AdminAuditLogModel;
 use App\Models\GameTipsModel;
 use CodeIgniter\API\ResponseTrait;
 
@@ -46,6 +47,10 @@ class GameTipsController extends BaseController
             return redirect()->back()->withInput()->with('errors', $this->gameTipsModel->errors());
         }
 
+        $this->auditAdminAction('TIP_CREATE', 'tip', (int) $id, [
+            'title_ru' => $this->request->getPost('title_ru'),
+        ]);
+
         session()->setFlashdata('success', 'Новый совет успешно добавлен.');
         return redirect()->to(site_url('admin/tips'));
     }
@@ -77,6 +82,9 @@ class GameTipsController extends BaseController
 
         $updated = $this->gameTipsModel->update($tipId, $data);
         if ($updated) {
+            $this->auditAdminAction('TIP_UPDATE', 'tip', (int) $tipId, [
+                'title_ru' => $this->request->getPost('title_ru'),
+            ]);
             session()->setFlashdata('success', 'Совет успешно обновлен.');
             return redirect()->to(site_url('admin/tips'));
         } else {
@@ -93,6 +101,7 @@ class GameTipsController extends BaseController
         }
 
         if ($this->gameTipsModel->delete($tipId)) {
+            $this->auditAdminAction('TIP_DELETE', 'tip', (int) $tipId, []);
             session()->setFlashdata('success', 'Совет успешно удален.');
         } else {
             session()->setFlashdata('error', 'Не удалось удалить совет.');
@@ -101,4 +110,15 @@ class GameTipsController extends BaseController
         return redirect()->to(site_url('admin/tips'));
     }
 
+    /**
+     * F1.9 expansion (v0.51.11): єдина точка запису destructive admin actions.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function auditAdminAction(string $action, ?string $targetType, ?int $targetId, array $payload = []): void
+    {
+        $auth = service('auth');
+        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
+        (new AdminAuditLogModel())->record($adminUserId, $action, $targetType, $targetId, $payload);
+    }
 }

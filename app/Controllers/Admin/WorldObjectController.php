@@ -3,6 +3,7 @@
 namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
+use App\Models\AdminAuditLogModel;
 use App\Models\WorldObjectModel;
 use App\Models\BiomeModel;
 use CodeIgniter\API\ResponseTrait;
@@ -96,6 +97,10 @@ class WorldObjectController extends BaseController
             return redirect()->back()->withInput()->with('errors', $this->worldObjectModel->errors());
         }
 
+        $this->auditAdminAction('WORLD_OBJECT_CREATE', 'world_object', (int) $id, [
+            'name' => $this->request->getPost('name'),
+        ]);
+
         session()->setFlashdata('success', 'Новый объект успешно добавлен.');
         return redirect()->to(site_url('admin/world-objects'));
     }
@@ -141,6 +146,9 @@ class WorldObjectController extends BaseController
         }
 
         if ($this->worldObjectModel->update($objectId, $data)) {
+            $this->auditAdminAction('WORLD_OBJECT_UPDATE', 'world_object', (int) $objectId, [
+                'name' => $this->request->getPost('name'),
+            ]);
             session()->setFlashdata('success', 'Объект успешно обновлен.');
             return redirect()->to(site_url('admin/world-objects'));
         } else {
@@ -155,7 +163,21 @@ class WorldObjectController extends BaseController
             return redirect()->to(site_url('admin/world-objects'))->withInput();
         }
 
+        $this->auditAdminAction('WORLD_OBJECT_DELETE', 'world_object', (int) $objectId, []);
+
         session()->setFlashdata('success', 'Объект успешно удален.');
         return redirect()->to(site_url('admin/world-objects'));
+    }
+
+    /**
+     * F1.9 expansion (v0.51.11): єдина точка запису destructive admin actions.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function auditAdminAction(string $action, ?string $targetType, ?int $targetId, array $payload = []): void
+    {
+        $auth = service('auth');
+        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
+        (new AdminAuditLogModel())->record($adminUserId, $action, $targetType, $targetId, $payload);
     }
 }

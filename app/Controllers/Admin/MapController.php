@@ -2,6 +2,7 @@
 
 namespace App\Controllers\Admin;
 
+use App\Models\AdminAuditLogModel;
 use App\Models\BiomeModel;
 use App\Models\MapModel;
 use App\Models\ActionLogModel;
@@ -83,6 +84,11 @@ class MapController extends Controller
             ->set(['action_status' => 'Done'])
             ->update();
 
+        // F1.9 expansion: audit-лог massive map generation (overwrites entire `map` table — 1M rows)
+        $this->auditAdminAction('MAP_GENERATE', 'map', null, [
+            'rows_count' => 1000000,
+        ]);
+
         // Выводим сообщение об успешном выполнении
         session()->setFlashdata('success', '1 000 000 строк успешно добавлены в таблицу map и статус в action_log обновлен.');
         return redirect()->to(site_url('admin/map'));
@@ -115,6 +121,11 @@ class MapController extends Controller
             // Генерация реки с уникальными начальными координатами
             $this->generateRiver($riverBiome['id'], $riverCellsPerRiver);
         }
+
+        // F1.9 expansion: audit-лог river generation (rewrites biome_id для річок ~3% map cells)
+        $this->auditAdminAction('MAP_GENERATE_RIVERS', 'map', null, [
+            'river_cells' => $riverCells,
+        ]);
 
         // Выводим сообщение об успешном выполнении
         session()->setFlashdata('success', 'Реки успешно добавлены в карту.');
@@ -199,5 +210,17 @@ class MapController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * F1.9 expansion (v0.51.11): єдина точка запису destructive admin actions.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function auditAdminAction(string $action, ?string $targetType, ?int $targetId, array $payload = []): void
+    {
+        $auth = service('auth');
+        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
+        (new AdminAuditLogModel())->record($adminUserId, $action, $targetType, $targetId, $payload);
     }
 }
