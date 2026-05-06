@@ -16747,6 +16747,12 @@ parameters:
 			path: app/TaskHandlers/CompleteRobotGatheringHandler.php
 
 		-
+			message: '#^Property App\\TaskHandlers\\CompleteRobotGatheringHandler\:\:\$cfg \(Config\\GameBalance\) does not accept object\|null\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/TaskHandlers/CompleteRobotGatheringHandler.php
+
+		-
 			message: '#^Property App\\TaskHandlers\\CompleteRobotGatheringHandler\:\:\$characterBuildingModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1

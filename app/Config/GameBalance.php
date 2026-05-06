@@ -147,6 +147,13 @@ class GameBalance extends BaseConfig
     public int $pveMaxRounds = 100;
 
     // ===================================================================
+    // Робот-сборщик (CompleteRobotGatheringHandler)
+    // ===================================================================
+
+    /** ±N% к итоговому количеству ресурсов из robot gathering. */
+    public int $robotGatheringRandomPercent = 20;
+
+    // ===================================================================
     // Радиус обнаружения PvP (PlayerDetectionService)
     //   радиус = base + floor(level / divisor), capped на max
     // ===================================================================

@@ -14,14 +14,15 @@ use App\Models\TelegramUserModel;
 use App\Models\TaskModel;
 use App\Models\BiomeModel;
 use CodeIgniter\Controller;
+use Config\GameBalance;
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
 
 class CompleteRobotGatheringHandler extends Controller
 {
+    /** Fallback building_id, если RoboticsWorkshop не найден в `buildings`. Infra-константа, не balance. */
     private const FALLBACK_WORKSHOP_ID = 9;
-    private const RANDOM_PERCENT       = 20; // ±20%
 
     protected $characterModel;
     protected $characterBuildingModel;
@@ -37,9 +38,17 @@ class CompleteRobotGatheringHandler extends Controller
 
     private $telegram;
     private $workshopBuildingId;
+    private GameBalance $cfg;
 
-    public function __construct()
+    /**
+     * F2.10 wire-in (v0.51.4): RANDOM_PERCENT (±20% yield variance) читается
+     * из config('GameBalance')->robotGatheringRandomPercent вместо private const.
+     * FALLBACK_WORKSHOP_ID оставлен как private const (infra fallback, не balance).
+     */
+    public function __construct(?GameBalance $cfg = null)
     {
+        $this->cfg = $cfg ?? config('GameBalance');
+
         // Инициализация моделей
         $this->characterModel         = new CharacterModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
@@ -310,7 +319,7 @@ class CompleteRobotGatheringHandler extends Controller
             5=>150, 4=>100, 3=>50,  2=>20,  1=>10
         ];
         $damping = [ 3=>0.9, 2=>0.8, 1=>0.7 ];
-        $rndRange = self::RANDOM_PERCENT;
+        $rndRange = $this->cfg->robotGatheringRandomPercent;
 
         foreach ($availableResources as $r) {
             $rarity= (int)$r['rarity'];
