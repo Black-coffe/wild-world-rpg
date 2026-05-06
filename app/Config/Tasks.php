@@ -56,7 +56,7 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\ResourceBankUpdateHandler())->process())
             ->everyMinute()->singleInstance()->named('resource-bank.update');
 
-        $schedule->call(static fn() => (new \App\TaskHandlers\CharacterDataHandler())->process())
+        $schedule->call(static fn() => (new \App\TaskHandlers\CharacterDataHandler())->handle())
             ->everyMinute()->singleInstance()->named('character-data.refresh');
 
         $schedule->call(static fn() => (new \App\TaskHandlers\LowHealthWarningHandler())->handle())
@@ -107,7 +107,7 @@ class Tasks extends BaseTasks
         //
         // Див. mmorpg-vault/lore/refactor/F7-Audit.md (Step F7.3).
 
-        $schedule->call(static fn() => (new \App\TaskHandlers\Events\EventActivationHandler())->process())
+        $schedule->call(static fn() => (new \App\TaskHandlers\Events\EventActivationHandler())->handle())
             ->everyMinute()->singleInstance()->named('event.activation');
 
         $schedule->call(static fn() => (new \App\TaskHandlers\Events\EventTickHandler())->process())
@@ -146,7 +146,7 @@ class Tasks extends BaseTasks
         // SOCIAL
         // ============================================================
 
-        $schedule->call(static fn() => (new \App\TaskHandlers\Other\FactionNotificationHandler())->process())
+        $schedule->call(static fn() => (new \App\TaskHandlers\Other\FactionNotificationHandler())->handle())
             ->everyMinute()->singleInstance()->named('faction.notification');
 
         // ============================================================

@@ -13,9 +13,6 @@ use App\Models\{
     TelegramUserModel
 };
 use App\Libraries\TelegramMessages;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
 
 /**
  * Класс CharacterDataHandler
@@ -24,7 +21,7 @@ use Longman\TelegramBot\Telegram;
  * игрокам (через Telegram), если их уровень или другие условия достигли нужных порогов.
  *
  * Главные шаги:
- * 1) В методе process() получаем всех персонажей из CharacterModel.
+ * 1) В методе handle() получаем всех персонажей из CharacterModel.
  * 2) Для каждого персонажа вызываем characterLevelProcessing(), где:
  *    - Сравниваем текущий уровень персонажа (character['level']) с записями в CharacterData,
  *      имеющими поле character_level <= текущего уровня.
@@ -32,91 +29,43 @@ use Longman\TelegramBot\Telegram;
  *    - Если не отправляли — создаём запись в character_message_status со статусом 'done' и
  *      отправляем Telegram-сообщение игроку, используя message_text из character_data.
  *
- * Таким образом, данный хендлер позволяет выдавать «уровневые» сообщения, подсказки или награды,
- * когда персонаж достигает определённых значений level.
+ * v0.51.42 (F2.9 batch-7 final): extends BaseTaskHandler. Drop manual Telegram init.
+ * process() → handle(array $task = []): void. Drop **broken** `Request::
+ * answerCallbackQuery(['callback_query_id' => $telegramId])` (chat_id passed
+ * as callback_query_id — fires daily silently). Request::sendPhoto → safeSendPhoto.
  */
-class CharacterDataHandler
+class CharacterDataHandler extends BaseTaskHandler
 {
-    /**
-     * @var CharacterDataModel $characterDataModel
-     * Модель таблицы `character_data`:
-     * хранит «расширенные данные» или «пороговые» записи (например, message_text, привязанные к определённым уровням).
-     */
+    /** @var CharacterDataModel */
     protected $characterDataModel;
 
-    /**
-     * @var CharacterMessageStatusModel $characterMessageStatusModel
-     * Модель таблицы `character_message_status`:
-     * хранит запись статуса (done/...) о том,
-     * было ли уже выслано сообщение (или выполнено действие) для конкретного character_data_id.
-     */
+    /** @var CharacterMessageStatusModel */
     protected $characterMessageStatusModel;
 
-    /**
-     * @var CharacterModel $characterModel
-     * Модель таблицы characters (основная информация о персонаже).
-     */
+    /** @var CharacterModel */
     protected $characterModel;
 
-    /**
-     * @var BiomeModel $biomeModel
-     * Модель таблицы biomes. (В данном классе не используется напрямую,
-     * но может применяться при расширении логики).
-     */
+    /** @var BiomeModel */
     protected $biomeModel;
 
-    /**
-     * @var MapModel $mapModel
-     * Модель таблицы map. (Также не используется здесь напрямую,
-     * но загружается для потенциальной логики, связанной с картой).
-     */
+    /** @var MapModel */
     protected $mapModel;
 
-    /**
-     * @var ResourceModel $resourceModel
-     * Модель таблицы resources. (Загружается, если при повышении уровня нужно,
-     * к примеру, выдавать ресурсы, однако в текущем коде не применяется).
-     */
+    /** @var ResourceModel */
     protected $resourceModel;
 
-    /**
-     * @var CharacterResourceModel $characterResourceModel
-     * Модель таблицы character_resources (ресурсы персонажа).
-     * В текущем коде не используется, но может пригодиться при расширении.
-     */
+    /** @var CharacterResourceModel */
     protected $characterResourceModel;
 
-    /**
-     * @var TelegramUserModel $telegramUserModel
-     * Модель таблицы telegram_users, нужна для определения `telegram_id` (чата) пользователя,
-     * чтобы затем отправлять ему сообщение.
-     */
+    /** @var TelegramUserModel */
     protected $telegramUserModel;
 
-    /**
-     * @var TelegramMessages $telegramMessages
-     * Класс-«библиотека», хранящий заранее подготовленные тексты сообщений
-     * (например, «character_level_2», «character_level_5» и т.п.).
-     */
+    /** @var TelegramMessages */
     protected $telegramMessages;
 
-    /**
-     * @var Telegram $telegram
-     * Экземпляр Telegram SDK (longman/telegram-bot),
-     * с помощью которого отправляются сообщения/фото.
-     */
-    private $telegram;
-
-    /**
-     * Конструктор: инициализирует все необходимые модели и библиотеку сообщений.
-     * Также пытается создать объект Telegram, используя ключ из окружения.
-     */
     public function __construct()
     {
-        // Библиотека сообщений (хранит тексты)
         $this->telegramMessages            = new TelegramMessages();
-
-        // Модели
         $this->characterDataModel          = new CharacterDataModel();
         $this->characterMessageStatusModel = new CharacterMessageStatusModel();
         $this->characterModel              = new CharacterModel();
@@ -125,29 +74,14 @@ class CharacterDataHandler
         $this->resourceModel               = new ResourceModel();
         $this->characterResourceModel      = new CharacterResourceModel();
         $this->telegramUserModel           = new TelegramUserModel();
-
-        // Инициализация Telegram
-        $API_KEY      = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-
-        try {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            // Если нужно, регистрируем команды
-            $this->telegram->addCommandsPath(__DIR__ . '/Commands');
-        } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
-        }
     }
 
     /**
-     * Основной метод обработчика (handler).
-     * 1) Получаем список всех персонажей (из таблицы characters).
-     * 2) Для каждого персонажа вызываем characterLevelProcessing($character).
+     * Основной метод обработчика.
      *
-     * Основная цель — проверить, достиг ли персонаж определённого уровня,
-     * и, если да, отправить ему соответствующее сообщение (один раз, при первом достижении).
+     * @param array<string,mixed> $task TaskHandlerInterface signature.
      */
-    public function process()
+    public function handle(array $task = []): void
     {
         // 1) Получаем всех персонажей
         $allCharacters = $this->characterModel->findAll();
@@ -162,14 +96,12 @@ class CharacterDataHandler
     /**
      * Метод для отправки сообщения пользователю в Telegram с кнопками и картинкой.
      *
-     * @param int $telegramId  — chat_id пользователя (или callback_query_id),
+     * @param int|string $telegramId  — chat_id пользователя
      * @param string $text     — текст (caption) сообщения
      * @param mixed $keyboard  — клавиатура для Telegram (по умолчанию подставляется базовая)
      * @param mixed $imagePath — путь к картинке (по умолчанию подставляется базовый)
-     *
-     * @return \Longman\TelegramBot\Entities\ServerResponse
      */
-    public function sendMessageToTelegram($telegramId, $text, $keyboard, $imagePath)
+    public function sendMessageToTelegram($telegramId, string $text, $keyboard, $imagePath): void
     {
         // Если клавиатура не задана, используем дефолт
         if ($keyboard === null || $keyboard === 0 || $keyboard === '') {
@@ -191,35 +123,24 @@ class CharacterDataHandler
             $imagePath = base_url($imagePath);
         }
 
-        // Посылаем ответ на «колбэк» (вдруг юзер ждал)
-        Request::answerCallbackQuery(['callback_query_id' => $telegramId]);
-
-        // Отправляем фото в чат
-        return Request::sendPhoto([
-            'chat_id' => $telegramId,
-            'photo'   => Request::encodeFile($imagePath),
-            'caption' => $text,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-            'disable_web_page_preview' => true,
-        ]);
+        $this->safeSendPhoto(
+            $telegramId,
+            $imagePath,
+            $text,
+            [
+                'parse_mode' => 'Markdown',
+                'reply_markup' => json_encode($keyboard),
+                'disable_web_page_preview' => true,
+            ]
+        );
     }
 
     /**
      * Логика обработки «уровня персонажа».
-     * 1) Смотрим на текущий level персонажа (из поля 'level').
-     * 2) В таблице character_data ищем все записи, у которых character_level <= этот уровень.
-     * 3) Для каждой такой записи проверяем в character_message_status,
-     *    отправляли ли мы уже соответствующее сообщение (статус='done').
-     * 4) Если не отправляли, вставляем 'done' и отправляем сообщение в Telegram (с текстом из character_data.message_text).
-     *
-     * Таким образом, если у character_data имеется строка «character_level=5»,
-     * а персонаж впервые достиг 5 уровня, то при проходе логики один раз высылается сообщение,
-     * и потом повторно не отправится.
      *
      * @param array|\App\Entities\CharacterEntity $character — строка из таблицы characters
      */
-    private function characterLevelProcessing($character)
+    private function characterLevelProcessing($character): void
     {
         // Текущий уровень из characters
         $levelCharacter = $character['level'];
@@ -251,8 +172,6 @@ class CharacterDataHandler
                 ]);
 
                 // 3b) Готовим Telegram-сообщение
-                // Смотрим поле 'message_text' в character_data,
-                // а реальный текст берём из нашей библиотеки $telegramMessages->getMessageByKey(...)
                 $messageKey = $row['message_text'];
                 $msgText    = $this->telegramMessages->getMessageByKey($messageKey);
 

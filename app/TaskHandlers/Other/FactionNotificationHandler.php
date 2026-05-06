@@ -6,17 +6,21 @@ use App\Models\CharacterFactionModel;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Libraries\TelegramMessages;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
+use App\TaskHandlers\BaseTaskHandler;
 
-class FactionNotificationHandler
+/**
+ * v0.51.42 (F2.9 batch-7 final): extends BaseTaskHandler. Drop manual Telegram
+ * init. process() → handle(array $task = []): void. Drop **broken** `Request::
+ * answerCallbackQuery(['callback_query_id' => $telegramId])` (chat_id passed
+ * as callback_query_id — fires daily silently без value у cron context).
+ * Request::sendMessage → safeSendMessage.
+ */
+class FactionNotificationHandler extends BaseTaskHandler
 {
     protected $characterModel;
     protected $characterFactionModel;
     protected $telegramUserModel;
     protected $telegramMessages;
-    private $telegram;
 
     public function __construct()
     {
@@ -24,19 +28,12 @@ class FactionNotificationHandler
         $this->characterModel = new CharacterModel();
         $this->characterFactionModel = new CharacterFactionModel();
         $this->telegramUserModel = new TelegramUserModel();
-        $API_KEY = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-        try {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            // Регистрация команд
-            $this->telegram->addCommandsPath(__DIR__ . '/Commands');
-
-        } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
-        }
     }
 
-    public function process()
+    /**
+     * @param array<string,mixed> $task TaskHandlerInterface signature.
+     */
+    public function handle(array $task = []): void
     {
         // Получаем всех персонажей с уровнем 10 и выше, у которых нет записи в таблице character_factions
         $characters = $this->characterModel->where('level >=', 10)->findAll();
@@ -62,7 +59,7 @@ class FactionNotificationHandler
         }
     }
 
-    public function sendFactionNotification($character, $factionEntry = null)
+    public function sendFactionNotification($character, $factionEntry = null): void
     {
         $telegramId = $this->telegramUserModel
             ->where('id', $character['telegram_user_id'])
@@ -75,11 +72,11 @@ class FactionNotificationHandler
                 'notification_count' => $factionEntry['notification_count'] + 1
             ]);
         } else {
-            // ИНАЧЕ создаём запись. ИСПРАВЛЯЕМ: вместо faction_id=1 → faction_id=5
+            // ИНАЧЕ создаём запись з faction_id=5 (нейтральная фракция)
             $this->characterFactionModel->insert([
                 'character_id' => $character['id'],
-                'faction_id' => 5,  // <-- нейтральная фракция
-                'joined_at' => null, // не вступил пока
+                'faction_id' => 5,
+                'joined_at' => null,
                 'notified_at' => date('Y-m-d H:i:s'),
                 'notification_status' => 'False',
                 'notification_count' => 1
@@ -102,14 +99,10 @@ class FactionNotificationHandler
             ]
         ];
 
-        Request::answerCallbackQuery([
-            'callback_query_id' => $telegramId
-        ]);
-        return Request::sendMessage([
-            'chat_id' => $telegramId,
-            'text'    => $message,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
+        $this->safeSendMessage(
+            $telegramId,
+            $message,
+            ['parse_mode' => 'Markdown', 'reply_markup' => json_encode($keyboard)]
+        );
     }
 }

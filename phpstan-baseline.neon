@@ -16369,26 +16369,8 @@ parameters:
 			path: app/TaskHandlers/CharacterDataHandler.php
 
 		-
-			message: '#^Method App\\TaskHandlers\\CharacterDataHandler\:\:characterLevelProcessing\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/CharacterDataHandler.php
-
-		-
 			message: '#^Method App\\TaskHandlers\\CharacterDataHandler\:\:characterLevelProcessing\(\) has parameter \$character with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
-			count: 1
-			path: app/TaskHandlers/CharacterDataHandler.php
-
-		-
-			message: '#^Method App\\TaskHandlers\\CharacterDataHandler\:\:process\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/CharacterDataHandler.php
-
-		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/CharacterDataHandler.php
 
@@ -16400,12 +16382,6 @@ parameters:
 
 		-
 			message: '#^Parameter \#1 \$relativePath of function base_url expects array\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/CharacterDataHandler.php
-
-		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/CharacterDataHandler.php
@@ -17467,18 +17443,6 @@ parameters:
 			path: app/TaskHandlers/Events/EventActivationHandler.php
 
 		-
-			message: '#^Method App\\TaskHandlers\\Events\\EventActivationHandler\:\:process\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Events/EventActivationHandler.php
-
-		-
-			message: '#^Method App\\TaskHandlers\\Events\\EventActivationHandler\:\:sendMessageToAllUsers\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Events/EventActivationHandler.php
-
-		-
 			message: '#^Method App\\TaskHandlers\\Events\\EventActivationHandler\:\:updateExpiredEventsStatus\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1
@@ -17515,12 +17479,6 @@ parameters:
 			path: app/TaskHandlers/Events/EventActivationHandler.php
 
 		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Events/EventActivationHandler.php
-
-		-
 			message: '#^Parameter \#1 \$eventKey of method Config\\WorldEvents\:\:get\(\) expects string, mixed given\.$#'
 			identifier: argument.type
 			count: 1
@@ -17534,12 +17492,6 @@ parameters:
 
 		-
 			message: '#^Parameter \#1 \$min of function rand expects int, float given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Events/EventActivationHandler.php
-
-		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/Events/EventActivationHandler.php
@@ -18649,18 +18601,6 @@ parameters:
 			path: app/TaskHandlers/Objects/ToolkitHandler.php
 
 		-
-			message: '#^Method App\\TaskHandlers\\Other\\FactionNotificationHandler\:\:process\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Other/FactionNotificationHandler.php
-
-		-
-			message: '#^Method App\\TaskHandlers\\Other\\FactionNotificationHandler\:\:sendFactionNotification\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Other/FactionNotificationHandler.php
-
-		-
 			message: '#^Method App\\TaskHandlers\\Other\\FactionNotificationHandler\:\:sendFactionNotification\(\) has parameter \$character with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
@@ -18673,18 +18613,6 @@ parameters:
 			path: app/TaskHandlers/Other/FactionNotificationHandler.php
 
 		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Other/FactionNotificationHandler.php
-
-		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Other/FactionNotificationHandler.php
-
-		-
 			message: '#^Property App\\TaskHandlers\\Other\\FactionNotificationHandler\:\:\$characterFactionModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
@@ -18692,12 +18620,6 @@ parameters:
 
 		-
 			message: '#^Property App\\TaskHandlers\\Other\\FactionNotificationHandler\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/Other/FactionNotificationHandler.php
-
-		-
-			message: '#^Property App\\TaskHandlers\\Other\\FactionNotificationHandler\:\:\$telegram has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Other/FactionNotificationHandler.php

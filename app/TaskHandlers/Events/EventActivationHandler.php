@@ -6,10 +6,8 @@ use App\Models\ActiveEventModel;
 use App\Models\BiomeModel;
 use App\Models\EventModel;
 use App\Models\TelegramUserModel;
+use App\TaskHandlers\BaseTaskHandler;
 use CodeIgniter\I18n\Time;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
 
 /**
  * Class EventActivationHandler
@@ -23,8 +21,13 @@ use Longman\TelegramBot\Telegram;
  *    - рассчитывает продолжительность с учётом ±35% вариации,
  *    - записывает в active_events со статусом 'active',
  *    - уведомляет всех пользователей в Telegram, прикрепляя картинку и описание.
+ *
+ * v0.51.42 (F2.9 batch-7 final): extends BaseTaskHandler. Drop manual Telegram init.
+ * process() → handle(array $task = []): void. Request::sendPhoto → safeSendPhoto
+ * у legacy fallback. Time/week boundaries init залишені в constructor бо
+ * характерні саме для цього handler-а (cycle-based).
  */
-class EventActivationHandler
+class EventActivationHandler extends BaseTaskHandler
 {
     /** @var ActiveEventModel */
     protected $activeEventModel;
@@ -37,9 +40,6 @@ class EventActivationHandler
 
     /** @var TelegramUserModel */
     protected $telegramUserModel;
-
-    /** @var Telegram */
-    private $telegram;
 
     /** @var Time Начало недели (воскресенье 0:00) */
     protected $startOfWeek;
@@ -58,16 +58,6 @@ class EventActivationHandler
         $this->biomeModel        = new BiomeModel();
         $this->telegramUserModel = new TelegramUserModel();
 
-        // Инициализация Telegram
-        $API_KEY      = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-        try {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            Request::initialize($this->telegram);
-        } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
-        }
-
         // Текущее время (Time::now() — CodeIgniter\I18n)
         $this->now = Time::now('Europe/Kiev');
 
@@ -82,8 +72,10 @@ class EventActivationHandler
      * 3) Выбираем из таблицы events те, которые ещё не активировались на этой неделе и не превышают frequency_per_week.
      * 4) Проверяем интервал с момента последнего активированного события (540..1240 минут).
      * 5) При выполнении условий — случайно активируем одно событие, уведомляем всех игроков.
+     *
+     * @param array<string,mixed> $task TaskHandlerInterface signature.
      */
-    public function process()
+    public function handle(array $task = []): void
     {
         // 1) Обновление статусов истекших событий
         $this->updateExpiredEventsStatus();
@@ -403,7 +395,7 @@ class EventActivationHandler
      * Отправляем сообщение + фото пользователю (chatId).
      * В caption передаём подробности.
      */
-    protected function sendMessageToAllUsers(string $message, string $imgPath, int $chatId)
+    protected function sendMessageToAllUsers(string $message, string $imgPath, int $chatId): void
     {
         $keyboard = [
             'inline_keyboard' => [
@@ -414,20 +406,11 @@ class EventActivationHandler
             ]
         ];
 
-        // Для фото:
-        try {
-            $imagePath = base_url($imgPath);
-            // Предполагаем, что $imgPath содержит относительный путь к файлу
-            Request::sendPhoto([
-                'chat_id'    => $chatId,
-                'photo'      => Request::encodeFile($imagePath),
-                'caption'    => $message,
-                'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
-            ]);
-        } catch (TelegramException $e) {
-            // Если не удалось отправить фото, можно продублировать как обычное текстовое
-            log_message('error', "Ошибка при отправке фото: " . $e->getMessage());
-        }
+        $this->safeSendPhoto(
+            $chatId,
+            base_url($imgPath),
+            $message,
+            ['parse_mode' => 'Markdown', 'reply_markup' => json_encode($keyboard)]
+        );
     }
 }
