@@ -357,8 +357,30 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
             ."🏭 Уровень мастерской: *{$workshopLevel}*\n\n"
             ."🎉 *Сводка по биомам:*";
 
+        // v0.51.32 fix (Bug #11): skip biomes без жодного positive ресурсу,
+        // skip 0-amount entries inside biome. Раніше — printed empty biome
+        // headers + рядки з 0 quantity. Reported у Bugs-info: "форматирования
+        // на последних ресах нету" — biome headers без resources внизу.
+        // Bonus perf: pre-load усі resources одним запитом замість per-resource find().
+        $allResIds = [];
+        foreach ($biomeGroupedResources as $rMap) {
+            foreach ($rMap as $rId => $amt) {
+                if ($amt > 0) {
+                    $allResIds[$rId] = true;
+                }
+            }
+        }
+        $resourceById = [];
+        if (!empty($allResIds)) {
+            foreach ($this->resourceModel->whereIn('id', array_keys($allResIds))->findAll() as $r) {
+                $resourceById[(int) $r['id']] = $r;
+            }
+        }
+
         foreach ($biomeGroupedResources as $bId=>$rMap) {
-            if (empty($rMap)) {
+            // Filter only positive amounts.
+            $positive = array_filter($rMap, static fn($amt) => $amt > 0);
+            if (empty($positive)) {
                 continue;
             }
             $bRow= $this->biomeModel->find($bId);
@@ -367,8 +389,8 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
             $cellCount= $biomeCellCounts[$bId]??1;
             $msg.="\n\n*{$bName}* (ячеек: {$cellCount}):";
 
-            foreach ($rMap as $rId=>$amt) {
-                $resRow= $this->resourceModel->find($rId);
+            foreach ($positive as $rId=>$amt) {
+                $resRow= $resourceById[(int) $rId] ?? null;
                 $resName= $resRow ? $resRow['name'] : ("Res#{$rId}");
                 $msg.="\n • `{$resName}`: {$amt}";
             }
