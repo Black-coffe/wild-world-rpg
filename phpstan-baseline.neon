@@ -271,48 +271,6 @@ parameters:
 			path: app/Controllers/Admin/BiomeController.php
 
 		-
-			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:confirmReset\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/CharacterReset.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:confirmReset\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Admin/CharacterReset.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:index\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/CharacterReset.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:resetCharacter\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Admin/CharacterReset.php
-
-		-
-			message: '#^Property App\\Controllers\\Admin\\CharacterResetController\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Admin/CharacterReset.php
-
-		-
-			message: '#^Property App\\Controllers\\Admin\\CharacterResetController\:\:\$generalModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Admin/CharacterReset.php
-
-		-
-			message: '#^Property App\\Controllers\\Admin\\CharacterResetController\:\:\$telegramUserModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Admin/CharacterReset.php
-
-		-
 			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
