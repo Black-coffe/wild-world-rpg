@@ -140,7 +140,10 @@ class FoodAndWaterConsumptionHandler
             $missingFood = $foodToConsume;
             $missingWater = $waterToConsume;
             foreach ($resources as $resource) {
-                if (array_key_exists('quantity', $resource)) {
+                // v0.51.36 hotfix: ResourceModel::getCharacterResources повертає тепер
+                // list<ResourceEntity> (F1.4.2). array_key_exists() приймає лише array —
+                // fatal на проді daily 21:33. isset() працює через ArrayAccessibleEntity.
+                if (isset($resource['quantity'])) {
                     $types = explode(',', $resource['type']);
 
                     // Проверяем, есть ли у персонажа достаточно еды для потребления
