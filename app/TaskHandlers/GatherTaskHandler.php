@@ -28,6 +28,14 @@ use App\Services\Player\Gather\ToolDurabilityProcessor;
  * `handle($task)` → `handle(array $task = []): void`.
  *
  * F2.9 ПОВНІСТЮ ЗАКРИТО v0.51.23 — всі 12 task-handlers extends BaseTaskHandler.
+ *
+ * v0.51.33 perf: 2 N+1 елімінації у найгарячіших шляхах:
+ *  - calculateFoundResources: reuse $baseBlockResources['resource'] замість resourceModel->find (-N SQL,
+ *    redundant lookup — дані вже в scope).
+ *  - saveFoundResources: 1 whereIn(id_resources) замість N SELECT existing rows у loop'і.
+ * Експерим. ~10 SQL/gather → ~2 SQL у save+calc paths (~80% reduction для них).
+ * Reply path (resourceModel->find + craftedItemsModel->where) залишений as-is —
+ * fires 1×/gather, типове 5/добу на проді.
  */
 class GatherTaskHandler extends BaseTaskHandler
 {
@@ -244,7 +252,9 @@ class GatherTaskHandler extends BaseTaskHandler
             $randFactor = rand(80, 120) / 100.0;
             $amt = $amountRaw * $randFactor;
 
-            $resInfo = $this->resourceModel->find($resId);
+            // v0.51.33 perf: reuse already-loaded $baseBlockResources['resource']
+            // (was N+1 resourceModel->find).
+            $resInfo = $baseBlockResources[$resId]['resource'] ?? null;
             if (!$resInfo) {
                 continue;
             }
@@ -324,19 +334,32 @@ class GatherTaskHandler extends BaseTaskHandler
 
     protected function saveFoundResources(array $foundResources, array|\App\Entities\CharacterEntity $character, array $task): void
     {
+        if (empty($foundResources)) {
+            $this->updateCharacterStats($character, $foundResources, $task);
+            return;
+        }
+
+        // v0.51.33 perf: 1 whereIn для існуючих rows замість N SELECT в loop'і.
+        $resourceIds = array_values(array_unique(array_map(
+            static fn ($r): int => (int) $r['resource_id'],
+            $foundResources
+        )));
+        $existingRows = $this->characterResourceModel
+            ->where('id_characters', $character['id'])
+            ->whereIn('id_resources', $resourceIds)
+            ->findAll();
+        $existingByResId = [];
+        foreach ($existingRows as $row) {
+            $existingByResId[(int) $row['id_resources']] = $row;
+        }
+
         foreach ($foundResources as $res) {
             $amount = (int) $res['amount'];
             if ($amount < 1) {
                 continue;
             }
 
-            $existingResource = $this->characterResourceModel
-                ->where([
-                    'id_characters' => $character['id'],
-                    'id_resources'  => $res['resource_id'],
-                ])
-                ->first();
-
+            $existingResource = $existingByResId[(int) $res['resource_id']] ?? null;
             if ($existingResource) {
                 $newQuantity = $existingResource['quantity'] + $amount;
                 $this->characterResourceModel->update($existingResource['id'], ['quantity' => $newQuantity]);
