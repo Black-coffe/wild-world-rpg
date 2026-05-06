@@ -124,7 +124,10 @@ final class NotificationPolicy
      *
      * @return bool true якщо повідомлення надіслано (false = skipped/error)
      */
-    public function sendEnd(array $char, array $eventRow, array $eventConfig, array $aggregate): bool
+    /**
+     * @param array<string, mixed>|\App\Entities\CharacterEntity $char
+     */
+    public function sendEnd(array|\App\Entities\CharacterEntity $char, array $eventRow, array $eventConfig, array $aggregate): bool
     {
         $tgUser = $this->tgUserModel->find($char['telegram_user_id'] ?? 0);
         if (!$tgUser || empty($tgUser['telegram_id'])) {

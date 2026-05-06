@@ -227,11 +227,11 @@ final class EventDispatcher
     /**
      * Зібрати context для effect.compute() — на одному гравцеві.
      *
-     * @param array<string, mixed> $char
-     * @param ?string $protectionItem name_eng з WorldEvents config (F7.7)
+     * @param array<string, mixed>|\App\Entities\CharacterEntity $char
+     * @param ?string $protectionItem name_eng с WorldEvents config (F7.7)
      * @return array<string, mixed>
      */
-    private function buildContext(array $char, ?string $protectionItem = null): array
+    private function buildContext(array|\App\Entities\CharacterEntity $char, ?string $protectionItem = null): array
     {
         $charId = (int)$char['id'];
 
@@ -262,7 +262,11 @@ final class EventDispatcher
     /**
      * MountainEcho — викликає mapModel->getSurroundingCells() з compute-intent.
      */
-    private function handleRevealCells(array $char, array $result): void
+    /**
+     * @param array<string, mixed>|\App\Entities\CharacterEntity $char
+     * @param array<string, mixed> $result
+     */
+    private function handleRevealCells(array|\App\Entities\CharacterEntity $char, array $result): void
     {
         $intent = $result['reveal_cells_intent'] ?? null;
         if ($intent === null) {
@@ -286,7 +290,11 @@ final class EventDispatcher
     /**
      * Лог в event_effects_log (унифіковано для всіх effect kinds).
      */
-    private function logToDb(array $char, int $eventId, array $result): void
+    /**
+     * @param array<string, mixed>|\App\Entities\CharacterEntity $char
+     * @param array<string, mixed> $result
+     */
+    private function logToDb(array|\App\Entities\CharacterEntity $char, int $eventId, array $result): void
     {
         try {
             $this->logModel->insert([
