@@ -2,16 +2,12 @@
 
 namespace App\TaskHandlers;
 
-use CodeIgniter\Controller;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Models\ClaimedCellModel;
 use App\Models\ExploredCellsModel;
 use App\Services\Player\DeathService;
 use Config\GameBalance;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
-use Longman\TelegramBot\Exception\TelegramException;
 
 /**
  * Класс DeathRouletteHandler:
@@ -20,39 +16,35 @@ use Longman\TelegramBot\Exception\TelegramException;
  * Применяем такую же логику респауна, как в PvP:
  *   - Если penalty=0 => страховка спасла, без урезания статов.
  *   - Иначе обрезаем статы/опыт и перемещаем в респаун-ячейку.
+ *
+ * v0.51.14: extends BaseTaskHandler (per F2.9 contract). Раніше extends Controller —
+ * це історично-неправильно (handler НЕ контроллер). Telegram lazy-init через
+ * BaseTaskHandler::telegram(), Request::sendMessage → safeSendMessage (з try/catch).
+ * `process()` → `handle(array $task = []): void` (TaskHandlerInterface signature).
  */
-class DeathRouletteHandler extends Controller
+class DeathRouletteHandler extends BaseTaskHandler
 {
-    /** @var Telegram */
-    private $telegram;
-
     private GameBalance $cfg;
 
     /**
      * F2.10 wire-in (v0.51.2): deathExpLossPercent + deathStatLossPercent
      * читаются из config('GameBalance') вместо hardcoded private const.
      * Раньше: self::DEATH_EXP_LOSS_PERCENT (0.05) / DEATH_STAT_LOSS_PERCENT (0.005).
+     *
+     * v0.51.14: removed Telegram init (now lazy via BaseTaskHandler::telegram()).
      */
     public function __construct(?GameBalance $cfg = null)
     {
         $this->cfg = $cfg ?? config('GameBalance');
-
-        $API_KEY      = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-
-        try {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            // Инициализируем класс Request для отправки сообщений
-            Request::initialize($this->telegram);
-        } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
-        }
     }
 
     /**
      * Метод, который вызывается воркером каждую минуту.
+     *
+     * @param array<string,mixed> $task TaskHandlerInterface signature (recurring tasks
+     *                                  не приймають task data).
      */
-    public function process()
+    public function handle(array $task = []): void
     {
         // 2) Подключаем модели и DeathService
         $characterModel    = new CharacterModel();
@@ -201,8 +193,10 @@ class DeathRouletteHandler extends Controller
     /**
      * Отправляем сообщение о смерти и потерях.
      * Если penalty=0 => страховка сработала.
+     *
+     * v0.51.14: Request::sendMessage → safeSendMessage (BaseTaskHandler).
      */
-    private function sendDeathMessage(array|\App\Entities\CharacterEntity $character, array $deathResult)
+    private function sendDeathMessage(array|\App\Entities\CharacterEntity $character, array $deathResult): void
     {
         $telegramUserModel = new TelegramUserModel();
         $telegramUser = $telegramUserModel->find($character['telegram_user_id']);
@@ -230,15 +224,7 @@ class DeathRouletteHandler extends Controller
                 . "Будь осторожнее в следующий раз!";
         }
 
-        // Можно расширить: если penalty=3 => "Тебя спасла база", penalty=50 => "Базы не было" и т.п.
-        try {
-            Request::sendMessage([
-                'chat_id'      => $chatId,
-                'text'         => $text,
-                'parse_mode'   => 'Markdown',
-            ]);
-        } catch (TelegramException $e) {
-            log_message('error', 'Ошибка при отправке сообщения о смерти: ' . $e->getMessage());
-        }
+        // safeSendMessage с overrideм parse_mode на Markdown (BaseTaskHandler default — HTML)
+        $this->safeSendMessage($chatId, $text, ['parse_mode' => 'Markdown']);
     }
 }

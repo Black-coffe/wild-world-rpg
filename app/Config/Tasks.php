@@ -62,7 +62,7 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\LowHealthWarningHandler())->process())
             ->everyMinute()->singleInstance()->named('low-health.warning');
 
-        $schedule->call(static fn() => (new \App\TaskHandlers\DeathRouletteHandler())->process())
+        $schedule->call(static fn() => (new \App\TaskHandlers\DeathRouletteHandler())->handle())
             ->everyMinute()->singleInstance()->named('death-roulette');
 
         // Питание/вода — handler сам проверяет 21:33 (Europe/Kiev) внутри.

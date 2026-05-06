@@ -17797,20 +17797,8 @@ parameters:
 			path: app/TaskHandlers/DeathRouletteHandler.php
 
 		-
-			message: '#^Method App\\TaskHandlers\\DeathRouletteHandler\:\:process\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/DeathRouletteHandler.php
-
-		-
 			message: '#^Method App\\TaskHandlers\\DeathRouletteHandler\:\:processDeathAndRespawn\(\) has parameter \$loser with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
-			count: 1
-			path: app/TaskHandlers/DeathRouletteHandler.php
-
-		-
-			message: '#^Method App\\TaskHandlers\\DeathRouletteHandler\:\:sendDeathMessage\(\) has no return type specified\.$#'
-			identifier: missingType.return
 			count: 1
 			path: app/TaskHandlers/DeathRouletteHandler.php
 
@@ -17827,12 +17815,6 @@ parameters:
 			path: app/TaskHandlers/DeathRouletteHandler.php
 
 		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/DeathRouletteHandler.php
-
-		-
 			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\DeathRouletteHandler\:\:sendDeathMessage\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
@@ -17840,12 +17822,6 @@ parameters:
 
 		-
 			message: '#^Parameter \#1 \$loser of method App\\TaskHandlers\\DeathRouletteHandler\:\:processDeathAndRespawn\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/DeathRouletteHandler.php
-
-		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/DeathRouletteHandler.php
