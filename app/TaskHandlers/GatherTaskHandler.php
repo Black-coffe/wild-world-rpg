@@ -30,12 +30,19 @@ use App\Services\Player\Gather\ToolDurabilityProcessor;
  * F2.9 ПОВНІСТЮ ЗАКРИТО v0.51.23 — всі 12 task-handlers extends BaseTaskHandler.
  *
  * v0.51.33 perf: 2 N+1 елімінації у найгарячіших шляхах:
- *  - calculateFoundResources: reuse $baseBlockResources['resource'] замість resourceModel->find (-N SQL,
- *    redundant lookup — дані вже в scope).
+ *  - calculateFoundResources: reuse $baseBlockResources['resource'] замість resourceModel->find.
  *  - saveFoundResources: 1 whereIn(id_resources) замість N SELECT existing rows у loop'і.
- * Експерим. ~10 SQL/gather → ~2 SQL у save+calc paths (~80% reduction для них).
- * Reply path (resourceModel->find + craftedItemsModel->where) залишений as-is —
- * fires 1×/gather, типове 5/добу на проді.
+ *
+ * v0.51.35 perf: reply path optimized через property-access pattern:
+ *  - sendResourcesFoundReply: ResourceModel::findAllCached() (typed list<ResourceEntity>,
+ *    1h TTL) preload + group-by-rarity inline (krsort) уникає intermediate
+ *    array{name,amount,rarity} який PHPStan @ level 9 не narrow без @var.
+ *    Property access $entity->name/$entity->rarity дає typed string/int.
+ *  - Tools: 1 whereIn(name_eng) batch + is_string guards для craftedItemsModel
+ *    (returnType='array' дає mixed по замовчуванню).
+ *
+ * Cumulative: ~17 SQL/gather → ~3 SQL (-82%) у full gather completion path
+ * (calc+save+reply).
  */
 class GatherTaskHandler extends BaseTaskHandler
 {
@@ -406,6 +413,10 @@ class GatherTaskHandler extends BaseTaskHandler
 
     /**
      * Отправляет сообщение (без картинки) об итогах сбора.
+     *
+     * v0.51.35 perf: pre-load ResourceEntity map once через findAllCached() (1h TTL,
+     * after warm = 0 SQL). Property-access ($entity->name typed string, $entity->rarity
+     * typed int) дає PHPStan-clean reply path.
      */
     protected function sendResourcesFoundReply(
         array $foundResources,
@@ -424,22 +435,24 @@ class GatherTaskHandler extends BaseTaskHandler
         $msg .= "Время, затраченное на добычу: <b>{$spentMinutes}</b> мин.\n";
         $msg .= "Биом: <b>" . htmlspecialchars($biomeName, ENT_QUOTES, 'UTF-8') . "</b>\n\n";
 
-        $resourcesWithRarity = [];
-        foreach ($foundResources as $item) {
-            $resourceData = $this->resourceModel->find($item['resource_id']);
-            if ($resourceData) {
-                $resourcesWithRarity[] = [
-                    'name'   => $resourceData['name'],
-                    'amount' => $item['amount'],
-                    'rarity' => $resourceData['rarity'],
-                ];
-            }
+        // v0.51.35 perf: 1× cached preload (typed list<ResourceEntity>) замість N× find().
+        // Group-by-rarity inline: уникаємо intermediate array{name,amount,rarity}, який
+        // PHPStan не може narrow без @var. Замість цього — group by entity.rarity + sort
+        // через krsort, а property-access на entity дає typed name/rarity у print site.
+        $resourceMap = [];
+        foreach ($this->resourceModel->findAllCached() as $entity) {
+            $resourceMap[$entity->id] = $entity;
         }
 
-        // Сортируем по убыванию редкости
-        usort($resourcesWithRarity, function ($a, $b) {
-            return $b['rarity'] - $a['rarity'];
-        });
+        $groupedByRarity = []; // rarity (int) => list of [entity, amount]
+        foreach ($foundResources as $item) {
+            $entity = $resourceMap[(int) $item['resource_id']] ?? null;
+            if ($entity === null) {
+                continue;
+            }
+            $groupedByRarity[$entity->rarity][] = [$entity, (int) $item['amount']];
+        }
+        krsort($groupedByRarity); // редкость по убыванию
 
         // Карта эмодзи для редкости
         $rarityEmojis = [
@@ -447,28 +460,15 @@ class GatherTaskHandler extends BaseTaskHandler
             6 => '6️⃣', 7 => '7️⃣', 8 => '8️⃣', 9 => '9️⃣', 10 => '🔟'
         ];
 
-        if (empty($resourcesWithRarity)) {
+        if (empty($groupedByRarity)) {
             $msg .= "<i>Не удалось найти ресурсы.</i>\n";
         } else {
             $msg .= "<b>Найдены следующие ресурсы:</b>\n";
-
-            // Группируем ресурсы по редкости
-            $groupedResources = [];
-            foreach ($resourcesWithRarity as $resource) {
-                $rarity = $resource['rarity'];
-                if (!isset($groupedResources[$rarity])) {
-                    $groupedResources[$rarity] = [];
-                }
-                $groupedResources[$rarity][] = $resource;
-            }
-
-            // Выводим ресурсы, сгруппированные по редкости
-            foreach ($groupedResources as $rarity => $resources) {
-                $rarityEmoji = $rarityEmojis[$rarity] ?? $rarity;
+            foreach ($groupedByRarity as $rarity => $items) {
+                $rarityEmoji = $rarityEmojis[$rarity] ?? (string) $rarity;
                 $msg .= "\n<b>{$rarityEmoji} Редкость...</b>\n";
-                foreach ($resources as $resource) {
-                    $resourceName = htmlspecialchars($resource['name'], ENT_QUOTES, 'UTF-8');
-                    $amount       = $resource['amount'];
+                foreach ($items as [$entity, $amount]) {
+                    $resourceName = htmlspecialchars($entity->name, ENT_QUOTES, 'UTF-8');
                     $msg .= "— <b>{$resourceName}</b>: {$amount} шт.\n";
                 }
             }
@@ -477,9 +477,21 @@ class GatherTaskHandler extends BaseTaskHandler
         // Инструменты (с переводом на русский)
         if (!empty($this->usedToolsCount)) {
             $msg .= "\n<b>Использованные инструменты:</b>\n";
+
+            // v0.51.35 perf: 1× whereIn замість N× find per used tool.
+            $toolNames = array_keys($this->usedToolsCount);
+            $toolByName = [];
+            foreach ($this->craftedItemsModel->whereIn('name_eng', $toolNames)->findAll() as $row) {
+                if (is_array($row) && isset($row['name_eng']) && is_string($row['name_eng'])) {
+                    $toolByName[$row['name_eng']] = $row;
+                }
+            }
+
             foreach ($this->usedToolsCount as $toolNameEng => $countUsed) {
-                $toolData = $this->craftedItemsModel->where('name_eng', $toolNameEng)->first();
-                $toolNameRus = $toolData ? $toolData['name_rus'] : $toolNameEng;
+                $toolRow     = $toolByName[$toolNameEng] ?? null;
+                $toolNameRus = is_array($toolRow) && isset($toolRow['name_rus']) && is_string($toolRow['name_rus'])
+                    ? $toolRow['name_rus']
+                    : $toolNameEng;
                 $toolNameEsc = htmlspecialchars($toolNameRus, ENT_QUOTES, 'UTF-8');
                 $msg .= "- {$toolNameEsc}: {$countUsed} раз(а)\n";
             }
