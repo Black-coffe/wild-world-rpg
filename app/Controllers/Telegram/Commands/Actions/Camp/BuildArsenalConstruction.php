@@ -20,28 +20,23 @@ use App\Services\Tasks\ActiveTasksService;
 
 class BuildArsenalConstruction extends BaseAction
 {
-    protected $claimedCellModel;
-    protected $characterModel;
-    protected $buildingModel;
-    protected $resourceModel;
-    protected $characterResourceModel;
-    protected $taskModel;
-    protected $eventModel;
-    protected $craftedItemsModel;
-    protected $craftedItemsLogModel;
-    protected $activeEventModel;
-    protected $characterBuildingModel;
+    // $characterModel, $resourceModel, $taskModel — наследуются от BaseAction (untyped там)
+    protected ClaimedCellModel $claimedCellModel;
+    protected BuildingModel $buildingModel;
+    protected CharacterResourceModel $characterResourceModel;
+    protected EventModel $eventModel;
+    protected CraftedItemsModel $craftedItemsModel;
+    protected CraftedItemsLogModel $craftedItemsLogModel;
+    protected ActiveEventModel $activeEventModel;
+    protected CharacterBuildingModel $characterBuildingModel;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-
+        // characterModel, resourceModel, taskModel инициализируются в parent::__construct
         $this->claimedCellModel         = new ClaimedCellModel();
-        $this->characterModel           = new CharacterModel();
         $this->buildingModel            = new BuildingModel();
-        $this->resourceModel            = new ResourceModel();
         $this->characterResourceModel   = new CharacterResourceModel();
-        $this->taskModel                = new TaskModel();
         $this->eventModel               = new EventModel();
         $this->craftedItemsModel        = new CraftedItemsModel();
         $this->craftedItemsLogModel     = new CraftedItemsLogModel();
@@ -281,7 +276,10 @@ class BuildArsenalConstruction extends BaseAction
      * Метод, который проверяет, существует ли в таблице `buildings` запись с name_en='Arsenal'.
      * Если нет — создаём её (с базовыми полями).
      */
-    private function ensureArsenalExists()
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function ensureArsenalExists(): ?array
     {
         $arsenal = $this->buildingModel->where('name_en', 'Arsenal')->first();
         if (!$arsenal) {
@@ -315,7 +313,11 @@ class BuildArsenalConstruction extends BaseAction
      * Проверяет, хватает ли у персонажа ресурсов (таблица resources).
      * Возвращает массив [resourceNameEn => [...]] тех, которых не хватает.
      */
-    private function checkResources($characterId, $requiredResources, $resourceModel, $characterResourcesModel)
+    /**
+     * @param array<string, int> $requiredResources
+     * @return array<string, array{required: int, available: int, name_rus: string}>
+     */
+    private function checkResources(int $characterId, array $requiredResources, ResourceModel $resourceModel, CharacterResourceModel $characterResourcesModel): array
     {
         $missing = [];
         foreach ($requiredResources as $resourceNameEn => $requiredAmt) {
@@ -349,7 +351,11 @@ class BuildArsenalConstruction extends BaseAction
      * Проверяет, хватает ли у персонажа крафтовых предметов (таблица crafted_items + crafted_items_log).
      * Возвращает массив [itemNameEn => [...]] тех, которых не хватает.
      */
-    private function checkCraftedItems($characterId, $requiredItems, $craftedItemsModel, $craftedItemsLogModel)
+    /**
+     * @param array<string, int> $requiredItems
+     * @return array<string, array{required: int, available: int, name_rus: string}>
+     */
+    private function checkCraftedItems(int $characterId, array $requiredItems, CraftedItemsModel $craftedItemsModel, CraftedItemsLogModel $craftedItemsLogModel): array
     {
         $missing = [];
         foreach ($requiredItems as $itemNameEn => $reqAmt) {
@@ -382,7 +388,10 @@ class BuildArsenalConstruction extends BaseAction
     /**
      * Форматирует список нужных ресурсов, выводя "Название (нужно X, у вас Y)"
      */
-    private function formatResourcesForText($requiredResources, $resourceModel, $characterId)
+    /**
+     * @param array<string, int> $requiredResources
+     */
+    private function formatResourcesForText(array $requiredResources, ResourceModel $resourceModel, int $characterId): string
     {
         $text = "";
         foreach ($requiredResources as $resNameEn => $reqAmount) {
@@ -405,7 +414,10 @@ class BuildArsenalConstruction extends BaseAction
     /**
      * Форматирует список нужных крафтовых предметов, аналогично
      */
-    private function formatCraftedItemsForText($requiredItems, $craftedItemsModel, $characterId)
+    /**
+     * @param array<string, int> $requiredItems
+     */
+    private function formatCraftedItemsForText(array $requiredItems, CraftedItemsModel $craftedItemsModel, int $characterId): string
     {
         $text = "";
         foreach ($requiredItems as $itemNameEn => $reqAmount) {
@@ -429,7 +441,10 @@ class BuildArsenalConstruction extends BaseAction
     /**
      * Генерирует текст о недостающих ресурсах
      */
-    private function getMissingResourcesText(array $missingResources, $resourceModel)
+    /**
+     * @param array<string, array{required: int, available: int, name_rus: string}> $missingResources
+     */
+    private function getMissingResourcesText(array $missingResources, ResourceModel $resourceModel): string
     {
         $text = "";
         foreach ($missingResources as $resNameEn => $data) {
@@ -441,7 +456,10 @@ class BuildArsenalConstruction extends BaseAction
     /**
      * Генерирует текст о недостающих крафтовых предметах
      */
-    private function getMissingCraftedItemsText(array $missingCraftedItems, $craftedItemsModel)
+    /**
+     * @param array<string, array{required: int, available: int, name_rus: string}> $missingCraftedItems
+     */
+    private function getMissingCraftedItemsText(array $missingCraftedItems, CraftedItemsModel $craftedItemsModel): string
     {
         $text = "";
         foreach ($missingCraftedItems as $itemNameEn => $data) {

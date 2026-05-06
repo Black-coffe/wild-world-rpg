@@ -1525,157 +1525,25 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
 
 		-
+			message: '#^Cannot access offset ''level'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
+
+		-
+			message: '#^Cannot access offset ''map_cell_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
+
+		-
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 3
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
+
+		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:checkCraftedItems\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:checkCraftedItems\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsLogModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:checkCraftedItems\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:checkResources\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:checkResources\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:checkResources\(\) has parameter \$characterResourcesModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:checkResources\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:checkResources\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:formatCraftedItemsForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:formatCraftedItemsForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:formatCraftedItemsForText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:formatCraftedItemsForText\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:formatResourcesForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:formatResourcesForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:formatResourcesForText\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:formatResourcesForText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:getMissingCraftedItemsText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$missingCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:getMissingResourcesText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:getMissingResourcesText\(\) has parameter \$missingResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:getMissingResourcesText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:sendError\(\) has parameter \$message with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
@@ -1687,70 +1555,28 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:\$activeEventModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''map_cell_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:\$caracterResourceModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''name_ru'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:\$claimedCellModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:\$craftedItemsLogModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:\$craftedItemsModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:\$eventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BlastFurnaceConstruction\:\:\$taskModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BlastFurnaceConstruction.php
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 4
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
@@ -1759,220 +1585,40 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:checkCraftedItems\(\) has no return type specified\.$#'
-			identifier: missingType.return
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:ensureArsenalExists\(\) should return array\<string, mixed\>\|null but returns array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: return.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:checkCraftedItems\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
+			message: '#^Part \$minLevel \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 2
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsLogModel with no type specified\.$#'
-			identifier: missingType.parameter
+			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
+			message: '#^Cannot access offset ''map_cell_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:checkCraftedItems\(\) has parameter \$requiredItems with no type specified\.$#'
-			identifier: missingType.parameter
+			message: '#^Cannot access offset ''name_ru'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:checkResources\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:checkResources\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:checkResources\(\) has parameter \$characterResourcesModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:checkResources\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:checkResources\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:ensureArsenalExists\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:formatCraftedItemsForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:formatCraftedItemsForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:formatCraftedItemsForText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:formatCraftedItemsForText\(\) has parameter \$requiredItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:formatResourcesForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:formatResourcesForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:formatResourcesForText\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:formatResourcesForText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:getMissingCraftedItemsText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$missingCraftedItems with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:getMissingResourcesText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:getMissingResourcesText\(\) has parameter \$missingResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:getMissingResourcesText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:\$activeEventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:\$claimedCellModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:\$craftedItemsLogModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:\$craftedItemsModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:\$eventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildArsenalConstruction\:\:\$taskModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildArsenalConstruction.php
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 4
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
@@ -1981,373 +1627,43 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:checkCraftedItems\(\) has no return type specified\.$#'
-			identifier: missingType.return
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:ensureCommunicationTowerExists\(\) should return array\<string, mixed\>\|null but returns array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: return.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:checkCraftedItems\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
+			message: '#^Part \$minLevel \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 2
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsLogModel with no type specified\.$#'
-			identifier: missingType.parameter
+			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
+			message: '#^Cannot access offset ''level'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:checkCraftedItems\(\) has parameter \$requiredItems with no type specified\.$#'
-			identifier: missingType.parameter
+			message: '#^Cannot access offset ''map_cell_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:checkResources\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:checkResources\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:checkResources\(\) has parameter \$characterResourcesModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:checkResources\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:checkResources\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:ensureCommunicationTowerExists\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:formatCraftedItemsForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:formatCraftedItemsForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:formatCraftedItemsForText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:formatCraftedItemsForText\(\) has parameter \$requiredItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:formatResourcesForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:formatResourcesForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:formatResourcesForText\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:formatResourcesForText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:getMissingCraftedItemsText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$missingCraftedItems with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:getMissingResourcesText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:getMissingResourcesText\(\) has parameter \$missingResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:getMissingResourcesText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:\$activeEventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:\$claimedCellModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:\$craftedItemsLogModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:\$craftedItemsModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:\$eventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildCommunicationTowerConstruction\:\:\$taskModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildCommunicationTowerConstruction.php
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 3
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:checkCraftedItems\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:checkCraftedItems\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsLogModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:checkCraftedItems\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:checkResources\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:checkResources\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:checkResources\(\) has parameter \$characterResourcesModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:checkResources\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:checkResources\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:formatCraftedItemsForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:formatCraftedItemsForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:formatCraftedItemsForText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:formatCraftedItemsForText\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:formatResourcesForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:formatResourcesForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:formatResourcesForText\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:formatResourcesForText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:getMissingCraftedItemsText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$missingCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:getMissingResourcesText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:getMissingResourcesText\(\) has parameter \$missingResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:getMissingResourcesText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:sendError\(\) has parameter \$message with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
@@ -2359,70 +1675,28 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:\$activeEventModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''level'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''map_cell_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:\$claimedCellModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:\$craftedItemsLogModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:\$craftedItemsModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:\$eventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGreenHouseConstruction\:\:\$taskModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGreenHouseConstruction.php
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 3
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
@@ -2431,242 +1705,8 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:checkCraftedItems\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:checkCraftedItems\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsLogModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:checkCraftedItems\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:checkResources\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:checkResources\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:checkResources\(\) has parameter \$characterResourcesModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:checkResources\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:checkResources\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:formatCraftedItemsForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:formatCraftedItemsForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:formatCraftedItemsForText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:formatCraftedItemsForText\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:formatResourcesForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:formatResourcesForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:formatResourcesForText\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:formatResourcesForText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:getMissingCraftedItemsText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$missingCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:getMissingResourcesText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:getMissingResourcesText\(\) has parameter \$missingResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:getMissingResourcesText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:sendError\(\) has parameter \$message with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:sendError\(\) is unused\.$#'
 			identifier: method.unused
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:splitText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:splitText\(\) has parameter \$maxLength with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:splitText\(\) has parameter \$text with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:\$activeEventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:\$claimedCellModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:\$craftedItemsLogModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:\$craftedItemsModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:\$eventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildGymConstruction\:\:\$taskModel has no type specified\.$#'
-			identifier: missingType.property
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildGymConstruction.php
 
@@ -2689,157 +1729,31 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildHandPumpAction.php
 
 		-
+			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
+
+		-
+			message: '#^Cannot access offset ''level'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
+
+		-
+			message: '#^Cannot access offset ''map_cell_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
+
+		-
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 3
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
+
+		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:checkCraftedItems\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:checkCraftedItems\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsLogModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:checkCraftedItems\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:checkResources\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:checkResources\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:checkResources\(\) has parameter \$characterResourcesModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:checkResources\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:checkResources\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:formatCraftedItemsForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:formatCraftedItemsForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:formatCraftedItemsForText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:formatCraftedItemsForText\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:formatResourcesForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:formatResourcesForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:formatResourcesForText\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:formatResourcesForText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:getMissingCraftedItemsText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$missingCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:getMissingResourcesText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:getMissingResourcesText\(\) has parameter \$missingResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:getMissingResourcesText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:sendError\(\) has parameter \$message with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
@@ -2851,223 +1765,31 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:\$activeEventModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''level'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''map_cell_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:\$claimedCellModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:\$craftedItemsLogModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:\$craftedItemsModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:\$eventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildLabConstruction\:\:\$taskModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildLabConstruction.php
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 3
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:checkCraftedItems\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:checkCraftedItems\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsLogModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:checkCraftedItems\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:checkResources\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:checkResources\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:checkResources\(\) has parameter \$characterResourcesModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:checkResources\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:checkResources\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:formatCraftedItemsForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:formatCraftedItemsForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:formatCraftedItemsForText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:formatCraftedItemsForText\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:formatResourcesForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:formatResourcesForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:formatResourcesForText\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:formatResourcesForText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:getMissingCraftedItemsText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$missingCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:getMissingResourcesText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:getMissingResourcesText\(\) has parameter \$missingResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:getMissingResourcesText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:sendError\(\) has parameter \$message with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
@@ -3079,223 +1801,31 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:\$activeEventModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''level'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''map_cell_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:\$claimedCellModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:\$craftedItemsLogModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:\$craftedItemsModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:\$eventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildRoboticsWorkshopConstruction\:\:\$taskModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildRoboticsWorkshopConstruction.php
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 3
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:checkCraftedItems\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:checkCraftedItems\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsLogModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:checkCraftedItems\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:checkResources\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:checkResources\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:checkResources\(\) has parameter \$characterResourcesModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:checkResources\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:checkResources\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:formatCraftedItemsForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:formatCraftedItemsForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:formatCraftedItemsForText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:formatCraftedItemsForText\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:formatResourcesForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:formatResourcesForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:formatResourcesForText\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:formatResourcesForText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:getMissingCraftedItemsText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$missingCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:getMissingResourcesText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:getMissingResourcesText\(\) has parameter \$missingResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:getMissingResourcesText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:sendError\(\) has parameter \$message with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
@@ -3307,223 +1837,31 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:\$activeEventModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''level'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''map_cell_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:\$claimedCellModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:\$craftedItemsLogModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:\$craftedItemsModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:\$eventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildSolarStationConstruction\:\:\$taskModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildSolarStationConstruction.php
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 3
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:checkCraftedItems\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:checkCraftedItems\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsLogModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:checkCraftedItems\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:checkResources\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:checkResources\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:checkResources\(\) has parameter \$characterResourcesModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:checkResources\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:checkResources\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:formatCraftedItemsForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:formatCraftedItemsForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:formatCraftedItemsForText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:formatCraftedItemsForText\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:formatResourcesForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:formatResourcesForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:formatResourcesForText\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:formatResourcesForText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:getMissingCraftedItemsText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$missingCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:getMissingResourcesText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:getMissingResourcesText\(\) has parameter \$missingResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:getMissingResourcesText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:sendError\(\) has parameter \$message with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
@@ -3535,70 +1873,28 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:\$activeEventModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''level'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Cannot access offset ''map_cell_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:\$claimedCellModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:\$craftedItemsLogModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:\$craftedItemsModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:\$eventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildTeleportationCenterConstruction\:\:\$taskModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildTeleportationCenterConstruction.php
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 3
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
@@ -3607,224 +1903,8 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:checkCraftedItems\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:checkCraftedItems\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsLogModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:checkCraftedItems\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:checkResources\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:checkResources\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:checkResources\(\) has parameter \$characterResourcesModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:checkResources\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:checkResources\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:formatCraftedItemsForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:formatCraftedItemsForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:formatCraftedItemsForText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:formatCraftedItemsForText\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:formatResourcesForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:formatResourcesForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:formatResourcesForText\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:formatResourcesForText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:getMissingCraftedItemsText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$missingCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:getMissingResourcesText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:getMissingResourcesText\(\) has parameter \$missingResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:getMissingResourcesText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:sendError\(\) has parameter \$message with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:sendError\(\) is unused\.$#'
 			identifier: method.unused
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:\$activeEventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:\$claimedCellModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:\$craftedItemsLogModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:\$craftedItemsModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:\$eventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildWarehouseConstruction\:\:\$taskModel has no type specified\.$#'
-			identifier: missingType.property
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildWarehouseConstruction.php
 
@@ -5215,224 +3295,26 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/GenericBuildingAction.php
 
 		-
+			message: '#^Cannot access offset ''level'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
+
+		-
+			message: '#^Cannot access offset ''map_cell_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
+
+		-
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 3
+			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
+
+		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:checkCraftedItems\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:checkCraftedItems\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsLogModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:checkCraftedItems\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:checkResources\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:checkResources\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:checkResources\(\) has parameter \$characterResourcesModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:checkResources\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:checkResources\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:formatCraftedItemsForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:formatCraftedItemsForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:formatCraftedItemsForText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:formatCraftedItemsForText\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:formatResourcesForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:formatResourcesForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:formatResourcesForText\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:formatResourcesForText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:getMissingCraftedItemsText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$missingCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:getMissingResourcesText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:getMissingResourcesText\(\) has parameter \$missingResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:getMissingResourcesText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:sendError\(\) has parameter \$message with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:\$activeEventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:\$caracterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:\$claimedCellModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:\$craftedItemsLogModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:\$craftedItemsModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:\$eventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\HandPumpConstruction\:\:\$taskModel has no type specified\.$#'
-			identifier: missingType.property
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/HandPumpConstruction.php
 
@@ -5593,224 +3475,26 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
+			message: '#^Cannot access offset ''level'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
+
+		-
+			message: '#^Cannot access offset ''map_cell_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
+
+		-
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 3
+			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
+
+		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:checkCraftedItems\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:checkCraftedItems\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsLogModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:checkCraftedItems\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:checkCraftedItems\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:checkResources\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:checkResources\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:checkResources\(\) has parameter \$characterResourcesModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:checkResources\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:checkResources\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:formatCraftedItemsForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:formatCraftedItemsForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:formatCraftedItemsForText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:formatCraftedItemsForText\(\) has parameter \$requiredCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:formatResourcesForText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:formatResourcesForText\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:formatResourcesForText\(\) has parameter \$requiredResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:formatResourcesForText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:getMissingCraftedItemsText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$craftedItemsModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:getMissingCraftedItemsText\(\) has parameter \$missingCraftedItems with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:getMissingResourcesText\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:getMissingResourcesText\(\) has parameter \$missingResources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:getMissingResourcesText\(\) has parameter \$resourceModel with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:sendError\(\) has parameter \$message with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:\$activeEventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:\$caracterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:\$claimedCellModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:\$craftedItemsLogModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:\$craftedItemsModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:\$eventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\WorkshopConstruction\:\:\$taskModel has no type specified\.$#'
-			identifier: missingType.property
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/WorkshopConstruction.php
 

@@ -20,32 +20,28 @@ use App\Services\Tasks\ActiveTasksService;
 
 class BuildTeleportationCenterConstruction extends BaseAction
 {
-    protected $claimedCellModel;
-    protected $characterModel;
-    protected $buildingModel;
-    protected $resourceModel;
-    protected $characterResourceModel;
-    protected $taskModel;
-    protected $eventModel;
-    protected $craftedItemsModel;
-    protected $craftedItemsLogModel;
-    protected $activeEventModel;
-    protected $characterBuildingModel;
+    // $characterModel, $resourceModel, $taskModel — наследуются от BaseAction (untyped там)
+    protected ClaimedCellModel $claimedCellModel;
+    protected BuildingModel $buildingModel;
+    protected CharacterResourceModel $characterResourceModel;
+    protected EventModel $eventModel;
+    protected CraftedItemsModel $craftedItemsModel;
+    protected CraftedItemsLogModel $craftedItemsLogModel;
+    protected ActiveEventModel $activeEventModel;
+    protected CharacterBuildingModel $characterBuildingModel;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
+        // characterModel, resourceModel, taskModel инициализируются в parent::__construct
         $this->claimedCellModel = new ClaimedCellModel();
-        $this->characterModel = new CharacterModel();
         $this->buildingModel = new BuildingModel();
-        $this->resourceModel = new ResourceModel();
         $this->characterResourceModel = new CharacterResourceModel();
-        $this->taskModel = new TaskModel();
         $this->eventModel = new EventModel();
         $this->craftedItemsModel = new CraftedItemsModel();
         $this->craftedItemsLogModel = new CraftedItemsLogModel();
         $this->activeEventModel = new ActiveEventModel();
-        $this->characterBuildingModel = new CharacterBuildingModel(); // Инициализируем модель
+        $this->characterBuildingModel = new CharacterBuildingModel();
     }
 
     public function handle(): ServerResponse
@@ -220,7 +216,11 @@ class BuildTeleportationCenterConstruction extends BaseAction
         ]);
     }
 
-    private function checkResources($characterId, $requiredResources, $resourceModel, $characterResourcesModel)
+    /**
+     * @param array<string, int> $requiredResources
+     * @return array<string, array{required: int, available: int, name: string}>
+     */
+    private function checkResources(int $characterId, array $requiredResources, ResourceModel $resourceModel, CharacterResourceModel $characterResourcesModel): array
     {
         $missingResources = [];
         foreach ($requiredResources as $resourceName => $requiredAmount) {
@@ -241,7 +241,11 @@ class BuildTeleportationCenterConstruction extends BaseAction
         return $missingResources;
     }
 
-    private function checkCraftedItems($characterId, $requiredCraftedItems, $craftedItemsModel, $craftedItemsLogModel)
+    /**
+     * @param array<string, int> $requiredCraftedItems
+     * @return array<string, array{required: int, available: int, name_rus: string}>
+     */
+    private function checkCraftedItems(int $characterId, array $requiredCraftedItems, CraftedItemsModel $craftedItemsModel, CraftedItemsLogModel $craftedItemsLogModel): array
     {
         $missingCraftedItems = [];
         foreach ($requiredCraftedItems as $itemName => $requiredAmount) {
@@ -260,7 +264,10 @@ class BuildTeleportationCenterConstruction extends BaseAction
         return $missingCraftedItems;
     }
 
-    private function getMissingResourcesText($missingResources, $resourceModel)
+    /**
+     * @param array<string, array{required: int, available: int, name: string}> $missingResources
+     */
+    private function getMissingResourcesText(array $missingResources, ResourceModel $resourceModel): string
     {
         $text = "";
         foreach ($missingResources as $resourceName => $resourceInfo) {
@@ -269,7 +276,10 @@ class BuildTeleportationCenterConstruction extends BaseAction
         return $text;
     }
 
-    private function getMissingCraftedItemsText($missingCraftedItems, $craftedItemsModel)
+    /**
+     * @param array<string, array{required: int, available: int, name_rus: string}> $missingCraftedItems
+     */
+    private function getMissingCraftedItemsText(array $missingCraftedItems, CraftedItemsModel $craftedItemsModel): string
     {
         $text = "";
         foreach ($missingCraftedItems as $itemName => $itemInfo) {
@@ -278,7 +288,10 @@ class BuildTeleportationCenterConstruction extends BaseAction
         return $text;
     }
 
-    private function formatResourcesForText($requiredResources, $resourceModel, $characterId)
+    /**
+     * @param array<string, int> $requiredResources
+     */
+    private function formatResourcesForText(array $requiredResources, ResourceModel $resourceModel, int $characterId): string
     {
         $text = "";
         foreach ($requiredResources as $resourceName => $requiredAmount) {
@@ -294,7 +307,10 @@ class BuildTeleportationCenterConstruction extends BaseAction
         return $text;
     }
 
-    private function formatCraftedItemsForText($requiredCraftedItems, $craftedItemsModel, $characterId)
+    /**
+     * @param array<string, int> $requiredCraftedItems
+     */
+    private function formatCraftedItemsForText(array $requiredCraftedItems, CraftedItemsModel $craftedItemsModel, int $characterId): string
     {
         $text = "";
         foreach ($requiredCraftedItems as $itemName => $requiredAmount) {
@@ -308,7 +324,7 @@ class BuildTeleportationCenterConstruction extends BaseAction
         return $text;
     }
 
-    private function sendError($message): ServerResponse
+    private function sendError(string $message): ServerResponse
     {
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
