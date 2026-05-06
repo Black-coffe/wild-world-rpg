@@ -14095,7 +14095,7 @@ parameters:
 			path: app/Services/Events/IntentApplier.php
 
 		-
-			message: '#^Method App\\Services\\Events\\IntentApplier\:\:apply\(\) should return array\<string, mixed\> but returns array\<int\|string, mixed\>\|object\.$#'
+			message: '#^Method App\\Services\\Events\\IntentApplier\:\:apply\(\) should return App\\Entities\\CharacterEntity\|array\<string, mixed\> but returns array\<int\|string, mixed\>\|object\.$#'
 			identifier: return.type
 			count: 1
 			path: app/Services/Events/IntentApplier.php

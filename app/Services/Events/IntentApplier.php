@@ -36,11 +36,11 @@ final class IntentApplier
     /**
      * Застосувати ввесь EffectResult intent-array до конкретного character'а.
      *
-     * @param array<string, mixed> $character Поточний row з characters
-     * @param array<string, mixed> $result    EffectResult з effect.compute()
-     * @return array<string, mixed> Оновлений character (перечитаний з DB після writes)
+     * @param array<string, mixed>|\App\Entities\CharacterEntity $character Поточний row с characters
+     * @param array<string, mixed> $result    EffectResult с effect.compute()
+     * @return array<string, mixed>|\App\Entities\CharacterEntity Оновлений character (перечитаний с DB после writes)
      */
-    public function apply(array|\App\Entities\CharacterEntity $character, array $result): array
+    public function apply(array|\App\Entities\CharacterEntity $character, array $result): array|\App\Entities\CharacterEntity
     {
         $charId = (int)$character['id'];
 
