@@ -66,8 +66,17 @@ class GreenhouseProductionHandler extends BaseTaskHandler
         }
 
         // v0.51.25 perf: lift Water resource lookup outside loop (loop-invariant).
-        // Раніше: N greenhouses × 1 Water query = N queries. Тепер: 1 query.
-        $waterResource = $this->resourceModel->where('name_en', 'Water')->first();
+        // v0.51.26 perf: pre-load усі harvest resources (Water + Fruit + Berries +
+        // Mushrooms + Crops) одним SQL запитом замість per-call name lookup.
+        // Раніше: N greenhouses × ~5 resource queries = ~5N queries.
+        // Тепер: 1 SQL `whereIn name_en` = 1 query незалежно від N.
+        $harvestNames = ['Water', 'Fruit', 'Berries', 'Mushrooms', 'Crops'];
+        $resourceRows = $this->resourceModel->whereIn('name_en', $harvestNames)->findAll();
+        $resourceByName = [];
+        foreach ($resourceRows as $row) {
+            $resourceByName[$row['name_en']] = $row;
+        }
+        $waterResource = $resourceByName['Water'] ?? null;
         if (!$waterResource) {
             log_message('error', '[GreenhouseProductionHandler] Resource "Water" not found in DB.');
             return;
@@ -116,7 +125,7 @@ class GreenhouseProductionHandler extends BaseTaskHandler
 
             // Начисляем harvest (Fruit / Berries / Mushrooms / Crops и т.д.)
             foreach ($harvest as $resourceNameEn => $count) {
-                $this->addResourceToCharacter($characterId, $resourceNameEn, $count);
+                $this->addResourceToCharacter($characterId, $resourceNameEn, $count, $resourceByName);
             }
         }
     }
@@ -191,13 +200,17 @@ class GreenhouseProductionHandler extends BaseTaskHandler
 
     /**
      * Начисляет (или создаёт) ресурс персонажу.
+     *
+     * v0.51.26 perf: $resourceByName preloaded outside hot loop — was N+1 lookup
+     * per harvest item per character.
+     *
+     * @param array<string, array<string, mixed>> $resourceByName name_en => row map
      */
-    private function addResourceToCharacter(int $characterId, string $resourceNameEn, int $quantity): void
+    private function addResourceToCharacter(int $characterId, string $resourceNameEn, int $quantity, array $resourceByName): void
     {
-        // Ищем ресурс
-        $resource = $this->resourceModel->where('name_en', $resourceNameEn)->first();
+        $resource = $resourceByName[$resourceNameEn] ?? null;
         if (!$resource) {
-            log_message('error', "[GreenhouseProductionHandler] Resource {$resourceNameEn} not found.");
+            log_message('error', "[GreenhouseProductionHandler] Resource {$resourceNameEn} not in pre-loaded map.");
             return;
         }
 
