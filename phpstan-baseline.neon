@@ -17131,205 +17131,121 @@ parameters:
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:handle\(\) has no return type specified\.$#'
-			identifier: missingType.return
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:notifyUser\(\) has parameter \$characterId with no type specified\.$#'
+			identifier: missingType.parameter
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:handle\(\) has parameter \$task with no value type specified in iterable type array\.$#'
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:notifyUser\(\) has parameter \$craftedItem with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
+
+		-
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:notifyUser\(\) has parameter \$telegramUserId with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
+
+		-
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:updateCraftLog\(\) has parameter \$craftedItem with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
+
+		-
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:updateCraftLog\(\) has parameter \$task with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:notifyUser\(\) has no return type specified\.$#'
-			identifier: missingType.return
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:\$characterModel has no type specified\.$#'
+			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:notifyUser\(\) has parameter \$characterId with no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:\$characterTaskModel has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
+
+		-
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:\$craftedItemsLogModel has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
+
+		-
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:\$craftedItemsModel has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
+
+		-
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:\$telegramUserModel has no type specified\.$#'
+			identifier: missingType.property
+			count: 1
+			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
+
+		-
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:notifyUser\(\) has parameter \$characterId with no type specified\.$#'
 			identifier: missingType.parameter
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:notifyUser\(\) has parameter \$craftedItem with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:notifyUser\(\) has parameter \$telegramUserId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:updateCraftLog\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:updateCraftLog\(\) has parameter \$craftedItem with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:updateCraftLog\(\) has parameter \$task with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
-
-		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
-
-		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
-
-		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
-
-		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:\$characterTaskModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
-
-		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:\$craftedItemsLogModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
-
-		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:\$craftedItemsModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
-
-		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:\$telegram has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
-
-		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBackpackHandler\:\:\$telegramUserModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBackpackHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:handle\(\) has no return type specified\.$#'
-			identifier: missingType.return
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:handle\(\) has parameter \$task with no value type specified in iterable type array\.$#'
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:notifyUser\(\) has parameter \$craftedItem with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
+
+		-
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:notifyUser\(\) has parameter \$telegramUserId with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
+
+		-
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:updateCraftLog\(\) has parameter \$craftedItem with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
+
+		-
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:updateCraftLog\(\) has parameter \$task with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:notifyUser\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:notifyUser\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:notifyUser\(\) has parameter \$craftedItem with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:notifyUser\(\) has parameter \$telegramUserId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:updateCraftLog\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:updateCraftLog\(\) has parameter \$craftedItem with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:updateCraftLog\(\) has parameter \$task with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
-
-		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
-
-		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
-
-		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:\$characterModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:\$characterModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:\$characterTaskModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:\$characterTaskModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:\$craftedItemsLogModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:\$craftedItemsLogModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:\$craftedItemsModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:\$craftedItemsModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:\$telegram has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
-
-		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:\$telegramUserModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\CraftCompletionTeleportBeaconBasicHandler\:\:\$telegramUserModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
