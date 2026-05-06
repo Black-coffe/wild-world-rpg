@@ -11,33 +11,27 @@ use App\Models\BiomeWorldObjectMapModel;
 use App\Models\WorldObjectModel;
 use App\Models\TelegramUserModel;
 use App\Services\Player\PlayerDetectionService;
-use CodeIgniter\Controller;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
-use Longman\TelegramBot\Exception\TelegramException;
 
-class ExplorationTaskHandler extends Controller
+/**
+ * v0.51.22 (F2.9 batch-4): extends BaseTaskHandler (per F2.9 contract).
+ * Раніше extends Controller — handler НЕ контроллер.
+ * Telegram lazy-init, Request::sendMessage → safeSendMessage.
+ * `handle(array $task)` → `handle(array $task = []): void`.
+ */
+class ExplorationTaskHandler extends BaseTaskHandler
 {
-    private $telegram;
-    private $playerDetectionService;
+    private PlayerDetectionService $playerDetectionService;
 
     public function __construct()
     {
-        $API_KEY      = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-
-        try {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            Request::initialize($this->telegram);
-        } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
-        }
-
         // Сервис PvP (обнаружения игроков)
         $this->playerDetectionService = new PlayerDetectionService();
     }
 
-    public function handle(array $task)
+    /**
+     * @param array<string,mixed> $task — запис з character_tasks
+     */
+    public function handle(array $task = []): void
     {
         // 1) Завершаем задачу
         $characterTaskModel = new CharacterTaskModel();
@@ -48,7 +42,7 @@ class ExplorationTaskHandler extends Controller
         $character      = $characterModel->find($task['character_id']);
         if (!$character) {
             log_message('error', 'Персонаж не найден при завершении ExplorationTask.');
-            return false;
+            return;
         }
 
         // 3) Небольшое улучшение характеристик
@@ -93,14 +87,14 @@ class ExplorationTaskHandler extends Controller
         $chatRow     = $teleUserModel->find($task['telegram_user_id']);
         if (!$chatRow) {
             log_message('error', 'Не найден Telegram user для результата.');
-            return false;
+            return;
         }
         $chatId = $chatRow['telegram_id'];
 
         $playerCell = $mapModel->where('cell_number', $character['cell_number'])->first();
         if (!$playerCell) {
             log_message('error',"Ячейка персонажа cell_number={$character['cell_number']} не найдена.");
-            return false;
+            return;
         }
 
         $startX = $playerCell['coordinate_x'];
@@ -169,15 +163,11 @@ class ExplorationTaskHandler extends Controller
             ]
         ];
 
-        // 13) Отправляем
-        Request::sendMessage([
-            'chat_id'      => $chatId,
-            'text'         => $text,
+        // 13) Отправляем (lazy через BaseTaskHandler)
+        $this->safeSendMessage($chatId, $text, [
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
-
-        return true;
     }
 
     /**

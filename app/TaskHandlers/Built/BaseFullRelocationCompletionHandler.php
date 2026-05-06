@@ -1,6 +1,6 @@
 <?php
 
-namespace app\TaskHandlers\Built;
+namespace App\TaskHandlers\Built;
 
 use App\Models\CharacterModel;
 use App\Models\CharacterTaskModel;
@@ -9,30 +9,27 @@ use App\Models\CharacterBuildingModel;
 use App\Models\TelegramUserModel;
 use App\Models\MapModel;
 use App\Models\BiomeModel;
-
-use CodeIgniter\Controller;
+use App\TaskHandlers\BaseTaskHandler;
 use CodeIgniter\I18n\Time;
-use Longman\TelegramBot\Telegram;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Exception\TelegramException;
 
 /**
  * Класс обрабатывает завершение Задачи "FullRelocation" (полноценный переезд) за 24 часа.
  * Вызывается воркером, когда end_time <= now().
+ *
+ * v0.51.22 (F2.9 batch-4): extends BaseTaskHandler (per F2.9 contract).
+ * Bonus: PSR-4 namespace casing fixed (`app\` → `App\`).
+ * Telegram lazy-init, Request::sendMessage/sendPhoto → safeSendMessage/safeSendPhoto.
+ * `handle(array $taskRow)` → `handle(array $task = []): void`.
  */
-class BaseFullRelocationCompletionHandler extends Controller
+class BaseFullRelocationCompletionHandler extends BaseTaskHandler
 {
     protected $characterModel;
     protected $characterTaskModel;
     protected $claimedCellModel;
     protected $characterBuildingModel;
     protected $telegramUserModel;
-
-    // Добавили модели для карты и биомов
     protected $mapModel;
     protected $biomeModel;
-
-    protected $telegram;
 
     public function __construct()
     {
@@ -41,29 +38,18 @@ class BaseFullRelocationCompletionHandler extends Controller
         $this->claimedCellModel       = new ClaimedCellModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
         $this->telegramUserModel      = new TelegramUserModel();
-
-        $this->mapModel   = new MapModel();
-        $this->biomeModel = new BiomeModel();
-
-        // Инициализация Telegram API
-        $API_KEY      = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-        try {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            Request::initialize($this->telegram);
-        } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
-        }
+        $this->mapModel               = new MapModel();
+        $this->biomeModel             = new BiomeModel();
     }
 
     /**
-     * Метод handle($taskRow) вызывается воркером,
-     * когда время задачи "FullRelocation" (status='in_work', end_time <= now()) подошло к концу.
+     * Метод handle вызывается воркером, когда FullRelocation end_time підійшов.
      *
-     * @param array $taskRow Запись из character_tasks
+     * @param array<string,mixed> $task Запись из character_tasks (раніше параметр звався $taskRow).
      */
-    public function handle(array $taskRow)
+    public function handle(array $task = []): void
     {
+        $taskRow = $task;
         $db = \Config\Database::connect();
         $db->reconnect();
 
@@ -190,7 +176,7 @@ class BaseFullRelocationCompletionHandler extends Controller
      * @param string $msg       Текст сообщения
      * @param string|null $photoPath Путь к картинке (если нужно отправить фото)
      */
-    private function notifyUser(array|\App\Entities\CharacterEntity $character, string $msg, ?string $photoPath = null)
+    private function notifyUser(array|\App\Entities\CharacterEntity $character, string $msg, ?string $photoPath = null): void
     {
         $telegramUser = $this->telegramUserModel->find($character['telegram_user_id']);
         if (!$telegramUser || empty($telegramUser['telegram_id'])) {
@@ -199,29 +185,10 @@ class BaseFullRelocationCompletionHandler extends Controller
         }
         $chatId = $telegramUser['telegram_id'];
 
-        // Если есть $photoPath, отправим фото с caption:
         if (!empty($photoPath)) {
-            try {
-                Request::sendPhoto([
-                    'chat_id'    => $chatId,
-                    'photo'      => Request::encodeFile($photoPath),
-                    'caption'    => $msg,
-                    'parse_mode' => 'Markdown',
-                ]);
-            } catch (TelegramException $e) {
-                log_message('error', "BaseFullRelocationCompletionHandler: ошибка при отправке фото: " . $e->getMessage());
-            }
+            $this->safeSendPhoto($chatId, $photoPath, $msg, ['parse_mode' => 'Markdown']);
         } else {
-            // Иначе просто sendMessage
-            try {
-                Request::sendMessage([
-                    'chat_id'    => $chatId,
-                    'text'       => $msg,
-                    'parse_mode' => 'Markdown',
-                ]);
-            } catch (TelegramException $e) {
-                log_message('error', "BaseFullRelocationCompletionHandler: ошибка при отправке текста: " . $e->getMessage());
-            }
+            $this->safeSendMessage($chatId, $msg, ['parse_mode' => 'Markdown']);
         }
     }
 }

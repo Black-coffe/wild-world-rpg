@@ -1,26 +1,29 @@
 <?php
 
-namespace app\TaskHandlers\Built;
+namespace App\TaskHandlers\Built;
 
 use App\Models\CharacterModel;
 use App\Models\CharacterTaskModel;
 use App\Models\ClaimedCellModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\TelegramUserModel;
-use CodeIgniter\Controller;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
-use Longman\TelegramBot\Exception\TelegramException;
+use App\TaskHandlers\BaseTaskHandler;
 use CodeIgniter\I18n\Time;
 
-class BaseRelocationCompletionHandler extends Controller
+/**
+ * v0.51.22 (F2.9 batch-4): extends BaseTaskHandler (per F2.9 contract).
+ * Раніше extends Controller — handler НЕ контроллер.
+ * Bonus: PSR-4 namespace casing fixed (`app\` → `App\`).
+ * Telegram lazy-init, Request::sendMessage → safeSendMessage.
+ * `handle(array $task)` → `handle(array $task = []): void`.
+ */
+class BaseRelocationCompletionHandler extends BaseTaskHandler
 {
     protected $characterModel;
     protected $characterTaskModel;
     protected $claimedCellModel;
     protected $characterBuildingModel;
     protected $telegramUserModel;
-    protected $telegram;
 
     public function __construct()
     {
@@ -29,23 +32,14 @@ class BaseRelocationCompletionHandler extends Controller
         $this->claimedCellModel      = new ClaimedCellModel();
         $this->characterBuildingModel= new CharacterBuildingModel();
         $this->telegramUserModel     = new TelegramUserModel();
-
-        // Инициализация Telegram API (аналогично вашим остальным хендлерам)
-        $API_KEY      = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-        try {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            Request::initialize($this->telegram);
-        } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
-        }
     }
 
     /**
-     * Метод handle($task) вызывается воркером, когда время "переезда" (BaseRelocation) подошло к концу.
-     * $task — массив из character_tasks, где task['task_id'] ссылается на BaseRelocation, а end_time <= now().
+     * Метод handle($task) вызывается воркером, коли BaseRelocation end_time підійшов.
+     *
+     * @param array<string,mixed> $task — масив з character_tasks.
      */
-    public function handle(array $task)
+    public function handle(array $task = []): void
     {
         $db = \Config\Database::connect();
         $db->reconnect();
@@ -105,9 +99,8 @@ class BaseRelocationCompletionHandler extends Controller
     /**
      * Шлёт сообщение: "Переезд завершён, базу можно разбить заново" и т.д.
      */
-    private function notifyUser(array|\App\Entities\CharacterEntity $character)
+    private function notifyUser(array|\App\Entities\CharacterEntity $character): void
     {
-        // Ищем запись в telegram_users
         $telegramUser = $this->telegramUserModel->find($character['telegram_user_id']);
         if (!$telegramUser || empty($telegramUser['telegram_id'])) {
             log_message('error', "BaseRelocationCompletionHandler: не найден telegram_id у персонажа ID {$character['id']}");
@@ -130,15 +123,9 @@ class BaseRelocationCompletionHandler extends Controller
             ]
         ];
 
-        try {
-            Request::sendMessage([
-                'chat_id'      => $chatId,
-                'text'         => $text,
-                'parse_mode'   => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
-            ]);
-        } catch (TelegramException $e) {
-            log_message('error', "BaseRelocationCompletionHandler: ошибка при отправке сообщения: " . $e->getMessage());
-        }
+        $this->safeSendMessage($chatId, $text, [
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
+        ]);
     }
 }
