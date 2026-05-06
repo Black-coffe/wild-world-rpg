@@ -159,6 +159,37 @@ class GameBalance extends BaseConfig
     /** ±N% к итоговому количеству ресурсов из robot gathering. */
     public int $robotGatheringRandomPercent = 20;
 
+    /**
+     * Базовые объёмы добычи робота "за 2 часа", по rarity (10..1).
+     * Чем выше rarity — тем больше base yield.
+     *
+     * @var array<int, int>
+     */
+    public array $robotGatheringBaseAt2h = [
+        10 => 500,
+        9  => 400,
+        8  => 350,
+        7  => 300,
+        6  => 200,
+        5  => 150,
+        4  => 100,
+        3  => 50,
+        2  => 20,
+        1  => 10,
+    ];
+
+    /**
+     * Damping coefficients для low-rarity (1-3) при hoursSpent > 2.
+     * timeCoef = pow(hoursSpent/2, damping[rarity]) — diminishing returns.
+     *
+     * @var array<int, float>
+     */
+    public array $robotGatheringLowRarityDamping = [
+        3 => 0.9,
+        2 => 0.8,
+        1 => 0.7,
+    ];
+
     // ===================================================================
     // Радиус обнаружения PvP (PlayerDetectionService)
     //   радиус = base + floor(level / divisor), capped на max

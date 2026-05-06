@@ -313,12 +313,9 @@ class CompleteRobotGatheringHandler extends Controller
     private function calculateBiomeResources(array $availableResources, float $hoursSpent): array
     {
         $res = [];
-        // Условные базовые значения "за 2 часа"
-        $baseAt2h = [
-            10=>500, 9=>400, 8=>350, 7=>300, 6=>200,
-            5=>150, 4=>100, 3=>50,  2=>20,  1=>10
-        ];
-        $damping = [ 3=>0.9, 2=>0.8, 1=>0.7 ];
+        // v0.51.16: yield tables wired-in через GameBalance (admin може ребалансити через .env)
+        $baseAt2h = $this->cfg->robotGatheringBaseAt2h;
+        $damping  = $this->cfg->robotGatheringLowRarityDamping;
         $rndRange = $this->cfg->robotGatheringRandomPercent;
 
         foreach ($availableResources as $r) {
