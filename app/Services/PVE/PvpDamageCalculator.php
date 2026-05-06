@@ -68,8 +68,8 @@ final class PvpDamageCalculator
      * @return array<string, mixed>
      */
     public function computeDamage(
-        array $attacker,
-        array $defender,
+        array|\App\Entities\CharacterEntity $attacker,
+        array|\App\Entities\CharacterEntity $defender,
         array|\App\Entities\BiomeEntity $biome,
         bool  $luckyStrikeActive,  // see DEAD CODE NOTE in class docblock
         bool  $isFirstHit
@@ -169,7 +169,7 @@ final class PvpDamageCalculator
      * 75% урона: D_base × K_rar × F_type × F_range × F_spec(crit).
      * Контракт идентичен legacy.
      */
-    public function computeEquipmentDamage(array $attacker, array $defender): float
+    public function computeEquipmentDamage(array|\App\Entities\CharacterEntity $attacker, array|\App\Entities\CharacterEntity $defender): float
     {
         $weapon = $this->repo->getEquippedWeapon((int) $attacker['id']);
         if (!$weapon) {

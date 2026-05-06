@@ -14827,6 +14827,12 @@ parameters:
 			path: app/Services/PVE/PvpRoundOrchestrator.php
 
 		-
+			message: '#^Method App\\Services\\PVE\\PvpRoundOrchestrator\:\:determineInitiative\(\) should return array but returns App\\Entities\\CharacterEntity\|array\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/PVE/PvpRoundOrchestrator.php
+
+		-
 			message: '#^Method App\\Services\\PVE\\PvpRoundOrchestrator\:\:simulateFight\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -17917,7 +17923,7 @@ parameters:
 			path: app/TaskHandlers/DeathRouletteHandler.php
 
 		-
-			message: '#^Parameter \#1 \$loser of method App\\TaskHandlers\\DeathRouletteHandler\:\:processDeathAndRespawn\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#1 \$loser of method App\\TaskHandlers\\DeathRouletteHandler\:\:processDeathAndRespawn\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/DeathRouletteHandler.php

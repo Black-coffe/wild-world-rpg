@@ -39,7 +39,7 @@ final class PvpFormulaService
      * Бонус по разнице уровней. Cap'нуто на ±5 ступенек × 0.02 = ±10%.
      * Возвращает значение в [-0.1, +0.1].
      */
-    public function computeLevelBonus(array $attacker, array $defender): float
+    public function computeLevelBonus(array|\App\Entities\CharacterEntity $attacker, array|\App\Entities\CharacterEntity $defender): float
     {
         $diff    = (int) $attacker['level'] - (int) $defender['level'];
         $bounded = max(-$this->cfg->levelDiffCap, min($this->cfg->levelDiffCap, $diff));
@@ -49,7 +49,7 @@ final class PvpFormulaService
     /**
      * Бонус от силы: 100 strength → +10%. Cap 0.1.
      */
-    public function computeStatsBonus(array $attacker): float
+    public function computeStatsBonus(array|\App\Entities\CharacterEntity $attacker): float
     {
         $statVal = (float) ($attacker['strength'] ?? 0);
         $bonus   = $statVal * $this->cfg->statsBonusFactor;
@@ -59,7 +59,7 @@ final class PvpFormulaService
     /**
      * Шанс уворота: agility × 0.25, cap на maxDodgeChance из GameBalance.
      */
-    public function getDodgeChance(array $defender): float
+    public function getDodgeChance(array|\App\Entities\CharacterEntity $defender): float
     {
         $raw = ((float) ($defender['agility'] ?? 0)) * 0.25;
         return min($raw, (float) $this->cfg->maxDodgeChancePercent);
@@ -107,7 +107,7 @@ final class PvpFormulaService
      * Не делает roll — just calculates probability. Caller использует
      * rollPercent сам.
      */
-    public function calculateLuckyStrikeChance(array $attacker, array $defender): float
+    public function calculateLuckyStrikeChance(array|\App\Entities\CharacterEntity $attacker, array|\App\Entities\CharacterEntity $defender): float
     {
         $lvlDiff = (int) $attacker['level'] - (int) $defender['level'];
         if ($lvlDiff >= 0) {

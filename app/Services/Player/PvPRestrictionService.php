@@ -21,13 +21,13 @@ class PvPRestrictionService
 
     /**
      * Проверка, можно ли инициировать PvP между двумя персонажами.
-     * @param array $attacker Массив данных об атакующем.
-     * @param array $defender Массив данных об обороняющемся.
+     * @param array|\App\Entities\CharacterEntity $attacker Массив данных об атакующем.
+     * @param array|\App\Entities\CharacterEntity $defender Массив данных об обороняющемся.
      *
      * @return array Вернёт ['allowed' => bool, 'reason' => string]
      *         Если allowed=false, в reason будет описан запрет.
      */
-    public function checkPvPAllowed(array $attacker, array $defender): array
+    public function checkPvPAllowed(array|\App\Entities\CharacterEntity $attacker, array|\App\Entities\CharacterEntity $defender): array
     {
         // 1. Уровень < 5 => ни атаковать, ни быть атакованным
         if ($attacker['level'] < 5 || $defender['level'] < 5) {

@@ -118,7 +118,7 @@ final class PvpRewardOrchestrator
      * После fix: cell_number сохранён как установил PlayerRespawner.respawn.
      * Этот метод теперь отвечает только за статы / XP / HP / tired.
      */
-    public function processDeathAndRespawn(array $loser): void
+    public function processDeathAndRespawn(array|\App\Entities\CharacterEntity $loser): void
     {
         $before = $this->characterModel->find($loser['id']);
         if (!$before) {
@@ -200,7 +200,7 @@ final class PvpRewardOrchestrator
     /**
      * Текст потерь для проигравшего (DB read для after-state).
      */
-    public function makeLoserDiffText(array $loserBefore): string
+    public function makeLoserDiffText(array|\App\Entities\CharacterEntity $loserBefore): string
     {
         $loserAfter = $this->characterModel->find($loserBefore['id']);
         if (!$loserAfter) {

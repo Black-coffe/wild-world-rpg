@@ -122,7 +122,7 @@ class DeathRouletteHandler extends Controller
      *   - здоровье=0, затем перемещаем на базу/исследованную локацию
      *   - восстанавливаем здоровье/усталость
      */
-    private function processDeathAndRespawn(array $loser): void
+    private function processDeathAndRespawn(array|\App\Entities\CharacterEntity $loser): void
     {
         $model = new CharacterModel();
         $before = $model->find($loser['id']);

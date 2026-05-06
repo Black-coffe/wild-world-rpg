@@ -301,7 +301,7 @@ class AttackPlayerAction extends BaseAction
     /**
      * Соседние клетки (dx ≤ 1 && dy ≤ 1) — пред-валидация перед боем.
      */
-    private function isCellsCloseEnough(array $charA, array $charB): bool
+    private function isCellsCloseEnough(array|\App\Entities\CharacterEntity $charA, array|\App\Entities\CharacterEntity $charB): bool
     {
         if ($charA['cell_number'] === $charB['cell_number']) {
             return true;

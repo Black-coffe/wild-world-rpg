@@ -183,7 +183,7 @@ final class PvpRoundOrchestrator
      * Инициатива: i = agility + (level+1)*0.5. Кто выше — бьёт первым.
      * Если ничья — побеждает первый параметр (c1).
      */
-    public function determineInitiative(array $c1, array $c2): array
+    public function determineInitiative(array|\App\Entities\CharacterEntity $c1, array|\App\Entities\CharacterEntity $c2): array
     {
         $i1 = $c1['agility'] + ($c1['level'] + 1) * 0.5;
         $i2 = $c2['agility'] + ($c2['level'] + 1) * 0.5;
@@ -198,7 +198,7 @@ final class PvpRoundOrchestrator
      * делали `rollPercent(calculateLuckyStrikeChance(...))` напрямую,
      * mt_rand был бы потреблён даже когда chance=0.
      */
-    public function checkLuckyStrike(array $attacker, array $defender): bool
+    public function checkLuckyStrike(array|\App\Entities\CharacterEntity $attacker, array|\App\Entities\CharacterEntity $defender): bool
     {
         $lvlDiff = $attacker['level'] - $defender['level'];
         if ($lvlDiff >= 0) {
