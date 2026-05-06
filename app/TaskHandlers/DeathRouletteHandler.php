@@ -161,10 +161,14 @@ class DeathRouletteHandler extends BaseTaskHandler
     }
 
     /**
-     * Поиск респауна: если у игрока есть база (claimed_cells со статусом active),
-     *   -> возвращаем ту ячейку;
-     * иначе если есть explored_cells -> случайная
-     * иначе -> 1
+     * Death roulette respawn — claimed.status='active' → explored → fallback 1.
+     *
+     * Це 1 з 3 різних respawn implementations у repo:
+     * - {@see PvpRewardOrchestrator::findRespawnCell} — PvP exhaustion (same logic)
+     * - {@see \App\Services\Player\Death\PlayerRespawner::respawn} — general death (biome whitelist)
+     * - {@see DeathRouletteHandler::findRespawnCell} (this) — death roulette
+     *
+     * Semantically intentional divergence (3 типи смерті — різні fallback стратегії).
      */
     private function findRespawnCell(int $charId): int
     {

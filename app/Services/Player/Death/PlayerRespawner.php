@@ -48,6 +48,17 @@ class PlayerRespawner
     }
 
     /**
+     * General death respawn — claimed.status='active' → biome whitelist Y∈[900-999] → fallback 1.
+     *
+     * Це 1 з 3 різних respawn implementations у repo:
+     * - {@see \App\Services\PVE\PvpRewardOrchestrator::findRespawnCell} — PvP exhaustion (claimed → explored)
+     * - {@see \App\TaskHandlers\DeathRouletteHandler::findRespawnCell} — death roulette (claimed → explored)
+     * - {@see PlayerRespawner::respawn} (this) — general death (claimed → biome whitelist)
+     *
+     * Semantically intentional divergence — general death uses safe-biome fallback (Y=900-999,
+     * biome ∈ [1,2,3,6]) для гарантованої безпечної locации, тоді як PvP/roulette use explored
+     * cells (можуть бути dangerous biomes — це частина death penalty).
+     *
      * Перенести персонажа на respawn-клетку. Возвращает новый cell_number.
      */
     public function respawn(int $characterId): int

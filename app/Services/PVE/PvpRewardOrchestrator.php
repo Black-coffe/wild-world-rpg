@@ -183,6 +183,22 @@ final class PvpRewardOrchestrator
      * NOTE: Не путать с PlayerRespawner.respawn (F2.8b) — там status=active
      * фильтр и biome-aware random. Здесь preserve legacy behavior 1:1.
      */
+    /**
+     * PvP exhaustion respawn — claimed (ANY status) → explored → fallback 1.
+     *
+     * ⚠️ **Intentional legacy bug preserved**: НЕ фільтрує по `status='active'`.
+     * Гравець на inactive/pending базі може respawn'итися туди. Тест
+     * `PvpRewardOrchestratorTest::testFindRespawnReturnsClaimedCellIgnoringStatus`
+     * locks-in цю поведінку як "preserve as-is" для backward compat.
+     * Якщо колись виправлятимемо — оновлювати разом з тестом + перевіряти PvP UX.
+     *
+     * Це 1 з 3 різних respawn implementations у repo:
+     * - {@see PvpRewardOrchestrator::findRespawnCell} (this) — PvP exhaustion (claimed any status)
+     * - {@see \App\Services\Player\Death\PlayerRespawner::respawn} — general death (biome whitelist)
+     * - {@see \App\TaskHandlers\DeathRouletteHandler::findRespawnCell} — death roulette (claimed active)
+     *
+     * Semantically intentional divergence (3 типи смерті — різні fallback стратегії).
+     */
     public function findRespawnCell(int $charId): int
     {
         $claimed = $this->claimedCellModel->where('character_id', $charId)->first();
