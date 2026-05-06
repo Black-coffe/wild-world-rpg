@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Services\PVE;
 
-use App\Entities\CharacterEntity;
+use App\Entities\BattleCharacter;
 use App\Services\PVE\DamageService;
 use CodeIgniter\Test\CIUnitTestCase;
 use Psr\Log\NullLogger;
@@ -15,7 +15,7 @@ use Psr\Log\NullLogger;
  * безопасной только если у нас есть характеристика «до» в виде тестов.
  *
  * Тесты — pure-unit: никакой БД, моков моделей. DamageService принимает
- * `CharacterEntity` (data class) и `LoggerInterface` (NullLogger в тестах).
+ * `BattleCharacter` (data class) и `LoggerInterface` (NullLogger в тестах).
  *
  * Покрытие:
  *   - calculateDamage: базовый случай, level diff (положительный/отрицательный),
@@ -232,9 +232,9 @@ final class DamageServiceTest extends CIUnitTestCase
     /**
      * @param array<string,mixed> $overrides
      */
-    private function makeCharacter(array $overrides = []): CharacterEntity
+    private function makeCharacter(array $overrides = []): BattleCharacter
     {
-        return new CharacterEntity(array_merge([
+        return new BattleCharacter(array_merge([
             'id'           => 1,
             'name'         => 'Test',
             'level'        => 10,

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\PVE;
 
-use App\Entities\CharacterEntity;
+use App\Entities\BattleCharacter;
 use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
@@ -47,7 +47,7 @@ class RewardService
      * - сравниваем уровень winner и loser
      * - в зависимости от этого выдаём разные статы, золото, ресурсы и крафтовые предметы
      */
-    public function grantRewards(CharacterEntity $winner, CharacterEntity $loser): array
+    public function grantRewards(BattleCharacter $winner, BattleCharacter $loser): array
     {
         // Проверяем, кто слабее по уровню:
         $npcStrongerOrEqual = ($loser->level >= $winner->level);

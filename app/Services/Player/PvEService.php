@@ -10,7 +10,7 @@ use App\Models\CharacterModel;
 use App\Models\NpcSpawnModel;
 use App\Models\NpcModel;
 use App\Models\MapModel;
-use App\Entities\CharacterEntity;
+use App\Entities\BattleCharacter;
 use Psr\Log\LoggerInterface;
 use App\Models\TelegramUserModel;
 use Longman\TelegramBot\Request;
@@ -84,9 +84,9 @@ class PvEService
         $npcData['health'] = $npcSpawnData['current_health'];
         $npcData['name'] = $npcRecord['npc_name_ru'] ?? 'Неизвестный враг';
 
-        // Оборачиваем данные игрока и NPC в объекты CharacterEntity
-        $player = new CharacterEntity($playerData);
-        $npc = new CharacterEntity($npcData);
+        // Оборачиваем данные игрока и NPC в объекты BattleCharacter
+        $player = new BattleCharacter($playerData);
+        $npc = new BattleCharacter($npcData);
 
         // Применяем бонусы от экипировки к игроку
         $this->equipmentService->applyEquipmentBonuses($player);

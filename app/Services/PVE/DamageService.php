@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\PVE;
 
-use App\Entities\CharacterEntity;
+use App\Entities\BattleCharacter;
 use Psr\Log\LoggerInterface;
 
 class DamageService
@@ -19,12 +19,12 @@ class DamageService
     /**
      * Рассчитывает итоговый урон, учитывая бонусы, разницу уровней и броню (с учетом бонуса).
      *
-     * @param CharacterEntity $attacker
-     * @param CharacterEntity $defender
+     * @param BattleCharacter $attacker
+     * @param BattleCharacter $defender
      * @param string $biome
      * @return float
      */
-    public function calculateDamage(CharacterEntity $attacker, CharacterEntity $defender, string $biome): float
+    public function calculateDamage(BattleCharacter $attacker, BattleCharacter $defender, string $biome): float
     {
         $baseDamage = $attacker->damageValue;
         $levelDifference = ($attacker->level - $defender->level) * 0.02;

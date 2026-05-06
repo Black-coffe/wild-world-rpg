@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\PVE;
 
-use App\Entities\CharacterEntity;
+use App\Entities\BattleCharacter;
 use Psr\Log\LoggerInterface;
 
 class EffectService
@@ -19,7 +19,7 @@ class EffectService
     /**
      * Применяет все активные эффекты к персонажу
      */
-    public function applyEffects(CharacterEntity $character): void
+    public function applyEffects(BattleCharacter $character): void
     {
         if ($character->tired < 30) {
             $this->logger->warning("⚠️ {$character->name} устал! Урон снижен.");

@@ -2,7 +2,7 @@
 
 namespace Tests\Unit\Services\PVE;
 
-use App\Entities\CharacterEntity;
+use App\Entities\BattleCharacter;
 use App\Services\PVE\EffectService;
 use CodeIgniter\Test\CIUnitTestCase;
 use Psr\Log\NullLogger;
@@ -11,7 +11,7 @@ use Psr\Log\NullLogger;
  * F2.11+ — unit-тесты EffectService::applyEffects.
  *
  * EffectService — pure-functional с side-effects ТОЛЬКО на переданный
- * CharacterEntity, БД не трогает. Идеальный кандидат для unit-теста
+ * BattleCharacter, БД не трогает. Идеальный кандидат для unit-теста
  * без моков.
  *
  * Поведение из EffectService.php (sourсе истины):
@@ -203,9 +203,9 @@ final class EffectServiceTest extends CIUnitTestCase
     /**
      * @param array<string,mixed> $overrides
      */
-    private function makeCharacter(array $overrides = []): CharacterEntity
+    private function makeCharacter(array $overrides = []): BattleCharacter
     {
-        return new CharacterEntity(array_merge([
+        return new BattleCharacter(array_merge([
             'id'           => 1,
             'name'         => 'Test',
             'level'        => 10,

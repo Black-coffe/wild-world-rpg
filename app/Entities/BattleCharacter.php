@@ -2,7 +2,12 @@
 
 namespace App\Entities;
 
-class CharacterEntity
+/**
+ * F1.4.4 Step A — переименование hand-rolled DTO `CharacterEntity` → `BattleCharacter`
+ * для освобождения namespace под CI4 Entity (Step B). Семантически это «персонаж в бою»:
+ * единый combat-profile для player и NPC, оборачивает данные перед `BattleService::startFight()`.
+ */
+class BattleCharacter
 {
     public int $id;
     public string $name;

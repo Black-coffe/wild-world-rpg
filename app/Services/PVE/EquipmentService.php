@@ -9,7 +9,7 @@ use App\Models\OutfitModel;
 use App\Models\CharactersWeaponsModel;
 use App\Models\WeaponModel;
 use Psr\Log\LoggerInterface;
-use App\Entities\CharacterEntity;
+use App\Entities\BattleCharacter;
 
 class EquipmentService
 {
@@ -75,11 +75,11 @@ class EquipmentService
     }
 
     /**
-     * Применяет бонусы от экипировки к объекту CharacterEntity.
+     * Применяет бонусы от экипировки к объекту BattleCharacter.
      *
-     * @param CharacterEntity $character
+     * @param BattleCharacter $character
      */
-    public function applyEquipmentBonuses(CharacterEntity $character): void
+    public function applyEquipmentBonuses(BattleCharacter $character): void
     {
         $bonuses = $this->getEquipmentBonuses($character->id);
 

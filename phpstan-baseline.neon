@@ -13189,22 +13189,22 @@ parameters:
 			path: app/Controllers/Worker.php
 
 		-
-			message: '#^Method App\\Entities\\CharacterEntity\:\:__construct\(\) has parameter \$data with no value type specified in iterable type array\.$#'
+			message: '#^Method App\\Entities\\BattleCharacter\:\:__construct\(\) has parameter \$data with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
-			path: app/Entities/CharacterEntity.php
+			path: app/Entities/BattleCharacter.php
 
 		-
-			message: '#^Method App\\Entities\\CharacterEntity\:\:getEquippedItem\(\) return type has no value type specified in iterable type array\.$#'
+			message: '#^Method App\\Entities\\BattleCharacter\:\:getEquippedItem\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
-			path: app/Entities/CharacterEntity.php
+			path: app/Entities/BattleCharacter.php
 
 		-
-			message: '#^Property App\\Entities\\CharacterEntity\:\:\$equipment type has no value type specified in iterable type array\.$#'
+			message: '#^Property App\\Entities\\BattleCharacter\:\:\$equipment type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
-			path: app/Entities/CharacterEntity.php
+			path: app/Entities/BattleCharacter.php
 
 		-
 			message: '#^Access to an undefined property App\\Entities\\User\:\:\$activation_hash\.$#'
@@ -16747,13 +16747,13 @@ parameters:
 			path: app/Services/PVE/BattleService.php
 
 		-
-			message: '#^Access to an undefined property App\\Entities\\CharacterEntity\:\:\$armorBonus\.$#'
+			message: '#^Access to an undefined property App\\Entities\\BattleCharacter\:\:\$armorBonus\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Services/PVE/EquipmentService.php
 
 		-
-			message: '#^Access to an undefined property App\\Entities\\CharacterEntity\:\:\$attackSpeedBonus\.$#'
+			message: '#^Access to an undefined property App\\Entities\\BattleCharacter\:\:\$attackSpeedBonus\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Services/PVE/EquipmentService.php
@@ -17923,7 +17923,7 @@ parameters:
 			path: app/Services/Player/PvEService.php
 
 		-
-			message: '#^Parameter \#1 \$winner of method App\\Services\\PVE\\RewardService\:\:grantRewards\(\) expects App\\Entities\\CharacterEntity, object given\.$#'
+			message: '#^Parameter \#1 \$winner of method App\\Services\\PVE\\RewardService\:\:grantRewards\(\) expects App\\Entities\\BattleCharacter, object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Player/PvEService.php

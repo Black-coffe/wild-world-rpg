@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\PVE;
 
-use App\Entities\CharacterEntity;
+use App\Entities\BattleCharacter;
 use Psr\Log\LoggerInterface;
 
 class BattleService
@@ -35,12 +35,12 @@ class BattleService
     /**
      * Запускает бой между игроком и NPC с подробным логированием каждого раунда.
      *
-     * @param CharacterEntity $player
-     * @param CharacterEntity $npc
+     * @param BattleCharacter $player
+     * @param BattleCharacter $npc
      * @param string $biome
      * @return array Итог боя, подробный лог, победитель, проигравший, номер раундов и имя первого атакующего.
      */
-    public function startFight(CharacterEntity $player, CharacterEntity $npc, string $biome): array
+    public function startFight(BattleCharacter $player, BattleCharacter $npc, string $biome): array
     {
         $round = 0;
         $battleLog = [];
@@ -106,7 +106,7 @@ class BattleService
         ];
     }
 
-    private function npcShouldFlee(CharacterEntity $npc): bool
+    private function npcShouldFlee(BattleCharacter $npc): bool
     {
         if ($npc->isBoss) {
             return false;
@@ -117,7 +117,7 @@ class BattleService
         return false;
     }
 
-    private function npcShouldPanic(CharacterEntity $npc): bool
+    private function npcShouldPanic(BattleCharacter $npc): bool
     {
         if ($npc->health < 20 && rand(1, 100) <= 50) {
             return true;
@@ -128,10 +128,10 @@ class BattleService
     /**
      * Определяет, должен ли босс перейти в режим "Ярость".
      *
-     * @param CharacterEntity $npc
+     * @param BattleCharacter $npc
      * @return bool
      */
-    private function shouldEnterRageMode(CharacterEntity $npc): bool
+    private function shouldEnterRageMode(BattleCharacter $npc): bool
     {
         return $npc->isBoss && $npc->health < self::RAGE_HP_THRESHOLD;
     }
