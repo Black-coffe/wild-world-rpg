@@ -3,6 +3,7 @@
 namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
+use App\Models\AdminAuditLogModel;
 use App\Models\BiomeModel;
 use CodeIgniter\API\ResponseTrait;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -70,6 +71,13 @@ class BiomeController extends BaseController
         $updated = $this->biomeModel->update($biomeId, $data);
 
         if ($updated) {
+            // F1.9 expansion: audit-лог змін балансу біому (gather rates / survival_difficulty / etc)
+            $this->auditAdminAction('BIOME_UPDATE', 'biome', (int) $biomeId, [
+                'name'                => $this->request->getPost('name'),
+                'gather_rate'         => $this->request->getPost('gather_rate'),
+                'survival_difficulty' => $this->request->getPost('survival_difficulty'),
+                'danger_level'        => $this->request->getPost('danger_level'),
+            ]);
             // Успешно обновлено, устанавливаем флеш-сообщение
             session()->setFlashdata('success', 'Биом успешно обновлен.');
             // Перенаправляем пользователя на страницу всех биомов
@@ -79,4 +87,15 @@ class BiomeController extends BaseController
         }
     }
 
+    /**
+     * F1.9 expansion (v0.51.10): єдина точка запису destructive admin actions.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function auditAdminAction(string $action, ?string $targetType, ?int $targetId, array $payload = []): void
+    {
+        $auth = service('auth');
+        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
+        (new AdminAuditLogModel())->record($adminUserId, $action, $targetType, $targetId, $payload);
+    }
 }

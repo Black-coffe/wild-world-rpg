@@ -3,6 +3,7 @@
 namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
+use App\Models\AdminAuditLogModel;
 use App\Models\BiomeModel;
 use App\Models\ResourceModel;
 use CodeIgniter\API\ResponseTrait;
@@ -88,6 +89,14 @@ class ResourceController extends BaseController
             return redirect()->back()->withInput()->with('errors', $this->resourceModel->errors());
         }
 
+        // F1.9 expansion: audit-лог створення ресурсу (gameplay impact — нові collectible items)
+        $this->auditAdminAction('RESOURCE_CREATE', 'resource', (int) $id, [
+            'name'    => $this->request->getPost('name'),
+            'rarity'  => $this->request->getPost('rarity'),
+            'type'    => $this->request->getPost('type'),
+            'biome_id' => $this->request->getPost('biome_id'),
+        ]);
+
         // Успешно сохранено, устанавливаем флеш-сообщение и перенаправляем на страницу списка ресурсов
         session()->setFlashdata('success', 'Новый ресурс успешно добавлен.');
         return redirect()->to(site_url('admin/resources'));
@@ -142,6 +151,13 @@ class ResourceController extends BaseController
         $updated = $this->resourceModel->update($resourceId, $data);
 
         if ($updated) {
+            // F1.9 expansion: audit-лог змін ресурсу (rarity / type / biome assignment)
+            $this->auditAdminAction('RESOURCE_UPDATE', 'resource', (int) $resourceId, [
+                'name'    => $this->request->getPost('name'),
+                'rarity'  => $this->request->getPost('rarity'),
+                'type'    => $this->request->getPost('type'),
+                'biome_id' => $this->request->getPost('biome_id'),
+            ]);
             // Успешно обновлено, устанавливаем флеш-сообщение
             session()->setFlashdata('success', 'Ресурс успешно обновлен.');
             // Перенаправляем пользователя на страницу всех ресурсов
@@ -201,5 +217,15 @@ class ResourceController extends BaseController
         return implode(', ', $translatedTypes);
     }
 
-
+    /**
+     * F1.9 expansion (v0.51.10): єдина точка запису destructive admin actions.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function auditAdminAction(string $action, ?string $targetType, ?int $targetId, array $payload = []): void
+    {
+        $auth = service('auth');
+        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
+        (new AdminAuditLogModel())->record($adminUserId, $action, $targetType, $targetId, $payload);
+    }
 }
