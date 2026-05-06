@@ -137,23 +137,20 @@ class WorldObjectController extends BaseController
             return $this->failValidationErrors($this->validator?->getErrors() ?? []);
         }
 
+        // v0.51.12: fixed duplicate $worldObjectModel->update() call (was calling update
+        // twice — once for $result + once inside if() — wasteful 2× DB write per request).
         $result = $this->worldObjectModel->update($objectId, $data);
-        log_message('debug', 'Update result: ' . $result);
 
         if ($result === false) {
             log_message('error', 'Update failed with error: ' . print_r($this->worldObjectModel->errors(), true));
             return $this->failServerError('Не удалось обновить объект.');
         }
 
-        if ($this->worldObjectModel->update($objectId, $data)) {
-            $this->auditAdminAction('WORLD_OBJECT_UPDATE', 'world_object', (int) $objectId, [
-                'name' => $this->request->getPost('name'),
-            ]);
-            session()->setFlashdata('success', 'Объект успешно обновлен.');
-            return redirect()->to(site_url('admin/world-objects'));
-        } else {
-            return $this->failServerError('Не удалось обновить объект.');
-        }
+        $this->auditAdminAction('WORLD_OBJECT_UPDATE', 'world_object', (int) $objectId, [
+            'name' => $this->request->getPost('name'),
+        ]);
+        session()->setFlashdata('success', 'Объект успешно обновлен.');
+        return redirect()->to(site_url('admin/world-objects'));
     }
 
     public function deleteObject(int|string $objectId): ResponseInterface
