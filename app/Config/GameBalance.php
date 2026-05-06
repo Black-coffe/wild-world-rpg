@@ -148,6 +148,14 @@ class GameBalance extends BaseConfig
     public int $detectionRadiusDivisor = 500;
     public int $detectionRadiusMax     = 3;
 
+    /**
+     * Cooldown между detection notifications для одной (detector, detected)-пары.
+     * До v0.51.1 был bug: код `> 3` (секунды) при коментарі "1 час 3600 сек".
+     * Залишок від testing-fix PvP runAway flow (commit 82c31a01, 2025-01-10).
+     * 15+ місяців silent spam → fix через wire-in у GameBalance.
+     */
+    public int $playerDetectionCooldownSec = 3600;
+
     // ===================================================================
     // Прочее
     // ===================================================================

@@ -212,7 +212,6 @@ class PlayerDetectionService
         $lastDetectedAt = strtotime($lastDetection['detected_at']);
         $currentTime = time();
 
-        // Проверяем, прошло ли больше 1 часа с последнего уведомления (3600 секунд)
-        return ($currentTime - $lastDetectedAt) > 3;
+        return ($currentTime - $lastDetectedAt) > $this->cfg->playerDetectionCooldownSec;
     }
 }
