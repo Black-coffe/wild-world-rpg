@@ -23,7 +23,7 @@ use App\Services\Events\EventEffectInterface;
  */
 final class RevealCellsEffect implements EventEffectInterface
 {
-    public function compute(array $character, array $eventConfig, array $activeEvent, array $context): array
+    public function compute(array|\App\Entities\CharacterEntity $character, array $eventConfig, array $activeEvent, array $context): array
     {
         $params      = $eventConfig['effect_params'] ?? [];
         $levelTable  = $params['level_table'] ?? [];

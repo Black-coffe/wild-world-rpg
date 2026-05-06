@@ -33,13 +33,22 @@ class CI4CharacterRepository implements CharacterRepositoryInterface
     public function findById(int $id): ?array
     {
         $row = $this->model->find($id);
-        return $row === null ? null : (array) $row;
+        if ($row === null) {
+            return null;
+        }
+        // F1.4.4 Step B: Model->find() теперь возвращает CharacterEntity.
+        // (array) cast НЕ работает корректно для CI4 Entity (attributes protected),
+        // нужен toArray() чтобы получить плоский ассоциативный массив.
+        return $row instanceof \App\Entities\CharacterEntity ? $row->toArray() : (array) $row;
     }
 
     public function findByTelegramUserId(int $telegramUserId): ?array
     {
         $row = $this->model->where('telegram_user_id', $telegramUserId)->first();
-        return $row === null ? null : (array) $row;
+        if ($row === null) {
+            return null;
+        }
+        return $row instanceof \App\Entities\CharacterEntity ? $row->toArray() : (array) $row;
     }
 
     public function updateStats(int $characterId, array $stats): bool

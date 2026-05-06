@@ -298,7 +298,7 @@ class GatherAction extends BaseAction
     /**
      * Списывает усталость в зависимости от уровня персонажа и проверяет достаточность для начала задания.
      *
-     * @param array $character Данные персонажа
+     * @param array|\App\Entities\CharacterEntity $character Данные персонажа
      * @return bool Возвращает true, если усталость успешно списана, иначе false.
      */
     protected function deductTiredness($character)

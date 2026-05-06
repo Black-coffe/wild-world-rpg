@@ -40,7 +40,7 @@ final class IntentApplier
      * @param array<string, mixed> $result    EffectResult з effect.compute()
      * @return array<string, mixed> Оновлений character (перечитаний з DB після writes)
      */
-    public function apply(array $character, array $result): array
+    public function apply(array|\App\Entities\CharacterEntity $character, array $result): array
     {
         $charId = (int)$character['id'];
 

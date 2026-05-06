@@ -5467,7 +5467,7 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportAction.php
 
 		-
-			message: '#^Parameter \#1 \$characterRow of method App\\Services\\Player\\TeleportCostService\:\:canPayTeleport\(\) expects array, array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\|null given\.$#'
+			message: '#^Parameter \#1 \$characterRow of method App\\Services\\Player\\TeleportCostService\:\:canPayTeleport\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportAction.php
@@ -12271,7 +12271,7 @@ parameters:
 			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
 
 		-
-			message: '#^Parameter \#1 \$character of method App\\Controllers\\Telegram\\Commands\\BaseShiftingCommand\:\:checkPreconditions\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#1 \$character of method App\\Controllers\\Telegram\\Commands\\BaseShiftingCommand\:\:checkPreconditions\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
@@ -12865,7 +12865,7 @@ parameters:
 			path: app/Controllers/Telegram/Commands/StartCommand.php
 
 		-
-			message: '#^Parameter \#2 \$characterRow of method App\\Services\\Player\\CharacterService\:\:showCharacterInfo\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#2 \$characterRow of method App\\Services\\Player\\CharacterService\:\:showCharacterInfo\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/StartCommand.php
@@ -12943,7 +12943,7 @@ parameters:
 			path: app/Controllers/Telegram/Commands/SystemCommands/CallbackqueryCommand.php
 
 		-
-			message: '#^Parameter \#2 \$characterRow of method App\\Services\\Player\\CharacterService\:\:showCharacterInfo\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#2 \$characterRow of method App\\Services\\Player\\CharacterService\:\:showCharacterInfo\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/SystemCommands/CallbackqueryCommand.php
@@ -12955,19 +12955,19 @@ parameters:
 			path: app/Controllers/Telegram/Commands/SystemCommands/GenericmessageCommand.php
 
 		-
-			message: '#^Parameter \#2 \$characterRow of method App\\Services\\BaseService\:\:showBaseInfo\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#2 \$characterRow of method App\\Services\\BaseService\:\:showBaseInfo\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/SystemCommands/GenericmessageCommand.php
 
 		-
-			message: '#^Parameter \#2 \$characterRow of method App\\Services\\Player\\CharacterService\:\:showCharacterInfo\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#2 \$characterRow of method App\\Services\\Player\\CharacterService\:\:showCharacterInfo\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/SystemCommands/GenericmessageCommand.php
 
 		-
-			message: '#^Parameter \#2 \$characterRow of method App\\Services\\World\\MapService\:\:showMapWithPlayer\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#2 \$characterRow of method App\\Services\\World\\MapService\:\:showMapWithPlayer\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/SystemCommands/GenericmessageCommand.php
@@ -13849,117 +13849,117 @@ parameters:
 			path: app/Models/CharacterGameTipModel.php
 
 		-
-			message: '#^Cannot access offset ''agility'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Cannot access property \$agility on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
 			count: 1
 			path: app/Models/CharacterModel.php
 
 		-
-			message: '#^Cannot access offset ''agility'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Cannot access property \$agility on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
 			count: 2
 			path: app/Models/CharacterModel.php
 
 		-
-			message: '#^Cannot access offset ''biome_id'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Models/CharacterModel.php
-
-		-
-			message: '#^Cannot access offset ''cell_number'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Models/CharacterModel.php
-
-		-
-			message: '#^Cannot access offset ''cell_number'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Models/CharacterModel.php
-
-		-
-			message: '#^Cannot access offset ''experience'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Models/CharacterModel.php
-
-		-
-			message: '#^Cannot access offset ''gold'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Models/CharacterModel.php
-
-		-
-			message: '#^Cannot access offset ''gold'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Cannot access property \$biome_id on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
 			count: 2
 			path: app/Models/CharacterModel.php
 
 		-
-			message: '#^Cannot access offset ''health'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Cannot access property \$cell_number on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
 			count: 1
 			path: app/Models/CharacterModel.php
 
 		-
-			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Cannot access property \$cell_number on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
 			count: 1
 			path: app/Models/CharacterModel.php
 
 		-
-			message: '#^Cannot access offset ''intellect'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Cannot access property \$experience on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
 			count: 1
 			path: app/Models/CharacterModel.php
 
 		-
-			message: '#^Cannot access offset ''intellect'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Cannot access property \$gold on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
 			count: 1
 			path: app/Models/CharacterModel.php
 
 		-
-			message: '#^Cannot access offset ''level'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Cannot access property \$gold on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
+			count: 3
+			path: app/Models/CharacterModel.php
+
+		-
+			message: '#^Cannot access property \$health on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
 			count: 1
 			path: app/Models/CharacterModel.php
 
 		-
-			message: '#^Cannot access offset ''name'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Cannot access property \$id on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
 			count: 1
 			path: app/Models/CharacterModel.php
 
 		-
-			message: '#^Cannot access offset ''preferred_map_type'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Cannot access property \$intellect on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
 			count: 1
 			path: app/Models/CharacterModel.php
 
 		-
-			message: '#^Cannot access offset ''strength'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Cannot access property \$intellect on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
 			count: 1
 			path: app/Models/CharacterModel.php
 
 		-
-			message: '#^Cannot access offset ''strength'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Cannot access property \$level on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
 			count: 1
 			path: app/Models/CharacterModel.php
 
 		-
-			message: '#^Cannot access offset ''tired'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Cannot access property \$name on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
 			count: 1
 			path: app/Models/CharacterModel.php
 
 		-
-			message: '#^Cannot access offset ''trading_karma'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Cannot access property \$preferred_map_type on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Models/CharacterModel.php
+
+		-
+			message: '#^Cannot access property \$strength on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
 			count: 1
+			path: app/Models/CharacterModel.php
+
+		-
+			message: '#^Cannot access property \$strength on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Models/CharacterModel.php
+
+		-
+			message: '#^Cannot access property \$tired on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Models/CharacterModel.php
+
+		-
+			message: '#^Cannot access property \$trading_karma on array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: property.nonObject
+			count: 2
 			path: app/Models/CharacterModel.php
 
 		-
@@ -13975,13 +13975,7 @@ parameters:
 			path: app/Models/CharacterModel.php
 
 		-
-			message: '#^Method App\\Models\\CharacterModel\:\:getCharacterByTelegramId\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Models/CharacterModel.php
-
-		-
-			message: '#^Method App\\Models\\CharacterModel\:\:getCharacterByTelegramId\(\) should return array\|null but returns array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			message: '#^Method App\\Models\\CharacterModel\:\:getCharacterByTelegramId\(\) should return App\\Entities\\CharacterEntity\|null but returns array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
 			identifier: return.type
 			count: 1
 			path: app/Models/CharacterModel.php
@@ -18835,7 +18829,7 @@ parameters:
 			path: app/TaskHandlers/CharacterDataHandler.php
 
 		-
-			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\CharacterDataHandler\:\:characterLevelProcessing\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\CharacterDataHandler\:\:characterLevelProcessing\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/CharacterDataHandler.php
@@ -18991,13 +18985,13 @@ parameters:
 			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
 
 		-
-			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\CompleteRobotExplorationHandler\:\:calculateNewCellsCircle\(\) expects array, array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\CompleteRobotExplorationHandler\:\:calculateNewCellsCircle\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
 
 		-
-			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\CompleteRobotExplorationHandler\:\:calculateNewCellsSnake\(\) expects array, array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\CompleteRobotExplorationHandler\:\:calculateNewCellsSnake\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
@@ -20245,7 +20239,7 @@ parameters:
 			path: app/TaskHandlers/DeathRouletteHandler.php
 
 		-
-			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\DeathRouletteHandler\:\:sendDeathMessage\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\DeathRouletteHandler\:\:sendDeathMessage\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/DeathRouletteHandler.php
@@ -21229,7 +21223,7 @@ parameters:
 			path: app/TaskHandlers/HealthRegenerationHandler.php
 
 		-
-			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\HealthRegenerationHandler\:\:calculateLevel\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\HealthRegenerationHandler\:\:calculateLevel\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/HealthRegenerationHandler.php
@@ -22375,13 +22369,13 @@ parameters:
 			path: app/TaskHandlers/TaxCollectionHandler.php
 
 		-
-			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\TaxCollectionHandler\:\:sendTelegramNotification\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\TaxCollectionHandler\:\:sendTelegramNotification\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 3
 			path: app/TaskHandlers/TaxCollectionHandler.php
 
 		-
-			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\TaxCollectionHandler\:\:sendTelegramNotificationPhoto\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\TaxCollectionHandler\:\:sendTelegramNotificationPhoto\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/TaxCollectionHandler.php

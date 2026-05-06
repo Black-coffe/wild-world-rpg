@@ -197,7 +197,7 @@ class SellResourceAction extends BaseAction
     /**
      * Собственно, продажа
      */
-    protected function finalizeSale(array $character, int $resourceId, $quantityAction): ServerResponse
+    protected function finalizeSale(array|\App\Entities\CharacterEntity $character, int $resourceId, $quantityAction): ServerResponse
     {
         // Проверяем, есть ли ресурс у игрока
         $charRes = $this->characterResourceModel

@@ -74,7 +74,7 @@ class TeleportUseAction extends BaseAction
     /**
      * Телепорт рюкзаком (TeleportBackpack), раз в 60 минут.
      */
-    private function useBackpackTeleport(array $character): ServerResponse
+    private function useBackpackTeleport(array|\App\Entities\CharacterEntity $character): ServerResponse
     {
         $craftedItemModel    = new CraftedItemsModel();
         $craftedItemLogModel = new CraftedItemsLogModel();
@@ -230,7 +230,7 @@ class TeleportUseAction extends BaseAction
     /**
      * Телепорт за золото
      */
-    private function useGoldTeleport(array $character): ServerResponse
+    private function useGoldTeleport(array|\App\Entities\CharacterEntity $character): ServerResponse
     {
         $characterModel  = new CharacterModel();
         $claimedCellModel = new ClaimedCellModel();

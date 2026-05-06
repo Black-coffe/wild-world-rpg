@@ -2,6 +2,7 @@
 
 use CodeIgniter\Model;
 use App\Models\ExploredCellsModel;
+use App\Entities\CharacterEntity;
 
 class CharacterModel extends Model
 {
@@ -9,7 +10,13 @@ class CharacterModel extends Model
     protected $primaryKey = 'id';
 
     protected $useAutoIncrement = true;
-    protected $returnType = 'array';
+
+    /**
+     * F1.4.4 Step B — Entity-возврат для characters.
+     * Совместимость со старым `$character['name']` обеспечивается через
+     * {@see \App\Entities\Traits\ArrayAccessibleEntity} trait.
+     */
+    protected $returnType = CharacterEntity::class;
 
     /**
      * Поля, которые разрешено массово заполнять
@@ -52,26 +59,25 @@ class CharacterModel extends Model
         }
 
         $info = "Информация о Персонаже:\n";
-        $info .= "Имя: " . $character['name'] . "\n";
-        $info .= "Уровень: " . $character['level'] . "\n";
-        $info .= "Опыт: " . $character['experience'] . "\n";
-        $info .= "Здоровье: " . $character['health'] . "\n";
-        $info .= "Усталость: " . $character['tired'] . "\n";
-        $info .= "Сила: " . $character['strength'] . "\n";
-        $info .= "Ловкость: " . $character['agility'] . "\n";
-        $info .= "Интеллект: " . $character['intellect'] . "\n";
-        $info .= "Золото: " . $character['gold'] . "\n";
-        $info .= "Номер ячейки: " . $character['cell_number'] . "\n";
-        if (isset($character['biome_id'])) {
-            $info .= "ID биома: " . $character['biome_id'] . "\n";
+        $info .= "Имя: " . $character->name . "\n";
+        $info .= "Уровень: " . $character->level . "\n";
+        $info .= "Опыт: " . $character->experience . "\n";
+        $info .= "Здоровье: " . $character->health . "\n";
+        $info .= "Усталость: " . $character->tired . "\n";
+        $info .= "Сила: " . $character->strength . "\n";
+        $info .= "Ловкость: " . $character->agility . "\n";
+        $info .= "Интеллект: " . $character->intellect . "\n";
+        $info .= "Золото: " . $character->gold . "\n";
+        $info .= "Номер ячейки: " . $character->cell_number . "\n";
+        if ($character->biome_id !== null) {
+            $info .= "ID биома: " . $character->biome_id . "\n";
         }
-        if (isset($character['trading_karma'])) {
-            $info .= "Карма торговли: " . $character['trading_karma'] . "\n";
+        if ($character->trading_karma !== null) {
+            $info .= "Карма торговли: " . $character->trading_karma . "\n";
         }
-        if (isset($character['preferred_map_type'])) {
-            $info .= "Тип карты: " . $character['preferred_map_type'] . "\n";
+        if ($character->preferred_map_type !== null) {
+            $info .= "Тип карты: " . $character->preferred_map_type . "\n";
         }
-        // При желании можно вывести и поля про has_renamed / last_name_change.
 
         return $info;
     }
@@ -81,12 +87,12 @@ class CharacterModel extends Model
         $amount = (int) round($amount);
         $character = $this->find($characterId);
 
-        if (!$character || $character['gold'] < $amount) {
+        if (!$character || $character->gold < $amount) {
             log_message('error', "Проблема с персонажем с ID $characterId при попытке списать золото.");
             return false;
         }
 
-        $newGoldAmount = $character['gold'] - $amount;
+        $newGoldAmount = $character->gold - $amount;
         return $this->update($characterId, ['gold' => $newGoldAmount]);
     }
 
@@ -100,7 +106,7 @@ class CharacterModel extends Model
             return false;
         }
 
-        $newGoldAmount = $character['gold'] + $amount;
+        $newGoldAmount = $character->gold + $amount;
         return $this->update($characterId, ['gold' => $newGoldAmount]);
     }
 
@@ -109,7 +115,7 @@ class CharacterModel extends Model
     public function getCurrentLocation(int $characterId)
     {
         $character = $this->find($characterId);
-        return $character ? $character['cell_number'] : null;
+        return $character ? $character->cell_number : null;
     }
 
     public function getNeighboringCells(int $currentCellNumber)
@@ -138,10 +144,10 @@ class CharacterModel extends Model
         $this->where('telegram_users.telegram_id', $telegramId);
         $character = $this->first();
 
-        return $character ? (int) $character['id'] : null;
+        return $character ? (int) $character->id : null;
     }
 
-    public function getCharacterByTelegramId(int $telegramId): ?array
+    public function getCharacterByTelegramId(int $telegramId): ?CharacterEntity
     {
         $this->select('characters.*');
         $this->join('telegram_users', 'telegram_users.id = characters.telegram_user_id');
@@ -160,8 +166,8 @@ class CharacterModel extends Model
             return false;
         }
 
-        $newAgility = round($character['agility'] + $agilityIncrement, 2);
-        $newIntellect = round($character['intellect'] + $intellectIncrement, 2);
+        $newAgility = round($character->agility + $agilityIncrement, 2);
+        $newIntellect = round($character->intellect + $intellectIncrement, 2);
 
         return $this->update($characterId, [
             'agility'   => $newAgility,
@@ -177,8 +183,8 @@ class CharacterModel extends Model
             return false;
         }
 
-        $newStr = round($row['strength'] + $strPlus, 2);
-        $newAgi = round($row['agility'] + $agiPlus, 2);
+        $newStr = round($row->strength + $strPlus, 2);
+        $newAgi = round($row->agility + $agiPlus, 2);
 
         return $this->update($characterId, [
             'strength' => $newStr,

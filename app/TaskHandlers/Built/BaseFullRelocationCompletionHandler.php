@@ -190,7 +190,7 @@ class BaseFullRelocationCompletionHandler extends Controller
      * @param string $msg       Текст сообщения
      * @param string|null $photoPath Путь к картинке (если нужно отправить фото)
      */
-    private function notifyUser(array $character, string $msg, ?string $photoPath = null)
+    private function notifyUser(array|\App\Entities\CharacterEntity $character, string $msg, ?string $photoPath = null)
     {
         $telegramUser = $this->telegramUserModel->find($character['telegram_user_id']);
         if (!$telegramUser || empty($telegramUser['telegram_id'])) {

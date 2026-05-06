@@ -105,7 +105,7 @@ class BaseRelocationCompletionHandler extends Controller
     /**
      * Шлёт сообщение: "Переезд завершён, базу можно разбить заново" и т.д.
      */
-    private function notifyUser(array $character)
+    private function notifyUser(array|\App\Entities\CharacterEntity $character)
     {
         // Ищем запись в telegram_users
         $telegramUser = $this->telegramUserModel->find($character['telegram_user_id']);

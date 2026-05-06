@@ -314,7 +314,7 @@ class GenericBuildingAction extends BaseAction
         return implode("\n", $lines);
     }
 
-    private function calculateDuration(array $character, array $taskRow): int
+    private function calculateDuration(array|\App\Entities\CharacterEntity $character, array $taskRow): int
     {
         $minD = (int) ($taskRow['min_duration'] ?? 60);
         $maxD = (int) ($taskRow['max_duration'] ?? 180);

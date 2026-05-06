@@ -280,7 +280,7 @@ class BaseShiftingCommand extends UserCommand
      * Проверяем кулдаун, нет ли активной задачи FullRelocation.
      * Возвращаем ['ok'=>true,'fullRelocTaskId'=>int] или ['ok'=>false,'error'=>'текст']
      */
-    private function checkPreconditions(array $character, int $chatId): array
+    private function checkPreconditions(array|\App\Entities\CharacterEntity $character, int $chatId): array
     {
         $taskModel = new TaskModel();
         $frTask = $taskModel->where('name','FullRelocation')->first();
@@ -389,7 +389,7 @@ class BaseShiftingCommand extends UserCommand
     private function startRelocationTask(
         int $chatId,
         int $telegramUserId,
-        array $character,
+        array|\App\Entities\CharacterEntity $character,
         int $frTaskId,
         int $mapCellId,
         int $x,

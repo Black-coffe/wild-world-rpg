@@ -53,10 +53,10 @@ class TextMapService
     /**
      * Генерация 12×12 карты (эмоджи) вокруг персонажа.
      *
-     * @param array $characterRow Информация о персонаже (из CharacterModel)
+     * @param array|\App\Entities\CharacterEntity $characterRow Информация о персонаже (из CharacterModel)
      * @return string Текстовая карта
      */
-    public function buildMapOnly(array $characterRow): string
+    public function buildMapOnly(array|\App\Entities\CharacterEntity $characterRow): string
     {
         // 1) Проверяем cell_number
         $cellNumber = $characterRow['cell_number'] ?? 0;
@@ -261,7 +261,7 @@ class TextMapService
      * Возвращает строку о расстоянии до базы, вида "От 🙎‍♂️ до 🏕 = N ходов."
      * Если базы нет — вернётся пустая строка.
      */
-    public function getDistanceLine(array $characterRow): string
+    public function getDistanceLine(array|\App\Entities\CharacterEntity $characterRow): string
     {
         // 1) Проверяем наличие базы
         $claimedRow = $this->claimedCellModel

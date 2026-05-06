@@ -217,7 +217,7 @@ class CharacterDataHandler
      * а персонаж впервые достиг 5 уровня, то при проходе логики один раз высылается сообщение,
      * и потом повторно не отправится.
      *
-     * @param array $character — строка из таблицы characters
+     * @param array|\App\Entities\CharacterEntity $character — строка из таблицы characters
      */
     private function characterLevelProcessing($character)
     {

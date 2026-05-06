@@ -123,10 +123,10 @@ class HealthRegenerationHandler
      * - делим на 4, полученный результат округляем вниз (floor),
      * - минимальный уровень — 1 (если среднее < 1, оставляем 1).
      *
-     * @param array $character Строка персонажа из БД
+     * @param array|\App\Entities\CharacterEntity $character Строка персонажа из БД
      * @return int итоговое значение уровня
      */
-    private function calculateLevel(array $character): int
+    private function calculateLevel(array|\App\Entities\CharacterEntity $character): int
     {
         $total = $character['experience']
             + $character['strength']

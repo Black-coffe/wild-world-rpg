@@ -294,7 +294,7 @@ class TaxCollectionHandler extends Controller
     /**
      * Уведомление игрока (character) в Telegram (просто текст).
      */
-    private function sendTelegramNotification(array $character, string $message)
+    private function sendTelegramNotification(array|\App\Entities\CharacterEntity $character, string $message)
     {
         $telegramUserModel = new TelegramUserModel();
         $tgUser = $telegramUserModel->find($character['telegram_user_id']);
@@ -316,7 +316,7 @@ class TaxCollectionHandler extends Controller
     /**
      * Уведомление с фото + текстом (итоговый отчёт о налогах).
      */
-    private function sendTelegramNotificationPhoto(array $character, string $caption)
+    private function sendTelegramNotificationPhoto(array|\App\Entities\CharacterEntity $character, string $caption)
     {
         $telegramUserModel = new TelegramUserModel();
         $tgUser = $telegramUserModel->find($character['telegram_user_id']);

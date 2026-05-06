@@ -115,7 +115,7 @@ class BaseInfoAction extends BaseAction
      * Случай, когда у персонажа вообще нет базы.
      */
     protected function handleNoBase(
-        array $character,
+        array|\App\Entities\CharacterEntity $character,
         MapModel $mapModel,
         BiomeModel $biomeModel
     ): ServerResponse
@@ -269,7 +269,7 @@ class BaseInfoAction extends BaseAction
      * Если $coverageResult['isCovered']=true, добавим блок текста "удалённое управление".
      */
     protected function showBaseBuildings(
-        array $character,
+        array|\App\Entities\CharacterEntity $character,
         array $claimedCell,
         MapModel $mapModel,
         BiomeModel $biomeModel,

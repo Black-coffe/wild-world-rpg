@@ -99,7 +99,7 @@ class UsePharmacyAction extends BaseAction
         }
     }
 
-    private function applyMedicineEffect(array $character, int $itemId, array $effects)
+    private function applyMedicineEffect(array|\App\Entities\CharacterEntity $character, int $itemId, array $effects)
     {
         // Сохраняем исходные значения
         $originalValues = [

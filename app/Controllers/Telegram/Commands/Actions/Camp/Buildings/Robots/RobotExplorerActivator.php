@@ -43,7 +43,7 @@ class RobotExplorerActivator implements RobotActivatorInterface
      * Метод активации робота-исследователя (показывает инфу и кнопки «Запуск»).
      *
      * @param int   $chatId
-     * @param array $character
+     * @param array|\App\Entities\CharacterEntity $character
      * @return ServerResponse
      */
     public function activate($chatId, $character): ServerResponse

@@ -32,7 +32,7 @@ final class InsuranceCalculator
      * @param int $totalResources           Кол-во записей в character_resources
      *                                       (caller считает через countAllResults).
      */
-    public function calculate(array $character, int $totalResources): int
+    public function calculate(array|\App\Entities\CharacterEntity $character, int $totalResources): int
     {
         $createdAt    = $character['created_at'] ?? '1970-01-01';
         $monthsInGame = (new DateTime($createdAt))

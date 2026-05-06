@@ -310,7 +310,7 @@ class GenericCraftActionStart extends BaseAction
      * normalized score (exp 0.3 / agi 0.3 / int 0.4 на 1000) и обратная
      * интерполяция между min_duration и max_duration.
      */
-    private function calculateCraftingDuration(array $character, array $taskRow): int
+    private function calculateCraftingDuration(array|\App\Entities\CharacterEntity $character, array $taskRow): int
     {
         $expFactor = 0.3;
         $agiFactor = 0.3;

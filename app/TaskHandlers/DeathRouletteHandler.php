@@ -200,7 +200,7 @@ class DeathRouletteHandler extends Controller
      * Отправляем сообщение о смерти и потерях.
      * Если penalty=0 => страховка сработала.
      */
-    private function sendDeathMessage(array $character, array $deathResult)
+    private function sendDeathMessage(array|\App\Entities\CharacterEntity $character, array $deathResult)
     {
         $telegramUserModel = new TelegramUserModel();
         $telegramUser = $telegramUserModel->find($character['telegram_user_id']);

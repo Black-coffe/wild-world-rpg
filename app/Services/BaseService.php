@@ -51,10 +51,10 @@ class BaseService
      * Если базы нет – предлагает разбить лагерь, + показывает биом и его характеристики.
      *
      * @param int   $chatId       ID чата
-     * @param array $characterRow ассоциативный массив с полями персонажа
+     * @param array|\App\Entities\CharacterEntity $characterRow ассоциативный массив с полями персонажа
      * @return ServerResponse
      */
-    public function showBaseInfo(int $chatId, array $characterRow): ServerResponse
+    public function showBaseInfo(int $chatId, array|\App\Entities\CharacterEntity $characterRow): ServerResponse
     {
         // 1. Ищем запись о лагере (claimed_cells)
         $claimedCell = $this->claimedCellModel
@@ -97,7 +97,7 @@ class BaseService
     /**
      * Показывает ситуацию, когда у игрока нет базы.
      */
-    protected function showNoBaseInfo(int $chatId, array $characterRow): ServerResponse
+    protected function showNoBaseInfo(int $chatId, array|\App\Entities\CharacterEntity $characterRow): ServerResponse
     {
         $cellNumber = $characterRow['cell_number'] ?? 0;
 
@@ -224,7 +224,7 @@ class BaseService
      */
     protected function showBaseBuildings(
         int $chatId,
-        array $characterRow,
+        array|\App\Entities\CharacterEntity $characterRow,
         array $claimedCell,
         ?array $coverageResult = null
     ): ServerResponse
@@ -320,10 +320,10 @@ class BaseService
      * чтобы показать информацию о текущей ячейке и предупредить игрока.
      *
      * @param int   $chatId       ID чата
-     * @param array $characterRow данные персонажа (cell_number и т.д.)
+     * @param array|\App\Entities\CharacterEntity $characterRow данные персонажа (cell_number и т.д.)
      * @return ServerResponse
      */
-    public function showCampCreation(int $chatId, array $characterRow): ServerResponse
+    public function showCampCreation(int $chatId, array|\App\Entities\CharacterEntity $characterRow): ServerResponse
     {
         $cellNumber = $characterRow['cell_number'] ?? 0;
         if (!$cellNumber) {

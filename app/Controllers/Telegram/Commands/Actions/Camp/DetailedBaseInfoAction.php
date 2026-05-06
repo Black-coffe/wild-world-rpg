@@ -83,7 +83,7 @@ class DetailedBaseInfoAction extends BaseAction
     /**
      * Случай: у персонажа нет базы вообще.
      */
-    protected function handleNoBase(array $character): ServerResponse
+    protected function handleNoBase(array|\App\Entities\CharacterEntity $character): ServerResponse
     {
         $text = "🤖 Это снова я – *Роби*!\n\n"
             . "У тебя нет ещё разбитого лагеря, а значит и нет базы. "
@@ -110,7 +110,7 @@ class DetailedBaseInfoAction extends BaseAction
      * Случай: у персонажа есть база, но он НЕ на ней и нет покрытия вышки.
      */
     protected function handleNotOnBasePhysically(
-        array $character,
+        array|\App\Entities\CharacterEntity $character,
         array $claimedCell,
         MapModel $mapModel,
         BiomeModel $biomeModel
@@ -161,7 +161,7 @@ class DetailedBaseInfoAction extends BaseAction
      * Если $coverageResult['isCovered'] === true, добавляем пометку «дистанционно» в текст.
      */
     protected function showBuildings(
-        array $character,
+        array|\App\Entities\CharacterEntity $character,
         array $claimedCell,
         MapModel $mapModel,
         BiomeModel $biomeModel,

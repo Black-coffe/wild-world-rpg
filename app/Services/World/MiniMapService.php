@@ -45,7 +45,7 @@ class MiniMapService
      * Генерирует карту 37x37 клеток, от игрока ±18, каждая ячейка 30x30 px.
      * Возвращает путь к PNG или null, если не удалось создать.
      */
-    public function generateLocalMiniMap(array $characterRow): ?string
+    public function generateLocalMiniMap(array|\App\Entities\CharacterEntity $characterRow): ?string
     {
         // 1) Ищем cell_number
         $cellNumber = $characterRow['cell_number'] ?? 0;

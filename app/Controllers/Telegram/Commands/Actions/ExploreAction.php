@@ -184,7 +184,7 @@ class ExploreAction extends BaseAction
     /**
      * Если есть событие Полярная Ночь и игрок в затронутом биоме — увеличиваем время
      */
-    protected function adjustForPolarNightIfNeeded(array $character, int $chosenMinutes): int
+    protected function adjustForPolarNightIfNeeded(array|\App\Entities\CharacterEntity $character, int $chosenMinutes): int
     {
         $final = $chosenMinutes;
 

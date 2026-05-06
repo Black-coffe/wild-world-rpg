@@ -155,7 +155,7 @@ class MoveCharacterAction
     /**
      * Собираем текст (12×12 карта + легенда + здоровье и т.д.)
      */
-    protected function buildMapText(array $character, TextMapService $textMapService): string
+    protected function buildMapText(array|\App\Entities\CharacterEntity $character, TextMapService $textMapService): string
     {
         // Шапка
         $text = "Куда пойдём? Выберите направление с клавиатуры ниже:\n\n";

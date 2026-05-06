@@ -32,7 +32,7 @@ class RobotGathererActivator implements RobotActivatorInterface
      * Метод активации робота-добытчика.
      *
      * @param int   $chatId
-     * @param array $character — данные персонажа (из CharacterModel).
+     * @param array|\App\Entities\CharacterEntity $character — данные персонажа (из CharacterModel).
      * @return ServerResponse
      */
     public function activate($chatId, $character): ServerResponse

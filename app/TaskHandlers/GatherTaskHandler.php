@@ -142,7 +142,7 @@ class GatherTaskHandler extends Controller
     protected function calculateFoundResources(
         array $resources,
         int $spentMinutes,
-        array $character,
+        array|\App\Entities\CharacterEntity $character,
         array $task,
         array $loadedEvents
     ): array {
@@ -298,12 +298,12 @@ class GatherTaskHandler extends Controller
         return $this->formulaService->getBaseQuantityByRarity($rarity);
     }
 
-    protected function getHealthTirednessFactor(array $character): float
+    protected function getHealthTirednessFactor(array|\App\Entities\CharacterEntity $character): float
     {
         return $this->formulaService->getHealthTirednessFactor($character);
     }
 
-    protected function getAvailableResources(array $character): array
+    protected function getAvailableResources(array|\App\Entities\CharacterEntity $character): array
     {
         $cell = $this->mapModel->where('cell_number', $character['cell_number'])->first();
         if (!$cell) {
@@ -327,7 +327,7 @@ class GatherTaskHandler extends Controller
         return $this->formulaService->calculateSpentMinutes($startTime, $endTime);
     }
 
-    protected function saveFoundResources(array $foundResources, array $character, array $task): void
+    protected function saveFoundResources(array $foundResources, array|\App\Entities\CharacterEntity $character, array $task): void
     {
         foreach ($foundResources as $res) {
             $amount = (int) $res['amount'];
@@ -358,7 +358,7 @@ class GatherTaskHandler extends Controller
         $this->updateCharacterStats($character, $foundResources, $task);
     }
 
-    protected function updateCharacterStats(array $character, array $foundResources, array $task)
+    protected function updateCharacterStats(array|\App\Entities\CharacterEntity $character, array $foundResources, array $task)
     {
         $expGain     = 0;
         $healthGain  = 0.0;
@@ -391,7 +391,7 @@ class GatherTaskHandler extends Controller
      */
     protected function sendResourcesFoundReply(
         array $foundResources,
-        array $character,
+        array|\App\Entities\CharacterEntity $character,
         int $spentMinutes,
         string $biomeName
     ): void {

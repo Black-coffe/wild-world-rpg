@@ -72,7 +72,7 @@ final class GatherFormulaService
      * health=50  + tired=50  → 1.0
      * health=0   + tired=0   → 0.1 (clamped)
      */
-    public function getHealthTirednessFactor(array $character): float
+    public function getHealthTirednessFactor(array|\App\Entities\CharacterEntity $character): float
     {
         $healthVal = ((float) $character['health'] - 50) / 50.0;
         $tiredVal  = ((float) $character['tired']  - 50) / 50.0;

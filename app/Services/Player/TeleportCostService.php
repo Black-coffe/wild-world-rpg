@@ -27,10 +27,10 @@ class TeleportCostService
     /**
      * Проверяет, достаточно ли золота у персонажа для телепорта.
      *
-     * @param array $characterRow Персонаж (содержит 'level' и 'gold').
+     * @param array|\App\Entities\CharacterEntity $characterRow Персонаж (содержит 'level' и 'gold').
      * @return bool true, если золота достаточно, иначе false.
      */
-    public function canPayTeleport(array $characterRow): bool
+    public function canPayTeleport(array|\App\Entities\CharacterEntity $characterRow): bool
     {
         $cost = $this->calculateTeleportCost((int)$characterRow['level']);
         return ((int)$characterRow['gold'] >= $cost);

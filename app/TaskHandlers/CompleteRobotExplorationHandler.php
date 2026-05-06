@@ -163,7 +163,7 @@ class CompleteRobotExplorationHandler extends Controller
      * Алгоритм "змейки" (старый вариант) с движением по горизонтали.
      */
     private function calculateNewCellsSnake(
-        array $character,
+        array|\App\Entities\CharacterEntity $character,
         int $cellsToOpen,
         MapModel $mapModel,
         BiomeModel $biomeModel,
@@ -261,7 +261,7 @@ class CompleteRobotExplorationHandler extends Controller
      * Если заданы стартовые координаты, то от них выбираются точки по кругу.
      * При этом не проверяются занятость ячейки чужой базой или изученность – все ячейки в круге помечаются как изученные.
      *
-     * @param array $character Данные персонажа.
+     * @param array|\App\Entities\CharacterEntity $character Данные персонажа.
      * @param int $cellsToOpen Количество ячеек для открытия.
      * @param MapModel $mapModel Модель карты.
      * @param ExploredCellsModel $exploredCellsModel Модель изученных ячеек.
@@ -270,7 +270,7 @@ class CompleteRobotExplorationHandler extends Controller
      * @return array Массив найденных ячеек.
      */
     private function calculateNewCellsCircle(
-        array $character,
+        array|\App\Entities\CharacterEntity $character,
         int $cellsToOpen,
         MapModel $mapModel,
         ExploredCellsModel $exploredCellsModel,

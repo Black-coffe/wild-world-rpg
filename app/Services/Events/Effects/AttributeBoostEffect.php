@@ -25,7 +25,7 @@ final class AttributeBoostEffect implements EventEffectInterface
 {
     private const LARGE_ATTRS = ['health', 'tired', 'gold'];
 
-    public function compute(array $character, array $eventConfig, array $activeEvent, array $context): array
+    public function compute(array|\App\Entities\CharacterEntity $character, array $eventConfig, array $activeEvent, array $context): array
     {
         $params = $eventConfig['effect_params'] ?? [];
         $pool   = $params['attribute_pool'] ?? ['experience','health','strength','agility','intellect','tired','gold'];

@@ -197,7 +197,7 @@ class ObjectCloseWarehouseAction extends BaseAction
     /**
      * Проверяем, находится ли персонаж в той же клетке или в соседней.
      */
-    private function isCharacterNearCell(array $character, int $objectCellNumber): bool
+    private function isCharacterNearCell(array|\App\Entities\CharacterEntity $character, int $objectCellNumber): bool
     {
         // Текущий cell_number игрока
         $charCell = (int) $character['cell_number'];

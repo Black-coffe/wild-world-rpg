@@ -28,9 +28,9 @@ class MapService
      * Если выбрано, рисует нужную карту (учитывая масштаб 2px=1 coord).
      *
      * @param int   $chatId       Куда шлём ответ
-     * @param array $characterRow  Строка персонажа из БД
+     * @param array|\App\Entities\CharacterEntity $characterRow  Строка персонажа из БД
      */
-    public function showMapWithPlayer(int $chatId, array $characterRow): ServerResponse
+    public function showMapWithPlayer(int $chatId, array|\App\Entities\CharacterEntity $characterRow): ServerResponse
     {
         // Проверяем поле preferred_map_type
         $mapType = $characterRow['preferred_map_type'] ?? null;

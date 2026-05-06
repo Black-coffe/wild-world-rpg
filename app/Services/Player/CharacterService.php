@@ -53,7 +53,7 @@ class CharacterService
     /**
      * Показ информации о персонаже + установка клавиатуры.
      */
-    public function showCharacterInfo(int $chatId, array $characterRow): ServerResponse
+    public function showCharacterInfo(int $chatId, array|\App\Entities\CharacterEntity $characterRow): ServerResponse
     {
         // 1. Устанавливаем клавиатуру
         $replyKeyboard = new Keyboard([

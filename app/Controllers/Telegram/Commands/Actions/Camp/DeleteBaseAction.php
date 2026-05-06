@@ -112,7 +112,7 @@ class DeleteBaseAction extends BaseAction
     /**
      * Выводит подсказку игроку о том, как запустить «Полноценный переезд» через команду /base_shifting.
      */
-    private function showFullRelocationInstructions(array $character): ServerResponse
+    private function showFullRelocationInstructions(array|\App\Entities\CharacterEntity $character): ServerResponse
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
@@ -139,7 +139,7 @@ class DeleteBaseAction extends BaseAction
      * Логика моментального сноса (InstantDemolition).
      * Списываем часть ресурсов/крафта, удаляем все здания и лагерь.
      */
-    private function performInstantDemolition(array $character): ServerResponse
+    private function performInstantDemolition(array|\App\Entities\CharacterEntity $character): ServerResponse
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
@@ -230,7 +230,7 @@ class DeleteBaseAction extends BaseAction
     /**
      * Логика "Планируемого сноса": 12 часов, сохраняет всё, но не переносит.
      */
-    private function performPlannedRelocation(array $character): ServerResponse
+    private function performPlannedRelocation(array|\App\Entities\CharacterEntity $character): ServerResponse
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 

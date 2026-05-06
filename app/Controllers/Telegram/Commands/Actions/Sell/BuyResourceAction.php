@@ -109,7 +109,7 @@ class BuyResourceAction extends BaseAction
     /**
      * Стартовый экран, где игроку предлагают выбрать редкость для покупки
      */
-    protected function showStartScreen(array $character): ServerResponse
+    protected function showStartScreen(array|\App\Entities\CharacterEntity $character): ServerResponse
     {
         $goldAmount = number_format($character['gold']);
         $text = "👉*У тебя есть* _{$goldAmount}_ *золотых монет*💰\n\n"
@@ -247,7 +247,7 @@ class BuyResourceAction extends BaseAction
     /**
      * Финальный этап — купить указанный ресурс
      */
-    protected function finalizePurchase(array $character, int $resourceId, int $quantity): ServerResponse
+    protected function finalizePurchase(array|\App\Entities\CharacterEntity $character, int $resourceId, int $quantity): ServerResponse
     {
         $resource = $this->resourceModel->find($resourceId);
         if (!$resource) {

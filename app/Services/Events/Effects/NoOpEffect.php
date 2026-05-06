@@ -17,7 +17,7 @@ use App\Services\Events\EventEffectInterface;
  */
 final class NoOpEffect implements EventEffectInterface
 {
-    public function compute(array $character, array $eventConfig, array $activeEvent, array $context): array
+    public function compute(array|\App\Entities\CharacterEntity $character, array $eventConfig, array $activeEvent, array $context): array
     {
         return EffectResultFactory::make([
             'applied'     => true,

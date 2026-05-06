@@ -26,9 +26,11 @@ namespace App\Repositories\Contracts;
  *      persistence-detail внутри репозитория, domain про него не знает.
  *
  * Возвращаемые типы:
- *   - Сейчас — `array<string,mixed>` (как у CharacterModel),
- *   - Целевое — `App\Entities\CharacterEntity` (после F1.4).
- *   В интерфейсе пока `array`, поменяем при едином переходе.
+ *   - Сейчас — `array<string,mixed>` (как у Repository),
+ *   - Внутри `CI4CharacterRepository::findById/findByTelegramUserId` теперь
+ *     {@see \App\Entities\CharacterEntity}->toArray() (F1.4.4 Step B, 2026-05-06)
+ *     для сохранения совместимости с domain-сервисами.
+ *   - Будущая миграция Repository-API на Entity-возврат — отдельный sprint.
  */
 interface CharacterRepositoryInterface
 {
