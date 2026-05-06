@@ -6,37 +6,27 @@ use App\Models\CharacterModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\BuildingModel;
 use App\TaskHandlers\BaseTaskHandler;
+use Config\GameBalance;
 
 /**
  * v0.51.19 (F2.9 batch-1): extends BaseTaskHandler (per F2.9 contract).
  * Раніше extends Controller — handler НЕ контроллер.
  * Bonus: namespace casing fixed (`app\` → `App\` per PSR-4).
  * `handle()` → `handle(array $task = []): void` (TaskHandlerInterface signature).
+ *
+ * v0.51.24 (C/F6 expansion): gymStrengthByLevel + tickInterval читаються через
+ * config('GameBalance'). Раніше hardcoded private $gymLevels.
  */
 class GymProductionHandler extends BaseTaskHandler
 {
     protected $characterModel;
     protected $characterBuildingModel;
     protected $buildingModel;
+    private GameBalance $cfg;
 
-    /**
-     * Таблица соответствия уровня спортзала и прибавки к силе (раз в цикл).
-     */
-    private $gymLevels = [
-        1  => 0.01,
-        2  => 0.02,
-        3  => 0.03,
-        4  => 0.04,
-        5  => 0.07,
-        6  => 0.09,
-        7  => 0.11,
-        8  => 0.12,
-        9  => 0.14,
-        10 => 0.15,
-    ];
-
-    public function __construct()
+    public function __construct(?GameBalance $cfg = null)
     {
+        $this->cfg = $cfg ?? config('GameBalance');
         $this->characterModel         = new CharacterModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
         $this->buildingModel          = new BuildingModel();
@@ -50,9 +40,9 @@ class GymProductionHandler extends BaseTaskHandler
      */
     public function handle(array $task = []): void
     {
-        // Проверяем, делится ли текущее количество минут на 5
+        // Tick раз на gymTickIntervalMinutes (default 30 хв).
         $currentMinute = (int) date('i');
-        if ($currentMinute % 30 !== 0) {
+        if ($currentMinute % $this->cfg->gymTickIntervalMinutes !== 0) {
             return; // не время
         }
 
@@ -77,12 +67,12 @@ class GymProductionHandler extends BaseTaskHandler
 
             // Определяем уровень спортзала
             $level = (int) $buildingRow['level'];
-            if (!isset($this->gymLevels[$level])) {
+            if (!isset($this->cfg->gymStrengthByLevel[$level])) {
                 log_message('error', "[GymProductionHandler] Invalid level {$level} for building_id={$buildingRow['id']}");
                 continue;
             }
 
-            $strengthIncrement = $this->gymLevels[$level];
+            $strengthIncrement = $this->cfg->gymStrengthByLevel[$level];
 
             // Получаем персонажа
             $characterId = $buildingRow['character_id'];

@@ -222,4 +222,109 @@ class GameBalance extends BaseConfig
 
     /** Штраф кармы за покупку крафта (per item). */
     public float $tradingKarmaBuyPenalty = 0.0002;
+
+    // ===================================================================
+    // Теплица (GreenhouseProductionHandler) — C/F6 expansion (v0.51.24)
+    //   Раніше hardcoded `private $greenhouseLevels` у handler.
+    //   1..10 уровень: water cost + harvest table (Fruit/Berries/Mushrooms/Crops).
+    // ===================================================================
+
+    /**
+     * Расход воды + harvest за tick по уровню теплицы (1..10).
+     *
+     * @var array<int, array<string, int>>
+     */
+    public array $greenhouseLevels = [
+        1  => ['water' => 1,  'Fruit' => 2, 'Berries' => 1],
+        2  => ['water' => 2,  'Fruit' => 2, 'Berries' => 2],
+        3  => ['water' => 3,  'Fruit' => 3, 'Berries' => 2],
+        4  => ['water' => 4,  'Fruit' => 3, 'Berries' => 3],
+        5  => ['water' => 5,  'Fruit' => 3, 'Berries' => 3, 'Mushrooms' => 1],
+        6  => ['water' => 6,  'Fruit' => 4, 'Berries' => 3, 'Mushrooms' => 1],
+        7  => ['water' => 7,  'Fruit' => 4, 'Berries' => 4, 'Mushrooms' => 1],
+        8  => ['water' => 8,  'Fruit' => 4, 'Berries' => 4, 'Mushrooms' => 2],
+        9  => ['water' => 9,  'Fruit' => 4, 'Berries' => 4, 'Mushrooms' => 2, 'Crops' => 1],
+        10 => ['water' => 10, 'Fruit' => 5, 'Berries' => 5, 'Mushrooms' => 3, 'Crops' => 2],
+    ];
+
+    /** Cooldown (seconds) між water-shortage notifications для теплиці. */
+    public int $greenhouseWaterShortageCooldownSec = 1800;
+
+    /** Поріг води, нижче якого надсилається warning (≤). */
+    public int $greenhouseWaterShortageThreshold = 3;
+
+    // ===================================================================
+    // Спортзал (Built/GymProductionHandler) — C/F6 expansion (v0.51.24)
+    //   Раніше hardcoded `private $gymLevels` у handler.
+    //   Прибавка к strength раз на tick за уровнем gym (1..10).
+    // ===================================================================
+
+    /**
+     * Прибавка к strength за tick по уровню спортзала (1..10).
+     *
+     * @var array<int, float>
+     */
+    public array $gymStrengthByLevel = [
+        1  => 0.01,
+        2  => 0.02,
+        3  => 0.03,
+        4  => 0.04,
+        5  => 0.07,
+        6  => 0.09,
+        7  => 0.11,
+        8  => 0.12,
+        9  => 0.14,
+        10 => 0.15,
+    ];
+
+    /** Інтервал між gym ticks (хвилин). 30 → раз на 30 хв. */
+    public int $gymTickIntervalMinutes = 30;
+
+    // ===================================================================
+    // Ручна свердловина (Built/HandPumpProductionHandler) — C/F6 expansion (v0.51.24)
+    // ===================================================================
+
+    /**
+     * Базове кол-во води за tick по рівню (1..10).
+     *
+     * @var array<int, int>
+     */
+    public array $handPumpLevels = [
+        1  => 1,
+        2  => 2,
+        3  => 3,
+        4  => 4,
+        5  => 7,
+        6  => 9,
+        7  => 11,
+        8  => 14,
+        9  => 17,
+        10 => 20,
+    ];
+
+    /**
+     * Біом-множник для production воді у HandPump.
+     *
+     * @var array<string, float>
+     */
+    public array $handPumpBiomeMultipliers = [
+        'wet'      => 1.2,
+        'cold'     => 0.9,
+        'dry'      => 0.5,
+        'volcanic' => 0.7,
+        'cave'     => 0.6,
+        'plain'    => 1.0,
+    ];
+
+    // ===================================================================
+    // Робот-исследователь (CompleteRobotExplorationHandler) — C/F6 expansion (v0.51.24)
+    //   cellsPerHour = base + max(0, level-1) × perLevel
+    //   default 50 cells/hour at level 1, +10 cells/hour per workshop level.
+    // ===================================================================
+
+    /** Базове кол-во ячеек/час що відкриває робот на 1-му рівні мастерської. */
+    public int $roboticsExplorationCellsBase = 50;
+
+    /** +N ячеек/час за кожен рівень мастерської понад 1. */
+    public int $roboticsExplorationCellsPerLevel = 10;
 }

@@ -8,12 +8,16 @@ use App\Models\BuildingModel;
 use App\Models\ResourceModel;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
+use Config\GameBalance;
 
 /**
  * v0.51.19 (F2.9 batch-1): extends BaseTaskHandler (per F2.9 contract).
  * Раніше extends Controller — це історично-неправильно (handler НЕ контроллер).
  * Telegram lazy-init через BaseTaskHandler::telegram(), Request::sendMessage → safeSendMessage.
  * `handle()` → `handle(array $task = []): void` (TaskHandlerInterface signature).
+ *
+ * v0.51.24 (C/F6 expansion): greenhouseLevels + water shortage cooldown + threshold
+ * читаються через config('GameBalance'). Раніше hardcoded private $greenhouseLevels.
  */
 class GreenhouseProductionHandler extends BaseTaskHandler
 {
@@ -24,24 +28,11 @@ class GreenhouseProductionHandler extends BaseTaskHandler
     protected $characterModel;
     protected $telegramUserModel;
 
-    /**
-     * Хранит данные о расходе и добыче ресурсов в зависимости от уровня теплицы.
-     */
-    private $greenhouseLevels = [
-        1 => ['water' => 1,  'Fruit' => 2, 'Berries' => 1],
-        2 => ['water' => 2,  'Fruit' => 2, 'Berries' => 2],
-        3 => ['water' => 3,  'Fruit' => 3, 'Berries' => 2],
-        4 => ['water' => 4,  'Fruit' => 3, 'Berries' => 3],
-        5 => ['water' => 5,  'Fruit' => 3, 'Berries' => 3, 'Mushrooms' => 1],
-        6 => ['water' => 6,  'Fruit' => 4, 'Berries' => 3, 'Mushrooms' => 1],
-        7 => ['water' => 7,  'Fruit' => 4, 'Berries' => 4, 'Mushrooms' => 1],
-        8 => ['water' => 8,  'Fruit' => 4, 'Berries' => 4, 'Mushrooms' => 2],
-        9 => ['water' => 9,  'Fruit' => 4, 'Berries' => 4, 'Mushrooms' => 2, 'Crops' => 1],
-        10 => ['water' => 10, 'Fruit' => 5, 'Berries' => 5, 'Mushrooms' => 3, 'Crops' => 2],
-    ];
+    private GameBalance $cfg;
 
-    public function __construct()
+    public function __construct(?GameBalance $cfg = null)
     {
+        $this->cfg = $cfg ?? config('GameBalance');
         $this->characterBuildingModel = new CharacterBuildingModel();
         $this->characterResourceModel = new CharacterResourceModel();
         $this->buildingModel          = new BuildingModel();
@@ -75,15 +66,15 @@ class GreenhouseProductionHandler extends BaseTaskHandler
             $level       = (int) $charBuild['level'];
 
             // Проверяем корректность уровня
-            if (!isset($this->greenhouseLevels[$level])) {
+            if (!isset($this->cfg->greenhouseLevels[$level])) {
                 log_message('error', "[GreenhouseProductionHandler] Invalid greenhouse level: $level");
                 continue;
             }
 
-            $waterNeeded = $this->greenhouseLevels[$level]['water'];
+            $waterNeeded = $this->cfg->greenhouseLevels[$level]['water'];
 
             // Массив ресурсов, который теплица будет генерировать (Fruit, Berries и т.п.)
-            $harvest = $this->greenhouseLevels[$level];
+            $harvest = $this->cfg->greenhouseLevels[$level];
             unset($harvest['water']); // убираем ключ water, оставляем только еду
 
             // Получаем ресурс "Water"
@@ -106,9 +97,8 @@ class GreenhouseProductionHandler extends BaseTaskHandler
                 continue;
             }
 
-            // === (1) Проверяем, не надо ли отправить уведомление "мало воды" (<= 3) ===
-            //     (также в этой функции обновляется custom_data, если нужно)
-            if ($charResWater['quantity'] <= 3) {
+            // === (1) Проверяем, не надо ли отправить уведомление "мало воды" (<= threshold) ===
+            if ($charResWater['quantity'] <= $this->cfg->greenhouseWaterShortageThreshold) {
                 $this->checkAndNotifyWaterShortage($charResWater, $characterId);
             }
 
@@ -138,8 +128,8 @@ class GreenhouseProductionHandler extends BaseTaskHandler
      */
     private function checkAndNotifyWaterShortage(array $charResWater, int $characterId): void
     {
-        // Если воды больше 3, ничего не делаем
-        if ($charResWater['quantity'] > 3) {
+        // Если воды больше threshold (default 3), ничего не делаем
+        if ($charResWater['quantity'] > $this->cfg->greenhouseWaterShortageThreshold) {
             return;
         }
 
@@ -159,8 +149,8 @@ class GreenhouseProductionHandler extends BaseTaskHandler
             // Вычисляем разницу во времени
             $lastTime = new \DateTime($lastNotification);
             $diff = $now->getTimestamp() - $lastTime->getTimestamp();
-            // Если прошло меньше 1800 секунд (30 минут), выходим — ничего не делаем
-            if ($diff < 1800) {
+            // Если прошло меньше cooldown (default 1800 секунд = 30 минут), выходим
+            if ($diff < $this->cfg->greenhouseWaterShortageCooldownSec) {
                 return;
             }
         }

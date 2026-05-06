@@ -11,6 +11,7 @@ use App\Models\ClaimedCellModel;
 use App\Models\MapModel;
 use App\Models\BiomeModel;
 use App\TaskHandlers\BaseTaskHandler;
+use Config\GameBalance;
 
 /**
  * Хендлер для производства воды «Ручной скважиной» с учётом биома.
@@ -19,6 +20,9 @@ use App\TaskHandlers\BaseTaskHandler;
  * v0.51.19 (F2.9 batch-1): extends BaseTaskHandler (per F2.9 contract).
  * Раніше extends Controller — handler НЕ контроллер.
  * `handle()` → `handle(array $task = []): void` (TaskHandlerInterface signature).
+ *
+ * v0.51.24 (C/F6 expansion): handPumpLevels + handPumpBiomeMultipliers
+ * читаються через config('GameBalance'). Раніше hardcoded private arrays.
  */
 class HandPumpProductionHandler extends BaseTaskHandler
 {
@@ -30,39 +34,11 @@ class HandPumpProductionHandler extends BaseTaskHandler
     protected $claimedCellModel;
     protected $mapModel;
     protected $biomeModel;
+    private GameBalance $cfg;
 
-    /**
-     * Таблица соответствия уровня скважины и базового количества воды, добываемой за цикл.
-     */
-    private $handPumpLevels = [
-        1  => 1,
-        2  => 2,
-        3  => 3,
-        4  => 4,
-        5  => 7,
-        6  => 9,
-        7  => 11,
-        8  => 14,
-        9  => 17,
-        10 => 20,
-    ];
-
-    /**
-     * Пример простых коэффициентов для разных типов биома (biome_type).
-     * Можно корректировать под ваши нужды.
-     */
-    private $biomeTypeMultipliers = [
-        'wet'      => 1.2,  // реки, леса, тропики — воды больше
-        'cold'     => 0.9,  // горы, тундра
-        'dry'      => 0.5,  // пустыни
-        'volcanic' => 0.7,  // вулканические
-        'cave'     => 0.6,  // пещеры
-        'plain'    => 1.0,  // равнины
-        // остальные при желании
-    ];
-
-    public function __construct()
+    public function __construct(?GameBalance $cfg = null)
     {
+        $this->cfg = $cfg ?? config('GameBalance');
         $this->buildingModel          = new BuildingModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
         $this->characterResourceModel = new CharacterResourceModel();
@@ -113,13 +89,13 @@ class HandPumpProductionHandler extends BaseTaskHandler
 
             // Определяем уровень (1..10)
             $level = (int)$build['level'];
-            if (!isset($this->handPumpLevels[$level])) {
+            if (!isset($this->cfg->handPumpLevels[$level])) {
                 log_message('error', "[HandPumpProductionHandler] Invalid level {$level} for building_id={$build['id']}");
                 continue;
             }
 
             // Базовое кол-во воды
-            $baseWater = $this->handPumpLevels[$level];
+            $baseWater = $this->cfg->handPumpLevels[$level];
 
             // 4. Определяем множитель на основе биома персонажа
             //    Для этого смотрим, где у него "active" лагерь (или просто берем первую запись).
@@ -194,7 +170,7 @@ class HandPumpProductionHandler extends BaseTaskHandler
     private function getBiomeMultiplier(array|\App\Entities\BiomeEntity $biome): float
     {
         $type = $biome['biome_type'] ?? '';
-        return $this->biomeTypeMultipliers[$type] ?? 1.0;
+        return $this->cfg->handPumpBiomeMultipliers[$type] ?? 1.0;
     }
 
     /**

@@ -12,6 +12,7 @@ use App\Models\BiomeWorldObjectMapModel;
 use App\Models\WorldObjectModel;
 use App\Models\TelegramUserModel;
 use App\Services\Player\PlayerDetectionService;
+use Config\GameBalance;
 
 /**
  * Обработчик завершения задачи исследования робота.
@@ -24,13 +25,18 @@ use App\Services\Player\PlayerDetectionService;
  * Раніше extends Controller — handler НЕ контроллер.
  * Telegram lazy-init через BaseTaskHandler::telegram(), Request::sendMessage → safeSendMessage.
  * `handle($task)` → `handle(array $task = []): void` (TaskHandlerInterface signature).
+ *
+ * v0.51.24 (C/F6 expansion): roboticsExplorationCellsBase + cellsPerLevel читаються
+ * через config('GameBalance'). Раніше hardcoded `50 + (level-1) * 10` formula.
  */
 class CompleteRobotExplorationHandler extends BaseTaskHandler
 {
     private PlayerDetectionService $playerDetectionService;
+    private GameBalance $cfg;
 
-    public function __construct()
+    public function __construct(?GameBalance $cfg = null)
     {
+        $this->cfg = $cfg ?? config('GameBalance');
         // Сервис обнаружения ближайших игроков (PvP-логика)
         $this->playerDetectionService = new PlayerDetectionService();
     }
@@ -86,7 +92,9 @@ class CompleteRobotExplorationHandler extends BaseTaskHandler
         }
 
         // 6) Рассчитываем количество ячеек для открытия
-        $cellsPerHour = 50 + max(0, $workshopLevel - 1) * 10;
+        // v0.51.24: base + (level-1) × perLevel читається через GameBalance
+        $cellsPerHour = $this->cfg->roboticsExplorationCellsBase
+                      + max(0, $workshopLevel - 1) * $this->cfg->roboticsExplorationCellsPerLevel;
         $cellsToOpen  = (int) floor($hoursSpent * $cellsPerHour);
 
         // 7) Проверяем, заданы ли стартовые координаты в task_settings (ожидается формат "X,Y")

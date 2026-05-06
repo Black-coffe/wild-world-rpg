@@ -16261,6 +16261,12 @@ parameters:
 			path: app/TaskHandlers/Built/GymProductionHandler.php
 
 		-
+			message: '#^Property App\\TaskHandlers\\Built\\GymProductionHandler\:\:\$cfg \(Config\\GameBalance\) does not accept object\|null\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/TaskHandlers/Built/GymProductionHandler.php
+
+		-
 			message: '#^Property App\\TaskHandlers\\Built\\GymProductionHandler\:\:\$characterBuildingModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
@@ -16273,10 +16279,10 @@ parameters:
 			path: app/TaskHandlers/Built/GymProductionHandler.php
 
 		-
-			message: '#^Property App\\TaskHandlers\\Built\\GymProductionHandler\:\:\$gymLevels has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Possibly invalid array key type mixed\.$#'
+			identifier: offsetAccess.invalidOffset
 			count: 1
-			path: app/TaskHandlers/Built/GymProductionHandler.php
+			path: app/TaskHandlers/Built/HandPumpProductionHandler.php
 
 		-
 			message: '#^Property App\\TaskHandlers\\Built\\HandPumpProductionHandler\:\:\$biomeModel has no type specified\.$#'
@@ -16285,14 +16291,14 @@ parameters:
 			path: app/TaskHandlers/Built/HandPumpProductionHandler.php
 
 		-
-			message: '#^Property App\\TaskHandlers\\Built\\HandPumpProductionHandler\:\:\$biomeTypeMultipliers has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Built\\HandPumpProductionHandler\:\:\$buildingModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Built/HandPumpProductionHandler.php
 
 		-
-			message: '#^Property App\\TaskHandlers\\Built\\HandPumpProductionHandler\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Property App\\TaskHandlers\\Built\\HandPumpProductionHandler\:\:\$cfg \(Config\\GameBalance\) does not accept object\|null\.$#'
+			identifier: assign.propertyType
 			count: 1
 			path: app/TaskHandlers/Built/HandPumpProductionHandler.php
 
@@ -16316,12 +16322,6 @@ parameters:
 
 		-
 			message: '#^Property App\\TaskHandlers\\Built\\HandPumpProductionHandler\:\:\$claimedCellModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/Built/HandPumpProductionHandler.php
-
-		-
-			message: '#^Property App\\TaskHandlers\\Built\\HandPumpProductionHandler\:\:\$handPumpLevels has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Built/HandPumpProductionHandler.php
@@ -16551,6 +16551,12 @@ parameters:
 		-
 			message: '#^Parameter \#1 \$json of function json_decode expects string, mixed given\.$#'
 			identifier: argument.type
+			count: 1
+			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
+
+		-
+			message: '#^Property App\\TaskHandlers\\CompleteRobotExplorationHandler\:\:\$cfg \(Config\\GameBalance\) does not accept object\|null\.$#'
+			identifier: assign.propertyType
 			count: 1
 			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
 
@@ -18289,6 +18295,12 @@ parameters:
 			path: app/TaskHandlers/GreenhouseProductionHandler.php
 
 		-
+			message: '#^Property App\\TaskHandlers\\GreenhouseProductionHandler\:\:\$cfg \(Config\\GameBalance\) does not accept object\|null\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/TaskHandlers/GreenhouseProductionHandler.php
+
+		-
 			message: '#^Property App\\TaskHandlers\\GreenhouseProductionHandler\:\:\$characterBuildingModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
@@ -18302,12 +18314,6 @@ parameters:
 
 		-
 			message: '#^Property App\\TaskHandlers\\GreenhouseProductionHandler\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/GreenhouseProductionHandler.php
-
-		-
-			message: '#^Property App\\TaskHandlers\\GreenhouseProductionHandler\:\:\$greenhouseLevels has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/GreenhouseProductionHandler.php
