@@ -14,18 +14,22 @@ use App\Models\EventModel;
 use App\Models\ActiveEventModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
-use CodeIgniter\Controller;
 use DateTime;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
-use Longman\TelegramBot\Exception\TelegramException;
 use App\Libraries\BiomeResourceModifier;
 use App\Libraries\ToolManager;
 use App\Services\Player\Gather\GatherEventModifierService;
 use App\Services\Player\Gather\GatherFormulaService;
 use App\Services\Player\Gather\ToolDurabilityProcessor;
 
-class GatherTaskHandler extends Controller
+/**
+ * v0.51.23 (F2.9 batch-5 — FINAL closure): extends BaseTaskHandler.
+ * Раніше extends Controller — handler НЕ контроллер.
+ * Telegram lazy-init, Request::sendPhoto → safeSendPhoto.
+ * `handle($task)` → `handle(array $task = []): void`.
+ *
+ * F2.9 ПОВНІСТЮ ЗАКРИТО v0.51.23 — всі 12 task-handlers extends BaseTaskHandler.
+ */
+class GatherTaskHandler extends BaseTaskHandler
 {
     private GatherFormulaService $formulaService;
     private ToolDurabilityProcessor $toolDurability;
@@ -51,8 +55,6 @@ class GatherTaskHandler extends Controller
      * (ключ: имя инструмента, значение: сколько раз применили).
      */
     protected array $usedToolsCount = [];
-
-    private $telegram;
 
     public function __construct()
     {
@@ -85,21 +87,14 @@ class GatherTaskHandler extends Controller
             $this->eventModel,
             $this->activeEventModel
         );
-
-        $API_KEY      = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-        try {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            Request::initialize($this->telegram);
-        } catch (TelegramException $e) {
-            // При желании можно обработать или записать ошибку в лог.
-        }
     }
 
     /**
      * Основная точка входа для обработки задачи сбора ресурсов.
+     *
+     * @param array<string,mixed> $task — запис з character_tasks.
      */
-    public function handle($task)
+    public function handle(array $task = []): void
     {
         $character = $this->characterModel->find($task['character_id']);
         if (!$character) {
@@ -481,17 +476,12 @@ class GatherTaskHandler extends Controller
             ]
         ];
 
-        try {
-            Request::sendPhoto([
-                'chat_id'    => $chatId,
-                'photo'      => Request::encodeFile(base_url('uploads/telegram/loot_resources_in_the_box.png')),
-                'caption'    => $msg,
-                'parse_mode' => 'HTML',
-                'reply_markup' => json_encode($keyboard),
-            ]);
-        } catch (\Longman\TelegramBot\Exception\TelegramException $e) {
-            log_message('error', "Failed to send gather result message to chat_id={$chatId}: " . $e->getMessage());
-        }
+        $this->safeSendPhoto(
+            $chatId,
+            base_url('uploads/telegram/loot_resources_in_the_box.png'),
+            $msg,
+            ['parse_mode' => 'HTML', 'reply_markup' => json_encode($keyboard)]
+        );
     }
 
 }
