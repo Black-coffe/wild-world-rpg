@@ -56,6 +56,12 @@ class GameBalance extends BaseConfig
     /** Доля статов (strength/agility/intellect), теряемая при смерти. */
     public float $deathStatLossPercent = 0.005;
 
+    /** Здоровье при revive после insurance-save (penalty=0). */
+    public float $insuranceRespawnHealth = 80.0;
+
+    /** Усталость при revive после insurance-save. */
+    public float $insuranceRespawnTired = 50.0;
+
     // --- Награда победителю ----------
 
     /** Базовый бонус к опыту победителя за PvP-победу. */

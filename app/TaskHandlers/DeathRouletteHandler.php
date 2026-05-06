@@ -106,19 +106,15 @@ class DeathRouletteHandler extends Controller
 
     /**
      * Если страховка сработала (penalty=0), то можно просто "воскресить" игрока
-     * на той же клетке, без потери статов.
+     * на той же клетке, без потери статов. Restore values configured через GameBalance
+     * (insuranceRespawnHealth/insuranceRespawnTired — wire-in v0.51.5).
      */
     private function reviveSameCell(int $charId): void
     {
-        // Предположим, восстанавливаем здоровье до 80 (или 100),
-        // усталость до 50 (или 0) - на ваше усмотрение
-        $newHealth = 80.0;
-        $newTired  = 50.0;
-
         $model = new CharacterModel();
         $model->update($charId, [
-            'health' => $newHealth,
-            'tired'  => $newTired,
+            'health' => $this->cfg->insuranceRespawnHealth,
+            'tired'  => $this->cfg->insuranceRespawnTired,
         ]);
     }
 

@@ -3,8 +3,6 @@
 namespace App\TaskHandlers;
 
 use App\Models\CharacterModel;
-use App\Models\CharacterBuildingModel;
-use App\Models\CharacterResourceModel;
 use App\Models\MapModel;
 use Config\GameBalance;
 
@@ -33,20 +31,6 @@ class HealthRegenerationHandler
     protected $characterModel;
 
     /**
-     * @var CharacterBuildingModel $characterBuildingModel
-     * Модель, хранящая сведения о построенных зданиях персонажа (в данном примере не используется напрямую,
-     * но инициализируется, чтобы при необходимости в будущем легко добавить логику, зависящую от построек).
-     */
-    protected $characterBuildingModel;
-
-    /**
-     * @var CharacterResourceModel $characterResourceModel
-     * Модель, хранящая данные о ресурсах персонажа (аналогично — не задействована в текущем коде,
-     * но может пригодиться в задачах, связанных с расходом или прибавкой ресурсов).
-     */
-    protected $characterResourceModel;
-
-    /**
      * @var MapModel $mapModel
      * Модель карты (таблица map). Используется при верификации биома персонажа
      * по значению его cell_number.
@@ -56,21 +40,18 @@ class HealthRegenerationHandler
     private GameBalance $cfg;
 
     /**
-     * Конструктор: создаёт экземпляры необходимых моделей,
-     * чтобы методы класса могли работать с таблицами characters, map и пр.
-     *
      * F2.10 wire-in: $cfg инжектируется опционально (для тестов), по умолчанию
      * читается из config('GameBalance') — централизованный balance config.
+     *
+     * v0.51.5 cleanup: удалены dead `characterBuildingModel` и `characterResourceModel`
+     * (декларировались "на будущее", но никогда не использовались).
      */
     public function __construct(?GameBalance $cfg = null)
     {
-        $this->cfg                    = $cfg ?? config('GameBalance');
-        $this->characterModel         = new CharacterModel();
-        $this->characterBuildingModel = new CharacterBuildingModel();
-        $this->characterResourceModel = new CharacterResourceModel();
-
+        $this->cfg            = $cfg ?? config('GameBalance');
+        $this->characterModel = new CharacterModel();
         // Используется при проверке соответствия cell_number → biome_id
-        $this->mapModel = new MapModel();
+        $this->mapModel       = new MapModel();
     }
 
     /**
