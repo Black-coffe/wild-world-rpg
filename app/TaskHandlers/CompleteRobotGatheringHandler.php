@@ -111,10 +111,15 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         $baseCellNumber = (int)$mapRec['cell_number'];
 
         // 5) Мастерская => уровень
+        // v0.51.30 fix (Bug #8): drop `map_cell_id` filter — інконсистентно з
+        // StartRobotGatheringAction (line 126-129) яка не фільтрує по cell.
+        // Якщо user moved base / built another base / has multiple workshops —
+        // completion handler знаходить workshop на старому cell і фейлить.
+        // Reported у Bugs-info: "Робот-добытчик прибыл / Мастерская
+        // робототехники отсутствует" хоча у user'а вона є у списку построек.
         $workshop = $this->characterBuildingModel
             ->where('character_id', $character['id'])
             ->where('building_id', $this->workshopBuildingId)
-            ->where('map_cell_id', $baseRow['map_cell_id'])
             ->first();
         if (!$workshop) {
             $this->sendTextOnly($chatId, "⚙ *Робот-добытчик прибыл*\nНо 🤖Мастерская робототехники🤖 отсутствует.");
