@@ -53,16 +53,6 @@ class ExplorationTaskHandler extends BaseTaskHandler
             return;
         }
 
-        // 3) Небольшое улучшение характеристик (v0.51.27: GameBalance wire-in)
-        $xpBonus   = $this->cfg->explorationXpBonus;
-        $statBonus = $this->cfg->explorationStatBonus;
-        $characterModel->update($character['id'], [
-            'experience' => $character['experience'] + $xpBonus,
-            'strength'   => $character['strength']   + $statBonus,
-            'agility'    => $character['agility']    + $statBonus,
-            'intellect'  => $character['intellect']  + $statBonus,
-        ]);
-
         // 4) Узнаём, сколько минут планировал (chosen_minutes) и сколько реально прошло
         $taskSettings   = json_decode($task['task_settings'] ?? '{}', true);
         $plannedMinutes = $taskSettings['chosen_minutes'] ?? 10; // по умолчанию 10
@@ -75,6 +65,21 @@ class ExplorationTaskHandler extends BaseTaskHandler
         // Tolerance — якщо |delta| ≤ N — беремо planned, інакше actual.
         $delta = abs($actualSpent - $plannedMinutes);
         $finalMinutes = ($delta <= $this->cfg->explorationPlannedTolerance) ? $plannedMinutes : $actualSpent;
+
+        // 3) Улучшение характеристик — scale by time blocks (10 min units).
+        // v0.51.27: GameBalance wire-in. v0.51.28 fix: bonus scales з тривалістю
+        // (0.01 per 10 min × N blocks). Раніше — fixed bonus незалежно від duration.
+        // Bug reported: "исследование или крафт добавляет по 0,01 не зависимо на 10
+        // минут отправился или на 720".
+        $blocks = max(1, intdiv($finalMinutes, 10));
+        $xpBonus   = $this->cfg->explorationXpBonus * $blocks;
+        $statBonus = $this->cfg->explorationStatBonus * $blocks;
+        $characterModel->update($character['id'], [
+            'experience' => $character['experience'] + $xpBonus,
+            'strength'   => $character['strength']   + $statBonus,
+            'agility'    => $character['agility']    + $statBonus,
+            'intellect'  => $character['intellect']  + $statBonus,
+        ]);
 
         // 5) Считаем сырое количество ячеек (1 мин = 1 ячейка)
         $rawCells = $finalMinutes;
