@@ -14971,7 +14971,7 @@ parameters:
 			path: app/Services/Player/DeathService.php
 
 		-
-			message: '#^Parameter \#2 \$loserRow of method App\\Services\\Player\\DeathService\:\:tryUseInsurance\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#2 \$loserRow of method App\\Services\\Player\\DeathService\:\:tryUseInsurance\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Player/DeathService.php

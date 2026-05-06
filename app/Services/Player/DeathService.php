@@ -122,7 +122,7 @@ class DeathService
     /**
      * @return bool true если страховка списалась успешно (штраф 0%).
      */
-    private function tryUseInsurance(int $loserId, array $loserRow): bool
+    private function tryUseInsurance(int $loserId, array|\App\Entities\CharacterEntity $loserRow): bool
     {
         if ((int) ($loserRow['insurance'] ?? 0) !== 1) {
             return false;

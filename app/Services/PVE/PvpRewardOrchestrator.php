@@ -239,7 +239,7 @@ final class PvpRewardOrchestrator
     /**
      * Текст награды для победителя (DB read для after-state).
      */
-    public function makeWinnerDiffText(array $winnerBefore): string
+    public function makeWinnerDiffText(array|\App\Entities\CharacterEntity $winnerBefore): string
     {
         $winnerAfter = $this->characterModel->find($winnerBefore['id']);
         if (!$winnerAfter) {
