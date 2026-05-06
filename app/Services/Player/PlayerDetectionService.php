@@ -6,6 +6,7 @@ use App\Models\CharacterModel;
 use App\Models\MapModel;
 use App\Models\PlayerDetectionHistoryModel;
 use App\Models\TelegramUserModel;
+use Config\GameBalance;
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
@@ -17,9 +18,15 @@ class PlayerDetectionService
     protected $telegramUserModel;
     protected $detectionHistoryModel;
     protected $telegram;
+    private GameBalance $cfg;
 
-    public function __construct()
+    /**
+     * F2.10 wire-in: $cfg инжектируется опционально (для тестов), по умолчанию
+     * читается из config('GameBalance') — централизованный balance config.
+     */
+    public function __construct(?GameBalance $cfg = null)
     {
+        $this->cfg                  = $cfg ?? config('GameBalance');
         $this->characterModel = new CharacterModel();
         $this->mapModel = new MapModel();
         $this->telegramUserModel = new TelegramUserModel();
@@ -70,9 +77,9 @@ class PlayerDetectionService
         // Получаем уровень персонажа
         $level = isset($character['level']) ? (int)$character['level'] : 0;
 
-        // Новый расчёт радиуса (добавили cap на 3):
-        $detectionRadius = 2 + floor($level / 500);
-        $detectionRadius = min($detectionRadius, 3);
+        // Новый расчёт радиуса (detectionRadiusBase=2 + floor(level/500), capped на 3 — все из GameBalance):
+        $detectionRadius = $this->cfg->detectionRadiusBase + (int) floor($level / $this->cfg->detectionRadiusDivisor);
+        $detectionRadius = min($detectionRadius, $this->cfg->detectionRadiusMax);
 
         // Дальше всё как прежде:
         $detectionRadiusSq = $detectionRadius * $detectionRadius;

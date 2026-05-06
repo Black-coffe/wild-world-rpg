@@ -11,6 +11,7 @@ use App\Models\BiomeModel;
 use App\Models\MapModel;
 use App\Models\ResourceModel;
 use App\Models\TelegramUserModel;
+use Config\GameBalance;
 
 class FoodAndWaterConsumptionHandler
 {
@@ -21,9 +22,15 @@ class FoodAndWaterConsumptionHandler
     protected $characterResourceModel;
     protected $telegramUserModel;
     private $telegram;
+    private GameBalance $cfg;
 
-    public function __construct()
+    /**
+     * F2.10 wire-in: $cfg инжектируется опционально (для тестов), по умолчанию
+     * читается из config('GameBalance') — централизованный balance config.
+     */
+    public function __construct(?GameBalance $cfg = null)
     {
+        $this->cfg                    = $cfg ?? config('GameBalance');
         $this->characterModel = new CharacterModel();
         $this->mapModel = new MapModel();
         $this->biomeModel = new BiomeModel();
@@ -73,9 +80,9 @@ class FoodAndWaterConsumptionHandler
                     continue; // Пропускаем обработку персонажа, если биом не найден
                 }
 
-                // Расчет ресурсов еды и воды, которые нужно потребить (умножаем на 3)
-                $foodToConsume = $this->calculateResourceConsumption($character['level'], $biome['survival_difficulty'], 'food') * 3;
-                $waterToConsume = $this->calculateResourceConsumption($character['level'], $biome['survival_difficulty'], 'water') * 3;
+                // Расчет ресурсов еды и воды, которые нужно потребить (mealsPerDay = 3 default)
+                $foodToConsume = $this->calculateResourceConsumption($character['level'], $biome['survival_difficulty'], 'food') * $this->cfg->mealsPerDay;
+                $waterToConsume = $this->calculateResourceConsumption($character['level'], $biome['survival_difficulty'], 'water') * $this->cfg->mealsPerDay;
 
                 // Вычитание ресурсов и отправка сообщения
                 $result = $this->subtractResources($character, $foodToConsume, $waterToConsume);
@@ -208,10 +215,10 @@ class FoodAndWaterConsumptionHandler
 
         switch ($resourceType) {
             case 'food':
-                $resourceToConsume *= 0.6;
+                $resourceToConsume *= $this->cfg->foodMultiplier;
                 break;
             case 'water':
-                $resourceToConsume *= 0.7;
+                $resourceToConsume *= $this->cfg->waterMultiplier;
                 break;
         }
 
@@ -222,7 +229,7 @@ class FoodAndWaterConsumptionHandler
     private function subtractHealth($character, $healthToSubtract, $missingFood = 0, $missingWater = 0)
     {
         $telegramId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
-        $newHealth = max(0.01, $character['health'] / 2); // Новое значение здоровья, не ниже 0.01
+        $newHealth = max(0.01, $character['health'] / $this->cfg->hungerHealthPenaltyDivisor); // Новое значение здоровья, не ниже 0.01 (hungerHealthPenaltyDivisor = 2 default)
         $this->characterModel->update($character['id'], ['health' => $newHealth]); // Обновление здоровья в базе данных
 
         // Добавляем информацию о недостатке ресурсов в текст сообщения

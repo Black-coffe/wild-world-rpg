@@ -15373,6 +15373,12 @@ parameters:
 			path: app/Services/Player/PlayerDetectionService.php
 
 		-
+			message: '#^Property App\\Services\\Player\\PlayerDetectionService\:\:\$cfg \(Config\\GameBalance\) does not accept object\|null\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Services/Player/PlayerDetectionService.php
+
+		-
 			message: '#^Property App\\Services\\Player\\PlayerDetectionService\:\:\$characterModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
@@ -18475,6 +18481,12 @@ parameters:
 			path: app/TaskHandlers/FoodAndWaterConsumptionHandler.php
 
 		-
+			message: '#^Property App\\TaskHandlers\\FoodAndWaterConsumptionHandler\:\:\$cfg \(Config\\GameBalance\) does not accept object\|null\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/TaskHandlers/FoodAndWaterConsumptionHandler.php
+
+		-
 			message: '#^Property App\\TaskHandlers\\FoodAndWaterConsumptionHandler\:\:\$characterModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
@@ -18847,7 +18859,7 @@ parameters:
 			path: app/TaskHandlers/GymProductionHandler.php
 
 		-
-			message: '#^Binary operation "\+" between mixed and 0\.1 results in an error\.$#'
+			message: '#^Binary operation "\+" between mixed and float results in an error\.$#'
 			identifier: binaryOp.invalid
 			count: 1
 			path: app/TaskHandlers/HealthRegenerationHandler.php
@@ -18910,6 +18922,12 @@ parameters:
 			message: '#^Parameter \#1 \$id of method CodeIgniter\\Model\:\:update\(\) expects CodeIgniter\\Database\\RawSql\|int\|list\<int\|string\>\|string\|null, mixed given\.$#'
 			identifier: argument.type
 			count: 2
+			path: app/TaskHandlers/HealthRegenerationHandler.php
+
+		-
+			message: '#^Property App\\TaskHandlers\\HealthRegenerationHandler\:\:\$cfg \(Config\\GameBalance\) does not accept object\|null\.$#'
+			identifier: assign.propertyType
+			count: 1
 			path: app/TaskHandlers/HealthRegenerationHandler.php
 
 		-

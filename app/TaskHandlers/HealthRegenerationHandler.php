@@ -6,6 +6,7 @@ use App\Models\CharacterModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\CharacterResourceModel;
 use App\Models\MapModel;
+use Config\GameBalance;
 
 /**
  * Класс HealthRegenerationHandler
@@ -52,12 +53,18 @@ class HealthRegenerationHandler
      */
     protected $mapModel;
 
+    private GameBalance $cfg;
+
     /**
      * Конструктор: создаёт экземпляры необходимых моделей,
      * чтобы методы класса могли работать с таблицами characters, map и пр.
+     *
+     * F2.10 wire-in: $cfg инжектируется опционально (для тестов), по умолчанию
+     * читается из config('GameBalance') — централизованный balance config.
      */
-    public function __construct()
+    public function __construct(?GameBalance $cfg = null)
     {
+        $this->cfg                    = $cfg ?? config('GameBalance');
         $this->characterModel         = new CharacterModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
         $this->characterResourceModel = new CharacterResourceModel();
@@ -93,22 +100,20 @@ class HealthRegenerationHandler
             // Сохраняем новый уровень, если он отличается от старого
             $this->characterModel->update($character['id'], ['level' => $level]);
 
-            // 2) Если уровень >= 20, то считаем, что больше регенерации не нужно
-            if ($level >= 20) {
+            // 2) Если уровень >= regenLevelCap (20 default), то считаем, что больше регенерации не нужно
+            if ($level >= $this->cfg->regenLevelCap) {
                 continue;
             }
 
-            // 3) Регенерация здоровья
+            // 3) Регенерация здоровья (healthRegenPerTick = 0.05 default)
             if ($character['health'] < 100.0) {
-                // Прибавим 0.05, не превышая 100
-                $newHealth = min(100.0, $character['health'] + 0.05);
+                $newHealth = min(100.0, $character['health'] + $this->cfg->healthRegenPerTick);
                 $this->characterModel->update($character['id'], ['health' => $newHealth]);
             }
 
-            // 4) Регенерация усталости
+            // 4) Регенерация усталости (tiredRegenPerTick = 0.1 default)
             if ($character['tired'] < 100.0) {
-                // Прибавим 0.1, не превышая 100
-                $newTired = min(100.0, $character['tired'] + 0.1);
+                $newTired = min(100.0, $character['tired'] + $this->cfg->tiredRegenPerTick);
                 $this->characterModel->update($character['id'], ['tired' => $newTired]);
             }
         }
