@@ -2,7 +2,6 @@
 
 namespace App\TaskHandlers\Built;
 
-use CodeIgniter\Controller;
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\CharacterResourceModel;
@@ -11,12 +10,17 @@ use App\Models\ResourceModel;
 use App\Models\ClaimedCellModel;
 use App\Models\MapModel;
 use App\Models\BiomeModel;
+use App\TaskHandlers\BaseTaskHandler;
 
 /**
  * Хендлер для производства воды «Ручной скважиной» с учётом биома.
- * Вызывается по крону (например, каждую минуту).
+ * Вызывается по крону каждую минуту.
+ *
+ * v0.51.19 (F2.9 batch-1): extends BaseTaskHandler (per F2.9 contract).
+ * Раніше extends Controller — handler НЕ контроллер.
+ * `handle()` → `handle(array $task = []): void` (TaskHandlerInterface signature).
  */
-class HandPumpProductionHandler extends Controller
+class HandPumpProductionHandler extends BaseTaskHandler
 {
     protected $buildingModel;
     protected $characterBuildingModel;
@@ -76,8 +80,11 @@ class HandPumpProductionHandler extends Controller
      * 3. Проверяет налог (tax_collection_status).
      * 4. Определяет биом, вычисляет множитель.
      * 5. Начисляет воду (с учётом биом-множителя), гарантируя минимум 1.
+     *
+     * @param array<string,mixed> $task TaskHandlerInterface signature (recurring tasks
+     *                                  не приймають task data).
      */
-    public function handle()
+    public function handle(array $task = []): void
     {
         // 1. Находим ID здания "HandPump"
         $handPumpId = $this->getHandPumpId();

@@ -1,13 +1,19 @@
 <?php
 
-namespace app\TaskHandlers\Built;
+namespace App\TaskHandlers\Built;
 
-use CodeIgniter\Controller;
 use App\Models\CharacterModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\BuildingModel;
+use App\TaskHandlers\BaseTaskHandler;
 
-class GymProductionHandler extends Controller
+/**
+ * v0.51.19 (F2.9 batch-1): extends BaseTaskHandler (per F2.9 contract).
+ * Раніше extends Controller — handler НЕ контроллер.
+ * Bonus: namespace casing fixed (`app\` → `App\` per PSR-4).
+ * `handle()` → `handle(array $task = []): void` (TaskHandlerInterface signature).
+ */
+class GymProductionHandler extends BaseTaskHandler
 {
     protected $characterModel;
     protected $characterBuildingModel;
@@ -37,9 +43,12 @@ class GymProductionHandler extends Controller
     }
 
     /**
-     * Вызывается по крону. Срабатывает раз в 5 минут.
+     * Вызывается по крону. Срабатывает раз в 30 минут.
+     *
+     * @param array<string,mixed> $task TaskHandlerInterface signature (recurring tasks
+     *                                  не приймають task data).
      */
-    public function handle()
+    public function handle(array $task = []): void
     {
         // Проверяем, делится ли текущее количество минут на 5
         $currentMinute = (int) date('i');

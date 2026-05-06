@@ -187,12 +187,6 @@ parameters:
 			path: app/Config/Services.php
 
 		-
-			message: '#^Class app\\TaskHandlers\\Built\\GymProductionHandler referenced with incorrect case\: App\\TaskHandlers\\Built\\GymProductionHandler\.$#'
-			identifier: class.nameCase
-			count: 1
-			path: app/Config/Tasks.php
-
-		-
 			message: '#^Method Config\\Tasks\:\:init\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1
@@ -16309,40 +16303,28 @@ parameters:
 			path: app/TaskHandlers/Built/GenericBuildingCompletionHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Built\\GymProductionHandler\:\:handle\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Built/GymProductionHandler.php
-
-		-
-			message: '#^Property app\\TaskHandlers\\Built\\GymProductionHandler\:\:\$buildingModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Built\\GymProductionHandler\:\:\$buildingModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Built/GymProductionHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Built\\GymProductionHandler\:\:\$characterBuildingModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Built\\GymProductionHandler\:\:\$characterBuildingModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Built/GymProductionHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Built\\GymProductionHandler\:\:\$characterModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Built\\GymProductionHandler\:\:\$characterModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Built/GymProductionHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Built\\GymProductionHandler\:\:\$gymLevels has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Built\\GymProductionHandler\:\:\$gymLevels has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Built/GymProductionHandler.php
-
-		-
-			message: '#^Method App\\TaskHandlers\\Built\\HandPumpProductionHandler\:\:handle\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Built/HandPumpProductionHandler.php
 
 		-
 			message: '#^Property App\\TaskHandlers\\Built\\HandPumpProductionHandler\:\:\$biomeModel has no type specified\.$#'
@@ -18409,12 +18391,6 @@ parameters:
 			path: app/TaskHandlers/GreenhouseProductionHandler.php
 
 		-
-			message: '#^Method App\\TaskHandlers\\GreenhouseProductionHandler\:\:handle\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/GreenhouseProductionHandler.php
-
-		-
 			message: '#^Parameter \#1 \$datetime of class DateTime constructor expects string, mixed given\.$#'
 			identifier: argument.type
 			count: 1
@@ -18452,12 +18428,6 @@ parameters:
 
 		-
 			message: '#^Property App\\TaskHandlers\\GreenhouseProductionHandler\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/GreenhouseProductionHandler.php
-
-		-
-			message: '#^Property App\\TaskHandlers\\GreenhouseProductionHandler\:\:\$telegram has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/GreenhouseProductionHandler.php

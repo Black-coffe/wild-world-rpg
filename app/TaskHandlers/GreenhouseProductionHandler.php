@@ -8,11 +8,14 @@ use App\Models\BuildingModel;
 use App\Models\ResourceModel;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
-use CodeIgniter\Controller;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
 
-class GreenhouseProductionHandler extends Controller
+/**
+ * v0.51.19 (F2.9 batch-1): extends BaseTaskHandler (per F2.9 contract).
+ * Раніше extends Controller — це історично-неправильно (handler НЕ контроллер).
+ * Telegram lazy-init через BaseTaskHandler::telegram(), Request::sendMessage → safeSendMessage.
+ * `handle()` → `handle(array $task = []): void` (TaskHandlerInterface signature).
+ */
+class GreenhouseProductionHandler extends BaseTaskHandler
 {
     protected $characterBuildingModel;
     protected $characterResourceModel;
@@ -20,7 +23,6 @@ class GreenhouseProductionHandler extends Controller
     protected $resourceModel;
     protected $characterModel;
     protected $telegramUserModel;
-    protected $telegram;
 
     /**
      * Хранит данные о расходе и добыче ресурсов в зависимости от уровня теплицы.
@@ -46,20 +48,15 @@ class GreenhouseProductionHandler extends Controller
         $this->resourceModel          = new ResourceModel();
         $this->characterModel         = new CharacterModel();
         $this->telegramUserModel      = new TelegramUserModel();
-
-        // Инициализируем Telegram SDK
-        $API_KEY      = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-        if ($API_KEY && $BOT_USERNAME) {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            Request::initialize($this->telegram);
-        }
     }
 
     /**
      * Вызывается по крону. Обрабатывает всех игроков, у кого есть Теплица.
+     *
+     * @param array<string,mixed> $task TaskHandlerInterface signature (recurring tasks
+     *                                  не приймають task data).
      */
-    public function handle()
+    public function handle(array $task = []): void
     {
         // 1) Получаем ID здания "Greenhouse"
         $greenhouseId = $this->getGreenhouseId();
@@ -261,15 +258,6 @@ class GreenhouseProductionHandler extends Controller
             . "У вас осталось всего *{$waterQuantity}* единиц воды.\n"
             . "Если вы не пополните запас, Теплица скоро перестанет приносить урожай!";
 
-        if (!isset($this->telegram)) {
-            log_message('error', '[GreenhouseProductionHandler] Telegram not initialized (no API key).');
-            return;
-        }
-
-        Request::sendMessage([
-            'chat_id'    => $chatId,
-            'text'       => $text,
-            'parse_mode' => 'Markdown',
-        ]);
+        $this->safeSendMessage($chatId, $text, ['parse_mode' => 'Markdown']);
     }
 }
