@@ -7,18 +7,18 @@ use App\Models\QuestStepsModel;
 use App\Models\CharacterModel;
 use App\Models\ExploredCellsModel;
 use App\Models\TelegramUserModel;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
+use App\TaskHandlers\BaseTaskHandler;
 
-class QuestExplore300CellsHandler
+/**
+ * v0.51.38 (F2.9 batch-2 expansion): extends BaseTaskHandler.
+ */
+class QuestExplore300CellsHandler extends BaseTaskHandler
 {
     protected $characterModel;
     protected $telegramUserModel;
     protected $questModel;
     protected $questStepsModel;
     protected $exploredCellsModel;
-    private $telegram;
 
     public function __construct()
     {
@@ -27,22 +27,18 @@ class QuestExplore300CellsHandler
         $this->questModel = new QuestModel();
         $this->questStepsModel = new QuestStepsModel();
         $this->exploredCellsModel = new ExploredCellsModel();
-
-        $API_KEY = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-        try {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            // Регистрация команд
-            $this->telegram->addCommandsPath(__DIR__ . '/Commands');
-
-        } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
-        }
     }
 
-    public function process()
+    /**
+     * @param array<string,mixed> $task TaskHandlerInterface signature.
+     */
+    public function handle(array $task = []): void
     {
         $quest = $this->questModel->where('title_en', 'Explore300Cells')->first();
+        if (!$quest) {
+            return;
+        }
+
         $questSteps = $this->questStepsModel
             ->where('quest_id', $quest['id'])
             ->where('is_completed', 0)
@@ -83,7 +79,7 @@ class QuestExplore300CellsHandler
         }
     }
 
-    protected function sendMessage($telegramUserId, $message)
+    protected function sendMessage($telegramUserId, $message): void
     {
         $keyboard = [
             'inline_keyboard' => [
@@ -99,18 +95,13 @@ class QuestExplore300CellsHandler
                 ]
             ]
         ];
-        $imagePath = base_url('uploads/telegram/quests/explore_30cells.jpg'); // Укажите актуальный путь к изображению
+        $imagePath = base_url('uploads/telegram/quests/explore_30cells.jpg');
 
-        // Ответ на callback запрос, чтобы убрать часики на кнопке
-        Request::answerCallbackQuery(['callback_query_id' => $telegramUserId]);
-
-        // Отправляем сообщение с картинкой и клавиатурой
-        return Request::sendPhoto([
-            'chat_id' => $telegramUserId,
-            'photo' => Request::encodeFile($imagePath),
-            'caption' => $message,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
+        $this->safeSendPhoto(
+            $telegramUserId,
+            $imagePath,
+            $message,
+            ['parse_mode' => 'Markdown', 'reply_markup' => json_encode($keyboard)]
+        );
     }
 }

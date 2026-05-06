@@ -8,10 +8,12 @@ use App\Models\QuestStepsModel;
 use App\Models\CraftedItemsModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\TelegramUserModel;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
+use App\TaskHandlers\BaseTaskHandler;
 
-class QuestFirstAidkitBasicHandler
+/**
+ * v0.51.38 (F2.9 batch-2 expansion): extends BaseTaskHandler.
+ */
+class QuestFirstAidkitBasicHandler extends BaseTaskHandler
 {
     protected $characterModel;
     protected $questModel;
@@ -19,7 +21,6 @@ class QuestFirstAidkitBasicHandler
     protected $telegramUserModel;
     protected $craftedItemsModel;
     protected $craftedItemsLogModel;
-    private $telegram;
 
     public function __construct()
     {
@@ -29,13 +30,12 @@ class QuestFirstAidkitBasicHandler
         $this->craftedItemsModel = new CraftedItemsModel();
         $this->craftedItemsLogModel = new CraftedItemsLogModel();
         $this->telegramUserModel = new TelegramUserModel();
-
-        $API_KEY = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-        $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
     }
 
-    public function process()
+    /**
+     * @param array<string,mixed> $task TaskHandlerInterface signature.
+     */
+    public function handle(array $task = []): void
     {
         $quest = $this->questModel->where('title_en', 'FirstAidkitBasic')->first();
         if (!$quest) {
@@ -75,7 +75,7 @@ class QuestFirstAidkitBasicHandler
         }
     }
 
-    protected function sendMessage($telegramUserId, $message)
+    protected function sendMessage($telegramUserId, $message): void
     {
         $keyboard = [
             'inline_keyboard' => [
@@ -91,18 +91,13 @@ class QuestFirstAidkitBasicHandler
                 ]
             ]
         ];
-        $imagePath = base_url('uploads/telegram/craft/simple_craft_kit.jpg'); // Укажите актуальный путь к изображению
+        $imagePath = base_url('uploads/telegram/craft/simple_craft_kit.jpg');
 
-        // Ответ на callback запрос, чтобы убрать часики на кнопке
-        Request::answerCallbackQuery(['callback_query_id' => $telegramUserId]);
-
-        // Отправляем сообщение с картинкой и клавиатурой
-        return Request::sendPhoto([
-            'chat_id' => $telegramUserId,
-            'photo' => Request::encodeFile($imagePath),
-            'caption' => $message,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
+        $this->safeSendPhoto(
+            $telegramUserId,
+            $imagePath,
+            $message,
+            ['parse_mode' => 'Markdown', 'reply_markup' => json_encode($keyboard)]
+        );
     }
 }

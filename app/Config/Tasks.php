@@ -130,16 +130,16 @@ class Tasks extends BaseTasks
         // QUESTS — handler сам проверяет прогресс игроков
         // ============================================================
 
-        $schedule->call(static fn() => (new \App\TaskHandlers\Quests\QuestExplore30CellsHandler())->process())
+        $schedule->call(static fn() => (new \App\TaskHandlers\Quests\QuestExplore30CellsHandler())->handle())
             ->everyMinute()->singleInstance()->named('quest.explore-30');
 
-        $schedule->call(static fn() => (new \App\TaskHandlers\Quests\QuestExploreAllBiomesHandler())->process())
+        $schedule->call(static fn() => (new \App\TaskHandlers\Quests\QuestExploreAllBiomesHandler())->handle())
             ->everyMinute()->singleInstance()->named('quest.explore-biomes');
 
-        $schedule->call(static fn() => (new \App\TaskHandlers\Quests\QuestExplore300CellsHandler())->process())
+        $schedule->call(static fn() => (new \App\TaskHandlers\Quests\QuestExplore300CellsHandler())->handle())
             ->everyMinute()->singleInstance()->named('quest.explore-300');
 
-        $schedule->call(static fn() => (new \App\TaskHandlers\Quests\QuestFirstAidkitBasicHandler())->process())
+        $schedule->call(static fn() => (new \App\TaskHandlers\Quests\QuestFirstAidkitBasicHandler())->handle())
             ->everyMinute()->singleInstance()->named('quest.first-aid-kit');
 
         // ============================================================
