@@ -10,13 +10,21 @@ $routes->get('/', 'Login::new');
 // - /migrate -> MigrationController (CRITICAL: anyone could trigger migrations->latest() via GET)
 // - /pve-test, /pve-test-view -> PvETestController (dead test scaffolding, replaced by PHPUnit)
 // Use CLI `php spark migrate` for migrations (proper deploy flow).
-$routes->get('/pvp', 'PvPController::index');
-$routes->post('/pvp/startFight', 'PvPController::startFight');
 
-$routes->get('battles', 'BattlesController::index');
-$routes->get('battles/view/(:num)', 'BattlesController::view/$1');
-
+// v0.51.7 security: moved /pvp + /battles behind admin login filter.
+// Public exposure leaked player data (names, stats, factions, combat history).
+// Admin login flow preserved — legit testing/review continues to work.
+// 0 access log hits in recent window confirmed safe to relocate.
 $routes->group('admin', ['filter' => 'login'], function($routes) {
+    // PvP testing form + simulator (was /pvp до v0.51.7)
+    $routes->get('pvp', 'PvPController::index');
+    $routes->post('pvp/startFight', 'PvPController::startFight');
+
+    // Battle history viewer (було /battles до v0.51.7)
+    $routes->get('battles', 'BattlesController::index');
+    $routes->get('battles/view/(:num)', 'BattlesController::view/$1');
+
+
     // Маршруты для опросов
     $routes->get('polls', 'Admin\PollController::index'); // Список всех опросов
     $routes->get('polls/create', 'Admin\PollController::createPollForm'); // Форма создания опроса
