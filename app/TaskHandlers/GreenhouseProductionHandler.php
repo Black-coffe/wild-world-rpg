@@ -61,6 +61,18 @@ class GreenhouseProductionHandler extends BaseTaskHandler
             ->where('building_id', $greenhouseId)
             ->findAll();
 
+        if (empty($charsGreenhouse)) {
+            return;
+        }
+
+        // v0.51.25 perf: lift Water resource lookup outside loop (loop-invariant).
+        // Раніше: N greenhouses × 1 Water query = N queries. Тепер: 1 query.
+        $waterResource = $this->resourceModel->where('name_en', 'Water')->first();
+        if (!$waterResource) {
+            log_message('error', '[GreenhouseProductionHandler] Resource "Water" not found in DB.');
+            return;
+        }
+
         foreach ($charsGreenhouse as $charBuild) {
             $characterId = $charBuild['character_id'];
             $level       = (int) $charBuild['level'];
@@ -76,15 +88,6 @@ class GreenhouseProductionHandler extends BaseTaskHandler
             // Массив ресурсов, который теплица будет генерировать (Fruit, Berries и т.п.)
             $harvest = $this->cfg->greenhouseLevels[$level];
             unset($harvest['water']); // убираем ключ water, оставляем только еду
-
-            // Получаем ресурс "Water"
-            $waterResource = $this->resourceModel
-                ->where('name_en', 'Water')
-                ->first();
-            if (!$waterResource) {
-                log_message('error', '[GreenhouseProductionHandler] Resource "Water" not found in DB.');
-                continue;
-            }
 
             // Ищем, сколько у персонажа сейчас воды
             $charResWater = $this->characterResourceModel
