@@ -3,6 +3,7 @@
 namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
+use App\Models\AdminAuditLogModel;
 use App\Models\EventModel;
 use App\Models\BiomeModel;
 use CodeIgniter\API\ResponseTrait;
@@ -87,6 +88,14 @@ class EventController extends BaseController
         $updated = $this->eventModel->update($eventId, $data);
 
         if ($updated) {
+            // F1.9 expansion: audit-лог рaзрушающего действия (event balance change → gameplay impact)
+            $this->auditAdminAction('EVENT_UPDATE', 'event', (int) $eventId, [
+                'name'             => $data['name'] ?? null,
+                'effect_type'      => $data['effect_type'] ?? null,
+                'effect_value'     => $data['effect_value'] ?? null,
+                'duration'         => $data['duration'] ?? null,
+                'frequency_per_week' => $data['frequency_per_week'] ?? null,
+            ]);
             // Если событие успешно обновлено, устанавливаем флеш-сообщение и перенаправляем на список всех событий
             session()->setFlashdata('success', 'Событие успешно обновлено.');
             return redirect()->to(site_url('admin/events'));
@@ -127,10 +136,32 @@ class EventController extends BaseController
         $saved = $this->eventModel->save($data);
 
         if ($saved) {
+            // F1.9 expansion: audit-лог створення подiї (gameplay impact)
+            $newEventId = (int) $this->eventModel->getInsertID();
+            $this->auditAdminAction('EVENT_CREATE', 'event', $newEventId, [
+                'name'             => $data['name'] ?? null,
+                'effect_type'      => $data['effect_type'] ?? null,
+                'effect_value'     => $data['effect_value'] ?? null,
+                'duration'         => $data['duration'] ?? null,
+                'frequency_per_week' => $data['frequency_per_week'] ?? null,
+            ]);
             session()->setFlashdata('success', 'Новое событие успешно создано.');
             return redirect()->to(site_url('admin/events'));
         } else {
             return $this->failServerError('Не удалось создать событие.');
         }
+    }
+
+    /**
+     * F1.9 expansion (v0.51.9): єдина точка запису destructive admin actions для events.
+     * Identical pattern to PollController::auditAdminAction (consistency).
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function auditAdminAction(string $action, ?string $targetType, ?int $targetId, array $payload = []): void
+    {
+        $auth = service('auth');
+        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
+        (new AdminAuditLogModel())->record($adminUserId, $action, $targetType, $targetId, $payload);
     }
 }
