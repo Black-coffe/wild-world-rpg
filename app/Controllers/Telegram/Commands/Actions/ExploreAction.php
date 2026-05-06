@@ -50,13 +50,6 @@ class ExploreAction extends BaseAction
             return Request::emptyResponse(); // Переезд есть, сервис уже отписался
         }
 
-        if (!$this->deductTiredness($character)) {
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => "Выносливость слишком низкая (текущий уровень: {$character['tired']}), нужно отдохнуть!",
-            ]);
-        }
-
         // Проверка на параллельные задачи
         if (!$this->checkParallelExecutionAllowed($character['id'])) {
             $response = $this->prepareBlockedTaskResponse('cancelExploration');
@@ -115,6 +108,16 @@ class ExploreAction extends BaseAction
             }
 
             $chosenMinutes = (int)$parts[1];
+
+            // v0.51.28 fix: deductTiredness тільки тут (на реальному старті задачі),
+            // не на показ меню. Раніше — double-deduct (10 stamina × 2). Reported у Bugs-info.
+            if (!$this->deductTiredness($character)) {
+                return Request::sendMessage([
+                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text'    => "Выносливость слишком низкая (текущий уровень: {$character['tired']}), нужно отдохнуть!",
+                ]);
+            }
+
             // Создаём задачу 'ExploreTheArea', но на chosenMinutes
 
             $explorationTask = $this->taskModel->where('name', 'ExploreTheArea')->first();

@@ -49,14 +49,6 @@ class GatherAction extends BaseAction
             return Request::emptyResponse(); // Переезд есть, сервис уже отписался
         }
 
-        // Проверка усталости
-        if (!$this->deductTiredness($character)) {
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text' => "Твоя выносливость слишком низкая (текущий уровень: {$character['tired']}), нужно отдохнуть!",
-            ]);
-        }
-
         // Проверка параллельных задач
         if (!$this->checkParallelExecutionAllowed($character['id'])) {
             $response = $this->prepareBlockedTaskResponse('cancelGather');
@@ -121,6 +113,16 @@ class GatherAction extends BaseAction
             }
 
             $chosenMinutes = (int) $parts[1]; // 10, 30, 60, 120, 360, 720
+
+            // v0.51.28 fix: deductTiredness тільки тут (на реальному старті задачі),
+            // не на показ меню вибору часу. Раніше — double-deduct (5 stamina × 2:
+            // натиснення `gather` + натиснення `gather_30`). Reported у Bugs-info.
+            if (!$this->deductTiredness($character)) {
+                return Request::sendMessage([
+                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text' => "Твоя выносливость слишком низкая (текущий уровень: {$character['tired']}), нужно отдохнуть!",
+                ]);
+            }
 
             // Дальше идёт обычная логика: проверяем локацию, биом, ресурсы, создаём задачу
             $cell = $this->mapModel->where('cell_number', $character['cell_number'])->first();
