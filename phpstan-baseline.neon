@@ -14353,42 +14353,6 @@ parameters:
 			path: app/Services/PVE/BattleLogger.php
 
 		-
-			message: '#^Constant App\\Services\\PVE\\BattleService\:\:ESCAPE_CHANCE_HIGH_DAMAGE is unused\.$#'
-			identifier: classConstant.unused
-			count: 1
-			path: app/Services/PVE/BattleService.php
-
-		-
-			message: '#^Constant App\\Services\\PVE\\BattleService\:\:ESCAPE_CHANCE_LOW_HP is unused\.$#'
-			identifier: classConstant.unused
-			count: 1
-			path: app/Services/PVE/BattleService.php
-
-		-
-			message: '#^Constant App\\Services\\PVE\\BattleService\:\:PANIC_THRESHOLD is unused\.$#'
-			identifier: classConstant.unused
-			count: 1
-			path: app/Services/PVE/BattleService.php
-
-		-
-			message: '#^Method App\\Services\\PVE\\BattleService\:\:npcShouldFlee\(\) is unused\.$#'
-			identifier: method.unused
-			count: 1
-			path: app/Services/PVE/BattleService.php
-
-		-
-			message: '#^Method App\\Services\\PVE\\BattleService\:\:npcShouldPanic\(\) is unused\.$#'
-			identifier: method.unused
-			count: 1
-			path: app/Services/PVE/BattleService.php
-
-		-
-			message: '#^Method App\\Services\\PVE\\BattleService\:\:shouldEnterRageMode\(\) is unused\.$#'
-			identifier: method.unused
-			count: 1
-			path: app/Services/PVE/BattleService.php
-
-		-
 			message: '#^Method App\\Services\\PVE\\BattleService\:\:startFight\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -14397,6 +14361,12 @@ parameters:
 		-
 			message: '#^Property App\\Services\\PVE\\BattleService\:\:\$battleLogger is never read, only written\.$#'
 			identifier: property.onlyWritten
+			count: 1
+			path: app/Services/PVE/BattleService.php
+
+		-
+			message: '#^Property App\\Services\\PVE\\BattleService\:\:\$cfg \(Config\\GameBalance\) does not accept object\|null\.$#'
+			identifier: assign.propertyType
 			count: 1
 			path: app/Services/PVE/BattleService.php
 

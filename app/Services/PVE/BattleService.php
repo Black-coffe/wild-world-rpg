@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\PVE;
 
 use App\Entities\BattleCharacter;
+use Config\GameBalance;
 use Psr\Log\LoggerInterface;
 
 class BattleService
@@ -13,23 +14,31 @@ class BattleService
     private EffectService $effectService;
     private BattleLogger $battleLogger;
     private LoggerInterface $logger;
+    private GameBalance $cfg;
 
-    private const MAX_ROUNDS = 100;
-    private const PANIC_THRESHOLD = 10;
-    private const ESCAPE_CHANCE_LOW_HP = 40;
-    private const ESCAPE_CHANCE_HIGH_DAMAGE = 50;
-    private const RAGE_HP_THRESHOLD = 20;
-
+    /**
+     * F2.10 wire-in (v0.51.3): pveMaxRounds читается из config('GameBalance')
+     * вместо private const MAX_ROUNDS = 100.
+     *
+     * Также v0.51.3 cleanup:
+     * - удалены 3 dead private methods: npcShouldFlee / npcShouldPanic / shouldEnterRageMode
+     *   (никогда не вызывались, scaffolding для boss/panic mechanic, не реализовано).
+     * - удалены 4 dead consts: PANIC_THRESHOLD / ESCAPE_CHANCE_LOW_HP /
+     *   ESCAPE_CHANCE_HIGH_DAMAGE / RAGE_HP_THRESHOLD (без референсов после
+     *   удаления методов).
+     */
     public function __construct(
         DamageService $damageService,
         EffectService $effectService,
         BattleLogger $battleLogger,
-        LoggerInterface $logger
+        LoggerInterface $logger,
+        ?GameBalance $cfg = null
     ) {
         $this->damageService = $damageService;
         $this->effectService = $effectService;
         $this->battleLogger = $battleLogger;
         $this->logger = $logger;
+        $this->cfg = $cfg ?? config('GameBalance');
     }
 
     /**
@@ -46,7 +55,7 @@ class BattleService
         $battleLog = [];
         $firstAttackerName = null;
 
-        while ($player->health > 0 && $npc->health > 0 && $round < self::MAX_ROUNDS) {
+        while ($player->health > 0 && $npc->health > 0 && $round < $this->cfg->pveMaxRounds) {
             $round++;
             // Чередование атак: в нечетном раунде атакует игрок, в четном – NPC.
             $attacker = ($round % 2 === 0) ? $npc : $player;
@@ -84,8 +93,6 @@ class BattleService
             ];
             $battleLog[] = $roundLog;
 
-            // (Опционально можно вызвать $this->battleLogger->logRound($roundLog);)
-
             if ($defender->health <= 0) {
                 return [
                     'winner'        => $attacker,
@@ -104,35 +111,5 @@ class BattleService
             'log'           => $battleLog,
             'firstAttacker' => $firstAttackerName,
         ];
-    }
-
-    private function npcShouldFlee(BattleCharacter $npc): bool
-    {
-        if ($npc->isBoss) {
-            return false;
-        }
-        if ($npc->health < 10 && rand(1, 100) <= 80) {
-            return true;
-        }
-        return false;
-    }
-
-    private function npcShouldPanic(BattleCharacter $npc): bool
-    {
-        if ($npc->health < 20 && rand(1, 100) <= 50) {
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Определяет, должен ли босс перейти в режим "Ярость".
-     *
-     * @param BattleCharacter $npc
-     * @return bool
-     */
-    private function shouldEnterRageMode(BattleCharacter $npc): bool
-    {
-        return $npc->isBoss && $npc->health < self::RAGE_HP_THRESHOLD;
     }
 }

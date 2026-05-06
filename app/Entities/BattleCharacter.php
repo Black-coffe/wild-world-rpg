@@ -27,7 +27,6 @@ class BattleCharacter
     public float $gold = 0.0;
     public bool $isBoss = false;
     public array $equipment = [];
-    public bool $isRage = false;
 
     public function __construct(array $data)
     {
@@ -49,8 +48,10 @@ class BattleCharacter
         $this->experience = $data['experience'] ?? 0.0;
         $this->gold       = $data['gold']       ?? 0.0;
         $this->cell_number = $data['cell_number'] ?? 0;
-        $this->isBoss     = $data['isBoss']     ?? false;
-        $this->isRage     = $data['isRage']     ?? false;
+        // v0.51.3: исправлен silent bug — DB column is_boss (snake_case)
+        // не мапился на $data['isBoss'] (camelCase). Теперь читаем оба
+        // ключа для совместимости с DB row + старым тестовым кодом.
+        $this->isBoss     = $data['isBoss']     ?? $data['is_boss'] ?? false;
 
         // Если в массиве есть ключ 'equipment', берём его как экипировку
         if (isset($data['equipment'])) {
