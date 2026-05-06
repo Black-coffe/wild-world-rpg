@@ -14779,7 +14779,19 @@ parameters:
 			path: app/Services/PVE/PvpRoundOrchestrator.php
 
 		-
+			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/RewardService.php
+
+		-
 			message: '#^Cannot access offset ''quantity'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/RewardService.php
+
+		-
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Services/PVE/RewardService.php

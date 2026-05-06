@@ -131,17 +131,30 @@ class RewardService
         }
 
         // Сохраняем предметы в crafted_items_log
+        // v0.51.31 fix (Bug #9): UPSERT замість blind INSERT — інакше PvE reward
+        // створює дубль stack для items які вже є у inventory. Reported у
+        // Bugs-info: "появилось отдельное успокоительное" (346 ед. + 1 ед. окремо).
         foreach ($craftedItemsGiven as $ci) {
-            $this->craftedItemsLogModel->insert([
-                'character_id'      => $winner->id,
-                'task_id'           => 1,
-                'crafted_item_id'   => $ci['id'],
-                'type'              => $ci['type'],
-                'direction_craft'   => $ci['direction_craft'],
-                'crafting_location' => 'all',
-                'durability_count'  => 100,
-                'quantity'          => $ci['quantity'],
-            ]);
+            $existing = $this->craftedItemsLogModel
+                ->where('character_id', $winner->id)
+                ->where('crafted_item_id', $ci['id'])
+                ->first();
+            if ($existing) {
+                $this->craftedItemsLogModel->update($existing['id'], [
+                    'quantity' => (int) $existing['quantity'] + (int) $ci['quantity'],
+                ]);
+            } else {
+                $this->craftedItemsLogModel->insert([
+                    'character_id'      => $winner->id,
+                    'task_id'           => 1,
+                    'crafted_item_id'   => $ci['id'],
+                    'type'              => $ci['type'],
+                    'direction_craft'   => $ci['direction_craft'],
+                    'crafting_location' => 'all',
+                    'durability_count'  => 100,
+                    'quantity'          => $ci['quantity'],
+                ]);
+            }
         }
 
         // 5. Формируем итог для вывода
