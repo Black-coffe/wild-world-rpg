@@ -327,4 +327,27 @@ class GameBalance extends BaseConfig
 
     /** +N ячеек/час за кожен рівень мастерської понад 1. */
     public int $roboticsExplorationCellsPerLevel = 10;
+
+    // ===================================================================
+    // ExplorationTask (ExplorationTaskHandler) — C/F6 expansion (v0.51.27)
+    //   Manual exploration від player (не робот). Ring-based explore с fade penalty.
+    // ===================================================================
+
+    /** Бонус опиту за завершене ручне дослідження. */
+    public float $explorationXpBonus = 0.01;
+
+    /** Бонус strength/agility/intellect за завершене ручне дослідження. */
+    public float $explorationStatBonus = 0.01;
+
+    /**
+     * Tolerance (хвилин) між planned vs actual time. Якщо |delta| ≤ tolerance —
+     * використовуємо planned, інакше actual (анти-чітинг проти clock-skew).
+     */
+    public int $explorationPlannedTolerance = 2;
+
+    /** % fade за кожні 10 хвилин exploration (1% → -1% efficiency). */
+    public int $explorationFadePercentPer10Min = 1;
+
+    /** Максимум fade percent (capped). */
+    public int $explorationFadePercentMax = 50;
 }

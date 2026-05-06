@@ -297,6 +297,24 @@ class CompleteRobotExplorationHandler extends BaseTaskHandler
         $countOpened = 0;
         $r = 0;
 
+        // v0.51.27 perf: pre-load усі biomes (~9 rows) як id→row map.
+        // Раніше: `new BiomeModel()` + `find()` per-cell всередині triple-loop.
+        $biomeModel = new BiomeModel();
+        $biomesById = [];
+        foreach ($biomeModel->findAll() as $b) {
+            $biomesById[(int) $b['id']] = $b;
+        }
+
+        // v0.51.27 perf: pre-load existing explored cells map для character (set lookup).
+        // Раніше: per-cell `WHERE character_id AND map_cell_id` query.
+        $existingCells = $exploredCellsModel
+            ->where('character_id', $characterId)
+            ->findAll();
+        $exploredSet = [];
+        foreach ($existingCells as $ec) {
+            $exploredSet[(int) $ec['map_cell_id']] = true;
+        }
+
         while ($countOpened < $cellsToOpen) {
             // Допустим, если r превысит 999 — хватит
             if ($r > 999) {
@@ -307,64 +325,69 @@ class CompleteRobotExplorationHandler extends BaseTaskHandler
             $xMin = max(0, $centerX - $r);
             $xMax = min(999, $centerX + $r);
             $yMin = max(0, $centerY - $r);
-            $yMax = max(0, $centerY + $r);
+            $yMax = max(999, $centerY + $r);
+            $yMax = min(999, $yMax);
+
+            // v0.51.27 perf: 1 SQL bounding-box fetch на ring замість per-cell queries.
+            $rows = $mapModel
+                ->where('coordinate_x >=', $xMin)
+                ->where('coordinate_x <=', $xMax)
+                ->where('coordinate_y >=', $yMin)
+                ->where('coordinate_y <=', $yMax)
+                ->findAll();
+            $cellsByXY = [];
+            foreach ($rows as $row) {
+                $cellsByXY[((int) $row['coordinate_x']) . '_' . ((int) $row['coordinate_y'])] = $row;
+            }
 
             for ($x = $xMin; $x <= $xMax; $x++) {
                 for ($y = $yMin; $y <= $yMax; $y++) {
 
-                    // Проверка, не добавляли ли уже
                     $key = "{$x}_{$y}";
                     if (isset($visited[$key])) {
                         continue;
                     }
 
-                    // Проверяем, действительно ли (x, y) в круге радиуса r
-                    // (x-centerX)^2 + (y-centerY)^2 <= r^2
+                    // Перевіряємо, чи (x, y) у крузі радіусу r
                     $dx = $x - $centerX;
                     $dy = $y - $centerY;
-                    if (($dx * $dx + $dy * $dy) <= ($r * $r)) {
-                        $visited[$key] = true;  // помечаем как посещённую
+                    if (($dx * $dx + $dy * $dy) > ($r * $r)) {
+                        continue;
+                    }
+                    $visited[$key] = true;
 
-                        // Ищем клетку в БД map
-                        $cell = $mapModel
-                            ->where('coordinate_x', $x)
-                            ->where('coordinate_y', $y)
-                            ->first();
-                        if (!$cell) {
-                            continue;
-                        }
+                    $cell = $cellsByXY[$key] ?? null;
+                    if (!$cell) {
+                        continue;
+                    }
 
-                        // Сохраняем в массив
-                        $biomeModel = new BiomeModel();
-                        $biome = $biomeModel->find($cell['biome_id']);
-                        $biomeName = $biome ? $biome['name'] : 'Неизвестный биом';
+                    $bId   = (int) $cell['biome_id'];
+                    $biome = $biomesById[$bId] ?? null;
+                    $biomeName = $biome ? $biome['name'] : 'Неизвестный биом';
 
-                        $newCells[] = [
-                            'cell_number' => $cell['cell_number'],
-                            'coordinates' => "X={$x}, Y={$y}",
-                            'biome'       => $biomeName,
-                            'biome_id'    => $cell['biome_id'],
-                        ];
+                    $newCells[] = [
+                        'cell_number' => $cell['cell_number'],
+                        'coordinates' => "X={$x}, Y={$y}",
+                        'biome'       => $biomeName,
+                        'biome_id'    => $bId,
+                    ];
 
-                        // Пишем в explored_cells
-                        $existing = $exploredCellsModel
-                            ->where('character_id', $characterId)
-                            ->where('map_cell_id', $cell['cell_number'])
-                            ->first();
-                        if (!$existing) {
-                            $exploredCellsModel->insert([
-                                'character_id'     => $characterId,
-                                'telegram_user_id' => $telegramUserId,
-                                'map_cell_id'      => $cell['cell_number'],
-                                'biome_id'         => $cell['biome_id'],
-                                'character_level'  => $character['level'],
-                            ]);
-                        }
+                    // Insert у explored_cells якщо ще не існує (preloaded set).
+                    $cellNum = (int) $cell['cell_number'];
+                    if (!isset($exploredSet[$cellNum])) {
+                        $exploredCellsModel->insert([
+                            'character_id'     => $characterId,
+                            'telegram_user_id' => $telegramUserId,
+                            'map_cell_id'      => $cellNum,
+                            'biome_id'         => $bId,
+                            'character_level'  => $character['level'],
+                        ]);
+                        $exploredSet[$cellNum] = true;
+                    }
 
-                        $countOpened++;
-                        if ($countOpened >= $cellsToOpen) { // Проверка лимита здесь
-                            return $newCells; // Выход, если лимит достигнут
-                        }
+                    $countOpened++;
+                    if ($countOpened >= $cellsToOpen) {
+                        return $newCells;
                     }
                 }
             }
