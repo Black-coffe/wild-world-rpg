@@ -16567,24 +16567,6 @@ parameters:
 			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
 
 		-
-			message: '#^Method App\\TaskHandlers\\CompleteRobotExplorationHandler\:\:handle\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
-
-		-
-			message: '#^Method App\\TaskHandlers\\CompleteRobotExplorationHandler\:\:handle\(\) has parameter \$task with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
-
-		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
-
-		-
 			message: '#^Parameter \#1 \$character of method App\\TaskHandlers\\CompleteRobotExplorationHandler\:\:calculateNewCellsCircle\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
@@ -16597,20 +16579,26 @@ parameters:
 			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
 
 		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			message: '#^Parameter \#1 \$datetime of function strtotime expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
+
+		-
+			message: '#^Parameter \#1 \$id of method CodeIgniter\\BaseModel\:\:find\(\) expects int\|list\<int\|string\>\|string\|null, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
 
 		-
-			message: '#^Property App\\TaskHandlers\\CompleteRobotExplorationHandler\:\:\$playerDetectionService has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Parameter \#1 \$id of method CodeIgniter\\Model\:\:update\(\) expects CodeIgniter\\Database\\RawSql\|int\|list\<int\|string\>\|string\|null, mixed given\.$#'
+			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
 
 		-
-			message: '#^Property App\\TaskHandlers\\CompleteRobotExplorationHandler\:\:\$telegram has no type specified\.$#'
-			identifier: missingType.property
+			message: '#^Parameter \#1 \$json of function json_decode expects string, mixed given\.$#'
+			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
 
@@ -16651,27 +16639,9 @@ parameters:
 			path: app/TaskHandlers/CompleteRobotGatheringHandler.php
 
 		-
-			message: '#^Method App\\TaskHandlers\\CompleteRobotGatheringHandler\:\:handle\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/CompleteRobotGatheringHandler.php
-
-		-
-			message: '#^Method App\\TaskHandlers\\CompleteRobotGatheringHandler\:\:handle\(\) has parameter \$task with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/TaskHandlers/CompleteRobotGatheringHandler.php
-
-		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			message: '#^Parameter \#1 \$datetime of function strtotime expects string, mixed given\.$#'
 			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/CompleteRobotGatheringHandler.php
-
-		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
+			count: 2
 			path: app/TaskHandlers/CompleteRobotGatheringHandler.php
 
 		-
@@ -16741,19 +16711,7 @@ parameters:
 			path: app/TaskHandlers/CompleteRobotGatheringHandler.php
 
 		-
-			message: '#^Property App\\TaskHandlers\\CompleteRobotGatheringHandler\:\:\$telegram has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/CompleteRobotGatheringHandler.php
-
-		-
 			message: '#^Property App\\TaskHandlers\\CompleteRobotGatheringHandler\:\:\$telegramUserModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/CompleteRobotGatheringHandler.php
-
-		-
-			message: '#^Property App\\TaskHandlers\\CompleteRobotGatheringHandler\:\:\$workshopBuildingId has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/CompleteRobotGatheringHandler.php
@@ -19143,12 +19101,6 @@ parameters:
 		-
 			message: '#^Method App\\TaskHandlers\\Other\\WorldObjectGeneratorHandler\:\:getCoordinateYByPercentage\(\) has parameter \$percentage with no type specified\.$#'
 			identifier: missingType.parameter
-			count: 1
-			path: app/TaskHandlers/Other/WorldObjectGeneratorHandler.php
-
-		-
-			message: '#^Method App\\TaskHandlers\\Other\\WorldObjectGeneratorHandler\:\:process\(\) has no return type specified\.$#'
-			identifier: missingType.return
 			count: 1
 			path: app/TaskHandlers/Other/WorldObjectGeneratorHandler.php
 

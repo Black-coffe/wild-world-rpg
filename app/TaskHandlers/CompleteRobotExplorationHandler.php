@@ -12,10 +12,6 @@ use App\Models\BiomeWorldObjectMapModel;
 use App\Models\WorldObjectModel;
 use App\Models\TelegramUserModel;
 use App\Services\Player\PlayerDetectionService;
-use CodeIgniter\Controller;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
 
 /**
  * Обработчик завершения задачи исследования робота.
@@ -23,34 +19,28 @@ use Longman\TelegramBot\Telegram;
  * Если в task_settings переданы координаты в формате "X,Y",
  * используется круговое исследование (от центра по кругу).
  * Иначе берётся стартовая точка, соответствующая cell_number персонажа, и применяется алгоритм «змейки».
+ *
+ * v0.51.21 (F2.9 batch-3): extends BaseTaskHandler (per F2.9 contract).
+ * Раніше extends Controller — handler НЕ контроллер.
+ * Telegram lazy-init через BaseTaskHandler::telegram(), Request::sendMessage → safeSendMessage.
+ * `handle($task)` → `handle(array $task = []): void` (TaskHandlerInterface signature).
  */
-class CompleteRobotExplorationHandler extends Controller
+class CompleteRobotExplorationHandler extends BaseTaskHandler
 {
-    private $telegram;
-    private $playerDetectionService;
+    private PlayerDetectionService $playerDetectionService;
 
     public function __construct()
     {
-        $API_KEY      = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-
-        try {
-            // Инициализация Telegram-объекта и Request
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            Request::initialize($this->telegram);
-        } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
-        }
-
         // Сервис обнаружения ближайших игроков (PvP-логика)
         $this->playerDetectionService = new PlayerDetectionService();
     }
 
     /**
      * Основной метод, вызываемый при завершении задачи (character_tasks).
-     * @param array $task — запись из character_tasks (с полями id, character_id, start_time, end_time, task_settings и т.п.)
+     *
+     * @param array<string,mixed> $task — запись из character_tasks (з полями id, character_id, start_time, end_time, task_settings).
      */
-    public function handle($task)
+    public function handle(array $task = []): void
     {
         // 1) Подключаем модели
         $characterTaskModel      = new CharacterTaskModel();
@@ -70,13 +60,13 @@ class CompleteRobotExplorationHandler extends Controller
         $character = $characterModel->find($task['character_id']);
         if (!$character) {
             log_message('error', 'Не найден персонаж при закрытии задачи исследования.');
-            return false;
+            return;
         }
 
         $chatRow = $telegramUserModel->where('id', $task['telegram_user_id'])->first();
         if (!$chatRow) {
             log_message('error', 'Не найден Telegram-пользователь для отправки сообщения.');
-            return false;
+            return;
         }
         $chatId = $chatRow['telegram_id'];
 
@@ -145,18 +135,14 @@ class CompleteRobotExplorationHandler extends Controller
             ]
         ];
 
-        // 11) Отправляем сообщение в Telegram
-        Request::sendMessage([
-            'chat_id'      => $chatId,
-            'text'         => $text,
+        // 11) Отправляем сообщение в Telegram (lazy через BaseTaskHandler)
+        $this->safeSendMessage($chatId, $text, [
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
 
         // 12) Запускаем PvP-обнаружение
         $this->playerDetectionService->detectNearbyPlayers($character['id']);
-
-        return true;
     }
 
     /**

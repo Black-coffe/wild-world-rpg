@@ -117,7 +117,7 @@ class Tasks extends BaseTasks
         // WORLD CONTENT — генерация объектов и NPC-спавн
         // ============================================================
 
-        $schedule->call(static fn() => (new \App\TaskHandlers\Other\WorldObjectGeneratorHandler())->process())
+        $schedule->call(static fn() => (new \App\TaskHandlers\Other\WorldObjectGeneratorHandler())->handle())
             ->everyMinute()->singleInstance()->named('world-objects.generate');
 
         $schedule->call(static fn() => (new \App\TaskHandlers\NPC\SpawnSandyWolfRaidersCron())->run())

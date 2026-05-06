@@ -13,13 +13,16 @@ use App\Models\ResourceModel;
 use App\Models\TelegramUserModel;
 use App\Models\TaskModel;
 use App\Models\BiomeModel;
-use CodeIgniter\Controller;
 use Config\GameBalance;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
 
-class CompleteRobotGatheringHandler extends Controller
+/**
+ * v0.51.21 (F2.9 batch-3): extends BaseTaskHandler (per F2.9 contract).
+ * Раніше extends Controller — handler НЕ контроллер.
+ * Telegram lazy-init через BaseTaskHandler::telegram(),
+ * Request::sendMessage/sendPhoto → safeSendMessage/safeSendPhoto.
+ * `handle(array $task)` → `handle(array $task = []): void` (TaskHandlerInterface signature).
+ */
+class CompleteRobotGatheringHandler extends BaseTaskHandler
 {
     /** Fallback building_id, если RoboticsWorkshop не найден в `buildings`. Infra-константа, не balance. */
     private const FALLBACK_WORKSHOP_ID = 9;
@@ -36,20 +39,20 @@ class CompleteRobotGatheringHandler extends Controller
     protected $taskModel;
     protected $biomeModel;
 
-    private $telegram;
-    private $workshopBuildingId;
+    private int $workshopBuildingId;
     private GameBalance $cfg;
 
     /**
-     * F2.10 wire-in (v0.51.4): RANDOM_PERCENT (±20% yield variance) читается
-     * из config('GameBalance')->robotGatheringRandomPercent вместо private const.
-     * FALLBACK_WORKSHOP_ID оставлен как private const (infra fallback, не balance).
+     * F2.10 wire-in (v0.51.4): RANDOM_PERCENT (±20% yield variance) читається
+     * через config('GameBalance')->robotGatheringRandomPercent.
+     * FALLBACK_WORKSHOP_ID — private const (infra fallback, не balance).
+     *
+     * v0.51.21 (F2.9 batch-3): Telegram init removed (lazy через BaseTaskHandler).
      */
     public function __construct(?GameBalance $cfg = null)
     {
         $this->cfg = $cfg ?? config('GameBalance');
 
-        // Инициализация моделей
         $this->characterModel         = new CharacterModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
         $this->characterTaskModel     = new CharacterTaskModel();
@@ -65,19 +68,13 @@ class CompleteRobotGatheringHandler extends Controller
         // Ищем RoboticsWorkshop
         $ws = $this->buildingModel->where('name_en', 'RoboticsWorkshop')->first();
         $this->workshopBuildingId = $ws ? (int)$ws['id'] : self::FALLBACK_WORKSHOP_ID;
-
-        // Telegram init
-        $API_KEY      = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-        try {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            Request::initialize($this->telegram);
-        } catch (TelegramException $e) {
-            // Логи убраны, но на практике лучше как-то обрабатывать ошибку
-        }
     }
 
-    public function handle(array $task)
+    /**
+     * @param array<string,mixed> $task — запис з character_tasks
+     *                                    (id, character_id, start_time, end_time, task_settings).
+     */
+    public function handle(array $task = []): void
     {
         // 1) Ставим статус completed
         $this->characterTaskModel->update($task['id'], ['status' => 'completed']);
@@ -85,13 +82,13 @@ class CompleteRobotGatheringHandler extends Controller
         // 2) Ищем персонажа
         $character = $this->characterModel->find($task['character_id']);
         if (!$character) {
-            return false;
+            return;
         }
 
         // 2.1) Ищем телеграм-пользователя
         $chatRow = $this->telegramUserModel->find($task['telegram_user_id']);
         if (!$chatRow) {
-            return false;
+            return;
         }
         $chatId = $chatRow['telegram_id'];
 
@@ -102,14 +99,14 @@ class CompleteRobotGatheringHandler extends Controller
             ->first();
         if (!$baseRow) {
             $this->sendTextOnly($chatId, "⚙ *Робот-добытчик вернулся...*\nНо базы тут нет, всё потеряно!");
-            return true;
+            return;
         }
 
         // 4) Ячейка базы
         $mapRec = $this->mapModel->find($baseRow['map_cell_id']);
         if (!$mapRec) {
             $this->sendTextOnly($chatId, "⚙ *Робот-добытчик вернулся...*\nНо базы тут нет, всё потеряно!");
-            return true;
+            return;
         }
         $baseCellNumber = (int)$mapRec['cell_number'];
 
@@ -121,7 +118,7 @@ class CompleteRobotGatheringHandler extends Controller
             ->first();
         if (!$workshop) {
             $this->sendTextOnly($chatId, "⚙ *Робот-добытчик прибыл*\nНо 🤖Мастерская робототехники🤖 отсутствует.");
-            return true;
+            return;
         }
         $workshopLevel = (int)$workshop['level'];
 
@@ -138,7 +135,7 @@ class CompleteRobotGatheringHandler extends Controller
 
         if (empty($uniqueCells)) {
             $this->sendTextOnly($chatId, "⚙ *Робот-добытчик завершил работу*, но не удалось собрать ни одной ячейки?");
-            return true;
+            return;
         }
 
         // Подсчёт ячеек по биомам
@@ -158,7 +155,7 @@ class CompleteRobotGatheringHandler extends Controller
         }
         if ($totalCells <= 0) {
             $this->sendTextOnly($chatId, "⚙ *Робот-добытчик завершил работу*, но нет доступных ячеек?");
-            return true;
+            return;
         }
 
         // 8) Расчёт ресурсов
@@ -195,7 +192,7 @@ class CompleteRobotGatheringHandler extends Controller
         // Если ничего не добыли
         if ($allZero) {
             $this->sendTextOnly($chatId, "⚙ *Робот-добытчик завершил работу*, но ничего не собрано.");
-            return true;
+            return;
         }
 
         // Сохраняем
@@ -234,42 +231,23 @@ class CompleteRobotGatheringHandler extends Controller
             $imagePath = base_url('uploads/telegram/craft/standard/robot_gatherer.jpg');
             $this->sendPhotoWithCaption($chatId, $imagePath, $safeCaption);
         }
-        return true;
     }
 
     /**
-     * Отправка ТОЛЬКО текста (без картинки).
+     * Отправка ТОЛЬКО текста (через safeSendMessage у BaseTaskHandler).
      */
     private function sendTextOnly(int $chatId, string $rawMessage): void
     {
         $text = $this->sanitizeForTelegram($rawMessage);
-        try {
-            Request::sendMessage([
-                'chat_id'    => $chatId,
-                'text'       => $text,
-                'parse_mode' => 'Markdown',
-            ]);
-        } catch (TelegramException $e) {
-            // Логика обработки, при необходимости
-        }
+        $this->safeSendMessage($chatId, $text, ['parse_mode' => 'Markdown']);
     }
 
     /**
-     * Отправка фото + подписи (где подпись уже безопасная).
+     * Отправка фото + подписи (через safeSendPhoto у BaseTaskHandler).
      */
     private function sendPhotoWithCaption(int $chatId, string $photoUrl, string $caption): void
     {
-        try {
-            Request::sendPhoto([
-                'chat_id'    => $chatId,
-                'photo'      => Request::encodeFile($photoUrl),
-                'caption'    => $caption,
-                'parse_mode' => 'Markdown',
-            ]);
-        } catch (TelegramException $e) {
-            // В случае ошибки, можно fallback на текст
-            $this->sendTextOnly($chatId, $caption);
-        }
+        $this->safeSendPhoto($chatId, $photoUrl, $caption, ['parse_mode' => 'Markdown']);
     }
 
     /**

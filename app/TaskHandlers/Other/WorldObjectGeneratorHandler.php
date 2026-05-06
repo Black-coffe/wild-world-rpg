@@ -6,9 +6,15 @@ use App\Models\BiomeWorldObjectMapModel;
 use App\Models\BiomeModel;
 use App\Models\WorldObjectModel;
 use App\Models\MapModel;
-use CodeIgniter\Controller;
+use App\TaskHandlers\BaseTaskHandler;
 
-class WorldObjectGeneratorHandler extends Controller
+/**
+ * v0.51.21 (F2.9 batch-3): extends BaseTaskHandler (per F2.9 contract).
+ * Раніше extends Controller — handler НЕ контроллер.
+ * `process()` → `handle(array $task = []): void` (TaskHandlerInterface signature).
+ * No Telegram usage — pure DB/world generation.
+ */
+class WorldObjectGeneratorHandler extends BaseTaskHandler
 {
     protected $worldObjectModel;
     protected $biomeWorldObjectMapModel;
@@ -31,9 +37,12 @@ class WorldObjectGeneratorHandler extends Controller
     }
 
     /**
-     * Основной метод, который вызывается для генерации объектов.
+     * Основной метод, який вызывается для генерации объектов.
+     *
+     * @param array<string,mixed> $task TaskHandlerInterface signature (recurring tasks
+     *                                  не приймають task data).
      */
-    public function process()
+    public function handle(array $task = []): void
     {
         // 1) Удаляем все записи, где 'status'='cleared' (те, что игроки полностью лутанули)
         $this->biomeWorldObjectMapModel->where('status', 'cleared')->delete();
