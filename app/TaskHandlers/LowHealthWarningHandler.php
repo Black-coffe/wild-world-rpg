@@ -4,33 +4,22 @@ namespace App\TaskHandlers;
 
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
-use CodeIgniter\Controller;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
-use Longman\TelegramBot\Exception\TelegramException;
 
-class LowHealthWarningHandler extends Controller
+/**
+ * v0.51.20 (F2.9 batch-2): extends BaseTaskHandler (per F2.9 contract).
+ * Раніше extends Controller — handler НЕ контроллер.
+ * Telegram lazy-init через BaseTaskHandler::telegram(), Request::sendPhoto → safeSendPhoto.
+ * `process()` → `handle(array $task = []): void` (TaskHandlerInterface signature).
+ */
+class LowHealthWarningHandler extends BaseTaskHandler
 {
-    private $telegram;
-
-    public function __construct()
-    {
-        $API_KEY      = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-
-        try {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            // Инициализируем класс Request, чтобы потом делать sendMessage / sendPhoto
-            Request::initialize($this->telegram);
-        } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
-        }
-    }
-
     /**
-     * Метод вызывается из Worker->processUnlinkedActions() (или аналогичного).
+     * Tasks.php scheduler callback.
+     *
+     * @param array<string,mixed> $task TaskHandlerInterface signature (recurring tasks
+     *                                  не приймають task data).
      */
-    public function process()
+    public function handle(array $task = []): void
     {
         $characterModel    = new CharacterModel();
         $telegramUserModel = new TelegramUserModel();
@@ -105,21 +94,18 @@ class LowHealthWarningHandler extends Controller
                 ],
             ];
 
-            // Отправляем фото + текст
-            // Вариант 1: локальный файл (fopen), используем FCPATH.
+            // Отправляем фото + текст (lazy Telegram через BaseTaskHandler)
             $localFilePath = FCPATH . 'uploads/telegram/character/low_health_warning.png';
 
-            try {
-                Request::sendPhoto([
-                    'chat_id'    => $telegramUser['telegram_id'],
-                    'photo'      => Request::encodeFile($localFilePath),
-                    'caption'    => $text,
-                    'parse_mode' => 'Markdown',
+            $this->safeSendPhoto(
+                $telegramUser['telegram_id'],
+                $localFilePath,
+                $text,
+                [
+                    'parse_mode'   => 'Markdown',
                     'reply_markup' => json_encode($keyboard),
-                ]);
-            } catch (TelegramException $e) {
-                log_message('error', 'Ошибка при отправке фото (LowHealthWarningHandler): ' . $e->getMessage());
-            }
+                ]
+            );
 
             // Обновляем время последнего уведомления
             $characterModel->update($character['id'], [

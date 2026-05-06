@@ -59,7 +59,7 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\CharacterDataHandler())->process())
             ->everyMinute()->singleInstance()->named('character-data.refresh');
 
-        $schedule->call(static fn() => (new \App\TaskHandlers\LowHealthWarningHandler())->process())
+        $schedule->call(static fn() => (new \App\TaskHandlers\LowHealthWarningHandler())->handle())
             ->everyMinute()->singleInstance()->named('low-health.warning');
 
         $schedule->call(static fn() => (new \App\TaskHandlers\DeathRouletteHandler())->handle())

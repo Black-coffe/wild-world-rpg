@@ -13,6 +13,18 @@ This is a Telegram-based MMORPG game built with CodeIgniter 4 and the Longman Te
 
 ---
 
+## ⚡ ПРОАКТИВНІСТЬ (зафіксовано 2026-05-06)
+
+**При background-очікуванні (CI deploy, smoke test, polling):** НЕ висіти у idle. Або:
+1. Запускати паралельну роботу (інший рефакторинг, vault updates, prep наступного batch).
+2. Запускати **кілька речей одночасно** (multi-tool calls в одному message).
+
+**При завершенні роботи:** формат рапорту — "Я закінчив X, Y, Z. Результат: W. Бажано далі: A, B, або C — рекомендую X." Якщо у поточному напрямку нічого більше — самостійно дивитись на open tails (hot.md, untackled handlers, perf opportunities) і пропонувати логічний наступний крок.
+
+**Multi-tool calls** — стандартна практика коли є 3+ незалежних read/edit. Не виняток.
+
+---
+
 ## 🗂️ ОБЯЗАТЕЛЬНОЕ ЧТЕНИЕ В НАЧАЛЕ КАЖДОЙ СЕССИИ
 
 **Перед началом любой задачи Claude обязан:**

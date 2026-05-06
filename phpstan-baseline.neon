@@ -18535,30 +18535,6 @@ parameters:
 			path: app/TaskHandlers/LowHealthWarningHandler.php
 
 		-
-			message: '#^Method App\\TaskHandlers\\LowHealthWarningHandler\:\:process\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/LowHealthWarningHandler.php
-
-		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/LowHealthWarningHandler.php
-
-		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/LowHealthWarningHandler.php
-
-		-
-			message: '#^Property App\\TaskHandlers\\LowHealthWarningHandler\:\:\$telegram has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/LowHealthWarningHandler.php
-
-		-
 			message: '#^Access to an undefined property object\:\:\$name\.$#'
 			identifier: property.notFound
 			count: 1
@@ -19603,26 +19579,8 @@ parameters:
 			path: app/TaskHandlers/TaxCollectionHandler.php
 
 		-
-			message: '#^Method App\\TaskHandlers\\TaxCollectionHandler\:\:handle\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/TaxCollectionHandler.php
-
-		-
-			message: '#^Method App\\TaskHandlers\\TaxCollectionHandler\:\:sendTelegramNotification\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/TaxCollectionHandler.php
-
-		-
 			message: '#^Method App\\TaskHandlers\\TaxCollectionHandler\:\:sendTelegramNotification\(\) has parameter \$character with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
-			count: 1
-			path: app/TaskHandlers/TaxCollectionHandler.php
-
-		-
-			message: '#^Method App\\TaskHandlers\\TaxCollectionHandler\:\:sendTelegramNotificationPhoto\(\) has no return type specified\.$#'
-			identifier: missingType.return
 			count: 1
 			path: app/TaskHandlers/TaxCollectionHandler.php
 

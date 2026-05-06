@@ -6,12 +6,8 @@ use App\Models\CharacterBuildingModel;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Models\TeleportBeaconModel;
-use CodeIgniter\Controller;
-use CodeIgniter\I18n\Time;
 use DateTime;
 use DateInterval;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
 
 /**
  * Класс TaxCollectionHandler:
@@ -23,10 +19,19 @@ use Longman\TelegramBot\Request;
  *    - Сколько списано за маяки
  *    - Итоговое золото
  *    - Короткое описание механики «двойного предупреждения»
+ *
+ * v0.51.20 (F2.9 batch-2): extends BaseTaskHandler (per F2.9 contract).
+ * Раніше extends Controller — handler НЕ контроллер.
+ * Request::sendMessage/sendPhoto → safeSendMessage/safeSendPhoto.
+ * `handle()` → `handle(array $task = []): void` (TaskHandlerInterface signature).
  */
-class TaxCollectionHandler extends Controller
+class TaxCollectionHandler extends BaseTaskHandler
 {
-    public function handle()
+    /**
+     * @param array<string,mixed> $task TaskHandlerInterface signature (recurring tasks
+     *                                  не приймають task data).
+     */
+    public function handle(array $task = []): void
     {
         $currentDateTime = new DateTime();
         $now = $currentDateTime->format('Y-m-d H:i:s');
@@ -294,7 +299,7 @@ class TaxCollectionHandler extends Controller
     /**
      * Уведомление игрока (character) в Telegram (просто текст).
      */
-    private function sendTelegramNotification(array|\App\Entities\CharacterEntity $character, string $message)
+    private function sendTelegramNotification(array|\App\Entities\CharacterEntity $character, string $message): void
     {
         $telegramUserModel = new TelegramUserModel();
         $tgUser = $telegramUserModel->find($character['telegram_user_id']);
@@ -302,21 +307,13 @@ class TaxCollectionHandler extends Controller
             return;
         }
 
-        try {
-            Request::sendMessage([
-                'chat_id'    => $tgUser['telegram_id'],
-                'text'       => $message,
-                'parse_mode' => 'Markdown',
-            ]);
-        } catch (TelegramException $e) {
-            log_message('error', 'Telegram API error: ' . $e->getMessage());
-        }
+        $this->safeSendMessage($tgUser['telegram_id'], $message, ['parse_mode' => 'Markdown']);
     }
 
     /**
      * Уведомление с фото + текстом (итоговый отчёт о налогах).
      */
-    private function sendTelegramNotificationPhoto(array|\App\Entities\CharacterEntity $character, string $caption)
+    private function sendTelegramNotificationPhoto(array|\App\Entities\CharacterEntity $character, string $caption): void
     {
         $telegramUserModel = new TelegramUserModel();
         $tgUser = $telegramUserModel->find($character['telegram_user_id']);
@@ -325,16 +322,6 @@ class TaxCollectionHandler extends Controller
         }
 
         $imagePath = base_url('uploads/telegram/camp/tax_for_building.png');
-
-        try {
-            Request::sendPhoto([
-                'chat_id'    => $tgUser['telegram_id'],
-                'photo'      => Request::encodeFile($imagePath),
-                'caption'    => $caption,
-                'parse_mode' => 'Markdown',
-            ]);
-        } catch (TelegramException $e) {
-            log_message('error', 'Telegram API error (photo): ' . $e->getMessage());
-        }
+        $this->safeSendPhoto($tgUser['telegram_id'], $imagePath, $caption, ['parse_mode' => 'Markdown']);
     }
 }
