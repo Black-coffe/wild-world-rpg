@@ -3,9 +3,6 @@
 namespace App\TaskHandlers;
 
 use App\Models\CharacterResourceModel;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
 use App\Models\CharacterModel;
 use App\Models\BiomeModel;
 use App\Models\MapModel;
@@ -13,7 +10,24 @@ use App\Models\ResourceModel;
 use App\Models\TelegramUserModel;
 use Config\GameBalance;
 
-class FoodAndWaterConsumptionHandler
+/**
+ * v0.51.37 (F2.9 batch-1 expansion): extends BaseTaskHandler. Раніше extends
+ * нічого + manual `private $telegram = new Telegram()` init у constructor —
+ * dead pattern після F2.9 series (BaseTaskHandler::telegram() lazy-init).
+ *
+ * Зміни:
+ *  - extends BaseTaskHandler (lazy Telegram через telegram() / safeSendPhoto).
+ *  - Drop manual Telegram init у ctor.
+ *  - Drop unused imports (TelegramException, Telegram, Request).
+ *  - process() → handle(array $task = []): void (TaskHandlerInterface signature).
+ *  - Drop **broken** `Request::answerCallbackQuery(['callback_query_id' => $chatId])`
+ *    у subtractHealth + sendMessageToTelegram — wrong arg semantics (chat_id passed
+ *    as callback_query_id). Fires daily silently без value (handler runs from cron,
+ *    not callback context). Зайвий API call → noise.
+ *  - `Request::sendPhoto([...])` → `$this->safeSendPhoto($chatId, $img, $caption, ...)`
+ *    (catches TelegramException, не падає на rate-limit).
+ */
+class FoodAndWaterConsumptionHandler extends BaseTaskHandler
 {
     protected $characterModel;
     protected $biomeModel;
@@ -21,7 +35,6 @@ class FoodAndWaterConsumptionHandler
     protected $resourceModel;
     protected $characterResourceModel;
     protected $telegramUserModel;
-    private $telegram;
     private GameBalance $cfg;
 
     /**
@@ -37,19 +50,13 @@ class FoodAndWaterConsumptionHandler
         $this->resourceModel = new ResourceModel();
         $this->characterResourceModel = new CharacterResourceModel();
         $this->telegramUserModel = new TelegramUserModel();
-        $API_KEY = getenv('telegram.API_KEY');
-        $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-        try {
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            // Регистрация команд
-            $this->telegram->addCommandsPath(__DIR__ . '/Commands');
-
-        } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
-        }
     }
 
-    public function process()
+    /**
+     * @param array<string,mixed> $task TaskHandlerInterface signature (recurring tasks
+     *                                  не приймають task data).
+     */
+    public function handle(array $task = []): void
     {
         // Получаем текущее время
         $now = new \DateTime('now', new \DateTimeZone('UTC'));
@@ -263,20 +270,17 @@ class FoodAndWaterConsumptionHandler
                 ]
             ]
         ];
-        $imagePath = base_url('uploads/telegram/water_and_food_resources.png'); // Укажите актуальный путь к изображению
-        Request::answerCallbackQuery(['callback_query_id' => $telegramId]);
+        $imagePath = base_url('uploads/telegram/water_and_food_resources.png');
 
-        // Ответ в телеграм
-        return Request::sendPhoto([
-            'chat_id' => $telegramId,
-            'photo'   => Request::encodeFile($imagePath),
-            'caption' => $text,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
+        $this->safeSendPhoto(
+            $telegramId,
+            $imagePath,
+            $text,
+            ['parse_mode' => 'Markdown', 'reply_markup' => json_encode($keyboard)]
+        );
     }
 
-    public function sendMessageToTelegram($telegramId, $foodToConsume, $waterToConsume, $totalFoodResources, $totalWaterResources)
+    public function sendMessageToTelegram($telegramId, $foodToConsume, $waterToConsume, $totalFoodResources, $totalWaterResources): void
     {
         $text = "👤 *Персонаж отлично покушал!* 😋\n\n"
             . "*Съел и Выпил (завтрак, обед, ужин):*\n\n"
@@ -300,18 +304,14 @@ class FoodAndWaterConsumptionHandler
                 ]
             ]
         ];
-        $imagePath = base_url('uploads/telegram/water_and_food_resources.png'); // Укажите актуальный путь к изображению
-        Request::answerCallbackQuery(['callback_query_id' => $telegramId]);
+        $imagePath = base_url('uploads/telegram/water_and_food_resources.png');
 
-        // Ответ в телеграм
-        return Request::sendPhoto([
-            'chat_id' => $telegramId,
-            'photo'   => Request::encodeFile($imagePath),
-            'caption' => $text,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
-
+        $this->safeSendPhoto(
+            $telegramId,
+            $imagePath,
+            $text,
+            ['parse_mode' => 'Markdown', 'reply_markup' => json_encode($keyboard)]
+        );
     }
     private function deleteResourceIfNeeded($characterId)
     {

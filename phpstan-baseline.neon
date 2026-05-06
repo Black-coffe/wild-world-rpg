@@ -17959,18 +17959,6 @@ parameters:
 			path: app/TaskHandlers/FoodAndWaterConsumptionHandler.php
 
 		-
-			message: '#^Method App\\TaskHandlers\\FoodAndWaterConsumptionHandler\:\:process\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/FoodAndWaterConsumptionHandler.php
-
-		-
-			message: '#^Method App\\TaskHandlers\\FoodAndWaterConsumptionHandler\:\:sendMessageToTelegram\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/FoodAndWaterConsumptionHandler.php
-
-		-
 			message: '#^Method App\\TaskHandlers\\FoodAndWaterConsumptionHandler\:\:sendMessageToTelegram\(\) has parameter \$foodToConsume with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
@@ -18055,18 +18043,6 @@ parameters:
 			path: app/TaskHandlers/FoodAndWaterConsumptionHandler.php
 
 		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/FoodAndWaterConsumptionHandler.php
-
-		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/FoodAndWaterConsumptionHandler.php
-
-		-
 			message: '#^Property App\\TaskHandlers\\FoodAndWaterConsumptionHandler\:\:\$biomeModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
@@ -18098,12 +18074,6 @@ parameters:
 
 		-
 			message: '#^Property App\\TaskHandlers\\FoodAndWaterConsumptionHandler\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/FoodAndWaterConsumptionHandler.php
-
-		-
-			message: '#^Property App\\TaskHandlers\\FoodAndWaterConsumptionHandler\:\:\$telegram has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/FoodAndWaterConsumptionHandler.php

@@ -67,7 +67,7 @@ class Tasks extends BaseTasks
 
         // Питание/вода — handler сам проверяет 21:33 (Europe/Kiev) внутри.
         // TODO: после стабилизации заменить на ->daily('21:33')
-        $schedule->call(static fn() => (new \App\TaskHandlers\FoodAndWaterConsumptionHandler())->process())
+        $schedule->call(static fn() => (new \App\TaskHandlers\FoodAndWaterConsumptionHandler())->handle())
             ->everyMinute()->singleInstance()->named('food-water.consumption');
 
         // Налоги — handler сам проверяет 03:00 внутри.
