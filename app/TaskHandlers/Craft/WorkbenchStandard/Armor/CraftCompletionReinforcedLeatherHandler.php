@@ -1,33 +1,30 @@
 <?php
 
-namespace app\TaskHandlers\Craft\WorkbenchStandard\Armor;
+namespace App\TaskHandlers\Craft\WorkbenchStandard\Armor;
 
 use App\Models\CharacterModel;
 use App\Models\CharactersOutfitsModel;
 use App\Models\CharacterTaskModel;
 use App\Models\OutfitModel;
 use App\Models\TelegramUserModel;
-use CodeIgniter\Controller;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
+use App\TaskHandlers\BaseTaskHandler;
 
 /**
  * Хендлер, завершающий задачу "craftReinforcedLeatherJacket".
  *  1) Закрывает задачу (status=completed).
  *  2) Добавляет (или увеличивает) запись в characters_outfits для ReinforcedLeatherJacket.
- *  3) Даёт персонажу прирост некоторых характеристик (пример: +0.07 ловкости, +0.03 интеллекта).
+ *  3) Даёт персонажу +0.07 ловкости, +0.03 интеллекта.
  *  4) Уведомляет игрока в Telegram.
+ *
+ * v0.51.40 (F2.9 batch-5): extends BaseTaskHandler + PSR-4 namespace casing fix.
  */
-class CraftCompletionReinforcedLeatherHandler extends Controller
+class CraftCompletionReinforcedLeatherHandler extends BaseTaskHandler
 {
     protected $characterModel;
     protected $characterTaskModel;
     protected $outfitModel;
     protected $charactersOutfitsModel;
     protected $telegramUserModel;
-
-    private $telegram;
 
     public function __construct()
     {
@@ -36,26 +33,17 @@ class CraftCompletionReinforcedLeatherHandler extends Controller
         $this->outfitModel            = new OutfitModel();
         $this->charactersOutfitsModel = new CharactersOutfitsModel();
         $this->telegramUserModel      = new TelegramUserModel();
-
-        try {
-            $API_KEY      = getenv('telegram.API_KEY');
-            $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            Request::initialize($this->telegram);
-        } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
-        }
     }
 
     /**
-     * @param array $task Строка из character_tasks (c in_work -> completed).
+     * @param array<string,mixed> $task Строка из character_tasks (c in_work -> completed).
      */
-    public function handle(array $task)
+    public function handle(array $task = []): void
     {
-        // 1) Закрываем задачу (меняем status -> completed)
+        // 1) Закрываем задачу
         $this->characterTaskModel->update($task['id'], ['status' => 'completed']);
 
-        // 2) Ищем ReinforcedLeatherJacket в таблице outfits (по name_en)
+        // 2) Ищем ReinforcedLeatherJacket в таблице outfits
         $outfit = $this->outfitModel->where('name_en', 'ReinforcedLeatherJacket')->first();
         if (!$outfit) {
             log_message('error', 'Outfit "ReinforcedLeatherJacket" not found in table outfits.');
@@ -68,16 +56,13 @@ class CraftCompletionReinforcedLeatherHandler extends Controller
         // 4) Обновляем (или создаём) запись в characters_outfits
         $this->updateOrCreateOutfit($task['character_id'], $outfit['id'], $quantity);
 
-        // 5) Даём персонажу бонус (пример: +0.07 ловкости и +0.03 интеллекта)
+        // 5) Даём персонажу бонус (+0.07 ловкости и +0.03 интеллекта)
         $this->characterModel->updateAgilityAndIntellect($task['character_id'], 0.07, 0.03);
 
         // 6) Уведомляем игрока в Telegram
         $this->notifyUser($task['telegram_user_id'], $outfit, $task['character_id'], $quantity);
     }
 
-    /**
-     * Достаём quantity из task_settings (JSON).
-     */
     private function getQuantity(array $task): int
     {
         if (!empty($task['task_settings'])) {
@@ -89,10 +74,7 @@ class CraftCompletionReinforcedLeatherHandler extends Controller
         return 1;
     }
 
-    /**
-     * Добавить (или увеличить) предмет в characters_outfits.
-     */
-    private function updateOrCreateOutfit(int $characterId, int $outfitId, int $qty)
+    private function updateOrCreateOutfit(int $characterId, int $outfitId, int $qty): void
     {
         $row = $this->charactersOutfitsModel
             ->where('character_id', $characterId)
@@ -100,11 +82,9 @@ class CraftCompletionReinforcedLeatherHandler extends Controller
             ->first();
 
         if ($row) {
-            // Если у персонажа уже есть такая броня, просто увеличиваем кол-во
             $newQty = (int)$row['quantity'] + $qty;
             $this->charactersOutfitsModel->update($row['id'], ['quantity' => $newQty]);
         } else {
-            // Вставляем новую строку
             $this->charactersOutfitsModel->insert([
                 'character_id'       => $characterId,
                 'outfit_id'          => $outfitId,
@@ -116,10 +96,7 @@ class CraftCompletionReinforcedLeatherHandler extends Controller
         }
     }
 
-    /**
-     * Уведомляем игрока, что крафт завершён (Telegram).
-     */
-    private function notifyUser(int $telegramUserId, array $outfit, int $characterId, int $qtyAdded)
+    private function notifyUser(int $telegramUserId, array $outfit, int $characterId, int $qtyAdded): void
     {
         $tgUser = $this->telegramUserModel->find($telegramUserId);
         if (!$tgUser) {
@@ -133,7 +110,6 @@ class CraftCompletionReinforcedLeatherHandler extends Controller
             return;
         }
 
-        // Сколько теперь всего у игрока?
         $row = $this->charactersOutfitsModel
             ->where('character_id', $characterId)
             ->where('outfit_id', $outfit['id'])
@@ -153,23 +129,11 @@ class CraftCompletionReinforcedLeatherHandler extends Controller
             ]
         ];
 
-        // Путь к картинке «Усиленная кожаная куртка» (поставьте своё)
-        $imagePath = base_url('uploads/telegram/craft/standard/reinforced_leather_jacket.jpg');
-
-        try {
-            Request::sendPhoto([
-                'chat_id'    => $telegramId,
-                'photo'      => Request::encodeFile($imagePath),
-                'caption'    => $text,
-                'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
-            ]);
-        } catch (TelegramException $e) {
-            log_message('error', "Telegram API error: " . $e->getMessage());
-            Request::sendMessage([
-                'chat_id' => $telegramId,
-                'text'    => "Ошибка отправки уведомления: " . $e->getMessage(),
-            ]);
-        }
+        $this->safeSendPhoto(
+            $telegramId,
+            base_url('uploads/telegram/craft/standard/reinforced_leather_jacket.jpg'),
+            $text,
+            ['parse_mode' => 'Markdown', 'reply_markup' => json_encode($keyboard)]
+        );
     }
 }

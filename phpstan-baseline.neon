@@ -16873,85 +16873,61 @@ parameters:
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:getQuantity\(\) has parameter \$task with no value type specified in iterable type array\.$#'
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:getQuantity\(\) has parameter \$task with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:handle\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:handle\(\) has parameter \$task with no value type specified in iterable type array\.$#'
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:notifyUser\(\) has parameter \$outfit with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:notifyUser\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:notifyUser\(\) has parameter \$outfit with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:updateOrCreateOutfit\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
-
-		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			message: '#^Parameter \#1 \$characterId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:updateOrCreateOutfit\(\) expects int, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
 
 		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			message: '#^Parameter \#1 \$telegramUserId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:\$characterModel has no type specified\.$#'
+			message: '#^Parameter \#3 \$characterId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
+
+		-
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:\$characterModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:\$characterTaskModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:\$characterTaskModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:\$charactersOutfitsModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:\$charactersOutfitsModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:\$outfitModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:\$outfitModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:\$telegram has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
-
-		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:\$telegramUserModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionDrifterClothesHandler\:\:\$telegramUserModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionDrifterClothesHandler.php
@@ -16963,85 +16939,61 @@ parameters:
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:getQuantity\(\) has parameter \$task with no value type specified in iterable type array\.$#'
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:getQuantity\(\) has parameter \$task with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:handle\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:handle\(\) has parameter \$task with no value type specified in iterable type array\.$#'
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:notifyUser\(\) has parameter \$outfit with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:notifyUser\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:notifyUser\(\) has parameter \$outfit with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:updateOrCreateOutfit\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
-
-		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			message: '#^Parameter \#1 \$characterId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:updateOrCreateOutfit\(\) expects int, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
 
 		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			message: '#^Parameter \#1 \$telegramUserId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:\$characterModel has no type specified\.$#'
+			message: '#^Parameter \#3 \$characterId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
+
+		-
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:\$characterModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:\$characterTaskModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:\$characterTaskModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:\$charactersOutfitsModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:\$charactersOutfitsModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:\$outfitModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:\$outfitModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:\$telegram has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
-
-		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:\$telegramUserModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionLeatherJacketHandler\:\:\$telegramUserModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionLeatherJacketHandler.php
@@ -17053,79 +17005,61 @@ parameters:
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:getQuantityFromTaskSettings\(\) has parameter \$task with no value type specified in iterable type array\.$#'
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:getQuantityFromTaskSettings\(\) has parameter \$task with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:handle\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:handle\(\) has parameter \$task with no value type specified in iterable type array\.$#'
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:notifyUser\(\) has parameter \$outfit with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:notifyUser\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:notifyUser\(\) has parameter \$outfit with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:updateOrCreateOutfit\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
-
-		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			message: '#^Parameter \#1 \$characterId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:updateOrCreateOutfit\(\) expects int, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
 
 		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			message: '#^Parameter \#1 \$telegramUserId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:\$characterModel has no type specified\.$#'
+			message: '#^Parameter \#3 \$characterId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
+
+		-
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:\$characterModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:\$characterTaskModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:\$characterTaskModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:\$charactersOutfitsModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:\$charactersOutfitsModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:\$outfitModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:\$outfitModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:\$telegramUserModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionRaggedShirtHandler\:\:\$telegramUserModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionRaggedShirtHandler.php
@@ -17137,85 +17071,61 @@ parameters:
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:getQuantity\(\) has parameter \$task with no value type specified in iterable type array\.$#'
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:getQuantity\(\) has parameter \$task with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:handle\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:handle\(\) has parameter \$task with no value type specified in iterable type array\.$#'
+			message: '#^Method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:notifyUser\(\) has parameter \$outfit with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
 
 		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:notifyUser\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:notifyUser\(\) has parameter \$outfit with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
-
-		-
-			message: '#^Method app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:updateOrCreateOutfit\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
-
-		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			message: '#^Parameter \#1 \$characterId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:updateOrCreateOutfit\(\) expects int, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
 
 		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			message: '#^Parameter \#1 \$telegramUserId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:\$characterModel has no type specified\.$#'
+			message: '#^Parameter \#3 \$characterId of method App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:notifyUser\(\) expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
+
+		-
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:\$characterModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:\$characterTaskModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:\$characterTaskModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:\$charactersOutfitsModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:\$charactersOutfitsModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:\$outfitModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:\$outfitModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
 
 		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:\$telegram has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php
-
-		-
-			message: '#^Property app\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:\$telegramUserModel has no type specified\.$#'
+			message: '#^Property App\\TaskHandlers\\Craft\\WorkbenchStandard\\Armor\\CraftCompletionReinforcedLeatherHandler\:\:\$telegramUserModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/Craft/WorkbenchStandard/Armor/CraftCompletionReinforcedLeatherHandler.php

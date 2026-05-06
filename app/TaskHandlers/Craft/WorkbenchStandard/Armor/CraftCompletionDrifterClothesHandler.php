@@ -1,33 +1,31 @@
 <?php
 
-namespace app\TaskHandlers\Craft\WorkbenchStandard\Armor;
+namespace App\TaskHandlers\Craft\WorkbenchStandard\Armor;
 
 use App\Models\CharacterModel;
 use App\Models\CharactersOutfitsModel;
 use App\Models\CharacterTaskModel;
 use App\Models\OutfitModel;
 use App\Models\TelegramUserModel;
-use CodeIgniter\Controller;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
+use App\TaskHandlers\BaseTaskHandler;
 
 /**
  * Хендлер, завершающий задачу "craftArmorDrifterClothes".
  *  1) Закрывает задачу (status=completed).
- *  2) Добавляет (увеличивает) запись в characters_outfits для DrifterClothes.
- *  3) Даёт персонажу +0.05 ловкости, +0.02 интеллекта (пример).
+ *  2) Добавляет (увеличивает) запись в characters_outfits для DrifterClothes
+ *     (lookup outfits by name_en='WandererClothes').
+ *  3) Даёт персонажу +0.05 ловкости, +0.02 интеллекта.
  *  4) Уведомляет игрока.
+ *
+ * v0.51.40 (F2.9 batch-5): extends BaseTaskHandler + PSR-4 namespace casing fix.
  */
-class CraftCompletionDrifterClothesHandler extends Controller
+class CraftCompletionDrifterClothesHandler extends BaseTaskHandler
 {
     protected $characterModel;
     protected $characterTaskModel;
     protected $outfitModel;
     protected $charactersOutfitsModel;
     protected $telegramUserModel;
-
-    private $telegram;
 
     public function __construct()
     {
@@ -36,21 +34,12 @@ class CraftCompletionDrifterClothesHandler extends Controller
         $this->outfitModel            = new OutfitModel();
         $this->charactersOutfitsModel = new CharactersOutfitsModel();
         $this->telegramUserModel      = new TelegramUserModel();
-
-        try {
-            $API_KEY      = getenv('telegram.API_KEY');
-            $BOT_USERNAME = getenv('telegram.BOT_USERNAME');
-            $this->telegram = new Telegram($API_KEY, $BOT_USERNAME);
-            Request::initialize($this->telegram);
-        } catch (TelegramException $e) {
-            log_message('error', $e->getMessage());
-        }
     }
 
     /**
-     * @param array $task Строка из character_tasks (in_work -> completed).
+     * @param array<string,mixed> $task Строка из character_tasks (in_work -> completed).
      */
-    public function handle(array $task)
+    public function handle(array $task = []): void
     {
         // 1) закрываем задачу
         $this->characterTaskModel->update($task['id'], ['status' => 'completed']);
@@ -68,7 +57,7 @@ class CraftCompletionDrifterClothesHandler extends Controller
         // 4) увеличиваем запись в characters_outfits
         $this->updateOrCreateOutfit($task['character_id'], $outfit['id'], $quantity);
 
-        // 5) даём персонажу +0.05 ловкости, +0.02 интеллекта (пример)
+        // 5) даём персонажу +0.05 ловкости, +0.02 интеллекта
         $this->characterModel->updateAgilityAndIntellect(
             $task['character_id'],
             0.05,
@@ -90,7 +79,7 @@ class CraftCompletionDrifterClothesHandler extends Controller
         return 1;
     }
 
-    private function updateOrCreateOutfit(int $characterId, int $outfitId, int $qty)
+    private function updateOrCreateOutfit(int $characterId, int $outfitId, int $qty): void
     {
         $row = $this->charactersOutfitsModel
             ->where('character_id', $characterId)
@@ -105,14 +94,14 @@ class CraftCompletionDrifterClothesHandler extends Controller
                 'character_id'       => $characterId,
                 'outfit_id'          => $outfitId,
                 'quantity'           => $qty,
-                'current_durability' => 100, // или другое значение
+                'current_durability' => 100,
                 'equipped'           => 0,
                 'slot'               => 'body',
             ]);
         }
     }
 
-    private function notifyUser(int $telegramUserId, array $outfit, int $characterId, int $qtyAdded)
+    private function notifyUser(int $telegramUserId, array $outfit, int $characterId, int $qtyAdded): void
     {
         $tgUser = $this->telegramUserModel->find($telegramUserId);
         if (!$tgUser) {
@@ -125,7 +114,6 @@ class CraftCompletionDrifterClothesHandler extends Controller
             return;
         }
 
-        // сколько всего теперь у персонажа?
         $row = $this->charactersOutfitsModel
             ->where('character_id', $characterId)
             ->where('outfit_id', $outfit['id'])
@@ -145,22 +133,11 @@ class CraftCompletionDrifterClothesHandler extends Controller
             ]
         ];
 
-        $imagePath = base_url('uploads/telegram/craft/standard/drifter_clothes.jpg');
-
-        try {
-            Request::sendPhoto([
-                'chat_id'    => $telegramId,
-                'photo'      => Request::encodeFile($imagePath),
-                'caption'    => $text,
-                'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
-            ]);
-        } catch (TelegramException $e) {
-            log_message('error', "Telegram API error: " . $e->getMessage());
-            Request::sendMessage([
-                'chat_id' => $telegramId,
-                'text'    => "Ошибка отправки: " . $e->getMessage(),
-            ]);
-        }
+        $this->safeSendPhoto(
+            $telegramId,
+            base_url('uploads/telegram/craft/standard/drifter_clothes.jpg'),
+            $text,
+            ['parse_mode' => 'Markdown', 'reply_markup' => json_encode($keyboard)]
+        );
     }
 }
