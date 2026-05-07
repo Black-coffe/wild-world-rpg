@@ -21,6 +21,7 @@ use App\Models\TelegramUserModel; // уведомление старому вл�
 
 // Сервисы
 use App\Services\Bases\CampCheckService;
+use App\Services\Player\TeleportBeacon\BeaconMessageFormatter;
 use App\Services\Player\TeleportBeacon\BeaconPlacementValidator;
 
 /**
@@ -53,6 +54,9 @@ class TeleportBeaconSetAction
     // v0.51.52 (Step 1) — validation chain extracted у dedicated service.
     protected BeaconPlacementValidator $placementValidator;
 
+    // v0.51.53 (Step 2) — Markdown templates extracted у formatter.
+    protected BeaconMessageFormatter $formatter;
+
     public function __construct(CallbackQuery $callbackQuery)
     {
         $this->callbackQuery          = $callbackQuery;
@@ -80,6 +84,18 @@ class TeleportBeaconSetAction
             $this->teleportBeaconModel,
             $this->campCheckService
         );
+        $this->formatter              = new BeaconMessageFormatter();
+    }
+
+    /**
+     * Helper (v0.51.53): send message via Request::sendMessage з payload-array.
+     * Зливає chat_id з content payload.
+     *
+     * @param array<string,mixed> $payload
+     */
+    private function send(int|string $chatId, array $payload): ServerResponse
+    {
+        return Request::sendMessage(array_merge(['chat_id' => $chatId], $payload));
     }
 
     /**
@@ -200,63 +216,16 @@ class TeleportBeaconSetAction
             ->where('character_id',    $characterId)
             ->where('crafted_item_id', $beaconItem['id'])
             ->first();
-        $beaconLeft = $beaconLogUpdated ? $beaconLogUpdated['quantity'] : 0;
+        $beaconLeft = $beaconLogUpdated ? (int) $beaconLogUpdated['quantity'] : 0;
 
-        // Смотрим биом
-        $biomeName        = '???';
-        $biomeDescription = '';
-        $biomeType        = '';
-        $dangerLevelText  = '';
-        $biomeDangerLevel = 0;
-        $survivalText     = '';
-        $survivalValue    = 0;
-        $occurrenceRate   = 0;
+        // Biome lookup (v0.51.53 — formatting moved до formatter)
+        $biomeRow = $biomeId ? $this->biomeModel->find($biomeId) : null;
 
-        if ($biomeId) {
-            $bRow = $this->biomeModel->find($biomeId);
-            if ($bRow) {
-                $biomeName        = $bRow['name'] ?? '???';
-                $biomeDescription = $bRow['description'] ?? '';
-                $biomeType        = $bRow['biome_type'] ?? '';
-                $dangerLevelText  = $bRow['danger_level_text'] ?? '';
-                $biomeDangerLevel = (int)($bRow['danger_level'] ?? 0);
-                $survivalText     = $bRow['survival_difficulty_text'] ?? '';
-                $survivalValue    = (int)($bRow['survival_difficulty'] ?? 0);
-                $occurrenceRate   = (float)($bRow['occurrence_rate'] ?? 0);
-            }
-        }
-
-        // Формируем сообщение
-        $textMessage = "⚙️ *Установка телепорт-маяка завершена!*\n\n"
-            . "Ты успешно разместил маяк:\n"
-            . "• Координаты: `X={$coordX}, Y={$coordY}` (#{$cellNumber})\n"
-            . "• Биом: *{$biomeName}*\n"
-            . "   _{$biomeDescription}_\n\n"
-            . "🔋 *Запас прочности:* 100 использований\n\n"
-            . "📋 *Характеристики биома:*\n"
-            . "• Тип: `{$biomeType}`\n"
-            . "• Опасность: {$biomeDangerLevel}/10 «{$dangerLevelText}»\n"
-            . "• Сложность выживания: {$survivalValue}/10 «{$survivalText}»\n"
-            . "• Частота встречаемости: {$occurrenceRate}%\n\n"
-            . "📦 *Маяков в инвентаре:* {$beaconLeft}\n"
-            . "🏗 Теперь у тебя *{$updatedCount}* маяков из макс. *{$maxBeacons}*\n\n"
-            . "🔎 Надеюсь, никто не отыщет твой маяк и не разберёт его на детали...";
-
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🏠 База',            'callback_data' => 'Base'],
-                ],
-            ]
-        ];
-
-        Request::sendMessage([
-            'chat_id'    => $chatId,
-            'text'       => $textMessage,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
+        $this->send($chatId, $this->formatter->installSuccess(
+            (int) $coordX, (int) $coordY, $cellNumber,
+            $biomeRow,
+            $beaconLeft, (int) $updatedCount, $maxBeacons
+        ));
     }
 
     /**
@@ -265,30 +234,7 @@ class TeleportBeaconSetAction
      */
     private function showCaptureOption(int $chatId, array $existingBeacon, int $cellNumber): ServerResponse
     {
-        $uses = (int)$existingBeacon['remaining_uses'];
-        $text = "На этой точке уже обнаружен *чужой* маяк!\n"
-            . "Остаток телепортов: {$uses}\n\n"
-            . "Ты можешь его *перехватить* (присвоить себе) или *отказаться* (ничего не делать).";
-
-        // callback_data => "teleportBeaconSet_capture_id=XXX"
-        $captureData = "teleportBeaconSet_capture_id={$existingBeacon['id']}";
-        $cancelData  = "teleportBeaconSet_cancel";
-
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👀 Перехватить!', 'callback_data' => $captureData],
-                    ['text' => '🚫 Отменить',     'callback_data' => $cancelData],
-                ],
-            ]
-        ];
-
-        return Request::sendMessage([
-            'chat_id'      => $chatId,
-            'text'         => $text,
-            'parse_mode'   => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
+        return $this->send($chatId, $this->formatter->captureOption($existingBeacon));
     }
 
     /**
@@ -335,33 +281,22 @@ class TeleportBeaconSetAction
             $this->notifyOldOwner($oldOwnerId, $beaconRow);
         }
 
-        // 7) Текст для нового владельца
-        $x    = $beaconRow['coordinate_x'];
-        $y    = $beaconRow['coordinate_y'];
-        $uses = $beaconRow['remaining_uses'];
-
-        $text = "✅ *Маяк перехвачен!*\n\n"
-            . "Теперь он твой (ownership_type='captured').\n"
-            . "Координаты: (X={$x}, Y={$y})\n"
-            . "Остаток телепортов: {$uses}";
+        // 7) Текст для нового владельца (v0.51.53 — formatter)
+        $text = $this->formatter->captureSuccess($beaconRow);
 
         // 8) Пытаемся отредактировать текущее сообщение (убираем кнопки)
         $messageId  = $this->callbackQuery->getMessage()->getMessageId();
         $editResult = Request::editMessageText([
-            'chat_id'    => $chatId,
-            'message_id' => $messageId,
-            'text'       => $text,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode(['inline_keyboard' => []]), // убираем кнопки
+            'chat_id'      => $chatId,
+            'message_id'   => $messageId,
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => (string) json_encode(['inline_keyboard' => []]),
         ]);
 
         // 9) Если редактирование не удалось, шлём новое сообщение
         if ($editResult === null || !$editResult->isOk()) {
-            Request::sendMessage([
-                'chat_id'    => $chatId,
-                'text'       => $text,
-                'parse_mode' => 'Markdown',
-            ]);
+            $this->send($chatId, ['text' => $text, 'parse_mode' => 'Markdown']);
         }
 
         // 10) Alert захватчику в любом случае
@@ -405,21 +340,8 @@ class TeleportBeaconSetAction
         }
         $oldOwnerTgId = (int)$row['telegram_id'];
 
-        // 3) Отправляем
-        $x    = $beaconRow['coordinate_x'];
-        $y    = $beaconRow['coordinate_y'];
-        $uses = $beaconRow['remaining_uses'];
-
-        $text = "‼️ *Тревога!*\n"
-            ."Твой маяк на координатах (X={$x}, Y={$y}) перехвачен.\n"
-            ."Остаток телепортов: {$uses}\n"
-            ."Теперь маяк тебе не принадлежит :(";
-
-        Request::sendMessage([
-            'chat_id'    => $oldOwnerTgId,
-            'text'       => $text,
-            'parse_mode' => 'Markdown',
-        ]);
+        // 3) Отправляем (v0.51.53 — formatter)
+        $this->send($oldOwnerTgId, $this->formatter->oldOwnerAlert($beaconRow));
     }
 
     /**
@@ -427,11 +349,7 @@ class TeleportBeaconSetAction
      */
     private function cancelSet(int $chatId): ServerResponse
     {
-        return Request::sendMessage([
-            'chat_id'    => $chatId,
-            'text'       => "Операция установки (или перехвата) маяка отменена.",
-            'parse_mode' => 'Markdown',
-        ]);
+        return $this->send($chatId, $this->formatter->cancel());
     }
 
     /**
@@ -439,10 +357,6 @@ class TeleportBeaconSetAction
      */
     private function sendError(int $chatId, string $msg): ServerResponse
     {
-        return Request::sendMessage([
-            'chat_id'    => $chatId,
-            'text'       => $msg,
-            'parse_mode' => 'Markdown',
-        ]);
+        return $this->send($chatId, $this->formatter->error($msg));
     }
 }
