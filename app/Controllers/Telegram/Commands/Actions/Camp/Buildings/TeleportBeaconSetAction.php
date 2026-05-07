@@ -21,6 +21,7 @@ use App\Models\TelegramUserModel; // уведомление старому вл�
 
 // Сервисы
 use App\Services\Bases\CampCheckService;
+use App\Services\Player\TeleportBeacon\BeaconCaptureService;
 use App\Services\Player\TeleportBeacon\BeaconInstaller;
 use App\Services\Player\TeleportBeacon\BeaconMessageFormatter;
 use App\Services\Player\TeleportBeacon\BeaconPlacementValidator;
@@ -61,6 +62,9 @@ class TeleportBeaconSetAction
     // v0.51.54 (Step 3) — DB write + inventory subtract extracted у installer.
     protected BeaconInstaller $installer;
 
+    // v0.51.55 (Step 4) — capture flow + notify lookup extracted у service.
+    protected BeaconCaptureService $captureService;
+
     public function __construct(CallbackQuery $callbackQuery)
     {
         $this->callbackQuery          = $callbackQuery;
@@ -92,6 +96,11 @@ class TeleportBeaconSetAction
         $this->installer              = new BeaconInstaller(
             $this->teleportBeaconModel,
             $this->craftedItemsLogModel
+        );
+        $this->captureService         = new BeaconCaptureService(
+            $this->teleportBeaconModel,
+            $this->characterModel,
+            $this->telegramUserModel
         );
     }
 
@@ -224,53 +233,49 @@ class TeleportBeaconSetAction
     }
 
     /**
-     * Перехват чужого маяка: меняем владельца, уведомляем обоих.
-     * Также пытаемся редактировать предыдущее сообщение, если оно свежее.
+     * Перехват чужого маяка: orchestrator only.
+     *
+     * v0.51.55 (Step 4): DB ops + notify lookup → BeaconCaptureService.
+     * Action method тепер: lookup captor → service.captureBeacon() →
+     *   route by status → format message → edit/send + alert callback.
      */
     private function captureBeacon(int $beaconId, int $chatId): ServerResponse
     {
-        // 1) Текущий игрок (захватчик)
+        // 1) Captor character
         $telegramUserId = $this->callbackQuery->getFrom()->getId();
-        $characterId    = $this->characterModel->getCharacterIdByTelegramId($telegramUserId);
-        if (!$characterId) {
+        $captorCharId   = $this->characterModel->getCharacterIdByTelegramId($telegramUserId);
+        if (!$captorCharId) {
             return $this->sendError($chatId, "Персонаж не найден (TG={$telegramUserId}).");
         }
 
-        // 2) Находим маяк
-        $beaconRow = $this->teleportBeaconModel->find($beaconId);
-        if (!$beaconRow) {
+        // 2) Виконуємо capture (DB ops у service)
+        $result = $this->captureService->captureBeacon($beaconId, (int) $captorCharId);
+
+        if ($result['status'] === 'not_found') {
             return $this->sendError($chatId, "Маяк #{$beaconId} не найден (возможно, уже удалён?).");
         }
 
-        // 3) Проверяем, не наш ли уже этот маяк
-        if ((int)$beaconRow['character_id'] === $characterId) {
-            // Alert + сообщение
+        if ($result['status'] === 'self_capture') {
             Request::answerCallbackQuery([
                 'callback_query_id' => $this->callbackQuery->getId(),
-                'text'             => 'Уже твой маяк!',
-                'show_alert'       => true,
+                'text'              => 'Уже твой маяк!',
+                'show_alert'        => true,
             ]);
             return $this->sendError($chatId, "Этот маяк уже принадлежит тебе!");
         }
 
-        // 4) Старый владелец
-        $oldOwnerId = (int)$beaconRow['character_id'];
-
-        // 5) Меняем поля
-        $this->teleportBeaconModel->update($beaconId, [
-            'character_id'   => $characterId,
-            'ownership_type' => 'captured',
-        ]);
-
-        // 6) Уведомляем старого владельца
-        if ($oldOwnerId && $oldOwnerId !== $characterId) {
-            $this->notifyOldOwner($oldOwnerId, $beaconRow);
+        // 3) Captured! Notify old owner (если є).
+        $beaconRow = $result['beacon'];
+        $oldOwnerCharId = $result['oldOwnerCharId'] ?? null;
+        if ($oldOwnerCharId && $oldOwnerCharId !== $captorCharId) {
+            $oldOwnerTgId = $this->captureService->lookupOwnerTelegramId($oldOwnerCharId);
+            if ($oldOwnerTgId) {
+                $this->send($oldOwnerTgId, $this->formatter->oldOwnerAlert($beaconRow));
+            }
         }
 
-        // 7) Текст для нового владельца (v0.51.53 — formatter)
-        $text = $this->formatter->captureSuccess($beaconRow);
-
-        // 8) Пытаемся отредактировать текущее сообщение (убираем кнопки)
+        // 4) Текст для нового власника + edit OR fallback send.
+        $text       = $this->formatter->captureSuccess($beaconRow);
         $messageId  = $this->callbackQuery->getMessage()->getMessageId();
         $editResult = Request::editMessageText([
             'chat_id'      => $chatId,
@@ -279,55 +284,18 @@ class TeleportBeaconSetAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => (string) json_encode(['inline_keyboard' => []]),
         ]);
-
-        // 9) Если редактирование не удалось, шлём новое сообщение
         if ($editResult === null || !$editResult->isOk()) {
             $this->send($chatId, ['text' => $text, 'parse_mode' => 'Markdown']);
         }
 
-        // 10) Alert захватчику в любом случае
+        // 5) Alert захватчику
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId(),
-            'text'             => 'Маяк перехвачен!',
-            'show_alert'       => true,
+            'text'              => 'Маяк перехвачен!',
+            'show_alert'        => true,
         ]);
 
         return Request::emptyResponse();
-    }
-
-    /**
-     * Уведомляем старого владельца
-     */
-    private function notifyOldOwner(int $oldOwnerId, array $beaconRow): void
-    {
-        // 1) Найдём oldChar
-        $oldChar = $this->characterModel->find($oldOwnerId);
-        if (!$oldChar) {
-            return; // нет персонажа
-        }
-
-        $tgUserId = (int)$oldChar['telegram_user_id'];
-        if (!$tgUserId) {
-            return; // нет связи
-        }
-
-        // 2) Ищем telegram_id
-        $db = db_connect();
-        $query = $db->table('telegram_users')
-            ->select('telegram_id')
-            ->where('id', $tgUserId)
-            ->get();
-        if ($query === false) {
-            return;
-        }
-        $row = $query->getRowArray();
-        if (!$row) {
-            return;
-        }
-        $oldOwnerTgId = (int)$row['telegram_id'];
-
-        // 3) Отправляем (v0.51.53 — formatter)
-        $this->send($oldOwnerTgId, $this->formatter->oldOwnerAlert($beaconRow));
     }
 
     /**
