@@ -15,6 +15,7 @@ use App\Services\Player\BuildingUpgrade\BuildingUpgradeApplier;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeMessageFormatter;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeValidator;
 use App\Services\Player\PlayerStateService;
+use Config\BuildingUpgrades;
 
 /**
  * Двухэтапный апгрейд здания:
@@ -39,86 +40,8 @@ class UpgradeBuildingAction extends BaseAction
     // v0.51.60 (Step 3) — DB write block extracted у applier
     protected BuildingUpgradeApplier $applier;
 
-    /**
-     * Требования для перехода на каждый уровень (2..10):
-     * - gold     = нужное количество золота
-     * - level    = минимальный уровень персонажа
-     * - resources= массив необходимых ресурсов (name_en => кол-во)
-     */
-    protected $upgradeRequirements = [
-        2 => [
-            'gold'      => 50000,
-            'level'     => 1,
-            'resources' => [],
-        ],
-        3 => [
-            'gold'      => 75000,
-            'level'     => 12,
-            'resources' => [],
-        ],
-        4 => [
-            'gold'      => 100000,
-            'level'     => 14,
-            'resources' => [
-                'Water' => 15000,
-                'Wood'  => 10000,
-            ],
-        ],
-        5 => [
-            'gold'      => 150000,
-            'level'     => 20,
-            'resources' => [
-                'Water'  => 15000,
-                'Wood'   => 15000,
-                'Pebble' => 15000,
-            ],
-        ],
-        6 => [
-            'gold'      => 200000,
-            'level'     => 22,
-            'resources' => [
-                'Water' => 18000,
-                'Wood'  => 20000,
-                'Pebble'=> 22000,
-                'Sand'  => 15000,
-            ],
-        ],
-        7 => [
-            'gold'      => 300000,
-            'level'     => 24,
-            'resources' => [
-                'Water' => 24000,
-                'Wood'  => 30000,
-                'Pebble'=> 32000,
-                'Sand'  => 28000,
-            ],
-        ],
-        8 => [
-            'gold'      => 368000,
-            'level'     => 26,
-            'resources' => [
-                'Water' => 28200,
-                'Wood'  => 36400,
-                'Pebble'=> 34800,
-                'Sand'  => 31400,
-            ],
-        ],
-        9 => [
-            'gold'      => 472000,
-            'level'     => 28,
-            'resources' => [
-                'Water' => 31200,
-                'Wood'  => 39340,
-                'Pebble'=> 37150,
-                'Sand'  => 34120,
-            ],
-        ],
-        10 => [
-            'gold'      => 1000000,
-            'level'     => 30,
-            'resources' => [],
-        ],
-    ];
+    // v0.51.61 (Step 4) — requirements config extracted у Config\BuildingUpgrades
+    protected BuildingUpgrades $upgrades;
 
     public function __construct($callbackQuery)
     {
@@ -145,6 +68,7 @@ class UpgradeBuildingAction extends BaseAction
             $this->resourceModel,
             $this->characterBuildingModel
         );
+        $this->upgrades               = config(BuildingUpgrades::class);
     }
 
     /**
@@ -199,7 +123,7 @@ class UpgradeBuildingAction extends BaseAction
         }
 
         // Run full validation
-        $res = $this->validator->validate($character, (int) $buildingId, $this->upgradeRequirements);
+        $res = $this->validator->validate($character, (int) $buildingId, $this->upgrades->requirements);
 
         if (!$res['ok']) {
             if (!empty($res['missingResources'])) {
@@ -257,7 +181,7 @@ class UpgradeBuildingAction extends BaseAction
         }
 
         // v0.51.57 — re-validate всю chain (resources могли поменяться після ask)
-        $res = $this->validator->validate($character, (int) $buildingId, $this->upgradeRequirements);
+        $res = $this->validator->validate($character, (int) $buildingId, $this->upgrades->requirements);
         if (!$res['ok']) {
             if (!empty($res['missingResources'])) {
                 return $this->send($chatId, $this->formatter->missingResourcesConfirm(
