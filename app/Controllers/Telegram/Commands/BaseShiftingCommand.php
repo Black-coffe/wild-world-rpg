@@ -13,15 +13,40 @@ use App\Models\CharacterModel;
 use App\Models\TaskModel;
 use App\Models\CharacterTaskModel;
 use App\Models\MapModel;
-use App\Models\ClaimedCellModel;
-use App\Models\ExploredCellsModel;
 
+use App\Services\Player\Relocation\RelocationValidator;
+
+/**
+ * v0.51.47 (decomp Step 1) — extracted 3 валідаційні helpers
+ * (`checkPreconditions` + `isCellAvailableForRelocation` + `isCellExploredBy`)
+ * у `App\Services\Player\Relocation\RelocationValidator` сервіс.
+ *
+ * Раніше обидва entry points (`execute()` + `handleCallback()`) дублювали
+ * виклики цих helpers. Тепер shared service. Behavior preservation 1:1.
+ *
+ * Multi-step decomp BaseShiftingCommand 530 LOC → ~150 LOC orchestrator + 4 services.
+ * Step 2 (planned): ClosestCellFinder, Step 3: TaskCreator, Step 4: MessageFormatter.
+ */
 class BaseShiftingCommand extends UserCommand
 {
     protected $name = 'base_shifting'; // /base_shifting
     protected $description = 'Полноценный переезд базы на новые координаты (X=..., Y=...)';
     protected $usage = '/base_shifting X=123Y=456';
     protected $version = '1.0.0';
+
+    private ?RelocationValidator $validator = null;
+
+    /**
+     * Lazy getter — уникаємо overriding Longman UserCommand constructor
+     * (різні Longman versions можуть мати різні constructor signatures).
+     */
+    private function validator(): RelocationValidator
+    {
+        if ($this->validator === null) {
+            $this->validator = new RelocationValidator();
+        }
+        return $this->validator;
+    }
 
     /**
      * Выполняется, когда игрок вводит: /base_shifting X=...Y=...
@@ -74,8 +99,8 @@ class BaseShiftingCommand extends UserCommand
             ]);
         }
 
-        // 4) Проверяем кулдаун, активную задачу и т.д.
-        $canProceed = $this->checkPreconditions($character, $chatId);
+        // 4) Проверяем кулдаун, активную задачу и т.д. (v0.51.47 — RelocationValidator)
+        $canProceed = $this->validator()->checkPreconditions($character);
         if (!$canProceed['ok']) {
             // Если там текст — возвращаем
             return Request::sendMessage([
@@ -97,9 +122,9 @@ class BaseShiftingCommand extends UserCommand
         }
         $mapCellId = $mapRow['id'];
 
-        // 6) Проверяем занятость ячейки / резерв
+        // 6) Проверяем занятость ячейки / резерв (v0.51.47 — RelocationValidator)
         $reason    = '';
-        if (!$this->isCellAvailableForRelocation($character['id'], $mapCellId, $reason)) {
+        if (!$this->validator()->isCellAvailableForRelocation($character['id'], $mapCellId, $reason)) {
             // Ячейка недоступна => ищем ближайшую
             $closestInfo = $this->findClosestExploredFreeCell($character['id'], $x, $y);
             if (!$closestInfo) {
@@ -138,8 +163,8 @@ class BaseShiftingCommand extends UserCommand
             }
         }
 
-        // 7) Проверяем, изучил ли игрок данную точку
-        if (!$this->isCellExploredBy($character['id'], $mapCellId)) {
+        // 7) Проверяем, изучил ли игрок данную точку (v0.51.47 — RelocationValidator)
+        if (!$this->validator()->isCellExploredBy($character['id'], $mapCellId)) {
             // Не изучена => ищем альтернативу
             $closestInfo = $this->findClosestExploredFreeCell($character['id'], $x, $y);
             if (!$closestInfo) {
@@ -233,8 +258,8 @@ class BaseShiftingCommand extends UserCommand
                 ]);
             }
 
-            // Снова проверим кулдаун и т.д.
-            $canProceed = $this->checkPreconditions($character, $chatId);
+            // Снова проверим кулдаун и т.д. (v0.51.47 — RelocationValidator)
+            $canProceed = $this->validator()->checkPreconditions($character);
             if (!$canProceed['ok']) {
                 return Request::sendMessage([
                     'chat_id' => $chatId,
@@ -244,17 +269,17 @@ class BaseShiftingCommand extends UserCommand
             }
             $frTaskId = $canProceed['fullRelocTaskId'];
 
-            // Проверим, не занял ли кто-то эту ячейку за то время
+            // Проверим, не занял ли кто-то эту ячейку за то время (v0.51.47 — RelocationValidator)
             $reason = '';
-            if (!$this->isCellAvailableForRelocation($character['id'], $mapCellId, $reason)) {
+            if (!$this->validator()->isCellAvailableForRelocation($character['id'], $mapCellId, $reason)) {
                 return Request::sendMessage([
                     'chat_id' => $chatId,
                     'text'    => "Увы, пока ты думал, ячейка стала недоступна. Причина: {$reason}.\nПопробуй другую!",
                     'parse_mode' => 'Markdown',
                 ]);
             }
-            // Проверим, не изучал ли. (Вероятно да, но на всякий случай.)
-            if (!$this->isCellExploredBy($character['id'], $mapCellId)) {
+            // Проверим, не изучал ли. (v0.51.47 — RelocationValidator)
+            if (!$this->validator()->isCellExploredBy($character['id'], $mapCellId)) {
                 return Request::sendMessage([
                     'chat_id' => $chatId,
                     'text'    => "Ячейка оказалась не изучена тобой! Выбери другую.",
@@ -276,112 +301,9 @@ class BaseShiftingCommand extends UserCommand
     // Вспомогательные методы
     // ----------------------------------------------
 
-    /**
-     * Проверяем кулдаун, нет ли активной задачи FullRelocation.
-     * Возвращаем ['ok'=>true,'fullRelocTaskId'=>int] или ['ok'=>false,'error'=>'текст']
-     */
-    private function checkPreconditions(array|\App\Entities\CharacterEntity $character, int $chatId): array
-    {
-        $taskModel = new TaskModel();
-        $frTask = $taskModel->where('name','FullRelocation')->first();
-        if (!$frTask) {
-            // Создадим
-            $frTaskId = $taskModel->insert([
-                'name' => 'FullRelocation',
-                'name_rus' => 'Полноценный переезд',
-                'description' => '24h + 10d cooldown',
-                'min_duration'=>1440,'max_duration'=>1440,
-                'type'=>'exclusive','difficulty_level'=>7,
-                'execution_limit'=>0,'parallel_execution_allowed'=>0,
-                'interruptible'=>1
-            ]);
-        } else {
-            $frTaskId = $frTask['id'];
-        }
-
-        // Активная задача?
-        $charTaskModel = new CharacterTaskModel();
-        $active = $charTaskModel
-            ->where('character_id',$character['id'])
-            ->where('task_id',$frTaskId)
-            ->where('status','in_work')
-            ->first();
-        if ($active) {
-            return ['ok'=>false,'error'=>"❌ У вас уже идёт полный переезд! Дождитесь окончания."];
-        }
-
-        // Кулдаун?
-        $lastCompl = $charTaskModel
-            ->where('character_id',$character['id'])
-            ->where('task_id',$frTaskId)
-            ->where('status','completed')
-            ->orderBy('created_at','DESC')
-            ->first();
-        if ($lastCompl && !empty($lastCompl['end_time'])) {
-            $endTime = new Time($lastCompl['end_time']);
-            $now     = Time::now();
-            $diffDays= $endTime->difference($now)->getDays();
-            if ($diffDays < 10) {
-                $need = 10-$diffDays;
-                return ['ok'=>false,'error'=>"❌ С прошлого переезда прошло {$diffDays} дн. Нужно 10 дн. ожидания, осталось ~{$need} дн."];
-            }
-        }
-
-        return ['ok'=>true,'fullRelocTaskId'=>$frTaskId];
-    }
-
-    /**
-     * Проверка, можно ли переехать в ячейку (mapCellId) - нет ли active claimed_cells и active FullRelocation->new_map_cell_id
-     * Возвращаем true/false, а в $reason пишем «Занята», «Резерв» и т.п.
-     */
-    private function isCellAvailableForRelocation(int $charId, int $mapCellId, string &$reason): bool
-    {
-        $reason = '';
-
-        // 1) claimed_cells
-        $claimedCellModel = new ClaimedCellModel();
-        $row = $claimedCellModel
-            ->where('map_cell_id',$mapCellId)
-            ->where('status','active')
-            ->where('character_id !=',$charId)
-            ->first();
-        if ($row) {
-            $reason = "Занята другим игроком";
-            return false;
-        }
-
-        // 2) active FullRelocation-> new_map_cell_id = $mapCellId?
-        $taskModel        = new TaskModel();
-        $frTask           = $taskModel->where('name','FullRelocation')->first();
-        if ($frTask) {
-            $frTaskId       = $frTask['id'];
-            $charTaskModel  = new CharacterTaskModel();
-            $busy = $charTaskModel
-                ->where('status','in_work')
-                ->where('task_id',$frTaskId)
-                ->like('task_settings','"new_map_cell_id":'.$mapCellId,'both')
-                ->first();
-            if ($busy && $busy['character_id'] != $charId) {
-                $reason = "Туда уже переезжает другой игрок";
-                return false;
-            }
-        }
-
-        return true; // все ок
-    }
-
-    /**
-     * Проверяем, изучал ли персонаж ячейку
-     */
-    private function isCellExploredBy(int $charId, int $mapCellId): bool
-    {
-        $exploredModel = new ExploredCellsModel();
-        $row = $exploredModel
-            ->where('character_id',$charId)
-            ->where('map_cell_id',$mapCellId)
-            ->first();
-        return (bool)$row;
-    }
+    // v0.51.47 — extract Step 1: 3 helpers переїхали у RelocationValidator service.
+    // Было: checkPreconditions / isCellAvailableForRelocation / isCellExploredBy.
+    // Тепер: $this->validator()->checkPreconditions(...) etc.
 
     /**
      * Запускаем саму задачу (24h).
@@ -461,9 +383,9 @@ class BaseShiftingCommand extends UserCommand
                 // Фильтр на "свободна"
                 foreach ($results as $row) {
                     $mapId = $row['map_id'];
-                    // Проверим занятость
+                    // Проверим занятость (v0.51.47 — RelocationValidator)
                     $reason='';
-                    if (!$this->isCellAvailableForRelocation($charId,$mapId,$reason)) {
+                    if (!$this->validator()->isCellAvailableForRelocation($charId,$mapId,$reason)) {
                         // занята/резерв
                         continue;
                     }
