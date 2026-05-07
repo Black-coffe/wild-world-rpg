@@ -25,6 +25,18 @@ class AddCharactersWeaponsForeignKeys extends Migration
     {
         $db = \Config\Database::connect();
 
+        // Cleanup orphans перед adding FK. На проді 2026-05-07 verified 0 orphans
+        // (no-op delete). На testbot було 4 orphan character_id rows від deleted
+        // characters — їх безпечно DELETE (weapons "lost" з characters що не
+        // існують, dangling rows є noise).
+        $db->query('DELETE cw FROM characters_weapons cw
+            LEFT JOIN characters c ON c.id = cw.character_id
+            WHERE c.id IS NULL');
+
+        $db->query('DELETE cw FROM characters_weapons cw
+            LEFT JOIN weapons w ON w.id = cw.weapon_id
+            WHERE w.id IS NULL');
+
         $db->query('ALTER TABLE characters_weapons
             ADD CONSTRAINT fk_cw_character
             FOREIGN KEY (character_id) REFERENCES characters(id)
