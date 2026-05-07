@@ -25,6 +25,8 @@ use App\Services\PVE\PvpFormulaService;
 use App\Services\PVE\PvpRewardOrchestrator;
 use App\Services\PVE\PvpRoundOrchestrator;
 
+use Config\GameBalance;
+
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
@@ -58,11 +60,13 @@ class AttackPlayerAction extends BaseAction
     private PvpDamageCalculator $damageCalc;
     private PvpRoundOrchestrator $roundOrchestrator;
     private PvpRewardOrchestrator $rewardOrchestrator;
+    private GameBalance $cfg;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
 
+        $this->cfg               = config('GameBalance');
         $this->characterModel    = new CharacterModel();
         $this->mapModel          = new MapModel();
         $this->biomeModel        = new BiomeModel();
@@ -124,6 +128,20 @@ class AttackPlayerAction extends BaseAction
         if ($attacker['id'] === $defender['id']) {
             return $this->sendError("Нельзя атаковать самого себя!");
         }
+
+        // v0.51.44 — anti-spam cooldown (Security-telegram §7).
+        // Cache-based gate per attacker. Раннє повернення до DB queries
+        // (PvPRestriction, MapModel, BiomeModel, simulateFight) — зменшує
+        // навантаження від spammers, які жмуть кнопку 2-3× за секунду.
+        $cooldownSec    = $this->cfg->pvpAttackCooldownSec;
+        $cacheKey       = "pvp_attack_cd_{$attacker['id']}";
+        $cache          = \Config\Services::cache();
+        $lastAttackTime = $cache->get($cacheKey);
+        if (is_int($lastAttackTime) && time() - $lastAttackTime < $cooldownSec) {
+            $remaining = $cooldownSec - (time() - $lastAttackTime);
+            return $this->sendError("Подождите {$remaining} сек. перед следующей атакой!");
+        }
+        $cache->save($cacheKey, time(), $cooldownSec);
 
         if (!$this->isCellsCloseEnough($attacker, $defender)) {
             return $this->sendError("Игрок слишком далеко. Атаковать можно только в одной или соседней ячейке!");

@@ -48,6 +48,14 @@ class GameBalance extends BaseConfig
     /** Лимит раундов боя; после — ничья / взаимное изнеможение. */
     public int $pvpMaxRounds = 150;
 
+    /**
+     * v0.51.44 — anti-spam cooldown между PvP-атаками одного атакующего.
+     * Игрок не может атаковать (любую цель) чаще раз в N секунд.
+     * Default 30 сек — мягкий guard от двойных кликов та agressive scripts.
+     * Per Security-telegram §7 — закриває гpамлення без UX болю на legit гравцях.
+     */
+    public int $pvpAttackCooldownSec = 30;
+
     // --- Смерть / штрафы ----------
 
     /** Доля опыта, теряемая при смерти (0.05 = 5%). */
