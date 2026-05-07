@@ -2631,12 +2631,6 @@ parameters:
 		-
 			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
 			identifier: foreach.nonIterable
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Binary operation "\." between ''Не хватает ресурсов…'' and mixed results in an error\.$#'
-			identifier: binaryOp.invalid
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 
@@ -2709,7 +2703,7 @@ parameters:
 		-
 			message: '#^Cannot cast mixed to int\.$#'
 			identifier: cast.int
-			count: 2
+			count: 3
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 
 		-
@@ -2719,38 +2713,62 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 
 		-
-			message: '#^Parameter \#2 \$array of function implode expects array, mixed given\.$#'
+			message: '#^Parameter \#1 \$buildingNameRu of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:upgradeSuccess\(\) expects string, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 
 		-
-			message: '#^Part \$bName \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
+			message: '#^Parameter \#1 \$firstMissingLine of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:missingResourcesConfirm\(\) expects string, mixed given\.$#'
+			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 
 		-
-			message: '#^Part \$buildingNameRu \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Part \$currentLevel \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
+			message: '#^Parameter \#1 \$msg of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:simpleError\(\) expects string, mixed given\.$#'
+			identifier: argument.type
 			count: 2
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 
 		-
-			message: '#^Part \$nextLevel \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 3
+			message: '#^Parameter \#2 \$buildingNameRu of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:askPrompt\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 
 		-
-			message: '#^Part \$rQty \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
+			message: '#^Parameter \#2 \$currentLevel of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:upgradeSuccess\(\) expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Parameter \#2 \$missingLines of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:missingResourcesAsk\(\) expects array\<string\>, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Parameter \#3 \$currentLevel of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:askPrompt\(\) expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Parameter \#3 \$nextLevel of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:upgradeSuccess\(\) expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Parameter \#4 \$nextLevel of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:askPrompt\(\) expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Parameter \#7 \$requirementResources of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:askPrompt\(\) expects array\<string, int\>, mixed given\.$#'
+			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 
@@ -14891,6 +14909,24 @@ parameters:
 			identifier: property.onlyWritten
 			count: 1
 			path: app/Services/PVE/RewardService.php
+
+		-
+			message: '#^Part \$character\[''gold''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeMessageFormatter.php
+
+		-
+			message: '#^Part \$character\[''level''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeMessageFormatter.php
+
+		-
+			message: '#^Part \$rNameRu \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeMessageFormatter.php
 
 		-
 			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'

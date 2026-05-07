@@ -11,6 +11,7 @@ use App\Models\BuildingModel;
 use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
+use App\Services\Player\BuildingUpgrade\BuildingUpgradeMessageFormatter;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeValidator;
 use App\Services\Player\PlayerStateService;
 
@@ -30,6 +31,9 @@ class UpgradeBuildingAction extends BaseAction
 
     // v0.51.57 (Step 1) — validation chain extracted у service
     protected BuildingUpgradeValidator $validator;
+
+    // v0.51.58 (Step 2) — Markdown templates extracted у formatter
+    protected BuildingUpgradeMessageFormatter $formatter;
 
     /**
      * Требования для перехода на каждый уровень (2..10):
@@ -130,6 +134,17 @@ class UpgradeBuildingAction extends BaseAction
             $this->resourceModel,
             $this->playerStateService
         );
+        $this->formatter              = new BuildingUpgradeMessageFormatter($this->resourceModel);
+    }
+
+    /**
+     * Helper (v0.51.58): send message via Request::sendMessage з payload-array.
+     *
+     * @param array<string,mixed> $payload
+     */
+    private function send(int|string $chatId, array $payload): ServerResponse
+    {
+        return Request::sendMessage(array_merge(['chat_id' => $chatId], $payload));
     }
 
     /**
@@ -154,10 +169,7 @@ class UpgradeBuildingAction extends BaseAction
         [$user, $character] = $this->getUserAndCharacter();
 
         if (!$user || !$character) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => 'Пользователь или персонаж не найден.',
-            ]);
+            return $this->send($chatId, $this->formatter->userOrCharacterNotFound());
         }
 
         // Active relocation block (handled у service зі своїм response)
@@ -173,58 +185,28 @@ class UpgradeBuildingAction extends BaseAction
         $parts      = explode('_', $this->callbackQuery->getData());
         $buildingId = $parts[2] ?? null;
         if (!$buildingId) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => 'Не удалось определить ID здания для апгрейда.',
-            ]);
+            return $this->send($chatId, $this->formatter->buildingIdMissingAsk());
         }
 
         // Run full validation
         $res = $this->validator->validate($character, (int) $buildingId, $this->upgradeRequirements);
 
         if (!$res['ok']) {
-            // Multi-line missing resources
             if (!empty($res['missingResources'])) {
-                $nextLevel = $res['nextLevel'] ?? '?';
-                $msg = "Недостаточно ресурсов для апгрейда до уровня {$nextLevel}:\n"
-                     . implode("\n", $res['missingResources']);
-                return Request::sendMessage(['chat_id' => $chatId, 'text' => $msg]);
+                return $this->send($chatId, $this->formatter->missingResourcesAsk(
+                    (int) ($res['nextLevel'] ?? 0),
+                    $res['missingResources']
+                ));
             }
-            return Request::sendMessage(['chat_id' => $chatId, 'text' => $res['error']]);
+            return $this->send($chatId, $this->formatter->simpleError($res['error']));
         }
 
         // Validated → build confirm prompt
-        $ctx             = $res['context'];
-        $buildingInfo    = $ctx['buildingInfo'];
-        $currentLevel    = $ctx['currentLevel'];
-        $nextLevel       = $ctx['nextLevel'];
-        $req             = $ctx['requirements'];
-        $requiredGold    = (int) $req['gold'];
-        $requiredCharLvl = (int) $req['level'];
+        $ctx          = $res['context'];
+        $buildingInfo = $ctx['buildingInfo'];
+        $req          = $ctx['requirements'];
 
         $buildingNameRu = $buildingInfo['name_ru'] ?? "ID={$buildingId}";
-        $msg  = "Вы хотите поднять *{$buildingNameRu}* с уровня {$currentLevel} на уровень {$nextLevel}?";
-        $msg .= "\n\nТребуется:\n";
-        $msg .= "- Уровень персонажа >= {$requiredCharLvl} (у вас {$character['level']})\n";
-        $msg .= "- Золото: {$requiredGold} (у вас {$character['gold']})\n";
-
-        foreach ($req['resources'] as $rNameEn => $rQty) {
-            $rRow    = $this->resourceModel->where('name_en', $rNameEn)->first();
-            $rNameRu = $rRow ? $rRow['name'] : $rNameEn;
-            $msg    .= "- {$rNameRu}: {$rQty}\n";
-        }
-        $msg .= "\nПодтвердите апгрейд?";
-
-        // Формируем кнопки
-        $confirmCallback = "confirm_upgrade_building_{$buildingId}";
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '✅ Подтвердить', 'callback_data' => $confirmCallback],
-                    ['text' => '❌ Отмена',     'callback_data' => 'Base'],
-                ]
-            ],
-        ];
 
         // Скрываем "загрузка" (answerCallbackQuery)
         Request::answerCallbackQuery([
@@ -233,13 +215,16 @@ class UpgradeBuildingAction extends BaseAction
             'show_alert'        => false,
         ]);
 
-        // Отправляем сообщение пользователю
-        return Request::sendMessage([
-            'chat_id'      => $chatId,
-            'text'         => $msg,
-            'parse_mode'   => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
+        return $this->send($chatId, $this->formatter->askPrompt(
+            (int) $buildingId,
+            $buildingNameRu,
+            $ctx['currentLevel'],
+            $ctx['nextLevel'],
+            (int) $req['level'],
+            (int) $req['gold'],
+            $req['resources'],
+            $character
+        ));
     }
 
     /**
@@ -251,32 +236,25 @@ class UpgradeBuildingAction extends BaseAction
         [$user, $character] = $this->getUserAndCharacter();
 
         if (!$user || !$character) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => 'Пользователь или персонаж не найден.',
-            ]);
+            return $this->send($chatId, $this->formatter->userOrCharacterNotFound());
         }
 
         // Parse buildingId з callback_data: "confirm_upgrade_building_4"
         $parts      = explode('_', $this->callbackQuery->getData());
         $buildingId = $parts[3] ?? null;
         if (!$buildingId) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => 'Не определён ID здания при подтверждении апгрейда.',
-            ]);
+            return $this->send($chatId, $this->formatter->buildingIdMissingConfirm());
         }
 
-        // v0.51.57 (Step 1) — re-validate всю chain (resources могли поменяться
-        // після ask). Validator повертає detailed missing list.
+        // v0.51.57 — re-validate всю chain (resources могли поменяться після ask)
         $res = $this->validator->validate($character, (int) $buildingId, $this->upgradeRequirements);
         if (!$res['ok']) {
             if (!empty($res['missingResources'])) {
-                // confirmUpgrade UX: first-fail style. Беремо першу.
-                $msg = "Не хватает ресурсов: " . $res['missingResources'][0];
-                return Request::sendMessage(['chat_id' => $chatId, 'text' => $msg]);
+                return $this->send($chatId, $this->formatter->missingResourcesConfirm(
+                    $res['missingResources'][0]
+                ));
             }
-            return Request::sendMessage(['chat_id' => $chatId, 'text' => $res['error']]);
+            return $this->send($chatId, $this->formatter->simpleError($res['error']));
         }
 
         $ctx          = $res['context'];
@@ -306,10 +284,6 @@ class UpgradeBuildingAction extends BaseAction
             'level' => $nextLevel,
         ]);
 
-        // Сообщение об успехе
-        $bName = $buildingInfo['name_ru'] ?? "Здание #$buildingId";
-        $msg   = "Поздравляем! «{$bName}» поднялось с уровня {$currentLevel} до уровня {$nextLevel}.\n";
-
         // Скрываем alert у кнопки
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId(),
@@ -317,11 +291,11 @@ class UpgradeBuildingAction extends BaseAction
             'show_alert'        => false,
         ]);
 
-        // Отправляем финальное сообщение
-        return Request::sendMessage([
-            'chat_id'    => $chatId,
-            'text'       => $msg,
-            'parse_mode' => 'Markdown',
-        ]);
+        $buildingNameRu = $buildingInfo['name_ru'] ?? "Здание #{$buildingId}";
+        return $this->send($chatId, $this->formatter->upgradeSuccess(
+            $buildingNameRu,
+            $currentLevel,
+            $nextLevel
+        ));
     }
 }
