@@ -12,6 +12,7 @@ use App\Models\CharacterModel;
 use App\Models\MapModel;
 
 use App\Services\Player\Relocation\ClosestCellFinder;
+use App\Services\Player\Relocation\RelocationMessageFormatter;
 use App\Services\Player\Relocation\RelocationTaskCreator;
 use App\Services\Player\Relocation\RelocationValidator;
 
@@ -36,6 +37,7 @@ class BaseShiftingCommand extends UserCommand
     private ?RelocationValidator $validator = null;
     private ?ClosestCellFinder $closestFinder = null;
     private ?RelocationTaskCreator $taskCreator = null;
+    private ?RelocationMessageFormatter $formatter = null;
 
     /**
      * Lazy getter — уникаємо overriding Longman UserCommand constructor
@@ -65,6 +67,25 @@ class BaseShiftingCommand extends UserCommand
         return $this->taskCreator;
     }
 
+    private function formatter(): RelocationMessageFormatter
+    {
+        if ($this->formatter === null) {
+            $this->formatter = new RelocationMessageFormatter();
+        }
+        return $this->formatter;
+    }
+
+    /**
+     * Helper: send message via Request::sendMessage з payload-array.
+     * Зливає chat_id з content payload.
+     *
+     * @param array<string,mixed> $payload
+     */
+    private function send(int|string $chatId, array $payload): ServerResponse
+    {
+        return Request::sendMessage(array_merge(['chat_id' => $chatId], $payload));
+    }
+
     /**
      * Выполняется, когда игрок вводит: /base_shifting X=...Y=...
      */
@@ -77,12 +98,7 @@ class BaseShiftingCommand extends UserCommand
 
         // 1) Парсим "X=123Y=456"
         if (!preg_match('/X=(\d+)Y=(\d+)/', $userText, $m)) {
-            $txt = "⚠️ Формат команды: `/base_shifting X=123Y=456`\nБез лишних пробелов!";
-            return Request::sendMessage([
-                'chat_id'    => $chatId,
-                'text'       => $txt,
-                'parse_mode' => 'Markdown',
-            ]);
+            return $this->send($chatId, $this->formatter()->badFormat());
         }
         $x = (int)$m[1];
         $y = (int)$m[2];
@@ -108,12 +124,7 @@ class BaseShiftingCommand extends UserCommand
 
         // 3) Проверяем диапазон
         if ($x<1 || $x>1000 || $y<1 || $y>1000) {
-            $txt = "❌ Координаты X,Y должны быть 1..1000.\nВы ввели: X={$x}, Y={$y}";
-            return Request::sendMessage([
-                'chat_id'    => $chatId,
-                'text'       => $txt,
-                'parse_mode' => 'Markdown'
-            ]);
+            return $this->send($chatId, $this->formatter()->coordsOutOfRange($x, $y));
         }
 
         // 4) Проверяем кулдаун, активную задачу и т.д. (v0.51.47 — RelocationValidator)
@@ -132,112 +143,38 @@ class BaseShiftingCommand extends UserCommand
         $mapModel = new MapModel();
         $mapRow   = $mapModel->where('coordinate_x',$x)->where('coordinate_y',$y)->first();
         if (!$mapRow) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => "❌ Нет ячейки с координатами X={$x}, Y={$y}!",
-            ]);
+            return $this->send($chatId, $this->formatter()->cellNotFound($x, $y));
         }
         $mapCellId = $mapRow['id'];
 
         // 6) Проверяем занятость ячейки / резерв (v0.51.47 — RelocationValidator)
-        $reason    = '';
+        $reason = '';
         if (!$this->validator()->isCellAvailableForRelocation($character['id'], $mapCellId, $reason)) {
-            // Ячейка недоступна => ищем ближайшую
             $closestInfo = $this->closestFinder()->findClosest((int) $character['id'], $x, $y);
             if (!$closestInfo) {
-                // Ни одной альтернативы
-                // Сформируем текст с "причиной"
-                $txt = "🚫 *Ты не можешь переехать в выбранную ячейку* (X={$x}, Y={$y})\n"
-                    . "Причина: _{$reason}_\n\n"
-                    . "И увы, поблизости нет других свободных и изученных локаций.\n"
-                    . "Придётся поискать другие координаты позже…";
-                return Request::sendMessage([
-                    'chat_id'    => $chatId,
-                    'text'       => $txt,
-                    'parse_mode' => 'Markdown'
-                ]);
-            } else {
-                // Предлагаем игроку другой вариант
-                $altX = $closestInfo['x'];
-                $altY = $closestInfo['y'];
-                // Можно найти название биома, если хотите (через BiomeModel)
-                $altBiomeName = $this->getBiomeNameByMapId($closestInfo['map_id']);
-
-                $txt = "🚫 *Ты не можешь переехать в выбранную ячейку* (X={$x}, Y={$y})\n"
-                    . "Причина: _{$reason}_\n\n"
-                    . "Но мы нашли *ближайшую* подходящую ячейку:\n"
-                    . "X={$altX}, Y={$altY}\n"
-                    . "Биом: *{$altBiomeName}*\n\n"
-                    . "Если тебя это устраивает, просто скопируй команду:\n"
-                    . "`/base_shifting X={$altX}Y={$altY}`\n\n"
-                    . "Удачи в пути, сталкер! 🤠";
-
-                return Request::sendMessage([
-                    'chat_id'    => $chatId,
-                    'text'       => $txt,
-                    'parse_mode' => 'Markdown'
-                ]);
+                return $this->send($chatId, $this->formatter()->cellUnavailableNoAlt($x, $y, $reason));
             }
+            $altBiomeName = $this->getBiomeNameByMapId($closestInfo['map_id']);
+            return $this->send($chatId, $this->formatter()->cellUnavailableWithAlt(
+                $x, $y, $reason, $closestInfo['x'], $closestInfo['y'], $altBiomeName
+            ));
         }
 
         // 7) Проверяем, изучил ли игрок данную точку (v0.51.47 — RelocationValidator)
         if (!$this->validator()->isCellExploredBy($character['id'], $mapCellId)) {
-            // Не изучена => ищем альтернативу
             $closestInfo = $this->closestFinder()->findClosest((int) $character['id'], $x, $y);
             if (!$closestInfo) {
-                $txt = "🚫 *Ты не можешь переехать в выбранную ячейку* (X={$x}, Y={$y})\n"
-                    . "Причина: _Не изучена_\n\n"
-                    . "И поблизости нет других свободных локаций.\n";
-                return Request::sendMessage([
-                    'chat_id'    => $chatId,
-                    'text'       => $txt,
-                    'parse_mode' => 'Markdown'
-                ]);
-            } else {
-                $altX = $closestInfo['x'];
-                $altY = $closestInfo['y'];
-                $altBiomeName = $this->getBiomeNameByMapId($closestInfo['map_id']);
-
-                $txt = "🚫 *Ты не можешь переехать в выбранную ячейку* (X={$x}, Y={$y})\n"
-                    . "Причина: _Не изучена_\n\n"
-                    . "Но вот ближайшая изученная:\n"
-                    . "X={$altX}, Y={$altY}\n"
-                    . "Биом: *{$altBiomeName}*\n\n"
-                    . "Хочешь туда? Скопируй:\n"
-                    . "`/base_shifting X={$altX}Y={$altY}`";
-                return Request::sendMessage([
-                    'chat_id'    => $chatId,
-                    'text'       => $txt,
-                    'parse_mode' => 'Markdown'
-                ]);
+                return $this->send($chatId, $this->formatter()->cellNotExploredNoAlt($x, $y));
             }
+            $altBiomeName = $this->getBiomeNameByMapId($closestInfo['map_id']);
+            return $this->send($chatId, $this->formatter()->cellNotExploredWithAlt(
+                $x, $y, $closestInfo['x'], $closestInfo['y'], $altBiomeName
+            ));
         }
 
         // 8) Всё ок, ячейка доступна и изучена => предлагаем подтверждение
         $biomeName = $this->getBiomeNameByMapId($mapCellId);
-
-        // Сообщение
-        $text = "✅ *Ты переезжаешь в выбранную ячейку* (X={$x}, Y={$y})\n"
-            . "Биом: *{$biomeName}*\n\n"
-            . "Если всё устраивает — просто жми кнопку \"Поехали!\" 🚀\n"
-            . "_Задача займёт ~24 часа. Следующий переезд не раньше, чем через 10 дней._";
-
-        // Inline-кнопка
-        $callbackData = "StartRelocationConfirm_{$x}_{$y}_{$mapCellId}";
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => 'Поехали 🚀', 'callback_data' => $callbackData]
-                ]
-            ]
-        ];
-
-        return Request::sendMessage([
-            'chat_id'      => $chatId,
-            'text'         => $text,
-            'parse_mode'   => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
+        return $this->send($chatId, $this->formatter()->confirmPrompt($x, $y, $biomeName, $mapCellId));
     }
 
     /**
@@ -289,18 +226,11 @@ class BaseShiftingCommand extends UserCommand
             // Проверим, не занял ли кто-то эту ячейку за то время (v0.51.47 — RelocationValidator)
             $reason = '';
             if (!$this->validator()->isCellAvailableForRelocation($character['id'], $mapCellId, $reason)) {
-                return Request::sendMessage([
-                    'chat_id' => $chatId,
-                    'text'    => "Увы, пока ты думал, ячейка стала недоступна. Причина: {$reason}.\nПопробуй другую!",
-                    'parse_mode' => 'Markdown',
-                ]);
+                return $this->send($chatId, $this->formatter()->confirmRaceCondition($reason));
             }
             // Проверим, не изучал ли. (v0.51.47 — RelocationValidator)
             if (!$this->validator()->isCellExploredBy($character['id'], $mapCellId)) {
-                return Request::sendMessage([
-                    'chat_id' => $chatId,
-                    'text'    => "Ячейка оказалась не изучена тобой! Выбери другую.",
-                ]);
+                return $this->send($chatId, $this->formatter()->confirmNotExplored());
             }
 
             // Всё нормально => создаём задачу (v0.51.49 — RelocationTaskCreator)
@@ -313,11 +243,7 @@ class BaseShiftingCommand extends UserCommand
                 $y
             );
 
-            return Request::sendMessage([
-                'chat_id'    => $chatId,
-                'text'       => "🚀 Поехали! Переезд в X={$x},Y={$y} запущен.\nПродлится 24 часа.",
-                'parse_mode' => 'Markdown',
-            ]);
+            return $this->send($chatId, $this->formatter()->taskStarted($x, $y));
         }
 
         return Request::emptyResponse();
