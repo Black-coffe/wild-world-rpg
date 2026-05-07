@@ -169,5 +169,10 @@ class Tasks extends BaseTasks
 
         $schedule->command('tasks:cleanup')
             ->daily('03:30')->named('character-tasks.cleanup');
+
+        // v0.51.43 — TTL cleanup для battle_logs (видаляє >90 днів,
+        // ~23k rows/initial run, ~646 rows/day після стабілізації).
+        $schedule->command('battles:cleanup')
+            ->daily('03:35')->named('battle-logs.cleanup');
     }
 }
