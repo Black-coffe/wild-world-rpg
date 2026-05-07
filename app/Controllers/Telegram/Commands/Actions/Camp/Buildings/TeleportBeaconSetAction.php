@@ -6,21 +6,11 @@ use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 
-// Модели:
-use App\Models\CharacterModel;
-use App\Models\ClaimedCellModel;
-use App\Models\BuildingModel;
-use App\Models\CharacterBuildingModel;
-use App\Models\CharacterFactionModel;
-use App\Models\MapModel;
-use App\Models\CraftedItemsModel;
-use App\Models\CraftedItemsLogModel;
+// Models — only those used directly у Action body (после Step 1-4 decomp).
 use App\Models\BiomeModel;
-use App\Models\TeleportBeaconModel;
-use App\Models\TelegramUserModel; // уведомление старому владельцу
+use App\Models\CharacterModel;
 
-// Сервисы
-use App\Services\Bases\CampCheckService;
+// Сервисы — encapsulate всю domain логику.
 use App\Services\Player\TeleportBeacon\BeaconCaptureService;
 use App\Services\Player\TeleportBeacon\BeaconInstaller;
 use App\Services\Player\TeleportBeacon\BeaconMessageFormatter;
@@ -37,71 +27,38 @@ class TeleportBeaconSetAction
 {
     protected CallbackQuery $callbackQuery;
 
-    // Модели
-    protected CharacterModel         $characterModel;
-    protected ClaimedCellModel       $claimedCellModel;
-    protected BuildingModel          $buildingModel;
-    protected CharacterBuildingModel $characterBuildingModel;
-    protected CharacterFactionModel  $characterFactionModel;
-    protected MapModel               $mapModel;
-    protected CraftedItemsModel      $craftedItemsModel;
-    protected CraftedItemsLogModel   $craftedItemsLogModel;
-    protected BiomeModel             $biomeModel;
-    protected TeleportBeaconModel    $teleportBeaconModel;
-    protected TelegramUserModel      $telegramUserModel;
+    // Models used directly у Action body (1 inline call each):
+    protected CharacterModel $characterModel; // captureBeacon: getCharacterIdByTelegramId()
+    protected BiomeModel     $biomeModel;     // installBeacon orchestrator: find($biomeId)
 
-    // Сервис для проверки, не стоит ли здесь база
-    protected CampCheckService $campCheckService;
-
-    // v0.51.52 (Step 1) — validation chain extracted у dedicated service.
+    // v0.51.52 (Step 1): validation chain → service.
     protected BeaconPlacementValidator $placementValidator;
 
-    // v0.51.53 (Step 2) — Markdown templates extracted у formatter.
+    // v0.51.53 (Step 2): Markdown templates → formatter.
     protected BeaconMessageFormatter $formatter;
 
-    // v0.51.54 (Step 3) — DB write + inventory subtract extracted у installer.
+    // v0.51.54 (Step 3): DB write + inventory → installer.
     protected BeaconInstaller $installer;
 
-    // v0.51.55 (Step 4) — capture flow + notify lookup extracted у service.
+    // v0.51.55 (Step 4): capture flow + notify → service.
     protected BeaconCaptureService $captureService;
 
+    /**
+     * v0.51.56 (Step 5 polish — final). Action ctor очищений: 11 моделей +
+     * 1 service у Step 0 → 2 моделі + 4 services. Услуги instantiate own
+     * dependencies через nullable defaults — Action не передає моделі
+     * (CI4 Models lightweight з shared DB connection — overhead ≈ 0).
+     */
     public function __construct(CallbackQuery $callbackQuery)
     {
-        $this->callbackQuery          = $callbackQuery;
-        $this->characterModel         = new CharacterModel();
-        $this->claimedCellModel       = new ClaimedCellModel();
-        $this->buildingModel          = new BuildingModel();
-        $this->characterBuildingModel = new CharacterBuildingModel();
-        $this->characterFactionModel  = new CharacterFactionModel();
-        $this->mapModel               = new MapModel();
-        $this->craftedItemsModel      = new CraftedItemsModel();
-        $this->craftedItemsLogModel   = new CraftedItemsLogModel();
-        $this->biomeModel             = new BiomeModel();
-        $this->teleportBeaconModel    = new TeleportBeaconModel();
-        $this->telegramUserModel      = new TelegramUserModel();
+        $this->callbackQuery      = $callbackQuery;
+        $this->characterModel     = new CharacterModel();
+        $this->biomeModel         = new BiomeModel();
 
-        $this->campCheckService       = new CampCheckService();
-        $this->placementValidator     = new BeaconPlacementValidator(
-            $this->characterModel,
-            $this->claimedCellModel,
-            $this->buildingModel,
-            $this->characterBuildingModel,
-            $this->craftedItemsModel,
-            $this->craftedItemsLogModel,
-            $this->mapModel,
-            $this->teleportBeaconModel,
-            $this->campCheckService
-        );
-        $this->formatter              = new BeaconMessageFormatter();
-        $this->installer              = new BeaconInstaller(
-            $this->teleportBeaconModel,
-            $this->craftedItemsLogModel
-        );
-        $this->captureService         = new BeaconCaptureService(
-            $this->teleportBeaconModel,
-            $this->characterModel,
-            $this->telegramUserModel
-        );
+        $this->placementValidator = new BeaconPlacementValidator();
+        $this->formatter          = new BeaconMessageFormatter();
+        $this->installer          = new BeaconInstaller();
+        $this->captureService     = new BeaconCaptureService();
     }
 
     /**
