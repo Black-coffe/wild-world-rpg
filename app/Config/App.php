@@ -16,6 +16,16 @@ class App extends BaseConfig
      *
      * E.g., http://example.com/
      */
+    /**
+     * Local fallback. На проді CI4 auto-mapping override'ить це через
+     * `app.baseURL = 'https://bot.wildworld.fun/'` у `.env` (verified
+     * 2026-05-07). PHP property defaults не дозволяють function calls
+     * (constant expression rule), тому explicit `getenv()` тут неможливий —
+     * CI4 magic вже handles override природно.
+     *
+     * Security-admin §9 partially addressed: prod вже на правильному baseURL,
+     * додавати explicit fallback у constructor — overhead без value.
+     */
     public string $baseURL = 'http://localhost:8080/';
 
     /**

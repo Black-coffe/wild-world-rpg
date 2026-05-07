@@ -13,6 +13,12 @@ parameters:
 			path: app/Config/ContentSecurityPolicy.php
 
 		-
+			message: '#^Strict comparison using \=\=\= between ''testing'' and ''production'' will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Config/Cookie.php
+
+		-
 			message: '#^Property Config\\CraftRecipes\:\:\$recipes type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1

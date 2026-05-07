@@ -53,8 +53,13 @@ class Cookie extends BaseConfig
      * --------------------------------------------------------------------------
      *
      * Cookie will only be set if a secure HTTPS connection exists.
+     *
+     * v0.51.46 — auto-detect production (Security-admin §6). Раніше hardcoded
+     * `false` — на проді (HTTPS bot.wildworld.fun) cookies йшли без secure flag,
+     * theoretically vulnerable до session hijacking над non-HTTPS proxy. Local
+     * dev (HTTP localhost) залишається без secure для зручності.
      */
-    public bool $secure = false;
+    public bool $secure = (ENVIRONMENT === 'production');
 
     /**
      * --------------------------------------------------------------------------
