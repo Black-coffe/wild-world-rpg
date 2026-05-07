@@ -2779,42 +2779,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\UpgradeBuildingAction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\UpgradeBuildingAction\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\UpgradeBuildingAction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\UpgradeBuildingAction\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\UpgradeBuildingAction\:\:\$playerStateService has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\UpgradeBuildingAction\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\Upgrades\\BaseBuildingUpgradeAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1

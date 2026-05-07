@@ -6,15 +6,9 @@ use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
-use App\Models\CharacterBuildingModel;
-use App\Models\BuildingModel;
-use App\Models\CharacterModel;
-use App\Models\CharacterResourceModel;
-use App\Models\ResourceModel;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeApplier;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeMessageFormatter;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeValidator;
-use App\Services\Player\PlayerStateService;
 use Config\BuildingUpgrades;
 
 /**
@@ -24,51 +18,23 @@ use Config\BuildingUpgrades;
  */
 class UpgradeBuildingAction extends BaseAction
 {
-    protected $characterBuildingModel;
-    protected $buildingModel;
-    protected $characterModel;
-    protected $characterResourceModel;
-    protected $resourceModel;
-    protected $playerStateService;
-
-    // v0.51.57 (Step 1) — validation chain extracted у service
     protected BuildingUpgradeValidator $validator;
-
-    // v0.51.58 (Step 2) — Markdown templates extracted у formatter
     protected BuildingUpgradeMessageFormatter $formatter;
-
-    // v0.51.60 (Step 3) — DB write block extracted у applier
     protected BuildingUpgradeApplier $applier;
-
-    // v0.51.61 (Step 4) — requirements config extracted у Config\BuildingUpgrades
     protected BuildingUpgrades $upgrades;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
 
-        $this->characterBuildingModel = new CharacterBuildingModel();
-        $this->buildingModel          = new BuildingModel();
-        $this->characterModel         = new CharacterModel();
-        $this->characterResourceModel = new CharacterResourceModel();
-        $this->resourceModel          = new ResourceModel();
-        $this->playerStateService     = new PlayerStateService();
-
-        $this->validator              = new BuildingUpgradeValidator(
-            $this->characterBuildingModel,
-            $this->buildingModel,
-            $this->characterResourceModel,
-            $this->resourceModel,
-            $this->playerStateService
-        );
-        $this->formatter              = new BuildingUpgradeMessageFormatter($this->resourceModel);
-        $this->applier                = new BuildingUpgradeApplier(
-            $this->characterModel,
-            $this->characterResourceModel,
-            $this->resourceModel,
-            $this->characterBuildingModel
-        );
-        $this->upgrades               = config(BuildingUpgrades::class);
+        // v0.51.62 (Step 5 polish) — services use null-default ctor pattern
+        // (each instantiates own model deps), Action no longer holds direct
+        // model refs. Steps 1-4 history: Validator (v0.51.57) + Formatter
+        // (v0.51.58) + Applier (v0.51.60) + Config\BuildingUpgrades (v0.51.61).
+        $this->validator = new BuildingUpgradeValidator();
+        $this->formatter = new BuildingUpgradeMessageFormatter();
+        $this->applier   = new BuildingUpgradeApplier();
+        $this->upgrades  = config(BuildingUpgrades::class);
     }
 
     /**
