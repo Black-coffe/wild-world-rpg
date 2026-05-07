@@ -9879,12 +9879,24 @@ parameters:
 		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 7
+			count: 2
 			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\BaseShiftingCommand\:\:getUserAndCharacterByCallback\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
+			message: '#^Cannot access offset ''id'' on non\-empty\-array\<string, mixed\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 8
+			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\BaseShiftingCommand\:\:lookupUserAndCharacter\(\) should return array\{array\<string, mixed\>\|object\|null, array\<string, mixed\>\|object\|null\} but returns array\{non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object, non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\}\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\BaseShiftingCommand\:\:lookupUserAndCharacter\(\) should return array\{array\<string, mixed\>\|object\|null, array\<string, mixed\>\|object\|null\} but returns array\{non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object, null\}\.$#'
+			identifier: return.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
 
@@ -9901,9 +9913,9 @@ parameters:
 			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
 
 		-
-			message: '#^Parameter \#1 \$character of method App\\Services\\Player\\Relocation\\RelocationValidator\:\:checkPreconditions\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#1 \$character of method App\\Services\\Player\\Relocation\\RelocationValidator\:\:checkPreconditions\(\) expects App\\Entities\\CharacterEntity\|array, array\<string, mixed\>\|object given\.$#'
 			identifier: argument.type
-			count: 1
+			count: 2
 			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
 
 		-

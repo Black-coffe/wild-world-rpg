@@ -87,6 +87,30 @@ class BaseShiftingCommand extends UserCommand
     }
 
     /**
+     * v0.51.51 (Step 5 polish) — DRY user/character lookup.
+     * Used both у execute() (Telegram command flow) і handleCallback()
+     * (callback flow) — раніше дублювалося.
+     *
+     * Return shape: 2-tuple [user, character]. Кожен може бути null
+     * якщо lookup не знайшов. CI4 Model first() returns array або object
+     * залежно від returnType — widened як array|object|null.
+     *
+     * @return array{0: array<string,mixed>|object|null, 1: \App\Entities\CharacterEntity|array<string,mixed>|object|null}
+     */
+    private function lookupUserAndCharacter(int $telegramId): array
+    {
+        $userRow = (new TelegramUserModel())->where('telegram_id', $telegramId)->first();
+        if (!$userRow) {
+            return [null, null];
+        }
+        $character = (new CharacterModel())->where('telegram_user_id', $userRow['id'])->first();
+        if (!$character) {
+            return [$userRow, null];
+        }
+        return [$userRow, $character];
+    }
+
+    /**
      * Выполняется, когда игрок вводит: /base_shifting X=...Y=...
      */
     public function execute(): ServerResponse
@@ -103,18 +127,14 @@ class BaseShiftingCommand extends UserCommand
         $x = (int)$m[1];
         $y = (int)$m[2];
 
-        // 2) Ищем пользователя/персонажа
-        $telegramId = $from->getId();
-        $userModel  = new TelegramUserModel();
-        $userRow    = $userModel->where('telegram_id', $telegramId)->first();
+        // 2) Ищем пользователя/персонажа (v0.51.51 — DRY lookup)
+        [$userRow, $character] = $this->lookupUserAndCharacter((int) $from->getId());
         if (!$userRow) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text'    => "Ошибка: телеграм-профиль не найден.",
             ]);
         }
-        $charModel = new CharacterModel();
-        $character = $charModel->where('telegram_user_id', $userRow['id'])->first();
         if (!$character) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
@@ -202,9 +222,8 @@ class BaseShiftingCommand extends UserCommand
             $y = (int)$parts[2];
             $mapCellId = (int)$parts[3];
 
-            // Повторно проверим, что сейчас всё ещё ок
-            // (на случай, если что-то поменялось)
-            [$user,$character] = $this->getUserAndCharacterByCallback($callbackQuery);
+            // Повторно проверим, что сейчас всё ещё ок (v0.51.51 — DRY lookup)
+            [$user, $character] = $this->lookupUserAndCharacter((int) $callbackQuery->getFrom()->getId());
             if (!$user || !$character) {
                 return Request::sendMessage([
                     'chat_id' => $chatId,
@@ -249,28 +268,17 @@ class BaseShiftingCommand extends UserCommand
         return Request::emptyResponse();
     }
 
-    // ----------------------------------------------
-    // Вспомогательные методы
-    // ----------------------------------------------
-
-    // v0.51.47 — extract Step 1: 3 helpers переїхали у RelocationValidator service.
-    // Было: checkPreconditions / isCellAvailableForRelocation / isCellExploredBy.
-    // Тепер: $this->validator()->checkPreconditions(...) etc.
-
-    // v0.51.48 — extract Step 2: findClosestExploredFreeCell → ClosestCellFinder.
-    // v0.51.49 — extract Step 3: startRelocationTask → RelocationTaskCreator.
-    // SRP separation: service writes character_task row, command handles UI/Telegram send.
-
     /**
-     * Получаем имя биома (рус) по map_id -> map.biome_id -> biome.name
+     * Біом-name lookup за map_id → map.biome_id → biome.name через JOIN.
+     * Single helper — використовується тільки у execute() flow для display.
      */
     private function getBiomeNameByMapId(int $mapId): string
     {
-        $db = \Config\Database::connect();
+        $db    = \Config\Database::connect();
         $query = $db->table('map')
             ->select('biomes.name AS biome_name')
-            ->join('biomes','biomes.id=map.biome_id','left')
-            ->where('map.id',$mapId)
+            ->join('biomes', 'biomes.id=map.biome_id', 'left')
+            ->where('map.id', $mapId)
             ->get();
         if ($query === false) {
             return "Неизвестный биом";
@@ -280,22 +288,5 @@ class BaseShiftingCommand extends UserCommand
             return $row['biome_name'];
         }
         return "Неизвестный биом";
-    }
-
-    /**
-     * Получаем [user,character] из callbackQuery (если надо)
-     */
-    private function getUserAndCharacterByCallback(CallbackQuery $callbackQuery): array
-    {
-        $tid = $callbackQuery->getFrom()->getId();
-        $userModel = new TelegramUserModel();
-        $urow = $userModel->where('telegram_id',$tid)->first();
-        if (!$urow) return [null,null];
-
-        $charModel = new CharacterModel();
-        $crow = $charModel->where('telegram_user_id',$urow['id'])->first();
-        if (!$crow) return [null,null];
-
-        return [$urow,$crow];
     }
 }
