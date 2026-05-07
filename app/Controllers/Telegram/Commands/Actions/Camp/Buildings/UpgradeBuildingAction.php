@@ -11,6 +11,7 @@ use App\Models\BuildingModel;
 use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
+use App\Services\Player\BuildingUpgrade\BuildingUpgradeApplier;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeMessageFormatter;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeValidator;
 use App\Services\Player\PlayerStateService;
@@ -34,6 +35,9 @@ class UpgradeBuildingAction extends BaseAction
 
     // v0.51.58 (Step 2) — Markdown templates extracted у formatter
     protected BuildingUpgradeMessageFormatter $formatter;
+
+    // v0.51.60 (Step 3) — DB write block extracted у applier
+    protected BuildingUpgradeApplier $applier;
 
     /**
      * Требования для перехода на каждый уровень (2..10):
@@ -135,6 +139,12 @@ class UpgradeBuildingAction extends BaseAction
             $this->playerStateService
         );
         $this->formatter              = new BuildingUpgradeMessageFormatter($this->resourceModel);
+        $this->applier                = new BuildingUpgradeApplier(
+            $this->characterModel,
+            $this->characterResourceModel,
+            $this->resourceModel,
+            $this->characterBuildingModel
+        );
     }
 
     /**
@@ -264,25 +274,8 @@ class UpgradeBuildingAction extends BaseAction
         $nextLevel    = $ctx['nextLevel'];
         $req          = $ctx['requirements'];
 
-        // Apply upgrade — списываем золото и ресурсы, повышаем уровень
-        $newGold = $character['gold'] - $req['gold'];
-        $this->characterModel->update($character['id'], ['gold' => $newGold]);
-
-        foreach ($req['resources'] as $resNameEn => $needQty) {
-            if ($needQty <= 0) {
-                continue;
-            }
-            $resRow = $this->resourceModel->where('name_en', $resNameEn)->first();
-            if (!$resRow) {
-                continue;
-            }
-            $this->characterResourceModel->decreaseResources($character['id'], $resRow['id'], $needQty);
-        }
-
-        // Повышаем уровень постройки
-        $this->characterBuildingModel->update($charBuilding['id'], [
-            'level' => $nextLevel,
-        ]);
+        // v0.51.60 (Step 3) — apply chain extracted у BuildingUpgradeApplier
+        $this->applier->apply($character, $charBuilding, $nextLevel, $req);
 
         // Скрываем alert у кнопки
         Request::answerCallbackQuery([

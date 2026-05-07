@@ -2629,12 +2629,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportationCenterHandler.php
 
 		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
 			message: '#^Cannot access offset ''buildingInfo'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 2
@@ -2654,12 +2648,6 @@ parameters:
 
 		-
 			message: '#^Cannot access offset ''gold'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
-
-		-
-			message: '#^Cannot access offset ''id'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
@@ -2691,7 +2679,7 @@ parameters:
 		-
 			message: '#^Cannot access offset ''resources'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
+			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 
 		-
@@ -2737,6 +2725,12 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 
 		-
+			message: '#^Parameter \#2 \$charBuilding of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeApplier\:\:apply\(\) expects array\<string, mixed\>, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
 			message: '#^Parameter \#2 \$currentLevel of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:upgradeSuccess\(\) expects int, mixed given\.$#'
 			identifier: argument.type
 			count: 1
@@ -2755,6 +2749,12 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 
 		-
+			message: '#^Parameter \#3 \$nextLevel of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeApplier\:\:apply\(\) expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
 			message: '#^Parameter \#3 \$nextLevel of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:upgradeSuccess\(\) expects int, mixed given\.$#'
 			identifier: argument.type
 			count: 1
@@ -2762,6 +2762,12 @@ parameters:
 
 		-
 			message: '#^Parameter \#4 \$nextLevel of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeMessageFormatter\:\:askPrompt\(\) expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Parameter \#4 \$requirements of method App\\Services\\Player\\BuildingUpgrade\\BuildingUpgradeApplier\:\:apply\(\) expects array\{gold\: int, resources\: array\<string, int\>\}, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
@@ -14909,6 +14915,18 @@ parameters:
 			identifier: property.onlyWritten
 			count: 1
 			path: app/Services/PVE/RewardService.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 3
+			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeApplier.php
+
+		-
+			message: '#^Parameter \#1 \$id of method CodeIgniter\\Model\:\:update\(\) expects CodeIgniter\\Database\\RawSql\|int\|list\<int\|string\>\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeApplier.php
 
 		-
 			message: '#^Part \$character\[''gold''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
