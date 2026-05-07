@@ -21,6 +21,7 @@ use App\Models\TelegramUserModel; // уведомление старому вл�
 
 // Сервисы
 use App\Services\Bases\CampCheckService;
+use App\Services\Player\TeleportBeacon\BeaconInstaller;
 use App\Services\Player\TeleportBeacon\BeaconMessageFormatter;
 use App\Services\Player\TeleportBeacon\BeaconPlacementValidator;
 
@@ -57,6 +58,9 @@ class TeleportBeaconSetAction
     // v0.51.53 (Step 2) — Markdown templates extracted у formatter.
     protected BeaconMessageFormatter $formatter;
 
+    // v0.51.54 (Step 3) — DB write + inventory subtract extracted у installer.
+    protected BeaconInstaller $installer;
+
     public function __construct(CallbackQuery $callbackQuery)
     {
         $this->callbackQuery          = $callbackQuery;
@@ -85,6 +89,10 @@ class TeleportBeaconSetAction
             $this->campCheckService
         );
         $this->formatter              = new BeaconMessageFormatter();
+        $this->installer              = new BeaconInstaller(
+            $this->teleportBeaconModel,
+            $this->craftedItemsLogModel
+        );
     }
 
     /**
@@ -172,7 +180,12 @@ class TeleportBeaconSetAction
     }
 
     /**
-     * Создаём запись в teleport_beacons, списываем маяк из инвентаря и отправляем сообщение.
+     * Створюємо запис у teleport_beacons, списуємо маяк з інвентаря, шлемо
+     * повідомлення.
+     *
+     * v0.51.53 (Step 2) — formatting extract → BeaconMessageFormatter.
+     * v0.51.54 (Step 3) — DB write + inventory extract → BeaconInstaller.
+     * Метод тепер тонкий orchestrator: install → biome lookup → format → send.
      */
     private function installBeacon(
         int $chatId,
@@ -183,48 +196,21 @@ class TeleportBeaconSetAction
         int $playerLevel,
         int $maxBeacons
     ): void {
-        $coordX = $mapRow['coordinate_x'];
-        $coordY = $mapRow['coordinate_y'];
-        $mapCellId  = (int)$mapRow['id'];
-        $cellNumber = (int)$mapRow['cell_number'];
+        // 1) Persistence (DB insert + inventory subtract).
+        $counters = $this->installer->install($characterId, $mapRow, $playerLevel, $beaconItem);
 
-        // Вставляем новую строку
-        $this->teleportBeaconModel->insert([
-            'character_id'             => $characterId,
-            'faction_id'               => null,
-            'player_level_at_creation' => $playerLevel,
-            'map_cell_id'              => $mapCellId,
-            'coordinate_x'             => $coordX,
-            'coordinate_y'             => $coordY,
-            'tax_cost'                 => 180,
-            'remaining_uses'           => 100,
-            'last_teleport_at'         => null,
-            'ownership_type'           => 'author',
-            'settings_json'            => null,
-        ]);
-
-        // Теперь считаем общее кол-во маяков
-        $updatedCount = $this->teleportBeaconModel
-            ->where('character_id', $characterId)
-            ->countAllResults();
-
-        // Списываем 1 «TeleportBeaconBasic»
-        $this->craftedItemsLogModel->subtractItem($characterId, 'TeleportBeaconBasic', 1);
-
-        // Сколько маяков осталось
-        $beaconLogUpdated = $this->craftedItemsLogModel
-            ->where('character_id',    $characterId)
-            ->where('crafted_item_id', $beaconItem['id'])
-            ->first();
-        $beaconLeft = $beaconLogUpdated ? (int) $beaconLogUpdated['quantity'] : 0;
-
-        // Biome lookup (v0.51.53 — formatting moved до formatter)
+        // 2) Biome lookup (потрібен для display details).
         $biomeRow = $biomeId ? $this->biomeModel->find($biomeId) : null;
 
+        // 3) Format + send.
         $this->send($chatId, $this->formatter->installSuccess(
-            (int) $coordX, (int) $coordY, $cellNumber,
+            (int) $mapRow['coordinate_x'],
+            (int) $mapRow['coordinate_y'],
+            (int) $mapRow['cell_number'],
             $biomeRow,
-            $beaconLeft, (int) $updatedCount, $maxBeacons
+            $counters['beaconLeft'],
+            $counters['updatedCount'],
+            $maxBeacons
         ));
     }
 

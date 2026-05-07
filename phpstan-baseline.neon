@@ -2515,12 +2515,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
 		-
-			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
-
-		-
 			message: '#^Cannot access offset ''telegram_user_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -15671,6 +15665,24 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Services/Player/Relocation/RelocationValidator.php
+
+		-
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/TeleportBeacon/BeaconInstaller.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 1
+			path: app/Services/Player/TeleportBeacon/BeaconInstaller.php
+
+		-
+			message: '#^Parameter \#1 \$row of method CodeIgniter\\Model\:\:insert\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null, array\<string, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Player/TeleportBeacon/BeaconInstaller.php
 
 		-
 			message: '#^Cannot cast mixed to float\.$#'
