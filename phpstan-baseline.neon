@@ -9879,13 +9879,7 @@ parameters:
 		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 8
-			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\BaseShiftingCommand\:\:findClosestExploredFreeCell\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
+			count: 7
 			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
 
 		-
@@ -15665,6 +15659,18 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Services/Player/PvPRestrictionService.php
+
+		-
+			message: '#^Method App\\Services\\Player\\Relocation\\ClosestCellFinder\:\:__construct\(\) has parameter \$db with generic class CodeIgniter\\Database\\BaseConnection but does not specify its types\: TConnection, TResult$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Services/Player/Relocation/ClosestCellFinder.php
+
+		-
+			message: '#^Property App\\Services\\Player\\Relocation\\ClosestCellFinder\:\:\$db with generic class CodeIgniter\\Database\\BaseConnection does not specify its types\: TConnection, TResult$#'
+			identifier: missingType.generics
+			count: 1
+			path: app/Services/Player/Relocation/ClosestCellFinder.php
 
 		-
 			message: '#^Cannot access offset ''character_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'

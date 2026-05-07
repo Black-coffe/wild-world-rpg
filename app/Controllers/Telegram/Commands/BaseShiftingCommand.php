@@ -10,10 +10,10 @@ use CodeIgniter\I18n\Time;
 
 use App\Models\TelegramUserModel;
 use App\Models\CharacterModel;
-use App\Models\TaskModel;
 use App\Models\CharacterTaskModel;
 use App\Models\MapModel;
 
+use App\Services\Player\Relocation\ClosestCellFinder;
 use App\Services\Player\Relocation\RelocationValidator;
 
 /**
@@ -35,6 +35,7 @@ class BaseShiftingCommand extends UserCommand
     protected $version = '1.0.0';
 
     private ?RelocationValidator $validator = null;
+    private ?ClosestCellFinder $closestFinder = null;
 
     /**
      * Lazy getter — уникаємо overriding Longman UserCommand constructor
@@ -46,6 +47,14 @@ class BaseShiftingCommand extends UserCommand
             $this->validator = new RelocationValidator();
         }
         return $this->validator;
+    }
+
+    private function closestFinder(): ClosestCellFinder
+    {
+        if ($this->closestFinder === null) {
+            $this->closestFinder = new ClosestCellFinder($this->validator());
+        }
+        return $this->closestFinder;
     }
 
     /**
@@ -126,7 +135,7 @@ class BaseShiftingCommand extends UserCommand
         $reason    = '';
         if (!$this->validator()->isCellAvailableForRelocation($character['id'], $mapCellId, $reason)) {
             // Ячейка недоступна => ищем ближайшую
-            $closestInfo = $this->findClosestExploredFreeCell($character['id'], $x, $y);
+            $closestInfo = $this->closestFinder()->findClosest((int) $character['id'], $x, $y);
             if (!$closestInfo) {
                 // Ни одной альтернативы
                 // Сформируем текст с "причиной"
@@ -166,7 +175,7 @@ class BaseShiftingCommand extends UserCommand
         // 7) Проверяем, изучил ли игрок данную точку (v0.51.47 — RelocationValidator)
         if (!$this->validator()->isCellExploredBy($character['id'], $mapCellId)) {
             // Не изучена => ищем альтернативу
-            $closestInfo = $this->findClosestExploredFreeCell($character['id'], $x, $y);
+            $closestInfo = $this->closestFinder()->findClosest((int) $character['id'], $x, $y);
             if (!$closestInfo) {
                 $txt = "🚫 *Ты не можешь переехать в выбранную ячейку* (X={$x}, Y={$y})\n"
                     . "Причина: _Не изучена_\n\n"
@@ -344,73 +353,9 @@ class BaseShiftingCommand extends UserCommand
         ]);
     }
 
-    /**
-     * Находим ближайшую свободную изученную ячейку (экспоненциальное расширение).
-     */
-    private function findClosestExploredFreeCell(int $charId, int $X, int $Y): ?array
-    {
-        $maxRadius = 1024;
-        $r = 16;
-        $closest = null;
-        $closestDist = PHP_INT_MAX;
-
-        $db = \Config\Database::connect();
-        $taskModel = new TaskModel();
-        $frTask    = $taskModel->where('name','FullRelocation')->first();
-        $frTaskId  = $frTask ? $frTask['id'] : null;
-
-        while ($r <= $maxRadius) {
-            $sql = "SELECT m.id AS map_id, m.coordinate_x, m.coordinate_y
-                    FROM explored_cells ec
-                    JOIN map m ON m.id = ec.map_cell_id
-                    WHERE ec.character_id=:charId:
-                      AND m.coordinate_x BETWEEN :xmin: AND :xmax:
-                      AND m.coordinate_y BETWEEN :ymin: AND :ymax:";
-            $bind = [
-                'charId' => $charId,
-                'xmin' => $X-$r,
-                'xmax' => $X+$r,
-                'ymin' => $Y-$r,
-                'ymax' => $Y+$r,
-            ];
-            $query   = $db->query($sql, $bind);
-            if (!$query instanceof \CodeIgniter\Database\BaseResult) {
-                return null;
-            }
-            $results = $query->getResultArray();
-
-            if (!empty($results)) {
-                // Фильтр на "свободна"
-                foreach ($results as $row) {
-                    $mapId = $row['map_id'];
-                    // Проверим занятость (v0.51.47 — RelocationValidator)
-                    $reason='';
-                    if (!$this->validator()->isCellAvailableForRelocation($charId,$mapId,$reason)) {
-                        // занята/резерв
-                        continue;
-                    }
-                    // вычисляем дистанцию
-                    $dx = $row['coordinate_x'] - $X;
-                    $dy = $row['coordinate_y'] - $Y;
-                    $dist = sqrt($dx*$dx + $dy*$dy);
-                    if ($dist < $closestDist) {
-                        $closestDist = $dist;
-                        $closest = [
-                            'map_id' => $mapId,
-                            'x' => $row['coordinate_x'],
-                            'y' => $row['coordinate_y'],
-                            'distance' => $dist
-                        ];
-                    }
-                }
-                if ($closest) {
-                    break; // выходим из while
-                }
-            }
-            $r *= 2;
-        }
-        return $closest; // null если не нашли
-    }
+    // v0.51.48 — extract Step 2: findClosestExploredFreeCell переїхав у
+    // ClosestCellFinder service. Bonus cleanup — drop dead $taskModel +
+    // $frTaskId lookup (variable set, never used).
 
     /**
      * Получаем имя биома (рус) по map_id -> map.biome_id -> biome.name
