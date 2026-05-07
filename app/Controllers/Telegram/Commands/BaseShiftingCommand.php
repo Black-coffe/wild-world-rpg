@@ -6,14 +6,13 @@ use Longman\TelegramBot\Commands\UserCommand;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\CallbackQuery;
-use CodeIgniter\I18n\Time;
 
 use App\Models\TelegramUserModel;
 use App\Models\CharacterModel;
-use App\Models\CharacterTaskModel;
 use App\Models\MapModel;
 
 use App\Services\Player\Relocation\ClosestCellFinder;
+use App\Services\Player\Relocation\RelocationTaskCreator;
 use App\Services\Player\Relocation\RelocationValidator;
 
 /**
@@ -36,6 +35,7 @@ class BaseShiftingCommand extends UserCommand
 
     private ?RelocationValidator $validator = null;
     private ?ClosestCellFinder $closestFinder = null;
+    private ?RelocationTaskCreator $taskCreator = null;
 
     /**
      * Lazy getter — уникаємо overriding Longman UserCommand constructor
@@ -55,6 +55,14 @@ class BaseShiftingCommand extends UserCommand
             $this->closestFinder = new ClosestCellFinder($this->validator());
         }
         return $this->closestFinder;
+    }
+
+    private function taskCreator(): RelocationTaskCreator
+    {
+        if ($this->taskCreator === null) {
+            $this->taskCreator = new RelocationTaskCreator();
+        }
+        return $this->taskCreator;
     }
 
     /**
@@ -295,12 +303,21 @@ class BaseShiftingCommand extends UserCommand
                 ]);
             }
 
-            // Всё нормально => создаём задачу
-            $text = "🚀 Поехали! Переезд в X={$x},Y={$y} запущен.\nПродлится 24 часа.";
+            // Всё нормально => создаём задачу (v0.51.49 — RelocationTaskCreator)
+            $this->taskCreator()->createTask(
+                (int) $character['id'],
+                (int) $user['id'],
+                $frTaskId,
+                $mapCellId,
+                $x,
+                $y
+            );
 
-            $this->startRelocationTask($chatId, $user['id'], $character, $frTaskId, $mapCellId, $x, $y, $text);
-
-            return Request::emptyResponse(); // или sendMessage() уже внутри startRelocationTask
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => "🚀 Поехали! Переезд в X={$x},Y={$y} запущен.\nПродлится 24 часа.",
+                'parse_mode' => 'Markdown',
+            ]);
         }
 
         return Request::emptyResponse();
@@ -314,48 +331,9 @@ class BaseShiftingCommand extends UserCommand
     // Было: checkPreconditions / isCellAvailableForRelocation / isCellExploredBy.
     // Тепер: $this->validator()->checkPreconditions(...) etc.
 
-    /**
-     * Запускаем саму задачу (24h).
-     */
-    private function startRelocationTask(
-        int $chatId,
-        int $telegramUserId,
-        array|\App\Entities\CharacterEntity $character,
-        int $frTaskId,
-        int $mapCellId,
-        int $x,
-        int $y,
-        string $textToPlayer
-    ): ServerResponse {
-        $charTaskModel = new CharacterTaskModel();
-        $now = Time::now();
-        $end = $now->addHours(24);
-
-        $settings = [
-            'new_map_cell_id' => $mapCellId,
-            'note' => "Переезд в X={$x},Y={$y} (map_id={$mapCellId})",
-        ];
-
-        $charTaskModel->insert([
-            'character_id'     => $character['id'],
-            'telegram_user_id' => $telegramUserId,
-            'task_id'          => $frTaskId,
-            'start_time'       => $now->toDateTimeString(),
-            'end_time'         => $end->toDateTimeString(),
-            'status'           => 'in_work',
-            'task_settings'    => json_encode($settings, JSON_UNESCAPED_UNICODE),
-        ]);
-
-        return Request::sendMessage([
-            'chat_id'    => $chatId,
-            'text'       => $textToPlayer,
-            'parse_mode' => 'Markdown',
-        ]);
-    }
-
-    // v0.51.48 — extract Step 2: findClosestExploredFreeCell переїхав у
-    // ClosestCellFinder service. Bonus cleanup — drop dead $taskModel +
-    // $frTaskId lookup (variable set, never used).
+    // v0.51.48 — extract Step 2: findClosestExploredFreeCell → ClosestCellFinder.
+    // v0.51.49 — extract Step 3: startRelocationTask → RelocationTaskCreator.
+    // SRP separation: service writes character_task row, command handles UI/Telegram send.
 
     /**
      * Получаем имя биома (рус) по map_id -> map.biome_id -> biome.name
