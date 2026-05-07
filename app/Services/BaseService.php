@@ -71,7 +71,13 @@ class BaseService
         // --------------------------------------------------------------------
         // 2. Проверяем: "игрок ФИЗИЧЕСКИ на ячейке базы"?
         // --------------------------------------------------------------------
-        $onBasePhysically = ($claimedCell['map_cell_id'] === $characterRow['cell_number']);
+        // v0.51.59 hotfix (F1.4.4-B 10th occurrence): explicit (int) cast.
+        // Раніше strict `===` між string `$claimedCell['map_cell_id']` (raw SQL row,
+        // ClaimedCellModel returnType='array') і int `$characterRow['cell_number']`
+        // (CharacterEntity cast post-F1.4.2) — завжди false → "не на базе" для
+        // всіх гравців у tower coverage flow.
+        // Caught через Chrome MCP smoke test 2026-05-07. Latent з v0.48.0.
+        $onBasePhysically = ((int) $claimedCell['map_cell_id'] === (int) $characterRow['cell_number']);
         if ($onBasePhysically) {
             // Если да — выводим все постройки + механику
             return $this->showBaseBuildings($chatId, $characterRow, $claimedCell);
