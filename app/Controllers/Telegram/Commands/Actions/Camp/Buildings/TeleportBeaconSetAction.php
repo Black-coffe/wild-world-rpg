@@ -19,8 +19,9 @@ use App\Models\BiomeModel;
 use App\Models\TeleportBeaconModel;
 use App\Models\TelegramUserModel; // уведомление старому владельцу
 
-// Сервисы для проверки базы
+// Сервисы
 use App\Services\Bases\CampCheckService;
+use App\Services\Player\TeleportBeacon\BeaconPlacementValidator;
 
 /**
  * Класс TeleportBeaconSetAction:
@@ -49,6 +50,9 @@ class TeleportBeaconSetAction
     // Сервис для проверки, не стоит ли здесь база
     protected CampCheckService $campCheckService;
 
+    // v0.51.52 (Step 1) — validation chain extracted у dedicated service.
+    protected BeaconPlacementValidator $placementValidator;
+
     public function __construct(CallbackQuery $callbackQuery)
     {
         $this->callbackQuery          = $callbackQuery;
@@ -65,6 +69,17 @@ class TeleportBeaconSetAction
         $this->telegramUserModel      = new TelegramUserModel();
 
         $this->campCheckService       = new CampCheckService();
+        $this->placementValidator     = new BeaconPlacementValidator(
+            $this->characterModel,
+            $this->claimedCellModel,
+            $this->buildingModel,
+            $this->characterBuildingModel,
+            $this->craftedItemsModel,
+            $this->craftedItemsLogModel,
+            $this->mapModel,
+            $this->teleportBeaconModel,
+            $this->campCheckService
+        );
     }
 
     /**
@@ -107,106 +122,37 @@ class TeleportBeaconSetAction
 
     /**
      * Пытаемся установить маяк в (coordX, coordY).
+     *
+     * v0.51.52 (Step 1) — validation chain (~85 LOC) винесена у
+     * BeaconPlacementValidator. Тут залишилось branching: error / capture / install.
      */
     private function processSetBeacon(int $chatId, int $coordX, int $coordY): ServerResponse
     {
-        // Определяем characterId
         $telegramUserId = $this->callbackQuery->getFrom()->getId();
-        $characterId    = $this->characterModel->getCharacterIdByTelegramId($telegramUserId);
-        if (!$characterId) {
-            return $this->sendError($chatId, "Персонаж не найден (TG={$telegramUserId}).");
+        $result = $this->placementValidator->validate((int) $telegramUserId, $coordX, $coordY);
+
+        if (!$result['ok']) {
+            return $this->sendError($chatId, $result['error']);
         }
 
-        // Проверяем, есть ли активная база
-        $activeBase = $this->claimedCellModel
-            ->where('character_id', $characterId)
-            ->where('status', 'active')
-            ->first();
-        if (!$activeBase) {
-            return $this->sendError($chatId, "У тебя нет активной базы — без неё нельзя ставить маяк!");
+        // Foreign beacon at coords → capture flow
+        if ($result['existingBeacon'] !== null) {
+            return $this->showCaptureOption($chatId, $result['existingBeacon'], (int) $result['mapRow']['cell_number']);
         }
 
-        // Проверяем, есть ли «Центр телепортации»
-        $teleportCenter = $this->buildingModel->where('name_en', 'TeleportationCenter')->first();
-        if (!$teleportCenter) {
-            return $this->sendError($chatId, "Ошибка: в базе нет 'TeleportationCenter'.");
-        }
-        $centerRow = $this->characterBuildingModel
-            ->where('character_id', $characterId)
-            ->where('building_id', $teleportCenter['id'])
-            ->first();
-        if (!$centerRow) {
-            return $this->sendError($chatId, "У тебя нет построенного Центра телепортации!");
-        }
+        // All clear → install
+        $biomeId = $result['mapRow']['biome_id'] ?? null;
+        $this->installBeacon(
+            $chatId,
+            $result['characterId'],
+            $result['mapRow'],
+            $biomeId,
+            $result['beaconItem'],
+            $result['playerLevel'],
+            $result['maxBeacons']
+        );
 
-        // Предмет "TeleportBeaconBasic"
-        $beaconItem = $this->craftedItemsModel->where('name_eng', 'TeleportBeaconBasic')->first();
-        if (!$beaconItem) {
-            return $this->sendError($chatId, "Не найден предмет 'TeleportBeaconBasic'.");
-        }
-        $beaconLog = $this->craftedItemsLogModel
-            ->where('character_id',    $characterId)
-            ->where('crafted_item_id', $beaconItem['id'])
-            ->first();
-        if (!$beaconLog || $beaconLog['quantity'] < 1) {
-            return $this->sendError($chatId, "У тебя нет ни одного маяка в инвентаре!");
-        }
-
-        // Проверяем лимит маяков
-        $charRow       = $this->characterModel->find($characterId);
-        $playerLevel   = (int)($charRow['level'] ?? 1);
-        $buildingLevel = max(1, min(10, (int)$centerRow['level']));
-        $baseMaxByPlayer = intdiv($playerLevel, 10);
-        if ($baseMaxByPlayer > 10) {
-            $baseMaxByPlayer = 10;
-        }
-        $maxBeacons = $baseMaxByPlayer + $buildingLevel;
-
-        $existingCount = $this->teleportBeaconModel
-            ->where('character_id', $characterId)
-            ->countAllResults();
-        if ($existingCount >= $maxBeacons) {
-            return $this->sendError($chatId, "Ты достиг лимита маяков ({$maxBeacons}). Сначала удали старый маяк.");
-        }
-
-        // Ищем ячейку map
-        $mapRow = $this->mapModel
-            ->where('coordinate_x', $coordX)
-            ->where('coordinate_y', $coordY)
-            ->first();
-        if (!$mapRow) {
-            return $this->sendError($chatId, "Не найдена карта (X={$coordX}, Y={$coordY}).");
-        }
-        $mapCellId  = (int)$mapRow['id'];
-        $cellNumber = (int)$mapRow['cell_number'];
-        $biomeId    = $mapRow['biome_id'] ?? null;
-
-        // Проверка, нет ли базы на этой точке
-        if ($this->campCheckService->isCellClaimedByAnyone($cellNumber)) {
-            return $this->sendError($chatId, "Здесь уже расположена чья-то база!");
-        }
-
-        // Проверка, нет ли чужого маяка
-        $existingBeacon = $this->teleportBeaconModel
-            ->where('coordinate_x', $coordX)
-            ->where('coordinate_y', $coordY)
-            ->where('remaining_uses >', 0)
-            ->first();
-
-        if ($existingBeacon) {
-            // Если наш — ругаемся
-            if ((int)$existingBeacon['character_id'] === $characterId) {
-                return $this->sendError($chatId, "У тебя уже есть маяк на этой точке!");
-            } else {
-                // Чужой маяк => предлагаем «Перехватить»/«Отменить»
-                return $this->showCaptureOption($chatId, $existingBeacon, $cellNumber);
-            }
-        }
-
-        // Если дошли сюда, ставим маяк
-        $this->installBeacon($chatId, $characterId, $mapRow, $biomeId, $beaconItem, $playerLevel, $maxBeacons);
-
-        return Request::emptyResponse(); // уже отправили сообщение об успехе
+        return Request::emptyResponse();
     }
 
     /**

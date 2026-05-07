@@ -2497,13 +2497,13 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconMoveConfirmAction.php
 
 		-
-			message: '#^Cannot access offset ''biome_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			message: '#^Cannot access offset ''biome_id'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
 		-
-			message: '#^Cannot access offset ''cell_number'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			message: '#^Cannot access offset ''cell_number'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
@@ -2511,7 +2511,7 @@ parameters:
 		-
 			message: '#^Cannot access offset ''character_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
+			count: 2
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
 		-
@@ -2527,27 +2527,9 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
 		-
-			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
-
-		-
-			message: '#^Cannot access offset ''level'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
-
-		-
-			message: '#^Cannot access offset ''level'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
-
-		-
 			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
+			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
 		-
@@ -2571,7 +2553,7 @@ parameters:
 		-
 			message: '#^Cannot cast mixed to int\.$#'
 			identifier: cast.int
-			count: 2
+			count: 3
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
 		-
@@ -2605,19 +2587,49 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
 		-
-			message: '#^Parameter \#2 \$existingBeacon of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeaconSetAction\:\:showCaptureOption\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#2 \$characterId of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeaconSetAction\:\:installBeacon\(\) expects int, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
 		-
-			message: '#^Parameter \#3 \$mapRow of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeaconSetAction\:\:installBeacon\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#2 \$existingBeacon of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeaconSetAction\:\:showCaptureOption\(\) expects array, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
 		-
-			message: '#^Parameter \#5 \$beaconItem of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeaconSetAction\:\:installBeacon\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#2 \$msg of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeaconSetAction\:\:sendError\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
+
+		-
+			message: '#^Parameter \#3 \$mapRow of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeaconSetAction\:\:installBeacon\(\) expects array, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
+
+		-
+			message: '#^Parameter \#4 \$biomeId of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeaconSetAction\:\:installBeacon\(\) expects int\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
+
+		-
+			message: '#^Parameter \#5 \$beaconItem of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeaconSetAction\:\:installBeacon\(\) expects array, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
+
+		-
+			message: '#^Parameter \#6 \$playerLevel of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeaconSetAction\:\:installBeacon\(\) expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
+
+		-
+			message: '#^Parameter \#7 \$maxBeacons of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeaconSetAction\:\:installBeacon\(\) expects int, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
@@ -15701,6 +15713,42 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Services/Player/Relocation/RelocationValidator.php
+
+		-
+			message: '#^Cannot access offset ''cell_number'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/TeleportBeacon/BeaconPlacementValidator.php
+
+		-
+			message: '#^Cannot access offset ''character_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/TeleportBeacon/BeaconPlacementValidator.php
+
+		-
+			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: app/Services/Player/TeleportBeacon/BeaconPlacementValidator.php
+
+		-
+			message: '#^Cannot access offset ''level'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/TeleportBeacon/BeaconPlacementValidator.php
+
+		-
+			message: '#^Cannot access offset ''level'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/TeleportBeacon/BeaconPlacementValidator.php
+
+		-
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/TeleportBeacon/BeaconPlacementValidator.php
 
 		-
 			message: '#^Cannot access offset ''gold'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
