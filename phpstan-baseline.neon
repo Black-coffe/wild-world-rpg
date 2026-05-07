@@ -2629,8 +2629,128 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportationCenterHandler.php
 
 		-
+			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Binary operation "\." between ''Не хватает ресурсов…'' and mixed results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Cannot access offset ''buildingInfo'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Cannot access offset ''charBuilding'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Cannot access offset ''currentLevel'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Cannot access offset ''gold'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Cannot access offset ''id'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Cannot access offset ''level'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Cannot access offset ''name_ru'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Cannot access offset ''nextLevel'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Cannot access offset ''requirements'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Cannot access offset ''resources'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Cannot access offset 0 on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\UpgradeBuildingAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Parameter \#2 \$array of function implode expects array, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Part \$bName \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Part \$buildingNameRu \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Part \$currentLevel \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Part \$nextLevel \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 3
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Part \$rQty \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 
@@ -14771,6 +14891,66 @@ parameters:
 			identifier: property.onlyWritten
 			count: 1
 			path: app/Services/PVE/RewardService.php
+
+		-
+			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 1
+			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeValidator.php
+
+		-
+			message: '#^Cannot access offset ''level'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeValidator.php
+
+		-
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeValidator.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 4
+			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeValidator.php
+
+		-
+			message: '#^Parameter \#1 \$characterId of method App\\Services\\Player\\PlayerStateService\:\:isCharacterOnBase\(\) expects int, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeValidator.php
+
+		-
+			message: '#^Part \$character\[''gold''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeValidator.php
+
+		-
+			message: '#^Part \$character\[''level''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeValidator.php
+
+		-
+			message: '#^Part \$needQty \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeValidator.php
+
+		-
+			message: '#^Part \$resNameEn \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeValidator.php
+
+		-
+			message: '#^Part \$resRow\[''name''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeValidator.php
 
 		-
 			message: '#^Method App\\Services\\Player\\CharacterService\:\:showCharacterInfo\(\) has parameter \$characterRow with no value type specified in iterable type array\.$#'
