@@ -65,15 +65,17 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\DeathRouletteHandler())->handle())
             ->everyMinute()->singleInstance()->named('death-roulette');
 
-        // Питание/вода — handler сам проверяет 21:33 (Europe/Kiev) внутри.
-        // TODO: после стабилизации заменить на ->daily('21:33')
+        // Питание/вода — v0.51.95: stable since FoodWater hotfix v0.51.36 (2026-05-06).
+        // Switched everyMinute() + internal 21:33 check → native daily('21:33').
+        // Saves ~1440 noop cron calls/day. Handler keeps internal time guard
+        // (defense in depth: cron driver retry / timezone edge cases).
         $schedule->call(static fn() => (new \App\TaskHandlers\FoodAndWaterConsumptionHandler())->handle())
-            ->everyMinute()->singleInstance()->named('food-water.consumption');
+            ->daily('21:33')->singleInstance()->named('food-water.consumption');
 
-        // Налоги — handler сам проверяет 03:00 внутри.
-        // TODO: после стабилизации заменить на ->daily('03:00')
+        // Налоги — v0.51.95: stable. Switched everyMinute() + internal 03:00 check
+        // → native daily('03:00'). Saves ~1440 noop cron calls/day.
         $schedule->call(static fn() => (new \App\TaskHandlers\TaxCollectionHandler())->handle())
-            ->everyMinute()->singleInstance()->named('tax.collection');
+            ->daily('03:00')->singleInstance()->named('tax.collection');
 
         // ============================================================
         // BUILDING PRODUCTION — каждую минуту
