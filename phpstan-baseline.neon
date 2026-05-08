@@ -17611,6 +17611,36 @@ parameters:
 			path: app/TaskHandlers/DeathRouletteHandler.php
 
 		-
+			message: '#^Cannot access offset ''telegram_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/TaskHandlers/Endgame/EndgameThresholdHandler.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 1
+			path: app/TaskHandlers/Endgame/EndgameThresholdHandler.php
+
+		-
+			message: '#^Cannot cast mixed to string\.$#'
+			identifier: cast.string
+			count: 1
+			path: app/TaskHandlers/Endgame/EndgameThresholdHandler.php
+
+		-
+			message: '#^Property App\\TaskHandlers\\Endgame\\EndgameThresholdHandler\:\:\$cfg \(Config\\EndgameScoring\) does not accept object\|null\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/TaskHandlers/Endgame/EndgameThresholdHandler.php
+
+		-
+			message: '#^Property App\\TaskHandlers\\Endgame\\EndgameThresholdHandler\:\:\$tgUserModel is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/TaskHandlers/Endgame/EndgameThresholdHandler.php
+
+		-
 			message: '#^Binary operation "%%" between string and 7 results in an error\.$#'
 			identifier: binaryOp.invalid
 			count: 1

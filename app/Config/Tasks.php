@@ -176,5 +176,12 @@ class Tasks extends BaseTasks
         // ~23k rows/initial run, ~646 rows/day після стабілізації).
         $schedule->command('battles:cleanup')
             ->daily('03:35')->named('battle-logs.cleanup');
+
+        // v0.51.113 — Endgame threshold check + scenario activation.
+        // Daily 04:00 EEST. Idempotent (no-op якщо threshold ще не hit
+        // або вже triggered). Перевіряє чи якась з 4 factions hit 75k
+        // → triggers FINAL state + broadcast до всіх chars.
+        $schedule->call(static fn() => (new \App\TaskHandlers\Endgame\EndgameThresholdHandler())->handle())
+            ->daily('04:00')->singleInstance()->named('endgame.threshold-check');
     }
 }
