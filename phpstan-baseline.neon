@@ -14143,6 +14143,18 @@ parameters:
 			path: app/Services/Events/EventMessageFormatter.php
 
 		-
+			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Events/EventNotificationSender.php
+
+		-
+			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Events/EventNotificationSender.php
+
+		-
 			message: '#^Cannot cast mixed to float\.$#'
 			identifier: cast.double
 			count: 3
@@ -14311,12 +14323,6 @@ parameters:
 			path: app/Services/Events/NotificationPolicy.php
 
 		-
-			message: '#^Method App\\Services\\Events\\NotificationPolicy\:\:doSend\(\) has parameter \$keyboard with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Events/NotificationPolicy.php
-
-		-
 			message: '#^Method App\\Services\\Events\\NotificationPolicy\:\:isMuted\(\) has parameter \$pref with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -14383,12 +14389,6 @@ parameters:
 			path: app/Services/Events/NotificationPolicy.php
 
 		-
-			message: '#^Parameter \#1 \$api_key of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Events/NotificationPolicy.php
-
-		-
 			message: '#^Parameter \#1 \$id of method CodeIgniter\\BaseModel\:\:find\(\) expects int\|list\<int\|string\>\|string\|null, mixed given\.$#'
 			identifier: argument.type
 			count: 2
@@ -14398,12 +14398,6 @@ parameters:
 			message: '#^Parameter \#1 \$tgUser of method App\\Services\\Events\\EventPreferenceService\:\:readUserPref\(\) expects array\<string, mixed\>, array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|ArrayAccess given\.$#'
 			identifier: argument.type
 			count: 2
-			path: app/Services/Events/NotificationPolicy.php
-
-		-
-			message: '#^Parameter \#2 \$bot_username of class Longman\\TelegramBot\\Telegram constructor expects string, string\|false given\.$#'
-			identifier: argument.type
-			count: 1
 			path: app/Services/Events/NotificationPolicy.php
 
 		-

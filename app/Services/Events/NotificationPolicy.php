@@ -8,9 +8,6 @@ use App\Models\BiomeModel;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use Config\WorldEvents;
-use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Telegram;
 use Throwable;
 
 /**
@@ -49,7 +46,7 @@ final class NotificationPolicy
     private EventPreferenceService $prefService;
     private EventMessageFormatter $formatter;
     private EventRecipientFinder $recipientFinder;
-    private ?Telegram $telegram = null;
+    private EventNotificationSender $sender;
 
     public function __construct(
         ?WorldEvents $cfg = null,
@@ -59,6 +56,7 @@ final class NotificationPolicy
         ?EventPreferenceService $prefService = null,
         ?EventMessageFormatter $formatter = null,
         ?EventRecipientFinder $recipientFinder = null,
+        ?EventNotificationSender $sender = null,
     ) {
         $this->cfg             = $cfg             ?? config('WorldEvents');
         $this->charModel       = $charModel       ?? new CharacterModel();
@@ -67,6 +65,7 @@ final class NotificationPolicy
         $this->prefService     = $prefService     ?? new EventPreferenceService($this->cfg, $this->tgUserModel);
         $this->formatter       = $formatter       ?? new EventMessageFormatter();
         $this->recipientFinder = $recipientFinder ?? new EventRecipientFinder($this->charModel);
+        $this->sender          = $sender          ?? new EventNotificationSender();
     }
 
     // ============================================================
@@ -107,7 +106,7 @@ final class NotificationPolicy
 
                 // Start-уведомлении НЕ throttle'ються (це разова событие, не tick'и).
                 // Throttle больше актуальний для end-summary в спамерских сценариях.
-                $sent = $this->doSend((int)$tgUser['telegram_id'], $message, $imgPath, $keyboard);
+                $sent = $this->sender->send((int)$tgUser['telegram_id'], $message, $imgPath, $keyboard);
                 if ($sent) {
                     $this->prefService->recordSent((int)$tgUser['id'], $pref);
                     $stats['sent']++;
@@ -160,7 +159,7 @@ final class NotificationPolicy
         $keyboard = $this->formatter->buildEndKeyboard($effectKind, $aggregate);
 
         try {
-            $sent = $this->doSend((int)$tgUser['telegram_id'], $message, null, $keyboard);
+            $sent = $this->sender->send((int)$tgUser['telegram_id'], $message, null, $keyboard);
             if ($sent) {
                 $this->prefService->recordSent((int)$tgUser['id'], $pref);
             }
@@ -205,57 +204,4 @@ final class NotificationPolicy
         $this->prefService->recordSent($tgUserId, $pref);
     }
 
-    // ============================================================
-    // Telegram I/O (единствена точка)
-    // ============================================================
-
-    /**
-     * Универсальний send: photo если img_path, иначе text.
-     */
-    private function doSend(int $chatId, string $text, ?string $imgPath, array $keyboard): bool
-    {
-        $this->ensureTelegramInitialized();
-
-        try {
-            if ($imgPath !== null && $imgPath !== '') {
-                $photoFs = FCPATH . $imgPath;
-                if (is_readable($photoFs)) {
-                    Request::sendPhoto([
-                        'chat_id'      => $chatId,
-                        'photo'        => Request::encodeFile($photoFs),
-                        'caption'      => $text,
-                        'parse_mode'   => 'Markdown',
-                        'reply_markup' => json_encode($keyboard),
-                    ]);
-                    return true;
-                }
-                // Photo missing → fallback на text без зображення (resilient)
-                log_message('warning', "[NotificationPolicy] photo missing: {$photoFs}");
-            }
-
-            Request::sendMessage([
-                'chat_id'      => $chatId,
-                'text'         => $text,
-                'parse_mode'   => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
-            ]);
-            return true;
-        } catch (TelegramException $e) {
-            log_message('error', "[NotificationPolicy] doSend chat={$chatId}: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    private function ensureTelegramInitialized(): void
-    {
-        if ($this->telegram !== null) {
-            return;
-        }
-        try {
-            $this->telegram = new Telegram(getenv('telegram.API_KEY'), getenv('telegram.BOT_USERNAME'));
-            Request::initialize($this->telegram);
-        } catch (TelegramException $e) {
-            log_message('error', "[NotificationPolicy] Telegram init failed: " . $e->getMessage());
-        }
-    }
 }
