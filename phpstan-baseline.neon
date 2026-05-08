@@ -349,6 +349,60 @@ parameters:
 			path: app/Controllers/Admin/CharacterResetController.php
 
 		-
+			message: '#^Call to an undefined method App\\Models\\AdminAuditLogModel\:\:logAction\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Controllers/Admin/EndgameController.php
+
+		-
+			message: '#^Cannot access offset ''faction_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: app/Controllers/Admin/EndgameController.php
+
+		-
+			message: '#^Cannot access offset ''scenario_name'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Admin/EndgameController.php
+
+		-
+			message: '#^Cannot access offset ''score'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Admin/EndgameController.php
+
+		-
+			message: '#^Cannot call method getCurrentUser\(\) on object\|null\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Controllers/Admin/EndgameController.php
+
+		-
+			message: '#^Method App\\Controllers\\Admin\\EndgameController\:\:index\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Controllers/Admin/EndgameController.php
+
+		-
+			message: '#^Method App\\Controllers\\Admin\\EndgameController\:\:reset\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: app/Controllers/Admin/EndgameController.php
+
+		-
+			message: '#^Method App\\Controllers\\Admin\\EndgameController\:\:reset\(\) has parameter \$id with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: app/Controllers/Admin/EndgameController.php
+
+		-
+			message: '#^Property App\\Controllers\\Admin\\EndgameController\:\:\$cfg \(Config\\EndgameScoring\) does not accept object\|null\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Controllers/Admin/EndgameController.php
+
+		-
 			message: '#^Call to an undefined method object\:\:get\(\)\.$#'
 			identifier: method.notFound
 			count: 1
@@ -19667,6 +19721,36 @@ parameters:
 			identifier: variable.undefined
 			count: 3
 			path: app/Views/admin/dashboard.php
+
+		-
+			message: '#^Binary operation "\." between ''🔥 TRIGGERED '' and array\<int\|string, array\<int\|string, mixed\>\|string\>\|string results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 1
+			path: app/Views/admin/endgame_dashboard.php
+
+		-
+			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Views/admin/endgame_dashboard.php
+
+		-
+			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
+			identifier: echo.nonString
+			count: 8
+			path: app/Views/admin/endgame_dashboard.php
+
+		-
+			message: '#^Variable \$rows might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/endgame_dashboard.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/endgame_dashboard.php
 
 		-
 			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'

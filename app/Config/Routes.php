@@ -99,6 +99,10 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     // F1.9 dashboard (v0.51.17): read-only viewer для admin_audit_log table
     $routes->get('audit-log', 'Admin\AuditLogController::index');
 
+    // v0.51.114 — Endgame scenarios dashboard
+    $routes->get('endgame', 'Admin\EndgameController::index');
+    $routes->post('endgame/reset/(:num)', 'Admin\EndgameController::reset/$1');
+
 });
 
 
