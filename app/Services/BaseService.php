@@ -14,8 +14,11 @@ use Longman\TelegramBot\Request;
 /**
  * Класс BaseService — логика по работе с базой/лагерем.
  *
- * v0.51.81 (decomp Step 1) — extract Markdown templates + keyboards у
- * BaseServiceMessageFormatter.
+ * v0.51.85 (decomp 5/5 closed) — orchestrator з 3 SRP services + ClaimedCellModel:
+ *   BaseServiceMessageFormatter   Markdown templates + inline keyboards
+ *   BaseLocationResolver          claimed_cell + map + biome lookups
+ *   BaseBuildingsList             building enumeration + count + tax
+ *   + CampCheckService (existing) + CommunicationTowerCoverageService (existing)
  *
  * Public API:
  *   showBaseInfo($chatId, $character) — main flow для 'Base' callback
@@ -26,19 +29,24 @@ use Longman\TelegramBot\Request;
  */
 class BaseService
 {
-    protected $claimedCellModel;
-    protected $towerCoverageService;
+    private const PHOTO_NOT_ON_BASE = 'uploads/telegram/camp/an_empty_area.jpg';
+    private const PHOTO_BASE        = 'uploads/telegram/camp/base_with_its_buildings.jpg';
+
+    protected ClaimedCellModel $claimedCellModel;
+    protected CommunicationTowerCoverageService $towerCoverageService;
+    protected CampCheckService $campCheck;
     protected BaseServiceMessageFormatter $formatter;
     protected BaseLocationResolver $resolver;
     protected BaseBuildingsList $buildingsList;
 
     public function __construct()
     {
-        $this->claimedCellModel       = new ClaimedCellModel();
-        $this->towerCoverageService   = new CommunicationTowerCoverageService();
-        $this->formatter              = new BaseServiceMessageFormatter();
-        $this->resolver               = new BaseLocationResolver();
-        $this->buildingsList          = new BaseBuildingsList();
+        $this->claimedCellModel     = new ClaimedCellModel();
+        $this->towerCoverageService = new CommunicationTowerCoverageService();
+        $this->campCheck            = new CampCheckService();
+        $this->formatter            = new BaseServiceMessageFormatter();
+        $this->resolver             = new BaseLocationResolver();
+        $this->buildingsList        = new BaseBuildingsList();
     }
 
     /**
@@ -57,17 +65,52 @@ class BaseService
         // v0.51.59 hotfix (F1.4.4-B 10th occurrence): explicit (int) cast.
         // Раніше strict `===` між string `$claimedCell['map_cell_id']` (raw SQL row)
         // і int `$characterRow['cell_number']` (CharacterEntity post-F1.4.2) — завжди false.
-        $onBasePhysically = ((int) $claimedCell['map_cell_id'] === (int) $characterRow['cell_number']);
-        if ($onBasePhysically) {
+        if ((int) $claimedCell['map_cell_id'] === (int) $characterRow['cell_number']) {
             return $this->showBaseBuildings($chatId, $characterRow, $claimedCell);
         }
 
-        $coverageResult = $this->towerCoverageService->checkCoverage($characterRow['id']);
-        if ($coverageResult['isCovered']) {
-            return $this->showBaseBuildings($chatId, $characterRow, $claimedCell, $coverageResult);
+        $coverage = $this->towerCoverageService->checkCoverage($characterRow['id']);
+        if ($coverage['isCovered']) {
+            return $this->showBaseBuildings($chatId, $characterRow, $claimedCell, $coverage);
         }
 
         return $this->showNotOnBaseInfo($chatId, $claimedCell);
+    }
+
+    /**
+     * Метод, який вызывається після натиску на «🏕 Разбить лагерь» (callback 'Camp').
+     */
+    public function showCampCreation(int $chatId, array|\App\Entities\CharacterEntity $characterRow): ServerResponse
+    {
+        $cellNumber = (int) ($characterRow['cell_number'] ?? 0);
+        if (!$cellNumber) {
+            return $this->sendMessage($chatId, $this->formatter->cellNumberMissingError());
+        }
+
+        $existingCamp = $this->claimedCellModel
+            ->where('character_id', $characterRow['id'])
+            ->where('status', 'active')
+            ->first();
+        if ($existingCamp) {
+            return $this->sendMessage($chatId, $this->formatter->alreadyHaveActiveCampError());
+        }
+
+        if ($this->campCheck->isCellClaimedByAnyone($cellNumber)) {
+            return $this->sendMessage($chatId, $this->formatter->campCellTakenError());
+        }
+
+        $mapRow = $this->resolver->findMapRow($cellNumber);
+        if (!$mapRow) {
+            return $this->sendMessage($chatId, $this->formatter->campMapNotFoundError($cellNumber));
+        }
+
+        $biomeRow = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
+
+        return $this->sendMessage($chatId, $this->formatter->campCreationConfirm(
+            $mapRow['coordinate_x'],
+            $mapRow['coordinate_y'],
+            (string) ($biomeRow['name'] ?? '???'),
+        ));
     }
 
     /**
@@ -75,27 +118,23 @@ class BaseService
      */
     protected function showNoBaseInfo(int $chatId, array|\App\Entities\CharacterEntity $characterRow): ServerResponse
     {
-        $cellNumber  = $characterRow['cell_number'] ?? 0;
-        $coordX      = '???';
-        $coordY      = '???';
-        $biomeName   = '???';
-        $biomeDesc   = '';
-        $dangerLevel = 0;
+        $cellNumber   = (int) ($characterRow['cell_number'] ?? 0);
+        $coordX       = '???';
+        $coordY       = '???';
+        $biomeName    = '???';
+        $biomeDesc    = '';
+        $dangerLevel  = 0;
         $survivalDiff = 0;
 
-        if ($cellNumber) {
-            $mapRow = $this->resolver->findMapRow((int) $cellNumber);
-            if ($mapRow) {
-                $coordX = $mapRow['coordinate_x'];
-                $coordY = $mapRow['coordinate_y'];
+        if ($cellNumber && ($mapRow = $this->resolver->findMapRow($cellNumber))) {
+            $coordX = $mapRow['coordinate_x'];
+            $coordY = $mapRow['coordinate_y'];
 
-                $biomeRow = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
-                if ($biomeRow) {
-                    $biomeName    = $biomeRow['name']               ?? '???';
-                    $biomeDesc    = $biomeRow['description']        ?? '';
-                    $dangerLevel  = (int) ($biomeRow['danger_level'] ?? 0);
-                    $survivalDiff = (int) ($biomeRow['survival_difficulty'] ?? 0);
-                }
+            if ($biomeRow = $this->resolver->findBiomeRow((int) $mapRow['biome_id'])) {
+                $biomeName    = $biomeRow['name']               ?? '???';
+                $biomeDesc    = $biomeRow['description']        ?? '';
+                $dangerLevel  = (int) ($biomeRow['danger_level'] ?? 0);
+                $survivalDiff = (int) ($biomeRow['survival_difficulty'] ?? 0);
             }
         }
 
@@ -105,7 +144,7 @@ class BaseService
     }
 
     /**
-     * Показывает ситуацию, когда у игрока есть база, но он НЕ находится физически (и нет покрытия).
+     * Показывает ситуацию, когда у игрока есть база, но он НЕ находится физически (і нет покрытия).
      *
      * @param array<string, mixed> $claimedCell
      */
@@ -116,16 +155,15 @@ class BaseService
             return $this->sendMessage($chatId, $this->formatter->notOnBaseMapError());
         }
 
-        $biomeRow  = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
-        $biomeName = $biomeRow['name'] ?? '???';
+        $biomeRow = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
 
         return $this->sendPhoto(
             $chatId,
-            base_url('uploads/telegram/camp/an_empty_area.jpg'),
+            self::PHOTO_NOT_ON_BASE,
             $this->formatter->notOnBasePhysically(
                 $mapRow['coordinate_x'],
                 $mapRow['coordinate_y'],
-                (string) $biomeName,
+                (string) ($biomeRow['name'] ?? '???'),
             ),
         );
     }
@@ -147,61 +185,22 @@ class BaseService
             return $this->sendMessage($chatId, $this->formatter->baseMapNotFoundError());
         }
 
-        $biomeRow  = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
-        $biomeName = $biomeRow['name'] ?? '???';
-        $summary   = $this->buildingsList->buildSummary((int) $characterRow['id']);
+        $biomeRow = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
+        $summary  = $this->buildingsList->buildSummary((int) $characterRow['id']);
 
         return $this->sendPhoto(
             $chatId,
-            base_url('uploads/telegram/camp/base_with_its_buildings.jpg'),
+            self::PHOTO_BASE,
             $this->formatter->baseBuildings(
                 $mapRow['coordinate_x'],
                 $mapRow['coordinate_y'],
-                (string) $biomeName,
+                (string) ($biomeRow['name'] ?? '???'),
                 $summary['count'],
                 $summary['totalTax'],
                 $summary['list'],
                 $coverageResult,
             ),
         );
-    }
-
-    /**
-     * Метод, який вызывается після нажатия на «🏕 Разбить лагерь» (callback 'Camp').
-     */
-    public function showCampCreation(int $chatId, array|\App\Entities\CharacterEntity $characterRow): ServerResponse
-    {
-        $cellNumber = (int) ($characterRow['cell_number'] ?? 0);
-        if (!$cellNumber) {
-            return $this->sendMessage($chatId, $this->formatter->cellNumberMissingError());
-        }
-
-        $existingCamp = $this->claimedCellModel
-            ->where('character_id', $characterRow['id'])
-            ->where('status', 'active')
-            ->first();
-        if ($existingCamp) {
-            return $this->sendMessage($chatId, $this->formatter->alreadyHaveActiveCampError());
-        }
-
-        $campCheckService = new CampCheckService();
-        if ($campCheckService->isCellClaimedByAnyone($cellNumber)) {
-            return $this->sendMessage($chatId, $this->formatter->campCellTakenError());
-        }
-
-        $mapRow = $this->resolver->findMapRow($cellNumber);
-        if (!$mapRow) {
-            return $this->sendMessage($chatId, $this->formatter->campMapNotFoundError($cellNumber));
-        }
-
-        $biomeRow  = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
-        $biomeName = $biomeRow['name'] ?? '???';
-
-        return $this->sendMessage($chatId, $this->formatter->campCreationConfirm(
-            $mapRow['coordinate_x'],
-            $mapRow['coordinate_y'],
-            (string) $biomeName,
-        ));
     }
 
     /**
@@ -216,15 +215,15 @@ class BaseService
     }
 
     /**
-     * Send sendPhoto з photo URL encode + chat_id injection.
+     * Send sendPhoto з base_url($relativePath) encode + chat_id injection.
      *
      * @param array<string, mixed> $payload з 'caption', 'parse_mode', 'reply_markup'
      */
-    private function sendPhoto(int $chatId, string $photoUrl, array $payload): ServerResponse
+    private function sendPhoto(int $chatId, string $relativePath, array $payload): ServerResponse
     {
         return Request::sendPhoto([
             'chat_id'      => $chatId,
-            'photo'        => Request::encodeFile($photoUrl),
+            'photo'        => Request::encodeFile(base_url($relativePath)),
             'caption'      => $payload['caption'],
             'parse_mode'   => $payload['parse_mode'],
             'reply_markup' => $payload['reply_markup'],
