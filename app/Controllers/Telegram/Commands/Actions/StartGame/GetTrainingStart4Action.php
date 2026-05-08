@@ -79,7 +79,7 @@ class GetTrainingStart4Action extends BaseAction
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         // Send a photo with options
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,

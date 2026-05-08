@@ -116,7 +116,7 @@ class SolarStationHandler extends BaseAction
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         // Отправляем фотографию с описанием постройки
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

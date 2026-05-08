@@ -249,7 +249,7 @@ class StartRobotGatheringAction extends BaseAction
         $imagePath = base_url('uploads/telegram/craft/standard/robot_gatherer.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,

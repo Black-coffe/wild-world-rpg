@@ -249,7 +249,7 @@ class StartCraftReinforcedLeather2Action extends BaseAction
             . "По завершении вы получите результат.\n";
 
         $imagePath = base_url('uploads/telegram/craft/standard/reinforced_leather_jacket.jpg');
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

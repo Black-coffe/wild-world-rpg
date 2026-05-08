@@ -97,7 +97,7 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
                 'caption'    => $caption,
                 'parse_mode' => 'HTML',
             ], $extra);
-            $response = Request::sendPhoto($payload);
+            $response = \App\Services\Notifications\MediaSender::sendPhotoOrText($payload);
             if (!$response->isOk()) {
                 log_message('warning', '[' . static::class . '] Telegram sendPhoto not ok: '
                     . $response->getDescription());

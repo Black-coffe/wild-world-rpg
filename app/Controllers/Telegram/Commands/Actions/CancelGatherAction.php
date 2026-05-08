@@ -101,7 +101,7 @@ class CancelGatherAction extends BaseAction
         // Пример с фото «character_rushes_back_to_his_base.png»
         $imagePath = base_url('uploads/telegram/character_rushes_back_to_his_base.png');
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $messageText,

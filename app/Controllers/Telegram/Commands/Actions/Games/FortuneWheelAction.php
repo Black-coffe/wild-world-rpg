@@ -86,7 +86,7 @@ class FortuneWheelAction extends BaseAction
         $keyboard = ['inline_keyboard' => array_chunk($keyboardButtons, 2)];
         $imagePath = base_url('uploads/telegram/wheel_fortune_game.png'); // Укажите актуальный путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,

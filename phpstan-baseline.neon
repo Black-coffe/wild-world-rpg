@@ -10569,7 +10569,7 @@ parameters:
 		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 7
+			count: 9
 			path: app/Controllers/Telegram/Commands/SystemCommands/GenericmessageCommand.php
 
 		-
@@ -14327,6 +14327,30 @@ parameters:
 			identifier: identical.alwaysTrue
 			count: 1
 			path: app/Services/Events/NotificationPolicy.php
+
+		-
+			message: '#^Cannot access offset ''disable_media'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Notifications/MediaSender.php
+
+		-
+			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Notifications/MediaSender.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 1
+			path: app/Services/Notifications/MediaSender.php
+
+		-
+			message: '#^Cannot cast mixed to string\.$#'
+			identifier: cast.string
+			count: 1
+			path: app/Services/Notifications/MediaSender.php
 
 		-
 			message: '#^Method App\\Services\\PVE\\BattleLogger\:\:logRound\(\) has parameter \$logEntry with no value type specified in iterable type array\.$#'

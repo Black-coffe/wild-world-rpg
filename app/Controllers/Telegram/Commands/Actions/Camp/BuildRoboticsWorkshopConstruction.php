@@ -201,7 +201,7 @@ class BuildRoboticsWorkshopConstruction extends BaseAction
         $imagePath = base_url('uploads/telegram/camp/Robotics-Workshop.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo' => Request::encodeFile($imagePath),
             'caption' => $text,

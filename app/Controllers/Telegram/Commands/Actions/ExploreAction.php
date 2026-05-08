@@ -169,7 +169,7 @@ class ExploreAction extends BaseAction
             // Для антуража можно добавить картинку
             $imagePath = base_url('uploads/telegram/local_biome_research.png');
 
-            $response = Request::sendPhoto([
+            $response = \App\Services\Notifications\MediaSender::sendPhotoOrText([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
                 'photo'   => Request::encodeFile($imagePath),
                 'caption' => $text,

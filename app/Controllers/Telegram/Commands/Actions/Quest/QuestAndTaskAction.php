@@ -46,7 +46,7 @@ class QuestAndTaskAction extends BaseAction
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         // Отправляем сообщение с картинкой и клавиатурой
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id' => $chatId,
             'photo' => Request::encodeFile($imagePath),
             'caption' => $text,

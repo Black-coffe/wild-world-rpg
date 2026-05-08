@@ -47,7 +47,7 @@ class ShopAction extends BaseAction
         $imagePath = base_url('uploads/telegram/vendor_kiosk_in_the_game_world.png'); // Укажите актуальный путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,

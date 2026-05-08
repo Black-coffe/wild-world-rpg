@@ -170,7 +170,7 @@ class AllRobotsHandler extends BaseAction
         $imagePath = base_url('uploads/telegram/craft/standard/all_robots.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,

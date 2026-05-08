@@ -135,7 +135,7 @@ class StonePickaxeCraft1Action extends BaseAction
         $imagePath = base_url('uploads/telegram/craft/create-an-image-of-an-ancient-stone-pickaxe.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,

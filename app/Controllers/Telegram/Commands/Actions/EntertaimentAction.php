@@ -38,7 +38,7 @@ class EntertaimentAction extends BaseAction
         $imagePath = base_url('uploads/telegram/fun_games.png'); // Укажите актуальный путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,
