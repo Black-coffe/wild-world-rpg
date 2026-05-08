@@ -5,6 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Camp;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Player\TeleportUse\TeleportUseMessageFormatter;
 use App\Services\Player\TeleportUse\TeleportUseValidator;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
@@ -12,11 +13,13 @@ use Longman\TelegramBot\Request;
 class TeleportUseAction extends BaseAction
 {
     private TeleportUseValidator $validator;
+    private TeleportUseMessageFormatter $formatter;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
         $this->validator = new TeleportUseValidator();
+        $this->formatter = new TeleportUseMessageFormatter();
     }
 
     public function handle(): ServerResponse
@@ -24,12 +27,7 @@ class TeleportUseAction extends BaseAction
         [$user, $character] = $this->getUserAndCharacter();
 
         if (!$user || !$character) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'       => "🤖 Это снова я – *Роби*!\n\nПользователь или персонаж не найден.",
-                'parse_mode' => 'Markdown'
-            ]);
+            return $this->sendFormatted($this->formatter->userOrCharacterNotFound());
         }
 
         // Блокируем, если идёт переезд (BaseRelocation)
@@ -59,12 +57,7 @@ class TeleportUseAction extends BaseAction
                 return $this->useBackpackTeleport($character);
 
             default:
-                Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-                return Request::sendMessage([
-                    'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
-                    'text'       => "🤖 Это снова я – *Роби*!\n\nНеизвестная команда телепортации.",
-                    'parse_mode' => 'Markdown'
-                ]);
+                return $this->sendFormatted($this->formatter->unknownTeleportType());
         }
     }
 
@@ -121,26 +114,11 @@ class TeleportUseAction extends BaseAction
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        // Сообщаем об успехе
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🏠 База',         'callback_data' => 'Base'],
-                    ['text' => '🧑‍🌾 Действия 🛠️','callback_data' => 'characterActions'],
-                ],
-            ]
-        ];
-
-        return Request::sendMessage([
-            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'         => "Ты успешно использовал *Рюкзак телепорт*!\nТеперь у тебя осталось зарядов: *{$newDurability}*.\n\nСледующий телепорт будет доступен через 60 минут.",
-            'parse_mode'   => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
+        return $this->sendFormatted($this->formatter->successBackpack($newDurability));
     }
 
     /**
-     * Common error sender helper. Будет використано Step 2 формаatter'ом.
+     * Common error sender helper для validator's pass-through error strings.
      */
     private function sendError(string $text, ?string $parseMode = null): ServerResponse
     {
@@ -152,6 +130,18 @@ class TeleportUseAction extends BaseAction
         if ($parseMode !== null) {
             $payload['parse_mode'] = $parseMode;
         }
+        return Request::sendMessage($payload);
+    }
+
+    /**
+     * Send pre-built formatter payload (додає chat_id перед відправкою).
+     *
+     * @param array<string,mixed> $payload
+     */
+    private function sendFormatted(array $payload): ServerResponse
+    {
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+        $payload['chat_id'] = $this->callbackQuery->getMessage()->getChat()->getId();
         return Request::sendMessage($payload);
     }
 
@@ -169,7 +159,7 @@ class TeleportUseAction extends BaseAction
         $charRow     = $ctx['charRow'];
         $claimedCell = $ctx['claimedCell'];
         $mapRow      = $ctx['mapRow'];
-        $cost        = $ctx['cost'];
+        $cost        = (int) $ctx['cost'];
 
         $characterModel = new CharacterModel();
 
@@ -181,21 +171,7 @@ class TeleportUseAction extends BaseAction
             'biome_id'    => $mapRow['biome_id'],
         ]);
 
-        // Форматируем цифры с разделителями по 3
-        $formattedCost = number_format($cost, 0, '.', ' ');
-        $formattedGold = number_format($newGold, 0, '.', ' ');
-
-        $text = "Ты успешно телепортировался за золото!\n\n"
-            . "Списано: {$formattedCost} 💰\n"
-            . "Остаток золота: {$formattedGold} 💰";
-
-        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-
-        return Request::sendMessage([
-            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'       => $text,
-            'parse_mode' => 'Markdown',
-        ]);
+        return $this->sendFormatted($this->formatter->successGold($cost, $newGold));
     }
 
     /**
@@ -243,21 +219,7 @@ class TeleportUseAction extends BaseAction
             }
         }
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🏠 База', 'callback_data' => 'Base'],
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                ],
-            ],
-        ];
-        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return Request::sendMessage([
-            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'         => "🤖 Это снова я – *Роби*!\n\nТы успешно использовал портативный телепорт и телепортировался на базу.",
-            'parse_mode'   => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
+        return $this->sendFormatted($this->formatter->successPortable());
     }
 
     /**
@@ -285,11 +247,6 @@ class TeleportUseAction extends BaseAction
             'experience'  => (float) $charRow['experience'] - 1,
         ]);
 
-        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return Request::sendMessage([
-            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'       => "🤖 Это снова я – *Роби*!\n\nТы успешно использовал опыт для телепортации и телепортировался на базу.",
-            'parse_mode' => 'Markdown',
-        ]);
+        return $this->sendFormatted($this->formatter->successExperience());
     }
 }
