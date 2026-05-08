@@ -48,6 +48,7 @@ final class NotificationPolicy
     private BiomeModel $biomeModel;
     private EventPreferenceService $prefService;
     private EventMessageFormatter $formatter;
+    private EventRecipientFinder $recipientFinder;
     private ?Telegram $telegram = null;
 
     public function __construct(
@@ -57,13 +58,15 @@ final class NotificationPolicy
         ?BiomeModel $biomeModel = null,
         ?EventPreferenceService $prefService = null,
         ?EventMessageFormatter $formatter = null,
+        ?EventRecipientFinder $recipientFinder = null,
     ) {
-        $this->cfg         = $cfg         ?? config('WorldEvents');
-        $this->charModel   = $charModel   ?? new CharacterModel();
-        $this->tgUserModel = $tgUserModel ?? new TelegramUserModel();
-        $this->biomeModel  = $biomeModel  ?? new BiomeModel();
-        $this->prefService = $prefService ?? new EventPreferenceService($this->cfg, $this->tgUserModel);
-        $this->formatter   = $formatter   ?? new EventMessageFormatter();
+        $this->cfg             = $cfg             ?? config('WorldEvents');
+        $this->charModel       = $charModel       ?? new CharacterModel();
+        $this->tgUserModel     = $tgUserModel     ?? new TelegramUserModel();
+        $this->biomeModel      = $biomeModel      ?? new BiomeModel();
+        $this->prefService     = $prefService     ?? new EventPreferenceService($this->cfg, $this->tgUserModel);
+        $this->formatter       = $formatter       ?? new EventMessageFormatter();
+        $this->recipientFinder = $recipientFinder ?? new EventRecipientFinder($this->charModel);
     }
 
     // ============================================================
@@ -79,8 +82,8 @@ final class NotificationPolicy
     {
         $stats = ['sent' => 0, 'skipped_throttle' => 0, 'skipped_mute' => 0, 'skipped_no_chat' => 0, 'errors' => 0];
 
-        $biomeIds   = $this->resolveBiomeIds($eventRow);
-        $recipients = $this->findRecipientChars($biomeIds);
+        $biomeIds   = $this->recipientFinder->resolveBiomeIds($eventRow);
+        $recipients = $this->recipientFinder->findRecipientChars($biomeIds);
 
         $effectKind = $eventConfig['effect_kind'] ?? '';
         $message    = $this->formatter->buildStartMessage($eventRow, $eventConfig);
@@ -200,39 +203,6 @@ final class NotificationPolicy
     public function recordSent(int $tgUserId, array $pref): void
     {
         $this->prefService->recordSent($tgUserId, $pref);
-    }
-
-    // ============================================================
-    // Sectoring
-    // ============================================================
-
-    /**
-     * Резолвинг biome_ids с events.biome_ids JSON. Empty array означает global → ALL biomes.
-     *
-     * @return list<int>
-     */
-    private function resolveBiomeIds(array $eventRow): array
-    {
-        $raw = $eventRow['biome_ids'] ?? null;
-        $arr = json_decode($raw, true);
-        if (!is_array($arr) || empty($arr)) {
-            return [];
-        }
-        return array_map('intval', $arr);
-    }
-
-    /**
-     * Найти characters в зазначених biomes (або всех если порожній список = global).
-     *
-     * @param list<int> $biomeIds
-     * @return list<array<string, mixed>>
-     */
-    private function findRecipientChars(array $biomeIds): array
-    {
-        if (empty($biomeIds)) {
-            return $this->charModel->findAll();
-        }
-        return $this->charModel->whereIn('biome_id', $biomeIds)->findAll();
     }
 
     // ============================================================
