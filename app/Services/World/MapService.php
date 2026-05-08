@@ -140,7 +140,7 @@ class MapService
             . "Ячейка #{$cellNumber}\n"
             . "Вы используете карту: *{$mapType}* (масштаб 2px=1coord)";
 
-        $response = Request::sendPhoto([
+        $response = \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($tempFile),
             'caption'    => $caption,

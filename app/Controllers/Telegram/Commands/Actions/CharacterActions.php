@@ -72,7 +72,7 @@ class CharacterActions
 
         // Шаг 5: Формирование и отправка сообщения с результатами
         $imagePath = base_url('uploads/telegram/character_ready_to_act.png'); // Укажите актуальный путь к изображению
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id' => $chatId,
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,

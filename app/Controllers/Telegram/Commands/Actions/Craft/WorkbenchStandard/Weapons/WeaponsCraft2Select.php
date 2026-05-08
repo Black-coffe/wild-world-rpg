@@ -62,7 +62,7 @@ class WeaponsCraft2Select extends BaseAction
         ]);
 
         // Возвращаем сообщение с фото и клавиатурой
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

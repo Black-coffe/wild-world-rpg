@@ -147,7 +147,7 @@ class DetailedBaseInfoAction extends BaseAction
         ];
         $imagePath = base_url('uploads/telegram/camp/an_empty_area.jpg');
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,
@@ -233,7 +233,7 @@ class DetailedBaseInfoAction extends BaseAction
 
         $imagePath = base_url('uploads/telegram/camp/base_with_its_buildings.jpg');
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $introText,

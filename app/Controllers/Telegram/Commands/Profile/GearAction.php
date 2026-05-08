@@ -51,7 +51,7 @@ class GearAction extends BaseAction
         ]);
 
         // 6. Отправляем итоговое сообщение (фото + текст) игроку
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

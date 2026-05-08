@@ -170,7 +170,7 @@ class GenericBuildingAction extends BaseAction
             . "Длительность: ~{$minutes} мин.\n"
             . "По завершении здание будет добавлено на базу.";
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'      => Request::encodeFile(base_url($recipe['image_in_progress'])),
             'caption'    => $text,

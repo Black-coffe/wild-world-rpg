@@ -134,7 +134,7 @@ class GearArmorAction extends BaseAction
         ]);
 
         // Отправляем сообщение (фото + подпись)
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $finalText,

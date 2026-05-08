@@ -167,7 +167,7 @@ class RobotExplorerActivator implements RobotActivatorInterface
         // 7) Отправляем
         $imagePath = base_url('uploads/telegram/craft/standard/robot_explorer.jpg');
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

@@ -24,7 +24,7 @@ use Config\GameBalance;
  *    у subtractHealth + sendMessageToTelegram — wrong arg semantics (chat_id passed
  *    as callback_query_id). Fires daily silently без value (handler runs from cron,
  *    not callback context). Зайвий API call → noise.
- *  - `Request::sendPhoto([...])` → `$this->safeSendPhoto($chatId, $img, $caption, ...)`
+ *  - `\App\Services\Notifications\MediaSender::sendPhotoOrText([...])` → `$this->safeSendPhoto($chatId, $img, $caption, ...)`
  *    (catches TelegramException, не падає на rate-limit).
  */
 class FoodAndWaterConsumptionHandler extends BaseTaskHandler

@@ -312,7 +312,7 @@ class DeleteBaseAction extends BaseAction
 
         $imagePath = base_url('uploads/telegram/camp/relocation.png');
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

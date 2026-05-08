@@ -50,7 +50,7 @@ class CraftService
         $imagePath = base_url('uploads/telegram/craft/crafting_area.png');
 
         // Возвращаем результат (answerCallbackQuery обычно делают в CallbackqueryCommand)
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

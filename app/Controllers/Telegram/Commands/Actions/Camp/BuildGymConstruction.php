@@ -220,13 +220,13 @@ class BuildGymConstruction extends BaseAction
                     'parse_mode' => 'Markdown',
                 ]);
             }
-            return Request::sendPhoto([
+            return \App\Services\Notifications\MediaSender::sendPhotoOrText([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
                 'photo' => Request::encodeFile($imagePath),
                 'reply_markup' => json_encode($keyboard),
             ]);
         } else {
-            $result = Request::sendPhoto([
+            $result = \App\Services\Notifications\MediaSender::sendPhotoOrText([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
                 'photo' => Request::encodeFile($imagePath),
                 'caption' => $text . $missingText,

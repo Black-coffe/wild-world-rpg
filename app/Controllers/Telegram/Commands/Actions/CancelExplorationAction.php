@@ -146,7 +146,7 @@ class CancelExplorationAction
             'callback_query_id' => $this->callbackQuery->getId(),
         ]);
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id' => $chatId,
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,

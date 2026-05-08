@@ -221,7 +221,7 @@ class BaseService
      */
     private function sendPhoto(int $chatId, string $relativePath, array $payload): ServerResponse
     {
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile(base_url($relativePath)),
             'caption'      => $payload['caption'],

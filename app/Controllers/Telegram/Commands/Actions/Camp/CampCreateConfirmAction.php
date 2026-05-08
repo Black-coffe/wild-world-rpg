@@ -200,7 +200,7 @@ class CampCreateConfirmAction extends BaseAction
         // Например: "uploads/telegram/camp/new_camp.jpg"
         $imagePath = base_url('uploads/telegram/camp/new_camp.png');
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,

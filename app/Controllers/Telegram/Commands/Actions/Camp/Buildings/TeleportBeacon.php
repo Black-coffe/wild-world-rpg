@@ -207,7 +207,7 @@ class TeleportBeacon
         $imagePath = base_url('uploads/telegram/craft/standard/beacon_craft.jpg');
 
         // -- Отправляем сообщение с фото
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

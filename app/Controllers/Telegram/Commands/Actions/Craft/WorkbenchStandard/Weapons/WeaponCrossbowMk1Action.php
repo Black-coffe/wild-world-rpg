@@ -229,7 +229,7 @@ class WeaponCrossbowMk1Action extends BaseAction
             ]);
 
             $imagePath = base_url('uploads/telegram/craft/standard/crossbow_mk1.jpg'); // вашу картинку
-            return Request::sendPhoto([
+            return \App\Services\Notifications\MediaSender::sendPhotoOrText([
                 'chat_id'    => $chatId,
                 'photo'      => Request::encodeFile($imagePath),
                 'caption'    => $text,
@@ -308,7 +308,7 @@ class WeaponCrossbowMk1Action extends BaseAction
         ]);
 
         $imagePath = base_url('uploads/telegram/craft/standard/crossbow_mk1.jpg');
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

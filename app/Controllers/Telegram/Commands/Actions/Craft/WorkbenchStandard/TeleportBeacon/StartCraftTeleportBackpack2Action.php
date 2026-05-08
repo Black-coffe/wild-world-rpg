@@ -211,7 +211,7 @@ class StartCraftTeleportBackpack2Action extends BaseAction
 
         $imagePath = base_url('uploads/telegram/craft/standard/backpack_craft.jpg');
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

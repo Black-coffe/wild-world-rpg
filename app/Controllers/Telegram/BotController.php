@@ -73,7 +73,7 @@ class BotController extends Controller
             if ($keyboard) {
                 $data['reply_markup'] = json_encode(['inline_keyboard' => $keyboard]);
             }
-            return Request::sendPhoto($data);
+            return \App\Services\Notifications\MediaSender::sendPhotoOrText($data);
         } else {
             // Если изображение не передано, отправляем обычное текстовое сообщение
             $data = [

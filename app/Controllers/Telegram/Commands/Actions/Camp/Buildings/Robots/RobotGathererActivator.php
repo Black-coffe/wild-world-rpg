@@ -162,7 +162,7 @@ class RobotGathererActivator implements RobotActivatorInterface
         // 9) Отправляем результат
         $imagePath = base_url('uploads/telegram/craft/standard/robot_gatherer.jpg'); // условный путь к картинке
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

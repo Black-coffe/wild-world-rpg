@@ -268,7 +268,7 @@ class GatherTips extends Controller
         ];
 
         try {
-            return Request::sendPhoto([
+            return \App\Services\Notifications\MediaSender::sendPhotoOrText([
                 'chat_id' => $chatId,
                 'photo'   => Request::encodeFile(base_url('uploads/telegram/loot_resources_in_the_box.png')),
                 'caption' => $messageText,

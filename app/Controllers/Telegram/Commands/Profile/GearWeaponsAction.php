@@ -125,7 +125,7 @@ class GearWeaponsAction extends BaseAction
         ]);
 
         // Отправляем сообщение: фото + текст
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $finalText,

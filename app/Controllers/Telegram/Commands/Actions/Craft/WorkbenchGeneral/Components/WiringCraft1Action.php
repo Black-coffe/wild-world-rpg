@@ -140,7 +140,7 @@ class WiringCraft1Action extends BaseAction
         // 6) Отправляем фото + текст
         $imagePath = base_url('uploads/telegram/craft/components/wiring_craft.jpg');
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

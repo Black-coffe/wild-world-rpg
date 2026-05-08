@@ -145,7 +145,7 @@ class MoveNorthEastTips
 
         $imagePath = base_url('uploads/telegram/map-lines-coordinates.jpg'); // Укажите актуальный путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id' => $chatId,
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,

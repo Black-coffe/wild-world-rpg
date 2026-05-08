@@ -37,7 +37,7 @@ final class EventNotificationSender
             if ($imgPath !== null && $imgPath !== '') {
                 $photoFs = FCPATH . $imgPath;
                 if (is_readable($photoFs)) {
-                    Request::sendPhoto([
+                    \App\Services\Notifications\MediaSender::sendPhotoOrText([
                         'chat_id'      => $chatId,
                         'photo'        => Request::encodeFile($photoFs),
                         'caption'      => $text,

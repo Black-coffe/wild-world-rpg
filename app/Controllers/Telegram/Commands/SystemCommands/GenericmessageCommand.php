@@ -57,12 +57,55 @@ class GenericmessageCommand extends SystemCommand
             case 'accurate_map':
                 return $this->handleMapPreference($chatId, 'accurate');
 
+            // Идея #14 (Yupirex, 13.02.2025): toggle для отключения изображений.
+            case 'media_off':
+                return $this->handleMediaPreference($chatId, 1);
+
+            case 'media_on':
+                return $this->handleMediaPreference($chatId, 0);
+
             default:
                 return Request::sendMessage([
                     'chat_id' => $chatId,
                     'text'    => 'Не понял, попробуйте «перс», «база», «крафт» или «карта».',
                 ]);
         }
+    }
+
+    /**
+     * Идея #14: toggle disable_media через типизированную команду.
+     */
+    private function handleMediaPreference(int $chatId, int $disable): ServerResponse
+    {
+        $from       = $this->getMessage()->getFrom();
+        $telegramId = $from->getId();
+        $userRow    = (new TelegramUserModel())->where('telegram_id', $telegramId)->first();
+        if (!$userRow) {
+            return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Пользователь не найден.']);
+        }
+        // TelegramUserModel + CharacterModel возвращают Entity (F1.4) или array
+        // в зависимости от ToColumns. Поддерживаем оба.
+        $userId = isset($userRow['id']) ? (int) $userRow['id'] : 0;
+
+        $charModel    = new CharacterModel();
+        $characterRow = $charModel->where('telegram_user_id', $userId)->first();
+        if (!$characterRow) {
+            return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Персонаж не найден.']);
+        }
+        $charId = isset($characterRow['id']) ? (int) $characterRow['id'] : 0;
+
+        $charModel->update($charId, ['disable_media' => $disable]);
+        \App\Services\Notifications\MediaSender::reset();
+
+        $msg = $disable === 1
+            ? "🚫 *Режим без медиа* включён. Бот будет слать только текст.\n\n_Чтобы вернуть картинки — напиши_ `media_on`."
+            : "🖼️ *Режим с медиа* включён. Бот будет присылать изображения.\n\n_Чтобы отключить — напиши_ `media_off`.";
+
+        return Request::sendMessage([
+            'chat_id'    => $chatId,
+            'text'       => $msg,
+            'parse_mode' => 'Markdown',
+        ]);
     }
 
     /**

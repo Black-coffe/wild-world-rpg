@@ -85,7 +85,7 @@ class CharacterGoActions
         // Отправка картинки + надписи
         $imagePath = base_url('uploads/telegram/character_ready_to_act.png');
 
-        return Request::sendPhoto([
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,
