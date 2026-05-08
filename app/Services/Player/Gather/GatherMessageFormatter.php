@@ -1,0 +1,99 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services\Player\Gather;
+
+/**
+ * v0.51.104 (GatherTaskHandler decomp Step 1) — extract HTML reply
+ * формування для gather completion у dedicated formatter.
+ *
+ * Pure formatting — caller передає pre-loaded resource map + tool map
+ * (formatter сам не робить DB queries).
+ */
+final class GatherMessageFormatter
+{
+    /**
+     * @param array<int, mixed>            $foundResources    list of [resource_id, amount, type]
+     * @param string                       $biomeName         localized biome name
+     * @param int                          $spentMinutes      duration of gather
+     * @param array<int, object>           $resourceMap       resource_id => ResourceEntity (pre-loaded)
+     * @param array<string, int>           $usedToolsCount    tool_name_eng => uses_count
+     * @param array<string, array<string, mixed>> $toolByName tool_name_eng => crafted_items row (pre-loaded)
+     *
+     * @return array{text: string, keyboard: string}
+     */
+    public function buildResourcesFoundReply(
+        array $foundResources,
+        string $biomeName,
+        int $spentMinutes,
+        array $resourceMap,
+        array $usedToolsCount,
+        array $toolByName
+    ): array {
+        $msg  = "<b>Успешная добыча ресурсов!</b>\n";
+        $msg .= "Время, затраченное на добычу: <b>{$spentMinutes}</b> мин.\n";
+        $msg .= "Биом: <b>" . htmlspecialchars($biomeName, ENT_QUOTES, 'UTF-8') . "</b>\n\n";
+
+        $groupedByRarity = []; // rarity (int) => list of [entity, amount]
+        foreach ($foundResources as $item) {
+            $entity = $resourceMap[(int) $item['resource_id']] ?? null;
+            if ($entity === null) {
+                continue;
+            }
+            $groupedByRarity[$entity->rarity][] = [$entity, (int) $item['amount']];
+        }
+        krsort($groupedByRarity);
+
+        $rarityEmojis = [
+            1 => '1️⃣', 2 => '2️⃣', 3 => '3️⃣', 4 => '4️⃣', 5 => '5️⃣',
+            6 => '6️⃣', 7 => '7️⃣', 8 => '8️⃣', 9 => '9️⃣', 10 => '🔟'
+        ];
+
+        if (empty($groupedByRarity)) {
+            $msg .= "<i>Не удалось найти ресурсы.</i>\n";
+        } else {
+            $msg .= "<b>Найдены следующие ресурсы:</b>\n";
+            foreach ($groupedByRarity as $rarity => $items) {
+                $rarityEmoji = $rarityEmojis[$rarity] ?? (string) $rarity;
+                $msg .= "\n<b>{$rarityEmoji} Редкость...</b>\n";
+                foreach ($items as [$entity, $amount]) {
+                    $resourceName = htmlspecialchars($entity->name, ENT_QUOTES, 'UTF-8');
+                    $msg .= "— <b>{$resourceName}</b>: {$amount} шт.\n";
+                }
+            }
+        }
+
+        if (!empty($usedToolsCount)) {
+            $msg .= "\n<b>Использованные инструменты:</b>\n";
+
+            foreach ($usedToolsCount as $toolNameEng => $countUsed) {
+                $toolRow     = $toolByName[$toolNameEng] ?? null;
+                $toolNameRus = is_array($toolRow) && isset($toolRow['name_rus']) && is_string($toolRow['name_rus'])
+                    ? $toolRow['name_rus']
+                    : $toolNameEng;
+                $toolNameEsc = htmlspecialchars($toolNameRus, ENT_QUOTES, 'UTF-8');
+                $msg .= "- {$toolNameEsc}: {$countUsed} раз(а)\n";
+            }
+        }
+
+        $msg .= "\n<b>Твои усилия были вознаграждены!</b>";
+
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
+                ],
+                [
+                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                    ['text' => '🎉 События', 'callback_data' => 'events']
+                ]
+            ]
+        ];
+
+        return [
+            'text'     => $msg,
+            'keyboard' => json_encode($keyboard) ?: '',
+        ];
+    }
+}

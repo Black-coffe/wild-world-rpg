@@ -19,6 +19,7 @@ use App\Libraries\BiomeResourceModifier;
 use App\Libraries\ToolManager;
 use App\Services\Player\Gather\GatherEventModifierService;
 use App\Services\Player\Gather\GatherFormulaService;
+use App\Services\Player\Gather\GatherMessageFormatter;
 use App\Services\Player\Gather\ToolDurabilityProcessor;
 
 /**
@@ -49,6 +50,7 @@ class GatherTaskHandler extends BaseTaskHandler
     private GatherFormulaService $formulaService;
     private ToolDurabilityProcessor $toolDurability;
     private GatherEventModifierService $eventService;
+    private GatherMessageFormatter $messageFormatter;
 
     protected $characterModel;
     protected $characterResourceModel;
@@ -102,6 +104,8 @@ class GatherTaskHandler extends BaseTaskHandler
             $this->eventModel,
             $this->activeEventModel
         );
+        // v0.51.104 (decomp Step 1): pure HTML reply formatter.
+        $this->messageFormatter       = new GatherMessageFormatter();
     }
 
     /**
@@ -431,91 +435,37 @@ class GatherTaskHandler extends BaseTaskHandler
         }
         $chatId = $userRow['telegram_id'];
 
-        $msg = "<b>Успешная добыча ресурсов!</b>\n";
-        $msg .= "Время, затраченное на добычу: <b>{$spentMinutes}</b> мин.\n";
-        $msg .= "Биом: <b>" . htmlspecialchars($biomeName, ENT_QUOTES, 'UTF-8') . "</b>\n\n";
-
-        // v0.51.35 perf: 1× cached preload (typed list<ResourceEntity>) замість N× find().
-        // Group-by-rarity inline: уникаємо intermediate array{name,amount,rarity}, який
-        // PHPStan не може narrow без @var. Замість цього — group by entity.rarity + sort
-        // через krsort, а property-access на entity дає typed name/rarity у print site.
+        // v0.51.104: pre-load ResourceEntity map (1× cached, 1h TTL).
         $resourceMap = [];
         foreach ($this->resourceModel->findAllCached() as $entity) {
             $resourceMap[$entity->id] = $entity;
         }
 
-        $groupedByRarity = []; // rarity (int) => list of [entity, amount]
-        foreach ($foundResources as $item) {
-            $entity = $resourceMap[(int) $item['resource_id']] ?? null;
-            if ($entity === null) {
-                continue;
-            }
-            $groupedByRarity[$entity->rarity][] = [$entity, (int) $item['amount']];
-        }
-        krsort($groupedByRarity); // редкость по убыванию
-
-        // Карта эмодзи для редкости
-        $rarityEmojis = [
-            1 => '1️⃣', 2 => '2️⃣', 3 => '3️⃣', 4 => '4️⃣', 5 => '5️⃣',
-            6 => '6️⃣', 7 => '7️⃣', 8 => '8️⃣', 9 => '9️⃣', 10 => '🔟'
-        ];
-
-        if (empty($groupedByRarity)) {
-            $msg .= "<i>Не удалось найти ресурсы.</i>\n";
-        } else {
-            $msg .= "<b>Найдены следующие ресурсы:</b>\n";
-            foreach ($groupedByRarity as $rarity => $items) {
-                $rarityEmoji = $rarityEmojis[$rarity] ?? (string) $rarity;
-                $msg .= "\n<b>{$rarityEmoji} Редкость...</b>\n";
-                foreach ($items as [$entity, $amount]) {
-                    $resourceName = htmlspecialchars($entity->name, ENT_QUOTES, 'UTF-8');
-                    $msg .= "— <b>{$resourceName}</b>: {$amount} шт.\n";
-                }
-            }
-        }
-
-        // Инструменты (с переводом на русский)
+        // v0.51.104: pre-load tool map якщо є tools used.
+        $toolByName = [];
         if (!empty($this->usedToolsCount)) {
-            $msg .= "\n<b>Использованные инструменты:</b>\n";
-
-            // v0.51.35 perf: 1× whereIn замість N× find per used tool.
             $toolNames = array_keys($this->usedToolsCount);
-            $toolByName = [];
             foreach ($this->craftedItemsModel->whereIn('name_eng', $toolNames)->findAll() as $row) {
                 if (is_array($row) && isset($row['name_eng']) && is_string($row['name_eng'])) {
                     $toolByName[$row['name_eng']] = $row;
                 }
             }
-
-            foreach ($this->usedToolsCount as $toolNameEng => $countUsed) {
-                $toolRow     = $toolByName[$toolNameEng] ?? null;
-                $toolNameRus = is_array($toolRow) && isset($toolRow['name_rus']) && is_string($toolRow['name_rus'])
-                    ? $toolRow['name_rus']
-                    : $toolNameEng;
-                $toolNameEsc = htmlspecialchars($toolNameRus, ENT_QUOTES, 'UTF-8');
-                $msg .= "- {$toolNameEsc}: {$countUsed} раз(а)\n";
-            }
         }
 
-        $msg .= "\n<b>Твои усилия были вознаграждены!</b>";
-
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
-                ],
-                [
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '🎉 События', 'callback_data' => 'events']
-                ]
-            ]
-        ];
+        $reply = $this->messageFormatter->buildResourcesFoundReply(
+            $foundResources,
+            $biomeName,
+            $spentMinutes,
+            $resourceMap,
+            $this->usedToolsCount,
+            $toolByName
+        );
 
         $this->safeSendPhoto(
             $chatId,
             base_url('uploads/telegram/loot_resources_in_the_box.png'),
-            $msg,
-            ['parse_mode' => 'HTML', 'reply_markup' => json_encode($keyboard)]
+            $reply['text'],
+            ['parse_mode' => 'HTML', 'reply_markup' => $reply['keyboard']]
         );
     }
 
