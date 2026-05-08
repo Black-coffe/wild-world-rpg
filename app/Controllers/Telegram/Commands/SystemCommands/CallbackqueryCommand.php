@@ -9,19 +9,24 @@ use App\Services\Telegram\CallbackPrefixDispatcher;
 use App\Services\Telegram\CallbackRouter;
 use Config\CallbackRoutes;
 use Longman\TelegramBot\Commands\SystemCommand;
+use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
 /**
  * Class CallbackqueryCommand
  * Обработчик всех callback_data, приходящих от inline-кнопок Telegram.
- * Служит точкой входа, чтобы определить, какой Action-Class вызывать.
+ * Точка входа для определения, какой Action-Class вызывать.
  *
- * v0.51.78 (decomp Step 2) — 3 routing layers:
- *   1. character inline (TODO Step 3 — investigate redundancy з 'character' mapping)
- *   2. CallbackRouter wildcards (move_dir_*, eventPref_*)
- *   3. CallbackPrefixDispatcher (pollVote_, upgrade_building_, confirm_upgrade_building_, StartRelocationConfirm_)
- *   4. Config\CallbackRoutes::resolve($action) — exact + sellResource* fallback (Step 1)
+ * v0.51.80 (decomp 5/5 closed) — orchestrator з 4 routing layers:
+ *   1. character inline shortcut → CharacterService::showCharacterInfo
+ *      (повний stat sheet + equipment, см. handleCharacterShortcut docstring)
+ *   2. CallbackRouter wildcards (`move_dir_*`, `eventPref_*`) — config-driven
+ *   3. CallbackPrefixDispatcher (pollVote_, upgrade_building_,
+ *      confirm_upgrade_building_, StartRelocationConfirm_)
+ *   4. Config\CallbackRoutes::resolve($action) — exact + sellResource*
+ *
+ * Source of routing config: app/Config/CallbackRoutes.php
  */
 class CallbackqueryCommand extends SystemCommand
 {
@@ -31,53 +36,71 @@ class CallbackqueryCommand extends SystemCommand
     {
         $callbackQuery = $this->getCallbackQuery();
         $callbackData  = $callbackQuery->getData();
+        $action        = explode('_', $callbackData)[0];
 
-        $parts  = explode('_', $callbackData);
-        $action = $parts[0];
-
-        // 1) character inline shortcut (TODO Step 3: investigate redundancy)
+        // 1) character inline shortcut
         if ($action === 'character') {
             return $this->handleCharacterShortcut($callbackQuery);
         }
 
-        // 2) CallbackRouter wildcard routing (move_dir_*, eventPref_*)
-        $router = (new CallbackRouter())
-            ->register('move_dir_*',  \App\Controllers\Telegram\Commands\Actions\MoveCharacterToDirectionAction::class)
-            ->register('eventPref_*', \App\Controllers\Telegram\Commands\Actions\EventPrefAction::class);
-        $routedClass = $router->resolve($callbackData);
-        if ($routedClass !== null && class_exists($routedClass)) {
-            $handler = new $routedClass($callbackQuery);
-            return $handler->handle();
+        // 2) Wildcard routing (move_dir_*, eventPref_*)
+        if ($response = $this->tryWildcardRoute($callbackQuery, $callbackData)) {
+            return $response;
         }
 
-        // 3) Prefix dispatcher (pollVote_, upgrade_building_, confirm_upgrade_building_, StartRelocationConfirm_)
-        $prefixDispatcher = new CallbackPrefixDispatcher($this->telegram);
-        $prefixResponse   = $prefixDispatcher->tryDispatch($callbackQuery);
-        if ($prefixResponse !== null) {
-            return $prefixResponse;
+        // 3) Prefix dispatcher (pollVote_, upgrade_building_, etc.)
+        if ($response = (new CallbackPrefixDispatcher($this->telegram))->tryDispatch($callbackQuery)) {
+            return $response;
         }
 
         // 4) Config-driven exact + prefix routing
-        $handlerClass = $this->getActionHandler($action);
-        if ($handlerClass && class_exists($handlerClass)) {
-            $handler = new $handlerClass($callbackQuery);
-            return $handler->handle();
+        if ($response = $this->tryExactRoute($callbackQuery, $action)) {
+            return $response;
         }
 
         return Request::emptyResponse();
     }
 
     /**
+     * Wildcard routing шар — Config\CallbackRoutes::$wildcardRoutes через CallbackRouter.
+     */
+    private function tryWildcardRoute(CallbackQuery $callbackQuery, string $callbackData): ?ServerResponse
+    {
+        /** @var CallbackRoutes $routes */
+        $routes = config('CallbackRoutes');
+
+        $router      = (new CallbackRouter())->registerMany($routes->wildcardRoutes);
+        $routedClass = $router->resolve($callbackData);
+
+        if ($routedClass !== null && class_exists($routedClass)) {
+            return (new $routedClass($callbackQuery))->handle();
+        }
+        return null;
+    }
+
+    /**
+     * Exact-match + sellResource prefix routing шар.
+     */
+    private function tryExactRoute(CallbackQuery $callbackQuery, string $action): ?ServerResponse
+    {
+        $handlerClass = $this->getActionHandler($action);
+        if ($handlerClass && class_exists($handlerClass)) {
+            return (new $handlerClass($callbackQuery))->handle();
+        }
+        return null;
+    }
+
+    /**
      * 'character' inline shortcut — direct CharacterService call.
      * v0.51.79: confirmed legitimate inline (НЕ redundancy з mapping):
-     *   - CharacterService::showCharacterInfo показує equipment + повний stat
-     *     sheet (більше ніж dead CharacterAction::handle).
+     *   - CharacterService::showCharacterInfo показує equipment + повний
+     *     stat sheet (більше ніж dead CharacterAction::handle).
      *   - Inline runs first → CharacterAction класс ніколи не reached →
      *     deleted as dead code v0.51.79.
      * Triggers: callback_data='character' (main "Перс" button) АБО
      * 'character_info' (GuessNumberAction).
      */
-    private function handleCharacterShortcut(\Longman\TelegramBot\Entities\CallbackQuery $callbackQuery): ServerResponse
+    private function handleCharacterShortcut(CallbackQuery $callbackQuery): ServerResponse
     {
         $chatId = $callbackQuery->getMessage()->getChat()->getId();
         $tid    = $callbackQuery->getFrom()->getId();
@@ -96,8 +119,8 @@ class CallbackqueryCommand extends SystemCommand
     }
 
     /**
-     * v0.51.77: thin wrapper around Config\CallbackRoutes::resolve().
-     * Раніше містив inline-mapping з 140+ entries (lines 144-357 у v0.51.76).
+     * Thin wrapper around Config\CallbackRoutes::resolve().
+     * v0.51.77: раніше містив inline-mapping з 140+ entries.
      */
     protected function getActionHandler(string $action): ?string
     {

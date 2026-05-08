@@ -212,8 +212,21 @@ class CallbackRoutes extends BaseConfig
     ];
 
     /**
-     * Wildcard prefix routes — for callbacks that begin with a known prefix
-     * but have variable suffix (e.g. 'sellResource_<rarity>').
+     * Wildcard routes — for callbacks matching `pattern*` semantic
+     * (CallbackRouter syntax). Examples: 'move_dir_*' матчить move_dir_north,
+     * 'eventPref_*' — eventPref_mute_1h.
+     *
+     * @var array<string, class-string>
+     */
+    public array $wildcardRoutes = [
+        'move_dir_*'  => \App\Controllers\Telegram\Commands\Actions\MoveCharacterToDirectionAction::class,
+        'eventPref_*' => \App\Controllers\Telegram\Commands\Actions\EventPrefAction::class,
+    ];
+
+    /**
+     * Prefix routes — for callbacks where action segment (first part) starts
+     * with a known prefix (e.g. 'sellResource' → SellResourceAction для
+     * 'sellResource', 'sellResourceCommon', 'sellResource_X' тощо).
      *
      * @var array<string, class-string>
      */
