@@ -57,19 +57,11 @@ class GatherTaskHandler extends BaseTaskHandler
     private GatherCellResourceQuery $cellQuery;
 
     protected $characterModel;
-    protected $characterResourceModel;
     protected $characterTaskModel;
-    protected $mapModel;
-    protected $biomeModel;
     protected $resourceModel;
     protected $telegramUserModel;
-    protected $taskModel;
-    protected $eventModel;
-    protected $activeEventModel;
     protected $craftedItemsModel;
-    protected $craftedItemsLogModel;
     protected $biomeResourceModifier;
-    protected $toolManager;
 
     /**
      * Сохраняет, сколько инструментов мы использовали в рамках одного процесса сбора
@@ -79,46 +71,38 @@ class GatherTaskHandler extends BaseTaskHandler
 
     public function __construct()
     {
+        // v0.51.107 (decomp Step 4): drop unused/redundant properties (mapModel,
+        // biomeModel, eventModel, activeEventModel, craftedItemsLogModel,
+        // characterResourceModel, toolManager, taskModel) — їх використовували
+        // тільки sub-services ctors (тепер inline). taskModel НЕ used at all.
         $this->characterModel         = new CharacterModel();
-        $this->characterResourceModel = new CharacterResourceModel();
         $this->characterTaskModel     = new CharacterTaskModel();
-        $this->mapModel               = new MapModel();
-        $this->biomeModel             = new BiomeModel();
         $this->resourceModel          = new ResourceModel();
-        $this->taskModel              = new TaskModel();
         $this->telegramUserModel      = new TelegramUserModel();
-        $this->eventModel             = new EventModel();
-        $this->activeEventModel       = new ActiveEventModel();
         $this->craftedItemsModel      = new CraftedItemsModel();
-        $this->craftedItemsLogModel   = new CraftedItemsLogModel();
         $this->biomeResourceModifier  = new BiomeResourceModifier();
-        $this->toolManager            = new ToolManager();
-        // F2.7 first slice: чистые формулы (rarities/baseQty/healthFactor/spentMinutes)
-        // вынесены в GatherFormulaService.
+
+        // F2.7 first slice: чистые формулы.
         $this->formulaService         = new GatherFormulaService();
-        // F2.7b: фикс N+1 на инструментах. Один batch + cache вместо
-        // ~920 SQL/добычу.
+        // F2.7b: N+1 fix tools — own dependency tree.
         $this->toolDurability         = new ToolDurabilityProcessor(
-            $this->craftedItemsLogModel,
+            new CraftedItemsLogModel(),
             $this->craftedItemsModel,
-            $this->toolManager
+            new ToolManager()
         );
-        // F2.7c: батч событий. ~12 SQL → 2 SQL на handle.
+        // F2.7c: батч событий — own dependency tree.
         $this->eventService           = new GatherEventModifierService(
-            $this->eventModel,
-            $this->activeEventModel
+            new EventModel(),
+            new ActiveEventModel()
         );
-        // v0.51.104 (decomp Step 1): pure HTML reply formatter.
+        // v0.51.104 Step 1: pure HTML reply formatter.
         $this->messageFormatter       = new GatherMessageFormatter();
-        // v0.51.105 (decomp Step 2): DB persistence (resources + stat gains).
-        $this->resultPersister        = new GatherResultPersister(
-            $this->characterModel,
-            $this->characterResourceModel
-        );
-        // v0.51.106 (decomp Step 3): cell+biome+resources lookup chain.
+        // v0.51.105 Step 2: DB persistence (resources + stat gains).
+        $this->resultPersister        = new GatherResultPersister($this->characterModel);
+        // v0.51.106 Step 3: cell+biome+resources lookup chain.
         $this->cellQuery              = new GatherCellResourceQuery(
-            $this->mapModel,
-            $this->biomeModel,
+            null,
+            null,
             $this->resourceModel
         );
     }

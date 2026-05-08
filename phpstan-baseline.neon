@@ -18151,18 +18151,6 @@ parameters:
 			path: app/TaskHandlers/GatherTaskHandler.php
 
 		-
-			message: '#^Property App\\TaskHandlers\\GatherTaskHandler\:\:\$activeEventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/GatherTaskHandler.php
-
-		-
-			message: '#^Property App\\TaskHandlers\\GatherTaskHandler\:\:\$biomeModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/GatherTaskHandler.php
-
-		-
 			message: '#^Property App\\TaskHandlers\\GatherTaskHandler\:\:\$biomeResourceModifier has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
@@ -18175,19 +18163,7 @@ parameters:
 			path: app/TaskHandlers/GatherTaskHandler.php
 
 		-
-			message: '#^Property App\\TaskHandlers\\GatherTaskHandler\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/GatherTaskHandler.php
-
-		-
 			message: '#^Property App\\TaskHandlers\\GatherTaskHandler\:\:\$characterTaskModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/GatherTaskHandler.php
-
-		-
-			message: '#^Property App\\TaskHandlers\\GatherTaskHandler\:\:\$craftedItemsLogModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/GatherTaskHandler.php
@@ -18199,37 +18175,13 @@ parameters:
 			path: app/TaskHandlers/GatherTaskHandler.php
 
 		-
-			message: '#^Property App\\TaskHandlers\\GatherTaskHandler\:\:\$eventModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/GatherTaskHandler.php
-
-		-
-			message: '#^Property App\\TaskHandlers\\GatherTaskHandler\:\:\$mapModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/GatherTaskHandler.php
-
-		-
 			message: '#^Property App\\TaskHandlers\\GatherTaskHandler\:\:\$resourceModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/GatherTaskHandler.php
 
 		-
-			message: '#^Property App\\TaskHandlers\\GatherTaskHandler\:\:\$taskModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/GatherTaskHandler.php
-
-		-
 			message: '#^Property App\\TaskHandlers\\GatherTaskHandler\:\:\$telegramUserModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/TaskHandlers/GatherTaskHandler.php
-
-		-
-			message: '#^Property App\\TaskHandlers\\GatherTaskHandler\:\:\$toolManager has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/GatherTaskHandler.php
