@@ -8,14 +8,13 @@ use App\Services\PVE\EquipmentService;
 use App\Services\PVE\PveMessageFormatter;
 use App\Services\PVE\PveCombatValidator;
 use App\Services\PVE\PveBattleLogWriter;
+use App\Services\PVE\PveNotificationSender;
 use App\Models\CharacterModel;
 use App\Models\NpcSpawnModel;
 use App\Models\NpcModel;
 use App\Models\MapModel;
 use App\Entities\BattleCharacter;
 use Psr\Log\LoggerInterface;
-use App\Models\TelegramUserModel;
-use Longman\TelegramBot\Request;
 
 class PvEService
 {
@@ -30,6 +29,7 @@ class PvEService
     private PveMessageFormatter $messageFormatter;
     private PveCombatValidator $combatValidator;
     private PveBattleLogWriter $battleLogWriter;
+    private PveNotificationSender $notificationSender;
 
     public function __construct(
         BattleService $battleService,
@@ -42,19 +42,21 @@ class PvEService
         MapModel $mapModel,
         ?PveMessageFormatter $messageFormatter = null,
         ?PveCombatValidator $combatValidator = null,
-        ?PveBattleLogWriter $battleLogWriter = null
+        ?PveBattleLogWriter $battleLogWriter = null,
+        ?PveNotificationSender $notificationSender = null
     ) {
-        $this->battleService    = $battleService;
-        $this->rewardService    = $rewardService;
-        $this->equipmentService = $equipmentService;
-        $this->logger           = $logger;
-        $this->characterModel   = $characterModel;
-        $this->npcSpawnModel    = $npcSpawnModel;
-        $this->npcModel         = $npcModel;
-        $this->mapModel         = $mapModel;
-        $this->messageFormatter = $messageFormatter ?? new PveMessageFormatter();
-        $this->combatValidator  = $combatValidator ?? new PveCombatValidator($npcSpawnModel, $npcModel);
-        $this->battleLogWriter  = $battleLogWriter ?? new PveBattleLogWriter();
+        $this->battleService      = $battleService;
+        $this->rewardService      = $rewardService;
+        $this->equipmentService   = $equipmentService;
+        $this->logger             = $logger;
+        $this->characterModel     = $characterModel;
+        $this->npcSpawnModel      = $npcSpawnModel;
+        $this->npcModel           = $npcModel;
+        $this->mapModel           = $mapModel;
+        $this->messageFormatter   = $messageFormatter ?? new PveMessageFormatter();
+        $this->combatValidator    = $combatValidator ?? new PveCombatValidator($npcSpawnModel, $npcModel);
+        $this->battleLogWriter    = $battleLogWriter ?? new PveBattleLogWriter();
+        $this->notificationSender = $notificationSender ?? new PveNotificationSender();
     }
 
     /**
@@ -120,7 +122,7 @@ class PvEService
             $mapLocation,
             $rewards
         );
-        $this->sendTelegramNotification($updatedPlayerData, $finalText);
+        $this->notificationSender->send($updatedPlayerData, $finalText);
 
         return [
             'message' => "Бой завершён! Победитель: " . ($fightResult['winner']->name ?? "Ничья"),
@@ -131,48 +133,4 @@ class PvEService
         ];
     }
 
-    /**
-     * Отправляет уведомление в Telegram (HTML-форматирование).
-     */
-    private function sendTelegramNotification(array $playerData, string $finalText): void
-    {
-        log_message('debug', "Пытаемся отправить сообщение в Telegram для {$playerData['name']}");
-
-        if (empty($playerData['telegram_user_id'])) {
-            log_message('error', "Ошибка: `telegram_user_id` отсутствует у игрока {$playerData['name']}");
-            return;
-        }
-
-        $tgUserModel = new TelegramUserModel();
-        $tgUser = $tgUserModel->find($playerData['telegram_user_id']);
-
-        if (!$tgUser) {
-            log_message('error', "Ошибка: Telegram-пользователь не найден (ID={$playerData['telegram_user_id']})");
-            return;
-        }
-
-        if (empty($tgUser['telegram_id'])) {
-            log_message('error', "Ошибка: `telegram_id` отсутствует для пользователя {$tgUser['username']}");
-            return;
-        }
-
-        log_message('debug', "Отправка сообщения в Telegram: chat_id={$tgUser['telegram_id']}");
-
-        if (strlen($finalText) > 4000) {
-            log_message('warning', "Сообщение слишком длинное для Telegram! Обрезаем до 4000 символов.");
-            $finalText = substr($finalText, 0, 4000) . "...";
-        }
-
-        $result = Request::sendMessage([
-            'chat_id'    => $tgUser['telegram_id'],
-            'text'       => $finalText,
-            'parse_mode' => 'HTML',
-        ]);
-
-        if (!$result->isOk()) {
-            log_message('error', "Ошибка отправки сообщения в Telegram: " . $result->getDescription());
-        } else {
-            log_message('info', "Сообщение успешно отправлено в Telegram пользователю ID={$tgUser['telegram_id']}");
-        }
-    }
 }
