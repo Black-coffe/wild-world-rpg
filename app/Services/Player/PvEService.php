@@ -5,9 +5,9 @@ namespace App\Services\Player;
 use App\Services\PVE\BattleService;
 use App\Services\PVE\RewardService;
 use App\Services\PVE\EquipmentService;
-use App\Services\PVE\PveBattleLogService;
 use App\Services\PVE\PveMessageFormatter;
 use App\Services\PVE\PveCombatValidator;
+use App\Services\PVE\PveBattleLogWriter;
 use App\Models\CharacterModel;
 use App\Models\NpcSpawnModel;
 use App\Models\NpcModel;
@@ -29,6 +29,7 @@ class PvEService
     private MapModel $mapModel;
     private PveMessageFormatter $messageFormatter;
     private PveCombatValidator $combatValidator;
+    private PveBattleLogWriter $battleLogWriter;
 
     public function __construct(
         BattleService $battleService,
@@ -40,7 +41,8 @@ class PvEService
         NpcModel $npcModel,
         MapModel $mapModel,
         ?PveMessageFormatter $messageFormatter = null,
-        ?PveCombatValidator $combatValidator = null
+        ?PveCombatValidator $combatValidator = null,
+        ?PveBattleLogWriter $battleLogWriter = null
     ) {
         $this->battleService    = $battleService;
         $this->rewardService    = $rewardService;
@@ -52,6 +54,7 @@ class PvEService
         $this->mapModel         = $mapModel;
         $this->messageFormatter = $messageFormatter ?? new PveMessageFormatter();
         $this->combatValidator  = $combatValidator ?? new PveCombatValidator($npcSpawnModel, $npcModel);
+        $this->battleLogWriter  = $battleLogWriter ?? new PveBattleLogWriter();
     }
 
     /**
@@ -89,40 +92,8 @@ class PvEService
             return ['message' => "Ошибка в логике боя."];
         }
 
-        // Подробное логирование боя через PveBattleLogService
-        $battleLogService = new PveBattleLogService();
-        $battleLogService->init($playerData, $npcData);
-        $roundNumber = 1;
-        if (isset($fightResult['log']) && is_array($fightResult['log'])) {
-            foreach ($fightResult['log'] as $round) {
-                $battleLogService->addRoundLog(
-                    $roundNumber,
-                    $round['attacker'] ?? '',
-                    $round['defender'] ?? '',
-                    $round['base_damage'] ?? 0,
-                    $round['level_difference'] ?? 0,
-                    $round['strength_bonus'] ?? 0,
-                    $round['agility_bonus'] ?? 0,
-                    $round['total_armor'] ?? 0,
-                    $round['armor_effect'] ?? 0,
-                    $round['final_damage'] ?? 0,
-                    $round['defender_health_after'] ?? 0,
-                    $round['luckyStrike'] ?? false
-                );
-                $roundNumber++;
-            }
-        }
-        $battleLogService->setOutcome([
-            'type'     => 'normal',
-            'winnerId' => (int)$fightResult['winner']->id,
-            'loserId'  => (isset($fightResult['loser']) && is_object($fightResult['loser'])) ? (int)$fightResult['loser']->id : null,
-        ]);
-        $battleLogService->saveLog(
-            'PVE',
-            (int)$playerData['id'],
-            isset($npcData['npc_id']) ? (int)$npcData['npc_id'] : null,
-            (int)$fightResult['winner']->id
-        );
+        // Подробное логирование боя через PveBattleLogWriter (Step 3 v0.51.88)
+        $this->battleLogWriter->write($playerData, $npcData, $fightResult);
 
         // Выдача наград через RewardService
         $rewards = $this->rewardService->grantRewards($fightResult['winner'], $fightResult['loser']);
