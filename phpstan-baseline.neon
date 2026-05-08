@@ -14377,6 +14377,54 @@ parameters:
 			path: app/Services/PVE/PveBattleLogService.php
 
 		-
+			message: '#^Cannot access offset ''cell_number'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/PveCombatValidator.php
+
+		-
+			message: '#^Cannot access offset ''npc_name_ru'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/PveCombatValidator.php
+
+		-
+			message: '#^Parameter \#1 \$id of method CodeIgniter\\BaseModel\:\:find\(\) expects int\|list\<int\|string\>\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Services/PVE/PveCombatValidator.php
+
+		-
+			message: '#^Parameter \#1 \.\.\.\$arrays of function array_merge expects array, array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PVE/PveCombatValidator.php
+
+		-
+			message: '#^Parameter \#2 \.\.\.\$arrays of function array_merge expects array, array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|ArrayAccess given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PVE/PveCombatValidator.php
+
+		-
+			message: '#^Part \$npcSpawnData\[''npc_id''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 2
+			path: app/Services/PVE/PveCombatValidator.php
+
+		-
+			message: '#^Part \$playerData\[''id''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/PVE/PveCombatValidator.php
+
+		-
+			message: '#^Part \$spawnId \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 3
+			path: app/Services/PVE/PveCombatValidator.php
+
+		-
 			message: '#^Cannot access property \$level on mixed\.$#'
 			identifier: property.nonObject
 			count: 2
@@ -15529,12 +15577,6 @@ parameters:
 			path: app/Services/Player/PvEService.php
 
 		-
-			message: '#^Cannot access offset ''cell_number'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
 			message: '#^Cannot access offset ''defender'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -15565,12 +15607,6 @@ parameters:
 			path: app/Services/Player/PvEService.php
 
 		-
-			message: '#^Cannot access offset ''npc_name_ru'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
 			message: '#^Cannot access offset ''strength_bonus'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -15591,6 +15627,12 @@ parameters:
 		-
 			message: '#^Cannot access offset ''username'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/PvEService.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
 			count: 1
 			path: app/Services/Player/PvEService.php
 
@@ -15619,12 +15661,6 @@ parameters:
 			path: app/Services/Player/PvEService.php
 
 		-
-			message: '#^Parameter \#1 \$id of method CodeIgniter\\BaseModel\:\:find\(\) expects int\|list\<int\|string\>\|string\|null, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
 			message: '#^Parameter \#1 \$playerData of method App\\Services\\PVE\\PveMessageFormatter\:\:buildFightResultMessage\(\) expects array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null given\.$#'
 			identifier: argument.type
 			count: 1
@@ -15638,12 +15674,6 @@ parameters:
 
 		-
 			message: '#^Parameter \#1 \$winner of method App\\Services\\PVE\\RewardService\:\:grantRewards\(\) expects App\\Entities\\BattleCharacter, object given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Parameter \#1 \.\.\.\$arrays of function array_merge expects array, array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Player/PvEService.php
@@ -15673,7 +15703,7 @@ parameters:
 			path: app/Services/Player/PvEService.php
 
 		-
-			message: '#^Parameter \#2 \.\.\.\$arrays of function array_merge expects array, array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|ArrayAccess given\.$#'
+			message: '#^Parameter \#2 \$npcName of method App\\Services\\PVE\\PveMessageFormatter\:\:buildFightResultMessage\(\) expects string, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Player/PvEService.php
@@ -15727,12 +15757,6 @@ parameters:
 			path: app/Services/Player/PvEService.php
 
 		-
-			message: '#^Part \$npcSpawnData\[''npc_id''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 2
-			path: app/Services/Player/PvEService.php
-
-		-
 			message: '#^Property App\\Services\\Player\\PvEService\:\:\$logger is never read, only written\.$#'
 			identifier: property.onlyWritten
 			count: 1
@@ -15740,6 +15764,18 @@ parameters:
 
 		-
 			message: '#^Property App\\Services\\Player\\PvEService\:\:\$mapModel is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Services/Player/PvEService.php
+
+		-
+			message: '#^Property App\\Services\\Player\\PvEService\:\:\$npcModel is never read, only written\.$#'
+			identifier: property.onlyWritten
+			count: 1
+			path: app/Services/Player/PvEService.php
+
+		-
+			message: '#^Property App\\Services\\Player\\PvEService\:\:\$npcSpawnModel is never read, only written\.$#'
 			identifier: property.onlyWritten
 			count: 1
 			path: app/Services/Player/PvEService.php

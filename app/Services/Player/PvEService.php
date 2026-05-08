@@ -7,6 +7,7 @@ use App\Services\PVE\RewardService;
 use App\Services\PVE\EquipmentService;
 use App\Services\PVE\PveBattleLogService;
 use App\Services\PVE\PveMessageFormatter;
+use App\Services\PVE\PveCombatValidator;
 use App\Models\CharacterModel;
 use App\Models\NpcSpawnModel;
 use App\Models\NpcModel;
@@ -27,6 +28,7 @@ class PvEService
     private NpcModel $npcModel;
     private MapModel $mapModel;
     private PveMessageFormatter $messageFormatter;
+    private PveCombatValidator $combatValidator;
 
     public function __construct(
         BattleService $battleService,
@@ -37,7 +39,8 @@ class PvEService
         NpcSpawnModel $npcSpawnModel,
         NpcModel $npcModel,
         MapModel $mapModel,
-        ?PveMessageFormatter $messageFormatter = null
+        ?PveMessageFormatter $messageFormatter = null,
+        ?PveCombatValidator $combatValidator = null
     ) {
         $this->battleService    = $battleService;
         $this->rewardService    = $rewardService;
@@ -48,6 +51,7 @@ class PvEService
         $this->npcModel         = $npcModel;
         $this->mapModel         = $mapModel;
         $this->messageFormatter = $messageFormatter ?? new PveMessageFormatter();
+        $this->combatValidator  = $combatValidator ?? new PveCombatValidator($npcSpawnModel, $npcModel);
     }
 
     /**
@@ -62,31 +66,12 @@ class PvEService
     {
         log_message('debug', "Атака: Игрок {$playerData['name']} против NPC ID={$npcData['npc_id']}");
 
-        // Получаем данные NPC-спавна (динамические данные, включая current_health)
-        $npcSpawnData = $this->npcSpawnModel->find($npcData['id']);
-        if (!$npcSpawnData) {
-            log_message('error', "⛔ Ошибка: NPC спавн ID {$npcData['id']} не найден!");
-            return ['error' => "NPC спавн ID {$npcData['id']} не найден"];
+        // Validate + load NPC merged data (Step 2 v0.51.87)
+        $validation = $this->combatValidator->validateAndLoadNpc($playerData, $npcData);
+        if (!$validation['ok']) {
+            return $validation['response'];
         }
-
-        // Проверяем, что игрок и NPC находятся в одной клетке
-        if ($playerData['cell_number'] !== $npcSpawnData['cell_number']) {
-            log_message('warning', "⚠️ Игрок ID={$playerData['id']} и NPC спавн ID={$npcData['id']} в разных клетках! Бой не начинается.");
-            return ['message' => "Игрок и NPC находятся в разных клетках"];
-        }
-
-        // Получаем статические параметры NPC из таблицы npcs
-        $npcRecord = $this->npcModel->find($npcSpawnData['npc_id']);
-        if (!$npcRecord) {
-            log_message('error', "⛔ Ошибка: NPC ID {$npcSpawnData['npc_id']} не найден в npcs!");
-            return ['error' => "NPC ID {$npcSpawnData['npc_id']} не найден"];
-        }
-
-        // Объединяем данные: статические параметры из npcs и динамические из npc_spawns
-        $npcData = array_merge($npcRecord, $npcSpawnData);
-        // Значение здоровья берём исключительно из npc_spawns
-        $npcData['health'] = $npcSpawnData['current_health'];
-        $npcData['name'] = $npcRecord['npc_name_ru'] ?? 'Неизвестный враг';
+        $npcData = $validation['npcData'];
 
         // Оборачиваем данные игрока и NPC в объекты BattleCharacter
         $player = new BattleCharacter($playerData);
