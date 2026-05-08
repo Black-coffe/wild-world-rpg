@@ -20311,18 +20311,6 @@ parameters:
 			path: app/Views/front/pvp_form.php
 
 		-
-			message: '#^Variable \$about might not be defined\.$#'
-			identifier: variable.undefined
-			count: 22
-			path: app/Views/layouts/about.php
-
-		-
-			message: '#^Variable \$this might not be defined\.$#'
-			identifier: variable.undefined
-			count: 1
-			path: app/Views/layouts/default.php
-
-		-
 			message: '#^Variable \$textBlocks might not be defined\.$#'
 			identifier: variable.undefined
 			count: 9
@@ -20333,36 +20321,6 @@ parameters:
 			identifier: variable.undefined
 			count: 4
 			path: app/Views/layouts/main.php
-
-		-
-			message: '#^Variable \$portfolio might not be defined\.$#'
-			identifier: variable.undefined
-			count: 19
-			path: app/Views/layouts/portfolio-slider.php
-
-		-
-			message: '#^Variable \$pricing might not be defined\.$#'
-			identifier: variable.undefined
-			count: 19
-			path: app/Views/layouts/pricing.php
-
-		-
-			message: '#^Variable \$services might not be defined\.$#'
-			identifier: variable.undefined
-			count: 15
-			path: app/Views/layouts/services.php
-
-		-
-			message: '#^Variable \$textBlocks might not be defined\.$#'
-			identifier: variable.undefined
-			count: 8
-			path: app/Views/layouts/stats.php
-
-		-
-			message: '#^Variable \$testimonials might not be defined\.$#'
-			identifier: variable.undefined
-			count: 17
-			path: app/Views/layouts/testimonials.php
 
 		-
 			message: '#^Variable \$this might not be defined\.$#'
