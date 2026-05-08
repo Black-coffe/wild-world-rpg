@@ -3,6 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel; // <-- Добавляем модель логов
@@ -87,7 +88,7 @@ class CharcoalBriquettes1Action extends BaseAction
             $need = $requiredResources[$res['name']] ?? 0;
             $have = $res['quantity'];
             $rar  = $res['rarity'];
-            $text .= "📦 {$res['name']} - {$need} ед. (в наличии {$have} ед., редк - {$rar})\n";
+            $text .= ResourceIconHelper::for($res['name']) . " {$res['name']} - {$need} ед. (в наличии {$have} ед., редк - {$rar})\n";
         }
 
         $text .= "\n*Стоимость на рынке:* _130_ 💰\n"

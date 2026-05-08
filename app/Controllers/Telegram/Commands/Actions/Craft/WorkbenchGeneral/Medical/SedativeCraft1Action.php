@@ -3,6 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel;
@@ -76,7 +77,7 @@ class SedativeCraft1Action extends BaseAction
             $req     = $requiredResources[$res['name']] ?? 0;
             $have    = $res['quantity'];
             $rarity  = $res['rarity'];
-            $text   .= "📦 {$res['name']} - {$req} ед. "
+            $text   .= ResourceIconHelper::for($res['name']) . " {$res['name']} - {$req} ед. "
                 . "(в наличии {$have} ед., редк. {$rarity})\n";
         }
 

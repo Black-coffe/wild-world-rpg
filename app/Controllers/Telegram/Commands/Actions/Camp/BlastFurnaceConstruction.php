@@ -280,7 +280,7 @@ class BlastFurnaceConstruction extends BaseAction
                     ->where('id_resources', $resource['id'])
                     ->first();
                 $availableAmount = $characterResource ? $characterResource['quantity'] : 0;
-                $text .= "📦 " . $resource['name'] . " - " . $requiredAmount . " ед. (в наличии " . $availableAmount . " ед.)\n";
+                $text .= \App\Helpers\ResourceIconHelper::for($resource['name']) . " " . $resource['name'] . " - " . $requiredAmount . " ед. (в наличии " . $availableAmount . " ед.)\n";
             }
         }
         return $text;
@@ -297,7 +297,7 @@ class BlastFurnaceConstruction extends BaseAction
             if ($item) {
                 $craftedItem = $this->craftedItemsLogModel->getItemByCraftedItemIdAndCharacterId($item['id'], $characterId);
                 $availableAmount = $craftedItem ? $craftedItem['quantity'] : 0;
-                $text .= "📦 " . $item['name_rus'] . " - " . $requiredAmount . " ед. (в наличии " . $availableAmount . " ед.)\n";
+                $text .= \App\Helpers\ResourceIconHelper::for($item['name_rus']) . " " . $item['name_rus'] . " - " . $requiredAmount . " ед. (в наличии " . $availableAmount . " ед.)\n";
             }
         }
         return $text;

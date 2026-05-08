@@ -3,6 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel;
@@ -81,7 +82,7 @@ class AntisepticCraft1Action extends BaseAction
 
         foreach ($resourcesAvailable as $resource) {
             $cost = $requiredResources[$resource['name']] ?? 0;
-            $text .= "📦 {$resource['name']} - {$cost} ед. "
+            $text .= ResourceIconHelper::for($resource['name']) . " {$resource['name']} - {$cost} ед. "
                 . "(в наличии {$resource['quantity']} ед., редк - {$resource['rarity']})\n";
         }
 

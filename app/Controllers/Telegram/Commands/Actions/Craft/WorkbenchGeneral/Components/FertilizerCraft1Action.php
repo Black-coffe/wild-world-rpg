@@ -3,6 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel; // 1) Подключаем модель логов
@@ -86,7 +87,7 @@ class FertilizerCraft1Action extends BaseAction
             $have = $res['quantity'];
             $rar  = $res['rarity'];
 
-            $text .= "📦 {$res['name']} - {$need} ед. (в наличии {$have} ед. редк - {$rar})\n";
+            $text .= ResourceIconHelper::for($res['name']) . " {$res['name']} - {$need} ед. (в наличии {$have} ед. редк - {$rar})\n";
         }
 
         $text .= "\n*Стоимость на рынке:* _82_ 💰\n"

@@ -3,6 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
@@ -86,13 +87,13 @@ class BasicMedKitCraft1Action extends BaseAction
         foreach ($requiredResources['resources'] as $resName => $reqAmount) {
             $have     = $resourcesAvailable[$resName]['quantity'] ?? 0;
             $rarOrInfo = $resourcesAvailable[$resName]['rarity'] ?? 'неизвестно';
-            $text    .= "📦 {$resName} - {$reqAmount} ед. (в наличии {$have} ед., редк. {$rarOrInfo})\n";
+            $text    .= ResourceIconHelper::for($resName) . " {$resName} - {$reqAmount} ед. (в наличии {$have} ед., редк. {$rarOrInfo})\n";
         }
         foreach ($requiredResources['crafted_items'] as $itemNameEng => $reqAmount) {
             $have      = $resourcesAvailable[$itemNameEng]['quantity'] ?? 0;
             $itemType  = $resourcesAvailable[$itemNameEng]['type'] ?? 'неизвестно';
             $dispName  = $resourcesAvailable[$itemNameEng]['display_name'] ?? $itemNameEng;
-            $text     .= "📦 {$dispName} - {$reqAmount} шт. (в наличии {$have} шт., тип: {$itemType})\n";
+            $text     .= ResourceIconHelper::for($dispName) . " {$dispName} - {$reqAmount} шт. (в наличии {$have} шт., тип: {$itemType})\n";
         }
 
         $text .= "\n*Стоимость на рынке:* _100_ 💰\n"
