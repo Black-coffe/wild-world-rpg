@@ -12727,18 +12727,6 @@ parameters:
 			path: app/Services/BaseService.php
 
 		-
-			message: '#^Method App\\Services\\BaseService\:\:showBaseBuildings\(\) has parameter \$claimedCell with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/BaseService.php
-
-		-
-			message: '#^Method App\\Services\\BaseService\:\:showBaseBuildings\(\) has parameter \$coverageResult with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/BaseService.php
-
-		-
 			message: '#^Method App\\Services\\BaseService\:\:showBaseInfo\(\) has parameter \$characterRow with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -12752,12 +12740,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Services\\BaseService\:\:showNoBaseInfo\(\) has parameter \$characterRow with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/BaseService.php
-
-		-
-			message: '#^Method App\\Services\\BaseService\:\:showNotOnBaseInfo\(\) has parameter \$claimedCell with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Services/BaseService.php
@@ -12917,6 +12899,24 @@ parameters:
 			identifier: return.type
 			count: 1
 			path: app/Services/Bases/BaseLocationResolver.php
+
+		-
+			message: '#^Part \$distance \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Bases/BaseServiceMessageFormatter.php
+
+		-
+			message: '#^Part \$maxCoverage \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Bases/BaseServiceMessageFormatter.php
+
+		-
+			message: '#^Part \$towerLevel \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Bases/BaseServiceMessageFormatter.php
 
 		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
