@@ -15175,6 +15175,48 @@ parameters:
 			path: app/Services/Player/DeathService.php
 
 		-
+			message: '#^Cannot access offset ''biome_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/Gather/GatherCellResourceQuery.php
+
+		-
+			message: '#^Cannot call method find\(\) on App\\Models\\BiomeModel\|null\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Services/Player/Gather/GatherCellResourceQuery.php
+
+		-
+			message: '#^Cannot call method like\(\) on App\\Models\\ResourceModel\|null\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Services/Player/Gather/GatherCellResourceQuery.php
+
+		-
+			message: '#^Cannot call method where\(\) on App\\Models\\MapModel\|null\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Services/Player/Gather/GatherCellResourceQuery.php
+
+		-
+			message: '#^Cannot cast mixed to string\.$#'
+			identifier: cast.string
+			count: 1
+			path: app/Services/Player/Gather/GatherCellResourceQuery.php
+
+		-
+			message: '#^Method App\\Services\\Player\\Gather\\GatherCellResourceQuery\:\:loadCellContext\(\) should return array\{cell\: array\<string, mixed\>\|null, biome\: array\<string, mixed\>\|null, resources\: array\<int, array\<string, mixed\>\>\} but returns array\{cell\: non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object, biome\: App\\Entities\\BiomeEntity, resources\: list\<App\\Entities\\ResourceEntity\>\}\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Player/Gather/GatherCellResourceQuery.php
+
+		-
+			message: '#^Method App\\Services\\Player\\Gather\\GatherCellResourceQuery\:\:loadCellContext\(\) should return array\{cell\: array\<string, mixed\>\|null, biome\: array\<string, mixed\>\|null, resources\: array\<int, array\<string, mixed\>\>\} but returns array\{cell\: non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object, biome\: null, resources\: array\{\}\}\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Player/Gather/GatherCellResourceQuery.php
+
+		-
 			message: '#^Cannot access offset ''effect_value'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -18098,6 +18140,12 @@ parameters:
 
 		-
 			message: '#^Parameter \#2 \$endTime of method App\\TaskHandlers\\GatherTaskHandler\:\:calculateSpentMinutes\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/TaskHandlers/GatherTaskHandler.php
+
+		-
+			message: '#^Parameter \#4 \$biomeName of method App\\TaskHandlers\\GatherTaskHandler\:\:sendResourcesFoundReply\(\) expects string, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/GatherTaskHandler.php

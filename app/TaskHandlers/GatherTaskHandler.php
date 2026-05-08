@@ -17,6 +17,7 @@ use App\Models\CraftedItemsModel;
 use DateTime;
 use App\Libraries\BiomeResourceModifier;
 use App\Libraries\ToolManager;
+use App\Services\Player\Gather\GatherCellResourceQuery;
 use App\Services\Player\Gather\GatherEventModifierService;
 use App\Services\Player\Gather\GatherFormulaService;
 use App\Services\Player\Gather\GatherMessageFormatter;
@@ -53,6 +54,7 @@ class GatherTaskHandler extends BaseTaskHandler
     private GatherEventModifierService $eventService;
     private GatherMessageFormatter $messageFormatter;
     private GatherResultPersister $resultPersister;
+    private GatherCellResourceQuery $cellQuery;
 
     protected $characterModel;
     protected $characterResourceModel;
@@ -113,6 +115,12 @@ class GatherTaskHandler extends BaseTaskHandler
             $this->characterModel,
             $this->characterResourceModel
         );
+        // v0.51.106 (decomp Step 3): cell+biome+resources lookup chain.
+        $this->cellQuery              = new GatherCellResourceQuery(
+            $this->mapModel,
+            $this->biomeModel,
+            $this->resourceModel
+        );
     }
 
     /**
@@ -130,7 +138,16 @@ class GatherTaskHandler extends BaseTaskHandler
         // F2.7c: один batch на все 5 relevant событий вместо ~12 индивидуальных SQL.
         $loadedEvents = $this->eventService->loadActiveEvents();
 
-        $resources    = $this->getAvailableResources($character);
+        // v0.51.106 (decomp Step 3): single round-trip cell+biome+resources lookup
+        // (раніше — duplicate calls у getAvailableResources + handle line 137-139).
+        $context     = $this->cellQuery->loadCellContext(
+            (int) $character['cell_number'],
+            (int) $character['level']
+        );
+        $resources   = $context['resources'];
+        $biome       = $context['biome'];
+        $biomeName   = $biome['name'] ?? '???';
+
         $spentMinutes = $this->calculateSpentMinutes($task['start_time'], $task['end_time']);
 
         $foundResources = $this->calculateFoundResources(
@@ -140,10 +157,6 @@ class GatherTaskHandler extends BaseTaskHandler
             task: $task,
             loadedEvents: $loadedEvents
         );
-
-        $currentCell = $this->mapModel->where('cell_number', $character['cell_number'])->first();
-        $biome       = $currentCell ? $this->biomeModel->find($currentCell['biome_id']) : null;
-        $biomeName   = $biome['name'] ?? '???';
 
         // Применяем возможные модификаторы биома
         $foundResources = $this->biomeResourceModifier->modifyResourcesByBiome($biome['id'] ?? null, $foundResources);
@@ -326,22 +339,17 @@ class GatherTaskHandler extends BaseTaskHandler
         return $this->formulaService->getHealthTirednessFactor($character);
     }
 
+    /**
+     * v0.51.106 (decomp Step 3): delegated to GatherCellResourceQuery.
+     * Backward-compat wrapper зберіг для legacy callers (none у поточному коді).
+     */
     protected function getAvailableResources(array|\App\Entities\CharacterEntity $character): array
     {
-        $cell = $this->mapModel->where('cell_number', $character['cell_number'])->first();
-        if (!$cell) {
-            return [];
-        }
-
-        $biome = $this->biomeModel->find($cell['biome_id']);
-        if (!$biome) {
-            return [];
-        }
-
-        return $this->resourceModel
-            ->like('biome_id', (string)$biome['id'], 'both')
-            ->where('level_required <=', $character['level'])
-            ->findAll();
+        $context = $this->cellQuery->loadCellContext(
+            (int) $character['cell_number'],
+            (int) $character['level']
+        );
+        return $context['resources'];
     }
 
     protected function calculateSpentMinutes(string $startTime, string $endTime): int
