@@ -3,6 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Tools;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel;
@@ -84,7 +85,7 @@ class TireIronCraft1Action extends BaseAction
             $have = $res['quantity'];
             $rar  = $res['rarity'];
 
-            $text .= "📦 {$res['name']} - {$need} ед. "
+            $text .= ResourceIconHelper::for($res['name']) . " {$res['name']} - {$need} ед. "
                 . "(в наличии {$have} ед. редк - {$rar})\n";
         }
 

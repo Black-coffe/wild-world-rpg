@@ -3,6 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel;
@@ -80,7 +81,7 @@ class PainReliefPowerCraft1Action extends BaseAction
             $reqAmount  = $requiredResources[$resource['name']];
             $haveAmount = $resource['quantity'];
             $rarity     = $resource['rarity'];
-            $text      .= "📦 {$resource['name']} - {$reqAmount} ед. "
+            $text      .= ResourceIconHelper::for($resource['name']) . " {$resource['name']} - {$reqAmount} ед. "
                 . "(в наличии {$haveAmount} ед., редк. {$rarity})\n";
         }
 

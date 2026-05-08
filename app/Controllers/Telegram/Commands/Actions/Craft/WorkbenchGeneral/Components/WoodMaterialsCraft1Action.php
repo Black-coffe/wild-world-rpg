@@ -3,6 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel; // <-- (1) Подключаем модель логов
@@ -86,7 +87,7 @@ class WoodMaterialsCraft1Action extends BaseAction
         foreach ($this->requiredResourcesBase as $resName => $resAmount) {
             $haveAmount = $resourcesAvailable[$resName]['quantity'] ?? 0;
             $rarity     = $resourcesAvailable[$resName]['rarity']   ?? '-';
-            $text      .= "📦 {$resName} — {$resAmount} ед. "
+            $text      .= ResourceIconHelper::for($resName) . " {$resName} — {$resAmount} ед. "
                 . "(в наличии {$haveAmount} ед., редк: {$rarity})\n";
         }
 

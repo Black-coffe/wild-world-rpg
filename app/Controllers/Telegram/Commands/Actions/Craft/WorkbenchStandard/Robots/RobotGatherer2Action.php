@@ -112,7 +112,8 @@ class RobotGatherer2Action extends BaseAction
             if ($availableAmount < $requiredAmount) {
                 $hasAllResources = false;
             }
-            $text .= "{$marker} 📦 {$resourceName} — {$availableAmount} / {$requiredAmount}\n";
+            $icon = \App\Helpers\ResourceIconHelper::for($resourceName);
+            $text .= "{$marker} {$icon} {$resourceName} — {$availableAmount} / {$requiredAmount}\n";
         }
 
         foreach ($requiredComponents as $componentName => $requiredAmount) {
@@ -121,7 +122,8 @@ class RobotGatherer2Action extends BaseAction
             if ($availableAmount < $requiredAmount) {
                 $hasAllResources = false;
             }
-            $text .= "{$marker} 📦 {$componentName} — {$availableAmount} / {$requiredAmount}\n";
+            $icon = \App\Helpers\ResourceIconHelper::for($componentName);
+            $text .= "{$marker} {$icon} {$componentName} — {$availableAmount} / {$requiredAmount}\n";
         }
 
         $goldMarker = $goldQuantity >= $requiredGold ? '✅' : '❌';

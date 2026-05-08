@@ -4,6 +4,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Sell;
 
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
+use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
@@ -49,7 +50,7 @@ class SellSelectRarity1Action extends BaseAction
             if ($resource) {
                 $quantity = number_format($characterResource['quantity']);
                 $totalValue = $resource['price'] * $characterResource['quantity'];
-                $text .= "📦 {$resource['name']} | редкость: {$resource['rarity']} | {$quantity} еднц.\n";
+                $text .= ResourceIconHelper::for($resource['name']) . " {$resource['name']} | редкость: {$resource['rarity']} | {$quantity} еднц.\n";
                 // Кнопка для каждого ресурса
                 $buttonText = "{$resource['name']} | {$quantity} шт | " . number_format($totalValue) . "💰";
                 $keyboardButtons[] = ['text' => $buttonText, 'callback_data' => "sellResource_{$resource['id']}"];
