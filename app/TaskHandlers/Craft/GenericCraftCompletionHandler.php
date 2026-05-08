@@ -133,9 +133,10 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         }
 
         // 6. bump статов персонажа
+        // F1.4.4-B 15th: $task['character_id'] приходит string из raw row → (int) cast.
         if (method_exists($this->characterModel, 'updateAgilityAndIntellect')) {
             $this->characterModel->updateAgilityAndIntellect(
-                $task['character_id'],
+                (int) $task['character_id'],
                 (float) $recipe['agility_bonus'],
                 (float) $recipe['intellect_bonus']
             );
@@ -185,9 +186,10 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         }
 
         // Stat bump: для weapons → updateStrengthAndAgility (НЕ updateAgilityAndIntellect).
+        // F1.4.4-B 15th: $task['character_id'] приходит string из raw row → (int) cast.
         if (method_exists($this->characterModel, 'updateStrengthAndAgility')) {
             $this->characterModel->updateStrengthAndAgility(
-                $task['character_id'],
+                (int) $task['character_id'],
                 (float) ($recipe['strength_bonus'] ?? 0),
                 (float) ($recipe['agility_bonus']  ?? 0)
             );
