@@ -34,7 +34,16 @@ final class InsuranceCalculator
      */
     public function calculate(array|\App\Entities\CharacterEntity $character, int $totalResources): int
     {
-        $createdAt    = $character['created_at'] ?? '1970-01-01';
+        // v0.51.121 hotfix: cast Time|null|string → string. CI4 Entity wraps
+        // `created_at` як Time object (per F1.4.4-B v0.48.0 dates array).
+        // Prior code passed Time directly до `new DateTime(...)` → fatal:
+        // "DateTime::__construct(): Argument #1 must be of type string,
+        // CodeIgniter\\I18n\\Time given". Latent since v0.48.0 — surfaced
+        // 2026-05-08 19:36 коли AutoPveHandler triggered death+insurance.
+        $createdAtRaw = $character['created_at'] ?? '1970-01-01';
+        $createdAt    = $createdAtRaw instanceof \DateTimeInterface
+            ? $createdAtRaw->format('Y-m-d H:i:s')
+            : (string) $createdAtRaw;
         $monthsInGame = (new DateTime($createdAt))
             ->diff(new DateTime())
             ->m + 1;
