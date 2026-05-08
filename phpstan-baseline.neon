@@ -1411,6 +1411,18 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
 
 		-
+			message: '#^Cannot cast mixed to string\.$#'
+			identifier: cast.string
+			count: 2
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
+
+		-
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BaseInfoAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
+
+		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BaseInfoAction\:\:handleNoBase\(\) has parameter \$character with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -1435,12 +1447,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BaseInfoAction\:\:showBaseBuildings\(\) has parameter \$coverageResult with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
 			message: '#^Parameter \#1 \$claimedCell of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BaseInfoAction\:\:handleNotOnBasePhysically\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
@@ -1459,32 +1465,8 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
 
 		-
-			message: '#^Part \$bDesc \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Part \$bName \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Part \$biomeName \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Part \$dLevel \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Part \$sDiff \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
+			message: '#^Parameter \#3 \$biomeRow of method App\\Services\\Bases\\BaseInfoMessageFormatter\:\:noBaseHappyPath\(\) expects array\<string, mixed\>, App\\Entities\\BiomeEntity given\.$#'
+			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
 
@@ -12995,6 +12977,54 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Services/Bases/BaseCheckService.php
+
+		-
+			message: '#^Binary operation "\*" between mixed and 100 results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 1
+			path: app/Services/Bases/BaseInfoMessageFormatter.php
+
+		-
+			message: '#^Part \$bDesc \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Bases/BaseInfoMessageFormatter.php
+
+		-
+			message: '#^Part \$bName \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Bases/BaseInfoMessageFormatter.php
+
+		-
+			message: '#^Part \$dLevel \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Bases/BaseInfoMessageFormatter.php
+
+		-
+			message: '#^Part \$distance \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Bases/BaseInfoMessageFormatter.php
+
+		-
+			message: '#^Part \$lvl \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Bases/BaseInfoMessageFormatter.php
+
+		-
+			message: '#^Part \$maxCov \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Bases/BaseInfoMessageFormatter.php
+
+		-
+			message: '#^Part \$sDiff \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Bases/BaseInfoMessageFormatter.php
 
 		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
