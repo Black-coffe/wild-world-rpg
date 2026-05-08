@@ -45,12 +45,12 @@ class BuildingUpgradeApplier
     }
 
     /**
-     * @param array<string,mixed>     $character    Row with at least 'id' and 'gold'
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character    Row/Entity з 'id' і 'gold'
      * @param array<string,mixed>     $charBuilding Row from character_buildings з 'id'
      * @param int                     $nextLevel    Target level (currentLevel + 1)
      * @param array{gold:int,resources:array<string,int>} $requirements
      */
-    public function apply(array $character, array $charBuilding, int $nextLevel, array $requirements): void
+    public function apply(array|\App\Entities\CharacterEntity $character, array $charBuilding, int $nextLevel, array $requirements): void
     {
         $newGold = (int) $character['gold'] - (int) $requirements['gold'];
         $this->characterModel->update($character['id'], ['gold' => $newGold]);
