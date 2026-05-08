@@ -96,7 +96,7 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         // F3.B9: dispatch на output_type. Default = 'crafted_item' (B5-B8).
         $outputType = $recipe['output_type'] ?? 'crafted_item';
         if ($outputType === 'weapon') {
-            $this->handleWeaponOutput($task, $recipe, $quantityToAdd);
+            $this->handleWeaponOutput($task, $recipe, $quantityToAdd, $recipeKey);
             return;
         }
 
@@ -142,7 +142,7 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         }
 
         // 7. notify
-        $this->notifyUser((int) $task['telegram_user_id'], $craftedItem, (int) $task['character_id'], $quantityToAdd, $recipe);
+        $this->notifyUser((int) $task['telegram_user_id'], $craftedItem, (int) $task['character_id'], $quantityToAdd, $recipe, $recipeKey);
     }
 
     /**
@@ -150,7 +150,7 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
      * (вместо `crafted_items_log`), обновляет силу/ловкость через
      * `updateStrengthAndAgility`, уведомляет игрока.
      */
-    private function handleWeaponOutput(array $task, array $recipe, int $quantityToAdd): void
+    private function handleWeaponOutput(array $task, array $recipe, int $quantityToAdd, string $recipeKey): void
     {
         $weaponNameEn = $recipe['weapon_name_en'] ?? null;
         if ($weaponNameEn === null) {
@@ -200,7 +200,7 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
             'name_rus' => $weapon['name'] ?? $recipe['item_name_rus'],
             '__weapon' => true,
         ];
-        $this->notifyUser((int) $task['telegram_user_id'], $weaponAsItem, (int) $task['character_id'], $quantityToAdd, $recipe);
+        $this->notifyUser((int) $task['telegram_user_id'], $weaponAsItem, (int) $task['character_id'], $quantityToAdd, $recipe, $recipeKey);
     }
 
     private function extractRecipeKey(array $task): ?string
@@ -235,7 +235,7 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
      * @param array<string,mixed> $craftedItem
      * @param array<string,mixed> $recipe
      */
-    private function notifyUser(int $telegramUserId, array $craftedItem, int $characterId, int $quantityAdded, array $recipe): void
+    private function notifyUser(int $telegramUserId, array $craftedItem, int $characterId, int $quantityAdded, array $recipe, string $recipeKey): void
     {
         $userRow = $this->telegramUserModel->where('id', $telegramUserId)->first();
         if (!$userRow || empty($userRow['telegram_id'])) {
@@ -267,10 +267,14 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
             . "Теперь у тебя *{$totalNow} шт.* в инвентаре.\n\n"
             . "Зона применения: *{$recipe['zone_name']}* {$recipe['zone_emoji']}";
 
+        // Идея #4 (VEGA, 24.01.2025): «Крафтить ещё» сохраняет qty последнего крафта,
+        // а не сбрасывает в 1 (как раньше через recipe.craft_again_callback).
+        $craftAgainCallback = 'genericCraft_' . $recipeKey . '_' . $quantityAdded;
+
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🔄 Крафтить еще', 'callback_data' => $recipe['craft_again_callback']],
+                    ['text' => '🔄 Крафтить еще', 'callback_data' => $craftAgainCallback],
                     ['text' => '🎒 Инвентарь',    'callback_data' => 'inventory'],
                 ],
             ],

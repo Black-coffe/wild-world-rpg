@@ -93,49 +93,42 @@ class WorkbenchOneAction extends BaseAction
         $text = "*🔬 Верстак 1!*\n\n"
             . "*Описание:* Верстак предназначен для крафта различных предметов и компонентов.\n";
 
-        $insufficientResources = [];
+        // Идея #11 (Yupirex, 23.01.2025): показывать ВСЕ ресы с (есть / нужно),
+        // не только недостающие — чтобы планировать заранее.
+        $hasAllResources = true;
+        $text .= "\n*Для крафта верстака потребуется:*\n\n";
 
-        // Список ресурсов
         foreach ($requiredResources as $resourceName => $requiredAmount) {
             $availableAmount = $resourcesAvailable[$resourceName]['quantity'] ?? 0;
+            $marker = $availableAmount >= $requiredAmount ? '✅' : '❌';
             if ($availableAmount < $requiredAmount) {
-                $insufficientResources[] = "📦 {$resourceName} - {$availableAmount} есть, нужно {$requiredAmount}\n";
+                $hasAllResources = false;
             }
+            $text .= "{$marker} 📦 {$resourceName} — {$availableAmount} / {$requiredAmount}\n";
         }
 
-        // Список компонентов
         foreach ($requiredComponents as $componentName => $requiredAmount) {
             $availableAmount = $componentsAvailable[$componentName]['quantity'] ?? 0;
+            $marker = $availableAmount >= $requiredAmount ? '✅' : '❌';
             if ($availableAmount < $requiredAmount) {
-                $insufficientResources[] = "📦 {$componentName} - {$availableAmount} есть, нужно {$requiredAmount}\n";
+                $hasAllResources = false;
             }
+            $text .= "{$marker} 📦 {$componentName} — {$availableAmount} / {$requiredAmount}\n";
         }
 
-        // Золото
+        $goldMarker = $goldQuantity >= $requiredGold ? '✅' : '❌';
         if ($goldQuantity < $requiredGold) {
-            $insufficientResources[] = "💰 Золото - {$goldQuantity} есть, нужно {$requiredGold} ед.\n";
+            $hasAllResources = false;
         }
+        $text .= "{$goldMarker} 💰 Золото — {$goldQuantity} / {$requiredGold}\n";
 
-        if (!empty($insufficientResources)) {
-            $text .= "\nДля крафта верстака тебе недостает:\n\n";
-            $text .= implode("\n", $insufficientResources);
-            $text .= "\n__Вы не можете крафтить, так как у вас недостаточно ресурсов для крафта этого предмета.__\n";
+        if ($hasAllResources) {
+            $text .= "\nКрафт займет 120 минут.\n";
         } else {
-            // Вывод списка ресурсов и компонентов, которые будут потрачены
-            $text .= "\n*Для крафта верстака потребуется:*\n\n";
-
-            foreach ($requiredResources as $resourceName => $requiredAmount) {
-                $text .= "📦 {$resourceName} - {$requiredAmount}\n";
-            }
-
-            foreach ($requiredComponents as $componentName => $requiredAmount) {
-                $text .= "📦 {$componentName} - {$requiredAmount}\n";
-            }
-
-            $text .= "💰 Золото - {$requiredGold} ед.\n\n";
-
-            $text .= "Крафт займет 120 минут.\n";
+            $text .= "\n__Не хватает части ресурсов — подкопи и возвращайся.__\n";
         }
+
+        $insufficientResources = $hasAllResources ? [] : [1];
 
         if (!empty($insufficientResources)) {
             $keyboard = [
