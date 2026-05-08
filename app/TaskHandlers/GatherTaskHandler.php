@@ -20,6 +20,7 @@ use App\Libraries\ToolManager;
 use App\Services\Player\Gather\GatherEventModifierService;
 use App\Services\Player\Gather\GatherFormulaService;
 use App\Services\Player\Gather\GatherMessageFormatter;
+use App\Services\Player\Gather\GatherResultPersister;
 use App\Services\Player\Gather\ToolDurabilityProcessor;
 
 /**
@@ -51,6 +52,7 @@ class GatherTaskHandler extends BaseTaskHandler
     private ToolDurabilityProcessor $toolDurability;
     private GatherEventModifierService $eventService;
     private GatherMessageFormatter $messageFormatter;
+    private GatherResultPersister $resultPersister;
 
     protected $characterModel;
     protected $characterResourceModel;
@@ -106,6 +108,11 @@ class GatherTaskHandler extends BaseTaskHandler
         );
         // v0.51.104 (decomp Step 1): pure HTML reply formatter.
         $this->messageFormatter       = new GatherMessageFormatter();
+        // v0.51.105 (decomp Step 2): DB persistence (resources + stat gains).
+        $this->resultPersister        = new GatherResultPersister(
+            $this->characterModel,
+            $this->characterResourceModel
+        );
     }
 
     /**
@@ -343,76 +350,12 @@ class GatherTaskHandler extends BaseTaskHandler
         return $this->formulaService->calculateSpentMinutes($startTime, $endTime);
     }
 
+    /**
+     * v0.51.105 (decomp Step 2): DB persistence delegated to GatherResultPersister.
+     */
     protected function saveFoundResources(array $foundResources, array|\App\Entities\CharacterEntity $character, array $task): void
     {
-        if (empty($foundResources)) {
-            $this->updateCharacterStats($character, $foundResources, $task);
-            return;
-        }
-
-        // v0.51.33 perf: 1 whereIn для існуючих rows замість N SELECT в loop'і.
-        $resourceIds = array_values(array_unique(array_map(
-            static fn ($r): int => (int) $r['resource_id'],
-            $foundResources
-        )));
-        $existingRows = $this->characterResourceModel
-            ->where('id_characters', $character['id'])
-            ->whereIn('id_resources', $resourceIds)
-            ->findAll();
-        $existingByResId = [];
-        foreach ($existingRows as $row) {
-            $existingByResId[(int) $row['id_resources']] = $row;
-        }
-
-        foreach ($foundResources as $res) {
-            $amount = (int) $res['amount'];
-            if ($amount < 1) {
-                continue;
-            }
-
-            $existingResource = $existingByResId[(int) $res['resource_id']] ?? null;
-            if ($existingResource) {
-                $newQuantity = $existingResource['quantity'] + $amount;
-                $this->characterResourceModel->update($existingResource['id'], ['quantity' => $newQuantity]);
-            } else {
-                $this->characterResourceModel->insert([
-                    'id_characters'     => $character['id'],
-                    'id_resources'      => $res['resource_id'],
-                    'id_telegram_users' => $character['telegram_user_id'],
-                    'quantity'          => $amount,
-                ]);
-            }
-        }
-
-        $this->updateCharacterStats($character, $foundResources, $task);
-    }
-
-    protected function updateCharacterStats(array|\App\Entities\CharacterEntity $character, array $foundResources, array $task)
-    {
-        $expGain     = 0;
-        $healthGain  = 0.0;
-        $strength    = 0.0;
-        $agility     = 0.0;
-        $intellect   = 0.0;
-
-        foreach ($foundResources as $res) {
-            $strength   += 0.0006;
-            $agility    += 0.0001;
-            $intellect  += 0.0001;
-            $healthGain += 0.0005;
-        }
-
-        $newHealth = min(100, $character['health'] + $healthGain);
-
-        $updatedData = [
-            'experience' => $character['experience'] + $expGain,
-            'health'     => $newHealth,
-            'strength'   => $character['strength'] + $strength,
-            'agility'    => $character['agility'] + $agility,
-            'intellect'  => $character['intellect'] + $intellect,
-        ];
-
-        $this->characterModel->update($character['id'], $updatedData);
+        $this->resultPersister->persist($foundResources, $character, $task);
     }
 
     /**
