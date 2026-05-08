@@ -35,6 +35,8 @@ use CodeIgniter\I18n\Time;
  * @property Time|null $low_health_notified_at
  * @property int|null $last_message_id
  * @property Time|null $last_update_time
+ * @property string $endgame_state
+ * @property Time|null $endgame_lock_at
  * @property Time|null $created_at
  * @property Time|null $updated_at
  *
@@ -64,6 +66,7 @@ class CharacterEntity extends Entity implements ArrayAccess
         'insurance'           => 'boolean',
         'has_renamed'         => 'boolean',
         'last_message_id'     => '?integer',
+        'endgame_state'       => 'string',
     ];
 
     /**
@@ -74,6 +77,7 @@ class CharacterEntity extends Entity implements ArrayAccess
         'updated_at',
         'last_name_change',
         'low_health_notified_at',
+        'endgame_lock_at',
         'last_update_time',
     ];
 }
