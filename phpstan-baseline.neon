@@ -14377,6 +14377,156 @@ parameters:
 			path: app/Services/PVE/PveBattleLogService.php
 
 		-
+			message: '#^Access to an undefined property object\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Cannot access offset ''agility_bonus'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Cannot access offset ''armor_effect'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Cannot access offset ''attacker'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Cannot access offset ''base_damage'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Cannot access offset ''defender'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Cannot access offset ''defender_health_after'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Cannot access offset ''final_damage'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Cannot access offset ''level_difference'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Cannot access offset ''luckyStrike'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Cannot access offset ''strength_bonus'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Cannot access offset ''total_armor'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Cannot access property \$id on mixed\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 2
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Parameter \#10 \$finalDamage of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Parameter \#11 \$defenderHealthAfter of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Parameter \#12 \$luckyStrike of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects bool, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Parameter \#2 \$attacker of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Parameter \#3 \$defender of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Parameter \#4 \$baseDamage of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Parameter \#5 \$levelDifference of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Parameter \#6 \$strengthBonus of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Parameter \#7 \$agilityBonus of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Parameter \#8 \$totalArmor of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
+			message: '#^Parameter \#9 \$armorEffect of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
 			message: '#^Cannot access offset ''cell_number'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -15547,79 +15697,7 @@ parameters:
 			path: app/Services/Player/PlayerStateService.php
 
 		-
-			message: '#^Access to an undefined property object\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Cannot access offset ''agility_bonus'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Cannot access offset ''armor_effect'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Cannot access offset ''attacker'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Cannot access offset ''base_damage'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Cannot access offset ''defender'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Cannot access offset ''defender_health_after'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Cannot access offset ''final_damage'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Cannot access offset ''level_difference'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Cannot access offset ''luckyStrike'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Cannot access offset ''strength_bonus'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
 			message: '#^Cannot access offset ''telegram_id'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Cannot access offset ''total_armor'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Services/Player/PvEService.php
@@ -15627,12 +15705,6 @@ parameters:
 		-
 			message: '#^Cannot access offset ''username'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Cannot cast mixed to int\.$#'
-			identifier: cast.int
 			count: 1
 			path: app/Services/Player/PvEService.php
 
@@ -15679,79 +15751,13 @@ parameters:
 			path: app/Services/Player/PvEService.php
 
 		-
-			message: '#^Parameter \#10 \$finalDamage of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Parameter \#11 \$defenderHealthAfter of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Parameter \#12 \$luckyStrike of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects bool, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Parameter \#2 \$attacker of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
 			message: '#^Parameter \#2 \$npcName of method App\\Services\\PVE\\PveMessageFormatter\:\:buildFightResultMessage\(\) expects string, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Player/PvEService.php
 
 		-
-			message: '#^Parameter \#3 \$defender of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Parameter \#4 \$baseDamage of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
 			message: '#^Parameter \#4 \$mapLocation of method App\\Services\\PVE\\PveMessageFormatter\:\:buildFightResultMessage\(\) expects array\{coordinate_x\: int\|string, coordinate_y\: int\|string\}, array\{coordinate_x\: int\<\-999, 999\>, coordinate_y\: float\} given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Parameter \#5 \$levelDifference of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Parameter \#6 \$strengthBonus of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Parameter \#7 \$agilityBonus of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Parameter \#8 \$totalArmor of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Parameter \#9 \$armorEffect of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Player/PvEService.php
