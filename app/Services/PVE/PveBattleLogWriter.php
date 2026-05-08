@@ -15,11 +15,11 @@ namespace App\Services\PVE;
 final class PveBattleLogWriter
 {
     /**
-     * @param array<string, mixed> $playerData
+     * @param array<string, mixed>|\App\Entities\CharacterEntity $playerData
      * @param array<string, mixed> $npcData
      * @param array<string, mixed> $fightResult expected keys: log[], winner (object), loser (object|null)
      */
-    public function write(array $playerData, array $npcData, array $fightResult): void
+    public function write(array|\App\Entities\CharacterEntity $playerData, array $npcData, array $fightResult): void
     {
         $service = new PveBattleLogService();
         $service->init($playerData, $npcData);

@@ -26,9 +26,9 @@ final class PveNotificationSender
     }
 
     /**
-     * @param array<string, mixed> $playerData characters row (потрібен `name`, `telegram_user_id`)
+     * @param array<string, mixed>|\App\Entities\CharacterEntity $playerData row/Entity з `name` + `telegram_user_id`
      */
-    public function send(array $playerData, string $finalText): void
+    public function send(array|\App\Entities\CharacterEntity $playerData, string $finalText): void
     {
         log_message('debug', "Пытаемся отправить сообщение в Telegram для {$playerData['name']}");
 

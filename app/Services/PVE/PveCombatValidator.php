@@ -28,12 +28,12 @@ final class PveCombatValidator
     }
 
     /**
-     * @param array<string, mixed> $playerData    characters row
+     * @param array<string, mixed>|\App\Entities\CharacterEntity $playerData characters row/Entity
      * @param array<string, mixed> $npcDataInput  NPC dispatch info — лише `id` (npc_spawn id) використовується
      *
      * @return array{ok: true, npcData: array<string, mixed>}|array{ok: false, response: array<string, string>}
      */
-    public function validateAndLoadNpc(array $playerData, array $npcDataInput): array
+    public function validateAndLoadNpc(array|\App\Entities\CharacterEntity $playerData, array $npcDataInput): array
     {
         $spawnId = $npcDataInput['id'] ?? null;
 

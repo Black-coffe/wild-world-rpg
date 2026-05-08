@@ -16,14 +16,14 @@ final class PveMessageFormatter
     /**
      * Формирует итоговое сообщение о бое (HTML).
      *
-     * @param array<string, mixed>             $playerData   Данные персонажа.
+     * @param array<string, mixed>|\App\Entities\CharacterEntity $playerData
      * @param string                           $npcName      Имя NPC.
      * @param array<string, mixed>             $fightResult  Результат BattleService::startFight.
      * @param array{coordinate_x: int|string, coordinate_y: int|string} $mapLocation
-     * @param array<string, mixed>             $rewards      Награды от RewardService::grantRewards.
+     * @param array<string, mixed>             $rewards      Награды.
      */
     public function buildFightResultMessage(
-        array $playerData,
+        array|\App\Entities\CharacterEntity $playerData,
         string $npcName,
         array $fightResult,
         array $mapLocation,

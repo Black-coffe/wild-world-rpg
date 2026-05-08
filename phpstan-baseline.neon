@@ -14461,6 +14461,12 @@ parameters:
 			path: app/Services/PVE/PveBattleLogWriter.php
 
 		-
+			message: '#^Parameter \#1 \$playerData of method App\\Services\\PVE\\PveBattleLogService\:\:init\(\) expects array, App\\Entities\\CharacterEntity\|array\<string, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PVE/PveBattleLogWriter.php
+
+		-
 			message: '#^Parameter \#10 \$finalDamage of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
 			identifier: argument.type
 			count: 1
@@ -15727,31 +15733,19 @@ parameters:
 			path: app/Services/Player/PlayerStateService.php
 
 		-
-			message: '#^Method App\\Services\\Player\\PvEService\:\:attack\(\) has parameter \$npcData with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Method App\\Services\\Player\\PvEService\:\:attack\(\) has parameter \$playerData with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Method App\\Services\\Player\\PvEService\:\:attack\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Parameter \#1 \$playerData of method App\\Services\\PVE\\PveMessageFormatter\:\:buildFightResultMessage\(\) expects array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null given\.$#'
+			message: '#^Parameter \#1 \$data of class App\\Entities\\BattleCharacter constructor expects array, App\\Entities\\CharacterEntity\|array\<string, mixed\> given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Player/PvEService.php
 
 		-
-			message: '#^Parameter \#1 \$playerData of method App\\Services\\PVE\\PveNotificationSender\:\:send\(\) expects array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null given\.$#'
+			message: '#^Parameter \#1 \$playerData of method App\\Services\\PVE\\PveMessageFormatter\:\:buildFightResultMessage\(\) expects App\\Entities\\CharacterEntity\|array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Player/PvEService.php
+
+		-
+			message: '#^Parameter \#1 \$playerData of method App\\Services\\PVE\\PveNotificationSender\:\:send\(\) expects App\\Entities\\CharacterEntity\|array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Player/PvEService.php
@@ -15771,6 +15765,18 @@ parameters:
 		-
 			message: '#^Parameter \#4 \$mapLocation of method App\\Services\\PVE\\PveMessageFormatter\:\:buildFightResultMessage\(\) expects array\{coordinate_x\: int\|string, coordinate_y\: int\|string\}, array\{coordinate_x\: int\<\-999, 999\>, coordinate_y\: float\} given\.$#'
 			identifier: argument.type
+			count: 1
+			path: app/Services/Player/PvEService.php
+
+		-
+			message: '#^Part \$npcData\[''npc_id''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Player/PvEService.php
+
+		-
+			message: '#^Part \$playerData\[''name''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
 			count: 1
 			path: app/Services/Player/PvEService.php
 
@@ -18643,6 +18649,18 @@ parameters:
 			path: app/TaskHandlers/NPC/AutoPveHandler.php
 
 		-
+			message: '#^Binary operation "\." between ''experience \+ '' and mixed results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 1
+			path: app/TaskHandlers/NPC/AutoPveHandler.php
+
+		-
+			message: '#^Binary operation "\." between ''gold \+ '' and mixed results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 1
+			path: app/TaskHandlers/NPC/AutoPveHandler.php
+
+		-
 			message: '#^Cannot access offset ''cell_number'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -18652,6 +18670,18 @@ parameters:
 			message: '#^Cannot access offset ''cell_number'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 2
+			path: app/TaskHandlers/NPC/AutoPveHandler.php
+
+		-
+			message: '#^Cannot access offset ''exp'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/TaskHandlers/NPC/AutoPveHandler.php
+
+		-
+			message: '#^Cannot access offset ''gold'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
 			path: app/TaskHandlers/NPC/AutoPveHandler.php
 
 		-
@@ -18685,13 +18715,13 @@ parameters:
 			path: app/TaskHandlers/NPC/AutoPveHandler.php
 
 		-
-			message: '#^Parameter \#1 \$playerData of method App\\Services\\Player\\PvEService\:\:attack\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|ArrayAccess given\.$#'
+			message: '#^Parameter \#1 \$playerData of method App\\Services\\Player\\PvEService\:\:attack\(\) expects App\\Entities\\CharacterEntity\|array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|ArrayAccess given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/NPC/AutoPveHandler.php
 
 		-
-			message: '#^Parameter \#2 \$npcData of method App\\Services\\Player\\PvEService\:\:attack\(\) expects array, array\|ArrayAccess given\.$#'
+			message: '#^Parameter \#2 \$npcData of method App\\Services\\Player\\PvEService\:\:attack\(\) expects array\<string, mixed\>, array\|ArrayAccess given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/NPC/AutoPveHandler.php
