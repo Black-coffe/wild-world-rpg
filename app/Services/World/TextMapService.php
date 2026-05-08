@@ -298,7 +298,39 @@ class TextMapService
         $deltaY = abs($pY - $bY);
         $distance = max($deltaX, $deltaY);
 
-        return "От 🙎‍♂️ до 🏕 = {$distance} ходов.\n";
+        // Идея #13 (Yupirex, 23.01.2025): emoji-стрелка направления к базе.
+        $arrow = $this->compassArrow($pX, $pY, $bX, $bY);
+
+        return "От 🙎‍♂️ до 🏕 = {$distance} ходов {$arrow}\n";
+    }
+
+    /**
+     * 8-octant compass: возвращает emoji-стрелку от игрока к базе.
+     * y растёт на юг (north = меньший y).
+     */
+    private function compassArrow(int $pX, int $pY, int $bX, int $bY): string
+    {
+        if ($pX === $bX && $pY === $bY) {
+            return '🎯';
+        }
+        $dx = $bX - $pX;
+        $dy = $bY - $pY;
+        if ($dx === 0) {
+            return $dy < 0 ? '⬆️' : '⬇️';
+        }
+        if ($dy === 0) {
+            return $dx < 0 ? '⬅️' : '➡️';
+        }
+        if (abs($dx) > 2 * abs($dy)) {
+            return $dx < 0 ? '⬅️' : '➡️';
+        }
+        if (abs($dy) > 2 * abs($dx)) {
+            return $dy < 0 ? '⬆️' : '⬇️';
+        }
+        if ($dy < 0) {
+            return $dx < 0 ? '↖️' : '↗️';
+        }
+        return $dx < 0 ? '↙️' : '↘️';
     }
 
     /**

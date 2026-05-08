@@ -91,7 +91,8 @@ class PlayerDetectionService
         $maxY = $y1 + $detectionRadius;
 
         // Получаем всех игроков, находящихся в пределах границ, исключая текущего игрока
-        $builder = $this->characterModel->select('characters.id, characters.cell_number, map.coordinate_x, map.coordinate_y')
+        // Идея #3 (15.01.2025): включаем characters.name для замены числового ID на ник.
+        $builder = $this->characterModel->select('characters.id, characters.name, characters.cell_number, map.coordinate_x, map.coordinate_y')
             ->join('map', 'characters.cell_number = map.cell_number', 'inner')
             ->where('characters.id !=', $characterId)
             ->where('map.coordinate_x >=', $minX)
@@ -119,6 +120,7 @@ class PlayerDetectionService
                 if ($this->canSendNotification($characterId, $player['id'])) {
                     $detectedPlayers[] = [
                         'id' => $player['id'],
+                        'name' => $player['name'] ?? '',
                         'cell_number' => $player['cell_number'],
                         'distance' => $distance,
                     ];
@@ -149,7 +151,9 @@ class PlayerDetectionService
             $keyboardRows = [];
 
             foreach ($detectedPlayers as $detected) {
-                $message .= "Есть игрок №{$detected['id']} на расстоянии {$detected['distance']} ячеек от тебя.\n";
+                // Идея #3 (15.01.2025): показываем ник, fallback на №id если ник не задан.
+                $nameTag = $detected['name'] !== '' ? "*{$detected['name']}*" : "№{$detected['id']}";
+                $message .= "Есть игрок {$nameTag} на расстоянии {$detected['distance']} ячеек от тебя.\n";
 
                 // Для каждой цели можно сделать и отдельную строку клавиатуры,
                 // или общий набор кнопок, если нужно.
