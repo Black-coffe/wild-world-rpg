@@ -4,22 +4,19 @@ namespace App\Controllers\Telegram\Commands\Actions\Camp;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterModel;
-use App\Models\ClaimedCellModel;
 use App\Models\CraftedItemsLogModel;
-use App\Models\CraftedItemsModel;
-use App\Models\MapModel;
-use App\Services\Player\TeleportCostService;
+use App\Services\Player\TeleportUse\TeleportUseValidator;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
 class TeleportUseAction extends BaseAction
 {
-    protected $teleportCostService;
+    private TeleportUseValidator $validator;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->teleportCostService = new TeleportCostService();
+        $this->validator = new TeleportUseValidator();
     }
 
     public function handle(): ServerResponse
@@ -76,98 +73,31 @@ class TeleportUseAction extends BaseAction
      */
     private function useBackpackTeleport(array|\App\Entities\CharacterEntity $character): ServerResponse
     {
-        $craftedItemModel    = new CraftedItemsModel();
+        $result = $this->validator->validateBackpack($character);
+        if (!$result['ok']) {
+            return $this->sendError($result['error']);
+        }
+
+        $ctx = $result['context'];
+        $backpackLog = $ctx['backpackLog'];
+        $claimedCell = $ctx['claimedCell'];
+        $mapRow      = $ctx['mapRow'];
+        $customData  = $ctx['customData'];
+
         $craftedItemLogModel = new CraftedItemsLogModel();
         $characterModel      = new CharacterModel();
-        $claimedCellModel    = new ClaimedCellModel();
-        $mapModel            = new MapModel();
 
-        // 1) Ищем запись о рюкзаке в crafted_items
-        $backpackItem = $craftedItemModel->where('name_eng', 'TeleportBackpack')->first();
-        if (!$backpackItem) {
-            // Нет вообще такого предмета в БД
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => "Ошибка: предмет 'TeleportBackpack' не найден в базе.",
-            ]);
-        }
-
-        // 2) Ищем запись у игрока в crafted_items_log (кол-во, durability_count и custom_setting)
-        $backpackLog = $craftedItemLogModel
-            ->where('crafted_item_id', $backpackItem['id'])
-            ->where('character_id', $character['id'])
-            ->first();
-
-        if (!$backpackLog) {
-            // У игрока нет рюкзака
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => "У тебя нет рюкзака для телепорта!",
-                'parse_mode' => 'Markdown',
-            ]);
-        }
-
-        // 3) Проверяем прочность (durability_count) и количество (quantity)
-        if (($backpackLog['quantity'] < 1) || ($backpackLog['durability_count'] < 1)) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => "Рюкзак больше не пригоден для телепортации (нет зарядов).",
-            ]);
-        }
-
-        // 4) Парсим custom_setting (JSON)
-        $customData = [];
-        if (!empty($backpackLog['custom_setting'])) {
-            // Преобразуем JSON -> ассоциативный массив
-            $customData = json_decode($backpackLog['custom_setting'], true);
-            if (!is_array($customData)) {
-                $customData = [];
-            }
-        }
-        $lastUsedAtStr = $customData['lastUsedAt'] ?? null;
-
-        // Проверяем, был ли телепорт в прошлом
-        if ($lastUsedAtStr) {
-            $lastUsedTime = new \DateTime($lastUsedAtStr);
-            $now          = new \DateTime();
-
-            // Считаем разницу
-            $diff = $now->diff($lastUsedTime);
-            // Получаем общее кол-во минут
-            $minutesPassed = $diff->days * 24 * 60
-                + $diff->h * 60
-                + $diff->i; // i — минуты
-
-            // Если прошло меньше 60 минут, запрещаем
-            if ($minutesPassed < 60) {
-                $remaining = 60 - $minutesPassed;
-                Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-                return Request::sendMessage([
-                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                    'text'    => "Ты уже использовал рюкзак! Повторный телепорт будет доступен через ~{$remaining} мин.",
-                ]);
-            }
-        }
-
-        // 5) Если мы здесь — значит можно телепортировать
-        //    Ставим новое время использования
+        // Ставим новое время использования
         $customData['lastUsedAt'] = (new \DateTime())->format('Y-m-d H:i:s');
 
         // Обновляем запись: уменьшаем durability_count на 1, либо quantity
-        $newDurability = $backpackLog['durability_count'] - 1;
+        $newDurability = (int) $backpackLog['durability_count'] - 1;
 
         // Если прочность теперь 0, проверяем qty. Если qty>1, можно списать одну штуку...
         if ($newDurability <= 0) {
-            if ($backpackLog['quantity'] > 1) {
-                // У игрока было несколько таких рюкзаков. Уменьшаем количество на 1,
-                // а durability_count для «нового» рюкзака можно вернуть к дефолту,
-                // либо хранить 0 — зависит от вашей игровой логики.
+            if ((int) $backpackLog['quantity'] > 1) {
                 $craftedItemLogModel->update($backpackLog['id'], [
-                    'quantity'       => $backpackLog['quantity'] - 1,
-                    // «Обнуляем» настройки? Либо можно перенести customData
+                    'quantity'       => (int) $backpackLog['quantity'] - 1,
                     'durability_count' => 0,
                     'custom_setting'   => null,
                 ]);
@@ -183,25 +113,7 @@ class TeleportUseAction extends BaseAction
             ]);
         }
 
-        // 6) Собственно телепортируем на базу
-        $claimedCell = $claimedCellModel->where('character_id', $character['id'])->first();
-        if (!$claimedCell) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => "У тебя нет базы, куда телепортироваться!",
-            ]);
-        }
-        $mapRow = $mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
-        if (!$mapRow) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => "Ошибка: не найдена ячейка базы на карте.",
-            ]);
-        }
-
-        // Обновляем координаты персонажа
+        // Собственно телепортируем на базу
         $characterModel->update($character['id'], [
             'cell_number' => $claimedCell['map_cell_id'],
             'biome_id'    => $mapRow['biome_id'],
@@ -209,7 +121,7 @@ class TeleportUseAction extends BaseAction
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        // 7) Сообщаем об успехе
+        // Сообщаем об успехе
         $keyboard = [
             'inline_keyboard' => [
                 [
@@ -228,64 +140,45 @@ class TeleportUseAction extends BaseAction
     }
 
     /**
+     * Common error sender helper. Будет використано Step 2 формаatter'ом.
+     */
+    private function sendError(string $text, ?string $parseMode = null): ServerResponse
+    {
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+        $payload = [
+            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'    => $text,
+        ];
+        if ($parseMode !== null) {
+            $payload['parse_mode'] = $parseMode;
+        }
+        return Request::sendMessage($payload);
+    }
+
+    /**
      * Телепорт за золото
      */
     private function useGoldTeleport(array|\App\Entities\CharacterEntity $character): ServerResponse
     {
-        $characterModel  = new CharacterModel();
-        $claimedCellModel = new ClaimedCellModel();
-        $mapModel        = new MapModel();
-
-        // Актуализируем персонажа из БД (вдруг gold изменился)
-        $charRow = $characterModel->find($character['id']);
-        if (!$charRow) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => "Ошибка! Персонаж не найден.",
-            ]);
+        $result = $this->validator->validateGold($character);
+        if (!$result['ok']) {
+            return $this->sendError($result['error']);
         }
 
-        // Получаем стоимость телепорта
-        $cost = $this->teleportCostService->calculateTeleportCost((int)$charRow['level']);
+        $ctx = $result['context'];
+        $charRow     = $ctx['charRow'];
+        $claimedCell = $ctx['claimedCell'];
+        $mapRow      = $ctx['mapRow'];
+        $cost        = $ctx['cost'];
 
-        // Проверяем, достаточно ли золота
-        if ((int)$charRow['gold'] < $cost) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => "Недостаточно золота! Нужно {$cost}, а у тебя всего {$charRow['gold']}.",
-            ]);
-        }
+        $characterModel = new CharacterModel();
 
-        // Находим базу
-        $claimedCell = $claimedCellModel->where('character_id', $charRow['id'])->first();
-        if (!$claimedCell) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => "У тебя нет базы для телепорта!",
-                'parse_mode' => 'Markdown'
-            ]);
-        }
-
-        $mapRow = $mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
-        if (!$mapRow) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => "Ошибка: не найдена ячейка базы на карте.",
-            ]);
-        }
-
-        // Списываем золото
-        $newGold = (int)$charRow['gold'] - $cost;
-
-        // Обновляем координаты персонажа → телепорт
+        // Списываем золото + телепорт
+        $newGold = (int) $charRow['gold'] - $cost;
         $characterModel->update($charRow['id'], [
-            'gold'       => $newGold,
-            'cell_number'=> $claimedCell['map_cell_id'],
-            'biome_id'   => $mapRow['biome_id'],
+            'gold'        => $newGold,
+            'cell_number' => $claimedCell['map_cell_id'],
+            'biome_id'    => $mapRow['biome_id'],
         ]);
 
         // Форматируем цифры с разделителями по 3
@@ -299,138 +192,104 @@ class TeleportUseAction extends BaseAction
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'    => $text,
+            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'       => $text,
             'parse_mode' => 'Markdown',
         ]);
     }
 
     /**
-     * Телепорт с помощью портативного устройства
+     * Телепорт с помощью портативного устройства.
+     * Legacy preserved: всі fail-paths (no item, no log, no base, no map) повертають
+     * один generic error «У тебя нет портативного телепорта».
      */
-    private function usePortableTeleport($character): ServerResponse
+    private function usePortableTeleport(array|\App\Entities\CharacterEntity $character): ServerResponse
     {
-        $craftedItemModel = new CraftedItemsModel();
+        $result = $this->validator->validatePortable($character);
+        if (!$result['ok']) {
+            return $this->sendError("🤖 Это снова я – *Роби*!\n\n" . $result['error'], 'Markdown');
+        }
+
+        $ctx = $result['context'];
+        $portableItem = $ctx['portableItem'];
+        $portableLog  = $ctx['portableLog'];
+        $claimedCell  = $ctx['claimedCell'];
+        $mapRow       = $ctx['mapRow'];
+
         $craftedItemLogModel = new CraftedItemsLogModel();
-        $characterModel = new CharacterModel();
-        $claimedCellModel = new ClaimedCellModel();
-        $mapModel = new MapModel();
+        $characterModel      = new CharacterModel();
 
-        // Проверяем наличие портативного телепорта
-        $portableTeleport = $craftedItemModel->where('name_eng', 'PortableTeleport')->first();
+        // Обновляем местоположение персонажа
+        $characterModel->update($character['id'], [
+            'cell_number' => $claimedCell['map_cell_id'],
+            'biome_id'    => $mapRow['biome_id'],
+        ]);
 
-        if ($portableTeleport) {
-            $hasPortableTeleport = $craftedItemLogModel
-                ->where('crafted_item_id', $portableTeleport['id'])
-                ->where('character_id', $character['id'])
-                ->first();
-
-            if ($hasPortableTeleport) {
-                // Получаем данные о местоположении базы
-                $claimedCell = $claimedCellModel->where('character_id', $character['id'])->first();
-                if ($claimedCell) {
-                    // Получаем данные о ячейке на карте
-                    $mapRow = $mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
-
-                    if ($mapRow) {
-                        // Обновляем местоположение персонажа
-                        $characterModel->update($character['id'], [
-                            'cell_number' => $claimedCell['map_cell_id'],
-                            'biome_id' => $mapRow['biome_id']
-                        ]);
-
-                        // Логика использования портативного телепорта
-                        if ($hasPortableTeleport['durability_count'] > 1) {
-                            // Уменьшаем счетчик прочности на 1
-                            $craftedItemLogModel->update($hasPortableTeleport['id'], [
-                                'durability_count' => $hasPortableTeleport['durability_count'] - 1
-                            ]);
-                        } else {
-                            if ($hasPortableTeleport['quantity'] > 1) {
-                                // Уменьшаем количество на 1 и обновляем счетчик прочности
-                                $craftedItemLogModel->update($hasPortableTeleport['id'], [
-                                    'quantity' => $hasPortableTeleport['quantity'] - 1,
-                                    'durability_count' => $portableTeleport['durability_count']
-                                ]);
-                            } else {
-                                // Удаляем запись о телепорте, так как он полностью использован
-                                $craftedItemLogModel->delete($hasPortableTeleport['id']);
-                            }
-                        }
-
-                        $keyboard = [
-                            'inline_keyboard' => [
-                                [
-                                    ['text' => '🏠 База', 'callback_data' => 'Base'],
-                                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                                ],
-                            ]
-                        ];
-                        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-                        return Request::sendMessage([
-                            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                            'text'    => "🤖 Это снова я – *Роби*!\n\nТы успешно использовал портативный телепорт и телепортировался на базу.",
-                            'parse_mode' => 'Markdown',
-                            'reply_markup' => json_encode($keyboard),
-                        ]);
-                    }
-                }
+        // Логика использования портативного телепорта
+        if ((int) $portableLog['durability_count'] > 1) {
+            $craftedItemLogModel->update($portableLog['id'], [
+                'durability_count' => (int) $portableLog['durability_count'] - 1,
+            ]);
+        } else {
+            if ((int) $portableLog['quantity'] > 1) {
+                // Уменьшаем количество на 1 и обновляем счетчик прочности
+                $craftedItemLogModel->update($portableLog['id'], [
+                    'quantity'         => (int) $portableLog['quantity'] - 1,
+                    'durability_count' => $portableItem['durability_count'],
+                ]);
+            } else {
+                // Удаляем запись о телепорте, так как он полностью использован
+                $craftedItemLogModel->delete($portableLog['id']);
             }
         }
+
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '🏠 База', 'callback_data' => 'Base'],
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                ],
+            ],
+        ];
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'    => "🤖 Это снова я – *Роби*!\n\nУ тебя нет портативного телепорта.",
-            'parse_mode' => 'Markdown'
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'         => "🤖 Это снова я – *Роби*!\n\nТы успешно использовал портативный телепорт и телепортировался на базу.",
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
         ]);
     }
 
     /**
-     * Телепорт за опыт
+     * Телепорт за опыт.
+     * Legacy preserved: всі fail-paths повертають єдиний error «У тебя недостаточно опыта».
      */
-
-    private function useExperienceTeleport($character): ServerResponse
+    private function useExperienceTeleport(array|\App\Entities\CharacterEntity $character): ServerResponse
     {
-        $characterModel = new CharacterModel();
-        $claimedCellModel = new ClaimedCellModel();
-        $mapModel = new MapModel();
-
-        $character = $characterModel->find($character['id']);
-
-        if ($character['experience'] > 1.01) {
-            // Получаем данные о местоположении базы
-            $claimedCell = $claimedCellModel->where('character_id', $character['id'])->first();
-            if ($claimedCell) {
-                // Получаем данные о ячейке на карте
-                $mapRow = $mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
-
-                if ($mapRow) {
-                    // Обновляем местоположение персонажа
-                    $characterModel->update($character['id'], [
-                        'cell_number' => $claimedCell['map_cell_id'],
-                        'biome_id' => $mapRow['biome_id']
-                    ]);
-
-                    // Списываем 1 единицу опыта
-                    $characterModel->update($character['id'], [
-                        'experience' => $character['experience'] - 1
-                    ]);
-
-                    Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-                    return Request::sendMessage([
-                        'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                        'text'    => "🤖 Это снова я – *Роби*!\n\nТы успешно использовал опыт для телепортации и телепортировался на базу.",
-                        'parse_mode' => 'Markdown',
-                    ]);
-                }
-            }
+        $result = $this->validator->validateExperience($character);
+        if (!$result['ok']) {
+            return $this->sendError("🤖 Это снова я – *Роби*!\n\n" . $result['error'], 'Markdown');
         }
+
+        $ctx = $result['context'];
+        $charRow     = $ctx['charRow'];
+        $claimedCell = $ctx['claimedCell'];
+        $mapRow      = $ctx['mapRow'];
+
+        $characterModel = new CharacterModel();
+
+        // Обновляем местоположение персонажа + списываем 1 единицу опыта
+        $characterModel->update($charRow['id'], [
+            'cell_number' => $claimedCell['map_cell_id'],
+            'biome_id'    => $mapRow['biome_id'],
+            'experience'  => (float) $charRow['experience'] - 1,
+        ]);
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'    => "🤖 Это снова я – *Роби*!\n\nУ тебя недостаточно опыта для телепортации.",
-            'parse_mode' => 'Markdown'
+            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'       => "🤖 Это снова я – *Роби*!\n\nТы успешно использовал опыт для телепортации и телепортировался на базу.",
+            'parse_mode' => 'Markdown',
         ]);
     }
 }
