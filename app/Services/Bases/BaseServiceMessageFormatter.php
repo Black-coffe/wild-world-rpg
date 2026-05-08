@@ -8,10 +8,9 @@ namespace App\Services\Bases;
  * v0.51.81 (BaseService decomp Step 1) — extract Markdown templates
  * + inline keyboards для BaseService у dedicated formatter.
  *
- * Окремо від BaseInfoMessageFormatter (іншого decomp) бо texts/keyboards
- * BaseService мають свою специфіку (verbose location info, additional
- * "Телепорт/Переехать" buttons у baseBuildings keyboard, separate
- * showCampCreation flow).
+ * BaseService texts/keyboards мають свою специфіку: verbose location info,
+ * additional "Телепорт/Переехать" buttons у baseBuildings keyboard, separate
+ * showCampCreation flow.
  *
  * Templates (5):
  *   noBaseInfo(coordX, coordY, biomeName, biomeDesc, dangerLevel, survivalDiff)
