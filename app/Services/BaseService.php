@@ -2,9 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\BuildingModel;
-use App\Models\CharacterBuildingModel;
 use App\Models\ClaimedCellModel;
+use App\Services\Bases\BaseBuildingsList;
 use App\Services\Bases\BaseLocationResolver;
 use App\Services\Bases\BaseServiceMessageFormatter;
 use App\Services\Bases\CampCheckService;
@@ -28,20 +27,18 @@ use Longman\TelegramBot\Request;
 class BaseService
 {
     protected $claimedCellModel;
-    protected $buildingModel;
-    protected $characterBuildingModel;
     protected $towerCoverageService;
     protected BaseServiceMessageFormatter $formatter;
     protected BaseLocationResolver $resolver;
+    protected BaseBuildingsList $buildingsList;
 
     public function __construct()
     {
         $this->claimedCellModel       = new ClaimedCellModel();
-        $this->buildingModel          = new BuildingModel();
-        $this->characterBuildingModel = new CharacterBuildingModel();
         $this->towerCoverageService   = new CommunicationTowerCoverageService();
         $this->formatter              = new BaseServiceMessageFormatter();
         $this->resolver               = new BaseLocationResolver();
+        $this->buildingsList          = new BaseBuildingsList();
     }
 
     /**
@@ -145,10 +142,6 @@ class BaseService
         array $claimedCell,
         ?array $coverageResult = null
     ): ServerResponse {
-        $buildings = $this->characterBuildingModel
-            ->where('character_id', $characterRow['id'])
-            ->findAll();
-
         $mapRow = $this->resolver->findMapRow((int) $claimedCell['map_cell_id']);
         if (!$mapRow) {
             return $this->sendMessage($chatId, $this->formatter->baseMapNotFoundError());
@@ -156,16 +149,7 @@ class BaseService
 
         $biomeRow  = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
         $biomeName = $biomeRow['name'] ?? '???';
-
-        $buildingCount = count($buildings);
-        $totalTax      = (int) array_sum(array_column($buildings, 'tax'));
-
-        $buildingList = '';
-        foreach ($buildings as $b) {
-            $bld   = $this->buildingModel->find($b['building_id']);
-            $bName = $bld['name_ru'] ?? 'Неизвестное строение';
-            $buildingList .= "- {$bName}\n";
-        }
+        $summary   = $this->buildingsList->buildSummary((int) $characterRow['id']);
 
         return $this->sendPhoto(
             $chatId,
@@ -174,9 +158,9 @@ class BaseService
                 $mapRow['coordinate_x'],
                 $mapRow['coordinate_y'],
                 (string) $biomeName,
-                $buildingCount,
-                $totalTax,
-                $buildingList,
+                $summary['count'],
+                $summary['totalTax'],
+                $summary['list'],
                 $coverageResult,
             ),
         );
