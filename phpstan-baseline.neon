@@ -2557,6 +2557,18 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 
 		-
+			message: '#^Cannot access offset ''name_en'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
+			message: '#^Cannot access offset ''name_eng'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
+
+		-
 			message: '#^Cannot access offset ''name_ru'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 2

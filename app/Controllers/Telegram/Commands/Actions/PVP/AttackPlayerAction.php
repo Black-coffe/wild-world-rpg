@@ -17,6 +17,7 @@ use App\Models\OutfitModel;
 use App\Models\TelegramUserModel;
 use App\Models\WeaponModel;
 
+use App\Services\Endgame\EndgameProgressionService;
 use App\Services\Player\DeathService;
 use App\Services\Player\PvPRestrictionService;
 use App\Services\PVE\PvpDamageCalculator;
@@ -215,6 +216,9 @@ class AttackPlayerAction extends BaseAction
             $winner         = $this->characterModel->find($winner['id']);
             $winnerDiffText = $this->rewardOrchestrator->makeWinnerDiffText($winnerBefore);
             $summaryText   .= "\n\n🏆 <b>{$winner['name']}</b> торжествует! {$winnerDiffText}";
+
+            // v0.51.112 endgame hook: PvP kill → winner's faction score.
+            (new EndgameProgressionService())->recordPvpKill($winner);
 
             $attackerIntro = ($attacker['id'] === $winner['id'])
                 ? "Ты атаковал и разгромил врага!"
