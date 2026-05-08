@@ -7,6 +7,7 @@ use App\Models\QuestStepsModel;
 use App\Models\CharacterModel;
 use App\Models\ExploredCellsModel;
 use App\Models\TelegramUserModel;
+use App\Services\Endgame\EndgameProgressionService;
 use App\TaskHandlers\BaseTaskHandler;
 
 /**
@@ -60,6 +61,8 @@ class QuestExplore30CellsHandler extends BaseTaskHandler
                 // 5. Отправляем сообщение об успешном выполнении квеста
                 $this->characterModel->increaseGold($step['character_id'], 1000);
                 $this->questStepsModel->completeStep($step['id']);
+                // v0.51.116 endgame hook: quest completion → faction score.
+                (new EndgameProgressionService())->recordQuestCompletion((int) $step['character_id']);
                 $message = "🎉 *Поздравляем!* Квест '*Изучить 30 ячеек*' успешно завершен! Ты заслужил награду в *1000 золотых монет*!\n\nПразднуй свою победу, герой! Новые приключения уже ждут тебя!";
                 // Обновляем порядок шага на 11, чтобы сообщение больше не отправлялось
             } else {
