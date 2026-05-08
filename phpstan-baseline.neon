@@ -15247,6 +15247,36 @@ parameters:
 			path: app/Services/Player/Gather/GatherFormulaService.php
 
 		-
+			message: '#^Access to an undefined property object\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Player/Gather/GatherMessageFormatter.php
+
+		-
+			message: '#^Access to an undefined property object\:\:\$rarity\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Player/Gather/GatherMessageFormatter.php
+
+		-
+			message: '#^Cannot access offset ''amount'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/Gather/GatherMessageFormatter.php
+
+		-
+			message: '#^Cannot access offset ''resource_id'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/Gather/GatherMessageFormatter.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 2
+			path: app/Services/Player/Gather/GatherMessageFormatter.php
+
+		-
 			message: '#^Cannot access offset ''crafted_item_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
