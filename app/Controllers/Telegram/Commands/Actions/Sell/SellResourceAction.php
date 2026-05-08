@@ -64,6 +64,11 @@ class SellResourceAction extends BaseAction
                 return $this->askForQuantity($character['id'], $resourceId);
             }
 
+            // Идея #6 (Arseny, 21.01.2025): свободный ввод qty через ForceReply.
+            if ($params[2] === 'custom' && count($params) == 3) {
+                return $this->promptCustomQuantity($resourceId);
+            }
+
             // Если callback_data = sellResource_{resourceId}_{quantity}_sell
             if (count($params) == 4 && $params[3] === 'sell') {
                 $quantity = $params[2]; // может быть 'all' или число
@@ -72,6 +77,31 @@ class SellResourceAction extends BaseAction
         }
 
         return Request::emptyResponse();
+    }
+
+    /**
+     * Идея #6: ForceReply prompt для произвольного qty.
+     * Маркер `[SELL:{id}]` в тексте позволяет GenericmessageCommand роутить
+     * ответ обратно в SellResourceAction::finalizeSale.
+     */
+    protected function promptCustomQuantity(int $resourceId): ServerResponse
+    {
+        $resource = $this->resourceModel->find($resourceId);
+        if (!$resource) {
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'    => 'Ресурс не найден.',
+            ]);
+        }
+
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+        return Request::sendMessage([
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'         => "📝 Введите число для продажи *{$resource['name']}* (1 ед. = {$resource['sell_price']}💰).\n\nОтветьте на это сообщение числом. [SELL:{$resourceId}]",
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode(['force_reply' => true, 'selective' => true]),
+        ]);
     }
 
     /**
@@ -179,6 +209,7 @@ class SellResourceAction extends BaseAction
             [$btn(1),   $btn(5),    $btn(10),   $btn(15)],
             [$btn(25),  $btn(50),   $btn(100),  $btn(150)],
             [$btn(250), $btn(500),  $btn(1000), $btn(5000)],
+            [['text' => '📝 Своё число', 'callback_data' => "sellResource_{$resourceId}_custom"]],
         ];
 
         $keyboard = ['inline_keyboard' => $keyboardButtons];
@@ -192,113 +223,38 @@ class SellResourceAction extends BaseAction
     }
 
     /**
-     * Собственно, продажа
+     * Собственно, продажа — делегирует в ResourceTradeService.
      */
     protected function finalizeSale(array|\App\Entities\CharacterEntity $character, int $resourceId, $quantityAction): ServerResponse
     {
-        // Проверяем, есть ли ресурс у игрока
-        $charRes = $this->characterResourceModel
-            ->where('id_characters', $character['id'])
-            ->where('id_resources',  $resourceId)
-            ->first();
+        $svc    = new \App\Services\Player\Trade\ResourceTradeService();
+        $result = $svc->sellResource(is_array($character) ? $character : (array) $character, $resourceId, $quantityAction);
 
-        if (!$charRes) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => "У вас нет такого ресурса.",
-            ]);
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+        $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
+
+        if (!$result['success']) {
+            return Request::sendMessage(['chat_id' => $chatId, 'text' => $result['message']]);
         }
-
-        $resource = $this->resourceModel->find($resourceId);
-        if (!$resource) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => "Ресурс не найден.",
-            ]);
-        }
-
-        // Определяем кол-во к продаже
-        $sellQuantity = 0;
-        if ($quantityAction === 'all') {
-            $sellQuantity = $charRes['quantity'];
-        } else {
-            $sellQuantity = min((int)$quantityAction, $charRes['quantity']);
-        }
-
-        if ($sellQuantity <= 0) {
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text'    => "Некорректное количество для продажи.",
-            ]);
-        }
-
-        // Считаем сумму исходя из sell_price
-        $saleAmount = $sellQuantity * $resource['sell_price'];
-
-        // Даём игроку золото
-        $this->characterModel->update($character['id'], [
-            'gold' => $character['gold'] + $saleAmount
-        ]);
-
-        // Уменьшаем или удаляем ресурс из инвентаря
-        $newQuantity = $charRes['quantity'] - $sellQuantity;
-        if ($newQuantity > 0) {
-            $this->characterResourceModel->update($charRes['id'], ['quantity' => $newQuantity]);
-        } else {
-            $this->characterResourceModel->delete($charRes['id']);
-        }
-
-        // Обновляем счётчик sold в resources_bank
-        $bank = $this->resourcesBankModel->where('resource_id', $resourceId)->first();
-        if ($bank) {
-            $newSold = $bank['resources_sold'] + $sellQuantity;
-            $this->resourcesBankModel->update($bank['id'], [
-                'resources_sold' => $newSold,
-                'last_update'    => date('Y-m-d H:i:s'),
-            ]);
-        } else {
-            // Если не было записи, создаём
-            $this->resourcesBankModel->insert([
-                'resource_id'       => $resourceId,
-                'current_quantity'  => 0,
-                'resources_sold'    => $sellQuantity,
-                'last_update'       => date('Y-m-d H:i:s'),
-            ]);
-        }
-
-        // (Необязательно) Пересчитать цены сразу
-        // (new ResourceBankUpdateHandler())->process();
-
-        // Формируем ответ
-        $caption = "Продажа ресурса *'{$resource['name']}'* в количестве *{$sellQuantity}* "
-            . "успешно выполнена.\n"
-            . "Вы заработали *{$saleAmount}*💰.\n"
-            . "(Цена за штуку была *{$resource['sell_price']}*)";
 
         $keyboard = [
             'inline_keyboard' => [
                 [
                     ['text' => '💰 Продать', 'callback_data' => 'sell'],
-                    ['text' => '🛍️ Купить', 'callback_data' => 'buy']
+                    ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
                 ],
                 [
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                ]
-            ]
+                ],
+            ],
         ];
-
-        $imagePath = base_url('uploads/telegram/vendor_kiosk_in_the_game_world.png'); // Подставьте реальный путь
-        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-
+        $imagePath = base_url('uploads/telegram/vendor_kiosk_in_the_game_world.png');
         return Request::sendPhoto([
-            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'photo'      => Request::encodeFile($imagePath),
-            'caption'    => $caption,
-            'parse_mode' => 'Markdown',
+            'chat_id'      => $chatId,
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $result['message'],
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
     }
