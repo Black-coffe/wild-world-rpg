@@ -12805,18 +12805,6 @@ parameters:
 			path: app/Services/BaseService.php
 
 		-
-			message: '#^Property App\\Services\\BaseService\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Services/BaseService.php
-
-		-
-			message: '#^Property App\\Services\\BaseService\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Services/BaseService.php
-
-		-
 			message: '#^Property App\\Services\\BaseService\:\:\$claimedCellModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
