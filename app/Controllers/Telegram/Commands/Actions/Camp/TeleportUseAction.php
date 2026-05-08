@@ -3,8 +3,8 @@
 namespace App\Controllers\Telegram\Commands\Actions\Camp;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
-use App\Models\CraftedItemsLogModel;
 use App\Services\Player\TeleportUse\TeleportExecutor;
+use App\Services\Player\TeleportUse\TeleportItemConsumer;
 use App\Services\Player\TeleportUse\TeleportUseMessageFormatter;
 use App\Services\Player\TeleportUse\TeleportUseValidator;
 use Longman\TelegramBot\Entities\ServerResponse;
@@ -15,13 +15,15 @@ class TeleportUseAction extends BaseAction
     private TeleportUseValidator $validator;
     private TeleportUseMessageFormatter $formatter;
     private TeleportExecutor $executor;
+    private TeleportItemConsumer $itemConsumer;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->validator = new TeleportUseValidator();
-        $this->formatter = new TeleportUseMessageFormatter();
-        $this->executor  = new TeleportExecutor();
+        $this->validator    = new TeleportUseValidator();
+        $this->formatter    = new TeleportUseMessageFormatter();
+        $this->executor     = new TeleportExecutor();
+        $this->itemConsumer = new TeleportItemConsumer();
     }
 
     public function handle(): ServerResponse
@@ -79,33 +81,8 @@ class TeleportUseAction extends BaseAction
         $mapRow      = $ctx['mapRow'];
         $customData  = $ctx['customData'];
 
-        $craftedItemLogModel = new CraftedItemsLogModel();
-
-        // Ставим новое время использования
-        $customData['lastUsedAt'] = (new \DateTime())->format('Y-m-d H:i:s');
-
-        // Обновляем запись: уменьшаем durability_count на 1, либо quantity
-        $newDurability = (int) $backpackLog['durability_count'] - 1;
-
-        // Если прочность теперь 0, проверяем qty. Если qty>1, можно списать одну штуку...
-        if ($newDurability <= 0) {
-            if ((int) $backpackLog['quantity'] > 1) {
-                $craftedItemLogModel->update($backpackLog['id'], [
-                    'quantity'       => (int) $backpackLog['quantity'] - 1,
-                    'durability_count' => 0,
-                    'custom_setting'   => null,
-                ]);
-            } else {
-                // Если это был последний экземпляр и прочность ушла в 0, удаляем
-                $craftedItemLogModel->delete($backpackLog['id']);
-            }
-        } else {
-            // Иначе просто сохраняем новое значение durability_count
-            $craftedItemLogModel->update($backpackLog['id'], [
-                'durability_count' => $newDurability,
-                'custom_setting'   => json_encode($customData),
-            ]);
-        }
+        // Decrement durability + оновити cooldown timestamp у custom_setting
+        $newDurability = $this->itemConsumer->consumeBackpack($backpackLog, $customData);
 
         // Собственно телепортируем на базу
         $this->executor->teleport((int) $character['id'], $claimedCell, $mapRow);
@@ -184,28 +161,11 @@ class TeleportUseAction extends BaseAction
         $claimedCell  = $ctx['claimedCell'];
         $mapRow       = $ctx['mapRow'];
 
-        $craftedItemLogModel = new CraftedItemsLogModel();
-
         // Обновляем местоположение персонажа
         $this->executor->teleport((int) $character['id'], $claimedCell, $mapRow);
 
-        // Логика использования портативного телепорта
-        if ((int) $portableLog['durability_count'] > 1) {
-            $craftedItemLogModel->update($portableLog['id'], [
-                'durability_count' => (int) $portableLog['durability_count'] - 1,
-            ]);
-        } else {
-            if ((int) $portableLog['quantity'] > 1) {
-                // Уменьшаем количество на 1 и обновляем счетчик прочности
-                $craftedItemLogModel->update($portableLog['id'], [
-                    'quantity'         => (int) $portableLog['quantity'] - 1,
-                    'durability_count' => $portableItem['durability_count'],
-                ]);
-            } else {
-                // Удаляем запись о телепорте, так как он полностью использован
-                $craftedItemLogModel->delete($portableLog['id']);
-            }
-        }
+        // Decrement durability/quantity (refresh-on-empty pattern)
+        $this->itemConsumer->consumePortable($portableItem, $portableLog);
 
         return $this->sendFormatted($this->formatter->successPortable());
     }

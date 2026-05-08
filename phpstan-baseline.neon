@@ -3409,12 +3409,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
-			message: '#^Cannot access offset ''durability_count'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 4
-			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
-
-		-
 			message: '#^Cannot access offset ''experience'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -3429,13 +3423,7 @@ parameters:
 		-
 			message: '#^Cannot access offset ''id'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 8
-			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
-
-		-
-			message: '#^Cannot access offset ''lastUsedAt'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
+			count: 2
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
@@ -3457,12 +3445,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
-			message: '#^Cannot access offset ''quantity'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 4
-			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
-
-		-
 			message: '#^Cannot cast mixed to float\.$#'
 			identifier: cast.double
 			count: 1
@@ -3471,7 +3453,7 @@ parameters:
 		-
 			message: '#^Cannot cast mixed to int\.$#'
 			identifier: cast.int
-			count: 11
+			count: 4
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
@@ -3505,15 +3487,15 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
-			message: '#^Parameter \#1 \$id of method CodeIgniter\\BaseModel\:\:delete\(\) expects CodeIgniter\\Database\\RawSql\|int\|list\<int\|string\>\|string\|null, mixed given\.$#'
+			message: '#^Parameter \#1 \$backpackLog of method App\\Services\\Player\\TeleportUse\\TeleportItemConsumer\:\:consumeBackpack\(\) expects array\<string, mixed\>, mixed given\.$#'
 			identifier: argument.type
-			count: 2
+			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
-			message: '#^Parameter \#1 \$id of method CodeIgniter\\Model\:\:update\(\) expects CodeIgniter\\Database\\RawSql\|int\|list\<int\|string\>\|string\|null, mixed given\.$#'
+			message: '#^Parameter \#1 \$portableItem of method App\\Services\\Player\\TeleportUse\\TeleportItemConsumer\:\:consumePortable\(\) expects array\<string, mixed\>, mixed given\.$#'
 			identifier: argument.type
-			count: 4
+			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
@@ -3529,7 +3511,13 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
-			message: '#^Parameter \#2 \$row of method CodeIgniter\\Model\:\:update\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null, array\<string, mixed\> given\.$#'
+			message: '#^Parameter \#2 \$customData of method App\\Services\\Player\\TeleportUse\\TeleportItemConsumer\:\:consumeBackpack\(\) expects array\<string, mixed\>, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
+
+		-
+			message: '#^Parameter \#2 \$portableLog of method App\\Services\\Player\\TeleportUse\\TeleportItemConsumer\:\:consumePortable\(\) expects array\<string, mixed\>, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
@@ -16055,6 +16043,30 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/Services/Player/TeleportUse/TeleportExecutor.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 7
+			path: app/Services/Player/TeleportUse/TeleportItemConsumer.php
+
+		-
+			message: '#^Parameter \#1 \$id of method CodeIgniter\\BaseModel\:\:delete\(\) expects CodeIgniter\\Database\\RawSql\|int\|list\<int\|string\>\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Services/Player/TeleportUse/TeleportItemConsumer.php
+
+		-
+			message: '#^Parameter \#1 \$id of method CodeIgniter\\Model\:\:update\(\) expects CodeIgniter\\Database\\RawSql\|int\|list\<int\|string\>\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 4
+			path: app/Services/Player/TeleportUse/TeleportItemConsumer.php
+
+		-
+			message: '#^Parameter \#2 \$row of method CodeIgniter\\Model\:\:update\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null, array\<string, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Player/TeleportUse/TeleportItemConsumer.php
 
 		-
 			message: '#^Cannot access offset ''custom_setting'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
