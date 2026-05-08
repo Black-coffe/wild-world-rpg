@@ -8,6 +8,7 @@ use App\Models\QuestStepsModel;
 use App\Models\CraftedItemsModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\TelegramUserModel;
+use App\Services\Endgame\EndgameProgressionService;
 use App\TaskHandlers\BaseTaskHandler;
 
 /**
@@ -62,6 +63,9 @@ class QuestFirstAidkitBasicHandler extends BaseTaskHandler
             if ($logEntry && $logEntry['quantity'] >= 1) {
                 // Complete the quest
                 $this->questStepsModel->update($step['id'], ['is_completed' => 1]);
+
+                // v0.51.116 endgame hook: quest completion → faction score.
+                (new EndgameProgressionService())->recordQuestCompletion((int) $characterId);
 
                 // Update character's gold
                 $this->characterModel->increaseGold($characterId, 1500);

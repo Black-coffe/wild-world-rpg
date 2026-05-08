@@ -7,6 +7,7 @@ use App\Models\QuestStepsModel;
 use App\Models\CharacterModel;
 use App\Models\ExploredCellsModel;
 use App\Models\TelegramUserModel;
+use App\Services\Endgame\EndgameProgressionService;
 use App\TaskHandlers\BaseTaskHandler;
 
 /**
@@ -53,6 +54,9 @@ class QuestExploreAllBiomesHandler extends BaseTaskHandler
 
                 // Complete the quest step
                 $this->questStepsModel->update($step['id'], ['is_completed' => 1]);
+
+                // v0.51.116 endgame hook: quest completion → faction score.
+                (new EndgameProgressionService())->recordQuestCompletion((int) $step['character_id']);
 
                 // Send the completion message
                 $telegramUserId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
