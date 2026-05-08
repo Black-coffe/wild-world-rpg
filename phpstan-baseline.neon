@@ -11791,6 +11791,36 @@ parameters:
 			path: app/Models/EventModel.php
 
 		-
+			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Models/FactionEndgameScoreModel.php
+
+		-
+			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Models/FactionEndgameScoreModel.php
+
+		-
+			message: '#^Cannot access offset ''score'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Models/FactionEndgameScoreModel.php
+
+		-
+			message: '#^Method App\\Models\\FactionEndgameScoreModel\:\:checkThresholds\(\) should return array\<int, array\<string, mixed\>\> but returns list\<array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/FactionEndgameScoreModel.php
+
+		-
+			message: '#^Method App\\Models\\FactionEndgameScoreModel\:\:getActiveScenario\(\) should return array\<string, mixed\>\|null but returns array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/FactionEndgameScoreModel.php
+
+		-
 			message: '#^Method App\\Models\\GeneralModel\:\:countAffectedRows\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1

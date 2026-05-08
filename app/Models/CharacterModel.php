@@ -41,6 +41,8 @@ class CharacterModel extends Model
         'has_renamed',        // Новое поле
         'last_name_change',   // Новое поле
         'low_health_notified_at',
+        'endgame_state',       // v0.51.110 endgame system
+        'endgame_lock_at',     // v0.51.110 endgame system
     ];
 
     protected $useTimestamps = true;
