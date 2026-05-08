@@ -44,10 +44,10 @@ class PveBattleLogService
     /**
      * Инициализирует лог с базовыми данными участников боя.
      *
-     * @param array $playerData Данные игрока.
-     * @param array $npcData    Данные NPC.
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $playerData
+     * @param array<string,mixed> $npcData
      */
-    public function init(array $playerData, array $npcData): void
+    public function init(array|\App\Entities\CharacterEntity $playerData, array $npcData): void
     {
         $this->logData['characters'] = [
             'player' => $playerData,
