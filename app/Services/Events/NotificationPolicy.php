@@ -47,6 +47,7 @@ final class NotificationPolicy
     private TelegramUserModel $tgUserModel;
     private BiomeModel $biomeModel;
     private EventPreferenceService $prefService;
+    private EventMessageFormatter $formatter;
     private ?Telegram $telegram = null;
 
     public function __construct(
@@ -55,12 +56,14 @@ final class NotificationPolicy
         ?TelegramUserModel $tgUserModel = null,
         ?BiomeModel $biomeModel = null,
         ?EventPreferenceService $prefService = null,
+        ?EventMessageFormatter $formatter = null,
     ) {
         $this->cfg         = $cfg         ?? config('WorldEvents');
         $this->charModel   = $charModel   ?? new CharacterModel();
         $this->tgUserModel = $tgUserModel ?? new TelegramUserModel();
         $this->biomeModel  = $biomeModel  ?? new BiomeModel();
         $this->prefService = $prefService ?? new EventPreferenceService($this->cfg, $this->tgUserModel);
+        $this->formatter   = $formatter   ?? new EventMessageFormatter();
     }
 
     // ============================================================
@@ -80,9 +83,9 @@ final class NotificationPolicy
         $recipients = $this->findRecipientChars($biomeIds);
 
         $effectKind = $eventConfig['effect_kind'] ?? '';
-        $message    = $this->buildStartMessage($eventRow, $eventConfig);
+        $message    = $this->formatter->buildStartMessage($eventRow, $eventConfig);
         $imgPath    = $eventRow['img_path'] ?? null;
-        $keyboard   = $this->buildStartKeyboard($effectKind);
+        $keyboard   = $this->formatter->buildStartKeyboard($effectKind);
 
         foreach ($recipients as $char) {
             try {
@@ -150,8 +153,8 @@ final class NotificationPolicy
             return false;
         }
 
-        $message  = $this->buildEndMessage($eventRow, $aggregate);
-        $keyboard = $this->buildEndKeyboard($effectKind, $aggregate);
+        $message  = $this->formatter->buildEndMessage($eventRow, $aggregate);
+        $keyboard = $this->formatter->buildEndKeyboard($effectKind, $aggregate);
 
         try {
             $sent = $this->doSend((int)$tgUser['telegram_id'], $message, null, $keyboard);
@@ -230,127 +233,6 @@ final class NotificationPolicy
             return $this->charModel->findAll();
         }
         return $this->charModel->whereIn('biome_id', $biomeIds)->findAll();
-    }
-
-    // ============================================================
-    // Message building
-    // ============================================================
-
-    private function buildStartMessage(array $eventRow, array $eventConfig): string
-    {
-        $name        = $eventRow['name']        ?? $eventRow['name_english'];
-        $description = $eventRow['description'] ?? '';
-        $duration    = (int)($eventConfig['duration_minutes'] ?? $eventRow['duration'] ?? 60);
-
-        $msg  = "⚠️ *Событие: {$name}*\n\n";
-        if ($description !== '') {
-            $msg .= "_{$description}_\n\n";
-        }
-        $msg .= "⏳ Продлится приблизительно: {$duration} мин.\n";
-        $msg .= "_Сводкв отправим когда событие закончится._";
-
-        return $msg;
-    }
-
-    private function buildEndMessage(array $eventRow, array $aggregate): string
-    {
-        $name       = $eventRow['name'] ?? $eventRow['name_english'];
-        $appliedCnt = (int)($aggregate['applied_count'] ?? 0);
-        $lines      = ["✅ *Событие завершилось: {$name}*\n"];
-        $lines[]    = "_За {$appliedCnt} тиков действовало на тебя. Сводка:_\n";
-
-        $hd = (float)($aggregate['health_delta'] ?? 0);
-        $td = (float)($aggregate['tired_delta']  ?? 0);
-        $gd = (int)  ($aggregate['gold_delta']   ?? 0);
-
-        if ($hd < 0) {
-            $lines[] = "❤️ Здоровье: " . round($hd, 2);
-        } elseif ($hd > 0) {
-            $lines[] = "❤️ Здоровье: +" . round($hd, 2);
-        }
-        if ($td < 0) {
-            $lines[] = "💪 Выносливость: " . round($td, 2);
-        } elseif ($td > 0) {
-            $lines[] = "💪 Выносливость: +" . round($td, 2);
-        }
-        if ($gd > 0) {
-            $lines[] = "🪙 Золото: +{$gd}";
-        }
-
-        foreach (($aggregate['attribute_deltas'] ?? []) as $attr => $delta) {
-            $sign     = $delta > 0 ? '+' : '';
-            $deltaStr = round((float)$delta, 2);
-            $lines[]  = "📈 {$attr}: {$sign}{$deltaStr}";
-        }
-
-        if (!empty($aggregate['resource_grants'])) {
-            $byKw = [];
-            foreach ($aggregate['resource_grants'] as $g) {
-                $kw         = $g['keyword'] ?? '?';
-                $byKw[$kw]  = ($byKw[$kw] ?? 0) + (int)($g['amount'] ?? 0);
-            }
-            foreach ($byKw as $kw => $amt) {
-                $lines[] = "🎁 {$kw}: +{$amt}";
-            }
-        }
-
-        return implode("\n", $lines);
-    }
-
-    /**
-     * Кнопки для start-уведомлении.
-     *
-     * Callback formats (F7.5b — handler EventPrefAction):
-     *   - 'eventPref_mute_1h'              — silenced_until +1h
-     *   - 'eventPref_muteKind_<kind>'      — toggle kind в muted_kinds
-     *
-     * Двоеточия `:` НЕ используем — Telegram передает, але CallbackRouter
-     * матчить через `_*` wildcard. Underscores в kind ('damage_health') —
-     * EventPrefAction парсить весь суффикс после prefix'а.
-     */
-    private function buildStartKeyboard(string $effectKind): array
-    {
-        $kindLabel = KindLabels::ru($effectKind);
-
-        return [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🎉 События',       'callback_data' => 'events'],
-                ],
-                [
-                    ['text' => '🚫 Не показывать 1 час', 'callback_data' => 'eventPref_mute_1h'],
-                    ['text' => "🚫 Без событий {$kindLabel}", 'callback_data' => "eventPref_muteKind_{$effectKind}"],
-                ],
-            ],
-        ];
-    }
-
-    /**
-     * Кнопки для end-summary. Magnitude-based — додаткова кнопка лікування при HP critical.
-     */
-    private function buildEndKeyboard(string $effectKind, array $aggregate): array
-    {
-        $rows = [
-            [
-                ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                ['text' => '🎉 События',       'callback_data' => 'events'],
-            ],
-        ];
-
-        // Додаткова кнопка если HP loss значний
-        $hd = (float)($aggregate['health_delta'] ?? 0);
-        if ($hd < -10) {
-            $rows[] = [
-                ['text' => '🩹 Лечиться', 'callback_data' => 'craftBandage'],
-            ];
-        }
-
-        $rows[] = [
-            ['text' => '🚫 Не показывать 1 час', 'callback_data' => 'eventPref_mute_1h'],
-        ];
-
-        return ['inline_keyboard' => $rows];
     }
 
     // ============================================================
