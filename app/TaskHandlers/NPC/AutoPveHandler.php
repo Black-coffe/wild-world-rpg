@@ -15,6 +15,7 @@ use App\Models\MapModel;
 use App\Models\NpcModel;
 use Psr\Log\NullLogger;
 
+
 /**
  * Класс AutoPveHandler вызывается CRON-ом каждую минуту.
  * Логика:
@@ -50,11 +51,9 @@ class AutoPveHandler
             $battleService,
             $rewardService,
             $equipmentService,
-            $logger,
             $this->characterModel,
             $this->npcSpawnModel,
-            new NpcModel(),
-            new MapModel()
+            new NpcModel()
         );
     }
 
