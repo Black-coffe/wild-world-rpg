@@ -13945,7 +13945,7 @@ parameters:
 			path: app/Services/Events/EventCloseHandler.php
 
 		-
-			message: '#^Parameter \#2 \$eventRow of method App\\Services\\Events\\NotificationPolicy\:\:sendEnd\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			message: '#^Parameter \#2 \$eventRow of method App\\Services\\Events\\NotificationPolicy\:\:sendEnd\(\) expects array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Events/EventCloseHandler.php
@@ -14323,68 +14323,20 @@ parameters:
 			path: app/Services/Events/NotificationPolicy.php
 
 		-
-			message: '#^Method App\\Services\\Events\\NotificationPolicy\:\:isMuted\(\) has parameter \$pref with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
+			message: '#^Parameter \#1 \$cfg of class App\\Services\\Events\\EventPreferenceService constructor expects Config\\WorldEvents\|null, object\|null given\.$#'
+			identifier: argument.type
 			count: 1
 			path: app/Services/Events/NotificationPolicy.php
 
 		-
-			message: '#^Method App\\Services\\Events\\NotificationPolicy\:\:isThrottled\(\) has parameter \$pref with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
+			message: '#^Parameter \#1 \$effectKind of method App\\Services\\Events\\EventMessageFormatter\:\:buildEndKeyboard\(\) expects string, mixed given\.$#'
+			identifier: argument.type
 			count: 1
 			path: app/Services/Events/NotificationPolicy.php
 
 		-
-			message: '#^Method App\\Services\\Events\\NotificationPolicy\:\:magnitudeOverrides\(\) has parameter \$magnitudeOrAggregate with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Events/NotificationPolicy.php
-
-		-
-			message: '#^Method App\\Services\\Events\\NotificationPolicy\:\:readUserPref\(\) has parameter \$tgUser with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Events/NotificationPolicy.php
-
-		-
-			message: '#^Method App\\Services\\Events\\NotificationPolicy\:\:readUserPref\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Events/NotificationPolicy.php
-
-		-
-			message: '#^Method App\\Services\\Events\\NotificationPolicy\:\:recordSent\(\) has parameter \$pref with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Events/NotificationPolicy.php
-
-		-
-			message: '#^Method App\\Services\\Events\\NotificationPolicy\:\:sendEnd\(\) has parameter \$aggregate with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Events/NotificationPolicy.php
-
-		-
-			message: '#^Method App\\Services\\Events\\NotificationPolicy\:\:sendEnd\(\) has parameter \$eventConfig with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Events/NotificationPolicy.php
-
-		-
-			message: '#^Method App\\Services\\Events\\NotificationPolicy\:\:sendEnd\(\) has parameter \$eventRow with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Events/NotificationPolicy.php
-
-		-
-			message: '#^Method App\\Services\\Events\\NotificationPolicy\:\:sendStart\(\) has parameter \$eventConfig with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Events/NotificationPolicy.php
-
-		-
-			message: '#^Method App\\Services\\Events\\NotificationPolicy\:\:sendStart\(\) has parameter \$eventRow with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
+			message: '#^Parameter \#1 \$effectKind of method App\\Services\\Events\\EventMessageFormatter\:\:buildStartKeyboard\(\) expects string, mixed given\.$#'
+			identifier: argument.type
 			count: 1
 			path: app/Services/Events/NotificationPolicy.php
 
@@ -14401,21 +14353,21 @@ parameters:
 			path: app/Services/Events/NotificationPolicy.php
 
 		-
-			message: '#^Part \$char\[''id''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
+			message: '#^Parameter \#2 \$effectKind of method App\\Services\\Events\\EventPreferenceService\:\:isMuted\(\) expects string, mixed given\.$#'
+			identifier: argument.type
 			count: 2
 			path: app/Services/Events/NotificationPolicy.php
 
 		-
-			message: '#^Property App\\Services\\Events\\NotificationPolicy\:\:\$biomeModel is never read, only written\.$#'
-			identifier: property.onlyWritten
+			message: '#^Parameter \#3 \$imgPath of method App\\Services\\Events\\EventNotificationSender\:\:send\(\) expects string\|null, mixed given\.$#'
+			identifier: argument.type
 			count: 1
 			path: app/Services/Events/NotificationPolicy.php
 
 		-
-			message: '#^Property App\\Services\\Events\\NotificationPolicy\:\:\$cfg \(Config\\WorldEvents\) does not accept object\|null\.$#'
-			identifier: assign.propertyType
-			count: 1
+			message: '#^Part \$char\[''id''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 2
 			path: app/Services/Events/NotificationPolicy.php
 
 		-
