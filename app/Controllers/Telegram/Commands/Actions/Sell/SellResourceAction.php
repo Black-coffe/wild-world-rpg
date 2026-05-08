@@ -160,28 +160,25 @@ class SellResourceAction extends BaseAction
             ]);
         }
 
+        // Идея #15 (Arseny, 16.04.2025): прозрачная торговля — показываем
+        // итоговую сумму прямо в кнопках, а не только цену за 1 ед.
+        $unitPrice = (int) $resource['sell_price'];
+
         $text = "Выберите количество для продажи ресурса:\n 📦 *{$resource['name']}*:\n"
-            . "Текущая цена продажи (за 1 ед.) = *{$resource['sell_price']}* 💰";
+            . "Текущая цена продажи (за 1 ед.) = *{$unitPrice}* 💰";
+
+        $btn = static function (int $qty) use ($resourceId, $unitPrice): array {
+            $total = $qty * $unitPrice;
+            return [
+                'text'          => "{$qty} → " . number_format($total) . "💰",
+                'callback_data' => "sellResource_{$resourceId}_{$qty}_sell",
+            ];
+        };
 
         $keyboardButtons = [
-            [
-                ['text' => '1',    'callback_data' => "sellResource_{$resourceId}_1_sell"],
-                ['text' => '5',    'callback_data' => "sellResource_{$resourceId}_5_sell"],
-                ['text' => '10',   'callback_data' => "sellResource_{$resourceId}_10_sell"],
-                ['text' => '15',   'callback_data' => "sellResource_{$resourceId}_15_sell"],
-            ],
-            [
-                ['text' => '25',  'callback_data' => "sellResource_{$resourceId}_25_sell"],
-                ['text' => '50', 'callback_data' => "sellResource_{$resourceId}_50_sell"],
-                ['text' => '100', 'callback_data' => "sellResource_{$resourceId}_100_sell"],
-                ['text' => '150', 'callback_data' => "sellResource_{$resourceId}_150_sell"],
-            ],
-            [
-                ['text' => '250',  'callback_data' => "sellResource_{$resourceId}_250_sell"],
-                ['text' => '500', 'callback_data' => "sellResource_{$resourceId}_500_sell"],
-                ['text' => '1000', 'callback_data' => "sellResource_{$resourceId}_1000_sell"],
-                ['text' => '5000', 'callback_data' => "sellResource_{$resourceId}_5000_sell"],
-            ],
+            [$btn(1),   $btn(5),    $btn(10),   $btn(15)],
+            [$btn(25),  $btn(50),   $btn(100),  $btn(150)],
+            [$btn(250), $btn(500),  $btn(1000), $btn(5000)],
         ];
 
         $keyboard = ['inline_keyboard' => $keyboardButtons];

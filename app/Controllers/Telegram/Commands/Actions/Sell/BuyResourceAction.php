@@ -206,32 +206,28 @@ class BuyResourceAction extends BaseAction
             return $this->respondWithMessage("Ресурс не найден.");
         }
 
+        // Идея #15 (Arseny, 16.04.2025): прозрачная торговля — итог в кнопках,
+        // чтобы игрок видел сколько потратит ДО клика, а не после.
+        $unitPrice = (int) $resource['buy_price'];
+
         $text = "🧺 *Выберите желаемое количество*\n"
             . "📦 _{$resource['name']}_ *для покупки.*\n"
-            . "Текущая цена за 1 ед: ~*{$resource['buy_price']}* 💰\n\n"
+            . "Текущая цена за 1 ед: ~*{$unitPrice}* 💰\n\n"
             . "Реальная цена может быть другой исходя из спроса ресурса.";
 
-        // Предустановленные варианты
+        $btn = static function (int $qty) use ($resourceId, $unitPrice): array {
+            $total = $qty * $unitPrice;
+            return [
+                'text'          => "{$qty} → " . number_format($total) . "💰",
+                'callback_data' => "buy_quantity_{$resourceId}_{$qty}",
+            ];
+        };
+
         $keyboardButtons = [
             'inline_keyboard' => [
-                [
-                    ['text' => '1 ед.',    'callback_data' => "buy_quantity_{$resourceId}_1"],
-                    ['text' => '5 ед.',    'callback_data' => "buy_quantity_{$resourceId}_5"],
-                    ['text' => '10 ед.',   'callback_data' => "buy_quantity_{$resourceId}_10"],
-                    ['text' => '15 ед.',   'callback_data' => "buy_quantity_{$resourceId}_15"],
-                ],
-                [
-                    ['text' => '25 ед.',   'callback_data' => "buy_quantity_{$resourceId}_25"],
-                    ['text' => '50 ед.',   'callback_data' => "buy_quantity_{$resourceId}_50"],
-                    ['text' => '100 ед.',  'callback_data' => "buy_quantity_{$resourceId}_100"],
-                    ['text' => '150 ед.',  'callback_data' => "buy_quantity_{$resourceId}_150"],
-                ],
-                [
-                    ['text' => '250 ед.',  'callback_data' => "buy_quantity_{$resourceId}_250"],
-                    ['text' => '500 ед.',  'callback_data' => "buy_quantity_{$resourceId}_500"],
-                    ['text' => '1000 ед.', 'callback_data' => "buy_quantity_{$resourceId}_1000"],
-                    ['text' => '5000 ед.', 'callback_data' => "buy_quantity_{$resourceId}_5000"],
-                ],
+                [$btn(1),   $btn(5),    $btn(10),   $btn(15)],
+                [$btn(25),  $btn(50),   $btn(100),  $btn(150)],
+                [$btn(250), $btn(500),  $btn(1000), $btn(5000)],
             ]
         ];
 
