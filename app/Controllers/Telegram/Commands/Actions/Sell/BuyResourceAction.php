@@ -78,6 +78,14 @@ class BuyResourceAction extends BaseAction
                     return $this->finalizePurchase($character, $resourceId, $quantity);
                 }
                 break;
+
+            // Идея #6 (Arseny, 21.01.2025): свободный ввод qty через ForceReply.
+            case 'custom':
+                $resourceId = $params[2] ?? null;
+                if ($resourceId) {
+                    return $this->promptCustomQuantity((int) $resourceId);
+                }
+                break;
         }
 
         return Request::emptyResponse();
@@ -228,6 +236,7 @@ class BuyResourceAction extends BaseAction
                 [$btn(1),   $btn(5),    $btn(10),   $btn(15)],
                 [$btn(25),  $btn(50),   $btn(100),  $btn(150)],
                 [$btn(250), $btn(500),  $btn(1000), $btn(5000)],
+                [['text' => '📝 Своё число', 'callback_data' => "buy_custom_{$resourceId}"]],
             ]
         ];
 
@@ -241,37 +250,35 @@ class BuyResourceAction extends BaseAction
     }
 
     /**
-     * Финальный этап — купить указанный ресурс
+     * Идея #6: ForceReply prompt для произвольного qty.
      */
-    protected function finalizePurchase(array|\App\Entities\CharacterEntity $character, int $resourceId, int $quantity): ServerResponse
+    protected function promptCustomQuantity(int $resourceId): ServerResponse
     {
         $resource = $this->resourceModel->find($resourceId);
         if (!$resource) {
-            return $this->respondWithMessage("Ресурс не найден в базе.");
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text'    => 'Ресурс не найден.',
+            ]);
         }
 
-        // Проверка денег
-        $totalCost = $quantity * $resource['buy_price'];
-        if ($character['gold'] < $totalCost) {
-            return $this->respondWithMessage("У вас недостаточно золота для покупки {$quantity} ед.");
-        }
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+        return Request::sendMessage([
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'         => "📝 Введите число для покупки *{$resource['name']}* (1 ед. = ~{$resource['buy_price']}💰).\n\nОтветьте на это сообщение числом. [BUY:{$resourceId}]",
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode(['force_reply' => true, 'selective' => true]),
+        ]);
+    }
 
-        // Списываем золото
-        $this->characterModel->decreaseGold($character['id'], $totalCost);
-
-        // Добавляем ресурс игроку (в character_resources)
-        $this->characterResourceModel->addOrIncreaseResource($character['id'], $resourceId, $quantity);
-
-        // Увеличиваем счётчик purchases в resources_bank
-        $this->resourcesBankModel->updatePurchasedQuantity($resourceId, $quantity);
-
-        // (Необязательно) После сделки сразу пересчитываем buy_price/sell_price
-        // (new ResourceBankUpdateHandler())->process();
-
-        $message = "Вы успешно купили *{$quantity}* ед. ресурса *{$resource['name']}* "
-            . "по цене *{$resource['buy_price']}*💰 за штуку.\n\n"
-            . "Итого потрачено: *{$totalCost}* 💰";
-
-        return $this->respondWithMessage($message);
+    /**
+     * Финальный этап — купить указанный ресурс. Делегирует в ResourceTradeService.
+     */
+    protected function finalizePurchase(array|\App\Entities\CharacterEntity $character, int $resourceId, int $quantity): ServerResponse
+    {
+        $svc    = new \App\Services\Player\Trade\ResourceTradeService();
+        $result = $svc->buyResource(is_array($character) ? $character : (array) $character, $resourceId, $quantity);
+        return $this->respondWithMessage($result['message']);
     }
 }

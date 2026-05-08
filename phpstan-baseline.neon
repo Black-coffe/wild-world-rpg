@@ -10569,7 +10569,7 @@ parameters:
 		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 6
+			count: 7
 			path: app/Controllers/Telegram/Commands/SystemCommands/GenericmessageCommand.php
 
 		-
@@ -10587,6 +10587,12 @@ parameters:
 		-
 			message: '#^Parameter \#2 \$characterRow of method App\\Services\\World\\MapService\:\:showMapWithPlayer\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
+			count: 1
+			path: app/Controllers/Telegram/Commands/SystemCommands/GenericmessageCommand.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between Longman\\TelegramBot\\Entities\\ReplyToMessage and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
 			count: 1
 			path: app/Controllers/Telegram/Commands/SystemCommands/GenericmessageCommand.php
 
@@ -16073,6 +16079,66 @@ parameters:
 			identifier: offsetAccess.notFound
 			count: 4
 			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
+
+		-
+			message: '#^Binary operation "\+" between mixed and int results in an error\.$#'
+			identifier: binaryOp.invalid
+			count: 1
+			path: app/Services/Player/Trade/ResourceTradeService.php
+
+		-
+			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 3
+			path: app/Services/Player/Trade/ResourceTradeService.php
+
+		-
+			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 3
+			path: app/Services/Player/Trade/ResourceTradeService.php
+
+		-
+			message: '#^Cannot access offset ''resources_sold'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/Trade/ResourceTradeService.php
+
+		-
+			message: '#^Cannot cast mixed to float\.$#'
+			identifier: cast.double
+			count: 2
+			path: app/Services/Player/Trade/ResourceTradeService.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 3
+			path: app/Services/Player/Trade/ResourceTradeService.php
+
+		-
+			message: '#^Parameter \#1 \$id of method CodeIgniter\\Model\:\:update\(\) expects CodeIgniter\\Database\\RawSql\|int\|list\<int\|string\>\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Player/Trade/ResourceTradeService.php
+
+		-
+			message: '#^Part \$resource\[''buy_price''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Player/Trade/ResourceTradeService.php
+
+		-
+			message: '#^Part \$resource\[''name''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 2
+			path: app/Services/Player/Trade/ResourceTradeService.php
+
+		-
+			message: '#^Part \$resource\[''sell_price''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/Player/Trade/ResourceTradeService.php
 
 		-
 			message: '#^Method App\\Services\\Tasks\\ActiveTasksService\:\:getActiveTasksWithDetails\(\) return type has no value type specified in iterable type array\.$#'

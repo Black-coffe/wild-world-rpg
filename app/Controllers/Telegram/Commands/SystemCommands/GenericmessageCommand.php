@@ -23,8 +23,19 @@ class GenericmessageCommand extends SystemCommand
     public function execute(): ServerResponse
     {
         $message = $this->getMessage();
-        $text    = mb_strtolower(trim($message->getText(true) ?? ''));  // приводим к нижнему регистру
+        $rawText = trim($message->getText(true) ?? '');
+        $text    = mb_strtolower($rawText);
         $chatId  = $message->getChat()->getId();
+
+        // Идея #6 (Arseny, 21.01.2025): ForceReply ответ на trade-промпт
+        // вида "[SELL:123]" или "[BUY:123]" → выполнить продажу/покупку с qty.
+        $reply = $message->getReplyToMessage();
+        if ($reply !== null) {
+            $promptText = (string) ($reply->getText() ?? '');
+            if (preg_match('/\[(SELL|BUY):(\d+)\]/', $promptText, $m)) {
+                return $this->handleTradeReply($chatId, $m[1], (int) $m[2], $rawText);
+            }
+        }
 
         switch ($text) {
             case 'перс':
@@ -52,6 +63,43 @@ class GenericmessageCommand extends SystemCommand
                     'text'    => 'Не понял, попробуйте «перс», «база», «крафт» или «карта».',
                 ]);
         }
+    }
+
+    /**
+     * Идея #6: обработка ForceReply ответа на trade-промпт.
+     * Парсим qty из ответа, дёргаем ResourceTradeService.
+     */
+    private function handleTradeReply(int $chatId, string $direction, int $resourceId, string $rawReply): ServerResponse
+    {
+        $qty = (int) preg_replace('/[^\d]/', '', $rawReply);
+        if ($qty <= 0) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => '❌ Не понял число. Введите положительное целое число (например, 25000).',
+            ]);
+        }
+
+        $from       = $this->getMessage()->getFrom();
+        $telegramId = $from->getId();
+        $userRow    = (new TelegramUserModel())->where('telegram_id', $telegramId)->first();
+        if (!$userRow) {
+            return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Пользователь не найден.']);
+        }
+        $character = (new CharacterModel())->where('telegram_user_id', $userRow['id'])->first();
+        if (!$character) {
+            return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Персонаж не найден.']);
+        }
+
+        $svc    = new \App\Services\Player\Trade\ResourceTradeService();
+        $result = $direction === 'SELL'
+            ? $svc->sellResource((array) $character, $resourceId, $qty)
+            : $svc->buyResource((array) $character, $resourceId, $qty);
+
+        return Request::sendMessage([
+            'chat_id'    => $chatId,
+            'text'       => $result['message'],
+            'parse_mode' => 'Markdown',
+        ]);
     }
 
     /**
