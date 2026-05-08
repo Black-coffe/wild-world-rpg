@@ -6,6 +6,7 @@ use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Services\Endgame\EndgameProgressionService;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeApplier;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeMessageFormatter;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeValidator;
@@ -22,6 +23,7 @@ class UpgradeBuildingAction extends BaseAction
     protected BuildingUpgradeMessageFormatter $formatter;
     protected BuildingUpgradeApplier $applier;
     protected BuildingUpgrades $upgrades;
+    protected EndgameProgressionService $endgameService;
 
     public function __construct($callbackQuery)
     {
@@ -31,10 +33,11 @@ class UpgradeBuildingAction extends BaseAction
         // (each instantiates own model deps), Action no longer holds direct
         // model refs. Steps 1-4 history: Validator (v0.51.57) + Formatter
         // (v0.51.58) + Applier (v0.51.60) + Config\BuildingUpgrades (v0.51.61).
-        $this->validator = new BuildingUpgradeValidator();
-        $this->formatter = new BuildingUpgradeMessageFormatter();
-        $this->applier   = new BuildingUpgradeApplier();
-        $this->upgrades  = config(BuildingUpgrades::class);
+        $this->validator      = new BuildingUpgradeValidator();
+        $this->formatter      = new BuildingUpgradeMessageFormatter();
+        $this->applier        = new BuildingUpgradeApplier();
+        $this->upgrades       = config(BuildingUpgrades::class);
+        $this->endgameService = new EndgameProgressionService();
     }
 
     /**
@@ -166,6 +169,13 @@ class UpgradeBuildingAction extends BaseAction
 
         // v0.51.60 (Step 3) — apply chain extracted у BuildingUpgradeApplier
         $this->applier->apply($character, $charBuilding, $nextLevel, $req);
+
+        // v0.51.112 endgame hook: building upgrade → faction score.
+        if (isset($buildingInfo['name_eng']) && is_string($buildingInfo['name_eng'])) {
+            $this->endgameService->recordBuildingUpgrade($buildingInfo['name_eng']);
+        } elseif (isset($buildingInfo['name_en']) && is_string($buildingInfo['name_en'])) {
+            $this->endgameService->recordBuildingUpgrade($buildingInfo['name_en']);
+        }
 
         // Скрываем alert у кнопки
         Request::answerCallbackQuery([

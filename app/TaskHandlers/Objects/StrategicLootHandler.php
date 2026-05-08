@@ -10,6 +10,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\ResourceModel;
 use App\Models\TelegramUserModel;
+use App\Services\Endgame\EndgameProgressionService;
 
 /**
  * v0.51.109 — Strategic objects content phase (Bunker / Technopark / GhostCity).
@@ -34,6 +35,7 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
     private BiomeWorldObjectMapModel $biomeWorldObjectMapModel;
     private ResourceModel $resourceModel;
     private CharacterModel $characterModel;
+    private EndgameProgressionService $endgameService;
 
     public function __construct()
     {
@@ -43,6 +45,7 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
         $this->biomeWorldObjectMapModel = new BiomeWorldObjectMapModel();
         $this->resourceModel            = new ResourceModel();
         $this->characterModel           = new CharacterModel();
+        $this->endgameService           = new EndgameProgressionService();
     }
 
     public function handle($object, $cell, $character): void
@@ -79,6 +82,11 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
             ->first();
         if ($biomeMapRow && isset($biomeMapRow['id'])) {
             $this->biomeWorldObjectMapModel->updateStatus((int) $biomeMapRow['id'], 'cleared');
+        }
+
+        // v0.51.112 endgame hook: strategic discovery → faction score.
+        if (isset($object['name_en']) && is_string($object['name_en'])) {
+            $this->endgameService->recordStrategicObjectDiscovery($object['name_en']);
         }
 
         // Rich announcement.
