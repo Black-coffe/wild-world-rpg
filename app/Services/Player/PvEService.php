@@ -6,6 +6,7 @@ use App\Services\PVE\BattleService;
 use App\Services\PVE\RewardService;
 use App\Services\PVE\EquipmentService;
 use App\Services\PVE\PveBattleLogService;
+use App\Services\PVE\PveMessageFormatter;
 use App\Models\CharacterModel;
 use App\Models\NpcSpawnModel;
 use App\Models\NpcModel;
@@ -25,6 +26,7 @@ class PvEService
     private NpcSpawnModel $npcSpawnModel;
     private NpcModel $npcModel;
     private MapModel $mapModel;
+    private PveMessageFormatter $messageFormatter;
 
     public function __construct(
         BattleService $battleService,
@@ -34,7 +36,8 @@ class PvEService
         CharacterModel $characterModel,
         NpcSpawnModel $npcSpawnModel,
         NpcModel $npcModel,
-        MapModel $mapModel
+        MapModel $mapModel,
+        ?PveMessageFormatter $messageFormatter = null
     ) {
         $this->battleService    = $battleService;
         $this->rewardService    = $rewardService;
@@ -44,6 +47,7 @@ class PvEService
         $this->npcSpawnModel    = $npcSpawnModel;
         $this->npcModel         = $npcModel;
         $this->mapModel         = $mapModel;
+        $this->messageFormatter = $messageFormatter ?? new PveMessageFormatter();
     }
 
     /**
@@ -153,7 +157,7 @@ class PvEService
             'coordinate_x' => $player->cell_number % 1000,
             'coordinate_y' => floor($player->cell_number / 1000),
         ];
-        $finalText = $this->buildFightResultMessage(
+        $finalText = $this->messageFormatter->buildFightResultMessage(
             $updatedPlayerData,
             $npcData['name'],
             $fightResult,
@@ -169,72 +173,6 @@ class PvEService
             'winner'  => $fightResult['winner'],
             'player'  => $updatedPlayerData,
         ];
-    }
-
-    /**
-     * Формирует итоговое сообщение о бое (HTML).
-     */
-    private function buildFightResultMessage(
-        array $playerData,
-        string $npcName,
-        array $fightResult,
-        array $mapLocation,
-        array $rewards
-    ): string {
-        $winner        = $fightResult['winner'] ?? null;
-        $loser         = $fightResult['loser'] ?? null;
-        $winnerName    = $winner ? $winner->name : '???';
-        $loserName     = $loser ? $loser->name : '???';
-        $rounds        = $fightResult['rounds'] ?? 0;
-        $firstAttacker = $fightResult['firstAttacker'] ?? 'Неизвестен';
-        $x             = $mapLocation['coordinate_x'] ?? '???';
-        $y             = $mapLocation['coordinate_y'] ?? '???';
-
-        $npcMuchWeaker = ($loser && $winner && $winner->level >= 2 * $loser->level);
-
-        $loreText = "Долгие странствия привели тебя в этот зловещий край.\n"
-            . "И на пути ты встретил: <b>{$npcName}</b>\n"
-            . "Не имея времени, ты вынужден сражаться!\n\n";
-
-        $battleText  = "<u>Сводка боя:</u>\n";
-        $battleText .= "• <b>Раундов:</b> {$rounds} ⚔️\n";
-        $battleText .= "• <b>Первым атаковал:</b> {$firstAttacker} 🎯\n";
-        $battleText .= "• <b>Проигравший:</b> {$loserName} 💀\n";
-        $battleText .= "• <b>Победитель:</b> {$winnerName} 🏆\n";
-        $battleText .= "• <b>Координаты:</b> X={$x}, Y={$y}\n\n";
-
-        $resultText  = "<b>Итог боя:</b>\n";
-        $resultText .= "В ожесточённой схватке <b>{$loserName}</b> пал, а <b>{$winnerName}</b> одержал верх!\n\n"
-            . "⚔️ <i>Ты проявил отвагу, {$playerData['name']}!</i>\n\n";
-
-        $currentHealth = number_format($playerData['health'], 2, '.', '');
-        $currentTired  = number_format($playerData['tired'], 2, '.', '');
-        $resultText .= "У тебя осталось: 💖 Здоровье: {$currentHealth}, 🥱 Выносливость: {$currentTired}\n\n";
-
-        $rewardLines = [];
-        if (!empty($rewards['exp'])) {
-            $rewardLines[] = "• ✨ Опыт: +{$rewards['exp']}";
-        }
-        if (!empty($rewards['gold'])) {
-            $rewardLines[] = "• 💰 Золото: +{$rewards['gold']}";
-        }
-        if (!empty($rewards['resource'])) {
-            $rewardLines[] = "• 📦 Ресурс: <b>{$rewards['resource']}</b>";
-        }
-        if (!empty($rewards['craftedItem'])) {
-            $rewardLines[] = "• 🛠 Крафт-предмет: <b>{$rewards['craftedItem']}</b>";
-        }
-        $extraComment = ($npcMuchWeaker) ? "Противник был в разы слабее, поэтому ты получил не так уж много наград.\n\n" : "";
-        $rewardText = !empty($rewardLines)
-            ? "🎖 <b>Награды за победу:</b>\n" . implode("\n", $rewardLines) . "\n\n"
-            : "Противник был слишком слаб, ничего ценного не досталось.\n\n";
-
-        return "🤖 <b>PvE-бой завершён!</b>\n\n"
-            . $loreText
-            . $battleText
-            . $resultText
-            . $extraComment
-            . $rewardText;
     }
 
     /**
