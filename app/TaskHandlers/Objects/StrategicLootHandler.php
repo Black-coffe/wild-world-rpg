@@ -8,6 +8,8 @@ use App\Models\BiomeWorldObjectMapModel;
 use App\Models\CharacterModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
+use App\Models\QuestModel;
+use App\Models\QuestStepsModel;
 use App\Models\ResourceModel;
 use App\Models\TelegramUserModel;
 use App\Services\Endgame\EndgameProgressionService;
@@ -36,6 +38,8 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
     private ResourceModel $resourceModel;
     private CharacterModel $characterModel;
     private EndgameProgressionService $endgameService;
+    private QuestModel $questModel;
+    private QuestStepsModel $questStepsModel;
 
     public function __construct()
     {
@@ -46,6 +50,8 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
         $this->resourceModel            = new ResourceModel();
         $this->characterModel           = new CharacterModel();
         $this->endgameService           = new EndgameProgressionService();
+        $this->questModel               = new QuestModel();
+        $this->questStepsModel          = new QuestStepsModel();
     }
 
     public function handle($object, $cell, $character): void
@@ -87,6 +93,9 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
         // v0.51.112 endgame hook: strategic discovery → faction score.
         if (isset($object['name_en']) && is_string($object['name_en'])) {
             $this->endgameService->recordStrategicObjectDiscovery($object['name_en']);
+
+            // v0.51.117 quest hook: auto-complete matching strategic capture quest.
+            $this->checkStrategicCaptureQuest($object['name_en'], (int) $character['id']);
         }
 
         // Rich announcement.
@@ -202,6 +211,48 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
      * @param array<string, mixed> $character
      * @param array<string, int|string> $requiredTools
      */
+    /**
+     * v0.51.117: Auto-complete strategic capture quests on object discovery.
+     *
+     * Looks up `quests` row by title_en='StrategicCapture<NameEn>' (e.g. for
+     * Bunker → 'StrategicCaptureBunker'). Якщо character має active step для
+     * цього quest з `is_completed=0` — mark complete + give gold reward.
+     *
+     * Triggers `recordQuestCompletion` через EndgameProgressionService для
+     * additional +100 endgame score (на topu strategic discovery's +500).
+     */
+    private function checkStrategicCaptureQuest(string $objectNameEn, int $characterId): void
+    {
+        $quest = $this->questModel
+            ->where('title_en', 'StrategicCapture' . $objectNameEn)
+            ->first();
+        if (!$quest) {
+            return;
+        }
+
+        $step = $this->questStepsModel
+            ->where('quest_id', $quest['id'])
+            ->where('character_id', $characterId)
+            ->where('is_completed', 0)
+            ->first();
+        if (!$step) {
+            return;
+        }
+
+        $this->questStepsModel->update($step['id'], ['is_completed' => 1]);
+
+        // Reward gold per quests.reward column.
+        $reward = (int) ($quest['reward'] ?? 0);
+        if ($reward > 0) {
+            $this->characterModel->increaseGold($characterId, $reward);
+        }
+
+        // Endgame score for quest completion (+100).
+        $this->endgameService->recordQuestCompletion($characterId);
+
+        log_message('info', "[StrategicLootHandler] Auto-completed quest {$quest['title_en']} for char_id={$characterId} (+{$reward} gold)");
+    }
+
     private function sendInsufficientToolsMessage(array $object, array $character, array $requiredTools): void
     {
         $tg = $this->telegramUserModel->find($character['telegram_user_id']);
