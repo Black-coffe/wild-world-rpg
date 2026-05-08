@@ -3,8 +3,8 @@
 namespace App\Controllers\Telegram\Commands\Actions\Camp;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
-use App\Models\CharacterModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Player\TeleportUse\TeleportExecutor;
 use App\Services\Player\TeleportUse\TeleportUseMessageFormatter;
 use App\Services\Player\TeleportUse\TeleportUseValidator;
 use Longman\TelegramBot\Entities\ServerResponse;
@@ -14,12 +14,14 @@ class TeleportUseAction extends BaseAction
 {
     private TeleportUseValidator $validator;
     private TeleportUseMessageFormatter $formatter;
+    private TeleportExecutor $executor;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
         $this->validator = new TeleportUseValidator();
         $this->formatter = new TeleportUseMessageFormatter();
+        $this->executor  = new TeleportExecutor();
     }
 
     public function handle(): ServerResponse
@@ -78,7 +80,6 @@ class TeleportUseAction extends BaseAction
         $customData  = $ctx['customData'];
 
         $craftedItemLogModel = new CraftedItemsLogModel();
-        $characterModel      = new CharacterModel();
 
         // Ставим новое время использования
         $customData['lastUsedAt'] = (new \DateTime())->format('Y-m-d H:i:s');
@@ -107,10 +108,7 @@ class TeleportUseAction extends BaseAction
         }
 
         // Собственно телепортируем на базу
-        $characterModel->update($character['id'], [
-            'cell_number' => $claimedCell['map_cell_id'],
-            'biome_id'    => $mapRow['biome_id'],
-        ]);
+        $this->executor->teleport((int) $character['id'], $claimedCell, $mapRow);
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
@@ -161,15 +159,9 @@ class TeleportUseAction extends BaseAction
         $mapRow      = $ctx['mapRow'];
         $cost        = (int) $ctx['cost'];
 
-        $characterModel = new CharacterModel();
-
-        // Списываем золото + телепорт
+        // Списываем золото + телепорт (1 SQL)
         $newGold = (int) $charRow['gold'] - $cost;
-        $characterModel->update($charRow['id'], [
-            'gold'        => $newGold,
-            'cell_number' => $claimedCell['map_cell_id'],
-            'biome_id'    => $mapRow['biome_id'],
-        ]);
+        $this->executor->teleport((int) $charRow['id'], $claimedCell, $mapRow, ['gold' => $newGold]);
 
         return $this->sendFormatted($this->formatter->successGold($cost, $newGold));
     }
@@ -193,13 +185,9 @@ class TeleportUseAction extends BaseAction
         $mapRow       = $ctx['mapRow'];
 
         $craftedItemLogModel = new CraftedItemsLogModel();
-        $characterModel      = new CharacterModel();
 
         // Обновляем местоположение персонажа
-        $characterModel->update($character['id'], [
-            'cell_number' => $claimedCell['map_cell_id'],
-            'biome_id'    => $mapRow['biome_id'],
-        ]);
+        $this->executor->teleport((int) $character['id'], $claimedCell, $mapRow);
 
         // Логика использования портативного телепорта
         if ((int) $portableLog['durability_count'] > 1) {
@@ -238,14 +226,13 @@ class TeleportUseAction extends BaseAction
         $claimedCell = $ctx['claimedCell'];
         $mapRow      = $ctx['mapRow'];
 
-        $characterModel = new CharacterModel();
-
-        // Обновляем местоположение персонажа + списываем 1 единицу опыта
-        $characterModel->update($charRow['id'], [
-            'cell_number' => $claimedCell['map_cell_id'],
-            'biome_id'    => $mapRow['biome_id'],
-            'experience'  => (float) $charRow['experience'] - 1,
-        ]);
+        // Обновляем местоположение персонажа + списываем 1 единицу опыта (1 SQL)
+        $this->executor->teleport(
+            (int) $charRow['id'],
+            $claimedCell,
+            $mapRow,
+            ['experience' => (float) $charRow['experience'] - 1],
+        );
 
         return $this->sendFormatted($this->formatter->successExperience());
     }

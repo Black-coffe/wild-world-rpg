@@ -3385,12 +3385,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
-			message: '#^Cannot access offset ''biome_id'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 4
-			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
-
-		-
 			message: '#^Cannot access offset ''charRow'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 2
@@ -3451,12 +3445,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
-			message: '#^Cannot access offset ''map_cell_id'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 4
-			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
-
-		-
 			message: '#^Cannot access offset ''portableItem'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -3483,7 +3471,7 @@ parameters:
 		-
 			message: '#^Cannot cast mixed to int\.$#'
 			identifier: cast.int
-			count: 9
+			count: 11
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
@@ -3525,7 +3513,7 @@ parameters:
 		-
 			message: '#^Parameter \#1 \$id of method CodeIgniter\\Model\:\:update\(\) expects CodeIgniter\\Database\\RawSql\|int\|list\<int\|string\>\|string\|null, mixed given\.$#'
 			identifier: argument.type
-			count: 6
+			count: 4
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
@@ -3535,9 +3523,21 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
+			message: '#^Parameter \#2 \$claimedCell of method App\\Services\\Player\\TeleportUse\\TeleportExecutor\:\:teleport\(\) expects array\<string, mixed\>, mixed given\.$#'
+			identifier: argument.type
+			count: 4
+			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
+
+		-
 			message: '#^Parameter \#2 \$row of method CodeIgniter\\Model\:\:update\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null, array\<string, mixed\> given\.$#'
 			identifier: argument.type
-			count: 5
+			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
+
+		-
+			message: '#^Parameter \#3 \$mapRow of method App\\Services\\Player\\TeleportUse\\TeleportExecutor\:\:teleport\(\) expects array\<string, mixed\>, mixed given\.$#'
+			identifier: argument.type
+			count: 4
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
@@ -16049,6 +16049,12 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Services/Player/TeleportCostService.php
+
+		-
+			message: '#^Parameter \#2 \$row of method CodeIgniter\\Model\:\:update\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null, array\<string, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Player/TeleportUse/TeleportExecutor.php
 
 		-
 			message: '#^Cannot access offset ''custom_setting'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
