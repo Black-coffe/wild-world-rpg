@@ -8,7 +8,7 @@ use App\Entities\BattleCharacter;
 use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
-use App\Models\CraftedItemModel;
+use App\Models\CraftedItemsModel;
 use App\Models\CraftedItemsLogModel;
 use App\Repositories\CI4CharacterRepository;
 use App\Repositories\Contracts\CharacterRepositoryInterface;
@@ -20,7 +20,7 @@ class RewardService
     private CharacterModel $characterModel;
     private CharacterResourceModel $characterResourceModel;
     private ResourceModel $resourceModel;
-    private CraftedItemModel $craftedItemModel;
+    private CraftedItemsModel $craftedItemModel;
     private CraftedItemsLogModel $craftedItemsLogModel;
     private CharacterRepositoryInterface $characterRepo;
 
@@ -37,7 +37,7 @@ class RewardService
         $this->characterModel          = new CharacterModel();
         $this->characterResourceModel  = new CharacterResourceModel();
         $this->resourceModel           = new ResourceModel();
-        $this->craftedItemModel        = new CraftedItemModel();
+        $this->craftedItemModel        = new CraftedItemsModel();
         $this->craftedItemsLogModel    = new CraftedItemsLogModel();
         $this->characterRepo           = $characterRepo ?? new CI4CharacterRepository();
     }
