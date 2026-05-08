@@ -87,4 +87,18 @@
     </ul>
 </div>
 
+<div class="mt-4 p-3 border border-danger rounded">
+    <h5 class="text-danger">⚠️ Полный season reset (v0.51.120)</h5>
+    <p class="text-muted mb-2">
+        Сбрасывает <strong>все 4 faction scores</strong> до 0 (threshold_hit=0) AND
+        возвращает <strong>всех characters</strong> у endgame_state ('won', 'lost', 'frozen', 'evacuated')
+        обратно у <code>'active'</code>. Используется когда стартует "new season" после finalization.
+        Действие audit logged. CSRF protected.
+    </p>
+    <form method="POST" action="<?= site_url('/admin/endgame/reset-season') ?>" onsubmit="return confirm('ПОДТВЕРДИТЕ: полный season reset? Это сбросит ВСЕ scores + ВСЕ character endgame states.');">
+        <?= csrf_field() ?>
+        <button type="submit" class="btn btn-danger">🔄 Reset full season</button>
+    </form>
+</div>
+
 <?= $this->endSection() ?>

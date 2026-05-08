@@ -351,7 +351,7 @@ parameters:
 		-
 			message: '#^Call to an undefined method App\\Models\\AdminAuditLogModel\:\:logAction\(\)\.$#'
 			identifier: method.notFound
-			count: 1
+			count: 2
 			path: app/Controllers/Admin/EndgameController.php
 
 		-
@@ -375,7 +375,7 @@ parameters:
 		-
 			message: '#^Cannot call method getCurrentUser\(\) on object\|null\.$#'
 			identifier: method.nonObject
-			count: 1
+			count: 2
 			path: app/Controllers/Admin/EndgameController.php
 
 		-
@@ -393,6 +393,12 @@ parameters:
 		-
 			message: '#^Method App\\Controllers\\Admin\\EndgameController\:\:reset\(\) has parameter \$id with no type specified\.$#'
 			identifier: missingType.parameter
+			count: 1
+			path: app/Controllers/Admin/EndgameController.php
+
+		-
+			message: '#^Method App\\Controllers\\Admin\\EndgameController\:\:resetSeason\(\) has no return type specified\.$#'
+			identifier: missingType.return
 			count: 1
 			path: app/Controllers/Admin/EndgameController.php
 
@@ -12965,6 +12971,36 @@ parameters:
 			identifier: assign.propertyType
 			count: 1
 			path: app/Services/Endgame/EndgameProgressionService.php
+
+		-
+			message: '#^Cannot call method countAllResults\(\) on App\\Models\\FactionEndgameScoreModel\|null\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Services/Endgame/SeasonResetService.php
+
+		-
+			message: '#^Cannot call method set\(\) on App\\Models\\CharacterModel\|null\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Services/Endgame/SeasonResetService.php
+
+		-
+			message: '#^Cannot call method set\(\) on App\\Models\\FactionEndgameScoreModel\|null\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Services/Endgame/SeasonResetService.php
+
+		-
+			message: '#^Cannot call method where\(\) on App\\Models\\CharacterModel\|null\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Services/Endgame/SeasonResetService.php
+
+		-
+			message: '#^Method App\\Services\\Endgame\\SeasonResetService\:\:reset\(\) should return array\{scores_reset\: int, chars_unfrozen\: int\} but returns array\{scores_reset\: int\|string, chars_unfrozen\: int\|string\}\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Endgame/SeasonResetService.php
 
 		-
 			message: '#^Cannot access offset ''applied_count'' on mixed\.$#'

@@ -7,6 +7,7 @@ namespace App\Controllers\Admin;
 use App\Controllers\BaseController;
 use App\Models\AdminAuditLogModel;
 use App\Models\FactionEndgameScoreModel;
+use App\Services\Endgame\SeasonResetService;
 use Config\EndgameScoring;
 
 /**
@@ -75,6 +76,32 @@ class EndgameController extends BaseController
         return redirect()->to('/admin/endgame')->with(
             'success',
             "Score сброшен для faction {$row['faction_id']} ({$row['scenario_name']}) — было {$beforeScore} pts"
+        );
+    }
+
+    /**
+     * v0.51.120 — Season reset (Endgame B).
+     *
+     * POST /admin/endgame/reset-season — full "new season" trigger.
+     * Bulk reset усіх 4 faction scores + усіх character endgame_state →
+     * 'active'. Audit logged.
+     */
+    public function resetSeason()
+    {
+        $resetSvc = new SeasonResetService();
+        $stats    = $resetSvc->reset();
+
+        $this->auditModel->logAction(
+            (int) (service('auth')->getCurrentUser()['id'] ?? 0),
+            'ENDGAME_SEASON_RESET',
+            'faction_endgame_scores',
+            0,
+            $stats
+        );
+
+        return redirect()->to('/admin/endgame')->with(
+            'success',
+            "🔄 Season reset: {$stats['scores_reset']} scores wiped, {$stats['chars_unfrozen']} characters back to 'active' state."
         );
     }
 }

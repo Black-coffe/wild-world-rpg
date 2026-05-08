@@ -102,6 +102,8 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     // v0.51.114 — Endgame scenarios dashboard
     $routes->get('endgame', 'Admin\EndgameController::index');
     $routes->post('endgame/reset/(:num)', 'Admin\EndgameController::reset/$1');
+    // v0.51.120 — full season reset (B)
+    $routes->post('endgame/reset-season', 'Admin\EndgameController::resetSeason');
 
 });
 
