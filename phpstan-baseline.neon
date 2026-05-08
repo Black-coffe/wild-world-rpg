@@ -14089,6 +14089,36 @@ parameters:
 			path: app/Services/Events/EventDispatcher.php
 
 		-
+			message: '#^Cannot cast mixed to float\.$#'
+			identifier: cast.double
+			count: 3
+			path: app/Services/Events/EventPreferenceService.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 1
+			path: app/Services/Events/EventPreferenceService.php
+
+		-
+			message: '#^Parameter \#1 \$datetime of function strtotime expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Services/Events/EventPreferenceService.php
+
+		-
+			message: '#^Parameter \#1 \$json of function json_decode expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Events/EventPreferenceService.php
+
+		-
+			message: '#^Property App\\Services\\Events\\EventPreferenceService\:\:\$cfg \(Config\\WorldEvents\) does not accept object\|null\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Services/Events/EventPreferenceService.php
+
+		-
 			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
 			identifier: foreach.nonIterable
 			count: 2
@@ -14353,7 +14383,7 @@ parameters:
 			path: app/Services/Events/NotificationPolicy.php
 
 		-
-			message: '#^Parameter \#1 \$tgUser of method App\\Services\\Events\\NotificationPolicy\:\:readUserPref\(\) expects array, array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|ArrayAccess given\.$#'
+			message: '#^Parameter \#1 \$tgUser of method App\\Services\\Events\\EventPreferenceService\:\:readUserPref\(\) expects array\<string, mixed\>, array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|ArrayAccess given\.$#'
 			identifier: argument.type
 			count: 2
 			path: app/Services/Events/NotificationPolicy.php
