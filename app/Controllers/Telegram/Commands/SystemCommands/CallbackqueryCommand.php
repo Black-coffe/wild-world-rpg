@@ -68,9 +68,14 @@ class CallbackqueryCommand extends SystemCommand
     }
 
     /**
-     * 'character' inline shortcut — direct CharacterService call (skip mapping).
-     * TODO v0.51.79: investigate if 'character' у CallbackRoutes::$exactRoutes
-     * є dead code (це inline block runs first).
+     * 'character' inline shortcut — direct CharacterService call.
+     * v0.51.79: confirmed legitimate inline (НЕ redundancy з mapping):
+     *   - CharacterService::showCharacterInfo показує equipment + повний stat
+     *     sheet (більше ніж dead CharacterAction::handle).
+     *   - Inline runs first → CharacterAction класс ніколи не reached →
+     *     deleted as dead code v0.51.79.
+     * Triggers: callback_data='character' (main "Перс" button) АБО
+     * 'character_info' (GuessNumberAction).
      */
     private function handleCharacterShortcut(\Longman\TelegramBot\Entities\CallbackQuery $callbackQuery): ServerResponse
     {
