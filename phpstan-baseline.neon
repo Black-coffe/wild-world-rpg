@@ -1375,31 +1375,7 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/BaseAction.php
 
 		-
-			message: '#^Cannot access offset ''biome_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
 			message: '#^Cannot access offset ''building_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Cannot access offset ''coordinate_x'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Cannot access offset ''coordinate_y'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Cannot access offset ''map_cell_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
@@ -1408,6 +1384,12 @@ parameters:
 			message: '#^Cannot access offset ''name_ru'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
+			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 11
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
 
 		-
@@ -1429,44 +1411,8 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BaseInfoAction\:\:handleNotOnBasePhysically\(\) has parameter \$claimedCell with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BaseInfoAction\:\:showBaseBuildings\(\) has parameter \$character with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BaseInfoAction\:\:showBaseBuildings\(\) has parameter \$claimedCell with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Parameter \#1 \$claimedCell of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BaseInfoAction\:\:handleNotOnBasePhysically\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Parameter \#2 \$claimedCell of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BaseInfoAction\:\:showBaseBuildings\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|ArrayAccess given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Parameter \#2 \$claimedCell of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BaseInfoAction\:\:showBaseBuildings\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Parameter \#3 \$biomeRow of method App\\Services\\Bases\\BaseInfoMessageFormatter\:\:noBaseHappyPath\(\) expects array\<string, mixed\>, App\\Entities\\BiomeEntity given\.$#'
-			identifier: argument.type
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
 
@@ -13025,6 +12971,30 @@ parameters:
 			identifier: encapsedStringPart.nonString
 			count: 1
 			path: app/Services/Bases/BaseInfoMessageFormatter.php
+
+		-
+			message: '#^Call to function is_array\(\) with App\\Entities\\BiomeEntity\|null will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 1
+			path: app/Services/Bases/BaseLocationResolver.php
+
+		-
+			message: '#^Method App\\Services\\Bases\\BaseLocationResolver\:\:findBiomeRow\(\) never returns array\<string, mixed\> so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Services/Bases/BaseLocationResolver.php
+
+		-
+			message: '#^Method App\\Services\\Bases\\BaseLocationResolver\:\:findClaimedCell\(\) should return array\<string, mixed\>\|null but returns array\<int\|string, bool\|float\|int\|object\|string\|null\>\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Bases/BaseLocationResolver.php
+
+		-
+			message: '#^Method App\\Services\\Bases\\BaseLocationResolver\:\:findMapRow\(\) should return array\<string, mixed\>\|null but returns array\<int\|string, bool\|float\|int\|object\|string\|null\>\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Bases/BaseLocationResolver.php
 
 		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
