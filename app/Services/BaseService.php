@@ -2,11 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\BiomeModel;
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\ClaimedCellModel;
-use App\Models\MapModel;
+use App\Services\Bases\BaseLocationResolver;
 use App\Services\Bases\BaseServiceMessageFormatter;
 use App\Services\Bases\CampCheckService;
 use App\Services\Coverage\CommunicationTowerCoverageService;
@@ -29,22 +28,20 @@ use Longman\TelegramBot\Request;
 class BaseService
 {
     protected $claimedCellModel;
-    protected $mapModel;
-    protected $biomeModel;
     protected $buildingModel;
     protected $characterBuildingModel;
     protected $towerCoverageService;
     protected BaseServiceMessageFormatter $formatter;
+    protected BaseLocationResolver $resolver;
 
     public function __construct()
     {
         $this->claimedCellModel       = new ClaimedCellModel();
-        $this->mapModel               = new MapModel();
-        $this->biomeModel             = new BiomeModel();
         $this->buildingModel          = new BuildingModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
         $this->towerCoverageService   = new CommunicationTowerCoverageService();
         $this->formatter              = new BaseServiceMessageFormatter();
+        $this->resolver               = new BaseLocationResolver();
     }
 
     /**
@@ -90,12 +87,12 @@ class BaseService
         $survivalDiff = 0;
 
         if ($cellNumber) {
-            $mapRow = $this->mapModel->where('cell_number', $cellNumber)->first();
+            $mapRow = $this->resolver->findMapRow((int) $cellNumber);
             if ($mapRow) {
                 $coordX = $mapRow['coordinate_x'];
                 $coordY = $mapRow['coordinate_y'];
 
-                $biomeRow = $this->biomeModel->find($mapRow['biome_id']);
+                $biomeRow = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
                 if ($biomeRow) {
                     $biomeName    = $biomeRow['name']               ?? '???';
                     $biomeDesc    = $biomeRow['description']        ?? '';
@@ -117,12 +114,12 @@ class BaseService
      */
     protected function showNotOnBaseInfo(int $chatId, array $claimedCell): ServerResponse
     {
-        $mapRow = $this->mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
+        $mapRow = $this->resolver->findMapRow((int) $claimedCell['map_cell_id']);
         if (!$mapRow) {
             return $this->sendMessage($chatId, $this->formatter->notOnBaseMapError());
         }
 
-        $biomeRow  = $this->biomeModel->where('id', $mapRow['biome_id'])->first();
+        $biomeRow  = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
         $biomeName = $biomeRow['name'] ?? '???';
 
         return $this->sendPhoto(
@@ -152,12 +149,12 @@ class BaseService
             ->where('character_id', $characterRow['id'])
             ->findAll();
 
-        $mapRow = $this->mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
+        $mapRow = $this->resolver->findMapRow((int) $claimedCell['map_cell_id']);
         if (!$mapRow) {
             return $this->sendMessage($chatId, $this->formatter->baseMapNotFoundError());
         }
 
-        $biomeRow  = $this->biomeModel->where('id', $mapRow['biome_id'])->first();
+        $biomeRow  = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
         $biomeName = $biomeRow['name'] ?? '???';
 
         $buildingCount = count($buildings);
@@ -208,12 +205,12 @@ class BaseService
             return $this->sendMessage($chatId, $this->formatter->campCellTakenError());
         }
 
-        $mapRow = $this->mapModel->where('cell_number', $cellNumber)->first();
+        $mapRow = $this->resolver->findMapRow($cellNumber);
         if (!$mapRow) {
             return $this->sendMessage($chatId, $this->formatter->campMapNotFoundError($cellNumber));
         }
 
-        $biomeRow  = $this->biomeModel->find($mapRow['biome_id']);
+        $biomeRow  = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
         $biomeName = $biomeRow['name'] ?? '???';
 
         return $this->sendMessage($chatId, $this->formatter->campCreationConfirm(
