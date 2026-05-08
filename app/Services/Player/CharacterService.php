@@ -76,7 +76,13 @@ class CharacterService
         $cell  = $this->mapModel->where('cell_number', $characterRow['cell_number'])->first();
         $biome = ($cell) ? $this->biomeModel->find($cell['biome_id']) : null;
 
-        $createdDate = new DateTime($characterRow['created_at']);
+        // v0.51.121 hotfix: cast Time|null|string → string. CI4 Entity wraps
+        // `created_at` як Time object (per F1.4.4-B v0.48.0 dates array).
+        $createdAtRaw = $characterRow['created_at'] ?? null;
+        $createdAtStr = $createdAtRaw instanceof \DateTimeInterface
+            ? $createdAtRaw->format('Y-m-d H:i:s')
+            : (string) ($createdAtRaw ?? '1970-01-01');
+        $createdDate = new DateTime($createdAtStr);
         $interval   = $createdDate->diff(new DateTime());
         $timeInGame = $interval->format('%m мес. %d дн. %h чс.');
 

@@ -15301,8 +15301,8 @@ parameters:
 			path: app/Services/Player/Death/InsuranceCalculator.php
 
 		-
-			message: '#^Parameter \#1 \$datetime of class DateTime constructor expects string, mixed given\.$#'
-			identifier: argument.type
+			message: '#^Cannot cast mixed to string\.$#'
+			identifier: cast.string
 			count: 1
 			path: app/Services/Player/Death/InsuranceCalculator.php
 
