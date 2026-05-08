@@ -12829,6 +12829,66 @@ parameters:
 			path: app/Services/Coverage/CommunicationTowerCoverageService.php
 
 		-
+			message: '#^Cannot access offset ''faction_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Endgame/EndgameProgressionService.php
+
+		-
+			message: '#^Cannot access property \$buildingUpgradePoints on Config\\EndgameScoring\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Services/Endgame/EndgameProgressionService.php
+
+		-
+			message: '#^Cannot access property \$craftedItemPoints on Config\\EndgameScoring\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Services/Endgame/EndgameProgressionService.php
+
+		-
+			message: '#^Cannot access property \$pvpKillPoints on Config\\EndgameScoring\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Services/Endgame/EndgameProgressionService.php
+
+		-
+			message: '#^Cannot access property \$questCompletionPoints on Config\\EndgameScoring\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Services/Endgame/EndgameProgressionService.php
+
+		-
+			message: '#^Cannot access property \$strategicObjectDiscoveryPoints on Config\\EndgameScoring\|null\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Services/Endgame/EndgameProgressionService.php
+
+		-
+			message: '#^Cannot call method incrementScore\(\) on App\\Models\\FactionEndgameScoreModel\|null\.$#'
+			identifier: method.nonObject
+			count: 5
+			path: app/Services/Endgame/EndgameProgressionService.php
+
+		-
+			message: '#^Cannot call method where\(\) on App\\Models\\CharacterFactionModel\|null\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Services/Endgame/EndgameProgressionService.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 1
+			path: app/Services/Endgame/EndgameProgressionService.php
+
+		-
+			message: '#^Property App\\Services\\Endgame\\EndgameProgressionService\:\:\$cfg \(Config\\EndgameScoring\|null\) does not accept object\|null\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Services/Endgame/EndgameProgressionService.php
+
+		-
 			message: '#^Cannot access offset ''applied_count'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 2
