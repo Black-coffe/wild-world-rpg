@@ -8,8 +8,9 @@ This is a Telegram-based MMORPG game built with CodeIgniter 4 and the Longman Te
 
 **Master documents (north star):**
 - [`GAME_DESCRIPTION.md`](./GAME_DESCRIPTION.md) — слитный канон геймплея. **Атомарные ноты** канона по подсистемам — в [`mmorpg-vault/lore/`](file:///C:/Projects/mmorpg-vault/lore/index.md).
-- [`OBSIDIAN-MIGRATION-PLAN.md`](./OBSIDIAN-MIGRATION-PLAN.md) — обоснование структуры vault'а и фильтрация практик.
-- [`mmorpg-vault/`](file:///C:/Projects/mmorpg-vault/README.md) — Obsidian vault соседом репо (см. ADR-009 в самом vault'е). Tech-writing wiki, glossary, daily journal, hot-context для Claude.
+- [`README.md`](./README.md) — точка входа для GitHub-аудитории, архитектурный обзор.
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md) — гайдлайны для контрибьюторов + documentation contract.
+- [`mmorpg-vault/`](file:///C:/Projects/mmorpg-vault/README.md) — Obsidian vault соседом репо (см. ADR-009 в самом vault'е). Tech-writing wiki, glossary, daily journal, hot-context для Claude. Архитектурное обоснование самого vault'а живёт в `mmorpg-vault/decisions/ADR-009-Vault-without-MCP.md`.
 
 ---
 
