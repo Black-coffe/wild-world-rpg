@@ -1375,18 +1375,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/BaseAction.php
 
 		-
-			message: '#^Cannot access offset ''building_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
-			message: '#^Cannot access offset ''name_ru'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BaseInfoAction.php
-
-		-
 			message: '#^Cannot cast mixed to int\.$#'
 			identifier: cast.int
 			count: 11
@@ -12887,6 +12875,18 @@ parameters:
 			identifier: missingType.property
 			count: 1
 			path: app/Services/BaseService.php
+
+		-
+			message: '#^Cannot access offset ''building_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Bases/BaseBuildingsList.php
+
+		-
+			message: '#^Cannot access offset ''name_ru'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Bases/BaseBuildingsList.php
 
 		-
 			message: '#^Cannot access offset ''biome_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'

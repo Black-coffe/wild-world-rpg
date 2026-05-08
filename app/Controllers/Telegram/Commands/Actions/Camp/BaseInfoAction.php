@@ -3,8 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions\Camp;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
-use App\Models\BuildingModel;
-use App\Models\CharacterBuildingModel;
+use App\Services\Bases\BaseBuildingsList;
 use App\Services\Bases\BaseInfoMessageFormatter;
 use App\Services\Bases\BaseLocationResolver;
 use App\Services\Bases\CampCheckService;
@@ -24,12 +23,14 @@ class BaseInfoAction extends BaseAction
 {
     private BaseInfoMessageFormatter $formatter;
     private BaseLocationResolver $resolver;
+    private BaseBuildingsList $buildingsList;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->formatter = new BaseInfoMessageFormatter();
-        $this->resolver  = new BaseLocationResolver();
+        $this->formatter     = new BaseInfoMessageFormatter();
+        $this->resolver      = new BaseLocationResolver();
+        $this->buildingsList = new BaseBuildingsList();
     }
 
     public function handle(): ServerResponse
@@ -41,11 +42,8 @@ class BaseInfoAction extends BaseAction
             return $this->sendMessage($this->formatter->userOrCharacterNotFound());
         }
 
-        $buildingModel          = new BuildingModel();
-        $characterBuildingModel = new CharacterBuildingModel();
-        $towerCoverageService   = new CommunicationTowerCoverageService();
-
-        $claimedCell = $this->resolver->findClaimedCell((int) $character['id']);
+        $towerCoverageService = new CommunicationTowerCoverageService();
+        $claimedCell          = $this->resolver->findClaimedCell((int) $character['id']);
 
         // 1) Если у персонажа НЕТ лагеря
         if (!$claimedCell) {
@@ -54,15 +52,13 @@ class BaseInfoAction extends BaseAction
 
         // 2) Персонаж физически на базе
         if ($claimedCell['map_cell_id'] == $character['cell_number']) {
-            return $this->showBaseBuildings($character, $claimedCell, $buildingModel, $characterBuildingModel);
+            return $this->showBaseBuildings($character, $claimedCell);
         }
 
         // 3) Не на базе, проверяем вышку связи
         $coverageResult = $towerCoverageService->checkCoverage($character['id']);
         if ($coverageResult['isCovered']) {
-            return $this->showBaseBuildings(
-                $character, $claimedCell, $buildingModel, $characterBuildingModel, $coverageResult
-            );
+            return $this->showBaseBuildings($character, $claimedCell, $coverageResult);
         }
 
         // 4) Не на базе, вышка не покрывает
@@ -141,12 +137,8 @@ class BaseInfoAction extends BaseAction
     protected function showBaseBuildings(
         array|\App\Entities\CharacterEntity $character,
         array $claimedCell,
-        BuildingModel $buildingModel,
-        CharacterBuildingModel $characterBuildingModel,
         ?array $coverageResult = null
     ): ServerResponse {
-        $buildings = $characterBuildingModel->where('character_id', $character['id'])->findAll();
-
         $mapRow = $this->resolver->findMapRow((int) $claimedCell['map_cell_id']);
         if (!$mapRow) {
             return $this->sendMessage($this->formatter->baseMapNotFound());
@@ -157,18 +149,10 @@ class BaseInfoAction extends BaseAction
         $coordX    = (int) $mapRow['coordinate_x'];
         $coordY    = (int) $mapRow['coordinate_y'];
 
-        $buildingCount = count($buildings);
-        $totalTax      = (int) array_sum(array_column($buildings, 'tax'));
-
-        $buildingList = '';
-        foreach ($buildings as $b) {
-            $bld   = $buildingModel->where('id', $b['building_id'])->first();
-            $bName = $bld['name_ru'] ?? 'Неизвестное строение';
-            $buildingList .= "- {$bName}\n";
-        }
+        $summary = $this->buildingsList->buildSummary((int) $character['id']);
 
         $payload = $this->formatter->baseBuildings(
-            $coordX, $coordY, $biomeName, $buildingCount, $totalTax, $buildingList, $coverageResult
+            $coordX, $coordY, $biomeName, $summary['count'], $summary['totalTax'], $summary['list'], $coverageResult
         );
         $imagePath = base_url('uploads/telegram/camp/base_with_its_buildings.jpg');
 
