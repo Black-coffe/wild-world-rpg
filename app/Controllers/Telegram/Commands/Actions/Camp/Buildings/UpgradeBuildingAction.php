@@ -6,6 +6,9 @@ use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Models\CharacterModel;
+use App\Models\QuestModel;
+use App\Models\QuestStepsModel;
 use App\Services\Endgame\EndgameProgressionService;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeApplier;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeMessageFormatter;
@@ -171,10 +174,20 @@ class UpgradeBuildingAction extends BaseAction
         $this->applier->apply($character, $charBuilding, $nextLevel, $req);
 
         // v0.51.112 endgame hook: building upgrade → faction score.
+        $buildingNameEn = null;
         if (isset($buildingInfo['name_eng']) && is_string($buildingInfo['name_eng'])) {
-            $this->endgameService->recordBuildingUpgrade($buildingInfo['name_eng']);
+            $buildingNameEn = $buildingInfo['name_eng'];
         } elseif (isset($buildingInfo['name_en']) && is_string($buildingInfo['name_en'])) {
-            $this->endgameService->recordBuildingUpgrade($buildingInfo['name_en']);
+            $buildingNameEn = $buildingInfo['name_en'];
+        }
+        if ($buildingNameEn !== null) {
+            $this->endgameService->recordBuildingUpgrade($buildingNameEn);
+
+            // v0.51.118 quest hook: FarmersHarvest auto-completion.
+            // Greenhouse upgrade → lvl 3+ марк active FarmersHarvest quest done.
+            if ($buildingNameEn === 'Greenhouse' && $nextLevel >= 3) {
+                $this->checkFarmersHarvestQuest((int) $character['id']);
+            }
         }
 
         // Скрываем alert у кнопки
@@ -190,5 +203,40 @@ class UpgradeBuildingAction extends BaseAction
             $currentLevel,
             $nextLevel
         ));
+    }
+
+    /**
+     * v0.51.118: Auto-complete FarmersHarvest quest на Greenhouse upgrade lvl 3+.
+     */
+    private function checkFarmersHarvestQuest(int $characterId): void
+    {
+        $questModel      = new QuestModel();
+        $questStepsModel = new QuestStepsModel();
+        $characterModel  = new CharacterModel();
+
+        $quest = $questModel->where('title_en', 'FarmersHarvest')->first();
+        if (!$quest) {
+            return;
+        }
+
+        $step = $questStepsModel
+            ->where('quest_id', $quest['id'])
+            ->where('character_id', $characterId)
+            ->where('is_completed', 0)
+            ->first();
+        if (!$step) {
+            return;
+        }
+
+        $questStepsModel->update($step['id'], ['is_completed' => 1]);
+
+        $reward = (int) ($quest['reward'] ?? 0);
+        if ($reward > 0) {
+            $characterModel->increaseGold($characterId, $reward);
+        }
+
+        $this->endgameService->recordQuestCompletion($characterId);
+
+        log_message('info', "[UpgradeBuildingAction] Auto-completed FarmersHarvest for char_id={$characterId} (+{$reward} gold)");
     }
 }
