@@ -3,6 +3,7 @@ namespace App\Services\World;
 
 use App\TaskHandlers\Objects\AbandonedTruckHandler;
 use App\TaskHandlers\Objects\ClosedWarehouseHandler;
+use App\TaskHandlers\Objects\StrategicLootHandler;
 use App\TaskHandlers\Objects\ToolkitHandler;
 use App\Models\MapModel;
 
@@ -74,6 +75,8 @@ class ObjectDiscoveryService {
             'Abandoned truck'  => new AbandonedTruckHandler(),
             'Toolkit'          => new ToolkitHandler(),
             'Closed warehouse' => new ClosedWarehouseHandler(),
+            // v0.51.109 — strategic objects (auto-loot з tool check).
+            'Bunker', 'Technopark', 'GhostCity' => new StrategicLootHandler(),
             default           => null,
         };
     }

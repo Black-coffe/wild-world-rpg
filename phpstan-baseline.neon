@@ -18637,6 +18637,132 @@ parameters:
 			path: app/TaskHandlers/Objects/ObjectHandlerInterface.php
 
 		-
+			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Call to function is_array\(\) with App\\Entities\\ResourceEntity\|null will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Cannot access offset ''telegram_id'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Cannot access offset 0 on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
+			count: 3
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Method App\\TaskHandlers\\Objects\\StrategicLootHandler\:\:awardContents\(\) has parameter \$character with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Method App\\TaskHandlers\\Objects\\StrategicLootHandler\:\:handle\(\) has parameter \$cell with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Method App\\TaskHandlers\\Objects\\StrategicLootHandler\:\:handle\(\) has parameter \$character with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Method App\\TaskHandlers\\Objects\\StrategicLootHandler\:\:handle\(\) has parameter \$object with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Method App\\TaskHandlers\\Objects\\StrategicLootHandler\:\:sendDiscoveryMessage\(\) has parameter \$character with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Method App\\TaskHandlers\\Objects\\StrategicLootHandler\:\:sendDiscoveryMessage\(\) has parameter \$object with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Offset ''name'' on \*NEVER\* in isset\(\) always exists and is not nullable\.$#'
+			identifier: isset.offset
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Parameter \#1 \$id of method CodeIgniter\\BaseModel\:\:find\(\) expects int\|list\<int\|string\>\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Parameter \#1 \$itemName of method App\\Models\\CraftedItemsLogModel\:\:getItemByNameEngAndCharacterId\(\) expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Parameter \#1 \$string of function strtolower expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Parameter \#2 \$contents of method App\\TaskHandlers\\Objects\\StrategicLootHandler\:\:awardContents\(\) expects array\<string, mixed\>, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Parameter \#3 \$requiredTools of method App\\TaskHandlers\\Objects\\StrategicLootHandler\:\:sendInsufficientToolsMessage\(\) expects array\<string, int\|string\>, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Part \$character\[''id''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Part \$name \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
+			message: '#^Result of && is always false\.$#'
+			identifier: booleanAnd.alwaysFalse
+			count: 2
+			path: app/TaskHandlers/Objects/StrategicLootHandler.php
+
+		-
 			message: '#^Cannot access offset 0 on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
