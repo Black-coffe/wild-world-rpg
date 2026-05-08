@@ -14377,6 +14377,78 @@ parameters:
 			path: app/Services/PVE/PveBattleLogService.php
 
 		-
+			message: '#^Cannot access property \$level on mixed\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Services/PVE/PveMessageFormatter.php
+
+		-
+			message: '#^Cannot access property \$name on mixed\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Services/PVE/PveMessageFormatter.php
+
+		-
+			message: '#^Offset ''coordinate_x'' on array\{coordinate_x\: int\|string, coordinate_y\: int\|string\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/PVE/PveMessageFormatter.php
+
+		-
+			message: '#^Offset ''coordinate_y'' on array\{coordinate_x\: int\|string, coordinate_y\: int\|string\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/PVE/PveMessageFormatter.php
+
+		-
+			message: '#^Parameter \#1 \$num of function number_format expects float, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Services/PVE/PveMessageFormatter.php
+
+		-
+			message: '#^Part \$firstAttacker \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/PVE/PveMessageFormatter.php
+
+		-
+			message: '#^Part \$playerData\[''name''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/PVE/PveMessageFormatter.php
+
+		-
+			message: '#^Part \$rewards\[''craftedItem''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/PVE/PveMessageFormatter.php
+
+		-
+			message: '#^Part \$rewards\[''exp''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/PVE/PveMessageFormatter.php
+
+		-
+			message: '#^Part \$rewards\[''gold''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/PVE/PveMessageFormatter.php
+
+		-
+			message: '#^Part \$rewards\[''resource''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/PVE/PveMessageFormatter.php
+
+		-
+			message: '#^Part \$rounds \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/PVE/PveMessageFormatter.php
+
+		-
 			message: '#^Binary operation "\-" between mixed and mixed results in an error\.$#'
 			identifier: binaryOp.invalid
 			count: 1
@@ -15541,30 +15613,6 @@ parameters:
 			path: app/Services/Player/PvEService.php
 
 		-
-			message: '#^Method App\\Services\\Player\\PvEService\:\:buildFightResultMessage\(\) has parameter \$fightResult with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Method App\\Services\\Player\\PvEService\:\:buildFightResultMessage\(\) has parameter \$mapLocation with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Method App\\Services\\Player\\PvEService\:\:buildFightResultMessage\(\) has parameter \$playerData with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Method App\\Services\\Player\\PvEService\:\:buildFightResultMessage\(\) has parameter \$rewards with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
 			message: '#^Method App\\Services\\Player\\PvEService\:\:sendTelegramNotification\(\) has parameter \$playerData with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -15577,7 +15625,7 @@ parameters:
 			path: app/Services/Player/PvEService.php
 
 		-
-			message: '#^Parameter \#1 \$playerData of method App\\Services\\Player\\PvEService\:\:buildFightResultMessage\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null given\.$#'
+			message: '#^Parameter \#1 \$playerData of method App\\Services\\PVE\\PveMessageFormatter\:\:buildFightResultMessage\(\) expects array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Player/PvEService.php
@@ -15638,6 +15686,12 @@ parameters:
 
 		-
 			message: '#^Parameter \#4 \$baseDamage of method App\\Services\\PVE\\PveBattleLogService\:\:addRoundLog\(\) expects float, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/Player/PvEService.php
+
+		-
+			message: '#^Parameter \#4 \$mapLocation of method App\\Services\\PVE\\PveMessageFormatter\:\:buildFightResultMessage\(\) expects array\{coordinate_x\: int\|string, coordinate_y\: int\|string\}, array\{coordinate_x\: int\<\-999, 999\>, coordinate_y\: float\} given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Player/PvEService.php
