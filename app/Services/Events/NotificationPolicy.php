@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services\Events;
 
-use App\Models\BiomeModel;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use Config\WorldEvents;
@@ -26,23 +25,18 @@ use Throwable;
  *   - **Mute**: если `event_pref.silenced_until > NOW` → skip всех уведомлений.
  *   - **Kind-mute**: если `effect_kind` в `event_pref.muted_kinds` → skip.
  *
- * Структура `event_pref`:
- * ```json
- * {
- *     "last_event_notification_at": "2026-05-05 14:30:00",
- *     "silenced_until": "2026-05-05 18:00:00",
- *     "muted_kinds": ["damage_health"]
- * }
- * ```
+ * v0.51.72 (decomp 5/5 closed) — orchestrator з 5 SRP services:
+ *   EventPreferenceService    pref/mute/throttle/magnitude logic
+ *   EventMessageFormatter     Markdown templates + inline keyboards
+ *   EventRecipientFinder      sectoring + recipient lookup
+ *   EventNotificationSender   Telegram I/O (єдина точка)
+ *   + NotificationPolicy itself — orchestrator
  *
  * @see WorldEvents для $criticalMagnitudeTriggers + $notificationThrottleMinutes
  */
 final class NotificationPolicy
 {
-    private WorldEvents $cfg;
-    private CharacterModel $charModel;
     private TelegramUserModel $tgUserModel;
-    private BiomeModel $biomeModel;
     private EventPreferenceService $prefService;
     private EventMessageFormatter $formatter;
     private EventRecipientFinder $recipientFinder;
@@ -52,29 +46,25 @@ final class NotificationPolicy
         ?WorldEvents $cfg = null,
         ?CharacterModel $charModel = null,
         ?TelegramUserModel $tgUserModel = null,
-        ?BiomeModel $biomeModel = null,
         ?EventPreferenceService $prefService = null,
         ?EventMessageFormatter $formatter = null,
         ?EventRecipientFinder $recipientFinder = null,
         ?EventNotificationSender $sender = null,
     ) {
-        $this->cfg             = $cfg             ?? config('WorldEvents');
-        $this->charModel       = $charModel       ?? new CharacterModel();
+        $cfg                   = $cfg             ?? config('WorldEvents');
+        $charModel             = $charModel       ?? new CharacterModel();
         $this->tgUserModel     = $tgUserModel     ?? new TelegramUserModel();
-        $this->biomeModel      = $biomeModel      ?? new BiomeModel();
-        $this->prefService     = $prefService     ?? new EventPreferenceService($this->cfg, $this->tgUserModel);
+        $this->prefService     = $prefService     ?? new EventPreferenceService($cfg, $this->tgUserModel);
         $this->formatter       = $formatter       ?? new EventMessageFormatter();
-        $this->recipientFinder = $recipientFinder ?? new EventRecipientFinder($this->charModel);
+        $this->recipientFinder = $recipientFinder ?? new EventRecipientFinder($charModel);
         $this->sender          = $sender          ?? new EventNotificationSender();
     }
 
-    // ============================================================
-    // Public API: sendStart / sendEnd
-    // ============================================================
-
     /**
-     * Отправить start-уведомлению (sectored + throttled).
+     * Отправить start-уведомление (sectored + throttled).
      *
+     * @param array<string, mixed> $eventRow
+     * @param array<string, mixed> $eventConfig
      * @return array{sent: int, skipped_throttle: int, skipped_mute: int, skipped_no_chat: int, errors: int}
      */
     public function sendStart(array $eventRow, array $eventConfig): array
@@ -105,7 +95,6 @@ final class NotificationPolicy
                 }
 
                 // Start-уведомлении НЕ throttle'ються (це разова событие, не tick'и).
-                // Throttle больше актуальний для end-summary в спамерских сценариях.
                 $sent = $this->sender->send((int)$tgUser['telegram_id'], $message, $imgPath, $keyboard);
                 if ($sent) {
                     $this->prefService->recordSent((int)$tgUser['id'], $pref);
@@ -130,10 +119,11 @@ final class NotificationPolicy
     /**
      * Отправить end-summary с аккумулированими deltas.
      *
-     * @return bool true если сообщение отправлено (false = skipped/error)
-     */
-    /**
      * @param array<string, mixed>|\App\Entities\CharacterEntity $char
+     * @param array<string, mixed> $eventRow
+     * @param array<string, mixed> $eventConfig
+     * @param array<string, mixed> $aggregate
+     * @return bool true если сообщение отправлено (false = skipped/error)
      */
     public function sendEnd(array|\App\Entities\CharacterEntity $char, array $eventRow, array $eventConfig, array $aggregate): bool
     {
@@ -169,39 +159,4 @@ final class NotificationPolicy
             return false;
         }
     }
-
-    // ============================================================
-    // Pref / throttle helpers
-    // ============================================================
-
-    /**
-     * Public API delegations до EventPreferenceService (preserve test contract — 18 tests
-     * у NotificationPolicyTest залишаються green без зміни). Step 5 polish: оцінити
-     * чи варто drop'ати wrappers і update tests на direct EventPreferenceService.
-     */
-    public function readUserPref(array $tgUser): array
-    {
-        return $this->prefService->readUserPref($tgUser);
-    }
-
-    public function isMuted(array $pref, string $effectKind = ''): bool
-    {
-        return $this->prefService->isMuted($pref, $effectKind);
-    }
-
-    public function isThrottled(array $pref): bool
-    {
-        return $this->prefService->isThrottled($pref);
-    }
-
-    public function magnitudeOverrides(array $magnitudeOrAggregate): bool
-    {
-        return $this->prefService->magnitudeOverrides($magnitudeOrAggregate);
-    }
-
-    public function recordSent(int $tgUserId, array $pref): void
-    {
-        $this->prefService->recordSent($tgUserId, $pref);
-    }
-
 }

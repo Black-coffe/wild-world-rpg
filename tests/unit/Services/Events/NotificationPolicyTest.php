@@ -2,28 +2,30 @@
 
 namespace Tests\Unit\Services\Events;
 
-use App\Services\Events\NotificationPolicy;
+use App\Services\Events\EventPreferenceService;
 use CodeIgniter\Test\CIUnitTestCase;
 use Config\WorldEvents;
 
 /**
- * F7.5 — тести NotificationPolicy для throttle/mute/magnitude logic.
+ * F7.5 — тести throttle/mute/magnitude logic.
  *
- * Pure-logic частини (readUserPref, isMuted, isThrottled, magnitudeOverrides)
- * тестуються тут. sendStart/sendEnd — потребують Telegram + DB → smoke на testbot.
+ * v0.51.72 — після NotificationPolicy decomp Step 5 — pure-logic частини
+ * (readUserPref, isMuted, isThrottled, magnitudeOverrides) перенесено
+ * у EventPreferenceService. Тести тестують його напряму.
+ * sendStart/sendEnd — потребують Telegram + DB → smoke на testbot.
  *
  * @internal
  */
 final class NotificationPolicyTest extends CIUnitTestCase
 {
-    private NotificationPolicy $policy;
+    private EventPreferenceService $policy;
     private WorldEvents $cfg;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->cfg    = new WorldEvents();
-        $this->policy = new NotificationPolicy($this->cfg);
+        $this->policy = new EventPreferenceService($this->cfg);
     }
 
     // ============================================================
