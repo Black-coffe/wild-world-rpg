@@ -102,8 +102,6 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
 });
 
 
-$routes->match(['GET', 'POST'], 'auth/login', 'AuthController::login');
-$routes->get('auth/logout', 'AuthController::logout');
 $routes->get('signup/new', 'Signup::new');
 $routes->post('signup/create', 'Signup::create');
 $routes->get('signup/success', 'Signup::success');

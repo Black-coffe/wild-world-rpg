@@ -19165,12 +19165,6 @@ parameters:
 			path: app/Views/Password/forgot.php
 
 		-
-			message: '#^Variable \$this might not be defined\.$#'
-			identifier: variable.undefined
-			count: 3
-			path: app/Views/Password/resent_sent.php
-
-		-
 			message: '#^Function form_open not found\.$#'
 			identifier: function.notFound
 			count: 1
@@ -19217,18 +19211,6 @@ parameters:
 			identifier: echo.nonString
 			count: 2
 			path: app/Views/Signup/new.php
-
-		-
-			message: '#^File ends with a trailing whitespace\. This may cause problems when running the code in the web browser\. Remove the closing \?\> mark or remove the whitespace\.$#'
-			identifier: whitespace.fileEnd
-			count: 1
-			path: app/Views/Signup/stop.php
-
-		-
-			message: '#^Variable \$this might not be defined\.$#'
-			identifier: variable.undefined
-			count: 3
-			path: app/Views/Signup/stop.php
 
 		-
 			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
@@ -19361,36 +19343,6 @@ parameters:
 			identifier: variable.undefined
 			count: 3
 			path: app/Views/admin/character_reset_index.php
-
-		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: app/Views/admin/create_tip.php
-
-		-
-			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Views/admin/create_tip.php
-
-		-
-			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 1
-			path: app/Views/admin/create_tip.php
-
-		-
-			message: '#^Parameter \#1 \(array\|string\|null\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 3
-			path: app/Views/admin/create_tip.php
-
-		-
-			message: '#^Variable \$this might not be defined\.$#'
-			identifier: variable.undefined
-			count: 3
-			path: app/Views/admin/create_tip.php
 
 		-
 			message: '#^Variable \$this might not be defined\.$#'
@@ -19547,12 +19499,6 @@ parameters:
 			identifier: variable.undefined
 			count: 3
 			path: app/Views/admin/map_index.php
-
-		-
-			message: '#^Variable \$mapData might not be defined\.$#'
-			identifier: variable.undefined
-			count: 1
-			path: app/Views/admin/map_view.php
 
 		-
 			message: '#^Variable \$title might not be defined\.$#'
@@ -20237,30 +20183,6 @@ parameters:
 			identifier: variable.undefined
 			count: 3
 			path: app/Views/admin/world_object_index.php
-
-		-
-			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 6
-			path: app/Views/admin/world_objects.php
-
-		-
-			message: '#^Parameter \#1 \(mixed\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 1
-			path: app/Views/admin/world_objects.php
-
-		-
-			message: '#^Variable \$objects might not be defined\.$#'
-			identifier: variable.undefined
-			count: 1
-			path: app/Views/admin/world_objects.php
-
-		-
-			message: '#^Variable \$this might not be defined\.$#'
-			identifier: variable.undefined
-			count: 3
-			path: app/Views/admin/world_objects.php
 
 		-
 			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
