@@ -3373,12 +3373,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportAction.php
 
 		-
-			message: '#^Binary operation "\." between ''🤖 Это снова я – …'' and mixed results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
-
-		-
 			message: '#^Cannot access offset ''backpackLog'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -3499,9 +3493,9 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-
-			message: '#^Parameter \#1 \$text of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\TeleportUseAction\:\:sendError\(\) expects string, mixed given\.$#'
+			message: '#^Parameter \#1 \$text of method App\\Services\\Player\\TeleportUse\\TeleportUseMessageFormatter\:\:error\(\) expects string, mixed given\.$#'
 			identifier: argument.type
-			count: 2
+			count: 4
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportUseAction.php
 
 		-

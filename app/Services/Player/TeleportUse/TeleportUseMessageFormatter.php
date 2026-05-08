@@ -24,6 +24,23 @@ class TeleportUseMessageFormatter
 {
     private const ROBI_PREFIX = "🤖 Это снова я – *Роби*!\n\n";
 
+    /**
+     * Generic error wrapper для validator's pass-through error strings.
+     * $robiPrefix=true → додає ROBI_PREFIX + Markdown parse_mode.
+     *
+     * @return array{text: string, parse_mode?: string}
+     */
+    public function error(string $text, bool $robiPrefix = false): array
+    {
+        if ($robiPrefix) {
+            return [
+                'text'       => self::ROBI_PREFIX . $text,
+                'parse_mode' => 'Markdown',
+            ];
+        }
+        return ['text' => $text];
+    }
+
     /** @return array{text: string, parse_mode: string} */
     public function userOrCharacterNotFound(): array
     {
