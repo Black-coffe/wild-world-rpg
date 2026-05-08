@@ -15775,30 +15775,6 @@ parameters:
 			path: app/Services/Player/PvEService.php
 
 		-
-			message: '#^Property App\\Services\\Player\\PvEService\:\:\$logger is never read, only written\.$#'
-			identifier: property.onlyWritten
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Property App\\Services\\Player\\PvEService\:\:\$mapModel is never read, only written\.$#'
-			identifier: property.onlyWritten
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Property App\\Services\\Player\\PvEService\:\:\$npcModel is never read, only written\.$#'
-			identifier: property.onlyWritten
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Property App\\Services\\Player\\PvEService\:\:\$npcSpawnModel is never read, only written\.$#'
-			identifier: property.onlyWritten
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
 			message: '#^Cannot access offset ''coordinate_y'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 2

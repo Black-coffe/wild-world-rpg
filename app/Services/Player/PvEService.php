@@ -12,20 +12,14 @@ use App\Services\PVE\PveNotificationSender;
 use App\Models\CharacterModel;
 use App\Models\NpcSpawnModel;
 use App\Models\NpcModel;
-use App\Models\MapModel;
 use App\Entities\BattleCharacter;
-use Psr\Log\LoggerInterface;
 
 class PvEService
 {
     private BattleService $battleService;
     private RewardService $rewardService;
     private EquipmentService $equipmentService;
-    private LoggerInterface $logger;
     private CharacterModel $characterModel;
-    private NpcSpawnModel $npcSpawnModel;
-    private NpcModel $npcModel;
-    private MapModel $mapModel;
     private PveMessageFormatter $messageFormatter;
     private PveCombatValidator $combatValidator;
     private PveBattleLogWriter $battleLogWriter;
@@ -35,11 +29,9 @@ class PvEService
         BattleService $battleService,
         RewardService $rewardService,
         EquipmentService $equipmentService,
-        LoggerInterface $logger,
         CharacterModel $characterModel,
         NpcSpawnModel $npcSpawnModel,
         NpcModel $npcModel,
-        MapModel $mapModel,
         ?PveMessageFormatter $messageFormatter = null,
         ?PveCombatValidator $combatValidator = null,
         ?PveBattleLogWriter $battleLogWriter = null,
@@ -48,11 +40,7 @@ class PvEService
         $this->battleService      = $battleService;
         $this->rewardService      = $rewardService;
         $this->equipmentService   = $equipmentService;
-        $this->logger             = $logger;
         $this->characterModel     = $characterModel;
-        $this->npcSpawnModel      = $npcSpawnModel;
-        $this->npcModel           = $npcModel;
-        $this->mapModel           = $mapModel;
         $this->messageFormatter   = $messageFormatter ?? new PveMessageFormatter();
         $this->combatValidator    = $combatValidator ?? new PveCombatValidator($npcSpawnModel, $npcModel);
         $this->battleLogWriter    = $battleLogWriter ?? new PveBattleLogWriter();
