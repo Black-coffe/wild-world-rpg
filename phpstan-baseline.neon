@@ -14647,6 +14647,36 @@ parameters:
 			path: app/Services/PVE/PveMessageFormatter.php
 
 		-
+			message: '#^Cannot access offset ''telegram_id'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/PveNotificationSender.php
+
+		-
+			message: '#^Cannot access offset ''username'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/PVE/PveNotificationSender.php
+
+		-
+			message: '#^Parameter \#1 \$id of method CodeIgniter\\BaseModel\:\:find\(\) expects int\|list\<int\|string\>\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PVE/PveNotificationSender.php
+
+		-
+			message: '#^Part \$playerData\[''name''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 2
+			path: app/Services/PVE/PveNotificationSender.php
+
+		-
+			message: '#^Part \$playerData\[''telegram_user_id''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
+			count: 1
+			path: app/Services/PVE/PveNotificationSender.php
+
+		-
 			message: '#^Binary operation "\-" between mixed and mixed results in an error\.$#'
 			identifier: binaryOp.invalid
 			count: 1
@@ -15697,18 +15727,6 @@ parameters:
 			path: app/Services/Player/PlayerStateService.php
 
 		-
-			message: '#^Cannot access offset ''telegram_id'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
-			message: '#^Cannot access offset ''username'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
 			message: '#^Method App\\Services\\Player\\PvEService\:\:attack\(\) has parameter \$npcData with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -15727,19 +15745,13 @@ parameters:
 			path: app/Services/Player/PvEService.php
 
 		-
-			message: '#^Method App\\Services\\Player\\PvEService\:\:sendTelegramNotification\(\) has parameter \$playerData with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Services/Player/PvEService.php
-
-		-
 			message: '#^Parameter \#1 \$playerData of method App\\Services\\PVE\\PveMessageFormatter\:\:buildFightResultMessage\(\) expects array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Player/PvEService.php
 
 		-
-			message: '#^Parameter \#1 \$playerData of method App\\Services\\Player\\PvEService\:\:sendTelegramNotification\(\) expects array, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null given\.$#'
+			message: '#^Parameter \#1 \$playerData of method App\\Services\\PVE\\PveNotificationSender\:\:send\(\) expects array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Player/PvEService.php
