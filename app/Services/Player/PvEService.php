@@ -50,12 +50,12 @@ class PvEService
     /**
      * Выполняет PvE бой между персонажем и NPC.
      *
-     * @param array $playerData Данные персонажа из таблицы characters.
-     * @param array $npcData    Данные NPC из npc_spawns (идентификатор, координаты, текущее здоровье).
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $playerData Данные персонажа.
+     * @param array<string,mixed> $npcData    Данные NPC з npc_spawns.
      * @param string $biome     Текущий биом.
-     * @return array Итог боя, награды, подробный лог и обновленные данные персонажа.
+     * @return array<string,mixed> Итог боя.
      */
-    public function attack(array $playerData, array $npcData, string $biome): array
+    public function attack(array|\App\Entities\CharacterEntity $playerData, array $npcData, string $biome): array
     {
         log_message('debug', "Атака: Игрок {$playerData['name']} против NPC ID={$npcData['npc_id']}");
 
