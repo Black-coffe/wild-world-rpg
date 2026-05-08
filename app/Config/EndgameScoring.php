@@ -34,6 +34,17 @@ class EndgameScoring extends BaseConfig
     /** Crafted item generic — points до character's faction. */
     public int $craftedItemPoints = 10;
 
+    // ===================================================================
+    // POST-ENDGAME REWARDS (v0.51.119)
+    // Apply до winning faction members коли threshold hit.
+    // ===================================================================
+
+    /** Gold reward per winning character (winning faction). */
+    public int $winnerGoldReward = 50000;
+
+    /** Stat bump (+N до strength/agility/intellect) per winner. */
+    public float $winnerStatBonus = 5.0;
+
     /**
      * Strategic object name_en → faction_id mapping.
      * Bunker → Militari (Dominance)

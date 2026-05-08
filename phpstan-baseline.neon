@@ -17677,6 +17677,12 @@ parameters:
 			path: app/TaskHandlers/DeathRouletteHandler.php
 
 		-
+			message: '#^Cannot access offset ''endgame_state'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/TaskHandlers/Endgame/EndgameThresholdHandler.php
+
+		-
 			message: '#^Cannot access offset ''telegram_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1

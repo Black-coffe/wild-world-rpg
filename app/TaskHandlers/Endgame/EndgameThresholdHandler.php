@@ -72,13 +72,19 @@ class EndgameThresholdHandler extends BaseTaskHandler
         log_message('info', "[EndgameThresholdHandler] FINAL TRIGGERED: faction={$winnerFactionId} scenario={$scenarioName}");
 
         // Update all characters' endgame_state.
-        $this->updateCharacterStates($winnerFactionId);
+        $winnerCharIds = $this->updateCharacterStates($winnerFactionId);
+
+        // v0.51.119: distribute rewards to winning faction members.
+        $this->distributeWinnerRewards($winnerCharIds);
 
         // Broadcast to all active chars.
         $this->broadcastFinal($scenarioRu, $winnerFactionId);
     }
 
-    private function updateCharacterStates(int $winnerFactionId): void
+    /**
+     * @return list<int> winning character IDs (для reward distribution).
+     */
+    private function updateCharacterStates(int $winnerFactionId): array
     {
         $now = date('Y-m-d H:i:s');
 
@@ -108,35 +114,84 @@ class EndgameThresholdHandler extends BaseTaskHandler
                 'endgame_lock_at' => $now,
             ])->update();
         }
+
+        return array_map('intval', $winnerCharIds);
+    }
+
+    /**
+     * v0.51.119: bulk reward distribution до winning faction.
+     *
+     * @param list<int> $winnerCharIds
+     */
+    private function distributeWinnerRewards(array $winnerCharIds): void
+    {
+        if (empty($winnerCharIds)) {
+            return;
+        }
+
+        $gold     = $this->cfg->winnerGoldReward;
+        $statBump = $this->cfg->winnerStatBonus;
+
+        // SET col = col + delta (raw expression, atomic).
+        $this->characterModel->whereIn('id', $winnerCharIds)
+            ->set('gold', "gold + {$gold}", false)
+            ->set('strength', "strength + {$statBump}", false)
+            ->set('agility', "agility + {$statBump}", false)
+            ->set('intellect', "intellect + {$statBump}", false)
+            ->update();
+
+        log_message('info', "[EndgameThresholdHandler] Rewards distributed to " . count($winnerCharIds) . " winners (+{$gold} gold, +{$statBump} stats)");
     }
 
     private function broadcastFinal(string $scenarioRu, int $winnerFactionId): void
     {
         $factionName = $this->resolveFactionName($winnerFactionId);
+        $gold        = $this->cfg->winnerGoldReward;
+        $statBump    = $this->cfg->winnerStatBonus;
 
-        $msg  = "🌍 *НАСТУПИЛ ФИНАЛ ИГРЫ*\n\n";
-        $msg .= "Сценарий: *{$scenarioRu}*\n";
-        $msg .= "Победила фракция: *{$factionName}*\n\n";
-        $msg .= "_Этот сервер достиг конечной точки своей истории._\n\n";
-        $msg .= "Если ты был у победившей фракции — поздравляем! Твой персонаж достиг финала.\n";
-        $msg .= "Если был у другой — продолжай играть на новых серверах. Этот мир завершён.";
+        // Pre-build winner + loser variants.
+        $winnerMsg  = "🏆 *ПОБЕДА! НАСТУПИЛ ФИНАЛ ИГРЫ*\n\n";
+        $winnerMsg .= "Сценарий: *{$scenarioRu}*\n";
+        $winnerMsg .= "Победила фракция: *{$factionName}*\n\n";
+        $winnerMsg .= "_Поздравляем! Твоя фракция привела сервер к финалу._\n\n";
+        $winnerMsg .= "🎁 *Награды:*\n";
+        $winnerMsg .= "— *+{$gold} золота*\n";
+        $winnerMsg .= "— *+{$statBump} силы / ловкости / интеллекта*\n\n";
+        $winnerMsg .= "Этот мир завершён. Ты — герой Wild World.";
 
-        // Find all active chars з telegram_id (через JOIN).
+        $loserMsg  = "🌍 *НАСТУПИЛ ФИНАЛ ИГРЫ*\n\n";
+        $loserMsg .= "Сценарий: *{$scenarioRu}*\n";
+        $loserMsg .= "Победила фракция: *{$factionName}*\n\n";
+        $loserMsg .= "_Этот сервер достиг конечной точки своей истории._\n\n";
+        $loserMsg .= "Твоя фракция не успела набрать достаточно очков. Этот мир завершён —\n";
+        $loserMsg .= "продолжай играть на новых серверах когда они появятся.";
+
+        // Find all affected chars (won + lost) з telegram_id + endgame_state.
         $rows = $this->characterModel
-            ->select('characters.id, telegram_users.telegram_id')
+            ->select('characters.id, characters.endgame_state, telegram_users.telegram_id')
             ->join('telegram_users', 'telegram_users.id = characters.telegram_user_id')
-            ->where('characters.endgame_state IN', ['won', 'lost'], false)
+            ->whereIn('characters.endgame_state', ['won', 'lost'])
             ->findAll();
 
+        $winnerCount = 0;
+        $loserCount  = 0;
         foreach ($rows as $row) {
             $tgId = $row['telegram_id'] ?? null;
             if ($tgId === null) {
                 continue;
             }
+            $isWinner = ($row['endgame_state'] ?? '') === 'won';
+            $msg = $isWinner ? $winnerMsg : $loserMsg;
             $this->safeSendMessage((int) $tgId, $msg, ['parse_mode' => 'Markdown']);
+
+            if ($isWinner) {
+                $winnerCount++;
+            } else {
+                $loserCount++;
+            }
         }
 
-        log_message('info', "[EndgameThresholdHandler] Broadcast sent to " . count($rows) . " chars");
+        log_message('info', "[EndgameThresholdHandler] Broadcast sent: {$winnerCount} winners + {$loserCount} losers");
     }
 
     private function resolveFactionName(int $factionId): string
