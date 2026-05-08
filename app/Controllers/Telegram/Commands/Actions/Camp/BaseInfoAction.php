@@ -3,12 +3,10 @@
 namespace App\Controllers\Telegram\Commands\Actions\Camp;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
-use App\Models\BiomeModel;
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
-use App\Models\ClaimedCellModel;
-use App\Models\MapModel;
 use App\Services\Bases\BaseInfoMessageFormatter;
+use App\Services\Bases\BaseLocationResolver;
 use App\Services\Bases\CampCheckService;
 use App\Services\Coverage\CommunicationTowerCoverageService;
 use Longman\TelegramBot\Entities\ServerResponse;
@@ -25,11 +23,13 @@ use Longman\TelegramBot\Request;
 class BaseInfoAction extends BaseAction
 {
     private BaseInfoMessageFormatter $formatter;
+    private BaseLocationResolver $resolver;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
         $this->formatter = new BaseInfoMessageFormatter();
+        $this->resolver  = new BaseLocationResolver();
     }
 
     public function handle(): ServerResponse
@@ -41,49 +41,40 @@ class BaseInfoAction extends BaseAction
             return $this->sendMessage($this->formatter->userOrCharacterNotFound());
         }
 
-        $claimedCellModel       = new ClaimedCellModel();
-        $mapModel               = new MapModel();
-        $biomeModel             = new BiomeModel();
         $buildingModel          = new BuildingModel();
         $characterBuildingModel = new CharacterBuildingModel();
         $towerCoverageService   = new CommunicationTowerCoverageService();
 
-        $claimedCell = $claimedCellModel->where('character_id', $character['id'])->first();
+        $claimedCell = $this->resolver->findClaimedCell((int) $character['id']);
 
         // 1) Если у персонажа НЕТ лагеря
         if (!$claimedCell) {
-            return $this->handleNoBase($character, $mapModel, $biomeModel);
+            return $this->handleNoBase($character);
         }
 
         // 2) Персонаж физически на базе
         if ($claimedCell['map_cell_id'] == $character['cell_number']) {
-            return $this->showBaseBuildings(
-                $character, $claimedCell, $mapModel, $biomeModel, $buildingModel, $characterBuildingModel
-            );
+            return $this->showBaseBuildings($character, $claimedCell, $buildingModel, $characterBuildingModel);
         }
 
         // 3) Не на базе, проверяем вышку связи
         $coverageResult = $towerCoverageService->checkCoverage($character['id']);
         if ($coverageResult['isCovered']) {
             return $this->showBaseBuildings(
-                $character, $claimedCell, $mapModel, $biomeModel, $buildingModel, $characterBuildingModel,
-                $coverageResult
+                $character, $claimedCell, $buildingModel, $characterBuildingModel, $coverageResult
             );
         }
 
         // 4) Не на базе, вышка не покрывает
-        return $this->handleNotOnBasePhysically($claimedCell, $mapModel, $biomeModel);
+        return $this->handleNotOnBasePhysically($claimedCell);
     }
 
     /**
      * Случай, когда у персонажа вообще нет базы.
      */
-    protected function handleNoBase(
-        array|\App\Entities\CharacterEntity $character,
-        MapModel $mapModel,
-        BiomeModel $biomeModel
-    ): ServerResponse {
-        $cellNumber       = $character['cell_number'] ?? 0;
+    protected function handleNoBase(array|\App\Entities\CharacterEntity $character): ServerResponse
+    {
+        $cellNumber       = (int) ($character['cell_number'] ?? 0);
         $campCheckService = new CampCheckService();
 
         if ($cellNumber && $campCheckService->isCellClaimedByAnyone($cellNumber)) {
@@ -94,15 +85,15 @@ class BaseInfoAction extends BaseAction
             return $this->sendMessage($this->formatter->noBaseNoCellNumber());
         }
 
-        $mapRow = $mapModel->where('cell_number', $cellNumber)->first();
+        $mapRow = $this->resolver->findMapRow($cellNumber);
         if (!$mapRow) {
-            return $this->sendMessage($this->formatter->noBaseMapNotFound((int) $cellNumber));
+            return $this->sendMessage($this->formatter->noBaseMapNotFound($cellNumber));
         }
 
         $coordX  = (int) $mapRow['coordinate_x'];
         $coordY  = (int) $mapRow['coordinate_y'];
         $biomeId = (int) $mapRow['biome_id'];
-        $biomeRow = $biomeModel->find($biomeId);
+        $biomeRow = $this->resolver->findBiomeRow($biomeId);
 
         if (!$biomeRow) {
             return $this->sendMessage($this->formatter->noBaseBiomeNotFound($coordX, $coordY, $biomeId));
@@ -114,23 +105,22 @@ class BaseInfoAction extends BaseAction
     /**
      * Случай, когда у персонажа есть база, но он не на её клетке
      * и сигнал вышки связи НЕ дотягивается.
+     *
+     * @param array<string, mixed> $claimedCell
      */
-    protected function handleNotOnBasePhysically(
-        array $claimedCell,
-        MapModel $mapModel,
-        BiomeModel $biomeModel
-    ): ServerResponse {
-        $mapRow = $mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
+    protected function handleNotOnBasePhysically(array $claimedCell): ServerResponse
+    {
+        $mapRow = $this->resolver->findMapRow((int) $claimedCell['map_cell_id']);
         if (!$mapRow) {
             return $this->sendMessage($this->formatter->notOnBaseMapError());
         }
 
-        $biomeRow  = $biomeModel->where('id', $mapRow['biome_id'])->first();
-        $biomeName = $biomeRow['name'] ?? '???';
+        $biomeRow  = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
+        $biomeName = (string) ($biomeRow['name'] ?? '???');
         $coordX    = (int) $mapRow['coordinate_x'];
         $coordY    = (int) $mapRow['coordinate_y'];
 
-        $payload = $this->formatter->notOnBasePhysically($coordX, $coordY, (string) $biomeName);
+        $payload   = $this->formatter->notOnBasePhysically($coordX, $coordY, $biomeName);
         $imagePath = base_url('uploads/telegram/camp/an_empty_area.jpg');
 
         return Request::sendPhoto([
@@ -143,29 +133,27 @@ class BaseInfoAction extends BaseAction
     }
 
     /**
-     * Случай, когда персонаж находится на базе
-     * ИЛИ в зоне покрытия вышки связи (дистанционное управление).
+     * Случай, когда персонаж находится на базе ИЛИ в зоне покрытия вышки связи.
      *
+     * @param array<string, mixed> $claimedCell
      * @param array<string, mixed>|null $coverageResult
      */
     protected function showBaseBuildings(
         array|\App\Entities\CharacterEntity $character,
         array $claimedCell,
-        MapModel $mapModel,
-        BiomeModel $biomeModel,
         BuildingModel $buildingModel,
         CharacterBuildingModel $characterBuildingModel,
         ?array $coverageResult = null
     ): ServerResponse {
         $buildings = $characterBuildingModel->where('character_id', $character['id'])->findAll();
 
-        $mapRow = $mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
+        $mapRow = $this->resolver->findMapRow((int) $claimedCell['map_cell_id']);
         if (!$mapRow) {
             return $this->sendMessage($this->formatter->baseMapNotFound());
         }
 
-        $biomeRow  = $biomeModel->find($mapRow['biome_id']);
-        $biomeName = $biomeRow['name'] ?? '???';
+        $biomeRow  = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
+        $biomeName = (string) ($biomeRow['name'] ?? '???');
         $coordX    = (int) $mapRow['coordinate_x'];
         $coordY    = (int) $mapRow['coordinate_y'];
 
@@ -180,7 +168,7 @@ class BaseInfoAction extends BaseAction
         }
 
         $payload = $this->formatter->baseBuildings(
-            $coordX, $coordY, (string) $biomeName, $buildingCount, $totalTax, $buildingList, $coverageResult
+            $coordX, $coordY, $biomeName, $buildingCount, $totalTax, $buildingList, $coverageResult
         );
         $imagePath = base_url('uploads/telegram/camp/base_with_its_buildings.jpg');
 
