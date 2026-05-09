@@ -348,6 +348,31 @@ class CraftRecipes extends BaseConfig
             'craft_again_callback' => 'genericCraft_StoneBlocks_1',
         ],
 
+        // v0.51.127 (community idea #2) — defense craft проти MeteorImpact event.
+        // -50% resource loss якщо є у інвентарі під час падіння метеорита.
+        'MeteorShelter' => [
+            'task_name'            => 'craftMeteorShelter',
+            'resources'            => [
+                'Камни'         => 20,
+                'Железная руда' => 10,
+                'Древесина'     => 15,
+            ],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/components/craftMeteorShelter.jpg',
+            'start_caption_name'   => '🛡 *Метеоритное укрытие*',
+            'info_callback'        => 'meteorShelter',
+
+            'item_name_eng'        => 'MeteorShelter',
+            'item_name_rus'        => 'Метеоритное укрытие',
+            'icon_emoji'           => '🛡',
+            'zone_emoji'           => '🛡',
+            'zone_name'            => 'защита',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/components/craftMeteorShelter.jpg',
+            'craft_again_callback' => 'genericCraft_MeteorShelter_1',
+        ],
+
         'MetalFragments' => [
             'task_name'            => 'craftMetalFragments',
             'resources'            => [

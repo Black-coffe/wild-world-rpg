@@ -98,11 +98,11 @@ final class WorldEventsTest extends CIUnitTestCase
         }
     }
 
-    public function testConfigHasExactly24Events(): void
+    public function testConfigHasExactly25Events(): void
     {
-        // 2026-05-05: у БД зареєстровано 24 події. Якщо це число змінюється,
-        // оновити тут і в hot.md/Events-actual.md.
-        $this->assertCount(24, $this->cfg->keys(), 'Очікується 24 події у конфігу');
+        // 2026-05-09: 25 подій (24 historical + MeteorImpact community idea #2 v0.51.127).
+        // Якщо число змінюється, оновити тут і в hot.md/Events-actual.md.
+        $this->assertCount(25, $this->cfg->keys(), 'Очікується 25 подій у конфігу');
     }
 
     // ============================================================
