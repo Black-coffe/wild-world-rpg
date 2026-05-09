@@ -20895,6 +20895,12 @@ parameters:
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
+			count: 7
+			path: app/Views/front/pvp_form.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
 			count: 4
 			path: app/Views/layouts/main.php
 

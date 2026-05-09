@@ -1,85 +1,80 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PvP Бой</title>
-    <!-- Подключение Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script>
-        var csrfName = '<?= csrf_token() ?>'; // CSRF Token name
-        var csrfHash = '<?= csrf_hash() ?>'; // CSRF hash
-    </script>
-</head>
-<body class="bg-light">
-<div class="container my-5">
-    <h1 class="text-center mb-4">PvP Бой: Тестовая Симуляция</h1>
+<?= $this->extend('layouts/main') ?>
 
-    <!-- Пояснительный текст -->
-    <div class="row justify-content-center">
-        <div class="col-md-12">
-            <div class="alert alert-info">
-                <p><strong>Добро пожаловать!</strong> На этой странице вы можете протестировать систему пошагового боя между персонажами. Здесь происходит симуляция реальных боев, которые могут происходить в игре, но это <strong>тестовая версия</strong>, и результаты <strong>не влияют на игру</strong>.</p>
-                <p>Тестирование поможет вам понять логику боёвки и формулы расчёта урона. Вы можете выбрать двух персонажей и биом, чтобы симулировать бой, и изучить, как проходят сражения.</p>
-                <p>Помните, что в реальной игре результаты могут быть другими в зависимости от многих факторов. Здесь же вы можете попробовать разные комбинации и проверить механику боёв, прежде чем вступить в реальные сражения!</p>
-            </div>
-        </div>
-    </div>
+<?= $this->section('title') ?>
+PvP Бой
+<?= $this->endSection() ?>
 
-    <!-- Форма с выбором персонажей и биома -->
-    <div class="row justify-content-center">
-        <div class="col-md-12">
-            <form id="pvpForm" class="p-4 border rounded bg-white shadow-sm d-flex flex-wrap align-items-end justify-content-between">
-                <div class="mb-3 flex-fill me-2">
-                    <label for="character1" class="form-label">Выберите персонажа №1:</label>
-                    <select name="character1" id="character1" class="form-select">
-                        <?php foreach ($characters as $character): ?>
-                            <option value="<?= $character['id']; ?>"><?= $character['name']; ?> | id:<?= $character['id']; ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
+<?= $this->section('content') ?>
+<h1 class="text-center mb-4">PvP Бой: Тестовая Симуляция</h1>
 
-                <div class="mb-3 flex-fill me-2">
-                    <label for="character2" class="form-label">Выберите персонажа №2:</label>
-                    <select name="character2" id="character2" class="form-select">
-                        <?php foreach ($characters as $character): ?>
-                            <option value="<?= $character['id']; ?>"><?= $character['name']; ?> | id:<?= $character['id']; ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="mb-3 flex-fill me-2">
-                    <label for="biome" class="form-label">Выберите биом:</label>
-                    <select name="biome" id="biome" class="form-select">
-                        <?php foreach ($biomes as $biome): ?>
-                            <option value="<?= $biome['id']; ?>"><?= $biome['name']; ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="mb-3">
-                    <button type="submit" class="btn btn-primary">Начать бой</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-
-    <!-- Блок для вывода логов боя -->
-    <div class="row mt-5">
-        <div class="col-md-12 mx-auto">
-            <div id="fightLogs" class="p-3 bg-white border rounded shadow-sm">
-                <h2 class="text-center">Логи боя</h2>
-                <div id="logContent">
-                    <!-- Здесь будет выводиться результат боя -->
-                </div>
-            </div>
+<!-- Пояснительный текст -->
+<div class="row justify-content-center">
+    <div class="col-md-12">
+        <div class="alert alert-info">
+            <p><strong>Добро пожаловать!</strong> На этой странице вы можете протестировать систему пошагового боя между персонажами. Здесь происходит симуляция реальных боев, которые могут происходить в игре, но это <strong>тестовая версия</strong>, и результаты <strong>не влияют на игру</strong>.</p>
+            <p>Тестирование поможет вам понять логику боёвки и формулы расчёта урона. Вы можете выбрать двух персонажей и биом, чтобы симулировать бой, и изучить, как проходят сражения.</p>
+            <p>Помните, что в реальной игре результаты могут быть другими в зависимости от многих факторов. Здесь же вы можете попробовать разные комбинации и проверить механику боёв, прежде чем вступить в реальные сражения!</p>
         </div>
     </div>
 </div>
 
-<!-- Подключение Bootstrap 5 JS и Popper.js для интерактивных элементов -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Форма с выбором персонажей и биома -->
+<div class="row justify-content-center">
+    <div class="col-md-12">
+        <form id="pvpForm" class="p-4 border rounded bg-white shadow-sm d-flex flex-wrap align-items-end justify-content-between">
+            <div class="mb-3 flex-fill me-2">
+                <label for="character1" class="form-label">Выберите персонажа №1:</label>
+                <select name="character1" id="character1" class="form-select">
+                    <?php foreach ($characters as $character): ?>
+                        <option value="<?= $character['id']; ?>"><?= $character['name']; ?> | id:<?= $character['id']; ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="mb-3 flex-fill me-2">
+                <label for="character2" class="form-label">Выберите персонажа №2:</label>
+                <select name="character2" id="character2" class="form-select">
+                    <?php foreach ($characters as $character): ?>
+                        <option value="<?= $character['id']; ?>"><?= $character['name']; ?> | id:<?= $character['id']; ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="mb-3 flex-fill me-2">
+                <label for="biome" class="form-label">Выберите биом:</label>
+                <select name="biome" id="biome" class="form-select">
+                    <?php foreach ($biomes as $biome): ?>
+                        <option value="<?= $biome['id']; ?>"><?= $biome['name']; ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <button type="submit" class="btn btn-primary">Начать бой</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<!-- Блок для вывода логов боя -->
+<div class="row mt-5">
+    <div class="col-md-12 mx-auto">
+        <div id="fightLogs" class="p-3 bg-white border rounded shadow-sm">
+            <h2 class="text-center">Логи боя</h2>
+            <div id="logContent">
+                <!-- Здесь будет выводиться результат боя -->
+            </div>
+        </div>
+    </div>
+</div>
+<?= $this->endSection() ?>
+
+<?= $this->section('extraJs') ?>
+<script>
+    var csrfName = '<?= csrf_token() ?>'; // CSRF Token name
+    var csrfHash = '<?= csrf_hash() ?>'; // CSRF hash
+</script>
 <!-- AJAX-запрос для отправки формы и вывода логов -->
 <script>
     document.getElementById('pvpForm').addEventListener('submit', function(event) {
@@ -235,5 +230,4 @@
 
     });
 </script>
-</body>
-</html>
+<?= $this->endSection() ?>
