@@ -68,11 +68,12 @@
             <div class="mb-3">
                 <label class="form-label">Биомы</label>
                 <div class="d-flex flex-wrap">
+                    <?php
+                    // v0.51.141 hotfix: global events мають biome_ids=NULL у DB (per migration AddMeteorImpactEvent v0.51.127).
+                    // json_decode(null) → null; in_array(..., null) → TypeError. Decode once + null guard для повного захисту.
+                    $selectedBiomes = json_decode($event['biome_ids'] ?? '[]', true) ?? [];
+                    ?>
                     <?php foreach ($biomes as $biome): ?>
-                        <?php
-                        // Декодирование списка ID биомов из JSON
-                        $selectedBiomes = json_decode($event['biome_ids'], true);
-                        ?>
                         <div class="form-check form-check-inline">
                             <input class="form-check-input" type="checkbox" id="biome_<?= esc($biome['id']) ?>" name="biome_ids[]" value="<?= esc($biome['id']) ?>" <?= in_array($biome['id'], $selectedBiomes) ? 'checked' : '' ?>>
                             <label class="form-check-label" for="biome_<?= esc($biome['id']) ?>"><?= esc($biome['name']) ?></label>
