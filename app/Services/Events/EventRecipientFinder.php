@@ -35,6 +35,12 @@ final class EventRecipientFinder
     public function resolveBiomeIds(array $eventRow): array
     {
         $raw = $eventRow['biome_ids'] ?? null;
+        // Global event: biome_ids може бути NULL/empty (PHP 8.1+ json_decode(null) → TypeError).
+        // Twin guard до EventDispatcher::findAffectedPlayers (HOTFIX 31c2753, v0.51.127).
+        // sendStart → resolveBiomeIds читає той самий стовпець, тому той самий fix.
+        if ($raw === null || $raw === '') {
+            return [];
+        }
         $arr = json_decode($raw, true);
         if (!is_array($arr) || empty($arr)) {
             return [];
