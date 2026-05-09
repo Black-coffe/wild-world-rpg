@@ -1,8 +1,7 @@
-<?php $title = $title ?? 'Увійти | Система адміністрування rishuchi'; ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?= $this->include('admin/partials/_head_common') ?>
+    <?= $this->include('admin/partials/_head_common', ['title' => $title ?? 'Увійти | Система адміністрування rishuchi']) ?>
 </head>
 
 <body class="authentication-bg position-relative">

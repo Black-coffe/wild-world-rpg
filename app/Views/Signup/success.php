@@ -1,8 +1,7 @@
-<?php $title = $title ?? 'Вы успешно зарегистрировались'; ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?= $this->include('admin/partials/_head_common') ?>
+    <?= $this->include('admin/partials/_head_common', ['title' => $title ?? 'Вы успешно зарегистрировались']) ?>
 </head>
 
 <body class="authentication-bg">

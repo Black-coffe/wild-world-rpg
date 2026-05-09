@@ -1,8 +1,7 @@
-<?php $title = $title ?? 'Создание нового пароля'; ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?= $this->include('admin/partials/_head_common') ?>
+    <?= $this->include('admin/partials/_head_common', ['title' => $title ?? 'Создание нового пароля']) ?>
 </head>
 
 <body class="authentication-bg">
