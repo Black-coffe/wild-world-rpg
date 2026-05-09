@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?= $this->include('admin/partials/_head_common', ['title' => $title ?? 'Регистрация | CoC - Checking of cars']) ?>
+    <?= view('admin/partials/_head_common', ['title' => $title ?? 'Регистрация | CoC - Checking of cars']) ?>
 </head>
 
 <body class="authentication-bg">
@@ -111,7 +111,7 @@
     2018 - <script>document.write(new Date().getFullYear())</script> © Hyper - Coderthemes.com
 </footer>
 
-<?= $this->include('admin/partials/_scripts_common') ?>
+<?= view('admin/partials/_scripts_common') ?>
 
 </body>
 </html>
