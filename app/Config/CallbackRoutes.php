@@ -232,6 +232,8 @@ class CallbackRoutes extends BaseConfig
      */
     public array $prefixRoutes = [
         'sellResource' => \App\Controllers\Telegram\Commands\Actions\Sell\SellResourceAction::class,
+        // v0.51.129 (community idea #1) — cancel queued craft з refund ресурсів
+        'cancelQueued' => \App\Controllers\Telegram\Commands\Actions\Craft\CancelQueuedCraftAction::class,
     ];
 
     /**

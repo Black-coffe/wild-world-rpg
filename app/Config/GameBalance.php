@@ -383,4 +383,21 @@ class GameBalance extends BaseConfig
 
     /** Втрата tired за кожні 30 хвилин exploration. */
     public int $explorationTiredLossPer30Min = 2;
+
+    // ===================================================================
+    // Craft queue (GenericCraftActionStart) — community idea #1, v0.51.129
+    // ===================================================================
+
+    /**
+     * Максимум одночасних distinct active+queued recipes per character.
+     * Якщо гравець вже використовує N distinct recipes (active OR з queue) —
+     * новий recipe blocked. Same recipe можна стакати у queue до окремого ліміту.
+     */
+    public int $craftMaxConcurrentSlots = 3;
+
+    /**
+     * Максимум tasks per recipe (active + queued sum). 1-10 крафтів стакаються
+     * у one-recipe queue. Понад цього — sendError("queue full").
+     */
+    public int $craftMaxQueuePerRecipe = 10;
 }
