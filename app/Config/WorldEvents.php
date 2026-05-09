@@ -163,6 +163,24 @@ class WorldEvents extends BaseConfig
             'notification_kind' => 'lifecycle',
         ],
 
+        // v0.51.127 (community idea #2) — single-impact паралельно continuous MeteorRain.
+        // Single-shot semantics: duration_minutes=1 + tick_chance=1.0 →
+        // EventTickHandler runs every minute → exactly 1 tick → exactly 1 apply,
+        // далі event переходить у completed і EventCloseHandler шле end-summary.
+        'MeteorImpact' => [
+            'effect_kind'   => 'damage_resources',
+            'effect_params' => [
+                'percent_per_event' => 40,  // devastating one-shot (vs MeteorRain 15% continuous)
+                'state_modifier'    => self::DEFAULT_DAMAGE_STATE_MODIFIER,
+                'min_stack'         => 1,
+            ],
+            'duration_minutes'  => 1,
+            'frequency_weight'  => 1,
+            'tick_chance'       => 1.0,
+            'protection_item'   => 'MeteorShelter',  // -50% loss якщо є у інвентарі (F7.7)
+            'notification_kind' => 'lifecycle',
+        ],
+
         'Epidemic' => [
             'effect_kind'   => 'damage_health',
             'effect_params' => [
