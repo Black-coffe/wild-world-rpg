@@ -358,4 +358,29 @@ class GameBalance extends BaseConfig
 
     /** Максимум fade percent (capped). */
     public int $explorationFadePercentMax = 50;
+
+    // ===================================================================
+    // ExplorationTask — distance reward + time risk (community idea #5, v0.51.128)
+    // ===================================================================
+
+    /**
+     * % бонусу до cells_after_fade за кожні 100 клітинок Chebyshev-distance
+     * між базою (claimed_cell) та поточною позицією player'а.
+     *
+     * Стимул: дальні походи від бази дають більше cells. Якщо бази немає —
+     * bonus = 0 (no claimed_cell → distance не calc'иться).
+     */
+    public int $explorationDistanceBonusPer100Cells = 5;
+
+    /** Максимум distance bonus % (capped). */
+    public int $explorationDistanceBonusMax = 50;
+
+    /**
+     * Втрата health за кожні 30 хвилин exploration. Risk-component: дов
+     * exploration = більше витрат на health (додатково до fade).
+     */
+    public int $explorationHealthLossPer30Min = 1;
+
+    /** Втрата tired за кожні 30 хвилин exploration. */
+    public int $explorationTiredLossPer30Min = 2;
 }

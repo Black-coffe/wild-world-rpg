@@ -4,6 +4,7 @@ namespace App\TaskHandlers;
 
 use App\Models\CharacterTaskModel;
 use App\Models\CharacterModel;
+use App\Models\ClaimedCellModel;
 use App\Models\ExploredCellsModel;
 use App\Models\MapModel;
 use App\Models\BiomeModel;
@@ -23,6 +24,12 @@ use Config\GameBalance;
  * - explorationXpBonus / explorationStatBonus / explorationPlannedTolerance /
  *   explorationFadePercentPer10Min / explorationFadePercentMax → GameBalance.
  * - getCellsOnRing N+1 fix: bounding-box query + biome map preload.
+ *
+ * v0.51.128 (community idea #5 — distance reward + time risk):
+ * - Distance bonus: +5% cells / 100 кл. Chebyshev distance до claimed_cell
+ *   (cap +50%). Стимул дальніх походів. Без бази — 0 bonus.
+ * - Time risk: -1 health / -2 tired per 30 min exploration (додатково до fade).
+ *   Risk-component: дов explore = витрати на ресурси.
  */
 class ExplorationTaskHandler extends BaseTaskHandler
 {
@@ -66,19 +73,24 @@ class ExplorationTaskHandler extends BaseTaskHandler
         $delta = abs($actualSpent - $plannedMinutes);
         $finalMinutes = ($delta <= $this->cfg->explorationPlannedTolerance) ? $plannedMinutes : $actualSpent;
 
-        // 3) Улучшение характеристик — scale by time blocks (10 min units).
-        // v0.51.27: GameBalance wire-in. v0.51.28 fix: bonus scales з тривалістю
-        // (0.01 per 10 min × N blocks). Раніше — fixed bonus незалежно від duration.
-        // Bug reported: "исследование или крафт добавляет по 0,01 не зависимо на 10
-        // минут отправился или на 720".
-        $blocks = max(1, intdiv($finalMinutes, 10));
-        $xpBonus   = $this->cfg->explorationXpBonus * $blocks;
-        $statBonus = $this->cfg->explorationStatBonus * $blocks;
+        // 3) Улучшение характеристик + risk drain (v0.51.128).
+        // xp/stat scale by time blocks (10 min units, v0.51.28 bug fix).
+        // health/tired drain — risk component: дов explore = витрати (1 health + 2
+        // tired per 30 min). Single UPDATE замість двох — раннє об'єднання.
+        $blocks      = max(1, intdiv($finalMinutes, 10));
+        $riskBlocks  = intdiv($finalMinutes, 30);  // 0 для <30 min, 1 для 30-59, etc.
+        $xpBonus     = $this->cfg->explorationXpBonus   * $blocks;
+        $statBonus   = $this->cfg->explorationStatBonus * $blocks;
+        $healthLoss  = $riskBlocks * $this->cfg->explorationHealthLossPer30Min;
+        $tiredLoss   = $riskBlocks * $this->cfg->explorationTiredLossPer30Min;
+
         $characterModel->update($character['id'], [
             'experience' => $character['experience'] + $xpBonus,
             'strength'   => $character['strength']   + $statBonus,
             'agility'    => $character['agility']    + $statBonus,
             'intellect'  => $character['intellect']  + $statBonus,
+            'health'     => max(0.01, (float) $character['health'] - $healthLoss),
+            'tired'      => max(0.01, (float) $character['tired']  - $tiredLoss),
         ]);
 
         // 5) Считаем сырое количество ячеек (1 мин = 1 ячейка)
@@ -114,6 +126,32 @@ class ExplorationTaskHandler extends BaseTaskHandler
 
         $startX = $playerCell['coordinate_x'];
         $startY = $playerCell['coordinate_y'];
+
+        // 6.5) Distance bonus (v0.51.128): Chebyshev distance до claimed_cell.
+        // Стимул дальніх походів — кожні 100 клітинок distance дають +5% cells
+        // (cap +50%). Якщо бази нема — 0 bonus (skipped).
+        $distance = 0;
+        $distanceBonusPercent = 0;
+        $claimedCell = (new ClaimedCellModel())
+            ->where('character_id', $character['id'])
+            ->where('status', 'active')
+            ->first();
+        if ($claimedCell !== null) {
+            $baseCell = $mapModel->where('cell_number', (int) $claimedCell['map_cell_id'])->first();
+            if ($baseCell !== null) {
+                $distance = max(
+                    abs((int) $baseCell['coordinate_x'] - (int) $startX),
+                    abs((int) $baseCell['coordinate_y'] - (int) $startY)
+                );
+                $distanceBonusPercent = intdiv($distance, 100) * $this->cfg->explorationDistanceBonusPer100Cells;
+                if ($distanceBonusPercent > $this->cfg->explorationDistanceBonusMax) {
+                    $distanceBonusPercent = $this->cfg->explorationDistanceBonusMax;
+                }
+                if ($distanceBonusPercent > 0) {
+                    $cellsAfterFade = (int) round($cellsAfterFade * (1.0 + $distanceBonusPercent / 100.0));
+                }
+            }
+        }
 
         // 8) Обход кольцами, пока не израсходуем cellsAfterFade
         $limit  = $cellsAfterFade;
@@ -174,7 +212,16 @@ class ExplorationTaskHandler extends BaseTaskHandler
         $this->playerDetectionService->detectNearbyPlayers($character['id']);
 
         // 11) Формируем текст
-        $text = $this->formatExplorationResult($rawCells, $fadePercent, $cellsAfterFade, $newCells);
+        $text = $this->formatExplorationResult(
+            $rawCells,
+            $fadePercent,
+            $cellsAfterFade,
+            $newCells,
+            $distance,
+            $distanceBonusPercent,
+            $healthLoss,
+            $tiredLoss
+        );
 
         // 12) Кнопки
         $keyboard = [
@@ -257,20 +304,46 @@ class ExplorationTaskHandler extends BaseTaskHandler
     }
 
     /**
-     * Формируем финальный текст. Показываем,
-     * - сколько было сырого (rawCells)
-     * - сколько процентов фейда
-     * - итоговое (cellsAfterFade)
-     * - сколько реально (count($newCells))
+     * Формируем финальный текст:
+     * - rawCells, fadePercent, cellsAfterFade, opened (count newCells)
+     * - distance bonus (v0.51.128) — якщо distance > 0
+     * - risk drain (v0.51.128) — якщо health/tired loss > 0
+     *
+     * @param array<int, array<string, mixed>> $newCells
      */
-    private function formatExplorationResult(int $rawCells, int $fadePercent, int $cellsAfterFade, array $newCells): string
-    {
+    private function formatExplorationResult(
+        int $rawCells,
+        int $fadePercent,
+        int $cellsAfterFade,
+        array $newCells,
+        int $distance = 0,
+        int $distanceBonusPercent = 0,
+        int $healthLoss = 0,
+        int $tiredLoss = 0
+    ): string {
         $openedCount = count($newCells);
         $msg = "*Исследование завершено!* 🔍\n\n"
             . "По плану: `{$rawCells}` ячеек (1 мин = 1 яч.)\n"
-            . "Уменьшение на *{$fadePercent}%* за время (каждые 10 мин -1%).\n"
-            . "Итоговый лимит: *{$cellsAfterFade}*.\n\n"
+            . "Уменьшение на *{$fadePercent}%* за время (каждые 10 мин -1%).\n";
+
+        if ($distanceBonusPercent > 0) {
+            $msg .= "🎯 Бонус за дистанцию от базы (`{$distance}` кл.): *+{$distanceBonusPercent}%*.\n";
+        }
+
+        $msg .= "Итоговый лимит: *{$cellsAfterFade}*.\n\n"
             . "Фактически добавлено новых: *{$openedCount}* (остальные оказались изучены).\n\n";
+
+        if ($healthLoss > 0 || $tiredLoss > 0) {
+            $msg .= "⚠️ Затрачено в пути: ";
+            $parts = [];
+            if ($healthLoss > 0) {
+                $parts[] = "❤️ -{$healthLoss}";
+            }
+            if ($tiredLoss > 0) {
+                $parts[] = "💤 -{$tiredLoss}";
+            }
+            $msg .= implode(', ', $parts) . ".\n\n";
+        }
 
         if ($openedCount>0) {
             // Подсчёт биомов
