@@ -1,24 +1,8 @@
+<?php $title = $title ?? 'Вы успешно зарегистрировались'; ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="utf-8" />
-    <title>Вы успешно зарегистрировались</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta content="Система мониторинга и учета, а также предотвращения и оповещения по управлению транспортной компанией" name="description" />
-    <meta content="Andrivskii" name="author" />
-
-    <!-- App favicon -->
-    <link rel="shortcut icon" href="<?= base_url('images/favicon.ico')?>">
-
-    <!-- Theme Config Js -->
-    <script src="<?= base_url('js/hyper-config.js')?>"></script>
-
-    <!-- App css -->
-    <link href="<?= base_url('css/app-saas.min.css')?>" rel="stylesheet" type="text/css" id="app-style" />
-
-    <!-- Icons css -->
-    <link href="<?= base_url('css/icons.min.css')?>" rel="stylesheet" type="text/css" />
+    <?= $this->include('admin/partials/_head_common') ?>
 </head>
 
 <body class="authentication-bg">
@@ -90,11 +74,7 @@
 <footer class="footer footer-alt">
     2018 - <script>document.write(new Date().getFullYear())</script> © Hyper - Coderthemes.com
 </footer>
-<!-- Vendor js -->
-<script src="assets/js/vendor.min.js"></script>
-
-<!-- App js -->
-<script src="assets/js/app.min.js"></script>
+<?= $this->include('admin/partials/_scripts_common') ?>
 
 </body>
 </html>

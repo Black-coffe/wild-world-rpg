@@ -1,24 +1,8 @@
+<?php $title = $title ?? 'Создание нового пароля'; ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="utf-8" />
-    <title>Создание нового пароля</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta content="Система мониторинга и учета, а также предотвращения и оповещения по управлению транспортной компанией" name="description" />
-    <meta content="Andrivskii" name="author" />
-
-    <!-- App favicon -->
-    <link rel="shortcut icon" href="<?= base_url('images/favicon.ico')?>">
-
-    <!-- Theme Config Js -->
-    <script src="<?= base_url('js/hyper-config.js')?>"></script>
-
-    <!-- App css -->
-    <link href="<?= base_url('css/app-saas.min.css')?>" rel="stylesheet" type="text/css" id="app-style" />
-
-    <!-- Icons css -->
-    <link href="<?= base_url('css/icons.min.css')?>" rel="stylesheet" type="text/css" />
+    <?= $this->include('admin/partials/_head_common') ?>
 </head>
 
 <body class="authentication-bg">
@@ -117,11 +101,8 @@ if (session('errors')){
     2018 - <script>document.write(new Date().getFullYear())</script> © Checking of cars - checkuptruck.com
 </footer>
 
-<!-- Vendor js -->
-<script src="<?= site_url('js/vendor.min.js')?>"></script>
+<?= $this->include('admin/partials/_scripts_common') ?>
 
-<!-- App js -->
-<script src="<?= site_url('js/app.min.js')?>"></script>
 <script>
     $(document).ready(function() {
         // Селекторы для полей пароля и вывода сообщений об ошибках
