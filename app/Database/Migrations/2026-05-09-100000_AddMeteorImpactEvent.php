@@ -87,7 +87,7 @@ class AddMeteorImpactEvent extends Migration
             'protection_item_id'  => $shelterId,
             'start_time'          => null,
             'end_time'            => null,
-            'img_path'            => 'uploads/telegram/default_event_image.png',
+            'img_path'            => 'uploads/telegram/due_to_meteor_impact.png',
             'created_at'          => $now,
             'updated_at'          => $now,
         ]);
