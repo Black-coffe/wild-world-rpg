@@ -213,10 +213,18 @@ final class EventDispatcher
     private function findAffectedPlayers(array $eventRow): array
     {
         $biomesJson = $eventRow['biome_ids'] ?? null;
-        $biomes     = json_decode($biomesJson, true);
+
+        // Global event: biome_ids може бути NULL (PHP 8.1+ json_decode(null) → TypeError).
+        // Перший global event = MeteorImpact (v0.51.127). Усі попередні 24 events
+        // мали biome_ids filled, тому bug latent з F7.3.
+        if ($biomesJson === null || $biomesJson === '') {
+            return $this->charModel->findAll();
+        }
+
+        $biomes = json_decode($biomesJson, true);
 
         if (!is_array($biomes) || empty($biomes)) {
-            // Global: усі characters
+            // Malformed JSON або порожній array → fallback global
             return $this->charModel->findAll();
         }
 
