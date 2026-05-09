@@ -6,7 +6,7 @@
             <div class="col-12 col-md-8 col-lg-4 footer-col"><img class="img-fluid footer-logo" loading="lazy" src="<?= base_url('assets/images/logo/logo-colored.png')?>" alt="RISHUCHI logo"/>
                 <div class="footer-col-content-wrapper">
                     <p class="footer-text-about-us ">
-                        <?=$textBlocks['12']['content'];?>
+                        <?= $textBlocks['12']['content'] ?? '' ?>
                     </p>
                 </div>
                 <div class="form-area">
@@ -14,7 +14,7 @@
                 </div>
             </div>
             <div class="col-6 col-lg-2 footer-col">
-                <h2 class="footer-col-title"><?=$textBlocks['16']['content'];?></h2>
+                <h2 class="footer-col-title"><?= $textBlocks['16']['content'] ?? '' ?></h2>
                 <div class="footer-col-content-wrapper">
                     <ul class="footer-menu">
                         <li class="footer-menu-item"><i class="bi bi-arrow-right icon"></i><a class="footer-menu-link" href="<?= base_url('')?>">Home</a></li>
@@ -25,7 +25,7 @@
                 </div>
             </div>
             <div class="col-6 col-lg-2 footer-col">
-                <h2 class="footer-col-title"><?=$textBlocks['17']['content'];?></h2>
+                <h2 class="footer-col-title"><?= $textBlocks['17']['content'] ?? '' ?></h2>
                 <div class="footer-col-content-wrapper">
                     <ul class="footer-menu">
                         <li class="footer-menu-item"><i class="bi bi-arrow-right icon"></i><a class="footer-menu-link" href="<?= base_url('about-us')?>">about us</a></li>
@@ -35,11 +35,11 @@
                 </div>
             </div>
             <div class="col-12 col-lg-4 footer-col">
-                <h2 class="footer-col-title"><?=$textBlocks['18']['content'];?></h2>
+                <h2 class="footer-col-title"><?= $textBlocks['18']['content'] ?? '' ?></h2>
                 <div class="footer-col-content-wrapper">
-                    <div class="contact-info-card"><i class="bi bi-envelope icon"></i><a class="text-lowercase info" href="mailto:<?=$textBlocks['13']['content'];?>"><?=$textBlocks['13']['content'];?></a></div>
-                    <div class="contact-info-card"><i class="bi bi-geo-alt icon"></i><span class="text-lowercase info"><?=$textBlocks['14']['content'];?></span></div>
-                    <div class="contact-info-card"><i class="bi bi-phone icon"></i><a class="info" href="tel:<?=$textBlocks['15']['content'];?>"><?=$textBlocks['15']['content'];?></a></div>
+                    <div class="contact-info-card"><i class="bi bi-envelope icon"></i><a class="text-lowercase info" href="mailto:<?= $textBlocks['13']['content'] ?? '' ?>"><?= $textBlocks['13']['content'] ?? '' ?></a></div>
+                    <div class="contact-info-card"><i class="bi bi-geo-alt icon"></i><span class="text-lowercase info"><?= $textBlocks['14']['content'] ?? '' ?></span></div>
+                    <div class="contact-info-card"><i class="bi bi-phone icon"></i><a class="info" href="tel:<?= $textBlocks['15']['content'] ?? '' ?>"><?= $textBlocks['15']['content'] ?? '' ?></a></div>
                     <div class="contact-info-card">
                     </div>
                 </div>
