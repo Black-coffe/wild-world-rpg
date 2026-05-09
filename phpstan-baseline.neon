@@ -19777,6 +19777,12 @@ parameters:
 			path: app/Views/Login/new.php
 
 		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/Login/new.php
+
+		-
 			message: '#^Function form_open not found\.$#'
 			identifier: function.notFound
 			count: 1
@@ -19795,9 +19801,9 @@ parameters:
 			path: app/Views/Password/forgot.php
 
 		-
-			message: '#^Variable \$title might not be defined\.$#'
+			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 1
+			count: 2
 			path: app/Views/Password/forgot.php
 
 		-
@@ -19810,6 +19816,12 @@ parameters:
 			message: '#^Variable \$errors might not be defined\.$#'
 			identifier: variable.undefined
 			count: 1
+			path: app/Views/Password/reset.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
 			path: app/Views/Password/reset.php
 
 		-
@@ -19847,6 +19859,18 @@ parameters:
 			identifier: echo.nonString
 			count: 2
 			path: app/Views/Signup/new.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/Signup/new.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/Signup/success.php
 
 		-
 			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
