@@ -12,6 +12,7 @@ use App\Models\ClaimedCellModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use Config\CraftRecipes;
+use Config\GameBalance;
 use DateInterval;
 use DateTime;
 use Longman\TelegramBot\Entities\ServerResponse;
@@ -41,6 +42,16 @@ use Longman\TelegramBot\Request;
  * читает именно его (см. v0.16.1 fix). Если контракт нарушится — handler
  * залогирует error, task завершится без выдачи предмета. Поэтому action-side
  * и handler-side мигрируем синхронно в одном батче.
+ *
+ * v0.51.129 (community idea #1) — craft queue:
+ *   - Замість блокування same-recipe duplicate task — створюється queued task.
+ *   - Slot cap (`craftMaxConcurrentSlots` = 3 default): max distinct active+queued
+ *     recipes per character. Понад — reject.
+ *   - Per-recipe queue cap (`craftMaxQueuePerRecipe` = 10 default): max tasks
+ *     для одного recipe (active + queued). Понад — reject.
+ *   - Resources списуються upfront у обох path (in_work + queued).
+ *   - Queued task: status='queued', start_time=created_at placeholder, end_time=NULL.
+ *     Activate коли GenericCraftCompletionHandler закінчує active task для same recipe.
  */
 class GenericCraftActionStart extends BaseAction
 {
@@ -55,6 +66,7 @@ class GenericCraftActionStart extends BaseAction
 
     private string $recipeKey = '';
     private int    $quantity  = 1;
+    private GameBalance $cfg;
 
     public function __construct($callbackQuery)
     {
@@ -65,6 +77,7 @@ class GenericCraftActionStart extends BaseAction
         $this->claimedCellModel       = new ClaimedCellModel();
         $this->buildingModel          = new BuildingModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
+        $this->cfg                    = config('GameBalance');
 
         // genericCraft_<RecipeKey>_<qty>
         $data  = $callbackQuery->getData();
@@ -98,16 +111,38 @@ class GenericCraftActionStart extends BaseAction
             return $this->sendError("Задача '{$recipe['task_name']}' не найдена в базе.");
         }
 
+        // v0.51.129: queue logic. Active task для цього recipe → НЕ блок'уємо,
+        // а додаємо у queue (status='queued'). Reject лише при перевищенні
+        // queue cap або slot cap.
         $activeTask = $this->characterTaskModel->where([
             'character_id' => $character['id'],
             'task_id'      => $taskRow['id'],
             'status'       => 'in_work',
         ])->first();
-        if ($activeTask) {
+
+        // Per-recipe queue cap: count active+queued tasks для same recipe
+        $sameRecipeCount = $this->characterTaskModel
+            ->where('character_id', $character['id'])
+            ->where('task_id', $taskRow['id'])
+            ->whereIn('status', ['in_work', 'queued'])
+            ->countAllResults();
+        if ($sameRecipeCount >= $this->cfg->craftMaxQueuePerRecipe) {
             return $this->sendError(
-                "У тебя уже идёт крафт {$recipe['item_name_rus']}! Дождись окончания или прерви," .
-                " но при прерывании ресурсы не возвращаются."
+                "Очередь крафта *{$recipe['item_name_rus']}* заполнена ("
+                . "{$this->cfg->craftMaxQueuePerRecipe} макс.). Дождись завершения или отмени один."
             );
+        }
+
+        // Slot cap: count distinct task_ids with active+queued tasks. Якщо new
+        // recipe (no active+queued for this taskRow yet) AND already at slot cap → reject.
+        if ($sameRecipeCount === 0) {
+            $distinctSlotsUsed = $this->countDistinctActiveSlots($character['id']);
+            if ($distinctSlotsUsed >= $this->cfg->craftMaxConcurrentSlots) {
+                return $this->sendError(
+                    "Все *{$this->cfg->craftMaxConcurrentSlots}* слота крафта заняты. "
+                    . "Дождись завершения одного из активных или отмени запас."
+                );
+            }
         }
 
         // F3.B8: проверка наличия базы (для крафтов, требующих лагерь).
@@ -199,18 +234,25 @@ class GenericCraftActionStart extends BaseAction
         $startTime = new DateTime();
         $endTime   = (clone $startTime)->add(new DateInterval('PT' . $totalDuration . 'M'));
 
+        // v0.51.129: queue path якщо вже active task для recipe.
+        $isQueued = $activeTask !== null;
+
         $this->characterTaskModel->insert([
             'character_id'     => $character['id'],
             'telegram_user_id' => $user['id'],
             'task_id'          => $taskRow['id'],
+            // Queued tasks: start_time = createdAt placeholder, end_time = NULL
+            // (Worker.php skip'ить status!=in_work). При activate dequeue handler
+            // оновить start_time=now, end_time=now+dur, status=in_work.
             'start_time'       => $startTime->format('Y-m-d H:i:s'),
-            'end_time'         => $endTime->format('Y-m-d H:i:s'),
-            'status'           => 'in_work',
+            'end_time'         => $isQueued ? null : $endTime->format('Y-m-d H:i:s'),
+            'status'           => $isQueued ? 'queued' : 'in_work',
             'task_settings'    => json_encode([
                 'recipe'   => $this->recipeKey,
                 'quantity' => $this->quantity,
             ]),
         ]);
+        $insertedId = (int) $this->characterTaskModel->getInsertID();
 
         $db->transComplete();
         if ($db->transStatus() === false) {
@@ -218,7 +260,25 @@ class GenericCraftActionStart extends BaseAction
             return $this->sendError('Ошибка при создании задачи крафта. Попробуйте ещё раз.');
         }
 
+        if ($isQueued) {
+            return $this->notifyCraftQueued($recipe, $sameRecipeCount + 1, $this->quantity, $insertedId);
+        }
         return $this->notifyCraftStarted($recipe, $startTime, $endTime, $this->quantity);
+    }
+
+    /**
+     * v0.51.129: рахує distinct task_ids з active або queued tasks для character.
+     * Кожен такий task_id = окремий "slot". 0..craftMaxConcurrentSlots допустимо.
+     */
+    private function countDistinctActiveSlots(int $characterId): int
+    {
+        $rows = $this->characterTaskModel
+            ->select('task_id')
+            ->distinct()
+            ->where('character_id', $characterId)
+            ->whereIn('status', ['in_work', 'queued'])
+            ->findAll();
+        return count($rows);
     }
 
     /**
@@ -327,6 +387,34 @@ class GenericCraftActionStart extends BaseAction
 
         $adjusted = $minD + ($maxD - $minD) * (1 - $norm);
         return max($minD, min($maxD, (int) round($adjusted)));
+    }
+
+    /**
+     * v0.51.129: notification для queued task. Показує queue position + qty +
+     * cancel button з callback `cancelQueued_<task_id>` для refund.
+     */
+    private function notifyCraftQueued(array $recipe, int $queuePosition, int $qty, int $charTaskId): ServerResponse
+    {
+        $text = "*В очередь поставлено:* {$recipe['start_caption_name']} x{$qty} шт.\n\n"
+            . "📋 Позиция в очереди: *#{$queuePosition}*\n"
+            . "Начнётся автоматически после завершения активного крафта.\n\n"
+            . "❗Ресурсы уже списаны. Отмена очереди вернёт их.";
+
+        $keyboard = [
+            'inline_keyboard' => [[
+                ['text' => '❌ Отменить из очереди', 'callback_data' => "cancelQueued_{$charTaskId}"],
+            ]],
+        ];
+
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'photo'        => Request::encodeFile(base_url($recipe['image_in_progress'])),
+            'caption'      => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
+        ]);
     }
 
     private function notifyCraftStarted(array $recipe, DateTime $startTime, DateTime $endTime, int $qty): ServerResponse

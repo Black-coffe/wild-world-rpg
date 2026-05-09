@@ -9,10 +9,13 @@ use App\Models\CharactersWeaponsModel;
 use App\Models\CharacterTaskModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
+use App\Models\TaskModel;
 use App\Models\TelegramUserModel;
 use App\Models\WeaponModel;
 use App\TaskHandlers\BaseTaskHandler;
 use Config\CraftRecipes;
+use DateInterval;
+use DateTime;
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 
@@ -144,6 +147,116 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
 
         // 7. notify
         $this->notifyUser((int) $task['telegram_user_id'], $craftedItem, (int) $task['character_id'], $quantityToAdd, $recipe, $recipeKey);
+
+        // v0.51.129 (community idea #1): dequeue next queued task для same recipe.
+        $this->activateNextQueuedTask((int) $task['character_id'], (int) $task['task_id']);
+    }
+
+    /**
+     * v0.51.129: знайти oldest queued task (FIFO) для same character + same
+     * task_id → activate (status='in_work', start_time=now, end_time=now+dur×qty).
+     *
+     * Worker.php picks status='in_work' AND end_time<now — наступний tick
+     * (≤1 хв) обробить активований task через цей же handler.
+     */
+    private function activateNextQueuedTask(int $characterId, int $taskId): void
+    {
+        $next = $this->characterTaskModel
+            ->where('character_id', $characterId)
+            ->where('task_id', $taskId)
+            ->where('status', 'queued')
+            ->orderBy('id', 'ASC')  // FIFO via auto-increment (created_at ties resolved)
+            ->first();
+
+        if ($next === null) {
+            return;
+        }
+
+        // Дюрація based on character (поточні stats) + qty з task_settings.
+        $taskRow = (new TaskModel())->find($taskId);
+        if ($taskRow === null) {
+            log_message('error', "[GenericCraftCompletion] dequeue: tasks row {$taskId} не знайдено");
+            return;
+        }
+
+        $character = $this->characterModel->find($characterId);
+        if ($character === null) {
+            log_message('error', "[GenericCraftCompletion] dequeue: character {$characterId} не знайдено");
+            return;
+        }
+
+        $quantity      = $this->extractQuantity($next);
+        $durationOne   = $this->calculateCraftingDuration($character, $taskRow);
+        $totalDuration = $durationOne * $quantity;
+
+        $startTime = new DateTime();
+        $endTime   = (clone $startTime)->add(new DateInterval('PT' . $totalDuration . 'M'));
+
+        $this->characterTaskModel->update($next['id'], [
+            'status'     => 'in_work',
+            'start_time' => $startTime->format('Y-m-d H:i:s'),
+            'end_time'   => $endTime->format('Y-m-d H:i:s'),
+        ]);
+
+        // notify користувачу про активацію черги
+        $this->notifyQueuedActivated((int) $next['telegram_user_id'], $next, $quantity, $endTime);
+    }
+
+    /**
+     * Та сама формула, що в `GenericCraftActionStart::calculateCraftingDuration`.
+     * Дублюємо для незалежності від action layer.
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     * @param array<string,mixed> $taskRow
+     */
+    private function calculateCraftingDuration(array|\App\Entities\CharacterEntity $character, array $taskRow): int
+    {
+        $expFactor = 0.3;
+        $agiFactor = 0.3;
+        $intFactor = 0.4;
+
+        $score    = ((float) $character['experience'] * $expFactor)
+                  + ((float) $character['agility']    * $agiFactor)
+                  + ((float) $character['intellect']  * $intFactor);
+        $maxScore = 1000 * ($expFactor + $agiFactor + $intFactor);
+        $norm     = $maxScore > 0 ? $score / $maxScore : 0;
+
+        $minD = (int) $taskRow['min_duration'];
+        $maxD = (int) $taskRow['max_duration'];
+
+        $adjusted = $minD + ($maxD - $minD) * (1 - $norm);
+        return max($minD, min($maxD, (int) round($adjusted)));
+    }
+
+    /**
+     * @param array<string, mixed> $task
+     */
+    private function notifyQueuedActivated(int $telegramUserId, array $task, int $quantity, DateTime $endTime): void
+    {
+        $userRow = $this->telegramUserModel->where('id', $telegramUserId)->first();
+        if (!$userRow || empty($userRow['telegram_id'])) {
+            return;
+        }
+        $telegramId = (int) $userRow['telegram_id'];
+
+        $recipeKey = $this->extractRecipeKey($task);
+        if ($recipeKey === null) {
+            return;
+        }
+
+        /** @var CraftRecipes $cfg */
+        $cfg    = config('CraftRecipes');
+        $recipe = $cfg->get($recipeKey);
+        if ($recipe === null) {
+            return;
+        }
+
+        $endTimeStr = $endTime->format('H:i');
+        $text = "▶️ *Очередь активирована!*\n\n"
+            . "Запущен крафт: {$recipe['start_caption_name']} x{$quantity} шт.\n\n"
+            . "Завершится в *{$endTimeStr}*.";
+
+        $this->safeSendMessage($telegramId, $text, ['parse_mode' => 'Markdown']);
     }
 
     /**
@@ -203,6 +316,9 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
             '__weapon' => true,
         ];
         $this->notifyUser((int) $task['telegram_user_id'], $weaponAsItem, (int) $task['character_id'], $quantityToAdd, $recipe, $recipeKey);
+
+        // v0.51.129: dequeue next queued task для same recipe (для weapon path теж).
+        $this->activateNextQueuedTask((int) $task['character_id'], (int) $task['task_id']);
     }
 
     private function extractRecipeKey(array $task): ?string
