@@ -1,26 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="utf-8" />
-    <title><?=$title;?></title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta content="Система мониторинга и учета, а также предотвращения и оповещения по управлению транспортной компанией" name="description" />
-    <meta content="Andrivskii" name="author" />
-
-    <!-- App favicon -->
-    <link rel="shortcut icon" href="<?= base_url('images/favicon.ico')?>">
-
-    <!-- Theme Config Js -->
-    <script src="<?= base_url('js/hyper-config.js')?>"></script>
-
-    <!-- App css -->
-    <link href="<?= base_url('css/app-saas.min.css')?>" rel="stylesheet" type="text/css" id="app-style" />
-
-    <!-- Icons css -->
-    <link href="<?= base_url('css/icons.min.css')?>" rel="stylesheet" type="text/css" />
-
-    <link href="<?= base_url('css/my.css')?>" rel="stylesheet" type="text/css" />
+    <?= $this->include('admin/partials/_head_common') ?>
 </head>
 
 <body class="authentication-bg position-relative">
@@ -95,23 +76,7 @@
 <footer class="footer footer-alt">
     2018 - <script>document.write(new Date().getFullYear())</script> © Hyper - Coderthemes.com
 </footer>
-<!-- Vendor js -->
-<script src="<?= base_url('js/vendor.min.js')?>"></script>
-
-<!-- Apex  Charts js -->
-<script src="<?= base_url('vendor/apexcharts/apexcharts.min.js')?>"></script>
-
-<!-- Todo js -->
-<script src="<?= base_url('js/ui/component.todo.js')?>"></script>
-
-<!-- CRM Dashboard Demo App Js -->
-<script src="<?= base_url('js/pages/demo.crm-dashboard.js')?>"></script>
-
-<!-- App js -->
-<script src="<?= base_url('js/app.min.js')?>"></script>
-
-<!-- My js -->
-<script src="<?= base_url('js/my.js')?>"></script>
+<?= $this->include('admin/partials/_scripts_common') ?>
 
 </body>
 </html>
