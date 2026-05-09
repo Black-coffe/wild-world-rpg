@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?= $this->include('admin/partials/_head_common', ['title' => $title ?? 'Увійти | Система адміністрування rishuchi']) ?>
+    <?= view('admin/partials/_head_common', ['title' => $title ?? 'Увійти | Система адміністрування rishuchi']) ?>
 </head>
 
 <body class="authentication-bg position-relative">
@@ -79,7 +79,7 @@
     2018 - <script>document.write(new Date().getFullYear())</script> © Hyper - Coderthemes.com
 </footer>
 
-<?= $this->include('admin/partials/_scripts_common') ?>
+<?= view('admin/partials/_scripts_common') ?>
 
 </body>
 </html>

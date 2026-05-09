@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?= $this->include('admin/partials/_head_common', ['title' => $title ?? 'Вы успешно зарегистрировались']) ?>
+    <?= view('admin/partials/_head_common', ['title' => $title ?? 'Вы успешно зарегистрировались']) ?>
 </head>
 
 <body class="authentication-bg">
@@ -73,7 +73,7 @@
 <footer class="footer footer-alt">
     2018 - <script>document.write(new Date().getFullYear())</script> © Hyper - Coderthemes.com
 </footer>
-<?= $this->include('admin/partials/_scripts_common') ?>
+<?= view('admin/partials/_scripts_common') ?>
 
 </body>
 </html>

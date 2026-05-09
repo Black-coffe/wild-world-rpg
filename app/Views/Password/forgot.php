@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?= $this->include('admin/partials/_head_common', ['title' => $title ?? 'Восстановление пароля']) ?>
+    <?= view('admin/partials/_head_common', ['title' => $title ?? 'Восстановление пароля']) ?>
 </head>
 
 <body class="authentication-bg position-relative">
@@ -76,7 +76,7 @@
 <footer class="footer footer-alt">
     2018 - <script>document.write(new Date().getFullYear())</script> © Hyper - Coderthemes.com
 </footer>
-<?= $this->include('admin/partials/_scripts_common') ?>
+<?= view('admin/partials/_scripts_common') ?>
 
 </body>
 </html>
