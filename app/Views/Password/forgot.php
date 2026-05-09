@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <?= $this->include('admin/partials/_head_common') ?>
+    <?= $this->include('admin/partials/_head_common', ['title' => $title ?? 'Восстановление пароля']) ?>
 </head>
 
 <body class="authentication-bg position-relative">
