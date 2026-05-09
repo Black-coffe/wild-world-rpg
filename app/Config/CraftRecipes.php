@@ -358,7 +358,7 @@ class CraftRecipes extends BaseConfig
                 'Древесина'     => 15,
             ],
             'crafted_items'        => [],
-            'image_in_progress'    => 'uploads/telegram/craft/components/craftMeteorShelter.jpg',
+            'image_in_progress'    => 'uploads/telegram/camp/Construction-by-improvised.jpg',
             'start_caption_name'   => '🛡 *Метеоритное укрытие*',
             'info_callback'        => 'meteorShelter',
 
@@ -369,7 +369,7 @@ class CraftRecipes extends BaseConfig
             'zone_name'            => 'защита',
             'agility_bonus'        => 0.01,
             'intellect_bonus'      => 0.02,
-            'image_completed'      => 'uploads/telegram/craft/components/craftMeteorShelter.jpg',
+            'image_completed'      => 'uploads/telegram/camp/Construction-by-improvised.jpg',
             'craft_again_callback' => 'genericCraft_MeteorShelter_1',
         ],
 
