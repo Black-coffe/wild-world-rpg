@@ -43,6 +43,8 @@ class CallbackRoutes extends BaseConfig
         'characterActions'                => \App\Controllers\Telegram\Commands\Actions\CharacterGoActions::class,
         'cancelExploration'               => \App\Controllers\Telegram\Commands\Actions\CancelExplorationAction::class,
         'move'                            => \App\Controllers\Telegram\Commands\Actions\MoveCharacterAction::class,
+        'march'                           => \App\Controllers\Telegram\Commands\Actions\MarchAction::class,          // ADR-019 — «Поход»
+        'cancelMarch'                     => \App\Controllers\Telegram\Commands\Actions\CancelMarchAction::class,    // ADR-019 — остановить поход
         'gather'                          => \App\Controllers\Telegram\Commands\Actions\GatherAction::class,
         'cancelGather'                    => \App\Controllers\Telegram\Commands\Actions\CancelGatherAction::class,
         'inventory'                       => \App\Controllers\Telegram\Commands\Actions\InventoryAction::class,
@@ -220,6 +222,7 @@ class CallbackRoutes extends BaseConfig
      */
     public array $wildcardRoutes = [
         'move_dir_*'  => \App\Controllers\Telegram\Commands\Actions\MoveCharacterToDirectionAction::class,
+        'march_*'     => \App\Controllers\Telegram\Commands\Actions\MarchAction::class, // ADR-019: march_<dir>_<n>, march_go_*, march_more_*, march_resume
         'eventPref_*' => \App\Controllers\Telegram\Commands\Actions\EventPrefAction::class,
     ];
 
