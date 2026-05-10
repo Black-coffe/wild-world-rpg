@@ -52,29 +52,29 @@ class BaseService
     /**
      * Показывает информацию о базе. 4-branch dispatcher.
      */
-    public function showBaseInfo(int $chatId, array|\App\Entities\CharacterEntity $characterRow): ServerResponse
+    public function showBaseInfo(int $chatId, array|\App\Entities\CharacterEntity $characterRow, ?int $editMessageId = null): ServerResponse
     {
         $claimedCell = $this->claimedCellModel
             ->where('character_id', $characterRow['id'])
             ->first();
 
         if (!$claimedCell) {
-            return $this->showNoBaseInfo($chatId, $characterRow);
+            return $this->showNoBaseInfo($chatId, $characterRow, $editMessageId);
         }
 
         // v0.51.59 hotfix (F1.4.4-B 10th occurrence): explicit (int) cast.
         // Раніше strict `===` між string `$claimedCell['map_cell_id']` (raw SQL row)
         // і int `$characterRow['cell_number']` (CharacterEntity post-F1.4.2) — завжди false.
         if ((int) $claimedCell['map_cell_id'] === (int) $characterRow['cell_number']) {
-            return $this->showBaseBuildings($chatId, $characterRow, $claimedCell);
+            return $this->showBaseBuildings($chatId, $characterRow, $claimedCell, null, $editMessageId);
         }
 
         $coverage = $this->towerCoverageService->checkCoverage($characterRow['id']);
         if ($coverage['isCovered']) {
-            return $this->showBaseBuildings($chatId, $characterRow, $claimedCell, $coverage);
+            return $this->showBaseBuildings($chatId, $characterRow, $claimedCell, $coverage, $editMessageId);
         }
 
-        return $this->showNotOnBaseInfo($chatId, $claimedCell);
+        return $this->showNotOnBaseInfo($chatId, $claimedCell, $editMessageId);
     }
 
     /**
@@ -116,7 +116,7 @@ class BaseService
     /**
      * Показывает ситуацию, когда у игрока нет базы.
      */
-    protected function showNoBaseInfo(int $chatId, array|\App\Entities\CharacterEntity $characterRow): ServerResponse
+    protected function showNoBaseInfo(int $chatId, array|\App\Entities\CharacterEntity $characterRow, ?int $editMessageId = null): ServerResponse
     {
         $cellNumber   = (int) ($characterRow['cell_number'] ?? 0);
         $coordX       = '???';
@@ -140,7 +140,7 @@ class BaseService
 
         return $this->sendMessage($chatId, $this->formatter->noBaseInfo(
             $coordX, $coordY, (string) $biomeName, (string) $biomeDesc, $dangerLevel, $survivalDiff
-        ));
+        ), $editMessageId);
     }
 
     /**
@@ -148,11 +148,11 @@ class BaseService
      *
      * @param array<string, mixed> $claimedCell
      */
-    protected function showNotOnBaseInfo(int $chatId, array $claimedCell): ServerResponse
+    protected function showNotOnBaseInfo(int $chatId, array $claimedCell, ?int $editMessageId = null): ServerResponse
     {
         $mapRow = $this->resolver->findMapRow((int) $claimedCell['map_cell_id']);
         if (!$mapRow) {
-            return $this->sendMessage($chatId, $this->formatter->notOnBaseMapError());
+            return $this->sendMessage($chatId, $this->formatter->notOnBaseMapError(), $editMessageId);
         }
 
         $biomeRow = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
@@ -165,6 +165,7 @@ class BaseService
                 $mapRow['coordinate_y'],
                 (string) ($biomeRow['name'] ?? '???'),
             ),
+            $editMessageId,
         );
     }
 
@@ -178,11 +179,12 @@ class BaseService
         int $chatId,
         array|\App\Entities\CharacterEntity $characterRow,
         array $claimedCell,
-        ?array $coverageResult = null
+        ?array $coverageResult = null,
+        ?int $editMessageId = null
     ): ServerResponse {
         $mapRow = $this->resolver->findMapRow((int) $claimedCell['map_cell_id']);
         if (!$mapRow) {
-            return $this->sendMessage($chatId, $this->formatter->baseMapNotFoundError());
+            return $this->sendMessage($chatId, $this->formatter->baseMapNotFoundError(), $editMessageId);
         }
 
         $biomeRow = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
@@ -200,33 +202,53 @@ class BaseService
                 $summary['list'],
                 $coverageResult,
             ),
+            $editMessageId,
         );
     }
 
     /**
-     * Send sendMessage payload з chat_id injection.
+     * Send sendMessage payload з chat_id injection. Если передан $editMessageId —
+     * редактирует это сообщение (editMessageText) с graceful fallback на новое
+     * (напр. если source — photo-сообщение или старше 48ч). #12 edit-in-place (ADR-018).
      *
      * @param array<string, mixed> $payload
      */
-    private function sendMessage(int $chatId, array $payload): ServerResponse
+    private function sendMessage(int $chatId, array $payload, ?int $editMessageId = null): ServerResponse
     {
         $payload['chat_id'] = $chatId;
+        if ($editMessageId !== null) {
+            try {
+                $resp = Request::editMessageText($payload + ['message_id' => $editMessageId]);
+                if ($resp->isOk()) {
+                    return $resp;
+                }
+            } catch (\Throwable) {
+                // fallthrough → новое сообщение
+            }
+        }
         return Request::sendMessage($payload);
     }
 
     /**
-     * Send sendPhoto з base_url($relativePath) encode + chat_id injection.
+     * Send sendPhoto з base_url($relativePath) encode + chat_id injection. Если передан
+     * $editMessageId — редактирует это сообщение (editMessageMedia/editMessageText через
+     * MediaSender::editOrSend) с graceful fallback на новое. #12 edit-in-place (ADR-018).
      *
      * @param array<string, mixed> $payload з 'caption', 'parse_mode', 'reply_markup'
      */
-    private function sendPhoto(int $chatId, string $relativePath, array $payload): ServerResponse
+    private function sendPhoto(int $chatId, string $relativePath, array $payload, ?int $editMessageId = null): ServerResponse
     {
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        $params = [
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile(base_url($relativePath)),
             'caption'      => $payload['caption'],
             'parse_mode'   => $payload['parse_mode'],
             'reply_markup' => $payload['reply_markup'],
-        ]);
+        ];
+        if ($editMessageId !== null) {
+            $params['message_id'] = $editMessageId;
+            return \App\Services\Notifications\MediaSender::editOrSend($params);
+        }
+        return \App\Services\Notifications\MediaSender::sendPhotoOrText($params);
     }
 }
