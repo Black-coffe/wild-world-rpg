@@ -25,15 +25,30 @@ Open an issue with:
 - Detailed description of the proposed feature
 - Why it would be useful (player perspective)
 - Mockups or examples if relevant
+- **A filled-in idea card** from the validation framework — see *Validation framework* below
+
+### Validation framework
+
+> **Read this before proposing anything: [`GAME_RULES_AND_VALIDATION_FRAMEWORK.md`](./GAME_RULES_AND_VALIDATION_FRAMEWORK.md).**
+
+Every idea, fix, refactor, or expansion goes through a 7-gate pipeline (Statement → Canon & setting → 10-persona check → Balance & systems → Tech check → Smoke plan → Release & vault) and is classified into one of four buckets:
+
+- 🔴 **Hard NO** — no exceptions (pay-to-win, breaking the post-apocalyptic setting, lying item descriptions, instant-everything-for-currency, defenceless offline players, retroactive removal of granted items, editing applied migrations, regressing the PHPStan baseline, committing without a tech-writing note, cutover without a Telegram smoke, view refactor without an HTTP smoke, …).
+- 🟠 **Default NO, exceptions need a written rationale + a new ADR + (if player-visible) an announcement** — touching core combat/gather/tax formulas, moving the 75 000 endgame threshold, widening safe zones, adding a 5th faction, changing the Robi onboarding flow, new gold/resource sources, retroactive economy changes, …
+- 🟡 **Allowed, but run the checklist** — new crafts/buildings/events/quests/`/tips`/mini-games within existing systems, internal 0-behaviour-change refactors, admin-panel extensions, localization, content passes.
+- 🟢 **Always required** — 10-persona check, canon check, stepwise releases, idempotent migrations & task handlers, metrics in commit messages, the tech-writing note (ADR-009), `hot.md`/`daily` updates, transparent RNG ranges, prod-log review.
+
+The framework was validated against ten deliberately different target-audience personas (hardcore survivalist, casual mobile player, lore reader, PvP predator, builder/optimizer, social/clan player, completionist, economy trader, anti-pay-to-win sceptic, first-time newbie). The decision to adopt it is recorded in `mmorpg-vault/decisions/ADR-017-Idea-validation-framework.md`; the operational cheat-sheet is `mmorpg-vault/runbooks/idea-validation.md`. Copy the idea-card template (§8 of the framework file) into your issue/PR description.
 
 ### Pull requests
 
 1. Fork the repo and branch off `master`
-2. Follow the coding standards below (PSR-12, strict types, PHPStan Level 9)
-3. Write clear commit messages (see *Commit messages*)
-4. Add tests for new functionality
-5. Update documentation — both repo files (`CLAUDE.md`, `GAME_DESCRIPTION.md` if you touched canon) and the Obsidian vault (see *Documentation contract*)
-6. Make sure `composer test` and PHPStan are clean before opening the PR
+2. **Run your change through the validation framework** and include the filled-in idea card in the PR description (skip only for trivial typo/doc fixes)
+3. Follow the coding standards below (PSR-12, strict types, PHPStan Level 9)
+4. Write clear commit messages (see *Commit messages*)
+5. Add tests for new functionality
+6. Update documentation — both repo files (`CLAUDE.md`, `GAME_DESCRIPTION.md` if you touched canon, `GAME_RULES_AND_VALIDATION_FRAMEWORK.md` if you touched the process) and the Obsidian vault (see *Documentation contract*)
+7. Make sure `composer test` and PHPStan are clean before opening the PR
 
 ## Development setup
 
@@ -124,6 +139,8 @@ Specific rules and templates are documented in [`CLAUDE.md`](./CLAUDE.md) §Cons
 - **Lore / canon change** → update `GAME_DESCRIPTION.md` AND the corresponding atomic note in `mmorpg-vault/lore/`
 
 ## Game-balance considerations
+
+> Balance changes are almost always 🟠 in the validation framework — they need a rationale, a before/after calculation, an ADR, and (if player-visible) an announcement. Run them through gate 3 (Balance & systems) of [`GAME_RULES_AND_VALIDATION_FRAMEWORK.md`](./GAME_RULES_AND_VALIDATION_FRAMEWORK.md).
 
 When proposing gameplay or formula changes:
 
