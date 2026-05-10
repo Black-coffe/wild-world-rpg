@@ -250,7 +250,7 @@ class SellResourceAction extends BaseAction
             ],
         ];
         $imagePath = base_url('uploads/telegram/vendor_kiosk_in_the_game_world.png');
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $result['message'],
