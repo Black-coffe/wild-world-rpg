@@ -20077,12 +20077,6 @@ parameters:
 			path: app/Views/admin/map_index.php
 
 		-
-			message: '#^Variable \$title might not be defined\.$#'
-			identifier: variable.undefined
-			count: 1
-			path: app/Views/admin/partials/_head_common.php
-
-		-
 			message: '#^Parameter \#1 \(mixed\) of echo cannot be converted to string\.$#'
 			identifier: echo.nonString
 			count: 1
