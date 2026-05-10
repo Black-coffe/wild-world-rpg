@@ -214,6 +214,31 @@ abstract class BaseAction
     }
 
     /**
+     * Идея #12 (edit-in-place), ADR-018: цель для НАВИГАЦИОННОГО сообщения —
+     * chat_id + message_id того сообщения, к которому привязана нажатая inline-кнопка.
+     *
+     * Использование в navigation-handler'е:
+     *   return MediaSender::editOrSend($this->navTarget() + [
+     *       'photo' => ..., 'caption' => ..., 'parse_mode' => ..., 'reply_markup' => ...,
+     *   ]);
+     *
+     * ⚠️ ТОЛЬКО для навигации (меню, переходы между экранами, просмотры). Терминальные/
+     * уведомляющие сообщения (результаты боя, завершения задач, ивент-бродкасты, эндгейм)
+     * шлются обычным MediaSender::sendPhotoOrText() — новым сообщением. См. ADR-018.
+     *
+     * @return array{chat_id:int, message_id:int}
+     */
+    protected function navTarget(): array
+    {
+        $message = $this->callbackQuery->getMessage();
+
+        return [
+            'chat_id'    => (int) $message->getChat()->getId(),
+            'message_id' => (int) $message->getMessageId(),
+        ];
+    }
+
+    /**
      * F1.10 — централизованная запись REJECTED действий в action_log.
      *
      * Использовать в каждом `return Request::sendMessage([...ошибка...])`

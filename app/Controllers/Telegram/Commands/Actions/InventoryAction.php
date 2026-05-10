@@ -39,11 +39,12 @@ class InventoryAction extends BaseAction
         $imagePath = base_url('uploads/telegram/warehouse_in_the_forest.png'); // Укажите актуальный путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'photo'   => Request::encodeFile($imagePath),
-            'caption' => $text,
-            'parse_mode' => 'Markdown',
+        // #12 edit-in-place (ADR-018): инвентарь — навигационное меню → редактируем
+        // текущее сообщение. editOrSend при любой ошибке edit упадёт обратно на новое.
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
     }
