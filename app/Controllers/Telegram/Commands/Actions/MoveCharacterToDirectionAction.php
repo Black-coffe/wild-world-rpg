@@ -168,26 +168,10 @@ class MoveCharacterToDirectionAction
             ]);
         }
 
-        // Проверяем, изучена ли
-        $explored = $this->exploredCellsModel
-            ->where('character_id', $character['id'])
-            ->where('map_cell_id', $targetCell['id'])
-            ->first();
-
-        if (!$explored) {
-            // Если ячейка не изучена
-            $keyboard = ['inline_keyboard' => [
-                [
-                    ['text' => '🧑‍🌾 Действия', 'callback_data' => 'characterActions'],
-                    ['text' => '🗺️ Изучить',    'callback_data' => 'explore'],
-                ]
-            ]];
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => "Локация не исследована! Невозможно переехать.",
-                'reply_markup' => json_encode($keyboard)
-            ]);
-        }
+        // ADR-019 §2 (Step 1): гейт «клетка должна быть заранее исследована» снят —
+        // движение И есть разведка. В любую in-bounds клетку шагнуть можно; факт
+        // прихода раскрывает её + 8 соседей (туман войны radius-1) ниже, после move.
+        // (Блокировки воды / чужого лагеря для одиночного шага — отдельный батч марша.)
 
         // Списываем здоровье/усталость
         $healthCost = $this->baseHealthCost;
@@ -222,6 +206,16 @@ class MoveCharacterToDirectionAction
             'strength'    => $character['strength'] + $addedStrength,
             'experience'  => $character['experience'] + $addedExperience,
         ]);
+
+        // Туман войны (ADR-019 §1): раскрываем 3×3-окно вокруг новой позиции —
+        // саму клетку + 8 соседей по Чебышёву. Идемпотентно (де-дуп внутри).
+        $this->exploredCellsModel->revealAround(
+            (int) $character['id'],
+            (int) $user['id'],
+            (int) $targetCell['coordinate_x'],
+            (int) $targetCell['coordinate_y'],
+            isset($character['level']) ? (int) $character['level'] : null
+        );
 
         // Теперь нужно заново нарисовать 12×12 карту, легенду и т.д.,
         // как в MoveCharacterAction
