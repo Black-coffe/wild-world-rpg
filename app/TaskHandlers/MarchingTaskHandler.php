@@ -46,6 +46,7 @@ use Longman\TelegramBot\Request;
 class MarchingTaskHandler extends BaseTaskHandler
 {
     private GameBalance $cfg;
+    private PlayerDetectionService $detector;
 
     /** @var array<string, array{int,int}> dx,dy по направлениям (y растёт на юг). */
     private const DIRECTIONS = [
@@ -71,9 +72,10 @@ class MarchingTaskHandler extends BaseTaskHandler
         'southeast' => '↘️ юго-восток',
     ];
 
-    public function __construct(?GameBalance $cfg = null)
+    public function __construct(?GameBalance $cfg = null, ?PlayerDetectionService $detector = null)
     {
-        $this->cfg = $cfg ?? new GameBalance();
+        $this->cfg      = $cfg ?? new GameBalance();
+        $this->detector = $detector ?? new PlayerDetectionService();
     }
 
     /**
@@ -209,7 +211,7 @@ class MarchingTaskHandler extends BaseTaskHandler
         //   здесь auto-battle, при тяжёлой ране → pauseMarch('heavy_wound'), при смерти → death-флоу.
 
         // — PvP detection: обнаружили игрока → пауза с промптом —
-        if ((new PlayerDetectionService())->detectNearbyPlayers($characterId)) {
+        if ($this->detector->detectNearbyPlayers($characterId)) {
             $this->pauseMarch($characterId, $telegramUserId, $s, $character, 'player_detected', $stepsPlanned - $stepsDone);
             return;
         }
