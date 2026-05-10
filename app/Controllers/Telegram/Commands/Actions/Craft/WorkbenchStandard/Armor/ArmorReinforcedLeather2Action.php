@@ -242,7 +242,7 @@ class ArmorReinforcedLeather2Action extends BaseAction
 
             // Возвращаем сообщение об ошибке
             $imagePath = base_url('uploads/telegram/craft/standard/reinforced_leather_jacket.jpg');
-            return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+            return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
                 'chat_id'    => $chatId,
                 'photo'      => Request::encodeFile($imagePath),
                 'caption'    => $text,
@@ -330,7 +330,7 @@ class ArmorReinforcedLeather2Action extends BaseAction
 
         // Отправляем финальное сообщение (с фото)
         $imagePath = base_url('uploads/telegram/craft/standard/reinforced_leather_jacket.jpg');
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,
