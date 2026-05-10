@@ -3661,12 +3661,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/CancelGatherAction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\CharacterActions\:\:\$callbackQuery has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/CharacterActions.php
-
-		-
 			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\CharacterGoActions\:\:\$callbackQuery has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
