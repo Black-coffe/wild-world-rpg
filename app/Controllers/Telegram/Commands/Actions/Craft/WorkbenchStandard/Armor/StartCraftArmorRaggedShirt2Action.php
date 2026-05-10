@@ -218,7 +218,7 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
             . "После завершения получишь {$this->quantity} шт.\n";
 
         $imagePath = base_url('uploads/telegram/craft/standard/ragged_shirt.jpg');
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,
