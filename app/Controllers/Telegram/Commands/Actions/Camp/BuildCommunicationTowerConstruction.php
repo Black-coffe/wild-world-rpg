@@ -247,7 +247,7 @@ class BuildCommunicationTowerConstruction extends BaseAction
 
         $imagePath = base_url('uploads/telegram/camp/communication_tower.png');
 
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

@@ -207,7 +207,7 @@ class BuildTeleportationCenterConstruction extends BaseAction
         $imagePath = base_url('uploads/telegram/camp/teleport_center.png');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo' => Request::encodeFile($imagePath),
             'caption' => $text,

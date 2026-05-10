@@ -263,7 +263,7 @@ class BuildArsenalConstruction extends BaseAction
         // Картинка (если есть)
         $imagePath = base_url('uploads/telegram/camp/arsenal.png');
 
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,
