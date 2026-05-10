@@ -400,4 +400,47 @@ class GameBalance extends BaseConfig
      * у one-recipe queue. Понад цього — sendError("queue full").
      */
     public int $craftMaxQueuePerRecipe = 10;
+
+    // ===================================================================
+    // Поход / Marching (MarchingTaskHandler, MarchAction) — ADR-019 Step 3
+    //   «Движение И есть разведка». Направленный многоклеточный переход фоновой
+    //   задачей: 1 клетка / тик, карта обновляется в сообщении по мере движения.
+    //   Одиночный шаг (MoveCharacterToDirectionAction) остаётся дороже —
+    //   точный инструмент; марш дешевле/клетку, но capped + авто-обрыв по полу
+    //   выносливости + тайм-гейт. Расчёт до/после — ADR-019 §6.
+    // ===================================================================
+
+    /** Минут реального времени на одну пройденную клетку марша (= шаг крон-тика). */
+    public int $marchMinutesPerCell = 1;
+
+    /** Максимум клеток в одном заказе марша. Дальше — кнопка «➕ Продлить» / новый заказ. */
+    public int $marchMaxStepsPerOrder = 60;
+
+    /** Расход выносливости за клетку марша (vs одиночный шаг 3.35 — направленный переход эффективнее зигзага). */
+    public float $marchTiredCostPerCell = 0.5;
+
+    /** Расход здоровья за клетку марша. */
+    public float $marchHealthCostPerCell = 0.02;
+
+    /** Доп. расход здоровья за клетку в опасном биоме (danger_level ≥ 8). */
+    public float $marchDangerHealthSurcharge = 1.0;
+
+    /** Прирост опыта за клетку марша. */
+    public float $marchXpPerCell = 0.03;
+
+    /** Прирост характеристики (str/agi/int по ротации) за клетку марша. */
+    public float $marchStatPerCell = 0.02;
+
+    /**
+     * Шанс (доля, 0..1) стычки с NPC за клетку марша. PvE auto-battle.
+     * 0 = выключено (ship conservative — включаем после smoke и проверки PvE-on-march
+     * механики; см. ADR-019 §6 «ship conservative + 2 недели мониторинга»).
+     */
+    public float $marchNpcEncounterChancePerCell = 0.0;
+
+    /**
+     * Порог здоровья (доля от максимума) — если стычка в пути уронила HP ниже,
+     * марш встаёт на паузу «привал, зализываешь раны».
+     */
+    public float $marchHpHaltThreshold = 0.30;
 }
