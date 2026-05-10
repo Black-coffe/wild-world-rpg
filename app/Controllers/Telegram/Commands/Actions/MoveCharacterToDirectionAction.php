@@ -248,21 +248,30 @@ class MoveCharacterToDirectionAction
         ];
         $keyboard = ['inline_keyboard' => $directionsKeyboard];
 
-        // Пытаемся отредактировать старое сообщение
-        $lastMsgId = $user['last_map_message_id'] ?? null;
-        if ($lastMsgId) {
-            // editMessageText
+        // Редактируем ИМЕННО ТО сообщение, на котором нажали кнопку направления
+        // (ADR-018 navTarget-паттерн) — а не «последнее» last_map_message_id: если
+        // у игрока открыто несколько экранов «Переехать», правка должна попадать в
+        // тот, где он жмёт. last_map_message_id остаётся вторым кандидатом.
+        $clickedMsgId = $this->callbackQuery->getMessage()->getMessageId();
+        $editTargets  = array_values(array_unique(array_filter([
+            $clickedMsgId,
+            $user['last_map_message_id'] ?? null,
+        ])));
+
+        foreach ($editTargets as $targetMsgId) {
             $editResponse = Request::editMessageText([
-                'chat_id'    => $chatId,
-                'message_id' => $lastMsgId,
-                'text'       => $updatedText,
-                'parse_mode' => 'Markdown',
+                'chat_id'      => $chatId,
+                'message_id'   => $targetMsgId,
+                'text'         => $updatedText,
+                'parse_mode'   => 'Markdown',
                 'reply_markup' => json_encode($keyboard),
             ]);
 
             if ($editResponse->isOk()) {
-                // Успешно отредактировали
-                // Вызываем detectNearbyPlayers для PvP
+                // Запоминаем фактически отредактированное сообщение как «карту».
+                if ($targetMsgId !== ($user['last_map_message_id'] ?? null)) {
+                    $this->telegramUserModel->update($user['id'], ['last_map_message_id' => $targetMsgId]);
+                }
                 $this->playerDetectionService->detectNearbyPlayers($character['id']);
                 return $editResponse;
             }
