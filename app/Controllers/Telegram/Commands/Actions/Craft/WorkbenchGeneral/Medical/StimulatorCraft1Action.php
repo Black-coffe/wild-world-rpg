@@ -120,7 +120,7 @@ class StimulatorCraft1Action extends BaseAction
         $imagePath = base_url('uploads/telegram/craft/liquid_mixture_of_very_invigorating_acid-green_beverage.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,
