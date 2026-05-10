@@ -47,28 +47,31 @@ class PlayerDetectionService
      * Обнаруживает близких игроков для данного персонажа и отправляет уведомления.
      *
      * @param int $characterId ID персонажа, который переместился.
-     * @return void
+     * @return bool true — если был обнаружен и нотифицирован хотя бы один игрок
+     *              (вне cooldown'а). Используется `MarchingTaskHandler` (ADR-019 §4):
+     *              поход встаёт на паузу с промптом «атаковать/бежать». Существующие
+     *              callers вызывают как statement и возврат игнорируют.
      */
-    public function detectNearbyPlayers(int $characterId): void
+    public function detectNearbyPlayers(int $characterId): bool
     {
         // Получаем информацию о персонаже
         $character = $this->characterModel->find($characterId);
         if (!$character) {
             log_message('error', "Персонаж с ID {$characterId} не найден.");
-            return;
+            return false;
         }
 
         // Проверяем наличие номера ячейки
         if (!isset($character['cell_number']) || !$character['cell_number']) {
             log_message('error', "Персонаж с ID {$characterId} не имеет номера ячейки.");
-            return;
+            return false;
         }
 
         // Получаем координаты текущей ячейки
         $currentCell = $this->mapModel->where('cell_number', $character['cell_number'])->first();
         if (!$currentCell) {
             log_message('error', "Ячейка с номером {$character['cell_number']} не найдена.");
-            return;
+            return false;
         }
 
         $x1 = $currentCell['coordinate_x'];
@@ -141,7 +144,7 @@ class PlayerDetectionService
             $telegramUser = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
             if (!$telegramUser || !isset($telegramUser['telegram_id'])) {
                 log_message('error', "Telegram пользователь не найден для персонажа ID {$characterId}.");
-                return;
+                return false;
             }
 
             $chatId = $telegramUser['telegram_id'];
@@ -191,6 +194,7 @@ class PlayerDetectionService
             }
         }
 
+        return !empty($detectedPlayers);
     }
 
     /**

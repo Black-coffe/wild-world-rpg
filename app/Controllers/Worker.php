@@ -120,6 +120,7 @@ class Worker extends Controller
      */
     protected $taskHandlerMap = [
         'ExploreTheArea' => 'ExplorationTaskHandler',
+        'Marching' => 'MarchingTaskHandler', // ADR-019 §3 — «Поход» (цепочка 1-клеточных задач, тик = 1 клетка)
         'Gather' => 'GatherTaskHandler',
         // F3.B5 (v0.21.0) cutover: все 8 medical крафтов идут через
         // GenericCraftCompletionHandler. Рецепт читается из

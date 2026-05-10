@@ -33,7 +33,8 @@ class CharacterTaskModel extends Model
         'task_id'             => 'required|integer',
         'start_time'          => 'required|valid_date',
         'end_time'            => 'permit_empty|valid_date',
-        'status'              => 'required|in_list[in_work,completed,interrupted]',
+        // 'queued' — craft queue (community #1); 'paused' — поход на паузе (ADR-019 §4).
+        'status'              => 'required|in_list[in_work,completed,interrupted,queued,paused]',
         'task_settings'       => 'permit_empty',
     ];
 
@@ -61,7 +62,7 @@ class CharacterTaskModel extends Model
         ],
         'status'              => [
             'required' => 'Status is required.',
-            'in_list'  => 'Status must be one of: in_work, completed, interrupted.',
+            'in_list'  => 'Status must be one of: in_work, completed, interrupted, queued, paused.',
         ],
     ];
 
