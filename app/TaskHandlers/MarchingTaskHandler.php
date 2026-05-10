@@ -231,7 +231,7 @@ class MarchingTaskHandler extends BaseTaskHandler
     private function fetchCharacter(int $id): ?array
     {
         return $this->fetchRow(
-            'SELECT cell_number, biome_id, health, tired, experience, strength, agility, intellect, level FROM characters WHERE id = ? LIMIT 1',
+            'SELECT id, telegram_user_id, cell_number, biome_id, health, tired, experience, strength, agility, intellect, level FROM characters WHERE id = ? LIMIT 1',
             [$id]
         );
     }

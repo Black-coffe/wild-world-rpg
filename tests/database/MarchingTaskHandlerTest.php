@@ -213,6 +213,10 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
 
         // deliverMarchMessage вызван (промежуточный экран).
         $this->assertSame(1, $this->handler->deliveries);
+        // …и в нём отрисована мини-карта (маркер игрока 🙎). Регрессия: fetchCharacter
+        // не выбирал `id` → TextMapService::buildMapOnly бросал "Undefined array key 'id'",
+        // renderMap молча возвращал '' → марш-сообщение шло без карты (testbot v0.51.146-155).
+        $this->assertStringContainsString('🙎', $this->handler->lastText);
 
         // Переданная задача осталась 'completed' (handler её не трогает).
         $orig = $this->conn->query('SELECT status FROM character_tasks WHERE id = ?', [$task['id']])->getRowArray();
