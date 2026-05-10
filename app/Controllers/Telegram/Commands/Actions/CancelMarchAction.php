@@ -48,13 +48,18 @@ class CancelMarchAction extends BaseAction
                 'text'              => 'Активного похода нет.',
             ]);
         }
-        $taskId = $this->asInt($task['id'] ?? 0);
 
-        // Атомарно метим completed только если ещё in_work/paused (гонка с Worker'ом).
-        Database::connect()->table('character_tasks')
-            ->where('id', $taskId)
-            ->whereIn('status', ['in_work', 'paused'])
-            ->update(['status' => 'completed', 'updated_at' => date('Y-m-d H:i:s')]);
+        // Метим completed ВСЕ in_work/paused Marching-задачи персонажа одним UPDATE'ом
+        // (не только последнюю): цепочка 1-клеточных задач + гонка с Worker'ом могут
+        // оставить >1 такой строки; цепочка спавнит ≤1 задачи/мин, так что этот UPDATE
+        // ловит и spawn, успевший возникнуть между SELECT и UPDATE.
+        if ($marchingTaskId !== null) {
+            Database::connect()->table('character_tasks')
+                ->where('character_id', $characterId)
+                ->where('task_id', $marchingTaskId)
+                ->whereIn('status', ['in_work', 'paused'])
+                ->update(['status' => 'completed', 'updated_at' => date('Y-m-d H:i:s')]);
+        }
 
         $s = json_decode($this->asStr($task['task_settings'] ?? '{}', '{}'), true);
         $stepsDone = is_array($s) ? max(0, $this->asInt($s['steps_done'] ?? 0)) : 0;
