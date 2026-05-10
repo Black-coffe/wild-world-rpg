@@ -14,6 +14,12 @@ use App\Models\BiomeModel;
 use App\Models\TaskModel;  // <-- ВАЖНО: подключаем TaskModel
 use DateTime;
 
+/**
+ * @deprecated ADR-019 Step 5 — отменяет in-flight `ExploreTheArea`-задачу (старый стоячий
+ * explore). Новых таких задач больше не создаётся (`ExploreAction` шимнут на `MarchAction`);
+ * остановка нового «Похода» — {@see CancelMarchAction} (callback `cancelMarch`). Этот handler
+ * оставлен для in-flight задач; удаляется cleanup-тегом после дренажа (≥12 ч).
+ */
 class CancelExplorationAction
 {
     protected $callbackQuery;

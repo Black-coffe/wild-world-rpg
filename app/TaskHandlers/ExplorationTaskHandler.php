@@ -15,6 +15,13 @@ use App\Services\Player\PlayerDetectionService;
 use Config\GameBalance;
 
 /**
+ * @deprecated ADR-019 Step 5 — стоячий таймерный «explore» заменён единой механикой
+ * «Поход» (движение И есть разведка, туман войны radius-1; см. {@see MarchingTaskHandler}).
+ * `ExploreAction` шимнут на `MarchAction` — НОВЫХ `ExploreTheArea`-задач больше не
+ * создаётся. Этот handler оставлен ЖИВЫМ только для in-flight `ExploreTheArea`-задач,
+ * существовавших на момент деплоя ADR-019 Step 5; удаляется отдельным cleanup-тегом
+ * после их дренажа (≥12 ч). НЕ менять логику — только убрать, когда дренаж завершён.
+ *
  * v0.51.22 (F2.9 batch-4): extends BaseTaskHandler (per F2.9 contract).
  * Раніше extends Controller — handler НЕ контроллер.
  * Telegram lazy-init, Request::sendMessage → safeSendMessage.
