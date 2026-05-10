@@ -41,8 +41,10 @@ class ShowBaseInfoAction extends BaseAction
             return Request::emptyResponse(); // Переезд есть, сервис уже отписался
         }
 
-        // Вызываем сервис базы
+        // Вызываем сервис базы. #12 edit-in-place (ADR-018): передаём message_id текущего
+        // сообщения (на котором нажали «🏕») — showBaseInfo отредактирует его в «База»-вид
+        // (с graceful fallback на новое, если source — text-сообщение).
         $baseService = new BaseService();
-        return $baseService->showBaseInfo($chatId, $character);
+        return $baseService->showBaseInfo($chatId, $character, $this->callbackQuery->getMessage()->getMessageId());
     }
 }
