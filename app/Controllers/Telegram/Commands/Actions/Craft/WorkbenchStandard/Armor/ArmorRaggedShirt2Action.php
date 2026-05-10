@@ -234,7 +234,7 @@ class ArmorRaggedShirt2Action extends BaseAction
 
         // Отправляем фотку (или sendMessage)
         $imagePath = base_url('uploads/telegram/craft/standard/ragged_shirt.jpg');
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

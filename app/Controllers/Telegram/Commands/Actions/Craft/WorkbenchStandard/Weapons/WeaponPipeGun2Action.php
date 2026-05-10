@@ -234,7 +234,7 @@ class WeaponPipeGun2Action extends BaseAction
 
             // Картинка "pipe_gun.jpg" (поставьте свою)
             $imagePath = base_url('uploads/telegram/craft/standard/pipe_gun.jpg');
-            return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+            return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
                 'chat_id'    => $chatId,
                 'photo'      => Request::encodeFile($imagePath),
                 'caption'    => $text,
@@ -318,7 +318,7 @@ class WeaponPipeGun2Action extends BaseAction
 
         // Картинка "pipe_gun.jpg"
         $imagePath = base_url('uploads/telegram/craft/standard/pipe_gun.jpg');
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

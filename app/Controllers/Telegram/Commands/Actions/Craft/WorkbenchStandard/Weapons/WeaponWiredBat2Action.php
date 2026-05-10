@@ -228,7 +228,7 @@ class WeaponWiredBat2Action extends BaseAction
             ]);
 
             $imagePath = base_url('uploads/telegram/craft/standard/wired_bat.jpg'); // подставьте свою картинку
-            return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+            return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
                 'chat_id'    => $chatId,
                 'photo'      => Request::encodeFile($imagePath),
                 'caption'    => $text,
@@ -310,7 +310,7 @@ class WeaponWiredBat2Action extends BaseAction
         ]);
 
         $imagePath = base_url('uploads/telegram/craft/standard/wired_bat.jpg');
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

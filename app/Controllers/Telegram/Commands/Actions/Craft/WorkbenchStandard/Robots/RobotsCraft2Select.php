@@ -39,7 +39,7 @@ class RobotsCraft2Select extends BaseAction
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         // Отправляем сообщение с картинкой и клавиатурой
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id' => $chatId,
             'photo' => Request::encodeFile($imagePath),
             'caption' => $text,

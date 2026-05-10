@@ -267,7 +267,7 @@ class ArmorDrifterClothes2Action extends BaseAction
 
         // Отправка фото с подписью (parse_mode Markdown)
         // Если подпись слишком длинная (>1024 символа), нужно разбить на несколько сообщений
-        $response = \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        $response = \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,
