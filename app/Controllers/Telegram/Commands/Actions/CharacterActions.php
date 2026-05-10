@@ -3,39 +3,19 @@
 namespace App\Controllers\Telegram\Commands\Actions;
 
 use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use App\Models\TelegramUserModel;
 
-
-class CharacterActions
+class CharacterActions extends BaseAction
 {
-    protected $callbackQuery;
-
-    public function __construct(CallbackQuery $callbackQuery)
-    {
-        $this->callbackQuery = $callbackQuery;
-    }
-
-
     public function handle(): ServerResponse
     {
-        $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
-
-        // Шаг 1: Определение ID телеграм пользователя
-        $telegramUserId = $this->callbackQuery->getFrom()->getId();
-
-        // Шаг 2: Поиск пользователя в базе
-        $telegramUserModel = new TelegramUserModel();
-        $user = $telegramUserModel->where('telegram_id', $telegramUserId)->first();
-
+        [$user, ] = $this->getUserAndCharacter();
         if (!$user) {
             return Request::sendMessage([
-                'chat_id' => $chatId,
+                'chat_id' => $this->navTarget()['chat_id'],
                 'text'    => 'Пользователь не найден в базе данных.',
             ]);
         }
-
 
         $text = "*Привет, герой! 🙋‍♂️* 👋\n\n"
             . "**Скучно сидеть сложа руки? Не беда!** 🥱\n\n"
@@ -69,16 +49,14 @@ class CharacterActions
             'callback_query_id' => $this->callbackQuery->getId(),
         ]);
 
-
-        // Шаг 5: Формирование и отправка сообщения с результатами
-        $imagePath = base_url('uploads/telegram/character_ready_to_act.png'); // Укажите актуальный путь к изображению
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
-            'chat_id' => $chatId,
-            'photo'   => Request::encodeFile($imagePath),
-            'caption' => $text,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => $encodedKeyboard
+        // #12 edit-in-place (ADR-018): меню действий персонажа — навигация → редактируем
+        // текущее сообщение. editOrSend при любой ошибке edit упадёт обратно на новое.
+        $imagePath = base_url('uploads/telegram/character_ready_to_act.png');
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => $encodedKeyboard,
         ]);
-
     }
 }
