@@ -186,11 +186,12 @@ class BlastFurnaceConstruction extends BaseAction
         $imagePath = base_url('uploads/telegram/camp/blast_furnace.png');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'photo' => Request::encodeFile($imagePath),
-            'caption' => $text,
-            'parse_mode' => 'Markdown',
+        // #12 edit-in-place (ADR-018): build-страница — навигация → редактируем текущее
+        // сообщение. editOrSend при ошибке edit (напр. source = text-меню) → fallback на новое.
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
     }

@@ -123,10 +123,13 @@ class BuildListAction extends BaseAction
             . "{$buildingList}"
             . "\n_Выбери желаемое здание для строительства._";
 
-        return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'    => $text,
-            'parse_mode' => 'Markdown',
+        // #12 edit-in-place (ADR-018): меню строительства — навигация → редактируем текущее
+        // сообщение (даём ему фото, чтобы editMessageMedia работал и из/в photo-меню базы).
+        $imagePath = base_url('uploads/telegram/camp/Construction-by-improvised.jpg');
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $keyboard]),
         ]);
     }
