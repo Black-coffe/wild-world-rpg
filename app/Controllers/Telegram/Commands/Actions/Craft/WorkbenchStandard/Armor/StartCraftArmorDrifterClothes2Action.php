@@ -213,7 +213,7 @@ class StartCraftArmorDrifterClothes2Action extends BaseAction
             . "По завершении вы получите {$this->quantity} шт.\n";
 
         $imagePath = base_url('uploads/telegram/craft/standard/drifter_clothes.jpg');
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,

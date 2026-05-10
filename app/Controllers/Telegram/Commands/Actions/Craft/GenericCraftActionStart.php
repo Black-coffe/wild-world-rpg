@@ -408,7 +408,7 @@ class GenericCraftActionStart extends BaseAction
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'        => Request::encodeFile(base_url($recipe['image_in_progress'])),
             'caption'      => $text,
@@ -432,7 +432,7 @@ class GenericCraftActionStart extends BaseAction
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'      => Request::encodeFile(base_url($recipe['image_in_progress'])),
             'caption'    => $text,
