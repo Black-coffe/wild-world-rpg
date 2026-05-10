@@ -28,8 +28,9 @@ final class EventPrefActionTest extends CIUnitTestCase
             'silenced_until должен быть ~+1час');
         $this->assertLessThanOrEqual(time() + 3700, $until);
 
-        $this->assertStringContainsString('🚫', $update['confirm']);
-        $this->assertStringContainsString('выключены', $update['confirm']);
+        $this->assertStringContainsString('🔕', $update['confirm']);
+        $this->assertStringContainsString('отключены', $update['confirm']);
+        $this->assertStringContainsString('как обычно', $update['confirm']);
     }
 
     public function testMute1hPreservesOtherFields(): void
@@ -50,9 +51,10 @@ final class EventPrefActionTest extends CIUnitTestCase
         $update = EventPrefAction::computeUpdate('eventPref_muteKind_damage_health', []);
         $this->assertNotNull($update);
         $this->assertSame(['damage_health'], $update['pref']['muted_kinds']);
-        // v0.32.1+0.33.1: confirm имеет human-readable label вместо enum-ID
-        $this->assertStringContainsString('с уроном', $update['confirm']);
-        $this->assertStringContainsString('больше показываться не будут', $update['confirm']);
+        // confirm — про УВЕДОМЛЕНИЯ, не про сам ивент (фикс misleading-текста)
+        $this->assertStringContainsString('🔕', $update['confirm']);
+        $this->assertStringContainsString('Уведомления о таких событиях отключены', $update['confirm']);
+        $this->assertStringContainsString('влияет как обычно', $update['confirm']);
     }
 
     public function testMuteKindTogglesOff(): void
@@ -62,8 +64,8 @@ final class EventPrefActionTest extends CIUnitTestCase
 
         $this->assertSame(['heal'], $update['pref']['muted_kinds'],
             'damage_health должен быть удалён из muted_kinds');
-        $this->assertStringContainsString('с уроном', $update['confirm']);
-        $this->assertStringContainsString('снова включены', $update['confirm']);
+        $this->assertStringContainsString('🔔', $update['confirm']);
+        $this->assertStringContainsString('Снова будем уведомлять', $update['confirm']);
     }
 
     public function testMuteKindParsesUnderscoresInKind(): void
