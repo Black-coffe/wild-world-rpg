@@ -9,12 +9,14 @@
  * quill, simplemde, pdf.js и т.п.) — они остаются в layout'ах.
  *
  * Доступ к переменной $title — через $this->include() передаются данные
- * родителя автоматически.
+ * родителя автоматически. Если родитель его не передал (напр. Shield-страницы
+ * login/signup, рендерящие этот partial без 'title') — фолбэк 'Wild World',
+ * иначе PHP 8 ронял ErrorException "Undefined variable $title" (CRITICAL в лог).
  */
 ?>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $title ?></title>
+    <title><?= $title ?? 'Wild World' ?></title>
 
     <meta content="Система, помогающая в своевременном и регулируемом режиме проводить технические проверки (чекины) автомобилей с использованием онлайн-сервиса." name="description" />
     <meta content="Checking of cars" name="author" />
