@@ -129,7 +129,7 @@ class AntisepticCraft1Action extends BaseAction
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         // Отправим сообщение/фото с разметкой
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,

@@ -120,7 +120,7 @@ class SedativeCraft1Action extends BaseAction
         $imagePath = base_url('uploads/telegram/craft/dry_herb_tea.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,

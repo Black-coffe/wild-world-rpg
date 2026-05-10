@@ -144,7 +144,7 @@ class ElectronicComponentsCraft1Action extends BaseAction
         // Отправляем фото + текст
         $imgPath = base_url('uploads/telegram/craft/components/electronic_components.jpg');
 
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
             'photo'        => Request::encodeFile($imgPath),
             'caption'      => $text,

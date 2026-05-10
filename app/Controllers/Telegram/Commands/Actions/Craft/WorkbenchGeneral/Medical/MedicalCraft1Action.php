@@ -80,7 +80,7 @@ class MedicalCraft1Action extends BaseAction
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         // Отправим фото с описанием
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,

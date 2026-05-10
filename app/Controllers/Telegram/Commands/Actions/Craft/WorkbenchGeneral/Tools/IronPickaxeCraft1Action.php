@@ -128,7 +128,7 @@ class IronPickaxeCraft1Action extends BaseAction
         $imagePath = base_url('uploads/telegram/craft/robust-iron-pickaxe.jpg');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'      => $chatId,
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,
