@@ -63,27 +63,11 @@ class MoveNorthEastTips
             return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Северо-восточная локация не найдена.']);
         }
 
-        // Проверка, исследована ли северная ячейка
-        $explored = $this->exploredCellsModel->where('character_id', $character['id'])->where('map_cell_id', $northeastCell['id'])->first();
-        if (!$explored) {
-            $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                        ['text' => '🗺️ Изучить местность', 'callback_data' => 'explore'],
-                    ],
-                ]
-            ];
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => 'Северо-восточная локация не исследована! Невозможно переехать.',
-                'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode($keyboard),
-            ]);
-        }
+        // ADR-019 Step 6: гейт «должна быть заранее исследована» снят (как в основном
+        // MoveCharacterToDirectionAction — движение И есть разведка). В северо-восточную
+        // клетку шагнуть можно; факт прихода раскрывает её + 8 соседей (туман войны radius-1).
 
-        // Перемещение персонажа в Северо-западную ячейку
+        // Перемещение персонажа в северо-восточную ячейку
         $this->characterModel->update($character['id'], [
             'cell_number' => $northeastCell['cell_number'],
             'biome_id' => $northeastCell['biome_id'], // Добавляем ID биома новой локации
@@ -92,6 +76,15 @@ class MoveNorthEastTips
             'agility' => $character['agility'] + 0.1,
             'experience' => $character['experience'] + 0.05,
         ]);
+
+        // Туман войны: раскрываем 3×3 вокруг новой позиции (ADR-019).
+        $this->exploredCellsModel->revealAround(
+            (int) $character['id'],
+            (int) $user['id'],
+            (int) $northeastCell['coordinate_x'],
+            (int) $northeastCell['coordinate_y'],
+            isset($character['level']) ? (int) $character['level'] : null
+        );
 
         // Предположим, что $northwestCell уже содержит 'biome_id'
         $biome = $this->biomeModel->find($northeastCell['biome_id']);
