@@ -96,8 +96,6 @@ final class EventMessageFormatter
      */
     public function buildStartKeyboard(string $effectKind): array
     {
-        $kindLabel = KindLabels::ru($effectKind);
-
         return [
             'inline_keyboard' => [
                 [
@@ -105,8 +103,10 @@ final class EventMessageFormatter
                     ['text' => '🎉 События',       'callback_data' => 'events'],
                 ],
                 [
-                    ['text' => '🚫 Не показывать 1 час', 'callback_data' => 'eventPref_mute_1h'],
-                    ['text' => "🚫 Без событий {$kindLabel}", 'callback_data' => "eventPref_muteKind_{$effectKind}"],
+                    // Обе кнопки — про УВЕДОМЛЕНИЯ, не про сам ивент: событие всё равно
+                    // происходит и влияет на игрока, кнопки лишь приглушают сообщения.
+                    ['text' => '🔕 Тишина на 1 час', 'callback_data' => 'eventPref_mute_1h'],
+                    ['text' => '🔕 Не уведомлять о таких событиях', 'callback_data' => "eventPref_muteKind_{$effectKind}"],
                 ],
             ],
         ];
@@ -136,7 +136,7 @@ final class EventMessageFormatter
         }
 
         $rows[] = [
-            ['text' => '🚫 Не показывать 1 час', 'callback_data' => 'eventPref_mute_1h'],
+            ['text' => '🔕 Тишина на 1 час', 'callback_data' => 'eventPref_mute_1h'],
         ];
 
         return ['inline_keyboard' => $rows];

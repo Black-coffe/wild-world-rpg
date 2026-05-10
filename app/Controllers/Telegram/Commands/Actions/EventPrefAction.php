@@ -2,7 +2,6 @@
 
 namespace App\Controllers\Telegram\Commands\Actions;
 
-use App\Services\Events\KindLabels;
 use Longman\TelegramBot\Request;
 
 /**
@@ -74,7 +73,8 @@ final class EventPrefAction extends BaseAction
             $pref['silenced_until'] = $until;
             return [
                 'pref'    => $pref,
-                'confirm' => "🚫 Уведомления событий выключены до " . date('H:i', strtotime($until)),
+                'confirm' => "🔕 Уведомления о событиях отключены до " . date('H:i', strtotime($until))
+                            . ". Сами события на игру влияют как обычно.",
             ];
         }
 
@@ -83,14 +83,13 @@ final class EventPrefAction extends BaseAction
             if ($kind === '') {
                 return null;
             }
-            $label = KindLabels::ru($kind);
             $muted = (array)($pref['muted_kinds'] ?? []);
             if (in_array($kind, $muted, true)) {
                 $muted   = array_values(array_filter($muted, fn($k) => $k !== $kind));
-                $confirm = "🔔 События {$label} снова включены";
+                $confirm = "🔔 Снова будем уведомлять о таких событиях.";
             } else {
                 $muted[] = $kind;
-                $confirm = "🚫 События {$label} больше показываться не будут";
+                $confirm = "🔕 Уведомления о таких событиях отключены. Само событие на игру влияет как обычно.";
             }
             $pref['muted_kinds'] = $muted;
             return ['pref' => $pref, 'confirm' => $confirm];
@@ -101,7 +100,7 @@ final class EventPrefAction extends BaseAction
             $pref['muted_kinds']    = [];
             return [
                 'pref'    => $pref,
-                'confirm' => '🔔 Все уведомления снова включены',
+                'confirm' => '🔔 Все уведомления о событиях снова включены.',
             ];
         }
 
