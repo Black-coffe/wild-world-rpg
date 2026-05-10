@@ -101,7 +101,9 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
         }
 
         $this->cfg     = new GameBalance();
-        $this->handler = new TestableMarchingTaskHandler($this->cfg);
+        // Детектор-стаб (по умолчанию никого не обнаруживает) — реальный
+        // PlayerDetectionService на CI падает на Request не инициализирован при send.
+        $this->handler = new TestableMarchingTaskHandler($this->cfg, new StubDetector());
     }
 
     protected function tearDown(): void
@@ -335,15 +337,14 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
 
     // ---- pause-on-detection ----
 
-    public function testPlayerNearbyAfterStepPausesMarch(): void
+    public function testPlayerDetectedAfterStepPausesMarch(): void
     {
+        // Детектор-стаб возвращает true → после шага поход обязан встать на паузу.
+        $handler = new TestableMarchingTaskHandler($this->cfg, new StubDetector(true));
         $char = $this->makeCharacter(5, 5);
-        // Другой персонаж на (6,4) — это соседняя клетка с НОВОЙ позицией марширующего (5,4)
-        // → в пределах detection-радиуса (>=2).
-        $this->conn->query("INSERT INTO characters (telegram_user_id, name, cell_number, biome_id, health, tired, level) VALUES (7, 'Stranger', ?, 1, 100, 100, 1)", [(4 - 1) * 10 + 6]);
-        $task = $this->handlerSpawnTask($char);
+        $task = $this->makeMarchTask((int) $char['id'], 'north', 5, 0);
 
-        $this->handler->handle($task);
+        $handler->handle($task);
 
         $after = $this->reloadChar((int) $char['id']);
         $this->assertSame(35, (int) $after['cell_number']); // шаг всё-таки сделан
@@ -354,14 +355,9 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
         $this->assertCount(1, $paused);
         $ps = json_decode((string) $paused[0]['task_settings'], true);
         $this->assertSame('player_detected', $ps['paused_reason']);
-        $this->assertSame(4, $ps['steps_remaining']); // planned 5 - done 1
-        $this->assertStringContainsString('поблизости', mb_strtolower($this->handler->lastText));
-    }
-
-    /** @return array<string,mixed> */
-    private function handlerSpawnTask(array $char): array
-    {
-        return $this->makeMarchTask((int) $char['id'], 'north', 5, 0);
+        $this->assertSame(4, (int) $ps['steps_remaining']); // planned 5 - done 1
+        $this->assertSame(1, (int) $ps['steps_done']);
+        $this->assertStringContainsString('поблизости', mb_strtolower($handler->lastText));
     }
 }
 
@@ -383,5 +379,26 @@ final class TestableMarchingTaskHandler extends MarchingTaskHandler
     {
         $this->deliveries++;
         $this->lastText = $text;
+    }
+}
+
+/**
+ * Стаб PlayerDetectionService: detectNearbyPlayers возвращает фиксированный
+ * результат, не трогая Telegram (на CI Request не инициализирован → реальный
+ * send падает Error'ом). Логика реакции марша на обнаружение тестируется тут;
+ * сама детекция — отдельно (PlayerDetectionService).
+ *
+ * @internal
+ */
+final class StubDetector extends \App\Services\Player\PlayerDetectionService
+{
+    public function __construct(private bool $result = false)
+    {
+        parent::__construct();
+    }
+
+    public function detectNearbyPlayers(int $characterId): bool
+    {
+        return $this->result;
     }
 }
