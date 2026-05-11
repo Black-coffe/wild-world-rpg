@@ -3577,12 +3577,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/CancelGatherAction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\CharacterActions\:\:\$callbackQuery has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/CharacterActions.php
-
-		-
 			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\CharacterGoActions\:\:\$claimedCellModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
@@ -8687,24 +8681,6 @@ parameters:
 			identifier: missingType.parameter
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Quest/QuestsInfo.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\CraftedResourcesAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/ResourcesCraftedAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\CraftedResourcesAction\:\:\$craftedItemsLogModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/ResourcesCraftedAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\CraftedResourcesAction\:\:\$craftedItemsModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/ResourcesCraftedAction.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\ResourcesGatheredAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
