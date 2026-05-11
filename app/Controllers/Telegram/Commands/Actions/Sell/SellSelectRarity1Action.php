@@ -8,6 +8,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Services\Notifications\MediaSender;
 
 class SellSelectRarity1Action extends BaseAction
 {
@@ -61,8 +62,9 @@ class SellSelectRarity1Action extends BaseAction
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+        // #12 edit-in-place (ADR-018): список ресурсов редкости — навигация → редактируем
+        // сообщение, на котором нажата кнопка (fallback на новое при ошибке).
+        return MediaSender::editTextOrSend($this->navTarget() + [
             'text' => $text,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),

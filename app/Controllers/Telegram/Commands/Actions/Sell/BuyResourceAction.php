@@ -9,6 +9,7 @@ use App\Models\ResourceModel;
 use App\Models\CharacterResourceModel;
 use App\Models\CharacterModel;
 use App\Models\ResourcesBankModel;
+use App\Services\Notifications\MediaSender;
 use App\TaskHandlers\ResourceBankUpdateHandler;
 
 class BuyResourceAction extends BaseAction
@@ -92,7 +93,10 @@ class BuyResourceAction extends BaseAction
     }
 
     /**
-     * Простой метод для отправки текстового сообщения с кнопками «Персонаж, Инвентарь, Магазин»
+     * Простой метод для отправки текстового сообщения с кнопками «Персонаж, Инвентарь, Магазин».
+     * #12 edit-in-place (ADR-018): покупка ресурса — пошаговый флоу (редкость → ресурс → кол-во →
+     * результат), каждый шаг редактирует предыдущее сообщение (fallback на новое при ошибке /
+     * клике с photo-экрана — так стартовые «нет золота» / «не найден» естественно приходят новым).
      */
     protected function respondWithMessage(string $text): ServerResponse
     {
@@ -106,8 +110,7 @@ class BuyResourceAction extends BaseAction
             ]
         ];
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return Request::sendMessage([
-            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+        return MediaSender::editTextOrSend($this->navTarget() + [
             'text'         => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
@@ -150,8 +153,8 @@ class BuyResourceAction extends BaseAction
         ];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return Request::sendMessage([
-            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+        // #12 edit-in-place (ADR-018): стартовый экран выбора редкости для покупки — навигация.
+        return MediaSender::editTextOrSend($this->navTarget() + [
             'text'         => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
@@ -195,8 +198,8 @@ class BuyResourceAction extends BaseAction
 
         $keyboard = ['inline_keyboard' => $keyboardButtons];
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return Request::sendMessage([
-            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+        // #12 edit-in-place (ADR-018): список ресурсов редкости для покупки — навигация.
+        return MediaSender::editTextOrSend($this->navTarget() + [
             'text'         => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
@@ -241,8 +244,8 @@ class BuyResourceAction extends BaseAction
         ];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return Request::sendMessage([
-            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+        // #12 edit-in-place (ADR-018): экран выбора количества для покупки — навигация.
+        return MediaSender::editTextOrSend($this->navTarget() + [
             'text'         => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboardButtons),
