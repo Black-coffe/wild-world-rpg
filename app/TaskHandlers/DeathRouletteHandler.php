@@ -6,6 +6,7 @@ use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Models\ClaimedCellModel;
 use App\Models\ExploredCellsModel;
+use App\Services\Player\Death\DeathMessageBuilder;
 use App\Services\Player\DeathService;
 use Config\GameBalance;
 
@@ -210,23 +211,13 @@ class DeathRouletteHandler extends BaseTaskHandler
             return;
         }
 
-        $chatId     = $telegramUser['telegram_id'];
-        $playerName = $character['name'];
+        $chatId = $telegramUser['telegram_id'];
 
-        // penalty=0.0 => страховка спасла; 0.03 => есть база; 0.5 => без базы
-        $penaltyPercent = (int) ($deathResult['penalty'] * 100);
-
-        if ($penaltyPercent === 0) {
-            // Страховка спасла
-            $text = "😵 *{$playerName}*, ты умер(ла), но страховка уберегла твои вещи!\n\n"
-                . "Ты не потерял(а) никаких ресурсов или золота. Будь осторожнее!";
-        } else {
-            // penalty=3% или 50%
-            $text = "😵 *{$playerName}*, увы, твой персонаж погиб.\n\n"
-                . "В результате смерти ты потерял(а) примерно *{$penaltyPercent}%* "
-                . "от всех ресурсов, крафтовых предметов и золота.\n"
-                . "Будь осторожнее в следующий раз!";
-        }
+        // Понятное death-уведомление: причина (рулетка + последнее damage-событие/голод),
+        // потери + их причина (страховка / база / без базы), как не допустить. См.
+        // DeathMessageBuilder (карточка inbox/2026-05-11-validation-card-death-notifications.md, batch 2).
+        // ⚠️ $character здесь — строка ДО респауна (health ещё ≤ 0.99 — нужно для текста причины).
+        $text = (new DeathMessageBuilder())->rouletteDeath($character, $deathResult);
 
         // safeSendMessage с overrideм parse_mode на Markdown (BaseTaskHandler default — HTML)
         $this->safeSendMessage($chatId, $text, ['parse_mode' => 'Markdown']);
