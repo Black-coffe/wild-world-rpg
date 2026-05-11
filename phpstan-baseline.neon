@@ -13839,7 +13839,7 @@ parameters:
 		-
 			message: '#^Method App\\Services\\Events\\EventDispatcher\:\:findAffectedPlayers\(\) should return list\<array\<string, mixed\>\> but returns list\<array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\>\.$#'
 			identifier: return.type
-			count: 3
+			count: 1
 			path: app/Services/Events/EventDispatcher.php
 
 		-

@@ -208,28 +208,45 @@ final class EventDispatcher
     /**
      * Знайти characters в biomes events.biome_ids (або global = ALL).
      *
+     * Death-validation batch 4: виключаємо нещодавно воскреслих (grace-окно) — щоб те саме
+     * damage-подія не накидалося миттєво після респауну. Grace = `GameBalance::$respawnGraceMinutes`.
+     *
      * @return list<array<string, mixed>>
      */
     private function findAffectedPlayers(array $eventRow): array
     {
+        // Global event: biome_ids може бути NULL/''/malformed → fallback ALL.
+        // Перший global event = MeteorImpact (v0.51.127); раніше всі 24 events мали biome_ids.
         $biomesJson = $eventRow['biome_ids'] ?? null;
-
-        // Global event: biome_ids може бути NULL (PHP 8.1+ json_decode(null) → TypeError).
-        // Перший global event = MeteorImpact (v0.51.127). Усі попередні 24 events
-        // мали biome_ids filled, тому bug latent з F7.3.
-        if ($biomesJson === null || $biomesJson === '') {
-            return $this->charModel->findAll();
+        $biomes     = null;
+        if (is_string($biomesJson) && $biomesJson !== '') {
+            $decoded = json_decode($biomesJson, true);
+            if (is_array($decoded) && $decoded !== []) {
+                $biomes = $decoded;
+            }
         }
 
-        $biomes = json_decode($biomesJson, true);
-
-        if (!is_array($biomes) || empty($biomes)) {
-            // Malformed JSON або порожній array → fallback global
-            return $this->charModel->findAll();
+        if (is_array($biomes)) {
+            $this->charModel->whereIn('biome_id', $biomes);
         }
 
-        // Local: characters в обраних біомах
-        return $this->charModel->whereIn('biome_id', $biomes)->findAll();
+        return $this->charModel
+            ->groupStart()
+                ->where('last_respawn_at', null)
+                ->orWhere('last_respawn_at <', $this->respawnGraceThreshold())
+            ->groupEnd()
+            ->findAll();
+    }
+
+    /**
+     * Death-validation batch 4 — поріг grace-окна: персонажі з `last_respawn_at` новіше цього
+     * моменту іммунні до damage-подій (нещодавно воскресли).
+     */
+    private function respawnGraceThreshold(): string
+    {
+        $gb    = config('GameBalance');
+        $grace = $gb instanceof \Config\GameBalance ? max(0, $gb->respawnGraceMinutes) : 5;
+        return date('Y-m-d H:i:s', time() - $grace * 60);
     }
 
     /**

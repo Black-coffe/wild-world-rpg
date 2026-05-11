@@ -32,14 +32,15 @@ final class PlayerRespawnerTest extends CIUnitTestCase
         parent::setUp();
 
         $db = Database::connect('tests');
-        $db->query('DROP TABLE IF EXISTS characters');
-        $db->query('DROP TABLE IF EXISTS claimed_cells');
-        $db->query('DROP TABLE IF EXISTS map');
+        foreach (['characters', 'claimed_cells', 'map', 'events', 'active_events'] as $t) {
+            $db->query("DROP TABLE IF EXISTS {$t}");
+        }
 
         $db->query('
             CREATE TABLE characters (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 cell_number INT NOT NULL DEFAULT 1,
+                last_respawn_at DATETIME NULL,
                 created_at DATETIME NULL,
                 updated_at DATETIME NULL
             )
@@ -64,6 +65,33 @@ final class PlayerRespawnerTest extends CIUnitTestCase
                 updated_at DATETIME NULL
             )
         ');
+        // batch 4 — cleanupAfterDeath() читает events.effect_type + чистит active_events.effect_log
+        $db->query('
+            CREATE TABLE events (
+                event_id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NULL,
+                name_english VARCHAR(255) NULL,
+                effect_type VARCHAR(50) NULL,
+                effect_value INT NULL,
+                biome_ids TEXT NULL,
+                created_at DATETIME NULL,
+                updated_at DATETIME NULL
+            )
+        ');
+        $db->query('
+            CREATE TABLE active_events (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                event_id INT NULL,
+                start_time DATETIME NULL,
+                end_time DATETIME NULL,
+                status VARCHAR(50) NULL,
+                effect_applied TINYINT NULL,
+                effect_log TEXT NULL,
+                notified_users TEXT NULL,
+                created_at DATETIME NULL,
+                updated_at DATETIME NULL
+            )
+        ');
 
         $this->respawner = new PlayerRespawner();
     }
@@ -71,9 +99,9 @@ final class PlayerRespawnerTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $db = Database::connect('tests');
-        $db->query('DROP TABLE IF EXISTS characters');
-        $db->query('DROP TABLE IF EXISTS claimed_cells');
-        $db->query('DROP TABLE IF EXISTS map');
+        foreach (['characters', 'claimed_cells', 'map', 'events', 'active_events'] as $t) {
+            $db->query("DROP TABLE IF EXISTS {$t}");
+        }
         parent::tearDown();
     }
 
@@ -193,5 +221,57 @@ final class PlayerRespawnerTest extends CIUnitTestCase
         $newCell = $this->respawner->respawn($charId);
 
         $this->assertSame(100, $newCell);
+    }
+
+    // ---- batch 4: «чистый респаун» — last_respawn_at + чистка effect_log негативных событий ----
+
+    public function testRespawnSetsLastRespawnAtAndClearsNegativeEventLogs(): void
+    {
+        $db = Database::connect('tests');
+        $db->query('INSERT INTO characters (cell_number) VALUES (1)');
+        $charId = (int) $db->insertID();
+        $key    = (string) $charId;
+
+        // events: 1 = damage (негативное), 2 = debuff (негативное), 3 = heal (позитивное)
+        $db->query("INSERT INTO events (event_id, name, name_english, effect_type, effect_value) VALUES (1,'Эпидемия','Epidemic','damage',5)");
+        $db->query("INSERT INTO events (event_id, name, name_english, effect_type, effect_value) VALUES (2,'Слабость','Weakness','debuff',1)");
+        $db->query("INSERT INTO events (event_id, name, name_english, effect_type, effect_value) VALUES (3,'Родник','Spring','heal',5)");
+
+        // active_events:
+        //  A — damage, active, в effect_log наш персонаж + чужой 999 → персонаж должен сняться, 999 остаться
+        //  B — debuff, active, только наш персонаж → effect_log должен опустеть
+        //  C — heal,   active, наш персонаж → НЕ трогаем (позитивное)
+        //  D — damage, ended,  наш персонаж → НЕ трогаем (не active)
+        $logA = json_encode([$key => ['health_delta' => -42], '999' => ['health_delta' => -3]]);
+        $db->query("INSERT INTO active_events (event_id, status, effect_log) VALUES (1, 'active', ?)", [$logA]);
+        $idA = (int) $db->insertID();
+        $db->query("INSERT INTO active_events (event_id, status, effect_log) VALUES (2, 'active', ?)", [json_encode([$key => ['tired_delta' => -1]])]);
+        $idB = (int) $db->insertID();
+        $db->query("INSERT INTO active_events (event_id, status, effect_log) VALUES (3, 'active', ?)", [json_encode([$key => ['health_delta' => 5]])]);
+        $idC = (int) $db->insertID();
+        $db->query("INSERT INTO active_events (event_id, status, effect_log) VALUES (1, 'ended', ?)", [json_encode([$key => ['health_delta' => -7]])]);
+        $idD = (int) $db->insertID();
+
+        $this->respawner->respawn($charId);
+
+        // last_respawn_at выставлен
+        $charRow = $db->query('SELECT last_respawn_at FROM characters WHERE id = ?', [$charId])->getRowArray();
+        $this->assertNotNull($charRow['last_respawn_at']);
+
+        $logOf = static function (int $id) use ($db): array {
+            $r = $db->query('SELECT effect_log FROM active_events WHERE id = ?', [$id])->getRowArray();
+            $d = json_decode((string) ($r['effect_log'] ?? ''), true);
+            return is_array($d) ? $d : [];
+        };
+
+        // A: персонаж снят, 999 остался
+        $this->assertArrayNotHasKey($key, $logOf($idA));
+        $this->assertArrayHasKey('999', $logOf($idA));
+        // B: пусто
+        $this->assertSame([], $logOf($idB));
+        // C (heal): не тронут
+        $this->assertArrayHasKey($key, $logOf($idC));
+        // D (ended): не тронут
+        $this->assertArrayHasKey($key, $logOf($idD));
     }
 }

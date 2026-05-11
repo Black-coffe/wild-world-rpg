@@ -51,9 +51,16 @@ class DeathRouletteHandler extends BaseTaskHandler
         $characterModel    = new CharacterModel();
         $deathService      = new DeathService();
 
-        // 3) Ищем всех игроков, у кого здоровье <= 0.99
+        // 3) Ищем всех игроков, у кого здоровье <= 0.99 — кроме недавно возродившихся
+        //    (death-validation batch 4: grace-окно ≈ GameBalance::$respawnGraceMinutes —
+        //     не докатываем «рулетку» сразу после респауна).
+        $graceThreshold = date('Y-m-d H:i:s', time() - max(0, $this->cfg->respawnGraceMinutes) * 60);
         $candidates = $characterModel
             ->where('health <=', 0.99)
+            ->groupStart()
+                ->where('last_respawn_at', null)
+                ->orWhere('last_respawn_at <', $graceThreshold)
+            ->groupEnd()
             ->findAll();
 
         if (empty($candidates)) {

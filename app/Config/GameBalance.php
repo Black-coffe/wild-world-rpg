@@ -70,6 +70,13 @@ class GameBalance extends BaseConfig
     /** Усталость при revive после insurance-save. */
     public float $insuranceRespawnTired = 50.0;
 
+    /**
+     * Death-validation batch 4: grace-окно после возрождения (минуты), в течение которого
+     * персонаж иммунен к damage-событиям и не попадает в «рулетку смерти» — чтобы то же
+     * событие/смерть не накидывалось мгновенно. НЕ распространяется на голод и PvP (анти-абуз).
+     */
+    public int $respawnGraceMinutes = 5;
+
     // --- Награда победителю ----------
 
     /** Базовый бонус к опыту победителя за PvP-победу. */
