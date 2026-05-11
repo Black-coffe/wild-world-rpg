@@ -3,6 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions\Quest;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -45,9 +46,9 @@ class QuestAndTaskAction extends BaseAction
         // Ответ на callback запрос, чтобы убрать часики на кнопке
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        // Отправляем сообщение с картинкой и клавиатурой
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
-            'chat_id' => $chatId,
+        // #12 edit-in-place (ADR-018): меню «Квесты и задания» — навигация → редактируем
+        // сообщение, на котором нажата кнопка (fallback на новое при ошибке/клике с text-экрана).
+        return MediaSender::editOrSend($this->navTarget() + [
             'photo' => Request::encodeFile($imagePath),
             'caption' => $text,
             'parse_mode' => 'Markdown',

@@ -3,6 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions\Quest;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 use App\Models\QuestModel;
@@ -88,7 +89,10 @@ class QuestsInfo extends BaseAction
         return $keyboard;
     }
 
-    // Универсальный метод отправки сообщения в чат
+    // Универсальный метод отправки сообщения в чат.
+    // #12 edit-in-place (ADR-018): список квестов / карточка квеста — навигация → редактируем
+    // сообщение, на котором нажата кнопка (fallback на новое при ошибке/клике с photo-экрана).
+    // $chatId сохранён в сигнатуре для совместимости с вызовами, но chat_id берётся из navTarget().
     private function sendTelegramMessage($chatId, $text, $keyboard = null)
     {
         if (!$keyboard) {
@@ -105,8 +109,7 @@ class QuestsInfo extends BaseAction
         // Остановка анимации загрузки
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return Request::sendMessage([
-            'chat_id' => $chatId,
+        return MediaSender::editTextOrSend($this->navTarget() + [
             'text' => $text,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
