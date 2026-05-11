@@ -8,8 +8,10 @@ This is a Telegram-based MMORPG game built with CodeIgniter 4 and the Longman Te
 
 **Master documents (north star):**
 - [`GAME_DESCRIPTION.md`](./GAME_DESCRIPTION.md) — слитный канон геймплея. **Атомарные ноты** канона по подсистемам — в [`mmorpg-vault/lore/`](file:///C:/Projects/mmorpg-vault/lore/index.md).
-- [`OBSIDIAN-MIGRATION-PLAN.md`](./OBSIDIAN-MIGRATION-PLAN.md) — обоснование структуры vault'а и фильтрация практик.
-- [`mmorpg-vault/`](file:///C:/Projects/mmorpg-vault/README.md) — Obsidian vault соседом репо (см. ADR-009 в самом vault'е). Tech-writing wiki, glossary, daily journal, hot-context для Claude.
+- [`GAME_RULES_AND_VALIDATION_FRAMEWORK.md`](./GAME_RULES_AND_VALIDATION_FRAMEWORK.md) — **процессный north-star**: 4 категории правил (🔴 строго запрещено / 🟠 запрещено с исключениями / 🟡 разрешено, но подумать / 🟢 всегда нужно) + фреймворк валидации из 7 ворот, через который **обязана** пройти любая идея/фикс/рефактор/расширение игры. Провалидирован против 10 портретов ЦА. Архитектурное обоснование — `mmorpg-vault/decisions/ADR-017-Idea-validation-framework.md`.
+- [`README.md`](./README.md) — точка входа для GitHub-аудитории, архитектурный обзор.
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md) — гайдлайны для контрибьюторов + documentation contract.
+- [`mmorpg-vault/`](file:///C:/Projects/mmorpg-vault/README.md) — Obsidian vault соседом репо (см. ADR-009 в самом vault'е). Tech-writing wiki, glossary, daily journal, hot-context для Claude. Архитектурное обоснование самого vault'а живёт в `mmorpg-vault/decisions/ADR-009-Vault-without-MCP.md`.
 
 ---
 
@@ -87,6 +89,7 @@ This is a Telegram-based MMORPG game built with CodeIgniter 4 and the Longman Te
 
 ### Что считается «завершённой задачей»
 
+- ✅ Идея прошла фреймворк валидации (`GAME_RULES_AND_VALIDATION_FRAMEWORK.md` — 7 ворот, классифицирована в 🔴/🟠/🟡/🟢; для 🟠 — ADR создан)
 - ✅ Код написан
 - ✅ PHPUnit-тесты зелёные (`composer test`)
 - ✅ Миграция применена и протестирована (если меняли схему)
@@ -94,6 +97,7 @@ This is a Telegram-based MMORPG game built with CodeIgniter 4 and the Longman Te
 - ✅ **Tech-writing нота обновлена в vault'е**
 - ✅ **Если значимое решение — ADR создан в `mmorpg-vault/decisions/`**
 - ✅ **`mmorpg-vault/wiki/hot.md` обновлён** (если контекст сменился)
+- ✅ **Если новый контент требует картинки** (крафт / здание / событие / оружие / NPC / фракция) — LEXICON-запись + строка в `Config\ImageRegistry` + сгенерённая картинка (`php spark images:generate`), стиль = «Найденная фотоплёнка» (ADR-022, `mmorpg-vault/reference/Image-Style-Bible.md`, runbook `image-generation.md`). См. CONTRIBUTING §Image contract.
 - ✅ Коммит с осмысленным русским сообщением
 
 ### Workflow в конце сессии Claude
@@ -213,6 +217,10 @@ Key tables managed through migrations in `app/Database/Migrations/`:
 - Image assets in `public/uploads/telegram/` for game visuals
 
 ## Development Guidelines
+
+### ⚠️ Перед добавлением чего-либо в игру — фреймворк валидации
+
+**Любая идея / фикс / рефактор / расширение / доработка ОБЯЗАНА пройти через [`GAME_RULES_AND_VALIDATION_FRAMEWORK.md`](./GAME_RULES_AND_VALIDATION_FRAMEWORK.md)** — 7 ворот (Формулировка → Канон&сеттинг → 10-персон чек → Баланс&системы → Техно-чек → Smoke-план → Релиз&vault) и классификация в одну из 4 категорий (🔴/🟠/🟡/🟢). Карточка идеи (шаблон — §8 того файла) заполняется до начала работы. Это не бюрократия для мелких фиксов (они проскакивают ворота за минуты), но **пропускать ворота нельзя**. Решение зафиксировано в `mmorpg-vault/decisions/ADR-017-Idea-validation-framework.md`; операционная шпаргалка — `mmorpg-vault/runbooks/idea-validation.md`.
 
 ### Adding New Game Features
 
