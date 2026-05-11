@@ -113,11 +113,12 @@ class WorldEvents extends BaseConfig
         'Hurricane' => [
             'effect_kind'   => 'damage_health',
             'effect_params' => [
-                'damage_target'   => 'health',
-                'state_modifier' => self::DEFAULT_DAMAGE_STATE_MODIFIER,
-                'level_scaling'   => true,
-                'biome_factor'    => true,
-                'random_factor'   => [0.5, 1.5],
+                'damage_target'     => 'health',
+                'state_modifier'    => self::DEFAULT_DAMAGE_STATE_MODIFIER,
+                // batch 5 balance review: было effect_value(65)×level×biome×random ≈ до ~96 HP/тик
+                // (≈instakill для low-level — как баг «Эпидемии»). Теперь явный диапазон ≤10% max HP/тик
+                // (см. WorldEventsDamageBoundsTest). Legacy-модификаторы (level/biome/random) убраны.
+                'health_loss_range' => [2, 8],
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
@@ -137,9 +138,9 @@ class WorldEvents extends BaseConfig
                 ],
                 'time_window'          => ['20:00', '05:00'],  // лише в нічні години
                 'sleeping_player_skip' => 12,                  // skip якщо last_seen > 12h
-                'level_scaling'        => false,
-                'biome_factor'         => false,
-                'random_factor'        => [0.7, 1.3],
+                // batch 5 balance review: было effect_value(50)×random ≈ до ~65 HP + ~65 вынос./тик. Теперь ≤10%/тик.
+                'health_loss_range'    => [1, 6],
+                'tired_loss_range'     => [1, 6],
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
@@ -205,16 +206,15 @@ class WorldEvents extends BaseConfig
         'FlashForestFire' => [
             'effect_kind'   => 'damage_health',
             'effect_params' => [
-                'damage_target'   => 'both',
-                'tired_ratio'     => 0.5,  // tired loss = damage / 2
-                'state_modifier'  => [
+                'damage_target'     => 'both',
+                'state_modifier'    => [
                     'base_idle'    => 0.0,
                     'biome_idle'   => 0.5,
                     'biome_active' => 0.75,  // 75% chance hit при gather
                 ],
-                'level_scaling'   => true,
-                'biome_factor'    => true,
-                'random_factor'   => [0.5, 1.5],
+                // batch 5 balance review: было effect_value(78)×level×biome×random ≈ до ~87 HP/тик. Теперь ≤10%/тик; вынос. меньше — пожар бьёт по здоровью.
+                'health_loss_range' => [2, 8],
+                'tired_loss_range'  => [1, 4],
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
@@ -226,11 +226,10 @@ class WorldEvents extends BaseConfig
         'Snowfall' => [
             'effect_kind'   => 'damage_health',
             'effect_params' => [
-                'damage_target'   => 'random_h_or_t',
+                'damage_target'  => 'random_h_or_t',
                 'state_modifier' => self::DEFAULT_DAMAGE_STATE_MODIFIER,
-                'damage_range'    => [1, 90],
-                'level_scaling'   => false,
-                'biome_factor'    => false,
+                // batch 5 balance review: было [1, 90] (!) — почти весь health-бар одним тиком. Теперь ≤10% max HP/тик.
+                'damage_range'   => [1, 9],
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
@@ -242,11 +241,10 @@ class WorldEvents extends BaseConfig
         'SpringFlood' => [
             'effect_kind'   => 'damage_health',
             'effect_params' => [
-                'damage_target'   => 'health',
-                'state_modifier' => self::DEFAULT_DAMAGE_STATE_MODIFIER,
-                'level_scaling'   => true,
-                'biome_factor'    => false,
-                'random_factor'   => [0.5, 1.5],
+                'damage_target'     => 'health',
+                'state_modifier'    => self::DEFAULT_DAMAGE_STATE_MODIFIER,
+                // batch 5 balance review: было effect_value(75)×level×random ≈ до ~111 HP/тик. Теперь ≤10%/тик.
+                'health_loss_range' => [2, 8],
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
@@ -258,11 +256,10 @@ class WorldEvents extends BaseConfig
         'Tremor' => [
             'effect_kind'   => 'damage_health',
             'effect_params' => [
-                'damage_target'   => 'health',
-                'state_modifier' => self::DEFAULT_DAMAGE_STATE_MODIFIER,
-                'level_scaling'   => true,
-                'biome_factor'    => false,
-                'random_factor'   => [0.5, 1.5],
+                'damage_target'     => 'health',
+                'state_modifier'    => self::DEFAULT_DAMAGE_STATE_MODIFIER,
+                // batch 5 balance review: было effect_value(95)×level×random ≈ до ~141 HP/тик. Теперь ≤10%/тик (без protection_item — верхняя граница чуть выше).
+                'health_loss_range' => [3, 9],
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
@@ -277,12 +274,12 @@ class WorldEvents extends BaseConfig
         'volcanic_eruption' => [
             'effect_kind'   => 'damage_health',
             'effect_params' => [
-                'damage_target'   => 'health',
-                'state_modifier' => self::DEFAULT_DAMAGE_STATE_MODIFIER,
-                'level_scaling'   => true,
-                'biome_factor'    => true,
-                'random_factor'   => [0.5, 1.5],
-                'base_damage_mul' => 10,  // calculateDamage у Volcanic множить на 10
+                'damage_target'     => 'health',
+                'state_modifier'    => self::DEFAULT_DAMAGE_STATE_MODIFIER,
+                // batch 5 balance review: было effect_value(96) × base_damage_mul(10) × level×biome×random ≈ до ~1400 HP/тик
+                // (!! — жёсткий инстакилл кого угодно, аналог бага «Эпидемии», только хуже). `base_damage_mul` УБРАН.
+                // Теперь ≤10% max HP/тик — самое опасное биом-событие, без protection_item.
+                'health_loss_range' => [4, 10],
             ],
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
@@ -300,12 +297,9 @@ class WorldEvents extends BaseConfig
                     'biome_idle'   => 0.8,
                     'biome_active' => 1.0,
                 ],
-                'level_scaling'    => true,
-                'biome_factor'     => true,
-                'random_factor'    => [0.5, 1.5],
-                // Додатковий ефект: -0.01 до випадкового атрибуту
-                'attr_drain_pool'  => ['experience', 'strength', 'agility', 'intellect'],
-                'attr_drain_value' => 0.01,
+                // batch 5 balance review: было effect_value(default 30)×level×biome×random ≈ до ~44 вынос./тик + drain атрибута.
+                // Теперь ≤10% max/тик по выносливости. attr_drain убран — нишевый flavor, безопаснее без него (effect_value-путь обходил bound).
+                'tired_loss_range' => [2, 8],
             ],
             'duration_minutes'  => 90,
             'frequency_weight'  => 1,
@@ -343,7 +337,9 @@ class WorldEvents extends BaseConfig
                 ],
                 'two_stage_chance'     => 0.5,
                 'biome_type_specific'  => [
-                    'wet'     => ['health' => [5, 10]],
+                    // batch 5 balance review: было wet=[5,10] (на верхней границе bound + tick_chance=1.0 → каждый тик).
+                    // Ужато до [3,7] чтобы оставить запас под ≤10%/тик. (biome_type_specific-урон не множится на state_coef.)
+                    'wet'     => ['health' => [3, 7]],
                     'dry'     => ['tired'  => [3, 7]],
                     'default' => ['health' => [1, 3], 'tired' => [1, 3]],
                 ],
