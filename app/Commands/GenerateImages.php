@@ -6,6 +6,7 @@ namespace App\Commands;
 
 use App\Services\Images\GeminiImageProvider;
 use App\Services\Images\ImageProviderInterface;
+use App\Services\Images\OpenAiImageProvider;
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
 use Config\ImageRegistry;
@@ -70,11 +71,14 @@ class GenerateImages extends BaseCommand
         $provider = $dryRun ? null : $this->makeProvider($cfg);
 
         foreach ($entries as $e) {
-            $prompt = str_replace('{SCENE}', $e['scene'], $cfg->styleCore);
+            $prompt = str_replace('{SCENE}', $this->buildScene($cfg, $e), $cfg->styleCore);
             CLI::write('');
             CLI::write('• ' . $e['key'] . '  [' . $e['mode'] . ' / ' . $e['lexicon'] . ' / ' . $e['status'] . ']', 'green');
             if ($dryRun) {
                 CLI::write('  file: ' . $e['file']);
+                if (!isset($cfg->lexicon[$e['lexicon']])) {
+                    CLI::write('  ⚠ LEXICON-запись "' . $e['lexicon'] . '" не найдена в Config\\ImageRegistry::$lexicon', 'red');
+                }
                 CLI::write('  prompt:', 'dark_gray');
                 CLI::write('  ' . $prompt);
                 continue;
@@ -145,10 +149,22 @@ class GenerateImages extends BaseCommand
     {
         $apiKey = $this->apiKey($cfg);
         return match ($cfg->provider) {
+            'openai' => new OpenAiImageProvider($apiKey, $cfg->model, $cfg->quality),
             'gemini' => new GeminiImageProvider($apiKey, $cfg->model),
-            // 'openai' => new OpenAiImageProvider($apiKey, $cfg->model),   // TODO(Блок 2)
             default  => throw new RuntimeException('Неизвестный провайдер: ' . $cfg->provider . ' (Config\\ImageRegistry::$provider).'),
         };
+    }
+
+    /**
+     * Собрать Subject-of-this-photograph хвост промпта = LEXICON-текст записи + её scene-хвост.
+     *
+     * @param array{key:string, file:string, lexicon:string, scene:string, mode:string, status:string, used_in?:string, ref?:string, notes?:string} $e
+     */
+    private function buildScene(ImageRegistry $cfg, array $e): string
+    {
+        $lexText = $cfg->lexicon[$e['lexicon']] ?? '';
+        $full    = trim($lexText . ' ' . trim($e['scene']));
+        return $full !== '' ? $full : trim($e['scene']);
     }
 
     private function apiKey(ImageRegistry $cfg): string

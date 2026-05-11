@@ -137,6 +137,19 @@ Specific rules and templates are documented in [`CLAUDE.md`](./CLAUDE.md) §Cons
 - **Deleted code** → mark frontmatter `status: deprecated`, link to replacement; do not delete the note
 - **Architectural decision** → add an ADR in `mmorpg-vault/decisions/`
 - **Lore / canon change** → update `GAME_DESCRIPTION.md` AND the corresponding atomic note in `mmorpg-vault/lore/`
+- **New content that needs an image** (craft / building / event / weapon / NPC / faction feature) → add it to the image pipeline (see below)
+
+### Image contract
+
+> All in-game images share one visual style — the "recovered analog photograph" look (ADR-022). Canon: `mmorpg-vault/reference/Image-Style-Bible.md`. Pipeline: `app/Config/ImageRegistry.php` + `php spark images:generate` (runbook: `mmorpg-vault/runbooks/image-generation.md`).
+
+A new craft / building / event / weapon / NPC / faction feature is **not "done"** until:
+1. A LEXICON entry exists in `Config\ImageRegistry::$lexicon` (and in Image-Style-Bible §2) — "how this looks in Wild World" (traces of the collapse; no fantasy/sci-fi gloss; no lying visual that contradicts the mechanic).
+2. A row is added to `Config\ImageRegistry::$images` (`key` / `file` / `lexicon` / `scene` / `mode` / `status:pending` / `used_in`).
+3. `php spark images:generate --key <key>` → visual check (incl. the thumbnail-at-~200px readability test) → `status: approved`.
+4. The file is placed in-place under `public/uploads/telegram/...` (the old one, if any, goes to `_legacy/`).
+
+Do **not** drop in an image from a random generator/style — that re-creates the visual "каша" the rebrand removed. No text / letters / numbers / real flags / insignia / brands inside images (captions carry text). The text world-map is the only thing exempt from images (and from the `disable_media` toggle).
 
 ## Game-balance considerations
 

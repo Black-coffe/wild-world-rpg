@@ -97,6 +97,7 @@ This is a Telegram-based MMORPG game built with CodeIgniter 4 and the Longman Te
 - ✅ **Tech-writing нота обновлена в vault'е**
 - ✅ **Если значимое решение — ADR создан в `mmorpg-vault/decisions/`**
 - ✅ **`mmorpg-vault/wiki/hot.md` обновлён** (если контекст сменился)
+- ✅ **Если новый контент требует картинки** (крафт / здание / событие / оружие / NPC / фракция) — LEXICON-запись + строка в `Config\ImageRegistry` + сгенерённая картинка (`php spark images:generate`), стиль = «Найденная фотоплёнка» (ADR-022, `mmorpg-vault/reference/Image-Style-Bible.md`, runbook `image-generation.md`). См. CONTRIBUTING §Image contract.
 - ✅ Коммит с осмысленным русским сообщением
 
 ### Workflow в конце сессии Claude
