@@ -8,6 +8,7 @@ use App\Models\CharacterModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Services\Notifications\MediaSender;
 
 class SellCraftItemAction extends BaseAction
 {
@@ -82,8 +83,9 @@ class SellCraftItemAction extends BaseAction
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return Request::sendMessage([
-            'chat_id' => $chatId,
+        // #12 edit-in-place (ADR-018): экран выбора количества крафта на продажу — навигация →
+        // редактируем сообщение, на котором нажата кнопка (fallback на новое при ошибке).
+        return MediaSender::editTextOrSend($this->navTarget() + [
             'text' => $text,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $keyboard]),

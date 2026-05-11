@@ -9,6 +9,7 @@ use App\Models\ResourceModel;
 use App\Models\CharacterResourceModel;
 use App\Models\CharacterModel;
 use App\Models\ResourcesBankModel;
+use App\Services\Notifications\MediaSender;
 // Если хотим сразу пересчитывать цены после сделки
 use App\TaskHandlers\ResourceBankUpdateHandler;
 
@@ -168,8 +169,9 @@ class SellResourceAction extends BaseAction
         $keyboard = ['inline_keyboard' => $keyboardButtons];
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return Request::sendMessage([
-            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+        // #12 edit-in-place (ADR-018): список ресурсов редкости — навигация → редактируем
+        // сообщение, на котором нажата кнопка (fallback на новое при ошибке).
+        return MediaSender::editTextOrSend($this->navTarget() + [
             'text'         => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
@@ -214,8 +216,9 @@ class SellResourceAction extends BaseAction
 
         $keyboard = ['inline_keyboard' => $keyboardButtons];
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return Request::sendMessage([
-            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+        // #12 edit-in-place (ADR-018): экран выбора количества — навигация → редактируем
+        // сообщение, на котором нажата кнопка (fallback на новое при ошибке).
+        return MediaSender::editTextOrSend($this->navTarget() + [
             'text'         => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
