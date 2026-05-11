@@ -67,9 +67,9 @@ class WithoutTrainingStartAction extends BaseAction
         $imagePath = base_url('uploads/telegram/picture_of_the_playable_character.png'); // Укажите актуальный путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        // Ответ в телеграм
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+        // #12 edit-in-place (ADR-018): экран «пропустить обучение» → главное меню действий —
+        // навигация → редактируем сообщение, на котором нажата кнопка (fallback на новое).
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,
             'parse_mode' => 'Markdown',

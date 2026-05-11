@@ -139,8 +139,14 @@ class MoveNorthEastTips
 
         $imagePath = base_url('uploads/telegram/map-lines-coordinates.jpg'); // Укажите актуальный путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
-            'chat_id' => $chatId,
+        // #12 edit-in-place (ADR-018): результат первого перехода — навигация → редактируем
+        // сообщение, на котором нажата кнопка «↗️ Северо-восток» (fallback на новое). Класс не
+        // extends BaseAction → navTarget строим вручную.
+        $navTarget = [
+            'chat_id'    => $chatId,
+            'message_id' => (int) $this->callbackQuery->getMessage()->getMessageId(),
+        ];
+        return \App\Services\Notifications\MediaSender::editOrSend($navTarget + [
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,
             'parse_mode' => 'Markdown',

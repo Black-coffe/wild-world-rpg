@@ -71,11 +71,11 @@ class StartAdventureAction extends BaseAction
         ];
 
         $imagePath = base_url('uploads/telegram/character/ready-for-adventure.jpg'); // Make sure this path is correctly specified
-        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getMessage()->getChat()->getId()]);
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        // Отправляем фото с опциями
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+        // #12 edit-in-place (ADR-018): экран «готов к приключениям» — навигация → редактируем
+        // сообщение, на котором нажата кнопка (fallback на новое при ошибке).
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'photo'   => Request::encodeFile($imagePath),
             'caption' => $text,
             'parse_mode' => 'Markdown',

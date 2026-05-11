@@ -9,6 +9,7 @@ use App\Models\CharacterResourceModel;
 use App\Models\ExploredCellsModel;
 use App\Models\MapModel;
 use App\Models\ResourceModel;
+use App\Services\Notifications\MediaSender;
 use DateTime;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
@@ -63,8 +64,9 @@ class SetCharacterNameAction extends BaseAction
         ];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+        // #12 edit-in-place (ADR-018): экран выбора имени — навигация → редактируем
+        // сообщение, на котором нажата кнопка (fallback на новое при ошибке/клике с photo).
+        return MediaSender::editTextOrSend($this->navTarget() + [
             'text' => $text,
             'parse_mode' => 'Markdown',
             'disable_web_page_preview' => true,
