@@ -39,9 +39,10 @@ class CallbackRoutes extends BaseConfig
         'gatherTips'                      => \App\Controllers\Telegram\Commands\Actions\StartGame\GatherTips::class,
 
         // === Core actions ===
-        'explore'                         => \App\Controllers\Telegram\Commands\Actions\ExploreAction::class,
+        // ADR-019 cleanup-тег: стоячий «explore» (ExploreAction-шим + ExploreTheArea-задача +
+        // CancelExplorationAction) удалён после дренажа in-flight задач. Вход в разведку = «Поход»
+        // (callback `march`); кнопки, ранее звавшие `explore`, переведены на `march`.
         'characterActions'                => \App\Controllers\Telegram\Commands\Actions\CharacterGoActions::class,
-        'cancelExploration'               => \App\Controllers\Telegram\Commands\Actions\CancelExplorationAction::class,
         'move'                            => \App\Controllers\Telegram\Commands\Actions\MoveCharacterAction::class,
         'march'                           => \App\Controllers\Telegram\Commands\Actions\MarchAction::class,          // ADR-019 — «Поход»
         'cancelMarch'                     => \App\Controllers\Telegram\Commands\Actions\CancelMarchAction::class,    // ADR-019 — остановить поход

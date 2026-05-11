@@ -358,7 +358,7 @@ class ObjectCloseWarehouseAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '🧑‍🌾 Действия',       'callback_data' => 'characterActions'],
-                    ['text' => '🗺️ Исследовать ещё', 'callback_data' => 'explore']
+                    ['text' => '🗺️ Исследовать ещё', 'callback_data' => 'march']
                 ]
             ]
         ];

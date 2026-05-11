@@ -13,10 +13,8 @@ use Longman\TelegramBot\Request;
  * Находит активную (in_work) или паузнутую (paused) Marching-задачу персонажа и
  * метит её 'completed' — цепочка 1-клеточных задач больше не спавнит следующий
  * шаг. Пройденные/раскрытые клетки остаются (применены при каждом шаге; никакого
- * «всё или ничего», в отличие от старого ExploreTheArea-cancel).
- *
- * `cancelExploration` остаётся отдельным handler'ом `CancelExplorationAction` (старый
- * стоячий explore, депрекейтится в ADR-019 Step 5) — этот handler только для похода.
+ * «всё или ничего», в отличие от старого ExploreTheArea-cancel — тот handler удалён
+ * cleanup-тегом после дренажа in-flight задач).
  */
 class CancelMarchAction extends BaseAction
 {

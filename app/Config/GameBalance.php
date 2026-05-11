@@ -337,52 +337,10 @@ class GameBalance extends BaseConfig
     public int $roboticsExplorationCellsPerLevel = 10;
 
     // ===================================================================
-    // ExplorationTask (ExplorationTaskHandler) — C/F6 expansion (v0.51.27)
-    //   Manual exploration від player (не робот). Ring-based explore с fade penalty.
+    // ADR-019 cleanup-тег: блок exploration* (ExplorationTaskHandler, C/F6 +
+    // community idea #5) удалён вместе со стоячим explore — ручная разведка
+    // заменена «Походом» (см. marchMinutesPerCell / marchTiredPerCell ниже).
     // ===================================================================
-
-    /** Бонус опиту за завершене ручне дослідження. */
-    public float $explorationXpBonus = 0.01;
-
-    /** Бонус strength/agility/intellect за завершене ручне дослідження. */
-    public float $explorationStatBonus = 0.01;
-
-    /**
-     * Tolerance (хвилин) між planned vs actual time. Якщо |delta| ≤ tolerance —
-     * використовуємо planned, інакше actual (анти-чітинг проти clock-skew).
-     */
-    public int $explorationPlannedTolerance = 2;
-
-    /** % fade за кожні 10 хвилин exploration (1% → -1% efficiency). */
-    public int $explorationFadePercentPer10Min = 1;
-
-    /** Максимум fade percent (capped). */
-    public int $explorationFadePercentMax = 50;
-
-    // ===================================================================
-    // ExplorationTask — distance reward + time risk (community idea #5, v0.51.128)
-    // ===================================================================
-
-    /**
-     * % бонусу до cells_after_fade за кожні 100 клітинок Chebyshev-distance
-     * між базою (claimed_cell) та поточною позицією player'а.
-     *
-     * Стимул: дальні походи від бази дають більше cells. Якщо бази немає —
-     * bonus = 0 (no claimed_cell → distance не calc'иться).
-     */
-    public int $explorationDistanceBonusPer100Cells = 5;
-
-    /** Максимум distance bonus % (capped). */
-    public int $explorationDistanceBonusMax = 50;
-
-    /**
-     * Втрата health за кожні 30 хвилин exploration. Risk-component: дов
-     * exploration = більше витрат на health (додатково до fade).
-     */
-    public int $explorationHealthLossPer30Min = 1;
-
-    /** Втрата tired за кожні 30 хвилин exploration. */
-    public int $explorationTiredLossPer30Min = 2;
 
     // ===================================================================
     // Craft queue (GenericCraftActionStart) — community idea #1, v0.51.129

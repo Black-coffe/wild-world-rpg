@@ -57,7 +57,7 @@ class CharacterActions
 
                 ],
                 [
-                    ['text' => '🗺️ Изучить местность', 'callback_data' => 'explore'],
+                    ['text' => '🗺️ Изучить местность', 'callback_data' => 'march'],
                     ['text' => '📜 Выполнить квест', 'callback_data' => 'quest'],
                 ]
             ]

@@ -70,7 +70,7 @@ class CharacterGoActions extends BaseAction
 
         // Добавим остальные кнопки (например, Квесты, Исследования...)
         $keyboardButtons[] = ['text' => '📜 Квесты и задания', 'callback_data' => 'questAndTask'];
-        $keyboardButtons[] = ['text' => '🗺️ Изучить местность', 'callback_data' => 'explore'];
+        $keyboardButtons[] = ['text' => '🗺️ Изучить местность', 'callback_data' => 'march'];
         $keyboardButtons[] = ['text' => '⛏️ Добыть ресурсы',    'callback_data' => 'gather'];
 
         // Превращаем список кнопок в массив по строкам (2 кнопки в строке)
