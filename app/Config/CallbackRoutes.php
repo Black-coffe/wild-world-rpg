@@ -50,6 +50,10 @@ class CallbackRoutes extends BaseConfig
         'cancelGather'                    => \App\Controllers\Telegram\Commands\Actions\CancelGatherAction::class,
         'inventory'                       => \App\Controllers\Telegram\Commands\Actions\InventoryAction::class,
         'resourcesGathered'               => \App\Controllers\Telegram\Commands\Actions\ResourcesGatheredAction::class,
+        // === Настройки (идея #14 — тумблер картинок) ===
+        'settings'                        => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
+        'mediaOff'                        => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
+        'mediaOn'                         => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         // 'character' route handled by inline shortcut у CallbackqueryCommand
         // (calls CharacterService::showCharacterInfo з equipment info — НЕ
         // CharacterAction). CharacterAction.php був dead code, видалено v0.51.79.

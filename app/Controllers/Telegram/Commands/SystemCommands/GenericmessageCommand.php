@@ -2,6 +2,7 @@
 
 namespace App\Controllers\Telegram\Commands\SystemCommands;
 
+use App\Controllers\Telegram\Commands\Actions\SettingsAction;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Services\BaseService;
@@ -50,6 +51,10 @@ class GenericmessageCommand extends SystemCommand
             case 'карта':
                 return $this->handleMap($chatId);
 
+            case 'настройки':
+            case 'settings':
+                return $this->handleSettings($chatId);
+
             // Новые команды для смены типа карты
             case 'beautiful_map':
                 return $this->handleMapPreference($chatId, 'beautiful');
@@ -57,7 +62,8 @@ class GenericmessageCommand extends SystemCommand
             case 'accurate_map':
                 return $this->handleMapPreference($chatId, 'accurate');
 
-            // Идея #14 (Yupirex, 13.02.2025): toggle для отключения изображений.
+            // Идея #14 (Yupirex, 13.02.2025): toggle для отключения изображений
+            // (старые текстовые команды; новый UI — экран «Настройки», см. handleSettings).
             case 'media_off':
                 return $this->handleMediaPreference($chatId, 1);
 
@@ -67,9 +73,30 @@ class GenericmessageCommand extends SystemCommand
             default:
                 return Request::sendMessage([
                     'chat_id' => $chatId,
-                    'text'    => 'Не понял, попробуйте «перс», «база», «крафт» или «карта».',
+                    'text'    => 'Не понял, попробуйте «перс», «база», «крафт», «карта» или «настройки».',
                 ]);
         }
+    }
+
+    /**
+     * Экран «⚙️ Настройки» (тумблер картинок, идея #14). Рендер — {@see SettingsAction::buildScreen()}.
+     * Вызывается по тексту «настройки»/«settings» и кнопкой «Настройки» постоянной клавиатуры.
+     */
+    private function handleSettings(int $chatId): ServerResponse
+    {
+        $telegramId = (int) $this->getMessage()->getFrom()->getId();
+        /** @var array<string,mixed>|null $userRow */
+        $userRow = (new TelegramUserModel())->where('telegram_id', $telegramId)->first();
+        if ($userRow === null) {
+            return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Пользователь не найден. Используйте /start.']);
+        }
+        /** @var \App\Entities\CharacterEntity|null $character */
+        $character = (new CharacterModel())->where('telegram_user_id', $userRow['id'] ?? 0)->first();
+        if ($character === null) {
+            return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Персонаж не найден. Используйте /start.']);
+        }
+
+        return Request::sendMessage(['chat_id' => $chatId] + SettingsAction::buildScreen($character));
     }
 
     /**
