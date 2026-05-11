@@ -5,6 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\StartGame;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterModel;
 use App\Models\CharacterNamesModel;
+use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -71,8 +72,9 @@ class AutoGenerateNameAction extends BaseAction
         ];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return Request::sendMessage([
-            'chat_id' => $chatId,
+        // #12 edit-in-place (ADR-018): экран «имя присвоено → пройти обучение?» — навигация →
+        // редактируем сообщение, на котором нажата кнопка (fallback на новое при ошибке).
+        return MediaSender::editTextOrSend($this->navTarget() + [
             'text' => $message,
             'parse_mode' => 'Markdown',
             'disable_web_page_preview' => true,

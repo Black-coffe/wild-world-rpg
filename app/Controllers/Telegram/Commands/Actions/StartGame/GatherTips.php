@@ -234,7 +234,6 @@ class GatherTips extends Controller
 
     // Метод отправки сообщения пользователю о найденных ресурсах и обновлении статистики
     protected function sendResourcesFoundReply($foundResources, $character) {
-        $chatId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
         $messageText = "*🤖 Поздравляю с первой добычей ресурсов!*\n\n";
 
         if (!empty($foundResources)) {
@@ -246,10 +245,13 @@ class GatherTips extends Controller
             $messageText .= "К сожалению, ресурсы не были найдены.\n";
         }
 
-        $messageText .= "\nТы собрал свои первые ресурсы, которые доступны именно в этом биоме. "
-            . "Далее время на изучение местности и сбор ресурсов будет немного дольше, от 3 до 15 минут в зависимости от прокачки твоего персонажа.\n\n"
+        $messageText .= "\nТы собрал свои первые ресурсы — они доступны именно в этом биоме. "
+            . "Дальше добыча будет занимать дольше — от 3 до 15 минут в зависимости от прокачки персонажа.\n\n"
+            . "🌫️ А разведка теперь *бесплатна и идёт сама*: ты видишь только круг вокруг себя (1 клетку во все стороны), "
+            . "но каждый шаг подсвечивает клетку, в которую ты пришёл, и её соседей — и они остаются на твоей карте навсегда. "
+            . "Никакого отдельного «исследования» нет — просто двигайся и смотри. Для дальних переходов — «Дальний поход» (кнопка на экране «Переехать»).\n\n"
             . "🤖 Хочу предложить тебе проверенный метод первой недели пребывания на острове:\n\n"
-            . "1️⃣ *Изучай побольше местности*\n"
+            . "1️⃣ *Двигайся и открывай местность* (каждый шаг раскрывает клетки вокруг)\n"
             . "2️⃣ *Собирай постоянно ресурсы*\n"
             . "3️⃣ *Продвигайся по острову*, но не спеши выходить вглубь севера\n"
             . "4️⃣ *Изучи возможности крафта*\n"
@@ -267,9 +269,15 @@ class GatherTips extends Controller
             ]
         ];
 
+        // #12 edit-in-place (ADR-018): результат первой добычи — навигация → редактируем
+        // сообщение, на котором нажата кнопка «⛏️ Добыть ресурсы» (fallback на новое).
+        // Класс extends Controller → navTarget строим вручную.
+        $navTarget = [
+            'chat_id'    => (int) $this->callbackQuery->getMessage()->getChat()->getId(),
+            'message_id' => (int) $this->callbackQuery->getMessage()->getMessageId(),
+        ];
         try {
-            return \App\Services\Notifications\MediaSender::sendPhotoOrText([
-                'chat_id' => $chatId,
+            return \App\Services\Notifications\MediaSender::editOrSend($navTarget + [
                 'photo'   => Request::encodeFile(base_url('uploads/telegram/loot_resources_in_the_box.png')),
                 'caption' => $messageText,
                 'parse_mode' => 'Markdown',
