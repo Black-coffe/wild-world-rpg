@@ -119,7 +119,8 @@ class Worker extends Controller
      * Сопоставляем name из таблицы tasks -> обработчику character_tasks completion.
      */
     protected $taskHandlerMap = [
-        'ExploreTheArea' => 'ExplorationTaskHandler',
+        // ADR-019 cleanup-тег: 'ExploreTheArea' => 'ExplorationTaskHandler' удалён вместе с
+        // handler'ом после дренажа in-flight задач. Стоячий explore заменён «Походом» (Marching).
         'Marching' => 'MarchingTaskHandler', // ADR-019 §3 — «Поход» (цепочка 1-клеточных задач, тик = 1 клетка)
         'Gather' => 'GatherTaskHandler',
         // F3.B5 (v0.21.0) cutover: все 8 medical крафтов идут через

@@ -120,7 +120,7 @@ class ToolkitHandler extends BaseObjectHandler implements ObjectHandlerInterface
             'inline_keyboard' => [
                 [
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🗺️ Исследовать далее', 'callback_data' => 'explore']
+                    ['text' => '🗺️ Исследовать далее', 'callback_data' => 'march']
                 ]
             ]
         ];
