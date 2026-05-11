@@ -372,4 +372,68 @@ final class DamageHealthEffectTest extends CIUnitTestCase
         $this->assertContains($drained, ['experience', 'strength', 'agility', 'intellect']);
         $this->assertSame(-0.01, $r['attribute_deltas'][$drained]);
     }
+
+    // ============================================================
+    // Epidemic — health_loss_range / tired_loss_range (BUGFIX v0.51.16x)
+    // Регресія: раніше DamageHealthEffect ІГНОРУВАВ ці range'и → провалювався на
+    // effect_value (≈50–99) × state_coef ≈ 50 HP/тик → low-level персонажів вбивало (prod).
+    // Має бути rand(1..5) HP і rand(1..3) виносл., незалежно, × state_coef.
+    // ============================================================
+
+    public function testEpidemicUsesSmallLossRangesNotEffectValue(): void
+    {
+        $epidemicParams = [
+            'damage_target'     => 'both',
+            'state_modifier'    => ['base_idle' => 0.06, 'biome_idle' => 0.5, 'biome_active' => 0.9],
+            'health_loss_range' => [1, 5],
+            'tired_loss_range'  => [1, 3],
+        ];
+
+        $appliedAtLeastOnce = false;
+        for ($i = 0; $i < 40; $i++) {
+            $r = $this->effect->compute(
+                ['health' => 100, 'tired' => 100, 'level' => 2],
+                ['effect_params' => $epidemicParams],
+                ['effect_value' => 99],          // ← раніше брався сюди; тепер ІГНОРУЄТЬСЯ
+                ['is_gathering' => true]         // biome_active → state_coef = 0.9
+            );
+            if (empty($r['applied'])) {
+                $this->assertSame(0.0, $r['health_delta']);
+                continue;
+            }
+            $appliedAtLeastOnce = true;
+            // health: -[1..5] × 0.9 = -[0.9..4.5]; tired: -[1..3] × 0.9 = -[0.9..2.7]
+            $this->assertGreaterThanOrEqual(-4.5, $r['health_delta'], 'Epidemic HP loss must be tiny, not effect_value-based');
+            $this->assertLessThanOrEqual(-0.9, $r['health_delta']);
+            $this->assertGreaterThanOrEqual(-2.7, $r['tired_delta']);
+            $this->assertLessThanOrEqual(-0.9, $r['tired_delta']);
+            $this->assertGreaterThanOrEqual(0.01, $r['magnitude']['health_after']); // clamp 0.01
+        }
+        $this->assertTrue($appliedAtLeastOnce, 'Epidemic should apply at least once in 40 iterations (state_coef=0.9, no two_stage)');
+    }
+
+    public function testEpidemicStateCoefScalesLossOnIdleInBiome(): void
+    {
+        $epidemicParams = [
+            'damage_target'     => 'both',
+            'state_modifier'    => ['base_idle' => 0.06, 'biome_idle' => 0.5, 'biome_active' => 0.9],
+            'health_loss_range' => [1, 5],
+            'tired_loss_range'  => [1, 3],
+        ];
+
+        for ($i = 0; $i < 30; $i++) {
+            $r = $this->effect->compute(
+                ['health' => 80, 'tired' => 80, 'level' => 2],
+                ['effect_params' => $epidemicParams],
+                ['effect_value' => 99],
+                ['is_gathering' => false, 'is_exploring' => false, 'on_base' => false] // biome_idle → 0.5
+            );
+            if (empty($r['applied'])) {
+                continue;
+            }
+            // health: -[1..5] × 0.5 = -[0.5..2.5]
+            $this->assertGreaterThanOrEqual(-2.5, $r['health_delta']);
+            $this->assertLessThanOrEqual(-0.5, $r['health_delta']);
+        }
+    }
 }

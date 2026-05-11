@@ -92,6 +92,45 @@ final class DamageHealthEffect implements EventEffectInterface
         }
 
         // ====================================================
+        // BUGFIX v0.51.16x — режим незалежних range'ів health/tired (Epidemic).
+        // Конфіг Epidemic визначає health_loss_range [1,5] / tired_loss_range [1,3], але
+        // F7.2-рефактор їх НІКОЛИ не читав → код провалювався на effect_value (≈99 у БД події)
+        // × state_coef ≈ 50 HP/тик замість 1–5 → low-level персонажів вбивало (prod, SarCasM).
+        // Тут: втрачаємо rand(health_loss_range) HP і rand(tired_loss_range) виносливості
+        // НЕЗАЛЕЖНО, ×state_coef (0.06 база / 0.5 idle-біом / 0.9 gather-біом), ×protection (-50%).
+        // ====================================================
+        $p = is_array($params) ? $params : [];
+        if (isset($p['health_loss_range']) || isset($p['tired_loss_range'])) {
+            $mul   = $stateCoef * (!empty($context['has_protection_item']) ? 0.5 : 1.0);
+            $hLoss = isset($p['health_loss_range']) ? self::lossFromRange($p['health_loss_range'], $mul) : 0.0;
+            $tLoss = isset($p['tired_loss_range'])  ? self::lossFromRange($p['tired_loss_range'],  $mul) : 0.0;
+            if ($hLoss <= 0.0 && $tLoss <= 0.0) {
+                return EffectResultFactory::skipped('Урон 0 після state_coef');
+            }
+            $logParts = [];
+            if ($hLoss > 0.0) {
+                $logParts[] = "-{$hLoss} HP";
+            }
+            if ($tLoss > 0.0) {
+                $logParts[] = "-{$tLoss} вынос.";
+            }
+            $currentHealth = (float) ($character['health'] ?? 100);
+
+            return EffectResultFactory::make([
+                'applied'          => true,
+                'health_delta'     => -$hLoss,
+                'tired_delta'      => -$tLoss,
+                'attribute_deltas' => [],
+                'log_summary'      => implode(', ', $logParts),
+                'magnitude'        => [
+                    'health_loss_percent' => $currentHealth > 0 ? round($hLoss / $currentHealth * 100, 2) : 0.0,
+                    'health_after'        => max(0.01, $currentHealth - $hLoss),
+                    'effect_kind'         => 'damage_health',
+                ],
+            ]);
+        }
+
+        // ====================================================
         // Обчислення базового damage
         // ====================================================
         $effectValue = (float)($activeEvent['effect_value'] ?? $eventConfig['effect_params']['effect_value'] ?? 30.0);
@@ -225,5 +264,26 @@ final class DamageHealthEffect implements EventEffectInterface
             'log_summary'       => implode(', ', $logParts),
             'magnitude'         => $magnitude,
         ]);
+    }
+
+    /**
+     * `rand(min, max) × $mul`, округлено до 0.01. `$range` — `[min, max]` із конфіга (mixed →
+     * захищено: не array / <2 елементів / нечислові / max≤0 → 0.0).
+     */
+    private static function lossFromRange(mixed $range, float $mul): float
+    {
+        if (!is_array($range) || count($range) < 2) {
+            return 0.0;
+        }
+        $min = is_numeric($range[0] ?? 0) ? (int) ($range[0] ?? 0) : 0;
+        $max = is_numeric($range[1] ?? 0) ? (int) ($range[1] ?? 0) : $min;
+        if ($max < $min) {
+            $max = $min;
+        }
+        if ($max <= 0) {
+            return 0.0;
+        }
+
+        return round(mt_rand($min, $max) * $mul, 2);
     }
 }

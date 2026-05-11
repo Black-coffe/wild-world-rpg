@@ -13215,7 +13215,7 @@ parameters:
 		-
 			message: '#^Cannot cast mixed to float\.$#'
 			identifier: cast.double
-			count: 5
+			count: 6
 			path: app/Services/Events/Effects/DamageHealthEffect.php
 
 		-
@@ -13233,13 +13233,13 @@ parameters:
 		-
 			message: '#^Method App\\Services\\Events\\Effects\\DamageHealthEffect\:\:compute\(\) should return array\{applied\: bool, health_delta\: float, tired_delta\: float, gold_delta\: int, attribute_deltas\: array\<string, float\>, resource_grant_intents\: list\<array\{keyword\: string\|null, biome_id\: int\|null, rarity\: int\|null, amount\: int\}\>, resource_loss_percent\: float, task_extension_intent\: array\{filter\: list\<string\>, extra_minutes\: int\}\|null, \.\.\.\} but returns array\.$#'
 			identifier: return.type
-			count: 5
+			count: 6
 			path: app/Services/Events/Effects/DamageHealthEffect.php
 
 		-
 			message: '#^Method App\\Services\\Events\\Effects\\DamageHealthEffect\:\:compute\(\) should return array\{applied\: bool, health_delta\: float, tired_delta\: float, gold_delta\: int, attribute_deltas\: array\<string, float\>, resource_grant_intents\: list\<array\{keyword\: string\|null, biome_id\: int\|null, rarity\: int\|null, amount\: int\}\>, resource_loss_percent\: float, task_extension_intent\: array\{filter\: list\<string\>, extra_minutes\: int\}\|null, \.\.\.\} but returns array\<string, mixed\>\.$#'
 			identifier: return.type
-			count: 1
+			count: 2
 			path: app/Services/Events/Effects/DamageHealthEffect.php
 
 		-
