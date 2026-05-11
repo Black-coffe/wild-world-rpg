@@ -82,8 +82,10 @@ class SellResourceAction extends BaseAction
 
     /**
      * Идея #6: ForceReply prompt для произвольного qty.
-     * Маркер `[SELL:{id}]` в тексте позволяет GenericmessageCommand роутить
-     * ответ обратно в SellResourceAction::finalizeSale.
+     * Маркер `SELL:{id}` в тексте позволяет GenericmessageCommand роутить ответ
+     * обратно в SellResourceAction::finalizeSale. БЕЗ квадратных скобок:
+     * при parse_mode=Markdown Telegram их «съедал», ответ не находил маркер
+     * (баг 2026-05-11 — «Не понял…» на ввод своего числа продажи).
      */
     protected function promptCustomQuantity(int $resourceId): ServerResponse
     {
@@ -99,7 +101,7 @@ class SellResourceAction extends BaseAction
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
             'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'         => "📝 Введите число для продажи *{$resource['name']}* (1 ед. = {$resource['sell_price']}💰).\n\nОтветьте на это сообщение числом. [SELL:{$resourceId}]",
+            'text'         => "📝 Введите число для продажи *{$resource['name']}* (1 ед. = {$resource['sell_price']}💰).\n\nОтветьте на это сообщение числом.\n_(код заявки: SELL:{$resourceId})_",
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['force_reply' => true, 'selective' => true]),
         ]);

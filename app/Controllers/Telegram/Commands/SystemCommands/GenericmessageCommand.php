@@ -29,11 +29,14 @@ class GenericmessageCommand extends SystemCommand
         $chatId  = $message->getChat()->getId();
 
         // Идея #6 (Arseny, 21.01.2025): ForceReply ответ на trade-промпт
-        // вида "[SELL:123]" или "[BUY:123]" → выполнить продажу/покупку с qty.
+        // с маркером "SELL:123" / "BUY:123" в тексте → выполнить продажу/покупку с qty.
+        // Скобки вокруг маркера опциональны: при parse_mode=Markdown Telegram «съедал»
+        // квадратные скобки (вид [SELL:123] → SELL:123), regex терпим к обоим вариантам —
+        // и продажа «своим числом» снова работает (баг 2026-05-11: «Не понял…» на ответ).
         $reply = $message->getReplyToMessage();
         if ($reply !== null) {
             $promptText = (string) ($reply->getText() ?? '');
-            if (preg_match('/\[(SELL|BUY):(\d+)\]/', $promptText, $m)) {
+            if (preg_match('/(SELL|BUY):(\d+)/', $promptText, $m)) {
                 return $this->handleTradeReply($chatId, $m[1], (int) $m[2], $rawText);
             }
         }
@@ -137,7 +140,12 @@ class GenericmessageCommand extends SystemCommand
 
     /**
      * Идея #6: обработка ForceReply ответа на trade-промпт.
-     * Парсим qty из ответа, дёргаем ResourceTradeService.
+     * Парсим qty из ответа (любой мусор вокруг цифр срезаем), дёргаем ResourceTradeService.
+     *
+     * ⚠️ Персонажа берём через `asArray()` — `ResourceTradeService::sellResource()` ждёт
+     * именно массив (`$character['id']`/`$character['gold']`); `(array)` каст по
+     * `CharacterEntity` давал «битый» массив с mangled-ключами → продажа молча падала
+     * в «У вас нет такого ресурса» (часть бага 2026-05-11).
      */
     private function handleTradeReply(int $chatId, string $direction, int $resourceId, string $rawReply): ServerResponse
     {
@@ -155,15 +163,16 @@ class GenericmessageCommand extends SystemCommand
         if (!$userRow) {
             return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Пользователь не найден.']);
         }
-        $character = (new CharacterModel())->where('telegram_user_id', $userRow['id'])->first();
-        if (!$character) {
+        $character = (new CharacterModel())->asArray()->where('telegram_user_id', $userRow['id'])->first();
+        if (!is_array($character)) {
             return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Персонаж не найден.']);
         }
+        /** @var array<string,mixed> $character — строка БД (asArray): ключи всегда строковые */
 
         $svc    = new \App\Services\Player\Trade\ResourceTradeService();
         $result = $direction === 'SELL'
-            ? $svc->sellResource((array) $character, $resourceId, $qty)
-            : $svc->buyResource((array) $character, $resourceId, $qty);
+            ? $svc->sellResource($character, $resourceId, $qty)
+            : $svc->buyResource($character, $resourceId, $qty);
 
         return Request::sendMessage([
             'chat_id'    => $chatId,
