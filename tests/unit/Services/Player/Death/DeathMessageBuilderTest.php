@@ -60,5 +60,17 @@ final class DeathMessageBuilderTest extends CIUnitTestCase
 
         $duringEvent = $this->builder->adviceBlock(true);
         $this->assertStringContainsString('событи', mb_strtolower($duringEvent)); // event-совет есть
+        $this->assertStringContainsString('защитный предмет события', $duringEvent); // без имени предмета — общая формулировка
+    }
+
+    public function testAdviceBlockNamesProtectionItemWhenKnown(): void
+    {
+        $withItem = $this->builder->adviceBlock(true, 'Bandage');
+        $this->assertStringContainsString('Bandage', $withItem);
+        $this->assertStringContainsString('событи', mb_strtolower($withItem));
+
+        // пустая строка трактуется как «нет предмета»
+        $noItem = $this->builder->adviceBlock(true, '');
+        $this->assertStringNotContainsString('Bandage', $noItem);
     }
 }
