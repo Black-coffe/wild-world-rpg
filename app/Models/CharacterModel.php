@@ -43,6 +43,7 @@ class CharacterModel extends Model
         'low_health_notified_at',
         'endgame_state',       // v0.51.110 endgame system
         'endgame_lock_at',     // v0.51.110 endgame system
+        'disable_media',       // идея #14 — тумблер картинок (миграция 2026-05-08; пропущен в allowedFields)
     ];
 
     protected $useTimestamps = true;
