@@ -8,6 +8,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
+use App\Services\Notifications\MediaSender;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
@@ -103,8 +104,9 @@ class CancelQueuedCraftAction extends BaseAction
             'text'              => 'Задача отменена, ресурсы возвращены.',
         ]);
 
-        return Request::sendMessage([
-            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
+        // #12 edit-in-place (ADR-018): кнопка «🗑 Отменить» жила на сообщении «крафт в очереди» —
+        // редактируем его же в «отменено, возвращено» (кнопка-отмены пропадает; fallback на новое).
+        return MediaSender::editTextOrSend($this->navTarget() + [
             'text'       => "🗑 *Задача из очереди отменена*\n\n"
                           . "Возвращены ресурсы для крафта *{$recipe['item_name_rus']}* x{$quantity} шт.",
             'parse_mode' => 'Markdown',

@@ -6,6 +6,7 @@ use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
+use App\Services\Notifications\MediaSender;
 
 class ResourcesGatheredAction extends BaseAction
 {
@@ -80,10 +81,11 @@ class ResourcesGatheredAction extends BaseAction
             ]
         ];
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text' => $text,
-            'parse_mode' => 'Markdown',
+        // #12 edit-in-place (ADR-018): просмотр склада ресурсов — навигация → редактируем
+        // сообщение, на котором нажата кнопка (fallback на новое при ошибке/клике с photo-экрана).
+        return MediaSender::editTextOrSend($this->navTarget() + [
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
     }

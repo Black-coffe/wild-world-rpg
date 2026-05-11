@@ -6,6 +6,7 @@ use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
+use App\Services\Notifications\MediaSender;
 
 class CraftedResourcesAction extends BaseAction
 {
@@ -126,10 +127,11 @@ class CraftedResourcesAction extends BaseAction
         // Telegram-ответ
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text' => $text,
-            'parse_mode' => 'Markdown',
+        // #12 edit-in-place (ADR-018): просмотр склада крафта — навигация → редактируем
+        // сообщение, на котором нажата кнопка (fallback на новое при ошибке/клике с photo-экрана).
+        return MediaSender::editTextOrSend($this->navTarget() + [
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
     }

@@ -3,6 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions\Quest;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 use App\Models\QuestModel;
@@ -23,7 +24,7 @@ class QuestStartFirstAidkitBasic extends BaseAction
         $character = $characterModel->find($characterId);
 
         if (!$character) {
-            Request::answerCallbackQuery(['callback_query_id' => $chatId]);
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => 'Персонаж не найден.',
@@ -32,7 +33,7 @@ class QuestStartFirstAidkitBasic extends BaseAction
         }
 
         if ($character['level'] < 3) {
-            Request::answerCallbackQuery(['callback_query_id' => $chatId]);
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => "Квест *Крафт: Аптечки базовой* доступен с 3-го уровня.",
@@ -43,7 +44,7 @@ class QuestStartFirstAidkitBasic extends BaseAction
         $quest = $questModel->where('title_en', 'FirstAidkitBasic')->first();
 
         if (!$quest) {
-            Request::answerCallbackQuery(['callback_query_id' => $chatId]);
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => 'Квест *Крафт: Аптечки базовой* не найден.',
@@ -52,7 +53,7 @@ class QuestStartFirstAidkitBasic extends BaseAction
         }
 
         if ($questStepModel->where(['quest_id' => $quest['id'], 'character_id' => $characterId])->first()) {
-            Request::answerCallbackQuery(['callback_query_id' => $chatId]);
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => "Вы уже начали квест *Крафт: Аптечки базовой*. Отслеживайте его статус в разделе *🚀 Активные квесты*.",
@@ -84,9 +85,10 @@ class QuestStartFirstAidkitBasic extends BaseAction
             ]
         ];
 
-        Request::answerCallbackQuery(['callback_query_id' => $chatId]);
-        return Request::sendMessage([
-            'chat_id' => $chatId,
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+        // #12 edit-in-place (ADR-018): «квест принят» — кнопка «Начать квест» жила на
+        // списке/карточке квеста → редактируем то сообщение (fallback на новое при ошибке).
+        return MediaSender::editTextOrSend($this->navTarget() + [
             'text' => $text,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),

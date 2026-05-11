@@ -3,6 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions\Quest;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 use App\Models\QuestModel;
@@ -59,8 +60,9 @@ class CompletedQuests extends BaseAction
         ];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return Request::sendMessage([
-            'chat_id' => $chatId,
+        // #12 edit-in-place (ADR-018): список завершённых квестов — навигация → редактируем
+        // сообщение, на котором нажата кнопка (fallback на новое при ошибке/клике с photo-экрана).
+        return MediaSender::editTextOrSend($this->navTarget() + [
             'text' => $text,
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),

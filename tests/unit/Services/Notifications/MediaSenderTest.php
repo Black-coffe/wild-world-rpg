@@ -165,4 +165,70 @@ final class MediaSenderTest extends CIUnitTestCase
         $this->assertSame('', $media->getMedia());
         $this->assertSame('z', $media->getCaption());
     }
+
+    // ---------------------------------------------------------------------
+    // buildEditTextOnlyParams() — text-handler'ы (Sell/, Quest/ и т.п.): sendMessage → editMessageText
+    // ---------------------------------------------------------------------
+
+    public function testBuildEditTextOnlyParamsPassesTextAndIds(): void
+    {
+        $out = MediaSender::buildEditTextOnlyParams([
+            'chat_id'    => 555,
+            'message_id' => 666,
+            'text'       => 'Меню продажи',
+        ]);
+
+        $this->assertSame(555, $out['chat_id']);
+        $this->assertSame(666, $out['message_id']);
+        $this->assertSame('Меню продажи', $out['text']);
+    }
+
+    public function testBuildEditTextOnlyParamsPassesThroughOptionalKeys(): void
+    {
+        $kb  = ['inline_keyboard' => [[['text' => '🔙', 'callback_data' => 'shop']]]];
+        $out = MediaSender::buildEditTextOnlyParams([
+            'chat_id'                  => 1,
+            'message_id'               => 2,
+            'text'                     => 'x',
+            'parse_mode'               => 'Markdown',
+            'reply_markup'             => $kb,
+            'disable_web_page_preview' => true,
+        ]);
+
+        $this->assertSame('Markdown', $out['parse_mode']);
+        $this->assertSame($kb, $out['reply_markup']);
+        $this->assertTrue($out['disable_web_page_preview']);
+    }
+
+    public function testBuildEditTextOnlyParamsOmitsAbsentOptionalKeys(): void
+    {
+        $out = MediaSender::buildEditTextOnlyParams([
+            'chat_id'    => 1,
+            'message_id' => 2,
+            'text'       => 'x',
+        ]);
+
+        $this->assertArrayNotHasKey('parse_mode', $out);
+        $this->assertArrayNotHasKey('reply_markup', $out);
+        $this->assertArrayNotHasKey('disable_web_page_preview', $out);
+        // photo/caption тут вообще не при делах
+        $this->assertArrayNotHasKey('photo', $out);
+        $this->assertArrayNotHasKey('caption', $out);
+    }
+
+    public function testBuildEditTextOnlyParamsEmptyTextFallsBackToPlaceholder(): void
+    {
+        $out = MediaSender::buildEditTextOnlyParams([
+            'chat_id'    => 1,
+            'message_id' => 2,
+        ]);
+        $this->assertSame('📭 (без описания)', $out['text']);
+
+        $out2 = MediaSender::buildEditTextOnlyParams([
+            'chat_id'    => 1,
+            'message_id' => 2,
+            'text'       => '',
+        ]);
+        $this->assertSame('📭 (без описания)', $out2['text']);
+    }
 }

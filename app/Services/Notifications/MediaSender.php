@@ -120,6 +120,94 @@ final class MediaSender
     }
 
     /**
+     * Идея #12 (edit-in-place) — text-аналог {@see editOrSend()} для НАВИГАЦИОННЫХ
+     * text-handler'ов (меню / просмотры без фото: Sell/, Quest/, склад ресурсов и т.п.).
+     * Редактирует существующее сообщение (editMessageText) вместо отправки нового.
+     *
+     * Семантика 'message_id' как в {@see editOrSend()}:
+     *  - НЕТ 'message_id' (или chat_id невалиден) → ведёт себя ровно как Request::sendMessage()
+     *    (новое сообщение) — безопасная замена на этапе вайр-ина handler'а.
+     *  - 'message_id' ЕСТЬ → Request::editMessageText(). Любая ошибка редактирования
+     *    (сообщение старше 48 ч / не от бота / «message is not modified» / клик по
+     *    photo-сообщению, где нечего редактировать как text / транспорт) → graceful
+     *    fallback на новое Request::sendMessage(). Старое меню никогда не становится тупиком.
+     *
+     * ⚠️ ТОЛЬКО для навигации. Терминальные/уведомляющие сообщения (результаты, завершения
+     * задач, ивент-бродкасты, эндгейм) шлются обычным Request::sendMessage() — новым
+     * сообщением. См. ADR-018.
+     *
+     * @param array<string,mixed> $params chat_id, text, parse_mode?, reply_markup?, disable_web_page_preview?, message_id?
+     */
+    public static function editTextOrSend(array $params): ServerResponse
+    {
+        $messageId = $params['message_id'] ?? null;
+        $chatId    = $params['chat_id'] ?? null;
+
+        if ($messageId === null || !is_numeric($chatId)) {
+            return self::sendTextFallback($params);
+        }
+
+        try {
+            $response = Request::editMessageText(self::buildEditTextOnlyParams($params));
+            if ($response->isOk()) {
+                return $response;
+            }
+            // Telegram вернул ok=false (message to edit not found / is not modified /
+            // can't be edited / нет текста в сообщении) → fallback ниже.
+        } catch (Throwable) {
+            // Любая ошибка валидации/транспорта → fallback на новое сообщение.
+        }
+
+        return self::sendTextFallback($params);
+    }
+
+    /**
+     * Чистая трансформация: параметры sendMessage → параметры editMessageText.
+     * В отличие от {@see buildEditTextParams()} здесь источник — уже text-сообщение,
+     * никакого caption→text mapping. Используется {@see editTextOrSend()}.
+     *
+     * @param array<string,mixed> $params
+     * @return array<string,mixed>
+     */
+    public static function buildEditTextOnlyParams(array $params): array
+    {
+        $rawText = $params['text'] ?? '';
+        $text    = is_scalar($rawText) ? (string) $rawText : '';
+        if ($text === '') {
+            $text = '📭 (без описания)';
+        }
+
+        $out = [
+            'chat_id'    => $params['chat_id'] ?? null,
+            'message_id' => $params['message_id'] ?? null,
+            'text'       => $text,
+        ];
+        foreach (['parse_mode', 'reply_markup', 'disable_web_page_preview'] as $key) {
+            if (isset($params[$key])) {
+                $out[$key] = $params[$key];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * Новое text-сообщение (ветка fallback / нет message_id). Снимает 'message_id',
+     * подставляет placeholder для пустого text (Request::sendMessage упал бы на 0-длине).
+     *
+     * @param array<string,mixed> $params
+     */
+    private static function sendTextFallback(array $params): ServerResponse
+    {
+        unset($params['message_id']);
+        $rawText = $params['text'] ?? '';
+        $text    = is_scalar($rawText) ? (string) $rawText : '';
+        $params['text'] = ($text !== '') ? $text : '📭 (без описания)';
+
+        return Request::sendMessage($params);
+    }
+
+    /**
      * Чистая трансформация: параметры sendPhoto → параметры editMessageText
      * (ветка media-disabled, #14: caption становится text).
      *
