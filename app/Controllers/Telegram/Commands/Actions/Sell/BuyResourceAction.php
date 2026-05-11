@@ -282,8 +282,12 @@ class BuyResourceAction extends BaseAction
      */
     protected function finalizePurchase(array|\App\Entities\CharacterEntity $character, int $resourceId, int $quantity): ServerResponse
     {
-        $svc    = new \App\Services\Player\Trade\ResourceTradeService();
-        $result = $svc->buyResource(is_array($character) ? $character : (array) $character, $resourceId, $quantity);
+        // ⚠️ `(array) $entity` по CI4-Entity даёт mangled-ключи — нужен `->toArray()`,
+        // иначе `$character['id']`/`$character['gold']` === null в ResourceTradeService
+        // (prod-баг 2026-05-11, тот же класс, что у продажи кнопкой).
+        $charArr = $character instanceof \App\Entities\CharacterEntity ? $character->toArray() : $character;
+        $svc     = new \App\Services\Player\Trade\ResourceTradeService();
+        $result  = $svc->buyResource($charArr, $resourceId, $quantity);
         return $this->respondWithMessage($result['message']);
     }
 }

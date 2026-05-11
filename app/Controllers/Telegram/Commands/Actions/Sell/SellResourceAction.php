@@ -232,8 +232,12 @@ class SellResourceAction extends BaseAction
      */
     protected function finalizeSale(array|\App\Entities\CharacterEntity $character, int $resourceId, $quantityAction): ServerResponse
     {
-        $svc    = new \App\Services\Player\Trade\ResourceTradeService();
-        $result = $svc->sellResource(is_array($character) ? $character : (array) $character, $resourceId, $quantityAction);
+        // ⚠️ `(array) $entity` по CI4-Entity даёт mangled-ключи (`\0*\0attributes`) —
+        // нужен `->toArray()`, иначе `$character['id']` === null → «Undefined array key "id"»
+        // в ResourceTradeService (prod-баг 2026-05-11, та же причина, что в handleTradeReply).
+        $charArr = $character instanceof \App\Entities\CharacterEntity ? $character->toArray() : $character;
+        $svc     = new \App\Services\Player\Trade\ResourceTradeService();
+        $result  = $svc->sellResource($charArr, $resourceId, $quantityAction);
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
