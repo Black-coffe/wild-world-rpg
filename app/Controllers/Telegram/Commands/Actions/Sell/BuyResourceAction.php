@@ -254,6 +254,8 @@ class BuyResourceAction extends BaseAction
 
     /**
      * Идея #6: ForceReply prompt для произвольного qty.
+     * Маркер `BUY:{id}` БЕЗ квадратных скобок — Telegram (parse_mode=Markdown) их «съедал»,
+     * ответ не находил маркер (баг 2026-05-11). Парсит ответ {@see GenericmessageCommand}.
      */
     protected function promptCustomQuantity(int $resourceId): ServerResponse
     {
@@ -269,7 +271,7 @@ class BuyResourceAction extends BaseAction
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
             'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'         => "📝 Введите число для покупки *{$resource['name']}* (1 ед. = ~{$resource['buy_price']}💰).\n\nОтветьте на это сообщение числом. [BUY:{$resourceId}]",
+            'text'         => "📝 Введите число для покупки *{$resource['name']}* (1 ед. = ~{$resource['buy_price']}💰).\n\nОтветьте на это сообщение числом.\n_(код заявки: BUY:{$resourceId})_",
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['force_reply' => true, 'selective' => true]),
         ]);
