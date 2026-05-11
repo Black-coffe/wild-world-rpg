@@ -4,12 +4,19 @@ namespace App\TaskHandlers;
 
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
+use App\Services\Player\Death\DeathMessageBuilder;
 
 /**
  * v0.51.20 (F2.9 batch-2): extends BaseTaskHandler (per F2.9 contract).
  * Раніше extends Controller — handler НЕ контроллер.
  * Telegram lazy-init через BaseTaskHandler::telegram(), Request::sendPhoto → safeSendPhoto.
  * `process()` → `handle(array $task = []): void` (TaskHandlerInterface signature).
+ *
+ * Задача «видимость угроз» (карточка inbox/2026-05-11-validation-card-death-notifications.md,
+ * batch 3 — жалоба Arseny, регрессия F7.4): если на персонажа сейчас действует активное
+ * `damage`-событие — называем его в предупреждении и ужимаем кулдаун до 5 мин (вместо 33),
+ * чтобы игрок видел угрозу, а не молчаливо помирал. + текст теперь не врёт «смерть не
+ * угрожает», когда здоровье < 1.0.
  */
 class LowHealthWarningHandler extends BaseTaskHandler
 {
@@ -33,10 +40,15 @@ class LowHealthWarningHandler extends BaseTaskHandler
             return;
         }
 
-        $now = time();  // Текущее время UNIX
+        $now         = time();  // Текущее время UNIX
+        $eventLookup = new DeathMessageBuilder();
 
         foreach ($lowHealthCharacters as $character) {
             $health = (float) $character['health'];
+            $charId = is_numeric($character['id']) ? (int) $character['id'] : 0;
+
+            // Активное damage-событие, которое сейчас бьёт персонажа (для текста + кулдауна)
+            $dmgEvent = $charId > 0 ? $eventLookup->activeDamageEvent($charId) : null;
 
             // Определяем нужный интервал между уведомлениями
             if ($health <= 0.10 && $health > 0.0) {
@@ -45,6 +57,10 @@ class LowHealthWarningHandler extends BaseTaskHandler
             } else {
                 // Для всего остального <= 5.00
                 $cooldownMinutes = 33;
+            }
+            // Если на персонажа действует damage-событие — не молчим по 33 мин: предупреждаем чаще
+            if ($dmgEvent !== null) {
+                $cooldownMinutes = min($cooldownMinutes, 5);
             }
 
             // Проверка, когда было последнее уведомление
@@ -78,11 +94,26 @@ class LowHealthWarningHandler extends BaseTaskHandler
             $currentHealth = number_format($health, 2);
 
             $text = "Мой дорогой выживальщик *{$playerName}*, это я твой друг Роби🤖\n"
-                . "Спешу сообщить тебе, что твой уровень здоровья на текущую минуту составляет ⚠️ *{$currentHealth}* ⚠️\n"
-                . "_Я пишу тебе, пока показатель ещё не критический и смерть тебе не угрожает._\n\n"
-                . "НО! Контролируй показатели, так как если здоровье падёт ниже *1.00*, ты ступаешь на скользкий путь.\n"
-                . "Здоровье *0.99 - 0.01* подвержено вероятности смерти персонажа, и чем ниже цифра, тем выше шанс умереть уже на следующей минуте!\n\n"
-                . "Предприми действия или воспользуйся аптечкой. Удачи в выживании!";
+                . "Спешу сообщить тебе, что твой уровень здоровья на текущую минуту составляет ⚠️ *{$currentHealth}* ⚠️\n";
+
+            if ($health < 1.0) {
+                $text .= "_Здоровье критическое — на каждой минуте есть шанс погибнуть, и чем ниже цифра, тем он выше. Действуй прямо сейчас!_\n\n";
+            } else {
+                $text .= "_Я пишу тебе, пока показатель ещё не критический и смерть тебе не угрожает._\n\n"
+                    . "НО! Контролируй показатели, так как если здоровье падёт ниже *1.00*, ты ступаешь на скользкий путь.\n"
+                    . "Здоровье *0.99 - 0.01* подвержено вероятности смерти персонажа, и чем ниже цифра, тем выше шанс умереть уже на следующей минуте!\n\n";
+            }
+
+            if ($dmgEvent !== null && $dmgEvent['name'] !== '') {
+                $protectionItem = $dmgEvent['protection_item'];
+                $text .= "❗️ Сейчас на тебя действует событие *{$dmgEvent['name']}* — оно и просаживает здоровье. "
+                    . "Уйди на базу или ";
+                $text .= $protectionItem !== null && $protectionItem !== ''
+                    ? "держи в инвентаре защитный предмет (`{$protectionItem}`).\n\n"
+                    : "используй защитный предмет события.\n\n";
+            }
+
+            $text .= "Предприми действия или воспользуйся аптечкой. Удачи в выживании!";
 
             // Inline-кнопки
             $keyboard = [

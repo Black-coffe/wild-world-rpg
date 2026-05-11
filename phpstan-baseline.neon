@@ -18381,18 +18381,6 @@ parameters:
 		-
 			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/TaskHandlers/LowHealthWarningHandler.php
-
-		-
-			message: '#^Cannot access offset ''low_health_notified_at'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/TaskHandlers/LowHealthWarningHandler.php
-
-		-
-			message: '#^Cannot access offset ''name'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/TaskHandlers/LowHealthWarningHandler.php
 
@@ -18403,8 +18391,20 @@ parameters:
 			path: app/TaskHandlers/LowHealthWarningHandler.php
 
 		-
-			message: '#^Cannot access offset ''telegram_user_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Parameter \#1 \$datetime of function strtotime expects string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/TaskHandlers/LowHealthWarningHandler.php
+
+		-
+			message: '#^Parameter \#1 \$id of method CodeIgniter\\BaseModel\:\:find\(\) expects int\|list\<int\|string\>\|string\|null, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/TaskHandlers/LowHealthWarningHandler.php
+
+		-
+			message: '#^Part \$playerName \(mixed\) of encapsed string cannot be cast to string\.$#'
+			identifier: encapsedStringPart.nonString
 			count: 1
 			path: app/TaskHandlers/LowHealthWarningHandler.php
 

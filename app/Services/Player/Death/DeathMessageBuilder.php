@@ -49,13 +49,15 @@ final class DeathMessageBuilder
         $penalty      = self::asFloat($deathResult['penalty'] ?? null, 0.0);
         $hasBase      = isset($deathResult['hasBase']) ? (bool) $deathResult['hasBase'] : ($penalty > 0.0 && $penalty < 0.5);
 
-        $recentEvent  = $this->lastRecentDamageEventName($charId);
+        $recentEvent  = $this->activeDamageEvent($charId);
+        $eventName     = $recentEvent !== null && $recentEvent['name'] !== '' ? $recentEvent['name'] : null;
+        $protectionItem= $recentEvent['protection_item'] ?? null;
 
         $cause = "💀 *Причина:* здоровье упало до *" . number_format($healthDeath, 2)
             . "* — сработала «рулетка смерти». При здоровье ниже 1.0 каждую минуту есть шанс погибнуть, "
             . "и он тем выше, чем ниже здоровье.";
-        if ($recentEvent !== null) {
-            $cause .= " Скорее всего здоровье просело из-за события *{$recentEvent}* (либо из-за голода, если кончились еда/вода).";
+        if ($eventName !== null) {
+            $cause .= " Скорее всего здоровье просело из-за события *{$eventName}* (либо из-за голода, если кончились еда/вода).";
         } else {
             $cause .= " Обычно это голод (кончились еда/вода) или урон от мирового события.";
         }
@@ -63,7 +65,7 @@ final class DeathMessageBuilder
         return $this->header($name, $penalty)
             . "\n\n" . $cause
             . "\n\n" . $this->lossLine($penalty)
-            . "\n\n" . $this->adviceBlock($recentEvent !== null);
+            . "\n\n" . $this->adviceBlock($eventName !== null, $protectionItem);
     }
 
     /** Шапка сообщения о смерти. */
@@ -89,14 +91,16 @@ final class DeathMessageBuilder
     }
 
     /** Блок «как не допустить» — общий для рулетки / PvP / голода. */
-    public function adviceBlock(bool $duringEvent = false): string
+    public function adviceBlock(bool $duringEvent = false, ?string $protectionItem = null): string
     {
         $tips = [
             'следи за здоровьем — держи ≥ 1.0; `💊 Аптечка` лечит мгновенно;',
             'включи *страховку от смерти* — тогда при смерти потеряешь 0% вместо 3–50%;',
         ];
         if ($duringEvent) {
-            $tips[] = 'при опасных событиях уходи на базу или используй защитный предмет события;';
+            $tips[] = $protectionItem !== null && $protectionItem !== ''
+                ? "при опасных событиях уходи на базу или держи в инвентаре защитный предмет (`{$protectionItem}`);"
+                : 'при опасных событиях уходи на базу или используй защитный предмет события;';
         }
         $tips[] = 'не задерживайся в опасных биомах на низком уровне.';
 
@@ -104,11 +108,25 @@ final class DeathMessageBuilder
     }
 
     /**
-     * Название «damage»-события, которое сейчас активно и применялось к персонажу
-     * (персонаж есть в `effect_log`). Лучшее усилие: если не вышло определить —
-     * null, caller подставит общую формулировку («голод или урон от события»).
+     * Название «damage»-события, которое сейчас активно и применялось к персонажу.
+     * Удобная обёртка над {@see activeDamageEvent()} — только имя (для текста причины смерти).
      */
-    private function lastRecentDamageEventName(int $charId): ?string
+    public function activeDamageEventName(int $charId): ?string
+    {
+        $ev = $this->activeDamageEvent($charId);
+
+        return $ev !== null && $ev['name'] !== '' ? $ev['name'] : null;
+    }
+
+    /**
+     * «Damage»-событие, которое сейчас активно и применялось к персонажу
+     * (персонаж есть в `effect_log` активного `active_events`). Лучшее усилие: если не
+     * вышло определить — null. Используют: причина смерти ({@see rouletteDeath}),
+     * предупреждение о низком здоровье ({@see \App\TaskHandlers\LowHealthWarningHandler}).
+     *
+     * @return array{name: string, name_english: string, protection_item: ?string}|null
+     */
+    public function activeDamageEvent(int $charId): ?array
     {
         if ($charId <= 0) {
             return null;
@@ -127,16 +145,19 @@ final class DeathMessageBuilder
             if (!array_key_exists($key, $log) || !is_array($log[$key])) {
                 continue;
             }
-            $name = $this->eventName(self::asInt($row['event_id'] ?? null, 0));
-            if ($name !== null) {
-                return $name;
+            $info = $this->eventInfo(self::asInt($row['event_id'] ?? null, 0));
+            if ($info !== null) {
+                return $info;
             }
         }
 
         return null;
     }
 
-    private function eventName(int $eventId): ?string
+    /**
+     * @return array{name: string, name_english: string, protection_item: ?string}|null
+     */
+    private function eventInfo(int $eventId): ?array
     {
         if ($eventId <= 0) {
             return null;
@@ -145,9 +166,28 @@ final class DeathMessageBuilder
         if (!is_array($ev)) {
             return null;
         }
-        $raw  = is_scalar($ev['name']) ? trim((string) $ev['name']) : '';
+        $name    = self::asStr($ev['name'] ?? null);
+        $nameEng = self::asStr($ev['name_english'] ?? null);
+        $name    = trim($name);
+        $nameEng = trim($nameEng);
+        if ($name === '' && $nameEng === '') {
+            return null;
+        }
 
-        return $raw !== '' ? $raw : null;
+        $protectionItem = null;
+        if ($nameEng !== '') {
+            $worldEvents = config('WorldEvents');
+            $cfg = $worldEvents instanceof \Config\WorldEvents ? $worldEvents->get($nameEng) : null;
+            if (is_array($cfg) && isset($cfg['protection_item']) && is_string($cfg['protection_item']) && $cfg['protection_item'] !== '') {
+                $protectionItem = $cfg['protection_item'];
+            }
+        }
+
+        return [
+            'name'            => $name !== '' ? $name : $nameEng,
+            'name_english'    => $nameEng,
+            'protection_item' => $protectionItem,
+        ];
     }
 
     /**
