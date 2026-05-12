@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Services\Images;
 
 /**
- * Адаптер провайдера генерации изображений (Gemini Image / OpenAI gpt-image / …).
+ * Адаптер провайдера генерации изображений (OpenAI gpt-image / Gemini Image / …).
  *
- * Реализации лежат рядом: {@see GeminiImageProvider} (рекомендован — Nano Banana),
- * (TODO) OpenAiImageProvider. Выбор провайдера — `Config\ImageRegistry::$provider`.
+ * Реализации лежат рядом: {@see OpenAiImageProvider} (по умолчанию — `gpt-image-2`),
+ * {@see GeminiImageProvider} (альтернатива — Nano Banana, пока стаб).
+ * Выбор провайдера — `Config\ImageRegistry::$provider`.
  *
- * См. ADR-022, `mmorpg-vault/reference/Image-Style-Bible.md`.
+ * См. ADR-022, `mmorpg-vault/reference/Image-Style-Bible.md`,
+ * runbook `mmorpg-vault/runbooks/image-generation.md`.
  */
 interface ImageProviderInterface
 {

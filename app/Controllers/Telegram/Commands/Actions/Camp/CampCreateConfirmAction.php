@@ -196,8 +196,7 @@ class CampCreateConfirmAction extends BaseAction
             }
         }
 
-        // Путь к картинке (проверьте, что файл действительно существует)
-        // Например: "uploads/telegram/camp/new_camp.jpg"
+        // Путь к картинке (файл: public/uploads/telegram/camp/new_camp.png — см. Config\ImageRegistry «camp/new_camp»)
         $imagePath = base_url('uploads/telegram/camp/new_camp.png');
 
         return \App\Services\Notifications\MediaSender::sendPhotoOrText([
