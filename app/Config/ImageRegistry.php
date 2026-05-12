@@ -56,6 +56,19 @@ class ImageRegistry extends BaseConfig
         A recovered analog photograph from the world of Wild World — a survival story set on a remote island, the last pocket of relative calm after a global collapse that erased modern civilization. The photo looks like it was taken on a battered 35mm film camera with long-expired stock and then kept for years: visible film grain, slightly soft focus, mild halation around highlights, faint light leaks at one edge, dust specks, fine scratches and a couple of small emulsion blemishes. Naturalistic available light only — overcast skies, low sun, firelight or the glow of salvaged lamps; no studio lighting, no flash, no HDR. Slightly faded, low-saturation colours with a gentle warm yellow-green cast and softly lifted blacks, the way old colour film ages — weathered, NOT cosy-vintage, NOT an Instagram filter. Documentary, candid framing — a little crooked, a little off-centre, as if shot quickly while moving; shallow-ish depth of field. The MAIN SUBJECT is clearly recognisable, large in the frame and roughly centred, kept in focus; the film grain, scratches and light leaks sit on the background and at the edges and never obscure or smear the main subject — readability of the subject comes first. Everything in frame is scavenged, hand-repaired and improvised: patched cloth, taped and wired tools, rust, scrap-metal welds, weather-worn wood, faded generic military surplus and pre-collapse junk repurposed for survival; partial salvaged tech (boxy DIY robots welded from scrap, makeshift teleport beacons of bent pipe and salvaged electronics) cobbled together — never sleek sci-fi. Mood is tense and weary but grounded — survival, not horror, no gore, no bodies, no blood beyond a stained bandage. No people posing for the camera — people appear only candid, in action, faces turned, shadowed, masked or silhouetted, never as a posed portrait. Absolutely no text, letters, numbers, captions, timestamps, watermarks, logos, modern brand names, real national flags, real military insignia, recognisable real-world landmarks, UI elements, frames or borders. Aspect ratio 3:2, landscape. Subject of this photograph: {SCENE}
         CORE;
 
+    // ── Режимы старения/палитры (Image-Style-Bible §1.1) ──────────────────
+    // Дописываются в хвост {SCENE} (после LEXICON-текста и scene-хвоста). V1 = baseline STYLE CORE
+    // (доп. фраза не нужна). V4 — минимум артефактов (hero/лут/оружие/роботы/Роби/UI/онбординг).
+    // V2 — сильное старение (точечно: катаклизмы/руины/тревожные сцены). V3 — выгоревший тёплый
+    // (точечно: пустыни/вулканы/Фермеры). ⚠️ Артефакты ВСЕГДА на фоне/по краям, не на главном объекте.
+    /** @var array<string,string> */
+    public array $modeModifiers = [
+        'V1' => '',
+        'V4' => 'Render with minimal film artefacts — only very light grain, no light leaks, no visible scratches; the main subject crisp, sharp and clearly readable even at thumbnail size.',
+        'V2' => 'Render with heavier film ageing — coarser grain, stronger fade, more scratches and edge light leaks, lower contrast — but the main subject still stays readable.',
+        'V3' => 'Colour-grade warmer and drier — a faded amber-yellow cast and gentle edge vignetting, no green tint, as if shot in the low golden light of a desert or volcanic land.',
+    ];
+
     // ── LEXICON — «как X выглядит в Wild World» (канон — Image-Style-Bible §2) ───────────────
     // Per-image промпт = styleCore с {SCENE} := lexicon[entry] . ' ' . scene-хвост записи.
     /** @var array<string,string> */
@@ -217,7 +230,7 @@ class ImageRegistry extends BaseConfig
         ['key' => 'camp/Construction-by-improvised', 'file' => 'uploads/telegram/camp/Construction-by-improvised.jpg', 'lexicon' => 'camp.build-hub', 'scene' => '', 'mode' => 'V1', 'status' => 'pending', 'used_in' => 'BuildListAction (build menu bg), CraftRecipes Toolkit'],
         ['key' => 'camp/an_empty_area', 'file' => 'uploads/telegram/camp/an_empty_area.jpg', 'lexicon' => 'camp.empty-plot', 'scene' => '', 'mode' => 'V1', 'status' => 'pending', 'used_in' => 'camp creation (choose cell)'],
         ['key' => 'camp/base_with_its_buildings', 'file' => 'uploads/telegram/camp/base_with_its_buildings.jpg', 'lexicon' => 'camp.overview', 'scene' => '', 'mode' => 'V1', 'status' => 'pending', 'used_in' => 'ShowBaseInfoAction'],
-        ['key' => 'camp/new_camp', 'file' => 'uploads/telegram/camp/new_camp.png', 'lexicon' => 'camp.fresh', 'scene' => '', 'mode' => 'V1', 'status' => 'pending', 'used_in' => 'camp pitched', 'notes' => 'в коде есть битый ref new_camp.jpg (файла нет) — пофиксить ref на .png отдельно'],
+        ['key' => 'camp/new_camp', 'file' => 'uploads/telegram/camp/new_camp.png', 'lexicon' => 'camp.fresh', 'scene' => '', 'mode' => 'V1', 'status' => 'pending', 'used_in' => 'CampCreateConfirmAction (camp pitched)'],
         ['key' => 'camp/relocation', 'file' => 'uploads/telegram/camp/relocation.png', 'lexicon' => 'camp.relocation', 'scene' => 'mid-move, gear on a handcart', 'mode' => 'V1', 'status' => 'pending', 'used_in' => 'base relocation in progress'],
         ['key' => 'camp/relocation_finish', 'file' => 'uploads/telegram/camp/relocation_finish.jpg', 'lexicon' => 'camp.fresh', 'scene' => 'the camp re-pitched on new ground, unpacking', 'mode' => 'V1', 'status' => 'pending', 'used_in' => 'base relocation finished'],
         ['key' => 'camp/tax_for_building', 'file' => 'uploads/telegram/camp/tax_for_building.png', 'lexicon' => 'camp.tax-report', 'scene' => '', 'mode' => 'V1', 'status' => 'pending', 'used_in' => 'daily building tax report'],
