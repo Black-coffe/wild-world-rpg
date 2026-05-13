@@ -34,7 +34,7 @@ class BiomeController extends BaseAdminController
         if ($biome === null) {
             return $this->failNotFound('Биом не найден.');
         }
-        $biome = (array) $biome;
+        $biome = $this->entityToArray($biome);
 
         return view('admin/biome_edit_form', [
             'biome' => $biome,

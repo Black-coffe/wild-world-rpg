@@ -83,6 +83,25 @@ abstract class BaseAdminController extends BaseController
     }
 
     /**
+     * Преобразовать CI4 Entity (или array) в plain array без mangled-keys.
+     * F1.4 migration urok: некоторые модели возвращают Entity (BiomeModel,
+     * ResourceModel, CharacterModel). `(array) $entity` даёт mangled keys
+     * (`"\0*\0name"`), а `$entity->toArray()` — чистый assoc array.
+     *
+     * @return array<int|string, mixed>
+     */
+    protected function entityToArray(mixed $entity): array
+    {
+        if (is_array($entity)) {
+            return $entity;
+        }
+        if (is_object($entity) && method_exists($entity, 'toArray')) {
+            return $entity->toArray();
+        }
+        return (array) $entity;
+    }
+
+    /**
      * Сериализовать перечисленные поля в JSON-строки in-place перед записью в БД.
      * Используется для админ-CRUD'ов, где TEXT-колонки хранят JSON-массивы
      * (`events.biome_ids`, `world_objects.biome_id`, и пр. — см. roadmap Phase C

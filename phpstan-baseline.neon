@@ -277,6 +277,12 @@ parameters:
 			path: app/Controllers/Admin/AuditLogController.php
 
 		-
+			message: '#^Cannot cast mixed to string\.$#'
+			identifier: cast.string
+			count: 1
+			path: app/Controllers/Admin/BiomeController.php
+
+		-
 			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -463,6 +469,12 @@ parameters:
 			path: app/Controllers/Admin/PollController.php
 
 		-
+			message: '#^Cannot cast mixed to string\.$#'
+			identifier: cast.string
+			count: 2
+			path: app/Controllers/Admin/ResourceController.php
+
+		-
 			message: '#^Cannot access offset ''biome_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -477,7 +489,7 @@ parameters:
 		-
 			message: '#^Cannot cast mixed to string\.$#'
 			identifier: cast.string
-			count: 1
+			count: 2
 			path: app/Controllers/Admin/WorldObjectController.php
 
 		-

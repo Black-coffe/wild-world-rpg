@@ -93,7 +93,7 @@ class ResourceController extends BaseAdminController
         if ($resource === null) {
             return $this->failNotFound('Ресурс не найден.');
         }
-        $resource = (array) $resource;
+        $resource = $this->entityToArray($resource);
 
         return view('admin/resource_edit_form', [
             'resource' => $resource,
@@ -169,7 +169,7 @@ class ResourceController extends BaseAdminController
 
         $biomeNames = [];
         foreach ((array) $biomes as $biome) {
-            $biomeArr     = (array) $biome;
+            $biomeArr     = $this->entityToArray($biome);
             $biomeNames[] = (string) ($biomeArr['name'] ?? '');
         }
 
