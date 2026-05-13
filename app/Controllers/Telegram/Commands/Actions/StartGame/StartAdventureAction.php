@@ -65,7 +65,7 @@ class StartAdventureAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '✖️ Завершить обучение', 'callback_data' => 'withoutTrainingStart'],
-                    ['text' => '🗺️ Изучить местность', 'callback_data' => 'exploreAreaTips']
+                    ['text' => '🚜 Сделать первый шаг', 'callback_data' => 'exploreAreaTips']
                 ],
             ]
         ];
