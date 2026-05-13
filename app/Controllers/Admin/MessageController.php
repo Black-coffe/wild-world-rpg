@@ -2,11 +2,9 @@
 
 namespace App\Controllers\Admin;
 
-use App\Models\AdminAuditLogModel;
 use App\Models\TelegramUserModel;
 use App\Services\Images\AnnouncementImageService;
 use App\Services\Images\OpenAiImageProvider;
-use CodeIgniter\Controller;
 use CodeIgniter\HTTP\RedirectResponse;
 use Config\ImageRegistry;
 use Longman\TelegramBot\Telegram;
@@ -22,7 +20,7 @@ use Throwable;
  * Если картинка есть — `sendPhoto` с caption (≤1024) или `sendPhoto` без caption + `sendMessage`
  * с текстом (если текст длиннее лимита caption). См. ADR-022 (картинки) + лор-задача 2026-05-13.
  */
-class MessageController extends Controller
+class MessageController extends BaseAdminController
 {
     // Telegram-лимиты по API на 2026-05.
     private const TELEGRAM_CAPTION_LIMIT = 1024;
@@ -74,23 +72,14 @@ class MessageController extends Controller
             return redirect()->back()->with('error', 'Ошибка отправки: ' . $e->getMessage());
         }
 
-        // — audit-log —
-        $auth        = service('auth');
-        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
-        (new AdminAuditLogModel())->record(
-            $adminUserId,
-            'BROADCAST_SEND',
-            'telegram_chat',
-            null,
-            [
-                'scope'          => $telegramIds === null ? 'all' : 'specific',
-                'recipients'     => $telegramIds === null ? null : count($telegramIds),
-                'sent'           => $sent,
-                'title'          => mb_substr($title, 0, 160),
-                'message_length' => mb_strlen($messageContent),
-                'image'          => $imageInfo,
-            ],
-        );
+        $this->audit('BROADCAST_SEND', 'telegram_chat', null, [
+            'scope'          => $telegramIds === null ? 'all' : 'specific',
+            'recipients'     => $telegramIds === null ? null : count($telegramIds),
+            'sent'           => $sent,
+            'title'          => mb_substr($title, 0, 160),
+            'message_length' => mb_strlen($messageContent),
+            'image'          => $imageInfo,
+        ]);
 
         return redirect()->back()->with('success', "Сообщение отправлено (получателей: {$sent}).");
     }

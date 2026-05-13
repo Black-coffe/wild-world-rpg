@@ -1,231 +1,204 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers\Admin;
 
-use App\Controllers\BaseController;
-use App\Models\AdminAuditLogModel;
 use App\Models\BiomeModel;
 use App\Models\ResourceModel;
-use CodeIgniter\API\ResponseTrait;
+use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 
-class ResourceController extends BaseController
+class ResourceController extends BaseAdminController
 {
-    use ResponseTrait;
-
-    protected $resourceModel;
-    protected $biomeModel;
+    protected ResourceModel $resourceModel;
+    protected BiomeModel $biomeModel;
 
     public function __construct()
     {
         $this->resourceModel = new ResourceModel();
-        $this->biomeModel = new BiomeModel();
+        $this->biomeModel    = new BiomeModel();
     }
 
-    // Метод для отображения списка всех ресурсов
-    public function index()
+    public function index(): string
     {
-        // Получаем все ресурсы из модели с сортировкой по дате создания (от новых к старым)
         $resources = $this->resourceModel->orderBy('created_at', 'DESC')->findAll();
 
-
-        // Подготовка данных для отображения
         foreach ($resources as &$resource) {
-            // Преобразование ID биомов в имена
-            if (!empty($resource['biome_id'])) {
-                // Преобразуем строку с ID биомов в массив
-                $biomeIds = explode(',', $resource['biome_id']);
-                // Получаем имена биомов по их ID
+            $biomeIdRaw = $resource['biome_id'] ?? null;
+            if (is_scalar($biomeIdRaw) && (string) $biomeIdRaw !== '') {
+                $biomeIds = explode(',', (string) $biomeIdRaw);
                 $resource['biome_names'] = $this->getBiomeNamesByIds($biomeIds);
             } else {
                 $resource['biome_names'] = 'Не привязан к биому';
             }
 
-            // Перевод типов ресурсов
-            $resource['translated_types'] = $this->translateResourceTypes($resource['type']);
+            $typeRaw = $resource['type'] ?? null;
+            $resource['translated_types'] = $this->translateResourceTypes(is_scalar($typeRaw) ? (string) $typeRaw : '');
         }
-        unset($resource); // Отсекаем ссылку на последний элемент массива
+        unset($resource);
 
-        // Отправляем данные о ресурсах в представление
         return view('admin/resource_index', [
             'resources' => $resources,
-            'title' => 'Список всех Ресурсов в игре'
+            'title'     => 'Список всех Ресурсов в игре',
         ]);
     }
 
-
-    // Метод для отображения формы создания ресурса
-    public function createResourceForm()
+    public function createResourceForm(): string
     {
         $biomes = $this->biomeModel->findAll();
-        // Отправляем данные о ресурсах в представление
+
         return view('admin/resource_create', [
-            'title' => 'Создание нового игрового ресурса',
+            'title'  => 'Создание нового игрового ресурса',
             'biomes' => $biomes,
         ]);
     }
 
-    public function storeResource()
+    public function storeResource(): RedirectResponse
     {
-        $data = $this->request->getPost();
+        $data = (array) $this->request->getPost();
 
-        // Обработка множественных значений для biome_id и type
-        if (isset($data['biome_id'])) {
-            $data['biome_id'] = implode(',', $data['biome_id']); // Преобразование массива в строку
+        if (isset($data['biome_id']) && is_array($data['biome_id'])) {
+            $data['biome_id'] = $this->joinScalarsCsv($data['biome_id']);
         }
-        if (isset($data['type'])) {
-            $data['type'] = implode(',', $data['type']); // Аналогично
+        if (isset($data['type']) && is_array($data['type'])) {
+            $data['type'] = $this->joinScalarsCsv($data['type']);
         }
 
-        // Проводим валидацию данных
         if (!$this->validate($this->resourceModel->getValidationRules())) {
-            return redirect()->back()->withInput()->with('errors', $this->validator?->getErrors() ?? []);
+            return $this->redirectBackWithErrors($this->validator?->getErrors() ?? []);
         }
 
-        // Сохраняем ресурс
         $id = $this->resourceModel->insert($data);
 
         if ($id === false) {
-            return redirect()->back()->withInput()->with('errors', $this->resourceModel->errors());
+            return $this->redirectBackWithErrors($this->resourceModel->errors());
         }
 
-        // F1.9 expansion: audit-лог створення ресурсу (gameplay impact — нові collectible items)
-        $this->auditAdminAction('RESOURCE_CREATE', 'resource', (int) $id, [
-            'name'    => $this->request->getPost('name'),
-            'rarity'  => $this->request->getPost('rarity'),
-            'type'    => $this->request->getPost('type'),
+        $this->audit('RESOURCE_CREATE', 'resource', (int) $id, [
+            'name'     => $this->request->getPost('name'),
+            'rarity'   => $this->request->getPost('rarity'),
+            'type'     => $this->request->getPost('type'),
             'biome_id' => $this->request->getPost('biome_id'),
         ]);
 
-        // Успешно сохранено, устанавливаем флеш-сообщение и перенаправляем на страницу списка ресурсов
-        session()->setFlashdata('success', 'Новый ресурс успешно добавлен.');
-        return redirect()->to(site_url('admin/resources'));
+        return $this->redirectWithSuccess(site_url('admin/resources'), 'Новый ресурс успешно добавлен.');
     }
 
-
-    // Метод для отображения формы редактирования ресурса
-    public function editResourceForm($resourceId)
+    public function editResourceForm(int|string $resourceId): string|ResponseInterface
     {
-        // Получаем данные о ресурсе из модели
         $resource = $this->resourceModel->find($resourceId);
-        $biomes = $this->biomeModel->findAll();
+        $biomes   = $this->biomeModel->findAll();
 
-        if ($resource == null) {
+        if ($resource === null) {
             return $this->failNotFound('Ресурс не найден.');
         }
+        $resource = (array) $resource;
 
-        // Отправляем данные о ресурсе в представление
         return view('admin/resource_edit_form', [
             'resource' => $resource,
-            'biomes' => $biomes,
-            'title' => 'Редактирование ресурса: ' . $resource['name']
+            'biomes'   => $biomes,
+            'title'    => 'Редактирование ресурса: ' . (string) ($resource['name'] ?? ''),
         ]);
     }
 
-    // Метод для обновления информации о ресурсе
-    public function updateResource($resourceId)
+    public function updateResource(int|string $resourceId): RedirectResponse|ResponseInterface
     {
-        // Получаем данные из POST-запроса
-        $data = $this->request->getPost();
+        $data = (array) $this->request->getPost();
 
-        // Аналогичная обработка множественных значений
-        if (isset($data['biome_id'])) {
-            $data['biome_id'] = implode(',', $data['biome_id']);
+        if (isset($data['biome_id']) && is_array($data['biome_id'])) {
+            $data['biome_id'] = $this->joinScalarsCsv($data['biome_id']);
         }
-        if (isset($data['type'])) {
-            $data['type'] = implode(',', $data['type']);
+        if (isset($data['type']) && is_array($data['type'])) {
+            $data['type'] = $this->joinScalarsCsv($data['type']);
         }
 
-        // Проверяем существование ресурса
         $resource = $this->resourceModel->find($resourceId);
-        if ($resource == null) {
+        if ($resource === null) {
             return $this->failNotFound('Ресурс не найден.');
         }
 
-        // Проводим валидацию данных
         if (!$this->validate($this->resourceModel->getValidationRules())) {
             return $this->failValidationErrors($this->validator?->getErrors() ?? []);
         }
 
-        // Обновляем информацию о ресурсе
         $updated = $this->resourceModel->update($resourceId, $data);
 
-        if ($updated) {
-            // F1.9 expansion: audit-лог змін ресурсу (rarity / type / biome assignment)
-            $this->auditAdminAction('RESOURCE_UPDATE', 'resource', (int) $resourceId, [
-                'name'    => $this->request->getPost('name'),
-                'rarity'  => $this->request->getPost('rarity'),
-                'type'    => $this->request->getPost('type'),
-                'biome_id' => $this->request->getPost('biome_id'),
-            ]);
-            // Успешно обновлено, устанавливаем флеш-сообщение
-            session()->setFlashdata('success', 'Ресурс успешно обновлен.');
-            // Перенаправляем пользователя на страницу всех ресурсов
-            return redirect()->to(site_url('admin/resources'));
-        } else {
+        if (!$updated) {
             return $this->failServerError('Не удалось обновить ресурс.');
         }
+
+        $this->audit('RESOURCE_UPDATE', 'resource', (int) $resourceId, [
+            'name'     => $this->request->getPost('name'),
+            'rarity'   => $this->request->getPost('rarity'),
+            'type'     => $this->request->getPost('type'),
+            'biome_id' => $this->request->getPost('biome_id'),
+        ]);
+
+        return $this->redirectWithSuccess(site_url('admin/resources'), 'Ресурс успешно обновлен.');
     }
 
     /**
-     * Возвращает строку с именами биомов, разделенными запятой, по их ID.
+     * Сериализует массив скалярных значений (id биомов / типов ресурса) в CSV-строку,
+     * пропуская не-скалярные элементы. Поведенчески идентично оригинальному
+     * `implode(',', $data['biome_id'])`, но safe-cast для phpstan L9.
      *
-     * @param array $biomeIds Массив ID биомов.
-     * @return string Строка с именами биомов.
+     * @param array<int|string, mixed> $values
+     */
+    private function joinScalarsCsv(array $values): string
+    {
+        $parts = [];
+        foreach ($values as $v) {
+            if (is_scalar($v)) {
+                $parts[] = (string) $v;
+            }
+        }
+
+        return implode(',', $parts);
+    }
+
+    /**
+     * @param list<string|int> $biomeIds
      */
     protected function getBiomeNamesByIds(array $biomeIds): string
     {
         $biomes = $this->biomeModel->find($biomeIds);
+        if ($biomes === null) {
+            return '';
+        }
 
-        $biomeNames = array_map(function ($biome) {
-            return $biome['name'];
-        }, $biomes);
+        $biomeNames = [];
+        foreach ((array) $biomes as $biome) {
+            $biomeArr     = (array) $biome;
+            $biomeNames[] = (string) ($biomeArr['name'] ?? '');
+        }
 
         return implode(', ', $biomeNames);
     }
 
     /**
-     * Возвращает строку с переводом типов ресурсов, разделенных запятой.
-     *
-     * @param string $types Строка с типами ресурсов, разделенными запятой.
-     * @return string Строка с переводами типов.
+     * Перевод comma-separated списка resource types на русские локали для UI.
+     * TODO Phase C: вынести в lookup-таблицу `resource_types` (см. roadmap).
      */
     protected function translateResourceTypes(string $types): string
     {
-        $typeList = explode(',', $types);
+        $typeList        = explode(',', $types);
         $translatedTypes = [];
 
+        $map = [
+            'crafting' => 'Крафтовые',
+            'food'     => 'Еда',
+            'water'    => 'Вода',
+            'material' => 'Материалы',
+        ];
+
         foreach ($typeList as $type) {
-            // Перевод типов ресурсов. Замените или дополните ключи и значения в соответствии с вашими данными.
-            switch ($type) {
-                case 'crafting':
-                    $translatedTypes[] = 'Крафтовые';
-                    break;
-                case 'food':
-                    $translatedTypes[] = 'Еда';
-                    break;
-                case 'water':
-                    $translatedTypes[] = 'Вода';
-                    break;
-                case 'material':
-                    $translatedTypes[] = 'Материалы';
-                    break;
-                // Добавьте другие типы по необходимости.
+            $type = trim($type);
+            if (isset($map[$type])) {
+                $translatedTypes[] = $map[$type];
             }
         }
 
         return implode(', ', $translatedTypes);
-    }
-
-    /**
-     * F1.9 expansion (v0.51.10): єдина точка запису destructive admin actions.
-     *
-     * @param array<string, mixed> $payload
-     */
-    private function auditAdminAction(string $action, ?string $targetType, ?int $targetId, array $payload = []): void
-    {
-        $auth = service('auth');
-        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
-        (new AdminAuditLogModel())->record($adminUserId, $action, $targetType, $targetId, $payload);
     }
 }

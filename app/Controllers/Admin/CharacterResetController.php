@@ -2,29 +2,18 @@
 
 namespace App\Controllers\Admin;
 
-use App\Controllers\BaseController;
-use App\Models\AdminAuditLogModel;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Models\GeneralModel;
 use CodeIgniter\HTTP\RedirectResponse;
 use Config\ResetTables;
-use CodeIgniter\API\ResponseTrait;
 use App\Controllers\Telegram\BotController;
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Telegram;
 
-class CharacterResetController extends BaseController
+class CharacterResetController extends BaseAdminController
 {
-    use ResponseTrait;
-
-    /**
-     * CI4 4.5+ breaking change в ResponseTrait — строки по умолчанию теперь
-     * возвращаются как JSON. Сохраняем старое поведение (HTML) явно.
-     */
-    protected bool $stringAsHtml = true;
-
     protected CharacterModel $characterModel;
     protected TelegramUserModel $telegramUserModel;
     protected GeneralModel $generalModel;
@@ -122,19 +111,10 @@ class CharacterResetController extends BaseController
             }
         }
 
-        // F1.9 — audit-лог destructive админского действия.
-        $auth = service('auth');
-        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
-        (new AdminAuditLogModel())->record(
-            $adminUserId,
-            'CHARACTER_RESET',
-            'character',
-            $characterId,
-            [
-                'telegram_id'     => $telegramId,
-                'tables_affected' => $deletedTotals,
-            ]
-        );
+        $this->audit('CHARACTER_RESET', 'character', $characterId, [
+            'telegram_id'     => $telegramId,
+            'tables_affected' => $deletedTotals,
+        ]);
 
         if ($telegramId) {
             $botController = new BotController();

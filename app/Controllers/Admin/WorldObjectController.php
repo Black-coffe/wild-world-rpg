@@ -1,34 +1,32 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers\Admin;
 
-use App\Controllers\BaseController;
-use App\Models\AdminAuditLogModel;
-use App\Models\WorldObjectModel;
 use App\Models\BiomeModel;
-use CodeIgniter\API\ResponseTrait;
+use App\Models\WorldObjectModel;
+use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 
-class WorldObjectController extends BaseController
+class WorldObjectController extends BaseAdminController
 {
-    use ResponseTrait;
-
     protected WorldObjectModel $worldObjectModel;
     protected BiomeModel $biomeModel;
 
     public function __construct()
     {
         $this->worldObjectModel = new WorldObjectModel();
-        $this->biomeModel = new BiomeModel();
+        $this->biomeModel       = new BiomeModel();
     }
 
     /**
      * @param array<string, mixed> $data
      * @return array<string, mixed>
      */
-    private function prepareJsonData(array $data): array {
+    private function prepareJsonData(array $data): array
+    {
         if (isset($data['biome_id']) && is_array($data['biome_id'])) {
-            // Преобразование массива biome_id в строку JSON
             $data['biome_id'] = json_encode($data['biome_id']);
         }
 
@@ -44,13 +42,16 @@ class WorldObjectController extends BaseController
                 $data['contents'] = json_encode($this->trimRecursive($contents));
             }
         }
+
         return $data;
     }
 
-    private function trimRecursive(mixed $input): mixed {
+    private function trimRecursive(mixed $input): mixed
+    {
         if (!is_array($input)) {
             return trim((string) $input);
         }
+
         return array_map([$this, 'trimRecursive'], $input);
     }
 
@@ -59,8 +60,8 @@ class WorldObjectController extends BaseController
         $objects = $this->worldObjectModel->orderBy('created_at', 'DESC')->findAll();
         foreach ($objects as &$object) {
             if (!empty($object['biome_id'])) {
-                $biome = $this->biomeModel->find($object['biome_id']);
-                $object['biome_name'] = $biome ? $biome['name'] : 'Не указан';
+                $biome                = $this->biomeModel->find($object['biome_id']);
+                $object['biome_name'] = $biome !== null ? (string) (((array) $biome)['name'] ?? 'Не указан') : 'Не указан';
             } else {
                 $object['biome_name'] = 'Не привязан к биому';
             }
@@ -69,67 +70,64 @@ class WorldObjectController extends BaseController
 
         return view('admin/world_object_index', [
             'objects' => $objects,
-            'title' => 'Список объектов в мире'
+            'title'   => 'Список объектов в мире',
         ]);
     }
 
     public function createObjectForm(): string
     {
         $biomes = $this->biomeModel->findAll();
+
         return view('admin/world_object_create', [
-            'title' => 'Создание нового объекта',
+            'title'  => 'Создание нового объекта',
             'biomes' => $biomes,
         ]);
     }
 
-    public function storeObject(): ResponseInterface {
-        $data = $this->request->getPost();
-
-        // Подготовка данных JSON для 'discovery_tools' и 'contents'
+    public function storeObject(): ResponseInterface|RedirectResponse
+    {
+        $data = (array) $this->request->getPost();
         $data = $this->prepareJsonData($data);
 
         if (!$this->validate($this->worldObjectModel->getValidationRules())) {
-            return redirect()->back()->withInput()->with('errors', $this->validator?->getErrors() ?? []);
+            return $this->redirectBackWithErrors($this->validator?->getErrors() ?? []);
         }
 
         $id = $this->worldObjectModel->insert($data);
         if ($id === false) {
-            return redirect()->back()->withInput()->with('errors', $this->worldObjectModel->errors());
+            return $this->redirectBackWithErrors($this->worldObjectModel->errors());
         }
 
-        $this->auditAdminAction('WORLD_OBJECT_CREATE', 'world_object', (int) $id, [
+        $this->audit('WORLD_OBJECT_CREATE', 'world_object', (int) $id, [
             'name' => $this->request->getPost('name'),
         ]);
 
-        session()->setFlashdata('success', 'Новый объект успешно добавлен.');
-        return redirect()->to(site_url('admin/world-objects'));
+        return $this->redirectWithSuccess(site_url('admin/world-objects'), 'Новый объект успешно добавлен.');
     }
 
     public function editObjectForm(int|string $objectId): string|ResponseInterface
     {
-        $object = $this->worldObjectModel->find($objectId);
-        $biomes = $this->biomeModel->findAll();
+        $objectRaw = $this->worldObjectModel->find($objectId);
+        $biomes    = $this->biomeModel->findAll();
 
-        if ($object === null) {
+        if ($objectRaw === null) {
             return $this->failNotFound('Object not found.');
         }
 
-        // Проверка и декодирование JSON
-        $object['discovery_tools'] = json_decode($object['discovery_tools'], true) ?? []; // Используйте null coalescing operator для предотвращения ошибок
-        $object['contents'] = json_decode($object['contents'], true) ?? [];
+        $object = (array) $objectRaw;
+        $object['discovery_tools'] = json_decode((string) ($object['discovery_tools'] ?? ''), true) ?? [];
+        $object['contents']        = json_decode((string) ($object['contents'] ?? ''), true) ?? [];
 
         return view('admin/world_object_edit_form', [
             'object' => $object,
             'biomes' => $biomes,
-            'title' => 'Edit Object: ' . $object['name']
+            'title'  => 'Edit Object: ' . (string) ($object['name'] ?? ''),
         ]);
     }
 
-    public function updateObject(int|string $objectId): ResponseInterface
+    public function updateObject(int|string $objectId): ResponseInterface|RedirectResponse
     {
-        $data = $this->request->getPost();
-
-        // Подготовка данных JSON для 'discovery_tools' и 'contents'
+        $data = (array) $this->request->getPost();
         $data = $this->prepareJsonData($data);
 
         if (!$this->validate($this->worldObjectModel->getValidationRules())) {
@@ -146,35 +144,22 @@ class WorldObjectController extends BaseController
             return $this->failServerError('Не удалось обновить объект.');
         }
 
-        $this->auditAdminAction('WORLD_OBJECT_UPDATE', 'world_object', (int) $objectId, [
+        $this->audit('WORLD_OBJECT_UPDATE', 'world_object', (int) $objectId, [
             'name' => $this->request->getPost('name'),
         ]);
-        session()->setFlashdata('success', 'Объект успешно обновлен.');
-        return redirect()->to(site_url('admin/world-objects'));
+
+        return $this->redirectWithSuccess(site_url('admin/world-objects'), 'Объект успешно обновлен.');
     }
 
-    public function deleteObject(int|string $objectId): ResponseInterface
+    public function deleteObject(int|string $objectId): RedirectResponse
     {
         if (!$this->worldObjectModel->delete($objectId)) {
             session()->setFlashdata('error', 'Не удалось удалить объект.');
             return redirect()->to(site_url('admin/world-objects'))->withInput();
         }
 
-        $this->auditAdminAction('WORLD_OBJECT_DELETE', 'world_object', (int) $objectId, []);
+        $this->audit('WORLD_OBJECT_DELETE', 'world_object', (int) $objectId, []);
 
-        session()->setFlashdata('success', 'Объект успешно удален.');
-        return redirect()->to(site_url('admin/world-objects'));
-    }
-
-    /**
-     * F1.9 expansion (v0.51.11): єдина точка запису destructive admin actions.
-     *
-     * @param array<string, mixed> $payload
-     */
-    private function auditAdminAction(string $action, ?string $targetType, ?int $targetId, array $payload = []): void
-    {
-        $auth = service('auth');
-        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
-        (new AdminAuditLogModel())->record($adminUserId, $action, $targetType, $targetId, $payload);
+        return $this->redirectWithSuccess(site_url('admin/world-objects'), 'Объект успешно удален.');
     }
 }

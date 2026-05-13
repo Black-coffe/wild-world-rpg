@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace App\Controllers\Admin;
 
-use App\Controllers\BaseController;
-use App\Models\AdminAuditLogModel;
 use App\Models\FactionEndgameScoreModel;
 use App\Services\Endgame\SeasonResetService;
+use CodeIgniter\HTTP\RedirectResponse;
 use Config\EndgameScoring;
 
 /**
@@ -15,21 +14,27 @@ use Config\EndgameScoring;
  *
  * Read-only viewer + manual reset endpoints для endgame scenario tracking.
  * Routes: /admin/endgame (GET), /admin/endgame/reset/<id> (POST).
+ *
+ * Phase A2 рефакторинг (2026-05-13): extends `BaseAdminController`.
+ * **Bug-fix:** оригинальный код звал `$this->auditModel->logAction(...)` (метод
+ * не существует) и `service('auth')->getCurrentUser()` (метод на кастомной
+ * `Authentication`, а `service('auth')` возвращает Shield Auth). Оба пути
+ * `reset/resetSeason` фатал-эррорили бы при клике — теперь используют
+ * `$this->audit(...)` из `BaseAdminController`.
  */
-class EndgameController extends BaseController
+class EndgameController extends BaseAdminController
 {
     private FactionEndgameScoreModel $scoreModel;
-    private AdminAuditLogModel $auditModel;
     private EndgameScoring $cfg;
 
     public function __construct()
     {
         $this->scoreModel = new FactionEndgameScoreModel();
-        $this->auditModel = new AdminAuditLogModel();
-        $this->cfg        = config('EndgameScoring');
+        $cfg              = config(EndgameScoring::class);
+        $this->cfg        = $cfg;
     }
 
-    public function index()
+    public function index(): string
     {
         $rows = $this->scoreModel->orderBy('faction_id', 'ASC')->findAll();
 
@@ -40,24 +45,23 @@ class EndgameController extends BaseController
             4 => 'Фермеры',
         ];
 
-        $data = [
-            'title'         => 'Endgame Scenarios — Faction Scores',
-            'rows'          => $rows,
-            'factionNames'  => $factionNames,
-            'scenarioRu'    => $this->cfg->scenarioRu,
-        ];
-
-        return view('admin/endgame_dashboard', $data);
+        return view('admin/endgame_dashboard', [
+            'title'        => 'Endgame Scenarios — Faction Scores',
+            'rows'         => $rows,
+            'factionNames' => $factionNames,
+            'scenarioRu'   => $this->cfg->scenarioRu,
+        ]);
     }
 
-    public function reset($id)
+    public function reset(int|string $id): RedirectResponse
     {
-        $row = $this->scoreModel->find((int) $id);
-        if (!$row) {
+        $rowRaw = $this->scoreModel->find((int) $id);
+        if ($rowRaw === null) {
             return redirect()->to('/admin/endgame')->with('error', 'Запись не найдена');
         }
+        $row = (array) $rowRaw;
 
-        $beforeScore = (int) $row['score'];
+        $beforeScore = (int) ($row['score'] ?? 0);
         $this->scoreModel->update((int) $id, [
             'score'            => 0,
             'threshold_hit'    => 0,
@@ -65,17 +69,22 @@ class EndgameController extends BaseController
             'last_event_at'    => null,
         ]);
 
-        $this->auditModel->logAction(
-            (int) (service('auth')->getCurrentUser()['id'] ?? 0),
+        $this->audit(
             'ENDGAME_RESET',
             'faction_endgame_scores',
             (int) $id,
-            ['faction_id' => (int) $row['faction_id'], 'before_score' => $beforeScore]
+            [
+                'faction_id'   => (int) ($row['faction_id'] ?? 0),
+                'before_score' => $beforeScore,
+            ],
         );
+
+        $factionId    = (int) ($row['faction_id'] ?? 0);
+        $scenarioName = (string) ($row['scenario_name'] ?? '');
 
         return redirect()->to('/admin/endgame')->with(
             'success',
-            "Score сброшен для faction {$row['faction_id']} ({$row['scenario_name']}) — было {$beforeScore} pts"
+            "Score сброшен для faction {$factionId} ({$scenarioName}) — было {$beforeScore} pts",
         );
     }
 
@@ -86,22 +95,16 @@ class EndgameController extends BaseController
      * Bulk reset усіх 4 faction scores + усіх character endgame_state →
      * 'active'. Audit logged.
      */
-    public function resetSeason()
+    public function resetSeason(): RedirectResponse
     {
         $resetSvc = new SeasonResetService();
         $stats    = $resetSvc->reset();
 
-        $this->auditModel->logAction(
-            (int) (service('auth')->getCurrentUser()['id'] ?? 0),
-            'ENDGAME_SEASON_RESET',
-            'faction_endgame_scores',
-            0,
-            $stats
-        );
+        $this->audit('ENDGAME_SEASON_RESET', 'faction_endgame_scores', 0, $stats);
 
         return redirect()->to('/admin/endgame')->with(
             'success',
-            "🔄 Season reset: {$stats['scores_reset']} scores wiped, {$stats['chars_unfrozen']} characters back to 'active' state."
+            "🔄 Season reset: {$stats['scores_reset']} scores wiped, {$stats['chars_unfrozen']} characters back to 'active' state.",
         );
     }
 }
