@@ -36,6 +36,19 @@ use Throwable;
  */
 class GenerateImages extends BaseCommand
 {
+    /**
+     * Хардкод-блок: эти картинки НИКОГДА не должны пройти через image-rebrand пайплайн.
+     * `world_map_1000x1000.png` и `beautiful_map.png` — попиксельно нарисованные в Photoshop
+     * технические карты реальных биомов/локаций из БД (7-9 цветов, ровно 2000×2000),
+     * на них MapService рисует красное перекрестие позиции игрока через GD.
+     * Инцидент 2026-05-13: Пачка N переписала обе в JPEG 1536×1024 → бот падал на «Карта»
+     * с «Ошибка GD: не могу открыть PNG.» Восстановлены из коммита e3a88be.
+     */
+    private const BLOCKED_KEYS = [
+        'character/world_map_1000x1000',
+        'character/beautiful_map',
+    ];
+
     protected $group       = 'Images';
     protected $name        = 'images:generate';
     protected $description = 'Генерация изображений игры в едином стиле «Найденная фотоплёнка» (ADR-022). Нужен images.api_key в .env; --status/--dry-run — без ключа.';
@@ -60,6 +73,7 @@ class GenerateImages extends BaseCommand
         }
 
         $entries = $this->selectEntries($cfg);
+        $entries = $this->stripBlocked($entries);
         if ($entries === []) {
             CLI::error('Не выбрано ни одной картинки. Используйте --status / --key=<key> / --category=<prefix> / --missing / --all.');
             return;
@@ -110,6 +124,25 @@ class GenerateImages extends BaseCommand
             CLI::write('');
             CLI::write(sprintf('Готово: %d ок, %d с ошибкой.', $ok, $failed), $failed > 0 ? 'yellow' : 'green');
         }
+    }
+
+    /**
+     * Снимает из выборки все ключи из {@see self::BLOCKED_KEYS} и громко предупреждает.
+     *
+     * @param list<array{key:string, file:string, lexicon:string, scene:string, mode:string, status:string, used_in?:string, ref?:string, notes?:string}> $entries
+     * @return list<array{key:string, file:string, lexicon:string, scene:string, mode:string, status:string, used_in?:string, ref?:string, notes?:string}>
+     */
+    private function stripBlocked(array $entries): array
+    {
+        $out = [];
+        foreach ($entries as $e) {
+            if (in_array($e['key'], self::BLOCKED_KEYS, true)) {
+                CLI::write('  ⛔ Заблокировано: ' . $e['key'] . ' — это попиксельная техническая карта (см. BLOCKED_KEYS, инцидент 2026-05-13).', 'red');
+                continue;
+            }
+            $out[] = $e;
+        }
+        return $out;
     }
 
     /** @return list<array{key:string, file:string, lexicon:string, scene:string, mode:string, status:string, used_in?:string, ref?:string, notes?:string}> */
