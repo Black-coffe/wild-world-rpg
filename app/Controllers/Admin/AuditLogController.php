@@ -2,10 +2,8 @@
 
 namespace App\Controllers\Admin;
 
-use App\Controllers\BaseController;
 use App\Models\AdminAuditLogModel;
 use App\Models\UserModel;
-use CodeIgniter\API\ResponseTrait;
 
 /**
  * F1.9 dashboard (v0.51.17) — read-only viewer для admin_audit_log table.
@@ -16,10 +14,8 @@ use CodeIgniter\API\ResponseTrait;
  * Це supplements F1.9 expansion (v0.51.9-11) — раніше audit_log писався але було
  * нечим переглядати. Тепер admin може forensics destructive actions.
  */
-class AuditLogController extends BaseController
+class AuditLogController extends BaseAdminController
 {
-    use ResponseTrait;
-
     private AdminAuditLogModel $auditModel;
 
     public function __construct()

@@ -1,130 +1,102 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers\Admin;
 
-use App\Controllers\BaseController;
-use App\Models\AdminAuditLogModel;
 use App\Models\TaskModel;
-use CodeIgniter\API\ResponseTrait;
+use CodeIgniter\HTTP\RedirectResponse;
+use CodeIgniter\HTTP\ResponseInterface;
 
-class TaskController extends BaseController
+class TaskController extends BaseAdminController
 {
-    use ResponseTrait;
-
-    protected $taskModel;
+    protected TaskModel $taskModel;
 
     public function __construct()
     {
         $this->taskModel = new TaskModel();
     }
 
-    public function index()
+    public function index(): string
     {
-        // Получаем все задачи из модели с сортировкой по дате создания (от новых к старым)
         $tasks = $this->taskModel->orderBy('created_at', 'DESC')->findAll();
 
-        // Отправляем данные о задачах в представление
         return view('admin/task_index', [
             'tasks' => $tasks,
-            'title' => 'Список всех задач'
+            'title' => 'Список всех задач',
         ]);
     }
 
-    public function createTaskForm()
+    public function createTaskForm(): string
     {
-        // Отправляем данные для формы создания задачи
         return view('admin/task_create', [
             'title' => 'Создание новой задачи',
         ]);
     }
 
-    public function storeTask()
+    public function storeTask(): RedirectResponse
     {
-        $data = $this->request->getPost();
+        $data = (array) $this->request->getPost();
 
-        // Проводим валидацию данных
         if (!$this->validate($this->taskModel->getValidationRules())) {
-            return redirect()->back()->withInput()->with('errors', $this->validator?->getErrors() ?? []);
+            return $this->redirectBackWithErrors($this->validator?->getErrors() ?? []);
         }
 
-        // Сохраняем задачу
         $id = $this->taskModel->insert($data);
 
         if ($id === false) {
-            return redirect()->back()->withInput()->with('errors', $this->taskModel->errors());
+            return $this->redirectBackWithErrors($this->taskModel->errors());
         }
 
-        // F1.9 expansion: audit-лог створення task template (gameplay impact — нові job types)
-        $this->auditAdminAction('TASK_CREATE', 'task', (int) $id, [
-            'name'           => $this->request->getPost('name'),
-            'duration'       => $this->request->getPost('duration'),
+        $this->audit('TASK_CREATE', 'task', (int) $id, [
+            'name'             => $this->request->getPost('name'),
+            'duration'         => $this->request->getPost('duration'),
             'reward_resources' => $this->request->getPost('reward_resources'),
         ]);
 
-        // Успешно сохранено, устанавливаем флеш-сообщение и перенаправляем на страницу списка задач
-        session()->setFlashdata('success', 'Новая задача успешно добавлена.');
-        return redirect()->to(site_url('admin/tasks'));
+        return $this->redirectWithSuccess(site_url('admin/tasks'), 'Новая задача успешно добавлена.');
     }
 
-    public function editTaskForm($taskId)
+    public function editTaskForm(int|string $taskId): string|ResponseInterface
     {
-        // Получаем данные о задаче из модели
         $task = $this->taskModel->find($taskId);
 
-        if ($task == null) {
+        if ($task === null) {
             return $this->failNotFound('Задача не найдена.');
         }
+        $task = (array) $task;
 
-        // Отправляем данные о задаче в представление для редактирования
         return view('admin/task_edit_form', [
-            'task' => $task,
-            'title' => 'Редактирование задачи: ' . $task['name']
+            'task'  => $task,
+            'title' => 'Редактирование задачи: ' . (string) ($task['name'] ?? ''),
         ]);
     }
 
-    public function updateTask($taskId)
+    public function updateTask(int|string $taskId): RedirectResponse|ResponseInterface
     {
-        $data = $this->request->getPost();
+        $data = (array) $this->request->getPost();
 
-        // Проверяем существование задачи
         $task = $this->taskModel->find($taskId);
-        if ($task == null) {
+        if ($task === null) {
             return $this->failNotFound('Задача не найдена.');
         }
 
-        // Проводим валидацию данных
         if (!$this->validate($this->taskModel->getValidationRules())) {
             return $this->failValidationErrors($this->validator?->getErrors() ?? []);
         }
 
-        // Обновляем информацию о задаче
         $updated = $this->taskModel->update($taskId, $data);
 
-        if ($updated) {
-            // F1.9 expansion: audit-лог змін task template
-            $this->auditAdminAction('TASK_UPDATE', 'task', (int) $taskId, [
-                'name'           => $this->request->getPost('name'),
-                'duration'       => $this->request->getPost('duration'),
-                'reward_resources' => $this->request->getPost('reward_resources'),
-            ]);
-            // Успешно обновлено, устанавливаем флеш-сообщение
-            session()->setFlashdata('success', 'Задача успешно обновлена.');
-            // Перенаправляем пользователя на страницу списка задач
-            return redirect()->to(site_url('admin/tasks'));
-        } else {
+        if (!$updated) {
             return $this->failServerError('Не удалось обновить задачу.');
         }
-    }
 
-    /**
-     * F1.9 expansion (v0.51.10): єдина точка запису destructive admin actions.
-     *
-     * @param array<string, mixed> $payload
-     */
-    private function auditAdminAction(string $action, ?string $targetType, ?int $targetId, array $payload = []): void
-    {
-        $auth = service('auth');
-        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
-        (new AdminAuditLogModel())->record($adminUserId, $action, $targetType, $targetId, $payload);
+        $this->audit('TASK_UPDATE', 'task', (int) $taskId, [
+            'name'             => $this->request->getPost('name'),
+            'duration'         => $this->request->getPost('duration'),
+            'reward_resources' => $this->request->getPost('reward_resources'),
+        ]);
+
+        return $this->redirectWithSuccess(site_url('admin/tasks'), 'Задача успешно обновлена.');
     }
 }

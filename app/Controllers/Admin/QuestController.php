@@ -1,92 +1,82 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers\Admin;
 
-use App\Controllers\BaseController;
-use App\Models\AdminAuditLogModel;
 use App\Models\QuestModel;
+use CodeIgniter\HTTP\RedirectResponse;
+use CodeIgniter\HTTP\ResponseInterface;
 
-class QuestController extends BaseController
+class QuestController extends BaseAdminController
 {
-    protected $questModel;
+    protected QuestModel $questModel;
 
     public function __construct()
     {
         $this->questModel = new QuestModel();
     }
 
-    /**
-     * F1.9 expansion (v0.51.11): єдина точка запису destructive admin actions.
-     *
-     * @param array<string, mixed> $payload
-     */
-    private function auditAdminAction(string $action, ?string $targetType, ?int $targetId, array $payload = []): void
-    {
-        $auth = service('auth');
-        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
-        (new AdminAuditLogModel())->record($adminUserId, $action, $targetType, $targetId, $payload);
-    }
-
-    public function index()
+    public function index(): string
     {
         $quests = $this->questModel->orderBy('id', 'DESC')->findAll();
 
         return view('admin/quest_index', [
             'quests' => $quests,
-            'title' => 'Список квестов'
+            'title'  => 'Список квестов',
         ]);
     }
 
-    public function createQuestForm()
+    public function createQuestForm(): string
     {
         return view('admin/quest_create', [
-            'title' => 'Создание нового квеста'
+            'title' => 'Создание нового квеста',
         ]);
     }
 
-    public function storeQuest()
+    public function storeQuest(): RedirectResponse
     {
-        $data = $this->request->getPost();
+        $data = (array) $this->request->getPost();
 
         if (!$this->validate($this->questModel->getValidationRules())) {
-            return redirect()->back()->withInput()->with('errors', $this->validator?->getErrors() ?? []);
+            return $this->redirectBackWithErrors($this->validator?->getErrors() ?? []);
         }
 
         $id = $this->questModel->insert($data);
         if ($id === false) {
-            return redirect()->back()->withInput()->with('errors', $this->questModel->errors());
+            return $this->redirectBackWithErrors($this->questModel->errors());
         }
 
-        $this->auditAdminAction('QUEST_CREATE', 'quest', (int) $id, [
-            'title_ru' => $this->request->getPost('title_ru'),
-            'reward'   => $this->request->getPost('reward'),
+        $this->audit('QUEST_CREATE', 'quest', (int) $id, [
+            'title_ru'  => $this->request->getPost('title_ru'),
+            'reward'    => $this->request->getPost('reward'),
             'is_active' => $this->request->getPost('is_active'),
         ]);
 
-        session()->setFlashdata('success', 'Новый квест успешно добавлен.');
-        return redirect()->to(site_url('admin/quests'));
+        return $this->redirectWithSuccess(site_url('admin/quests'), 'Новый квест успешно добавлен.');
     }
 
-    public function editQuestForm($questId)
+    public function editQuestForm(int|string $questId): string|RedirectResponse
     {
-        $quest = $this->questModel->find($questId);
+        $questRaw = $this->questModel->find($questId);
 
-        if ($quest === null) {
-            return redirect()->back()->with('error', 'Квест не найден.');
+        if ($questRaw === null) {
+            return $this->redirectBackWithError('Квест не найден.');
         }
+        $quest = (array) $questRaw;
 
         return view('admin/quest_edit_form', [
             'quest' => $quest,
-            'title' => 'Редактирование квеста: ' . $quest['title_ru']
+            'title' => 'Редактирование квеста: ' . (string) ($quest['title_ru'] ?? ''),
         ]);
     }
 
-    public function updateQuest($questId)
+    public function updateQuest(int|string $questId): RedirectResponse
     {
-        $data = $this->request->getPost();
+        $data = (array) $this->request->getPost();
 
         if (!$this->validate($this->questModel->getValidationRules())) {
-            return redirect()->back()->withInput()->with('errors', $this->validator?->getErrors() ?? []);
+            return $this->redirectBackWithErrors($this->validator?->getErrors() ?? []);
         }
 
         $result = $this->questModel->update($questId, $data);
@@ -95,27 +85,25 @@ class QuestController extends BaseController
             return redirect()->back()->withInput()->with('error', 'Не удалось обновить квест.');
         }
 
-        $this->auditAdminAction('QUEST_UPDATE', 'quest', (int) $questId, [
-            'title_ru' => $this->request->getPost('title_ru'),
-            'reward'   => $this->request->getPost('reward'),
+        $this->audit('QUEST_UPDATE', 'quest', (int) $questId, [
+            'title_ru'  => $this->request->getPost('title_ru'),
+            'reward'    => $this->request->getPost('reward'),
             'is_active' => $this->request->getPost('is_active'),
         ]);
 
-        session()->setFlashdata('success', 'Квест успешно обновлен.');
-        return redirect()->to(site_url('admin/quests'));
+        return $this->redirectWithSuccess(site_url('admin/quests'), 'Квест успешно обновлен.');
     }
 
-    public function deleteQuest($questId)
+    public function deleteQuest(int|string $questId): RedirectResponse
     {
         $result = $this->questModel->delete($questId);
 
         if (!$result) {
-            return redirect()->back()->with('error', 'Не удалось удалить квест.');
+            return $this->redirectBackWithError('Не удалось удалить квест.');
         }
 
-        $this->auditAdminAction('QUEST_DELETE', 'quest', (int) $questId, []);
+        $this->audit('QUEST_DELETE', 'quest', (int) $questId, []);
 
-        session()->setFlashdata('success', 'Квест успешно удален.');
-        return redirect()->to(site_url('admin/quests'));
+        return $this->redirectWithSuccess(site_url('admin/quests'), 'Квест успешно удален.');
     }
 }

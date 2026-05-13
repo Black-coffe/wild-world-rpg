@@ -1,101 +1,73 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers\Admin;
 
-use App\Controllers\BaseController;
-use App\Models\AdminAuditLogModel;
 use App\Models\BiomeModel;
-use CodeIgniter\API\ResponseTrait;
+use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 
-class BiomeController extends BaseController
+class BiomeController extends BaseAdminController
 {
-    use ResponseTrait;
-
-    protected $biomeModel;
+    protected BiomeModel $biomeModel;
 
     public function __construct()
     {
         $this->biomeModel = new BiomeModel();
     }
 
-    // Метод для отображения списка всех биомов
-    public function index()
+    public function index(): string
     {
-        // Получаем все биомы из модели
         $biomes = $this->biomeModel->findAll();
 
-        // Отправляем данные о биомах в представление
         return view('admin/biome_index', [
             'biomes' => $biomes,
-            'title' => 'Список всех Биомов в игре'
+            'title'  => 'Список всех Биомов в игре',
         ]);
     }
 
-
-    // Метод для отображения формы редактирования биома
-    public function editBiomeForm($biomeId)
+    public function editBiomeForm(int|string $biomeId): string|ResponseInterface
     {
-        // Получаем данные о биоме из модели
         $biome = $this->biomeModel->find($biomeId);
 
-        if ($biome == null) {
+        if ($biome === null) {
             return $this->failNotFound('Биом не найден.');
         }
+        $biome = (array) $biome;
 
-        // Отправляем данные о биоме в представление
         return view('admin/biome_edit_form', [
             'biome' => $biome,
-            'title' => 'Редактирование биома: '.$biome['name']
+            'title' => 'Редактирование биома: ' . (string) ($biome['name'] ?? ''),
         ]);
     }
 
-    // Метод для обновления информации о биоме
-    public function updateBiome($biomeId)
+    public function updateBiome(int|string $biomeId): RedirectResponse|ResponseInterface
     {
-        // Получаем данные из POST-запроса
-        $data = $this->request->getPost();
+        $data = (array) $this->request->getPost();
 
-        // Проверяем существование биома
         $biome = $this->biomeModel->find($biomeId);
-        if ($biome == null) {
+        if ($biome === null) {
             return $this->failNotFound('Биом не найден.');
         }
 
-        // Проводим валидацию данных
         if (!$this->validate($this->biomeModel->getValidationRules())) {
             return $this->failValidationErrors($this->validator?->getErrors() ?? []);
         }
 
-        // Обновляем информацию о биоме
         $updated = $this->biomeModel->update($biomeId, $data);
 
-        if ($updated) {
-            // F1.9 expansion: audit-лог змін балансу біому (gather rates / survival_difficulty / etc)
-            $this->auditAdminAction('BIOME_UPDATE', 'biome', (int) $biomeId, [
-                'name'                => $this->request->getPost('name'),
-                'gather_rate'         => $this->request->getPost('gather_rate'),
-                'survival_difficulty' => $this->request->getPost('survival_difficulty'),
-                'danger_level'        => $this->request->getPost('danger_level'),
-            ]);
-            // Успешно обновлено, устанавливаем флеш-сообщение
-            session()->setFlashdata('success', 'Биом успешно обновлен.');
-            // Перенаправляем пользователя на страницу всех биомов
-            return redirect()->to(site_url('admin/biomes'));
-        } else {
+        if (!$updated) {
             return $this->failServerError('Не удалось обновить биом.');
         }
-    }
 
-    /**
-     * F1.9 expansion (v0.51.10): єдина точка запису destructive admin actions.
-     *
-     * @param array<string, mixed> $payload
-     */
-    private function auditAdminAction(string $action, ?string $targetType, ?int $targetId, array $payload = []): void
-    {
-        $auth = service('auth');
-        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
-        (new AdminAuditLogModel())->record($adminUserId, $action, $targetType, $targetId, $payload);
+        $this->audit('BIOME_UPDATE', 'biome', (int) $biomeId, [
+            'name'                => $this->request->getPost('name'),
+            'gather_rate'         => $this->request->getPost('gather_rate'),
+            'survival_difficulty' => $this->request->getPost('survival_difficulty'),
+            'danger_level'        => $this->request->getPost('danger_level'),
+        ]);
+
+        return $this->redirectWithSuccess(site_url('admin/biomes'), 'Биом успешно обновлен.');
     }
 }

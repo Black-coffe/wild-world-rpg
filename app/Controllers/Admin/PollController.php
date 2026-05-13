@@ -1,7 +1,7 @@
-<?php namespace App\Controllers\Admin;
+<?php
 
-use App\Controllers\BaseController;
-use App\Models\AdminAuditLogModel;
+namespace App\Controllers\Admin;
+
 use App\Models\PollModel;
 use App\Models\PollAnswerModel;
 use App\Models\PollVoteModel;
@@ -11,7 +11,7 @@ use Longman\TelegramBot\Telegram;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Exception\TelegramException;
 
-class PollController extends BaseController
+class PollController extends BaseAdminController
 {
     protected PollModel $pollModel;
     protected PollAnswerModel $pollAnswerModel;
@@ -186,7 +186,7 @@ class PollController extends BaseController
         }
 
         $this->pollModel->delete($id);
-        $this->auditAdminAction('POLL_DELETE', 'poll', (int) $id, ['question' => mb_substr((string) $poll['question'], 0, 200)]);
+        $this->audit('POLL_DELETE', 'poll', (int) $id, ['question' => mb_substr((string) $poll['question'], 0, 200)]);
         return redirect()->to('/admin/polls')->with('message', 'Опрос успешно удалён.');
     }
 
@@ -227,7 +227,7 @@ class PollController extends BaseController
             return redirect()->back()->with('error', 'Опрос не найден.');
         }
         $this->pollModel->update($id, ['active' => 0]);
-        $this->auditAdminAction('POLL_STOP', 'poll', (int) $id);
+        $this->audit('POLL_STOP', 'poll', (int) $id);
         return redirect()->to('/admin/polls')->with('message', 'Опрос остановлен.');
     }
 
@@ -256,23 +256,11 @@ class PollController extends BaseController
         // Рассылка опроса всем пользователям
         $this->sendPollToAllUsers($poll, $answers);
 
-        $this->auditAdminAction('POLL_SEND', 'poll', (int) $id, [
+        $this->audit('POLL_SEND', 'poll', (int) $id, [
             'question_length' => mb_strlen((string) $poll['question']),
             'answers_count'   => count($answers),
         ]);
         return redirect()->to('/admin/polls')->with('message', 'Опрос запущен и отправлен всем игрокам.');
-    }
-
-    /**
-     * F1.9 — единая запись destructive админских действий по опросам.
-     *
-     * @param array<string, mixed> $payload
-     */
-    private function auditAdminAction(string $action, ?string $targetType, ?int $targetId, array $payload = []): void
-    {
-        $auth = service('auth');
-        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
-        (new AdminAuditLogModel())->record($adminUserId, $action, $targetType, $targetId, $payload);
     }
 
     /**
