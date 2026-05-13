@@ -619,12 +619,6 @@ parameters:
 			path: app/Controllers/Admin/MapController.php
 
 		-
-			message: '#^Parameter \#1 \$telegramId of method App\\Controllers\\Admin\\MessageController\:\:sendTelegramMessage\(\) expects int\|string, bool\|float\|int\|object\|string\|null given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Admin/MessageController.php
-
-		-
 			message: '#^Cannot access offset ''active'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 4
@@ -20159,12 +20153,6 @@ parameters:
 			identifier: variable.undefined
 			count: 3
 			path: app/Views/admin/resource_index.php
-
-		-
-			message: '#^Parameter \#1 \(mixed\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 2
-			path: app/Views/admin/send_message.php
 
 		-
 			message: '#^Variable \$this might not be defined\.$#'

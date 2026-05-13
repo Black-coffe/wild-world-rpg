@@ -189,6 +189,8 @@ class ImageRegistry extends BaseConfig
         'faction.farmers'         => 'a working homestead — cloudy polytunnels, tilled rows, water barrels, livestock pens, sacks of grain, washing on a line, a communal table, smoke from a chimney; low golden sun, a fire — the warmest, most human shot; calm, abundant, communal.',
         'faction.farmers.endgame' => 'a laden raft or boat pulling away from the island shore at dawn, people aboard, a peaceful collective exodus — evacuation.',
         'faction.reveal-hub'      => 'four weathered photographs laid side by side — a fortified compound, a hidden bush camp, a tech yard, a working homestead — the four paths a survivor can choose; one world, four ways to live in it.',
+        // — Анонс/рассылка (admin broadcast) —
+        'announcement.generic'    => "a recovered photograph that visually echoes a general announcement from the survivors' world — a candid moment in their everyday post-collapse life, a single readable subject in the centre, ordinary working tools or salvaged tech around; survival mood, no event-specific drama, no posing.",
     ];
 
     /**
