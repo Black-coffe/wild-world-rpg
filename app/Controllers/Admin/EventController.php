@@ -87,11 +87,11 @@ class EventController extends BaseAdminController
 
     public function createEventForm(): string
     {
-        $bioms = $this->biomeModel->findAll();
+        $biomes = $this->biomeModel->findAll();
 
         return view('admin/event_create_form', [
-            'title' => 'Создание нового события',
-            'bioms' => $bioms,
+            'title'  => 'Создание нового события',
+            'biomes' => $biomes,
         ]);
     }
 
