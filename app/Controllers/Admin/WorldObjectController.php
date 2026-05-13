@@ -60,7 +60,7 @@ class WorldObjectController extends BaseAdminController
         foreach ($objects as &$object) {
             if (!empty($object['biome_id'])) {
                 $biome                = $this->biomeModel->find($object['biome_id']);
-                $object['biome_name'] = $biome !== null ? (string) (((array) $biome)['name'] ?? 'Не указан') : 'Не указан';
+                $object['biome_name'] = $biome !== null ? (string) ($this->entityToArray($biome)['name'] ?? 'Не указан') : 'Не указан';
             } else {
                 $object['biome_name'] = 'Не привязан к биому';
             }
