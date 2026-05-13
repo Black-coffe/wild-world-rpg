@@ -4,6 +4,6 @@
 
 <h2>Добавить новый объект в игровой мир</h2>
 
-<?= $this->include('admin/partials/_world_object_form', ['mode' => 'create', 'biomes' => $biomes]) ?>
+<?= view('admin/partials/_world_object_form', ['mode' => 'create', 'biomes' => $biomes]) ?>
 
 <?= $this->endSection() ?>

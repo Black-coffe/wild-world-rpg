@@ -19215,7 +19215,7 @@ parameters:
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 4
+			count: 3
 			path: app/Views/admin/event_create_form.php
 
 		-
@@ -19239,7 +19239,7 @@ parameters:
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 4
+			count: 3
 			path: app/Views/admin/event_edit_form.php
 
 		-
@@ -19671,7 +19671,7 @@ parameters:
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 4
+			count: 3
 			path: app/Views/admin/quest_create.php
 
 		-
@@ -19689,7 +19689,7 @@ parameters:
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 4
+			count: 3
 			path: app/Views/admin/quest_edit_form.php
 
 		-
@@ -19725,7 +19725,7 @@ parameters:
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 4
+			count: 3
 			path: app/Views/admin/resource_create.php
 
 		-
@@ -19749,7 +19749,7 @@ parameters:
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 4
+			count: 3
 			path: app/Views/admin/resource_edit_form.php
 
 		-
@@ -19785,7 +19785,7 @@ parameters:
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 4
+			count: 3
 			path: app/Views/admin/task_create.php
 
 		-
@@ -19797,7 +19797,7 @@ parameters:
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 4
+			count: 3
 			path: app/Views/admin/task_edit_form.php
 
 		-
@@ -19827,7 +19827,7 @@ parameters:
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 4
+			count: 3
 			path: app/Views/admin/tip_create.php
 
 		-
@@ -19839,7 +19839,7 @@ parameters:
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 4
+			count: 3
 			path: app/Views/admin/tip_edit_form.php
 
 		-
@@ -19881,7 +19881,7 @@ parameters:
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 4
+			count: 3
 			path: app/Views/admin/world_object_create.php
 
 		-
@@ -19905,7 +19905,7 @@ parameters:
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 4
+			count: 3
 			path: app/Views/admin/world_object_edit_form.php
 
 		-

@@ -4,6 +4,6 @@
 
 <h2>Редактировать объект: <?= esc($object['name']) ?></h2>
 
-<?= $this->include('admin/partials/_world_object_form', ['mode' => 'edit', 'object' => $object, 'biomes' => $biomes]) ?>
+<?= view('admin/partials/_world_object_form', ['mode' => 'edit', 'object' => $object, 'biomes' => $biomes]) ?>
 
 <?= $this->endSection() ?>

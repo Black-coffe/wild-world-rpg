@@ -4,6 +4,6 @@
 
 <h2>Создать новый ресурс</h2>
 
-<?= $this->include('admin/partials/_resource_form', ['mode' => 'create', 'biomes' => $biomes]) ?>
+<?= view('admin/partials/_resource_form', ['mode' => 'create', 'biomes' => $biomes]) ?>
 
 <?= $this->endSection() ?>

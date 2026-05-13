@@ -4,6 +4,6 @@
 
 <h2>Создать новый совет</h2>
 
-<?= $this->include('admin/partials/_tip_form', ['mode' => 'create']) ?>
+<?= view('admin/partials/_tip_form', ['mode' => 'create']) ?>
 
 <?= $this->endSection() ?>

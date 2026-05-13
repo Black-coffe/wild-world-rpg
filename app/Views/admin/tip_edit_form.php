@@ -4,6 +4,6 @@
 
 <h2>Редактировать совет: <?= esc($tip['title_ru']) ?></h2>
 
-<?= $this->include('admin/partials/_tip_form', ['mode' => 'edit', 'tip' => $tip]) ?>
+<?= view('admin/partials/_tip_form', ['mode' => 'edit', 'tip' => $tip]) ?>
 
 <?= $this->endSection() ?>
