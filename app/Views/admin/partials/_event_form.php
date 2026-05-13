@@ -16,9 +16,10 @@ $event   = $event ?? null;
 
 // При create — все биомы checked по умолчанию (legacy-поведение).
 // При edit — checked только те, что в JSON event.biome_ids.
+// $biomes — list<BiomeEntity|array> (F1.4 migration: BiomeModel returnType=Entity, доступ через ArrayAccess).
 $selectedBiomes = $isEdit && $event !== null
     ? (json_decode($event['biome_ids'] ?? '[]', true) ?? [])
-    : array_map(static fn (array $b): int => (int) $b['id'], $biomes);
+    : array_map(static fn ($b): int => (int) $b['id'], $biomes);
 
 $formAction = $isEdit
     ? site_url('admin/events/update/' . ($event['event_id'] ?? 0))
