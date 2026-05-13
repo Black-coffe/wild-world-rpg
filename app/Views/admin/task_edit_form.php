@@ -4,6 +4,6 @@
 
 <h2>Редактировать задачу</h2>
 
-<?= $this->include('admin/partials/_task_form', ['mode' => 'edit', 'task' => $task]) ?>
+<?= view('admin/partials/_task_form', ['mode' => 'edit', 'task' => $task]) ?>
 
 <?= $this->endSection() ?>
