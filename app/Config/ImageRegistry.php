@@ -370,9 +370,9 @@ class ImageRegistry extends BaseConfig
 
         // ─────────────── МИНИ-ИГРЫ ───────────────
         ['key' => 'wheel_fortune_game', 'file' => 'uploads/telegram/wheel_fortune_game.png', 'lexicon' => 'minigame.wheel', 'scene' => '', 'mode' => 'V4', 'status' => 'generated', 'used_in' => 'WheelOfFortune mini-game'],
-        ['key' => 'guess_the_number', 'file' => 'uploads/telegram/guess_the_number.png', 'lexicon' => 'minigame.guess-number', 'scene' => '', 'mode' => 'V4', 'status' => 'pending', 'used_in' => 'GuessTheNumber mini-game'],
-        ['key' => 'stone_paper_scissors', 'file' => 'uploads/telegram/stone_paper_scissors.png', 'lexicon' => 'minigame.rps', 'scene' => '', 'mode' => 'V4', 'status' => 'pending', 'used_in' => 'RockPaperScissors mini-game'],
-        ['key' => 'fun_games', 'file' => 'uploads/telegram/fun_games.png', 'lexicon' => 'minigame.hub', 'scene' => '', 'mode' => 'V1', 'status' => 'pending', 'used_in' => 'EntertaimentAction (games hub)'],
+        ['key' => 'guess_the_number', 'file' => 'uploads/telegram/guess_the_number.png', 'lexicon' => 'minigame.guess-number', 'scene' => '', 'mode' => 'V4', 'status' => 'generated', 'used_in' => 'GuessTheNumber mini-game', 'notes' => 'критическая на «никаких цифр» — прошла чисто 2026-05-13: 8 камешков+scratch-marks, 0 цифр/букв'],
+        ['key' => 'stone_paper_scissors', 'file' => 'uploads/telegram/stone_paper_scissors.png', 'lexicon' => 'minigame.rps', 'scene' => '', 'mode' => 'V4', 'status' => 'generated', 'used_in' => 'RockPaperScissors mini-game'],
+        ['key' => 'fun_games', 'file' => 'uploads/telegram/fun_games.png', 'lexicon' => 'minigame.hub', 'scene' => '', 'mode' => 'V1', 'status' => 'generated', 'used_in' => 'EntertaimentAction (games hub)'],
 
         // ─────────────── СЛУЖЕБНОЕ / FALLBACK ───────────────
         ['key' => 'fallback_image', 'file' => 'uploads/telegram/fallback_image.jpg', 'lexicon' => 'world.generic', 'scene' => '', 'mode' => 'V1', 'status' => 'pending', 'used_in' => 'global fallback image', 'notes' => 'проверить, реально ли используется (grep не нашёл прямого ref) — возможен orphan'],
