@@ -313,9 +313,9 @@ class ImageRegistry extends BaseConfig
 
         // ─────────────── STANDARD: РОБОТЫ ───────────────
         ['key' => 'craft/standard/robot_explorer', 'file' => 'uploads/telegram/craft/standard/robot_explorer.jpg', 'lexicon' => 'robot.explorer', 'scene' => '', 'mode' => 'V4', 'status' => 'generated', 'used_in' => 'RobotExplorer recipe / robot management'],
-        ['key' => 'craft/standard/robot_gatherer', 'file' => 'uploads/telegram/craft/standard/robot_gatherer.jpg', 'lexicon' => 'robot.gatherer', 'scene' => '', 'mode' => 'V4', 'status' => 'pending', 'used_in' => 'RobotGatherer display', 'notes' => 'orphan-вариант robot_gatherer2.jpg НЕ регенерим'],
-        ['key' => 'craft/standard/craftRobotGatherer', 'file' => 'uploads/telegram/craft/standard/craftRobotGatherer.jpg', 'lexicon' => 'robot.gatherer', 'scene' => 'a gatherer robot half-built and clamped on a stand in a robotics workshop', 'mode' => 'V4', 'status' => 'pending', 'used_in' => 'RobotGatherer craft in-progress'],
-        ['key' => 'craft/standard/all_robots', 'file' => 'uploads/telegram/craft/standard/all_robots.jpg', 'lexicon' => 'robot.overview', 'scene' => '', 'mode' => 'V4', 'status' => 'pending', 'used_in' => 'all robots overview'],
+        ['key' => 'craft/standard/robot_gatherer', 'file' => 'uploads/telegram/craft/standard/robot_gatherer.jpg', 'lexicon' => 'robot.gatherer', 'scene' => '', 'mode' => 'V4', 'status' => 'generated', 'used_in' => 'RobotGatherer display', 'notes' => 'orphan-вариант robot_gatherer2.jpg НЕ регенерим'],
+        ['key' => 'craft/standard/craftRobotGatherer', 'file' => 'uploads/telegram/craft/standard/craftRobotGatherer.jpg', 'lexicon' => 'robot.gatherer', 'scene' => 'a gatherer robot half-built and clamped on a stand in a robotics workshop', 'mode' => 'V4', 'status' => 'generated', 'used_in' => 'RobotGatherer craft in-progress'],
+        ['key' => 'craft/standard/all_robots', 'file' => 'uploads/telegram/craft/standard/all_robots.jpg', 'lexicon' => 'robot.overview', 'scene' => '', 'mode' => 'V4', 'status' => 'generated', 'used_in' => 'all robots overview'],
 
         // ─────────────── STANDARD: МАЯКИ ───────────────
         ['key' => 'craft/standard/beacon_craft', 'file' => 'uploads/telegram/craft/standard/beacon_craft.jpg', 'lexicon' => 'beacon', 'scene' => 'a teleport beacon being assembled — pipe tripod, batteries taped on, coils being wound', 'mode' => 'V4', 'status' => 'pending', 'used_in' => 'Beacon recipe in-progress'],
