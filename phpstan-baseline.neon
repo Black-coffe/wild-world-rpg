@@ -313,6 +313,18 @@ parameters:
 			path: app/Controllers/Admin/CharacterResetController.php
 
 		-
+			message: '#^Parameter \#1 \$row of method CodeIgniter\\BaseModel\:\:save\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object, array\<int\|string, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Admin/EventController.php
+
+		-
+			message: '#^Parameter \#2 \$row of method CodeIgniter\\Model\:\:update\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null, array\<int\|string, mixed\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Controllers/Admin/EventController.php
+
+		-
 			message: '#^Method App\\Controllers\\Admin\\MapController\:\:generateMap\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1
@@ -469,13 +481,13 @@ parameters:
 			path: app/Controllers/Admin/WorldObjectController.php
 
 		-
-			message: '#^Parameter \#1 \$row of method CodeIgniter\\Model\:\:insert\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null, array\<string, mixed\> given\.$#'
+			message: '#^Parameter \#1 \$row of method CodeIgniter\\Model\:\:insert\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null, array\<int\|string, mixed\> given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Admin/WorldObjectController.php
 
 		-
-			message: '#^Parameter \#2 \$row of method CodeIgniter\\Model\:\:update\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null, array\<string, mixed\> given\.$#'
+			message: '#^Parameter \#2 \$row of method CodeIgniter\\Model\:\:update\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null, array\<int\|string, mixed\> given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Controllers/Admin/WorldObjectController.php

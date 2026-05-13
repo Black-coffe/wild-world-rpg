@@ -81,4 +81,28 @@ abstract class BaseAdminController extends BaseController
     {
         return redirect()->back()->with('error', $message);
     }
+
+    /**
+     * Сериализовать перечисленные поля в JSON-строки in-place перед записью в БД.
+     * Используется для админ-CRUD'ов, где TEXT-колонки хранят JSON-массивы
+     * (`events.biome_ids`, `world_objects.biome_id`, и пр. — см. roadmap Phase C
+     * который превратит эти TEXT-поля в pivot-таблицы; до тех пор — этот helper).
+     *
+     * Поведение: если поле не задано или не является массивом — кодируется как `[]`
+     * (empty JSON array). Это совпадает с многолетним паттерном в EventController
+     * (`isset && is_array ? json_encode : '[]'`), который теперь централизован.
+     *
+     * @param array<int|string, mixed> $data
+     * @param list<string>             $fields  Имена полей в `$data` для кодирования.
+     * @return array<int|string, mixed>
+     */
+    protected function jsonEncodeArrayFields(array $data, array $fields): array
+    {
+        foreach ($fields as $field) {
+            $value         = $data[$field] ?? null;
+            $data[$field]  = json_encode(is_array($value) ? $value : []);
+        }
+
+        return $data;
+    }
 }
