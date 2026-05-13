@@ -19372,6 +19372,36 @@ parameters:
 			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
 			identifier: foreach.nonIterable
 			count: 1
+			path: app/Views/admin/partials/_resource_form.php
+
+		-
+			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, array\|string\|null given\.$#'
+			identifier: argument.type
+			count: 18
+			path: app/Views/admin/partials/_resource_form.php
+
+		-
+			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Views/admin/partials/_resource_form.php
+
+		-
+			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
+			identifier: echo.nonString
+			count: 12
+			path: app/Views/admin/partials/_resource_form.php
+
+		-
+			message: '#^Variable \$biomes might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/partials/_resource_form.php
+
+		-
+			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 1
 			path: app/Views/admin/partials/_task_form.php
 
 		-
@@ -19415,6 +19445,48 @@ parameters:
 			identifier: echo.nonString
 			count: 4
 			path: app/Views/admin/partials/_tip_form.php
+
+		-
+			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 1
+			path: app/Views/admin/partials/_world_object_form.php
+
+		-
+			message: '#^Cannot cast array\|string\|null to string\.$#'
+			identifier: cast.string
+			count: 2
+			path: app/Views/admin/partials/_world_object_form.php
+
+		-
+			message: '#^Parameter \#1 \$callback of function array_map expects \(callable\(mixed\)\: mixed\)\|null, ''intval'' given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Views/admin/partials/_world_object_form.php
+
+		-
+			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, array\|string\|null given\.$#'
+			identifier: argument.type
+			count: 10
+			path: app/Views/admin/partials/_world_object_form.php
+
+		-
+			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Views/admin/partials/_world_object_form.php
+
+		-
+			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
+			identifier: echo.nonString
+			count: 10
+			path: app/Views/admin/partials/_world_object_form.php
+
+		-
+			message: '#^Variable \$biomes might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/partials/_world_object_form.php
 
 		-
 			message: '#^Parameter \#1 \(mixed\) of echo cannot be converted to string\.$#'
@@ -19645,42 +19717,6 @@ parameters:
 			path: app/Views/admin/quest_index.php
 
 		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: app/Views/admin/resource_create.php
-
-		-
-			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Views/admin/resource_create.php
-
-		-
-			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 3
-			path: app/Views/admin/resource_create.php
-
-		-
-			message: '#^Parameter \#1 \(array\|string\|null\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 9
-			path: app/Views/admin/resource_create.php
-
-		-
-			message: '#^Parameter \#2 \$default of function old expects string\|null, array given\.$#'
-			identifier: argument.type
-			count: 5
-			path: app/Views/admin/resource_create.php
-
-		-
-			message: '#^Parameter \#2 \$haystack of function in_array expects array, array\|string\|null given\.$#'
-			identifier: argument.type
-			count: 5
-			path: app/Views/admin/resource_create.php
-
-		-
 			message: '#^Variable \$biomes might not be defined\.$#'
 			identifier: variable.undefined
 			count: 1
@@ -19689,31 +19725,13 @@ parameters:
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 3
+			count: 4
 			path: app/Views/admin/resource_create.php
-
-		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: app/Views/admin/resource_edit_form.php
-
-		-
-			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Views/admin/resource_edit_form.php
 
 		-
 			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
 			identifier: echo.nonString
-			count: 3
-			path: app/Views/admin/resource_edit_form.php
-
-		-
-			message: '#^Parameter \#1 \(array\|string\|null\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 9
+			count: 1
 			path: app/Views/admin/resource_edit_form.php
 
 		-
@@ -19725,13 +19743,13 @@ parameters:
 		-
 			message: '#^Variable \$resource might not be defined\.$#'
 			identifier: variable.undefined
-			count: 14
+			count: 2
 			path: app/Views/admin/resource_edit_form.php
 
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 3
+			count: 4
 			path: app/Views/admin/resource_edit_form.php
 
 		-
@@ -19855,36 +19873,6 @@ parameters:
 			path: app/Views/admin/tips_index.php
 
 		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: app/Views/admin/world_object_create.php
-
-		-
-			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Views/admin/world_object_create.php
-
-		-
-			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 1
-			path: app/Views/admin/world_object_create.php
-
-		-
-			message: '#^Parameter \#2 \$default of function old expects string\|null, array given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Views/admin/world_object_create.php
-
-		-
-			message: '#^Parameter \#2 \$haystack of function in_array expects array, array\|string\|null given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Views/admin/world_object_create.php
-
-		-
 			message: '#^Variable \$biomes might not be defined\.$#'
 			identifier: variable.undefined
 			count: 1
@@ -19893,31 +19881,13 @@ parameters:
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 3
+			count: 4
 			path: app/Views/admin/world_object_create.php
-
-		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: app/Views/admin/world_object_edit_form.php
-
-		-
-			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Views/admin/world_object_edit_form.php
-
-		-
-			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, string\|false given\.$#'
-			identifier: argument.type
-			count: 2
-			path: app/Views/admin/world_object_edit_form.php
 
 		-
 			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
 			identifier: echo.nonString
-			count: 9
+			count: 1
 			path: app/Views/admin/world_object_edit_form.php
 
 		-
@@ -19929,13 +19899,13 @@ parameters:
 		-
 			message: '#^Variable \$object might not be defined\.$#'
 			identifier: variable.undefined
-			count: 10
+			count: 2
 			path: app/Views/admin/world_object_edit_form.php
 
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 3
+			count: 4
 			path: app/Views/admin/world_object_edit_form.php
 
 		-
