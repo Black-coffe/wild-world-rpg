@@ -1,20 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers\Admin;
 
-use App\Controllers\BaseController;
-use App\Models\AdminAuditLogModel;
 use App\Models\EventModel;
 use App\Models\BiomeModel;
-use CodeIgniter\API\ResponseTrait;
+use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\WorldEvents;
 
-class EventController extends BaseController
+class EventController extends BaseAdminController
 {
-    use ResponseTrait;
-
-    protected $eventModel;
-    protected $biomeModel;
+    protected EventModel $eventModel;
+    protected BiomeModel $biomeModel;
 
     public function __construct()
     {
@@ -22,146 +21,111 @@ class EventController extends BaseController
         $this->biomeModel = new BiomeModel();
     }
 
-    // Метод для отображения списка всех событий
-    public function index()
+    public function index(): string
     {
         $events = $this->eventModel->findAll();
 
         return view('admin/event_index', [
             'events' => $events,
-            'title' => 'Список всех Событий в игре'
+            'title'  => 'Список всех Событий в игре',
         ]);
     }
 
-    // Метод для отображения формы редактирования события
-    public function editEventForm($eventId)
+    public function editEventForm(int|string $eventId): string|ResponseInterface
     {
-        $event = $this->eventModel->find($eventId);
+        $eventRaw = $this->eventModel->find($eventId);
 
-        if ($event == null) {
+        if ($eventRaw === null) {
             return $this->failNotFound('Событие не найдено.');
         }
+        $event = (array) $eventRaw;
 
-        // Загрузка данных о биомах
-        $biomes = $this->biomeModel->findAll(); // Убедитесь, что у вас есть модель для биомов и она загружена в контроллере
+        $biomes = $this->biomeModel->findAll();
 
-        // F7.11: WorldEvents config для отображения effect_kind / tick_chance / etc. (read-only)
-        $worldConfig = config('WorldEvents')?->get($event['name_english']);
+        // F7.11: WorldEvents config для отображения effect_kind / tick_chance / etc. (read-only).
+        $worldConfig = config(WorldEvents::class)->get((string) ($event['name_english'] ?? ''));
 
         return view('admin/event_edit_form', [
             'event'       => $event,
-            'biomes'      => $biomes, // Передача данных о биомах в представление
-            'worldConfig' => $worldConfig,  // F7.11: ?array — null если name_english не зарегистрирован
-            'title'       => 'Редактирование события: ' . $event['name']
+            'biomes'      => $biomes,
+            'worldConfig' => $worldConfig,
+            'title'       => 'Редактирование события: ' . (string) ($event['name'] ?? ''),
         ]);
     }
 
-
-    // Метод для обновления информации о событии
-    public function updateEvent($eventId)
+    public function updateEvent(int|string $eventId): RedirectResponse|ResponseInterface
     {
-        $data = $this->request->getPost();
+        $data = (array) $this->request->getPost();
 
-        // Преобразование biome_ids в JSON, как в методе storeEvent
         if (isset($data['biome_ids']) && is_array($data['biome_ids'])) {
             $data['biome_ids'] = json_encode($data['biome_ids']);
         } else {
             $data['biome_ids'] = json_encode([]);
         }
 
-        // Преобразование random_coverage в 1 или 0
         $data['random_coverage'] = isset($data['random_coverage']) && $data['random_coverage'] === 'on' ? 1 : 0;
 
-        // Валидация данных, используя правила, определенные в модели EventModel
         if (!$this->validate($this->eventModel->getValidationRules(), $this->eventModel->getValidationMessages())) {
-            // Если данные не проходят валидацию, возвращаем пользователя обратно на форму с ошибками валидации
-            return redirect()->back()->withInput()->with('errors', $this->validator?->getErrors() ?? []);
+            return $this->redirectBackWithErrors($this->validator?->getErrors() ?? []);
         }
 
-        // Проверяем, существует ли событие, которое мы хотим обновить
         $existingEvent = $this->eventModel->find($eventId);
         if ($existingEvent === null) {
             return $this->failNotFound('Событие не найдено.');
         }
 
-        // Обновление события
         $updated = $this->eventModel->update($eventId, $data);
 
-        if ($updated) {
-            // F1.9 expansion: audit-лог рaзрушающего действия (event balance change → gameplay impact)
-            $this->auditAdminAction('EVENT_UPDATE', 'event', (int) $eventId, [
-                'name'             => $data['name'] ?? null,
-                'effect_type'      => $data['effect_type'] ?? null,
-                'effect_value'     => $data['effect_value'] ?? null,
-                'duration'         => $data['duration'] ?? null,
-                'frequency_per_week' => $data['frequency_per_week'] ?? null,
-            ]);
-            // Если событие успешно обновлено, устанавливаем флеш-сообщение и перенаправляем на список всех событий
-            session()->setFlashdata('success', 'Событие успешно обновлено.');
-            return redirect()->to(site_url('admin/events'));
-        } else {
-            // Если произошла ошибка при обновлении, возвращаем ошибку сервера
+        if (!$updated) {
             return $this->failServerError('Не удалось обновить событие.');
         }
+
+        $this->audit('EVENT_UPDATE', 'event', (int) $eventId, [
+            'name'               => $data['name'] ?? null,
+            'effect_type'        => $data['effect_type'] ?? null,
+            'effect_value'       => $data['effect_value'] ?? null,
+            'duration'           => $data['duration'] ?? null,
+            'frequency_per_week' => $data['frequency_per_week'] ?? null,
+        ]);
+
+        return $this->redirectWithSuccess(site_url('admin/events'), 'Событие успешно обновлено.');
     }
 
-// Метод для отображения формы создания нового события
-    public function createEventForm()
+    public function createEventForm(): string
     {
-        $bioms =  $this->biomeModel->findAll();
+        $bioms = $this->biomeModel->findAll();
+
         return view('admin/event_create_form', [
             'title' => 'Создание нового события',
-            'bioms' => $bioms
+            'bioms' => $bioms,
         ]);
     }
 
-// Метод для валидации данных и сохранения нового события
-    public function storeEvent()
+    public function storeEvent(): RedirectResponse|ResponseInterface
     {
-        // Получение данных POST-запроса
-        $data = $this->request->getPost();
+        $data = (array) $this->request->getPost();
 
-        // Преобразование biome_ids в JSON
-        $data['biome_ids'] = json_encode($data['biome_ids']);
-
-        // Преобразование random_coverage
+        $data['biome_ids']       = json_encode($data['biome_ids'] ?? []);
         $data['random_coverage'] = isset($data['random_coverage']) ? 1 : 0;
 
-        // Валидация данных
         if (!$this->validate($this->eventModel->getValidationRules(), $this->eventModel->getValidationMessages())) {
-            return redirect()->back()->withInput()->with('errors', $this->validator?->getErrors() ?? []);
+            return $this->redirectBackWithErrors($this->validator?->getErrors() ?? []);
         }
 
-        // Сохранение данных
         $saved = $this->eventModel->save($data);
 
-        if ($saved) {
-            // F1.9 expansion: audit-лог створення подiї (gameplay impact)
-            $newEventId = (int) $this->eventModel->getInsertID();
-            $this->auditAdminAction('EVENT_CREATE', 'event', $newEventId, [
-                'name'             => $data['name'] ?? null,
-                'effect_type'      => $data['effect_type'] ?? null,
-                'effect_value'     => $data['effect_value'] ?? null,
-                'duration'         => $data['duration'] ?? null,
-                'frequency_per_week' => $data['frequency_per_week'] ?? null,
-            ]);
-            session()->setFlashdata('success', 'Новое событие успешно создано.');
-            return redirect()->to(site_url('admin/events'));
-        } else {
+        if (!$saved) {
             return $this->failServerError('Не удалось создать событие.');
         }
-    }
 
-    /**
-     * F1.9 expansion (v0.51.9): єдина точка запису destructive admin actions для events.
-     * Identical pattern to PollController::auditAdminAction (consistency).
-     *
-     * @param array<string, mixed> $payload
-     */
-    private function auditAdminAction(string $action, ?string $targetType, ?int $targetId, array $payload = []): void
-    {
-        $auth = service('auth');
-        $adminUserId = is_object($auth) && method_exists($auth, 'user') ? (int) ($auth->user()->id ?? 0) : 0;
-        (new AdminAuditLogModel())->record($adminUserId, $action, $targetType, $targetId, $payload);
+        $this->audit('EVENT_CREATE', 'event', (int) $this->eventModel->getInsertID(), [
+            'name'               => $data['name'] ?? null,
+            'effect_type'        => $data['effect_type'] ?? null,
+            'effect_value'       => $data['effect_value'] ?? null,
+            'duration'           => $data['duration'] ?? null,
+            'frequency_per_week' => $data['frequency_per_week'] ?? null,
+        ]);
+
+        return $this->redirectWithSuccess(site_url('admin/events'), 'Новое событие успешно создано.');
     }
 }
