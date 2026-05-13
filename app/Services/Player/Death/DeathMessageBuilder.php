@@ -119,10 +119,22 @@ final class DeathMessageBuilder
     }
 
     /**
-     * «Damage»-событие, которое сейчас активно и применялось к персонажу
-     * (персонаж есть в `effect_log` активного `active_events`). Лучшее усилие: если не
-     * вышло определить — null. Используют: причина смерти ({@see rouletteDeath}),
+     * «Damage»-событие, которое **сейчас активно или недавно завершилось** и применялось
+     * к персонажу (персонаж есть в `effect_log` записи `active_events`). Лучшее усилие:
+     * если не вышло определить — null. Используют: причина смерти ({@see rouletteDeath}),
      * предупреждение о низком здоровье ({@see \App\TaskHandlers\LowHealthWarningHandler}).
+     *
+     * **Bug-fix (2026-05-13, prod-report):** раньше фильтровали `status='active'`, но
+     * рулетка смерти может сработать через 1–2 минуты ПОСЛЕ того, как событие закрылось
+     * (`status='completed'`) — HP уже просело до 0.01, событие закончилось, через тик
+     * пришла рулетка. В этом случае `activeDamageEvent()` возвращало `null` → сообщение
+     * о смерти не называло событие, говорило «обычно это голод или урон от мирового
+     * события». Игрок (Arseny/Arich, 2026-05-13 15:06 UTC): «Это про извержение,
+     * убили за несколько минут» — он не понимал, что именно его убило.
+     *
+     * Fix: смотрим на 20 последних event'ов независимо от status (active+completed).
+     * Если char_id есть в `effect_log` одного из последних 20 — это релевантное событие
+     * (rolling window закрывает race-условие закрытия event'а до death-tick'а).
      *
      * @return array{name: string, name_english: string, protection_item: ?string}|null
      */
@@ -133,7 +145,7 @@ final class DeathMessageBuilder
         }
         $key  = (string) $charId;
         $rows = $this->activeEventModel
-            ->where('status', 'active')
+            ->whereIn('status', ['active', 'completed'])
             ->orderBy('id', 'DESC')
             ->findAll(20);
 

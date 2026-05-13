@@ -9793,12 +9793,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Profile/PersonalInsurance.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Profile\\PersonalInsurance\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Profile/PersonalInsurance.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Profile\\ToggleEquipArmorAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
@@ -9927,12 +9921,6 @@ parameters:
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Profile\\ToggleInsuranceAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Profile/ToggleInsuranceAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Profile\\ToggleInsuranceAction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
 			count: 1
 			path: app/Controllers/Telegram/Commands/Profile/ToggleInsuranceAction.php
 
