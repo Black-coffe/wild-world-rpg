@@ -19345,6 +19345,78 @@ parameters:
 			path: app/Views/admin/partials/_event_form.php
 
 		-
+			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 1
+			path: app/Views/admin/partials/_quest_form.php
+
+		-
+			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, array\|string\|null given\.$#'
+			identifier: argument.type
+			count: 10
+			path: app/Views/admin/partials/_quest_form.php
+
+		-
+			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Views/admin/partials/_quest_form.php
+
+		-
+			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
+			identifier: echo.nonString
+			count: 6
+			path: app/Views/admin/partials/_quest_form.php
+
+		-
+			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 1
+			path: app/Views/admin/partials/_task_form.php
+
+		-
+			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, array\|string\|null given\.$#'
+			identifier: argument.type
+			count: 14
+			path: app/Views/admin/partials/_task_form.php
+
+		-
+			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Views/admin/partials/_task_form.php
+
+		-
+			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
+			identifier: echo.nonString
+			count: 8
+			path: app/Views/admin/partials/_task_form.php
+
+		-
+			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
+			identifier: foreach.nonIterable
+			count: 1
+			path: app/Views/admin/partials/_tip_form.php
+
+		-
+			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, array\|string\|null given\.$#'
+			identifier: argument.type
+			count: 6
+			path: app/Views/admin/partials/_tip_form.php
+
+		-
+			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Views/admin/partials/_tip_form.php
+
+		-
+			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
+			identifier: echo.nonString
+			count: 4
+			path: app/Views/admin/partials/_tip_form.php
+
+		-
 			message: '#^Parameter \#1 \(mixed\) of echo cannot be converted to string\.$#'
 			identifier: echo.nonString
 			count: 1
@@ -19525,63 +19597,27 @@ parameters:
 			path: app/Views/admin/polls/statistics.php
 
 		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: app/Views/admin/quest_create.php
-
-		-
-			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Views/admin/quest_create.php
-
-		-
-			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 1
-			path: app/Views/admin/quest_create.php
-
-		-
-			message: '#^Parameter \#1 \(array\|string\|null\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 5
-			path: app/Views/admin/quest_create.php
-
-		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 3
+			count: 4
 			path: app/Views/admin/quest_create.php
-
-		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: app/Views/admin/quest_edit_form.php
-
-		-
-			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Views/admin/quest_edit_form.php
 
 		-
 			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
 			identifier: echo.nonString
-			count: 7
+			count: 1
 			path: app/Views/admin/quest_edit_form.php
 
 		-
 			message: '#^Variable \$quest might not be defined\.$#'
 			identifier: variable.undefined
-			count: 10
+			count: 2
 			path: app/Views/admin/quest_edit_form.php
 
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 3
+			count: 4
 			path: app/Views/admin/quest_edit_form.php
 
 		-
@@ -19729,75 +19765,21 @@ parameters:
 			path: app/Views/admin/send_message.php
 
 		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: app/Views/admin/task_create.php
-
-		-
-			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Views/admin/task_create.php
-
-		-
-			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 1
-			path: app/Views/admin/task_create.php
-
-		-
-			message: '#^Parameter \#1 \(array\|string\|null\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 7
-			path: app/Views/admin/task_create.php
-
-		-
-			message: '#^Parameter \#2 \$default of function old expects string\|null, int given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Views/admin/task_create.php
-
-		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 3
+			count: 4
 			path: app/Views/admin/task_create.php
-
-		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: app/Views/admin/task_edit_form.php
-
-		-
-			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Views/admin/task_edit_form.php
-
-		-
-			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 1
-			path: app/Views/admin/task_edit_form.php
-
-		-
-			message: '#^Parameter \#1 \(array\|string\|null\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 7
-			path: app/Views/admin/task_edit_form.php
 
 		-
 			message: '#^Variable \$task might not be defined\.$#'
 			identifier: variable.undefined
-			count: 18
+			count: 1
 			path: app/Views/admin/task_edit_form.php
 
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 3
+			count: 4
 			path: app/Views/admin/task_edit_form.php
 
 		-
@@ -19825,63 +19807,27 @@ parameters:
 			path: app/Views/admin/task_index.php
 
 		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: app/Views/admin/tip_create.php
-
-		-
-			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 4
 			path: app/Views/admin/tip_create.php
 
 		-
 			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
 			identifier: echo.nonString
 			count: 1
-			path: app/Views/admin/tip_create.php
-
-		-
-			message: '#^Parameter \#1 \(array\|string\|null\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 3
-			path: app/Views/admin/tip_create.php
-
-		-
-			message: '#^Variable \$this might not be defined\.$#'
-			identifier: variable.undefined
-			count: 3
-			path: app/Views/admin/tip_create.php
-
-		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: app/Views/admin/tip_edit_form.php
-
-		-
-			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Views/admin/tip_edit_form.php
-
-		-
-			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
-			identifier: echo.nonString
-			count: 5
 			path: app/Views/admin/tip_edit_form.php
 
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
-			count: 3
+			count: 4
 			path: app/Views/admin/tip_edit_form.php
 
 		-
 			message: '#^Variable \$tip might not be defined\.$#'
 			identifier: variable.undefined
-			count: 12
+			count: 2
 			path: app/Views/admin/tip_edit_form.php
 
 		-
