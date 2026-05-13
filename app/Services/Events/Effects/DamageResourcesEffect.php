@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Events\Effects;
 
+use App\Attributes\HandlerKey;
 use App\Services\Events\EventEffectInterface;
 
 /**
@@ -20,6 +21,17 @@ use App\Services\Events\EventEffectInterface;
  * Не виконує DB. Повертає `resource_loss_percent` — диспетчер пройде по
  * character_resources і застосує це у %.
  */
+#[HandlerKey(
+    key: 'damage_resources',
+    displayName: 'Потеря ресурсов',
+    description: 'Снижает запас ресурсов персонажа на % за событие (MeteorRain, MeteorImpact).',
+    inputSchema: [
+        ['name' => 'percent_per_event', 'type' => 'int', 'min' => 1, 'max' => 100],
+        ['name' => 'state_modifier', 'type' => 'state_modifier'],
+        ['name' => 'min_stack', 'type' => 'int', 'min' => 1, 'max' => 1000],
+        ['name' => 'one_shot_at_end', 'type' => 'bool'],
+    ],
+)]
 final class DamageResourcesEffect implements EventEffectInterface
 {
     public function compute(array|\App\Entities\CharacterEntity $character, array $eventConfig, array $activeEvent, array $context): array

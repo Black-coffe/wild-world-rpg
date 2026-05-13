@@ -60,14 +60,29 @@ final class HandlerDiscoveryScanner
      */
     public function discover(array $namespacePrefixes): array
     {
-        $classMap = $this->loadClassMap();
-        $entries  = [];
+        $candidates = [];
 
-        foreach ($classMap as $class => $_file) {
-            if (!$this->matchesAnyPrefix($class, $namespacePrefixes)) {
-                continue;
+        // Шлях 1: Composer class-map (vendor/composer/autoload_classmap.php).
+        // Покриває vendor-пакети + App\*, якщо composer dump-autoload --classmap-authoritative
+        // згенерував map для PSR-4 каталогів. У дефолтному CI4-проекті composer.json
+        // НЕ декларує App\\ як PSR-4 (CI4 має власний autoloader), тому класмап
+        // зазвичай покриває тільки vendor. Це причина додати шлях 2.
+        foreach ($this->loadClassMap() as $class => $_file) {
+            if ($this->matchesAnyPrefix($class, $namespacePrefixes)) {
+                $candidates[$class] = true;
             }
+        }
 
+        // Шлях 2: Filesystem-обхід для App\* namespace-префіксів. Маппимо namespace
+        // в каталог через APPPATH (CI4 convention) і знаходимо FQCN кожного .php
+        // файлу. Це покриває хвостові handler-класи у dev/test/prod коли classmap
+        // не оптимізовано.
+        foreach ($this->collectAppNamespaceClasses($namespacePrefixes) as $class) {
+            $candidates[$class] = true;
+        }
+
+        $entries = [];
+        foreach (array_keys($candidates) as $class) {
             $entry = $this->inspectClass($class);
             if ($entry !== null) {
                 $entries[] = $entry;
@@ -75,6 +90,59 @@ final class HandlerDiscoveryScanner
         }
 
         return $entries;
+    }
+
+    /**
+     * Filesystem-walk для App\* namespace-префіксів. Кожен `.php` файл під
+     * відповідним каталогом → FQCN кандидат.
+     *
+     * Для не-App\ префіксів (наприклад, fixture `Tests\Support\Handlers\Fixtures\\`)
+     * повертає `[]` — там працює classmap-шлях (fixture-classmap тестів) або
+     * не потрібен взагалі.
+     *
+     * @param list<string> $namespacePrefixes
+     * @return list<string>
+     */
+    private function collectAppNamespaceClasses(array $namespacePrefixes): array
+    {
+        $appPathRoot = defined('APPPATH') ? rtrim(APPPATH, '/\\') : null;
+        if ($appPathRoot === null) {
+            return [];
+        }
+
+        $appPrefix = 'App\\';
+        $classes   = [];
+
+        foreach ($namespacePrefixes as $prefix) {
+            if (!str_starts_with($prefix, $appPrefix)) {
+                continue;
+            }
+
+            $relative = str_replace('\\', '/', substr($prefix, strlen($appPrefix)));
+            $dir      = $appPathRoot . '/' . rtrim($relative, '/');
+            if (!is_dir($dir)) {
+                continue;
+            }
+
+            try {
+                $iterator = new \RecursiveIteratorIterator(
+                    new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
+                );
+            } catch (Throwable) {
+                continue;
+            }
+
+            foreach ($iterator as $file) {
+                if (!($file instanceof \SplFileInfo) || !$file->isFile() || $file->getExtension() !== 'php') {
+                    continue;
+                }
+                $relPath = str_replace('\\', '/', substr($file->getPathname(), strlen($appPathRoot) + 1));
+                $classFqcn = $appPrefix . str_replace('/', '\\', substr($relPath, 0, -4));
+                $classes[] = $classFqcn;
+            }
+        }
+
+        return $classes;
     }
 
     /**

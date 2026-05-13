@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Events\Effects;
 
+use App\Attributes\HandlerKey;
 use App\Services\Events\EventEffectInterface;
 
 /**
@@ -34,6 +35,20 @@ use App\Services\Events\EventEffectInterface;
  *
  * Усі формули збережено 1:1 з оригінальних handler'ів. Зміни в balance — окремо.
  */
+#[HandlerKey(
+    key: 'damage_health',
+    displayName: 'Урон здоровью',
+    description: 'Снижает HP и/или выносливость персонажа за тик события (Hurricane, Snowfall, Volcanic, NightAttacks, Epidemic, FlashForestFire, SpringFlood, Tremor, Sandstorm, Fever).',
+    inputSchema: [
+        ['name' => 'damage_target', 'type' => 'enum', 'values' => ['health', 'tired', 'random_h_or_t', 'both', 'biome_type_specific']],
+        ['name' => 'health_loss_range', 'type' => 'int_range', 'min' => 0, 'max' => 100],
+        ['name' => 'tired_loss_range', 'type' => 'int_range', 'min' => 0, 'max' => 100],
+        ['name' => 'damage_range', 'type' => 'int_range', 'min' => 0, 'max' => 100],
+        ['name' => 'state_modifier', 'type' => 'state_modifier'],
+        ['name' => 'time_window', 'type' => 'time_range'],
+        ['name' => 'two_stage_chance', 'type' => 'float', 'min' => 0.0, 'max' => 1.0],
+    ],
+)]
 final class DamageHealthEffect implements EventEffectInterface
 {
     public function compute(array|\App\Entities\CharacterEntity $character, array $eventConfig, array $activeEvent, array $context): array

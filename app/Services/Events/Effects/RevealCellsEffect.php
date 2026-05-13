@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Events\Effects;
 
+use App\Attributes\HandlerKey;
 use App\Services\Events\EventEffectInterface;
 
 /**
@@ -21,6 +22,16 @@ use App\Services\Events\EventEffectInterface;
  *   percent = lookup(level_table, char.level)
  *   count = floor(24 × percent × effect_value / 10000)
  */
+#[HandlerKey(
+    key: 'reveal_cells',
+    displayName: 'Открытие ячеек карты',
+    description: 'Открывает соседние ячейки на карте мира по level_table формуле (MountainEcho).',
+    inputSchema: [
+        ['name' => 'level_table', 'type' => 'level_table'],
+        ['name' => 'on_base_modifier', 'type' => 'float', 'min' => 0.0, 'max' => 1.0],
+        ['name' => 'one_shot_at_start', 'type' => 'bool'],
+    ],
+)]
 final class RevealCellsEffect implements EventEffectInterface
 {
     public function compute(array|\App\Entities\CharacterEntity $character, array $eventConfig, array $activeEvent, array $context): array
