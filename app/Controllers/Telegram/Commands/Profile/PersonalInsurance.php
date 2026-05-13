@@ -1,71 +1,85 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controllers\Telegram\Commands\Profile;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Entities\CharacterEntity;
 use App\Models\CharacterModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
 class PersonalInsurance extends BaseAction
 {
-    protected $characterModel;
-
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
         $this->characterModel = new CharacterModel();
     }
 
+    /**
+     * Сформировать payload «страница страховки» (текст + клавиатура).
+     * Выделено в static — переиспользуется {@see ToggleInsuranceAction} для
+     * edit-in-place после переключения статуса (fix-2026-05-13: раньше Toggle
+     * отправлял отдельное короткое сообщение и не обновлял исходный экран →
+     * игрок не видел, какая кнопка теперь активна, кликал повторно).
+     *
+     * @param array<int|string, mixed>|CharacterEntity $character
+     * @return array{chat_id:int, text:string, parse_mode:string, reply_markup:string}
+     */
+    public static function buildView(array|CharacterEntity $character, int $chatId): array
+    {
+        $hasInsurance = (bool) ($character['insurance'] ?? false);
+        $name         = (string) ($character['name'] ?? 'Выживший');
+
+        $text = "👤 *Персонаж: {$name}*\n\n"
+            . ($hasInsurance
+                ? "✅ У вашего персонажа *есть* страховка от смерти.\n\n"
+                : "❌ У вашего персонажа *нет* страховки от смерти.\n\n")
+            . "🛡 *Информация о страховке:*\n"
+            . "• Включенная страховка позволяет в случае смерти избежать полного обнуления всего, что есть у персонажа.\n"
+            . "• Сохраняется прокачка, инвентарь и все остальное.\n"
+            . "• При смерти персонаж просто возродится на своей базе.\n\n"
+            . "💰 *Стоимость страховки:*\n"
+            . "• Рассчитывается автоматически для каждого игрока.\n"
+            . "• Уникальная цена определяется в момент смерти.\n"
+            . "• Зависит от множества факторов и обстоятельств.\n";
+
+        $toggleLabel = $hasInsurance ? '❌ Отключить страховку' : '🛡 Включить страховку';
+
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => $toggleLabel,    'callback_data' => 'toggleInsurance'],
+                    ['text' => '🧮 Просчет',    'callback_data' => 'calculateInsurance'],
+                ],
+            ],
+        ];
+
+        return [
+            'chat_id'      => $chatId,
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => (string) json_encode($keyboard),
+        ];
+    }
+
     public function handle(): ServerResponse
     {
-        // Получаем данные из callback-запроса
-        $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
+        $chatId = (int) $this->callbackQuery->getMessage()->getChat()->getId();
 
         [$user, $character] = $this->getUserAndCharacter();
 
         if (!$user || !$character) {
             return Request::sendMessage([
-                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text' => 'Пользователь не найден в базе данных или персонаж не определён.',
+                'chat_id' => $chatId,
+                'text'    => 'Пользователь не найден в базе данных или персонаж не определён.',
             ]);
         }
 
-        // 2. Проверяем значение поля insurance
-        $hasInsurance = $character['insurance'];
-
-        // 3. Формируем текст сообщения
-        $text = "👤 *Персонаж: {$character['name']}*\n\n";
-        $text .= $hasInsurance
-            ? "✅ У вашего персонажа *есть* страховка от смерти.\n\n"
-            : "❌ У вашего персонажа *нет* страховки от смерти.\n\n";
-
-        $text .= "🛡 *Информация о страховке:*\n";
-        $text .= "• Включенная страховка позволяет в случае смерти избежать полного обнуления всего, что есть у персонажа.\n";
-        $text .= "• Сохраняется прокачка, инвентарь и все остальное.\n";
-        $text .= "• При смерти персонаж просто возродится на своей базе.\n\n";
-        $text .= "💰 *Стоимость страховки:*\n";
-        $text .= "• Рассчитывается автоматически для каждого игрока.\n";
-        $text .= "• Уникальная цена определяется в момент смерти.\n";
-        $text .= "• Зависит от множества факторов и обстоятельств.\n";
-
-        // Формируем клавиатуру с кнопками
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-
-                    ['text' => $hasInsurance ? 'Снять страховку' : 'Страховаться', 'callback_data' => 'toggleInsurance'],
-                    ['text' => '🧮 Просчет', 'callback_data' => 'calculateInsurance'],
-                ],
-            ]
-        ];
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        // Отправляем сообщение с информацией и клавиатурой
-        return Request::sendMessage([
-            'chat_id' => $chatId,
-            'text' => $text,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
+
+        return Request::sendMessage(self::buildView($character, $chatId));
     }
 }
