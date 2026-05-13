@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Events\Effects;
 
+use App\Attributes\HandlerKey;
 use App\Services\Events\EventEffectInterface;
 
 /**
@@ -22,6 +23,18 @@ use App\Services\Events\EventEffectInterface;
  *
  * NB: фільтрацію власне activeEvent тасків (gather/explore in_work) робить dispatcher.
  */
+#[HandlerKey(
+    key: 'task_extend',
+    displayName: 'Продление задач',
+    description: 'Удлиняет end_time активных Gather/Explore задач + опциональные side_effects (MirageOases, PolarNight).',
+    inputSchema: [
+        ['name' => 'task_filter', 'type' => 'list_string'],
+        ['name' => 'extra_minutes_range', 'type' => 'int_range', 'min' => 1, 'max' => 120],
+        ['name' => 'state_modifier', 'type' => 'state_modifier'],
+        ['name' => 'side_effects', 'type' => 'side_effects'],
+        ['name' => 'grants_immunity_to', 'type' => 'list_string'],
+    ],
+)]
 final class TaskExtendEffect implements EventEffectInterface
 {
     public function compute(array|\App\Entities\CharacterEntity $character, array $eventConfig, array $activeEvent, array $context): array

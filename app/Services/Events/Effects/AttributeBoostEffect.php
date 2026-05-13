@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Events\Effects;
 
+use App\Attributes\HandlerKey;
 use App\Services\Events\EventEffectInterface;
 
 /**
@@ -21,6 +22,18 @@ use App\Services\Events\EventEffectInterface;
  *   - cap_h_t_g         : float — не перевищувати (зазвичай 100)
  *   - one_shot_at_start : bool  — раз за подію
  */
+#[HandlerKey(
+    key: 'attribute_boost',
+    displayName: 'Буст атрибута',
+    description: 'Случайно усиливает один атрибут персонажа из пула (NorthernLights, Starfall).',
+    inputSchema: [
+        ['name' => 'attribute_pool', 'type' => 'list_string'],
+        ['name' => 'small_boost_range', 'type' => 'float_range', 'min' => 1.0, 'max' => 2.0],
+        ['name' => 'large_boost_range', 'type' => 'int_range', 'min' => 1, 'max' => 1000],
+        ['name' => 'cap_h_t_g', 'type' => 'int', 'min' => 1, 'max' => 1000],
+        ['name' => 'one_shot_at_start', 'type' => 'bool'],
+    ],
+)]
 final class AttributeBoostEffect implements EventEffectInterface
 {
     private const LARGE_ATTRS = ['health', 'tired', 'gold'];

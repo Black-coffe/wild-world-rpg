@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Events\Effects;
 
+use App\Attributes\HandlerKey;
 use App\Services\Events\EventEffectInterface;
 
 /**
@@ -20,6 +21,17 @@ use App\Services\Events\EventEffectInterface;
  *   - food_only                    : bool — модифікатор лише для food-resources
  *   - biome_type_filter            : ?string — null = global; інакше тільки в типі біому
  */
+#[HandlerKey(
+    key: 'gather_debuff',
+    displayName: 'Дебафф сбора',
+    description: 'Снижает rate сбора ресурсов / увеличивает водопотребление (Dryness, LocustExodus).',
+    inputSchema: [
+        ['name' => 'gather_rate_modifier', 'type' => 'float', 'min' => -1.0, 'max' => 1.0],
+        ['name' => 'water_consumption_multiplier', 'type' => 'float', 'min' => 0.1, 'max' => 10.0],
+        ['name' => 'food_only', 'type' => 'bool'],
+        ['name' => 'biome_type_filter', 'type' => 'string'],
+    ],
+)]
 final class GatherDebuffEffect implements EventEffectInterface
 {
     public function compute(array|\App\Entities\CharacterEntity $character, array $eventConfig, array $activeEvent, array $context): array

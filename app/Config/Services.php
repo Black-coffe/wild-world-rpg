@@ -48,4 +48,34 @@ class Services extends BaseService
         return new \App\Repositories\CI4CharacterRepository();
     }
 
+    /**
+     * Phase B2 (ADR-023) — plugin-реестр handler-классов с auto-discovery.
+     *
+     * Использовать так:
+     *   $registry = service('handlerRegistry');
+     *   $entry    = $registry->getByKey('damage_health'); // ?HandlerEntry
+     *
+     * Дефолтные scan-пути покрывают Phase B2-B4:
+     *   - App\Services\Events\Effects\  (B2 — event-effects, активно)
+     *   - App\TaskHandlers\             (B3 — task-handlers, пока без атрибутов)
+     *
+     * В тестах подменяется через `Services::injectMock('handlerRegistry', $mock)`.
+     */
+    public static function handlerRegistry(bool $getShared = true): \App\Services\Handlers\HandlerRegistry
+    {
+        if ($getShared) {
+            $shared = static::getSharedInstance('handlerRegistry');
+            if ($shared instanceof \App\Services\Handlers\HandlerRegistry) {
+                return $shared;
+            }
+        }
+        return new \App\Services\Handlers\HandlerRegistry(
+            namespacePrefixes: [
+                'App\\Services\\Events\\Effects\\',
+                'App\\TaskHandlers\\',
+            ],
+            scanner: new \App\Services\Handlers\HandlerDiscoveryScanner(),
+        );
+    }
+
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Events\Effects;
 
+use App\Attributes\HandlerKey;
 use App\Services\Events\EventEffectInterface;
 
 /**
@@ -24,6 +25,19 @@ use App\Services\Events\EventEffectInterface;
  *   - 'level_100' : min(gold, max(1000, level × 100))
  *   - 'none'      : без cap (legacy behavior, ~50k variance)
  */
+#[HandlerKey(
+    key: 'gold_grant',
+    displayName: 'Выдача золота',
+    description: 'Начисляет золото по формуле (exp+agi+int)/divisor × base × effect_value (GoldMine).',
+    inputSchema: [
+        ['name' => 'base_range', 'type' => 'int_range', 'min' => 1, 'max' => 1000000],
+        ['name' => 'stat_divisor', 'type' => 'float', 'min' => 0.001, 'max' => 100000.0],
+        ['name' => 'effect_value_mul', 'type' => 'bool'],
+        ['name' => 'cap_formula', 'type' => 'enum', 'values' => ['none', 'level_50', 'level_100']],
+        ['name' => 'requires_state', 'type' => 'enum', 'values' => ['gather', 'explore']],
+        ['name' => 'chance_per_tick', 'type' => 'float', 'min' => 0.0, 'max' => 1.0],
+    ],
+)]
 final class GoldGrantEffect implements EventEffectInterface
 {
     public function compute(array|\App\Entities\CharacterEntity $character, array $eventConfig, array $activeEvent, array $context): array

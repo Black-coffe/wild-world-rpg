@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Events\Effects;
 
+use App\Attributes\HandlerKey;
 use App\Services\Events\EventEffectInterface;
 
 /**
@@ -19,9 +20,21 @@ use App\Services\Events\EventEffectInterface;
  *   - rarity_filter      : ?int    — null або 1
  *   - amount_range       : [min, max]
  *   - chance_per_tick    : float
- *   - requires_state     : 'gather' | null
- *   - biome_type_filter  : 'cave' | null — додатковий фільтр для DungeonOpening
+ *   - requires_state     : 'gather' | null *   - biome_type_filter  : 'cave' | null — додатковий фільтр для DungeonOpening
  */
+#[HandlerKey(
+    key: 'rare_resource_grant',
+    displayName: 'Редкий ресурс',
+    description: 'Выдаёт редкий ресурс по keyword/rarity/biome_type (BerryBoom, FishStock, ExoticFlowering, RevealingHiddenCameras).',
+    inputSchema: [
+        ['name' => 'resource_keyword', 'type' => 'string'],
+        ['name' => 'rarity_filter', 'type' => 'int', 'min' => 1, 'max' => 5],
+        ['name' => 'amount_range', 'type' => 'int_range', 'min' => 1, 'max' => 100],
+        ['name' => 'chance_per_tick', 'type' => 'float', 'min' => 0.0, 'max' => 1.0],
+        ['name' => 'requires_state', 'type' => 'enum', 'values' => ['gather', 'explore']],
+        ['name' => 'biome_type_filter', 'type' => 'string'],
+    ],
+)]
 final class RareResourceGrantEffect implements EventEffectInterface
 {
     public function compute(array|\App\Entities\CharacterEntity $character, array $eventConfig, array $activeEvent, array $context): array

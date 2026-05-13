@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Events\Effects;
 
+use App\Attributes\HandlerKey;
 use App\Services\Events\EventEffectInterface;
 
 /**
@@ -17,6 +18,17 @@ use App\Services\Events\EventEffectInterface;
  *
  * Protection item НЕ застосовується (це buff, не damage).
  */
+#[HandlerKey(
+    key: 'heal',
+    displayName: 'Лечение',
+    description: 'Восстанавливает HP/выносливость персонажа (GeothermalFountains).',
+    inputSchema: [
+        ['name' => 'heal_target', 'type' => 'enum', 'values' => ['health', 'tired', 'random_h_or_t', 'both']],
+        ['name' => 'amount_range', 'type' => 'int_range', 'min' => 1, 'max' => 100],
+        ['name' => 'cap', 'type' => 'int', 'min' => 1, 'max' => 100],
+        ['name' => 'one_shot_at_start', 'type' => 'bool'],
+    ],
+)]
 final class HealEffect implements EventEffectInterface
 {
     public function compute(array|\App\Entities\CharacterEntity $character, array $eventConfig, array $activeEvent, array $context): array
