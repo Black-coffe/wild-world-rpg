@@ -4,79 +4,177 @@
 <div class="container">
     <h2>Отправка сообщения игрокам</h2>
 
-    <!-- Всплывающее сообщение об успехе -->
-    <?php if (session()->getFlashdata('success')): ?>
-        <div class="alert alert-success">
-            <?= session()->getFlashdata('success') ?>
-        </div>
+    <?php
+        $flashSuccess = session()->getFlashdata('success');
+        $flashError   = session()->getFlashdata('error');
+    ?>
+    <?php if (is_string($flashSuccess) && $flashSuccess !== ''): ?>
+        <div class="alert alert-success"><?= esc($flashSuccess) ?></div>
     <?php endif; ?>
 
-    <!-- Всплывающее сообщение об ошибке -->
-    <?php if (session()->getFlashdata('error')): ?>
-        <div class="alert alert-danger">
-            <?= session()->getFlashdata('error') ?>
-        </div>
+    <?php if (is_string($flashError) && $flashError !== ''): ?>
+        <div class="alert alert-danger"><?= esc($flashError) ?></div>
     <?php endif; ?>
 
-    <form action="<?= base_url('/admin/send-message') ?>" method="post" id="messageForm">
-        <?= csrf_field() ?> <!-- CSRF токен для защиты -->
+    <form action="<?= base_url('/admin/send-message') ?>" method="post" id="messageForm" enctype="multipart/form-data">
+        <?= csrf_field() ?>
 
-        <div class="form-group">
+        <div class="form-group mb-3">
             <label for="title">Название сообщения (макс. 160 символов)</label>
             <input type="text" class="form-control" name="title" id="title" maxlength="160" required>
-            <small id="titleWarning" class="form-text text-danger" style="display: none;">В названии сообщения обнаружены запрещенные символы!</small>
+            <small class="form-text text-muted">Покажется жирным в шапке: «ℹ️ Название ℹ️».</small>
         </div>
 
-        <div class="form-group">
+        <div class="form-group mb-2">
             <label for="message">Основное содержимое сообщения</label>
-            <textarea class="form-control" name="message" id="message" rows="5" required></textarea>
-            <small id="messageWarning" class="form-text text-danger" style="display: none;">В содержимом сообщения обнаружены запрещенные символы!</small>
+            <div class="msg-toolbar btn-toolbar mb-2" role="toolbar" aria-label="Форматирование">
+                <div class="btn-group btn-group-sm me-2" role="group" aria-label="Форматирование текста">
+                    <button type="button" class="btn btn-outline-secondary" data-wrap="*" title="Жирный (Ctrl+B)"><b>B</b></button>
+                    <button type="button" class="btn btn-outline-secondary" data-wrap="_" title="Курсив (Ctrl+I)"><i>I</i></button>
+                    <button type="button" class="btn btn-outline-secondary" data-wrap="`" title="Моноспейс (Ctrl+E)"><code>{ }</code></button>
+                </div>
+                <div class="btn-group btn-group-sm me-2" role="group" aria-label="Блоки">
+                    <button type="button" class="btn btn-outline-secondary" data-prefix="&gt; " title="Цитата">&gt;</button>
+                    <button type="button" class="btn btn-outline-secondary" data-prefix="• " title="Маркер списка">•</button>
+                    <button type="button" class="btn btn-outline-secondary" data-action="link" title="Ссылка">🔗</button>
+                </div>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Эмодзи">
+                    <button type="button" class="btn btn-outline-secondary" data-emoji="🎉">🎉</button>
+                    <button type="button" class="btn btn-outline-secondary" data-emoji="⚠️">⚠️</button>
+                    <button type="button" class="btn btn-outline-secondary" data-emoji="🛠️">🛠️</button>
+                    <button type="button" class="btn btn-outline-secondary" data-emoji="🎞️">🎞️</button>
+                    <button type="button" class="btn btn-outline-secondary" data-emoji="🤖">🤖</button>
+                    <button type="button" class="btn btn-outline-secondary" data-emoji="🌍">🌍</button>
+                    <button type="button" class="btn btn-outline-secondary" data-emoji="🛡️">🛡️</button>
+                    <button type="button" class="btn btn-outline-secondary" data-emoji="🌲">🌲</button>
+                    <button type="button" class="btn btn-outline-secondary" data-emoji="🌾">🌾</button>
+                    <button type="button" class="btn btn-outline-secondary" data-emoji="🔥">🔥</button>
+                </div>
+            </div>
+            <textarea class="form-control" name="message" id="message" rows="9" required style="font-family:Menlo,Consolas,monospace;font-size:14px;line-height:1.45;"></textarea>
+            <small class="form-text text-muted">
+                Markdown Telegram: <code>*жирный*</code>, <code>_курсив_</code>, <code>`код`</code>,
+                <code>[текст](url)</code>, <code>&gt; цитата</code>. Спецсимволы вне разметки экранируются автоматически на стороне Telegram.
+            </small>
         </div>
 
-        <div class="form-group">
+        <div class="form-group mb-3 border rounded p-3 bg-light">
+            <label class="form-label fw-bold mb-2">Картинка к сообщению (опционально)</label>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="image_mode" id="image_mode_none" value="none" checked>
+                <label class="form-check-label" for="image_mode_none">Без картинки (только текст)</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="image_mode" id="image_mode_upload" value="upload">
+                <label class="form-check-label" for="image_mode_upload">Прикрепить файл (JPEG/PNG/WebP, до 5 МБ)</label>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="radio" name="image_mode" id="image_mode_ai" value="ai_generate">
+                <label class="form-check-label" for="image_mode_ai">
+                    🤖 Сгенерировать через OpenAI в стиле игры (ADR-022, «Найденная фотоплёнка»)
+                </label>
+            </div>
+
+            <div id="image_upload_block" class="mt-2" style="display:none;">
+                <input type="file" name="image_file" id="image_file" class="form-control" accept="image/jpeg,image/png,image/webp">
+                <small class="form-text text-muted">Картинка приложится как Telegram photo с подписью (caption ≤1024 символов; длиннее — отправится двумя сообщениями: фото + текст).</small>
+            </div>
+
+            <div id="image_ai_block" class="mt-2" style="display:none;">
+                <label for="image_scene" class="form-label">Уточнение сцены (опционально, по-английски лучше)</label>
+                <input type="text" name="image_scene" id="image_scene" class="form-control" maxlength="500"
+                       placeholder="напр. survivors gathered around a campfire reading a notice">
+                <small class="form-text text-muted">
+                    Промпт автоматически склеит STYLE CORE + LEXICON «announcement.generic» + это уточнение. Если поле пусто — генерация по первым ~12 словам анонса. ⚠️ Стоит ~$0.04 за один прогон.
+                </small>
+            </div>
+        </div>
+
+        <div class="form-group mb-3">
             <label for="telegram_ids">ID Telegram пользователей (через запятую, необязательно)</label>
-            <input type="text" class="form-control" name="telegram_ids" id="telegram_ids" value="">
+            <input type="text" class="form-control" name="telegram_ids" id="telegram_ids" value="" placeholder="оставь пустым для рассылки всем">
         </div>
 
-        <button type="submit" class="btn btn-primary" id="submitBtn" disabled>Отправить сообщение</button>
+        <button type="submit" class="btn btn-primary" id="submitBtn">Отправить сообщение</button>
     </form>
 </div>
 
 <script>
-    // Запрещенные символы для Telegram Markdown
-    const forbiddenChars = [ '*', '[', ']', '(', ')', '~', '>', '#', '+', '-', '=', '|', '{', '}'];
+(function () {
+    const $msg = document.getElementById('message');
+    if (!$msg) { return; }
 
-    // Функция для проверки наличия запрещенных символов
-    function checkForbiddenSymbols(inputValue) {
-        return forbiddenChars.some(char => inputValue.includes(char));
+    function wrapSelection(open, close = open) {
+        const start = $msg.selectionStart, end = $msg.selectionEnd;
+        const before = $msg.value.slice(0, start);
+        const sel    = $msg.value.slice(start, end);
+        const after  = $msg.value.slice(end);
+        const insert = open + (sel || 'текст') + close;
+        $msg.value = before + insert + after;
+        $msg.focus();
+        const cursor = before.length + open.length + (sel ? sel.length : 'текст'.length);
+        $msg.setSelectionRange(cursor, cursor);
+    }
+    function prefixLines(prefix) {
+        const start = $msg.selectionStart, end = $msg.selectionEnd;
+        const before = $msg.value.slice(0, start);
+        const sel    = $msg.value.slice(start, end) || 'текст';
+        const after  = $msg.value.slice(end);
+        const lines  = sel.split('\n').map(l => prefix + l).join('\n');
+        $msg.value = before + lines + after;
+        $msg.focus();
+    }
+    function insertAt(text) {
+        const start = $msg.selectionStart, end = $msg.selectionEnd;
+        $msg.value = $msg.value.slice(0, start) + text + $msg.value.slice(end);
+        $msg.focus();
+        const cursor = start + text.length;
+        $msg.setSelectionRange(cursor, cursor);
+    }
+    function insertLink() {
+        const url = prompt('URL ссылки', 'https://');
+        if (!url) { return; }
+        const start = $msg.selectionStart, end = $msg.selectionEnd;
+        const sel = $msg.value.slice(start, end) || 'текст ссылки';
+        const before = $msg.value.slice(0, start);
+        const after  = $msg.value.slice(end);
+        $msg.value = before + '[' + sel + '](' + url + ')' + after;
+        $msg.focus();
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
-        const titleInput = document.getElementById('title');
-        const messageInput = document.getElementById('message');
-        const submitBtn = document.getElementById('submitBtn');
-        const titleWarning = document.getElementById('titleWarning');
-        const messageWarning = document.getElementById('messageWarning');
-
-        function validateForm() {
-            let titleHasForbiddenChars = checkForbiddenSymbols(titleInput.value);
-            let messageHasForbiddenChars = checkForbiddenSymbols(messageInput.value);
-
-            // Показываем предупреждение если в названии или сообщении найдены запрещенные символы
-            titleWarning.style.display = titleHasForbiddenChars ? 'block' : 'none';
-            messageWarning.style.display = messageHasForbiddenChars ? 'block' : 'none';
-
-            // Отключаем кнопку отправки если найдены запрещенные символы
-            if (titleHasForbiddenChars || messageHasForbiddenChars) {
-                submitBtn.disabled = true;
-            } else {
-                submitBtn.disabled = false;
-            }
-        }
-
-        // Проверяем заголовок и сообщение на запрещенные символы в реальном времени
-        titleInput.addEventListener('input', validateForm);
-        messageInput.addEventListener('input', validateForm);
+    document.querySelectorAll('.msg-toolbar [data-wrap]').forEach(btn => {
+        btn.addEventListener('click', () => wrapSelection(btn.getAttribute('data-wrap')));
     });
+    document.querySelectorAll('.msg-toolbar [data-prefix]').forEach(btn => {
+        btn.addEventListener('click', () => prefixLines(btn.getAttribute('data-prefix')));
+    });
+    document.querySelectorAll('.msg-toolbar [data-emoji]').forEach(btn => {
+        btn.addEventListener('click', () => insertAt(btn.getAttribute('data-emoji')));
+    });
+    const linkBtn = document.querySelector('.msg-toolbar [data-action="link"]');
+    if (linkBtn) { linkBtn.addEventListener('click', insertLink); }
+
+    $msg.addEventListener('keydown', (e) => {
+        if (!(e.ctrlKey || e.metaKey)) { return; }
+        const k = e.key.toLowerCase();
+        if (k === 'b') { e.preventDefault(); wrapSelection('*'); }
+        else if (k === 'i') { e.preventDefault(); wrapSelection('_'); }
+        else if (k === 'e') { e.preventDefault(); wrapSelection('`'); }
+    });
+
+    // Переключение блоков картинки.
+    const blocks = {
+        none:        null,
+        upload:      document.getElementById('image_upload_block'),
+        ai_generate: document.getElementById('image_ai_block'),
+    };
+    document.querySelectorAll('input[name="image_mode"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            Object.values(blocks).forEach(b => { if (b) { b.style.display = 'none'; } });
+            const block = blocks[radio.value];
+            if (block) { block.style.display = 'block'; }
+        });
+    });
+})();
 </script>
 <?= $this->endSection() ?>
