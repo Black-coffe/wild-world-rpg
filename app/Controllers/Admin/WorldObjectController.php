@@ -21,25 +21,24 @@ class WorldObjectController extends BaseAdminController
     }
 
     /**
-     * @param array<string, mixed> $data
-     * @return array<string, mixed>
+     * `biome_id` — multi-select от админ-формы (массив id'ов биомов) → JSON.
+     * `discovery_tools` и `contents` — админ вводит JSON-строку руками в textarea,
+     * мы её декодируем, обрезаем пробелы рекурсивно (защита от случайных отступов
+     * в скопированном JSON) и кодируем обратно — чтобы в БД попал «чистый» JSON.
+     *
+     * @param array<int|string, mixed> $data
+     * @return array<int|string, mixed>
      */
     private function prepareJsonData(array $data): array
     {
-        if (isset($data['biome_id']) && is_array($data['biome_id'])) {
-            $data['biome_id'] = json_encode($data['biome_id']);
-        }
+        $data = $this->jsonEncodeArrayFields($data, ['biome_id']);
 
-        if (isset($data['discovery_tools']) && is_string($data['discovery_tools'])) {
-            $tools = json_decode($data['discovery_tools'], true);
-            if (is_array($tools)) {
-                $data['discovery_tools'] = json_encode($this->trimRecursive($tools));
-            }
-        }
-        if (isset($data['contents']) && is_string($data['contents'])) {
-            $contents = json_decode($data['contents'], true);
-            if (is_array($contents)) {
-                $data['contents'] = json_encode($this->trimRecursive($contents));
+        foreach (['discovery_tools', 'contents'] as $field) {
+            if (isset($data[$field]) && is_string($data[$field])) {
+                $decoded = json_decode($data[$field], true);
+                if (is_array($decoded)) {
+                    $data[$field] = json_encode($this->trimRecursive($decoded));
+                }
             }
         }
 

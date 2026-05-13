@@ -55,13 +55,7 @@ class EventController extends BaseAdminController
 
     public function updateEvent(int|string $eventId): RedirectResponse|ResponseInterface
     {
-        $data = (array) $this->request->getPost();
-
-        if (isset($data['biome_ids']) && is_array($data['biome_ids'])) {
-            $data['biome_ids'] = json_encode($data['biome_ids']);
-        } else {
-            $data['biome_ids'] = json_encode([]);
-        }
+        $data = $this->jsonEncodeArrayFields((array) $this->request->getPost(), ['biome_ids']);
 
         $data['random_coverage'] = isset($data['random_coverage']) && $data['random_coverage'] === 'on' ? 1 : 0;
 
@@ -103,9 +97,8 @@ class EventController extends BaseAdminController
 
     public function storeEvent(): RedirectResponse|ResponseInterface
     {
-        $data = (array) $this->request->getPost();
+        $data = $this->jsonEncodeArrayFields((array) $this->request->getPost(), ['biome_ids']);
 
-        $data['biome_ids']       = json_encode($data['biome_ids'] ?? []);
         $data['random_coverage'] = isset($data['random_coverage']) ? 1 : 0;
 
         if (!$this->validate($this->eventModel->getValidationRules(), $this->eventModel->getValidationMessages())) {
