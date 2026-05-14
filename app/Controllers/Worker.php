@@ -3,7 +3,10 @@ namespace App\Controllers;
 
 use App\Models\CharacterTaskModel;
 use App\Models\TaskModel;
+use App\Services\Handlers\HandlerRegistry;
+use App\TaskHandlers\Contracts\TaskHandlerInterface;
 use CodeIgniter\Controller;
+use Throwable;
 
 /**
  * Главный dispatcher для character_tasks (gather/explore/build/craft completion).
@@ -116,6 +119,81 @@ class Worker extends Controller
     }
 
     /**
+     * Phase B3 (ADR-023, 2026-05-14) — task.name → handler-key (зареєстрований
+     * `#[HandlerKey]` атрибут на handler-класі). Resolve через
+     * {@see HandlerRegistry} → fallback на legacy `$taskHandlerMap` нижче.
+     *
+     * Anti-drift guard: `TaskHandlerRegistryConsistencyTest` гарантує, що для
+     * кожного запису у legacy `$taskHandlerMap` існує запис у цьому masь,
+     * і registry-resolved клас === legacy-resolved клас.
+     *
+     * @var array<string, string>
+     */
+    protected $taskHandlerKeyMap = [
+        // Concrete task-handler'и (1 task.name → 1 спеціалізований клас).
+        'Marching'        => 'marching',
+        'Gather'          => 'gather',
+        'BaseRelocation'  => 'base_relocation',
+        'FullRelocation'  => 'base_full_relocation',
+        'ExploringLocationRobot'  => 'complete_robot_exploration',
+        'GatheringResourcesRobot' => 'complete_robot_gathering',
+        // Generic craft handler — покриває ~34 task.name'и через CraftRecipes lookup.
+        'craftStrengtheningElixir' => 'generic_craft',
+        'craftAntiseptic'          => 'generic_craft',
+        'craftBandage'             => 'generic_craft',
+        'craftPainReliefPower'     => 'generic_craft',
+        'craftSedative'            => 'generic_craft',
+        'craftStimulator'          => 'generic_craft',
+        'craftRegenerator'         => 'generic_craft',
+        'craftBasicMedKit'         => 'generic_craft',
+        'craftLumberjackAxe'        => 'generic_craft',
+        'craftStonePickaxe'         => 'generic_craft',
+        'craftIronShovel'           => 'generic_craft',
+        'craftFishingRod'           => 'generic_craft',
+        'craftHoe'                  => 'generic_craft',
+        'craftFoldingKnife'         => 'generic_craft',
+        'craftIronPickaxe'          => 'generic_craft',
+        'craftTireIron'             => 'generic_craft',
+        'craftMetalFragments'       => 'generic_craft',
+        'craftFabric'               => 'generic_craft',
+        'craftStoneBlocks'          => 'generic_craft',
+        'craftFertilizer'           => 'generic_craft',
+        'craftWoodMaterials'        => 'generic_craft',
+        'craftSoil'                 => 'generic_craft',
+        'craftCharcoalBriquettes'   => 'generic_craft',
+        'craftWorkbenchOne'         => 'generic_craft',
+        'craftGlassBags'            => 'generic_craft',
+        'craftRobotExplorer'        => 'generic_craft',
+        'craftRobotGatherer'        => 'generic_craft',
+        'craftWiring'               => 'generic_craft',
+        'craftElectronicComponents' => 'generic_craft',
+        'craftMetalSpear'           => 'generic_craft',
+        'craftPipeGun'              => 'generic_craft',
+        'craftWiredBat'             => 'generic_craft',
+        'craftCrossbowMk1'          => 'generic_craft',
+        // Generic building handler — покриває 12 task.name'ів через Buildings config.
+        'buildingManualPump'             => 'generic_building',
+        'buildBlastFurnace'              => 'generic_building',
+        'buildWorkshop'                  => 'generic_building',
+        'startBuildWarehouse'            => 'generic_building',
+        'startBuildSolarStation'         => 'generic_building',
+        'startBuildGreenhouse'           => 'generic_building',
+        'startBuildGym'                  => 'generic_building',
+        'startBuildLab'                  => 'generic_building',
+        'startBuildRoboticsWorkshop'     => 'generic_building',
+        'startBuildTeleportationCenter'  => 'generic_building',
+        'startBuildArsenal'              => 'generic_building',
+        'startBuildCommunicationTower'   => 'generic_building',
+        // Спеціалізовані craft handler'и (НЕ generic — окремий клас).
+        'craftTeleportBeaconBasic'      => 'craft_teleport_beacon_basic',
+        'craftTeleportBackpack'         => 'craft_teleport_backpack',
+        'craftArmorRaggedShirt'         => 'craft_armor_ragged_shirt',
+        'craftArmorDrifterClothes'      => 'craft_armor_drifter_clothes',
+        'craftLeatherJacket'            => 'craft_leather_jacket',
+        'craftReinforcedLeatherJacket'  => 'craft_reinforced_leather',
+    ];
+
+    /**
      * Сопоставляем name из таблицы tasks -> обработчику character_tasks completion.
      */
     protected $taskHandlerMap = [
@@ -190,11 +268,52 @@ class Worker extends Controller
 
     protected function getHandlerClassName($taskName)
     {
+        // Phase B3 (ADR-023): первая спроба — через HandlerRegistry
+        // (`#[HandlerKey]` атрибут на handler-класах). Якщо реєстр недоступний
+        // або в ньому немає запису для handler-key — fallback на legacy
+        // FQCN-map нижче. Dual-write вікно B3–B7 за ADR-023.
+        if (array_key_exists($taskName, $this->taskHandlerKeyMap)) {
+            $handlerKey = $this->taskHandlerKeyMap[$taskName];
+            $registry   = $this->handlerRegistry();
+            if ($registry !== null) {
+                $entry = $registry->getByKey($handlerKey);
+                if ($entry !== null && is_subclass_of($entry->class, TaskHandlerInterface::class)) {
+                    log_message(
+                        'debug',
+                        "[Worker] task '{$taskName}' → key '{$handlerKey}' → {$entry->class} (via HandlerRegistry)"
+                    );
+                    return $entry->class;
+                }
+                log_message(
+                    'warning',
+                    "[Worker] task '{$taskName}': key '{$handlerKey}' not found in HandlerRegistry — falling back to legacy FQCN map"
+                );
+            }
+        }
+
         if (array_key_exists($taskName, $this->taskHandlerMap)) {
             return 'App\\TaskHandlers\\' . $this->taskHandlerMap[$taskName];
-        } else {
-            // На случай, если нет в map, делаем "слепить" имя "SomeTaskName" => "App\TaskHandlers\SomeTaskNameHandler"
-            return 'App\\TaskHandlers\\' . str_replace(' ', '', ucwords($taskName)) . 'Handler';
         }
+
+        // На случай, если нет в map, делаем "слепить" имя "SomeTaskName" => "App\TaskHandlers\SomeTaskNameHandler"
+        return 'App\\TaskHandlers\\' . str_replace(' ', '', ucwords($taskName)) . 'Handler';
+    }
+
+    /**
+     * Lazy-доступ до registry через service() helper. Якщо service container
+     * недоступний (rannі CLI bootstrap, минімальні unit-тести без CI4
+     * environment) — повертаємо null, далі піде legacy FQCN fallback.
+     */
+    private function handlerRegistry(): ?HandlerRegistry
+    {
+        if (!function_exists('service')) {
+            return null;
+        }
+        try {
+            $candidate = service('handlerRegistry');
+        } catch (Throwable) {
+            return null;
+        }
+        return $candidate instanceof HandlerRegistry ? $candidate : null;
     }
 }

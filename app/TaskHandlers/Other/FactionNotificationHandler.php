@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Other;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterFactionModel;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
@@ -15,6 +16,11 @@ use App\TaskHandlers\BaseTaskHandler;
  * as callback_query_id — fires daily silently без value у cron context).
  * Request::sendMessage → safeSendMessage.
  */
+#[HandlerKey(
+    key: 'faction_notification',
+    displayName: 'Уведомления о фракциях',
+    description: 'Recurring (Tasks.php every minute): уведомляет персонажей о возможности выбрать/сменить фракцию при достижении условий.',
+)]
 class FactionNotificationHandler extends BaseTaskHandler
 {
     protected $characterModel;

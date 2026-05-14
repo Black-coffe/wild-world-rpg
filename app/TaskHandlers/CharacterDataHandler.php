@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers;
 
+use App\Attributes\HandlerKey;
 use App\Models\{
     CharacterDataModel,
     CharacterMessageStatusModel,
@@ -34,6 +35,11 @@ use App\Libraries\TelegramMessages;
  * answerCallbackQuery(['callback_query_id' => $telegramId])` (chat_id passed
  * as callback_query_id — fires daily silently). Request::sendPhoto → safeSendPhoto.
  */
+#[HandlerKey(
+    key: 'character_data_refresh',
+    displayName: 'Лор-сообщения по уровням',
+    description: 'Recurring (Tasks.php every minute): отправляет лор-сообщения из character_data при достижении игроком соответствующего уровня.',
+)]
 class CharacterDataHandler extends BaseTaskHandler
 {
     /** @var CharacterDataModel */

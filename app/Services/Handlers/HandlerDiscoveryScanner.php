@@ -199,10 +199,20 @@ final class HandlerDiscoveryScanner
      * {@see HandlerEntry}, иначе null. Любые ошибки рефлексии (autoload-сбой,
      * abstract-классы и пр.) → null (silently skip; не валим scan на единичной
      * битой записи в class-map'е).
+     *
+     * `class_exists($class, true)` обернут у try/catch(\Throwable) — CI4
+     * autoloader для не-class файлів (наприклад, view-шаблонів `App\Views\*`)
+     * виконує include, який кидає Error через невизначені методи на autoloader
+     * (`$this->extend()` тощо). Жодна така автозавантажена «не-сутність» не може
+     * мати атрибут #[HandlerKey], тож safe skip.
      */
     private function inspectClass(string $class): ?HandlerEntry
     {
-        if (!class_exists($class, true)) {
+        try {
+            if (!class_exists($class, true)) {
+                return null;
+            }
+        } catch (\Throwable) {
             return null;
         }
         /** @var class-string $class */

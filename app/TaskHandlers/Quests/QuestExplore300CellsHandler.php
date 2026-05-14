@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Quests;
 
+use App\Attributes\HandlerKey;
 use App\Models\QuestModel;
 use App\Models\QuestStepsModel;
 use App\Models\CharacterModel;
@@ -13,6 +14,11 @@ use App\TaskHandlers\BaseTaskHandler;
 /**
  * v0.51.38 (F2.9 batch-2 expansion): extends BaseTaskHandler.
  */
+#[HandlerKey(
+    key: 'quest_explore_300_cells',
+    displayName: 'Квест: 300 клеток разведано',
+    description: 'Recurring (Tasks.php every minute): tracks quest "Исследовать 300 клеток".',
+)]
 class QuestExplore300CellsHandler extends BaseTaskHandler
 {
     protected $characterModel;

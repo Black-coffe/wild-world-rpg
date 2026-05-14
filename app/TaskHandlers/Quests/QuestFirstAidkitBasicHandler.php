@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Quests;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
 use App\Models\QuestModel;
 use App\Models\QuestStepsModel;
@@ -14,6 +15,11 @@ use App\TaskHandlers\BaseTaskHandler;
 /**
  * v0.51.38 (F2.9 batch-2 expansion): extends BaseTaskHandler.
  */
+#[HandlerKey(
+    key: 'quest_first_aid_kit_basic',
+    displayName: 'Квест: базовая аптечка',
+    description: 'Recurring (Tasks.php every minute): tracks quest "Скрафтить базовую аптечку".',
+)]
 class QuestFirstAidkitBasicHandler extends BaseTaskHandler
 {
     protected $characterModel;

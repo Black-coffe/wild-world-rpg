@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
 use App\Models\CharacterTaskModel;
 use App\Models\ExploredCellsModel;
@@ -43,6 +44,11 @@ use Longman\TelegramBot\Request;
  *   (PvE-стычки, опасные событийные зоны, квест-триггеры — extension points,
  *    пока выключено: marchNpcEncounterChancePerCell=0; см. ADR-019 §6.)
  */
+#[HandlerKey(
+    key: 'marching',
+    displayName: 'Поход (ADR-019)',
+    description: 'Цепочка 1-клеточных задач: движение И есть разведка. Раскрывает 3×3 каждый шаг, пауза при встрече игрока.',
+)]
 class MarchingTaskHandler extends BaseTaskHandler
 {
     private GameBalance $cfg;

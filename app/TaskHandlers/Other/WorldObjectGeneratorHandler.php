@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Other;
 
+use App\Attributes\HandlerKey;
 use App\Models\BiomeWorldObjectMapModel;
 use App\Models\BiomeModel;
 use App\Models\WorldObjectModel;
@@ -14,6 +15,11 @@ use App\TaskHandlers\BaseTaskHandler;
  * `process()` → `handle(array $task = []): void` (TaskHandlerInterface signature).
  * No Telegram usage — pure DB/world generation.
  */
+#[HandlerKey(
+    key: 'world_object_generator',
+    displayName: 'Генерация world-объектов',
+    description: 'Recurring (Tasks.php every minute): спавнит world-objects (toolkit/warehouse/truck) по биом-конфигу на исследованных клетках.',
+)]
 class WorldObjectGeneratorHandler extends BaseTaskHandler
 {
     protected $worldObjectModel;

@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Built;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\BuildingModel;
@@ -17,6 +18,11 @@ use Config\GameBalance;
  * v0.51.24 (C/F6 expansion): gymStrengthByLevel + tickInterval читаються через
  * config('GameBalance'). Раніше hardcoded private $gymLevels.
  */
+#[HandlerKey(
+    key: 'gym_production',
+    displayName: 'Производство Спортзала',
+    description: 'Recurring (Tasks.php every minute): спортзал начисляет силу/опыт владельцу. Per-level config через GameBalance.',
+)]
 class GymProductionHandler extends BaseTaskHandler
 {
     protected $characterModel;

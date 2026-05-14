@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers;
 
+use App\Attributes\HandlerKey;
 use App\Models\ActiveEventModel;
 use App\Models\CharacterModel;
 use App\Models\CharacterTaskModel;
@@ -42,6 +43,11 @@ use App\Services\Player\Gather\ToolDurabilityProcessor;
  * Cumulative: ~17 SQL/gather → ~3 SQL (-82%) у full gather completion path
  * (calc+save+reply).
  */
+#[HandlerKey(
+    key: 'gather',
+    displayName: 'Сбор ресурсов',
+    description: 'Завершение задачи добычи ресурсов (Gather). Считает найденное по биому+инструменту+событиям, износ инструментов, сохраняет в банк.',
+)]
 class GatherTaskHandler extends BaseTaskHandler
 {
     private GatherFormulaService $formulaService;

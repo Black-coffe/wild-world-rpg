@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Built;
 
+use App\Attributes\HandlerKey;
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\CharacterResourceModel;
@@ -24,6 +25,11 @@ use Config\GameBalance;
  * v0.51.24 (C/F6 expansion): handPumpLevels + handPumpBiomeMultipliers
  * читаються через config('GameBalance'). Раніше hardcoded private arrays.
  */
+#[HandlerKey(
+    key: 'handpump_production',
+    displayName: 'Производство Ручной скважины',
+    description: 'Recurring (Tasks.php every minute): ручная скважина производит воду с учётом биомного множителя.',
+)]
 class HandPumpProductionHandler extends BaseTaskHandler
 {
     protected $buildingModel;

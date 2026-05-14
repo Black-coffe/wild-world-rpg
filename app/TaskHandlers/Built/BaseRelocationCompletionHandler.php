@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Built;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
 use App\Models\CharacterTaskModel;
 use App\Models\ClaimedCellModel;
@@ -17,6 +18,11 @@ use CodeIgniter\I18n\Time;
  * Telegram lazy-init, Request::sendMessage → safeSendMessage.
  * `handle(array $task)` → `handle(array $task = []): void`.
  */
+#[HandlerKey(
+    key: 'base_relocation',
+    displayName: 'Перенос базы (без построек)',
+    description: 'Завершение задачи BaseRelocation: перенос координат базы без переноса построек.',
+)]
 class BaseRelocationCompletionHandler extends BaseTaskHandler
 {
     protected $characterModel;

@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterTaskModel;
 use App\Models\CharacterModel;
 use App\Models\CharacterBuildingModel;
@@ -29,6 +30,11 @@ use Config\GameBalance;
  * v0.51.24 (C/F6 expansion): roboticsExplorationCellsBase + cellsPerLevel читаються
  * через config('GameBalance'). Раніше hardcoded `50 + (level-1) * 10` formula.
  */
+#[HandlerKey(
+    key: 'complete_robot_exploration',
+    displayName: 'Завершение разведки роботом',
+    description: 'Робот-разведчик: открывает соседние ячейки карты вокруг базы или заданного центра (змейка/круг).',
+)]
 class CompleteRobotExplorationHandler extends BaseTaskHandler
 {
     private PlayerDetectionService $playerDetectionService;

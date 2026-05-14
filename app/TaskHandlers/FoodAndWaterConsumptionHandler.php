@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterResourceModel;
 use App\Models\CharacterModel;
 use App\Models\BiomeModel;
@@ -27,6 +28,11 @@ use Config\GameBalance;
  *  - `\App\Services\Notifications\MediaSender::sendPhotoOrText([...])` → `$this->safeSendPhoto($chatId, $img, $caption, ...)`
  *    (catches TelegramException, не падає на rate-limit).
  */
+#[HandlerKey(
+    key: 'food_water_consumption',
+    displayName: 'Голод/жажда (раз в сутки)',
+    description: 'Recurring (Tasks.php daily 21:33): списывает еду/воду у всех chars, дамажит HP при отсутствии. Внутри handler — guard на 21:33.',
+)]
 class FoodAndWaterConsumptionHandler extends BaseTaskHandler
 {
     protected $characterModel;

@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Quests;
 
+use App\Attributes\HandlerKey;
 use App\Models\QuestModel;
 use App\Models\QuestStepsModel;
 use App\Models\CharacterModel;
@@ -14,6 +15,11 @@ use App\TaskHandlers\BaseTaskHandler;
  * v0.51.38 (F2.9 batch-2 expansion): extends BaseTaskHandler. Раніше bare class
  * з manual Telegram init у constructor.
  */
+#[HandlerKey(
+    key: 'quest_explore_30_cells',
+    displayName: 'Квест: 30 клеток разведано',
+    description: 'Recurring (Tasks.php every minute): tracks quest "Исследовать 30 клеток", auto-completes step at threshold.',
+)]
 class QuestExplore30CellsHandler extends BaseTaskHandler
 {
     protected $characterModel;

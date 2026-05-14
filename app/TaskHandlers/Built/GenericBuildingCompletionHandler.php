@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\TaskHandlers\Built;
 
+use App\Attributes\HandlerKey;
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\CharacterFactionModel;
@@ -42,6 +43,11 @@ use Config\Buildings;
  * тот же ключ. F2.2 баг (action писал `quantity`, handler ждал `recipe`)
  * не повторится.
  */
+#[HandlerKey(
+    key: 'generic_building',
+    displayName: 'Универсальное завершение постройки',
+    description: 'Завершает любой build*/startBuild* task (recipe из task_settings.building в Config\\Buildings). Покрывает 12 зданий: Workshop/Arsenal/Lab/CommTower/Robotics/Solar/Greenhouse/Gym/Warehouse/Teleport/BlastFurnace/HandPump.',
+)]
 class GenericBuildingCompletionHandler extends BaseTaskHandler
 {
     private CharacterModel          $characterModel;

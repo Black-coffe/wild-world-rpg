@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Craft\WorkbenchStandard;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
 use App\Models\CharacterTaskModel;
 use App\Models\CraftedItemsModel;
@@ -16,6 +17,11 @@ use App\TaskHandlers\BaseTaskHandler;
  * Drop manual Telegram init. Request::sendPhoto try/catch → safeSendPhoto.
  * handle($task) → handle(array $task = []): void.
  */
+#[HandlerKey(
+    key: 'craft_teleport_beacon_basic',
+    displayName: 'Крафт: Телепорт-маяк (базовый)',
+    description: 'Завершение крафта TeleportBeaconBasic (WorkbenchStandard, эксклюзив, не через generic_craft).',
+)]
 class CraftCompletionTeleportBeaconBasicHandler extends BaseTaskHandler
 {
     protected $characterModel;

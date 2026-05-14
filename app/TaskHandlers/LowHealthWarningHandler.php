@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Services\Player\Death\DeathMessageBuilder;
@@ -18,6 +19,11 @@ use App\Services\Player\Death\DeathMessageBuilder;
  * чтобы игрок видел угрозу, а не молчаливо помирал. + текст теперь не врёт «смерть не
  * угрожает», когда здоровье < 1.0.
  */
+#[HandlerKey(
+    key: 'low_health_warning',
+    displayName: 'Предупреждение о низком HP',
+    description: 'Recurring (Tasks.php every minute): шлёт пред-смертные уведомления при HP<threshold, называет активный damage-event, кулдаун 5мин.',
+)]
 class LowHealthWarningHandler extends BaseTaskHandler
 {
     /**

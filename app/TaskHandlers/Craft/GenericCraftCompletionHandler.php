@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\TaskHandlers\Craft;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
 use App\Models\CharactersWeaponsModel;
 use App\Models\CharacterTaskModel;
@@ -49,6 +50,11 @@ use Longman\TelegramBot\Request;
  * НЕ применяется F0.3 atomic-claim здесь — Worker уже делает это в
  * `handleTask` обвязке. Двойной flip status='completed' — no-op.
  */
+#[HandlerKey(
+    key: 'generic_craft',
+    displayName: 'Универсальное завершение крафта',
+    description: 'Завершает любой craft* task (рецепт читается из task_settings.recipe в Config\\CraftRecipes). Покрывает ~34 крафта: medical/components/tools/weapons/teleport/robots.',
+)]
 class GenericCraftCompletionHandler extends BaseTaskHandler
 {
     private CharacterModel          $characterModel;
