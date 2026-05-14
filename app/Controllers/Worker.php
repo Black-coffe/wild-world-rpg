@@ -79,7 +79,8 @@ class Worker extends Controller
 
     protected function handleTask($task, $taskDetails)
     {
-        $handlerClassName = $this->getHandlerClassName($taskDetails['name']);
+        $handlerKey       = $taskDetails['handler_key'] ?? null;
+        $handlerClassName = $this->getHandlerClassName($taskDetails['name'], is_string($handlerKey) ? $handlerKey : null);
 
         if (!class_exists($handlerClassName)) {
             log_message('error', "[Worker] Handler-класс не найден: {$handlerClassName} (task #{$task['id']})");
@@ -266,9 +267,31 @@ class Worker extends Controller
         'craftCrossbowMk1'          => 'Craft\GenericCraftCompletionHandler',
     ];
 
-    protected function getHandlerClassName($taskName)
+    protected function getHandlerClassName($taskName, ?string $explicitHandlerKey = null)
     {
-        // Phase B3 (ADR-023): первая спроба — через HandlerRegistry
+        // Phase B6 (ADR-023) — DB-level handler_key priority. Якщо у tasks-row
+        // adminом встановлено handler_key — використовуємо його напряму через
+        // registry. Це новий "перший" шлях dispatch'а, він обходить
+        // tasks.name → key mapping повністю.
+        if ($explicitHandlerKey !== null && $explicitHandlerKey !== '') {
+            $registry = $this->handlerRegistry();
+            if ($registry !== null) {
+                $entry = $registry->getByKey($explicitHandlerKey);
+                if ($entry !== null && is_subclass_of($entry->class, TaskHandlerInterface::class)) {
+                    log_message(
+                        'debug',
+                        "[Worker] task '{$taskName}' explicit handler_key='{$explicitHandlerKey}' → {$entry->class} (via DB handler_key)"
+                    );
+                    return $entry->class;
+                }
+                log_message(
+                    'warning',
+                    "[Worker] task '{$taskName}': explicit handler_key='{$explicitHandlerKey}' not found in HandlerRegistry — falling back to name→key map"
+                );
+            }
+        }
+
+        // Phase B3 (ADR-023): друга спроба — через name→key map + HandlerRegistry
         // (`#[HandlerKey]` атрибут на handler-класах). Якщо реєстр недоступний
         // або в ньому немає запису для handler-key — fallback на legacy
         // FQCN-map нижче. Dual-write вікно B3–B7 за ADR-023.

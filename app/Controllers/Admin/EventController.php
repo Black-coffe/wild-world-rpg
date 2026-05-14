@@ -33,6 +33,30 @@ class EventController extends BaseAdminController
         return Services::handlerRegistry()->optionsFor(EventEffectInterface::class);
     }
 
+    /**
+     * Phase B6 (ADR-023) — нормалізує input.handler_key:
+     *  - empty/missing → null (legacy fallback)
+     *  - non-empty + valid registry key (для EventEffectInterface) → string
+     *  - non-empty + invalid → null + помилка валідації у $errors output param
+     *
+     * @param list<string> $errors
+     * @param-out list<string> $errors
+     */
+    protected function normalizeHandlerKey(mixed $raw, array &$errors): ?string
+    {
+        $errors = [];
+        if (!is_string($raw) || trim($raw) === '') {
+            return null;
+        }
+        $key = trim($raw);
+        $entry = Services::handlerRegistry()->getByKey($key);
+        if ($entry === null || !in_array(EventEffectInterface::class, $entry->interfaces, true)) {
+            $errors[] = "handler_key '{$key}' не зарегистрирован для EventEffectInterface — оставлено NULL (legacy fallback).";
+            return null;
+        }
+        return $key;
+    }
+
     public function index(): string
     {
         $events = $this->eventModel->findAll();
@@ -72,8 +96,14 @@ class EventController extends BaseAdminController
 
         $data['random_coverage'] = isset($data['random_coverage']) && $data['random_coverage'] === 'on' ? 1 : 0;
 
+        $handlerKeyErrors = [];
+        $data['handler_key'] = $this->normalizeHandlerKey($data['handler_key'] ?? null, $handlerKeyErrors);
+
         if (!$this->validate($this->eventModel->getValidationRules(), $this->eventModel->getValidationMessages())) {
             return $this->redirectBackWithErrors($this->validator?->getErrors() ?? []);
+        }
+        if ($handlerKeyErrors !== []) {
+            return $this->redirectBackWithErrors($handlerKeyErrors);
         }
 
         $existingEvent = $this->eventModel->find($eventId);
@@ -115,8 +145,14 @@ class EventController extends BaseAdminController
 
         $data['random_coverage'] = isset($data['random_coverage']) ? 1 : 0;
 
+        $handlerKeyErrors = [];
+        $data['handler_key'] = $this->normalizeHandlerKey($data['handler_key'] ?? null, $handlerKeyErrors);
+
         if (!$this->validate($this->eventModel->getValidationRules(), $this->eventModel->getValidationMessages())) {
             return $this->redirectBackWithErrors($this->validator?->getErrors() ?? []);
+        }
+        if ($handlerKeyErrors !== []) {
+            return $this->redirectBackWithErrors($handlerKeyErrors);
         }
 
         $saved = $this->eventModel->save($data);

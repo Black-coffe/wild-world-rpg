@@ -13,8 +13,10 @@ class WorldObjectModel extends Model
     protected $useSoftDeletes = false;
 
     protected $allowedFields = [
-        'name', 'name_en', 'description', 'biome_id', 'max_count',
-        'discovery_tools', 'contents', 'respawn_time', 'status'
+        'name', 'name_en',
+        'handler_key',  // Phase B6 (ADR-023) — registry dispatch key, NULL = legacy fallback.
+        'description', 'biome_id', 'max_count',
+        'discovery_tools', 'contents', 'respawn_time', 'status',
     ];
 
     protected $useTimestamps = true;

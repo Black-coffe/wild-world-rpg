@@ -12,6 +12,7 @@ class EventModel extends Model
     protected $allowedFields = [
         'name',
         'name_english',
+        'handler_key',  // Phase B6 (ADR-023) — registry dispatch key, NULL = legacy fallback path.
         'description',
         'biome_ids',
         'event_type',

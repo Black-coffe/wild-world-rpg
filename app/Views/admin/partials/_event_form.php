@@ -94,6 +94,27 @@ $renderSelectOption = static function (string $value, string $label, ?string $cu
                     <input type="text" class="form-control" id="name_english" name="name_english"
                            value="<?= $isEdit ? esc($event['name_english'] ?? '') : old('name_english') ?>" required>
                 </div>
+                <?php
+                /** Phase B6 (ADR-023) — handler_key dropdown. NULL = legacy fallback. */
+                $rawEditHk = $isEdit && $event !== null ? ($event['handler_key'] ?? '') : old('handler_key', '');
+                $currentHandlerKey = is_string($rawEditHk) ? $rawEditHk : '';
+                ?>
+                <div class="mb-3 col-md-3">
+                    <label for="handler_key" class="form-label">Handler (effect_kind)</label>
+                    <select class="form-select" id="handler_key" name="handler_key">
+                        <option value=""<?= $currentHandlerKey === '' ? ' selected' : '' ?>>— legacy fallback (NULL) —</option>
+                        <?php foreach (($effectHandlers ?? []) as $opt): ?>
+                            <?php
+                            $optKey = is_string($opt['key'] ?? null) ? (string) $opt['key'] : '';
+                            $optDisplay = is_string($opt['displayName'] ?? null) ? (string) $opt['displayName'] : '';
+                            ?>
+                            <option value="<?= esc($optKey) ?>"<?= $currentHandlerKey === $optKey ? ' selected' : '' ?>>
+                                <?= esc($optKey) ?> — <?= esc($optDisplay) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted">B6: dispatcher предпочитает handler_key. NULL = старый путь через WorldEvents.php.</small>
+                </div>
 
                 <?php if (!$isEdit): ?>
                 <div class="mb-3 col-md-3">

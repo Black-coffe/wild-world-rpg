@@ -48,7 +48,11 @@ class ObjectDiscoveryService {
                 ->findAll();
 
             foreach ($objects as $object) {
-                $handler = $this->getHandler($object['name_en']);
+                $explicitKey = $object['handler_key'] ?? null;
+                $handler     = $this->getHandler(
+                    $object['name_en'],
+                    is_string($explicitKey) ? $explicitKey : null,
+                );
                 if ($handler) {
                     $handler->handle($object, $cell, $character);
                 }
@@ -83,15 +87,39 @@ class ObjectDiscoveryService {
 
         // 3) Для каждого объекта - определить handler
         foreach ($objects as $object) {
-            $handler = $this->getHandler($object['name_en']);
+            $explicitKey = $object['handler_key'] ?? null;
+            $handler     = $this->getHandler(
+                $object['name_en'],
+                is_string($explicitKey) ? $explicitKey : null,
+            );
             if ($handler) {
                 $handler->handle($object, $cell, $character);
             }
         }
     }
 
-    protected function getHandler($type) {
-        // Phase B4 (ADR-023): первая спроба — через HandlerRegistry
+    protected function getHandler($type, ?string $explicitHandlerKey = null) {
+        // Phase B6 (ADR-023) — DB-level handler_key priority. Якщо у world_objects-row
+        // adminом встановлено handler_key — використовуємо його напряму через registry.
+        if ($explicitHandlerKey !== null && $explicitHandlerKey !== '') {
+            $registry = $this->handlerRegistry();
+            if ($registry !== null) {
+                $entry = $registry->getByKey($explicitHandlerKey);
+                if ($entry !== null && is_subclass_of($entry->class, ObjectHandlerInterface::class)) {
+                    log_message(
+                        'debug',
+                        "[ObjectDiscovery] type '{$type}' explicit handler_key='{$explicitHandlerKey}' → {$entry->class} (via DB handler_key)"
+                    );
+                    return new $entry->class();
+                }
+                log_message(
+                    'warning',
+                    "[ObjectDiscovery] type '{$type}': explicit handler_key='{$explicitHandlerKey}' not found in HandlerRegistry — falling back to name→key map"
+                );
+            }
+        }
+
+        // Phase B4 (ADR-023): друга спроба — через name→key map + HandlerRegistry
         // (`#[HandlerKey]` атрибут на handler-класах). Якщо реєстр недоступний
         // або в ньому немає запису для handler-key — fallback на legacy
         // match нижче. Dual-write вікно B4–B7 за ADR-023.

@@ -120,6 +120,28 @@ $currentStatus = $isEdit && $object !== null ? (string) ($object['status'] ?? ''
                     </select>
                 </div>
 
+                <?php
+                /** Phase B6 (ADR-023) — handler_key dropdown. NULL = legacy fallback. */
+                $rawEditHk = $isEdit && $object !== null ? ($object['handler_key'] ?? '') : old('handler_key', '');
+                $currentHandlerKey = is_string($rawEditHk) ? $rawEditHk : '';
+                ?>
+                <div class="mb-3 col-md-12">
+                    <label for="handler_key" class="form-label">Handler (world-object handler)</label>
+                    <select class="form-select" id="handler_key" name="handler_key">
+                        <option value=""<?= $currentHandlerKey === '' ? ' selected' : '' ?>>— legacy fallback (NULL) —</option>
+                        <?php foreach (($objectHandlers ?? []) as $opt): ?>
+                            <?php
+                            $optKey = is_string($opt['key'] ?? null) ? (string) $opt['key'] : '';
+                            $optDisplay = is_string($opt['displayName'] ?? null) ? (string) $opt['displayName'] : '';
+                            ?>
+                            <option value="<?= esc($optKey) ?>"<?= $currentHandlerKey === $optKey ? ' selected' : '' ?>>
+                                <?= esc($optKey) ?> — <?= esc($optDisplay) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted">B6: ObjectDiscoveryService предпочитает handler_key. NULL = старый путь через name_en match.</small>
+                </div>
+
                 <div class="mb-3 col-md-12">
                     <label for="description" class="form-label">Описание</label>
                     <textarea class="form-control" id="description" name="description" rows="3"><?= $isEdit ? esc(old('description', $object['description'] ?? '')) : esc(old('description')) ?></textarea>
