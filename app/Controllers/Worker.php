@@ -168,6 +168,7 @@ class Worker extends Controller
         'craftRobotGatherer'        => 'generic_craft',
         'craftWiring'               => 'generic_craft',
         'craftElectronicComponents' => 'generic_craft',
+        'craftMeteorShelter'        => 'generic_craft',  // v0.51.127 community idea #2 (latent gap caught by B6 backfill 2026-05-14)
         'craftMetalSpear'           => 'generic_craft',
         'craftPipeGun'              => 'generic_craft',
         'craftWiredBat'             => 'generic_craft',
@@ -250,6 +251,7 @@ class Worker extends Controller
         'FullRelocation' => 'Built\BaseFullRelocationCompletionHandler',
         'craftWiring'               => 'Craft\GenericCraftCompletionHandler', // F3.B6
         'craftElectronicComponents' => 'Craft\GenericCraftCompletionHandler', // F3.B6
+        'craftMeteorShelter'        => 'Craft\GenericCraftCompletionHandler', // v0.51.127 latent gap fix (B6 backfill 2026-05-14)
         'startBuildTeleportationCenter' => 'Built\GenericBuildingCompletionHandler', // F3.B4
         'craftTeleportBeaconBasic' => 'Craft\WorkbenchStandard\CraftCompletionTeleportBeaconBasicHandler',
         'craftTeleportBackpack' => 'Craft\WorkbenchStandard\CraftCompletionTeleportBackpackHandler',
