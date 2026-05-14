@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Objects;
 
+use App\Attributes\HandlerKey;
 use App\Models\TelegramUserModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
@@ -22,6 +23,11 @@ use App\Models\CharacterModel;
  * (empty string — invalid argument завжди, fires every discovery silently).
  * Markdown parse_mode передається через extra щоб не override на 'HTML' у safeSendPhoto.
  */
+#[HandlerKey(
+    key: 'world_object_closed_warehouse',
+    displayName: 'World-object: Закрытый склад',
+    description: 'Discovery handler для world_objects.name_en="Closed warehouse". Discovery: проверяет инструменты, формирует кнопки «Взломать/Пройти мимо» (вскрытие — в ObjectCloseWarehouseAction).',
+)]
 class ClosedWarehouseHandler extends BaseObjectHandler implements ObjectHandlerInterface
 {
     protected $telegramUserModel;

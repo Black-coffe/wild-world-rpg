@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\TaskHandlers\Objects;
 
+use App\Attributes\HandlerKey;
 use App\Models\BiomeWorldObjectMapModel;
 use App\Models\CharacterModel;
 use App\Models\CraftedItemsLogModel;
@@ -29,6 +30,11 @@ use App\Services\Endgame\EndgameProgressionService;
  * Photo convention: `public/uploads/telegram/objects/{name_en_lowercase}.jpg`.
  * Якщо файл відсутній — Telegram safeSendPhoto fallback'ить на text-only.
  */
+#[HandlerKey(
+    key: 'world_object_strategic_loot',
+    displayName: 'World-object: Стратегический лут (универсал)',
+    description: 'Discovery handler для 3 strategic-объектов: Bunker / Technopark / GhostCity (auto-loot с discovery_tools check, per-object config из world_objects DB).',
+)]
 class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInterface
 {
     private TelegramUserModel $telegramUserModel;
