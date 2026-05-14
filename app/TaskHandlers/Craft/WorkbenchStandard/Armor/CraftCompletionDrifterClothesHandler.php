@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Craft\WorkbenchStandard\Armor;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
 use App\Models\CharactersOutfitsModel;
 use App\Models\CharacterTaskModel;
@@ -19,6 +20,11 @@ use App\TaskHandlers\BaseTaskHandler;
  *
  * v0.51.40 (F2.9 batch-5): extends BaseTaskHandler + PSR-4 namespace casing fix.
  */
+#[HandlerKey(
+    key: 'craft_armor_drifter_clothes',
+    displayName: 'Крафт: Странническая одежда',
+    description: 'Завершение крафта DrifterClothes/WandererClothes (outfits, WorkbenchStandard/Armor).',
+)]
 class CraftCompletionDrifterClothesHandler extends BaseTaskHandler
 {
     protected $characterModel;

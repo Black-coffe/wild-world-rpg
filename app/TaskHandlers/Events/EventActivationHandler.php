@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Events;
 
+use App\Attributes\HandlerKey;
 use App\Models\ActiveEventModel;
 use App\Models\BiomeModel;
 use App\Models\EventModel;
@@ -27,6 +28,11 @@ use CodeIgniter\I18n\Time;
  * у legacy fallback. Time/week boundaries init залишені в constructor бо
  * характерні саме для цього handler-а (cycle-based).
  */
+#[HandlerKey(
+    key: 'event_activation',
+    displayName: 'Активация world-событий',
+    description: 'Recurring (Tasks.php every minute): закрывает истёкшие active_events + активирует новое из event-пула по frequency_per_week.',
+)]
 class EventActivationHandler extends BaseTaskHandler
 {
     /** @var ActiveEventModel */

@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Craft\WorkbenchStandard\Armor;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
 use App\Models\CharactersOutfitsModel;
 use App\Models\CharacterTaskModel;
@@ -18,6 +19,11 @@ use App\TaskHandlers\BaseTaskHandler;
  *
  * v0.51.40 (F2.9 batch-5): extends BaseTaskHandler + PSR-4 namespace casing fix.
  */
+#[HandlerKey(
+    key: 'craft_reinforced_leather',
+    displayName: 'Крафт: Усиленная кожанка',
+    description: 'Завершение крафта ReinforcedLeatherJacket (outfits, WorkbenchStandard/Armor).',
+)]
 class CraftCompletionReinforcedLeatherHandler extends BaseTaskHandler
 {
     protected $characterModel;

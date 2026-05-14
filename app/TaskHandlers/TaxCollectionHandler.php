@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterBuildingModel;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
@@ -25,6 +26,11 @@ use DateInterval;
  * Request::sendMessage/sendPhoto → safeSendMessage/safeSendPhoto.
  * `handle()` → `handle(array $task = []): void` (TaskHandlerInterface signature).
  */
+#[HandlerKey(
+    key: 'tax_collection',
+    displayName: 'Сбор налогов (раз в сутки)',
+    description: 'Recurring (Tasks.php daily 03:00): списывает налог за здания и маяки. При 2-м недостатке gold подряд — удаляет постройку.',
+)]
 class TaxCollectionHandler extends BaseTaskHandler
 {
     /**

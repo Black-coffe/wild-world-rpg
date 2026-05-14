@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Craft\WorkbenchStandard\Armor;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
 use App\Models\CharactersOutfitsModel;
 use App\Models\CharacterTaskModel;
@@ -24,6 +25,11 @@ use App\TaskHandlers\BaseTaskHandler;
  * `app\` → `App\`. Drop manual Telegram init у constructor + Request::sendPhoto
  * try/catch wrap → safeSendPhoto. handle(array $task) → handle(array $task = []): void.
  */
+#[HandlerKey(
+    key: 'craft_armor_ragged_shirt',
+    displayName: 'Крафт: Рваная рубаха',
+    description: 'Завершение крафта RaggedShirt (outfits table, WorkbenchStandard/Armor).',
+)]
 class CraftCompletionRaggedShirtHandler extends BaseTaskHandler
 {
     protected $characterModel;

@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterBuildingModel;
 use App\Models\CharacterResourceModel;
 use App\Models\BuildingModel;
@@ -19,6 +20,11 @@ use Config\GameBalance;
  * v0.51.24 (C/F6 expansion): greenhouseLevels + water shortage cooldown + threshold
  * читаються через config('GameBalance'). Раніше hardcoded private $greenhouseLevels.
  */
+#[HandlerKey(
+    key: 'greenhouse_production',
+    displayName: 'Производство Теплицы',
+    description: 'Recurring (Tasks.php every minute): теплица производит еду из воды/удобрения. Per-level config через GameBalance.',
+)]
 class GreenhouseProductionHandler extends BaseTaskHandler
 {
     protected $characterBuildingModel;

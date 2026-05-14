@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\CharacterTaskModel;
@@ -22,6 +23,11 @@ use Config\GameBalance;
  * Request::sendMessage/sendPhoto → safeSendMessage/safeSendPhoto.
  * `handle(array $task)` → `handle(array $task = []): void` (TaskHandlerInterface signature).
  */
+#[HandlerKey(
+    key: 'complete_robot_gathering',
+    displayName: 'Завершение сбора роботом',
+    description: 'Робот-сборщик: добывает ресурсы с заявленных клеток (claimed_cells) вокруг базы.',
+)]
 class CompleteRobotGatheringHandler extends BaseTaskHandler
 {
     /** Fallback building_id, если RoboticsWorkshop не найден в `buildings`. Infra-константа, не balance. */

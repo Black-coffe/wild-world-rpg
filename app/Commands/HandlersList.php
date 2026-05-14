@@ -42,16 +42,25 @@ final class HandlersList extends BaseCommand
         $interfaceFilter = CLI::getOption('interface');
         $refresh         = (bool) CLI::getOption('refresh');
 
-        $namespaces = is_string($namespaceOption) && $namespaceOption !== ''
-            ? $this->parseNamespaces($namespaceOption)
-            : ['App\\'];
-
-        $registry = new HandlerRegistry(
-            namespacePrefixes: $namespaces,
-            scanner:           new HandlerDiscoveryScanner(),
-            cachePath:         null,
-            cacheEnabled:      !$refresh,
-        );
+        $hasCustomNs = is_string($namespaceOption) && $namespaceOption !== '';
+        if ($hasCustomNs) {
+            // Custom scan — собственный registry-инстанс.
+            $namespaces = $this->parseNamespaces($namespaceOption);
+            $registry   = new HandlerRegistry(
+                namespacePrefixes: $namespaces,
+                scanner:           new HandlerDiscoveryScanner(),
+                cachePath:         null,
+                cacheEnabled:      !$refresh,
+            );
+        } else {
+            // Default — реальный prod-registry из Services (B2+ scan-paths:
+            // App\Services\Events\Effects\, App\TaskHandlers\). Сканить
+            // целиком App\ небезопасно — там есть View-шаблоны, которые
+            // include'аются автозагрузчиком и сыпят runtime errors на
+            // `$this->extend()` (см. catch в HandlerDiscoveryScanner::inspectClass).
+            $registry   = \Config\Services::handlerRegistry();
+            $namespaces = ['App\\Services\\Events\\Effects\\', 'App\\TaskHandlers\\'];
+        }
 
         if ($refresh) {
             $registry->refresh();

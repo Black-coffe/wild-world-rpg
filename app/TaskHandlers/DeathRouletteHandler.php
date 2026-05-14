@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Models\ClaimedCellModel;
@@ -23,6 +24,11 @@ use Config\GameBalance;
  * BaseTaskHandler::telegram(), Request::sendMessage → safeSendMessage (з try/catch).
  * `process()` → `handle(array $task = []): void` (TaskHandlerInterface signature).
  */
+#[HandlerKey(
+    key: 'death_roulette',
+    displayName: 'Рулетка смерти',
+    description: 'Recurring (Tasks.php every minute): обрабатывает chars с health<=0.99, делает death-roll. При смерти — страховка/база/penalty, респаун.',
+)]
 class DeathRouletteHandler extends BaseTaskHandler
 {
     private GameBalance $cfg;

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\TaskHandlers\Endgame;
 
+use App\Attributes\HandlerKey;
 use App\Models\CharacterFactionModel;
 use App\Models\CharacterModel;
 use App\Models\FactionEndgameScoreModel;
@@ -29,6 +30,11 @@ use Config\EndgameScoring;
  * Wire-in: Tasks.php daily entry о 04:00 EEST (after tax collection 03:00 +
  * battles cleanup 03:35).
  */
+#[HandlerKey(
+    key: 'endgame_threshold_check',
+    displayName: 'Эндгейм: проверка порога фракции',
+    description: 'Recurring (Tasks.php daily 04:00): проверяет 75k threshold у faction_endgame_scores. При достижении — broadcast + state update.',
+)]
 class EndgameThresholdHandler extends BaseTaskHandler
 {
     private FactionEndgameScoreModel $scoreModel;
