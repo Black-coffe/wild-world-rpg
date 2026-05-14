@@ -2,6 +2,7 @@
 
 namespace App\TaskHandlers\Objects;
 
+use App\Attributes\HandlerKey;
 use App\Models\BiomeWorldObjectMapModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
@@ -12,6 +13,11 @@ use App\Models\TelegramUserModel;
  * v0.51.39 (F2.9 batch-4): extends BaseObjectHandler. Раніше manual Telegram
  * init у constructor + Request::sendPhoto raw call.
  */
+#[HandlerKey(
+    key: 'world_object_toolkit',
+    displayName: 'World-object: Набор инструментов',
+    description: 'Discovery handler для world_objects.name_en="Toolkit". Авто-лут: выдаёт инструмент из бага инструмента.',
+)]
 class ToolkitHandler extends BaseObjectHandler implements ObjectHandlerInterface
 {
     protected $telegramUserModel;
