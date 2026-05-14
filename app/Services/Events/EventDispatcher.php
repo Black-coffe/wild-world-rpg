@@ -157,8 +157,23 @@ final class EventDispatcher
             return false;  // skip silently
         }
 
+        // Phase B6 (ADR-023) — DB-level handler_key priority.
+        // Якщо у events.handler_key встановлено valid effect_kind — використовуємо його
+        // напряму через registry (override WorldEvents.php). Іnakше — legacy шлях:
+        // config['effect_kind'] з WorldEvents.php.
+        $explicitKind = is_array($eventRow) ? ($eventRow['handler_key'] ?? null) : null;
+        if (is_string($explicitKind) && $explicitKind !== '') {
+            log_message(
+                'debug',
+                "[EventDispatcher] event '{$nameEn}' explicit handler_key='{$explicitKind}' (override WorldEvents.php config)"
+            );
+            $effectKind = $explicitKind;
+        } else {
+            $effectKind = $config['effect_kind'];
+        }
+
         // Resolve effect class
-        $effect = EffectResolver::resolve($config['effect_kind']);
+        $effect = EffectResolver::resolve($effectKind);
 
         // Знайти affected players
         $players = $this->findAffectedPlayers($eventRow);

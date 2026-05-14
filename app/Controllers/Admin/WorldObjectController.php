@@ -33,6 +33,27 @@ class WorldObjectController extends BaseAdminController
     }
 
     /**
+     * Phase B6 (ADR-023) — нормалізує input.handler_key для world_objects.
+     *
+     * @param list<string> $errors
+     * @param-out list<string> $errors
+     */
+    protected function normalizeHandlerKey(mixed $raw, array &$errors): ?string
+    {
+        $errors = [];
+        if (!is_string($raw) || trim($raw) === '') {
+            return null;
+        }
+        $key = trim($raw);
+        $entry = Services::handlerRegistry()->getByKey($key);
+        if ($entry === null || !in_array(ObjectHandlerInterface::class, $entry->interfaces, true)) {
+            $errors[] = "handler_key '{$key}' не зарегистрирован для ObjectHandlerInterface — оставлено NULL (legacy fallback).";
+            return null;
+        }
+        return $key;
+    }
+
+    /**
      * `biome_id` — multi-select от админ-формы (массив id'ов биомов) → JSON.
      * `discovery_tools` и `contents` — админ вводит JSON-строку руками в textarea,
      * мы её декодируем, обрезаем пробелы рекурсивно (защита от случайных отступов
@@ -101,8 +122,14 @@ class WorldObjectController extends BaseAdminController
         $data = (array) $this->request->getPost();
         $data = $this->prepareJsonData($data);
 
+        $handlerKeyErrors = [];
+        $data['handler_key'] = $this->normalizeHandlerKey($data['handler_key'] ?? null, $handlerKeyErrors);
+
         if (!$this->validate($this->worldObjectModel->getValidationRules())) {
             return $this->redirectBackWithErrors($this->validator?->getErrors() ?? []);
+        }
+        if ($handlerKeyErrors !== []) {
+            return $this->redirectBackWithErrors($handlerKeyErrors);
         }
 
         $id = $this->worldObjectModel->insert($data);
@@ -143,9 +170,15 @@ class WorldObjectController extends BaseAdminController
         $data = (array) $this->request->getPost();
         $data = $this->prepareJsonData($data);
 
+        $handlerKeyErrors = [];
+        $data['handler_key'] = $this->normalizeHandlerKey($data['handler_key'] ?? null, $handlerKeyErrors);
+
         if (!$this->validate($this->worldObjectModel->getValidationRules())) {
             log_message('error', 'Validation errors: ' . print_r($this->validator?->getErrors() ?? [], true));
             return $this->failValidationErrors($this->validator?->getErrors() ?? []);
+        }
+        if ($handlerKeyErrors !== []) {
+            return $this->redirectBackWithErrors($handlerKeyErrors);
         }
 
         // v0.51.12: fixed duplicate $worldObjectModel->update() call (was calling update

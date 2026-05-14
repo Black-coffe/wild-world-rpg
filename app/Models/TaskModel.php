@@ -15,6 +15,7 @@ class TaskModel extends Model
 
     protected $allowedFields = [ // Поля, разрешенные для массового назначения
         'name',
+        'handler_key',  // Phase B6 (ADR-023) — registry dispatch key, NULL = legacy fallback.
         'name_rus',
         'description',
         'min_duration',

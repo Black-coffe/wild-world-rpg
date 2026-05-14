@@ -71,6 +71,30 @@ $currentInterrupt   = $isEdit ? (string) ((int) ($task['interruptible'] ?? 0)) :
                 </div>
             </div>
 
+            <?php
+            /** Phase B6 (ADR-023) — handler_key dropdown. NULL = legacy fallback. */
+            $rawEditHk = $isEdit && $task !== null ? ($task['handler_key'] ?? '') : old('handler_key', '');
+            $currentHandlerKey = is_string($rawEditHk) ? $rawEditHk : '';
+            ?>
+            <div class="row g-2">
+                <div class="mb-3 col-md-12">
+                    <label for="handler_key" class="form-label">Handler (task-handler класс)</label>
+                    <select class="form-select" id="handler_key" name="handler_key">
+                        <option value=""<?= $currentHandlerKey === '' ? ' selected' : '' ?>>— legacy fallback (NULL) —</option>
+                        <?php foreach (($taskHandlers ?? []) as $opt): ?>
+                            <?php
+                            $optKey = is_string($opt['key'] ?? null) ? (string) $opt['key'] : '';
+                            $optDisplay = is_string($opt['displayName'] ?? null) ? (string) $opt['displayName'] : '';
+                            ?>
+                            <option value="<?= esc($optKey) ?>"<?= $currentHandlerKey === $optKey ? ' selected' : '' ?>>
+                                <?= esc($optKey) ?> — <?= esc($optDisplay) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <small class="text-muted">B6: dispatcher предпочитает handler_key. NULL = старый путь через Worker::$taskHandlerKeyMap[tasks.name].</small>
+                </div>
+            </div>
+
             <div class="row g-2">
                 <div class="mb-3 col-md-4">
                     <label for="min_duration" class="form-label">Минимальное время выполнения (минуты)</label>

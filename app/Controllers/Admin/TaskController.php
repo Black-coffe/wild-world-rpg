@@ -29,6 +29,28 @@ class TaskController extends BaseAdminController
         return Services::handlerRegistry()->optionsFor(TaskHandlerInterface::class);
     }
 
+    /**
+     * Phase B6 (ADR-023) — нормалізує input.handler_key для tasks. Same контракт
+     * як у EventController::normalizeHandlerKey але проти TaskHandlerInterface.
+     *
+     * @param list<string> $errors
+     * @param-out list<string> $errors
+     */
+    protected function normalizeHandlerKey(mixed $raw, array &$errors): ?string
+    {
+        $errors = [];
+        if (!is_string($raw) || trim($raw) === '') {
+            return null;
+        }
+        $key = trim($raw);
+        $entry = Services::handlerRegistry()->getByKey($key);
+        if ($entry === null || !in_array(TaskHandlerInterface::class, $entry->interfaces, true)) {
+            $errors[] = "handler_key '{$key}' не зарегистрирован для TaskHandlerInterface — оставлено NULL (legacy fallback).";
+            return null;
+        }
+        return $key;
+    }
+
     public function index(): string
     {
         $tasks = $this->taskModel->orderBy('created_at', 'DESC')->findAll();
@@ -51,8 +73,14 @@ class TaskController extends BaseAdminController
     {
         $data = (array) $this->request->getPost();
 
+        $handlerKeyErrors = [];
+        $data['handler_key'] = $this->normalizeHandlerKey($data['handler_key'] ?? null, $handlerKeyErrors);
+
         if (!$this->validate($this->taskModel->getValidationRules())) {
             return $this->redirectBackWithErrors($this->validator?->getErrors() ?? []);
+        }
+        if ($handlerKeyErrors !== []) {
+            return $this->redirectBackWithErrors($handlerKeyErrors);
         }
 
         $id = $this->taskModel->insert($data);
@@ -95,8 +123,14 @@ class TaskController extends BaseAdminController
             return $this->failNotFound('Задача не найдена.');
         }
 
+        $handlerKeyErrors = [];
+        $data['handler_key'] = $this->normalizeHandlerKey($data['handler_key'] ?? null, $handlerKeyErrors);
+
         if (!$this->validate($this->taskModel->getValidationRules())) {
             return $this->failValidationErrors($this->validator?->getErrors() ?? []);
+        }
+        if ($handlerKeyErrors !== []) {
+            return $this->redirectBackWithErrors($handlerKeyErrors);
         }
 
         $updated = $this->taskModel->update($taskId, $data);
