@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Controllers\Admin;
 
 use App\Models\TaskModel;
+use App\TaskHandlers\Contracts\TaskHandlerInterface;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\Services;
 
 class TaskController extends BaseAdminController
 {
@@ -15,6 +17,16 @@ class TaskController extends BaseAdminController
     public function __construct()
     {
         $this->taskModel = new TaskModel();
+    }
+
+    /**
+     * Phase B5 (ADR-023) — registered task-handler options для form info-панели.
+     *
+     * @return list<array{key: string, displayName: string, description: string}>
+     */
+    protected function taskHandlerOptions(): array
+    {
+        return Services::handlerRegistry()->optionsFor(TaskHandlerInterface::class);
     }
 
     public function index(): string
@@ -30,7 +42,8 @@ class TaskController extends BaseAdminController
     public function createTaskForm(): string
     {
         return view('admin/task_create', [
-            'title' => 'Создание новой задачи',
+            'title'        => 'Создание новой задачи',
+            'taskHandlers' => $this->taskHandlerOptions(),
         ]);
     }
 
@@ -67,8 +80,9 @@ class TaskController extends BaseAdminController
         $task = (array) $task;
 
         return view('admin/task_edit_form', [
-            'task'  => $task,
-            'title' => 'Редактирование задачи: ' . (string) ($task['name'] ?? ''),
+            'task'         => $task,
+            'taskHandlers' => $this->taskHandlerOptions(),
+            'title'        => 'Редактирование задачи: ' . (string) ($task['name'] ?? ''),
         ]);
     }
 

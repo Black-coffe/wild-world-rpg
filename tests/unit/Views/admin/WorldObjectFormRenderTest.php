@@ -114,6 +114,38 @@ final class WorldObjectFormRenderTest extends CIUnitTestCase
         $this->assertStringContainsString('Лом', $html);
     }
 
+    public function testCreateFormRendersRegisteredObjectHandlers(): void
+    {
+        $objectHandlers = [
+            ['key' => 'world_object_toolkit',       'displayName' => 'Toolkit',  'description' => 'Авто-лут инструмента.'],
+            ['key' => 'world_object_closed_warehouse', 'displayName' => 'Closed warehouse', 'description' => 'Discovery склада.'],
+        ];
+
+        $html = view('admin/partials/_world_object_form', [
+            'mode'           => 'create',
+            'biomes'         => $this->biomes(),
+            'objectHandlers' => $objectHandlers,
+        ]);
+
+        $this->assertStringContainsString('Зарегистрированные world-object handlers', $html);
+        $this->assertStringContainsString('world_object_toolkit', $html);
+        $this->assertStringContainsString('Toolkit', $html);
+        $this->assertStringContainsString('world_object_closed_warehouse', $html);
+    }
+
+    public function testCreateFormRendersWithoutObjectHandlersGracefully(): void
+    {
+        // Explicit empty — CI4 View::view() saveData=true → test pollution защита.
+        $html = view('admin/partials/_world_object_form', [
+            'mode'           => 'create',
+            'biomes'         => $this->biomes(),
+            'objectHandlers' => [],
+        ]);
+
+        $this->assertStringContainsString('Добавить объект', $html);
+        $this->assertStringNotContainsString('Зарегистрированные world-object handlers', $html);
+    }
+
     public function testEditWithArrayBiomeIdFromEntity(): void
     {
         // Гипотетический случай: F1.4 entity может вернуть biome_id как array,

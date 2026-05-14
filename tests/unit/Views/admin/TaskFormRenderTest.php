@@ -58,6 +58,33 @@ final class TaskFormRenderTest extends CIUnitTestCase
         $this->assertStringNotContainsString('0 — без ограничений', $html, 'Hint только в create, не в edit');
     }
 
+    public function testCreateFormRendersRegisteredTaskHandlers(): void
+    {
+        $taskHandlers = [
+            ['key' => 'marching',      'displayName' => 'Поход',          'description' => 'Цепочка 1-клеточных задач.'],
+            ['key' => 'generic_craft', 'displayName' => 'Универс. крафт', 'description' => 'Все craft* через CraftRecipes.'],
+        ];
+
+        $html = view('admin/partials/_task_form', [
+            'mode'         => 'create',
+            'taskHandlers' => $taskHandlers,
+        ]);
+
+        $this->assertStringContainsString('Зарегистрированные task-handler', $html);
+        $this->assertStringContainsString('marching', $html);
+        $this->assertStringContainsString('Поход', $html);
+        $this->assertStringContainsString('generic_craft', $html);
+    }
+
+    public function testCreateFormRendersWithoutTaskHandlersGracefully(): void
+    {
+        // Explicit empty — CI4 View::view() saveData=true → test pollution защита.
+        $html = view('admin/partials/_task_form', ['mode' => 'create', 'taskHandlers' => []]);
+
+        $this->assertStringContainsString('Создать задачу', $html);
+        $this->assertStringNotContainsString('Зарегистрированные task-handler', $html);
+    }
+
     public function testEditPreservesInterruptibleZero(): void
     {
         // Регресс: булевы 0 не должны теряться (legacy bug pattern).

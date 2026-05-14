@@ -6,8 +6,10 @@ namespace App\Controllers\Admin;
 
 use App\Models\EventModel;
 use App\Models\BiomeModel;
+use App\Services\Events\EventEffectInterface;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\Services;
 use Config\WorldEvents;
 
 class EventController extends BaseAdminController
@@ -19,6 +21,16 @@ class EventController extends BaseAdminController
     {
         $this->eventModel = new EventModel();
         $this->biomeModel = new BiomeModel();
+    }
+
+    /**
+     * Phase B5 (ADR-023) — registered effect-handler options для form info-панели.
+     *
+     * @return list<array{key: string, displayName: string, description: string}>
+     */
+    protected function effectHandlerOptions(): array
+    {
+        return Services::handlerRegistry()->optionsFor(EventEffectInterface::class);
     }
 
     public function index(): string
@@ -46,10 +58,11 @@ class EventController extends BaseAdminController
         $worldConfig = config(WorldEvents::class)->get((string) ($event['name_english'] ?? ''));
 
         return view('admin/event_edit_form', [
-            'event'       => $event,
-            'biomes'      => $biomes,
-            'worldConfig' => $worldConfig,
-            'title'       => 'Редактирование события: ' . (string) ($event['name'] ?? ''),
+            'event'          => $event,
+            'biomes'         => $biomes,
+            'worldConfig'    => $worldConfig,
+            'effectHandlers' => $this->effectHandlerOptions(),
+            'title'          => 'Редактирование события: ' . (string) ($event['name'] ?? ''),
         ]);
     }
 
@@ -90,8 +103,9 @@ class EventController extends BaseAdminController
         $biomes = $this->biomeModel->findAll();
 
         return view('admin/event_create_form', [
-            'title'  => 'Создание нового события',
-            'biomes' => $biomes,
+            'title'          => 'Создание нового события',
+            'biomes'         => $biomes,
+            'effectHandlers' => $this->effectHandlerOptions(),
         ]);
     }
 
