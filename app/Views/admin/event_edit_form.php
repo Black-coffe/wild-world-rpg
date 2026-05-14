@@ -30,6 +30,6 @@
 <?php endif; ?>
 
 <?php /* Phase D (2026-05-13): unified _event_form partial вместо 138 LOC дубля */ ?>
-<?= view('admin/partials/_event_form', ['mode' => 'edit', 'event' => $event, 'biomes' => $biomes]) ?>
+<?= view('admin/partials/_event_form', ['mode' => 'edit', 'event' => $event, 'biomes' => $biomes, 'effectHandlers' => $effectHandlers ?? []]) ?>
 
 <?= $this->endSection() ?>

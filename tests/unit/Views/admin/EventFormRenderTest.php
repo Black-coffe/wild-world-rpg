@@ -130,6 +130,66 @@ final class EventFormRenderTest extends CIUnitTestCase
         $this->assertSame(2, $matched, 'Только биомы 1 и 3 (из biome_ids JSON) должны быть checked');
     }
 
+    public function testCreateFormRendersRegisteredEffectHandlers(): void
+    {
+        $effectHandlers = [
+            ['key' => 'damage_health', 'displayName' => 'Урон здоровью', 'description' => 'Снижает HP персонажа.'],
+            ['key' => 'heal',          'displayName' => 'Лечение',       'description' => 'Восстанавливает HP.'],
+        ];
+
+        $html = view('admin/partials/_event_form', [
+            'mode'           => 'create',
+            'biomes'         => $this->fixtureBiomes(),
+            'effectHandlers' => $effectHandlers,
+        ]);
+
+        $this->assertStringContainsString('Зарегистрированные effect_kind', $html, 'Phase B5 info-panel заголовок');
+        $this->assertStringContainsString('damage_health', $html);
+        $this->assertStringContainsString('Урон здоровью', $html);
+        $this->assertStringContainsString('Снижает HP персонажа.', $html);
+        $this->assertStringContainsString('heal', $html);
+        $this->assertStringContainsString('Лечение', $html);
+    }
+
+    public function testEditFormRendersRegisteredEffectHandlers(): void
+    {
+        $event = [
+            'event_id'           => 1, 'name' => 'X', 'name_english' => 'X', 'description' => '',
+            'biome_ids' => json_encode([]), 'event_type' => 'local', 'duration' => 1, 'frequency_per_week' => 1,
+            'effect_type' => 'damage', 'effect_value' => 1, 'protection_item_id' => 0, 'random_coverage' => 0,
+            'img_path' => '',
+        ];
+
+        $html = view('admin/partials/_event_form', [
+            'mode'           => 'edit',
+            'event'          => $event,
+            'biomes'         => $this->fixtureBiomes(),
+            'effectHandlers' => [
+                ['key' => 'noop', 'displayName' => 'Без эффекта', 'description' => 'Декоративное событие.'],
+            ],
+        ]);
+
+        $this->assertStringContainsString('Зарегистрированные effect_kind', $html);
+        $this->assertStringContainsString('noop', $html);
+        $this->assertStringContainsString('Без эффекта', $html);
+    }
+
+    public function testCreateFormRendersWithoutEffectHandlersGracefully(): void
+    {
+        // Передаём effectHandlers=[] explicitly: CI4 View::view() default saveData=true
+        // означает, что данные с предыдущих view-вызовов «прилипают» к View-инстансу
+        // (test pollution). Wrapper-views (event_create_form.php) всегда передают
+        // explicit value, поэтому в prod-flow проблемы нет.
+        $html = view('admin/partials/_event_form', [
+            'mode'           => 'create',
+            'biomes'         => $this->fixtureBiomes(),
+            'effectHandlers' => [],
+        ]);
+
+        $this->assertStringContainsString('Создать событие', $html, 'Form must still render without effectHandlers');
+        $this->assertStringNotContainsString('Зарегистрированные effect_kind', $html, 'Panel не должна появляться при пустом списке');
+    }
+
     public function testBiomeEntityArrayAccessIsHandled(): void
     {
         // F1.4 migration urok: BiomeModel returns Entity, не array. Partial должен работать

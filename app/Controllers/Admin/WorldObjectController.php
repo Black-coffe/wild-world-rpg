@@ -6,8 +6,10 @@ namespace App\Controllers\Admin;
 
 use App\Models\BiomeModel;
 use App\Models\WorldObjectModel;
+use App\TaskHandlers\Objects\ObjectHandlerInterface;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\Services;
 
 class WorldObjectController extends BaseAdminController
 {
@@ -18,6 +20,16 @@ class WorldObjectController extends BaseAdminController
     {
         $this->worldObjectModel = new WorldObjectModel();
         $this->biomeModel       = new BiomeModel();
+    }
+
+    /**
+     * Phase B5 (ADR-023) — registered world-object handler options для form info-панели.
+     *
+     * @return list<array{key: string, displayName: string, description: string}>
+     */
+    protected function objectHandlerOptions(): array
+    {
+        return Services::handlerRegistry()->optionsFor(ObjectHandlerInterface::class);
     }
 
     /**
@@ -78,8 +90,9 @@ class WorldObjectController extends BaseAdminController
         $biomes = $this->biomeModel->findAll();
 
         return view('admin/world_object_create', [
-            'title'  => 'Создание нового объекта',
-            'biomes' => $biomes,
+            'title'          => 'Создание нового объекта',
+            'biomes'         => $biomes,
+            'objectHandlers' => $this->objectHandlerOptions(),
         ]);
     }
 
@@ -118,9 +131,10 @@ class WorldObjectController extends BaseAdminController
         $object['contents']        = json_decode((string) ($object['contents'] ?? ''), true) ?? [];
 
         return view('admin/world_object_edit_form', [
-            'object' => $object,
-            'biomes' => $biomes,
-            'title'  => 'Edit Object: ' . (string) ($object['name'] ?? ''),
+            'object'         => $object,
+            'biomes'         => $biomes,
+            'objectHandlers' => $this->objectHandlerOptions(),
+            'title'          => 'Edit Object: ' . (string) ($object['name'] ?? ''),
         ]);
     }
 

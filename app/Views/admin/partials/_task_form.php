@@ -26,6 +26,14 @@ $currentParallel    = $isEdit ? (string) ((int) ($task['parallel_execution_allow
 $currentInterrupt   = $isEdit ? (string) ((int) ($task['interruptible'] ?? 0)) : null;
 ?>
 
+<?php /* Phase B5 (ADR-023, 2026-05-14) — зарегистрированные task-handler'ы (динамически из HandlerRegistry). */ ?>
+<?= view('admin/partials/_handler_options_panel', [
+    'options' => $taskHandlers ?? [],
+    'title'   => 'Зарегистрированные task-handler-классы (HandlerRegistry, ADR-023)',
+    'hint'    => 'tasks.name → handler-key → handler-класс. Concrete handlers (marching/gather) обрабатывают свой task.name напрямую; generic_craft и generic_building — диспетчеризуются через CraftRecipes/Buildings config. См. Worker.php $taskHandlerKeyMap.',
+    'emoji'   => '🛠️',
+]) ?>
+
 <div class="card">
     <div class="card-body">
         <?php if (session()->getFlashdata('errors')): ?>

@@ -39,22 +39,24 @@ $renderSelectOption = static function (string $value, string $label, ?string $cu
 ?>
 
 <?php if (!$isEdit): ?>
-<div class="alert alert-info" role="alert">
+<div class="alert alert-warning" role="alert">
     <strong>ℹ️ F7 архитектура:</strong> создание новой подии в админке = создание DB-row.
     Чтобы подія реально что-то делала, после её сохранения нужно <strong>добавить запись в
     <code>app/Config/WorldEvents.php</code></strong> по ключу <code>name_english</code> с полями
     <code>effect_kind</code>, <code>effect_params</code>, <code>tick_chance</code>,
     <code>frequency_weight</code> и т.п., затем задеплоить.
     <br><br>
-    <strong>10 валидных effect_kind:</strong>
-    <code>damage_health</code>, <code>damage_resources</code>, <code>heal</code>,
-    <code>attribute_boost</code>, <code>reveal_cells</code>, <code>gold_grant</code>,
-    <code>rare_resource_grant</code>, <code>task_extend</code>, <code>gather_debuff</code>,
-    <code>noop</code>.
-    <br><br>
     Без записи в WorldEvents.php: NotificationPolicy упадёт в legacy-broadcast, EventDispatcher пропустит эффекты.
 </div>
 <?php endif; ?>
+
+<?php /* Phase B5 (ADR-023, 2026-05-14) — registered effect-handlers (динамически из HandlerRegistry, не hardcoded). */ ?>
+<?= view('admin/partials/_handler_options_panel', [
+    'options' => $effectHandlers ?? [],
+    'title'   => 'Зарегистрированные effect_kind (HandlerRegistry, ADR-023)',
+    'hint'    => 'Используй один из этих ключей в `WorldEvents.php → effect_kind` для соответствующего name_english. Программист добавляет новый Effect-класс с #[HandlerKey] — он автоматически появится в этом списке.',
+    'emoji'   => '🎲',
+]) ?>
 
 <div class="card">
     <div class="card-body">

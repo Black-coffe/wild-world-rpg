@@ -81,6 +81,14 @@ $renderOption = static function (string $value, string $label, ?string $current)
 $currentStatus = $isEdit && $object !== null ? (string) ($object['status'] ?? '') : null;
 ?>
 
+<?php /* Phase B5 (ADR-023, 2026-05-14) — зарегистрированные world-object handlers (динамически из HandlerRegistry). */ ?>
+<?= view('admin/partials/_handler_options_panel', [
+    'options' => $objectHandlers ?? [],
+    'title'   => 'Зарегистрированные world-object handlers (HandlerRegistry, ADR-023)',
+    'hint'    => 'world_objects.name_en → handler-key → handler-класс. Сейчас resolve через ObjectDiscoveryService::$objectHandlerKeyMap (Bunker/Technopark/GhostCity → strategic_loot, остальные 1:1).',
+    'emoji'   => '🌐',
+]) ?>
+
 <div class="card">
     <div class="card-body">
         <?php if (session()->getFlashdata('errors')): ?>
