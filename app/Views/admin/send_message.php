@@ -51,7 +51,7 @@
                     <button type="button" class="btn btn-outline-secondary" data-emoji="🔥">🔥</button>
                 </div>
             </div>
-            <textarea class="form-control" name="message" id="message" rows="9" required style="font-family:Menlo,Consolas,monospace;font-size:14px;line-height:1.45;"></textarea>
+            <textarea class="form-control admin-msg-textarea-mono" name="message" id="message" rows="9" required></textarea>
             <small class="form-text text-muted">
                 Markdown Telegram: <code>*жирный*</code>, <code>_курсив_</code>, <code>`код`</code>,
                 <code>[текст](url)</code>, <code>&gt; цитата</code>. Спецсимволы вне разметки экранируются автоматически на стороне Telegram.
@@ -75,12 +75,12 @@
                 </label>
             </div>
 
-            <div id="image_upload_block" class="mt-2" style="display:none;">
+            <div id="image_upload_block" class="mt-2 d-none">
                 <input type="file" name="image_file" id="image_file" class="form-control" accept="image/jpeg,image/png,image/webp">
                 <small class="form-text text-muted">Картинка приложится как Telegram photo с подписью (caption ≤1024 символов; длиннее — отправится двумя сообщениями: фото + текст).</small>
             </div>
 
-            <div id="image_ai_block" class="mt-2" style="display:none;">
+            <div id="image_ai_block" class="mt-2 d-none">
                 <label for="image_scene" class="form-label">Уточнение сцены (опционально, по-английски лучше)</label>
                 <input type="text" name="image_scene" id="image_scene" class="form-control" maxlength="500"
                        placeholder="напр. survivors gathered around a campfire reading a notice">

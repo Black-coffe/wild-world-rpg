@@ -39,7 +39,7 @@
         <tr>
             <td><?= esc($resource['name']) ?></td>
             <td><?= esc($resource['name_en']) ?></td>
-            <td style="font-family: "Noto Color Emoji", sans-serif; font-weight: 400; font-style: normal;"><?=$resource['icon_text'] ?></td>
+            <td class="admin-resource-emoji"><?=$resource['icon_text'] ?></td>
             <td><?= esc($resource['translated_types']) ?></td>
             <td><?= esc($resource['biome_names']) ?></td>
             <td><?= esc($resource['price']) ?></td>

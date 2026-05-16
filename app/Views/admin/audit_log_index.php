@@ -52,14 +52,14 @@
             <table class="table table-sm table-striped table-hover">
                 <thead class="table-dark">
                     <tr>
-                        <th style="width:90px">ID</th>
-                        <th style="width:160px">Когда (UTC)</th>
-                        <th style="width:140px">Admin</th>
-                        <th style="width:180px">Action</th>
-                        <th style="width:120px">Target type</th>
-                        <th style="width:80px">Target ID</th>
+                        <th class="admin-audit-col-id">ID</th>
+                        <th class="admin-audit-col-date">Когда (UTC)</th>
+                        <th class="admin-audit-col-admin">Admin</th>
+                        <th class="admin-audit-col-action">Action</th>
+                        <th class="admin-audit-col-target-type">Target type</th>
+                        <th class="admin-audit-col-target-id">Target ID</th>
                         <th>Payload</th>
-                        <th style="width:110px">IP</th>
+                        <th class="admin-audit-col-ip">IP</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -79,7 +79,7 @@
                                 <?php if (!empty($row['payload'])): ?>
                                     <details>
                                         <summary class="small">JSON</summary>
-                                        <pre class="small mb-0" style="max-height:200px;overflow:auto;background:#f6f6f6;padding:.4em;border-radius:.25em;"><?= esc($row['payload']) ?></pre>
+                                        <pre class="small mb-0 admin-audit-payload"><?= esc($row['payload']) ?></pre>
                                     </details>
                                 <?php else: ?>
                                     <span class="text-muted small">—</span>

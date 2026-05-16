@@ -32,3 +32,5 @@
     <link href="<?= base_url('css/icons.min.css') ?>" rel="stylesheet" type="text/css" />
     <!-- My css -->
     <link href="<?= base_url('css/my.css') ?>" rel="stylesheet" type="text/css" />
+    <!-- Admin utility classes (Phase D2) -->
+    <link href="<?= base_url('assets/css/admin.css') ?>" rel="stylesheet" type="text/css" />

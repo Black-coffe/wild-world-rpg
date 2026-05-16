@@ -23,13 +23,13 @@
         <tbody>
         <?php foreach ($options as $opt): ?>
             <tr>
-                <td class="ps-0" style="width: 22%; vertical-align: top;">
+                <td class="ps-0 align-top admin-handler-col-key">
                     <code><?= esc($opt['key']) ?></code>
                 </td>
-                <td style="width: 28%; vertical-align: top;">
+                <td class="align-top admin-handler-col-name">
                     <strong><?= esc($opt['displayName']) ?></strong>
                 </td>
-                <td class="text-muted" style="vertical-align: top;">
+                <td class="text-muted align-top">
                     <?= esc($opt['description']) ?>
                 </td>
             </tr>

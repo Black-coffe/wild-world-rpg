@@ -41,7 +41,7 @@
                     <td>
                         <?php if ($poll['active'] == 0): ?>
                             <!-- Если опрос не активен — кнопки "Запустить" и "Удалить" через POST-формы (защита от случайного клика по URL) -->
-                            <form action="<?= site_url('admin/polls/send/' . $poll['id']) ?>" method="post" style="display:inline">
+                            <form action="<?= site_url('admin/polls/send/' . $poll['id']) ?>" method="post" class="d-inline">
                                 <?= csrf_field() ?>
                                 <button type="submit" class="btn btn-sm btn-success"
                                         onclick="return confirm('Отправить опрос всем игрокам?')">
@@ -49,7 +49,7 @@
                                 </button>
                             </form>
                             <a href="<?= site_url('admin/polls/edit/' . $poll['id']) ?>" class="btn btn-sm btn-info">Редактировать</a>
-                            <form action="<?= site_url('admin/polls/delete/' . $poll['id']) ?>" method="post" style="display:inline">
+                            <form action="<?= site_url('admin/polls/delete/' . $poll['id']) ?>" method="post" class="d-inline">
                                 <?= csrf_field() ?>
                                 <button type="submit" class="btn btn-sm btn-danger"
                                         onclick="return confirm('Удалить опрос?')">
@@ -58,7 +58,7 @@
                             </form>
                         <?php else: ?>
                             <!-- Активный опрос — кнопка "Остановить" через POST -->
-                            <form action="<?= site_url('admin/polls/stop/' . $poll['id']) ?>" method="post" style="display:inline">
+                            <form action="<?= site_url('admin/polls/stop/' . $poll['id']) ?>" method="post" class="d-inline">
                                 <?= csrf_field() ?>
                                 <button type="submit" class="btn btn-sm btn-warning"
                                         onclick="return confirm('Остановить опрос?')">

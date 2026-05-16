@@ -1,0 +1,42 @@
+/* Admin-panel utility classes — Phase D2 (replaces inline style="" attributes).
+   Loaded after Hyper/Bootstrap so these take precedence where intended. */
+
+/* — Audit log column widths (audit_log_index.php) — */
+.admin-audit-col-id          { width: 90px; }
+.admin-audit-col-date        { width: 160px; }
+.admin-audit-col-admin       { width: 140px; }
+.admin-audit-col-action      { width: 180px; }
+.admin-audit-col-target-type { width: 120px; }
+.admin-audit-col-target-id   { width: 80px; }
+.admin-audit-col-ip          { width: 110px; }
+
+/* — Audit payload <pre> — collapsible JSON block — */
+.admin-audit-payload {
+    max-height: 200px;
+    overflow: auto;
+    background: #f6f6f6;
+    padding: .4em;
+    border-radius: .25em;
+}
+
+/* — Send-message editor textarea (send_message.php) — */
+.admin-msg-textarea-mono {
+    font-family: Menlo, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+/* — Endgame progress bar height (endgame_dashboard.php) — */
+.admin-progress-h-20 { height: 20px; }
+
+/* — Handler-options docs panel column widths (_handler_options_panel.php) — */
+.admin-handler-col-key  { width: 22%; }
+.admin-handler-col-name { width: 28%; }
+
+/* — Resource icon (emoji) cell (resource_index.php) —
+   replaces broken inline `style="font-family: "Noto Color Emoji", ..."` (nested quotes). */
+.admin-resource-emoji {
+    font-family: "Noto Color Emoji", sans-serif;
+    font-weight: 400;
+    font-style: normal;
+}

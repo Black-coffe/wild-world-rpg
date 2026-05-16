@@ -55,7 +55,7 @@
                 <td class="text-end"><?= number_format($score, 0, '.', ' ') ?></td>
                 <td class="text-end"><?= number_format($threshold, 0, '.', ' ') ?></td>
                 <td>
-                    <div class="progress" style="height: 20px;">
+                    <div class="progress admin-progress-h-20">
                         <div class="progress-bar <?= $hit ? 'bg-danger' : ($pct >= 80 ? 'bg-warning' : 'bg-success') ?>"
                              role="progressbar"
                              style="width: <?= $pct ?>%;">
@@ -66,7 +66,7 @@
                 <td><span class="<?= $statusClass ?>"><?= $statusText ?></span></td>
                 <td><?= esc($row['last_event_at'] ?? '—') ?></td>
                 <td>
-                    <form method="POST" action="<?= site_url('/admin/endgame/reset/' . $row['id']) ?>" style="display:inline" onsubmit="return confirm('Сбросить score для <?= esc($factionName) ?>?');">
+                    <form method="POST" action="<?= site_url('/admin/endgame/reset/' . $row['id']) ?>" class="d-inline" onsubmit="return confirm('Сбросить score для <?= esc($factionName) ?>?');">
                         <?= csrf_field() ?>
                         <button type="submit" class="btn btn-sm btn-outline-secondary">Reset</button>
                     </form>
