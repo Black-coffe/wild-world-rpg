@@ -52,19 +52,6 @@
     </form>
 </div>
 
-<script>
-    // Пример JS-кода для добавления новых полей
-    document.addEventListener('DOMContentLoaded', function() {
-        const container = document.querySelector('.mb-3');
-        const addBtn = document.getElementById('addNewAnswerBtn');
-
-        addBtn.addEventListener('click', function() {
-            const div = document.createElement('div');
-            div.classList.add('mb-2');
-            div.innerHTML = `<input type="text" name="newAnswers[]" class="form-control" placeholder="Новый вариант ответа">`;
-            container.appendChild(div);
-        });
-    });
-</script>
+<script src="<?= base_url('assets/js/admin/poll-edit.js') ?>"></script>
 
 <?= $this->endSection() ?>

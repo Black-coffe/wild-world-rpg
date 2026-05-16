@@ -37,17 +37,11 @@
             <td><?= esc(substr($tip['content'], 0, 110)) ?>...</td> <!-- Show a snippet -->
             <td>
                 <a href="<?= site_url('admin/tips/edit/' . $tip['id']) ?>" class="action-icon"> <i class="mdi mdi-pencil"></i></a>
-                <a href="<?= site_url('admin/tips/delete/' . $tip['id']) ?>" class="action-icon" onclick="return confirmDelete();"> <i class="mdi mdi-delete"></i></a>
+                <a href="<?= site_url('admin/tips/delete/' . $tip['id']) ?>" class="action-icon" onclick="return confirm('Вы уверены, что хотите удалить этот совет?');"> <i class="mdi mdi-delete"></i></a>
             </td>
         </tr>
     <?php endforeach; ?>
     </tbody>
 </table>
-
-<script>
-    function confirmDelete() {
-        return confirm('Вы уверены, что хотите удалить этот совет?');
-    }
-</script>
 
 <?= $this->endSection() ?>
