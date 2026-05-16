@@ -19,13 +19,13 @@
     <form action="<?= base_url('/admin/send-message') ?>" method="post" id="messageForm" enctype="multipart/form-data">
         <?= csrf_field() ?>
 
-        <div class="form-group mb-3">
+        <div class="mb-3">
             <label for="title">Название сообщения (макс. 160 символов)</label>
             <input type="text" class="form-control" name="title" id="title" maxlength="160" required>
             <small class="form-text text-muted">Покажется жирным в шапке: «ℹ️ Название ℹ️».</small>
         </div>
 
-        <div class="form-group mb-2">
+        <div class="mb-2">
             <label for="message">Основное содержимое сообщения</label>
             <div class="msg-toolbar btn-toolbar mb-2" role="toolbar" aria-label="Форматирование">
                 <div class="btn-group btn-group-sm me-2" role="group" aria-label="Форматирование текста">
@@ -58,7 +58,7 @@
             </small>
         </div>
 
-        <div class="form-group mb-3 border rounded p-3 bg-light">
+        <div class="mb-3 border rounded p-3 bg-light">
             <label class="form-label fw-bold mb-2">Картинка к сообщению (опционально)</label>
             <div class="form-check">
                 <input class="form-check-input" type="radio" name="image_mode" id="image_mode_none" value="none" checked>
@@ -90,7 +90,7 @@
             </div>
         </div>
 
-        <div class="form-group mb-3">
+        <div class="mb-3">
             <label for="telegram_ids">ID Telegram пользователей (через запятую, необязательно)</label>
             <input type="text" class="form-control" name="telegram_ids" id="telegram_ids" value="" placeholder="оставь пустым для рассылки всем">
         </div>

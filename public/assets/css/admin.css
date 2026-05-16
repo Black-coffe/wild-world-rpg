@@ -19,11 +19,22 @@
     border-radius: .25em;
 }
 
-/* — Send-message editor textarea (send_message.php) — */
+/* — Send-message editor textarea (send_message.php) —
+   16px font is the minimum that iOS Safari does NOT auto-zoom on focus. */
 .admin-msg-textarea-mono {
     font-family: Menlo, Consolas, monospace;
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.45;
+}
+
+/* — Send-message formatting toolbar (D3 mobile) —
+   Allow the 10-emoji btn-group to wrap on narrow viewports;
+   row-gap maintains spacing between wrapped rows. */
+.msg-toolbar {
+    row-gap: 0.25rem;
+}
+.msg-toolbar .btn-group {
+    flex-wrap: wrap;
 }
 
 /* — Endgame progress bar height (endgame_dashboard.php) — */
