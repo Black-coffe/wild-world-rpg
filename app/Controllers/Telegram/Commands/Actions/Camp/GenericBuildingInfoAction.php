@@ -130,8 +130,8 @@ class GenericBuildingInfoAction extends BaseAction
                 ? $charRefreshed->toArray()
                 : []);
         $currentCell = $charArr['cell_number'] ?? null;
-        $firstCell   = $claimedCells[0];
-        $campCell    = is_array($firstCell) ? ($firstCell['map_cell_id'] ?? null) : null;
+        $firstCellArr = $this->rowToArr($claimedCells[0]);
+        $campCell     = $firstCellArr !== null ? ($firstCellArr['map_cell_id'] ?? null) : null;
         if ($currentCell != $campCell) {
             return MediaSender::editOrSend($this->navTarget() + [
                 'photo'        => Request::encodeFile($imagePath),
@@ -217,6 +217,32 @@ class GenericBuildingInfoAction extends BaseAction
     }
 
     /**
+     * F1.4: модели возвращают Entity или array — narrow to array<string,mixed>.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function rowToArr(mixed $row): ?array
+    {
+        $arr = null;
+        if (is_array($row)) {
+            $arr = $row;
+        } elseif (is_object($row) && method_exists($row, 'toArray')) {
+            $tmp = $row->toArray();
+            if (is_array($tmp)) {
+                $arr = $tmp;
+            }
+        }
+        if ($arr === null) {
+            return null;
+        }
+        $out = [];
+        foreach ($arr as $k => $v) {
+            $out[(string) $k] = $v;
+        }
+        return $out;
+    }
+
+    /**
      * @param list<string> $deps name_en зданий
      * @return list<string> name_rus отсутствующих зданий
      */
@@ -227,8 +253,8 @@ class GenericBuildingInfoAction extends BaseAction
         }
         $missing = [];
         foreach ($deps as $depEn) {
-            $bld = $this->buildingModel->where('name_en', $depEn)->first();
-            if (!is_array($bld)) {
+            $bld = $this->rowToArr($this->buildingModel->where('name_en', $depEn)->first());
+            if ($bld === null) {
                 $missing[] = $depEn;
                 continue;
             }
@@ -257,17 +283,17 @@ class GenericBuildingInfoAction extends BaseAction
     {
         $missing = [];
         foreach ($reqs as $resEn => $need) {
-            $row = $this->resourceModel->getResourceByNameEn($resEn);
-            if (!is_array($row) || !isset($row['id']) || !is_numeric($row['id'])) {
+            $row = $this->rowToArr($this->resourceModel->getResourceByNameEn($resEn));
+            if ($row === null || !isset($row['id']) || !is_numeric($row['id'])) {
                 $missing[$resEn] = ['need' => (int) $need, 'have' => 0, 'name' => $resEn . ' (нет в DB)'];
                 continue;
             }
-            $charRes = $this->characterResourceModel
+            $charRes = $this->rowToArr($this->characterResourceModel
                 ->where('id_characters', $charId)
                 ->where('id_resources', (int) $row['id'])
-                ->first();
+                ->first());
             $have = 0;
-            if (is_array($charRes) && isset($charRes['quantity']) && is_numeric($charRes['quantity'])) {
+            if ($charRes !== null && isset($charRes['quantity']) && is_numeric($charRes['quantity'])) {
                 $have = (int) $charRes['quantity'];
             }
             if ($have < $need) {
@@ -286,17 +312,17 @@ class GenericBuildingInfoAction extends BaseAction
     {
         $missing = [];
         foreach ($reqs as $itemEn => $need) {
-            $item = $this->craftedItemsModel->getRowByName($itemEn);
-            if (!is_array($item) || !isset($item['id']) || !is_numeric($item['id'])) {
+            $item = $this->rowToArr($this->craftedItemsModel->getRowByName($itemEn));
+            if ($item === null || !isset($item['id']) || !is_numeric($item['id'])) {
                 $missing[$itemEn] = ['need' => (int) $need, 'have' => 0, 'name' => $itemEn . ' (нет в DB)'];
                 continue;
             }
-            $log = $this->craftedItemsLogModel
+            $log = $this->rowToArr($this->craftedItemsLogModel
                 ->where('character_id', $charId)
                 ->where('crafted_item_id', (int) $item['id'])
-                ->first();
+                ->first());
             $have = 0;
-            if (is_array($log) && isset($log['quantity']) && is_numeric($log['quantity'])) {
+            if ($log !== null && isset($log['quantity']) && is_numeric($log['quantity'])) {
                 $have = (int) $log['quantity'];
             }
             if ($have < $need) {
@@ -314,17 +340,17 @@ class GenericBuildingInfoAction extends BaseAction
     {
         $out = '';
         foreach ($reqs as $resEn => $need) {
-            $row = $this->resourceModel->getResourceByNameEn($resEn);
-            if (!is_array($row) || !isset($row['id']) || !is_numeric($row['id'])) {
+            $row = $this->rowToArr($this->resourceModel->getResourceByNameEn($resEn));
+            if ($row === null || !isset($row['id']) || !is_numeric($row['id'])) {
                 $out .= "- {$resEn} (нет в DB) - {$need}\n";
                 continue;
             }
-            $charRes = $this->characterResourceModel
+            $charRes = $this->rowToArr($this->characterResourceModel
                 ->where('id_characters', $charId)
                 ->where('id_resources', (int) $row['id'])
-                ->first();
+                ->first());
             $have = 0;
-            if (is_array($charRes) && isset($charRes['quantity']) && is_numeric($charRes['quantity'])) {
+            if ($charRes !== null && isset($charRes['quantity']) && is_numeric($charRes['quantity'])) {
                 $have = (int) $charRes['quantity'];
             }
             $name = isset($row['name']) && is_string($row['name']) ? $row['name'] : $resEn;
@@ -341,17 +367,17 @@ class GenericBuildingInfoAction extends BaseAction
     {
         $out = '';
         foreach ($reqs as $itemEn => $need) {
-            $item = $this->craftedItemsModel->getRowByName($itemEn);
-            if (!is_array($item) || !isset($item['id']) || !is_numeric($item['id'])) {
+            $item = $this->rowToArr($this->craftedItemsModel->getRowByName($itemEn));
+            if ($item === null || !isset($item['id']) || !is_numeric($item['id'])) {
                 $out .= "- {$itemEn} (нет в DB) - {$need}\n";
                 continue;
             }
-            $log = $this->craftedItemsLogModel
+            $log = $this->rowToArr($this->craftedItemsLogModel
                 ->where('character_id', $charId)
                 ->where('crafted_item_id', (int) $item['id'])
-                ->first();
+                ->first());
             $have = 0;
-            if (is_array($log) && isset($log['quantity']) && is_numeric($log['quantity'])) {
+            if ($log !== null && isset($log['quantity']) && is_numeric($log['quantity'])) {
                 $have = (int) $log['quantity'];
             }
             $nameRus = isset($item['name_rus']) && is_string($item['name_rus']) ? $item['name_rus'] : $itemEn;
@@ -378,8 +404,8 @@ class GenericBuildingInfoAction extends BaseAction
      */
     private function estimateDuration(array $character, string $taskName): ?int
     {
-        $taskRow = $this->taskModel->where('name', $taskName)->first();
-        if (!is_array($taskRow)) {
+        $taskRow = $this->rowToArr($this->taskModel->where('name', $taskName)->first());
+        if ($taskRow === null) {
             return null;
         }
         $minD = isset($taskRow['min_duration']) && is_numeric($taskRow['min_duration']) ? (int) $taskRow['min_duration'] : 60;
