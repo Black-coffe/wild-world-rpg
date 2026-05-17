@@ -120,15 +120,14 @@ class GenericBuildingInfoAction extends BaseAction
 
         // 5. Not on base
         $charRefreshed = $this->characterModel->find($character['id']);
-        if (is_array($charRefreshed)) {
-            $currentCell = $charRefreshed['cell_number'] ?? null;
-        } elseif (is_object($charRefreshed) && property_exists($charRefreshed, 'cell_number')) {
-            $currentCell = $charRefreshed->cell_number;
-        } else {
-            $currentCell = null;
-        }
-        $firstCell = $claimedCells[0];
-        $campCell  = is_array($firstCell) ? ($firstCell['map_cell_id'] ?? null) : null;
+        $charArr       = is_array($charRefreshed)
+            ? $charRefreshed
+            : (is_object($charRefreshed) && method_exists($charRefreshed, 'toArray')
+                ? $charRefreshed->toArray()
+                : []);
+        $currentCell = $charArr['cell_number'] ?? null;
+        $firstCell   = $claimedCells[0];
+        $campCell    = is_array($firstCell) ? ($firstCell['map_cell_id'] ?? null) : null;
         if ($currentCell != $campCell) {
             return MediaSender::editOrSend($this->navTarget() + [
                 'photo'        => Request::encodeFile($imagePath),
