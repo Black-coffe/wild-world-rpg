@@ -105,6 +105,10 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     // v0.51.120 — full season reset (B)
     $routes->post('endgame/reset-season', 'Admin\EndgameController::resetSeason');
 
+    // Craft & Building tree visualisation (read-only)
+    $routes->get('craft-tree', 'Admin\CraftTreeController::index');
+    $routes->get('craft-tree/data', 'Admin\CraftTreeController::data');
+
 });
 
 
