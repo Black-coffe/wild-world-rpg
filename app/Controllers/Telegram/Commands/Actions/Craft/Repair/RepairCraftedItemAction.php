@@ -187,6 +187,10 @@ class RepairCraftedItemAction extends BaseAction
         // Deduct ресурсы.
         foreach ($cost as $resName => $needQty) {
             $resRow = $this->resourceModel->where('name', $resName)->first();
+            // ResourceModel у F1.4 повертає ResourceEntity — нормалізуємо до array.
+            if (is_object($resRow) && method_exists($resRow, 'toArray')) {
+                $resRow = $resRow->toArray();
+            }
             if (! is_array($resRow) || ! is_numeric($resRow['id'] ?? null)) {
                 continue;
             }
@@ -310,6 +314,10 @@ class RepairCraftedItemAction extends BaseAction
         $short = [];
         foreach ($cost as $resName => $needQty) {
             $resRow = $this->resourceModel->where('name', $resName)->first();
+            // ResourceModel у F1.4 повертає ResourceEntity — нормалізуємо до array.
+            if (is_object($resRow) && method_exists($resRow, 'toArray')) {
+                $resRow = $resRow->toArray();
+            }
             if (! is_array($resRow) || ! is_numeric($resRow['id'] ?? null)) {
                 $short[$resName] = $needQty;
                 continue;
