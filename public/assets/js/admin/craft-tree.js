@@ -231,7 +231,7 @@
 
         const imgSrc = imageUrl(r.image);
         const iconOrThumb = imgSrc
-            ? `<img class="ct-row-thumb" src="${escapeHTML(imgSrc)}" alt="${escapeHTML(r.name)}" loading="lazy" data-action="zoom" data-src="${escapeHTML(imgSrc)}" data-caption="${escapeHTML(r.name)}">`
+            ? `<img class="ct-row-thumb" src="${escapeHTML(imgSrc)}" alt="" width="42" height="42" loading="lazy" decoding="async" data-action="zoom" data-src="${escapeHTML(imgSrc)}" data-caption="${escapeHTML(r.name)}" onerror="this.outerHTML='<span class=\\'ct-row-icon\\'><i class=\\'${escapeHTML(r.icon)}\\'></i></span>'">`
             : `<span class="ct-row-icon"><i class="${escapeHTML(r.icon)}"></i></span>`;
 
         return `
@@ -261,7 +261,7 @@
 
         const subImg = imageForCraftRef(i.refType, i.refId);
         const iconNode = subImg
-            ? `<img class="ct-ingredient-thumb" src="${escapeHTML(subImg)}" alt="${escapeHTML(i.name)}" loading="lazy" data-action="zoom" data-src="${escapeHTML(subImg)}" data-caption="${escapeHTML(i.name)}">`
+            ? `<img class="ct-ingredient-thumb" src="${escapeHTML(subImg)}" alt="" width="26" height="26" loading="lazy" decoding="async" data-action="zoom" data-src="${escapeHTML(subImg)}" data-caption="${escapeHTML(i.name)}" onerror="this.outerHTML='<span class=\\'ct-ingredient-icon\\'><i class=\\'${escapeHTML(i.icon)}\\'></i></span>'">`
             : `<span class="ct-ingredient-icon"><i class="${escapeHTML(i.icon)}"></i></span>`;
 
         return `
@@ -343,7 +343,7 @@
         const ingredientsHTML = b.ingredients.map(i => renderIngredient(i)).join('');
         const bImg = imageUrl(b.image);
         const bIconNode = bImg
-            ? `<img class="ct-row-thumb" src="${escapeHTML(bImg)}" alt="${escapeHTML(b.name)}" loading="lazy" data-action="zoom" data-src="${escapeHTML(bImg)}" data-caption="${escapeHTML(b.name)}">`
+            ? `<img class="ct-row-thumb" src="${escapeHTML(bImg)}" alt="" width="42" height="42" loading="lazy" decoding="async" data-action="zoom" data-src="${escapeHTML(bImg)}" data-caption="${escapeHTML(b.name)}" onerror="this.outerHTML='<span class=\\'ct-row-icon\\'><i class=\\'${escapeHTML(b.icon)}\\'></i></span>'">`
             : `<span class="ct-row-icon"><i class="${escapeHTML(b.icon)}"></i></span>`;
 
         return `
@@ -420,7 +420,8 @@
     function heroImageHTML(name, imagePath, fallbackIcon) {
         const src = imageUrl(imagePath);
         if (src) {
-            return `<img class="ct-hero-image" src="${escapeHTML(src)}" alt="${escapeHTML(name)}" data-action="zoom" data-src="${escapeHTML(src)}" data-caption="${escapeHTML(name)}">`;
+            // eager-load + sync decode для немедленного появления; onerror → fallback на icon-placeholder
+            return `<img class="ct-hero-image" src="${escapeHTML(src)}" alt="" width="150" height="150" decoding="sync" data-action="zoom" data-src="${escapeHTML(src)}" data-caption="${escapeHTML(name)}" onerror="this.outerHTML='<div class=\\'ct-hero-image-placeholder\\'><i class=\\'${escapeHTML(fallbackIcon)}\\'></i></div>'">`;
         }
         return `<div class="ct-hero-image-placeholder"><i class="${escapeHTML(fallbackIcon)}"></i></div>`;
     }
