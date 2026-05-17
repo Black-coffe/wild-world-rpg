@@ -20,19 +20,17 @@ use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
 /**
- * F2.1 (PoC) — generic-handler начала постройки любого здания.
+ * F2.1 — generic-handler начала постройки любого здания.
  *
  * Заменяет 23 копипастных `Start*BuildConstruction.php` /
  * `Build*Construction.php` (~7980 строк дубля). Поведение определяется
  * рецептом из `app/Config/Buildings.php`, ключ строения передаётся
  * через callback_data (`genericStartBuild_Arsenal`).
  *
- * В этом коммите PoC: только для Arsenal, не подключён к
- * `CallbackqueryCommand`. Сравнить с `StartBuildArsenalConstruction.php`
- * можно вручную, прокатать на dev. Подключение — отдельный коммит после
- * прод-validation.
+ * S1 (v0.51.182+) — все 12 зданий ходят через этот handler; legacy
+ * `Build*Construction.php` удалены, preview-экраны → {@see GenericBuildingInfoAction}.
  *
- * Поведенческая совместимость с `StartBuildArsenalConstruction`:
+ * Поведенческая совместимость с (удалённым) `StartBuildArsenalConstruction`:
  *   - Те же шаги: lookup лагеря → проверка уровня → проверка зависимостей
  *     → проверка ресурсов и крафта → транзакция списания + insert в
  *     character_tasks → Telegram-уведомление.
@@ -179,7 +177,7 @@ class GenericBuildingAction extends BaseAction
     }
 
     // ------------------------------------------------------------------
-    // helpers (1:1 копия из StartBuildArsenalConstruction для совместимости)
+    // helpers (1:1 копия из удалённого StartBuildArsenalConstruction для совместимости)
     // ------------------------------------------------------------------
 
     /**

@@ -11,9 +11,8 @@ use Config\Buildings;
  * Не запускаем Telegram-flow — тестируем что:
  *   1. Arsenal recipe загружается через config('Buildings').
  *   2. Все ожидаемые поля заполнены.
- *   3. Числовые/string значения совпадают с тем что было в legacy
- *      `StartBuildArsenalConstruction.php` v0.1.0 (точные числа взяты
- *      из Buildings.php docstring «Все числа взяты 1:1 из StartBuild...»).
+ *   3. Числовые/string значения изначально перенесены из удалённых
+ *      `Build*Construction.php` (точные числа взяты из Buildings.php docstring).
  *
  * При расширении Buildings.php (Workshop, BlastFurnace, ...) —
  * добавлять similar-тест на каждое здание.
@@ -101,5 +100,28 @@ final class BuildingsTest extends CIUnitTestCase
     {
         $keys = $this->cfg->keys();
         $this->assertContains('Arsenal', $keys);
+    }
+
+    /**
+     * S1 — все 12 зданий обязаны иметь `emoji` и `info_text` (новые поля для
+     * GenericBuildingInfoAction после удаления legacy Build*Construction.php).
+     */
+    public function testAllBuildingsHaveEmojiAndInfoText(): void
+    {
+        $expectedKeys = [
+            'Arsenal', 'Workshop', 'BlastFurnace', 'Warehouse', 'Laboratory',
+            'SolarStation', 'Gym', 'Greenhouse', 'HandPump', 'RoboticsWorkshop',
+            'TeleportationCenter', 'CommunicationTower',
+        ];
+        $this->assertCount(12, $expectedKeys, 'Expected 12 buildings');
+
+        foreach ($expectedKeys as $key) {
+            $recipe = $this->cfg->get($key);
+            $this->assertNotNull($recipe, "Building $key recipe must exist");
+            $this->assertArrayHasKey('emoji', $recipe, "Building $key must have emoji field");
+            $this->assertArrayHasKey('info_text', $recipe, "Building $key must have info_text field");
+            $this->assertNotSame('', $recipe['emoji'], "Building $key emoji must be non-empty");
+            $this->assertNotSame('', $recipe['info_text'], "Building $key info_text must be non-empty");
+        }
     }
 }
