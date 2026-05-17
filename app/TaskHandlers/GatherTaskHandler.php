@@ -382,20 +382,25 @@ class GatherTaskHandler extends BaseTaskHandler
             $resourceMap[$entity->id] = $entity;
         }
 
+        // S4 (v0.51.186+): инструменты сломавшиеся в течение сессии — для
+        // нотификации игроку. Раньше silent disappearance.
+        $brokenTools = $this->toolDurability->getBrokenTools();
+
         // v0.51.104: pre-load tool map якщо є tools used.
+        // S4: подгружаем и сломавшихся (могут не входить в usedToolsCount —
+        // их increment делается только при $ok=true).
         $toolByName = [];
-        if (!empty($this->usedToolsCount)) {
-            $toolNames = array_keys($this->usedToolsCount);
+        $toolNames  = array_unique(array_merge(
+            array_keys($this->usedToolsCount),
+            array_keys($brokenTools)
+        ));
+        if (!empty($toolNames)) {
             foreach ($this->craftedItemsModel->whereIn('name_eng', $toolNames)->findAll() as $row) {
                 if (is_array($row) && isset($row['name_eng']) && is_string($row['name_eng'])) {
                     $toolByName[$row['name_eng']] = $row;
                 }
             }
         }
-
-        // S4 (v0.51.186+): инструменты сломавшиеся в течение сессии — для
-        // нотификации игроку. Раньше silent disappearance.
-        $brokenTools = $this->toolDurability->getBrokenTools();
 
         $reply = $this->messageFormatter->buildResourcesFoundReply(
             $foundResources,
