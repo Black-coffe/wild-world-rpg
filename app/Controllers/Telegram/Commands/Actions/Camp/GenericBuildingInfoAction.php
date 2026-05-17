@@ -79,10 +79,14 @@ class GenericBuildingInfoAction extends BaseAction
             return $this->sendError("Неизвестное здание: {$buildingKey}");
         }
 
-        // 2. user/character
+        // 2. user/character (F1.4: getUserAndCharacter() может вернуть CharacterEntity →
+        // narrow to array через toArray() для strict-array signatures внизу).
         [$user, $character] = $this->getUserAndCharacter();
         if (!$user || !$character) {
             return $this->sendError('Пользователь не найден в базе данных или персонаж не определён.');
+        }
+        if (is_object($character) && method_exists($character, 'toArray')) {
+            $character = $character->toArray();
         }
 
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
