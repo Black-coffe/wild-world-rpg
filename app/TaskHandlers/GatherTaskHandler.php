@@ -120,6 +120,11 @@ class GatherTaskHandler extends BaseTaskHandler
             return;
         }
 
+        // S4: сброс per-session состояния processor'а (защита от повторного
+        // использования инстанса между разными gather задачами в worker'е).
+        $this->toolDurability->clearBrokenTools();
+        $this->usedToolsCount = [];
+
         // F2.7c: один batch на все 5 relevant событий вместо ~12 индивидуальных SQL.
         $loadedEvents = $this->eventService->loadActiveEvents();
 
@@ -388,13 +393,18 @@ class GatherTaskHandler extends BaseTaskHandler
             }
         }
 
+        // S4 (v0.51.186+): инструменты сломавшиеся в течение сессии — для
+        // нотификации игроку. Раньше silent disappearance.
+        $brokenTools = $this->toolDurability->getBrokenTools();
+
         $reply = $this->messageFormatter->buildResourcesFoundReply(
             $foundResources,
             $biomeName,
             $spentMinutes,
             $resourceMap,
             $this->usedToolsCount,
-            $toolByName
+            $toolByName,
+            $brokenTools
         );
 
         $this->safeSendPhoto(

@@ -26,6 +26,16 @@ final class ToolDurabilityProcessor
     private CraftedItemsModel $craftedItemsModel;
     private ToolManager $toolManager;
 
+    /**
+     * S4 (v0.51.186+): имена инструментов, у которых в течение текущей сессии
+     * закончилась последняя единица (durability=0 при quantity=1 → row deleted
+     * у `crafted_items_log`). Используется `GatherTaskHandler` для рендера
+     * уведомления «Инструменты сломались» в reply gather.
+     *
+     * @var array<string, bool>
+     */
+    private array $brokenTools = [];
+
     public function __construct(
         ?CraftedItemsLogModel $craftedItemsLogModel = null,
         ?CraftedItemsModel $craftedItemsModel = null,
@@ -34,6 +44,24 @@ final class ToolDurabilityProcessor
         $this->craftedItemsLogModel = $craftedItemsLogModel ?? new CraftedItemsLogModel();
         $this->craftedItemsModel    = $craftedItemsModel    ?? new CraftedItemsModel();
         $this->toolManager          = $toolManager          ?? new ToolManager();
+    }
+
+    /**
+     * S4: список имён инструментов, сломавшихся в текущей сессии.
+     *
+     * @return array<string, bool>
+     */
+    public function getBrokenTools(): array
+    {
+        return $this->brokenTools;
+    }
+
+    /**
+     * S4: сбросить список сломанных в начале новой сессии.
+     */
+    public function clearBrokenTools(): void
+    {
+        $this->brokenTools = [];
     }
 
     /**
@@ -107,6 +135,9 @@ final class ToolDurabilityProcessor
 
         $ok = $this->toolManager->updateToolDurability($row);
         if (!$ok) {
+            // S4: инструмент окончательно сломался (последняя единица стека
+            // исчерпала прочность → row удалён). Фиксируем для уведомления.
+            $this->brokenTools[$toolName] = true;
             unset($availableTools[$toolName]);
             return false;
         }
