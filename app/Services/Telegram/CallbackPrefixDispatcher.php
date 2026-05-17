@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Telegram;
 
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\UpgradeBuildingAction;
+use App\Controllers\Telegram\Commands\Actions\Craft\Repair\RepairCraftedItemAction;
 use App\Controllers\Telegram\Commands\Actions\Poll\PollVoteAction;
 use App\Controllers\Telegram\Commands\BaseShiftingCommand;
 use Longman\TelegramBot\Entities\CallbackQuery;
@@ -60,6 +61,16 @@ final class CallbackPrefixDispatcher
             return $this->dispatchStartRelocationConfirm($callbackQuery);
         }
 
+        // S5b (v0.51.188+): repair flow (must check confirm_repair_ BEFORE repair_,
+        // т.к. confirm_repair_ начинается с repair-prefix substring через подстроку).
+        if (str_starts_with($callbackData, 'confirm_repair_')) {
+            return $this->dispatchRepairConfirm($callbackQuery);
+        }
+
+        if (str_starts_with($callbackData, 'repair_')) {
+            return $this->dispatchRepairAsk($callbackQuery);
+        }
+
         return null;
     }
 
@@ -107,6 +118,30 @@ final class CallbackPrefixDispatcher
         }
         $handler = new UpgradeBuildingAction($callbackQuery);
         return $handler->confirmUpgrade();
+    }
+
+    /**
+     * S5b: repair_{log_id} → ask + show cost confirm prompt.
+     */
+    private function dispatchRepairAsk(CallbackQuery $callbackQuery): ServerResponse
+    {
+        if (! class_exists(RepairCraftedItemAction::class)) {
+            return Request::emptyResponse();
+        }
+        $handler = new RepairCraftedItemAction($callbackQuery);
+        return $handler->askForRepair();
+    }
+
+    /**
+     * S5b: confirm_repair_{log_id} → deduct + create task → completion handler.
+     */
+    private function dispatchRepairConfirm(CallbackQuery $callbackQuery): ServerResponse
+    {
+        if (! class_exists(RepairCraftedItemAction::class)) {
+            return Request::emptyResponse();
+        }
+        $handler = new RepairCraftedItemAction($callbackQuery);
+        return $handler->confirmRepair();
     }
 
     /**
