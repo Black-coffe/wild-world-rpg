@@ -222,8 +222,16 @@ class DetailedBaseInfoAction extends BaseAction
 
             // Иконку можете сделать отдельным методом
             $icon = $this->getBuildingIcon($building['building_id']);
+
+            // S3 (v0.51.185+): suffix L<level> на кнопці — користувач одразу
+            // бачить рівень кожної споруди у списку без відкриття картки.
+            // CharacterBuildingModel у F1.4 повертає Entity (ArrayAccess) → доступ через ['level'] safe.
+            $lvlRaw    = is_array($building) ? ($building['level'] ?? 1) : ($building->level ?? 1);
+            $lvl       = is_numeric($lvlRaw) ? max(1, (int) $lvlRaw) : 1;
+            $lvlSuffix = " L{$lvl}";
+
             $keyboardButtons[] = [
-                'text' => "{$icon} {$bNameRu}",
+                'text' => "{$icon} {$bNameRu}{$lvlSuffix}",
                 'callback_data' => 'building_' . $building['building_id'] . '_' . $bNameEng
             ];
         }
