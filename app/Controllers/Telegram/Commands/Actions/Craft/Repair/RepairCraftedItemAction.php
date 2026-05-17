@@ -316,7 +316,7 @@ class RepairCraftedItemAction extends BaseAction
             }
             $resourceId = (int) $resRow['id'];
             $charResRow = $this->characterResourceModel
-                ->where('character_id', $characterId)
+                ->where('id_characters', $characterId)
                 ->where('id_resources', $resourceId)
                 ->first();
             $haveQty = is_array($charResRow) && is_numeric($charResRow['quantity'] ?? null)
