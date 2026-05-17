@@ -114,8 +114,12 @@ class CraftedResourcesAction extends BaseAction
         }
 
         // 5) Формируем клавиатуру
+        // S5b (v0.51.188+): кнопка ремонта изношенных инструментов.
         $keyboard = [
             'inline_keyboard' => [
+                [
+                    ['text' => '🔧 Ремонт инструментов', 'callback_data' => 'repairToolsList'],
+                ],
                 [
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],

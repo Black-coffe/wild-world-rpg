@@ -191,6 +191,12 @@ class CallbackRoutes extends BaseConfig
         'genericStartBuild'               => \App\Controllers\Telegram\Commands\Actions\Camp\GenericBuildingAction::class,
         'genericCraft'                    => \App\Controllers\Telegram\Commands\Actions\Craft\GenericCraftActionStart::class,
 
+        // S5b (v0.51.188+): Ремонт изношенных инструментов через GameSettings (ADR-024).
+        // - repairToolsList: список изношенных инструментов с кнопкой Ремонт per item
+        // - repair_<log_id>: 2-step ask (показывает стоимость через repair.cost_fraction)
+        // - confirm_repair_<log_id>: списывает ресурсы, создаёт `repair` task → RepairCompletionHandler
+        'repairToolsList'                 => \App\Controllers\Telegram\Commands\Actions\Craft\Repair\RepairToolsListAction::class,
+
         // === Objects ===
         'objectActionClosedWarehouse'     => \App\Controllers\Telegram\Commands\Actions\Objects\ObjectCloseWarehouseAction::class,
 
