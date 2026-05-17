@@ -61,6 +61,13 @@
             </li>
 
             <li class="side-nav-item">
+                <a href="<?= base_url('admin/craft-tree')?>" class="side-nav-link">
+                    <i class="ri-node-tree"></i>
+                    <span> Дерево крафта </span>
+                </a>
+            </li>
+
+            <li class="side-nav-item">
                 <a href="<?= base_url('admin/tips')?>" class="side-nav-link">
                     <i class="ri-advertisement-fill"></i>
                     <span> Советы в игре </span>

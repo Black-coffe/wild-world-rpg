@@ -19186,6 +19186,12 @@ parameters:
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
 			count: 3
+			path: app/Views/admin/craft_tree.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
 			path: app/Views/admin/dashboard.php
 
 		-
