@@ -186,15 +186,15 @@ class RepairCraftedItemAction extends BaseAction
 
         // Deduct ресурсы.
         foreach ($cost as $resName => $needQty) {
-            $resRow = $this->resourceModel->where('name', $resName)->first();
-            // ResourceModel у F1.4 повертає ResourceEntity — нормалізуємо до array.
-            if (is_object($resRow) && method_exists($resRow, 'toArray')) {
+            // Fresh builder per iteration (CI4 Model where-chain quirk).
+            $resRow = (new \App\Models\ResourceModel())->where('name', $resName)->first();
+            if (is_object($resRow)) {
                 $resRow = $resRow->toArray();
             }
             if (! is_array($resRow) || ! is_numeric($resRow['id'] ?? null)) {
                 continue;
             }
-            $this->characterResourceModel->decreaseResources(
+            (new \App\Models\CharacterResourceModel())->decreaseResources(
                 $this->extractInt($character, 'id'),
                 (int) $resRow['id'],
                 $needQty
@@ -313,9 +313,9 @@ class RepairCraftedItemAction extends BaseAction
         $have  = [];
         $short = [];
         foreach ($cost as $resName => $needQty) {
-            $resRow = $this->resourceModel->where('name', $resName)->first();
+            $resRow = (new \App\Models\ResourceModel())->where('name', $resName)->first();
             // ResourceModel у F1.4 повертає ResourceEntity — нормалізуємо до array.
-            if (is_object($resRow) && method_exists($resRow, 'toArray')) {
+            if (is_object($resRow)) {
                 $resRow = $resRow->toArray();
             }
             if (! is_array($resRow) || ! is_numeric($resRow['id'] ?? null)) {
@@ -323,7 +323,8 @@ class RepairCraftedItemAction extends BaseAction
                 continue;
             }
             $resourceId = (int) $resRow['id'];
-            $charResRow = $this->characterResourceModel
+            // Fresh builder each iteration (CI4 Model where()-chain не сбрасывается между ->first() вызовами в одном loop'е).
+            $charResRow = (new \App\Models\CharacterResourceModel())
                 ->where('id_characters', $characterId)
                 ->where('id_resources', $resourceId)
                 ->first();
