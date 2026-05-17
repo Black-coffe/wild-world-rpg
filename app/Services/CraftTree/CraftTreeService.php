@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\CraftTree;
 
+use App\Services\Crafting\RequiredResourcesParser;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\ResultInterface;
 use Config\Buildings as BuildingsConfig;
@@ -47,12 +48,15 @@ final class CraftTreeService
     /** @var array<string, array<string, mixed>>|null Building image lookup by name_en. */
     private ?array $buildingImageLookup = null;
 
+    private RequiredResourcesParser $requiredResourcesParser;
+
     /**
      * @param BaseConnection<object, object>|null $db
      */
-    public function __construct(?BaseConnection $db = null)
+    public function __construct(?BaseConnection $db = null, ?RequiredResourcesParser $parser = null)
     {
-        $this->db = $db ?? Database::connect();
+        $this->db                      = $db ?? Database::connect();
+        $this->requiredResourcesParser = $parser ?? new RequiredResourcesParser();
     }
 
     /**
@@ -177,69 +181,20 @@ final class CraftTreeService
     }
 
     /**
-     * Парсит свободный текст ингредиентов в массив {name, qty, unit, ref}.
-     * Поддерживает 3 формата:
-     *   1. `Ягоды - 2 шт.` / `Вода - 200 мл.`
-     *   2. `'Кактус' => 4,` (legacy PHP-array)
-     *   3. `Имя 5 шт.` (без тире)
+     * Парсит `required_resources` (любой из 5 форматов) и резолвит каждое имя
+     * в FK на `resources` / `crafted_items`. Делегирует парсинг
+     * {@see RequiredResourcesParser} (S2 — единая точка парсинга для всех
+     * консьюмеров required_resources в проекте).
      *
      * @return list<array{name:string, qty:int, unit:string, refType:string, refId:int|null, missing:bool}>
      */
     public function parseIngredients(?string $raw): array
     {
-        if ($raw === null) {
-            return [];
+        $canonical = $this->requiredResourcesParser->parse($raw);
+        $out       = [];
+        foreach ($canonical as $name => $qty) {
+            $out[] = $this->resolveIngredient($name, $qty, '');
         }
-        $raw = trim($raw);
-        if ($raw === '') {
-            return [];
-        }
-
-        // Building JSON path: {"Древесина": 100, ...}
-        $decoded = json_decode($raw, true);
-        if (is_array($decoded)) {
-            $out = [];
-            foreach ($decoded as $name => $qty) {
-                $name = trim(self::toString($name));
-                if ($name === '') {
-                    continue;
-                }
-                $out[] = $this->resolveIngredient($name, self::toInt($qty), '');
-            }
-            return $out;
-        }
-
-        $lines = preg_split('/\r?\n|;|,(?![^()]*\))/u', $raw) ?: [];
-        $out   = [];
-
-        foreach ($lines as $line) {
-            $line = trim($line);
-            if ($line === '') {
-                continue;
-            }
-
-            // Format 2: 'Имя' => 4,
-            if (preg_match("/^['\"]?(.+?)['\"]?\s*=>\s*(\d+)/u", $line, $m)) {
-                $out[] = $this->resolveIngredient(trim($m[1]), (int) $m[2], '');
-                continue;
-            }
-
-            // Format 1: "Имя - 2 шт." / "Имя — 200 мл."
-            if (preg_match('/^(.+?)\s*[-–—]\s*(\d+)\s*([^\d\s.,;]*)\.?\s*$/u', $line, $m)) {
-                $out[] = $this->resolveIngredient(trim($m[1]), (int) $m[2], trim($m[3]));
-                continue;
-            }
-
-            // Format 3: "Имя 5 шт." (no dash)
-            if (preg_match('/^(.+?)\s+(\d+)\s*([^\d\s.,;]*)\.?\s*$/u', $line, $m)) {
-                $out[] = $this->resolveIngredient(trim($m[1]), (int) $m[2], trim($m[3]));
-                continue;
-            }
-
-            // Fallback — single-token line, treat as qty=1
-            $out[] = $this->resolveIngredient($line, 1, '');
-        }
-
         return $out;
     }
 
