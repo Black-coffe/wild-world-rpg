@@ -19,6 +19,31 @@
 
 ---
 
+## §0 Session log (live status)
+
+> **Каждый shipped session отмечается здесь.** Не редактируй вручную — обновляется
+> Claude'ом в конце каждой сессии после прод-релиза. Для деталей — daily-нота
+> в `mmorpg-vault/daily/<YYYY-MM-DD>.md`. Полный технический разбор сессии — там.
+
+Легенда: ✅ shipped | ⏳ in progress | ⬜ pending | 🔀 scope-changed
+
+| S# | Title | Status | Prod tag | Date | Daily | Notes |
+|---|---|---|---|---|---|---|
+| S1 | Cleanup 12 legacy `Build*Construction` → `GenericBuildingInfoAction` | ✅ shipped | v0.51.183 | 2026-05-17 | [`daily/2026-05-17`](file:///C:/Projects/mmorpg-vault/daily/2026-05-17.md) | 3 hotfix'а + polish (Entity narrowing уроки) |
+| S2 | Normalize `crafted_items.required_resources` to JSON | ✅ shipped | v0.51.184 | 2026-05-17 | same | 5 форматов (не 3 как в ROADMAP), runtime read-only |
+| S3 | Building.level wiring → UI suffix | ✅ shipped | v0.51.185 | 2026-05-17 | same | 🔀 ROADMAP устарел — вся upgrade-инфра уже была wired; реальный gap = level в списке |
+| S4 | Broken-tool Telegram notification | ✅ shipped | v0.51.186 | 2026-05-17 | same | 🔀 ROADMAP описывал `is_broken` flag — реальность deletion model; +1 hotfix русские имена |
+| S5a | GameSettings live-tunable balance framework (ADR-024) | ✅ shipped | v0.51.187 | 2026-05-17 | same | 🔀 split S5 на S5a (foundation) + S5b (repair UI); foundation для S26/S28/S10 |
+| S5b | Repair mechanic UI (tool repair action + completion handler) | ⏳ in progress | — | — | — | Использует GameSettings из S5a |
+| S6 | Missing resources (Ironstone / Oil / Sulfur / RareMetals / Coal) | ⬜ pending | — | — | — | — |
+| S7+ | … (S7–S30 — см. §3 / §4–§9) | ⬜ pending | — | — | — | — |
+
+**Прод-теги дня 2026-05-17 (foundation marathon):** `v0.51.178` foundation → `v0.51.179` defensive thumbs → `v0.51.180` roadmap v1 → `v0.51.181` decisions locked → `v0.51.182` constitutional admin-tunable rule → **v0.51.183 (S1)** → **v0.51.184 (S2)** → **v0.51.185 (S3)** → **v0.51.186 (S4)** → **v0.51.187 (S5a)**. Десять прод-релизов в день.
+
+**Ключевой урок 4 первых сессий**: ROADMAP описание устаревает к моменту исполнения (4 из 5 сессий имели несовпадения с реальным кодом). **Каждая сессия теперь начинается с audit'а реального состояния** перед follow-through. S5a — первая «свежая» сессия с актуальным описанием (ROADMAP писался в этой же сессии).
+
+---
+
 ## §1 Преамбула
 
 ### 1.1 Цель документа
@@ -400,6 +425,8 @@ develop (feature work)
 
 **Замечания.** Перед удалением каждого файла — `grep -r "<ClassName>" app/ tests/` чтобы не оставить мёртвых ссылок. Стандартный twin-grep с aliases (`StartBuild`, `BuildArsenal`, `arsenalConstruction`).
 
+> **Статус:** ✅ shipped **v0.51.183** (2026-05-17). Master commits: `e8da314` (main) + `1cc37c6` + `22908f1` + `79d2d5d` (hotfixes) + `d618151` (polish). 12 files deleted, GenericBuildingInfoAction +370 LOC. 3 hotfix'а — все на F1.4 Entity vs array narrowing. Создан `rowToArr()` helper.
+
 ---
 
 ### S2 — `crafted_items.required_resources` free-text → JSON 🟠
@@ -527,6 +554,8 @@ public function down(): void
 
 **Замечания.** Twin-hotfix grep: `required_resources` встречается в ~15 файлах. Все callers — через парсер.
 
+> **Статус:** ✅ shipped **v0.51.184** (2026-05-17). Master commit: `4ed2732`. **5 форматов на проде** (v1a newline, v1b comma, v2 PHP-array-like, v3 JSON object — целевой, v3-bis `[{"resource_id":N,"quantity":N}]` — у крафтов оружия id ≥ 11) — не 3 как описано в ROADMAP. **Открытие**: колонка runtime read-only — `Config\CraftRecipes` source of truth. Category 🟠 → 🟡 (no runtime risk). Prod migration: 66/86 normalized, 0 unparseable.
+
 ---
 
 ### S3 — Building.level wiring → UI 🟡
@@ -600,6 +629,8 @@ Inserts `tasks` row для `buildingUpgrade` (duration 30 min для L2, 60 min 
 
 **Замечания.** L4–L10 в `BuildingUpgrades.php` остаются для будущих сессий (S26+). На этой сессии — только L2 и L3 wiring.
 
+> **Статус:** ✅ shipped **v0.51.185** (2026-05-17). Master commit: `1d836b6`. 🔀 **ROADMAP описание устарело**: `UpgradeBuildingAction` + `BuildingUpgradeValidator/Applier/Formatter` + endgame-hook + кнопка «🆙 Поднять уровень» во всех 12 handler'ах — **уже были wired** с v0.51.57–62. Реальный gap — отсутствие level в списке построек `DetailedBaseInfoAction::showBuildings`. Изменение: 1 файл, 8 LOC, добавлен suffix «L{level}» к каждой кнопке. F1.4 Entity narrowing.
+
 ---
 
 ### S4 — Durability decay handler 🟡
@@ -668,6 +699,8 @@ Inserts `tasks` row для `buildingUpgrade` (duration 30 min для L2, 60 min 
 **Анонс.** Да — «Инструменты теперь действительно изнашиваются — следите за прочностью в инвентаре». Драфт: см. §11 S4.
 
 **Замечания.** Балансовый расчёт: средняя добыча 10 единиц/инструмент/час = 240/день. С durability=100 инструмент живёт ~10ч активной добычи. Это «расход ресурсов на крафт инструментов» → S5 repair сделает альтернативу.
+
+> **Статус:** ✅ shipped **v0.51.186** (2026-05-17). Master commits: `12ff47a` (main) + `2871319` (hotfix). 🔀 **ROADMAP описание устарело**: `ToolManager::updateToolDurability` + `ToolDurabilityProcessor::consumeAndRefresh` (F2.7b, v0.51.107) **уже декрементировали** durability с момента F2.7b. `is_broken` column **никогда не существовала** — игра использует **deletion model** (при `durability=0 AND quantity=1` → row deleted). Реальный gap — **silent disappearance**. Изменение: `ToolDurabilityProcessor::getBrokenTools()` + section «💔 Инструменты сломались» в `GatherMessageFormatter`. Hotfix: русские имена сломанных через merge keys `usedToolsCount` + `brokenTools` перед preload.
 
 ---
 
@@ -871,6 +904,12 @@ NAVIGATION
 **Анонс.** Да — «Сломанный инструмент теперь можно починить за половину ресурсов» + (внутренний) «У админа появилась панель live-tuning параметров».
 
 **Замечания.** Финал Фазы 1 — техфундамент готов: JSON, building.level, durability, repair, + GameSettings admin framework как rails для последующих сессий. **S26/S28/S10 будут регистрировать свои ключи в этом фреймворке.**
+
+> **Статус: 🔀 split на S5a + S5b.**
+>
+> **S5a (foundation)**: ✅ shipped **v0.51.187** (2026-05-17). Master commit: `c97d3d0`. **Таблица `game_settings` + service + admin UI**: rich schema (rationale/effect/above/below NOT NULL constitutional invariant), 3 seed-row'а repair.* с полными rationale, controller с update/reset + audit-log (`GAME_SETTING_UPDATE`/`_RESET`), view с inline edit + tooltip-collapse + warning жёлтым outside recommended, sidebar entry «⚙️ Параметры баланса». **9 unit-тестов**. ADR-024 создан. Smoke 4 flow'а через Chrome MCP. **Foundation для S26/S28/S10 готов.**
+>
+> **S5b (repair UI)**: ⏳ in progress — следующая сессия. Action-handler `RepairCraftedItemAction` + `RepairCompletionHandler` + tests. Использует `GameSettingsService::get('repair.cost_fraction', 0.50)` из S5a.
 
 ---
 
