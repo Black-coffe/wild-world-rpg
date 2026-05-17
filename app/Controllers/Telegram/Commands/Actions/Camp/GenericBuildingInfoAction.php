@@ -268,7 +268,10 @@ class GenericBuildingInfoAction extends BaseAction
                 ->where('building_id', $bldId)
                 ->countAllResults();
             if ($owns === 0) {
-                $nameRus = isset($bld['name_rus']) && is_string($bld['name_rus']) ? $bld['name_rus'] : $depEn;
+                // DB column is `name_ru` (singular), Config recipe uses `name_rus` — try both.
+                $nameRus = (isset($bld['name_ru']) && is_string($bld['name_ru']) && $bld['name_ru'] !== '')
+                    ? $bld['name_ru']
+                    : ((isset($bld['name_rus']) && is_string($bld['name_rus'])) ? $bld['name_rus'] : $depEn);
                 $missing[] = $nameRus;
             }
         }
