@@ -96,4 +96,95 @@ final class ToolDurabilityProcessorTest extends CIUnitTestCase
         $this->assertSame('LumberjackAxe', $best['name']);
         $this->assertSame(0.30, $best['bonus']);
     }
+
+    // ── S4 (v0.51.186+): broken-tools tracking ──────────────────────────
+
+    public function testBrokenToolsEmptyInitially(): void
+    {
+        $this->assertSame([], $this->proc->getBrokenTools());
+    }
+
+    public function testClearBrokenToolsResetsState(): void
+    {
+        // Прямой dirty-state через рефлексию недоступен публично, поэтому
+        // проверяем что после clear getBrokenTools пустой (idempotency).
+        $this->proc->clearBrokenTools();
+        $this->assertSame([], $this->proc->getBrokenTools());
+        $this->proc->clearBrokenTools();
+        $this->assertSame([], $this->proc->getBrokenTools());
+    }
+
+    public function testConsumeAndRefreshTracksBrokenWhenToolGone(): void
+    {
+        // Мок ToolManager: updateToolDurability возвращает false → tool сломался.
+        $toolManager = new class extends ToolManager {
+            /** @phpstan-ignore-next-line method.childParameterType */
+            public function updateToolDurability($toolData)
+            {
+                return false; // симулирует tool gone
+            }
+        };
+
+        // Мок CraftedItemsLogModel: getItemByNameEngAndCharacterId возвращает null
+        // (consumeAndRefresh после false не делает refresh, но безопасности ради).
+        $logModel = new class extends \App\Models\CraftedItemsLogModel {
+            public function __construct()
+            {
+                // skip parent ctor (avoid DB connection)
+            }
+            public function getItemByNameEngAndCharacterId($nameEng, $characterId)
+            {
+                return null;
+            }
+        };
+
+        $proc = new ToolDurabilityProcessor($logModel, null, $toolManager);
+
+        $availableTools = [
+            'IronPickaxe' => ['id' => 42, 'crafted_item_id' => 7, 'quantity' => 1, 'durability_count' => 1],
+        ];
+
+        $ok = $proc->consumeAndRefresh('IronPickaxe', $availableTools, 999);
+
+        $this->assertFalse($ok);
+        $this->assertArrayNotHasKey('IronPickaxe', $availableTools);
+        $this->assertSame(['IronPickaxe' => true], $proc->getBrokenTools());
+
+        // Clear → пусто.
+        $proc->clearBrokenTools();
+        $this->assertSame([], $proc->getBrokenTools());
+    }
+
+    public function testConsumeAndRefreshDoesNotTrackWhenToolStillAlive(): void
+    {
+        // Мок ToolManager: updateToolDurability возвращает true → tool жив.
+        $toolManager = new class extends ToolManager {
+            /** @phpstan-ignore-next-line method.childParameterType */
+            public function updateToolDurability($toolData)
+            {
+                return true;
+            }
+        };
+
+        // Мок LogModel: getItemByNameEngAndCharacterId возвращает обновлённую запись.
+        $logModel = new class extends \App\Models\CraftedItemsLogModel {
+            public function __construct() { }
+            public function getItemByNameEngAndCharacterId($nameEng, $characterId)
+            {
+                return ['id' => 42, 'quantity' => 1, 'durability_count' => 4];
+            }
+        };
+
+        $proc = new ToolDurabilityProcessor($logModel, null, $toolManager);
+
+        $availableTools = [
+            'IronPickaxe' => ['id' => 42, 'quantity' => 1, 'durability_count' => 5],
+        ];
+
+        $ok = $proc->consumeAndRefresh('IronPickaxe', $availableTools, 999);
+
+        $this->assertTrue($ok);
+        $this->assertArrayHasKey('IronPickaxe', $availableTools);
+        $this->assertSame([], $proc->getBrokenTools()); // не сломался
+    }
 }
