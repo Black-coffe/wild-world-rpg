@@ -68,6 +68,13 @@
             </li>
 
             <li class="side-nav-item">
+                <a href="<?= base_url('admin/game-settings')?>" class="side-nav-link">
+                    <i class="ri-settings-3-line"></i>
+                    <span> Параметры баланса </span>
+                </a>
+            </li>
+
+            <li class="side-nav-item">
                 <a href="<?= base_url('admin/tips')?>" class="side-nav-link">
                     <i class="ri-advertisement-fill"></i>
                     <span> Советы в игре </span>

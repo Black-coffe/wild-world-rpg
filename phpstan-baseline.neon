@@ -18811,6 +18811,42 @@ parameters:
 			path: app/Views/admin/event_index.php
 
 		-
+			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Views/admin/game_settings/index.php
+
+		-
+			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
+			identifier: echo.nonString
+			count: 7
+			path: app/Views/admin/game_settings/index.php
+
+		-
+			message: '#^Parameter \#1 \(mixed\) of echo cannot be converted to string\.$#'
+			identifier: echo.nonString
+			count: 1
+			path: app/Views/admin/game_settings/index.php
+
+		-
+			message: '#^Variable \$activeCategory might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/game_settings/index.php
+
+		-
+			message: '#^Variable \$grouped might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/game_settings/index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/game_settings/index.php
+
+		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
 			count: 6
