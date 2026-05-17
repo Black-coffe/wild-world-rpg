@@ -6,6 +6,8 @@ namespace App\Services\CraftTree;
 
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\ResultInterface;
+use Config\Buildings as BuildingsConfig;
+use Config\CraftRecipes;
 use Config\Database;
 
 /**
@@ -39,12 +41,49 @@ final class CraftTreeService
     /** @var array<int, float|null> Memoized recursive gold cost per crafted-item-id. */
     private array $craftedCostMemo = [];
 
+    /** @var array<string, array<string, mixed>>|null Recipe image lookup by name_eng. */
+    private ?array $craftImageLookup = null;
+
+    /** @var array<string, array<string, mixed>>|null Building image lookup by name_en. */
+    private ?array $buildingImageLookup = null;
+
     /**
      * @param BaseConnection<object, object>|null $db
      */
     public function __construct(?BaseConnection $db = null)
     {
         $this->db = $db ?? Database::connect();
+    }
+
+    /**
+     * Загружает маппинг recipe.name_eng → image и building.name_en → image из
+     * существующих `Config\CraftRecipes` / `Config\Buildings` (тот же source-of-truth
+     * что использует Telegram-бот при крафте/стройке).
+     */
+    private function primeImageLookups(): void
+    {
+        $craftConfig = new CraftRecipes();
+        $this->craftImageLookup = [];
+        foreach ($craftConfig->recipes as $key => $recipe) {
+            if (! is_string($key) || ! is_array($recipe)) {
+                continue;
+            }
+            $image = $recipe['image_completed'] ?? $recipe['image_in_progress'] ?? null;
+            if (! is_string($image) || $image === '') {
+                continue;
+            }
+            $this->craftImageLookup[$key] = ['image' => $image];
+        }
+
+        $buildingConfig = new BuildingsConfig();
+        $this->buildingImageLookup = [];
+        foreach ($buildingConfig->recipes as $key => $building) {
+            $image = $building['completion_image'] ?? $building['image_in_progress'];
+            if ($image === '') {
+                continue;
+            }
+            $this->buildingImageLookup[$key] = ['image' => $image];
+        }
     }
 
     /**
@@ -82,6 +121,7 @@ final class CraftTreeService
     public function buildTree(): array
     {
         $this->primeCaches();
+        $this->primeImageLookups();
         $this->craftedCostMemo = [];
 
         $workbenches = $this->groupCraftedByWorkbench();
@@ -386,10 +426,14 @@ final class CraftTreeService
             return $ing;
         }, $ingredients);
 
+        $nameEng = self::toString($row['name_eng'] ?? '');
+        $image   = $this->craftImageLookup[$nameEng]['image'] ?? null;
+
         return [
             'id'              => $craftedId,
             'name'            => self::toString($row['name_rus'] ?? ''),
-            'nameEn'          => self::toString($row['name_eng'] ?? ''),
+            'nameEn'          => $nameEng,
+            'image'           => is_string($image) ? $image : null,
             'type'            => self::toString($row['type'] ?? ''),
             'icon'            => $this->iconForType(self::toString($row['type'] ?? '')),
             'effect'          => self::toString($row['effect'] ?? ''),
@@ -438,10 +482,13 @@ final class CraftTreeService
             }, $ingredients);
 
             $buildingType = self::toString($row['building_type'] ?? '');
+            $nameEn       = self::toString($row['name_en'] ?? '');
+            $image        = $this->buildingImageLookup[$nameEn]['image'] ?? null;
             $out[] = [
                 'id'                     => self::toInt($row['id'] ?? null),
                 'name'                   => self::toString($row['name_ru'] ?? ''),
-                'nameEn'                 => self::toString($row['name_en'] ?? ''),
+                'nameEn'                 => $nameEn,
+                'image'                  => is_string($image) ? $image : null,
                 'description'            => self::toString($row['description'] ?? ''),
                 'buildingType'           => $buildingType,
                 'icon'                   => $this->iconForBuildingType($buildingType),

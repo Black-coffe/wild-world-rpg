@@ -53,6 +53,11 @@ class Buildings extends BaseConfig
      *     crafted_items: array<string, int>,
      *     dependencies: list<string>,
      *     image_in_progress: string,
+     *     completion_image?: string,
+     *     completion_text?: string,
+     *     completion_bonus_agility?: float,
+     *     completion_bonus_intellect?: float,
+     *     completion_building_type?: string|null,
      * }>
      */
     public array $recipes = [
