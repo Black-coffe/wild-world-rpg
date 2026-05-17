@@ -109,6 +109,11 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->get('craft-tree', 'Admin\CraftTreeController::index');
     $routes->get('craft-tree/data', 'Admin\CraftTreeController::data');
 
+    // S5 (v0.51.187) — GameSettings live-tunable balance framework
+    $routes->get('game-settings', 'Admin\GameSettingsController::index');
+    $routes->post('game-settings/update', 'Admin\GameSettingsController::update');
+    $routes->post('game-settings/reset', 'Admin\GameSettingsController::reset');
+
 });
 
 
