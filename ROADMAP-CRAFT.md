@@ -684,11 +684,67 @@ Inserts `tasks` row для `buildingUpgrade` (duration 30 min для L2, 60 min 
 - Сейчас все балансные константы в `Config\GameBalance` — изменение требует deploy. У админа нет рычага «сделать ремонт чуть дешевле на проде после фидбэка».
 
 **Что меняем.**
-- **Часть A — GameSettings framework:**
-  - Таблица `game_settings(id, setting_key VARCHAR(64) UNIQUE, value_type ENUM('int','float','bool','string'), value_int INT NULL, value_float DECIMAL(10,4) NULL, value_bool TINYINT(1) NULL, value_string VARCHAR(255) NULL, default_value_text TEXT, description TEXT, category VARCHAR(32), updated_at, updated_by)`.
-  - `App\Services\GameSettings\GameSettingsService::get(string $key, $default)` — кешируется (`spark/cache`, TTL 60s, инвалидация на UPDATE), fallback на `$default`.
-  - Admin UI `/admin/game-settings` — таблица всех ключей, inline edit с валидацией по `value_type`, кнопка «Reset to default». Audit-log пишется через `BaseAdminController::audit()`.
-  - Seed-migration с начальным набором ключей: `repair.cost_fraction` (float, default 0.50, описание «доля ресурсов от оригинального крафта»), `repair.task_duration_minutes` (int, default 15), `repair.restore_durability_to_percent` (int, default 100).
+- **Часть A — GameSettings framework (constitutional foundation, см. CLAUDE.md §🎛️):**
+  - Таблица `game_settings` — **расширенная схема с rich rationale** (обязательно по constitutional rule):
+
+    ```sql
+    CREATE TABLE game_settings (
+        id              INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        setting_key     VARCHAR(64) NOT NULL UNIQUE,         -- 'category.subcategory.name'
+        category        VARCHAR(32) NOT NULL,                -- craft|buildings|resources|combat|world|endgame|experimental
+        value_type      ENUM('int','float','bool','string') NOT NULL,
+        value_int       INT NULL,
+        value_float     DECIMAL(12,4) NULL,
+        value_bool      TINYINT(1) NULL,
+        value_string    VARCHAR(255) NULL,
+        default_value_text  TEXT NOT NULL,                   -- Reset-to-default читает это поле
+        rationale_text      TEXT NOT NULL,                   -- ПОЧЕМУ сейчас именно это значение
+        effect_text         TEXT NOT NULL,                   -- НА ЧТО влияет (механики/формулы)
+        above_effect_text   TEXT NOT NULL,                   -- ЧТО будет если поставить выше
+        below_effect_text   TEXT NOT NULL,                   -- ЧТО будет если поставить ниже
+        recommended_min     VARCHAR(64) NULL,                -- soft-граница (warning жёлтый в UI)
+        recommended_max     VARCHAR(64) NULL,
+        hard_min            VARCHAR(64) NULL,                -- save запрещён вне этих границ
+        hard_max            VARCHAR(64) NULL,
+        updated_at          DATETIME NOT NULL,
+        updated_by          VARCHAR(128) NULL,               -- email/name админа из Shield auth
+        INDEX idx_category (category)
+    );
+    ```
+  - `App\Services\GameSettings\GameSettingsService::get(string $key, mixed $default): mixed` — кешируется (`spark/cache`, TTL 60s, инвалидация на UPDATE), fallback на `$default`, типизация по `value_type`.
+  - `GameSettingsService::all(?string $category = null): array` — для admin UI.
+  - `GameSettingsService::reset(string $key): void` — UPDATE value_* ← parsed `default_value_text`, audit-log.
+  - **Admin UI** — `/admin/game-settings` (overview всех категорий) + `/admin/game-settings/<category>` (детально по группе):
+    - Inline editing с валидацией (тип + hard_min/max + warning при превышении recommended_min/max).
+    - **Кнопка «🔄 Сбросить к default» на каждой строке.**
+    - Tooltip / expand на каждой строке показывает `rationale_text` / `effect_text` / `above` / `below` — админ читает почему именно так и как менять.
+    - Audit-log пишется через `BaseAdminController::audit()` (action `GAME_SETTING_UPDATE`, payload содержит old_value/new_value/key).
+  - **Seed-migration с начальным набором (только repair-keys для финала Фазы 1):**
+    - `repair.cost_fraction` (float 0.50, category=craft)
+    - `repair.task_duration_minutes` (int 15, category=craft)
+    - `repair.restore_durability_to_percent` (int 100, category=craft)
+
+  **Пример seed-row** (для `repair.cost_fraction`):
+
+  ```php
+  [
+      'setting_key' => 'repair.cost_fraction',
+      'category' => 'craft',
+      'value_type' => 'float',
+      'value_float' => 0.50,
+      'default_value_text' => '0.50',
+      'rationale_text' => 'Половина — компромисс между "ремонт почти бесплатный" (П2 win, П8 sink loss) и "ремонт дешевле полного крафта в 2 раза, но всё ещё ощутимый sink" (баланс economy + dolce vita для casuals).',
+      'effect_text' => 'Множитель ресурсов для action `repair` — итоговая стоимость = ceil(original_required_resources × значение). Не влияет на durability/время ремонта.',
+      'above_effect_text' => 'При 0.70 ремонт = 70% от полного крафта — sink сохраняется почти полностью, П8 трейдеры довольны, но П2/П5 теряют ощущение "ремонт вместо нового крафта". При 0.90+ — repair становится бессмысленным.',
+      'below_effect_text' => 'При 0.30 ремонт почти бесплатный — П1 хардкорщики жалуются на тривиализацию decay system, П8 теряют sink, инфляция золота возрастает. При 0.10 — economy ломается, ремонт превращается в обнуление durability бесплатно.',
+      'recommended_min' => '0.30',
+      'recommended_max' => '0.70',
+      'hard_min' => '0.10',
+      'hard_max' => '0.90',
+  ]
+  ```
+
+  **Это invariant.** Любой seed без полных 4 полей (`rationale_text` / `effect_text` / `above_effect_text` / `below_effect_text`) — fail в миграции (CHECK constraint или валидация в seed).
 - **Часть B — Repair-механика:**
   - Action-handler `RepairCraftedItemAction` — выбор сломанного инструмента → подтверждение → задача `repair` (duration = `GameSettings::get('repair.task_duration_minutes', 15)`).
   - Стоимость ремонта: `ceil(required_resources × GameSettings::get('repair.cost_fraction', 0.50))`.
@@ -697,9 +753,13 @@ Inserts `tasks` row для `buildingUpgrade` (duration 30 min для L2, 60 min 
 **Файлы к созданию.**
 - `app/Models/GameSettingsModel.php`
 - `app/Services/GameSettings/GameSettingsService.php`
+- `app/Services/GameSettings/GameSettingValidator.php` (типизация + hard/soft bounds)
 - `app/Controllers/Admin/GameSettingsController.php` (extends `BaseAdminController`)
-- `app/Views/admin/game_settings_index.php`
-- `tests/unit/Services/GameSettings/GameSettingsServiceTest.php` (cache invalidation, type coercion, default fallback)
+- `app/Views/admin/game_settings_index.php` (overview всех категорий — карточки + count)
+- `app/Views/admin/game_settings_category.php` (детальная таблица по `<category>`)
+- `app/Views/admin/partials/_setting_row.php` (один setting — inline edit + tooltip с rationale)
+- `tests/unit/Services/GameSettings/GameSettingsServiceTest.php` (cache invalidation, type coercion, default fallback, reset)
+- `tests/unit/Services/GameSettings/GameSettingValidatorTest.php` (bounds, type-coercion)
 - `app/Controllers/Telegram/Commands/Actions/Crafting/RepairCraftedItemAction.php`
 - `app/TaskHandlers/Craft/RepairCompletionHandler.php`
 - `tests/unit/Controllers/Telegram/Actions/Crafting/RepairCraftedItemActionTest.php`
@@ -708,8 +768,8 @@ Inserts `tasks` row для `buildingUpgrade` (duration 30 min для L2, 60 min 
 **Файлы к изменению.**
 - `app/Controllers/Telegram/Commands/Actions/CraftedResourcesAction.php` — кнопка «🔧 Ремонт»
 - `app/Config/Tasks.php` — task `repairCraftedItem`
-- `app/Config/Routes.php` — `/admin/game-settings`
-- `app/Views/templates/sidebar.php` — пункт меню «Настройки игры → Параметры баланса»
+- `app/Config/Routes.php` — `/admin/game-settings` + `/admin/game-settings/<category>` + POST `/admin/game-settings/update/<key>` + POST `/admin/game-settings/reset/<key>`
+- `app/Views/templates/sidebar.php` — **новый раздел «⚙️ Параметры баланса»** с подпунктами по категориям (см. Admin sidebar map ниже)
 - `app/Controllers/Telegram/CallbackRouter.php`
 
 **Миграции.**
@@ -717,6 +777,55 @@ Inserts `tasks` row для `buildingUpgrade` (duration 30 min для L2, 60 min 
 app/Database/Migrations/2026-05-21-090000_CreateGameSettingsTable.php
 app/Database/Migrations/2026-05-21-091000_SeedGameSettingsRepairKeys.php
 app/Database/Migrations/2026-05-21-100000_AddRepairTaskRow.php
+```
+
+**Admin sidebar map — структурированная навигация (НЕ хаос):**
+
+```
+NAVIGATION
+├── 📦 Настройки игры                  (существующее)
+│   ├── Биомы
+│   ├── Ресурсы
+│   ├── Задачи
+│   ├── События
+│   ├── Объекты
+│   └── Квесты
+├── 🌳 Дерево крафта                   (v0.51.180)
+├── ⚙️  Параметры баланса              (НОВОЕ — S5)
+│   ├── 🔧 Крафт и ремонт              → /admin/game-settings/craft
+│   ├── 🏗 Стройка и постройки         → /admin/game-settings/buildings
+│   ├── 💎 Ресурсы и редкость           → /admin/game-settings/resources
+│   ├── ⚔ Бой и PvP                    → /admin/game-settings/combat
+│   ├── 🌐 Мир и события                → /admin/game-settings/world
+│   ├── 🎯 Эндгейм                       → /admin/game-settings/endgame
+│   └── 🧪 Экспериментальные            → /admin/game-settings/experimental
+├── 💡 Советы в игре
+├── 📨 Сообщение всем
+├── 🔄 Сброс персонажа
+└── 🗳️ Опросы
+```
+
+Пустая категория показывается с надписью «Пока нет настроек в этой группе» — категория появляется по мере того как сессии S6-S30 регистрируют ключи. На момент завершения S5 — только category=craft имеет 3 ключа (repair.*).
+
+**Admin UI для одной категории** (пример):
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│ ⚙️  Параметры баланса → 🔧 Крафт и ремонт                                │
+├────────────────────────────────────────────────────────────────────────┤
+│ Ключ                          │ Значение │ Default │ Действия           │
+├────────────────────────────────────────────────────────────────────────┤
+│ repair.cost_fraction   ⓘ      │  0.50   │  0.50   │ ✏️ Изменить  🔄    │
+│   Доля ресурсов от оригинала                                            │
+│   ▶ Развернуть rationale / effect / above / below                       │
+│                                                                          │
+│ repair.task_duration_minutes ⓘ│  15     │  15     │ ✏️ Изменить  🔄    │
+│   Длительность ремонта в минутах                                        │
+├────────────────────────────────────────────────────────────────────────┤
+│ Когда меняешь значение, audit-log сохраняет кто/когда/что.              │
+│ Soft bounds: [0.30 - 0.70] — вне диапазона предупреждение.              │
+│ Hard bounds: [0.10 - 0.90] — сохранение запрещено.                      │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Image-assets.**
