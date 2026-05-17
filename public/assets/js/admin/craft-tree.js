@@ -78,6 +78,20 @@
         state.lookups = { crafts: cr, buildings: bu, resources: rs };
     }
 
+    function imageUrl(path) {
+        if (!path) return null;
+        const base = (window.__ctDataUrl || '').replace(/admin\/craft-tree\/data$/, '');
+        return base + path.replace(/^\/+/, '');
+    }
+
+    function imageForCraftRef(refType, refId) {
+        if (refType === 'crafted') {
+            const entry = state.lookups.crafts.get(refId);
+            return entry ? imageUrl(entry.node.image) : null;
+        }
+        return null;
+    }
+
     function updateLiveBadge(ok) {
         const badge = $('#ct-live-badge');
         const upd = $('#ct-updated');
@@ -215,12 +229,17 @@
 
         const nodeId = 'recipe:' + r.id;
 
+        const imgSrc = imageUrl(r.image);
+        const iconOrThumb = imgSrc
+            ? `<img class="ct-row-thumb" src="${escapeHTML(imgSrc)}" alt="${escapeHTML(r.name)}" loading="lazy" data-action="zoom" data-src="${escapeHTML(imgSrc)}" data-caption="${escapeHTML(r.name)}">`
+            : `<span class="ct-row-icon"><i class="${escapeHTML(r.icon)}"></i></span>`;
+
         return `
         <div class="ct-row-wrap" data-node-id="${escapeHTML(nodeId)}">
             <div class="ct-row ${isSelected ? 'is-selected' : ''} ${q && (recipeNameMatch || matchesQuery(r.nameEn, q)) ? 'is-match' : ''}"
                  data-action="select" data-type="recipe" data-id="${r.id}"
                  data-tip-text="${escapeHTML(buildRecipeTip(r))}">
-                <span class="ct-row-icon"><i class="${escapeHTML(r.icon)}"></i></span>
+                ${iconOrThumb}
                 <span class="ct-row-title">${highlightMatch(r.name, q)} ${enLabel}</span>
                 <span class="ct-row-meta">${metaPills.join('')}</span>
             </div>
@@ -240,9 +259,14 @@
         const refAttrs = refCrafted ? `data-action="select" data-type="recipe" data-id="${i.refId}"` :
             (i.refType === 'resource' ? `data-action="select" data-type="resource" data-id="${i.refId}"` : '');
 
+        const subImg = imageForCraftRef(i.refType, i.refId);
+        const iconNode = subImg
+            ? `<img class="ct-ingredient-thumb" src="${escapeHTML(subImg)}" alt="${escapeHTML(i.name)}" loading="lazy" data-action="zoom" data-src="${escapeHTML(subImg)}" data-caption="${escapeHTML(i.name)}">`
+            : `<span class="ct-ingredient-icon"><i class="${escapeHTML(i.icon)}"></i></span>`;
+
         return `
         <div class="${cls.join(' ')}" ${refAttrs}>
-            <span class="ct-ingredient-icon"><i class="${escapeHTML(i.icon)}"></i></span>
+            ${iconNode}
             <span>${escapeHTML(i.name)}</span>
             <span class="ct-ingredient-qty">×${qtyText} ${costText}</span>
         </div>`;
@@ -317,12 +341,16 @@
         if (b.hasMissing) metaPills.push(`<span class="ct-pill warn"><i class="ri-alert-line"></i></span>`);
 
         const ingredientsHTML = b.ingredients.map(i => renderIngredient(i)).join('');
+        const bImg = imageUrl(b.image);
+        const bIconNode = bImg
+            ? `<img class="ct-row-thumb" src="${escapeHTML(bImg)}" alt="${escapeHTML(b.name)}" loading="lazy" data-action="zoom" data-src="${escapeHTML(bImg)}" data-caption="${escapeHTML(b.name)}">`
+            : `<span class="ct-row-icon"><i class="${escapeHTML(b.icon)}"></i></span>`;
 
         return `
         <div class="ct-row-wrap">
             <div class="ct-row ${isSelected ? 'is-selected' : ''} ${q && nameMatch ? 'is-match' : ''}"
                  data-action="select" data-type="building" data-id="${b.id}">
-                <span class="ct-row-icon"><i class="${escapeHTML(b.icon)}"></i></span>
+                ${bIconNode}
                 <span class="ct-row-title">${highlightMatch(b.name, q)} ${b.nameEn ? '<span class="ct-name-en">' + escapeHTML(b.nameEn) + '</span>' : ''}</span>
                 <span class="ct-row-meta">${metaPills.join('')}</span>
             </div>
@@ -389,6 +417,14 @@
         }
     }
 
+    function heroImageHTML(name, imagePath, fallbackIcon) {
+        const src = imageUrl(imagePath);
+        if (src) {
+            return `<img class="ct-hero-image" src="${escapeHTML(src)}" alt="${escapeHTML(name)}" data-action="zoom" data-src="${escapeHTML(src)}" data-caption="${escapeHTML(name)}">`;
+        }
+        return `<div class="ct-hero-image-placeholder"><i class="${escapeHTML(fallbackIcon)}"></i></div>`;
+    }
+
     function recipeDetailHTML({ node: r, workbench, direction }) {
         const stats = [
             r.craftingTime ? { l: 'Время', v: r.craftingTime } : null,
@@ -407,7 +443,7 @@
 
         return `
         <div class="ct-detail-head">
-            <div class="ct-detail-icon"><i class="${escapeHTML(r.icon)}"></i></div>
+            ${heroImageHTML(r.name, r.image, r.icon)}
             <div>
                 <div class="ct-detail-title">${escapeHTML(r.name)}</div>
                 <div class="ct-detail-subtitle">
@@ -467,7 +503,7 @@
 
         return `
         <div class="ct-detail-head">
-            <div class="ct-detail-icon"><i class="${escapeHTML(b.icon)}"></i></div>
+            ${heroImageHTML(b.name, b.image, b.icon)}
             <div>
                 <div class="ct-detail-title">${escapeHTML(b.name)}</div>
                 <div class="ct-detail-subtitle">
@@ -511,9 +547,11 @@
 
         return `
         <div class="ct-detail-head">
-            <div class="ct-detail-icon"><i class="ri-leaf-fill"></i></div>
+            <div class="ct-hero-image-placeholder" title="У ресурсов нет картинок, только emoji">
+                <span style="font-size:3.4rem;line-height:1">${r.iconText ? escapeHTML(r.iconText) : '📦'}</span>
+            </div>
             <div>
-                <div class="ct-detail-title">${r.iconText ? escapeHTML(r.iconText) + ' ' : ''}${escapeHTML(r.name)}</div>
+                <div class="ct-detail-title">${escapeHTML(r.name)}</div>
                 <div class="ct-detail-subtitle">${r.nameEn ? escapeHTML(r.nameEn) + ' · ' : ''}Ресурс</div>
             </div>
         </div>
@@ -737,9 +775,31 @@
             persistState();
         });
 
-        // Keyboard: Esc clears search
+        // Image modal — delegated click
+        const modal = createModal();
+        const handleZoomClick = e => {
+            const t = e.target.closest('[data-action="zoom"]');
+            if (!t) return;
+            e.preventDefault();
+            e.stopPropagation();
+            openModal(modal, t.dataset.src, t.dataset.caption || '');
+        };
+        tree.addEventListener('click', handleZoomClick, true);
+        $('#ct-detail').addEventListener('click', handleZoomClick, true);
+
+        modal.addEventListener('click', e => {
+            if (e.target === modal || e.target.closest('.ct-modal-close')) {
+                closeModal(modal);
+            }
+        });
+
+        // Keyboard: Esc clears search OR closes modal
         document.addEventListener('keydown', e => {
             if (e.key === 'Escape') {
+                if (modal.classList.contains('is-visible')) {
+                    closeModal(modal);
+                    return;
+                }
                 if (state.search) {
                     state.search = '';
                     search.value = '';
@@ -752,6 +812,33 @@
                 search.focus();
             }
         });
+    }
+
+    function createModal() {
+        let modal = document.querySelector('.ct-modal-backdrop');
+        if (modal) return modal;
+        modal = document.createElement('div');
+        modal.className = 'ct-modal-backdrop';
+        modal.innerHTML = `
+            <button class="ct-modal-close" type="button" aria-label="Закрыть"><i class="ri-close-line"></i></button>
+            <img class="ct-modal-img" alt="">
+            <div class="ct-modal-caption"></div>
+        `;
+        document.body.appendChild(modal);
+        return modal;
+    }
+
+    function openModal(modal, src, caption) {
+        modal.querySelector('.ct-modal-img').src = src;
+        modal.querySelector('.ct-modal-img').alt = caption || '';
+        modal.querySelector('.ct-modal-caption').textContent = caption || '';
+        modal.classList.add('is-visible');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal(modal) {
+        modal.classList.remove('is-visible');
+        document.body.style.overflow = '';
     }
 
     // ── Boot ─────────────────────────────────────────
