@@ -39,68 +39,21 @@ class BuildListAction extends BaseAction
             return Request::emptyResponse();
         }
 
-        // Список построек с иконками, названием и суточным налогом
+        // S1 (v0.51.182+): callback_data → единый `genericBuildInfo_<Key>` (читает Config\Buildings).
+        // Раньше каждая кнопка имела свой legacy callback (buildHandPump/...). Удалены.
         $buildingsInfo = [
-            [
-                'name' => "🚰 Ручная скважина",
-                'tax' => 300,
-                'callback_data' => 'buildHandPump'
-            ],
-            [
-                'name' => "🔥 Доменная печь",
-                'tax' => 450,
-                'callback_data' => 'buildBlastFurnace'
-            ],
-            [
-                'name' => "🏚️ Склад",
-                'tax' => 900,
-                'callback_data' => 'buildWarehouse'
-            ],
-            [
-                'name' => "🔧 Мастерская",
-                'tax' => 500,
-                'callback_data' => 'buildWorkshop'
-            ],
-            [
-                'name' => "🌱 Теплица",
-                'tax' => 840,
-                'callback_data' => 'buildGreenhouse'
-            ],
-            [
-                'name' => "☀️ Солнечная станция",
-                'tax' => 760,
-                'callback_data' => 'buildSolarStation'
-            ],
-            [
-                'name' => "🥊 Спортзал",
-                'tax' => 900,
-                'callback_data' => 'buildGym'
-            ],
-            [
-                'name' => "🥼 Лаборатория",
-                'tax' => 860,
-                'callback_data' => 'buildLaboratory'
-            ],
-            [
-                'name' => "🤖 Мастерская робототехники",
-                'tax' => 1400,
-                'callback_data' => 'buildRoboticsWorkshop'
-            ],
-            [
-                'name' => "🌀 Центр телепортации",
-                'tax' => 820,
-                'callback_data' => 'buildTeleportationCenter'
-            ],
-            [
-                'name' => "⚔️ Арсенал",
-                'tax'  => 2000,
-                'callback_data' => 'actionNameForArsenal'
-            ],
-            [
-                'name' => "📢 Вышка связи",
-                'tax'  => 1300,
-                'callback_data' => 'actionNameForCommunicationTower'
-            ],
+            ['name' => "🚰 Ручная скважина",            'tax' => 300,  'callback_data' => 'genericBuildInfo_HandPump'],
+            ['name' => "🔥 Доменная печь",              'tax' => 450,  'callback_data' => 'genericBuildInfo_BlastFurnace'],
+            ['name' => "🏚️ Склад",                       'tax' => 900,  'callback_data' => 'genericBuildInfo_Warehouse'],
+            ['name' => "🔧 Мастерская",                  'tax' => 500,  'callback_data' => 'genericBuildInfo_Workshop'],
+            ['name' => "🌱 Теплица",                     'tax' => 840,  'callback_data' => 'genericBuildInfo_Greenhouse'],
+            ['name' => "☀️ Солнечная станция",          'tax' => 760,  'callback_data' => 'genericBuildInfo_SolarStation'],
+            ['name' => "🥊 Спортзал",                    'tax' => 900,  'callback_data' => 'genericBuildInfo_Gym'],
+            ['name' => "🥼 Лаборатория",                 'tax' => 860,  'callback_data' => 'genericBuildInfo_Laboratory'],
+            ['name' => "🤖 Мастерская робототехники",   'tax' => 1400, 'callback_data' => 'genericBuildInfo_RoboticsWorkshop'],
+            ['name' => "🌀 Центр телепортации",          'tax' => 820,  'callback_data' => 'genericBuildInfo_TeleportationCenter'],
+            ['name' => "⚔️ Арсенал",                    'tax' => 2000, 'callback_data' => 'genericBuildInfo_Arsenal'],
+            ['name' => "📢 Вышка связи",                 'tax' => 1300, 'callback_data' => 'genericBuildInfo_CommunicationTower'],
         ];
 
         $buildingList = "";

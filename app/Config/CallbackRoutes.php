@@ -183,21 +183,13 @@ class CallbackRoutes extends BaseConfig
         'TeleportUse'                     => \App\Controllers\Telegram\Commands\Actions\Camp\TeleportUseAction::class,
         'DeleteBase'                     => \App\Controllers\Telegram\Commands\Actions\Camp\DeleteBaseAction::class,
         'Build'                           => \App\Controllers\Telegram\Commands\Actions\Camp\BuildListAction::class,
-        'buildHandPump'                   => \App\Controllers\Telegram\Commands\Actions\Camp\HandPumpConstruction::class,
-        'buildBlastFurnace'               => \App\Controllers\Telegram\Commands\Actions\Camp\BlastFurnaceConstruction::class,
-        'buildWorkshop'                   => \App\Controllers\Telegram\Commands\Actions\Camp\WorkshopConstruction::class,
-        'buildWarehouse'                  => \App\Controllers\Telegram\Commands\Actions\Camp\BuildWarehouseConstruction::class,
-        'buildSolarStation'               => \App\Controllers\Telegram\Commands\Actions\Camp\BuildSolarStationConstruction::class,
-        'buildGreenhouse'                 => \App\Controllers\Telegram\Commands\Actions\Camp\BuildGreenHouseConstruction::class,
-        'buildGym'                        => \App\Controllers\Telegram\Commands\Actions\Camp\BuildGymConstruction::class,
-        'buildLaboratory'                 => \App\Controllers\Telegram\Commands\Actions\Camp\BuildLabConstruction::class,
-        'buildRoboticsWorkshop'           => \App\Controllers\Telegram\Commands\Actions\Camp\BuildRoboticsWorkshopConstruction::class,
         'building'                        => \App\Controllers\Telegram\Commands\Actions\Camp\BuildingHandlerAction::class,
-        'buildTeleportationCenter'        => \App\Controllers\Telegram\Commands\Actions\Camp\BuildTeleportationCenterConstruction::class,
-        'actionNameForArsenal'            => \App\Controllers\Telegram\Commands\Actions\Camp\BuildArsenalConstruction::class,
+        // S1 (v0.51.182+): 12 legacy `build<Name>` / `actionNameFor<Name>` routes удалены, заменены
+        // на единый generic preview-handler `genericBuildInfo_<Key>` (читает Config\Buildings).
+        // Final-action маршрут `genericStartBuild_<Key>` существует с F2.1.
+        'genericBuildInfo'                => \App\Controllers\Telegram\Commands\Actions\Camp\GenericBuildingInfoAction::class,
         'genericStartBuild'               => \App\Controllers\Telegram\Commands\Actions\Camp\GenericBuildingAction::class,
         'genericCraft'                    => \App\Controllers\Telegram\Commands\Actions\Craft\GenericCraftActionStart::class,
-        'actionNameForCommunicationTower' => \App\Controllers\Telegram\Commands\Actions\Camp\BuildCommunicationTowerConstruction::class,
 
         // === Objects ===
         'objectActionClosedWarehouse'     => \App\Controllers\Telegram\Commands\Actions\Objects\ObjectCloseWarehouseAction::class,

@@ -12,9 +12,10 @@ use CodeIgniter\Config\BaseConfig;
  * Заменяет 23 копипастных файла `app/Controllers/Telegram/Commands/Actions/Camp/Build*Construction.php`
  * (~7980 строк дубля). Каждое здание = одна запись в `$recipes`.
  *
- * Сейчас (в этом коммите) описан **только Arsenal** — как PoC.
- * `GenericBuildingAction.php` использует этот конфиг и должен дать
- * 1:1 такое же поведение что и существующий `StartBuildArsenalConstruction`.
+ * S1 (v0.51.182+): все 12 зданий описаны через generic-recipe + удалены 12
+ * legacy `Build*Construction.php` (~4187 LOC дубля). preview-handler =
+ * {@see \App\Controllers\Telegram\Commands\Actions\Camp\GenericBuildingInfoAction},
+ * start-handler = {@see \App\Controllers\Telegram\Commands\Actions\Camp\GenericBuildingAction}.
  *
  * После прод-validation (sprint после F2.1):
  *   1. Перенести Workshop/Lab/Greenhouse/etc. — каждое здание добавлять
@@ -37,7 +38,7 @@ use CodeIgniter\Config\BaseConfig;
  *                            Workshop + BlastFurnace + SolarStation + Lab)
  *   - `image_in_progress`  : картинка для Telegram уведомления о начале
  *
- * Все числа взяты 1:1 из `StartBuildArsenalConstruction.php` v0.1.0.
+ * Все числа изначально перенесены 1:1 из удалённых `Build*Construction.php`.
  *
  * См. mmorpg-vault/lore/refactor/Architecture.md (P0 item 2).
  */
@@ -46,6 +47,8 @@ class Buildings extends BaseConfig
     /**
      * @var array<string, array{
      *     name_rus: string,
+     *     emoji: string,
+     *     info_text: string,
      *     level_required: int,
      *     task_name: string,
      *     task_settings: array<string, mixed>,
@@ -59,10 +62,16 @@ class Buildings extends BaseConfig
      *     completion_bonus_intellect?: float,
      *     completion_building_type?: string|null,
      * }>
+     *
+     * S1 (v0.51.181) — добавлены `emoji` + `info_text` для GenericBuildingInfoAction.
+     * info_text — описательный абзац, который раньше зашит был в Build*Construction.php.
+     * Используется в preview-экране "📋 Описание:".
      */
     public array $recipes = [
         'Arsenal' => [
             'name_rus'          => 'Арсенал',
+            'emoji'             => '⚔️',
+            'info_text'         => 'Здесь вы сможете хранить и производить оружие/броню, улучшать, модифицировать и разрабатывать новые модели, получать бонусы при создании боеприпасов.',
             'level_required'    => 15,
             'task_name'         => 'startBuildArsenal',
             'task_settings'     => ['building' => 'Arsenal'],
@@ -97,6 +106,8 @@ class Buildings extends BaseConfig
 
         'Workshop' => [
             'name_rus'          => 'Мастерская',
+            'emoji'             => '🔧',
+            'info_text'         => 'Даёт дополнительные возможности крафта, а также нужна для постройки инженерных сооружений.',
             'level_required'    => 1,
             'task_name'         => 'buildWorkshop',
             'task_settings'     => ['building' => 'Workshop'],
@@ -121,6 +132,8 @@ class Buildings extends BaseConfig
 
         'BlastFurnace' => [
             'name_rus'          => 'Доменная печь',
+            'emoji'             => '🔥',
+            'info_text'         => 'Необходима для плавки металла. Потребуется в инженерных сооружениях и для некоторых компонентов.',
             'level_required'    => 1,
             'task_name'         => 'buildBlastFurnace',
             'task_settings'     => ['building' => 'BlastFurnace'],
@@ -144,6 +157,8 @@ class Buildings extends BaseConfig
 
         'Warehouse' => [
             'name_rus'          => 'Склад',
+            'emoji'             => '🏚️',
+            'info_text'         => 'Даёт возможность торговли крафтовыми предметами на закрытом рынке, а также снимает ограничения лимитов ресурсов на базе.',
             'level_required'    => 1,
             'task_name'         => 'startBuildWarehouse',
             'task_settings'     => ['building' => 'Warehouse'],
@@ -171,6 +186,8 @@ class Buildings extends BaseConfig
 
         'Laboratory' => [
             'name_rus'          => 'Лаборатория',
+            'emoji'             => '🥼',
+            'info_text'         => 'Позволяет проводить исследования и создавать новые технологии, а также строить роботов и прочие изделия.',
             'level_required'    => 5,
             'task_name'         => 'startBuildLab',
             'task_settings'     => ['building' => 'Laboratory'],
@@ -193,6 +210,8 @@ class Buildings extends BaseConfig
 
         'SolarStation' => [
             'name_rus'          => 'Солнечная станция',
+            'emoji'             => '☀️',
+            'info_text'         => 'Даёт возможность электрифицировать сооружения и автоматизировать многие вещи. Нужна для прокачки уровней зданий.',
             'level_required'    => 1,
             'task_name'         => 'startBuildSolarStation',
             'task_settings'     => ['building' => 'SolarStation'],
@@ -222,6 +241,8 @@ class Buildings extends BaseConfig
 
         'Gym' => [
             'name_rus'          => 'Спортзал',
+            'emoji'             => '🥊',
+            'info_text'         => 'Спортивный и тренировочный зал. Наличие даёт каждые 5 минут 0,01 к силе персонажа.',
             'level_required'    => 5,
             'task_name'         => 'startBuildGym',
             'task_settings'     => ['building' => 'Gym'],
@@ -252,6 +273,8 @@ class Buildings extends BaseConfig
 
         'Greenhouse' => [
             'name_rus'          => 'Теплица',
+            'emoji'             => '🌱',
+            'info_text'         => 'Конструкция, которая позволяет получать каждую минуту урожай: *Фрукты* 2 единицы, *Ягоды* 1 единицу.',
             'level_required'    => 1,
             'task_name'         => 'startBuildGreenhouse',
             'task_settings'     => ['building' => 'Greenhouse'],
@@ -276,6 +299,8 @@ class Buildings extends BaseConfig
 
         'HandPump' => [
             'name_rus'          => 'Ручная скважина',
+            'emoji'             => '🚰',
+            'info_text'         => 'Ручная скважина для добычи воды. После постройки каждую минуту добавляется 1 единица воды для персонажа.',
             'level_required'    => 1,
             'task_name'         => 'buildingManualPump',
             'task_settings'     => ['building' => 'HandPump'],
@@ -299,6 +324,8 @@ class Buildings extends BaseConfig
 
         'RoboticsWorkshop' => [
             'name_rus'          => 'Мастерская робототехники',
+            'emoji'             => '🤖',
+            'info_text'         => 'Даёт возможность строить различных роботов и автоматические установки/машины.',
             'level_required'    => 10,
             'task_name'         => 'startBuildRoboticsWorkshop',
             'task_settings'     => ['building' => 'RoboticsWorkshop'],
@@ -324,6 +351,8 @@ class Buildings extends BaseConfig
 
         'TeleportationCenter' => [
             'name_rus'          => 'Центр телепортации',
+            'emoji'             => '🌀',
+            'info_text'         => 'Уникальное здание: снижает стоимость телепортов и увеличивает лимит маяков.',
             'level_required'    => 12,
             'task_name'         => 'startBuildTeleportationCenter',
             'task_settings'     => ['building' => 'TeleportationCenter'],
@@ -357,6 +386,8 @@ class Buildings extends BaseConfig
 
         'CommunicationTower' => [
             'name_rus'          => 'Вышка связи',
+            'emoji'             => '📢',
+            'info_text'         => 'Позволяет удалённо управлять базой и сооружениями. Каждый уровень увеличивает радиус действия на 100 клеток.',
             'level_required'    => 1,
             'task_name'         => 'startBuildCommunicationTower',
             'task_settings'     => ['building' => 'CommunicationTower'],
@@ -386,8 +417,23 @@ class Buildings extends BaseConfig
     ];
 
     /**
-     * @return array<string,mixed>|null Рецепт по ключу, или null если
-     *                                  ключ не зарегистрирован.
+     * @return array{
+     *     name_rus: string,
+     *     emoji: string,
+     *     info_text: string,
+     *     level_required: int,
+     *     task_name: string,
+     *     task_settings: array<string, mixed>,
+     *     resources: array<string, int>,
+     *     crafted_items: array<string, int>,
+     *     dependencies: list<string>,
+     *     image_in_progress: string,
+     *     completion_image?: string,
+     *     completion_text?: string,
+     *     completion_bonus_agility?: float,
+     *     completion_bonus_intellect?: float,
+     *     completion_building_type?: string|null,
+     * }|null Рецепт по ключу, или null если ключ не зарегистрирован.
      */
     public function get(string $buildingKey): ?array
     {
