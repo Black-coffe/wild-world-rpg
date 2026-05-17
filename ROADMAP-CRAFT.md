@@ -1,10 +1,21 @@
 # Wild World — Craft / Build / Resources Roadmap на 30 сессий
 
-> **Версия документа:** v1.0 (2026-05-17)
+> **Версия документа:** v1.1 (2026-05-17, decisions locked)
 > **Базовая линия:** v0.51.179, ~358 активных персонажей, develop @ commit 676b9d9
 > **Направление:** crafting / building / resources
 > **Срок исполнения:** 30 сессий (≈ v0.51.180 → v0.51.220)
 > **Стиль документа:** roadmap-источник-правды, **не маркетинг**. Каждая сессия — самостоятельный work-item.
+
+> **🎯 v1.1 update (decisions locked by user 2026-05-17):**
+> 1. S5 Repair cost = **50% default**, вынесено в **GameSettings admin framework** (новый foundation в S5, ADR-024).
+> 2. S10 Rare resources = events + strategic objects + **rare biome-spots** (Volcanic/Caves/Tropical/Mountains).
+> 3. S16 T3 Workbench level = **L20** (повышено с L16).
+> 4. S26 Defensive structures = все параметры **через GameSettings**, default-ы зашиты (см. таблицу в S26).
+> 5. S28 Seasonal = **4 сезона × 21 день** default, **через GameSettings**, контракт «возвращается каждый год».
+> 6. Image-генерации = **per-session** (не batch), для smoke во время сессии.
+> 7. ROADMAP-vNext S30 = **алгоритм приоритезации по 5 осям** (lore-debt / архитектура / stack / setting / impact).
+>
+> Полная таблица решений — см. **§12.2 Decisions Log**.
 
 ---
 
@@ -660,35 +671,51 @@ Inserts `tasks` row для `buildingUpgrade` (duration 30 min для L2, 60 min 
 
 ---
 
-### S5 — Repair system 🟡
+### S5 — Repair system + **GameSettings admin framework** 🟠
 
-**Цель.** Дать игрокам возможность ремонтировать сломанные инструменты за часть от изначальных ресурсов (50%). Закрывает цепочку S4 (decay → repair) и сокращает «инструмент сломался — крафти заново».
+> **🎯 Решение user'а (2026-05-17):** стоимость ремонта = 50%, **но вынесено в админку как настройка**. Эта сессия **дополнительно вводит универсальный admin-tunable settings framework**, на который опираются S26 (defensive damage cap) и S28 (seasonal cadence). Категория повышена 🟡 → 🟠 (требует ADR-024 «Game Settings live-tunable framework»).
 
-**Канон-ссылка.** Нет прямого упоминания в GAME_DESCRIPTION; **lore tail #N открыт** — предлагается дополнить канон.
+**Цель.** (a) Repair-механика: 50% ресурсов, 15 мин, default. (b) Foundation `GameSettings` — DB-backed key/value таблица + service + admin UI `/admin/game-settings`, через которую админ меняет числовые/булевые параметры **без redeploy**.
+
+**Канон-ссылка.** Нет прямого упоминания repair в GAME_DESCRIPTION; **lore tail #N открыт**. GameSettings — инфраструктурное расширение, ADR-024 описывает.
 
 **Текущая боль.**
-- После S4 инструменты ломаются.
-- Без repair — единственный путь — крафт нового (полная цена).
-- Игрок ощущает «крафт-конвейер тяжёлый» (П5 голос негатив).
+- После S4 инструменты ломаются → без repair единственный путь = крафт нового по полной цене.
+- Сейчас все балансные константы в `Config\GameBalance` — изменение требует deploy. У админа нет рычага «сделать ремонт чуть дешевле на проде после фидбэка».
 
 **Что меняем.**
-- Action-handler `RepairCraftedItemAction` — выбор сломанного инструмента → подтверждение → задача `repair` 15 min.
-- Стоимость ремонта: 50% от `required_resources` (округление вверх).
-- Completion-handler `RepairCompletionHandler` — восстанавливает `durability_count` к 100%, `is_broken = 0`.
+- **Часть A — GameSettings framework:**
+  - Таблица `game_settings(id, setting_key VARCHAR(64) UNIQUE, value_type ENUM('int','float','bool','string'), value_int INT NULL, value_float DECIMAL(10,4) NULL, value_bool TINYINT(1) NULL, value_string VARCHAR(255) NULL, default_value_text TEXT, description TEXT, category VARCHAR(32), updated_at, updated_by)`.
+  - `App\Services\GameSettings\GameSettingsService::get(string $key, $default)` — кешируется (`spark/cache`, TTL 60s, инвалидация на UPDATE), fallback на `$default`.
+  - Admin UI `/admin/game-settings` — таблица всех ключей, inline edit с валидацией по `value_type`, кнопка «Reset to default». Audit-log пишется через `BaseAdminController::audit()`.
+  - Seed-migration с начальным набором ключей: `repair.cost_fraction` (float, default 0.50, описание «доля ресурсов от оригинального крафта»), `repair.task_duration_minutes` (int, default 15), `repair.restore_durability_to_percent` (int, default 100).
+- **Часть B — Repair-механика:**
+  - Action-handler `RepairCraftedItemAction` — выбор сломанного инструмента → подтверждение → задача `repair` (duration = `GameSettings::get('repair.task_duration_minutes', 15)`).
+  - Стоимость ремонта: `ceil(required_resources × GameSettings::get('repair.cost_fraction', 0.50))`.
+  - Completion-handler `RepairCompletionHandler` — `durability_count = original_durability × repair.restore_durability_to_percent / 100`, `is_broken = 0`. Идемпотентен.
 
 **Файлы к созданию.**
+- `app/Models/GameSettingsModel.php`
+- `app/Services/GameSettings/GameSettingsService.php`
+- `app/Controllers/Admin/GameSettingsController.php` (extends `BaseAdminController`)
+- `app/Views/admin/game_settings_index.php`
+- `tests/unit/Services/GameSettings/GameSettingsServiceTest.php` (cache invalidation, type coercion, default fallback)
 - `app/Controllers/Telegram/Commands/Actions/Crafting/RepairCraftedItemAction.php`
 - `app/TaskHandlers/Craft/RepairCompletionHandler.php`
 - `tests/unit/Controllers/Telegram/Actions/Crafting/RepairCraftedItemActionTest.php`
 - `tests/unit/TaskHandlers/Craft/RepairCompletionHandlerTest.php`
 
 **Файлы к изменению.**
-- `app/Controllers/Telegram/Commands/Actions/CraftedResourcesAction.php` — добавить кнопку «🔧 Ремонт» при показе сломанного инструмента
-- `app/Config/Tasks.php` — `repairCraftedItem` task (duration 15 min, name_rus «Ремонт»)
+- `app/Controllers/Telegram/Commands/Actions/CraftedResourcesAction.php` — кнопка «🔧 Ремонт»
+- `app/Config/Tasks.php` — task `repairCraftedItem`
+- `app/Config/Routes.php` — `/admin/game-settings`
+- `app/Views/templates/sidebar.php` — пункт меню «Настройки игры → Параметры баланса»
 - `app/Controllers/Telegram/CallbackRouter.php`
 
 **Миграции.**
 ```
+app/Database/Migrations/2026-05-21-090000_CreateGameSettingsTable.php
+app/Database/Migrations/2026-05-21-091000_SeedGameSettingsRepairKeys.php
 app/Database/Migrations/2026-05-21-100000_AddRepairTaskRow.php
 ```
 
@@ -697,9 +724,11 @@ app/Database/Migrations/2026-05-21-100000_AddRepairTaskRow.php
 - **`craft.repair-done`** (`uploads/telegram/craft/repair_done.jpg`): LEXICON-key `loot.tool` + scene-tail: "the same hand-forged tool re-assembled on the workbench, the handle re-corded, the head re-seated — clearly mended, slightly different from new, ready to use". Mode: V4. Price: $0.04. Status: pending.
 
 **Validation-card mini.**
-- Категория: 🟡
-- 10-персон: П1 + (extends gear lifecycle), П5 ++ (deep cycle), П2 + (cheaper than re-craft), П8 0 (sink осталась, цена 50%)
+- Категория: 🟠 (повышено с 🟡 из-за GameSettings framework, ADR-024 нужен)
+- 10-персон: П1 + (extends gear lifecycle), П5 ++ (deep cycle), П2 + (cheaper than re-craft), П8 0 (sink осталась, цена 50% default), П10 + (новичок-friendly default 50%)
 - Lore-tail: канон надо допилить — `GAME_DESCRIPTION.md` § «Система прочности» — добавить абзац про repair
+- **ADR-024 «Game Settings live-tunable framework»** — обязателен; описывает: какие категории ключей (balance/economy/timing/limits), валидация, audit-trail, кеш-инвалидация, fallback-cascade (DB → constant → hardcoded).
+- 🟠-risk: админ ставит экстремальное значение (например `repair.cost_fraction = 0.01`) → ломает экономику. Mitigation: per-key min/max bounds в `value_type`-validation + аудит-лог + опция Reset to default.
 
 **Smoke plan.**
 1. Testbot: сломать `IronPickaxe` (durability=0).
@@ -715,19 +744,24 @@ app/Database/Migrations/2026-05-21-100000_AddRepairTaskRow.php
 - `RepairCraftedItemActionTest::testRejectsInsufficientResources()`
 
 **Tech-writing.**
+- `mmorpg-vault/tech-writing/services/GameSettingsService.md` — НОВАЯ (foundation для S26/S28)
+- `mmorpg-vault/tech-writing/controllers/GameSettingsController.md` — НОВАЯ
+- `mmorpg-vault/tech-writing/models/GameSettingsModel.md` — НОВАЯ
 - `mmorpg-vault/tech-writing/handlers/crafting/RepairCraftedItemAction.md` — НОВАЯ
 - `mmorpg-vault/tech-writing/tasks/craft/RepairCompletionHandler.md` — НОВАЯ
-- `GAME_DESCRIPTION.md` — добавить «Ремонт сломанного — 50% ресурсов, 15 мин»
+- `mmorpg-vault/decisions/ADR-024-Game-Settings-live-tunable-framework.md` — НОВАЯ
+- `mmorpg-vault/apps/admin/index.md` — добавить пункт меню «Параметры баланса»
+- `GAME_DESCRIPTION.md` — добавить «Ремонт сломанного — 50% ресурсов (настраиваемо), 15 мин»
 
-**Прод-тег.** `v0.51.184`.
+**Прод-тег.** `v0.51.184` (две части возможно через step-теги: `v0.51.184-step-1` GameSettings infra → smoke → `v0.51.184-step-2` Repair-механика → smoke → финальный `v0.51.184`).
 
 **Параллелизация.** После S4.
 
 **Зависимости.** S2, S4.
 
-**Анонс.** Да — «Сломанный инструмент теперь можно починить за половину ресурсов».
+**Анонс.** Да — «Сломанный инструмент теперь можно починить за половину ресурсов» + (внутренний) «У админа появилась панель live-tuning параметров».
 
-**Замечания.** Финал Фазы 1 — техфундамент готов: JSON, building.level, durability, repair.
+**Замечания.** Финал Фазы 1 — техфундамент готов: JSON, building.level, durability, repair, + GameSettings admin framework как rails для последующих сессий. **S26/S28/S10 будут регистрировать свои ключи в этом фреймворке.**
 
 ---
 
@@ -993,26 +1027,42 @@ Idempotent UPDATE на `crafted_items.required_resources` (теперь JSON п�
 
 ### S10 — Rare late-game resources 🟡
 
-**Цель.** Добавить 3–4 редких ресурса для T3 крафта (S16+): Spent Fuel Rods (отработанные топливные стержни), Pre-Collapse Electronics (электроника до катастрофы), Industrial Plastic (промышленный пластик), Medical Compound (медицинский компонент).
+> **🎯 Решение user'а (2026-05-17):** rare resources имеют **двойной источник** — events/strategic objects **+ rare biome-spots** (low-probability deep-node добыча в специфических биомах). Биом важен.
 
-**Канон-ссылка.** GAME_DESCRIPTION.md § «Редкие компоненты»; lore-доп нужен.
+**Цель.** Добавить 4 редких ресурса для T3 крафта (S16+): Spent Fuel Rods, Pre-Collapse Electronics, Industrial Plastic, Medical Compound.
+
+**Канон-ссылка.** GAME_DESCRIPTION.md § «Редкие компоненты»; lore-доп нужен (новая lore-нота `lore/craft/Редкие-ресурсы.md`).
 
 **Текущая боль.** T3 верстак (S16) нужны редкие материалы, чтобы tier 3 не был «пересказ tier 2 с цифрами повыше».
 
 **Что меняем.**
 - 4 новых ресурса rarity 9–10, base_price 100+.
-- Источники: events (loot drops с событий), strategic objects (S21–S25).
-- НЕ добываются gather'ом из биомов — только через события.
+- **Источники (комбо):**
+  - **Events:** loot drops с MeteorImpact / NorthernLights / GeothermalActivity (1–3% chance) — главный поток.
+  - **Strategic objects** (S21–S25): гарантированные награды при захвате (Pre-Collapse Electronics из Bunker, Industrial Plastic из Technopark).
+  - **🆕 Rare biome-spots:** новый mechanism `rare_resource_nodes` — спавн редкого узла в специфическом биоме с тиком в 24-72 ч (cooldown по биом-spot), даёт 1-3 единицы ресурса.
+    - Spent Fuel Rods → **Volcanic** биом, под завалами (1% chance per gather в Volcanic с уровнем ≥15).
+    - Pre-Collapse Electronics → **Caves** биом (deep cave node, 0.5% chance, требуется L18+).
+    - Industrial Plastic → **Tropical Jungles** (под старыми руинами, 1.5% chance, L12+).
+    - Medical Compound → **Mountains** биом (заброшенные склады, 1% chance, L15+).
+- Биом-spot настройки live-tunable через `GameSettings` (S5 framework): `rare_resource.fuel_rods.spawn_chance`, `rare_resource.fuel_rods.cooldown_hours`, и т.д. Default values как выше.
 
-**Файлы к созданию.** Нет.
+**Файлы к созданию.**
+- `app/Services/Gather/RareNodeService.php` — логика биом-spot спавнов + cooldown tracking.
+- `app/TaskHandlers/Gather/RareNodeRollHandler.php` — обработчик roll'а на rare drop в gather completion.
+- `tests/unit/Services/Gather/RareNodeServiceTest.php`
 
 **Файлы к изменению.**
 - `app/Config/ImageRegistry.php` — 4 LEXICON-записи
 - `app/Services/EventService.php` — loot table расширяется
+- `app/TaskHandlers/Gather/GatherCompletionHandler.php` — вызов `RareNodeService::rollRareDrop()`
+- `app/Models/CharacterGatherHistoryModel.php` (если нет — create) — для cooldown tracking
 
 **Миграции.**
 ```
 app/Database/Migrations/2026-05-25-100000_AddRareLateGameResources.php
+app/Database/Migrations/2026-05-25-110000_AddRareResourceSpotsCooldownTable.php
+app/Database/Migrations/2026-05-25-120000_SeedRareResourceGameSettings.php
 ```
 
 **Image-assets.**
@@ -1026,12 +1076,17 @@ Subtotal: 4 × $0.04 = **$0.16**.
 **Validation-card mini.** 🟡 — content extension, нет балансового сдвига (loot rare).
 
 **Smoke plan.**
-1. Trigger MeteorImpact event — Spent Fuel Rods может выпасть (1% chance).
-2. Quest StrategicCaptureBunker reward — гарантированно Pre-Collapse Electronics.
+1. **Event-source:** Trigger MeteorImpact event на testbot → Spent Fuel Rods может выпасть (1% chance, прогон 200 раз via spark-команда `smoke:meteor-rolls`).
+2. **Strategic-source:** Quest StrategicCaptureBunker reward (когда S21 будет live) → гарантированно Pre-Collapse Electronics.
+3. **Biome-spot:** SQL UPDATE chars → put char in Volcanic biome, gather 50 раз, проверить что rare drop случился ≥0 (1% = ~0.5 expected). Проверить cooldown: повторный gather на том же spot в течение 24 ч даёт 0 rare drops.
+4. **GameSettings tuning:** UPDATE `rare_resource.fuel_rods.spawn_chance` to 100% via admin UI → 100% gather дают drop → revert.
 
 **Tests добавить.**
 - `RareResourceLootTableTest::testFuelRodsFromMeteor()`
 - `RareResourceLootTableTest::testStrategicQuestRewards()`
+- `RareNodeServiceTest::testCooldownPreventsDoubleDrop()`
+- `RareNodeServiceTest::testBiomeFilterRespected()`
+- `RareNodeServiceTest::testGameSettingsOverride()`
 
 **Tech-writing.**
 - `mmorpg-vault/tech-writing/db/resources.md` — обновить
@@ -1260,19 +1315,23 @@ Subtotal: **$0.16**.
 
 ### S16 — Tier 3 Professional Workbench (ADR-026) 🟠
 
+> **🎯 Решение user'а (2026-05-17):** требование уровня персонажа = **L20** (повышено с L16). Это даёт более жёсткий gate-перед T3, защищает прогрессию от skip'а через карты/события, и оправдывает раздел L17-L19 progression-контентом из Фазы 3 (building upgrades L2/L3).
+
 **Цель.** Ввести 3-й тир верстака — **Professional Workbench**, локация для редких крафтов. Это **расширение канона** (канон молчит про T3) — требует ADR.
 
 **Канон-ссылка.** GAME_DESCRIPTION.md § «🔨 Система крафта» — «двухуровневая система». T3 — расширение.
 
 **Текущая боль.**
 - Канон молчит про T3 (резерв).
-- Игра упирается в потолок T2: L13–L17 progression gap (4 уровня без новых рецептов).
+- Игра упирается в потолок T2: L13–L20 progression gap (8 уровней без новых рецептов, после Фазы 3 — закрыт частично через apgrades).
 - П5 (Билдер) — «после T2 — пустота».
 
 **Что меняем.**
 - Новый crafted item `ProfessionalWorkbench` (тип `workbench`).
-- Требует: уровень персонажа 16, BlastFurnace L3, Lab L3, 1 RareMetals 30, 1 Pre-Collapse Electronics, ...
+- **Требует: уровень персонажа L20**, BlastFurnace L3, Lab L3, RareMetals ×30, Pre-Collapse Electronics ×3, Industrial Plastic ×5, Wiring ×20.
+- Crafting time: 8 hours (Standard tier времени).
 - `Config\CraftRecipes` → entry `ProfessionalWorkbench`.
+- GameSettings (S5 framework): ключ `tier3.workbench.character_level_required` = 20 (default, tunable). Дополнительно `tier3.workbench.craft_duration_hours` = 8.
 
 **Файлы к созданию.**
 - `app/TaskHandlers/Craft/CraftCompletionProfessionalWorkbenchHandler.php`
@@ -1583,6 +1642,8 @@ Subtotal: **$0.20**.
 
 ### S26 — Defensive structures (walls / traps / towers) 🟠
 
+> **🎯 Решение user'а (2026-05-17):** конкретные числа damage cap — на моё усмотрение, **все balanced parameters вынесены в админку через `GameSettings` (S5 framework)**. Default-ы зашиты как safe baseline, админ может live-tune.
+
 **Цель.** Закрыть P4 (PvP) голос — defensive base structures: `WoodenWall` (деревянная стена, base damage reduction), `BarbedFence` (колючая ограда, slow-down + minor damage), `WatchTower` (наблюдательная вышка, alert + range).
 
 **Канон-ссылка.** GAME_DESCRIPTION.md § «🏗️ Строительство баз» — нет такого раздела; **лор-расширение** (требует ADR-030).
@@ -1591,24 +1652,47 @@ Subtotal: **$0.20**.
 
 **Что меняем.**
 - 3 новых типа building (walls/fence/tower). Не отдельные `building_type`, а сущность `defensive_structure`.
-- При PvP-нападении на базу — структуры активируются: -% к urgency damage, +% chance escape.
-- Tax: walls 200💰/day, fence 350💰/day, tower 700💰/day.
+- При PvP-нападении на базу — структуры активируются.
+- **Default mechanics (live-tunable через `GameSettings`):**
 
-**Файлы / handlers.** Стандарт.
+| Структура | Параметр (GameSettings key) | Default | Тип |
+|---|---|---|---|
+| WoodenWall | `defense.wall.damage_reduction_percent` | 15 | int (0-50) |
+| WoodenWall | `defense.wall.hp` | 200 | int |
+| WoodenWall | `defense.wall.daily_tax` | 200 | int |
+| BarbedFence | `defense.fence.attacker_damage_per_round` | 3 | int (0-20) |
+| BarbedFence | `defense.fence.attacker_slowdown_percent` | 10 | int (0-50) |
+| BarbedFence | `defense.fence.hp` | 80 | int |
+| BarbedFence | `defense.fence.daily_tax` | 350 | int |
+| WatchTower | `defense.tower.alert_range_cells` | 5 | int (1-15) |
+| WatchTower | `defense.tower.defender_initiative_bonus_percent` | 8 | int (0-30) |
+| WatchTower | `defense.tower.hp` | 300 | int |
+| WatchTower | `defense.tower.daily_tax` | 700 | int |
+| Global cap | `defense.total_damage_reduction_max_percent` | 40 | int (0-70) — комбинация всех структур не превышает |
 
-**Миграция.** `2026-06-13-100000_AddDefensiveStructures.php`.
+- Decay: defensive structures имеют `current_durability` (от S4) — каждое отбитое нападение тратит 10 HP стены/башни; сломанная структура НЕ активна до repair (S5).
 
-**Image-assets.** 3 структуры × $0.04 × 2 = $0.24. Subtotal: **$0.24**.
+**Файлы / handlers.**
+- `app/Controllers/Telegram/Commands/Actions/Camp/BuildDefensiveStructureAction.php` (3 варианта через `building_type=defensive_structure`).
+- `app/Services/Pvp/DefenseStructureService.php` — calc reduction/initiative/alerts.
+- `app/Services/Pvp/AttackPlayerAction.php` — integration с defense service (мутирует damage round-by-round).
 
-**Validation-card mini.** 🟠 — балансовое — boosts defender (П4 неоднозначно: за / против). См. полную карточку §11 S26.
+**Миграция.** `2026-06-13-100000_AddDefensiveStructures.php` + `2026-06-13-110000_SeedDefenseGameSettings.php`.
 
-**Smoke / Tests.** Standard + PvP damage formula integration test.
+**Image-assets.** 3 структуры × $0.04 × 2 итерации = $0.24. Subtotal: **$0.24**.
+
+**Validation-card mini.** 🟠 — балансовое — boosts defender (П4 неоднозначно: за / против; mitigation = админ может крутить через GameSettings). См. полную карточку §11 S26.
+
+**Smoke / Tests.**
+- PvP damage formula integration test — defender с walls берёт 15% меньше урона.
+- Admin smoke: меняет `defense.wall.damage_reduction_percent` через UI → следующий бой использует новое значение → revert.
+- Decay smoke: после 10 нападений wall HP = 100 → ещё 10 → HP = 0 → следующее нападение игнорирует wall (сломана).
 
 **Прод-тег.** `v0.51.205`.
 
-**Зависимости.** S2 (resources), S3 (level up infrastructure).
+**Зависимости.** S2 (resources), S3 (level up infrastructure), **S5 (GameSettings framework)**, S4 (durability), S5 (repair).
 
-**Анонс.** Да, большой — «Защита базы: стены, колючка, башня».
+**Анонс.** Да, большой — «Защита базы: стены, колючка, башня. Параметры тюнятся админом, баланс будем шлифовать с фидбэком».
 
 ---
 
@@ -1638,24 +1722,43 @@ Subtotal: **$0.20**.
 
 ### S28 — Seasonal craft rotation 🟠
 
-**Цель.** Ввести **сезонные рецепты** — 5–10 рецептов, доступных только N дней. Дать ощущение «события» и причину захода в игру.
+> **🎯 Решение user'а (2026-05-17):** cadence на моё усмотрение, **вынесено в админку через `GameSettings`**. Default: **4 сезона × 21 день = 84-дневный цикл**. Это даёт игрокам полноценное «погружение» в каждый сезон (3 недели — обычная engagement-неделя ×3, не торопит), и совпадает с естественным восприятием времени года. Альтернатива 3×14 = 42 дня была бы слишком FOMO-ёмкой для casuals.
+
+**Цель.** Ввести **сезонные рецепты** — каждый сезон unlock'ает 5 эксклюзивных рецептов на 21 день. Дать ощущение «события» и причину захода в игру; mitigate FOMO через **«сезон возвращается каждый год»** контракт.
 
 **Канон.** Не указано — расширение (ADR-031).
 
 **Что меняем.**
-- `Config\SeasonalCrafts` config с расписанием.
-- `EventService` запускает «сезоны» (3 per год, по ~14 дней).
-- Каждый сезон unlock'ает 5 рецептов.
+- `Config\SeasonalCrafts` config — 4 сезона × 5 рецептов = 20 общих сезонных рецептов.
+- 4 сезона: **Зима выживания** (теплоизоляция, копчёное мясо, дровокол), **Весеннее пробуждение** (семена-наборы, чай из первой травы, удочка нового типа), **Летняя жара** (солнечная экипировка, охлаждающие напитки, лёгкая броня), **Осенняя жатва** (консервы, заготовки, бочки).
+- `EventService::checkSeasonalTransition()` — daily cron в 00:00 проверяет где мы в 84-дневном цикле.
+- **GameSettings keys (live-tunable):**
 
-**Image-assets.** Зависит от первой сезонной партии — 5 × $0.04 × 1 = **$0.20**.
+| Ключ | Default | Описание |
+|---|---|---|
+| `seasonal.season_count` | 4 | Количество сезонов в году |
+| `seasonal.season_duration_days` | 21 | Длительность одного сезона в днях |
+| `seasonal.cycle_anchor_date` | `2026-06-01` | Дата начала первого «Лета» (anchor для math) |
+| `seasonal.enabled` | true | Глобальный killswitch на случай ребаланса |
+| `seasonal.recipe_unlock_count_per_season` | 5 | Сколько рецептов unlock'ается за сезон |
 
-**Validation-card.** 🟠 — FOMO concern (П2 голос: bad). Mitigation: «сезон возвращается каждый год».
+- Сезонные крафты НЕ становятся unlearned — крафт остаётся доступен пока активен сезон, но **уже изготовленные предметы НЕ исчезают**. Возврат в следующем году — снова доступен.
+
+**Image-assets.** 20 сезонных крафтов × $0.04 = $0.80 (но генерим по 5 на сезон, per-session по мере запуска).
+- Pilot первой сезонной партии (зима) — 5 × $0.04 × 1 итерация = **$0.20**.
+- Остальные 15 — постепенно в последующих сессиях (vNext).
+
+**Validation-card.** 🟠 — FOMO concern (П2 голос: bad). Mitigations:
+1. Контракт «сезон возвращается каждый год» — анонс в первом релизе.
+2. Длинная длительность (21 день) — успевают и казуалы.
+3. Live-tunable через GameSettings — если фидбэк негативный, админ может выключить (`seasonal.enabled = false`) или растянуть до 30+ дней.
+4. Уже изготовленные предметы НЕ удаляются.
 
 **Прод-тег.** `v0.51.207`.
 
-**Зависимости.** S16.
+**Зависимости.** S5 (GameSettings), S16 (T3 могут использовать сезонные ресурсы).
 
-**Анонс.** Да — «Сезонные крафты: первый сезон — Зима выживания».
+**Анонс.** Да — «Сезонные крафты: первый сезон — Зима выживания. 4 сезона × 21 день. Не успел — вернётся в следующем году».
 
 ---
 
@@ -1689,20 +1792,48 @@ Subtotal: **$0.20**.
 
 ### S30 — Admin tools + ROADMAP-vNext 🟢
 
-**Цель.** Закрыть фазу: admin craft-tree view, tech-writing back-fill, написать ROADMAP-vNext для следующих 30 сессий.
+> **🎯 Решение user'а (2026-05-17):** vNext приоритеты выставлять **в логической и верной последовательности учитывая стек, lore, сеттинг, архитектуру и зависимости сессий**. Не свободный выбор — алгоритм.
+
+**Цель.** Закрыть фазу: admin craft-tree view дополнительная фича, tech-writing back-fill, написать ROADMAP-CRAFT-vNext.md следуя приоритезирующему алгоритму.
 
 **Канон.** ADR-009 (constitutional tech-writing).
 
 **Что меняем.**
-- `/admin/craft-tree` — визуализация всех 46+ рецептов и их зависимостей.
-- Прогон всех `mmorpg-vault/tech-writing/` нот через `last_reviewed` — обновить устаревшие.
-- ROADMAP-CRAFT-vNext.md — следующие 30 сессий по итогам обратной связи.
+- `/admin/craft-tree` — уже live с v0.51.180; расширение: индикаторы tier (T1/T2/T3), фильтр по сезону, экспорт в CSV.
+- Прогон всех `mmorpg-vault/tech-writing/` нот через `last_reviewed` — обновить устаревшие за 30 сессий.
+- **`ROADMAP-CRAFT-vNext.md`** (новый файл) — следующие 30 сессий, синтезированные через тот же team-lead workflow (research-agents + synth), но с учётом обратной связи от S1–S29.
 
-**Image-assets.** Нет.
+**🧭 Алгоритм приоритезации vNext (обязательный):**
 
-**Smoke.** HTTP smoke `curl /admin/craft-tree`.
+Каждую кандидатную тему ранжировать по 5 осям и брать только top-30:
 
-**Tech-writing.** Все ноты `last_reviewed = today`.
+1. **Lore-debt** (+1..+5): закрывает ли тема канон/code mismatch (см. таблицу в `GAME_DESCRIPTION.md`)? Чем больше открытых tail'ов закрывается, тем выше.
+2. **Архитектурная зависимость** (+1..+5): unlock'ает ли тема несколько следующих тем? (e.g., S5 GameSettings unlock'ает S26+S28+S10). Foundation-темы наверх.
+3. **Stack-fit** (-3..+3): использует ли тема существующий CI4 / PSR / Longman pattern, или требует новой внешней зависимости? Сложные интеграции — вниз (если не критичны).
+4. **Setting-coherence** (-5..+5): насколько строго укладывается в постапок «Найденная фотоплёнка» сеттинг? Чем «легче» вписывается, тем выше; magic/sleek sci-fi/fantasy — отрицательно.
+5. **Player impact** (+1..+5): сколько из 10 портретов получает выгоду? Кто из контрактных (П2 оффлайн, П3 лор, П9 anti-P2W) **не пострадает**?
+
+**Кандидатные направления для vNext (для синтеза, не предписано):**
+- **Farming/agriculture deepening** (P5/P10 win, lore-coherent — Greenhouse уже есть): seed-cycle, crop rotation, harvest scheduling.
+- **Cooking/food crafts** (P1/P10): рецепты на campfire, сохранение продуктов, бонусы от приготовленной еды.
+- **Trade routes / NPC caravans** (P7/P8): динамическая торговля между Settlement'ами (если settlement-система появится).
+- **Lore quest-chain T3** (P3/P4): мульти-этапные квесты, ведущие к unique Tier 4 крафтам.
+- **Robotics depth** (P5/P8): робот-апгрейды T3, специализированные роботы (researcher/medic/scout).
+- **Crafted item insurance / repair shops** (P2/P8): NPC-сервисы.
+- **Workshop specialization / branching** (P5): дать игроку выбрать ветку специализации — оружейник / медик / инженер.
+- **Faction-cooperative crafts** (P6): крафты, требующие contribution от 2+ игроков одной фракции.
+- **Strategic-objects content** (P4/P6): полные quest-цепочки внутри Bunker/Technopark/GhostCity/Island-Farm (S21-S24 ставит фундамент, vNext раскрывает контент).
+- **Map-driven gather rebalance** (P7/P8): rare biome-spots from S10 переосмыслить с user-фидбэка.
+- **Crafting economy dashboard** (admin): графики цен, оборот, инфляция, fraction-distribution.
+- **Tier 4 Unique crafts** (P3/P5/P6): faction-specific Tier 4 (1 рецепт на фракцию, требует endgame-объект).
+
+vNext будет иметь те же 6 фаз × 5 сессий структуру, тот же контракт 17 секций.
+
+**Image-assets.** Нет (тех-сессия).
+
+**Smoke.** HTTP smoke `curl /admin/craft-tree`. Прогон `composer test` + `phpstan` на всех 30 коммитах.
+
+**Tech-writing.** Все ноты `last_reviewed = today`. Создать `mmorpg-vault/inbox/2026-MM-DD-roadmap-v1-retrospective.md` — что пошло как ожидалось, что нет.
 
 **Прод-тег.** `v0.51.209`.
 
@@ -1713,6 +1844,15 @@ Subtotal: **$0.20**.
 ---
 
 ## §10 Image generation budget
+
+> **🎯 Решение user'а (2026-05-17):** генерация **per-session**, не batch'ем. На каждой сессии где есть image-asset — генерируется во время сессии и сразу используется для smoke-теста + визуального анализа. Это даёт быструю обратную связь (увидел брак → перегенерировал) и не разбухает PR'ы.
+>
+> **Алгоритм per-session:**
+> 1. В начале сессии — `php spark images:generate --keys=&lt;keys-этой-сессии&gt;` (генерит только нужные ключи).
+> 2. Визуальный обзор + grep на текст в alt (`feedback_image_prompt_tuning`).
+> 3. Если брак (любой текст, sleek sci-fi, fantasy) → перегенерация с уточнением scene-tail.
+> 4. Подтверждённые → `git add public/uploads/telegram/...` + `git commit` вместе с code-изменениями.
+> 5. Status в `ImageRegistry::$images` обновить `pending → generated → approved`.
 
 ### 10.1 Сводная таблица
 
@@ -2113,15 +2253,43 @@ Subtotal: **$0.20**.
 - **Glow / particles / sleek sci-fi visuals.** 🔴 — нарушает image style. Все картинки строго в каноне «Найденная фотоплёнка».
 - **Magic-системы крафта (зелья из канона D&D и т.п.).** 🔴 — ломает постапок-сеттинг.
 
-### 12.2 Открытые вопросы для пользователя
+### 12.2 Decisions Log (locked by user 2026-05-17)
 
-1. **S5 Repair cost.** Я заложил 50% от ресурсов. Альтернатива — 30% (агрессивнее) или 70% (консервативнее). Решит Андрей.
-2. **S10 Rare resources sources.** Я предложил «only events + strategic objects». Хочешь ли разрешить gather из rare biome-spots (например, Caves деep node)?
-3. **S16 T3 Workbench level требование.** Я заложил персонажа L16. Хочешь L20 для большего gap'а L13–L20?
-4. **S26 Defensive structures damage cap.** Я не зафиксировал точные числа. ADR-030 нужно проектировать с конкретной формулой урон-снижения.
-5. **S28 Сезонность.** 3 сезона/год по 14 дней — достаточно? Или 4 сезона по 21 дню?
-6. **Image-генерации.** Хочешь все 44 LEXICON-картинки сразу после S1–S5, или per-session по факту?
-7. **ROADMAP-vNext в S30** — приоритетные направления (на ваш выбор): farming (земледелие как процесс), exotic biomes (новые), pvp-arena, faction-войны, world events redesign?
+Все 7 открытых вопросов из v1.0 закрыты. Каждое решение применено в соответствующих сессиях.
+
+| # | Вопрос | Решение | Влияние |
+|---|---|---|---|
+| 1 | S5 Repair cost | **50% default**, **вынесено в админку** через новый `GameSettings` framework (ключ `repair.cost_fraction`). | S5 расширена: добавлена **Часть A** — `GameSettingsService` + admin UI `/admin/game-settings` + таблица `game_settings`. Категория повышена 🟡→🟠, ADR-024 обязателен. |
+| 2 | S10 Rare resources sources | Не только events — **+ rare biome-spots**. Биом важен. | S10 расширена: новый `RareNodeService` + cooldown-таблица + biome-specific spawn chances (Volcanic/Caves/Tropical/Mountains). Tunable через GameSettings. |
+| 3 | S16 T3 Workbench level | **L20** (вместо L16). | Гэп L13-L20 теперь закрывается прогрессией Фазы 3 (building upgrades), а L20 даёт чистый gate перед T3. GameSettings ключ `tier3.workbench.character_level_required = 20`. |
+| 4 | S26 Defensive structures damage cap | Default-ы на моё усмотрение, **всё tunable через `GameSettings`**. | S26 расширена: 12 ключей в GameSettings (`defense.wall.*`, `defense.fence.*`, `defense.tower.*`, `defense.total_damage_reduction_max_percent`). Default-ы зашиты как safe baseline. |
+| 5 | S28 Сезонность | **4 сезона × 21 день** default, **tunable через `GameSettings`**. | S28 переписана: 4 сезона (Зима/Весна/Лето/Осень) × 21 день = 84-дневный цикл. Контракт «сезон возвращается каждый год», уже изготовленные не удаляются. Killswitch `seasonal.enabled`. |
+| 6 | Image-генерации стратегия | **Per-session** по необходимости (для реального smoke во время сессии). | §10 обновлена: budget остаётся $5-7, но генерация распределена по сессиям, не batch. Это даёт быструю обратную связь и шанс перегенерировать с фидбэком. |
+| 7 | ROADMAP-vNext приоритеты | Не свободный выбор — **алгоритм приоритезации по 5 осям** (lore-debt / архитектурная зависимость / stack-fit / setting-coherence / player impact). | S30 расширена с явным алгоритмом + 12 кандидатных направлений. Финальный отбор top-30 в результате прогона алгоритма поверх итогов S1-S29. |
+
+### 12.2-bis Constitutional addition: GameSettings framework (S5)
+
+Решение #1 каскадно повлияло на S10, S16, S26, S28: **все балансные параметры теперь живут в `GameSettings`**, не в `Config\GameBalance`. Это даёт:
+
+- **Live tuning** — админ меняет на проде без redeploy.
+- **Audit trail** — `updated_by` + `updated_at` пишутся для каждого изменения.
+- **Per-key validation** — min/max bounds защищают от экстремальных значений.
+- **Fallback cascade** — если ключа нет в БД, используется default из `GameSettings::get($key, $default)` вторым параметром.
+- **Cache 60s** — производительность не страдает (admin меняет редко).
+
+**ADR-024 «Game Settings live-tunable framework»** становится **обязательным выходом S5**. Все последующие сессии используют один и тот же паттерн регистрации балансных параметров.
+
+### 12.3 Алгоритм приоритезации задач (для S30 vNext + текущей работы)
+
+Каждая кандидатная тема ранжируется по 5 осям, score = сумма:
+
+1. **Lore-debt** (+1..+5) — закрывает канон-код mismatch?
+2. **Архитектурная зависимость** (+1..+5) — unlock'ает другие темы?
+3. **Stack-fit** (-3..+3) — использует существующий CI4/Longman pattern?
+4. **Setting-coherence** (-5..+5) — постапок «Найденная фотоплёнка»?
+5. **Player impact** (+1..+5) — сколько портретов выигрывает?
+
+Top-N по score → roadmap. Foundation-задачи (S5 GameSettings) автоматически наверх, потому что rate-2 maximal.
 
 ### 12.3 Mермейд-диаграмма последовательности фаз (опционально)
 
