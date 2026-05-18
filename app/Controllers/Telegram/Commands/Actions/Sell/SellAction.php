@@ -23,7 +23,6 @@ class SellAction extends BaseAction
 
     public function handle(): ServerResponse
     {
-        $this->updateResourcePrices(); // Обновляем цены перед обработкой запроса
         [$user, $character] = $this->getUserAndCharacter();
 
         if (!$user || !$character) {
