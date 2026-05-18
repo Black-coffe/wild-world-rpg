@@ -140,8 +140,9 @@ class GatherAction extends BaseAction
                 ]);
             }
 
+            $biomeId   = (int) $biome['id'];
             $resources = $this->resourcesModel
-                ->like('biome_id', (string)$biome['id'], 'both')
+                ->where("FIND_IN_SET({$biomeId}, biome_id) > 0", null, false)
                 ->where('level_required <=', $character['level'])
                 ->findAll();
 

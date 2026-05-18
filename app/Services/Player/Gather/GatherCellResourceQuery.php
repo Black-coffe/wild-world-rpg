@@ -49,8 +49,9 @@ final class GatherCellResourceQuery
             return ['cell' => $cell, 'biome' => null, 'resources' => []];
         }
 
+        $biomeId   = (int) $biome['id'];
         $resources = $this->resourceModel
-            ->like('biome_id', (string) $biome['id'], 'both')
+            ->where("FIND_IN_SET({$biomeId}, biome_id) > 0", null, false)
             ->where('level_required <=', $characterLevel)
             ->findAll();
 
