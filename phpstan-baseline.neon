@@ -991,12 +991,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/BaseAction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\BaseAction\:\:updateResourcePrices\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/BaseAction.php
-
-		-
 			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\BaseAction\:\:\$blockParallelExecution has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
@@ -11177,24 +11171,6 @@ parameters:
 			identifier: missingType.parameter
 			count: 1
 			path: app/Models/QuestStepsModel.php
-
-		-
-			message: '#^Cannot access offset ''current_quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Models/ResourceModel.php
-
-		-
-			message: '#^Cannot access offset ''resources_purchased'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Models/ResourceModel.php
-
-		-
-			message: '#^Cannot access offset ''resources_sold'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Models/ResourceModel.php
 
 		-
 			message: '#^Method App\\Models\\ResourceModel\:\:addOrIncreaseResource\(\) has no return type specified\.$#'
