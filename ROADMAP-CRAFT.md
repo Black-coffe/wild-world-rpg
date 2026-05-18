@@ -36,7 +36,8 @@
 | S5a | GameSettings live-tunable balance framework (ADR-024) | ✅ shipped | v0.51.187 | 2026-05-17 | same | 🔀 split S5 на S5a (foundation) + S5b (repair UI); foundation для S26/S28/S10 |
 | S5b | Repair mechanic UI (tool repair action + completion handler) | ✅ shipped | v0.51.188 | 2026-05-17 | same | 3 hotfix'а: id_characters column, ResourceEntity narrowing, fresh Model per loop (CI4 builder state quirk) |
 | S6 | Missing resources (Ironstone / Oil / Sulfur / RareMetals / Coal) | ✅ shipped 🔀 | — (docs-only) | 2026-05-18 | [`daily/2026-05-18`](file:///C:/Projects/mmorpg-vault/daily/2026-05-18.md) | 🔀 ROADMAP полностью устарел: все 5 ресурсов давно в БД (id=72/40/51/55/73), активно добываются ~20 чарами на проде. Реальный gap = только docs (close lore tail #4 в GAME_DESCRIPTION). Coal=Coalbed alias. Нет прод-тега. |
-| S7+ | … (S7–S30 — см. §3 / §4–§9) | ⬜ pending | — | — | — | — |
+| S7 | Biome↔Resource explicit mapping config | ✅ shipped 🔀 | v0.51.189 | 2026-05-18 | same | 🔀 ROADMAP описывал «GatherService::getResourceRates() 150 LOC match» — такой функции нет, gather уже data-driven через `resources.biome_id` CSV. Реальный gap = silent substring-leak (LIKE `%1%` матчил `'10'`/`'11'`/`'1,2,5'`) — fix через FIND_IN_SET в 4 hot-path callsites. + admin reverse-view `/admin/biomes/{id}/resources`. +4 DB-tests. |
+| S8+ | … (S8–S30 — см. §3 / §4–§9) | ⬜ pending | — | — | — | — |
 
 **Прод-теги дня 2026-05-17 (foundation marathon):** `v0.51.178` foundation → `v0.51.179` defensive thumbs → `v0.51.180` roadmap v1 → `v0.51.181` decisions locked → `v0.51.182` constitutional admin-tunable rule → **v0.51.183 (S1)** → **v0.51.184 (S2)** → **v0.51.185 (S3)** → **v0.51.186 (S4)** → **v0.51.187 (S5a)** → **v0.51.188 (S5b)**. **11 прод-релизов в день. Фаза 1 (Tech Foundation) полностью закрыта.**
 
