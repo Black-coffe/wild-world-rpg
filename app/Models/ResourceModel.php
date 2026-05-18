@@ -116,32 +116,6 @@ class ResourceModel extends Model
 
     protected $skipValidation = false;
 
-    public function updateResourcePrices(): void
-    {
-        $resources = $this->findAll();
-        foreach ($resources as $resource) {
-            $bankData = (new ResourcesBankModel())->where('resource_id', $resource->id)->first();
-            if ($bankData) {
-                $currentQuantity = max($bankData['current_quantity'], 1);
-
-                $multiplier = $bankData['resources_purchased'] >= $bankData['resources_sold'] ?
-                    min(10, max(1, $bankData['resources_purchased'] / $currentQuantity * 10)) :
-                    max(0.1, min(1, $currentQuantity / $bankData['resources_sold'] * 10));
-
-                $basePriceAdjustment = $resource->price * $multiplier;
-                $finalSellPrice = max(min($basePriceAdjustment, $resource->price * 10), $resource->price * 0.1);
-
-                $buyPriceAdjustment = rand(2, 12) / 100;
-                $finalBuyPrice = $finalSellPrice * (1 + $buyPriceAdjustment);
-
-                $this->update($resource->id, [
-                    'buy_price' => round($finalBuyPrice, 2),
-                    'sell_price' => round($finalSellPrice, 2),
-                ]);
-            }
-        }
-    }
-
     public function getCharacterResources($characterId)
     {
         return $this->select('resources.*, character_resources.id AS charResId, character_resources.quantity')

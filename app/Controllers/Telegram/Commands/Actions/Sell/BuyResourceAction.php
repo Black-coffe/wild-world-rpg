@@ -30,9 +30,6 @@ class BuyResourceAction extends BaseAction
 
     public function handle(): ServerResponse
     {
-        // (Опционально) обновляем цены:
-        // $this->updateResourcePrices();
-
         [$user, $character] = $this->getUserAndCharacter();
 
         if (!$user || !$character) {

@@ -174,14 +174,6 @@ abstract class BaseAction
     }
 
     /**
-     * Обновляет цены всех ресурсов с учетом текущего спроса и предложения.
-     */
-    protected function updateResourcePrices()
-    {
-        $this->resourceModel->updateResourcePrices();
-    }
-
-    /**
      * F1.6 — общий boilerplate для action-handler'ов.
      *
      * Каждый из ~80 action-handler'ов начинается с одинаковых строк:
