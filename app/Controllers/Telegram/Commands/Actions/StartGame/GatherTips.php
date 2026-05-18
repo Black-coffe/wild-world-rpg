@@ -138,9 +138,10 @@ class GatherTips extends Controller
             return []; // Возвращаем пустой массив, если биом не найден
         }
 
-        // Получаем ресурсы, доступные в этом биоме, учитывая уровень персонажа
+        // S7: FIND_IN_SET для exact CSV-item match (раньше like 'both' тянул substring — биом id=1 матчил biome_id='10').
+        $biomeId   = (int) $biome['id'];
         $resources = $this->resourceModel
-            ->like('biome_id', (string)$biome['id'], 'both') // Используем метод like для поиска
+            ->where("FIND_IN_SET({$biomeId}, biome_id) > 0", null, false)
             ->where('level_required <=', $character['level'])
             ->findAll();
         return $resources;

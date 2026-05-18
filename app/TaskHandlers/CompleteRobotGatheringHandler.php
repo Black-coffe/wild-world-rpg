@@ -174,10 +174,11 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         $minRarity = max(1, 10 - ($workshopLevel - 1));
 
         foreach ($biomeCellCounts as $bId => $bCount) {
+            $biomeId   = (int) $bId;
             $available = $this->resourceModel
                 ->where('rarity >=', $minRarity)
                 ->where('rarity <=', 10)
-                ->like('biome_id', (string)$bId, 'both')
+                ->where("FIND_IN_SET({$biomeId}, biome_id) > 0", null, false)
                 ->findAll();
 
             $resMap = $this->calculateBiomeResources($available, $hoursSpent);

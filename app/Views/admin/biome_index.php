@@ -35,7 +35,8 @@
             <td><?= esc($biome['occurrence_rate']) ?>%</td>
             <td><?= esc($biome['biome_type']) ?> <!-- Данные о типе биома --></td>
             <td>
-                <a href="<?= site_url('admin/biomes/edit/' . $biome['id']) ?>" class="action-icon"> <i class="mdi mdi-pencil"></i></a>
+                <a href="<?= site_url('admin/biomes/edit/' . $biome['id']) ?>" class="action-icon" title="Редактировать"> <i class="mdi mdi-pencil"></i></a>
+                <a href="<?= site_url('admin/biomes/' . $biome['id'] . '/resources') ?>" class="action-icon" title="Ресурсы этого биома"> <i class="mdi mdi-package-variant"></i></a>
             </td>
         </tr>
     <?php endforeach; ?>

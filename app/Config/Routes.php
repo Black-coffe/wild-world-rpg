@@ -70,6 +70,7 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->get('biomes', 'Admin\BiomeController::index');
     $routes->get('biomes/edit/(:segment)', 'Admin\BiomeController::editBiomeForm/$1');
     $routes->post('biomes/update/(:segment)', 'Admin\BiomeController::updateBiome/$1');
+    $routes->get('biomes/(:segment)/resources', 'Admin\BiomeController::showResources/$1'); // S7 reverse-view
 
     // Добавляем роутинг для ресурсов
     $routes->get('resources', 'Admin\ResourceController::index');
