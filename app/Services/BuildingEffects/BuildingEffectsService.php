@@ -66,6 +66,34 @@ final class BuildingEffectsService
     }
 
     /**
+     * S12 (v0.51.194) — множник quantity output'у крафту з урахуванням рівня
+     * boost-будівлі (на сьогодні: BlastFurnace для MetalFragments).
+     *
+     * Recipe декларує `boost_building` (наприклад 'BlastFurnace') у Config\CraftRecipes.
+     * Якщо $boostBuilding=null (no boost_building у recipe) → return 1.0 (no effect).
+     * Якщо у char немає такої будівлі / L1 → return 1.0.
+     * Інакше — cascade lookup multiplier (як Workshop S11).
+     *
+     * Застосовується у GenericCraftCompletionHandler::handle() перед записом
+     * у crafted_items_log: qty_final = max(qty_base, round(qty_base × multiplier)).
+     */
+    public function getCraftYieldMultiplier(int $charId, ?string $boostBuilding): float
+    {
+        if ($boostBuilding === null || $boostBuilding === '') {
+            return 1.0;
+        }
+        $level = $this->resolveBuildingLevel($charId, $boostBuilding);
+        if ($level <= 1) {
+            return 1.0;
+        }
+        return $this->resolveLevelMultiplier(
+            strtolower($boostBuilding),
+            $level,
+            'craft_yield_multiplier',
+        );
+    }
+
+    /**
      * Знайти найвищий level building'а певного типу у character_buildings.
      * Гравець може мати кілька instances одного building (на різних cells);
      * беремо max(level) — найвищий апгрейд є «активним» для game-effects.

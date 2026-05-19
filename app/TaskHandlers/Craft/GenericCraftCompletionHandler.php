@@ -13,6 +13,7 @@ use App\Models\CraftedItemsModel;
 use App\Models\TaskModel;
 use App\Models\TelegramUserModel;
 use App\Models\WeaponModel;
+use App\Services\BuildingEffects\BuildingEffectsService;
 use App\TaskHandlers\BaseTaskHandler;
 use Config\CraftRecipes;
 use DateInterval;
@@ -65,6 +66,7 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
     // F3.B9: weapons output_type — отдельная пара моделей.
     private WeaponModel             $weaponModel;
     private CharactersWeaponsModel  $charactersWeaponsModel;
+    private BuildingEffectsService  $buildingEffects;
 
     public function __construct()
     {
@@ -75,6 +77,7 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         $this->telegramUserModel      = new TelegramUserModel();
         $this->weaponModel            = new WeaponModel();
         $this->charactersWeaponsModel = new CharactersWeaponsModel();
+        $this->buildingEffects        = new BuildingEffectsService();
     }
 
     public function handle(array $task = []): void
@@ -101,6 +104,25 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
 
         // 3. quantity
         $quantityToAdd = $this->extractQuantity($task);
+
+        // S12 (v0.51.194): yield multiplier від boost_building (e.g. BlastFurnace
+        // L2/L3 для MetalFragments). Pure bonus, без breaking: char'и без
+        // boost-будівлі продовжують отримувати baseline qty.
+        $boostBuilding = isset($recipe['boost_building']) && is_string($recipe['boost_building'])
+            ? $recipe['boost_building']
+            : null;
+        if ($boostBuilding !== null) {
+            $charIdRaw = $task['character_id'] ?? 0;
+            $charId    = is_numeric($charIdRaw) ? (int) $charIdRaw : 0;
+            $yieldMultiplier = $this->buildingEffects->getCraftYieldMultiplier(
+                $charId,
+                $boostBuilding,
+            );
+            if ($yieldMultiplier > 1.0) {
+                $boosted = (int) round($quantityToAdd * $yieldMultiplier);
+                $quantityToAdd = max($quantityToAdd, $boosted);
+            }
+        }
 
         // F3.B9: dispatch на output_type. Default = 'crafted_item' (B5-B8).
         $outputType = $recipe['output_type'] ?? 'crafted_item';
