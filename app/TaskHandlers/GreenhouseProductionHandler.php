@@ -9,6 +9,7 @@ use App\Models\BuildingModel;
 use App\Models\ResourceModel;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
+use App\Services\BuildingEffects\BuildingEffectsService;
 use Config\GameBalance;
 
 /**
@@ -35,8 +36,9 @@ class GreenhouseProductionHandler extends BaseTaskHandler
     protected $telegramUserModel;
 
     private GameBalance $cfg;
+    private BuildingEffectsService $buildingEffects;
 
-    public function __construct(?GameBalance $cfg = null)
+    public function __construct(?GameBalance $cfg = null, ?BuildingEffectsService $buildingEffects = null)
     {
         $this->cfg = $cfg ?? config('GameBalance');
         $this->characterBuildingModel = new CharacterBuildingModel();
@@ -45,6 +47,7 @@ class GreenhouseProductionHandler extends BaseTaskHandler
         $this->resourceModel          = new ResourceModel();
         $this->characterModel         = new CharacterModel();
         $this->telegramUserModel      = new TelegramUserModel();
+        $this->buildingEffects        = $buildingEffects ?? new BuildingEffectsService();
     }
 
     /**
@@ -92,16 +95,19 @@ class GreenhouseProductionHandler extends BaseTaskHandler
             $characterId = $charBuild['character_id'];
             $level       = (int) $charBuild['level'];
 
-            // Проверяем корректность уровня
-            if (!isset($this->cfg->greenhouseLevels[$level])) {
+            // S13b (v0.51.195): production table читається через BuildingEffectsService
+            // (foundation для future GameSettings migration). Behaviour identical
+            // — read-through від `Config\GameBalance::$greenhouseLevels`.
+            $production = $this->buildingEffects->getGreenhouseProductionForLevel($level);
+            if (empty($production) || ! isset($production['water'])) {
                 log_message('error', "[GreenhouseProductionHandler] Invalid greenhouse level: $level");
                 continue;
             }
 
-            $waterNeeded = $this->cfg->greenhouseLevels[$level]['water'];
+            $waterNeeded = (int) $production['water'];
 
             // Массив ресурсов, который теплица будет генерировать (Fruit, Berries и т.п.)
-            $harvest = $this->cfg->greenhouseLevels[$level];
+            $harvest = $production;
             unset($harvest['water']); // убираем ключ water, оставляем только еду
 
             // Ищем, сколько у персонажа сейчас воды

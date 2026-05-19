@@ -365,4 +365,116 @@ final class BuildingEffectsServiceTest extends CIUnitTestCase
         );
         $this->assertSame(1.15, $svc->getCraftYieldMultiplier(491, 'BlastFurnace'));
     }
+
+    // ============================================================
+    // S13a (v0.51.195) — getCraftTimeMultiplier with extra Laboratory stack
+    // ============================================================
+
+    public function testCraftTimeMultiplierNoExtraBuildingReturnsWorkshopOnly(): void
+    {
+        // Backward compat: caller без $extraBuilding → лише Workshop.
+        $svc = $this->service(
+            [['id' => 4, 'name_en' => 'Workshop'], ['id' => 8, 'name_en' => 'Laboratory']],
+            [['character_id' => 491, 'building_id' => 4, 'level' => 2]],
+            $this->reader([
+                'building.workshop.l2.craft_time_multiplier' => 0.90,
+                'building.laboratory.l2.craft_time_multiplier' => 0.90,
+            ]),
+        );
+        $this->assertSame(0.90, $svc->getCraftTimeMultiplier(491));
+    }
+
+    public function testCraftTimeMultiplierStacksWorkshopAndLaboratory(): void
+    {
+        // Char має Workshop L2 (0.90) + Laboratory L2 (0.90). Stack: 0.90 × 0.90 = 0.81.
+        $svc = $this->service(
+            [['id' => 4, 'name_en' => 'Workshop'], ['id' => 8, 'name_en' => 'Laboratory']],
+            [
+                ['character_id' => 491, 'building_id' => 4, 'level' => 2],
+                ['character_id' => 491, 'building_id' => 8, 'level' => 2],
+            ],
+            $this->reader([
+                'building.workshop.l2.craft_time_multiplier' => 0.90,
+                'building.laboratory.l2.craft_time_multiplier' => 0.90,
+            ]),
+        );
+        $this->assertSame(0.81, round($svc->getCraftTimeMultiplier(491, 'Laboratory'), 4));
+    }
+
+    public function testCraftTimeMultiplierStacksWorkshopL3AndLabL3(): void
+    {
+        // Max stack: Workshop L3 (0.75) × Laboratory L3 (0.75) = 0.5625 (-44% для medical).
+        $svc = $this->service(
+            [['id' => 4, 'name_en' => 'Workshop'], ['id' => 8, 'name_en' => 'Laboratory']],
+            [
+                ['character_id' => 491, 'building_id' => 4, 'level' => 3],
+                ['character_id' => 491, 'building_id' => 8, 'level' => 3],
+            ],
+            $this->reader([
+                'building.workshop.l3.craft_time_multiplier' => 0.75,
+                'building.laboratory.l3.craft_time_multiplier' => 0.75,
+            ]),
+        );
+        $this->assertSame(0.5625, round($svc->getCraftTimeMultiplier(491, 'Laboratory'), 4));
+    }
+
+    public function testCraftTimeMultiplierLabOnlyNoWorkshop(): void
+    {
+        // Char має Laboratory L3 але немає Workshop → лише Lab ефект (0.75).
+        $svc = $this->service(
+            [['id' => 4, 'name_en' => 'Workshop'], ['id' => 8, 'name_en' => 'Laboratory']],
+            [['character_id' => 491, 'building_id' => 8, 'level' => 3]],
+            $this->reader([
+                'building.workshop.l2.craft_time_multiplier' => 0.90,
+                'building.laboratory.l3.craft_time_multiplier' => 0.75,
+            ]),
+        );
+        $this->assertSame(0.75, $svc->getCraftTimeMultiplier(491, 'Laboratory'));
+    }
+
+    public function testCraftTimeMultiplierExtraIsWorkshopDeduplicates(): void
+    {
+        // Якщо $extraBuilding=='Workshop' (defensive: caller-помилка) → не double-apply.
+        $svc = $this->service(
+            [['id' => 4, 'name_en' => 'Workshop']],
+            [['character_id' => 491, 'building_id' => 4, 'level' => 3]],
+            $this->reader([
+                'building.workshop.l3.craft_time_multiplier' => 0.75,
+            ]),
+        );
+        $this->assertSame(0.75, $svc->getCraftTimeMultiplier(491, 'Workshop'));
+    }
+
+    // ============================================================
+    // S13b (v0.51.195) — getGreenhouseProductionForLevel
+    // ============================================================
+    // Foundation read-through від `Config\GameBalance::$greenhouseLevels`.
+    // Тести використовують реальний config (не mock) — не порушують behaviour.
+
+    public function testGreenhouseProductionLevel1(): void
+    {
+        $svc = new \App\Services\BuildingEffects\BuildingEffectsService();
+        $row = $svc->getGreenhouseProductionForLevel(1);
+        $this->assertSame(1, $row['water']);
+        $this->assertSame(2, $row['Fruit']);
+        $this->assertSame(1, $row['Berries']);
+    }
+
+    public function testGreenhouseProductionLevel10IncludesMushroomsAndCrops(): void
+    {
+        $svc = new \App\Services\BuildingEffects\BuildingEffectsService();
+        $row = $svc->getGreenhouseProductionForLevel(10);
+        $this->assertSame(10, $row['water']);
+        $this->assertSame(5, $row['Fruit']);
+        $this->assertSame(5, $row['Berries']);
+        $this->assertSame(3, $row['Mushrooms']);
+        $this->assertSame(2, $row['Crops']);
+    }
+
+    public function testGreenhouseProductionLevelOutOfRangeReturnsEmpty(): void
+    {
+        $svc = new \App\Services\BuildingEffects\BuildingEffectsService();
+        $this->assertSame([], $svc->getGreenhouseProductionForLevel(0));
+        $this->assertSame([], $svc->getGreenhouseProductionForLevel(99));
+    }
 }
