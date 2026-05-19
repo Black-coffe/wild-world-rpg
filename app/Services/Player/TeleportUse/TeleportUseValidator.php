@@ -147,7 +147,7 @@ class TeleportUseValidator
             return ['ok' => false, 'error' => "Ошибка! Персонаж не найден."];
         }
 
-        $cost = $this->teleportCostService->calculateTeleportCost((int) $charRow['level']);
+        $cost = $this->teleportCostService->calculateTeleportCost((int) $charRow['level'], (int) $charRow['id']);
         if ((int) $charRow['gold'] < $cost) {
             return [
                 'ok'    => false,

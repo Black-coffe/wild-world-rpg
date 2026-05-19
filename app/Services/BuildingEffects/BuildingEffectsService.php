@@ -152,6 +152,33 @@ final class BuildingEffectsService
     }
 
     /**
+     * S15 (v0.51.197) — множник вартості телепорту з урахуванням рівня
+     * TeleportationCenter (live-tunable через GameSettings).
+     *
+     * Базова формула — `1000 × character.level` (TeleportCostService). L1 TC =
+     * baseline (multiplier 1.0). L2 → 0.85 (-15%), L3 → 0.70 (-30%). L4-L10
+     * plateau cascade на L3 (як S11/S12/S13/S14).
+     *
+     * Якщо у char немає TeleportationCenter — повертає 1.0 (no effect; чар
+     * без TC і так не може телепортуватись з base через побудоване здання,
+     * але safety guard).
+     *
+     * Застосовується у TeleportCostService::calculateTeleportCost($level, $charId).
+     */
+    public function getTeleportCostMultiplier(int $charId): float
+    {
+        $level = $this->resolveBuildingLevel($charId, 'TeleportationCenter');
+        if ($level <= 1) {
+            return 1.0;
+        }
+        return $this->resolveLevelMultiplier(
+            'teleportationcenter',
+            $level,
+            'teleport_cost_multiplier',
+        );
+    }
+
+    /**
      * Знайти найвищий level building'а певного типу у character_buildings.
      * Гравець може мати кілька instances одного building (на різних cells);
      * беремо max(level) — найвищий апгрейд є «активним» для game-effects.
