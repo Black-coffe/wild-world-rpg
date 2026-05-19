@@ -532,4 +532,79 @@ final class BuildingEffectsServiceTest extends CIUnitTestCase
         );
         $this->assertSame(0.75, $svc->getCraftTimeMultiplier(491, 'RoboticsWorkshop'));
     }
+
+    // ============================================================
+    // S15 (v0.51.197) — getTeleportCostMultiplier (TeleportationCenter)
+    // ============================================================
+    // Базова формула — `1000 × character.level` (TeleportCostService).
+    // L1 TC = baseline (no effect), L2 → 0.85, L3 → 0.70, L4-L10 cascade.
+    // На проде 5 чарів з TC (2×L1, 1×L2, 2×L3).
+
+    public function testTeleportCostMultiplierNoTeleportCenterReturnsOne(): void
+    {
+        $svc = $this->service(
+            [['id' => 13, 'name_en' => 'TeleportationCenter']],
+            [], // char has no TC
+            $this->reader([
+                'building.teleportationcenter.l2.teleport_cost_multiplier' => 0.85,
+                'building.teleportationcenter.l3.teleport_cost_multiplier' => 0.70,
+            ]),
+        );
+        $this->assertSame(1.0, $svc->getTeleportCostMultiplier(491));
+    }
+
+    public function testTeleportCostMultiplierL1ReturnsOne(): void
+    {
+        // L1 = baseline (constitutional: L1 multiplier завжди 1.0).
+        $svc = $this->service(
+            [['id' => 13, 'name_en' => 'TeleportationCenter']],
+            [['character_id' => 491, 'building_id' => 13, 'level' => 1]],
+            $this->reader([
+                'building.teleportationcenter.l2.teleport_cost_multiplier' => 0.85,
+                'building.teleportationcenter.l3.teleport_cost_multiplier' => 0.70,
+            ]),
+        );
+        $this->assertSame(1.0, $svc->getTeleportCostMultiplier(491));
+    }
+
+    public function testTeleportCostMultiplierL2ReturnsEightyFive(): void
+    {
+        $svc = $this->service(
+            [['id' => 13, 'name_en' => 'TeleportationCenter']],
+            [['character_id' => 491, 'building_id' => 13, 'level' => 2]],
+            $this->reader([
+                'building.teleportationcenter.l2.teleport_cost_multiplier' => 0.85,
+                'building.teleportationcenter.l3.teleport_cost_multiplier' => 0.70,
+            ]),
+        );
+        $this->assertSame(0.85, $svc->getTeleportCostMultiplier(491));
+    }
+
+    public function testTeleportCostMultiplierL3ReturnsSeventy(): void
+    {
+        $svc = $this->service(
+            [['id' => 13, 'name_en' => 'TeleportationCenter']],
+            [['character_id' => 491, 'building_id' => 13, 'level' => 3]],
+            $this->reader([
+                'building.teleportationcenter.l2.teleport_cost_multiplier' => 0.85,
+                'building.teleportationcenter.l3.teleport_cost_multiplier' => 0.70,
+            ]),
+        );
+        $this->assertSame(0.70, $svc->getTeleportCostMultiplier(491));
+    }
+
+    public function testTeleportCostMultiplierL10CascadesToL3Plateau(): void
+    {
+        // Жоден чар на проде не має TC L10 (поточно 2×L1, 1×L2, 2×L3), але future-proof
+        // через cascade (як S11 Workshop / S14 Robotics).
+        $svc = $this->service(
+            [['id' => 13, 'name_en' => 'TeleportationCenter']],
+            [['character_id' => 491, 'building_id' => 13, 'level' => 10]],
+            $this->reader([
+                'building.teleportationcenter.l2.teleport_cost_multiplier' => 0.85,
+                'building.teleportationcenter.l3.teleport_cost_multiplier' => 0.70,
+            ]),
+        );
+        $this->assertSame(0.70, $svc->getTeleportCostMultiplier(491));
+    }
 }

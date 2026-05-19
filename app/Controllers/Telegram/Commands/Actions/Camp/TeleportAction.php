@@ -121,7 +121,7 @@ class TeleportAction extends BaseAction
 
         // --- Телепорт за золото
         if ($canPayGold) {
-            $cost = $teleportCostService->calculateTeleportCost($character['level']);
+            $cost = $teleportCostService->calculateTeleportCost((int) $character['level'], (int) $character['id']);
             $formattedCost = number_format($cost, 0, '.', ' ');
             $text .= "*Телепорт за золото*\n_Снимет {$formattedCost} золота_\n\n";
             $availableButtons[] = [
