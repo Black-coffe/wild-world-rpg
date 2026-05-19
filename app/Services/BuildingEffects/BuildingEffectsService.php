@@ -48,21 +48,79 @@ final class BuildingEffectsService
     }
 
     /**
-     * Множник craft duration для гравця з урахуванням Workshop level.
+     * Множник craft duration для гравця.
+     *
+     * Завжди застосовує Workshop multiplier (S11, global для всіх рецептів).
+     * Якщо передано $extraBuilding (e.g. 'Laboratory' для медичних рецептів) —
+     * **multiplicatively stack** з Workshop. Приклад: Workshop L3 (0.75) ×
+     * Laboratory L3 (0.75) = 0.5625 (-44% для medical craft).
+     *
+     * Recipe декларує $extraBuilding через поле `boost_building_time`
+     * (optional). Без декларації — лише Workshop ефект.
      *
      * @return float 0..1 (default 1.0 = no effect). Застосовується ПІСЛЯ
      *   char-stats формули у GenericCraftActionStart::calculateCraftingDuration().
      */
-    public function getCraftTimeMultiplier(int $charId): float
+    public function getCraftTimeMultiplier(int $charId, ?string $extraBuilding = null): float
     {
-        $level = $this->resolveBuildingLevel($charId, 'Workshop');
+        $multiplier = 1.0;
 
-        // L1 = no effect (baseline).
-        if ($level <= 1) {
-            return 1.0;
+        $workshopLevel = $this->resolveBuildingLevel($charId, 'Workshop');
+        if ($workshopLevel >= 2) {
+            $multiplier *= $this->resolveLevelMultiplier('workshop', $workshopLevel, 'craft_time_multiplier');
         }
 
-        return $this->resolveLevelMultiplier('workshop', $level, 'craft_time_multiplier');
+        if ($extraBuilding !== null && $extraBuilding !== '' && strcasecmp($extraBuilding, 'Workshop') !== 0) {
+            $extraLevel = $this->resolveBuildingLevel($charId, $extraBuilding);
+            if ($extraLevel >= 2) {
+                $multiplier *= $this->resolveLevelMultiplier(
+                    strtolower($extraBuilding),
+                    $extraLevel,
+                    'craft_time_multiplier',
+                );
+            }
+        }
+
+        return $multiplier;
+    }
+
+    /**
+     * S13b (v0.51.195) — production table для Greenhouse рівня (water cost +
+     * harvest resources). Foundation для future GameSettings migration:
+     * наразі read-through від `Config\GameBalance::$greenhouseLevels`.
+     *
+     * Caller (GreenhouseProductionHandler) використовує цей метод замість
+     * прямого доступу до GameBalance, що дозволить майбутньому S## мігрувати
+     * production table у `game_settings` без зміни handler logic.
+     *
+     * Greenhouse — НЕ pure cosmetic (на відміну від Workshop/BlastFurnace/Lab):
+     * рівні **вже працюють** через GameBalance.greenhouseLevels (L1..L10:
+     * different water + harvest). S13b лише оборачує доступ у service.
+     *
+     * @return array<string,int> e.g. `['water'=>3, 'Fruit'=>3, 'Berries'=>2]`.
+     *   Empty array якщо level out of range.
+     */
+    public function getGreenhouseProductionForLevel(int $level): array
+    {
+        $cfg = config('GameBalance');
+        if (! is_object($cfg) || ! property_exists($cfg, 'greenhouseLevels')) {
+            return [];
+        }
+        $levels = $cfg->greenhouseLevels;
+        if (! is_array($levels)) {
+            return [];
+        }
+        $row = $levels[$level] ?? null;
+        if (! is_array($row)) {
+            return [];
+        }
+        $out = [];
+        foreach ($row as $key => $value) {
+            if (is_string($key) && is_numeric($value)) {
+                $out[$key] = (int) $value;
+            }
+        }
+        return $out;
     }
 
     /**

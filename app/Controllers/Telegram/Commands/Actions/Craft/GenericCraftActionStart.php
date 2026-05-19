@@ -234,7 +234,7 @@ class GenericCraftActionStart extends BaseAction
             $this->characterModel->where('id', $character['id'])->decrement('gold', $goldRequired);
         }
 
-        $durationForOne = $this->calculateCraftingDuration($character, $taskRow);
+        $durationForOne = $this->calculateCraftingDuration($character, $taskRow, $recipe);
         $totalDuration  = $durationForOne * $this->quantity;
 
         $startTime = new DateTime();
@@ -379,8 +379,12 @@ class GenericCraftActionStart extends BaseAction
      * S11 (v0.51.193): після char-stats формули — applied Workshop level
      * multiplier (live-tunable через GameSettings, дефолт L1=1.0 / L2=0.90 /
      * L3+ cascade на 0.75). Min duration = 1 minute (clamp).
+     * S13a (v0.51.195): додаткове stacking з $recipe['boost_building_time']
+     * (e.g. 'Laboratory' для medical recipes). Multiplicative з Workshop.
+     *
+     * @param array<string,mixed> $recipe
      */
-    private function calculateCraftingDuration(array|\App\Entities\CharacterEntity $character, array $taskRow): int
+    private function calculateCraftingDuration(array|\App\Entities\CharacterEntity $character, array $taskRow, array $recipe = []): int
     {
         $expFactor = 0.3;
         $agiFactor = 0.3;
@@ -398,7 +402,10 @@ class GenericCraftActionStart extends BaseAction
         $adjusted = $minD + ($maxD - $minD) * (1 - $norm);
         $baseDuration = max($minD, min($maxD, (int) round($adjusted)));
 
-        $multiplier = $this->buildingEffects->getCraftTimeMultiplier((int)($character['id'] ?? 0));
+        $extraBuilding = isset($recipe['boost_building_time']) && is_string($recipe['boost_building_time'])
+            ? $recipe['boost_building_time']
+            : null;
+        $multiplier = $this->buildingEffects->getCraftTimeMultiplier((int)($character['id'] ?? 0), $extraBuilding);
         return max(1, (int) round($baseDuration * $multiplier));
     }
 

@@ -55,6 +55,8 @@ class CraftRecipes extends BaseConfig
                 'Водоросли'     => 3,
             ],
             'crafted_items'        => [],
+            // S13a (v0.51.195): Laboratory L2+ ускоряет медичний крафт (stack з Workshop).
+            'boost_building_time'  => 'Laboratory',
             'image_in_progress'    => 'uploads/telegram/craft/bandage_that_is_made_in_the_wild.jpg',
             'start_caption_name'   => '🩹 *Повязку*',
             'info_callback'        => 'bandage',
@@ -78,6 +80,7 @@ class CraftRecipes extends BaseConfig
                 'Вода'   => 10,
             ],
             'crafted_items'        => [],
+            'boost_building_time'  => 'Laboratory',  // S13a
             'image_in_progress'    => 'uploads/telegram/craft/antiseptic_craft.jpg',
             'start_caption_name'   => '🧴 *Антисептик*',
             'info_callback'        => 'antiseptic',
@@ -102,6 +105,7 @@ class CraftRecipes extends BaseConfig
                 'Цветы орхидей'            => 1,
             ],
             'crafted_items'        => [],
+            'boost_building_time'  => 'Laboratory',  // S13a
             'image_in_progress'    => 'uploads/telegram/craft/analgesic_powder.jpg',
             'start_caption_name'   => '🌡️ *Обезболивающий порошок*',
             'info_callback'        => 'painReliefPowder',
@@ -125,6 +129,7 @@ class CraftRecipes extends BaseConfig
                 'Вода'  => 20,
             ],
             'crafted_items'        => [],
+            'boost_building_time'  => 'Laboratory',  // S13a
             'image_in_progress'    => 'uploads/telegram/craft/tonic_elixir.jpg',
             'start_caption_name'   => '🧪 *Укрепляющий эликсир*',
             'info_callback'        => 'strengtheningElixir',
@@ -148,6 +153,7 @@ class CraftRecipes extends BaseConfig
                 'Вода'          => 25,
             ],
             'crafted_items'        => [],
+            'boost_building_time'  => 'Laboratory',  // S13a
             'image_in_progress'    => 'uploads/telegram/craft/dry_herb_tea.jpg',
             'start_caption_name'   => '🫖 *Успокоительное*',
             'info_callback'        => 'sedative',
@@ -172,6 +178,7 @@ class CraftRecipes extends BaseConfig
                 'Вода'  => 12,
             ],
             'crafted_items'        => [],
+            'boost_building_time'  => 'Laboratory',  // S13a
             'image_in_progress'    => 'uploads/telegram/craft/liquid_mixture_of_very_invigorating_acid-green_beverage.jpg',
             'start_caption_name'   => '💉 *Стимулятор*',
             'info_callback'        => 'stimulator',
@@ -196,6 +203,7 @@ class CraftRecipes extends BaseConfig
                 'Вода'                => 30,
             ],
             'crafted_items'        => [],
+            'boost_building_time'  => 'Laboratory',  // S13a
             'image_in_progress'    => 'uploads/telegram/craft/health_and_strength_regenerator.jpg',
             'start_caption_name'   => '🔋 *Регенератор*',
             'info_callback'        => 'regenerator',
@@ -222,6 +230,7 @@ class CraftRecipes extends BaseConfig
             'crafted_items'        => [
                 'Bandage' => 5,
             ],
+            'boost_building_time'  => 'Laboratory',  // S13a
             'image_in_progress'    => 'uploads/telegram/craft/simple_craft_kit.jpg',
             'start_caption_name'   => '🚑 *Базовая аптечка*',
             'info_callback'        => 'basicMedKit',
