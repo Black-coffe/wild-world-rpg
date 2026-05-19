@@ -477,4 +477,59 @@ final class BuildingEffectsServiceTest extends CIUnitTestCase
         $this->assertSame([], $svc->getGreenhouseProductionForLevel(0));
         $this->assertSame([], $svc->getGreenhouseProductionForLevel(99));
     }
+
+    // ============================================================
+    // S14 (v0.51.196) — getCraftTimeMultiplier with extra RoboticsWorkshop stack
+    // ============================================================
+    // Pattern reuse S13a Laboratory: recipe з `boost_building_time => 'RoboticsWorkshop'`
+    // (RobotExplorer + RobotGatherer) дає Workshop × Robotics стак. На проді 6 чарів
+    // з RoboticsWorkshop (L1, L2, L6, L7, L8, L10).
+
+    public function testCraftTimeMultiplierStacksWorkshopAndRobotics(): void
+    {
+        // Char має Workshop L2 (0.90) + RoboticsWorkshop L2 (0.90). Stack: 0.81.
+        $svc = $this->service(
+            [['id' => 4, 'name_en' => 'Workshop'], ['id' => 12, 'name_en' => 'RoboticsWorkshop']],
+            [
+                ['character_id' => 491, 'building_id' => 4, 'level' => 2],
+                ['character_id' => 491, 'building_id' => 12, 'level' => 2],
+            ],
+            $this->reader([
+                'building.workshop.l2.craft_time_multiplier' => 0.90,
+                'building.roboticsworkshop.l2.craft_time_multiplier' => 0.90,
+            ]),
+        );
+        $this->assertSame(0.81, round($svc->getCraftTimeMultiplier(491, 'RoboticsWorkshop'), 4));
+    }
+
+    public function testCraftTimeMultiplierStacksWorkshopL3AndRoboticsL3(): void
+    {
+        // Max stack: Workshop L3 (0.75) × Robotics L3 (0.75) = 0.5625 (-44%).
+        $svc = $this->service(
+            [['id' => 4, 'name_en' => 'Workshop'], ['id' => 12, 'name_en' => 'RoboticsWorkshop']],
+            [
+                ['character_id' => 491, 'building_id' => 4, 'level' => 3],
+                ['character_id' => 491, 'building_id' => 12, 'level' => 3],
+            ],
+            $this->reader([
+                'building.workshop.l3.craft_time_multiplier' => 0.75,
+                'building.roboticsworkshop.l3.craft_time_multiplier' => 0.75,
+            ]),
+        );
+        $this->assertSame(0.5625, round($svc->getCraftTimeMultiplier(491, 'RoboticsWorkshop'), 4));
+    }
+
+    public function testCraftTimeMultiplierRoboticsL10CascadesToL3Plateau(): void
+    {
+        // Прод-реалії: 1 чар з RoboticsWorkshop L10. Cascade plateau на L3.
+        $svc = $this->service(
+            [['id' => 4, 'name_en' => 'Workshop'], ['id' => 12, 'name_en' => 'RoboticsWorkshop']],
+            [['character_id' => 491, 'building_id' => 12, 'level' => 10]],
+            $this->reader([
+                'building.roboticsworkshop.l2.craft_time_multiplier' => 0.90,
+                'building.roboticsworkshop.l3.craft_time_multiplier' => 0.75,
+            ]),
+        );
+        $this->assertSame(0.75, $svc->getCraftTimeMultiplier(491, 'RoboticsWorkshop'));
+    }
 }

@@ -246,6 +246,21 @@ final class CraftRecipesTest extends CIUnitTestCase
     }
 
     /**
+     * S14 (v0.51.196) — RobotExplorer/RobotGatherer декларують
+     * `boost_building_time => 'RoboticsWorkshop'`. BuildingEffectsService::
+     * getCraftTimeMultiplier() підхопить це поле та застосує stacking з Workshop.
+     * Anti-drift guard: видалення поля = німо втрачаємо bonus для робот-крафту.
+     */
+    public function testS14RobotsHaveRoboticsBoostBuildingTime(): void
+    {
+        $explorer = $this->cfg->get('RobotExplorer');
+        $this->assertSame('RoboticsWorkshop', $explorer['boost_building_time'] ?? null);
+
+        $gatherer = $this->cfg->get('RobotGatherer');
+        $this->assertSame('RoboticsWorkshop', $gatherer['boost_building_time'] ?? null);
+    }
+
+    /**
      * F3.B9 — все 4 weapon-рецепта имеют output_type='weapon' + weapon_name_en
      * + weapon_slot. GenericCraftCompletionHandler по этому полю
      * диспетчеризует на handleWeaponOutput (characters_weapons вместо

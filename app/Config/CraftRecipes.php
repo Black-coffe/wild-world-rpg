@@ -768,6 +768,11 @@ class CraftRecipes extends BaseConfig
             'intellect_bonus'      => 0.05,
             'image_completed'      => 'uploads/telegram/craft/standard/robot_explorer.jpg',
             'craft_again_callback' => 'genericCraft_RobotExplorer_1',
+
+            // S14 (v0.51.196) — RoboticsWorkshop L2/L3 stacks з Workshop у
+            // BuildingEffectsService::getCraftTimeMultiplier(). L2 → -10%, L3 → -25%,
+            // stack Workshop L3 + Robotics L3 = 0.5625 (-44%). L4-L10 cascade.
+            'boost_building_time'  => 'RoboticsWorkshop',
         ],
 
         'RobotGatherer' => [
@@ -798,6 +803,11 @@ class CraftRecipes extends BaseConfig
             'intellect_bonus'      => 0.05,
             'image_completed'      => 'uploads/telegram/craft/standard/craftRobotGatherer.jpg',
             'craft_again_callback' => 'genericCraft_RobotGatherer_1',
+
+            // S14 (v0.51.196) — див. RobotExplorer вище. Recipe вже декларує
+            // `required_buildings => ['RoboticsWorkshop', 'Workshop']`, тож stacking
+            // природний для гравців, що мають обидва на L2+.
+            'boost_building_time'  => 'RoboticsWorkshop',
         ],
 
         // ============================================================
