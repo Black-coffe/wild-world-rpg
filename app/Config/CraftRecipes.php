@@ -1199,6 +1199,155 @@ class CraftRecipes extends BaseConfig
             'image_completed'               => 'uploads/telegram/craft/professional/exo_railgun_behemoth.jpg',
             'craft_again_callback'          => 'genericCraft_ExoRailgunBehemoth_1',
         ],
+
+        // ============================================================
+        // S18 (v0.51.200) — T3 armor (ADR-026 reusable, ROADMAP-CRAFT Фаза 4 3/5).
+        //
+        // 4 craft-рецепта под существующие outfits (audit-finding: 20 outfits
+        // L0-L25 уже в БД на проде; реальный gap — 16 outfits без craft option).
+        // Gating через recipe.required_crafted_items (ProfessionalWorkbench × 1) —
+        // pattern S17 reuse. output_type='outfit' — НОВЫЙ dispatch path в
+        // GenericCraftCompletionHandler::handleOutfitOutput → пишет в
+        // characters_outfits (зеркало characters_weapons для S17).
+        //
+        // Live-tunable durations через GameSettings:
+        //   tier3.armor.<key>.craft_duration_hours
+        // (см. миграция S18SeedT3ArmorGameSettings).
+        //
+        // outfit_name_en должен совпадать с outfits.name_en в БД (handler lookup).
+        // ============================================================
+
+        'TacticalArmorSuit' => [
+            'task_name'                     => 'craftTacticalArmorSuit',
+            'output_type'                   => 'outfit',
+            'outfit_name_en'                => 'TacticalArmorSuit',
+            'outfit_slot'                   => 'body',
+            'required_strength'             => 8,
+            'required_level'                => 16,
+            'gold_required'                 => 5000,
+            'resources'                     => [
+                'Редкие металлы'           => 10,
+                'Доколлапсная электроника' => 1,
+                'Промышленный пластик'     => 4,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 3,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.armor.tactical_armor_suit.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/tactical_armor_suit.jpg',
+            'start_caption_name'            => '🛡 *Тактический бронекостюм (T3)*',
+            'info_callback'                 => 'craftPreviewT3Armor_TacticalArmorSuit',
+            'item_name_eng'                 => 'TacticalArmorSuit',
+            'item_name_rus'                 => 'Тактический бронекостюм',
+            'icon_emoji'                    => '🛡',
+            'zone_emoji'                    => '🏚️',
+            'zone_name'                     => 'база',
+            'agility_bonus'                 => 0.03,
+            'intellect_bonus'               => 0.02,
+            'image_completed'               => 'uploads/telegram/craft/professional/tactical_armor_suit.jpg',
+            'craft_again_callback'          => 'genericCraft_TacticalArmorSuit_1',
+        ],
+
+        'ExoskeletonStrekoza' => [
+            'task_name'                     => 'craftExoskeletonStrekoza',
+            'output_type'                   => 'outfit',
+            'outfit_name_en'                => 'ExoskeletonStrekoza',
+            'outfit_slot'                   => 'body',
+            'required_strength'             => 6,
+            'required_level'                => 16,
+            'gold_required'                 => 5000,
+            'resources'                     => [
+                'Редкие металлы'           => 6,
+                'Доколлапсная электроника' => 2,
+                'Промышленный пластик'     => 4,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 5,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.armor.exoskeleton_strekoza.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/exoskeleton_strekoza.jpg',
+            'start_caption_name'            => '🦋 *Экзоскелет «Стрекоза» (T3)*',
+            'info_callback'                 => 'craftPreviewT3Armor_ExoskeletonStrekoza',
+            'item_name_eng'                 => 'ExoskeletonStrekoza',
+            'item_name_rus'                 => 'Экзоскелет «Стрекоза»',
+            'icon_emoji'                    => '🦋',
+            'zone_emoji'                    => '🏚️',
+            'zone_name'                     => 'база',
+            'agility_bonus'                 => 0.05,
+            'intellect_bonus'               => 0.02,
+            'image_completed'               => 'uploads/telegram/craft/professional/exoskeleton_strekoza.jpg',
+            'craft_again_callback'          => 'genericCraft_ExoskeletonStrekoza_1',
+        ],
+
+        'TitanPowerArmor' => [
+            'task_name'                     => 'craftTitanPowerArmor',
+            'output_type'                   => 'outfit',
+            'outfit_name_en'                => 'TitanPowerArmor',
+            'outfit_slot'                   => 'body',
+            'required_strength'             => 15,
+            'required_level'                => 20,
+            'gold_required'                 => 20000,
+            'resources'                     => [
+                'Редкие металлы'           => 20,
+                'Доколлапсная электроника' => 3,
+                'Промышленный пластик'     => 5,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 8,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.armor.titan_power_armor.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/titan_power_armor.jpg',
+            'start_caption_name'            => '⚙️ *Силовая броня «Титан» (T3)*',
+            'info_callback'                 => 'craftPreviewT3Armor_TitanPowerArmor',
+            'item_name_eng'                 => 'TitanPowerArmor',
+            'item_name_rus'                 => 'Силовая броня «Титан»',
+            'icon_emoji'                    => '⚙️',
+            'zone_emoji'                    => '🏚️',
+            'zone_name'                     => 'база',
+            'agility_bonus'                 => 0.02,
+            'intellect_bonus'               => 0.04,
+            'image_completed'               => 'uploads/telegram/craft/professional/titan_power_armor.jpg',
+            'craft_again_callback'          => 'genericCraft_TitanPowerArmor_1',
+        ],
+
+        'TeslaShardArmor' => [
+            'task_name'                     => 'craftTeslaShardArmor',
+            'output_type'                   => 'outfit',
+            'outfit_name_en'                => 'TeslaShardArmor',
+            'outfit_slot'                   => 'body',
+            'required_strength'             => 12,
+            'required_level'                => 25,
+            'gold_required'                 => 35000,
+            'resources'                     => [
+                'Редкие металлы'           => 22,
+                'Доколлапсная электроника' => 6,
+                'Промышленный пластик'     => 6,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 12,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.armor.tesla_shard_armor.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/tesla_shard_armor.jpg',
+            'start_caption_name'            => '⚡ *Осколочный доспех «Тесла» (T3)*',
+            'info_callback'                 => 'craftPreviewT3Armor_TeslaShardArmor',
+            'item_name_eng'                 => 'TeslaShardArmor',
+            'item_name_rus'                 => 'Осколочный доспех «Тесла»',
+            'icon_emoji'                    => '⚡',
+            'zone_emoji'                    => '🏚️',
+            'zone_name'                     => 'база',
+            'agility_bonus'                 => 0.04,
+            'intellect_bonus'               => 0.04,
+            'image_completed'               => 'uploads/telegram/craft/professional/tesla_shard_armor.jpg',
+            'craft_again_callback'          => 'genericCraft_TeslaShardArmor_1',
+        ],
     ];
 
     /**

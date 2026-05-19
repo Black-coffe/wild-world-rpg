@@ -6,10 +6,12 @@ namespace App\TaskHandlers\Craft;
 
 use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
+use App\Models\CharactersOutfitsModel;
 use App\Models\CharactersWeaponsModel;
 use App\Models\CharacterTaskModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
+use App\Models\OutfitModel;
 use App\Models\TaskModel;
 use App\Models\TelegramUserModel;
 use App\Models\WeaponModel;
@@ -66,6 +68,9 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
     // F3.B9: weapons output_type — отдельная пара моделей.
     private WeaponModel             $weaponModel;
     private CharactersWeaponsModel  $charactersWeaponsModel;
+    // S18 (v0.51.200): outfit output_type — пара моделей для armor crafting.
+    private OutfitModel             $outfitModel;
+    private CharactersOutfitsModel  $charactersOutfitsModel;
     private BuildingEffectsService  $buildingEffects;
 
     public function __construct()
@@ -77,6 +82,8 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         $this->telegramUserModel      = new TelegramUserModel();
         $this->weaponModel            = new WeaponModel();
         $this->charactersWeaponsModel = new CharactersWeaponsModel();
+        $this->outfitModel            = new OutfitModel();
+        $this->charactersOutfitsModel = new CharactersOutfitsModel();
         $this->buildingEffects        = new BuildingEffectsService();
     }
 
@@ -128,6 +135,11 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         $outputType = $recipe['output_type'] ?? 'crafted_item';
         if ($outputType === 'weapon') {
             $this->handleWeaponOutput($task, $recipe, $quantityToAdd, $recipeKey);
+            return;
+        }
+        // S18 (v0.51.200): outfit dispatch для T3 armor (ADR-026 extension).
+        if ($outputType === 'outfit') {
+            $this->handleOutfitOutput($task, $recipe, $quantityToAdd, $recipeKey);
             return;
         }
 
@@ -349,6 +361,77 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         $this->activateNextQueuedTask((int) $task['character_id'], (int) $task['task_id']);
     }
 
+    /**
+     * S18 (v0.51.200) — completion path для outfits (T3 armor). Записывает в
+     * `characters_outfits` (зеркало handleWeaponOutput но для armor):
+     * lookup по `outfits.name_en`, INSERT/UPDATE quantity, bump stats через
+     * updateAgilityAndIntellect (armor → agility/intellect, не strength).
+     *
+     * @param array<string,mixed> $task
+     * @param array<string,mixed> $recipe
+     */
+    private function handleOutfitOutput(array $task, array $recipe, int $quantityToAdd, string $recipeKey): void
+    {
+        $outfitNameEn = $recipe['outfit_name_en'] ?? null;
+        if (!is_string($outfitNameEn) || $outfitNameEn === '') {
+            $itemNameEng = is_string($recipe['item_name_eng'] ?? null) ? $recipe['item_name_eng'] : $recipeKey;
+            log_message('error', "[GenericCraftCompletion] recipe '{$itemNameEng}' output_type=outfit, но нет outfit_name_en");
+            return;
+        }
+
+        $outfit = $this->outfitModel->where('name_en', $outfitNameEn)->first();
+        if (!is_array($outfit) || !isset($outfit['id'])) {
+            log_message('error', "[GenericCraftCompletion] outfit '{$outfitNameEn}' не найден в БД");
+            return;
+        }
+        $outfitId       = is_numeric($outfit['id']) ? (int) $outfit['id'] : 0;
+        $characterIdInt = is_numeric($task['character_id'] ?? 0) ? (int) $task['character_id'] : 0;
+
+        // Add or increment quantity in characters_outfits
+        $row = $this->charactersOutfitsModel
+            ->where('character_id', $characterIdInt)
+            ->where('outfit_id', $outfitId)
+            ->first();
+
+        if (is_array($row) && isset($row['id']) && is_numeric($row['id'])) {
+            $oldQty = is_numeric($row['quantity'] ?? 0) ? (int) $row['quantity'] : 0;
+            $this->charactersOutfitsModel->update((int) $row['id'], ['quantity' => $oldQty + $quantityToAdd]);
+        } else {
+            $slotRaw = $recipe['outfit_slot'] ?? 'body';
+            $this->charactersOutfitsModel->insert([
+                'character_id'       => $characterIdInt,
+                'outfit_id'          => $outfitId,
+                'quantity'           => $quantityToAdd,
+                'current_durability' => 100,
+                'equipped'           => 0,
+                'slot'               => is_string($slotRaw) ? $slotRaw : 'body',
+            ]);
+        }
+
+        // Stat bump: для armor → updateAgilityAndIntellect (как T2 armor handlers).
+        $agilityBonus   = is_numeric($recipe['agility_bonus']   ?? 0) ? (float) $recipe['agility_bonus']   : 0.0;
+        $intellectBonus = is_numeric($recipe['intellect_bonus'] ?? 0) ? (float) $recipe['intellect_bonus'] : 0.0;
+        $this->characterModel->updateAgilityAndIntellect($characterIdInt, $agilityBonus, $intellectBonus);
+
+        // notify — переиспользуем notifyUser, передавая outfit-row.
+        $outfitNameRaw = $outfit['name'] ?? null;
+        $itemNameRaw   = $recipe['item_name_rus'] ?? null;
+        $outfitNameRus = is_string($outfitNameRaw) && $outfitNameRaw !== ''
+            ? $outfitNameRaw
+            : (is_string($itemNameRaw) ? $itemNameRaw : $recipeKey);
+        $outfitAsItem = [
+            'id'       => $outfitId,
+            'name_rus' => $outfitNameRus,
+            '__outfit' => true,
+        ];
+        $telegramUserIdInt = is_numeric($task['telegram_user_id'] ?? 0) ? (int) $task['telegram_user_id'] : 0;
+        $this->notifyUser($telegramUserIdInt, $outfitAsItem, $characterIdInt, $quantityToAdd, $recipe, $recipeKey);
+
+        // v0.51.129: dequeue next queued task для same recipe (для outfit path теж).
+        $taskIdInt = is_numeric($task['task_id'] ?? 0) ? (int) $task['task_id'] : 0;
+        $this->activateNextQueuedTask($characterIdInt, $taskIdInt);
+    }
+
     private function extractRecipeKey(array $task): ?string
     {
         if (empty($task['task_settings'])) {
@@ -390,14 +473,20 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         }
         $telegramId = $userRow['telegram_id'];
 
-        // F3.B9: для weapons итого считаем из characters_weapons,
-        // для crafted_item — из crafted_items_log (default).
+        // F3.B9 + S18: для weapons считаем из characters_weapons, для outfits —
+        // из characters_outfits, для crafted_item — из crafted_items_log (default).
         if (!empty($craftedItem['__weapon'])) {
             $row = $this->charactersWeaponsModel->where([
                 'character_id' => $characterId,
                 'weapon_id'    => $craftedItem['id'],
             ])->first();
             $totalNow = $row ? (int) $row['quantity'] : 0;
+        } elseif (!empty($craftedItem['__outfit'])) {
+            $row = $this->charactersOutfitsModel->where([
+                'character_id' => $characterId,
+                'outfit_id'    => $craftedItem['id'],
+            ])->first();
+            $totalNow = is_array($row) && isset($row['quantity']) && is_numeric($row['quantity']) ? (int) $row['quantity'] : 0;
         } else {
             $updatedLog = $this->craftedItemsLogModel->where([
                 'character_id'    => $characterId,
