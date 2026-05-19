@@ -277,4 +277,92 @@ final class BuildingEffectsServiceTest extends CIUnitTestCase
         $this->assertSame(0.75, $svc->getCraftTimeMultiplier(491));
         $this->assertSame(1.0, $svc->getCraftTimeMultiplier(490));
     }
+
+    // ============================================================
+    // S12 (v0.51.194) — getCraftYieldMultiplier (BlastFurnace)
+    // ============================================================
+
+    public function testYieldMultiplierNullBoostBuildingReturnsOne(): void
+    {
+        $svc = $this->service([], [], $this->reader([]));
+        $this->assertSame(1.0, $svc->getCraftYieldMultiplier(491, null));
+        $this->assertSame(1.0, $svc->getCraftYieldMultiplier(491, ''));
+    }
+
+    public function testYieldMultiplierNoBlastFurnaceReturnsOne(): void
+    {
+        $svc = $this->service(
+            [['id' => 2, 'name_en' => 'BlastFurnace']],
+            [], // char has no BlastFurnace
+            $this->reader([
+                'building.blastfurnace.l2.craft_yield_multiplier' => 1.15,
+            ]),
+        );
+        $this->assertSame(1.0, $svc->getCraftYieldMultiplier(491, 'BlastFurnace'));
+    }
+
+    public function testYieldMultiplierL1BlastFurnaceReturnsOne(): void
+    {
+        $svc = $this->service(
+            [['id' => 2, 'name_en' => 'BlastFurnace']],
+            [['character_id' => 491, 'building_id' => 2, 'level' => 1]],
+            $this->reader([
+                'building.blastfurnace.l2.craft_yield_multiplier' => 1.15,
+            ]),
+        );
+        $this->assertSame(1.0, $svc->getCraftYieldMultiplier(491, 'BlastFurnace'));
+    }
+
+    public function testYieldMultiplierL2ReturnsOnePointFifteen(): void
+    {
+        $svc = $this->service(
+            [['id' => 2, 'name_en' => 'BlastFurnace']],
+            [['character_id' => 491, 'building_id' => 2, 'level' => 2]],
+            $this->reader([
+                'building.blastfurnace.l2.craft_yield_multiplier' => 1.15,
+                'building.blastfurnace.l3.craft_yield_multiplier' => 1.35,
+            ]),
+        );
+        $this->assertSame(1.15, $svc->getCraftYieldMultiplier(491, 'BlastFurnace'));
+    }
+
+    public function testYieldMultiplierL3ReturnsOnePointThirtyFive(): void
+    {
+        $svc = $this->service(
+            [['id' => 2, 'name_en' => 'BlastFurnace']],
+            [['character_id' => 491, 'building_id' => 2, 'level' => 3]],
+            $this->reader([
+                'building.blastfurnace.l2.craft_yield_multiplier' => 1.15,
+                'building.blastfurnace.l3.craft_yield_multiplier' => 1.35,
+            ]),
+        );
+        $this->assertSame(1.35, $svc->getCraftYieldMultiplier(491, 'BlastFurnace'));
+    }
+
+    public function testYieldMultiplierL5CascadesToL3Plateau(): void
+    {
+        // L4-L10 plateau (як S11 Workshop user pick).
+        $svc = $this->service(
+            [['id' => 2, 'name_en' => 'BlastFurnace']],
+            [['character_id' => 491, 'building_id' => 2, 'level' => 5]],
+            $this->reader([
+                'building.blastfurnace.l2.craft_yield_multiplier' => 1.15,
+                'building.blastfurnace.l3.craft_yield_multiplier' => 1.35,
+            ]),
+        );
+        $this->assertSame(1.35, $svc->getCraftYieldMultiplier(491, 'BlastFurnace'));
+    }
+
+    public function testYieldMultiplierIsCaseInsensitiveForBuildingKey(): void
+    {
+        // GameSettings key завжди lowercase; service strtolower'ить boost_building.
+        $svc = $this->service(
+            [['id' => 2, 'name_en' => 'BlastFurnace']],
+            [['character_id' => 491, 'building_id' => 2, 'level' => 2]],
+            $this->reader([
+                'building.blastfurnace.l2.craft_yield_multiplier' => 1.15,
+            ]),
+        );
+        $this->assertSame(1.15, $svc->getCraftYieldMultiplier(491, 'BlastFurnace'));
+    }
 }

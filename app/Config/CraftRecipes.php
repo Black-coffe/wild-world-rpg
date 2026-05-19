@@ -381,6 +381,10 @@ class CraftRecipes extends BaseConfig
                 'Песок'         => 1,
             ],
             'crafted_items'        => [],
+            // S12 (v0.51.194): pure bonus, без breaking. BlastFurnace L2+ дає
+            // yield multiplier (1.15 / 1.35 cascade) через BuildingEffectsService.
+            // Char'и без BlastFurnace продовжують крафтити з baseline qty.
+            'boost_building'       => 'BlastFurnace',
             'image_in_progress'    => 'uploads/telegram/craft/components/craftMetalFragments.jpg',
             'start_caption_name'   => '🔩 *Металл фрагменты*',
             'info_callback'        => 'metalFragments',
