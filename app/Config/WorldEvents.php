@@ -529,6 +529,79 @@ class WorldEvents extends BaseConfig
             'notification_kind' => 'lifecycle',
         ],
 
+        // S10 (v0.51.192) — 4 биом-специфичных rare-drop события для T3-крафта.
+        // Все 4 параметра (chance_per_tick / amount_range) live-tunable через
+        // GameSettings keys `rare_event.<name_english>.{chance_per_tick|amount_min|amount_max}`.
+        // RareResourceGrantEffect::compute() читает GameSettings override fallback на effect_params.
+
+        'VolcanicFuelCache' => [
+            'effect_kind'   => 'rare_resource_grant',
+            'effect_params' => [
+                'resource_keyword'   => 'fuel_rods',
+                'rarity_filter'      => 1,
+                'amount_range'       => [1, 2],
+                'chance_per_tick'    => 0.08,
+                'requires_state'     => 'gather',
+                'biome_type_filter'  => null,  // біом через DB.biome_ids=["8"]
+            ],
+            'duration_minutes'  => 60,
+            'frequency_weight'  => 1,
+            'tick_chance'       => 1.0,
+            'protection_item'   => null,
+            'notification_kind' => 'lifecycle',
+        ],
+
+        'PreCollapseVaultOpening' => [
+            'effect_kind'   => 'rare_resource_grant',
+            'effect_params' => [
+                'resource_keyword'   => 'pre_collapse_electronics',
+                'rarity_filter'      => 1,
+                'amount_range'       => [1, 2],
+                'chance_per_tick'    => 0.08,
+                'requires_state'     => 'gather',
+                'biome_type_filter'  => null,  // біом через DB.biome_ids=["7"]
+            ],
+            'duration_minutes'  => 60,
+            'frequency_weight'  => 1,
+            'tick_chance'       => 1.0,
+            'protection_item'   => null,
+            'notification_kind' => 'lifecycle',
+        ],
+
+        'IndustrialDumpFind' => [
+            'effect_kind'   => 'rare_resource_grant',
+            'effect_params' => [
+                'resource_keyword'   => 'industrial_plastic',
+                'rarity_filter'      => 1,
+                'amount_range'       => [1, 3],
+                'chance_per_tick'    => 0.12,
+                'requires_state'     => 'gather',
+                'biome_type_filter'  => null,  // біом через DB.biome_ids=["5"]
+            ],
+            'duration_minutes'  => 60,
+            'frequency_weight'  => 1,
+            'tick_chance'       => 1.0,
+            'protection_item'   => null,
+            'notification_kind' => 'lifecycle',
+        ],
+
+        'MountainArmyDepot' => [
+            'effect_kind'   => 'rare_resource_grant',
+            'effect_params' => [
+                'resource_keyword'   => 'medical_compound',
+                'rarity_filter'      => 1,
+                'amount_range'       => [1, 2],
+                'chance_per_tick'    => 0.10,
+                'requires_state'     => 'gather',
+                'biome_type_filter'  => null,  // біом через DB.biome_ids=["2"]
+            ],
+            'duration_minutes'  => 60,
+            'frequency_weight'  => 1,
+            'tick_chance'       => 1.0,
+            'protection_item'   => null,
+            'notification_kind' => 'lifecycle',
+        ],
+
         // ============================================================
         // ⏱ Task-extend events (2 шт): подовжують активні задачі
         // ============================================================
