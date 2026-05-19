@@ -11,6 +11,7 @@ use App\Models\CharacterResourceModel;
 use App\Models\ClaimedCellModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
+use App\Services\BuildingEffects\BuildingEffectsService;
 use Config\CraftRecipes;
 use Config\GameBalance;
 use DateInterval;
@@ -67,6 +68,7 @@ class GenericCraftActionStart extends BaseAction
     private string $recipeKey = '';
     private int    $quantity  = 1;
     private GameBalance $cfg;
+    private BuildingEffectsService $buildingEffects;
 
     public function __construct($callbackQuery)
     {
@@ -78,6 +80,10 @@ class GenericCraftActionStart extends BaseAction
         $this->buildingModel          = new BuildingModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
         $this->cfg                    = config('GameBalance');
+        $this->buildingEffects        = new BuildingEffectsService(
+            $this->characterBuildingModel,
+            $this->buildingModel,
+        );
 
         // genericCraft_<RecipeKey>_<qty>
         $data  = $callbackQuery->getData();
@@ -369,6 +375,10 @@ class GenericCraftActionStart extends BaseAction
      * Та же формула, что в легаси `*CraftActionStart`:
      * normalized score (exp 0.3 / agi 0.3 / int 0.4 на 1000) и обратная
      * интерполяция между min_duration и max_duration.
+     *
+     * S11 (v0.51.193): після char-stats формули — applied Workshop level
+     * multiplier (live-tunable через GameSettings, дефолт L1=1.0 / L2=0.90 /
+     * L3+ cascade на 0.75). Min duration = 1 minute (clamp).
      */
     private function calculateCraftingDuration(array|\App\Entities\CharacterEntity $character, array $taskRow): int
     {
@@ -386,7 +396,10 @@ class GenericCraftActionStart extends BaseAction
         $maxD = (int) $taskRow['max_duration'];
 
         $adjusted = $minD + ($maxD - $minD) * (1 - $norm);
-        return max($minD, min($maxD, (int) round($adjusted)));
+        $baseDuration = max($minD, min($maxD, (int) round($adjusted)));
+
+        $multiplier = $this->buildingEffects->getCraftTimeMultiplier((int)($character['id'] ?? 0));
+        return max(1, (int) round($baseDuration * $multiplier));
     }
 
     /**
