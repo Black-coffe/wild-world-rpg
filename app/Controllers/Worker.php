@@ -174,6 +174,13 @@ class Worker extends Controller
         'craftWiredBat'             => 'generic_craft',
         'craftCrossbowMk1'          => 'generic_craft',
         'craftProfessionalWorkbench'=> 'generic_craft',  // S16 (v0.51.198) — T3 verstack, ADR-026
+        // S17 (v0.51.199) — 5 T3 weapon crafts через ProfessionalWorkbench (ADR-026 reusable pattern).
+        // Recipes в CraftRecipes.php, gating через recipe.required_crafted_items.
+        'craftGaussPistol'          => 'generic_craft',
+        'craftRailCarbineVikhr'     => 'generic_craft',
+        'craftIonDestabilizer'      => 'generic_craft',
+        'craftFlamethrowerAid'      => 'generic_craft',
+        'craftExoRailgunBehemoth'   => 'generic_craft',
         // Generic building handler — покриває 12 task.name'ів через Buildings config.
         'buildingManualPump'             => 'generic_building',
         'buildBlastFurnace'              => 'generic_building',
@@ -269,6 +276,12 @@ class Worker extends Controller
         'craftWiredBat'             => 'Craft\GenericCraftCompletionHandler',
         'craftCrossbowMk1'          => 'Craft\GenericCraftCompletionHandler',
         'craftProfessionalWorkbench'=> 'Craft\GenericCraftCompletionHandler', // S16 (v0.51.198) — T3 verstack
+        // S17 (v0.51.199) — 5 T3 weapons (output_type=weapon dispatch на characters_weapons).
+        'craftGaussPistol'          => 'Craft\GenericCraftCompletionHandler',
+        'craftRailCarbineVikhr'     => 'Craft\GenericCraftCompletionHandler',
+        'craftIonDestabilizer'      => 'Craft\GenericCraftCompletionHandler',
+        'craftFlamethrowerAid'      => 'Craft\GenericCraftCompletionHandler',
+        'craftExoRailgunBehemoth'   => 'Craft\GenericCraftCompletionHandler',
     ];
 
     protected function getHandlerClassName($taskName, ?string $explicitHandlerKey = null)

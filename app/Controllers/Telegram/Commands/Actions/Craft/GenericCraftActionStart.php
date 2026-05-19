@@ -205,6 +205,30 @@ class GenericCraftActionStart extends BaseAction
             }
         }
 
+        // S17 (v0.51.199, ADR-026 extension): проверка наличия non-consumable
+        // crafted_items в инвентаре (например, ProfessionalWorkbench для T3 weapons).
+        // В отличие от recipe.crafted_items (расходные компоненты со списанием),
+        // recipe.required_crafted_items — gate-проверка без decrement: просто
+        // "у чара есть N штук в crafted_items_log". Reusable для tier-gated
+        // крафтов (S17-S20 + любые будущие predmety-as-gates).
+        $requiredCraftedItemsRaw = $recipe['required_crafted_items'] ?? [];
+        $requiredCraftedItems    = is_array($requiredCraftedItemsRaw) ? $requiredCraftedItemsRaw : [];
+        $missingRequiredItems    = $this->checkRequiredCraftedItems(
+            (int) $character['id'],
+            $requiredCraftedItems,
+        );
+        if (!empty($missingRequiredItems)) {
+            $firstMissing = reset($missingRequiredItems);
+            $missingName  = $firstMissing['name'];
+            $this->logRejected(
+                $character['id'],
+                "CRAFT_{$this->recipeKey}",
+                'missing_required_crafted_item',
+                ['missing' => $missingRequiredItems],
+            );
+            return $this->sendError("Нужно иметь *{$missingName}* в инвентаре. Скрафти его и возвращайся.");
+        }
+
         // F3.B8: проверка наличия золота (умножается на quantity).
         $goldPerOne   = (int) ($recipe['gold_required'] ?? 0);
         $goldRequired = $goldPerOne * $this->quantity;
@@ -363,6 +387,44 @@ class GenericCraftActionStart extends BaseAction
             $have = $log['quantity'] ?? 0;
             if ($have < $need) {
                 $missing[$itemEn] = ['need' => $need, 'have' => $have, 'name' => $item['name_rus'] ?? $itemEn];
+            }
+        }
+        return $missing;
+    }
+
+    /**
+     * S17 (ADR-026 extension) — non-consumable gate check для crafted_items.
+     * В отличие от checkCraftedItems (расходные компоненты, qty умножается),
+     * здесь требование фиксированное (N штук должно быть в инвентаре),
+     * без списания. Reusable для tier-gated крафтов (ProfessionalWorkbench и т.д.).
+     *
+     * Recipe field — раскрытое значение из `Config\CraftRecipes`, тип mixed
+     * (т.к. recipe array decode'ится из untyped storage). Caller отвечает
+     * за is_array() narrow до вызова.
+     *
+     * @param array<string|int,mixed> $requiredItems name_eng => need_qty
+     * @return array<string,array{need:int,have:int,name:string}>
+     */
+    private function checkRequiredCraftedItems(int $charId, array $requiredItems): array
+    {
+        $missing = [];
+        foreach ($requiredItems as $itemEn => $need) {
+            if (!is_string($itemEn) || $itemEn === '') {
+                continue;
+            }
+            $needInt = is_numeric($need) ? (int) $need : 0;
+            if ($needInt <= 0) {
+                continue;
+            }
+            $item = $this->craftedItemsModel->getRowByName($itemEn);
+            if (!$item) {
+                $missing[$itemEn] = ['need' => $needInt, 'have' => 0, 'name' => $itemEn . ' (не найден)'];
+                continue;
+            }
+            $log  = $this->craftedItemsLogModel->getItemByCraftedItemIdAndCharacterId((int) $item['id'], $charId);
+            $have = $log['quantity'] ?? 0;
+            if ($have < $needInt) {
+                $missing[$itemEn] = ['need' => $needInt, 'have' => (int) $have, 'name' => $item['name_rus'] ?? $itemEn];
             }
         }
         return $missing;

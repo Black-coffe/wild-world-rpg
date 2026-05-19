@@ -78,6 +78,23 @@ class WorkbenchProfessionalAction extends BaseAction
 
         $characterId = (int) $character['id'];
 
+        // S17 (v0.51.199): если у чара уже есть ProfessionalWorkbench в инвентаре —
+        // показываем craft-menu T3 (Оружие/Броня/Медицина/Утилиты), а не gate screen
+        // для крафта самого верстака. Это превращает workbenchProfessional callback
+        // в two-mode dispatcher: pre-build → requirements / post-build → craft menu.
+        $existingWorkbench = $this->craftedItemsModel->where('name_eng', 'ProfessionalWorkbench')->first();
+        if (is_array($existingWorkbench) && isset($existingWorkbench['id'])) {
+            $log = $this->craftedItemsLogModel
+                ->where('character_id', $characterId)
+                ->where('crafted_item_id', $existingWorkbench['id'])
+                ->first();
+            $haveQtyRaw = is_array($log) && isset($log['quantity']) ? $log['quantity'] : 0;
+            $haveQty    = is_numeric($haveQtyRaw) ? (int) $haveQtyRaw : 0;
+            if ($haveQty > 0) {
+                return $this->renderCraftMenu($chatId);
+            }
+        }
+
         // Live-tunable gates.
         $levelRequired = (int) $this->gameSettings->get('tier3.workbench.character_level_required', 20);
         $durationHours = (int) $this->gameSettings->get('tier3.workbench.craft_duration_hours', 8);
@@ -217,6 +234,44 @@ class WorkbenchProfessionalAction extends BaseAction
             'caption'      => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $inlineKeyboard]),
+        ]);
+    }
+
+    /**
+     * S17 (v0.51.199) — meню T3 крафта после того как чар построил верстак.
+     * Оружие T3 живое (S17), остальные категории (Armor/Medical/Utility) ждут S18-S20.
+     */
+    private function renderCraftMenu(int $chatId): ServerResponse
+    {
+        $text = "*🛠️ Профессиональный верстак (T3) — Готов*\n\n"
+            . "Тяжёлый верстак собран, тиски разведены, паяльник греется. "
+            . "Выбирай раздел для крафта.\n\n"
+            . "⚔️ *Оружие* — 5 рецептов T3 (S17)\n"
+            . "🛡 *Броня* — в работе (S18)\n"
+            . "💊 *Медицина* — в работе (S19)\n"
+            . "🔧 *Утилиты* — в работе (S20)\n";
+
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '⚔️ Оружие T3', 'callback_data' => 'craftWeaponsT3Select'],
+                ],
+                [
+                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                    ['text' => '🎒 Инвентарь',  'callback_data' => 'inventory'],
+                ],
+            ],
+        ];
+
+        $imagePath = base_url('uploads/telegram/craft/professional_workbench.jpg');
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
+            'chat_id'      => $chatId,
+            'photo'        => Request::encodeFile($imagePath),
+            'caption'      => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
         ]);
     }
 }
