@@ -16183,15 +16183,21 @@ parameters:
 			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
 
 		-
+			message: '#^Cannot cast bool\|float\|int\|object\|string\|null to int\.$#'
+			identifier: cast.int
+			count: 1
+			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
+
+		-
 			message: '#^Cannot cast mixed to float\.$#'
 			identifier: cast.double
-			count: 5
+			count: 7
 			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
 
 		-
 			message: '#^Cannot cast mixed to int\.$#'
 			identifier: cast.int
-			count: 7
+			count: 10
 			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
 
 		-

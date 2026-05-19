@@ -181,6 +181,11 @@ class Worker extends Controller
         'craftIonDestabilizer'      => 'generic_craft',
         'craftFlamethrowerAid'      => 'generic_craft',
         'craftExoRailgunBehemoth'   => 'generic_craft',
+        // S18 (v0.51.200) — 4 T3 armor crafts (output_type=outfit, characters_outfits).
+        'craftTacticalArmorSuit'    => 'generic_craft',
+        'craftExoskeletonStrekoza'  => 'generic_craft',
+        'craftTitanPowerArmor'      => 'generic_craft',
+        'craftTeslaShardArmor'      => 'generic_craft',
         // Generic building handler — покриває 12 task.name'ів через Buildings config.
         'buildingManualPump'             => 'generic_building',
         'buildBlastFurnace'              => 'generic_building',
@@ -282,6 +287,11 @@ class Worker extends Controller
         'craftIonDestabilizer'      => 'Craft\GenericCraftCompletionHandler',
         'craftFlamethrowerAid'      => 'Craft\GenericCraftCompletionHandler',
         'craftExoRailgunBehemoth'   => 'Craft\GenericCraftCompletionHandler',
+        // S18 (v0.51.200) — 4 T3 armor (output_type=outfit dispatch на characters_outfits).
+        'craftTacticalArmorSuit'    => 'Craft\GenericCraftCompletionHandler',
+        'craftExoskeletonStrekoza'  => 'Craft\GenericCraftCompletionHandler',
+        'craftTitanPowerArmor'      => 'Craft\GenericCraftCompletionHandler',
+        'craftTeslaShardArmor'      => 'Craft\GenericCraftCompletionHandler',
     ];
 
     protected function getHandlerClassName($taskName, ?string $explicitHandlerKey = null)

@@ -247,7 +247,7 @@ class WorkbenchProfessionalAction extends BaseAction
             . "Тяжёлый верстак собран, тиски разведены, паяльник греется. "
             . "Выбирай раздел для крафта.\n\n"
             . "⚔️ *Оружие* — 5 рецептов T3 (S17)\n"
-            . "🛡 *Броня* — в работе (S18)\n"
+            . "🛡 *Броня* — 4 рецепта T3 (S18)\n"
             . "💊 *Медицина* — в работе (S19)\n"
             . "🔧 *Утилиты* — в работе (S20)\n";
 
@@ -255,6 +255,7 @@ class WorkbenchProfessionalAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '⚔️ Оружие T3', 'callback_data' => 'craftWeaponsT3Select'],
+                    ['text' => '🛡 Броня T3',   'callback_data' => 'craftArmorT3Select'],
                 ],
                 [
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
