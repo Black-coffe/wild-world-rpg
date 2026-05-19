@@ -1017,6 +1017,188 @@ class CraftRecipes extends BaseConfig
             'image_completed'                 => 'uploads/telegram/craft/professional_workbench.jpg',
             'craft_again_callback'            => 'genericCraft_ProfessionalWorkbench_1',
         ],
+
+        // ============================================================
+        // S17 (v0.51.199) — T3 weapons (ADR-026, ROADMAP-CRAFT Фаза 4 2/5).
+        //
+        // 5 craft-рецептов под существующие weapons (audit-finding: 20 weapons
+        // L1-L26 уже в БД; реальный gap — 16 lootable без craft option, не «нет
+        // L20+ контента»). Gating через recipe.required_crafted_items —
+        // ProfessionalWorkbench у чара в crafted_items_log (S17 schema extension).
+        //
+        // Live-tunable длительности через GameSettings:
+        //   tier3.weapons.<key>.craft_duration_hours
+        // (см. миграция S17SeedT3WeaponGameSettings).
+        //
+        // Reuse: 4 T2 weapons (MetalSpear/PipeGun/EnhancedBat/CrossbowMk1)
+        // pattern; weapon_name_en MATCHES existing weapons.name_en — completion
+        // handler пишет в characters_weapons, добавляя качество.
+        // ============================================================
+
+        'GaussPistol' => [
+            'task_name'                     => 'craftGaussPistol',
+            'output_type'                   => 'weapon',
+            'weapon_name_en'                => 'GaussPistol',
+            'weapon_slot'                   => 'hand',
+            'required_strength'             => 5,
+            'required_level'                => 16,
+            'gold_required'                 => 5000,
+            'resources'                     => [
+                'Редкие металлы'           => 8,
+                'Доколлапсная электроника' => 1,
+                'Промышленный пластик'     => 2,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 3,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.weapons.gauss_pistol.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/gauss_pistol.jpg',
+            'start_caption_name'            => '🔫 *Гаусс-пистолет (T3)*',
+            'info_callback'                 => 'craftPreviewT3_GaussPistol',
+            'item_name_eng'                 => 'GaussPistol',
+            'item_name_rus'                 => 'Гаусс-пистолет',
+            'icon_emoji'                    => '🔫',
+            'zone_emoji'                    => '🏚️',
+            'zone_name'                     => 'база',
+            'strength_bonus'                => 0.03,
+            'agility_bonus'                 => 0.02,
+            'image_completed'               => 'uploads/telegram/craft/professional/gauss_pistol.jpg',
+            'craft_again_callback'          => 'genericCraft_GaussPistol_1',
+        ],
+
+        'RailCarbineVikhr' => [
+            'task_name'                     => 'craftRailCarbineVikhr',
+            'output_type'                   => 'weapon',
+            'weapon_name_en'                => 'RailCarbineVikhr',
+            'weapon_slot'                   => 'twohand',
+            'required_strength'             => 8,
+            'required_level'                => 18,
+            'gold_required'                 => 10000,
+            'resources'                     => [
+                'Редкие металлы'           => 12,
+                'Доколлапсная электроника' => 2,
+                'Промышленный пластик'     => 3,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 5,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.weapons.rail_carbine_vikhr.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/rail_carbine_vikhr.jpg',
+            'start_caption_name'            => '🎯 *Рельсотрон-карабин «Вихрь» (T3)*',
+            'info_callback'                 => 'craftPreviewT3_RailCarbineVikhr',
+            'item_name_eng'                 => 'RailCarbineVikhr',
+            'item_name_rus'                 => 'Рельсотрон-карабин «Вихрь»',
+            'icon_emoji'                    => '🎯',
+            'zone_emoji'                    => '🏚️',
+            'zone_name'                     => 'база',
+            'strength_bonus'                => 0.04,
+            'agility_bonus'                 => 0.03,
+            'image_completed'               => 'uploads/telegram/craft/professional/rail_carbine_vikhr.jpg',
+            'craft_again_callback'          => 'genericCraft_RailCarbineVikhr_1',
+        ],
+
+        'IonDestabilizer' => [
+            'task_name'                     => 'craftIonDestabilizer',
+            'output_type'                   => 'weapon',
+            'weapon_name_en'                => 'IonDestabilizer',
+            'weapon_slot'                   => 'twohand',
+            'required_strength'             => 6,
+            'required_level'                => 20,
+            'gold_required'                 => 20000,
+            'resources'                     => [
+                'Редкие металлы'           => 15,
+                'Доколлапсная электроника' => 4,
+                'Промышленный пластик'     => 4,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 8,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.weapons.ion_destabilizer.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/ion_destabilizer.jpg',
+            'start_caption_name'            => '⚡ *Ион-дестабилизатор (T3)*',
+            'info_callback'                 => 'craftPreviewT3_IonDestabilizer',
+            'item_name_eng'                 => 'IonDestabilizer',
+            'item_name_rus'                 => 'Ион-дестабилизатор',
+            'icon_emoji'                    => '⚡',
+            'zone_emoji'                    => '🏚️',
+            'zone_name'                     => 'база',
+            'strength_bonus'                => 0.04,
+            'agility_bonus'                 => 0.04,
+            'image_completed'               => 'uploads/telegram/craft/professional/ion_destabilizer.jpg',
+            'craft_again_callback'          => 'genericCraft_IonDestabilizer_1',
+        ],
+
+        'FlamethrowerAid' => [
+            'task_name'                     => 'craftFlamethrowerAid',
+            'output_type'                   => 'weapon',
+            'weapon_name_en'                => 'FlamethrowerAid',
+            'weapon_slot'                   => 'twohand',
+            'required_strength'             => 10,
+            'required_level'                => 20,
+            'gold_required'                 => 15000,
+            'resources'                     => [
+                'Редкие металлы'           => 18,
+                'Доколлапсная электроника' => 3,
+                'Промышленный пластик'     => 6,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 6,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.weapons.flamethrower_aid.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/flamethrower_aid.jpg',
+            'start_caption_name'            => '🔥 *Огнемёт-«Помощь» (T3)*',
+            'info_callback'                 => 'craftPreviewT3_FlamethrowerAid',
+            'item_name_eng'                 => 'FlamethrowerAid',
+            'item_name_rus'                 => 'Огнемёт-«Помощь»',
+            'icon_emoji'                    => '🔥',
+            'zone_emoji'                    => '🏚️',
+            'zone_name'                     => 'база',
+            'strength_bonus'                => 0.05,
+            'agility_bonus'                 => 0.02,
+            'image_completed'               => 'uploads/telegram/craft/professional/flamethrower_aid.jpg',
+            'craft_again_callback'          => 'genericCraft_FlamethrowerAid_1',
+        ],
+
+        'ExoRailgunBehemoth' => [
+            'task_name'                     => 'craftExoRailgunBehemoth',
+            'output_type'                   => 'weapon',
+            'weapon_name_en'                => 'ExoRailgunBehemoth',
+            'weapon_slot'                   => 'twohand',
+            'required_strength'             => 15,
+            'required_level'                => 24,
+            'gold_required'                 => 35000,
+            'resources'                     => [
+                'Редкие металлы'           => 25,
+                'Доколлапсная электроника' => 6,
+                'Промышленный пластик'     => 8,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 12,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.weapons.exo_railgun_behemoth.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/exo_railgun_behemoth.jpg',
+            'start_caption_name'            => '🚀 *Экзо-рельсотрон «Бегемот» (T3)*',
+            'info_callback'                 => 'craftPreviewT3_ExoRailgunBehemoth',
+            'item_name_eng'                 => 'ExoRailgunBehemoth',
+            'item_name_rus'                 => 'Экзо-рельсотрон «Бегемот»',
+            'icon_emoji'                    => '🚀',
+            'zone_emoji'                    => '🏚️',
+            'zone_name'                     => 'база',
+            'strength_bonus'                => 0.06,
+            'agility_bonus'                 => 0.03,
+            'image_completed'               => 'uploads/telegram/craft/professional/exo_railgun_behemoth.jpg',
+            'craft_again_callback'          => 'genericCraft_ExoRailgunBehemoth_1',
+        ],
     ];
 
     /**

@@ -145,7 +145,9 @@ class CallbackRoutes extends BaseConfig
         'charcoalBriquettes'              => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\CharcoalBriquettes1Action::class,
         'WorkbenchChoice'                 => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Workbench\WorkbenchCraft1Select::class,
         'workbenchOne'                    => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Workbench\WorkbenchOneAction::class,
-        'workbenchProfessional'           => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Workbench\WorkbenchProfessionalAction::class, // S16 (v0.51.198) — T3 verstack info screen
+        'workbenchProfessional'           => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Workbench\WorkbenchProfessionalAction::class, // S16 (v0.51.198) — T3 verstack info screen; S17 dual-mode: post-build → T3 craft menu
+        // S17 (v0.51.199) — T3 weapons (5 рецептов, ADR-026 Фаза 4 2/5)
+        'craftWeaponsT3Select'            => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional\WeaponsCraftT3Select::class,
         'glassBags'                       => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\GlassBagsCraft1Action::class,
         'electronicComponents'            => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\ElectronicComponentsCraft1Action::class,
         'wiring'                          => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\WiringCraft1Action::class,
@@ -241,6 +243,9 @@ class CallbackRoutes extends BaseConfig
         'sellResource' => \App\Controllers\Telegram\Commands\Actions\Sell\SellResourceAction::class,
         // v0.51.129 (community idea #1) — cancel queued craft з refund ресурсів
         'cancelQueued' => \App\Controllers\Telegram\Commands\Actions\Craft\CancelQueuedCraftAction::class,
+        // S17 (v0.51.199) — generic preview для T3 weapons. Callback: `craftPreviewT3_<RecipeKey>`.
+        // 1 generic Action на 5 recipes (DRY pattern, recipe lookup из CraftRecipes).
+        'craftPreviewT3' => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional\WeaponRecipePreviewT3Action::class,
     ];
 
     /**
