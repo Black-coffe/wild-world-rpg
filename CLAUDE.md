@@ -27,6 +27,52 @@ This is a Telegram-based MMORPG game built with CodeIgniter 4 and the Longman Te
 
 ---
 
+## 🌐 SMOKE TIERS — 3 рівня тестування (зафіксовано 2026-05-19)
+
+При тестуванні фічі / багфіксу вибирай **відповідний tier** (можна комбінувати):
+
+### Tier 1 — Code & API (automated)
+
+- `composer test` (PHPUnit) — unit + database tests, baseline gate
+- `vendor/bin/phpstan` (L9) — static analysis
+- `curl <route>` — HTTP smoke для view changes (memory `feedback_view_rendering_smoke`)
+- SSH `php spark <command>` на testbot — для ad-hoc CLI smoke
+- SQL UPDATE на testbot — для DB state manipulation (memory `feedback_testbot_db_manipulation_allowed`)
+
+### Tier 2 — Admin UI (semi-automated через MCP Chrome під admin-account'ом)
+
+- `mcp__chrome-devtools__*` для `/admin/*` форм / dashboards / settings panel'ів
+- Авторизація через Andrei admin login (раз авторизувався — сесія тримається)
+- Покриває: admin CRUD, form rendering, validation, dropdown panels (handler_options)
+- Доказ: F5 Phase D forms unification (12/12 endpoints через Chrome MCP), S5a/S5b admin UI smoke
+
+### Tier 3 — Real Game (manual через MCP Chrome + Telegram Web з 2-го аккаунта)
+
+**Обов'язково для:** видимих UX-changes (caption / button label / photo / multistep dialog /
+edit-in-place / callback flow / forceReply / typing delay).
+
+**Workflow:**
+1. **Запитати user'а** дозвіл: «Запустити MCP Chrome + Telegram Web на 2-му аккаунті?»
+2. Відкрити `mcp__chrome-devtools__new_page` на `https://web.telegram.org/k/`.
+3. Попросити user'а **підтвердити вхід на телефоні** (Telegram code prompt прийде на основний аккаунт).
+4. **Тримати сесію активною** всю роботу — не закривати, не робити `close_page`.
+5. **Між smoke-ітераціями**: `select_page` → `take_snapshot` → `click` / `type_text` / `wait_for` → `take_screenshot`.
+6. Тест-чар на testbot: `telegram_user_id=25` (`aviad_echo`); перевірити поточний id через
+   `SELECT id, name, level FROM characters WHERE telegram_user_id=25`.
+7. **На проді — НЕ робити real-game smoke** (живі гравці). Тільки якщо user явно дозволив.
+
+**Чому Tier 3 потрібен попри Tier 1-2:** unit + admin Chrome НЕ ловлять:
+- runtime caption/button label mismatches у реальному Telegram render
+- edit-in-place vs sendNew регресії (memory `feedback_view_rendering_smoke` ← але це HTTP, не Telegram)
+- callback button flow correctness
+- photo render edge cases (caption > 1024, broken img_path, disable_media flag)
+- markdown escaping у Telegram (S5b/Sell-#6 bug history доказ)
+- forceReply multistep UX
+
+Деталі та коли пропускати — memory `feedback_mcp_chrome_telegram_real_game_smoke`.
+
+---
+
 ## 🗂️ ОБЯЗАТЕЛЬНОЕ ЧТЕНИЕ В НАЧАЛЕ КАЖДОЙ СЕССИИ
 
 **Перед началом любой задачи Claude обязан:**
