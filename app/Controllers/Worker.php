@@ -173,6 +173,7 @@ class Worker extends Controller
         'craftPipeGun'              => 'generic_craft',
         'craftWiredBat'             => 'generic_craft',
         'craftCrossbowMk1'          => 'generic_craft',
+        'craftProfessionalWorkbench'=> 'generic_craft',  // S16 (v0.51.198) — T3 verstack, ADR-026
         // Generic building handler — покриває 12 task.name'ів через Buildings config.
         'buildingManualPump'             => 'generic_building',
         'buildBlastFurnace'              => 'generic_building',
@@ -267,6 +268,7 @@ class Worker extends Controller
         'craftPipeGun'              => 'Craft\GenericCraftCompletionHandler',
         'craftWiredBat'             => 'Craft\GenericCraftCompletionHandler',
         'craftCrossbowMk1'          => 'Craft\GenericCraftCompletionHandler',
+        'craftProfessionalWorkbench'=> 'Craft\GenericCraftCompletionHandler', // S16 (v0.51.198) — T3 verstack
     ];
 
     protected function getHandlerClassName($taskName, ?string $explicitHandlerKey = null)

@@ -12,6 +12,7 @@ use App\Models\ClaimedCellModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Services\BuildingEffects\BuildingEffectsService;
+use App\Services\GameSettings\GameSettingsService;
 use Config\CraftRecipes;
 use Config\GameBalance;
 use DateInterval;
@@ -69,6 +70,7 @@ class GenericCraftActionStart extends BaseAction
     private int    $quantity  = 1;
     private GameBalance $cfg;
     private BuildingEffectsService $buildingEffects;
+    private GameSettingsService $gameSettings;
 
     public function __construct($callbackQuery)
     {
@@ -84,6 +86,7 @@ class GenericCraftActionStart extends BaseAction
             $this->characterBuildingModel,
             $this->buildingModel,
         );
+        $this->gameSettings           = new GameSettingsService();
 
         // genericCraft_<RecipeKey>_<qty>
         $data  = $callbackQuery->getData();
@@ -161,6 +164,10 @@ class GenericCraftActionStart extends BaseAction
         }
 
         // F3.B8: проверка наличия требуемых построек (RoboticsWorkshop, Workshop и т.д.).
+        // S16 (ADR-026): дополнительно — level-aware check через recipe.required_building_levels.
+        $requiredBuildingLevels = (isset($recipe['required_building_levels']) && is_array($recipe['required_building_levels']))
+            ? $recipe['required_building_levels']
+            : [];
         foreach ($recipe['required_buildings'] ?? [] as $buildingNameEn) {
             $building = $this->buildingModel->where('name_en', $buildingNameEn)->first();
             if (!$building) {
@@ -175,6 +182,26 @@ class GenericCraftActionStart extends BaseAction
                 $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", 'missing_building', ['building' => $buildingNameEn]);
                 $rusName = $building['name_rus'] ?? $buildingNameEn;
                 return $this->sendError("У вас нет необходимого здания: *{$rusName}*. Постройте его, чтобы крафтить.");
+            }
+            // S16: level-aware gate (новое поле). $buildingNameEn is mixed (recipe value);
+            // is_string() narrow для безопасного offset lookup в $requiredBuildingLevels.
+            $needLevelRaw = is_string($buildingNameEn) && isset($requiredBuildingLevels[$buildingNameEn])
+                ? $requiredBuildingLevels[$buildingNameEn]
+                : 0;
+            $needLevel    = is_numeric($needLevelRaw) ? (int) $needLevelRaw : 0;
+            if ($needLevel > 0) {
+                $haveLevelRaw = is_array($hasBuilding) && isset($hasBuilding['level']) ? $hasBuilding['level'] : 0;
+                $haveLevel    = is_numeric($haveLevelRaw) ? (int) $haveLevelRaw : 0;
+                if ($haveLevel < $needLevel) {
+                    $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", 'insufficient_building_level', [
+                        'building' => $buildingNameEn,
+                        'need'     => $needLevel,
+                        'have'     => $haveLevel,
+                    ]);
+                    $rusRaw = is_array($building) && isset($building['name_rus']) ? $building['name_rus'] : null;
+                    $rusNameForLevel = is_string($rusRaw) && $rusRaw !== '' ? $rusRaw : $buildingNameEn;
+                    return $this->sendError("Здание *{$rusNameForLevel}* должно быть уровня *{$needLevel}* (сейчас *{$haveLevel}*). Прокачай и возвращайся.");
+                }
             }
         }
 
@@ -191,10 +218,23 @@ class GenericCraftActionStart extends BaseAction
 
         // F3.B9: проверка stat-требований персонажа (для weapons).
         // Поля опциональны; для B5-B8 рецептов = 0 (skip check).
+        //
+        // S16 (ADR-026): если recipe.required_level_setting_key задан — берём
+        // значение из GameSettings (admin-tunable), fallback на recipe.required_level.
+        $levelRequired = (int) ($recipe['required_level'] ?? 0);
+        $levelSettingKey = isset($recipe['required_level_setting_key']) && is_string($recipe['required_level_setting_key'])
+            ? $recipe['required_level_setting_key']
+            : null;
+        if ($levelSettingKey !== null) {
+            $tuned = $this->gameSettings->get($levelSettingKey, $levelRequired);
+            if (is_numeric($tuned)) {
+                $levelRequired = (int) $tuned;
+            }
+        }
         $statChecks = [
             'strength' => (int) ($recipe['required_strength'] ?? 0),
             'agility'  => (int) ($recipe['required_agility']  ?? 0),
-            'level'    => (int) ($recipe['required_level']    ?? 0),
+            'level'    => $levelRequired,
         ];
         foreach ($statChecks as $stat => $needed) {
             if ($needed <= 0) {
@@ -398,6 +438,21 @@ class GenericCraftActionStart extends BaseAction
 
         $minD = (int) $taskRow['min_duration'];
         $maxD = (int) $taskRow['max_duration'];
+
+        // S16 (ADR-026): live-tunable duration override через GameSettings.
+        // recipe.duration_override_setting_key хранит ЧАСЫ; конвертируем в минуты,
+        // используем как min=max (overriding tasks.min_duration/max_duration).
+        $durationSettingKey = isset($recipe['duration_override_setting_key']) && is_string($recipe['duration_override_setting_key'])
+            ? $recipe['duration_override_setting_key']
+            : null;
+        if ($durationSettingKey !== null) {
+            $tunedHours = $this->gameSettings->get($durationSettingKey, null);
+            if (is_numeric($tunedHours) && (int) $tunedHours > 0) {
+                $minutes = (int) $tunedHours * 60;
+                $minD = $minutes;
+                $maxD = $minutes;
+            }
+        }
 
         $adjusted = $minD + ($maxD - $minD) * (1 - $norm);
         $baseDuration = max($minD, min($maxD, (int) round($adjusted)));
