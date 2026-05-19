@@ -300,4 +300,68 @@ final class CraftRecipesTest extends CIUnitTestCase
         $this->assertSame('twohand', $recipe['weapon_slot']);
         $this->assertSame(10, $recipe['required_agility'] ?? null);
     }
+
+    /**
+     * S16 (v0.51.198) — Tier 3 Professional Workbench registered (ADR-026).
+     * Анти-drift guard: рецепт T3 верстака — gate-объект для S17-S20 T3 крафтов.
+     */
+    public function testS16ProfessionalWorkbenchRecipeRegistered(): void
+    {
+        $recipe = $this->cfg->get('ProfessionalWorkbench');
+        $this->assertNotNull($recipe, 'ProfessionalWorkbench recipe missing');
+        $this->assertSame('craftProfessionalWorkbench', $recipe['task_name']);
+        $this->assertSame('ProfessionalWorkbench', $recipe['item_name_eng']);
+        $this->assertSame('Профессиональный верстак', $recipe['item_name_rus']);
+        $this->assertTrue($recipe['requires_base'] ?? false);
+        $this->assertSame(50000, $recipe['gold_required'] ?? null);
+    }
+
+    /**
+     * S16 — gate: L20 character + BlastFurnace L3 + Laboratory L3.
+     */
+    public function testS16ProfessionalWorkbenchHasLevelAndBuildingGates(): void
+    {
+        $recipe = $this->cfg->get('ProfessionalWorkbench');
+        $this->assertSame(20, $recipe['required_level'] ?? null, 'fallback required_level must be 20 (per ADR-026)');
+        $this->assertSame(['BlastFurnace', 'Laboratory'], $recipe['required_buildings'] ?? null);
+        $this->assertSame(
+            ['BlastFurnace' => 3, 'Laboratory' => 3],
+            $recipe['required_building_levels'] ?? null,
+            'L3 для обоих gate-зданий — S16 hard requirement'
+        );
+    }
+
+    /**
+     * S16 (ADR-026 wire-up) — recipe declares GameSettings keys для live-tuning.
+     * Анти-drift: удаление этих полей убирает admin-tunable behavior.
+     */
+    public function testS16ProfessionalWorkbenchDeclaresGameSettingsKeys(): void
+    {
+        $recipe = $this->cfg->get('ProfessionalWorkbench');
+        $this->assertSame(
+            'tier3.workbench.character_level_required',
+            $recipe['required_level_setting_key'] ?? null,
+            'recipe must declare GameSettings key for level (ADR-026)'
+        );
+        $this->assertSame(
+            'tier3.workbench.craft_duration_hours',
+            $recipe['duration_override_setting_key'] ?? null,
+            'recipe must declare GameSettings key for duration (ADR-026)'
+        );
+    }
+
+    /**
+     * S16 — resource requirements (T3-grade rare resources from S10).
+     */
+    public function testS16ProfessionalWorkbenchRequiresRareT3Resources(): void
+    {
+        $recipe = $this->cfg->get('ProfessionalWorkbench');
+        $resources = $recipe['resources'] ?? [];
+        $this->assertSame(30, $resources['Редкие металлы'] ?? null);
+        $this->assertSame(3, $resources['Доколлапсная электроника'] ?? null);
+        $this->assertSame(5, $resources['Промышленный пластик'] ?? null);
+
+        $components = $recipe['crafted_items'] ?? [];
+        $this->assertSame(20, $components['wiring'] ?? null);
+    }
 }

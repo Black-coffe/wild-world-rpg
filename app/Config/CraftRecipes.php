@@ -966,6 +966,57 @@ class CraftRecipes extends BaseConfig
             'image_completed'      => 'uploads/telegram/craft/standard/crossbow_mk1.jpg',
             'craft_again_callback' => 'genericCraft_CrossbowMk1_1',
         ],
+
+        // ============================================================
+        // S16 (v0.51.198) — Tier 3 Professional Workbench (ADR-026).
+        // Открывает T3-крафты (S17-S20). Gate: L20, BlastFurnace L3, Lab L3.
+        // Длительность и required_level — live-tunable через GameSettings:
+        //   - tier3.workbench.character_level_required → required_level_setting_key
+        //   - tier3.workbench.craft_duration_hours    → duration_override_setting_key
+        // GenericCraftActionStart читает оба ключа (ADR-026 wire-up).
+        // ============================================================
+        'ProfessionalWorkbench' => [
+            'task_name'                       => 'craftProfessionalWorkbench',
+            'resources'                       => [
+                'Редкие металлы'           => 30,
+                'Доколлапсная электроника' => 3,
+                'Промышленный пластик'     => 5,
+            ],
+            'crafted_items'                   => [
+                'wiring' => 20,
+            ],
+            'gold_required'                   => 50000,
+            'requires_base'                   => true,
+            'required_buildings'              => ['BlastFurnace', 'Laboratory'],
+            // S16 (ADR-026): расширение схемы — level-aware building requirement.
+            // GenericCraftActionStart валидирует character_buildings.level >= N.
+            'required_building_levels'        => [
+                'BlastFurnace' => 3,
+                'Laboratory'   => 3,
+            ],
+            // S16 (ADR-026): live-tunable level gate через GameSettings.
+            // Fallback на static required_level если ключ отсутствует в БД.
+            'required_level'                  => 20,
+            'required_level_setting_key'      => 'tier3.workbench.character_level_required',
+            // S16 (ADR-026): live-tunable duration override через GameSettings.
+            // GenericCraftActionStart::calculateCraftingDuration читает ключ
+            // (часы), конвертирует в минуты (N*60), использует как min=max
+            // вместо tasks.min_duration/max_duration.
+            'duration_override_setting_key'   => 'tier3.workbench.craft_duration_hours',
+            'image_in_progress'               => 'uploads/telegram/craft/professional_workbench.jpg',
+            'start_caption_name'              => '🛠️ *Профессиональный верстак (T3)*',
+            'info_callback'                   => 'workbenchProfessional',
+
+            'item_name_eng'                   => 'ProfessionalWorkbench',
+            'item_name_rus'                   => 'Профессиональный верстак',
+            'icon_emoji'                      => '🛠️',
+            'zone_emoji'                      => '🏚️',
+            'zone_name'                       => 'база',
+            'agility_bonus'                   => 0.05,
+            'intellect_bonus'                 => 0.05,
+            'image_completed'                 => 'uploads/telegram/craft/professional_workbench.jpg',
+            'craft_again_callback'            => 'genericCraft_ProfessionalWorkbench_1',
+        ],
     ];
 
     /**
