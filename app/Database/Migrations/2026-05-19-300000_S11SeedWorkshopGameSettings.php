@@ -41,7 +41,7 @@ class S11SeedWorkshopGameSettings extends Migration
                 'default_value_text' => '0.90',
                 'rationale_text'     => '-10% craft time на L2 — ощутимая, но не разорительная награда за первый upgrade (50k gold, character_level≥1). Контракт «каждый уровень даёт что-то заметное» без power-creep.',
                 'effect_text'        => 'Множитель craft duration в GenericCraftActionStart::calculateCraftingDuration() для всех recipe (любая task через task_id). Применяется ПОСЛЕ char-stats формулы. Если у char Workshop L2 → итоговая длительность = round(duration_after_stats × 0.90).',
-                'above_effect_text'  => 'При 0.95 — экономия ~5% (~1 мин на 20-минутный craft), визуально незаметно, downgrade'ит «ощущение апгрейда». При 0.99 — мёртвая фича, игроки жалуются «зачем тратил 50k золота».',
+                'above_effect_text'  => 'При 0.95 — экономия ~5% (~1 мин на 20-минутный craft), визуально незаметно, ослабляет «ощущение апгрейда». При 0.99 — мёртвая фича, игроки жалуются «зачем тратил 50k золота».',
                 'below_effect_text'  => 'При 0.70 — L2 уже сравним с ROADMAP-планируемым L3 (-25%), L3 теряет смысл, ломает progression curve. При 0.50 — L2 апгрейд = must-have, не «выбор», игроки чувствуют принуждение.',
                 'recommended_min'    => '0.80',
                 'recommended_max'    => '0.95',
