@@ -47,6 +47,18 @@
 
 **Прод-теги дня 2026-05-17 (foundation marathon):** `v0.51.178` foundation → `v0.51.179` defensive thumbs → `v0.51.180` roadmap v1 → `v0.51.181` decisions locked → `v0.51.182` constitutional admin-tunable rule → **v0.51.183 (S1)** → **v0.51.184 (S2)** → **v0.51.185 (S3)** → **v0.51.186 (S4)** → **v0.51.187 (S5a)** → **v0.51.188 (S5b)**. **11 прод-релизов в день. Фаза 1 (Tech Foundation) полностью закрыта.**
 
+**Прод-теги дня 2026-05-18 (Resource expansion):** **v0.51.189 (S7)** → **v0.51.190 (S8)** → **v0.51.191 (S9)**. S6 — docs-only (без тега). 3 прод-релиза + 1 docs-fix.
+
+**Прод-теги дня 2026-05-19 (BuildingEffects marathon):** **v0.51.192 (S10)** → **v0.51.193 (S11)** → **v0.51.194 (S12)** → **v0.51.195 (S13)**. **4 прод-релиза в день. Фаза 2 (Resource Expansion, S6-S10) полностью закрыта. Фаза 3 (Building progression, S11-S15) на 3/5 — остались S14 (Robotics 🟠) + S15 (TeleportCenter).**
+
+**Сводка по фазам (на 2026-05-19 EOD):**
+- ✅ **Фаза 1 (S1-S5b)** — Tech foundation, GameSettings framework, repair UI. Closed v0.51.188.
+- ✅ **Фаза 2 (S6-S10)** — Resource expansion, biome mapping fix, anti-drift, cron cleanup, rare drops. Closed v0.51.192.
+- ⏳ **Фаза 3 (S11-S15)** — Building progression. 3/5 done (S11/S12/S13 — Workshop/BlastFurnace/Lab+Greenhouse через `BuildingEffectsService`). Остались S14 (Robotics+robots T2/T3) + S15 (TeleportCenter L2/L3).
+- ⬜ **Фаза 4 (S16-S20)** — T3 Workbench (рецепты + 4 крафта по тиру). Зависит от S12+S10 (готовы).
+- ⬜ **Фаза 5 (S21-S25)** — Endgame faction content (Bunker / Technopark / GhostCity / Island-Farm + faction-unique weapons).
+- ⬜ **Фаза 6 (S26-S30)** — Polish + ROADMAP-vNext (defensive structures, queue UI, seasonal rotation, content-pass, admin tools).
+
 **Ключевой урок первых 13 сессий**: ROADMAP описание устаревает к моменту исполнения (**12 из 13 сессий S1-S13 имели drift** с реальным кодом). **Каждая сессия теперь начинается с audit'а реального состояния** перед follow-through. S5a — единственная «свежая» сессия с актуальным описанием. Радикальные drift'ы: S6 — миграция NOOP; S7 — `GatherService::getResourceRates()` не существует; S8 — recipes fake; **S9 — cron УЖЕ работал**; **S10 — `RareNodeService` дубликат F7.2**; **S11 — `CraftService::getCraftTime()` не существует**; **S12 — MetalFragments не требует BlastFurnace**; **S13 — Greenhouse УЖЕ wired** через per-level table (не нужно ничего создавать, лишь wrapper foundation), Laboratory dead string. Audit-first **mandatory**.
 
 ---
