@@ -13,15 +13,18 @@ class WorkbenchCraft1Select extends BaseAction
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
         $text = "*Ты в разделе 🔬 Верстаки!* 🏭\n\n"
-            . "Этот раздел для крафта одного из трех уникальных верстаков.\n\n"
+            . "Этот раздел для крафта верстаков разного тира.\n\n"
             . "_Выбирай нужный верстак и приступай к крафту_ 👇\n";
 
+        // S16 (v0.51.198): «Верстак 3» теперь маршрутизируется на
+        // WorkbenchProfessionalAction (T3, ADR-026). T2 entry — отдельный
+        // путь через `standardCraft` callback. Кнопка-заглушка `workbenchTwo`
+        // удалена (callback не имел handler'а).
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🔬 Верстак 1', 'callback_data' => 'workbenchOne'],
-                    ['text' => '🔬 Верстак 2', 'callback_data' => 'workbenchTwo'],
-                    ['text' => '🔬 Верстак 3', 'callback_data' => 'workbenchFree'],
+                    ['text' => '🔬 Верстак 1 (T1)', 'callback_data' => 'workbenchOne'],
+                    ['text' => '🛠️ Верстак 3 (T3)', 'callback_data' => 'workbenchProfessional'],
                 ],
             ]
         ];
