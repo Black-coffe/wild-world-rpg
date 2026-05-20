@@ -17,6 +17,7 @@
 | V5 | Seasonal images backfill (15 картинок) | ✅ SHIPPED | v0.51.216 | 2026-05-20 |
 | V4 | Seasonal-events tie-in (4 события 1:1) | ✅ SHIPPED | v0.51.217 | 2026-05-20 |
 | — | 🐛 hotfix: building/craft completion (character_id mixed→int, 7 хендлеров) | ✅ SHIPPED | v0.51.218 | 2026-05-20 |
+| V6 | Farming seed-cycle foundation — audit + ADR-033 (билд в след. сессию) | 🔶 ADR READY | — | 2026-05-20 |
 
 🏁 **ФАЗА 1 ЗАКРЫТА (V1-V5, 2026-05-20):** 20 рецептов × 4 сезона + 15 картинок + 4 сезонных события (Snowfall→winter / SpringFlood→spring / Dryness→summer / BerryBoom→autumn). Авто-ротация 21 день. Бонус: prod-хотфикс краша завершения построек/крафта (daily-log-review находка).
 
@@ -85,7 +86,7 @@ Framework S28 готов → нужен только контент. Кажды�
 
 ### 🌾 Фаза 2 — Farming & cooking foundation (P5/P10, lore-coherent)
 Greenhouse (S13b) → углубление + новая ось «еда».
-- **V6** — Seed-cycle / crop rotation (foundation-сервис, GameSettings cadence).
+- **V6** — Seed-cycle / crop rotation (foundation-сервис, GameSettings cadence). 🔶 **ADR-033 ГОТОВ** (2026-05-20): активная посадка СЛОЕМ поверх пассивной теплицы (0 регрессии), реюз `character_tasks` (type=planting), семена craftable+drop, простой rotation-бонус, 13 GameSettings, killswitch `farming.enabled`. 12-шаговый build-план в ADR. **Билд — отдельной сессией.**
 - **V7** — Harvest scheduling + урожай-качество (привязка к Greenhouse level S13).
 - **V8** — Campfire cooking (новый «верстак» Костёр уже в craft-tree enum) — рецепты еды.
 - **V9** — Food-buffs (temporary stat-бонусы от приготовленной еды; реюз GameSettings heal-pattern S19).
