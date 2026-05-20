@@ -31,6 +31,9 @@
                 <button class="btn btn-sm btn-soft-secondary" id="ct-collapse-all" type="button" title="Свернуть всё">
                     <i class="ri-contract-up-down-line"></i>
                 </button>
+                <a class="btn btn-sm btn-soft-success" href="<?= site_url('admin/craft-tree/export') ?>" title="Экспорт в CSV" download>
+                    <i class="ri-file-excel-2-line"></i>
+                </a>
             </div>
         </div>
 
