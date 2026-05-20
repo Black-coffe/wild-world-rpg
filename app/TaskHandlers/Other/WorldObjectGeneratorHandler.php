@@ -36,7 +36,7 @@ class WorldObjectGeneratorHandler extends BaseTaskHandler
      *
      * @var list<string>
      */
-    public const STRATEGIC_SPAWN_TYPES = ['Bunker', 'Technopark', 'GhostCity'];
+    public const STRATEGIC_SPAWN_TYPES = ['Bunker', 'Technopark', 'GhostCity', 'IslandFarm'];
 
     /**
      * Все name_en, для которых {@see generateObjectByType()} имеет рабочий
@@ -47,7 +47,7 @@ class WorldObjectGeneratorHandler extends BaseTaskHandler
      */
     public const SUPPORTED_SPAWN_TYPES = [
         'Abandoned truck', 'Toolkit', 'Closed warehouse',
-        'Bunker', 'Technopark', 'GhostCity',
+        'Bunker', 'Technopark', 'GhostCity', 'IslandFarm',
     ];
 
     protected $worldObjectModel;
@@ -135,12 +135,14 @@ class WorldObjectGeneratorHandler extends BaseTaskHandler
                 $this->generateClosedWarehouse($object, $addNewRowCount);
                 break;
 
-            // S21: strategic-объекты (Bunker / Technopark / GhostCity) —
-            // generic rare placer (без O(N) distanceCheck — иначе 15k+ toolkit'ов
-            // на проде превратят каждую попытку в перебор всех active-объектов).
+            // S21: strategic-объекты (Bunker / Technopark / GhostCity) +
+            // S24 IslandFarm (Фермеры) — generic rare placer (без O(N)
+            // distanceCheck — иначе 15k+ toolkit'ов на проде превратят каждую
+            // попытку в перебор всех active-объектов).
             case 'Bunker':
             case 'Technopark':
             case 'GhostCity':
+            case 'IslandFarm':
                 $this->generateStrategicObject($object, $addNewRowCount);
                 break;
 

@@ -50,6 +50,7 @@ class EndgameScoring extends BaseConfig
      * Bunker → Militari (Dominance)
      * Technopark → Engineers (ScientificBreakthrough)
      * GhostCity → Partisans (Anarchy)
+     * IslandFarm → Farmers (Evacuation) — S24
      *
      * @var array<string, int>
      */
@@ -57,6 +58,7 @@ class EndgameScoring extends BaseConfig
         'Bunker'     => 1,
         'Technopark' => 3,
         'GhostCity'  => 2,
+        'IslandFarm' => 4,
     ];
 
     /**

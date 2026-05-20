@@ -93,6 +93,7 @@ final class ObjectDiscoveryRegistryConsistencyTest extends CIUnitTestCase
             'Bunker'           => StrategicLootHandler::class,
             'Technopark'       => StrategicLootHandler::class,
             'GhostCity'        => StrategicLootHandler::class,
+            'IslandFarm'       => StrategicLootHandler::class,
         ];
         $keyMap = $this->objectHandlerKeyMap();
 
@@ -129,6 +130,7 @@ final class ObjectDiscoveryRegistryConsistencyTest extends CIUnitTestCase
             'Bunker'           => StrategicLootHandler::class,
             'Technopark'       => StrategicLootHandler::class,
             'GhostCity'        => StrategicLootHandler::class,
+            'IslandFarm'       => StrategicLootHandler::class,
         ];
 
         foreach ($samples as $nameEn => $expectedClass) {
