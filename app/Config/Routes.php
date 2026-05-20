@@ -109,6 +109,7 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     // Craft & Building tree visualisation (read-only)
     $routes->get('craft-tree', 'Admin\CraftTreeController::index');
     $routes->get('craft-tree/data', 'Admin\CraftTreeController::data');
+    $routes->get('craft-tree/export', 'Admin\CraftTreeController::export'); // S30 — CSV-экспорт
 
     // S5 (v0.51.187) — GameSettings live-tunable balance framework
     $routes->get('game-settings', 'Admin\GameSettingsController::index');

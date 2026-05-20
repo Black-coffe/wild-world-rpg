@@ -145,6 +145,97 @@ final class CraftTreeService
         ];
     }
 
+    /**
+     * S30 — заголовок CSV-экспорта craft-tree.
+     *
+     * @return list<string>
+     */
+    public function csvHeader(): array
+    {
+        return ['Тип', 'Группа', 'Тир/Уровень', 'Название', 'NameEn', 'Категория', 'Треб. уровень', 'Стоимость (золото)', 'Ингредиенты'];
+    }
+
+    /**
+     * S30 — плоские строки craft-tree (рецепты + постройки) для CSV. Все значения
+     * строки (CSV-friendly + PHPStan L9). Порядок колонок = csvHeader().
+     *
+     * @return list<list<string>>
+     */
+    public function buildCsvRows(): array
+    {
+        $tree = $this->buildTree();
+        $rows = [];
+
+        foreach ($tree['workbenches'] as $wb) {
+            $wbName  = self::toString($wb['name'] ?? '');
+            $tierRaw = self::toInt($wb['tier'] ?? 0);
+            $tier    = $tierRaw > 0 ? 'T' . $tierRaw : '—';
+            $dirs    = is_array($wb['directions'] ?? null) ? $wb['directions'] : [];
+            foreach ($dirs as $dir) {
+                if (! is_array($dir)) {
+                    continue;
+                }
+                $recipes = is_array($dir['recipes'] ?? null) ? $dir['recipes'] : [];
+                foreach ($recipes as $r) {
+                    if (! is_array($r)) {
+                        continue;
+                    }
+                    $rl = self::toNullableInt($r['requiredLevel'] ?? null);
+                    $tc = self::toNullableFloat($r['totalCost'] ?? null);
+                    $rows[] = [
+                        'рецепт',
+                        $wbName,
+                        $tier,
+                        self::toString($r['name'] ?? ''),
+                        self::toString($r['nameEn'] ?? ''),
+                        self::toString($r['type'] ?? ''),
+                        $rl !== null ? (string) $rl : '',
+                        $tc !== null ? (string) $tc : '',
+                        $this->ingredientsToCsvString($r['ingredients'] ?? null),
+                    ];
+                }
+            }
+        }
+
+        foreach ($tree['buildings'] as $b) {
+            $lvl = self::toNullableInt($b['level'] ?? null);
+            $rl  = self::toNullableInt($b['minCharacterLevel'] ?? null);
+            $tc  = self::toNullableFloat($b['totalCost'] ?? null);
+            $rows[] = [
+                'постройка',
+                self::toString($b['buildingType'] ?? ''),
+                $lvl !== null ? 'L' . $lvl : '—',
+                self::toString($b['name'] ?? ''),
+                self::toString($b['nameEn'] ?? ''),
+                'building',
+                $rl !== null ? (string) $rl : '',
+                $tc !== null ? (string) $tc : '',
+                $this->ingredientsToCsvString($b['ingredients'] ?? null),
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function ingredientsToCsvString(mixed $ingredients): string
+    {
+        if (! is_array($ingredients)) {
+            return '';
+        }
+        $parts = [];
+        foreach ($ingredients as $ing) {
+            if (! is_array($ing)) {
+                continue;
+            }
+            $name = self::toString($ing['name'] ?? '');
+            $qty  = self::toInt($ing['qty'] ?? 0);
+            if ($name !== '') {
+                $parts[] = "{$name}×{$qty}";
+            }
+        }
+        return implode('; ', $parts);
+    }
+
     private function primeCaches(): void
     {
         $this->resourcesById    = [];
@@ -652,6 +743,7 @@ final class CraftTreeService
             'farming'     => 'ri-plant-fill',
             'resource'    => 'ri-database-2-fill',
             'engineering' => 'ri-settings-3-fill',
+            'defensive'   => 'ri-shield-cross-fill',
             default       => 'ri-building-2-fill',
         };
     }
