@@ -262,6 +262,9 @@ class WorkbenchProfessionalAction extends BaseAction
                     ['text' => '🔧 Утилиты T3',  'callback_data' => 'craftUtilityT3Select'],
                 ],
                 [
+                    ['text' => '🎖 Фракционное оружие', 'callback_data' => 'craftFactionWeaponsSelect'],
+                ],
+                [
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь',  'callback_data' => 'inventory'],
                 ],
