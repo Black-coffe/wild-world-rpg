@@ -75,6 +75,50 @@ final class PvpRoundOrchestratorTest extends CIUnitTestCase
         $this->assertSame('Alice', $this->orch->determineInitiative($alice, $bob)['name']);
     }
 
+    // ---- determineInitiative + WatchTower bonus (S26b, ADR-031) ----
+
+    public function testInitiativeBonusFlipsToOwnerDefender(): void
+    {
+        $attacker = $this->ch('Attacker', 50, 60.0); // i = 60 + 25.5 = 85.5
+        $defender = $this->ch('Defender', 50, 55.0); // i = 55 + 25.5 = 80.5
+
+        // Без вышки — первым атакующий.
+        $this->assertSame('Attacker', $this->orch->determineInitiative($attacker, $defender)['name']);
+
+        // Вышка защитника (owner=defender), +8% → 80.5*1.08 = 86.94 > 85.5 → защитник первым.
+        $defense = ['owner_id' => (int) $defender['id'], 'initiative_bonus' => 0.08];
+        $this->assertSame('Defender', $this->orch->determineInitiative($attacker, $defender, $defense)['name']);
+    }
+
+    public function testInitiativeBonusNullIdenticalToNoArg(): void
+    {
+        // RNG-fence инвариант: defense=null = поведение без аргумента.
+        $a = $this->ch('A', 50, 80.0);
+        $b = $this->ch('B', 50, 50.0);
+        $this->assertSame(
+            $this->orch->determineInitiative($a, $b)['name'],
+            $this->orch->determineInitiative($a, $b, null)['name']
+        );
+    }
+
+    public function testInitiativeBonusIgnoredWhenOwnerNotParticipant(): void
+    {
+        // owner_id не совпадает ни с одним бойцом → бонус не применяется.
+        $a = $this->ch('A', 50, 80.0);
+        $b = $this->ch('B', 50, 50.0);
+        $defense = ['owner_id' => 999999, 'initiative_bonus' => 0.50];
+        $this->assertSame('A', $this->orch->determineInitiative($a, $b, $defense)['name']);
+    }
+
+    public function testInitiativeZeroBonusNoChange(): void
+    {
+        // initiative_bonus=0 (вышки нет в профиле) → порядок неизменен.
+        $a = $this->ch('A', 50, 60.0); // 85.5
+        $b = $this->ch('B', 50, 55.0); // 80.5
+        $defense = ['owner_id' => (int) $b['id'], 'initiative_bonus' => 0.0];
+        $this->assertSame('A', $this->orch->determineInitiative($a, $b, $defense)['name']);
+    }
+
     // ---- checkLuckyStrike ----
 
     public function testLuckyStrikeFalseWhenAttackerStronger(): void

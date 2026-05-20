@@ -66,17 +66,18 @@ final class PvpRoundOrchestrator
      * базы. `null` (default) → поведение ИДЕНТИЧНО legacy (fixture-fence цел, т.к.
      * все текущие фикстуры без структур). Эффекты детерминированные (без mt_rand):
      * WoodenWall снижает урон по owner, BarbedFence бьёт атакующего owner'а/раунд.
+     * S26b (ADR-031): WatchTower даёт owner'у множитель инициативы (determineInitiative).
      *
      * @param array<string, mixed> $p1
      * @param array<string, mixed> $p2
      * @param array<string, mixed>|\App\Entities\BiomeEntity $biome
-     * @param array{owner_id:int, damage_reduction:float, fence_damage:int, structure_ids:list<int>}|null $defense
+     * @param array{owner_id:int, damage_reduction:float, fence_damage:int, initiative_bonus:float, structure_ids:list<int>}|null $defense
      */
     public function simulateFight(array $p1, array $p2, array|\App\Entities\BiomeEntity $biome, ?array $defense = null): array
     {
         $roundLogs = [];
 
-        $attacker = $this->determineInitiative($p1, $p2);
+        $attacker = $this->determineInitiative($p1, $p2, $defense);
         $defender = ($attacker['id'] === $p1['id']) ? $p2 : $p1;
 
         $round       = 0;
@@ -215,11 +216,34 @@ final class PvpRoundOrchestrator
     /**
      * Инициатива: i = agility + (level+1)*0.5. Кто выше — бьёт первым.
      * Если ничья — побеждает первый параметр (c1).
+     *
+     * S26b (ADR-031): опциональный $defense — WatchTower даёт владельцу-защитнику
+     * множитель инициативы у его базы. Множитель ДЕТЕРМИНИРОВАННЫЙ (без mt_rand →
+     * RNG-fence цел). $defense=null (default) → поведение идентично legacy.
+     *
+     * @param array{owner_id:int, initiative_bonus:float}|array<string,mixed>|null $defense
      */
-    public function determineInitiative(array|\App\Entities\CharacterEntity $c1, array|\App\Entities\CharacterEntity $c2): array
+    public function determineInitiative(array|\App\Entities\CharacterEntity $c1, array|\App\Entities\CharacterEntity $c2, ?array $defense = null): array
     {
         $i1 = $c1['agility'] + ($c1['level'] + 1) * 0.5;
         $i2 = $c2['agility'] + ($c2['level'] + 1) * 0.5;
+
+        if ($defense !== null) {
+            $rawBonus = $defense['initiative_bonus'] ?? null;
+            $rawOwner = $defense['owner_id'] ?? null;
+            $bonus    = is_numeric($rawBonus) ? (float) $rawBonus : 0.0;
+            $ownerId  = is_numeric($rawOwner) ? (int) $rawOwner : 0;
+            if ($bonus > 0.0 && $ownerId > 0) {
+                $c1Id = is_numeric($c1['id'] ?? null) ? (int) $c1['id'] : 0;
+                $c2Id = is_numeric($c2['id'] ?? null) ? (int) $c2['id'] : 0;
+                if ($c1Id === $ownerId) {
+                    $i1 *= (1.0 + $bonus);
+                } elseif ($c2Id === $ownerId) {
+                    $i2 *= (1.0 + $bonus);
+                }
+            }
+        }
+
         return ($i1 >= $i2) ? $c1 : $c2;
     }
 

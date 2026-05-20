@@ -103,7 +103,7 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
         $this->cfg     = new GameBalance();
         // Детектор-стаб (по умолчанию никого не обнаруживает) — реальный
         // PlayerDetectionService на CI падает на Request не инициализирован при send.
-        $this->handler = new TestableMarchingTaskHandler($this->cfg, new StubDetector());
+        $this->handler = new TestableMarchingTaskHandler($this->cfg, new StubDetector(), new StubTowerAlerts());
     }
 
     protected function tearDown(): void
@@ -344,7 +344,7 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
     public function testPlayerDetectedAfterStepPausesMarch(): void
     {
         // Детектор-стаб возвращает true → после шага поход обязан встать на паузу.
-        $handler = new TestableMarchingTaskHandler($this->cfg, new StubDetector(true));
+        $handler = new TestableMarchingTaskHandler($this->cfg, new StubDetector(true), new StubTowerAlerts());
         $char = $this->makeCharacter(5, 5);
         $task = $this->makeMarchTask((int) $char['id'], 'north', 5, 0);
 
@@ -404,5 +404,25 @@ final class StubDetector extends \App\Services\Player\PlayerDetectionService
     public function detectNearbyPlayers(int $characterId): bool
     {
         return $this->result;
+    }
+}
+
+/**
+ * Стаб TowerAlertService: notifyTowersNear no-op (S26b). На CI Request не
+ * инициализирован и схема character_buildings/buildings отсутствует — реальный
+ * сервис всё равно вернул бы 0, но стаб убирает лишние DB-запросы/логи в марш-тестах.
+ *
+ * @internal
+ */
+final class StubTowerAlerts extends \App\Services\PVE\TowerAlertService
+{
+    public function __construct()
+    {
+        parent::__construct();
+    }
+
+    public function notifyTowersNear(int $moverId, int $newX, int $newY): int
+    {
+        return 0;
     }
 }

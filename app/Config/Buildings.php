@@ -464,6 +464,30 @@ class Buildings extends BaseConfig
             'completion_bonus_intellect' => 0.0,
             'completion_building_type'   => 'defensive',
         ],
+        // S26b (ADR-031) — WatchTower: alert-range detection + defender initiative.
+        'WatchTower' => [
+            'name_rus'          => 'Дозорная вышка',
+            'emoji'             => '🗼',
+            'info_text'         => 'Наблюдательная вышка над базой. Предупреждает тебя о приближении чужих игроков и даёт преимущество инициативы в PvP, пока ты защищаешься у своей базы. Изнашивается при отбитых атаках.',
+            'level_required'    => 12,
+            'task_name'         => 'buildWatchTower',
+            'task_settings'     => ['building' => 'WatchTower'],
+            'resources'         => [
+                'Wood'       => 600,
+                'RareMetals' => 25,
+            ],
+            'crafted_items'     => [
+                'wiring'         => 15,
+                'metalFragments' => 20,
+            ],
+            'dependencies'      => [],
+            'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+            'completion_image'           => 'uploads/telegram/camp/watch_tower.jpg',
+            'completion_text'            => "🗼 Вы построили *Дозорную вышку*!\n\nОна предупредит тебя о приближении чужаков и даст фору инициативы в бою у твоей базы. Параметры тюнятся админом.",
+            'completion_bonus_agility'   => 0.03,
+            'completion_bonus_intellect' => 0.02,
+            'completion_building_type'   => 'defensive',
+        ],
     ];
 
     /**

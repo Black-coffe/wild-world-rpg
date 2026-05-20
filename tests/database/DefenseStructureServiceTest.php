@@ -23,6 +23,7 @@ final class DefenseStructureServiceTest extends CIUnitTestCase
 
     private int $wallId = 0;
     private int $fenceId = 0;
+    private int $towerId = 0;
 
     protected function setUp(): void
     {
@@ -69,12 +70,15 @@ final class DefenseStructureServiceTest extends CIUnitTestCase
         $this->wallId = (int) $db->insertID();
         $db->table('buildings')->insert(['name_en' => 'BarbedFence']);
         $this->fenceId = (int) $db->insertID();
+        $db->table('buildings')->insert(['name_en' => 'WatchTower']);
+        $this->towerId = (int) $db->insertID();
 
         $settings = [
             ['defense.wall.damage_reduction_percent', 15],
             ['defense.fence.attacker_damage_per_round', 3],
             ['defense.total_damage_reduction_max_percent', 40],
             ['defense.decay_hp_per_attack', 10],
+            ['defense.tower.defender_initiative_bonus_percent', 8],
         ];
         foreach ($settings as [$key, $val]) {
             $db->table('game_settings')->insert([
@@ -125,6 +129,7 @@ final class DefenseStructureServiceTest extends CIUnitTestCase
         $this->assertSame(1, $profile['owner_id']);
         $this->assertEqualsWithDelta(0.15, $profile['damage_reduction'], 0.0001);
         $this->assertSame(3, $profile['fence_damage']);
+        $this->assertEqualsWithDelta(0.0, $profile['initiative_bonus'], 0.0001); // нет вышки
         $this->assertCount(2, $profile['structure_ids']);
     }
 
@@ -163,5 +168,55 @@ final class DefenseStructureServiceTest extends CIUnitTestCase
         (new DefenseStructureService())->applyDecay([$id]);
         $hp = (int) Database::connect('tests')->table('character_buildings')->where('id', $id)->get()->getRowArray()['hp'];
         $this->assertSame(190, $hp); // 200 − 10
+    }
+
+    // ---- S26b (ADR-031): WatchTower initiative ----
+
+    public function testTowerOnlyProfileGivesInitiative(): void
+    {
+        // Только вышка (без стен/ограды) → профиль не null, есть инициатива.
+        $this->buildStructure(1, $this->towerId, 100, 300);
+
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+
+        $this->assertNotNull($profile);
+        $this->assertEqualsWithDelta(0.0, $profile['damage_reduction'], 0.0001);
+        $this->assertSame(0, $profile['fence_damage']);
+        $this->assertEqualsWithDelta(0.08, $profile['initiative_bonus'], 0.0001);
+        $this->assertCount(1, $profile['structure_ids']); // вышка decays
+    }
+
+    public function testTowerInitiativePresenceBasedNotStacked(): void
+    {
+        // 2 вышки → бонус всё равно 8% (presence-based, анти-эксплойт).
+        $this->buildStructure(1, $this->towerId, 100, 300);
+        $this->buildStructure(1, $this->towerId, 100, 300);
+
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+
+        $this->assertNotNull($profile);
+        $this->assertEqualsWithDelta(0.08, $profile['initiative_bonus'], 0.0001);
+        $this->assertCount(2, $profile['structure_ids']); // обе decays
+    }
+
+    public function testWallAndTowerCombined(): void
+    {
+        // Стена (reduction) + вышка (initiative) одновременно.
+        $this->buildStructure(1, $this->wallId, 100, 200);
+        $this->buildStructure(1, $this->towerId, 100, 300);
+
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+
+        $this->assertNotNull($profile);
+        $this->assertEqualsWithDelta(0.15, $profile['damage_reduction'], 0.0001);
+        $this->assertEqualsWithDelta(0.08, $profile['initiative_bonus'], 0.0001);
+        $this->assertCount(2, $profile['structure_ids']);
+    }
+
+    public function testBrokenTowerGivesNoInitiative(): void
+    {
+        // Сломанная вышка (hp=0) не учитывается → null (нет других структур).
+        $this->buildStructure(1, $this->towerId, 100, 0);
+        $this->assertNull((new DefenseStructureService())->getDefenseProfile(1, 100));
     }
 }

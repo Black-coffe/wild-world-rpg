@@ -7,6 +7,7 @@ use App\Models\CharacterModel;
 use App\Models\CharacterTaskModel;
 use App\Models\ExploredCellsModel;
 use App\Services\Player\PlayerDetectionService;
+use App\Services\PVE\TowerAlertService;
 use App\Services\World\ObjectDiscoveryService;
 use App\Services\World\TextMapService;
 use CodeIgniter\Database\BaseResult;
@@ -53,6 +54,7 @@ class MarchingTaskHandler extends BaseTaskHandler
 {
     private GameBalance $cfg;
     private PlayerDetectionService $detector;
+    private TowerAlertService $towerAlerts;
 
     /** @var array<string, array{int,int}> dx,dy по направлениям (y растёт на юг). */
     private const DIRECTIONS = [
@@ -78,10 +80,11 @@ class MarchingTaskHandler extends BaseTaskHandler
         'southeast' => '↘️ юго-восток',
     ];
 
-    public function __construct(?GameBalance $cfg = null, ?PlayerDetectionService $detector = null)
+    public function __construct(?GameBalance $cfg = null, ?PlayerDetectionService $detector = null, ?TowerAlertService $towerAlerts = null)
     {
-        $this->cfg      = $cfg ?? new GameBalance();
-        $this->detector = $detector ?? new PlayerDetectionService();
+        $this->cfg         = $cfg ?? new GameBalance();
+        $this->detector    = $detector ?? new PlayerDetectionService();
+        $this->towerAlerts = $towerAlerts ?? new TowerAlertService();
     }
 
     /**
@@ -215,6 +218,13 @@ class MarchingTaskHandler extends BaseTaskHandler
         //   extension point (ADR-019 §6): пока выключено (marchNpcEncounterChancePerCell=0;
         //   discoverObjectsAtPlayerPosition шлёт свои сообщения сам). Когда включат —
         //   здесь auto-battle, при тяжёлой ране → pauseMarch('heavy_wound'), при смерти → death-флоу.
+
+        // — S26b (ADR-031): дозорные вышки чужих баз в радиусе → пинг их владельцам —
+        try {
+            $this->towerAlerts->notifyTowersNear($characterId, $newX, $newY);
+        } catch (\Throwable $e) {
+            log_message('error', '[MarchingTaskHandler] towerAlerts: ' . $e->getMessage());
+        }
 
         // — PvP detection: обнаружили игрока → пауза с промптом —
         if ($this->detector->detectNearbyPlayers($characterId)) {
