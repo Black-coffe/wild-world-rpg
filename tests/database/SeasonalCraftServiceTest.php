@@ -150,18 +150,23 @@ final class SeasonalCraftServiceTest extends CIUnitTestCase
         $this->assertCount(5, $summer);
         $this->assertContains('SummerColdKvass', $summer);
         $this->assertContains('SummerAloeBalm', $summer);
+        // autumn (day 63) — V3: 5 рецептов «Осенней жатвы».
+        $autumn = $svc->getRecipeKeysForActiveSeason($this->dayTs(63));
+        $this->assertCount(5, $autumn);
+        $this->assertContains('AutumnBerryJam', $autumn);
+        $this->assertContains('AutumnVegPreserves', $autumn);
     }
 
     /**
-     * V1/V2 anti-drift: каждый ключ непустого сезона резолвится в CraftRecipes
-     * с required_season == ключ сезона. Future-proof: автоматом покрывает V3 autumn.
+     * V1/V2/V3 anti-drift: каждый ключ непустого сезона резолвится в CraftRecipes
+     * с required_season == ключ сезона. Все 4 сезона теперь заполнены.
      */
     public function testSeasonRecipeKeysResolveInConfig(): void
     {
         $svc = new SeasonalCraftService();
         $cfg = config('CraftRecipes');
 
-        foreach (['spring', 'summer'] as $season) {
+        foreach (['spring', 'summer', 'autumn'] as $season) {
             $keys = $svc->getRecipeKeysForSeason($season);
             $this->assertCount(5, $keys, "{$season}: ожидалось 5 рецептов");
             foreach ($keys as $key) {
