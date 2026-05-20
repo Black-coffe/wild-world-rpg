@@ -1451,6 +1451,109 @@ class CraftRecipes extends BaseConfig
             'image_completed'               => 'uploads/telegram/craft/professional/surgical_kit.jpg',
             'craft_again_callback'          => 'genericCraft_SurgicalKit_1',
         ],
+
+        // ============================================================
+        // S20 (v0.51.202) — T3 utility tools (ADR-026 reusable, ROADMAP-CRAFT Фаза 4 5/5 — закрывает фазу).
+        //
+        // 3 craft-рецепта под existing tool-предметы (audit: в отличие от ROADMAP
+        // CombinationTool/PortableForge/AdvancedFishingNet — их нет; реальный gap =
+        // existing tools без craft):
+        //   - DiamondPickaxe — УЖЕ в ToolManager bonus-map (работает, owned), без рецепта.
+        //   - Sapper Shovel / Golden Hoe — в БД, но НЕ в map → оживлены через
+        //     GameSettings overlay в ToolManager (S20SeedToolBonusGameSettings).
+        //
+        // output_type НЕ задан → default crafted_item path (type='tool' → crafted_items_log).
+        // item_name_eng совпадает с crafted_items.name_eng (С ПРОБЕЛАМИ для 2 из 3).
+        // Gating: required_crafted_items=ProfessionalWorkbench (pattern S17-S19).
+        // Длительность: tier3.utility.<key>.craft_duration_hours (live-tunable).
+        // ============================================================
+
+        'DiamondPickaxe' => [
+            'task_name'                     => 'craftDiamondPickaxe',
+            'required_level'                => 20,
+            'gold_required'                 => 12000,
+            'resources'                     => [
+                'Редкие металлы'           => 12,
+                'Доколлапсная электроника' => 1,
+                'Промышленный пластик'     => 2,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 3,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.utility.diamond_pickaxe.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/diamond_pickaxe.jpg',
+            'start_caption_name'            => '⛏️ *Алмазная кирка (T3)*',
+            'info_callback'                 => 'craftPreviewT3Utility_DiamondPickaxe',
+            'item_name_eng'                 => 'DiamondPickaxe',
+            'item_name_rus'                 => 'Алмазная кирка',
+            'icon_emoji'                    => '⛏️',
+            'zone_emoji'                    => '🛠️',
+            'zone_name'                     => 'инструменты',
+            'agility_bonus'                 => 0.03,
+            'intellect_bonus'               => 0.02,
+            'image_completed'               => 'uploads/telegram/craft/professional/diamond_pickaxe.jpg',
+            'craft_again_callback'          => 'genericCraft_DiamondPickaxe_1',
+        ],
+
+        'SapperShovel' => [
+            'task_name'                     => 'craftSapperShovel',
+            'required_level'                => 16,
+            'gold_required'                 => 6000,
+            'resources'                     => [
+                'Редкие металлы'       => 8,
+                'Промышленный пластик' => 3,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 2,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.utility.sapper_shovel.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/sapper_shovel.jpg',
+            'start_caption_name'            => '🪏 *Сапёрная лопата (T3)*',
+            'info_callback'                 => 'craftPreviewT3Utility_SapperShovel',
+            // ВНИМАНИЕ: crafted_items.name_eng = 'Sapper Shovel' (С ПРОБЕЛОМ).
+            'item_name_eng'                 => 'Sapper Shovel',
+            'item_name_rus'                 => 'Сапёрная лопата',
+            'icon_emoji'                    => '🪏',
+            'zone_emoji'                    => '🛠️',
+            'zone_name'                     => 'инструменты',
+            'agility_bonus'                 => 0.02,
+            'intellect_bonus'               => 0.02,
+            'image_completed'               => 'uploads/telegram/craft/professional/sapper_shovel.jpg',
+            'craft_again_callback'          => 'genericCraft_SapperShovel_1',
+        ],
+
+        'GoldenHoe' => [
+            'task_name'                     => 'craftGoldenHoe',
+            'required_level'                => 16,
+            'gold_required'                 => 5000,
+            'resources'                     => [
+                'Редкие металлы'       => 6,
+                'Промышленный пластик' => 2,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 2,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.utility.golden_hoe.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/golden_hoe.jpg',
+            'start_caption_name'            => '🌾 *Золотая мотыга (T3)*',
+            'info_callback'                 => 'craftPreviewT3Utility_GoldenHoe',
+            // ВНИМАНИЕ: crafted_items.name_eng = 'Golden Hoe' (С ПРОБЕЛОМ).
+            'item_name_eng'                 => 'Golden Hoe',
+            'item_name_rus'                 => 'Золотая мотыга',
+            'icon_emoji'                    => '🌾',
+            'zone_emoji'                    => '🛠️',
+            'zone_name'                     => 'инструменты',
+            'agility_bonus'                 => 0.02,
+            'intellect_bonus'               => 0.02,
+            'image_completed'               => 'uploads/telegram/craft/professional/golden_hoe.jpg',
+            'craft_again_callback'          => 'genericCraft_GoldenHoe_1',
+        ],
     ];
 
     /**

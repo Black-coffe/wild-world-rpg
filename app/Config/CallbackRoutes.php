@@ -152,6 +152,8 @@ class CallbackRoutes extends BaseConfig
         'craftArmorT3Select'              => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional\ArmorCraftT3Select::class,
         // S19 (v0.51.201) — T3 medical (3 рецепта, ADR-026 Фаза 4 4/5)
         'craftMedicalT3Select'            => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional\MedicalCraftT3Select::class,
+        // S20 (v0.51.202) — T3 utility tools (3 рецепта, ADR-026 Фаза 4 5/5 — закрывает фазу)
+        'craftUtilityT3Select'            => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional\UtilityCraftT3Select::class,
         'glassBags'                       => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\GlassBagsCraft1Action::class,
         'electronicComponents'            => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\ElectronicComponentsCraft1Action::class,
         'wiring'                          => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\WiringCraft1Action::class,
@@ -252,6 +254,7 @@ class CallbackRoutes extends BaseConfig
         // ⚠️ Порядок: длинные prefix'ы СНАЧАЛА (Armor/Medical), craftPreviewT3 потом (короткий fallback для weapons).
         'craftPreviewT3Armor' => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional\ArmorRecipePreviewT3Action::class,
         'craftPreviewT3Medical' => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional\MedicalRecipePreviewT3Action::class,
+        'craftPreviewT3Utility' => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional\UtilityRecipePreviewT3Action::class,
         'craftPreviewT3' => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional\WeaponRecipePreviewT3Action::class,
     ];
 

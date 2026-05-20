@@ -249,7 +249,7 @@ class WorkbenchProfessionalAction extends BaseAction
             . "⚔️ *Оружие* — 5 рецептов T3 (S17)\n"
             . "🛡 *Броня* — 4 рецепта T3 (S18)\n"
             . "💊 *Медицина* — 3 рецепта T3 (S19)\n"
-            . "🔧 *Утилиты* — в работе (S20)\n";
+            . "🔧 *Утилиты* — 3 рецепта T3 (S20)\n";
 
         $keyboard = [
             'inline_keyboard' => [
@@ -259,6 +259,7 @@ class WorkbenchProfessionalAction extends BaseAction
                 ],
                 [
                     ['text' => '💊 Медицина T3', 'callback_data' => 'craftMedicalT3Select'],
+                    ['text' => '🔧 Утилиты T3',  'callback_data' => 'craftUtilityT3Select'],
                 ],
                 [
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],

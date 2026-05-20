@@ -4,11 +4,43 @@ namespace App\Libraries;
 
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
+use App\Services\GameSettings\GameSettingsService;
 
 class ToolManager
 {
     protected $craftedItemsLogModel;
     protected $craftedItemsModel;
+
+    /**
+     * S20 (v0.51.202): T3 «оживляемые» инструменты — resource-eligibility
+     * (data shape) + GameSettings-ключ величины бонуса (admin-tunable balance).
+     * name_eng-ключи совпадают с crafted_items.name_eng (с пробелами).
+     * DiamondPickaxe тут НЕТ — он уже в legacy map (getToolsForResource).
+     *
+     * @var array<string,array{resources:list<string>,setting:string,default:float}>
+     */
+    private const T3_TOOLS = [
+        'Sapper Shovel' => [
+            'resources' => ['Глина', 'Песок', 'Ил', 'Травы', 'Мхи', 'Снег', 'Береговая растительность'],
+            'setting'   => 'tools.sapper_shovel.gather_bonus',
+            'default'   => 0.70,
+        ],
+        'Golden Hoe' => [
+            'resources' => ['Овощи', 'Травы', 'Мхи', 'Фрукты'],
+            'setting'   => 'tools.golden_hoe.gather_bonus',
+            'default'   => 0.60,
+        ],
+    ];
+
+    private ?GameSettingsService $gameSettings = null;
+
+    /**
+     * Мемоизация бонусов T3-инструментов на время жизни инстанса
+     * (getToolsForResource зовётся per-resource×blocks за одну добычу).
+     *
+     * @var array<string,float>|null
+     */
+    private ?array $t3BonusCache = null;
 
     public function __construct()
     {
@@ -76,7 +108,40 @@ class ToolManager
             'Алоэ' => ['FoldingKnife' => 0.14],
             'Фрукты' => ['FoldingKnife' => 0.10],
         ];
-        return $toolMapping[$resourceName] ?? [];
+        $map = $toolMapping[$resourceName] ?? [];
+
+        // S20 (v0.51.202): overlay T3-инструментов с admin-tunable бонусом из
+        // GameSettings (constitutional). Legacy map выше не трогаем; добавляем
+        // T3-инструмент к ресурсу, если ресурс в его resource-set. pickBestTool
+        // выберет инструмент с наибольшим бонусом из имеющихся у игрока.
+        foreach (self::T3_TOOLS as $toolName => $cfg) {
+            if (in_array($resourceName, $cfg['resources'], true)) {
+                $bonus = $this->t3Bonus($toolName);
+                if ($bonus > 0) {
+                    $map[$toolName] = $bonus;
+                }
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * S20: бонус T3-инструмента из GameSettings (мемоизация на инстанс).
+     */
+    private function t3Bonus(string $toolName): float
+    {
+        if ($this->t3BonusCache === null) {
+            $this->t3BonusCache = [];
+            if ($this->gameSettings === null) {
+                $this->gameSettings = new GameSettingsService();
+            }
+            foreach (self::T3_TOOLS as $name => $cfg) {
+                $val = $this->gameSettings->get($cfg['setting'], $cfg['default']);
+                $this->t3BonusCache[$name] = is_numeric($val) ? (float) $val : $cfg['default'];
+            }
+        }
+        return $this->t3BonusCache[$toolName] ?? 0.0;
     }
 
     public function updateToolDurability($toolData)
