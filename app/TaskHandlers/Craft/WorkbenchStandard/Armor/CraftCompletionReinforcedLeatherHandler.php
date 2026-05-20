@@ -63,7 +63,9 @@ class CraftCompletionReinforcedLeatherHandler extends BaseTaskHandler
         $this->updateOrCreateOutfit($task['character_id'], $outfit['id'], $quantity);
 
         // 5) Даём персонажу бонус (+0.07 ловкости и +0.03 интеллекта)
-        $this->characterModel->updateAgilityAndIntellect($task['character_id'], 0.07, 0.03);
+        $cidRaw      = $task['character_id'] ?? null;
+        $characterId = is_numeric($cidRaw) ? (int) $cidRaw : 0;
+        $this->characterModel->updateAgilityAndIntellect($characterId, 0.07, 0.03);
 
         // 6) Уведомляем игрока в Telegram
         $this->notifyUser($task['telegram_user_id'], $outfit, $task['character_id'], $quantity);

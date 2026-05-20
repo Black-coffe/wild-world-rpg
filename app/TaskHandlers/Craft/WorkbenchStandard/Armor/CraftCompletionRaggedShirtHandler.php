@@ -69,8 +69,10 @@ class CraftCompletionRaggedShirtHandler extends BaseTaskHandler
         $this->updateOrCreateOutfit($task['character_id'], $outfit['id'], $quantityToAdd);
 
         // 5. Прокачиваем персонажа (+0.03 ловкости, +0.01 интеллекта)
+        $cidRaw      = $task['character_id'] ?? null;
+        $characterId = is_numeric($cidRaw) ? (int) $cidRaw : 0;
         $this->characterModel->updateAgilityAndIntellect(
-            $task['character_id'],
+            $characterId,
             0.03,
             0.01
         );

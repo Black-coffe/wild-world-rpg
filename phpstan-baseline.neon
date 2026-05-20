@@ -15660,11 +15660,6 @@ parameters:
 			count: 1
 			path: app/TaskHandlers/Built/GenericBuildingCompletionHandler.php
 
-		-
-			message: '#^Parameter \#1 \$characterId of method App\\Models\\CharacterModel\:\:updateAgilityAndIntellect\(\) expects int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Built/GenericBuildingCompletionHandler.php
 
 		-
 			message: '#^Parameter \#1 \$id of method CodeIgniter\\Model\:\:update\(\) expects CodeIgniter\\Database\\RawSql\|int\|list\<int\|string\>\|string\|null, mixed given\.$#'

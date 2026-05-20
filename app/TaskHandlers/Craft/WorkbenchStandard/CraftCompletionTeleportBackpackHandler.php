@@ -93,8 +93,10 @@ class CraftCompletionTeleportBackpackHandler extends BaseTaskHandler
         $this->updateCraftLog($task, $craftedItem);
 
         // 4) Увеличиваем атрибуты персонажа
+        $cidRaw      = $task['character_id'] ?? null;
+        $characterId = is_numeric($cidRaw) ? (int) $cidRaw : 0;
         $this->characterModel->updateAgilityAndIntellect(
-            $task['character_id'],
+            $characterId,
             0.05,
             0.05
         );
