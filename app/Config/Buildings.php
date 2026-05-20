@@ -414,6 +414,56 @@ class Buildings extends BaseConfig
             'completion_bonus_intellect' => 0.05,
             'completion_building_type'   => null, // используем buildings.building_type
         ],
+
+        // S26 (v0.51.207, ADR-030) — defensive structures (Фаза 6).
+        // building_type='defensive'; combat-эффект через DefenseStructureService
+        // (только когда защитник на своей клетке со структурой). WatchTower → S26b.
+        'WoodenWall' => [
+            'name_rus'          => 'Деревянная стена',
+            'emoji'             => '🪵',
+            'info_text'         => 'Защитная стена вокруг базы. Снижает урон, который ты получаешь в PvP, пока стоишь на своей базе. Изнашивается при отбитых атаках.',
+            'level_required'    => 8,
+            'task_name'         => 'buildWoodenWall',
+            'task_settings'     => ['building' => 'WoodenWall'],
+            'resources'         => [
+                'Wood' => 800,
+                'Clay' => 200,
+            ],
+            'crafted_items'     => [
+                'WoodMaterials'  => 20,
+                'metalFragments' => 10,
+            ],
+            'dependencies'      => [],
+            'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+            'completion_image'           => 'uploads/telegram/camp/wooden_wall.jpg',
+            'completion_text'            => "🪵 Вы построили *Деревянную стену*!\n\nПока ты на своей базе, она снижает получаемый в PvP урон. Параметры тюнятся админом.",
+            'completion_bonus_agility'   => 0.02,
+            'completion_bonus_intellect' => 0.0,
+            'completion_building_type'   => 'defensive',
+        ],
+        'BarbedFence' => [
+            'name_rus'          => 'Колючая ограда',
+            'emoji'             => '🌵',
+            'info_text'         => 'Ограда из колючей проволоки. Каждый раунд PvP-боя у твоей базы наносит урон атакующему. Изнашивается при отбитых атаках.',
+            'level_required'    => 10,
+            'task_name'         => 'buildBarbedFence',
+            'task_settings'     => ['building' => 'BarbedFence'],
+            'resources'         => [
+                'Ironstone'  => 60,
+                'RareMetals' => 15,
+            ],
+            'crafted_items'     => [
+                'wiring'         => 8,
+                'metalFragments' => 15,
+            ],
+            'dependencies'      => [],
+            'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+            'completion_image'           => 'uploads/telegram/camp/barbed_fence.jpg',
+            'completion_text'            => "🌵 Вы построили *Колючую ограду*!\n\nКаждый раунд PvP-боя у твоей базы наносит урон атакующему. Параметры тюнятся админом.",
+            'completion_bonus_agility'   => 0.02,
+            'completion_bonus_intellect' => 0.0,
+            'completion_building_type'   => 'defensive',
+        ],
     ];
 
     /**
