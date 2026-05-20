@@ -46,7 +46,7 @@ class CharacterBuildingModel extends Model
         'hp' => 'required|integer',
         'level' => 'required|integer',
         'built_at' => 'required|valid_date',
-        'building_type' => 'required|in_list[military,residential,farming,resource,engineering]',
+        'building_type' => 'required|in_list[military,residential,farming,resource,engineering,defensive]',
         'tax' => 'required|integer',
         'usage' => 'required|in_list[personal,collective,all]',
         'last_tax_collected' => 'permit_empty|valid_date',

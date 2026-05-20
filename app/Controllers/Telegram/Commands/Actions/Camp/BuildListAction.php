@@ -54,6 +54,9 @@ class BuildListAction extends BaseAction
             ['name' => "🌀 Центр телепортации",          'tax' => 820,  'callback_data' => 'genericBuildInfo_TeleportationCenter'],
             ['name' => "⚔️ Арсенал",                    'tax' => 2000, 'callback_data' => 'genericBuildInfo_Arsenal'],
             ['name' => "📢 Вышка связи",                 'tax' => 1300, 'callback_data' => 'genericBuildInfo_CommunicationTower'],
+            // S26 (v0.51.207, ADR-030) — defensive structures (защита базы в PvP).
+            ['name' => "🪵 Деревянная стена",            'tax' => 200,  'callback_data' => 'genericBuildInfo_WoodenWall'],
+            ['name' => "🌵 Колючая ограда",              'tax' => 350,  'callback_data' => 'genericBuildInfo_BarbedFence'],
         ];
 
         $buildingList = "";

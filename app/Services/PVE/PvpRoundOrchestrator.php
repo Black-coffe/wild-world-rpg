@@ -62,11 +62,17 @@ final class PvpRoundOrchestrator
      * F1.4.1: $biome signature widened — BiomeModel returnType = BiomeEntity.
      * Старі тести passing raw array, prod — Entity. ArrayAccess trait робить $biome['x'] working для обох.
      *
+     * S26 (ADR-030): опциональный $defense — defensive structures защитника у его
+     * базы. `null` (default) → поведение ИДЕНТИЧНО legacy (fixture-fence цел, т.к.
+     * все текущие фикстуры без структур). Эффекты детерминированные (без mt_rand):
+     * WoodenWall снижает урон по owner, BarbedFence бьёт атакующего owner'а/раунд.
+     *
      * @param array<string, mixed> $p1
      * @param array<string, mixed> $p2
      * @param array<string, mixed>|\App\Entities\BiomeEntity $biome
+     * @param array{owner_id:int, damage_reduction:float, fence_damage:int, structure_ids:list<int>}|null $defense
      */
-    public function simulateFight(array $p1, array $p2, array|\App\Entities\BiomeEntity $biome): array
+    public function simulateFight(array $p1, array $p2, array|\App\Entities\BiomeEntity $biome, ?array $defense = null): array
     {
         $roundLogs = [];
 
@@ -83,6 +89,9 @@ final class PvpRoundOrchestrator
 
         while ($attacker['health'] > 0 && $defender['health'] > 0 && $round < $maxRounds) {
             $round++;
+
+            // S26: id текущего раунд-защитника (narrowed для сравнения с owner_id).
+            $curDefenderId = is_numeric($defender['id']) ? (int) $defender['id'] : 0;
 
             if ($round % $this->balance->pvpRoundsPerDamageIncrease === 0) {
                 $damageBoost += $this->balance->pvpDamageIncreasePerStep;
@@ -101,6 +110,15 @@ final class PvpRoundOrchestrator
             }
 
             $damage *= $damageBoost;
+
+            // S26 (ADR-030): WoodenWall — детерминированное снижение урона по
+            // защитнику-владельцу, когда он защищается у своей базы. Без mt_rand.
+            if ($defense !== null
+                && $curDefenderId === $defense['owner_id']
+                && $defense['damage_reduction'] > 0.0
+            ) {
+                $damage *= (1.0 - $defense['damage_reduction']);
+            }
 
             $defHealthBefore     = $defender['health'];
             $defender['health']  = max(0, $defender['health'] - $damage);
@@ -135,6 +153,21 @@ final class PvpRoundOrchestrator
                 'defenderHealthBefore'  => round($defHealthBefore, 2),
                 'defenderHealthAfter'   => round($defender['health'], 2),
             ];
+
+            // S26 (ADR-030): BarbedFence — flat урон атакующему, когда защитник-
+            // владелец выжил после удара у своей базы. Детерминированно. Если
+            // ограда добивает атакующего — владелец побеждает.
+            if ($loser === null
+                && $defense !== null
+                && $curDefenderId === $defense['owner_id']
+                && $defense['fence_damage'] > 0
+            ) {
+                $attacker['health'] = max(0, $attacker['health'] - $defense['fence_damage']);
+                if ($attacker['health'] <= 0) {
+                    $loser  = $attacker;
+                    $winner = $defender;
+                }
+            }
 
             if ($loser !== null) {
                 break;

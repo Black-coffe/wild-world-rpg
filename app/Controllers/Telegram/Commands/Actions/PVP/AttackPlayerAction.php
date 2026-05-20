@@ -20,6 +20,7 @@ use App\Models\WeaponModel;
 use App\Services\Endgame\EndgameProgressionService;
 use App\Services\Player\DeathService;
 use App\Services\Player\PvPRestrictionService;
+use App\Services\PVE\DefenseStructureService;
 use App\Services\PVE\PvpDamageCalculator;
 use App\Services\PVE\PvpEquipmentRepository;
 use App\Services\PVE\PvpFormulaService;
@@ -166,8 +167,21 @@ class AttackPlayerAction extends BaseAction
         $attacker['faction'] = $this->equipmentRepo->getCharacterFaction((int) $attacker['id']);
         $defender['faction'] = $this->equipmentRepo->getCharacterFaction((int) $defender['id']);
 
-        // 1) Симуляция боя.
-        $fightResult = $this->roundOrchestrator->simulateFight($attacker, $defender, $biome);
+        // S26 (ADR-030): defensive structures защитника, если он стоит на своей
+        // клетке со структурами (active hp>0). null → бой без защиты (как раньше).
+        $defenseService = new DefenseStructureService();
+        $defenseProfile = $defenseService->getDefenseProfile(
+            (int) $defender['id'],
+            (int) ($defender['cell_number'] ?? 0),
+        );
+
+        // 1) Симуляция боя (с учётом защиты базы, если есть).
+        $fightResult = $this->roundOrchestrator->simulateFight($attacker, $defender, $biome, $defenseProfile);
+
+        // S26: износ структур за отбитую атаку (decay), если защита применялась.
+        if ($defenseProfile !== null) {
+            $defenseService->applyDecay($defenseProfile['structure_ids']);
+        }
 
         // 2) Текст итогов.
         $summaryText   = $this->formatShortFightResult($fightResult);
