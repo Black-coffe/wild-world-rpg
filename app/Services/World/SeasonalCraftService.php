@@ -31,8 +31,8 @@ final class SeasonalCraftService
     ];
 
     /**
-     * Рецепты по сезонам (recipe-keys из Config\CraftRecipes). Пока только Зима
-     * (pilot S28); spring/summer/autumn — vNext.
+     * Рецепты по сезонам (recipe-keys из Config\CraftRecipes). Зима — pilot S28,
+     * Весна — V1 (vNext); summer/autumn — V2/V3.
      *
      * @var array<string, list<string>>
      */
@@ -44,7 +44,13 @@ final class SeasonalCraftService
             'WinterCampStew',
             'WinterPreserves',
         ],
-        'spring' => [],
+        'spring' => [
+            'SpringFirstHerbTea',
+            'SpringBirchSap',
+            'SpringPrimroseInfusion',
+            'SpringWildGreens',
+            'SpringShootsDecoction',
+        ],
         'summer' => [],
         'autumn' => [],
     ];

@@ -140,8 +140,27 @@ final class SeasonalCraftServiceTest extends CIUnitTestCase
         $this->assertCount(5, $winter);
         $this->assertContains('WinterHerbalBrew', $winter);
         $this->assertContains('WinterPreserves', $winter);
-        // spring (day 21) — пока без рецептов.
-        $this->assertSame([], $svc->getRecipeKeysForActiveSeason($this->dayTs(21)));
+        // spring (day 21) — V1: 5 рецептов «Весеннего пробуждения».
+        $spring = $svc->getRecipeKeysForActiveSeason($this->dayTs(21));
+        $this->assertCount(5, $spring);
+        $this->assertContains('SpringFirstHerbTea', $spring);
+        $this->assertContains('SpringShootsDecoction', $spring);
+    }
+
+    /** V1 anti-drift: каждый весенний ключ резолвится в CraftRecipes с required_season='spring'. */
+    public function testSpringRecipeKeysResolveInConfig(): void
+    {
+        $svc    = new SeasonalCraftService();
+        $cfg    = config('CraftRecipes');
+        $spring = $svc->getRecipeKeysForSeason('spring');
+
+        $this->assertCount(5, $spring);
+        foreach ($spring as $key) {
+            $recipe = $cfg->get($key);
+            $this->assertIsArray($recipe, "Spring recipe {$key} отсутствует в CraftRecipes");
+            $this->assertSame('spring', $recipe['required_season'] ?? null, "{$key}: required_season != spring");
+            $this->assertSame($key, $recipe['item_name_eng'] ?? null, "{$key}: item_name_eng mismatch");
+        }
     }
 
     public function testActiveSeasonLabel(): void
