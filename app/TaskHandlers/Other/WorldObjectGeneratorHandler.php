@@ -7,25 +7,54 @@ use App\Models\BiomeWorldObjectMapModel;
 use App\Models\BiomeModel;
 use App\Models\WorldObjectModel;
 use App\Models\MapModel;
+use App\Services\GameSettings\GameSettingsService;
 use App\TaskHandlers\BaseTaskHandler;
+use Throwable;
 
 /**
  * v0.51.21 (F2.9 batch-3): extends BaseTaskHandler (per F2.9 contract).
  * Раніше extends Controller — handler НЕ контроллер.
  * `process()` → `handle(array $task = []): void` (TaskHandlerInterface signature).
  * No Telegram usage — pure DB/world generation.
+ *
+ * S21 (v0.51.203, ROADMAP-CRAFT §8 Фаза 5): добавлен generic spawn-case для
+ * strategic-объектов (Bunker / Technopark / GhostCity). До S21 switch имел case
+ * только для truck/toolkit/warehouse → `default: break` (no-op), поэтому
+ * strategic-объекты НИКОГДА не спавнились (мёртвая цепочка с 2026-05-08, см.
+ * ADR-027). Spawn-cap для strategic читается из GameSettings (rare baseline,
+ * constitutional admin-tunable balance ADR-024), не из world_objects.max_count.
  */
 #[HandlerKey(
     key: 'world_object_generator',
     displayName: 'Генерация world-объектов',
-    description: 'Recurring (Tasks.php every minute): спавнит world-objects (toolkit/warehouse/truck) по биом-конфигу на исследованных клетках.',
+    description: 'Recurring (Tasks.php every minute): спавнит world-objects (toolkit/warehouse/truck/strategic) по биом-конфигу на исследованных клетках.',
 )]
 class WorldObjectGeneratorHandler extends BaseTaskHandler
 {
+    /**
+     * Strategic-объекты — generic spawn + GameSettings-driven rarity cap (S21).
+     *
+     * @var list<string>
+     */
+    public const STRATEGIC_SPAWN_TYPES = ['Bunker', 'Technopark', 'GhostCity'];
+
+    /**
+     * Все name_en, для которых {@see generateObjectByType()} имеет рабочий
+     * spawn-case. Anti-drift guard: active world_object без записи здесь
+     * НЕ заспавнится (см. StrategicObjectSpawnTest). Расширяя switch — обнови.
+     *
+     * @var list<string>
+     */
+    public const SUPPORTED_SPAWN_TYPES = [
+        'Abandoned truck', 'Toolkit', 'Closed warehouse',
+        'Bunker', 'Technopark', 'GhostCity',
+    ];
+
     protected $worldObjectModel;
     protected $biomeWorldObjectMapModel;
     protected $biomeModel;
     protected $mapModel;
+    private ?GameSettingsService $gameSettings = null;
 
     // Дополнительные параметры для усиленной рандомизации
     // Вы можете вынести их в настройки .env или Config, если хочется
@@ -61,7 +90,7 @@ class WorldObjectGeneratorHandler extends BaseTaskHandler
         // 3) Перебираем каждое описание объекта
         foreach ($activeObjects as $object) {
             $objectId = $object['id'];
-            $maxCount = $object['max_count'];
+            $maxCount = $this->effectiveMaxCount($object);
 
             // Сколько уже стоит на карте (biome_world_object_map.status='active')
             $generatedCount = $this->biomeWorldObjectMapModel
@@ -86,7 +115,7 @@ class WorldObjectGeneratorHandler extends BaseTaskHandler
             ->where('world_object_id', $object['id'])
             ->where('status', 'active')
             ->countAllResults();
-        $addNewRowCount = $object['max_count'] - $currentCount;
+        $addNewRowCount = $this->effectiveMaxCount($object) - $currentCount;
         if ($addNewRowCount <= 0) {
             return;
         }
@@ -106,10 +135,131 @@ class WorldObjectGeneratorHandler extends BaseTaskHandler
                 $this->generateClosedWarehouse($object, $addNewRowCount);
                 break;
 
+            // S21: strategic-объекты (Bunker / Technopark / GhostCity) —
+            // generic rare placer (без O(N) distanceCheck — иначе 15k+ toolkit'ов
+            // на проде превратят каждую попытку в перебор всех active-объектов).
+            case 'Bunker':
+            case 'Technopark':
+            case 'GhostCity':
+                $this->generateStrategicObject($object, $addNewRowCount);
+                break;
+
             default:
                 // можно расширять
                 break;
         }
+    }
+
+    /**
+     * S21 — generic spawn для strategic-объектов.
+     *
+     * Лёгкий random-offset placer: для каждого нужного спавна берём случайный
+     * допустимый биом и случайную клетку в нём (через LIMIT 1 OFFSET rand),
+     * проверяем что клетка свободна, вставляем active single_use. Без
+     * distanceCheck/findAll(биом) — strategic count мал (rare baseline ~5),
+     * а клеток в биоме десятки тысяч, кластеризация пренебрежима.
+     *
+     * @param array<string, mixed> $object
+     */
+    protected function generateStrategicObject(array $object, int $addNewRowCount): void
+    {
+        $biomeJson     = is_string($object['biome_id'] ?? null) ? $object['biome_id'] : '[]';
+        $allowedBiomes = json_decode($biomeJson, true);
+        if (!is_array($allowedBiomes) || $allowedBiomes === []) {
+            return;
+        }
+
+        $created     = 0;
+        $attempts    = 0;
+        $maxAttempts = $addNewRowCount * 20 + 20;
+
+        while ($created < $addNewRowCount && $attempts < $maxAttempts) {
+            $attempts++;
+
+            $pickedBiome = $allowedBiomes[array_rand($allowedBiomes)];
+            $biomeId     = is_numeric($pickedBiome) ? (int) $pickedBiome : 0;
+            if ($biomeId <= 0) {
+                continue;
+            }
+
+            $total = $this->mapModel->where('biome_id', $biomeId)->countAllResults();
+            if ($total <= 0) {
+                continue;
+            }
+
+            $offset = mt_rand(0, $total - 1);
+            $cells  = $this->mapModel
+                ->where('biome_id', $biomeId)
+                ->orderBy('id', 'ASC')
+                ->findAll(1, $offset);
+            $cell = $cells[0] ?? null;
+            if (!is_array($cell) || !isset($cell['id'])) {
+                continue;
+            }
+
+            $cellId = is_numeric($cell['id']) ? (int) $cell['id'] : 0;
+            if ($cellId <= 0 || !$this->isCellFree($cellId)) {
+                continue;
+            }
+
+            $this->biomeWorldObjectMapModel->insert([
+                'biome_id'        => $cell['biome_id'],
+                'world_object_id' => $object['id'],
+                'map_id'          => $cell['id'],
+                'status'          => 'active',
+                'object_type'     => 'single_use',
+            ]);
+            $created++;
+        }
+    }
+
+    /**
+     * S21 — effective spawn-cap для объекта.
+     *
+     * Для strategic-объектов (Bunker/Technopark/GhostCity) cap — это
+     * rare GameSettings-значение `world.strategic.<name_lc>.max_spawns`
+     * (constitutional admin-tunable, ADR-024), а НЕ world_objects.max_count
+     * (та колонка у strategic исторически 30..80 — flood, не «strategic»).
+     * Для остальных объектов — без изменений: world_objects.max_count.
+     *
+     * @param array<string, mixed> $object
+     */
+    protected function effectiveMaxCount(array $object): int
+    {
+        $rawMax    = $object['max_count'] ?? 0;
+        $columnMax = is_numeric($rawMax) ? (int) $rawMax : 0;
+
+        $nameEn = is_string($object['name_en'] ?? null) ? $object['name_en'] : '';
+        if (!in_array($nameEn, self::STRATEGIC_SPAWN_TYPES, true)) {
+            return $columnMax;
+        }
+
+        $svc = $this->gameSettings();
+        if ($svc === null) {
+            return $columnMax;
+        }
+
+        $key   = 'world.strategic.' . strtolower($nameEn) . '.max_spawns';
+        $value = $svc->get($key, $columnMax);
+        return is_numeric($value) ? (int) $value : $columnMax;
+    }
+
+    /**
+     * Lazy GameSettingsService (CLI cron context). Guarded — если service
+     * container недоступен (минимальный bootstrap), вернём null → fallback
+     * на world_objects.max_count.
+     */
+    private function gameSettings(): ?GameSettingsService
+    {
+        if ($this->gameSettings instanceof GameSettingsService) {
+            return $this->gameSettings;
+        }
+        try {
+            $this->gameSettings = new GameSettingsService();
+        } catch (Throwable) {
+            return null;
+        }
+        return $this->gameSettings;
     }
 
     /**
