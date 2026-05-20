@@ -48,6 +48,7 @@ class GeneralCraftingAction extends BaseAction
                     ['text' => '🔬 Верстаки', 'callback_data' => 'WorkbenchChoice'],
                 ],
                 [
+                    ['text' => '🗓 Сезонный крафт', 'callback_data' => 'seasonalCraft'],
                     ['text' => '📋 Очередь крафта', 'callback_data' => 'craftQueue'],
                 ],
             ]

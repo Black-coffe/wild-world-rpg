@@ -84,6 +84,8 @@ class CallbackRoutes extends BaseConfig
         'standardCraft'                   => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\StandardCraftingAction::class,
         // S27 — сводный экран очереди крафта (active + queued).
         'craftQueue'                      => \App\Controllers\Telegram\Commands\Actions\Craft\ShowCraftQueueAction::class,
+        // S28 — меню сезонного крафта (рецепты текущего сезона).
+        'seasonalCraft'                   => \App\Controllers\Telegram\Commands\Actions\Craft\Seasonal\SeasonalCraftSelect::class,
         'robotsCraft2'                    => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotsCraft2Select::class,
         'robotExplorer'                   => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotExplorer2Action::class,
         'robotGatherer'                   => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotGatherer2Action::class,
@@ -253,6 +255,8 @@ class CallbackRoutes extends BaseConfig
         'sellResource' => \App\Controllers\Telegram\Commands\Actions\Sell\SellResourceAction::class,
         // v0.51.129 (community idea #1) — cancel queued craft з refund ресурсів
         'cancelQueued' => \App\Controllers\Telegram\Commands\Actions\Craft\CancelQueuedCraftAction::class,
+        // S28 — generic preview сезонного рецепта. Callback: `craftPreviewSeasonal_<RecipeKey>`.
+        'craftPreviewSeasonal' => \App\Controllers\Telegram\Commands\Actions\Craft\Seasonal\SeasonalRecipePreviewAction::class,
         // S17 (v0.51.199) — generic preview для T3 weapons. Callback: `craftPreviewT3_<RecipeKey>`.
         // 1 generic Action на 5 recipes (DRY pattern, recipe lookup из CraftRecipes).
         // ⚠️ Порядок: длинные prefix'ы СНАЧАЛА (Armor/Medical), craftPreviewT3 потом (короткий fallback для weapons).
