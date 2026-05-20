@@ -20,6 +20,8 @@ use Throwable;
  * Эффекты ДЕТЕРМИНИРОВАННЫЕ (round loop под RNG-fence — никакого mt_rand):
  *   - WoodenWall: −damage_reduction% урона по защитнику (сумма, клампится cap).
  *   - BarbedFence: flat урон атакующему за каждый раунд боя у базы.
+ *   - WatchTower (S26b, ADR-031): +initiative_bonus защитнику-владельцу у базы
+ *     (presence-based). Alert-range detection вышки — отдельно (TowerAlertService).
  * Combat-балАнсы — из GameSettings (live-tunable). hp decays за каждую атаку.
  */
 final class DefenseStructureService
@@ -34,7 +36,11 @@ final class DefenseStructureService
     /**
      * Профиль защиты для защитника на его текущей клетке, либо null.
      *
-     * @return array{owner_id:int, damage_reduction:float, fence_damage:int, structure_ids:list<int>}|null
+     * S26b (ADR-031): + `initiative_bonus` от WatchTower (presence-based — не
+     * стакает по числу вышек, иначе build-N-towers эксплойт). Tower-only база
+     * тоже возвращает профиль (initiative_bonus>0, damage_reduction=0).
+     *
+     * @return array{owner_id:int, damage_reduction:float, fence_damage:int, initiative_bonus:float, structure_ids:list<int>}|null
      */
     public function getDefenseProfile(int $defenderId, int $defenderCellNumber): ?array
     {
@@ -50,9 +56,11 @@ final class DefenseStructureService
         $wallPercent = $this->intSetting('defense.wall.damage_reduction_percent', 15);
         $fencePerRnd = $this->intSetting('defense.fence.attacker_damage_per_round', 3);
         $capPercent  = $this->intSetting('defense.total_damage_reduction_max_percent', 40);
+        $towerInit   = $this->intSetting('defense.tower.defender_initiative_bonus_percent', 8);
 
         $sumWallPercent = 0;
         $sumFence       = 0;
+        $hasTower       = false;
         $structureIds   = [];
         foreach ($rows as $r) {
             $nameEn = is_string($r['name_en'] ?? null) ? $r['name_en'] : '';
@@ -65,6 +73,8 @@ final class DefenseStructureService
                 $sumWallPercent += $wallPercent;
             } elseif ($nameEn === 'BarbedFence') {
                 $sumFence += $fencePerRnd;
+            } elseif ($nameEn === 'WatchTower') {
+                $hasTower = true;
             }
             $structureIds[] = $id;
         }
@@ -79,6 +89,7 @@ final class DefenseStructureService
             'owner_id'         => $defenderId,
             'damage_reduction' => $cappedPercent / 100.0,
             'fence_damage'     => $sumFence,
+            'initiative_bonus' => $hasTower ? max(0, $towerInit) / 100.0 : 0.0,
             'structure_ids'    => $structureIds,
         ];
     }

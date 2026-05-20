@@ -57,6 +57,8 @@ class BuildListAction extends BaseAction
             // S26 (v0.51.207, ADR-030) — defensive structures (защита базы в PvP).
             ['name' => "🪵 Деревянная стена",            'tax' => 200,  'callback_data' => 'genericBuildInfo_WoodenWall'],
             ['name' => "🌵 Колючая ограда",              'tax' => 350,  'callback_data' => 'genericBuildInfo_BarbedFence'],
+            // S26b (ADR-031) — WatchTower: оповещение о чужаках + инициатива у базы.
+            ['name' => "🗼 Дозорная вышка",              'tax' => 700,  'callback_data' => 'genericBuildInfo_WatchTower'],
         ];
 
         $buildingList = "";
