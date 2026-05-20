@@ -190,6 +190,10 @@ class Worker extends Controller
         'craftSyntheticMedicine'    => 'generic_craft',
         'craftEmergencyTransfusion' => 'generic_craft',
         'craftSurgicalKit'          => 'generic_craft',
+        // S20 (v0.51.202) — 3 T3 utility tool crafts (output_type=crafted_item, type='tool').
+        'craftDiamondPickaxe'       => 'generic_craft',
+        'craftSapperShovel'         => 'generic_craft',
+        'craftGoldenHoe'            => 'generic_craft',
         // Generic building handler — покриває 12 task.name'ів через Buildings config.
         'buildingManualPump'             => 'generic_building',
         'buildBlastFurnace'              => 'generic_building',
@@ -300,6 +304,10 @@ class Worker extends Controller
         'craftSyntheticMedicine'    => 'Craft\GenericCraftCompletionHandler',
         'craftEmergencyTransfusion' => 'Craft\GenericCraftCompletionHandler',
         'craftSurgicalKit'          => 'Craft\GenericCraftCompletionHandler',
+        // S20 (v0.51.202) — 3 T3 utility tools (output_type=crafted_item dispatch на crafted_items_log).
+        'craftDiamondPickaxe'       => 'Craft\GenericCraftCompletionHandler',
+        'craftSapperShovel'         => 'Craft\GenericCraftCompletionHandler',
+        'craftGoldenHoe'            => 'Craft\GenericCraftCompletionHandler',
     ];
 
     protected function getHandlerClassName($taskName, ?string $explicitHandlerKey = null)
