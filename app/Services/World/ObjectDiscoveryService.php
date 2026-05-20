@@ -30,6 +30,7 @@ class ObjectDiscoveryService {
         'Bunker'           => 'world_object_strategic_loot',
         'Technopark'       => 'world_object_strategic_loot',
         'GhostCity'        => 'world_object_strategic_loot',
+        'IslandFarm'       => 'world_object_strategic_loot', // S24 (Фермеры)
     ];
 
     public function __construct($biomeWorldObjectMapModel, $worldObjectModel) {
@@ -147,7 +148,8 @@ class ObjectDiscoveryService {
             'Toolkit'          => new ToolkitHandler(),
             'Closed warehouse' => new ClosedWarehouseHandler(),
             // v0.51.109 — strategic objects (auto-loot з tool check).
-            'Bunker', 'Technopark', 'GhostCity' => new StrategicLootHandler(),
+            // S24 — IslandFarm (Фермеры) через тот же handler.
+            'Bunker', 'Technopark', 'GhostCity', 'IslandFarm' => new StrategicLootHandler(),
             default           => null,
         };
     }

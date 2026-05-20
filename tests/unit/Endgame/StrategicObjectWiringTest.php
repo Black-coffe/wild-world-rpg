@@ -27,10 +27,12 @@ final class StrategicObjectWiringTest extends CIUnitTestCase
     {
         $map = (new EndgameScoring())->strategicObjectFactionMap;
 
-        // 1:1 canon: Bunker→Militari(1), Technopark→Engineers(3), GhostCity→Partisans(2).
+        // 1:1 canon: Bunker→Militari(1), Technopark→Engineers(3), GhostCity→Partisans(2),
+        // IslandFarm→Farmers(4) (S24).
         $this->assertSame(1, $map['Bunker'] ?? null);
         $this->assertSame(3, $map['Technopark'] ?? null);
         $this->assertSame(2, $map['GhostCity'] ?? null);
+        $this->assertSame(4, $map['IslandFarm'] ?? null);
     }
 
     public function testEverySpawnableStrategicTypeIsSupportedByGenerator(): void
