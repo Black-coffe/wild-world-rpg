@@ -28,6 +28,9 @@ class StandardCraftingAction extends BaseAction
                     ['text' => '🛡️ Броня',     'callback_data' => 'armorCraft2'],
                     ['text' => '⚔️ Оружие',    'callback_data' => 'weaponsCraft2'],
                 ],
+                [
+                    ['text' => '📋 Очередь крафта', 'callback_data' => 'craftQueue'],
+                ],
             ]
         ];
 

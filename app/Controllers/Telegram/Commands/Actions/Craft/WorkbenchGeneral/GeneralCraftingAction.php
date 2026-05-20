@@ -47,6 +47,9 @@ class GeneralCraftingAction extends BaseAction
                     ['text' => '📐 Компоненты', 'callback_data' => 'componentsCraft'],
                     ['text' => '🔬 Верстаки', 'callback_data' => 'WorkbenchChoice'],
                 ],
+                [
+                    ['text' => '📋 Очередь крафта', 'callback_data' => 'craftQueue'],
+                ],
             ]
         ];
 

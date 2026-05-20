@@ -110,6 +110,9 @@ class CancelQueuedCraftAction extends BaseAction
             'text'       => "🗑 *Задача из очереди отменена*\n\n"
                           . "Возвращены ресурсы для крафта *{$recipe['item_name_rus']}* x{$quantity} шт.",
             'parse_mode' => 'Markdown',
+            'reply_markup' => json_encode(['inline_keyboard' => [[
+                ['text' => '📋 Очередь крафта', 'callback_data' => 'craftQueue'],
+            ]]]),
         ]);
     }
 

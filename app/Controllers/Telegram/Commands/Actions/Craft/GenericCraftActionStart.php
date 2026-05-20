@@ -593,9 +593,10 @@ class GenericCraftActionStart extends BaseAction
             . "❗Ресурсы уже списаны. Отмена очереди вернёт их.";
 
         $keyboard = [
-            'inline_keyboard' => [[
-                ['text' => '❌ Отменить из очереди', 'callback_data' => "cancelQueued_{$charTaskId}"],
-            ]],
+            'inline_keyboard' => [
+                [['text' => '❌ Отменить из очереди', 'callback_data' => "cancelQueued_{$charTaskId}"]],
+                [['text' => '📋 Очередь крафта', 'callback_data' => 'craftQueue']],
+            ],
         ];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);

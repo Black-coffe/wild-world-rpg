@@ -82,6 +82,8 @@ class CallbackRoutes extends BaseConfig
 
         // === Crafting (Workbench Standard — F3.B5..B9 generics) ===
         'standardCraft'                   => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\StandardCraftingAction::class,
+        // S27 — сводный экран очереди крафта (active + queued).
+        'craftQueue'                      => \App\Controllers\Telegram\Commands\Actions\Craft\ShowCraftQueueAction::class,
         'robotsCraft2'                    => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotsCraft2Select::class,
         'robotExplorer'                   => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotExplorer2Action::class,
         'robotGatherer'                   => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotGatherer2Action::class,
