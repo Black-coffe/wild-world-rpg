@@ -186,6 +186,10 @@ class Worker extends Controller
         'craftExoskeletonStrekoza'  => 'generic_craft',
         'craftTitanPowerArmor'      => 'generic_craft',
         'craftTeslaShardArmor'      => 'generic_craft',
+        // S19 (v0.51.201) — 3 T3 medical crafts (output_type=crafted_item, type='drug').
+        'craftSyntheticMedicine'    => 'generic_craft',
+        'craftEmergencyTransfusion' => 'generic_craft',
+        'craftSurgicalKit'          => 'generic_craft',
         // Generic building handler — покриває 12 task.name'ів через Buildings config.
         'buildingManualPump'             => 'generic_building',
         'buildBlastFurnace'              => 'generic_building',
@@ -292,6 +296,10 @@ class Worker extends Controller
         'craftExoskeletonStrekoza'  => 'Craft\GenericCraftCompletionHandler',
         'craftTitanPowerArmor'      => 'Craft\GenericCraftCompletionHandler',
         'craftTeslaShardArmor'      => 'Craft\GenericCraftCompletionHandler',
+        // S19 (v0.51.201) — 3 T3 medical (output_type=crafted_item dispatch на crafted_items_log).
+        'craftSyntheticMedicine'    => 'Craft\GenericCraftCompletionHandler',
+        'craftEmergencyTransfusion' => 'Craft\GenericCraftCompletionHandler',
+        'craftSurgicalKit'          => 'Craft\GenericCraftCompletionHandler',
     ];
 
     protected function getHandlerClassName($taskName, ?string $explicitHandlerKey = null)

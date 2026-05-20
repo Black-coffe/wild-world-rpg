@@ -1348,6 +1348,109 @@ class CraftRecipes extends BaseConfig
             'image_completed'               => 'uploads/telegram/craft/professional/tesla_shard_armor.jpg',
             'craft_again_callback'          => 'genericCraft_TeslaShardArmor_1',
         ],
+
+        // ============================================================
+        // S19 (v0.51.201) — T3 medical (ADR-026 reusable, ROADMAP-CRAFT Фаза 4 4/5).
+        //
+        // 3 НОВЫХ drug-предмета (audit-finding: в отличие от S17/S18, этих
+        // предметов НЕ было в БД — genuine new content). output_type НЕ задан →
+        // default 'crafted_item' path в GenericCraftCompletionHandler (пишет в
+        // crafted_items_log, type='drug'). Gating через required_crafted_items
+        // (ProfessionalWorkbench × 1) — pattern S17/S18.
+        //
+        // Фактический heal-эффект применяется в UsePharmacyAction через
+        // GameSettings (medical.<key>.heal_health / .heal_tired, category=combat),
+        // НЕ через recipe — admin-tunable (constitutional). agility/intellect_bonus
+        // тут — пассивный bump при крафте (как у всех crafted_item рецептов).
+        //
+        // Длительность — live-tunable: tier3.medical.<key>.craft_duration_hours.
+        // ============================================================
+
+        'SyntheticMedicine' => [
+            'task_name'                     => 'craftSyntheticMedicine',
+            'required_level'                => 20,
+            'gold_required'                 => 6000,
+            'resources'                     => [
+                'Редкие металлы'           => 4,
+                'Доколлапсная электроника' => 2,
+                'Промышленный пластик'     => 2,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 2,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.medical.synthetic_medicine.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/synthetic_medicine.jpg',
+            'start_caption_name'            => '💉 *Синтетическое лекарство (T3)*',
+            'info_callback'                 => 'craftPreviewT3Medical_SyntheticMedicine',
+            'item_name_eng'                 => 'SyntheticMedicine',
+            'item_name_rus'                 => 'Синтетическое лекарство',
+            'icon_emoji'                    => '💉',
+            'zone_emoji'                    => '💊',
+            'zone_name'                     => 'медицина',
+            'agility_bonus'                 => 0.02,
+            'intellect_bonus'               => 0.04,
+            'image_completed'               => 'uploads/telegram/craft/professional/synthetic_medicine.jpg',
+            'craft_again_callback'          => 'genericCraft_SyntheticMedicine_1',
+        ],
+
+        'EmergencyTransfusion' => [
+            'task_name'                     => 'craftEmergencyTransfusion',
+            'required_level'                => 18,
+            'gold_required'                 => 3000,
+            'resources'                     => [
+                'Редкие металлы'           => 2,
+                'Доколлапсная электроника' => 1,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 1,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.medical.emergency_transfusion.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/emergency_transfusion.jpg',
+            'start_caption_name'            => '🩸 *Экстренное переливание (T3)*',
+            'info_callback'                 => 'craftPreviewT3Medical_EmergencyTransfusion',
+            'item_name_eng'                 => 'EmergencyTransfusion',
+            'item_name_rus'                 => 'Экстренное переливание',
+            'icon_emoji'                    => '🩸',
+            'zone_emoji'                    => '💊',
+            'zone_name'                     => 'медицина',
+            'agility_bonus'                 => 0.02,
+            'intellect_bonus'               => 0.03,
+            'image_completed'               => 'uploads/telegram/craft/professional/emergency_transfusion.jpg',
+            'craft_again_callback'          => 'genericCraft_EmergencyTransfusion_1',
+        ],
+
+        'SurgicalKit' => [
+            'task_name'                     => 'craftSurgicalKit',
+            'required_level'                => 22,
+            'gold_required'                 => 9000,
+            'resources'                     => [
+                'Редкие металлы'           => 6,
+                'Доколлапсная электроника' => 3,
+                'Промышленный пластик'     => 4,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 4,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.medical.surgical_kit.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/surgical_kit.jpg',
+            'start_caption_name'            => '🧰 *Хирургический набор (T3)*',
+            'info_callback'                 => 'craftPreviewT3Medical_SurgicalKit',
+            'item_name_eng'                 => 'SurgicalKit',
+            'item_name_rus'                 => 'Хирургический набор',
+            'icon_emoji'                    => '🧰',
+            'zone_emoji'                    => '💊',
+            'zone_name'                     => 'медицина',
+            'agility_bonus'                 => 0.03,
+            'intellect_bonus'               => 0.05,
+            'image_completed'               => 'uploads/telegram/craft/professional/surgical_kit.jpg',
+            'craft_again_callback'          => 'genericCraft_SurgicalKit_1',
+        ],
     ];
 
     /**

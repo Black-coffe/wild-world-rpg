@@ -248,7 +248,7 @@ class WorkbenchProfessionalAction extends BaseAction
             . "Выбирай раздел для крафта.\n\n"
             . "⚔️ *Оружие* — 5 рецептов T3 (S17)\n"
             . "🛡 *Броня* — 4 рецепта T3 (S18)\n"
-            . "💊 *Медицина* — в работе (S19)\n"
+            . "💊 *Медицина* — 3 рецепта T3 (S19)\n"
             . "🔧 *Утилиты* — в работе (S20)\n";
 
         $keyboard = [
@@ -256,6 +256,9 @@ class WorkbenchProfessionalAction extends BaseAction
                 [
                     ['text' => '⚔️ Оружие T3', 'callback_data' => 'craftWeaponsT3Select'],
                     ['text' => '🛡 Броня T3',   'callback_data' => 'craftArmorT3Select'],
+                ],
+                [
+                    ['text' => '💊 Медицина T3', 'callback_data' => 'craftMedicalT3Select'],
                 ],
                 [
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
