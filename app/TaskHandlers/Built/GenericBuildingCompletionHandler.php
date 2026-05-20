@@ -102,9 +102,12 @@ class GenericBuildingCompletionHandler extends BaseTaskHandler
         // 5. character_buildings insert/update
         $this->updateCharacterBuildings($task, $buildingRow, $recipe);
 
-        // 6. Stats бонусы
+        // 6. Stats бонусы (character_id из raw task — mixed; нарроуим в int через is_numeric,
+        //    чтобы не было краша «string given» при завершении постройки и cast-from-mixed)
+        $cidRaw      = $task['character_id'] ?? null;
+        $characterId = is_numeric($cidRaw) ? (int) $cidRaw : 0;
         $this->characterModel->updateAgilityAndIntellect(
-            $task['character_id'],
+            $characterId,
             (float) ($recipe['completion_bonus_agility']  ?? 0.0),
             (float) ($recipe['completion_bonus_intellect'] ?? 0.0)
         );
