@@ -183,5 +183,10 @@ class Tasks extends BaseTasks
         // → triggers FINAL state + broadcast до всіх chars.
         $schedule->call(static fn() => (new \App\TaskHandlers\Endgame\EndgameThresholdHandler())->handle())
             ->daily('04:00')->singleInstance()->named('endgame.threshold-check');
+
+        // S28 (ADR-032) — смена craft-сезона + анонс. Daily 00:00. Idempotent
+        // (cache-state, first-run silent). Killswitch seasonal.enabled.
+        $schedule->call(static fn() => (new \App\TaskHandlers\Other\SeasonalTransitionHandler())->handle())
+            ->daily('00:00')->singleInstance()->named('seasonal.transition');
     }
 }

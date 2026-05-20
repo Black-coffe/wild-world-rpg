@@ -253,6 +253,24 @@ class GenericCraftActionStart extends BaseAction
             return $this->sendError("Это фракционное оружие может скрафтить только член соответствующей фракции.");
         }
 
+        // S28 (ADR-032): seasonal-gate — рецепт доступен только когда активен его
+        // сезон (SeasonalCraftService, детерминированно от anchor+cycle). Defense-
+        // in-depth: меню показывает только активные, но гейт страхует от прямого callback.
+        $requiredSeason = isset($recipe['required_season']) && is_string($recipe['required_season'])
+            ? $recipe['required_season']
+            : '';
+        if ($requiredSeason !== '') {
+            $seasonalService = new \App\Services\World\SeasonalCraftService();
+            if (!$seasonalService->isSeasonActive($requiredSeason)) {
+                $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", 'season_inactive', [
+                    'required_season' => $requiredSeason,
+                ]);
+                $label = $seasonalService->getSeasonLabel($requiredSeason);
+                $labelTxt = $label !== '' ? "«{$label}»" : 'свой сезон';
+                return $this->sendError("Этот сезонный рецепт сейчас недоступен — вернётся в сезон {$labelTxt}.");
+            }
+        }
+
         // F3.B8: проверка наличия золота (умножается на quantity).
         $goldPerOne   = (int) ($recipe['gold_required'] ?? 0);
         $goldRequired = $goldPerOne * $this->quantity;
