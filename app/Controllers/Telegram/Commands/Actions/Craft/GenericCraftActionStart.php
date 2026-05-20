@@ -229,6 +229,30 @@ class GenericCraftActionStart extends BaseAction
             return $this->sendError("Нужно иметь *{$missingName}* в инвентаре. Скрафти его и возвращайся.");
         }
 
+        // S25 (ADR-029): quest-gate — рецепт заблокирован пока не завершён нужный
+        // quest (StrategicCapture<X>). required_quest = quests.title_en.
+        $requiredQuest = isset($recipe['required_quest']) && is_string($recipe['required_quest'])
+            ? $recipe['required_quest']
+            : '';
+        if ($requiredQuest !== '' && !$this->isQuestCompleted((int) $character['id'], $requiredQuest)) {
+            $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", 'required_quest_incomplete', [
+                'quest' => $requiredQuest,
+            ]);
+            return $this->sendError("Этот рецепт откроется после захвата стратегического объекта (квест ещё не завершён).");
+        }
+
+        // S25 (ADR-029): faction-gate — только член нужной фракции (true
+        // faction-exclusive). required_faction = character_factions.faction_id.
+        $requiredFaction = isset($recipe['required_faction']) && is_numeric($recipe['required_faction'])
+            ? (int) $recipe['required_faction']
+            : 0;
+        if ($requiredFaction > 0 && $this->characterFactionId((int) $character['id']) !== $requiredFaction) {
+            $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", 'required_faction_mismatch', [
+                'need' => $requiredFaction,
+            ]);
+            return $this->sendError("Это фракционное оружие может скрафтить только член соответствующей фракции.");
+        }
+
         // F3.B8: проверка наличия золота (умножается на quantity).
         $goldPerOne   = (int) ($recipe['gold_required'] ?? 0);
         $goldRequired = $goldPerOne * $this->quantity;
@@ -428,6 +452,37 @@ class GenericCraftActionStart extends BaseAction
             }
         }
         return $missing;
+    }
+
+    /**
+     * S25 (ADR-029): завершён ли у персонажа quest по `quests.title_en`
+     * (есть quest_steps с is_completed=1). Gate для faction weapons.
+     */
+    private function isQuestCompleted(int $charId, string $titleEn): bool
+    {
+        $db    = \Config\Database::connect();
+        $query = $db->table('quest_steps qs')
+            ->join('quests q', 'q.id = qs.quest_id')
+            ->where('q.title_en', $titleEn)
+            ->where('qs.character_id', $charId)
+            ->where('qs.is_completed', 1)
+            ->get();
+        return $query !== false && $query->getFirstRow('array') !== null;
+    }
+
+    /**
+     * S25 (ADR-029): faction_id персонажа (0 если нет записи / Нейтрал).
+     */
+    private function characterFactionId(int $charId): int
+    {
+        $db    = \Config\Database::connect();
+        $query = $db->table('character_factions')
+            ->where('character_id', $charId)
+            ->get();
+        $row = $query !== false ? $query->getFirstRow('array') : null;
+        return is_array($row) && isset($row['faction_id']) && is_numeric($row['faction_id'])
+            ? (int) $row['faction_id']
+            : 0;
     }
 
     /** @param array<string,int> $reqs */

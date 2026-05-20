@@ -170,6 +170,38 @@ class WeaponRecipePreviewT3Action extends BaseAction
             $componentLines[] = "{$marker} {$rusName} — {$have} / {$qtyNeed}";
         }
 
+        // S25 (ADR-029): faction/quest gate для faction-unique weapons.
+        $gateNotes = [];
+        $reqQuest  = isset($recipe['required_quest']) && is_string($recipe['required_quest']) ? $recipe['required_quest'] : '';
+        if ($reqQuest !== '') {
+            $db    = \Config\Database::connect();
+            $query = $db->table('quest_steps qs')
+                ->join('quests q', 'q.id = qs.quest_id')
+                ->where('q.title_en', $reqQuest)
+                ->where('qs.character_id', $characterId)
+                ->where('qs.is_completed', 1)
+                ->get();
+            $done = $query !== false && $query->getFirstRow('array') !== null;
+            $gateNotes[] = ($done ? '✅' : '🔒') . ' захват стратегического объекта';
+            if (!$done) {
+                $insufficient[] = 'не захвачен стратегический объект';
+            }
+        }
+        $reqFaction = isset($recipe['required_faction']) && is_numeric($recipe['required_faction']) ? (int) $recipe['required_faction'] : 0;
+        if ($reqFaction > 0) {
+            $db    = \Config\Database::connect();
+            $fq    = $db->table('character_factions')->where('character_id', $characterId)->get();
+            $frow  = $fq !== false ? $fq->getFirstRow('array') : null;
+            $charFaction  = is_array($frow) && isset($frow['faction_id']) && is_numeric($frow['faction_id']) ? (int) $frow['faction_id'] : 0;
+            $factionNames = [1 => 'Военные', 2 => 'Партизаны', 3 => 'Инженеры', 4 => 'Фермеры'];
+            $need = $factionNames[$reqFaction] ?? ('#' . $reqFaction);
+            $ok   = $charFaction === $reqFaction;
+            $gateNotes[] = ($ok ? '✅' : '🔒') . " фракция: {$need}";
+            if (!$ok) {
+                $insufficient[] = "только фракция {$need}";
+            }
+        }
+
         // Build caption.
         $itemNameRusRaw = $recipe['item_name_rus'] ?? $recipeKey;
         $itemNameRus    = is_string($itemNameRusRaw) ? $itemNameRusRaw : $recipeKey;
@@ -189,6 +221,10 @@ class WeaponRecipePreviewT3Action extends BaseAction
         }
         $caption .= "\n*Уровень:* L{$needLevel} (у вас L{$charLevel})\n";
         $caption .= "*Золото:* {$goldNeed} / {$goldHave}\n";
+
+        if (!empty($gateNotes)) {
+            $caption .= "\n*Фракционный доступ:*\n" . implode("\n", $gateNotes) . "\n";
+        }
 
         if (!empty($gate)) {
             $caption .= "\n*Требуется в инвентаре:*\n";
@@ -222,9 +258,12 @@ class WeaponRecipePreviewT3Action extends BaseAction
         if ($canCraft) {
             $rows[] = [['text' => '🛠 Скрафтить 1 шт', 'callback_data' => 'genericCraft_' . $recipeKey . '_1']];
         }
+        // S25: back-кнопка зависит от рецепта (faction weapons → faction-меню).
+        $backCbRaw = $recipe['back_callback'] ?? 'craftWeaponsT3Select';
+        $backCb    = is_string($backCbRaw) && $backCbRaw !== '' ? $backCbRaw : 'craftWeaponsT3Select';
         $rows[] = [
-            ['text' => '⬅️ Назад к оружию', 'callback_data' => 'craftWeaponsT3Select'],
-            ['text' => '🎒 Инвентарь',       'callback_data' => 'inventory'],
+            ['text' => '⬅️ Назад', 'callback_data' => $backCb],
+            ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
         ];
 
         // Image: recipe-specific, fallback на verstack.

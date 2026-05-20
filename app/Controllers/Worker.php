@@ -181,6 +181,11 @@ class Worker extends Controller
         'craftIonDestabilizer'      => 'generic_craft',
         'craftFlamethrowerAid'      => 'generic_craft',
         'craftExoRailgunBehemoth'   => 'generic_craft',
+        // S25 (v0.51.205) — 4 faction-unique weapons (output_type=weapon, ADR-029).
+        'craftBunkerRifle'          => 'generic_craft',
+        'craftTechnoBeamShotgun'    => 'generic_craft',
+        'craftGhostCityKnife'       => 'generic_craft',
+        'craftFarmersHarvestScythe' => 'generic_craft',
         // S18 (v0.51.200) — 4 T3 armor crafts (output_type=outfit, characters_outfits).
         'craftTacticalArmorSuit'    => 'generic_craft',
         'craftExoskeletonStrekoza'  => 'generic_craft',
@@ -295,6 +300,11 @@ class Worker extends Controller
         'craftIonDestabilizer'      => 'Craft\GenericCraftCompletionHandler',
         'craftFlamethrowerAid'      => 'Craft\GenericCraftCompletionHandler',
         'craftExoRailgunBehemoth'   => 'Craft\GenericCraftCompletionHandler',
+        // S25 (v0.51.205) — 4 faction-unique weapons (output_type=weapon, ADR-029).
+        'craftBunkerRifle'          => 'Craft\GenericCraftCompletionHandler',
+        'craftTechnoBeamShotgun'    => 'Craft\GenericCraftCompletionHandler',
+        'craftGhostCityKnife'       => 'Craft\GenericCraftCompletionHandler',
+        'craftFarmersHarvestScythe' => 'Craft\GenericCraftCompletionHandler',
         // S18 (v0.51.200) — 4 T3 armor (output_type=outfit dispatch на characters_outfits).
         'craftTacticalArmorSuit'    => 'Craft\GenericCraftCompletionHandler',
         'craftExoskeletonStrekoza'  => 'Craft\GenericCraftCompletionHandler',
