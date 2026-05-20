@@ -145,21 +145,31 @@ final class SeasonalCraftServiceTest extends CIUnitTestCase
         $this->assertCount(5, $spring);
         $this->assertContains('SpringFirstHerbTea', $spring);
         $this->assertContains('SpringShootsDecoction', $spring);
+        // summer (day 42) — V2: 5 рецептов «Летней жары».
+        $summer = $svc->getRecipeKeysForActiveSeason($this->dayTs(42));
+        $this->assertCount(5, $summer);
+        $this->assertContains('SummerColdKvass', $summer);
+        $this->assertContains('SummerAloeBalm', $summer);
     }
 
-    /** V1 anti-drift: каждый весенний ключ резолвится в CraftRecipes с required_season='spring'. */
-    public function testSpringRecipeKeysResolveInConfig(): void
+    /**
+     * V1/V2 anti-drift: каждый ключ непустого сезона резолвится в CraftRecipes
+     * с required_season == ключ сезона. Future-proof: автоматом покрывает V3 autumn.
+     */
+    public function testSeasonRecipeKeysResolveInConfig(): void
     {
-        $svc    = new SeasonalCraftService();
-        $cfg    = config('CraftRecipes');
-        $spring = $svc->getRecipeKeysForSeason('spring');
+        $svc = new SeasonalCraftService();
+        $cfg = config('CraftRecipes');
 
-        $this->assertCount(5, $spring);
-        foreach ($spring as $key) {
-            $recipe = $cfg->get($key);
-            $this->assertIsArray($recipe, "Spring recipe {$key} отсутствует в CraftRecipes");
-            $this->assertSame('spring', $recipe['required_season'] ?? null, "{$key}: required_season != spring");
-            $this->assertSame($key, $recipe['item_name_eng'] ?? null, "{$key}: item_name_eng mismatch");
+        foreach (['spring', 'summer'] as $season) {
+            $keys = $svc->getRecipeKeysForSeason($season);
+            $this->assertCount(5, $keys, "{$season}: ожидалось 5 рецептов");
+            foreach ($keys as $key) {
+                $recipe = $cfg->get($key);
+                $this->assertIsArray($recipe, "{$season} recipe {$key} отсутствует в CraftRecipes");
+                $this->assertSame($season, $recipe['required_season'] ?? null, "{$key}: required_season != {$season}");
+                $this->assertSame($key, $recipe['item_name_eng'] ?? null, "{$key}: item_name_eng mismatch");
+            }
         }
     }
 
