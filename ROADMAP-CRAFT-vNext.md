@@ -15,10 +15,14 @@
 | V2 | Летняя жара (5 прохладительных consumable) | ✅ SHIPPED | v0.51.214 | 2026-05-20 |
 | V3 | Осенняя жатва (5 урожайных consumable) | ✅ SHIPPED | v0.51.215 | 2026-05-20 |
 | V5 | Seasonal images backfill (15 картинок) | ✅ SHIPPED | v0.51.216 | 2026-05-20 |
+| V4 | Seasonal-events tie-in (4 события 1:1) | ✅ SHIPPED | v0.51.217 | 2026-05-20 |
+| — | 🐛 hotfix: building/craft completion (character_id mixed→int, 7 хендлеров) | ✅ SHIPPED | v0.51.218 | 2026-05-20 |
 
-**Контент + визуал всех 4 сезонов готов** (winter S28 + spring V1 + summer V2 + autumn V3 = 20 рецептов; 15 картинок V5; winter-картинки были S28). **Осталось в Фазе 1: только V4** (seasonal-events tie-in) → потом закрытие фазы.
+🏁 **ФАЗА 1 ЗАКРЫТА (V1-V5, 2026-05-20):** 20 рецептов × 4 сезона + 15 картинок + 4 сезонных события (Snowfall→winter / SpringFlood→spring / Dryness→summer / BerryBoom→autumn). Авто-ротация 21 день. Бонус: prod-хотфикс краша завершения построек/крафта (daily-log-review находка).
 
-**Image-tail закрыт.** Все 15 spring/summer/autumn картинок live (HTTP 200 prod). Прочие image-tail'ы (WatchTower S26b + 4 strategic-объекта) — отдельный scope (Фаза 6 V28).
+**Следующее: Фаза 2 — Farming & cooking foundation (V6-V10).** V6 = seed-cycle/crop rotation (foundation-сервис) — крупнее scope, audit-first.
+
+**Image-tail'ы прочие** (WatchTower S26b + 4 strategic-объекта) — отдельный scope (Фаза 6 V28).
 
 ---
 
@@ -76,7 +80,7 @@ Framework S28 готов → нужен только контент. Кажды�
 - **V1** ✅ **SHIPPED v0.51.213 (2026-05-20)** — Весеннее пробуждение: 5 heal-консумаблов (🌿 Чай из первой травы / 🍯 Берёзовый сок / 🌸 Настой первоцвета / 🥗 Весенняя зелень / 🌱 Отвар молодых побегов), `required_season='spring'`, зеркало S28 winter. **Scope-решение:** семена/удочка из исходного outline отложены (требуют механики посадки V6 / tool-механики → BUILT-BUT-DEAD риск). Активен ~10 июня 2026. Картинки → V5. 704→705 тестов.
 - **V2** ✅ **SHIPPED v0.51.214 (2026-05-20)** — Летняя жара: 5 прохладительных heal-консумаблов (🧊 Холодный квас / 🥤 Лесной морс / 🍉 Фруктовая вода / 🌿 Мятный отвар / 🧴 Алоэ-бальзам), `required_season='summer'`, зеркало V1. **Scope:** «солнечная экипировка/лёгкая броня» из outline отложены (требуют armor-механики → BUILT-BUT-DEAD риск). Ресурсы из реальной таблицы (Вода/Ягоды/Фрукты/Алоэ/Зерновые). Активен ~1 июля 2026. Картинки → V5.
 - **V3** ✅ **SHIPPED v0.51.215 (2026-05-20)** — Осенняя жатва: 5 урожайных heal-консумаблов (🍯 Ягодное варенье / 🍄 Грибное рагу / 🌰 Ореховая смесь / 🍎 Сидр / 🥫 Овощные консервы), `required_season='autumn'`. **Scope:** «бочки» из outline отложены (storage-механика). Все 4 сезона теперь укомплектованы (20 рецептов). Активен ~22 июля 2026. Картинки → V5.
-- **V4** — Seasonal-events tie-in: сезонные мировые события (привязка к активному сезону через `SeasonalCraftService`).
+- **V4** ✅ **SHIPPED v0.51.217 (2026-05-20)** — Seasonal-events tie-in: 4 существующих события привязаны к сезону 1:1 (Snowfall→winter / SpringFlood→spring / Dryness→summer / BerryBoom→autumn) через `required_season` + `EventActivationHandler::filterBySeason()` (killswitch-safe). Аудит: события уже в DB+config, идеально тематичны. 0 миграций. +5 unit-тестов.
 - **V5** ✅ **SHIPPED v0.51.216 (2026-05-20)** — Seasonal images backfill: 15 картинок (spring+summer+autumn × 5) в стиле «Найденная фотоплёнка» (gpt-image-2, V4, lexicon loot.medicine), все визуально проверены на 0-text, ≤292KB, HTTP 200 prod. Закрытие фазы — после V4.
 
 ### 🌾 Фаза 2 — Farming & cooking foundation (P5/P10, lore-coherent)
