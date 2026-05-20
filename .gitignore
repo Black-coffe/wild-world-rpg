@@ -196,3 +196,4 @@ nul
 # Архив оригиналов = git-история (коммит до ребренда) + offline zip; в прод не нужно.
 #-------------------------
 public/uploads/telegram/_legacy/
+app/Commands/SmokeS26b.php
