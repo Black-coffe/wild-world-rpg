@@ -16851,14 +16851,9 @@ parameters:
 		-
 			message: '#^Cannot access offset ''event_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/TaskHandlers/Events/EventActivationHandler.php
-
-		-
-			message: '#^Cannot access offset ''frequency_per_week'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/TaskHandlers/Events/EventActivationHandler.php
+
 
 		-
 			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
@@ -16992,11 +16987,6 @@ parameters:
 			count: 1
 			path: app/TaskHandlers/Events/EventActivationHandler.php
 
-		-
-			message: '#^Parameter \#1 \$events of static method App\\TaskHandlers\\Events\\EventActivationHandler\:\:pickWeighted\(\) expects list\<array\<string, mixed\>\>, non\-empty\-list\<array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\> given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/Events/EventActivationHandler.php
 
 		-
 			message: '#^Parameter \#1 \$min of function rand expects int, float given\.$#'

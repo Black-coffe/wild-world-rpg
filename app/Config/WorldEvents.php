@@ -234,6 +234,7 @@ class WorldEvents extends BaseConfig
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
             'tick_chance'       => 0.30,  // legacy SnowFallHandler 30% gate
+            'required_season'   => 'winter',  // V4 (ADR-032): снегопад только зимой
             'protection_item'   => 'Bandage',
             'notification_kind' => 'lifecycle',
         ],
@@ -249,6 +250,7 @@ class WorldEvents extends BaseConfig
             'duration_minutes'  => 60,
             'frequency_weight'  => 1,
             'tick_chance'       => 0.30,  // legacy SpringFloodHandler 30% gate
+            'required_season'   => 'spring',  // V4 (ADR-032): половодье только весной
             'protection_item'   => 'Bandage',
             'notification_kind' => 'lifecycle',
         ],
@@ -322,6 +324,7 @@ class WorldEvents extends BaseConfig
             'duration_minutes'  => 90,  // було 860 (14г) — кардинально скорочено
             'frequency_weight'  => 1,
             'tick_chance'       => 1.0,   // gather_debuff — це state, не tick
+            'required_season'   => 'summer',  // V4 (ADR-032): засуха только летом
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
@@ -474,6 +477,7 @@ class WorldEvents extends BaseConfig
             'duration_minutes'  => 60,
             'frequency_weight'  => 2,
             'tick_chance'       => 1.0,   // RareResource.compute робить власний chance_per_tick=0.20
+            'required_season'   => 'autumn',  // V4 (ADR-032): ягодный бум — осенняя жатва
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],

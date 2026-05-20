@@ -7,6 +7,7 @@ use App\Models\ActiveEventModel;
 use App\Models\BiomeModel;
 use App\Models\EventModel;
 use App\Models\TelegramUserModel;
+use App\Services\World\SeasonalCraftService;
 use App\TaskHandlers\BaseTaskHandler;
 use CodeIgniter\I18n\Time;
 
@@ -99,6 +100,29 @@ class EventActivationHandler extends BaseTaskHandler
                 ->where('start_time <=', $this->endOfWeek);
         })->findAll();
 
+        // EventModel::findAll() возвращает loose-тип (CI4-стаб: array|object, ключи int|string).
+        // Нормализуем строки в array<string,mixed> — типобезопасно для сезон-гейта и ниже.
+        $rows = [];
+        foreach ($availableEvents as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $normalized = [];
+            foreach ($row as $colKey => $colValue) {
+                $normalized[(string) $colKey] = $colValue;
+            }
+            $rows[] = $normalized;
+        }
+
+        // 3b) V4 (ADR-032): сезонный гейт — событие с required_season доступно только
+        //     в свой активный сезон. Killswitch-safe: при выключенном seasonal активный
+        //     сезон='' → фильтр no-op (события снова круглогодичны).
+        $availableEvents = self::filterBySeason(
+            $rows,
+            new \Config\WorldEvents(),
+            (new SeasonalCraftService())->getActiveSeasonKey()
+        );
+
         // 4) Смотрим, не слишком ли мало времени прошло после последней активации
         //    (Берём случайный порог от 540 до 1240 мин; если не вышло — не активируем)
         if (!$this->isRecentActivationTooClose()) {
@@ -129,6 +153,37 @@ class EventActivationHandler extends BaseTaskHandler
             // Уведомляем всех игроков (транслируем картинку + описание)
             $this->notifyPlayersAboutEvent($randomEvent);
         }
+    }
+
+    /**
+     * V4 (ADR-032) — сезонный гейт world-событий.
+     *
+     * Событие, у которого в WorldEvents config задан 'required_season', доступно
+     * к активации ТОЛЬКО когда активен его сезон. События без 'required_season'
+     * доступны всегда. `$activeSeason === ''` (seasonal выключен killswitch'ем или
+     * межсезонье) → фильтр no-op: возвращаем всё как есть (backward-compat — события
+     * круглогодичны, как до V4). Pure/статический → тестируемо без БД.
+     *
+     * @param list<array<string, mixed>> $events    события (нужен ключ name_english)
+     * @param \Config\WorldEvents        $cfg
+     * @param string                     $activeSeason 'winter'|'spring'|'summer'|'autumn'|''
+     * @return list<array<string, mixed>>
+     */
+    public static function filterBySeason(array $events, \Config\WorldEvents $cfg, string $activeSeason): array
+    {
+        if ($activeSeason === '') {
+            return $events;
+        }
+
+        return array_values(array_filter($events, static function (array $event) use ($cfg, $activeSeason): bool {
+            $name   = isset($event['name_english']) && is_string($event['name_english']) ? $event['name_english'] : '';
+            $config = $name !== '' ? $cfg->get($name) : null;
+            $req    = is_array($config) && isset($config['required_season']) && is_string($config['required_season'])
+                ? $config['required_season']
+                : '';
+
+            return $req === '' || $req === $activeSeason;
+        }));
     }
 
     /**
