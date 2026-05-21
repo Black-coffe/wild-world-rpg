@@ -23,6 +23,7 @@
 | V8 | Campfire cooking — 5 блюд из фарм-урожая (farm-to-table) | ✅ SHIPPED | v0.51.222 | 2026-05-21 |
 | V9 | «Сытость» — food-buff продуктивности (крафт+добыча, PvE, ADR-034) | ✅ SHIPPED | v0.51.223 | 2026-05-21 |
 | V10 | Свежесть еды + консервы (ADR-035) — 🏁 закрытие Фазы 2 | ✅ SHIPPED | v0.51.224 | 2026-05-21 |
+| V11 | Quest-chain foundation (prerequisite-цепочки, ADR-036) — 🏛 старт Фазы 3 | ✅ SHIPPED | v0.51.225 | 2026-05-21 |
 
 🏁 **ФАЗА 1 ЗАКРЫТА (V1-V5, 2026-05-20):** 20 рецептов × 4 сезона + 15 картинок + 4 сезонных события (Snowfall→winter / SpringFlood→spring / Dryness→summer / BerryBoom→autumn). Авто-ротация 21 день. Бонус: prod-хотфикс краша завершения построек/крафта (daily-log-review находка).
 
@@ -102,7 +103,7 @@ Greenhouse (S13b) → углубление + новая ось «еда».
 🏁 **ФАЗА 2 ЗАКРЫТА (V6-V10, 2026-05-21):** полная ось «еда» — активное земледелие (семена→посадка→урожай+севооборот) → масштаб по уровню теплицы → готовка на костре (7 блюд+консервы) → buff «Сытость» (продуктивность) → свежесть/консервация. 2 ADR (033/034/035), ~25 GameSettings, ~20 картинок, 0 player-hostility, всё live-tunable. Прод-теги v0.51.219→224.
 
 ### 🏛 Фаза 3 — Endgame content deepening (P4/P6 — раскрыть фундамент S21–S25)
-- **V11** — Quest-chain infra (мульти-этапные квесты, foundation для T3→T4).
+- **V11** ✅ **SHIPPED v0.51.225 (2026-05-21, ADR-036) — 🏛 СТАРТ ФАЗЫ 3.** Quest-chain foundation. **User pick: prerequisite-цепочки** (contained, не трогаем хрупкие bespoke quest-handler'ы). **Аудит:** квесты single-step (bespoke handler+action+хардкод-награда); цепочек/prerequisites не было; `quest_requirements` — dead; `step_order` abused как флаг. Решение: `quests.prerequisite_quest` (nullable VARCHAR = title_en предусловия; null = доступен сразу, 0 регрессии) + `QuestChainService` (chainsEnabled + prerequisiteMet, pure) + `QuestModel::getCompletedQuestTitles` + availability-gate в `AvailableQuests` (locked-тизер «🔒 после X») + admin quest-form поле + killswitch `quests.chains_enabled`. Многоэтапность = цепочка связанных квестов (A→B→C); T4-крафт гейтится на финальный квест через S25 `required_quest`. +4 теста (748→752), phpstan L9, testbot e2e (B locked→unlocked) + прод verify (column + setting + 0 gated quests). Foundation для V12/V13 (strategic-цепочки) + T3→T4.
 - **V12** — Strategic quest-chains: Bunker + Technopark (полные цепочки внутри объектов).
 - **V13** — Strategic quest-chains: GhostCity + Island-Farm.
 - **V14** — Tier 4 Unique crafts: 4 faction-specific (gate = endgame-объект + квест-цепочка, реюз S25 `required_quest`+`required_faction`).
