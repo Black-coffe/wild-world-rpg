@@ -49,6 +49,9 @@ class GeneralCraftingAction extends BaseAction
                 ],
                 [
                     ['text' => '🗓 Сезонный крафт', 'callback_data' => 'seasonalCraft'],
+                    ['text' => '🔥 Костёр', 'callback_data' => 'cook'],
+                ],
+                [
                     ['text' => '📋 Очередь крафта', 'callback_data' => 'craftQueue'],
                 ],
             ]
