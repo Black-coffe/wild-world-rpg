@@ -62,18 +62,26 @@ class SeedPlantPreviewAction extends BaseAction
         $lastCropRaw = $character['last_planted_crop'] ?? null;
         $lastCrop    = is_string($lastCropRaw) && $lastCropRaw !== '' ? $lastCropRaw : null;
         $willRot     = $farming->shouldRotate($lastCrop, $crop);
-        $grow        = $farming->growMinutes($crop);
-        $yield       = $farming->harvestYield($crop, $willRot);
+        // V7: greenhouse-level множители (урожай/время роста).
+        $effects     = $this->buildingEffects();
+        $ghGrowMult  = $effects->getGreenhouseGrowTimeMultiplier($charId);
+        $ghYieldMult = $effects->getGreenhouseYieldMultiplier($charId);
+        $grow        = $farming->growMinutes($crop, $ghGrowMult);
+        $yield       = $farming->harvestYield($crop, $willRot, $ghYieldMult);
 
         $rotLine = $willRot
             ? "🔄 Севооборот: *+{$farming->rotationBonusPercent()}%* (культура отличается от прошлой)\n"
             : "🔁 Севооборот: нет (та же культура или первая посадка)\n";
+        $ghLine = ($ghYieldMult > 1.0 || $ghGrowMult < 1.0)
+            ? "🏗 Бонус теплицы по уровню учтён в цифрах выше\n"
+            : '';
 
         $text = "🌱 *Посадка: {$meta['icon']} {$meta['crop_ru']}*\n\n"
             . "Спишется: *1× {$meta['seed_ru']}* (в запасе: {$owned})\n"
             . "⏱ Время роста: *{$grow} мин*\n"
             . "🌾 Ожидаемый урожай: *{$meta['icon']} {$meta['crop_ru']} ×{$yield}*\n"
             . $rotLine
+            . $ghLine
             . "🌿 Слоты посадок: *{$used}/{$maxSlots}*\n\n";
 
         $rows = [];

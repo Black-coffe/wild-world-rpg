@@ -60,11 +60,21 @@ class SeedSelectAction extends BaseAction
         }
         $ownedMap = $this->ownedSeedMap($charId, $seedNames);
 
+        // V7: greenhouse-level множители (урожай/время роста) для точного показа.
+        $effects   = $this->buildingEffects();
+        $ghGrowMult  = $effects->getGreenhouseGrowTimeMultiplier($charId);
+        $ghYieldMult = $effects->getGreenhouseYieldMultiplier($charId);
+        $ghActive    = ($ghYieldMult > 1.0 || $ghGrowMult < 1.0);
+
         /** @var CraftRecipes $cfg */
         $cfg = config('CraftRecipes');
 
+        $ghNote = $ghActive
+            ? "🏗 _Бонус теплицы: урожай ↑, рост быстрее (по уровню)._\n"
+            : '';
         $text = "🌱 *Грядки теплицы*\n"
-            . "_Активная посадка — слой поверх пассивной теплицы. Семена → рост по таймеру → урожай (+севооборот за смену культуры)._\n\n"
+            . "_Активная посадка — слой поверх пассивной теплицы. Семена → рост по таймеру → урожай (+севооборот за смену культуры)._\n"
+            . $ghNote . "\n"
             . $this->activePlantingsText($plantings, $maxSlots, $farming) . "\n";
 
         $rows = [];
@@ -74,9 +84,9 @@ class SeedSelectAction extends BaseAction
                 continue;
             }
             $owned    = $ownedMap[$meta['seed_en']] ?? 0;
-            $grow     = $farming->growMinutes($crop);
+            $grow     = $farming->growMinutes($crop, $ghGrowMult);
             $willRot  = $farming->shouldRotate($lastCrop, $crop);
-            $yield    = $farming->harvestYield($crop, $willRot);
+            $yield    = $farming->harvestYield($crop, $willRot, $ghYieldMult);
             $rotTag   = $willRot ? " _(+{$farming->rotationBonusPercent()}% севооборот)_" : '';
 
             $text .= "{$meta['icon']} *{$meta['crop_ru']}* — семян: *{$owned}*\n"

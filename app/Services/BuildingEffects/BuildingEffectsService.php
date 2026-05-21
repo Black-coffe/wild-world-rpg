@@ -179,6 +179,43 @@ final class BuildingEffectsService
     }
 
     /**
+     * V7 (vNext) — множник УРОЖАЯ активной посадки (V6) за уровень теплицы (КАЧЕСТВО).
+     *
+     * L1/нет теплицы → 1.0 (baseline, 0 регрессии). L2+ → cascade-множитель
+     * `building.greenhouse.l<N>.harvest_yield_multiplier` (>1.0). L4-L10 plateau на L3.
+     *
+     * Применяется в PlantCropCompletionHandler при сборе урожая (по текущему уровню
+     * теплицы): yield_final = round(baseYield × rotation × этот множитель).
+     */
+    public function getGreenhouseYieldMultiplier(int $charId): float
+    {
+        $level = $this->resolveBuildingLevel($charId, 'Greenhouse');
+        if ($level <= 1) {
+            return 1.0;
+        }
+        return $this->resolveLevelMultiplier('greenhouse', $level, 'harvest_yield_multiplier');
+    }
+
+    /**
+     * V7 (vNext) — множник ВРЕМЕНИ РОСТА активной посадки за уровень теплицы
+     * (СКОРОСТЬ / scheduling). Зеркало Workshop craft-time (S11).
+     *
+     * L1/нет теплицы → 1.0 (baseline). L2+ → cascade-множитель
+     * `building.greenhouse.l<N>.grow_time_multiplier` (<1.0). L4-L10 plateau на L3.
+     *
+     * Применяется в PlantCropActionStart при посадке (end_time замораживается):
+     * grow_final = max(1, round(growMinutes × этот множитель)).
+     */
+    public function getGreenhouseGrowTimeMultiplier(int $charId): float
+    {
+        $level = $this->resolveBuildingLevel($charId, 'Greenhouse');
+        if ($level <= 1) {
+            return 1.0;
+        }
+        return $this->resolveLevelMultiplier('greenhouse', $level, 'grow_time_multiplier');
+    }
+
+    /**
      * Знайти найвищий level building'а певного типу у character_buildings.
      * Гравець може мати кілька instances одного building (на різних cells);
      * беремо max(level) — найвищий апгрейд є «активним» для game-effects.

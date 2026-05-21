@@ -9,6 +9,7 @@ use App\Models\CharacterModel;
 use App\Models\CharacterTaskModel;
 use App\Models\ResourceModel;
 use App\Models\TelegramUserModel;
+use App\Services\BuildingEffects\BuildingEffectsService;
 use App\Services\Farming\FarmingService;
 use App\TaskHandlers\BaseTaskHandler;
 
@@ -39,14 +40,16 @@ class PlantCropCompletionHandler extends BaseTaskHandler
     private ResourceModel      $resourceModel;
     private TelegramUserModel  $telegramUserModel;
     private FarmingService     $farming;
+    private BuildingEffectsService $buildingEffects;
 
-    public function __construct(?FarmingService $farming = null)
+    public function __construct(?FarmingService $farming = null, ?BuildingEffectsService $buildingEffects = null)
     {
         $this->characterModel     = new CharacterModel();
         $this->characterTaskModel = new CharacterTaskModel();
         $this->resourceModel      = new ResourceModel();
         $this->telegramUserModel  = new TelegramUserModel();
         $this->farming            = $farming ?? new FarmingService();
+        $this->buildingEffects    = $buildingEffects ?? new BuildingEffectsService();
     }
 
     /**
@@ -84,8 +87,10 @@ class PlantCropCompletionHandler extends BaseTaskHandler
         $cidRaw         = $task['character_id'] ?? null;
         $characterIdInt = is_numeric($cidRaw) ? (int) $cidRaw : 0;
 
-        // Урожай (детерминированно): yield × rotation-mult.
-        $yield = $this->farming->harvestYield($crop, $rotation);
+        // Урожай (детерминированно): base × rotation × greenhouse-yield (V7, по
+        // текущему уровню теплицы при сборе; нет теплицы / L1 → ×1.0).
+        $ghYieldMult = $this->buildingEffects->getGreenhouseYieldMultiplier($characterIdInt);
+        $yield = $this->farming->harvestYield($crop, $rotation, $ghYieldMult);
         if ($yield > 0) {
             $this->resourceModel->addOrIncreaseResource($characterIdInt, $meta['crop_en'], $yield);
         }

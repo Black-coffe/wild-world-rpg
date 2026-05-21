@@ -154,14 +154,20 @@ final class FarmingService
         return null;
     }
 
-    /** Время роста культуры в минутах (live-tunable). */
-    public function growMinutes(string $crop): int
+    /**
+     * Время роста культуры в минутах (live-tunable).
+     * $extraMult — внешний множитель (V7: greenhouse grow_time_multiplier по уровню
+     * теплицы; default 1.0 = нет эффекта). Min 1 минута.
+     */
+    public function growMinutes(string $crop, float $extraMult = 1.0): int
     {
         $meta = self::CROP_MAP[$crop] ?? null;
         if ($meta === null) {
             return 0;
         }
-        return max(1, $this->intSetting($meta['grow_key'], $meta['grow_default']));
+        $base = max(1, $this->intSetting($meta['grow_key'], $meta['grow_default']));
+        $mult = $extraMult > 0 ? $extraMult : 1.0;
+        return max(1, (int) round($base * $mult));
     }
 
     /** Базовый урожай культуры (до бонуса севооборота). */
@@ -177,18 +183,21 @@ final class FarmingService
     /**
      * Итоговый урожай с учётом бонуса севооборота (детерминированно).
      * $rotation — решение, зафиксированное при старте посадки (crop != last).
+     * $extraMult — внешний множитель (V7: greenhouse harvest_yield_multiplier по
+     * уровню теплицы; default 1.0 = нет эффекта). Применяется поверх севооборота.
      */
-    public function harvestYield(string $crop, bool $rotation): int
+    public function harvestYield(string $crop, bool $rotation, float $extraMult = 1.0): int
     {
         $base = $this->baseYield($crop);
         if ($base <= 0) {
             return 0;
         }
+        $factor = 1.0;
         if ($rotation && $this->rotationEnabled()) {
-            $mult = 1.0 + ($this->rotationBonusPercent() / 100.0);
-            return max($base, (int) round($base * $mult));
+            $factor = 1.0 + ($this->rotationBonusPercent() / 100.0);
         }
-        return $base;
+        $factor *= $extraMult > 0 ? $extraMult : 1.0;
+        return max(1, (int) round($base * $factor));
     }
 
     /**

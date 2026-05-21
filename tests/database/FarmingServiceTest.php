@@ -265,4 +265,33 @@ final class FarmingServiceTest extends CIUnitTestCase
             $this->assertSame('craft' . $meta['seed_en'], $recipe['task_name'] ?? null, "{$key}: task_name mismatch");
         }
     }
+
+    // ── V7: greenhouse-level множители (extraMult параметр) ───────────────
+
+    public function testHarvestYieldWithGreenhouseMultiplier(): void
+    {
+        $svc = new FarmingService();
+        // base 8, no rotation, ×1.15 → round(9.2)=9.
+        $this->assertSame(9, $svc->harvestYield('berries', false, 1.15));
+        // base 8, rotation +20%, ×1.30 → round(8×1.2×1.3)=round(12.48)=12.
+        $this->assertSame(12, $svc->harvestYield('berries', true, 1.30));
+        // base 6 mushrooms, no rotation, ×1.30 → round(7.8)=8.
+        $this->assertSame(8, $svc->harvestYield('mushrooms', false, 1.30));
+        // default mult 1.0 — backward-compatible (без greenhouse).
+        $this->assertSame(8, $svc->harvestYield('berries', false));
+        $this->assertSame(10, $svc->harvestYield('berries', true));
+    }
+
+    public function testGrowMinutesWithGreenhouseMultiplier(): void
+    {
+        $svc = new FarmingService();
+        // berries base 30, ×0.90 → 27.
+        $this->assertSame(27, $svc->growMinutes('berries', 0.90));
+        // crops base 60, ×0.80 → 48.
+        $this->assertSame(48, $svc->growMinutes('crops', 0.80));
+        // default mult 1.0 — backward-compatible.
+        $this->assertSame(30, $svc->growMinutes('berries'));
+        // экстремальный множитель не уводит ниже 1 минуты.
+        $this->assertSame(1, $svc->growMinutes('berries', 0.001));
+    }
 }
