@@ -15660,7 +15660,6 @@ parameters:
 			count: 1
 			path: app/TaskHandlers/Built/GenericBuildingCompletionHandler.php
 
-
 		-
 			message: '#^Parameter \#1 \$id of method CodeIgniter\\Model\:\:update\(\) expects CodeIgniter\\Database\\RawSql\|int\|list\<int\|string\>\|string\|null, mixed given\.$#'
 			identifier: argument.type
@@ -16849,7 +16848,6 @@ parameters:
 			count: 1
 			path: app/TaskHandlers/Events/EventActivationHandler.php
 
-
 		-
 			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
@@ -16981,7 +16979,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/Events/EventActivationHandler.php
-
 
 		-
 			message: '#^Parameter \#1 \$min of function rand expects int, float given\.$#'
@@ -17790,12 +17787,6 @@ parameters:
 		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
-			path: app/TaskHandlers/Objects/StrategicLootHandler.php
-
-		-
-			message: '#^Cannot access offset ''reward'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/TaskHandlers/Objects/StrategicLootHandler.php
 
@@ -17803,12 +17794,6 @@ parameters:
 			message: '#^Cannot access offset ''telegram_id'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 2
-			path: app/TaskHandlers/Objects/StrategicLootHandler.php
-
-		-
-			message: '#^Cannot access offset ''title_en'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
 			path: app/TaskHandlers/Objects/StrategicLootHandler.php
 
 		-

@@ -232,23 +232,43 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
         $quest = $this->questModel
             ->where('title_en', 'StrategicCapture' . $objectNameEn)
             ->first();
-        if (!$quest) {
+        if (!is_array($quest)) {
+            return;
+        }
+        $questId = is_numeric($quest['id'] ?? null) ? (int) $quest['id'] : 0;
+        $titleEn = is_string($quest['title_en'] ?? null) ? $quest['title_en'] : '';
+        $titleRu = is_string($quest['title_ru'] ?? null) ? $quest['title_ru'] : 'Захват объекта';
+        $reward  = is_numeric($quest['reward'] ?? null) ? (int) $quest['reward'] : 0;
+        if ($questId === 0) {
             return;
         }
 
+        // V12 (ADR-037): авто-создаём шаг, если его нет (раньше требовался
+        // pre-existing step → strategic-квесты были непроходимы, dead start-кнопка).
+        // Discovery теперь сам стартует И завершает capture-квест.
         $step = $this->questStepsModel
-            ->where('quest_id', $quest['id'])
+            ->where('quest_id', $questId)
             ->where('character_id', $characterId)
-            ->where('is_completed', 0)
             ->first();
-        if (!$step) {
-            return;
+
+        if (is_array($step) && !empty($step['is_completed'])) {
+            return; // уже завершён — без повторной награды.
         }
 
-        $this->questStepsModel->update($step['id'], ['is_completed' => 1]);
+        if (!is_array($step)) {
+            $this->questStepsModel->insert([
+                'quest_id'     => $questId,
+                'character_id' => $characterId,
+                'step_order'   => 1,
+                'description'  => $titleRu,
+                'is_completed' => 1,
+            ]);
+        } else {
+            $stepId = is_numeric($step['id'] ?? null) ? (int) $step['id'] : 0;
+            $this->questStepsModel->update($stepId, ['is_completed' => 1]);
+        }
 
         // Reward gold per quests.reward column.
-        $reward = (int) ($quest['reward'] ?? 0);
         if ($reward > 0) {
             $this->characterModel->increaseGold($characterId, $reward);
         }
@@ -256,7 +276,10 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
         // Endgame score for quest completion (+100).
         $this->endgameService->recordQuestCompletion($characterId);
 
-        log_message('info', "[StrategicLootHandler] Auto-completed quest {$quest['title_en']} for char_id={$characterId} (+{$reward} gold)");
+        // V12 (ADR-037): авто-назначить следующий этап цепочки (BunkerArmory и т.п.).
+        (new \App\Services\Quest\QuestChainService())->advanceChain($characterId, $titleEn);
+
+        log_message('info', "[StrategicLootHandler] Auto-completed quest {$titleEn} for char_id={$characterId} (+{$reward} gold)");
     }
 
     private function sendInsufficientToolsMessage(array $object, array $character, array $requiredTools): void
