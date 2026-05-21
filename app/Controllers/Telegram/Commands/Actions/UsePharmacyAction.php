@@ -63,7 +63,8 @@ class UsePharmacyAction extends BaseAction
 
         // V9 (ADR-034): если съеденное — блюдо (food-buff), ставим «Сытость»
         // (well_fed_until = now + food.<snake>.well_fed_minutes). Медикаменты не дают.
-        $this->maybeApplyWellFed((int) $character['id'], $medicineName);
+        // V10 (ADR-035): длительность урезается, если блюдо зачерствело (durability_time).
+        $this->maybeApplyWellFed((int) $character['id'], $medicineName, $itemUsage['durability_time'] ?? null);
 
         // S19 (v0.51.201): data-driven heal через GameSettings (admin-tunable,
         // constitutional ADR-024). Если для предмета заданы ключи
@@ -164,13 +165,18 @@ class UsePharmacyAction extends BaseAction
      * выставляет characters.well_fed_until = now + minutes («Сытость»). Медикаменты
      * (minutes=0) не дают buff'а. Killswitch food.buffs.enabled.
      */
-    private function maybeApplyWellFed(int $charId, string $medicineName): void
+    private function maybeApplyWellFed(int $charId, string $medicineName, mixed $durabilityTime = null): void
     {
         $fb = new FoodBuffService();
         if (! $fb->isEnabled()) {
             return;
         }
-        $minutes = $fb->mealWellFedMinutes($this->toSnakeCase($medicineName));
+        $base = $fb->mealWellFedMinutes($this->toSnakeCase($medicineName));
+        if ($base <= 0) {
+            return;
+        }
+        // V10: зачерствевшее блюдо даёт меньше сытости (durability_time в прошлом).
+        $minutes = $fb->effectiveWellFedMinutes($base, $durabilityTime);
         if ($minutes <= 0) {
             return;
         }

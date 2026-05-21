@@ -2229,6 +2229,7 @@ class CraftRecipes extends BaseConfig
         // Ингредиенты = урожай V6 (Ягоды/Грибы/Фрукты/Зерновые) + Вода.
         'MushroomSoup' => [
             'task_name'            => 'craftMushroomSoup',
+            'perishable'           => true,
             'resources'            => ['Грибы' => 4, 'Вода' => 2],
             'crafted_items'        => [],
             'image_in_progress'    => 'uploads/telegram/craft/cooking/mushroom_soup.jpg',
@@ -2246,6 +2247,7 @@ class CraftRecipes extends BaseConfig
         ],
         'BerryBrew' => [
             'task_name'            => 'craftBerryBrew',
+            'perishable'           => true,
             'resources'            => ['Ягоды' => 4, 'Вода' => 2],
             'crafted_items'        => [],
             'image_in_progress'    => 'uploads/telegram/craft/cooking/berry_brew.jpg',
@@ -2263,6 +2265,7 @@ class CraftRecipes extends BaseConfig
         ],
         'BakedFruit' => [
             'task_name'            => 'craftBakedFruit',
+            'perishable'           => true,
             'resources'            => ['Фрукты' => 5],
             'crafted_items'        => [],
             'image_in_progress'    => 'uploads/telegram/craft/cooking/baked_fruit.jpg',
@@ -2280,6 +2283,7 @@ class CraftRecipes extends BaseConfig
         ],
         'GrainPorridge' => [
             'task_name'            => 'craftGrainPorridge',
+            'perishable'           => true,
             'resources'            => ['Зерновые культуры' => 4, 'Вода' => 2],
             'crafted_items'        => [],
             'image_in_progress'    => 'uploads/telegram/craft/cooking/grain_porridge.jpg',
@@ -2297,6 +2301,7 @@ class CraftRecipes extends BaseConfig
         ],
         'HeartyStew' => [
             'task_name'            => 'craftHeartyStew',
+            'perishable'           => true,
             'resources'            => ['Грибы' => 3, 'Зерновые культуры' => 3, 'Фрукты' => 2, 'Вода' => 2],
             'crafted_items'        => [],
             'image_in_progress'    => 'uploads/telegram/craft/cooking/hearty_stew.jpg',
@@ -2311,6 +2316,46 @@ class CraftRecipes extends BaseConfig
             'intellect_bonus'      => 0.02,
             'image_completed'      => 'uploads/telegram/craft/cooking/hearty_stew.jpg',
             'craft_again_callback' => 'genericCraft_HeartyStew_1',
+        ],
+
+        // ── V10 (vNext, Фаза 2 закрытие) — консервы: shelf-stable заготовки. ──
+        // preserved=true → НЕ черствеют (GenericCraftCompletionHandler не ставит
+        // durability_time). Дольше «Сытость», дороже ингредиенты. crafting_location='Campfire'.
+        'StewPreserve' => [
+            'task_name'            => 'craftStewPreserve',
+            'preserved'            => true,
+            'resources'            => ['Грибы' => 4, 'Зерновые культуры' => 3, 'Вода' => 2],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/cooking/stew_preserve.jpg',
+            'start_caption_name'   => '🥫 *Тушёнка*',
+            'info_callback'        => 'cook',
+            'item_name_eng'        => 'StewPreserve',
+            'item_name_rus'        => 'Тушёнка',
+            'icon_emoji'           => '🥫',
+            'zone_emoji'           => '🔥',
+            'zone_name'            => 'консервация',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/cooking/stew_preserve.jpg',
+            'craft_again_callback' => 'genericCraft_StewPreserve_1',
+        ],
+        'DryRation' => [
+            'task_name'            => 'craftDryRation',
+            'preserved'            => true,
+            'resources'            => ['Фрукты' => 4, 'Ягоды' => 3],
+            'crafted_items'        => [],
+            'image_in_progress'    => 'uploads/telegram/craft/cooking/dry_ration.jpg',
+            'start_caption_name'   => '🎒 *Сухпаёк*',
+            'info_callback'        => 'cook',
+            'item_name_eng'        => 'DryRation',
+            'item_name_rus'        => 'Сухпаёк',
+            'icon_emoji'           => '🎒',
+            'zone_emoji'           => '🔥',
+            'zone_name'            => 'консервация',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/cooking/dry_ration.jpg',
+            'craft_again_callback' => 'genericCraft_DryRation_1',
         ],
     ];
 
