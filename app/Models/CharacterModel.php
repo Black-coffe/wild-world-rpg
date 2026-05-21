@@ -46,6 +46,7 @@ class CharacterModel extends Model
         'disable_media',       // идея #14 — тумблер картинок (миграция 2026-05-08; пропущен в allowedFields)
         'last_respawn_at',     // death-validation batch 4 — момент последнего возрождения (grace-окно от damage-событий)
         'last_planted_crop',   // V6 (ADR-033) — rotation-память активного земледелия
+        'well_fed_until',      // V9 (ADR-034) — момент истечения buff'а «Сытость»
     ];
 
     protected $useTimestamps = true;

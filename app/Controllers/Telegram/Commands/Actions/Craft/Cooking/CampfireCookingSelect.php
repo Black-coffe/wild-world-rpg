@@ -41,7 +41,18 @@ class CampfireCookingSelect extends BaseAction
 
         $text = "🔥 *Костёр — готовка*\n"
             . "_Преврати урожай теплицы и собранные дары в сытные блюда. Еда восстанавливает "
-            . "здоровье и особенно выносливость. Готовить можно где угодно._\n\n";
+            . "здоровье и особенно выносливость. Готовить можно где угодно._\n";
+
+        // V9 (ADR-034): текущая «Сытость» (если активна) — крафт быстрее + добыча щедрее.
+        $fb = new \App\Services\Food\FoodBuffService();
+        [, $character] = $this->getUserAndCharacter();
+        $wfu = $character !== null ? ($character['well_fed_until'] ?? null) : null;
+        if ($fb->isWellFed($wfu)) {
+            $tsEnd    = is_string($wfu) ? strtotime($wfu) : false;
+            $minsLeft = $tsEnd !== false ? max(1, (int) ceil(($tsEnd - time()) / 60)) : 0;
+            $text .= "🍖 _Сытость активна (ещё ~{$minsLeft} мин): крафт быстрее, добыча щедрее._\n";
+        }
+        $text .= "\n";
 
         $rows = [];
         foreach (self::COOKING_RECIPES as $key) {

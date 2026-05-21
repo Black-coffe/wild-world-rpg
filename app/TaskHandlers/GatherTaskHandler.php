@@ -20,6 +20,7 @@ use App\Services\Player\Gather\GatherMessageFormatter;
 use App\Services\Player\Gather\GatherResultPersister;
 use App\Services\Player\Gather\ToolDurabilityProcessor;
 use App\Services\Farming\FarmingService;
+use App\Services\Food\FoodBuffService;
 
 /**
  * v0.51.23 (F2.9 batch-5 — FINAL closure): extends BaseTaskHandler.
@@ -67,6 +68,8 @@ class GatherTaskHandler extends BaseTaskHandler
 
     // V6 (ADR-033): вторичный источник семян — light drop при сборе ресурсов.
     private FarmingService $farming;
+    // V9 (ADR-034): «Сытость» — множитель добычи, пока сыт.
+    private FoodBuffService $foodBuff;
 
     /**
      * Сохраняет, сколько инструментов мы использовали в рамках одного процесса сбора
@@ -112,6 +115,8 @@ class GatherTaskHandler extends BaseTaskHandler
         );
         // V6 (ADR-033): seed-drop reader (GameSettings killswitch + chance).
         $this->farming                = new FarmingService();
+        // V9 (ADR-034): food-buff reader (well-fed gather multiplier).
+        $this->foodBuff               = new FoodBuffService();
     }
 
     /**
@@ -157,6 +162,10 @@ class GatherTaskHandler extends BaseTaskHandler
         // Применяем возможные модификаторы биома
         $foundResources = $this->biomeResourceModifier->modifyResourcesByBiome($biome['id'] ?? null, $foundResources);
 
+        // V9 (ADR-034): «Сытость» делает добычу щедрее (детерминир., pure-bonus;
+        // не сыт / выключено → no-op). Изолировано: только масштаб итоговой добычи.
+        $foundResources = $this->applyWellFedGatherBonus($foundResources, $character);
+
         // Сохраняем результаты
         $this->saveFoundResources($foundResources, $character, $task);
         $this->characterTaskModel->update($task['id'], ['status' => 'completed']);
@@ -167,6 +176,30 @@ class GatherTaskHandler extends BaseTaskHandler
         // V6 (ADR-033): вторичный источник семян (defensive, killswitch+chance).
         // Изолировано от gather-математики — не влияет на расчёт/сохранение добычи.
         $this->maybeDropSeed($character);
+    }
+
+    /**
+     * V9 (ADR-034) — «Сытость» делает добычу щедрее (×food.well_fed.gather_yield_multiplier),
+     * пока now < character.well_fed_until. Детерминир., pure-bonus: не сыт / выключено →
+     * множитель ≤1.0 → возврат без изменений. Масштабирует только итоговые amount'ы.
+     *
+     * @param list<array<string,mixed>> $foundResources
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     * @return list<array<string,mixed>>
+     */
+    private function applyWellFedGatherBonus(array $foundResources, array|\App\Entities\CharacterEntity $character): array
+    {
+        $mult = $this->foodBuff->gatherYieldMultiplierFor($character['well_fed_until'] ?? null);
+        if ($mult <= 1.0) {
+            return $foundResources;
+        }
+        foreach ($foundResources as $i => $res) {
+            $amtRaw = $res['amount'] ?? null;
+            if (is_numeric($amtRaw)) {
+                $foundResources[$i]['amount'] = max(1, (int) round(((int) $amtRaw) * $mult));
+            }
+        }
+        return $foundResources;
     }
 
     /**
