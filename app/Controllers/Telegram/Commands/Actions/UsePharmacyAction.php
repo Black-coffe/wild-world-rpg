@@ -7,6 +7,7 @@ use Longman\TelegramBot\Entities\ServerResponse;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\CharacterModel;
+use App\Services\Food\FoodBuffService;
 use App\Services\GameSettings\GameSettingsService;
 
 class UsePharmacyAction extends BaseAction
@@ -59,6 +60,10 @@ class UsePharmacyAction extends BaseAction
         if (!$itemUsage || $itemUsage['quantity'] <= 0) {
             return $this->sendResponse("У тебя нет нужного препарата, или он закончился.");
         }
+
+        // V9 (ADR-034): если съеденное — блюдо (food-buff), ставим «Сытость»
+        // (well_fed_until = now + food.<snake>.well_fed_minutes). Медикаменты не дают.
+        $this->maybeApplyWellFed((int) $character['id'], $medicineName);
 
         // S19 (v0.51.201): data-driven heal через GameSettings (admin-tunable,
         // constitutional ADR-024). Если для предмета заданы ключи
@@ -152,6 +157,25 @@ class UsePharmacyAction extends BaseAction
         $s = str_replace([' ', '-'], '_', $s);                             // spaces / dashes
         $s = preg_replace('/_+/', '_', $s) ?? $s;                          // collapse repeats
         return strtolower(trim($s, '_'));
+    }
+
+    /**
+     * V9 (ADR-034): если съеденный предмет — блюдо с food.<snake>.well_fed_minutes,
+     * выставляет characters.well_fed_until = now + minutes («Сытость»). Медикаменты
+     * (minutes=0) не дают buff'а. Killswitch food.buffs.enabled.
+     */
+    private function maybeApplyWellFed(int $charId, string $medicineName): void
+    {
+        $fb = new FoodBuffService();
+        if (! $fb->isEnabled()) {
+            return;
+        }
+        $minutes = $fb->mealWellFedMinutes($this->toSnakeCase($medicineName));
+        if ($minutes <= 0) {
+            return;
+        }
+        $until = (new \DateTime())->modify("+{$minutes} minutes")->format('Y-m-d H:i:s');
+        $this->characterModel->update($charId, ['well_fed_until' => $until]);
     }
 
     private function applyMedicineEffect(array|\App\Entities\CharacterEntity $character, int $itemId, array $effects)
@@ -295,6 +319,17 @@ class UsePharmacyAction extends BaseAction
 
         // Сколько осталось единиц препарата
         $message .= "\nОстаток «{$itemName}»: *{$qtyLeft} шт.*\n";
+
+        // V9 (ADR-034): если активна «Сытость» (поел блюдо) — сообщаем о buff'е.
+        $fb      = new FoodBuffService();
+        $charRow = $this->characterModel->find($characterId);
+        $wfu     = $charRow !== null ? ($charRow['well_fed_until'] ?? null) : null;
+        if ($fb->isWellFed($wfu)) {
+            $tsEnd    = is_string($wfu) ? strtotime($wfu) : false;
+            $minsLeft = $tsEnd !== false ? max(1, (int) ceil(($tsEnd - time()) / 60)) : 0;
+            $message .= "\n🍖 *Сытость активна* — крафт быстрее, добыча щедрее (ещё ~{$minsLeft} мин).\n";
+        }
+
         $message .= "\n_В этом жестоком пустоши каждый баф может спасти твою шкуру. Береги себя!_\n";
 
         $keyboard = [

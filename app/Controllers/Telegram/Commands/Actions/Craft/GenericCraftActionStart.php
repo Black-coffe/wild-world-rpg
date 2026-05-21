@@ -596,7 +596,10 @@ class GenericCraftActionStart extends BaseAction
             ? $recipe['boost_building_time']
             : null;
         $multiplier = $this->buildingEffects->getCraftTimeMultiplier((int)($character['id'] ?? 0), $extraBuilding);
-        return max(1, (int) round($baseDuration * $multiplier));
+        // V9 (ADR-034): «Сытость» ускоряет крафт (food.well_fed.craft_time_multiplier),
+        // пока now < character.well_fed_until. Не сыт / выключено → ×1.0 (no-op).
+        $foodMult = (new \App\Services\Food\FoodBuffService())->craftTimeMultiplierFor($character['well_fed_until'] ?? null);
+        return max(1, (int) round($baseDuration * $multiplier * $foodMult));
     }
 
     /**
