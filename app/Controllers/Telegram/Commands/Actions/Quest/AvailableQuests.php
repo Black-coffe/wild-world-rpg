@@ -56,6 +56,13 @@ class AvailableQuests extends BaseAction
                 continue;
             }
 
+            // V12 (ADR-037): objective-квесты (strategic capture + этапы цепочек) —
+            // авто-управляемые (стартуют/завершаются через handler'ы, не вручную).
+            // Не показываем их с manual start-кнопкой (раньше были dead-кнопки).
+            if (!empty($quest['objective_type'])) {
+                continue;
+            }
+
             // V11: предусловие не выполнено → квест заблокирован (показываем тизер цепочки).
             $prereq = $chain->prerequisiteOf($quest);
             if (! $chain->prerequisiteMet($prereq, $completedTitles)) {

@@ -144,6 +144,11 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\Quests\QuestFirstAidkitBasicHandler())->handle())
             ->everyMinute()->singleInstance()->named('quest.first-aid-kit');
 
+        // V12 (ADR-037): генерик-завершение data-driven квестов цепочек
+        // (craft_item/explore_cells/char_level). discover_object — в StrategicLootHandler.
+        $schedule->call(static fn() => (new \App\TaskHandlers\Quests\QuestObjectiveHandler())->handle())
+            ->everyMinute()->singleInstance()->named('quest.objective');
+
         // ============================================================
         // SOCIAL
         // ============================================================

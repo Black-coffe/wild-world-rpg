@@ -44,11 +44,36 @@ final class QuestChainServiceTest extends CIUnitTestCase
         $db->table('game_settings')->insert([
             'setting_key' => 'quests.chains_enabled', 'category' => 'world', 'value_type' => 'bool', 'value_bool' => 1,
         ]);
+
+        // V12: quests + quest_steps для advanceChain.
+        $db->query('DROP TABLE IF EXISTS quest_steps');
+        $db->query('DROP TABLE IF EXISTS quests');
+        $db->query('
+            CREATE TABLE quests (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title_ru VARCHAR(255) NULL, title_en VARCHAR(255) NULL,
+                description TEXT NULL, status VARCHAR(32) NULL, min_level INT NULL,
+                reward INT NULL, reward_type VARCHAR(64) NULL,
+                prerequisite_quest VARCHAR(255) NULL,
+                objective_type VARCHAR(32) NULL, objective_target VARCHAR(100) NULL, objective_qty INT NULL
+            )
+        ');
+        $db->query('
+            CREATE TABLE quest_steps (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                quest_id INT NOT NULL, character_id INT NOT NULL, step_order INT NOT NULL,
+                description TEXT NULL, is_completed TINYINT DEFAULT 0,
+                created_at DATETIME NULL, updated_at DATETIME NULL
+            )
+        ');
     }
 
     protected function tearDown(): void
     {
-        Database::connect('tests')->query('DROP TABLE IF EXISTS game_settings');
+        $db = Database::connect('tests');
+        $db->query('DROP TABLE IF EXISTS game_settings');
+        $db->query('DROP TABLE IF EXISTS quest_steps');
+        $db->query('DROP TABLE IF EXISTS quests');
         $this->cleanCache();
         parent::tearDown();
     }
@@ -101,5 +126,45 @@ final class QuestChainServiceTest extends CIUnitTestCase
         $this->assertFalse($svc->chainsEnabled());
         // гейт выключен → даже невыполненное предусловие = доступен.
         $this->assertTrue($svc->prerequisiteMet('BunkerStage2', []));
+    }
+
+    // ── V12 (ADR-037): advanceChain ──────────────────────────────────────
+
+    public function testAdvanceChainAssignsNextStage(): void
+    {
+        $db = Database::connect('tests');
+        $db->table('quests')->insert(['title_en' => 'ChainA', 'title_ru' => 'Этап А', 'status' => 'active']);
+        $db->table('quests')->insert(['title_en' => 'ChainB', 'title_ru' => 'Этап Б', 'status' => 'active', 'prerequisite_quest' => 'ChainA', 'objective_type' => 'char_level', 'objective_qty' => 5]);
+        $bId = (int) $db->insertID();
+
+        $svc = new QuestChainService();
+        $advanced = $svc->advanceChain(999, 'ChainA');
+
+        $this->assertSame(['ChainB'], $advanced);
+        $step = $db->table('quest_steps')->where('character_id', 999)->where('quest_id', $bId)->get()->getRowArray();
+        $this->assertIsArray($step);
+        $this->assertSame(0, (int) $step['is_completed']);
+    }
+
+    public function testAdvanceChainIdempotent(): void
+    {
+        $db = Database::connect('tests');
+        $db->table('quests')->insert(['title_en' => 'ChainA', 'title_ru' => 'Этап А', 'status' => 'active']);
+        $db->table('quests')->insert(['title_en' => 'ChainB', 'title_ru' => 'Этап Б', 'status' => 'active', 'prerequisite_quest' => 'ChainA']);
+
+        $svc = new QuestChainService();
+        $svc->advanceChain(999, 'ChainA');
+        $second = $svc->advanceChain(999, 'ChainA'); // повтор не дублирует шаг
+
+        $this->assertSame([], $second);
+        $count = $db->table('quest_steps')->where('character_id', 999)->countAllResults();
+        $this->assertSame(1, $count);
+    }
+
+    public function testAdvanceChainNoNextStage(): void
+    {
+        $db = Database::connect('tests');
+        $db->table('quests')->insert(['title_en' => 'Lonely', 'title_ru' => 'Одиночка', 'status' => 'active']);
+        $this->assertSame([], (new QuestChainService())->advanceChain(999, 'Lonely'));
     }
 }
