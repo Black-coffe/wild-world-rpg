@@ -28,6 +28,9 @@ class CampfireCookingSelect extends BaseAction
         'BakedFruit',
         'GrainPorridge',
         'HeartyStew',
+        // V10 — консервы (shelf-stable, не портятся).
+        'StewPreserve',
+        'DryRation',
     ];
 
     public function handle(): ServerResponse
@@ -45,6 +48,9 @@ class CampfireCookingSelect extends BaseAction
 
         // V9 (ADR-034): текущая «Сытость» (если активна) — крафт быстрее + добыча щедрее.
         $fb = new \App\Services\Food\FoodBuffService();
+        if ($fb->freshnessEnabled()) {
+            $text .= "_Свежее блюдо ({$fb->freshDays()} дн.) даёт полную сытость; залежалое — меньше (но лечит и не пропадает). 🥫🎒 Консервы не портятся._\n";
+        }
         [, $character] = $this->getUserAndCharacter();
         $wfu = $character !== null ? ($character['well_fed_until'] ?? null) : null;
         if ($fb->isWellFed($wfu)) {

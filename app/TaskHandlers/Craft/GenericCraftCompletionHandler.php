@@ -161,6 +161,16 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
             return;
         }
 
+        // V10 (ADR-035): perishable-блюда получают freshness-дату (durability_time =
+        // today + freshDays). Консервы (preserved) и не-еда → null (всегда свежи).
+        $foodDurability = null;
+        if (!empty($recipe['perishable'])) {
+            $fbForCook = new \App\Services\Food\FoodBuffService();
+            if ($fbForCook->freshnessEnabled()) {
+                $foodDurability = $fbForCook->freshUntilDate();
+            }
+        }
+
         // 5. update / insert crafted_items_log
         $existingLog = $this->craftedItemsLogModel->where([
             'character_id'    => $task['character_id'],
@@ -168,8 +178,13 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         ])->first();
 
         if ($existingLog) {
-            $newQty = $existingLog['quantity'] + $quantityToAdd;
-            $this->craftedItemsLogModel->update($existingLog['id'], ['quantity' => $newQty]);
+            $newQty  = $existingLog['quantity'] + $quantityToAdd;
+            $logData = ['quantity' => $newQty];
+            // Re-cook освежает свежесть стака (durability_time = новая дата).
+            if ($foodDurability !== null) {
+                $logData['durability_time'] = $foodDurability;
+            }
+            $this->craftedItemsLogModel->update($existingLog['id'], $logData);
         } else {
             $this->craftedItemsLogModel->insert([
                 'character_id'      => $task['character_id'],
@@ -179,7 +194,7 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
                 'direction_craft'   => $craftedItem['direction_craft'],
                 'crafting_location' => $craftedItem['crafting_location'],
                 'durability_count'  => $craftedItem['durability_count'],
-                'durability_time'   => null,
+                'durability_time'   => $foodDurability,
                 'quantity'          => $quantityToAdd,
             ]);
         }

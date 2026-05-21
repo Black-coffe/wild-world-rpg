@@ -159,4 +159,52 @@ final class FoodBuffServiceTest extends CIUnitTestCase
         $this->assertSame(1.0, $svc->craftTimeMultiplierFor($this->past(5)));
         $this->assertSame(1.0, $svc->gatherYieldMultiplierFor(null));
     }
+
+    // ── V10: свежесть (ADR-035) ───────────────────────────────────────────
+
+    public function testFreshnessDefaults(): void
+    {
+        $svc = new FoodBuffService();
+        $this->assertTrue($svc->freshnessEnabled());
+        $this->assertSame(2, $svc->freshDays());
+        $this->assertSame(50, $svc->staleSatietyPercent());
+    }
+
+    public function testIsFresh(): void
+    {
+        $svc      = new FoodBuffService();
+        $today    = date('Y-m-d');
+        $tomorrow = date('Y-m-d', time() + 86400);
+        $yesterday = date('Y-m-d', time() - 86400);
+        $this->assertTrue($svc->isFresh(null));          // консерва / не-еда — всегда свежо
+        $this->assertTrue($svc->isFresh(''));            // пусто — свежо
+        $this->assertTrue($svc->isFresh($today));        // последний свежий день включительно
+        $this->assertTrue($svc->isFresh($tomorrow));     // ещё свежо
+        $this->assertFalse($svc->isFresh($yesterday));   // зачерствело
+    }
+
+    public function testEffectiveWellFedMinutes(): void
+    {
+        $svc       = new FoodBuffService();
+        $tomorrow  = date('Y-m-d', time() + 86400);
+        $yesterday = date('Y-m-d', time() - 86400);
+        // свежо (или консерва null) → полная длительность.
+        $this->assertSame(60, $svc->effectiveWellFedMinutes(60, null));
+        $this->assertSame(60, $svc->effectiveWellFedMinutes(60, $tomorrow));
+        // зачерствело → ×50% (default).
+        $this->assertSame(30, $svc->effectiveWellFedMinutes(60, $yesterday));
+        // base 0 → 0.
+        $this->assertSame(0, $svc->effectiveWellFedMinutes(0, $yesterday));
+    }
+
+    public function testFreshnessKillswitch(): void
+    {
+        $this->seedBool('food.freshness.enabled', 0);
+        $this->cleanCache();
+        $svc       = new FoodBuffService();
+        $yesterday = date('Y-m-d', time() - 86400);
+        $this->assertFalse($svc->freshnessEnabled());
+        // свежесть выкл → даже зачерствевшее даёт полную длительность.
+        $this->assertSame(60, $svc->effectiveWellFedMinutes(60, $yesterday));
+    }
 }

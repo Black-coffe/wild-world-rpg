@@ -212,6 +212,9 @@ class Worker extends Controller
         'craftBakedFruit'           => 'generic_craft',
         'craftGrainPorridge'        => 'generic_craft',
         'craftHeartyStew'           => 'generic_craft',
+        // V10 (vNext) — 2 консервы (Костёр, shelf-stable).
+        'craftStewPreserve'         => 'generic_craft',
+        'craftDryRation'            => 'generic_craft',
         // Generic building handler — покриває 12 task.name'ів через Buildings config.
         'buildingManualPump'             => 'generic_building',
         'buildBlastFurnace'              => 'generic_building',
@@ -344,6 +347,9 @@ class Worker extends Controller
         'craftBakedFruit'           => 'Craft\GenericCraftCompletionHandler',
         'craftGrainPorridge'        => 'Craft\GenericCraftCompletionHandler',
         'craftHeartyStew'           => 'Craft\GenericCraftCompletionHandler',
+        // V10 (vNext) — 2 консервы (shelf-stable).
+        'craftStewPreserve'         => 'Craft\GenericCraftCompletionHandler',
+        'craftDryRation'            => 'Craft\GenericCraftCompletionHandler',
     ];
 
     protected function getHandlerClassName($taskName, ?string $explicitHandlerKey = null)

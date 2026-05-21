@@ -16,13 +16,32 @@ use CodeIgniter\Test\CIUnitTestCase;
  */
 final class CookingRecipesTest extends CIUnitTestCase
 {
-    public function testFiveCookingRecipes(): void
+    public function testCookingRecipesList(): void
     {
-        $this->assertCount(5, CampfireCookingSelect::COOKING_RECIPES);
+        // 5 перишабельных блюд (V8) + 2 консервы (V10).
+        $this->assertCount(7, CampfireCookingSelect::COOKING_RECIPES);
         $this->assertSame(
-            ['MushroomSoup', 'BerryBrew', 'BakedFruit', 'GrainPorridge', 'HeartyStew'],
+            ['MushroomSoup', 'BerryBrew', 'BakedFruit', 'GrainPorridge', 'HeartyStew', 'StewPreserve', 'DryRation'],
             CampfireCookingSelect::COOKING_RECIPES,
         );
+    }
+
+    public function testPerishableVsPreservedFlags(): void
+    {
+        $cfg     = config('CraftRecipes');
+        $meals   = ['MushroomSoup', 'BerryBrew', 'BakedFruit', 'GrainPorridge', 'HeartyStew'];
+        $preserves = ['StewPreserve', 'DryRation'];
+
+        foreach ($meals as $key) {
+            $r = $cfg->get($key);
+            $this->assertTrue(!empty($r['perishable']), "{$key}: блюдо V8 должно быть perishable");
+            $this->assertArrayNotHasKey('preserved', $r, "{$key}: блюдо V8 не preserved");
+        }
+        foreach ($preserves as $key) {
+            $r = $cfg->get($key);
+            $this->assertTrue(!empty($r['preserved']), "{$key}: консерва должна быть preserved");
+            $this->assertArrayNotHasKey('perishable', $r, "{$key}: консерва не perishable");
+        }
     }
 
     public function testCookingRecipesResolveInConfig(): void
