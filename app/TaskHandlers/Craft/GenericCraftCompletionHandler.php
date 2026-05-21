@@ -12,6 +12,7 @@ use App\Models\CharacterTaskModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\OutfitModel;
+use App\Models\ResourceModel;
 use App\Models\TaskModel;
 use App\Models\TelegramUserModel;
 use App\Models\WeaponModel;
@@ -71,6 +72,8 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
     // S18 (v0.51.200): outfit output_type — пара моделей для armor crafting.
     private OutfitModel             $outfitModel;
     private CharactersOutfitsModel  $charactersOutfitsModel;
+    // V6 (ADR-033): output_type='resource' — семена начисляются в character_resources.
+    private ResourceModel           $resourceModel;
     private BuildingEffectsService  $buildingEffects;
 
     public function __construct()
@@ -84,6 +87,7 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         $this->charactersWeaponsModel = new CharactersWeaponsModel();
         $this->outfitModel            = new OutfitModel();
         $this->charactersOutfitsModel = new CharactersOutfitsModel();
+        $this->resourceModel          = new ResourceModel();
         $this->buildingEffects        = new BuildingEffectsService();
     }
 
@@ -140,6 +144,11 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         // S18 (v0.51.200): outfit dispatch для T3 armor (ADR-026 extension).
         if ($outputType === 'outfit') {
             $this->handleOutfitOutput($task, $recipe, $quantityToAdd, $recipeKey);
+            return;
+        }
+        // V6 (ADR-033): resource dispatch для семян (output → character_resources).
+        if ($outputType === 'resource') {
+            $this->handleResourceOutput($task, $recipe, $quantityToAdd, $recipeKey);
             return;
         }
 
@@ -430,6 +439,112 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         // v0.51.129: dequeue next queued task для same recipe (для outfit path теж).
         $taskIdInt = is_numeric($task['task_id'] ?? 0) ? (int) $task['task_id'] : 0;
         $this->activateNextQueuedTask($characterIdInt, $taskIdInt);
+    }
+
+    /**
+     * V6 (ADR-033) — completion path для ресурсов (семена). Начисляет ресурс в
+     * `character_resources` (по recipe.resource_name_en) через
+     * ResourceModel::addOrIncreaseResource (find-or-insert), bump stats, notify.
+     * Reusable для будущего food-output (V8 cooking).
+     *
+     * @param array<string,mixed> $task
+     * @param array<string,mixed> $recipe
+     */
+    private function handleResourceOutput(array $task, array $recipe, int $quantityToAdd, string $recipeKey): void
+    {
+        $resourceNameEn = $recipe['resource_name_en'] ?? null;
+        if (!is_string($resourceNameEn) || $resourceNameEn === '') {
+            $itemNameEng = is_string($recipe['item_name_eng'] ?? null) ? $recipe['item_name_eng'] : $recipeKey;
+            log_message('error', "[GenericCraftCompletion] recipe '{$itemNameEng}' output_type=resource, но нет resource_name_en");
+            return;
+        }
+
+        // character_id нарроуим через переменную (урок hotfix v0.51.218,
+        // feedback_phpstan_no_mixed_to_int_cast).
+        $cidRaw         = $task['character_id'] ?? null;
+        $characterIdInt = is_numeric($cidRaw) ? (int) $cidRaw : 0;
+
+        $ok = $this->resourceModel->addOrIncreaseResource($characterIdInt, $resourceNameEn, $quantityToAdd);
+        if ($ok === false) {
+            log_message('error', "[GenericCraftCompletion] resource '{$resourceNameEn}' не найден в БД (output_type=resource)");
+            return;
+        }
+
+        // Stat bump (как default crafted_item path). Нарроуим через переменную
+        // (feedback_phpstan_no_mixed_to_int_cast — не cast offset напрямую).
+        $agRaw          = $recipe['agility_bonus']   ?? 0;
+        $intRaw         = $recipe['intellect_bonus'] ?? 0;
+        $agilityBonus   = is_numeric($agRaw)  ? (float) $agRaw  : 0.0;
+        $intellectBonus = is_numeric($intRaw) ? (float) $intRaw : 0.0;
+        $this->characterModel->updateAgilityAndIntellect($characterIdInt, $agilityBonus, $intellectBonus);
+
+        $tgRaw             = $task['telegram_user_id'] ?? null;
+        $telegramUserIdInt = is_numeric($tgRaw) ? (int) $tgRaw : 0;
+        $this->notifyResourceCrafted($telegramUserIdInt, $resourceNameEn, $characterIdInt, $quantityToAdd, $recipe, $recipeKey);
+
+        // dequeue next queued task для same recipe (для resource path тоже).
+        $taskIdRaw = $task['task_id'] ?? null;
+        $taskIdInt = is_numeric($taskIdRaw) ? (int) $taskIdRaw : 0;
+        $this->activateNextQueuedTask($characterIdInt, $taskIdInt);
+    }
+
+    /**
+     * V6 — уведомление о скрафченном ресурсе (семени). Caption самодостаточен
+     * (media-off): что создано, сколько, итог в инвентаре. Картинка = enhancement.
+     *
+     * @param array<string,mixed> $recipe
+     */
+    private function notifyResourceCrafted(int $telegramUserId, string $resourceNameEn, int $characterId, int $quantityAdded, array $recipe, string $recipeKey): void
+    {
+        $userRow = $this->telegramUserModel->where('id', $telegramUserId)->first();
+        if (!is_array($userRow) || empty($userRow['telegram_id'])) {
+            log_message('error', "[GenericCraftCompletion] нет telegram_id для user_id={$telegramUserId}");
+            return;
+        }
+        $tgIdRaw    = $userRow['telegram_id'];
+        $telegramId = is_numeric($tgIdRaw) ? (int) $tgIdRaw : 0;
+        if ($telegramId === 0) {
+            return;
+        }
+
+        // Итог в инвентаре (character_resources).
+        $db  = \Config\Database::connect();
+        $row = $db->table('character_resources cr')
+            ->select('cr.quantity')
+            ->join('resources r', 'r.id = cr.id_resources')
+            ->where('cr.id_characters', $characterId)
+            ->where('r.name_en', $resourceNameEn)
+            ->get();
+        $rowArr   = $row !== false ? $row->getRowArray() : null;
+        $totalNow = is_array($rowArr) && isset($rowArr['quantity']) && is_numeric($rowArr['quantity'])
+            ? (int) $rowArr['quantity']
+            : $quantityAdded;
+
+        $itemNameRus = is_string($recipe['item_name_rus'] ?? null) ? $recipe['item_name_rus'] : $recipeKey;
+        $iconEmoji   = is_string($recipe['icon_emoji'] ?? null) ? $recipe['icon_emoji'] : '🌱';
+
+        $text = "📌 *Крафт завершён!*\n\n"
+            . "Ты заготовил: {$iconEmoji} *{$itemNameRus}* x{$quantityAdded} шт.\n\n"
+            . "Теперь у тебя *{$totalNow} шт.* в запасах.\n\n"
+            . "Посади семена в теплице, чтобы вырастить урожай. 🌱";
+
+        $craftAgainCallback = 'genericCraft_' . $recipeKey . '_' . $quantityAdded;
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '🔄 Заготовить ещё', 'callback_data' => $craftAgainCallback],
+                    ['text' => '🌱 Посадить',       'callback_data' => 'plantSeedMenu'],
+                ],
+            ],
+        ];
+
+        $imageCompleted = is_string($recipe['image_completed'] ?? null) ? $recipe['image_completed'] : '';
+        $imagePath      = FCPATH . $imageCompleted;
+
+        $this->safeSendPhoto($telegramId, $imagePath, $text, [
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
+        ]);
     }
 
     private function extractRecipeKey(array $task): ?string

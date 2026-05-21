@@ -199,6 +199,13 @@ class Worker extends Controller
         'craftDiamondPickaxe'       => 'generic_craft',
         'craftSapperShovel'         => 'generic_craft',
         'craftGoldenHoe'            => 'generic_craft',
+        // V6 (ADR-033) — 4 seed crafts (output_type=resource → character_resources).
+        'craftBerrySeeds'           => 'generic_craft',
+        'craftMushroomSeeds'        => 'generic_craft',
+        'craftFruitSeeds'           => 'generic_craft',
+        'craftCropSeeds'            => 'generic_craft',
+        // V6 (ADR-033) — посадка культуры (активное земледелие, отдельный handler).
+        'plantCrop'                 => 'planting',
         // Generic building handler — покриває 12 task.name'ів через Buildings config.
         'buildingManualPump'             => 'generic_building',
         'buildBlastFurnace'              => 'generic_building',
@@ -318,6 +325,13 @@ class Worker extends Controller
         'craftDiamondPickaxe'       => 'Craft\GenericCraftCompletionHandler',
         'craftSapperShovel'         => 'Craft\GenericCraftCompletionHandler',
         'craftGoldenHoe'            => 'Craft\GenericCraftCompletionHandler',
+        // V6 (ADR-033) — 4 seed crafts (output_type=resource dispatch на character_resources).
+        'craftBerrySeeds'           => 'Craft\GenericCraftCompletionHandler',
+        'craftMushroomSeeds'        => 'Craft\GenericCraftCompletionHandler',
+        'craftFruitSeeds'           => 'Craft\GenericCraftCompletionHandler',
+        'craftCropSeeds'            => 'Craft\GenericCraftCompletionHandler',
+        // V6 (ADR-033) — посадка культуры (активное земледелие).
+        'plantCrop'                 => 'Farm\PlantCropCompletionHandler',
     ];
 
     protected function getHandlerClassName($taskName, ?string $explicitHandlerKey = null)

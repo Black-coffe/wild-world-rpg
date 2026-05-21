@@ -19,6 +19,7 @@ use App\Services\Player\Gather\GatherFormulaService;
 use App\Services\Player\Gather\GatherMessageFormatter;
 use App\Services\Player\Gather\GatherResultPersister;
 use App\Services\Player\Gather\ToolDurabilityProcessor;
+use App\Services\Farming\FarmingService;
 
 /**
  * v0.51.23 (F2.9 batch-5 — FINAL closure): extends BaseTaskHandler.
@@ -64,6 +65,9 @@ class GatherTaskHandler extends BaseTaskHandler
     protected $craftedItemsModel;
     protected $biomeResourceModifier;
 
+    // V6 (ADR-033): вторичный источник семян — light drop при сборе ресурсов.
+    private FarmingService $farming;
+
     /**
      * Сохраняет, сколько инструментов мы использовали в рамках одного процесса сбора
      * (ключ: имя инструмента, значение: сколько раз применили).
@@ -106,6 +110,8 @@ class GatherTaskHandler extends BaseTaskHandler
             null,
             $this->resourceModel
         );
+        // V6 (ADR-033): seed-drop reader (GameSettings killswitch + chance).
+        $this->farming                = new FarmingService();
     }
 
     /**
@@ -157,6 +163,73 @@ class GatherTaskHandler extends BaseTaskHandler
 
         // Отправляем уведомление
         $this->sendResourcesFoundReply($foundResources, $character, $spentMinutes, $biomeName);
+
+        // V6 (ADR-033): вторичный источник семян (defensive, killswitch+chance).
+        // Изолировано от gather-математики — не влияет на расчёт/сохранение добычи.
+        $this->maybeDropSeed($character);
+    }
+
+    /**
+     * V6 (ADR-033) — light seed-drop при сборе ресурсов (вторичный источник;
+     * primary = крафт семян). Gated: farming.enabled + farming.seed_drop_chance.
+     * Полностью изолировано и defensive — никогда не валит gather completion.
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     */
+    private function maybeDropSeed(array|\App\Entities\CharacterEntity $character): void
+    {
+        try {
+            if (! $this->farming->isEnabled()) {
+                return;
+            }
+            $chance = $this->farming->seedDropChance();
+            if ($chance <= 0.0) {
+                return;
+            }
+            $roll = mt_rand(1, 10000) / 10000.0;
+            if ($roll > $chance) {
+                return;
+            }
+            $crops = $this->farming->allCrops();
+            if ($crops === []) {
+                return;
+            }
+            $crop = $crops[array_rand($crops)];
+            $meta = $this->farming->cropMeta($crop);
+            if ($meta === null) {
+                return;
+            }
+            $charIdRaw = $character['id'] ?? 0;
+            $charId    = is_numeric($charIdRaw) ? (int) $charIdRaw : 0;
+            if ($charId <= 0) {
+                return;
+            }
+            $this->resourceModel->addOrIncreaseResource($charId, $meta['seed_en'], 1);
+            $this->notifySeedDrop($character, $meta);
+        } catch (\Throwable $e) {
+            log_message('error', '[GatherTaskHandler] maybeDropSeed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     * @param array{seed_en:string, seed_ru:string, crop_en:string, crop_ru:string, icon:string, recipe:string, grow_key:string, grow_default:int, yield_key:string, yield_default:int} $meta
+     */
+    private function notifySeedDrop(array|\App\Entities\CharacterEntity $character, array $meta): void
+    {
+        $tgRaw   = $character['telegram_user_id'] ?? 0;
+        $userRow = $this->telegramUserModel->where('id', is_numeric($tgRaw) ? (int) $tgRaw : 0)->first();
+        if (!is_array($userRow) || empty($userRow['telegram_id'])) {
+            return;
+        }
+        $chatIdRaw = $userRow['telegram_id'];
+        $chatId    = is_numeric($chatIdRaw) ? (int) $chatIdRaw : 0;
+        if ($chatId === 0) {
+            return;
+        }
+        $text = "🌱 *Удача!* Среди добычи нашлись *{$meta['seed_ru']}*.\n"
+            . "Посади их на грядках теплицы, чтобы вырастить {$meta['icon']} {$meta['crop_ru']}.";
+        $this->safeSendMessage($chatId, $text, ['parse_mode' => 'Markdown']);
     }
 
     /**

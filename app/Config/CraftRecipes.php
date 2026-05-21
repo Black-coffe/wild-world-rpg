@@ -433,6 +433,111 @@ class CraftRecipes extends BaseConfig
             'craft_again_callback' => 'genericCraft_Fertilizer_1',
         ],
 
+        // ── V6 (ADR-033) — семена для активного земледелия. ──────────────────
+        // output_type='resource' → семя начисляется в character_resources
+        // (resource_name_en). Низкий гейт (только база). Лор: «отложил посевной
+        // материал с урожая». Урожай 1:1 (BerrySeeds→Berries и т.д.).
+        // Картинка — text-fallback (general_crafting_img.png), image-tail.
+        'BerrySeeds' => [
+            'task_name'            => 'craftBerrySeeds',
+            'resources'            => [
+                'Ягоды' => 2,
+                'Вода'  => 1,
+            ],
+            'crafted_items'        => [],
+            'requires_base'        => true,
+            'output_type'          => 'resource',
+            'resource_name_en'     => 'BerrySeeds',
+            'image_in_progress'    => 'uploads/telegram/craft/general_crafting_img.png',
+            'start_caption_name'   => '🫐 *Семена ягод*',
+            'info_callback'        => 'berrySeeds',
+
+            'item_name_eng'        => 'BerrySeeds',
+            'item_name_rus'        => 'Семена ягод',
+            'icon_emoji'           => '🫐',
+            'zone_emoji'           => '🌱',
+            'zone_name'            => 'земледелие',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/general_crafting_img.png',
+            'craft_again_callback' => 'genericCraft_BerrySeeds_1',
+        ],
+
+        'MushroomSeeds' => [
+            'task_name'            => 'craftMushroomSeeds',
+            'resources'            => [
+                'Грибы' => 2,
+                'Вода'  => 1,
+            ],
+            'crafted_items'        => [],
+            'requires_base'        => true,
+            'output_type'          => 'resource',
+            'resource_name_en'     => 'MushroomSeeds',
+            'image_in_progress'    => 'uploads/telegram/craft/general_crafting_img.png',
+            'start_caption_name'   => '🍄 *Семена грибов*',
+            'info_callback'        => 'mushroomSeeds',
+
+            'item_name_eng'        => 'MushroomSeeds',
+            'item_name_rus'        => 'Семена грибов',
+            'icon_emoji'           => '🍄',
+            'zone_emoji'           => '🌱',
+            'zone_name'            => 'земледелие',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/general_crafting_img.png',
+            'craft_again_callback' => 'genericCraft_MushroomSeeds_1',
+        ],
+
+        'FruitSeeds' => [
+            'task_name'            => 'craftFruitSeeds',
+            'resources'            => [
+                'Фрукты' => 2,
+                'Вода'   => 1,
+            ],
+            'crafted_items'        => [],
+            'requires_base'        => true,
+            'output_type'          => 'resource',
+            'resource_name_en'     => 'FruitSeeds',
+            'image_in_progress'    => 'uploads/telegram/craft/general_crafting_img.png',
+            'start_caption_name'   => '🍎 *Семена фруктов*',
+            'info_callback'        => 'fruitSeeds',
+
+            'item_name_eng'        => 'FruitSeeds',
+            'item_name_rus'        => 'Семена фруктов',
+            'icon_emoji'           => '🍎',
+            'zone_emoji'           => '🌱',
+            'zone_name'            => 'земледелие',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/general_crafting_img.png',
+            'craft_again_callback' => 'genericCraft_FruitSeeds_1',
+        ],
+
+        'CropSeeds' => [
+            'task_name'            => 'craftCropSeeds',
+            'resources'            => [
+                'Зерновые культуры' => 2,
+                'Вода'              => 1,
+            ],
+            'crafted_items'        => [],
+            'requires_base'        => true,
+            'output_type'          => 'resource',
+            'resource_name_en'     => 'CropSeeds',
+            'image_in_progress'    => 'uploads/telegram/craft/general_crafting_img.png',
+            'start_caption_name'   => '🌾 *Семена овощей*',
+            'info_callback'        => 'cropSeeds',
+
+            'item_name_eng'        => 'CropSeeds',
+            'item_name_rus'        => 'Семена овощей',
+            'icon_emoji'           => '🌾',
+            'zone_emoji'           => '🌱',
+            'zone_name'            => 'земледелие',
+            'agility_bonus'        => 0.01,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/general_crafting_img.png',
+            'craft_again_callback' => 'genericCraft_CropSeeds_1',
+        ],
+
         'WoodMaterials' => [
             'task_name'            => 'craftWoodMaterials',
             'resources'            => [
