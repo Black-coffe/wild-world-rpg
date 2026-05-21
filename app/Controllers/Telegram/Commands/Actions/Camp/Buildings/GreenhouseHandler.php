@@ -5,11 +5,15 @@ namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Greenhouse\FarmingActionTrait;
 use App\Models\CharacterBuildingModel;
 use App\Models\BuildingModel;
+use App\Services\Farming\FarmingService;
 
 class GreenhouseHandler extends BaseAction
 {
+    use FarmingActionTrait;
+
     protected $characterBuildingModel;
     protected $buildingModel;
 
@@ -99,19 +103,34 @@ class GreenhouseHandler extends BaseAction
             $buildingInfo['description']
         );
 
+        // V6 (ADR-033): активное земледелие — компактный статус грядок в карточке
+        // теплицы (полное меню — кнопка «🌱 Грядки» → SeedSelectAction).
+        $farming     = new FarmingService();
+        $farmingRow  = [];
+        if ($farming->isEnabled()) {
+            $plantTask = $this->plantTaskRow();
+            $used      = $plantTask !== null && isset($plantTask['id']) && is_numeric($plantTask['id'])
+                ? count($this->activePlantings((int) $character['id'], (int) $plantTask['id']))
+                : 0;
+            $text .= "\n\n🌱 *Грядки (посадка):* растёт {$used}/{$farming->maxConcurrentPlantings()}."
+                . "\n_Жми «Грядки», чтобы посадить семена и собрать урожай._";
+            $farmingRow[] = ['text' => '🌱 Грядки', 'callback_data' => 'plantSeedMenu'];
+        }
+
         // Формируем клавиатуру с кнопками
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🆙 Поднять уровень', 'callback_data' => 'upgrade_building_' . $buildingId],
-                    ['text' => '🔄 Обновить постройку', 'callback_data' => 'renew_building_' . $buildingId],
-                ],
-                [
-                    ['text' => '❌ Удалить строение', 'callback_data' => 'delete_building_' . $buildingId],
-                    ['text' => '🏠 База', 'callback_data' => 'Base'],
-                ],
-            ],
+        $keyboardRows = [];
+        if ($farmingRow !== []) {
+            $keyboardRows[] = $farmingRow;
+        }
+        $keyboardRows[] = [
+            ['text' => '🆙 Поднять уровень', 'callback_data' => 'upgrade_building_' . $buildingId],
+            ['text' => '🔄 Обновить постройку', 'callback_data' => 'renew_building_' . $buildingId],
         ];
+        $keyboardRows[] = [
+            ['text' => '❌ Удалить строение', 'callback_data' => 'delete_building_' . $buildingId],
+            ['text' => '🏠 База', 'callback_data' => 'Base'],
+        ];
+        $keyboard = ['inline_keyboard' => $keyboardRows];
 
         // Закрываем "alert" нажатия кнопки
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);

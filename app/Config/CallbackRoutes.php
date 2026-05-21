@@ -86,6 +86,11 @@ class CallbackRoutes extends BaseConfig
         'craftQueue'                      => \App\Controllers\Telegram\Commands\Actions\Craft\ShowCraftQueueAction::class,
         // S28 — меню сезонного крафта (рецепты текущего сезона).
         'seasonalCraft'                   => \App\Controllers\Telegram\Commands\Actions\Craft\Seasonal\SeasonalCraftSelect::class,
+        // V6 (ADR-033) — активное земледелие (грядки теплицы). Семена craftable
+        // через genericCraft_<SeedKey>; посадка — отдельная цепочка.
+        'plantSeedMenu'                   => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Greenhouse\SeedSelectAction::class,
+        'plantSeedPreview'                => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Greenhouse\SeedPlantPreviewAction::class,
+        'plantSeedStart'                  => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Greenhouse\PlantCropActionStart::class,
         'robotsCraft2'                    => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotsCraft2Select::class,
         'robotExplorer'                   => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotExplorer2Action::class,
         'robotGatherer'                   => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotGatherer2Action::class,
