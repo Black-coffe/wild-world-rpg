@@ -12,7 +12,7 @@ class QuestModel extends Model
     protected $returnType = 'array';
     protected $useSoftDeletes = false;
 
-    protected $allowedFields = ['title_ru', 'title_en', 'description', 'status', 'reward', 'min_level', 'reward_type'];
+    protected $allowedFields = ['title_ru', 'title_en', 'description', 'status', 'reward', 'min_level', 'reward_type', 'prerequisite_quest'];
 
     protected $useTimestamps = false;
     protected $createdField  = '';
@@ -73,5 +73,33 @@ class QuestModel extends Model
             ->where('status', 'active')
             ->where('min_level <=', $characterLevel)
             ->findAll();
+    }
+
+    /**
+     * V11 (ADR-036) — title_en всех квестов, ЗАВЕРШЁННых персонажем (есть quest_steps
+     * с is_completed=1). Используется QuestChainService для проверки prerequisite.
+     * Зеркало логики «quest completed» из GenericCraftActionStart (S25 required_quest).
+     *
+     * @return list<string>
+     */
+    public function getCompletedQuestTitles(int $characterId): array
+    {
+        $rows = $this->db->table('quest_steps qs')
+            ->select('q.title_en')
+            ->distinct()
+            ->join('quests q', 'q.id = qs.quest_id')
+            ->where('qs.character_id', $characterId)
+            ->where('qs.is_completed', 1)
+            ->get();
+        if ($rows === false) {
+            return [];
+        }
+        $out = [];
+        foreach ($rows->getResultArray() as $r) {
+            if (isset($r['title_en']) && is_string($r['title_en']) && $r['title_en'] !== '') {
+                $out[] = $r['title_en'];
+            }
+        }
+        return $out;
     }
 }
