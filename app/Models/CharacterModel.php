@@ -45,6 +45,7 @@ class CharacterModel extends Model
         'endgame_lock_at',     // v0.51.110 endgame system
         'disable_media',       // идея #14 — тумблер картинок (миграция 2026-05-08; пропущен в allowedFields)
         'last_respawn_at',     // death-validation batch 4 — момент последнего возрождения (grace-окно от damage-событий)
+        'last_planted_crop',   // V6 (ADR-033) — rotation-память активного земледелия
     ];
 
     protected $useTimestamps = true;
