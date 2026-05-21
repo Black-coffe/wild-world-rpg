@@ -82,6 +82,18 @@ $currentRewardType = $isEdit ? (string) ($quest['reward_type'] ?? '') : null;
                            value="<?= $isEdit ? esc(old('min_level', $quest['min_level'] ?? '')) : esc(old('min_level')) ?>">
                 </div>
 
+                <?php
+                    $prereqRaw = $isEdit ? old('prerequisite_quest', $quest['prerequisite_quest'] ?? '') : old('prerequisite_quest');
+                    $prereqVal = is_string($prereqRaw) ? $prereqRaw : '';
+                ?>
+                <div class="mb-3 col-md-12">
+                    <label for="prerequisite_quest" class="form-label">Предусловие — title_en квеста-предшественника (V11, цепочки)</label>
+                    <input type="text" class="form-control" id="prerequisite_quest" name="prerequisite_quest"
+                           placeholder="напр. StrategicCaptureBunker (пусто = доступен сразу)"
+                           value="<?= esc($prereqVal) ?>">
+                    <small class="text-muted">Квест станет доступен только после завершения указанного квеста. Пусто — без цепочки.</small>
+                </div>
+
                 <div class="mb-3 col-md-12">
                     <label for="description" class="form-label">Описание</label>
                     <textarea class="form-control" id="description" name="description" rows="3" required><?= $isEdit ? esc(old('description', $quest['description'] ?? '')) : esc(old('description')) ?></textarea>

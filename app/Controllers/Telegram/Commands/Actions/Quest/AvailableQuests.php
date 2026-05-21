@@ -36,7 +36,13 @@ class AvailableQuests extends BaseAction
         // Используем:
         $activeQuestSteps = $questStepModel->getActiveQuestStepsForCharacter($characterId, $quests);
 
+        // V11 (ADR-036): цепочки квестов — квест с prerequisite_quest доступен только
+        // после завершения предусловия. Собираем завершённые квесты персонажа один раз.
+        $chain           = new \App\Services\Quest\QuestChainService();
+        $completedTitles = $questModel->getCompletedQuestTitles((int) $characterId);
+
         $availableQuests = [];
+        $lockedQuests    = [];
         foreach ($quests as $quest) {
             // Проверяем наличие соответствующей записи в таблице quest_steps
             $questStep = $questStepModel->where('quest_id', $quest['id'])
@@ -46,21 +52,42 @@ class AvailableQuests extends BaseAction
             if ($questStep) {
                 continue;
             }
-
-            if (!in_array($quest['id'], $activeQuestSteps)) {
-                $availableQuests[] = $quest;
+            if (in_array($quest['id'], $activeQuestSteps)) {
+                continue;
             }
+
+            // V11: предусловие не выполнено → квест заблокирован (показываем тизер цепочки).
+            $prereq = $chain->prerequisiteOf($quest);
+            if (! $chain->prerequisiteMet($prereq, $completedTitles)) {
+                $lockedQuests[] = ['quest' => $quest, 'prereq' => $prereq];
+                continue;
+            }
+
+            $availableQuests[] = $quest;
         }
 
-        if (empty($availableQuests)) {
+        if (empty($availableQuests) && empty($lockedQuests)) {
             $text = "На данный момент нет доступных квестов. Проверьте позже!";
         } else {
             $text = "*📜 Доступные квесты:*\n\n";
+            if (empty($availableQuests)) {
+                $text .= "_Сейчас открытых квестов нет._\n";
+            }
             foreach ($availableQuests as $quest) {
                 $rewardType = $this->translateRewardType($quest['reward_type']);
                 $text .= "🔹 *{$quest['title_ru']}* || Награда: *{$quest['reward']}* (_{$rewardType}_)\n";
             }
-            $text .= "\nВыбери квест и отправляйся к приключениям!";
+            // V11: заблокированные звенья цепочки — видно цель, но без кнопки.
+            if (! empty($lockedQuests)) {
+                $text .= "\n*🔒 Откроются позже (цепочка):*\n";
+                foreach ($lockedQuests as $lq) {
+                    $prereqTitle = $this->prerequisiteTitleRu($questModel, $lq['prereq']);
+                    $text .= "🔒 *{$lq['quest']['title_ru']}* — после квеста «{$prereqTitle}»\n";
+                }
+            }
+            if (! empty($availableQuests)) {
+                $text .= "\nВыбери квест и отправляйся к приключениям!";
+            }
         }
 
         $keyboard = $this->generateQuestKeyboard($availableQuests);
@@ -86,6 +113,20 @@ class AvailableQuests extends BaseAction
         ];
 
         return $translations[$type] ?? $type;  // Возвращаем перевод или оригинальное значение, если перевод отсутствует
+    }
+
+    /**
+     * V11 — русское название квеста-предусловия (по title_en) для тизера цепочки.
+     */
+    private function prerequisiteTitleRu(QuestModel $questModel, ?string $prereqTitleEn): string
+    {
+        if ($prereqTitleEn === null || $prereqTitleEn === '') {
+            return '???';
+        }
+        $row = $questModel->where('title_en', $prereqTitleEn)->first();
+        return is_array($row) && isset($row['title_ru']) && is_string($row['title_ru']) && $row['title_ru'] !== ''
+            ? $row['title_ru']
+            : $prereqTitleEn;
     }
 
     private function generateQuestKeyboard($quests)
