@@ -85,7 +85,11 @@ class PlantCropActionStart extends BaseAction
         $lastCrop    = is_string($lastCropRaw) && $lastCropRaw !== '' ? $lastCropRaw : null;
         $willRot     = $farming->shouldRotate($lastCrop, $crop);
 
-        $grow      = $farming->growMinutes($crop);
+        // V7: greenhouse-level множители (время роста — при посадке, замораживается).
+        $effects   = $this->buildingEffects();
+        $growMult  = $effects->getGreenhouseGrowTimeMultiplier($charId);
+        $yieldMult = $effects->getGreenhouseYieldMultiplier($charId);
+        $grow      = $farming->growMinutes($crop, $growMult);
         $startTime = new DateTime();
         $endTime   = (clone $startTime)->add(new DateInterval('PT' . $grow . 'M'));
 
@@ -117,13 +121,16 @@ class PlantCropActionStart extends BaseAction
             return $this->sendError($chatId, 'Ошибка при посадке. Попробуй ещё раз.');
         }
 
-        $yield   = $farming->harvestYield($crop, $willRot);
+        $yield   = $farming->harvestYield($crop, $willRot, $yieldMult);
         $rotLine = $willRot ? "\n🔄 Севооборот активен: *+{$farming->rotationBonusPercent()}%*." : '';
+        $ghLine  = ($yieldMult > 1.0 || $growMult < 1.0)
+            ? "\n🏗 Бонус теплицы применён (урожай/скорость по уровню)."
+            : '';
         $endStr  = $endTime->format('H:i');
 
         $text = "🌱 *Посажено: {$meta['icon']} {$meta['crop_ru']}*\n\n"
             . "⏱ Поспеет через *{$grow} мин* (≈ {$endStr}).\n"
-            . "🌾 Ожидаемый урожай: *{$meta['icon']} {$meta['crop_ru']} ×{$yield}*.{$rotLine}\n\n"
+            . "🌾 Ожидаемый урожай: *{$meta['icon']} {$meta['crop_ru']} ×{$yield}*.{$rotLine}{$ghLine}\n\n"
             . "Слоты посадок: *" . ($used + 1) . "/{$maxSlots}*.\n"
             . "_О готовности узнаешь в сообщении._ 🎁";
 

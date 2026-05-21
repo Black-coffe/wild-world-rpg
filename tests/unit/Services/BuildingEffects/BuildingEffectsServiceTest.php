@@ -607,4 +607,119 @@ final class BuildingEffectsServiceTest extends CIUnitTestCase
         );
         $this->assertSame(0.70, $svc->getTeleportCostMultiplier(491));
     }
+
+    // ============================================================
+    // V7 (vNext) — Greenhouse farming multipliers (yield + grow-time)
+    // ============================================================
+    // Привязка активного земледелия (V6) к уровню теплицы. Pure-overlay,
+    // L1/нет теплицы → 1.0; L2/L3 → значения; L4-L10 cascade на L3 (plateau).
+    // Greenhouse building_id=5 (прод).
+
+    public function testGreenhouseYieldMultiplierNoGreenhouseReturnsOne(): void
+    {
+        $svc = $this->service(
+            [['id' => 5, 'name_en' => 'Greenhouse']],
+            [],
+            $this->reader(['building.greenhouse.l2.harvest_yield_multiplier' => 1.15]),
+        );
+        $this->assertSame(1.0, $svc->getGreenhouseYieldMultiplier(491));
+    }
+
+    public function testGreenhouseYieldMultiplierL1ReturnsOne(): void
+    {
+        $svc = $this->service(
+            [['id' => 5, 'name_en' => 'Greenhouse']],
+            [['character_id' => 491, 'building_id' => 5, 'level' => 1]],
+            $this->reader(['building.greenhouse.l2.harvest_yield_multiplier' => 1.15]),
+        );
+        $this->assertSame(1.0, $svc->getGreenhouseYieldMultiplier(491));
+    }
+
+    public function testGreenhouseYieldMultiplierL2ReturnsOnePointFifteen(): void
+    {
+        $svc = $this->service(
+            [['id' => 5, 'name_en' => 'Greenhouse']],
+            [['character_id' => 491, 'building_id' => 5, 'level' => 2]],
+            $this->reader([
+                'building.greenhouse.l2.harvest_yield_multiplier' => 1.15,
+                'building.greenhouse.l3.harvest_yield_multiplier' => 1.30,
+            ]),
+        );
+        $this->assertSame(1.15, $svc->getGreenhouseYieldMultiplier(491));
+    }
+
+    public function testGreenhouseYieldMultiplierL3ReturnsOnePointThirty(): void
+    {
+        $svc = $this->service(
+            [['id' => 5, 'name_en' => 'Greenhouse']],
+            [['character_id' => 491, 'building_id' => 5, 'level' => 3]],
+            $this->reader([
+                'building.greenhouse.l2.harvest_yield_multiplier' => 1.15,
+                'building.greenhouse.l3.harvest_yield_multiplier' => 1.30,
+            ]),
+        );
+        $this->assertSame(1.30, $svc->getGreenhouseYieldMultiplier(491));
+    }
+
+    public function testGreenhouseYieldMultiplierL5CascadesToL3Plateau(): void
+    {
+        $svc = $this->service(
+            [['id' => 5, 'name_en' => 'Greenhouse']],
+            [['character_id' => 491, 'building_id' => 5, 'level' => 5]],
+            $this->reader([
+                'building.greenhouse.l2.harvest_yield_multiplier' => 1.15,
+                'building.greenhouse.l3.harvest_yield_multiplier' => 1.30,
+            ]),
+        );
+        $this->assertSame(1.30, $svc->getGreenhouseYieldMultiplier(491));
+    }
+
+    public function testGreenhouseGrowTimeMultiplierNoGreenhouseReturnsOne(): void
+    {
+        $svc = $this->service(
+            [['id' => 5, 'name_en' => 'Greenhouse']],
+            [],
+            $this->reader(['building.greenhouse.l2.grow_time_multiplier' => 0.90]),
+        );
+        $this->assertSame(1.0, $svc->getGreenhouseGrowTimeMultiplier(491));
+    }
+
+    public function testGreenhouseGrowTimeMultiplierL2ReturnsNinety(): void
+    {
+        $svc = $this->service(
+            [['id' => 5, 'name_en' => 'Greenhouse']],
+            [['character_id' => 491, 'building_id' => 5, 'level' => 2]],
+            $this->reader([
+                'building.greenhouse.l2.grow_time_multiplier' => 0.90,
+                'building.greenhouse.l3.grow_time_multiplier' => 0.80,
+            ]),
+        );
+        $this->assertSame(0.90, $svc->getGreenhouseGrowTimeMultiplier(491));
+    }
+
+    public function testGreenhouseGrowTimeMultiplierL3ReturnsEighty(): void
+    {
+        $svc = $this->service(
+            [['id' => 5, 'name_en' => 'Greenhouse']],
+            [['character_id' => 491, 'building_id' => 5, 'level' => 3]],
+            $this->reader([
+                'building.greenhouse.l2.grow_time_multiplier' => 0.90,
+                'building.greenhouse.l3.grow_time_multiplier' => 0.80,
+            ]),
+        );
+        $this->assertSame(0.80, $svc->getGreenhouseGrowTimeMultiplier(491));
+    }
+
+    public function testGreenhouseGrowTimeMultiplierL7CascadesToL3Plateau(): void
+    {
+        $svc = $this->service(
+            [['id' => 5, 'name_en' => 'Greenhouse']],
+            [['character_id' => 491, 'building_id' => 5, 'level' => 7]],
+            $this->reader([
+                'building.greenhouse.l2.grow_time_multiplier' => 0.90,
+                'building.greenhouse.l3.grow_time_multiplier' => 0.80,
+            ]),
+        );
+        $this->assertSame(0.80, $svc->getGreenhouseGrowTimeMultiplier(491));
+    }
 }

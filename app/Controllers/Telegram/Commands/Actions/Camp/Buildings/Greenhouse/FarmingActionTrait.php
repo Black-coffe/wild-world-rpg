@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Greenhouse;
 
+use App\Services\BuildingEffects\BuildingEffectsService;
 use App\Services\Farming\FarmingService;
 
 /**
@@ -12,9 +13,16 @@ use App\Services\Farming\FarmingService;
  * $this->characterTaskModel / $this->taskModel / $this->resourceModel).
  *
  * FarmingService остаётся чистым GameSettings-reader'ом; DB-доступ — здесь.
+ * V7: greenhouse-level множители (урожай/время роста) — через BuildingEffectsService.
  */
 trait FarmingActionTrait
 {
+    /** V7 — BuildingEffectsService для greenhouse-level множителей. */
+    protected function buildingEffects(): BuildingEffectsService
+    {
+        return new BuildingEffectsService();
+    }
+
     /** Есть ли у персонажа теплица (building name_en='Greenhouse'). */
     protected function hasGreenhouse(int $characterId): bool
     {
