@@ -17,11 +17,13 @@
 | V5 | Seasonal images backfill (15 картинок) | ✅ SHIPPED | v0.51.216 | 2026-05-20 |
 | V4 | Seasonal-events tie-in (4 события 1:1) | ✅ SHIPPED | v0.51.217 | 2026-05-20 |
 | — | 🐛 hotfix: building/craft completion (character_id mixed→int, 7 хендлеров) | ✅ SHIPPED | v0.51.218 | 2026-05-20 |
-| V6 | Farming seed-cycle foundation — audit + ADR-033 (билд в след. сессию) | 🔶 ADR READY | — | 2026-05-20 |
+| V6 | Farming seed-cycle foundation (ADR-033) — активная посадка слоем поверх теплицы | ✅ SHIPPED | v0.51.219 | 2026-05-21 |
 
 🏁 **ФАЗА 1 ЗАКРЫТА (V1-V5, 2026-05-20):** 20 рецептов × 4 сезона + 15 картинок + 4 сезонных события (Snowfall→winter / SpringFlood→spring / Dryness→summer / BerryBoom→autumn). Авто-ротация 21 день. Бонус: prod-хотфикс краша завершения построек/крафта (daily-log-review находка).
 
-**Следующее: Фаза 2 — Farming & cooking foundation (V6-V10).** V6 = seed-cycle/crop rotation (foundation-сервис) — крупнее scope, audit-first.
+🌱 **ФАЗА 2 СТАРТОВАЛА (V6, 2026-05-21):** активное земледелие — независимый слой ПОВЕРХ пассивной теплицы (0 регрессии). Семена (craft + light drop) → посадка → рост по таймеру (реюз `character_tasks`) → урожай + бонус севооборота. 4 seed-ресурса, `output_type=resource` в generic-craft, `PlantCropCompletionHandler` (handler_key=planting), 13 `farming.*` GameSettings (live-tunable), killswitch `farming.enabled`. +14 тестов (724), phpstan L9, testbot e2e ✅. Фундамент для V7 (harvest-quality), V8 (cooking), V9 (food-buffs), V10 (хранение). **Tail:** 4 seed-картинки (text-fallback).
+
+**Следующее: Фаза 2 — V7-V10** (harvest scheduling → campfire cooking → food-buffs → хранение). V6 фундамент seed/plant/grow переиспользуется.
 
 **Image-tail'ы прочие** (WatchTower S26b + 4 strategic-объекта) — отдельный scope (Фаза 6 V28).
 
@@ -86,7 +88,7 @@ Framework S28 готов → нужен только контент. Кажды�
 
 ### 🌾 Фаза 2 — Farming & cooking foundation (P5/P10, lore-coherent)
 Greenhouse (S13b) → углубление + новая ось «еда».
-- **V6** — Seed-cycle / crop rotation (foundation-сервис, GameSettings cadence). 🔶 **ADR-033 ГОТОВ** (2026-05-20): активная посадка СЛОЕМ поверх пассивной теплицы (0 регрессии), реюз `character_tasks` (type=planting), семена craftable+drop, простой rotation-бонус, 13 GameSettings, killswitch `farming.enabled`. 12-шаговый build-план в ADR. **Билд — отдельной сессией.**
+- **V6** ✅ **SHIPPED v0.51.219 (2026-05-21)** — Seed-cycle / crop rotation foundation (ADR-033). Активная посадка СЛОЕМ поверх пассивной теплицы (`GreenhouseProductionHandler` не тронут, 0 регрессии). Цикл: 4 семени (`BerrySeeds`/`MushroomSeeds`/`FruitSeeds`/`CropSeeds` — craft `output_type=resource` + light gather-drop) → посадка в теплице (реюз `character_tasks`, handler_key=planting) → рост по таймеру → урожай (существующие ресурсы) + бонус севооборота (`characters.last_planted_crop`, детерминир.). `FarmingService` (live-tunable reader), `PlantCropCompletionHandler`, `SeedSelectAction`/`SeedPlantPreviewAction`/`PlantCropActionStart`, кнопка «🌱 Грядки» в карточке теплицы. 13 `farming.*` GameSettings (category=resources, rich rationale ADR-024), killswitch `farming.enabled`. Fairness: слои не делят water-бюджет, slot-кап (2), семена из добытого (не P2W), rotation без RNG. +14 тестов (724), phpstan L9, testbot e2e ✅ (craft→deposit→plant→harvest+rotation→passive жив). **Smoke-находка:** `last_planted_crop` забыт в CharacterModel allowedFields → fix v0.51.219. **Tail:** 4 seed-картинки (text-fallback на `general_crafting_img.png`).
 - **V7** — Harvest scheduling + урожай-качество (привязка к Greenhouse level S13).
 - **V8** — Campfire cooking (новый «верстак» Костёр уже в craft-tree enum) — рецепты еды.
 - **V9** — Food-buffs (temporary stat-бонусы от приготовленной еды; реюз GameSettings heal-pattern S19).
