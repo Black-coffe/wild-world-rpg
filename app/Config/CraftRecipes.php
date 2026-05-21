@@ -437,7 +437,7 @@ class CraftRecipes extends BaseConfig
         // output_type='resource' → семя начисляется в character_resources
         // (resource_name_en). Низкий гейт (только база). Лор: «отложил посевной
         // материал с урожая». Урожай 1:1 (BerrySeeds→Berries и т.д.).
-        // Картинка — text-fallback (general_crafting_img.png), image-tail.
+        // Картинки — V6 image-tail закрыт: uploads/telegram/craft/seeds/*.jpg (loot.seeds, V4).
         'BerrySeeds' => [
             'task_name'            => 'craftBerrySeeds',
             'resources'            => [
@@ -448,7 +448,7 @@ class CraftRecipes extends BaseConfig
             'requires_base'        => true,
             'output_type'          => 'resource',
             'resource_name_en'     => 'BerrySeeds',
-            'image_in_progress'    => 'uploads/telegram/craft/general_crafting_img.png',
+            'image_in_progress'    => 'uploads/telegram/craft/seeds/berry_seeds.jpg',
             'start_caption_name'   => '🫐 *Семена ягод*',
             'info_callback'        => 'berrySeeds',
 
@@ -459,7 +459,7 @@ class CraftRecipes extends BaseConfig
             'zone_name'            => 'земледелие',
             'agility_bonus'        => 0.01,
             'intellect_bonus'      => 0.01,
-            'image_completed'      => 'uploads/telegram/craft/general_crafting_img.png',
+            'image_completed'      => 'uploads/telegram/craft/seeds/berry_seeds.jpg',
             'craft_again_callback' => 'genericCraft_BerrySeeds_1',
         ],
 
@@ -473,7 +473,7 @@ class CraftRecipes extends BaseConfig
             'requires_base'        => true,
             'output_type'          => 'resource',
             'resource_name_en'     => 'MushroomSeeds',
-            'image_in_progress'    => 'uploads/telegram/craft/general_crafting_img.png',
+            'image_in_progress'    => 'uploads/telegram/craft/seeds/mushroom_seeds.jpg',
             'start_caption_name'   => '🍄 *Семена грибов*',
             'info_callback'        => 'mushroomSeeds',
 
@@ -484,7 +484,7 @@ class CraftRecipes extends BaseConfig
             'zone_name'            => 'земледелие',
             'agility_bonus'        => 0.01,
             'intellect_bonus'      => 0.01,
-            'image_completed'      => 'uploads/telegram/craft/general_crafting_img.png',
+            'image_completed'      => 'uploads/telegram/craft/seeds/mushroom_seeds.jpg',
             'craft_again_callback' => 'genericCraft_MushroomSeeds_1',
         ],
 
@@ -498,7 +498,7 @@ class CraftRecipes extends BaseConfig
             'requires_base'        => true,
             'output_type'          => 'resource',
             'resource_name_en'     => 'FruitSeeds',
-            'image_in_progress'    => 'uploads/telegram/craft/general_crafting_img.png',
+            'image_in_progress'    => 'uploads/telegram/craft/seeds/fruit_seeds.jpg',
             'start_caption_name'   => '🍎 *Семена фруктов*',
             'info_callback'        => 'fruitSeeds',
 
@@ -509,7 +509,7 @@ class CraftRecipes extends BaseConfig
             'zone_name'            => 'земледелие',
             'agility_bonus'        => 0.01,
             'intellect_bonus'      => 0.01,
-            'image_completed'      => 'uploads/telegram/craft/general_crafting_img.png',
+            'image_completed'      => 'uploads/telegram/craft/seeds/fruit_seeds.jpg',
             'craft_again_callback' => 'genericCraft_FruitSeeds_1',
         ],
 
@@ -523,7 +523,7 @@ class CraftRecipes extends BaseConfig
             'requires_base'        => true,
             'output_type'          => 'resource',
             'resource_name_en'     => 'CropSeeds',
-            'image_in_progress'    => 'uploads/telegram/craft/general_crafting_img.png',
+            'image_in_progress'    => 'uploads/telegram/craft/seeds/crop_seeds.jpg',
             'start_caption_name'   => '🌾 *Семена овощей*',
             'info_callback'        => 'cropSeeds',
 
@@ -534,7 +534,7 @@ class CraftRecipes extends BaseConfig
             'zone_name'            => 'земледелие',
             'agility_bonus'        => 0.01,
             'intellect_bonus'      => 0.01,
-            'image_completed'      => 'uploads/telegram/craft/general_crafting_img.png',
+            'image_completed'      => 'uploads/telegram/craft/seeds/crop_seeds.jpg',
             'craft_again_callback' => 'genericCraft_CropSeeds_1',
         ],
 
