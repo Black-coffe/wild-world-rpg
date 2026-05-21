@@ -86,6 +86,8 @@ class CallbackRoutes extends BaseConfig
         'craftQueue'                      => \App\Controllers\Telegram\Commands\Actions\Craft\ShowCraftQueueAction::class,
         // S28 — меню сезонного крафта (рецепты текущего сезона).
         'seasonalCraft'                   => \App\Controllers\Telegram\Commands\Actions\Craft\Seasonal\SeasonalCraftSelect::class,
+        // V8 — меню готовки на костре (блюда из фарм-урожая).
+        'cook'                            => \App\Controllers\Telegram\Commands\Actions\Craft\Cooking\CampfireCookingSelect::class,
         // V6 (ADR-033) — активное земледелие (грядки теплицы). Семена craftable
         // через genericCraft_<SeedKey>; посадка — отдельная цепочка.
         'plantSeedMenu'                   => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Greenhouse\SeedSelectAction::class,
