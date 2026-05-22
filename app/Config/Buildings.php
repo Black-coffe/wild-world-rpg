@@ -71,7 +71,7 @@ class Buildings extends BaseConfig
         'Arsenal' => [
             'name_rus'          => 'Арсенал',
             'emoji'             => '⚔️',
-            'info_text'         => 'Здесь вы сможете хранить и производить оружие/броню, улучшать, модифицировать и разрабатывать новые модели, получать бонусы при создании боеприпасов.',
+            'info_text'         => 'Здание для хранения и экипировки оружия и брони. Чтобы надеть снаряжение, на базе нужен Арсенал.',
             'level_required'    => 15,
             'task_name'         => 'startBuildArsenal',
             'task_settings'     => ['building' => 'Arsenal'],
@@ -92,7 +92,7 @@ class Buildings extends BaseConfig
             'completion_image'           => 'uploads/telegram/camp/arsenal.png',
             'completion_text'            => "🎉 *Поздравляем!*\n\n"
                                           . "Вы успешно завершили строительство *⚔️ Арсенала*.\n"
-                                          . "Теперь у вас есть здание для хранения и улучшения оружия, производства боеприпасов!\n"
+                                          . "Теперь вы можете хранить и экипировать оружие и броню!\n"
                                           . "_Время действовать!_",
             'completion_bonus_agility'   => 0.05,
             'completion_bonus_intellect' => 0.05,
@@ -107,7 +107,7 @@ class Buildings extends BaseConfig
         'Workshop' => [
             'name_rus'          => 'Мастерская',
             'emoji'             => '🔧',
-            'info_text'         => 'Даёт дополнительные возможности крафта, а также нужна для постройки инженерных сооружений.',
+            'info_text'         => 'Ускоряет изготовление всех предметов (со 2-го уровня; на 3-м — заметно сильнее). Нужна для постройки инженерных сооружений.',
             'level_required'    => 1,
             'task_name'         => 'buildWorkshop',
             'task_settings'     => ['building' => 'Workshop'],
@@ -133,7 +133,7 @@ class Buildings extends BaseConfig
         'BlastFurnace' => [
             'name_rus'          => 'Доменная печь',
             'emoji'             => '🔥',
-            'info_text'         => 'Необходима для плавки металла. Потребуется в инженерных сооружениях и для некоторых компонентов.',
+            'info_text'         => 'Необходима для плавки металла. Повышает выход металл-фрагментов при их крафте (со 2-го уровня; на 3-м — сильнее).',
             'level_required'    => 1,
             'task_name'         => 'buildBlastFurnace',
             'task_settings'     => ['building' => 'BlastFurnace'],
@@ -158,7 +158,7 @@ class Buildings extends BaseConfig
         'Warehouse' => [
             'name_rus'          => 'Склад',
             'emoji'             => '🏚️',
-            'info_text'         => 'Даёт возможность торговли крафтовыми предметами на закрытом рынке, а также снимает ограничения лимитов ресурсов на базе.',
+            'info_text'         => 'Открывает закрытый рынок: позволяет покупать крафтовые предметы у других игроков.',
             'level_required'    => 1,
             'task_name'         => 'startBuildWarehouse',
             'task_settings'     => ['building' => 'Warehouse'],
@@ -187,7 +187,7 @@ class Buildings extends BaseConfig
         'Laboratory' => [
             'name_rus'          => 'Лаборатория',
             'emoji'             => '🥼',
-            'info_text'         => 'Позволяет проводить исследования и создавать новые технологии, а также строить роботов и прочие изделия.',
+            'info_text'         => 'Позволяет проводить исследования и создавать новые технологии. Ускоряет изготовление медикаментов (эффект складывается с Мастерской; со 2-го уровня).',
             'level_required'    => 5,
             'task_name'         => 'startBuildLab',
             'task_settings'     => ['building' => 'Laboratory'],
@@ -211,7 +211,7 @@ class Buildings extends BaseConfig
         'SolarStation' => [
             'name_rus'          => 'Солнечная станция',
             'emoji'             => '☀️',
-            'info_text'         => 'Даёт возможность электрифицировать сооружения и автоматизировать многие вещи. Нужна для прокачки уровней зданий.',
+            'info_text'         => 'Энергетическая постройка. Требуется как условие для строительства Арсенала.',
             'level_required'    => 1,
             'task_name'         => 'startBuildSolarStation',
             'task_settings'     => ['building' => 'SolarStation'],
@@ -242,7 +242,7 @@ class Buildings extends BaseConfig
         'Gym' => [
             'name_rus'          => 'Спортзал',
             'emoji'             => '🥊',
-            'info_text'         => 'Спортивный и тренировочный зал. Наличие даёт каждые 5 минут 0,01 к силе персонажа.',
+            'info_text'         => 'Спортивный и тренировочный зал. Наличие даёт каждые 30 минут небольшую прибавку к силе персонажа (на 1 уровне 0,01; растёт с уровнем зала).',
             'level_required'    => 5,
             'task_name'         => 'startBuildGym',
             'task_settings'     => ['building' => 'Gym'],
@@ -274,7 +274,7 @@ class Buildings extends BaseConfig
         'Greenhouse' => [
             'name_rus'          => 'Теплица',
             'emoji'             => '🌱',
-            'info_text'         => 'Конструкция, которая позволяет получать каждую минуту урожай: *Фрукты* 2 единицы, *Ягоды* 1 единицу.',
+            'info_text'         => 'Производит еду. Пассивно каждую минуту даёт урожай (на 1 уровне: *Фрукты* 2, *Ягоды* 1; расходует воду, выше — с уровнем). Также позволяет сажать семена культур ради дополнительного урожая.',
             'level_required'    => 1,
             'task_name'         => 'startBuildGreenhouse',
             'task_settings'     => ['building' => 'Greenhouse'],
@@ -300,7 +300,7 @@ class Buildings extends BaseConfig
         'HandPump' => [
             'name_rus'          => 'Ручная скважина',
             'emoji'             => '🚰',
-            'info_text'         => 'Ручная скважина для добычи воды. После постройки каждую минуту добавляется 1 единица воды для персонажа.',
+            'info_text'         => 'Ручная скважина для добычи воды. После постройки каждую минуту добавляется вода (на 1 уровне 1 единица; растёт с уровнем). Требует уплаты налога и активной базы.',
             'level_required'    => 1,
             'task_name'         => 'buildingManualPump',
             'task_settings'     => ['building' => 'HandPump'],
@@ -325,7 +325,7 @@ class Buildings extends BaseConfig
         'RoboticsWorkshop' => [
             'name_rus'          => 'Мастерская робототехники',
             'emoji'             => '🤖',
-            'info_text'         => 'Даёт возможность строить различных роботов и автоматические установки/машины.',
+            'info_text'         => 'Даёт возможность строить различных роботов и автоматические установки/машины. Ускоряет изготовление роботов (эффект складывается с Мастерской; со 2-го уровня).',
             'level_required'    => 10,
             'task_name'         => 'startBuildRoboticsWorkshop',
             'task_settings'     => ['building' => 'RoboticsWorkshop'],
@@ -387,7 +387,7 @@ class Buildings extends BaseConfig
         'CommunicationTower' => [
             'name_rus'          => 'Вышка связи',
             'emoji'             => '📢',
-            'info_text'         => 'Позволяет удалённо управлять базой и сооружениями. Каждый уровень увеличивает радиус действия на 100 клеток.',
+            'info_text'         => 'Расширяет радиус работы роботов от базы: каждый уровень — +100 клеток.',
             'level_required'    => 1,
             'task_name'         => 'startBuildCommunicationTower',
             'task_settings'     => ['building' => 'CommunicationTower'],
@@ -406,9 +406,9 @@ class Buildings extends BaseConfig
             'image_in_progress' => 'uploads/telegram/camp/communication_tower_in_progress.jpg',
             'completion_image'           => 'uploads/telegram/camp/communication_tower.png',
             'completion_text'            => "🎉 *Поздравляем!*\n\n"
-                                          . "Вы завершили строительство *📡Вышки связи*!\n"
-                                          . "Теперь ваша база доступна для удалённого управления.\n"
-                                          . "Каждый уровень — +100 радиус связи!\n\n"
+                                          . "Вы завершили строительство *📡 Вышки связи*!\n"
+                                          . "Теперь роботы могут работать дальше от базы.\n"
+                                          . "Каждый уровень — +100 клеток радиуса!\n\n"
                                           . "_Удачи в развитии вашей колонии!_",
             'completion_bonus_agility'   => 0.05,
             'completion_bonus_intellect' => 0.05,
