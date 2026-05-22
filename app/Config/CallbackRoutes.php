@@ -54,6 +54,9 @@ class CallbackRoutes extends BaseConfig
         'settings'                        => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         'mediaOff'                        => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         'mediaOn'                         => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
+        // ADR-038 Фаза C — тумблер «Совет дня»
+        'dailyTipsOn'                     => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
+        'dailyTipsOff'                    => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         // 'character' route handled by inline shortcut у CallbackqueryCommand
         // (calls CharacterService::showCharacterInfo з equipment info — НЕ
         // CharacterAction). CharacterAction.php був dead code, видалено v0.51.79.

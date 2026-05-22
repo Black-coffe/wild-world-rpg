@@ -47,6 +47,7 @@ class CharacterModel extends Model
         'last_respawn_at',     // death-validation batch 4 — момент последнего возрождения (grace-окно от damage-событий)
         'last_planted_crop',   // V6 (ADR-033) — rotation-память активного земледелия
         'well_fed_until',      // V9 (ADR-034) — момент истечения buff'а «Сытость»
+        'daily_tips_enabled',  // ADR-038 Фаза C — тумблер «Совет дня» (opt-out, default 1)
     ];
 
     protected $useTimestamps = true;

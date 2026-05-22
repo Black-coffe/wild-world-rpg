@@ -193,5 +193,11 @@ class Tasks extends BaseTasks
         // (cache-state, first-run silent). Killswitch seasonal.enabled.
         $schedule->call(static fn() => (new \App\TaskHandlers\Other\SeasonalTransitionHandler())->handle())
             ->daily('00:00')->singleInstance()->named('seasonal.transition');
+
+        // ADR-038 Фаза C — «Совет дня»: ежедневная авто-рассылка совета игрокам.
+        // everyMinute + внутренние guard'ы (hour=tips.daily_hour + once/day cache).
+        // Killswitch tips.daily_enabled. singleInstance против overlap при рассылке 364.
+        $schedule->call(static fn() => (new \App\TaskHandlers\Tips\DailyTipBroadcastHandler())->handle())
+            ->everyMinute()->singleInstance()->named('tips.daily-broadcast');
     }
 }

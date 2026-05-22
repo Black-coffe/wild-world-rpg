@@ -9601,57 +9601,9 @@ parameters:
 			path: app/Controllers/Telegram/Commands/TasksCommand.php
 
 		-
-			message: '#^Cannot access offset ''agility'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/TipsCommand.php
-
-		-
-			message: '#^Cannot access offset ''content'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/TipsCommand.php
-
-		-
-			message: '#^Cannot access offset ''experience'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/TipsCommand.php
-
-		-
-			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/TipsCommand.php
-
-		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 5
-			path: app/Controllers/Telegram/Commands/TipsCommand.php
-
-		-
-			message: '#^Cannot access offset ''intellect'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/TipsCommand.php
-
-		-
-			message: '#^Cannot access offset ''tip_type'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/TipsCommand.php
-
-		-
-			message: '#^Cannot access offset ''title_ru'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/TipsCommand.php
-
-		-
-			message: '#^Parameter \#2 \$timestamp of function date expects int\|null, int\|false given\.$#'
-			identifier: argument.type
-			count: 1
+			count: 2
 			path: app/Controllers/Telegram/Commands/TipsCommand.php
 
 		-

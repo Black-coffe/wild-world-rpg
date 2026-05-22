@@ -59,6 +59,19 @@ class SettingsAction extends BaseAction
             $toast = ($disable === 1)
                 ? '🚫 Картинки отключены — теперь только текст'
                 : '🖼️ Картинки включены';
+        } elseif ($data === 'dailyTipsOn' || $data === 'dailyTipsOff') {
+            // ADR-038 Фаза C — тумблер ежедневного «Совета дня» (opt-out).
+            $enabled = ($data === 'dailyTipsOn') ? 1 : 0;
+            if (self::dailyTipsFlag($character) !== $enabled) {
+                $this->characterModel->update($character->id, ['daily_tips_enabled' => $enabled]);
+                $reloaded = $this->characterModel->find($character->id);
+                if ($reloaded instanceof CharacterEntity) {
+                    $character = $reloaded;
+                }
+            }
+            $toast = ($enabled === 1)
+                ? '📌 Совет дня включён — Роби будет писать раз в сутки'
+                : '🔕 Совет дня отключён';
         }
 
         Request::answerCallbackQuery(array_filter([
@@ -107,6 +120,23 @@ class SettingsAction extends BaseAction
     }
 
     /**
+     * Извлекает `daily_tips_enabled` (0/1) из строки персонажа. 1 — дефолт (opt-out).
+     *
+     * @param array<int|string,mixed>|object|null $character
+     */
+    public static function dailyTipsFlag($character): int
+    {
+        $raw = 1;
+        if ($character instanceof ArrayAccess) {
+            $raw = $character['daily_tips_enabled'] ?? 1;
+        } elseif (is_array($character)) {
+            $raw = $character['daily_tips_enabled'] ?? 1;
+        }
+
+        return is_numeric($raw) ? (int) $raw : 1;
+    }
+
+    /**
      * Собирает text + reply_markup экрана настроек по текущему состоянию персонажа.
      * Используется и callback-handler'ом, и `/settings`-командой, и текстом «настройки».
      *
@@ -121,19 +151,32 @@ class SettingsAction extends BaseAction
             ? '🚫 *отключены* — бот шлёт только текст'
             : '✅ *включены* — бот присылает изображения';
 
+        $tipsOn    = self::dailyTipsFlag($character) === 1;
+        $tipsState = $tipsOn
+            ? '✅ *включён* — Роби пишет совет раз в сутки'
+            : '🔕 *отключён*';
+
         $text = "⚙️ *Настройки*\n\n"
             . "🖼️ Картинки в сообщениях: {$state}\n\n"
+            . "📌 Совет дня: {$tipsState}\n\n"
             . "_Если у тебя медленный интернет или ты предпочитаешь чистый текст — отключи картинки. "
             . "Содержание и кнопки сообщений не изменятся, только пропадут изображения. "
-            . "Карта мира текстовая всегда — на неё это не влияет._";
+            . "Карта мира текстовая всегда — на неё это не влияет._\n\n"
+            . "_«Совет дня» — раз в сутки Роби сам пришлёт случайный игровой совет с микро-прокачкой. "
+            . "Не нужно — отключи; вызвать совет вручную всегда можно командой /tips._";
 
         $toggleButton = $disabled
             ? ['text' => '🖼️ Включить картинки',  'callback_data' => 'mediaOn']
             : ['text' => '🚫 Отключить картинки', 'callback_data' => 'mediaOff'];
 
+        $tipsButton = $tipsOn
+            ? ['text' => '🔕 Отключить совет дня', 'callback_data' => 'dailyTipsOff']
+            : ['text' => '📌 Включить совет дня',  'callback_data' => 'dailyTipsOn'];
+
         $keyboard = [
             'inline_keyboard' => [
                 [$toggleButton],
+                [$tipsButton],
                 [['text' => '🔙 Назад', 'callback_data' => 'characterActions']],
             ],
         ];
