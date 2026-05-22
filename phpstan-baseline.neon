@@ -11623,12 +11623,6 @@ parameters:
 			path: app/Services/Bases/BaseLocationResolver.php
 
 		-
-			message: '#^Method App\\Services\\Bases\\BaseLocationResolver\:\:findBiomeRow\(\) never returns array\<string, mixed\> so it can be removed from the return type\.$#'
-			identifier: return.unusedType
-			count: 1
-			path: app/Services/Bases/BaseLocationResolver.php
-
-		-
 			message: '#^Method App\\Services\\Bases\\BaseLocationResolver\:\:findClaimedCell\(\) should return array\<string, mixed\>\|null but returns array\<int\|string, bool\|float\|int\|object\|string\|null\>\|null\.$#'
 			identifier: return.type
 			count: 1

@@ -57,6 +57,15 @@ final class BaseLocationResolver
     public function findBiomeRow(int $biomeId): ?array
     {
         $row = $this->biomeModel->find($biomeId);
-        return is_array($row) ? $row : null;
+        if (is_array($row)) {
+            return $row;
+        }
+        // Bugfix: BiomeModel::$returnType = BiomeEntity (object) → прежний `is_array`
+        // всегда давал null → «Биом: ???» в инфо базы (showBaseBuildings/noBaseInfo/
+        // campCreation). Приводим Entity к array, чтобы name/description/danger резолвились.
+        if ($row instanceof \CodeIgniter\Entity\Entity) {
+            return $row->toRawArray();
+        }
+        return null;
     }
 }
