@@ -722,4 +722,78 @@ final class BuildingEffectsServiceTest extends CIUnitTestCase
         );
         $this->assertSame(0.80, $svc->getGreenhouseGrowTimeMultiplier(491));
     }
+
+    // ============================================================
+    // ADR-042 — L4-L9 интерполяция между L3 и L10-якорем (устранение плато)
+    // ============================================================
+
+    public function testWorkshopL10AnchorUsedAtLevel10(): void
+    {
+        // Явный L10-якорь подхватывается cascade'ом на L10.
+        $svc = $this->service(
+            [['id' => 4, 'name_en' => 'Workshop']],
+            [['character_id' => 491, 'building_id' => 4, 'level' => 10]],
+            $this->reader([
+                'building.workshop.l3.craft_time_multiplier'  => 0.75,
+                'building.workshop.l10.craft_time_multiplier' => 0.55,
+            ]),
+        );
+        $this->assertSame(0.55, $svc->getCraftTimeMultiplier(491));
+    }
+
+    public function testWorkshopInterpolatesL5BetweenL3AndL10(): void
+    {
+        // L5: 0.75 + (0.55−0.75)×(5−3)/7 = 0.75 − 0.05714 = 0.69286.
+        $svc = $this->service(
+            [['id' => 4, 'name_en' => 'Workshop']],
+            [['character_id' => 491, 'building_id' => 4, 'level' => 5]],
+            $this->reader([
+                'building.workshop.l3.craft_time_multiplier'  => 0.75,
+                'building.workshop.l10.craft_time_multiplier' => 0.55,
+            ]),
+        );
+        $this->assertEqualsWithDelta(0.69286, $svc->getCraftTimeMultiplier(491), 0.0001);
+    }
+
+    public function testWorkshopPlateauWhenNoL10Anchor(): void
+    {
+        // Без L10-якоря — прежнее поведение (плато на L3), обратная совместимость.
+        $svc = $this->service(
+            [['id' => 4, 'name_en' => 'Workshop']],
+            [['character_id' => 491, 'building_id' => 4, 'level' => 5]],
+            $this->reader([
+                'building.workshop.l3.craft_time_multiplier' => 0.75,
+            ]),
+        );
+        $this->assertSame(0.75, $svc->getCraftTimeMultiplier(491));
+    }
+
+    public function testBlastFurnaceYieldInterpolatesUp(): void
+    {
+        // L6: 1.35 + (1.70−1.35)×(6−3)/7 = 1.35 + 0.15 = 1.50.
+        $svc = $this->service(
+            [['id' => 2, 'name_en' => 'BlastFurnace']],
+            [['character_id' => 491, 'building_id' => 2, 'level' => 6]],
+            $this->reader([
+                'building.blastfurnace.l3.craft_yield_multiplier'  => 1.35,
+                'building.blastfurnace.l10.craft_yield_multiplier' => 1.70,
+            ]),
+        );
+        $this->assertEqualsWithDelta(1.50, $svc->getCraftYieldMultiplier(491, 'BlastFurnace'), 0.0001);
+    }
+
+    public function testExplicitMidLevelKeyWinsOverInterpolation(): void
+    {
+        // Явный L5-ключ имеет приоритет над интерполяцией.
+        $svc = $this->service(
+            [['id' => 4, 'name_en' => 'Workshop']],
+            [['character_id' => 491, 'building_id' => 4, 'level' => 5]],
+            $this->reader([
+                'building.workshop.l3.craft_time_multiplier'  => 0.75,
+                'building.workshop.l5.craft_time_multiplier'  => 0.60, // explicit override
+                'building.workshop.l10.craft_time_multiplier' => 0.55,
+            ]),
+        );
+        $this->assertSame(0.60, $svc->getCraftTimeMultiplier(491));
+    }
 }

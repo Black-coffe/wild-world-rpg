@@ -260,6 +260,22 @@ final class BuildingEffectsService
      */
     private function resolveLevelMultiplier(string $buildingKey, int $level, string $paramName): float
     {
+        // ADR-042: плавная интерполяция L4-L9 между L3 и L10-якорем (если оба заданы).
+        // Устраняет L4-L10 «dead-upgrade плато». Явный per-level ключ имеет приоритет;
+        // без L10-якоря — прежнее cascade-поведение (плато), тесты целы.
+        if ($level >= 4 && $level <= 9) {
+            $exact = $this->tunable("building.{$buildingKey}.l{$level}.{$paramName}");
+            if ($exact !== null) {
+                return $exact;
+            }
+            $v3  = $this->tunable("building.{$buildingKey}.l3.{$paramName}");
+            $v10 = $this->tunable("building.{$buildingKey}.l10.{$paramName}");
+            if ($v3 !== null && $v10 !== null) {
+                return $v3 + ($v10 - $v3) * ($level - 3) / 7.0;
+            }
+        }
+
+        // Legacy cascade: высший заданный ключ ≤ level (down to L2). Также L10 (явный якорь).
         for ($l = $level; $l >= 2; $l--) {
             $key = "building.{$buildingKey}.l{$l}.{$paramName}";
             $val = $this->tunable($key);
