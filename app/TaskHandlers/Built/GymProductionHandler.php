@@ -92,6 +92,16 @@ class GymProductionHandler extends BaseTaskHandler
                 continue;
             }
 
+            // F (анти-creep): кап силы от Спортзала. 0 = выключен (по умолчанию, без нерфа).
+            $cap = $this->gsInt('building.gym.strength_cap', 0);
+            if ($cap > 0) {
+                $strRaw = $character['strength'] ?? null;
+                $curStr = is_numeric($strRaw) ? (float) $strRaw : 0.0;
+                if ($curStr >= $cap) {
+                    continue; // достигнут потолок силы от Спортзала
+                }
+            }
+
             // Прибавляем силу
             $this->addStrengthToCharacter($characterId, $strengthIncrement);
         }

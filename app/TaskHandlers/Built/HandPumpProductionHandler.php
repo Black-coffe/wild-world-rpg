@@ -155,8 +155,9 @@ class HandPumpProductionHandler extends BaseTaskHandler
             $multiplier = $this->getBiomeMultiplier($biome);
 
             // Итоговое кол-во воды = baseWater * multiplier
-            // Округляем вниз, но гарантируем минимум 1
-            $finalWater = (int) floor($baseWater * $multiplier);
+            // F: round() вместо floor() — биом-множитель работает и на низких уровнях
+            // (раньше floor занижал дробные значения, min 1).
+            $finalWater = (int) round($baseWater * $multiplier);
             if ($finalWater < 1) {
                 $finalWater = 1;
             }

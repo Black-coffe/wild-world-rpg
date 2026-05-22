@@ -306,7 +306,7 @@ class Buildings extends BaseConfig
             'task_settings'     => ['building' => 'HandPump'],
             'resources'         => [
                 'Wood'  => 2000,
-                'Water' => 1200,
+                'Water' => 200, // F: было 1200 (анти-логика: водокачка стоила воды); снижено
                 'Clay'  => 600,
             ],
             'crafted_items'     => [
