@@ -41,7 +41,7 @@
 ### 🔴 S1. L4–L10 «dead-upgrade плато»
 GameSettings-ключи эффектов засеяны только для **L2 и L3**; `BuildingEffectsService::resolveLevelMultiplier()` (`BuildingEffectsService.php:261-271`) каскадит L4-L10 вниз к L3. При этом единая шкала апгрейда продолжает расти: L4=100k … **L10=1 000 000 золота** (+ гейты уровня чара L14…L30). Игрок платит **~3.49M золота за L4-L10** и получает **ноль доп-эффекта**. Бьёт Workshop, BlastFurnace, Lab, Robotics, TeleportCenter(цена), Greenhouse(актив). Исключения, что масштабируются дальше L3: CommunicationTower (`level×100`), TeleportCenter (лимит маяков), production-здания (HandPump/Gym выход).
 
-### 🔴 S2. Оборонные апгрейды + отсутствие ремонта
+### 🔴 S2. Оборонные апгрейды + отсутствие ремонта — ✅ ИСПРАВЛЕНО (v0.51.235, ADR-041)
 `DefenseStructureService.activeStructures()` (`DefenseStructureService.php:131`) не читает `cb.level` → апгрейд стены/ограды/вышки даёт **ноль усиления и ноль восстановления hp** (до 1M золота впустую). Хуже: **нет building-repair** — `applyDecay` снижает hp до 0, после чего структура неактивна навсегда (`cb.hp > 0` фильтр); существующий ремонт чинит только durability инструментов, не `character_buildings.hp`. Оборона **одноразовая** (8/20/30 отбитых атак → мертва), что противоречит info-текстам про «изнашивается» (звучит как обратимо).
 
 ### 🟠 S3. Рассинхрон `info_text` ↔ реальность (нарушает honesty-инвариант, тема N3/N5)
@@ -75,7 +75,7 @@ GameSettings-ключи эффектов засеяны только для **L2
 
 ### 🟠 / через ADR / GameSettings
 5. **L4-L10 плато** (S1): засеять `building.*.l4..l10.*` ключи с пологим спуском ИЛИ блокировать/удешевить апгрейд craft-only зданий выше L3.
-6. **Оборона** (S2): per-level scaling эффектов ИЛИ запрет апгрейда defensive-зданий + **building-repair** (восстановление hp за ресурсы) либо авто-restore hp при апгрейде.
+6. ✅ **(v0.51.235, ADR-041)** **Оборона** (S2): per-level scaling эффекта+maxHp (levelMult, ×1.0 при L1) + мгновенный **building-repair** (стоимость пропорц. потерянному hp) + авто-restore hp при апгрейде + новый экран оборонного здания (чинит dead-end). *Остаётся: HandPump/Gym/Greenhouse не оборонные — их апгрейд-плато и кап силы Gym отдельно.*
 7. **Per-building цена апгрейда** (S4): дифференцировать `BuildingUpgrades` по ценности здания (ADR).
 8. **Двойная правда** (S5): мигрировать greenhouseLevels/gym*/handPump* из `Config\GameBalance` в `GameSettings`.
 9. **Расширить охват BlastFurnace** (`boost_building`) на больше металл-рецептов — оправдать info «для некоторых компонентов».
