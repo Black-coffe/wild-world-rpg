@@ -6,6 +6,7 @@ use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\Services\Player\PlayerStateService;
 
 /**
@@ -41,6 +42,8 @@ use App\Services\Player\PlayerStateService;
  */
 class BuildingUpgradeValidator
 {
+    use GameSettingsReaderTrait;
+
     public const MAX_LEVEL = 10;
 
     private CharacterBuildingModel $characterBuildingModel;
@@ -102,6 +105,19 @@ class BuildingUpgradeValidator
             return ['ok' => false, 'error' => "Нет данных для апгрейда до уровня {$nextLevel}."];
         }
         $req = $upgradeRequirements[$nextLevel];
+
+        // ADR-043: per-building множитель ЗОЛОТА цены апгрейда (default 1.0 = базовая цена).
+        // Единая точка: scaled $req идёт и в проверку золота, и в context (formatter + applier).
+        $nameEn = '';
+        if (is_array($buildingInfo)) {
+            $rawName = $buildingInfo['name_en'] ?? null;
+            $nameEn  = is_string($rawName) ? strtolower($rawName) : '';
+        }
+        if ($nameEn !== '') {
+            $mult     = $this->gsFloat('economy.upgrade.cost_multiplier.' . $nameEn, 1.0);
+            $baseGold = is_numeric($req['gold'] ?? null) ? (int) $req['gold'] : 0;
+            $req['gold'] = (int) round($baseGold * $mult);
+        }
 
         // 6) Character level >= required
         $requiredCharLvl = (int) $req['level'];
