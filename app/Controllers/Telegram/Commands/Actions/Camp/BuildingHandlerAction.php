@@ -19,6 +19,7 @@ use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\WorkshopHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportationCenterHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\ArsenalHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\CommunicationTowerHandler;
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\DefensiveBuildingHandler;
 
 class BuildingHandlerAction extends BaseAction
 {
@@ -74,6 +75,12 @@ class BuildingHandlerAction extends BaseAction
                 break;
             case 'CommunicationTower':
                 $handler = new CommunicationTowerHandler($this->callbackQuery);
+                break;
+            // ADR-041: оборонные постройки (раньше падали в default → dead-end).
+            case 'WoodenWall':
+            case 'BarbedFence':
+            case 'WatchTower':
+                $handler = new DefensiveBuildingHandler($this->callbackQuery);
                 break;
 
             default:

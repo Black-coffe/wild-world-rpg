@@ -48,7 +48,8 @@ final class DefenseStructureServiceTest extends CIUnitTestCase
                 building_id INT NULL,
                 map_cell_id INT NULL,
                 building_type VARCHAR(32) NULL,
-                hp INT NULL
+                hp INT NULL,
+                level INT NULL DEFAULT 1
             )
         ');
         $db->query('
@@ -79,6 +80,7 @@ final class DefenseStructureServiceTest extends CIUnitTestCase
             ['defense.total_damage_reduction_max_percent', 40],
             ['defense.decay_hp_per_attack', 10],
             ['defense.tower.defender_initiative_bonus_percent', 8],
+            ['defense.scaling.per_level_percent', 20], // ADR-041: levelMult = 1 + 0.20×(lvl−1)
         ];
         foreach ($settings as [$key, $val]) {
             $db->table('game_settings')->insert([
@@ -108,12 +110,12 @@ final class DefenseStructureServiceTest extends CIUnitTestCase
         }
     }
 
-    private function buildStructure(int $charId, int $buildingId, int $cell, int $hp): int
+    private function buildStructure(int $charId, int $buildingId, int $cell, int $hp, int $level = 1): int
     {
         $db = Database::connect('tests');
         $db->table('character_buildings')->insert([
             'character_id' => $charId, 'building_id' => $buildingId,
-            'map_cell_id' => $cell, 'building_type' => 'defensive', 'hp' => $hp,
+            'map_cell_id' => $cell, 'building_type' => 'defensive', 'hp' => $hp, 'level' => $level,
         ]);
         return (int) $db->insertID();
     }
@@ -218,5 +220,63 @@ final class DefenseStructureServiceTest extends CIUnitTestCase
         // Сломанная вышка (hp=0) не учитывается → null (нет других структур).
         $this->buildStructure(1, $this->towerId, 100, 0);
         $this->assertNull((new DefenseStructureService())->getDefenseProfile(1, 100));
+    }
+
+    // ---- ADR-041: per-level scaling эффекта + maxHp ----
+
+    public function testWallReductionScalesWithLevel(): void
+    {
+        // L2 стена: levelMult=1.2 → 15% × 1.2 = round(18) = 18% → 0.18.
+        $this->buildStructure(1, $this->wallId, 100, 200, 2);
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+        $this->assertNotNull($profile);
+        $this->assertEqualsWithDelta(0.18, $profile['damage_reduction'], 0.0001);
+    }
+
+    public function testFenceDamageScalesWithLevel(): void
+    {
+        // L3 ограда: levelMult=1.4 → 3 × 1.4 = round(4.2) = 4.
+        $this->buildStructure(1, $this->fenceId, 100, 80, 3);
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+        $this->assertNotNull($profile);
+        $this->assertSame(4, $profile['fence_damage']);
+    }
+
+    public function testTowerInitiativeScalesWithLevel(): void
+    {
+        // L2 вышка: levelMult=1.2 → 8% × 1.2 = round(9.6) = 10% → 0.10.
+        $this->buildStructure(1, $this->towerId, 100, 300, 2);
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+        $this->assertNotNull($profile);
+        $this->assertEqualsWithDelta(0.10, $profile['initiative_bonus'], 0.0001);
+    }
+
+    public function testLevelOneIsNoOp(): void
+    {
+        // L1 (явно) — множитель ×1.0, базовые значения сохраняются.
+        $this->buildStructure(1, $this->wallId, 100, 200, 1);
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+        $this->assertNotNull($profile);
+        $this->assertEqualsWithDelta(0.15, $profile['damage_reduction'], 0.0001);
+    }
+
+    public function testCapStillAppliesAfterScaling(): void
+    {
+        // 5 стен L10 (levelMult=2.8) → 15×2.8=42% каждая, сумма огромна → клампится в 40%.
+        for ($i = 0; $i < 5; $i++) {
+            $this->buildStructure(1, $this->wallId, 100, 200, 10);
+        }
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+        $this->assertNotNull($profile);
+        $this->assertEqualsWithDelta(0.40, $profile['damage_reduction'], 0.0001);
+    }
+
+    public function testMaxHpForScalesWithLevel(): void
+    {
+        $svc = new DefenseStructureService();
+        $this->assertSame(200, $svc->maxHpFor(200, 1));   // L1 = база (no-op)
+        $this->assertSame(240, $svc->maxHpFor(200, 2));   // ×1.2
+        $this->assertSame(280, $svc->maxHpFor(200, 3));   // ×1.4
+        $this->assertSame(96, $svc->maxHpFor(80, 2));     // ограда ×1.2
     }
 }

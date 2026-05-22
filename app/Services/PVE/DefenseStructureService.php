@@ -61,6 +61,7 @@ final class DefenseStructureService
         $sumWallPercent = 0;
         $sumFence       = 0;
         $hasTower       = false;
+        $maxTowerLevel  = 1;
         $structureIds   = [];
         foreach ($rows as $r) {
             $nameEn = is_string($r['name_en'] ?? null) ? $r['name_en'] : '';
@@ -69,12 +70,17 @@ final class DefenseStructureService
             if ($id <= 0) {
                 continue;
             }
+            // ADR-041: per-level scaling. levelMult=1.0 при L1 → no-op (фикстуры целы).
+            $lvlRaw = $r['level'] ?? 1;
+            $level  = is_numeric($lvlRaw) ? max(1, (int) $lvlRaw) : 1;
+            $mult   = $this->levelMult($level);
             if ($nameEn === 'WoodenWall') {
-                $sumWallPercent += $wallPercent;
+                $sumWallPercent += (int) round($wallPercent * $mult);
             } elseif ($nameEn === 'BarbedFence') {
-                $sumFence += $fencePerRnd;
+                $sumFence += (int) round($fencePerRnd * $mult);
             } elseif ($nameEn === 'WatchTower') {
-                $hasTower = true;
+                $hasTower      = true;
+                $maxTowerLevel = max($maxTowerLevel, $level);
             }
             $structureIds[] = $id;
         }
@@ -84,12 +90,13 @@ final class DefenseStructureService
         }
 
         $cappedPercent = min($sumWallPercent, max(0, $capPercent));
+        $towerScaled   = $hasTower ? max(0, (int) round($towerInit * $this->levelMult($maxTowerLevel))) : 0;
 
         return [
             'owner_id'         => $defenderId,
             'damage_reduction' => $cappedPercent / 100.0,
             'fence_damage'     => $sumFence,
-            'initiative_bonus' => $hasTower ? max(0, $towerInit) / 100.0 : 0.0,
+            'initiative_bonus' => $towerScaled / 100.0,
             'structure_ids'    => $structureIds,
         ];
     }
@@ -128,7 +135,7 @@ final class DefenseStructureService
         try {
             $db    = Database::connect();
             $query = $db->table('character_buildings cb')
-                ->select('cb.id, cb.hp, b.name_en')
+                ->select('cb.id, cb.hp, cb.level, b.name_en')
                 ->join('buildings b', 'b.id = cb.building_id')
                 ->where('cb.character_id', $defenderId)
                 ->where('cb.map_cell_id', $cellNumber)
@@ -145,6 +152,36 @@ final class DefenseStructureService
             log_message('error', '[DefenseStructureService] activeStructures failed: ' . $e->getMessage());
             return [];
         }
+    }
+
+    /**
+     * ADR-041: множитель эффекта/maxHp за уровень структуры.
+     * levelMult = 1 + per_level_percent%×(level−1). ОБЯЗАТЕЛЬНО ×1.0 при level=1
+     * (no-op для существующих PvP-фикстур под RNG-fence).
+     */
+    private function levelMult(int $level): float
+    {
+        $level    = max(1, $level);
+        $perLevel = $this->intSetting('defense.scaling.per_level_percent', 20);
+        return 1.0 + ($perLevel / 100.0) * ($level - 1);
+    }
+
+    /**
+     * ADR-041: максимальный hp оборонной структуры с учётом уровня.
+     * $templateHp = buildings.hp (стартовый L1). При level=1 → templateHp (no-op).
+     */
+    public function maxHpFor(int $templateHp, int $level): int
+    {
+        return (int) round(max(0, $templateHp) * $this->levelMult($level));
+    }
+
+    /**
+     * ADR-041: int-значение combat-ключа, отмасштабированное по уровню структуры
+     * (для превью эффекта на экране здания). При level=1 → базовое значение.
+     */
+    public function scaledInt(string $key, int $default, int $level): int
+    {
+        return (int) round($this->intSetting($key, $default) * $this->levelMult($level));
     }
 
     private function intSetting(string $key, int $default): int

@@ -2,10 +2,12 @@
 
 namespace App\Services\Player\BuildingUpgrade;
 
+use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
+use App\Services\PVE\DefenseStructureService;
 
 /**
  * v0.51.60 (UpgradeBuildingAction decomp Step 3) — extract DB write block
@@ -31,17 +33,23 @@ class BuildingUpgradeApplier
     private CharacterResourceModel $characterResourceModel;
     private ResourceModel $resourceModel;
     private CharacterBuildingModel $characterBuildingModel;
+    private BuildingModel $buildingModel;
+    private DefenseStructureService $defenseService;
 
     public function __construct(
         ?CharacterModel $characterModel = null,
         ?CharacterResourceModel $characterResourceModel = null,
         ?ResourceModel $resourceModel = null,
-        ?CharacterBuildingModel $characterBuildingModel = null
+        ?CharacterBuildingModel $characterBuildingModel = null,
+        ?BuildingModel $buildingModel = null,
+        ?DefenseStructureService $defenseService = null
     ) {
         $this->characterModel         = $characterModel         ?? new CharacterModel();
         $this->characterResourceModel = $characterResourceModel ?? new CharacterResourceModel();
         $this->resourceModel          = $resourceModel          ?? new ResourceModel();
         $this->characterBuildingModel = $characterBuildingModel ?? new CharacterBuildingModel();
+        $this->buildingModel          = $buildingModel          ?? new BuildingModel();
+        $this->defenseService         = $defenseService         ?? new DefenseStructureService();
     }
 
     /**
@@ -70,8 +78,20 @@ class BuildingUpgradeApplier
             );
         }
 
-        $this->characterBuildingModel->update($charBuilding['id'], [
-            'level' => $nextLevel,
-        ]);
+        $update = ['level' => $nextLevel];
+
+        // ADR-041: апгрейд оборонной структуры восстанавливает hp до НОВОГО maxHp
+        // (выше уровень = крепче + полный ремонт «в подарок» при апгрейде).
+        if (($charBuilding['building_type'] ?? '') === 'defensive') {
+            $bidRaw     = $charBuilding['building_id'] ?? null;
+            $tmpl       = $this->buildingModel->find(is_numeric($bidRaw) ? (int) $bidRaw : 0);
+            $hpRaw      = is_array($tmpl) ? ($tmpl['hp'] ?? null) : null;
+            $templateHp = is_numeric($hpRaw) ? (int) $hpRaw : 0;
+            if ($templateHp > 0) {
+                $update['hp'] = $this->defenseService->maxHpFor($templateHp, $nextLevel);
+            }
+        }
+
+        $this->characterBuildingModel->update($charBuilding['id'], $update);
     }
 }

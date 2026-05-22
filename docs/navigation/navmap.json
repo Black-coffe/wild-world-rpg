@@ -1,13 +1,13 @@
 {
-    "generated_at": "2026-05-22T15:30:52+03:00",
+    "generated_at": "2026-05-22T17:05:34+03:00",
     "stats": {
-        "nodes": 223,
-        "edges": 856,
+        "nodes": 225,
+        "edges": 861,
         "entrypoints": 9,
-        "unresolved": 19,
+        "unresolved": 21,
         "dead_ends": 22,
-        "orphans": 49,
-        "unreachable": 59,
+        "orphans": 51,
+        "unreachable": 61,
         "max_depth": 7
     },
     "entrypoints": [
@@ -122,6 +122,18 @@
             "depth": 4
         },
         {
+            "id": "Controllers.Telegram.Commands.Actions.Camp.Buildings.DefensiveBuildingHandler",
+            "class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\DefensiveBuildingHandler",
+            "short": "DefensiveBuildingHandler",
+            "group": "base",
+            "file": "app/Controllers/Telegram/Commands/Actions/Camp/Buildings/DefensiveBuildingHandler.php",
+            "routes": [],
+            "kind": "screen",
+            "out": 3,
+            "in": 0,
+            "depth": null
+        },
+        {
             "id": "Controllers.Telegram.Commands.Actions.Camp.Buildings.Greenhouse.PlantCropActionStart",
             "class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\Greenhouse\\PlantCropActionStart",
             "short": "PlantCropActionStart",
@@ -210,6 +222,18 @@
             "out": 2,
             "in": 1,
             "depth": 4
+        },
+        {
+            "id": "Controllers.Telegram.Commands.Actions.Camp.Buildings.RepairBuildingAction",
+            "class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\RepairBuildingAction",
+            "short": "RepairBuildingAction",
+            "group": "base",
+            "file": "app/Controllers/Telegram/Commands/Actions/Camp/Buildings/RepairBuildingAction.php",
+            "routes": [],
+            "kind": "screen",
+            "out": 2,
+            "in": 0,
+            "depth": null
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Camp.Buildings.RoboticsWorkshopHandler",
@@ -2923,7 +2947,7 @@
             ],
             "kind": "action",
             "out": 0,
-            "in": 20,
+            "in": 22,
             "depth": 3
         },
         {
@@ -3064,7 +3088,7 @@
             ],
             "kind": "action",
             "out": 0,
-            "in": 13,
+            "in": 14,
             "depth": 5
         },
         {
@@ -3160,6 +3184,36 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.CommunicationTowerHandler",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\CommunicationTowerHandler",
+            "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.ShowBaseInfoAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ShowBaseInfoAction",
+            "label": "🏠 База",
+            "callback": "'Base'",
+            "matched_by": "exact:Base",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.DefensiveBuildingHandler",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\DefensiveBuildingHandler",
+            "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.UpgradeBuildingAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\UpgradeBuildingAction",
+            "label": "🆙 Поднять уровень",
+            "callback": "'upgrade_building_' . $buildingId",
+            "matched_by": "prefix-dispatcher:upgrade_building_",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.DefensiveBuildingHandler",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\DefensiveBuildingHandler",
+            "to": null,
+            "to_class": null,
+            "label": "🔧 Ремонт",
+            "callback": "'repairBuilding_' . $cbId",
+            "matched_by": "unresolved",
+            "unresolved": true
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.DefensiveBuildingHandler",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\DefensiveBuildingHandler",
             "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.ShowBaseInfoAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ShowBaseInfoAction",
             "label": "🏠 База",
@@ -3330,6 +3384,26 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.LaboratoryHandler",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\LaboratoryHandler",
+            "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.ShowBaseInfoAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ShowBaseInfoAction",
+            "label": "🏠 База",
+            "callback": "'Base'",
+            "matched_by": "exact:Base",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.RepairBuildingAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\RepairBuildingAction",
+            "to": null,
+            "to_class": null,
+            "label": "✅ Починить",
+            "callback": "'confirmRepairBuilding_' . $cbId",
+            "matched_by": "unresolved",
+            "unresolved": true
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.RepairBuildingAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\RepairBuildingAction",
             "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.ShowBaseInfoAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ShowBaseInfoAction",
             "label": "🏠 База",

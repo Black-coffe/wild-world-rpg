@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Telegram;
 
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\UpgradeBuildingAction;
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\RepairBuildingAction;
 use App\Controllers\Telegram\Commands\Actions\Craft\Repair\RepairCraftedItemAction;
 use App\Controllers\Telegram\Commands\Actions\Poll\PollVoteAction;
 use App\Controllers\Telegram\Commands\BaseShiftingCommand;
@@ -61,6 +62,17 @@ final class CallbackPrefixDispatcher
             return $this->dispatchStartRelocationConfirm($callbackQuery);
         }
 
+        // ADR-041: ремонт оборонных зданий (camelCase-префиксы — НЕ коллизят с tool
+        // `repair_`/`confirm_repair_`, т.к. 'repairBuilding_' не начинается с 'repair_').
+        // confirm проверяем ПЕРЕД ask (конвенция).
+        if (str_starts_with($callbackData, 'confirmRepairBuilding_')) {
+            return $this->dispatchRepairBuildingConfirm($callbackQuery);
+        }
+
+        if (str_starts_with($callbackData, 'repairBuilding_')) {
+            return $this->dispatchRepairBuildingAsk($callbackQuery);
+        }
+
         // S5b (v0.51.188+): repair flow (must check confirm_repair_ BEFORE repair_,
         // т.к. confirm_repair_ начинается с repair-prefix substring через подстроку).
         if (str_starts_with($callbackData, 'confirm_repair_')) {
@@ -72,6 +84,30 @@ final class CallbackPrefixDispatcher
         }
 
         return null;
+    }
+
+    /**
+     * ADR-041: repairBuilding_{cb_id} → показать стоимость ремонта + confirm.
+     */
+    private function dispatchRepairBuildingAsk(CallbackQuery $callbackQuery): ServerResponse
+    {
+        if (! class_exists(RepairBuildingAction::class)) {
+            return Request::emptyResponse();
+        }
+        $handler = new RepairBuildingAction($callbackQuery);
+        return $handler->askForRepair();
+    }
+
+    /**
+     * ADR-041: confirmRepairBuilding_{cb_id} → списать ресурсы + восстановить hp.
+     */
+    private function dispatchRepairBuildingConfirm(CallbackQuery $callbackQuery): ServerResponse
+    {
+        if (! class_exists(RepairBuildingAction::class)) {
+            return Request::emptyResponse();
+        }
+        $handler = new RepairBuildingAction($callbackQuery);
+        return $handler->confirmRepair();
     }
 
     /**
