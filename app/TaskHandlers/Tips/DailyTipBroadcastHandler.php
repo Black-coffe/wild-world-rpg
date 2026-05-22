@@ -80,8 +80,8 @@ class DailyTipBroadcastHandler extends BaseTaskHandler
 
     private function broadcast(): void
     {
-        $this->telegram();
-
+        // Telegram инициализируется лениво в safeSendMessage() (через sendTip()) —
+        // не дёргаем здесь, иначе db-тест (с override sendTip) падает на init без API_KEY.
         $query = (new CharacterModel())->builder()
             ->select('characters.id AS character_id, telegram_users.telegram_id')
             ->join('telegram_users', 'telegram_users.id = characters.telegram_user_id')
