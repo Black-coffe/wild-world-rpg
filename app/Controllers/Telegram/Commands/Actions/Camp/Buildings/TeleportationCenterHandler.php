@@ -1,6 +1,6 @@
 <?php
 
-namespace app\Controllers\Telegram\Commands\Actions\Camp\Buildings;
+namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings;
 
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;

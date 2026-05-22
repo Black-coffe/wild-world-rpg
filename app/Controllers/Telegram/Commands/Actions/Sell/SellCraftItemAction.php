@@ -64,8 +64,8 @@ class SellCraftItemAction extends BaseAction
         $text = "Ты собираешься продать:\n";
         $text .= "*Предмет:* _{$itemName}_\n";
         $text .= "*В наличии:* {$itemQuantity} штук\n";
-        $text .= "*Стоимость одного:* {$itemPrice}$\n";
-        $text .= "*Стоимость всех:* {$totalPrice}$\n";
+        $text .= "*Стоимость одного:* {$itemPrice} 💰\n";
+        $text .= "*Стоимость всех:* {$totalPrice} 💰\n";
         $text .= "\n_Укажи желаемое количество на продажу:_\n";
 
         $keyboardButtons = [

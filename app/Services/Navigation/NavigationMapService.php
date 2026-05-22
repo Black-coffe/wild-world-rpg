@@ -101,10 +101,7 @@ final class NavigationMapService
             ['label' => '🌱 Теплица',            'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\GreenhouseHandler::class],
             ['label' => '☀️ Солнечная станция',  'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\SolarStationHandler::class],
             ['label' => '🏋️ Спортзал',           'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\GymHandler::class],
-            // ⚠️ Файл объявлен с namespace в нижнем регистре (`app\…`) — рассинхрон
-            // с PSR-4 `App\` (latent style-bug, см. UX-backlog). Ссылаемся в его
-            // фактическом регистре, чтобы совпасть с ключом узла из parseClass().
-            ['label' => '📡 Центр телепортации', 'to' => \app\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportationCenterHandler::class],
+            ['label' => '📡 Центр телепортации', 'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportationCenterHandler::class],
             ['label' => '⚔️ Арсенал',            'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\ArsenalHandler::class],
             ['label' => '📶 Вышка связи',        'to' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\CommunicationTowerHandler::class],
         ],

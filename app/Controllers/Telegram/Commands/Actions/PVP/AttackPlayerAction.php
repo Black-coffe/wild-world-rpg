@@ -303,7 +303,7 @@ class AttackPlayerAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '🎒 Инвентарь',          'callback_data' => 'inventory'],
-                    ['text' => '🗺️ Изучить местность', 'callback_data' => 'march'],
+                    ['text' => '🗺️ Поход', 'callback_data' => 'march'],
                 ],
             ],
         ];

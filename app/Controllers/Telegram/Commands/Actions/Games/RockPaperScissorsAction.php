@@ -122,12 +122,12 @@ class RockPaperScissorsAction extends BaseAction {
 
             if ($winConditions[$userChoice] === $computerChoiceKey) {
                 // Стандартно игрок выигрывал бы
-                // Понижаем шансы выигрыша: только в 20% случаев победа засчитывается
+                // Понижаем шансы выигрыша: победа засчитывается только в 40% случаев
                 if (rand(1, 100) <= 40) {
                     $this->updateCharacterParam($this->character['id'], true, $param);
                     $text = "Вы победили! Ваш выбор ({$choices[$userChoice]}) побеждает над {$computerChoice}.";
                 } else {
-                    // В остальных 80% случаев выигрыш отменяется
+                    // В остальных 60% случаев выигрыш отменяется
                     $this->updateCharacterParam($this->character['id'], false, $param);
                     $text = "К сожалению, фортуна отвернулась от тебя. Несмотря на первоначальное преимущество, ты проиграл.";
                 }

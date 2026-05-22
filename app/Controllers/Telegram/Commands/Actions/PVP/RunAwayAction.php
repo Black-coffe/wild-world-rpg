@@ -137,7 +137,7 @@ class RunAwayAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🗺️ Изучить местность', 'callback_data' => 'march'],
+                    ['text' => '🗺️ Поход', 'callback_data' => 'march'],
                 ],
                 [
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],

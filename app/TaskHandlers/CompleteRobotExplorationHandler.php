@@ -144,7 +144,7 @@ class CompleteRobotExplorationHandler extends BaseTaskHandler
             'inline_keyboard' => [
                 [
                     ['text' => '🚜 Переехать',  'callback_data' => 'move'],
-                    ['text' => '🗺️ Изучить местность', 'callback_data' => 'march'],
+                    ['text' => '🗺️ Поход', 'callback_data' => 'march'],
                 ],
             ]
         ];

@@ -102,7 +102,7 @@ class BuyCraftItemListAction extends BaseAction
 
         $keyboardButtons = [];
         foreach ($craftedItemsList as $index => $item) {
-            $text .= "- *№" . ($index + 1) . "* / _" . $item['name'] . "_ / *" . $item['quantity'] . "* в наличии / *" . $item['price'] . "$* за шт.\n";
+            $text .= "- *№" . ($index + 1) . "* / _" . $item['name'] . "_ / *" . $item['quantity'] . "* в наличии / *" . $item['price'] . " 💰* за шт.\n";
             $keyboardButtons[] = [
                 'text' => (string)($index + 1),
                 'callback_data' => 'buyCraftItem_' . $item['id']

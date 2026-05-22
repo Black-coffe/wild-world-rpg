@@ -126,7 +126,7 @@ class MoveCharacterAction
                 ['text' => '↘️ Юго-Восток','callback_data' => 'move_dir_southeast'],
             ],
             [
-                ['text' => '🚜 Дальний поход', 'callback_data' => 'march'], // ADR-019
+                ['text' => '🗺️ Поход', 'callback_data' => 'march'], // ADR-019
             ],
         ];
         $keyboard = ['inline_keyboard' => $directionsKeyboard];

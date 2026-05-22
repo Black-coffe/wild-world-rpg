@@ -7,18 +7,6 @@ parameters:
 			path: app/Config/Autoload.php
 
 		-
-			message: '#^Class app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampCancelAction referenced with incorrect case\: App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampCancelAction\.$#'
-			identifier: class.nameCase
-			count: 1
-			path: app/Config/CallbackRoutes.php
-
-		-
-			message: '#^Class app\\Controllers\\Telegram\\Commands\\Profile\\GearAction referenced with incorrect case\: App\\Controllers\\Telegram\\Commands\\Profile\\GearAction\.$#'
-			identifier: class.nameCase
-			count: 1
-			path: app/Config/CallbackRoutes.php
-
-		-
 			message: '#^Property Config\\ContentSecurityPolicy\:\:\$frameSrc type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -1057,12 +1045,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildHandPumpAction.php
 
 		-
-			message: '#^Class app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler referenced with incorrect case\: App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler\.$#'
-			identifier: class.nameCase
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildingHandlerAction.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ArsenalHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
@@ -1795,19 +1777,19 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
 		-
-			message: '#^Method app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportationCenterHandler.php
 
 		-
-			message: '#^Property app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler\:\:\$buildingModel has no type specified\.$#'
+			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler\:\:\$buildingModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportationCenterHandler.php
 
 		-
-			message: '#^Property app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler\:\:\$characterBuildingModel has no type specified\.$#'
+			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler\:\:\$characterBuildingModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportationCenterHandler.php
@@ -2131,25 +2113,25 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/WorkshopHandler.php
 
 		-
-			message: '#^Access to an undefined property app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampCancelAction\:\:\$callbackQuery\.$#'
+			message: '#^Access to an undefined property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampCancelAction\:\:\$callbackQuery\.$#'
 			identifier: property.notFound
 			count: 2
 			path: app/Controllers/Telegram/Commands/Actions/Camp/CampCancelAction.php
 
 		-
-			message: '#^Call to static method answerCallbackQuery\(\) on an unknown class app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Request\.$#'
+			message: '#^Call to static method answerCallbackQuery\(\) on an unknown class App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Request\.$#'
 			identifier: class.notFound
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/CampCancelAction.php
 
 		-
-			message: '#^Call to static method sendMessage\(\) on an unknown class app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Request\.$#'
+			message: '#^Call to static method sendMessage\(\) on an unknown class App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Request\.$#'
 			identifier: class.notFound
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/CampCancelAction.php
 
 		-
-			message: '#^Method app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampCancelAction\:\:handle\(\) has invalid return type app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\ServerResponse\.$#'
+			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampCancelAction\:\:handle\(\) has invalid return type App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\ServerResponse\.$#'
 			identifier: class.notFound
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Camp/CampCancelAction.php

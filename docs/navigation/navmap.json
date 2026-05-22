@@ -1,13 +1,13 @@
 {
-    "generated_at": "2026-05-22T13:45:08+03:00",
+    "generated_at": "2026-05-22T14:34:24+03:00",
     "stats": {
-        "nodes": 224,
+        "nodes": 223,
         "edges": 857,
         "entrypoints": 9,
         "unresolved": 19,
-        "dead_ends": 23,
-        "orphans": 50,
-        "unreachable": 67,
+        "dead_ends": 22,
+        "orphans": 49,
+        "unreachable": 60,
         "max_depth": 7
     },
     "entrypoints": [
@@ -316,11 +316,11 @@
             "depth": 4
         },
         {
-            "id": "app.Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportationCenterHandler",
-            "class": "app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler",
+            "id": "Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportationCenterHandler",
+            "class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler",
             "short": "TeleportationCenterHandler",
             "group": "base",
-            "file": "app/app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportationCenterHandler.php",
+            "file": "app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportationCenterHandler.php",
             "routes": [],
             "kind": "screen",
             "out": 3,
@@ -2231,16 +2231,18 @@
             "depth": 3
         },
         {
-            "id": "app.Controllers.Telegram.Commands.Profile.GearAction",
-            "class": "app\\Controllers\\Telegram\\Commands\\Profile\\GearAction",
+            "id": "Controllers.Telegram.Commands.Profile.GearAction",
+            "class": "App\\Controllers\\Telegram\\Commands\\Profile\\GearAction",
             "short": "GearAction",
             "group": "profile",
-            "file": "app/app/Controllers/Telegram/Commands/Profile/GearAction.php",
-            "routes": [],
+            "file": "app/Controllers/Telegram/Commands/Profile/GearAction.php",
+            "routes": [
+                "equipMenu"
+            ],
             "kind": "command",
             "out": 3,
-            "in": 0,
-            "depth": null
+            "in": 4,
+            "depth": 2
         },
         {
             "id": "Controllers.Telegram.Commands.Profile.GearArmorAction",
@@ -2254,7 +2256,7 @@
             "kind": "command",
             "out": 2,
             "in": 3,
-            "depth": null
+            "depth": 3
         },
         {
             "id": "Controllers.Telegram.Commands.Profile.GearArmorDetailAction",
@@ -2268,7 +2270,7 @@
             "kind": "command",
             "out": 3,
             "in": 1,
-            "depth": null
+            "depth": 4
         },
         {
             "id": "Controllers.Telegram.Commands.Profile.GearWeaponDetailAction",
@@ -2282,7 +2284,7 @@
             "kind": "command",
             "out": 3,
             "in": 1,
-            "depth": null
+            "depth": 4
         },
         {
             "id": "Controllers.Telegram.Commands.Profile.GearWeaponsAction",
@@ -2296,7 +2298,7 @@
             "kind": "command",
             "out": 2,
             "in": 2,
-            "depth": null
+            "depth": 3
         },
         {
             "id": "Controllers.Telegram.Commands.Profile.PersonalInsurance",
@@ -2324,7 +2326,7 @@
             "kind": "command",
             "out": 2,
             "in": 2,
-            "depth": null
+            "depth": 5
         },
         {
             "id": "Controllers.Telegram.Commands.Profile.ToggleEquipWeaponAction",
@@ -2338,7 +2340,7 @@
             "kind": "command",
             "out": 2,
             "in": 2,
-            "depth": null
+            "depth": 5
         },
         {
             "id": "Controllers.Telegram.Commands.StartCommand",
@@ -2881,20 +2883,6 @@
             "out": 0,
             "in": 1,
             "depth": 5
-        },
-        {
-            "id": "Controllers.Telegram.Commands.Profile.GearAction",
-            "class": "App\\Controllers\\Telegram\\Commands\\Profile\\GearAction",
-            "short": "GearAction",
-            "group": "profile",
-            "file": "app/Controllers/Telegram/Commands/Profile/GearAction.php",
-            "routes": [
-                "equipMenu"
-            ],
-            "kind": "command",
-            "out": 0,
-            "in": 4,
-            "depth": 2
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Camp.Buildings.Robots.ActivateRobotHandler",
@@ -3530,8 +3518,8 @@
             "unresolved": false
         },
         {
-            "from": "app.Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportationCenterHandler",
-            "from_class": "app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler",
+            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportationCenterHandler",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler",
             "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportBeacon",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeacon",
             "label": "📡 Маяки",
@@ -3540,8 +3528,8 @@
             "unresolved": false
         },
         {
-            "from": "app.Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportationCenterHandler",
-            "from_class": "app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler",
+            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportationCenterHandler",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler",
             "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.UpgradeBuildingAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\UpgradeBuildingAction",
             "label": "🆙 Поднять уровень",
@@ -3550,8 +3538,8 @@
             "unresolved": false
         },
         {
-            "from": "app.Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportationCenterHandler",
-            "from_class": "app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler",
+            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportationCenterHandler",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler",
             "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.ShowBaseInfoAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ShowBaseInfoAction",
             "label": "🏠 База",
@@ -4254,7 +4242,7 @@
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\CharacterGoActions",
             "to": "Controllers.Telegram.Commands.Actions.MarchAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\MarchAction",
-            "label": "🗺️ Изучить местность",
+            "label": "🗺️ Поход",
             "callback": "'march'",
             "matched_by": "exact:march",
             "unresolved": false
@@ -8544,7 +8532,7 @@
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterAction",
             "to": "Controllers.Telegram.Commands.Actions.MarchAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\MarchAction",
-            "label": "🚜 Дальний поход",
+            "label": "🗺️ Поход",
             "callback": "'march'",
             "matched_by": "exact:march",
             "unresolved": false
@@ -8654,7 +8642,7 @@
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterToDirectionAction",
             "to": "Controllers.Telegram.Commands.Actions.MarchAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\MarchAction",
-            "label": "🚜 Дальний поход",
+            "label": "🗺️ Поход",
             "callback": "'march'",
             "matched_by": "exact:march",
             "unresolved": false
@@ -8734,7 +8722,7 @@
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\PVP\\AttackPlayerAction",
             "to": "Controllers.Telegram.Commands.Actions.MarchAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\MarchAction",
-            "label": "🗺️ Изучить местность",
+            "label": "🗺️ Поход",
             "callback": "'march'",
             "matched_by": "exact:march",
             "unresolved": false
@@ -8754,7 +8742,7 @@
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\PVP\\RunAwayAction",
             "to": "Controllers.Telegram.Commands.Actions.MarchAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\MarchAction",
-            "label": "🗺️ Изучить местность",
+            "label": "🗺️ Поход",
             "callback": "'march'",
             "matched_by": "exact:march",
             "unresolved": false
@@ -10180,8 +10168,8 @@
             "unresolved": false
         },
         {
-            "from": "app.Controllers.Telegram.Commands.Profile.GearAction",
-            "from_class": "app\\Controllers\\Telegram\\Commands\\Profile\\GearAction",
+            "from": "Controllers.Telegram.Commands.Profile.GearAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Profile\\GearAction",
             "to": "Controllers.Telegram.Commands.Profile.GearArmorAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Profile\\GearArmorAction",
             "label": "👕 Броня / Одежда",
@@ -10190,8 +10178,8 @@
             "unresolved": false
         },
         {
-            "from": "app.Controllers.Telegram.Commands.Profile.GearAction",
-            "from_class": "app\\Controllers\\Telegram\\Commands\\Profile\\GearAction",
+            "from": "Controllers.Telegram.Commands.Profile.GearAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Profile\\GearAction",
             "to": "Controllers.Telegram.Commands.Profile.GearWeaponsAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Profile\\GearWeaponsAction",
             "label": "⚔️ Оружие",
@@ -10200,8 +10188,8 @@
             "unresolved": false
         },
         {
-            "from": "app.Controllers.Telegram.Commands.Profile.GearAction",
-            "from_class": "app\\Controllers\\Telegram\\Commands\\Profile\\GearAction",
+            "from": "Controllers.Telegram.Commands.Profile.GearAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Profile\\GearAction",
             "to": "Services.Player.CharacterService",
             "to_class": "App\\Services\\Player\\CharacterService",
             "label": "⬅️ Назад",
@@ -10864,7 +10852,7 @@
             "from_class": "App\\TaskHandlers\\CompleteRobotExplorationHandler",
             "to": "Controllers.Telegram.Commands.Actions.MarchAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\MarchAction",
-            "label": "🗺️ Изучить местность",
+            "label": "🗺️ Поход",
             "callback": "'march'",
             "matched_by": "exact:march",
             "unresolved": false
@@ -11662,8 +11650,8 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.BuildingHandlerAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildingHandlerAction",
-            "to": "app.Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportationCenterHandler",
-            "to_class": "app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler",
+            "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportationCenterHandler",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler",
             "label": "📡 Центр телепортации",
             "callback": "(внутр. dispatch)",
             "matched_by": "internal-dispatch",
