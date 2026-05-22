@@ -55,7 +55,7 @@ GameSettings-ключи эффектов засеяны только для **L2
 ### 🟠 S4. Единая цена апгрейда vs разная ценность здания
 `BuildingUpgrades.php` берёт одинаковое золото за апгрейд любого здания, хотя ценность уровня разнится от «глобальный −25% крафт» (Workshop) до «ничего» (Warehouse/SolarStation/Arsenal/оборона). Per-building цена апгрейда — отдельное архитектурное решение (нужен ADR).
 
-### 🟡 S5. Двойная правда баланса (нарушает ADR-024 admin-tunable)
+### 🟡 S5. Двойная правда баланса (нарушает ADR-024) — ✅ ЧАСТИЧНО (v0.51.237, scoped): live-tunable скаляры мигрированы; прогрессия-кривые остаются code-owned
 Часть balance-чисел сидит в `Config\GameBalance` вне GameSettings: `greenhouseLevels` (пассив теплицы), `gymStrengthByLevel`, `gymTickIntervalMinutes`, `handPumpLevels`, `handPumpBiomeMultipliers`. По конституции должны быть admin-tunable.
 
 ### 🟡 S6. Прочее
@@ -77,7 +77,7 @@ GameSettings-ключи эффектов засеяны только для **L2
 5. ✅ **(v0.51.236, ADR-042)** **L4-L10 плато** (S1): `BuildingEffectsService` интерполирует L4-L9 между L3 и новым L10-якорем (7 ключей: Workshop/Lab/Robotics 0.55, BlastFurnace 1.70, TeleportCost 0.45, Greenhouse 1.65/0.60). Каждый апгрейд улучшает; обратно совместимо; retroactively вознаграждает переплативших.
 6. ✅ **(v0.51.235, ADR-041)** **Оборона** (S2): per-level scaling эффекта+maxHp (levelMult, ×1.0 при L1) + мгновенный **building-repair** (стоимость пропорц. потерянному hp) + авто-restore hp при апгрейде + новый экран оборонного здания (чинит dead-end). *Остаётся: HandPump/Gym/Greenhouse не оборонные — их апгрейд-плато и кап силы Gym отдельно.*
 7. **Per-building цена апгрейда** (S4): дифференцировать `BuildingUpgrades` по ценности здания (ADR).
-8. **Двойная правда** (S5): мигрировать greenhouseLevels/gym*/handPump* из `Config\GameBalance` в `GameSettings`.
+8. ✅ **(v0.51.237, scoped)** **Двойная правда** (S5): мигрированы live-tunable скаляры (gym tick-interval, handpump biome ×6, greenhouse shortage threshold/cooldown = 9 ключей, читатели с fallback на GameBalance). Прогрессия-кривые по уровням (greenhouseLevels/gymStrengthByLevel/handPumpLevels) ОСТАВЛЕНЫ в GameBalance как code-owned design (меняются через ревью, не live-tune).
 9. **Расширить охват BlastFurnace** (`boost_building`) на больше металл-рецептов — оправдать info «для некоторых компонентов».
 10. **Кап силы Gym** (admin-tunable) — против бесконечного creep.
 
