@@ -48,13 +48,20 @@ $currentType = $isEdit ? (string) ($tip['tip_type'] ?? '') : null;
             <div class="mb-3">
                 <label for="tip_type" class="form-label">Тип совета</label>
                 <select class="form-select" id="tip_type" name="tip_type" required>
-                    <?= $renderOption('биомы',    'Биомы',    $currentType) ?>
-                    <?= $renderOption('ресурсы',  'Ресурсы',  $currentType) ?>
-                    <?= $renderOption('крафт',    'Крафт',    $currentType) ?>
-                    <?= $renderOption('персонаж', 'Персонаж', $currentType) ?>
-                    <?= $renderOption('события',  'События',  $currentType) ?>
-                    <?= $renderOption('NPC',      'NPC',      $currentType) ?>
-                    <?= $renderOption('общие',    'Общие',    $currentType) ?>
+                    <?= $renderOption('биомы',      'Биомы',       $currentType) ?>
+                    <?= $renderOption('ресурсы',    'Ресурсы',     $currentType) ?>
+                    <?= $renderOption('крафт',      'Крафт',       $currentType) ?>
+                    <?= $renderOption('персонаж',   'Персонаж',    $currentType) ?>
+                    <?= $renderOption('события',    'События',     $currentType) ?>
+                    <?= $renderOption('NPC',        'NPC',         $currentType) ?>
+                    <?= $renderOption('общие',      'Общие',       $currentType) ?>
+                    <?= $renderOption('земледелие', 'Земледелие',  $currentType) ?>
+                    <?= $renderOption('еда',        'Еда',         $currentType) ?>
+                    <?= $renderOption('квесты',     'Квесты',      $currentType) ?>
+                    <?= $renderOption('фракции',    'Фракции',     $currentType) ?>
+                    <?= $renderOption('бой',        'Бой',         $currentType) ?>
+                    <?= $renderOption('эндгейм',    'Эндгейм',     $currentType) ?>
+                    <?= $renderOption('настройки',  'Настройки',   $currentType) ?>
                 </select>
             </div>
             <div class="mb-3">

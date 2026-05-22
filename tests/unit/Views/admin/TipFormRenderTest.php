@@ -35,6 +35,14 @@ final class TipFormRenderTest extends CIUnitTestCase
         $this->assertStringContainsString('value="крафт"', $html);
         $this->assertStringContainsString('value="NPC"', $html);
         $this->assertStringContainsString('value="общие"', $html);
+        // ADR-038 Фаза A — расширенный enum категорий (V1-V13 покрытие).
+        $this->assertStringContainsString('value="земледелие"', $html);
+        $this->assertStringContainsString('value="еда"', $html);
+        $this->assertStringContainsString('value="квесты"', $html);
+        $this->assertStringContainsString('value="фракции"', $html);
+        $this->assertStringContainsString('value="бой"', $html);
+        $this->assertStringContainsString('value="эндгейм"', $html);
+        $this->assertStringContainsString('value="настройки"', $html);
     }
 
     public function testEditRendersWithValues(): void

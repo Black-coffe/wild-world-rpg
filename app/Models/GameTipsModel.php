@@ -23,7 +23,7 @@ class GameTipsModel extends Model
     protected $validationRules = [
         'title_ru' => 'required|max_length[255]',
         'title_en' => 'required|max_length[255]',
-        'tip_type' => 'required|in_list[биомы,ресурсы,крафт,персонаж,события,NPC,общие]',
+        'tip_type' => 'required|in_list[биомы,ресурсы,крафт,персонаж,события,NPC,общие,земледелие,еда,квесты,фракции,бой,эндгейм,настройки]',
         'content' => 'required'
     ];
 
