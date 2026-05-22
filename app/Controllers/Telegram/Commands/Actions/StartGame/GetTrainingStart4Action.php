@@ -72,7 +72,7 @@ class GetTrainingStart4Action extends BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '✖️ Завершить обучение', 'callback_data' => 'endTraining'],
+                    ['text' => '✖️ Завершить обучение', 'callback_data' => 'withoutTrainingStart'],
                     ['text' => '🛣 К приключениям!', 'callback_data' => 'startAdventure']
                 ],
             ]

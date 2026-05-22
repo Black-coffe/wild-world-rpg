@@ -79,14 +79,16 @@ final class EventMessageFormatterTest extends CIUnitTestCase
     {
         $kb = $this->formatter->buildEndKeyboard('damage_health', ['health_delta' => -25.0]);
 
+        // N1: callback heal-кнопки переведён с мёртвого `craftBandage`
+        // на рабочий маршрут `pharmacy` (экран аптечки — использовать лечилки).
         $hasHeal = false;
         foreach ($kb['inline_keyboard'] as $row) {
             foreach ($row as $btn) {
-                if ($btn['callback_data'] === 'craftBandage') {
+                if ($btn['callback_data'] === 'pharmacy') {
                     $hasHeal = true;
                 }
             }
         }
-        $this->assertTrue($hasHeal, 'при HP loss > 10 должна появиться кнопка «Лечиться»');
+        $this->assertTrue($hasHeal, 'при HP loss > 10 должна появиться рабочая кнопка «Лечиться» (pharmacy)');
     }
 }

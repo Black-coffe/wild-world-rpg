@@ -131,7 +131,7 @@ final class EventMessageFormatter
         $hd = (float)($aggregate['health_delta'] ?? 0);
         if ($hd < -10) {
             $rows[] = [
-                ['text' => '🩹 Лечиться', 'callback_data' => 'craftBandage'],
+                ['text' => '🩹 Лечиться', 'callback_data' => 'pharmacy'],
             ];
         }
 

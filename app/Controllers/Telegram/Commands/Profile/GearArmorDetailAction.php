@@ -158,36 +158,19 @@ class GearArmorDetailAction extends BaseAction
         //    - Если игрок на базе — кнопка "Одеть"
         //    - Если не на базе — либо скрыть кнопку, либо пометить как недоступную
 
-        $buttonText = '';
-        $buttonCallback = '';
+        // Кнопка «Одеть/Снять» показывается только когда действие реально доступно.
+        // Вне базы надеть нельзя — не рисуем мёртвую кнопку, причину поясняем в тексте.
+        $rows = [];
         if ($isEquipped) {
-            // Снять
-            $buttonText = 'Снять';
-            $buttonCallback = "toggleEquipArmor_{$charOutfitId}";
+            $rows[] = [['text' => 'Снять', 'callback_data' => "toggleEquipArmor_{$charOutfitId}"]];
+        } elseif ($isOnBase) {
+            $rows[] = [['text' => 'Одеть', 'callback_data' => "toggleEquipArmor_{$charOutfitId}"]];
         } else {
-            // Предмет не надет
-            if ($isOnBase) {
-                // Можно надеть
-                $buttonText = 'Одеть';
-                $buttonCallback = "toggleEquipArmor_{$charOutfitId}";
-            } else {
-                // Игрок не на базе, запрещаем надевать
-                $buttonText = 'Недоступно (не на базе)';
-                // Чтобы при нажатии ничего не делало, используем "пустой" колбэк
-                $buttonCallback = 'noAction';
-            }
+            $text .= "_⚠️ Надеть можно только на базе._\n\n";
         }
+        $rows[] = [['text' => '↩️ Назад', 'callback_data' => 'gearArmor']];
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => $buttonText, 'callback_data' => $buttonCallback],
-                ],
-                [
-                    ['text' => '↩️ Назад', 'callback_data' => 'gearArmor']
-                ]
-            ]
-        ];
+        $keyboard = ['inline_keyboard' => $rows];
 
         // Убираем "часики" на кнопке
         Request::answerCallbackQuery([

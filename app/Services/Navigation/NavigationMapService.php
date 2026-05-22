@@ -463,6 +463,15 @@ final class NavigationMapService
             if ($expr === '') {
                 continue;
             }
+            // Пропустить совпадения в строковых комментариях (`//`) — это
+            // закомментированный/будущий код, не живые кнопки (иначе раздувает
+            // метрику «мёртвых кнопок» ложными срабатываниями).
+            $lineStartPos = strrpos(substr($src, 0, $offset), "\n");
+            $lineStart    = $lineStartPos === false ? 0 : $lineStartPos + 1;
+            if (str_contains(substr($src, $lineStart, $offset - $lineStart), '//')) {
+                continue;
+            }
+
             $static = $this->staticLeading($expr);
             if ($key === 'callback' && $static === '') {
                 continue; // динамические `'callback' => $x` в data-массивах — шум

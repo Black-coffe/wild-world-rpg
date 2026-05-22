@@ -19,27 +19,6 @@ class GeneralCraftingAction extends BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🗡️ Оружие', 'callback_data' => 'weapons'],
-                    ['text' => '🛠️ Инструменты', 'callback_data' => 'tools'],
-                ],
-                [
-                    ['text' => '🍲 Еда', 'callback_data' => 'food'],
-                    ['text' => '🧥 Одежда', 'callback_data' => 'clothes'],
-                ],
-                [
-                    ['text' => '🏗️ Строительство', 'callback_data' => 'construction'],
-                    ['text' => '💊 Лекарства', 'callback_data' => 'medicinesCraft1'],
-                ],
-                [
-                    ['text' => '🚗 Транспорт', 'callback_data' => 'transport'],
-                    ['text' => '🎲 Разное', 'callback_data' => 'miscellaneous'],
-                ],
-            ]
-        ];
-
-        $keyboard = [
-            'inline_keyboard' => [
-                [
                     ['text' => '💊 Лекарства', 'callback_data' => 'medicinesCraft1'],
                     ['text' => '🛠️ Инструменты', 'callback_data' => 'tools'],
                 ],

@@ -85,10 +85,6 @@ class RoboticsWorkshopHandler extends BaseAction
                 ],
                 [
                     ['text' => '🆙 Поднять уровень', 'callback_data' => 'upgrade_building_' . $buildingId],
-                    ['text' => '🔄 Обновить постройку', 'callback_data' => 'renew_building_' . $buildingId],
-                ],
-                [
-                    ['text' => '❌ Удалить строение', 'callback_data' => 'delete_building_' . $buildingId],
                     ['text' => '🏠 База', 'callback_data' => 'Base'],
                 ],
             ],

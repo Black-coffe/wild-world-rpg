@@ -22,14 +22,6 @@ class RobotsCraft2Select extends BaseAction
                     ['text' => '🔍 Исследователь', 'callback_data' => 'robotExplorer'],
                     ['text' => '⛏️ Добытчик', 'callback_data' => 'robotGatherer'],
                 ],
-                [
-                    ['text' => '👁️ Наблюдатель', 'callback_data' => 'robotWatcher'],
-                    ['text' => '🤖 Помощник', 'callback_data' => 'robotAssistant'],
-                ],
-                [
-                    ['text' => '🔫 Туррель', 'callback_data' => 'robotTurret'],
-                    ['text' => '🏗️ Строитель', 'callback_data' => 'robotBuilder'],
-                ],
             ]
         ];
 

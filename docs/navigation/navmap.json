@@ -1,12 +1,12 @@
 {
-    "generated_at": "2026-05-22T12:41:34+03:00",
+    "generated_at": "2026-05-22T12:57:32+03:00",
     "stats": {
         "nodes": 223,
-        "edges": 862,
+        "edges": 814,
         "entrypoints": 9,
-        "unresolved": 72,
+        "unresolved": 19,
         "dead_ends": 24,
-        "orphans": 51,
+        "orphans": 49,
         "unreachable": 66,
         "max_depth": 7
     },
@@ -93,7 +93,7 @@
             "file": "app/Controllers/Telegram/Commands/Actions/Camp/Buildings/ArsenalHandler.php",
             "routes": [],
             "kind": "screen",
-            "out": 4,
+            "out": 2,
             "in": 1,
             "depth": 4
         },
@@ -105,7 +105,7 @@
             "file": "app/Controllers/Telegram/Commands/Actions/Camp/Buildings/BlastFurnaceHandler.php",
             "routes": [],
             "kind": "screen",
-            "out": 4,
+            "out": 2,
             "in": 1,
             "depth": 4
         },
@@ -117,7 +117,7 @@
             "file": "app/Controllers/Telegram/Commands/Actions/Camp/Buildings/CommunicationTowerHandler.php",
             "routes": [],
             "kind": "screen",
-            "out": 4,
+            "out": 2,
             "in": 1,
             "depth": 4
         },
@@ -171,7 +171,7 @@
             "file": "app/Controllers/Telegram/Commands/Actions/Camp/Buildings/GreenhouseHandler.php",
             "routes": [],
             "kind": "screen",
-            "out": 5,
+            "out": 3,
             "in": 1,
             "depth": 4
         },
@@ -183,7 +183,7 @@
             "file": "app/Controllers/Telegram/Commands/Actions/Camp/Buildings/GymHandler.php",
             "routes": [],
             "kind": "screen",
-            "out": 4,
+            "out": 2,
             "in": 1,
             "depth": 4
         },
@@ -195,7 +195,7 @@
             "file": "app/Controllers/Telegram/Commands/Actions/Camp/Buildings/HandPumpHandler.php",
             "routes": [],
             "kind": "screen",
-            "out": 4,
+            "out": 2,
             "in": 1,
             "depth": 4
         },
@@ -207,7 +207,7 @@
             "file": "app/Controllers/Telegram/Commands/Actions/Camp/Buildings/LaboratoryHandler.php",
             "routes": [],
             "kind": "screen",
-            "out": 4,
+            "out": 2,
             "in": 1,
             "depth": 4
         },
@@ -219,7 +219,7 @@
             "file": "app/Controllers/Telegram/Commands/Actions/Camp/Buildings/RoboticsWorkshopHandler.php",
             "routes": [],
             "kind": "screen",
-            "out": 5,
+            "out": 3,
             "in": 1,
             "depth": 4
         },
@@ -311,7 +311,7 @@
             "file": "app/Controllers/Telegram/Commands/Actions/Camp/Buildings/SolarStationHandler.php",
             "routes": [],
             "kind": "screen",
-            "out": 4,
+            "out": 2,
             "in": 1,
             "depth": 4
         },
@@ -323,7 +323,7 @@
             "file": "app/app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportationCenterHandler.php",
             "routes": [],
             "kind": "screen",
-            "out": 4,
+            "out": 2,
             "in": 1,
             "depth": 4
         },
@@ -377,7 +377,7 @@
             "file": "app/Controllers/Telegram/Commands/Actions/Camp/Buildings/WarehouseHandler.php",
             "routes": [],
             "kind": "screen",
-            "out": 4,
+            "out": 2,
             "in": 1,
             "depth": 4
         },
@@ -389,7 +389,7 @@
             "file": "app/Controllers/Telegram/Commands/Actions/Camp/Buildings/WorkshopHandler.php",
             "routes": [],
             "kind": "screen",
-            "out": 4,
+            "out": 2,
             "in": 1,
             "depth": 4
         },
@@ -432,7 +432,7 @@
             ],
             "kind": "action",
             "out": 5,
-            "in": 2,
+            "in": 1,
             "depth": 2
         },
         {
@@ -796,7 +796,7 @@
                 "generalCraft"
             ],
             "kind": "action",
-            "out": 13,
+            "out": 7,
             "in": 3,
             "depth": 2
         },
@@ -1230,7 +1230,7 @@
                 "armorCraft2"
             ],
             "kind": "action",
-            "out": 10,
+            "out": 4,
             "in": 1,
             "depth": 3
         },
@@ -1328,7 +1328,7 @@
                 "robotsCraft2"
             ],
             "kind": "action",
-            "out": 6,
+            "out": 2,
             "in": 1,
             "depth": 3
         },
@@ -1454,7 +1454,7 @@
                 "weaponsCraft2"
             ],
             "kind": "action",
-            "out": 10,
+            "out": 4,
             "in": 1,
             "depth": 3
         },
@@ -1594,7 +1594,7 @@
                 "inventory"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 3,
             "in": 97,
             "depth": 2
         },
@@ -1666,7 +1666,7 @@
             ],
             "kind": "action",
             "out": 2,
-            "in": 8,
+            "in": 9,
             "depth": 2
         },
         {
@@ -2187,7 +2187,7 @@
             ],
             "kind": "action",
             "out": 6,
-            "in": 8,
+            "in": 9,
             "depth": 4
         },
         {
@@ -2252,7 +2252,7 @@
                 "gearArmorDetail"
             ],
             "kind": "command",
-            "out": 2,
+            "out": 3,
             "in": 1,
             "depth": null
         },
@@ -2266,7 +2266,7 @@
                 "gearWeaponDetail"
             ],
             "kind": "command",
-            "out": 2,
+            "out": 3,
             "in": 1,
             "depth": null
         },
@@ -2309,7 +2309,7 @@
             ],
             "kind": "command",
             "out": 2,
-            "in": 0,
+            "in": 2,
             "depth": null
         },
         {
@@ -2323,7 +2323,7 @@
             ],
             "kind": "command",
             "out": 2,
-            "in": 0,
+            "in": 2,
             "depth": null
         },
         {
@@ -2406,7 +2406,7 @@
             "file": "app/Services/Player/CraftService.php",
             "routes": [],
             "kind": "service-screen",
-            "out": 4,
+            "out": 2,
             "in": 1,
             "depth": 1
         },
@@ -3120,26 +3120,6 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.ArsenalHandler",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ArsenalHandler",
-            "to": null,
-            "to_class": null,
-            "label": "🔄 Обновить постройку",
-            "callback": "'renew_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.ArsenalHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ArsenalHandler",
-            "to": null,
-            "to_class": null,
-            "label": "❌ Удалить строение",
-            "callback": "'delete_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.ArsenalHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ArsenalHandler",
             "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.ShowBaseInfoAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ShowBaseInfoAction",
             "label": "🏠 База",
@@ -3160,26 +3140,6 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.BlastFurnaceHandler",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\BlastFurnaceHandler",
-            "to": null,
-            "to_class": null,
-            "label": "🔄 Обновить постройку",
-            "callback": "'renew_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.BlastFurnaceHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\BlastFurnaceHandler",
-            "to": null,
-            "to_class": null,
-            "label": "❌ Удалить строение",
-            "callback": "'delete_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.BlastFurnaceHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\BlastFurnaceHandler",
             "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.ShowBaseInfoAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ShowBaseInfoAction",
             "label": "🏠 База",
@@ -3196,26 +3156,6 @@
             "callback": "'upgrade_building_' . $buildingId",
             "matched_by": "prefix-dispatcher:upgrade_building_",
             "unresolved": false
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.CommunicationTowerHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\CommunicationTowerHandler",
-            "to": null,
-            "to_class": null,
-            "label": "🔄 Обновить постройку",
-            "callback": "'renew_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.CommunicationTowerHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\CommunicationTowerHandler",
-            "to": null,
-            "to_class": null,
-            "label": "❌ Удалить строение",
-            "callback": "'delete_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.CommunicationTowerHandler",
@@ -3330,26 +3270,6 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.GreenhouseHandler",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\GreenhouseHandler",
-            "to": null,
-            "to_class": null,
-            "label": "🔄 Обновить постройку",
-            "callback": "'renew_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.GreenhouseHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\GreenhouseHandler",
-            "to": null,
-            "to_class": null,
-            "label": "❌ Удалить строение",
-            "callback": "'delete_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.GreenhouseHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\GreenhouseHandler",
             "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.ShowBaseInfoAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ShowBaseInfoAction",
             "label": "🏠 База",
@@ -3366,26 +3286,6 @@
             "callback": "'upgrade_building_' . $buildingId",
             "matched_by": "prefix-dispatcher:upgrade_building_",
             "unresolved": false
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.GymHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\GymHandler",
-            "to": null,
-            "to_class": null,
-            "label": "🔄 Обновить постройку",
-            "callback": "'renew_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.GymHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\GymHandler",
-            "to": null,
-            "to_class": null,
-            "label": "❌ Удалить строение",
-            "callback": "'delete_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.GymHandler",
@@ -3410,26 +3310,6 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.HandPumpHandler",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\HandPumpHandler",
-            "to": null,
-            "to_class": null,
-            "label": "🔄 Обновить постройку",
-            "callback": "'renew_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.HandPumpHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\HandPumpHandler",
-            "to": null,
-            "to_class": null,
-            "label": "❌ Удалить строение",
-            "callback": "'delete_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.HandPumpHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\HandPumpHandler",
             "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.ShowBaseInfoAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ShowBaseInfoAction",
             "label": "🏠 База",
@@ -3446,26 +3326,6 @@
             "callback": "'upgrade_building_' . $buildingId",
             "matched_by": "prefix-dispatcher:upgrade_building_",
             "unresolved": false
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.LaboratoryHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\LaboratoryHandler",
-            "to": null,
-            "to_class": null,
-            "label": "🔄 Обновить постройку",
-            "callback": "'renew_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.LaboratoryHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\LaboratoryHandler",
-            "to": null,
-            "to_class": null,
-            "label": "❌ Удалить строение",
-            "callback": "'delete_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.LaboratoryHandler",
@@ -3496,26 +3356,6 @@
             "callback": "'upgrade_building_' . $buildingId",
             "matched_by": "prefix-dispatcher:upgrade_building_",
             "unresolved": false
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.RoboticsWorkshopHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\RoboticsWorkshopHandler",
-            "to": null,
-            "to_class": null,
-            "label": "🔄 Обновить постройку",
-            "callback": "'renew_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.RoboticsWorkshopHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\RoboticsWorkshopHandler",
-            "to": null,
-            "to_class": null,
-            "label": "❌ Удалить строение",
-            "callback": "'delete_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.RoboticsWorkshopHandler",
@@ -3670,26 +3510,6 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.SolarStationHandler",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\SolarStationHandler",
-            "to": null,
-            "to_class": null,
-            "label": "🔄 Обновить постройку",
-            "callback": "'renew_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.SolarStationHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\SolarStationHandler",
-            "to": null,
-            "to_class": null,
-            "label": "❌ Удалить строение",
-            "callback": "'delete_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.SolarStationHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\SolarStationHandler",
             "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.ShowBaseInfoAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ShowBaseInfoAction",
             "label": "🏠 База",
@@ -3706,26 +3526,6 @@
             "callback": "'upgrade_building_' . $buildingId",
             "matched_by": "prefix-dispatcher:upgrade_building_",
             "unresolved": false
-        },
-        {
-            "from": "app.Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportationCenterHandler",
-            "from_class": "app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler",
-            "to": null,
-            "to_class": null,
-            "label": "🔄 Обновить постройку",
-            "callback": "'renew_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "app.Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportationCenterHandler",
-            "from_class": "app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler",
-            "to": null,
-            "to_class": null,
-            "label": "❌ Удалить строение",
-            "callback": "'delete_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
         },
         {
             "from": "app.Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportationCenterHandler",
@@ -3820,26 +3620,6 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.WarehouseHandler",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\WarehouseHandler",
-            "to": null,
-            "to_class": null,
-            "label": "🔄 Обновить постройку",
-            "callback": "'renew_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.WarehouseHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\WarehouseHandler",
-            "to": null,
-            "to_class": null,
-            "label": "❌ Удалить строение",
-            "callback": "'delete_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.WarehouseHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\WarehouseHandler",
             "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.ShowBaseInfoAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ShowBaseInfoAction",
             "label": "🏠 База",
@@ -3856,26 +3636,6 @@
             "callback": "'upgrade_building_' . $buildingId",
             "matched_by": "prefix-dispatcher:upgrade_building_",
             "unresolved": false
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.WorkshopHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\WorkshopHandler",
-            "to": null,
-            "to_class": null,
-            "label": "🔄 Обновить постройку",
-            "callback": "'renew_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.WorkshopHandler",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\WorkshopHandler",
-            "to": null,
-            "to_class": null,
-            "label": "❌ Удалить строение",
-            "callback": "'delete_building_' . $buildingId",
-            "matched_by": "unresolved",
-            "unresolved": true
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.WorkshopHandler",
@@ -5270,56 +5030,6 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.GeneralCraftingAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\GeneralCraftingAction",
-            "to": null,
-            "to_class": null,
-            "label": "🗡️ Оружие",
-            "callback": "'weapons'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.GeneralCraftingAction",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\GeneralCraftingAction",
-            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.ToolsCraft1Action",
-            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\ToolsCraft1Action",
-            "label": "🛠️ Инструменты",
-            "callback": "'tools'",
-            "matched_by": "exact:tools",
-            "unresolved": false
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.GeneralCraftingAction",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\GeneralCraftingAction",
-            "to": null,
-            "to_class": null,
-            "label": "🍲 Еда",
-            "callback": "'food'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.GeneralCraftingAction",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\GeneralCraftingAction",
-            "to": null,
-            "to_class": null,
-            "label": "🧥 Одежда",
-            "callback": "'clothes'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.GeneralCraftingAction",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\GeneralCraftingAction",
-            "to": "Controllers.Telegram.Commands.Actions.Camp.DetailedBaseInfoAction",
-            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\DetailedBaseInfoAction",
-            "label": "🏗️ Строительство",
-            "callback": "'construction'",
-            "matched_by": "exact:construction",
-            "unresolved": false
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.GeneralCraftingAction",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\GeneralCraftingAction",
             "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.MedicalCraft1Action",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\MedicalCraft1Action",
             "label": "💊 Лекарства",
@@ -5330,22 +5040,12 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.GeneralCraftingAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\GeneralCraftingAction",
-            "to": null,
-            "to_class": null,
-            "label": "🚗 Транспорт",
-            "callback": "'transport'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.GeneralCraftingAction",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\GeneralCraftingAction",
-            "to": null,
-            "to_class": null,
-            "label": "🎲 Разное",
-            "callback": "'miscellaneous'",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.ToolsCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\ToolsCraft1Action",
+            "label": "🛠️ Инструменты",
+            "callback": "'tools'",
+            "matched_by": "exact:tools",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.GeneralCraftingAction",
@@ -6948,66 +6648,6 @@
             "unresolved": false
         },
         {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "🔩 Нагр. из металлолома",
-            "callback": "'armorScrapChestplate'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "🪖 Ст. арм. бронежилет",
-            "callback": "'armorOldArmyVest'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "🦺 Охотничий жилет",
-            "callback": "'armorHunterVest'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "🤺 Полный латный (ржав.)",
-            "callback": "'armorRustyPlate'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "🏴 Броня наёмника",
-            "callback": "'armorMercArmor'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "🥷 Самурайский доспех",
-            "callback": "'armorSamuraiArmor'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorDrifterClothes2Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorDrifterClothes2Action",
             "to": "Controllers.Telegram.Commands.Actions.InventoryAction",
@@ -7326,46 +6966,6 @@
             "callback": "'robotGatherer'",
             "matched_by": "exact:robotGatherer",
             "unresolved": false
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Robots.RobotsCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Robots\\RobotsCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "👁️ Наблюдатель",
-            "callback": "'robotWatcher'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Robots.RobotsCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Robots\\RobotsCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "🤖 Помощник",
-            "callback": "'robotAssistant'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Robots.RobotsCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Robots\\RobotsCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "🔫 Туррель",
-            "callback": "'robotTurret'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Robots.RobotsCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Robots\\RobotsCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "🏗️ Строитель",
-            "callback": "'robotBuilder'",
-            "matched_by": "unresolved",
-            "unresolved": true
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.StandardCraftingAction",
@@ -7756,66 +7356,6 @@
             "callback": "'craftCrossbowMk1'",
             "matched_by": "exact:craftCrossbowMk1",
             "unresolved": false
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponsCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponsCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "🔫 Полуавт. пистолет",
-            "callback": "'craftSemiAutoPistol'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponsCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponsCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "⚡ Электрошок дубинка",
-            "callback": "'craftElectroBaton'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponsCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponsCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "🔫 Тактический ПП",
-            "callback": "'craftTacticalSMG'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponsCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponsCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "🔫 Обрез (усил.)",
-            "callback": "'craftShortShotgun'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponsCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponsCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "⚡ «Тесла-кастет»",
-            "callback": "'craftTeslaKnuckles'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponsCraft2Select",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponsCraft2Select",
-            "to": null,
-            "to_class": null,
-            "label": "🔫 Боевой дробовик",
-            "callback": "'craftCombatShotgun'",
-            "matched_by": "unresolved",
-            "unresolved": true
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponWiredBat2Action",
@@ -8426,26 +7966,6 @@
             "callback": "'characterActions'",
             "matched_by": "exact:characterActions",
             "unresolved": false
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.InventoryAction",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\InventoryAction",
-            "to": null,
-            "to_class": null,
-            "label": "🤝 Ресурсы от NPC",
-            "callback": "'resourcesNpc'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.InventoryAction",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\InventoryAction",
-            "to": null,
-            "to_class": null,
-            "label": "📦 Прочие",
-            "callback": "'resourcesOther'",
-            "matched_by": "unresolved",
-            "unresolved": true
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.MarchAction",
@@ -10050,12 +9570,12 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.StartGame.GetTrainingStart4Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\StartGame\\GetTrainingStart4Action",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.StartGame.WithoutTrainingStartAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\StartGame\\WithoutTrainingStartAction",
             "label": "✖️ Завершить обучение",
-            "callback": "'endTraining'",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "callback": "'withoutTrainingStart'",
+            "matched_by": "exact:withoutTrainingStart",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.StartGame.GetTrainingStart4Action",
@@ -10290,12 +9810,22 @@
         {
             "from": "Controllers.Telegram.Commands.Profile.GearArmorDetailAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Profile\\GearArmorDetailAction",
-            "to": null,
-            "to_class": null,
-            "label": "callback_data",
-            "callback": "$buttonCallback",
-            "matched_by": "dynamic",
-            "unresolved": true
+            "to": "Controllers.Telegram.Commands.Profile.ToggleEquipArmorAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Profile\\ToggleEquipArmorAction",
+            "label": "Снять",
+            "callback": "\"toggleEquipArmor_{$charOutfitId}\"",
+            "matched_by": "exact:toggleEquipArmor",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Profile.GearArmorDetailAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Profile\\GearArmorDetailAction",
+            "to": "Controllers.Telegram.Commands.Profile.ToggleEquipArmorAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Profile\\ToggleEquipArmorAction",
+            "label": "Одеть",
+            "callback": "\"toggleEquipArmor_{$charOutfitId}\"",
+            "matched_by": "exact:toggleEquipArmor",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Profile.GearArmorDetailAction",
@@ -10310,12 +9840,22 @@
         {
             "from": "Controllers.Telegram.Commands.Profile.GearWeaponDetailAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Profile\\GearWeaponDetailAction",
-            "to": null,
-            "to_class": null,
-            "label": "callback_data",
-            "callback": "$buttonCallback",
-            "matched_by": "dynamic",
-            "unresolved": true
+            "to": "Controllers.Telegram.Commands.Profile.ToggleEquipWeaponAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Profile\\ToggleEquipWeaponAction",
+            "label": "Снять",
+            "callback": "\"toggleEquipWeapon_{$charWeaponId}\"",
+            "matched_by": "exact:toggleEquipWeapon",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Profile.GearWeaponDetailAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Profile\\GearWeaponDetailAction",
+            "to": "Controllers.Telegram.Commands.Profile.ToggleEquipWeaponAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Profile\\ToggleEquipWeaponAction",
+            "label": "Одеть",
+            "callback": "\"toggleEquipWeapon_{$charWeaponId}\"",
+            "matched_by": "exact:toggleEquipWeapon",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Profile.GearWeaponDetailAction",
@@ -10560,12 +10100,12 @@
         {
             "from": "Services.Events.EventMessageFormatter",
             "from_class": "App\\Services\\Events\\EventMessageFormatter",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.PharmacyAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\PharmacyAction",
             "label": "🩹 Лечиться",
-            "callback": "'craftBandage'",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "callback": "'pharmacy'",
+            "matched_by": "exact:pharmacy",
+            "unresolved": false
         },
         {
             "from": "Services.Player.BuildingUpgrade.BuildingUpgradeMessageFormatter",
@@ -10696,26 +10236,6 @@
             "callback": "'standardCraft'",
             "matched_by": "exact:standardCraft",
             "unresolved": false
-        },
-        {
-            "from": "Services.Player.CraftService",
-            "from_class": "App\\Services\\Player\\CraftService",
-            "to": null,
-            "to_class": null,
-            "label": "⚙️ Профи крафт",
-            "callback": "'proCraft'",
-            "matched_by": "unresolved",
-            "unresolved": true
-        },
-        {
-            "from": "Services.Player.CraftService",
-            "from_class": "App\\Services\\Player\\CraftService",
-            "to": null,
-            "to_class": null,
-            "label": "🏆 Уникальный крафт",
-            "callback": "'uniqueCraft'",
-            "matched_by": "unresolved",
-            "unresolved": true
         },
         {
             "from": "Services.Player.Gather.GatherMessageFormatter",
