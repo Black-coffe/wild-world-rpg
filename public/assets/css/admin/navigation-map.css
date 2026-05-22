@@ -1,0 +1,135 @@
+/* Navigation map (дерево навигации игры) — admin viewer. v1 */
+
+.nav-map-app { --nm-radius: 10px; }
+
+/* ---- Stat bar ---- */
+.nm-statbar .nm-stat {
+    border: 1px solid var(--bs-border-color, #e3e6ef);
+    border-radius: var(--nm-radius);
+    padding: .55rem .75rem;
+    background: var(--bs-card-bg, #fff);
+    height: 100%;
+}
+.nm-statbar .nm-stat .nm-stat-val { font-size: 1.35rem; font-weight: 700; line-height: 1; }
+.nm-statbar .nm-stat .nm-stat-lbl { font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: var(--bs-secondary-color, #8a94a6); }
+.nm-statbar .nm-stat.nm-warn .nm-stat-val { color: #d6336c; }
+.nm-statbar .nm-stat.nm-ok   .nm-stat-val { color: #2f9e44; }
+
+/* ---- Search ---- */
+.nm-search-wrap { position: relative; }
+.nm-search { padding-left: 2.1rem; padding-right: 2.1rem; }
+.nm-search-icon { position: absolute; left: .7rem; top: 50%; transform: translateY(-50%); color: #adb5bd; }
+.nm-search-clear { position: absolute; right: .35rem; top: 50%; transform: translateY(-50%); color: #adb5bd; text-decoration: none; }
+
+/* ---- Tabs ---- */
+.nm-tabs .nav-link { padding: .35rem .7rem; font-size: .85rem; }
+
+/* ---- Tree ---- */
+.nm-tree {
+    border: 1px solid var(--bs-border-color, #e3e6ef);
+    border-radius: var(--nm-radius);
+    padding: .5rem .25rem;
+    max-height: 72vh;
+    overflow: auto;
+    background: var(--bs-card-bg, #fff);
+}
+.nm-node { user-select: none; }
+.nm-row {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .28rem .5rem;
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: .9rem;
+    line-height: 1.25;
+}
+.nm-row:hover { background: rgba(13,110,253,.06); }
+.nm-row.nm-active { background: rgba(13,110,253,.12); }
+.nm-children { margin-left: 1.0rem; border-left: 1px dashed #d4d9e3; padding-left: .35rem; }
+.nm-children.nm-collapsed { display: none; }
+
+.nm-toggle {
+    width: 1.05rem; flex: 0 0 1.05rem; text-align: center;
+    color: #8a94a6; transition: transform .12s ease;
+}
+.nm-toggle.nm-open { transform: rotate(90deg); }
+.nm-toggle.nm-leaf { color: transparent; }
+
+.nm-emoji { flex: 0 0 auto; }
+.nm-label { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nm-screen-name { color: #6c757d; font-size: .78rem; flex: 0 0 auto; }
+
+.nm-badge {
+    font-size: .66rem; padding: .08rem .35rem; border-radius: 6px; flex: 0 0 auto;
+}
+.nm-badge-depth { background: #eef1f6; color: #6c757d; }
+.nm-badge-loop  { background: #e7f5ff; color: #1971c2; }     /* перекрёстная ссылка / уже встречен */
+.nm-badge-dead  { background: #ffe3e3; color: #c92a2a; }     /* мёртвая кнопка */
+.nm-badge-out   { background: #f1f3f5; color: #495057; }
+
+/* group color dot */
+.nm-dot { display: inline-block; width: .7rem; height: .7rem; border-radius: 50%; flex: 0 0 auto; }
+.nm-grp-onboarding  { background: #f59f00; }
+.nm-grp-craft       { background: #7048e8; }
+.nm-grp-base        { background: #1098ad; }
+.nm-grp-trade       { background: #2f9e44; }
+.nm-grp-quests      { background: #e8590c; }
+.nm-grp-combat      { background: #e03131; }
+.nm-grp-faction     { background: #ae3ec9; }
+.nm-grp-world       { background: #1c7ed6; }
+.nm-grp-entertainment { background: #f06595; }
+.nm-grp-profile     { background: #0ca678; }
+.nm-grp-commands    { background: #495057; }
+.nm-grp-services    { background: #868e96; }
+.nm-grp-task-results { background: #adb5bd; }
+.nm-grp-core, .nm-grp-other { background: #ced4da; }
+
+/* entry root rows */
+.nm-entry > .nm-row { font-weight: 600; background: rgba(16,152,173,.07); }
+.nm-entry > .nm-row .nm-trigger {
+    font-size: .7rem; background: #1098ad; color: #fff; border-radius: 6px; padding: .05rem .4rem; flex: 0 0 auto;
+}
+
+/* ---- Legend ---- */
+.nm-legend { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
+.nm-legend-item { display: inline-flex; align-items: center; gap: .3rem; }
+
+/* ---- Detail drawer ---- */
+.nm-detail {
+    border: 1px solid var(--bs-border-color, #e3e6ef);
+    border-radius: var(--nm-radius);
+    padding: 1rem;
+    background: var(--bs-card-bg, #fff);
+    position: sticky; top: 1rem;
+    max-height: 78vh; overflow: auto;
+}
+.nm-detail-placeholder { text-align: center; color: #adb5bd; padding: 1.5rem .5rem; }
+.nm-detail-placeholder i { font-size: 2rem; }
+.nm-detail h5 { font-size: 1.05rem; margin-bottom: .15rem; }
+.nm-detail .nm-d-file { font-family: var(--bs-font-monospace, monospace); font-size: .74rem; color: #868e96; word-break: break-all; }
+.nm-detail .nm-d-section-title { font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: #8a94a6; margin: .9rem 0 .35rem; }
+.nm-d-pill { display: inline-block; font-size: .72rem; padding: .12rem .45rem; border-radius: 6px; background: #f1f3f5; color: #495057; margin: 0 .25rem .25rem 0; }
+.nm-d-edge { display: flex; align-items: center; gap: .4rem; padding: .25rem .35rem; border-radius: 6px; font-size: .82rem; }
+.nm-d-edge:hover { background: rgba(13,110,253,.06); cursor: pointer; }
+.nm-d-edge.nm-d-dead { color: #c92a2a; cursor: default; }
+.nm-d-edge.nm-d-dead:hover { background: #fff5f5; }
+.nm-d-arrow { color: #adb5bd; }
+.nm-d-cb { font-family: var(--bs-font-monospace, monospace); font-size: .7rem; color: #868e96; }
+
+.nm-flag { display: inline-block; font-size: .72rem; padding: .12rem .45rem; border-radius: 6px; margin: 0 .25rem .25rem 0; }
+.nm-flag-dead { background: #ffe3e3; color: #c92a2a; }
+.nm-flag-orphan { background: #fff3bf; color: #b08900; }
+.nm-flag-deadend { background: #e7f5ff; color: #1971c2; }
+.nm-flag-entry { background: #d3f9d8; color: #2b8a3e; }
+
+/* ---- Skeleton / empty ---- */
+.nm-skeleton-row { height: 1.6rem; margin: .35rem .5rem; border-radius: 6px;
+    background: linear-gradient(90deg,#eef1f6 25%,#f6f8fb 37%,#eef1f6 63%);
+    background-size: 400% 100%; animation: nm-shimmer 1.3s infinite; }
+@keyframes nm-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+.nm-empty { text-align: center; color: #adb5bd; padding: 2.5rem 1rem; }
+.nm-empty i { font-size: 2.2rem; }
+
+/* search highlight */
+.nm-hl { background: #fff3bf; border-radius: 3px; }

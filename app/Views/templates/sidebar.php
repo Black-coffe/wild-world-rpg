@@ -68,6 +68,13 @@
             </li>
 
             <li class="side-nav-item">
+                <a href="<?= base_url('admin/navigation')?>" class="side-nav-link">
+                    <i class="ri-route-line"></i>
+                    <span> Дерево навигации </span>
+                </a>
+            </li>
+
+            <li class="side-nav-item">
                 <a href="<?= base_url('admin/game-settings')?>" class="side-nav-link">
                     <i class="ri-settings-3-line"></i>
                     <span> Параметры баланса </span>

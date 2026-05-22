@@ -111,6 +111,10 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->get('craft-tree/data', 'Admin\CraftTreeController::data');
     $routes->get('craft-tree/export', 'Admin\CraftTreeController::export'); // S30 — CSV-экспорт
 
+    // Navigation tree visualisation (read-only) — дерево кнопок/экранов/переходов игры
+    $routes->get('navigation', 'Admin\NavigationMapController::index');
+    $routes->get('navigation/data', 'Admin\NavigationMapController::data');
+
     // S5 (v0.51.187) — GameSettings live-tunable balance framework
     $routes->get('game-settings', 'Admin\GameSettingsController::index');
     $routes->post('game-settings/update', 'Admin\GameSettingsController::update');
