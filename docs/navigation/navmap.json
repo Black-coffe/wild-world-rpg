@@ -1,8 +1,8 @@
 {
-    "generated_at": "2026-05-22T15:01:12+03:00",
+    "generated_at": "2026-05-22T15:30:52+03:00",
     "stats": {
         "nodes": 223,
-        "edges": 859,
+        "edges": 856,
         "entrypoints": 9,
         "unresolved": 19,
         "dead_ends": 22,
@@ -1552,8 +1552,8 @@
                 "GuessNumber"
             ],
             "kind": "action",
-            "out": 7,
-            "in": 7,
+            "out": 4,
+            "in": 4,
             "depth": 3
         },
         {
@@ -8082,38 +8082,8 @@
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\GuessNumberAction",
             "to": "Controllers.Telegram.Commands.Actions.Games.GuessNumberAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\GuessNumberAction",
-            "label": "5",
-            "callback": "'GuessNumber_bet_5'",
-            "matched_by": "exact:GuessNumber",
-            "unresolved": false
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Games.GuessNumberAction",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\GuessNumberAction",
-            "to": "Controllers.Telegram.Commands.Actions.Games.GuessNumberAction",
-            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\GuessNumberAction",
-            "label": "10",
-            "callback": "'GuessNumber_bet_10'",
-            "matched_by": "exact:GuessNumber",
-            "unresolved": false
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Games.GuessNumberAction",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\GuessNumberAction",
-            "to": "Controllers.Telegram.Commands.Actions.Games.GuessNumberAction",
-            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\GuessNumberAction",
-            "label": "25",
-            "callback": "'GuessNumber_bet_25'",
-            "matched_by": "exact:GuessNumber",
-            "unresolved": false
-        },
-        {
-            "from": "Controllers.Telegram.Commands.Actions.Games.GuessNumberAction",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\GuessNumberAction",
-            "to": "Controllers.Telegram.Commands.Actions.Games.GuessNumberAction",
-            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\GuessNumberAction",
-            "label": "50",
-            "callback": "'GuessNumber_bet_50'",
+            "label": "callback_data",
+            "callback": "'GuessNumber_bet_' . $bet",
             "matched_by": "exact:GuessNumber",
             "unresolved": false
         },
@@ -8123,7 +8093,7 @@
             "to": "Controllers.Telegram.Commands.Actions.Games.GuessNumberAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\GuessNumberAction",
             "label": "callback_data",
-            "callback": "'GuessNumber_choose_' . $betAmount . '_1'",
+            "callback": "'GuessNumber_choose_' . $betAmount . '_' . ($i + 1)",
             "matched_by": "exact:GuessNumber",
             "unresolved": false
         },

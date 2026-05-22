@@ -6583,12 +6583,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/FinishTaskAction.php
 
 		-
-			message: '#^Cannot cast mixed to int\.$#'
-			identifier: cast.int
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Games/FortuneWheelAction.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Games\\FortuneWheelAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
@@ -6614,18 +6608,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Games\\FortuneWheelAction\:\:addOrUpdateCharacterResource\(\) has parameter \$resourceId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Games/FortuneWheelAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Games\\FortuneWheelAction\:\:getQuantityForBet\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Games/FortuneWheelAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Games\\FortuneWheelAction\:\:getQuantityForBet\(\) has parameter \$bet with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Games/FortuneWheelAction.php
@@ -6669,12 +6651,6 @@ parameters:
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Games\\FortuneWheelAction\:\:showStartScreen\(\) has parameter \$character with no type specified\.$#'
 			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Games/FortuneWheelAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Games\\FortuneWheelAction\:\:spinWheel\(\) has no return type specified\.$#'
-			identifier: missingType.return
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Games/FortuneWheelAction.php
 
@@ -6727,12 +6703,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Games/FortuneWheelAction.php
 
 		-
-			message: '#^Strict comparison using \=\=\= between mixed and null will always evaluate to false\.$#'
-			identifier: identical.alwaysFalse
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Games/FortuneWheelAction.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Games\\GuessNumberAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
@@ -6746,24 +6716,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Games\\GuessNumberAction\:\:handleNumberChoice\(\) has parameter \$params with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Games/GuessNumberAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Games\\GuessNumberAction\:\:updateCharacterGold\(\) has parameter \$amount with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Games/GuessNumberAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Games\\GuessNumberAction\:\:updateCharacterGold\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Games/GuessNumberAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Games\\GuessNumberAction\:\:updateCharacterGold\(\) has parameter \$win with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Games/GuessNumberAction.php
@@ -6800,24 +6752,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Games\\RockPaperScissorsAction\:\:showRPSOptions\(\) has parameter \$params with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Games/RockPaperScissorsAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Games\\RockPaperScissorsAction\:\:updateCharacterParam\(\) has parameter \$characterId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Games/RockPaperScissorsAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Games\\RockPaperScissorsAction\:\:updateCharacterParam\(\) has parameter \$param with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Games/RockPaperScissorsAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Games\\RockPaperScissorsAction\:\:updateCharacterParam\(\) has parameter \$win with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Games/RockPaperScissorsAction.php

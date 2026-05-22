@@ -6,14 +6,31 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
+/**
+ * 🛞 Колесо фортуны — азартная игра на золото с наградой ресурсами (N5, ADR-040).
+ *
+ * Весь баланс live-tunable через GameSettings (economy.wheel.*): killswitch, шанс
+ * выигрыша и количество ресурса на каждую ставку. Caption печатает реальный шанс (%) и
+ * количество → текст не расходится с механикой (раньше обещал «x5/x8», код давал 6/10).
+ * Игра НЕ трогает навыки (ADR-040 решение 3). Удалён `sleep(2)`, блокировавший PHP-воркер
+ * (🔴 #5 backlog). Золото списывается только при проигрыше; вход требует золота на ставку.
+ */
 class FortuneWheelAction extends BaseAction
 {
+    use GameSettingsReaderTrait;
+
     protected $characterModel;
     protected $resourceModel;
     protected $characterResourceModel;
+
+    /** @var array<int, float> */
+    private const DEFAULT_WIN_CHANCE = [1 => 0.50, 5 => 0.35, 10 => 0.15, 50 => 0.07];
+    /** @var array<int, int> */
+    private const DEFAULT_QUANTITY   = [1 => 1, 5 => 3, 10 => 6, 50 => 10];
 
     public function __construct($callbackQuery)
     {
@@ -35,7 +52,15 @@ class FortuneWheelAction extends BaseAction
             ]);
         }
 
-        if ($character['gold'] < 1 or $character['gold'] === null) {
+        if (!$this->gsBool('economy.wheel.enabled', true)) {
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text' => 'Игра «Колесо фортуны» временно недоступна.',
+            ]);
+        }
+
+        if ((int) ($character['gold'] ?? 0) < 1) {
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
@@ -56,25 +81,29 @@ class FortuneWheelAction extends BaseAction
             return $this->handleSpinWheel($character, $params);
         }
 
-        if (isset($params[2]) && $params[2] === 'confirm') {
-            $bet = $params[1];
-            // Здесь логика подтверждения ставки и переход к кручению колеса или другому действию
-        }
-
         return Request::emptyResponse();
     }
 
     protected function showStartScreen($character)
     {
+        $p1 = (int) round($this->winChance(1) * 100);
+        $p5 = (int) round($this->winChance(5) * 100);
+        $p10 = (int) round($this->winChance(10) * 100);
+        $p50 = (int) round($this->winChance(50) * 100);
+
+        $q1 = $this->quantity(1);
+        $q5 = $this->quantity(5);
+        $q10 = $this->quantity(10);
+        $q50 = $this->quantity(50);
+
         $text = "*Готов испытать свою удачу, путник?* 😈\n\n"
-            . "*Фортуна твоего колеса* уже ждёт! 🎡\n\n"
-            . "*Испытай свою смекалку и вдохновение, сражаясь с капризной Фортуной!* 🤑\n\n"
-            . "💰 1 монета - шанс на *массовые ресурсы* (x1) 📦\n"
-            . "💰 5 монет - шанс на *частые ресурсы* (x3) 📦\n"
-            . "💰 10 монет - шанс на *редкие ресурсы* (x5) 📦\n"
-            . "💰 50 монет - шанс на *уникальные ресурсы* (x8) 📦\n\n"
-            . "*Крутани колесо и покори Фортуну!* ✊\n\n"
-            . "*P.S.* _И нет, это не лагание, это ожидание пока твое колесо фортуны остановится_ 😜\n";
+            . "*Ставь золото и крути колесо Фортуны!* 🎡\n"
+            . "Повезёт — заберёшь ресурсы; нет — потеряешь ставку.\n\n"
+            . "💰 1 монета — шанс *{$p1}%*, массовые ресурсы *×{$q1}* 📦\n"
+            . "💰 5 монет — шанс *{$p5}%*, частые ресурсы *×{$q5}* 📦\n"
+            . "💰 10 монет — шанс *{$p10}%*, редкие ресурсы *×{$q10}* 📦\n"
+            . "💰 50 монет — шанс *{$p50}%*, уникальные ресурсы *×{$q50}* 📦\n\n"
+            . "*Крутани колесо и покори Фортуну!* ✊\n";
 
         $keyboardButtons = [
             ['text' => "1 монета", 'callback_data' => "WheelOfFortune_spin_1"],
@@ -84,7 +113,7 @@ class FortuneWheelAction extends BaseAction
         ];
 
         $keyboard = ['inline_keyboard' => array_chunk($keyboardButtons, 2)];
-        $imagePath = base_url('uploads/telegram/wheel_fortune_game.png'); // Укажите актуальный путь к изображению
+        $imagePath = base_url('uploads/telegram/wheel_fortune_game.png');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
@@ -101,12 +130,23 @@ class FortuneWheelAction extends BaseAction
             return Request::emptyResponse();
         }
 
-        $bet = $params[2];
+        $bet = (int) $params[2];
+        $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
+
+        // Per-bet affordability: для ставки нужно иметь это золото.
+        if ((int) ($character['gold'] ?? 0) < $bet) {
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text' => "У вас недостаточно золота для ставки {$bet}.",
+            ]);
+        }
+
         $result = $this->spinWheel($character, $bet);
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'chat_id' => $chatId,
             'text' => $result['message'],
             'reply_markup' => json_encode(['inline_keyboard' => [[
                 ['text' => 'Крутить ещё раз', 'callback_data' => "WheelOfFortune_spin_{$bet}"],
@@ -115,63 +155,47 @@ class FortuneWheelAction extends BaseAction
         ]);
     }
 
-    protected function spinWheel($character, $bet)
+    /**
+     * @return array{message: string}
+     */
+    protected function spinWheel($character, $bet): array
     {
-        sleep(2);
-        // Получаем вероятность выигрыша, зависящую от ставки
-        $winChance = $this->getWinChanceForBet($bet);
-        $win = rand(0, 99) < ($winChance * 100);
+        $win = rand(0, 99) < ($this->winChance($bet) * 100);
 
         if ($win) {
-            // Выбор ресурса для награды
             $resources = $this->resourceModel->where('rarity', $this->getRarityForBet($bet))->findAll();
+            if (empty($resources)) {
+                // Награды этой редкости нет в БД — ставку не списываем (не наказываем за наш пробел).
+                return ['message' => 'Колесо остановилось на пустом секторе. Ставка не списана, попробуй ещё!'];
+            }
             $randomResource = $resources[array_rand($resources)];
-            $quantity = $this->getQuantityForBet($bet);
+            $quantity = $this->quantity($bet);
 
-            // Добавление ресурса к персонажу
             $this->addOrUpdateCharacterResource($character, $randomResource['id'], $quantity);
-            // Обновляем характеристики персонажа
-            $this->characterModel->update($character['id'], [
-                'experience' => $character['experience'] + 0.01,
-                'agility' => $character['agility'] + 0.02,
-                'intellect' => $character['intellect'] + 0.03,
-            ]);
-            $message = "Поздравляем! Вы выиграли {$quantity} штук ресурса '{$randomResource['name']}'!";
-        } else {
-            // Проигрыш: списывание золота и незначительное снижение характеристик
-            $this->subtractGoldFromCharacter($character['id'], $bet);
-            $this->characterModel->update($character['id'], [
-                'experience' => $character['experience'] - 0.01,
-                'agility' => $character['agility'] - 0.02,
-                'intellect' => $character['intellect'] - 0.03,
-            ]);
-            $message = "К сожалению, вы проиграли. С вашего счета снято {$bet} монет.";
+            return ['message' => "Поздравляем! Вы выиграли {$quantity} шт. ресурса «{$randomResource['name']}»!"];
         }
 
-        return ['message' => $message];
+        // Проигрыш: списываем ставку (без изменения навыков).
+        $this->subtractGoldFromCharacter($character['id'], $bet);
+        return ['message' => "К сожалению, вы проиграли. С вашего счёта снято {$bet} монет."];
     }
 
     /**
-     * Возвращает вероятность выигрыша в зависимости от ставки.
-     *
-     * @param mixed $bet Ставка, передаваемая как строка или число.
-     * @return float Вероятность выигрыша (от 0 до 1).
+     * Шанс выигрыша (0..1) для ставки — из GameSettings с дефолтом.
      */
-    protected function getWinChanceForBet($bet): float
+    protected function winChance(int $bet): float
     {
-        $bet = (int) $bet;
-        switch ($bet) {
-            case 1:
-                return 0.50;
-            case 5:
-                return 0.35;
-            case 10:
-                return 0.15;
-            case 50:
-                return 0.07;
-            default:
-                return 0.25; // Безопасное значение по умолчанию
-        }
+        $default = self::DEFAULT_WIN_CHANCE[$bet] ?? 0.25;
+        return $this->gsFloat('economy.wheel.win_chance.bet_' . $bet, $default);
+    }
+
+    /**
+     * Количество ресурса на выигрыш для ставки — из GameSettings с дефолтом.
+     */
+    protected function quantity(int $bet): int
+    {
+        $default = self::DEFAULT_QUANTITY[$bet] ?? 2;
+        return $this->gsInt('economy.wheel.quantity.bet_' . $bet, $default);
     }
 
     protected function addOrUpdateCharacterResource($character, $resourceId, $quantity)
@@ -201,13 +225,17 @@ class FortuneWheelAction extends BaseAction
             return;
         }
 
-        $newGoldAmount = max(0, $character['gold'] - $amount);
+        $newGoldAmount = max(0, (int) ($character['gold'] ?? 0) - (int) $amount);
         $this->characterModel->update($characterId, ['gold' => $newGoldAmount]);
     }
 
+    /**
+     * Маппинг ставки → редкость лута (структурный «какой тир выпадает», не balance-число;
+     * deferred из GameSettings в ADR-040 из-за rand-диапазонов).
+     */
     protected function getRarityForBet($bet)
     {
-        switch ($bet) {
+        switch ((int) $bet) {
             case 1:
                 return 10;
             case 5:
@@ -218,22 +246,6 @@ class FortuneWheelAction extends BaseAction
                 return 2;
             default:
                 return 10;
-        }
-    }
-
-    protected function getQuantityForBet($bet)
-    {
-        switch ($bet) {
-            case 1:
-                return 1;
-            case 5:
-                return 3;
-            case 10:
-                return 6;
-            case 50:
-                return 10;
-            default:
-                return 2;
         }
     }
 }

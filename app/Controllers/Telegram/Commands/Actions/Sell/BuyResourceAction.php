@@ -10,10 +10,13 @@ use App\Models\CharacterResourceModel;
 use App\Models\CharacterModel;
 use App\Models\ResourcesBankModel;
 use App\Services\Notifications\MediaSender;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\TaskHandlers\ResourceBankUpdateHandler;
 
 class BuyResourceAction extends BaseAction
 {
+    use GameSettingsReaderTrait;
+
     protected $resourceModel;
     protected $characterResourceModel;
     protected $characterModel;
@@ -36,9 +39,10 @@ class BuyResourceAction extends BaseAction
             return $this->respondWithMessage('Пользователь не найден в базе данных или персонаж не определён.');
         }
 
-        // Минимальная проверка золота
-        if ($character['gold'] < 10) {
-            return $this->respondWithMessage('К сожалению, у вас недостаточно золотых монет для торговли!');
+        // Минимальная проверка золота (порог live-tunable через GameSettings, ADR-040)
+        $minGold = $this->gsInt('economy.shop.buy_resource_min_gold', 10);
+        if ((int) ($character['gold'] ?? 0) < $minGold) {
+            return $this->respondWithMessage("К сожалению, у вас недостаточно золотых монет для торговли! Необходимо минимум {$minGold}.");
         }
 
         $callbackData = $this->callbackQuery->getData();

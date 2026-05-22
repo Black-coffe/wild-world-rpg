@@ -6,9 +6,21 @@ use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Entities\InlineKeyboard;
 use App\Models\CharacterModel;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 
+/**
+ * 🎲 Угадай число — честная мини-игра на золото (N5, ADR-040).
+ *
+ * Шанс ЧЕСТНЫЙ 1-из-N: показываем N чисел, секрет = rand(1,N), победа если выбор совпал
+ * (P=1/N by construction — соврать о шансе невозможно). Весь баланс live-tunable через
+ * GameSettings (economy.guess.*): killswitch, гейт золота, options_count (=шанс), payout,
+ * ставки. Caption печатает реальный шанс/множитель → текст не расходится с механикой.
+ * Азартная игра НЕ трогает навыки (ADR-040 решение 3).
+ */
 class GuessNumberAction extends BaseAction {
+    use GameSettingsReaderTrait;
+
     protected $characterModel;
     protected $character;
     protected $user;
@@ -28,10 +40,19 @@ class GuessNumberAction extends BaseAction {
             ]);
         }
 
-        if ($this->character['gold'] < 50) {
+        if (!$this->gsBool('economy.guess.enabled', true)) {
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text' => 'К сожалению, у вас недостаточно золотых монет для игры! Необходимо минимум 50 золотых.',
+                'text' => 'Игра «Угадай число» временно недоступна.',
+            ]);
+        }
+
+        $minGold = $this->gsInt('economy.guess.min_gold_to_play', 50);
+        if ((int) ($this->character['gold'] ?? 0) < $minGold) {
+            return Request::sendMessage([
+                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text' => "К сожалению, у вас недостаточно золотых монет для игры! Необходимо минимум {$minGold} золотых.",
             ]);
         }
 
@@ -48,29 +69,33 @@ class GuessNumberAction extends BaseAction {
             // Обработка выбора числа
             return $this->handleNumberChoice($params);
         } else {
-            // Непредвиденный запрос
+            // Непредвиденный запрос (в т.ч. restart)
             return $this->showBetOptions();
         }
     }
 
     protected function showBetOptions(): ServerResponse {
-        $text = "*Готов рискнуть?* 🎲\n\n"
-            . "*Испытай удачу в Угадай число!*\n\n"
-            . "*💰 Условия:*\n\n"
-            . "Ставь золото 🤑 (от 5 до 50)\n"
-            . "Выбери 1 из 3 чисел 🔢\n"
-            . "Угадай — заберёшь выигрыш *×1.2 от ставки* (+20%)! 🤑\n"
-            . "Промахнёшься - *потеряешь ставку!* 😥\n\n"
-            . "*Готов к азарту?*\n\n"
-            . "*⬇️ Выбери ставку:*\n";
-        $keyboard = new InlineKeyboard([
-            ['text' => '5', 'callback_data' => 'GuessNumber_bet_5'],
-            ['text' => '10', 'callback_data' => 'GuessNumber_bet_10'],
-            ['text' => '25', 'callback_data' => 'GuessNumber_bet_25'],
-            ['text' => '50', 'callback_data' => 'GuessNumber_bet_50'],
-        ]);
+        $count   = $this->gsInt('economy.guess.options_count', 3);
+        $mult    = $this->gsFloat('economy.guess.payout_multiplier', 1.5);
+        $pct     = (int) round(100 / max(1, $count));
+        $multStr = $this->formatNumber($mult);
 
-        $imagePath = base_url('uploads/telegram/guess_the_number.png'); // Укажите актуальный путь к изображению
+        $text = "*Готов рискнуть?* 🎲\n\n"
+            . "*Испытай удачу в «Угадай число»!*\n\n"
+            . "*💰 Условия:*\n\n"
+            . "Я загадаю одно из *{$count}* чисел 🔢\n"
+            . "Угадаешь — заберёшь выигрыш *×{$multStr} от ставки*! 🤑\n"
+            . "Шанс честный: *1 из {$count}* (~{$pct}%).\n"
+            . "Промахнёшься — *потеряешь ставку!* 😥\n\n"
+            . "*⬇️ Выбери ставку:*\n";
+
+        $buttons = [];
+        foreach ($this->betOptions() as $bet) {
+            $buttons[] = ['text' => (string) $bet, 'callback_data' => 'GuessNumber_bet_' . $bet];
+        }
+        $keyboard = new InlineKeyboard($buttons);
+
+        $imagePath = base_url('uploads/telegram/guess_the_number.png');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
@@ -82,42 +107,76 @@ class GuessNumberAction extends BaseAction {
     }
 
     public function handleBetSelection($params): ServerResponse {
-        $betAmount = $params[2];
+        $betAmount = (int) ($params[2] ?? 0);
+        $chatId    = $this->callbackQuery->getMessage()->getChat()->getId();
+
+        if (!in_array($betAmount, $this->betOptions(), true)) {
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return $this->showBetOptions();
+        }
+
+        // Per-bet affordability: нельзя поставить больше, чем есть.
+        if ((int) ($this->character['gold'] ?? 0) < $betAmount) {
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text' => "У вас недостаточно золота для ставки {$betAmount}.",
+            ]);
+        }
+
+        $count = $this->gsInt('economy.guess.options_count', 3);
+        $mult  = $this->formatNumber($this->gsFloat('economy.guess.payout_multiplier', 1.5));
+
+        // N случайных различных чисел для антуража (вероятность всё равно честные 1/N).
         $numbers = range(1, 99);
         shuffle($numbers);
-        $text = "Я загадал и запомнил одно из этих трех чисел. Если ты угадаешь верно, получишь выигрыш согласно твоей ставке, но если не угадаешь — ставка списывается.";
-        $keyboard = new InlineKeyboard([
-            ['text' => $numbers[0], 'callback_data' => 'GuessNumber_choose_' . $betAmount . '_1'],
-            ['text' => $numbers[1], 'callback_data' => 'GuessNumber_choose_' . $betAmount . '_2'],
-            ['text' => $numbers[2], 'callback_data' => 'GuessNumber_choose_' . $betAmount . '_3'],
-        ]);
+        $shown = array_slice($numbers, 0, $count);
+
+        $text = "Я загадал и запомнил одно из этих *{$count}* чисел.\n"
+            . "Угадаешь — выигрыш *×{$mult}* от ставки ({$betAmount}); нет — теряешь ставку.";
+
+        $buttons = [];
+        foreach ($shown as $i => $num) {
+            $buttons[] = ['text' => (string) $num, 'callback_data' => 'GuessNumber_choose_' . $betAmount . '_' . ($i + 1)];
+        }
+        $keyboard = new InlineKeyboard($buttons);
+
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'chat_id' => $chatId,
             'text' => $text,
+            'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
     }
 
     public function handleNumberChoice($params): ServerResponse {
-        $betAmount = $params[2];
-        $chosenNumber = $params[3];
-        $correctNumber = rand(1, 4);
+        $betAmount    = (int) ($params[2] ?? 0);
+        $chosenNumber = (int) ($params[3] ?? 0);
+        $chatId       = $this->callbackQuery->getMessage()->getChat()->getId();
 
-        if ($betAmount === '25') {
-            $correctNumber = rand(1, 5);
-        } elseif ($betAmount === '50') {
-            $correctNumber = rand(1, 7);
+        // Re-verify ставку и платёжеспособность (золото могло измениться).
+        if (!in_array($betAmount, $this->betOptions(), true)
+            || (int) ($this->character['gold'] ?? 0) < $betAmount) {
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text' => "Ставка {$betAmount} недоступна (недостаточно золота).",
+            ]);
         }
 
-        if ($chosenNumber == $correctNumber) {
-            // Победа: теперь выигрыш составит 1.2 * ставка
-            $winGold = intval(round($betAmount * 1.2));
-            $this->updateCharacterGold($this->character['id'], $betAmount, true);
+        $count = $this->gsInt('economy.guess.options_count', 3);
+        $mult  = $this->gsFloat('economy.guess.payout_multiplier', 1.5);
+
+        // Честный 1-из-N: секрет равновероятен среди N показанных позиций.
+        $secret = rand(1, max(1, $count));
+
+        if ($chosenNumber === $secret) {
+            $winGold = (int) round($betAmount * $mult);
+            $this->applyGold($this->character['id'], $winGold);
             $text = "Поздравляем! Вы угадали число. Ваш выигрыш: {$winGold} золота.";
         } else {
-            // Проигрыш
-            $this->updateCharacterGold($this->character['id'], $betAmount, false);
+            $this->applyGold($this->character['id'], -$betAmount);
             $text = "К сожалению, вы не угадали. Вы потеряли: {$betAmount} золота.";
         }
 
@@ -127,33 +186,42 @@ class GuessNumberAction extends BaseAction {
         ]);
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return Request::sendMessage([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'chat_id' => $chatId,
             'text' => $text,
             'reply_markup' => json_encode($keyboard),
         ]);
     }
 
-    protected function updateCharacterGold($characterId, $amount, $win): void {
+    /**
+     * Применяет дельту золота (>0 выигрыш, <0 проигрыш). Без изменения навыков.
+     *
+     * @param mixed $characterId
+     */
+    protected function applyGold($characterId, int $delta): void {
         $character = $this->characterModel->find($characterId);
-        $amount = intval($amount);
-
-        if ($win) {
-            // При выигрыше теперь прибавляем 1.2 * ставка, а прирост характеристик снижен
-            $newGold = $character['gold'] + intval(round($amount * 1.2));
-            $this->characterModel->update($characterId, [
-                'gold' => $newGold,
-                'experience' => $character['experience'] + 0.01,
-                'agility' => $character['agility'] + 0.015,
-                'intellect' => $character['intellect'] + 0.02,
-            ]);
-        } else {
-            $newGold = max(0, $character['gold'] - $amount);
-            $this->characterModel->update($characterId, [
-                'gold' => $newGold,
-                'experience' => $character['experience'] - 0.01,
-                'agility' => $character['agility'] - 0.02,
-                'intellect' => $character['intellect'] - 0.03,
-            ]);
+        if (!$character) {
+            return;
         }
+        $newGold = max(0, (int) ($character['gold'] ?? 0) + $delta);
+        $this->characterModel->update($characterId, ['gold' => $newGold]);
+    }
+
+    /**
+     * @return list<int>
+     */
+    protected function betOptions(): array {
+        $raw  = $this->gsString('economy.guess.bet_options', '5,10,25,50');
+        $bets = [];
+        foreach (explode(',', $raw) as $part) {
+            $part = trim($part);
+            if ($part !== '' && ctype_digit($part)) {
+                $bets[] = (int) $part;
+            }
+        }
+        return $bets !== [] ? $bets : [5, 10, 25, 50];
+    }
+
+    protected function formatNumber(float $value): string {
+        return rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
     }
 }

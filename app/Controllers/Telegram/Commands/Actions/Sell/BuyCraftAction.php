@@ -9,10 +9,13 @@ use App\Models\CharacterBuildingModel;
 use App\Models\BuildingModel;
 use App\Models\SalesModel;
 use App\Models\CraftedItemsModel;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 
 class BuyCraftAction extends BaseAction
 {
+    use GameSettingsReaderTrait;
+
     protected $characterModel;
     protected $characterBuildingModel;
     protected $buildingModel;
@@ -51,11 +54,12 @@ class BuyCraftAction extends BaseAction
             ],
         ]);
 
-        // Проверка золота
-        if ($character['gold'] < 1000) {
+        // Проверка золота (порог live-tunable через GameSettings, ADR-040)
+        $minGold = $this->gsInt('economy.shop.buy_craft_min_gold', 1000);
+        if ((int) ($character['gold'] ?? 0) < $minGold) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
-                'text' => 'Для торговли необходимо иметь не менее 1000 золотых монет.',
+                'text' => "Для торговли необходимо иметь не менее {$minGold} золотых монет.",
                 'reply_markup' => $backNav,
             ]);
         }

@@ -6,12 +6,27 @@ use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Entities\InlineKeyboard;
 use App\Models\CharacterModel;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 
+/**
+ * 🗿✂️📄 Камень-ножницы-бумага — ЧЕСТНАЯ игра на навык (N5, ADR-040).
+ *
+ * Скрытый 40%-cap убран: исход честный 33/33/33 (КНБ — общеизвестно честная игра, скрытая
+ * подкрутка била по доверию). Дом-эдж перенесён в ПРОЗРАЧНУЮ асимметрию награды: победа
+ * +win_gain к навыку, поражение −loss_penalty (loss_penalty > win_gain ⇒ честный sink),
+ * ничья без изменений. Всё live-tunable через GameSettings (economy.rps.*), раскрыто в тексте.
+ * Ставка КНБ — это сам навык (опыт/сила/ловкость/интеллект), поэтому навык-эффекты остаются.
+ */
 class RockPaperScissorsAction extends BaseAction {
+    use GameSettingsReaderTrait;
+
     protected $characterModel;
     protected $character;
     protected $user;
+
+    /** @var list<string> */
+    private const ALLOWED_PARAMS = ['experience', 'strength', 'agility', 'intellect'];
 
     public function __construct($callbackQuery) {
         parent::__construct($callbackQuery);
@@ -29,11 +44,23 @@ class RockPaperScissorsAction extends BaseAction {
             ]);
         }
 
-        if ($this->character['experience'] < 0.05 or $this->character['strength'] < 0.05 or $this->character['agility'] < 0.05 or $this->character['intellect'] < 0.05) {
+        if (!$this->gsBool('economy.rps.enabled', true)) {
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text' => 'К сожалению, у вас недостаточно необходимых навыков для этой игры!.',
+                'text' => 'Игра «Камень-ножницы-бумага» временно недоступна.',
+            ]);
+        }
+
+        $minSkill = $this->gsFloat('economy.rps.min_skill_to_play', 0.05);
+        if ((float) ($this->character['experience'] ?? 0) < $minSkill
+            || (float) ($this->character['strength'] ?? 0) < $minSkill
+            || (float) ($this->character['agility'] ?? 0) < $minSkill
+            || (float) ($this->character['intellect'] ?? 0) < $minSkill) {
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'text' => 'К сожалению, у вас недостаточно необходимых навыков для этой игры!',
             ]);
         }
 
@@ -49,20 +76,21 @@ class RockPaperScissorsAction extends BaseAction {
         } elseif ($params[1] === 'option') {
             return $this->handleUserChoice($params);
         } else {
-            // Непредвиденный запрос
+            // Непредвиденный запрос (в т.ч. restart)
             return $this->showOptions();
         }
     }
 
     protected function showOptions(): ServerResponse {
-        $text = "*🗿✂️📄 Камень, Ножницы, Бумага: 🗿✂️📄*\n\n"
-            . "*Испытание судьбы*\n\n"
-            . "_Сегодня перед тобой стоит возможность проверить свою удачу и интуицию в азартной и захватывающей игре_\n\n"
-            . "*Камень, Ножницы, Бумага 🎲*\n\n"
-            . "*Помни*, твой выбор может либо принести победу, либо оставить тебя с пустыми руками 🔢\n\n"
-            . "Сыграй на выбор: *опыт, сила, ловкость или интеллект*\n\n"
-            . "Промахнёшься - *потеряешь ставку!* 😥\n\n"
-            . "*Готов к азарту?*\n\n"
+        $wg = $this->formatNumber($this->gsFloat('economy.rps.win_gain', 0.01));
+        $lp = $this->formatNumber($this->gsFloat('economy.rps.loss_penalty', 0.02));
+
+        $text = "*🗿✂️📄 Камень, Ножницы, Бумага*\n\n"
+            . "_Честная игра: 1/3 победа, 1/3 ничья, 1/3 поражение._\n\n"
+            . "Сыграй на выбор: *опыт, сила, ловкость или интеллект*.\n\n"
+            . "🏆 Победа: *+{$wg}* к выбранному навыку\n"
+            . "🤝 Ничья: без изменений\n"
+            . "💀 Поражение: *−{$lp}* к навыку\n\n"
             . "*⬇️ Делай ставку:*\n";
         $keyboard = new InlineKeyboard([
             ['text' => '🌟 Опыт', 'callback_data' => 'RockPaperScissors_param_experience'],
@@ -71,7 +99,7 @@ class RockPaperScissorsAction extends BaseAction {
             ['text' => '🧠 Интеллект', 'callback_data' => 'RockPaperScissors_param_intellect'],
         ]);
 
-        $imagePath = base_url('uploads/telegram/stone_paper_scissors.png'); // Укажите актуальный путь к изображению
+        $imagePath = base_url('uploads/telegram/stone_paper_scissors.png');
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
@@ -83,7 +111,10 @@ class RockPaperScissorsAction extends BaseAction {
     }
 
     protected function showRPSOptions($params): ServerResponse {
-        $param = $params[2];
+        $param = $params[2] ?? '';
+        if (!in_array($param, self::ALLOWED_PARAMS, true)) {
+            return $this->showOptions();
+        }
         $text = "Игра началась, ты смелый и отважный!\n\nСделай свой ход:";
         $keyboard = new InlineKeyboard([
             ['text' => '🗿 Камень', 'callback_data' => 'RockPaperScissors_option_'.$param.'_rock'],
@@ -99,18 +130,29 @@ class RockPaperScissorsAction extends BaseAction {
     }
 
     public function handleUserChoice($params): ServerResponse {
-        $userChoice = $params[3];
-        $param = $params[2];
+        $param      = $params[2] ?? '';
+        $userChoice = $params[3] ?? '';
+
+        if (!in_array($param, self::ALLOWED_PARAMS, true)) {
+            return $this->showOptions();
+        }
+
         $choices = [
             'rock' => 'Камень',
             'scissors' => 'Ножницы',
             'paper' => 'Бумага'
         ];
-        // Компьютерный выбор – равновероятно
+        if (!isset($choices[$userChoice])) {
+            return $this->showOptions();
+        }
+
+        // Компьютерный выбор – равновероятно. Исход ЧЕСТНЫЙ (без скрытого 40%-cap).
         $computerChoiceKey = array_rand($choices);
         $computerChoice = $choices[$computerChoiceKey];
 
-        // Логика определения результата по стандартным правилам
+        $winGain     = $this->gsFloat('economy.rps.win_gain', 0.01);
+        $lossPenalty = $this->gsFloat('economy.rps.loss_penalty', 0.02);
+
         if ($userChoice === $computerChoiceKey) {
             $text = "Ничья! Вы оба выбрали {$choices[$userChoice]}.";
         } else {
@@ -121,18 +163,10 @@ class RockPaperScissorsAction extends BaseAction {
             ];
 
             if ($winConditions[$userChoice] === $computerChoiceKey) {
-                // Стандартно игрок выигрывал бы
-                // Понижаем шансы выигрыша: победа засчитывается только в 40% случаев
-                if (rand(1, 100) <= 40) {
-                    $this->updateCharacterParam($this->character['id'], true, $param);
-                    $text = "Вы победили! Ваш выбор ({$choices[$userChoice]}) побеждает над {$computerChoice}.";
-                } else {
-                    // В остальных 60% случаев выигрыш отменяется
-                    $this->updateCharacterParam($this->character['id'], false, $param);
-                    $text = "К сожалению, фортуна отвернулась от тебя. Несмотря на первоначальное преимущество, ты проиграл.";
-                }
+                $this->updateCharacterParam($this->character['id'], $winGain, $param);
+                $text = "Вы победили! Ваш выбор ({$choices[$userChoice]}) побеждает {$computerChoice}.";
             } else {
-                $this->updateCharacterParam($this->character['id'], false, $param);
+                $this->updateCharacterParam($this->character['id'], -$lossPenalty, $param);
                 $text = "Вы проиграли! Ваш выбор ({$choices[$userChoice]}) уступает {$computerChoice}.";
             }
         }
@@ -149,15 +183,22 @@ class RockPaperScissorsAction extends BaseAction {
         ]);
     }
 
-    protected function updateCharacterParam($characterId, $win, $param): void {
+    /**
+     * Применяет дельту навыка (>0 победа, <0 поражение). $param уже из whitelist.
+     *
+     * @param mixed $characterId
+     */
+    protected function updateCharacterParam($characterId, float $delta, string $param): void {
         $character = $this->characterModel->find($characterId);
-
-        if (!$param) {
+        if (!$character || !in_array($param, self::ALLOWED_PARAMS, true)) {
             return;
         }
 
-        $newParamValue = $win ? ($character[$param] + 0.01) : max(0, $character[$param] - 0.01);
-
+        $newParamValue = max(0, (float) ($character[$param] ?? 0) + $delta);
         $this->characterModel->update($characterId, [$param => $newParamValue]);
+    }
+
+    protected function formatNumber(float $value): string {
+        return rtrim(rtrim(number_format($value, 3, '.', ''), '0'), '.');
     }
 }
