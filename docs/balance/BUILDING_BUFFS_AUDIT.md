@@ -58,7 +58,7 @@ GameSettings-ключи эффектов засеяны только для **L2
 ### 🟡 S5. Двойная правда баланса (нарушает ADR-024) — ✅ ЧАСТИЧНО (v0.51.237, scoped): live-tunable скаляры мигрированы; прогрессия-кривые остаются code-owned
 Часть balance-чисел сидит в `Config\GameBalance` вне GameSettings: `greenhouseLevels` (пассив теплицы), `gymStrengthByLevel`, `gymTickIntervalMinutes`, `handPumpLevels`, `handPumpBiomeMultipliers`. По конституции должны быть admin-tunable.
 
-### 🟡 S6. Прочее
+### 🟡 S6. Прочее — ✅ ИСПРАВЛЕНО (v0.51.238, F): Gym cap-левер + HandPump build-вода + biome round
 - HandPump: build-cost требует **1200 воды** на водокачку (анти-логика, похоже legacy); биом-множитель `floor()` → на низких уровнях dry/cave де-факто не работает (min 1).
 - Gym: **нет капа силы** → бесконечный stat-creep у долгоживущих (L10 = +50 силы/неделю без потолка).
 - BarbedFence: hp 80 / tax 350 против WoodenWall hp 200 / tax 200 — ограда невыгодна по «отбитых атак на золото».
@@ -79,11 +79,11 @@ GameSettings-ключи эффектов засеяны только для **L2
 7. **Per-building цена апгрейда** (S4): дифференцировать `BuildingUpgrades` по ценности здания (ADR).
 8. ✅ **(v0.51.237, scoped)** **Двойная правда** (S5): мигрированы live-tunable скаляры (gym tick-interval, handpump biome ×6, greenhouse shortage threshold/cooldown = 9 ключей, читатели с fallback на GameBalance). Прогрессия-кривые по уровням (greenhouseLevels/gymStrengthByLevel/handPumpLevels) ОСТАВЛЕНЫ в GameBalance как code-owned design (меняются через ревью, не live-tune).
 9. **Расширить охват BlastFurnace** (`boost_building`) на больше металл-рецептов — оправдать info «для некоторых компонентов».
-10. **Кап силы Gym** (admin-tunable) — против бесконечного creep.
+10. ✅ **(v0.51.238, F)** **Кап силы Gym** (admin-tunable `building.gym.strength_cap`, 0=выключен по умолчанию — без нерфа; левер для админа против creep).
 
 ### 🟢 / безопасные тексты
 11. ✅ **(v0.51.234)** Дописаны реальные бафы в info: Workshop (ускорение), BlastFurnace (yield), Laboratory (мед-время, стак), RoboticsWorkshop (время роботов), Greenhouse (актив + расход воды), HandPump (scaling + налог), CommunicationTower (сужено до «радиус роботов»).
-12. HandPump: пересмотреть build-cost 1200 воды (анти-логика); `floor()`→`round()` для биом-множителя. *(не сделано — отдельный фикс)*
+12. ✅ **(v0.51.238, F)** HandPump: build-cost воды 1200→200 (анти-логика); `floor()`→`round()` для биом-множителя (работает на низких уровнях).
 
 ### ℹ️ Для N6 PvP
 - WatchTower **alert-уведомление цели о приближении уже работает** (`TowerAlertService` ← `MarchingTaskHandler.php:224`). N6 не дублировать — только учесть.
