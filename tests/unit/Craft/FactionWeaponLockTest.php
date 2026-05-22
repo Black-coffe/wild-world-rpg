@@ -76,4 +76,45 @@ final class FactionWeaponLockTest extends CIUnitTestCase
         sort($factions);
         $this->assertSame([1, 2, 3, 4], $factions, '4 faction weapons должны покрывать ровно фракции 1-4 (1:1)');
     }
+
+    // ── V13 (ADR-037): strategic quest-chains замыкаются на signature-оружие ──
+
+    /**
+     * Канон «финал цепочки → faction weapon» (V12 Bunker/Technopark +
+     * V13 GhostCity/IslandFarm). Финальный квест каждой цепочки имеет
+     * objective_type=craft_item с objective_target = ключ этого рецепта.
+     * Если оружие переименуют/удалят из CraftRecipes — цепочка молча не
+     * завершится (QuestObjectiveHandler не найдёт предмет в crafted_items_log).
+     *
+     * @return array<string, string> финал quest title_en => weapon recipe key
+     */
+    private function chainFinals(): array
+    {
+        return [
+            'BunkerDominance'        => 'BunkerRifle',
+            'TechnoparkBreakthrough' => 'TechnoBeamShotgun',
+            'GhostCityDominance'     => 'GhostCityKnife',
+            'IslandFarmAbundance'    => 'FarmersHarvestScythe',
+        ];
+    }
+
+    public function testChainFinalsTargetRealFactionWeapons(): void
+    {
+        $cfg = new CraftRecipes();
+        foreach ($this->chainFinals() as $questEn => $weaponKey) {
+            $r = $cfg->get($weaponKey);
+            $this->assertIsArray($r, "Финал цепочки '{$questEn}' целится в несуществующий рецепт '{$weaponKey}'");
+            $this->assertSame('weapon', $r['output_type'] ?? null, "{$weaponKey}: craft-цель финала должна быть weapon");
+        }
+    }
+
+    public function testChainFinalsAreBijectiveWithFactionWeapons(): void
+    {
+        // 4 финала цепочек 1:1 покрывают ровно 4 faction weapons.
+        $targets = array_values($this->chainFinals());
+        $weapons = array_keys($this->expected());
+        sort($targets);
+        sort($weapons);
+        $this->assertSame($weapons, $targets, '4 финала цепочек должны 1:1 совпадать с 4 faction weapons');
+    }
 }
