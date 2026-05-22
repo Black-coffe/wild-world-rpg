@@ -41,11 +41,22 @@ class BuyCraftAction extends BaseAction
             ]);
         }
 
+        // Навигация для экранов-ошибок (тупики без кнопок → возврат к персонажу/магазину).
+        $backNav = json_encode([
+            'inline_keyboard' => [
+                [
+                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                ],
+            ],
+        ]);
+
         // Проверка золота
         if ($character['gold'] < 1000) {
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => 'Для торговли необходимо иметь не менее 1000 золотых монет.',
+                'reply_markup' => $backNav,
             ]);
         }
 
@@ -55,6 +66,7 @@ class BuyCraftAction extends BaseAction
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => 'Ошибка: постройка "Склад" не найдена в базе данных.',
+                'reply_markup' => $backNav,
             ]);
         }
 
@@ -67,6 +79,7 @@ class BuyCraftAction extends BaseAction
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => 'Для покупки крафтовых предметов, необходимо иметь постройку "Склад".',
+                'reply_markup' => $backNav,
             ]);
         }
 
@@ -76,6 +89,7 @@ class BuyCraftAction extends BaseAction
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => 'В данный момент у торговца нет доступных крафтовых предметов для продажи.',
+                'reply_markup' => $backNav,
             ]);
         }
 

@@ -113,6 +113,9 @@ class WoodMaterialsCraft1Action extends BaseAction
                         ['text' => '💰 Продать',     'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить',     'callback_data' => 'buy'],
                     ],
+                    [
+                        ['text' => '⬅️ Назад', 'callback_data' => 'componentsCraft'],
+                    ],
                 ]
             ];
         } else {
@@ -121,6 +124,7 @@ class WoodMaterialsCraft1Action extends BaseAction
                 ['text' => '👨‍🎤 Персонаж',  'callback_data' => 'character'],
                 ['text' => '🎒 Инвентарь',  'callback_data' => 'inventory'],
             ];
+            $keyboardButtons[] = [['text' => '⬅️ Назад', 'callback_data' => 'componentsCraft']];
             // Завершаем формирование клавиатуры
             $keyboard = ['inline_keyboard' => $keyboardButtons];
         }

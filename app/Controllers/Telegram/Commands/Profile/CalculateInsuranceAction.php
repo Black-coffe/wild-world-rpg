@@ -66,10 +66,20 @@ class CalculateInsuranceAction extends BaseAction
         $messageText .= "Если страховой случай произойдет сегодня, примерная стоимость страховки составит: *" . number_format($insuranceCost) . "* золотых монет.";
 
         // 5. Отправляем сообщение
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '🛡️ Страховка', 'callback_data' => 'PersonalInsurance'],
+                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                ],
+            ],
+        ];
+
         return Request::sendMessage([
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
             'text' => $messageText,
             'parse_mode' => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
         ]);
     }
 

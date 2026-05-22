@@ -194,11 +194,20 @@ class TeleportBeacon
         } else {
             // Если маяков нет, добавим фразу в текст (дополнительно):
             $text .= "\n_У тебя нет маяков, чтобы поставить на этой локации._\n";
+            // N2: прямой путь скрафтить маяк (раньше экран был тупиком при 0 шт.).
+            $keyboardRows[] = [
+                ['text' => '🔧 Скрафтить маяк', 'callback_data' => 'teleportBeaconCraft2'],
+            ];
         }
 
         // Остальные кнопки — «Переместиться на маяк»
         $keyboardRows[] = [
             ['text' => 'Переместиться на маяк',  'callback_data' => 'teleportBeaconMove'],
+        ];
+
+        // N2: возврат на базу (экран не должен быть тупиком).
+        $keyboardRows[] = [
+            ['text' => '🏠 База', 'callback_data' => 'Base'],
         ];
 
         $keyboard = [ 'inline_keyboard' => $keyboardRows ];

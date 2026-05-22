@@ -108,6 +108,9 @@ class FertilizerCraft1Action extends BaseAction
                         ['text' => '💰 Продать', 'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить',  'callback_data' => 'buy'],
                     ],
+                    [
+                        ['text' => '⬅️ Назад', 'callback_data' => 'componentsCraft'],
+                    ],
                 ]
             ];
         } else {
@@ -123,6 +126,7 @@ class FertilizerCraft1Action extends BaseAction
                 ['text' => '💰 Продать', 'callback_data' => 'sell'],
                 ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
             ];
+            $quantityRows[] = [['text' => '⬅️ Назад', 'callback_data' => 'componentsCraft']];
             $keyboard = ['inline_keyboard' => $quantityRows];
         }
 

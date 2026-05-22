@@ -44,6 +44,14 @@ class SellCraftAction extends BaseAction
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text' => 'У вас нет скрафченных ресурсов для продажи.',
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [
+                        [
+                            ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                            ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                        ],
+                    ],
+                ]),
             ]);
         }
 

@@ -99,6 +99,9 @@ class LumberjackAxeCraft1Action extends BaseAction
                         ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                     ],
+                    [
+                        ['text' => '⬅️ Назад', 'callback_data' => 'tools'],
+                    ],
                 ]
             ];
         } else {
@@ -112,6 +115,7 @@ class LumberjackAxeCraft1Action extends BaseAction
                 ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                 ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
             ];
+            $quantityRows[] = [['text' => '⬅️ Назад', 'callback_data' => 'tools']];
 
             $keyboard = ['inline_keyboard' => $quantityRows];
         }

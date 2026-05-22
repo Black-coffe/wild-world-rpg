@@ -98,6 +98,9 @@ class BandageCraft1Action extends BaseAction
                         ['text' => '💰 Продать',    'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить',    'callback_data' => 'buy']
                     ],
+                    [
+                        ['text' => '⬅️ Назад', 'callback_data' => 'medicinesCraft1']
+                    ],
                 ]
             ];
         } else {
@@ -114,6 +117,7 @@ class BandageCraft1Action extends BaseAction
                 ['text' => '💰 Продать', 'callback_data' => 'sell'],
                 ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
             ];
+            $quantityRows[] = [['text' => '⬅️ Назад', 'callback_data' => 'medicinesCraft1']];
 
             $keyboard = ['inline_keyboard' => $quantityRows];
         }

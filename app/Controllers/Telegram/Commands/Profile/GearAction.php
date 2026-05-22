@@ -38,6 +38,9 @@ class GearAction extends BaseAction
                     ['text' => '👕 Броня / Одежда', 'callback_data' => 'gearArmor'],
                     ['text' => '⚔️ Оружие',         'callback_data' => 'gearWeapons'],
                 ],
+                [
+                    ['text' => '⬅️ Назад', 'callback_data' => 'character'],
+                ],
             ]
         ];
 

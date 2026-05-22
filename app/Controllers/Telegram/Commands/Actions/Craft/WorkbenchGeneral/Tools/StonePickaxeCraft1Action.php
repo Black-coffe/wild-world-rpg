@@ -111,6 +111,9 @@ class StonePickaxeCraft1Action extends BaseAction
                         ['text' => '💰 Продать',   'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить',   'callback_data' => 'buy']
                     ],
+                    [
+                        ['text' => '⬅️ Назад', 'callback_data' => 'tools'],
+                    ],
                 ]
             ];
         } else {
@@ -127,6 +130,9 @@ class StonePickaxeCraft1Action extends BaseAction
             $quantityRows[] = [
                 ['text' => '💰 Продать', 'callback_data' => 'sell'],
                 ['text' => '🛍️ Купить', 'callback_data' => 'buy']
+            ];
+            $quantityRows[] = [
+                ['text' => '⬅️ Назад', 'callback_data' => 'tools'],
             ];
 
             $keyboard = ['inline_keyboard' => $quantityRows];

@@ -178,6 +178,14 @@ class GenericmessageCommand extends SystemCommand
             'chat_id'    => $chatId,
             'text'       => $result['message'],
             'parse_mode' => 'Markdown',
+            'reply_markup' => json_encode([
+                'inline_keyboard' => [
+                    [
+                        ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                    ],
+                ],
+            ]),
         ]);
     }
 

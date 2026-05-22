@@ -1,13 +1,13 @@
 {
-    "generated_at": "2026-05-22T12:57:32+03:00",
+    "generated_at": "2026-05-22T13:45:08+03:00",
     "stats": {
-        "nodes": 223,
-        "edges": 814,
+        "nodes": 224,
+        "edges": 857,
         "entrypoints": 9,
         "unresolved": 19,
-        "dead_ends": 24,
-        "orphans": 49,
-        "unreachable": 66,
+        "dead_ends": 23,
+        "orphans": 50,
+        "unreachable": 67,
         "max_depth": 7
     },
     "entrypoints": [
@@ -323,7 +323,7 @@
             "file": "app/app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportationCenterHandler.php",
             "routes": [],
             "kind": "screen",
-            "out": 2,
+            "out": 3,
             "in": 1,
             "depth": 4
         },
@@ -337,8 +337,8 @@
                 "teleportBeacon"
             ],
             "kind": "action",
-            "out": 2,
-            "in": 3,
+            "out": 4,
+            "in": 4,
             "depth": 2
         },
         {
@@ -642,7 +642,7 @@
                 "charcoalBriquettes"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -657,7 +657,7 @@
             ],
             "kind": "action",
             "out": 10,
-            "in": 1,
+            "in": 11,
             "depth": 3
         },
         {
@@ -670,7 +670,7 @@
                 "electronicComponents"
             ],
             "kind": "action",
-            "out": 4,
+            "out": 5,
             "in": 1,
             "depth": 4
         },
@@ -684,7 +684,7 @@
                 "fabric"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -698,7 +698,7 @@
                 "fertilizer"
             ],
             "kind": "action",
-            "out": 4,
+            "out": 5,
             "in": 1,
             "depth": 4
         },
@@ -712,7 +712,7 @@
                 "glassBags"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -726,7 +726,7 @@
                 "metalFragments"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -740,7 +740,7 @@
                 "soil"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -754,7 +754,7 @@
                 "stoneBlocks"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -768,7 +768,7 @@
                 "wiring"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -782,7 +782,7 @@
                 "woodMaterials"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -810,7 +810,7 @@
                 "antiseptic"
             ],
             "kind": "action",
-            "out": 6,
+            "out": 7,
             "in": 1,
             "depth": 4
         },
@@ -824,7 +824,7 @@
                 "bandage"
             ],
             "kind": "action",
-            "out": 4,
+            "out": 5,
             "in": 1,
             "depth": 4
         },
@@ -838,7 +838,7 @@
                 "basicMedKit"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -853,7 +853,7 @@
             ],
             "kind": "action",
             "out": 9,
-            "in": 2,
+            "in": 10,
             "depth": 3
         },
         {
@@ -866,7 +866,7 @@
                 "painReliefPowder"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -880,7 +880,7 @@
                 "regenerator"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -894,7 +894,7 @@
                 "sedative"
             ],
             "kind": "action",
-            "out": 4,
+            "out": 5,
             "in": 1,
             "depth": 4
         },
@@ -908,7 +908,7 @@
                 "stimulator"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -922,7 +922,7 @@
                 "strengtheningElixir"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -936,7 +936,7 @@
                 "fishingRod"
             ],
             "kind": "action",
-            "out": 4,
+            "out": 5,
             "in": 1,
             "depth": 4
         },
@@ -950,7 +950,7 @@
                 "foldingKnife"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -964,7 +964,7 @@
                 "hoe"
             ],
             "kind": "action",
-            "out": 4,
+            "out": 5,
             "in": 1,
             "depth": 4
         },
@@ -978,7 +978,7 @@
                 "ironPickaxe"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -992,7 +992,7 @@
                 "ironShovel"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -1006,7 +1006,7 @@
                 "lumberjackAxe"
             ],
             "kind": "action",
-            "out": 3,
+            "out": 4,
             "in": 1,
             "depth": 4
         },
@@ -1020,7 +1020,7 @@
                 "stonePickaxe"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -1034,7 +1034,7 @@
                 "tireIron"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -1049,7 +1049,7 @@
             ],
             "kind": "action",
             "out": 8,
-            "in": 1,
+            "in": 9,
             "depth": 3
         },
         {
@@ -1231,7 +1231,7 @@
             ],
             "kind": "action",
             "out": 4,
-            "in": 1,
+            "in": 5,
             "depth": 3
         },
         {
@@ -1244,7 +1244,7 @@
                 "armorDrifterClothes"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -1258,7 +1258,7 @@
                 "armorLeatherJacket"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -1272,7 +1272,7 @@
                 "armorRaggedShirt"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -1286,7 +1286,7 @@
                 "armorReinforcedLeather"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -1399,7 +1399,7 @@
             ],
             "kind": "action",
             "out": 2,
-            "in": 1,
+            "in": 2,
             "depth": 3
         },
         {
@@ -1412,7 +1412,7 @@
                 "craftCrossbowMk1"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -1426,7 +1426,7 @@
                 "craftMetalSpear"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -1440,7 +1440,7 @@
                 "craftPipeGun"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -1455,7 +1455,7 @@
             ],
             "kind": "action",
             "out": 4,
-            "in": 1,
+            "in": 5,
             "depth": 3
         },
         {
@@ -1468,7 +1468,7 @@
                 "craftWiredBat"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
             "depth": 4
         },
@@ -1595,7 +1595,7 @@
             ],
             "kind": "action",
             "out": 3,
-            "in": 97,
+            "in": 98,
             "depth": 2
         },
         {
@@ -1847,7 +1847,7 @@
                 "buyCraft"
             ],
             "kind": "action",
-            "out": 3,
+            "out": 4,
             "in": 5,
             "depth": 3
         },
@@ -2033,7 +2033,7 @@
             ],
             "kind": "action",
             "out": 6,
-            "in": 15,
+            "in": 17,
             "depth": 2
         },
         {
@@ -2217,6 +2217,20 @@
             "depth": null
         },
         {
+            "id": "Controllers.Telegram.Commands.Profile.CalculateInsuranceAction",
+            "class": "App\\Controllers\\Telegram\\Commands\\Profile\\CalculateInsuranceAction",
+            "short": "CalculateInsuranceAction",
+            "group": "profile",
+            "file": "app/Controllers/Telegram/Commands/Profile/CalculateInsuranceAction.php",
+            "routes": [
+                "calculateInsurance"
+            ],
+            "kind": "command",
+            "out": 2,
+            "in": 1,
+            "depth": 3
+        },
+        {
             "id": "app.Controllers.Telegram.Commands.Profile.GearAction",
             "class": "app\\Controllers\\Telegram\\Commands\\Profile\\GearAction",
             "short": "GearAction",
@@ -2224,7 +2238,7 @@
             "file": "app/app/Controllers/Telegram/Commands/Profile/GearAction.php",
             "routes": [],
             "kind": "command",
-            "out": 2,
+            "out": 3,
             "in": 0,
             "depth": null
         },
@@ -2295,7 +2309,7 @@
             ],
             "kind": "command",
             "out": 2,
-            "in": 1,
+            "in": 2,
             "depth": 2
         },
         {
@@ -2337,6 +2351,18 @@
             "out": 1,
             "in": 1,
             "depth": 1
+        },
+        {
+            "id": "Controllers.Telegram.Commands.SystemCommands.GenericmessageCommand",
+            "class": "App\\Controllers\\Telegram\\Commands\\SystemCommands\\GenericmessageCommand",
+            "short": "GenericmessageCommand",
+            "group": "commands",
+            "file": "app/Controllers/Telegram/Commands/SystemCommands/GenericmessageCommand.php",
+            "routes": [],
+            "kind": "command",
+            "out": 2,
+            "in": 0,
+            "depth": null
         },
         {
             "id": "Controllers.Telegram.Commands.TasksCommand",
@@ -2395,7 +2421,7 @@
             "routes": [],
             "kind": "service-screen",
             "out": 9,
-            "in": 63,
+            "in": 65,
             "depth": 1
         },
         {
@@ -2909,7 +2935,7 @@
             ],
             "kind": "action",
             "out": 0,
-            "in": 19,
+            "in": 20,
             "depth": 3
         },
         {
@@ -2990,20 +3016,6 @@
             "file": "app/Controllers/Telegram/Commands/Profile/ToggleInsuranceAction.php",
             "routes": [
                 "toggleInsurance"
-            ],
-            "kind": "command",
-            "out": 0,
-            "in": 1,
-            "depth": 3
-        },
-        {
-            "id": "Controllers.Telegram.Commands.Profile.CalculateInsuranceAction",
-            "class": "App\\Controllers\\Telegram\\Commands\\Profile\\CalculateInsuranceAction",
-            "short": "CalculateInsuranceAction",
-            "group": "profile",
-            "file": "app/Controllers/Telegram/Commands/Profile/CalculateInsuranceAction.php",
-            "routes": [
-                "calculateInsurance"
             ],
             "kind": "command",
             "out": 0,
@@ -3520,6 +3532,16 @@
         {
             "from": "app.Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportationCenterHandler",
             "from_class": "app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler",
+            "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportBeacon",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeacon",
+            "label": "📡 Маяки",
+            "callback": "'teleportBeacon'",
+            "matched_by": "exact:teleportBeacon",
+            "unresolved": false
+        },
+        {
+            "from": "app.Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportationCenterHandler",
+            "from_class": "app\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportationCenterHandler",
             "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.UpgradeBuildingAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\UpgradeBuildingAction",
             "label": "🆙 Поднять уровень",
@@ -3550,11 +3572,31 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportBeacon",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeacon",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.TeleportBeacon.TeleportBeaconCraft2Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\TeleportBeacon\\TeleportBeaconCraft2Select",
+            "label": "🔧 Скрафтить маяк",
+            "callback": "'teleportBeaconCraft2'",
+            "matched_by": "exact:teleportBeaconCraft2",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportBeacon",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeacon",
             "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportBeaconMoveAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeaconMoveAction",
             "label": "Переместиться на маяк",
             "callback": "'teleportBeaconMove'",
             "matched_by": "exact:teleportBeaconMove",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.TeleportBeacon",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeacon",
+            "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.ShowBaseInfoAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ShowBaseInfoAction",
+            "label": "🏠 База",
+            "callback": "'Base'",
+            "matched_by": "exact:Base",
             "unresolved": false
         },
         {
@@ -4490,6 +4532,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.CharcoalBriquettes1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\CharcoalBriquettes1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.ComponentsCraft1Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\ComponentsCraft1Select",
+            "label": "⬅️ Назад",
+            "callback": "'componentsCraft'",
+            "matched_by": "exact:componentsCraft",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.CharcoalBriquettes1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\CharcoalBriquettes1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠️ Крафт {$q}шт",
@@ -4630,6 +4682,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.ElectronicComponentsCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\ElectronicComponentsCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.ComponentsCraft1Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\ComponentsCraft1Select",
+            "label": "⬅️ Назад",
+            "callback": "'componentsCraft'",
+            "matched_by": "exact:componentsCraft",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.ElectronicComponentsCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\ElectronicComponentsCraft1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠 Крафт {$q} шт",
@@ -4680,6 +4742,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.FabricCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\FabricCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.ComponentsCraft1Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\ComponentsCraft1Select",
+            "label": "⬅️ Назад",
+            "callback": "'componentsCraft'",
+            "matched_by": "exact:componentsCraft",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.FabricCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\FabricCraft1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠️ Крафт {$q}шт",
@@ -4715,6 +4787,16 @@
             "label": "🛍️ Купить",
             "callback": "'buy'",
             "matched_by": "exact:buy",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.FertilizerCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\FertilizerCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.ComponentsCraft1Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\ComponentsCraft1Select",
+            "label": "⬅️ Назад",
+            "callback": "'componentsCraft'",
+            "matched_by": "exact:componentsCraft",
             "unresolved": false
         },
         {
@@ -4770,6 +4852,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.GlassBagsCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\GlassBagsCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.ComponentsCraft1Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\ComponentsCraft1Select",
+            "label": "⬅️ Назад",
+            "callback": "'componentsCraft'",
+            "matched_by": "exact:componentsCraft",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.GlassBagsCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\GlassBagsCraft1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠️ Крафт {$q} шт",
@@ -4815,6 +4907,16 @@
             "label": "🛍️ Купить",
             "callback": "'buy'",
             "matched_by": "exact:buy",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.MetalFragmentsCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\MetalFragmentsCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.ComponentsCraft1Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\ComponentsCraft1Select",
+            "label": "⬅️ Назад",
+            "callback": "'componentsCraft'",
+            "matched_by": "exact:componentsCraft",
             "unresolved": false
         },
         {
@@ -4870,6 +4972,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.SoilCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\SoilCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.ComponentsCraft1Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\ComponentsCraft1Select",
+            "label": "⬅️ Назад",
+            "callback": "'componentsCraft'",
+            "matched_by": "exact:componentsCraft",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.SoilCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\SoilCraft1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠️ Крафт {$q}шт",
@@ -4915,6 +5027,16 @@
             "label": "🛍️ Купить",
             "callback": "'buy'",
             "matched_by": "exact:buy",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.StoneBlocksCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\StoneBlocksCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.ComponentsCraft1Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\ComponentsCraft1Select",
+            "label": "⬅️ Назад",
+            "callback": "'componentsCraft'",
+            "matched_by": "exact:componentsCraft",
             "unresolved": false
         },
         {
@@ -4970,6 +5092,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.WiringCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\WiringCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.ComponentsCraft1Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\ComponentsCraft1Select",
+            "label": "⬅️ Назад",
+            "callback": "'componentsCraft'",
+            "matched_by": "exact:componentsCraft",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.WiringCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\WiringCraft1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠 {$q} шт",
@@ -5015,6 +5147,16 @@
             "label": "🛍️ Купить",
             "callback": "'buy'",
             "matched_by": "exact:buy",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.WoodMaterialsCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\WoodMaterialsCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Components.ComponentsCraft1Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\ComponentsCraft1Select",
+            "label": "⬅️ Назад",
+            "callback": "'componentsCraft'",
+            "matched_by": "exact:componentsCraft",
             "unresolved": false
         },
         {
@@ -5130,6 +5272,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.AntisepticCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\AntisepticCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.MedicalCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\MedicalCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'medicinesCraft1'",
+            "matched_by": "exact:medicinesCraft1",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.AntisepticCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\AntisepticCraft1Action",
             "to": null,
             "to_class": null,
             "label": "🛠 Крафт 1шт",
@@ -5190,6 +5342,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.BandageCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\BandageCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.MedicalCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\MedicalCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'medicinesCraft1'",
+            "matched_by": "exact:medicinesCraft1",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.BandageCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\BandageCraft1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠️ Крафт {$q} шт",
@@ -5235,6 +5397,16 @@
             "label": "🛍️ Купить",
             "callback": "'buy'",
             "matched_by": "exact:buy",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.BasicMedKitCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\BasicMedKitCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.MedicalCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\MedicalCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'medicinesCraft1'",
+            "matched_by": "exact:medicinesCraft1",
             "unresolved": false
         },
         {
@@ -5380,6 +5552,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.PainReliefPowerCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\PainReliefPowerCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.MedicalCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\MedicalCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'medicinesCraft1'",
+            "matched_by": "exact:medicinesCraft1",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.PainReliefPowerCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\PainReliefPowerCraft1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠️ Крафт {$q}шт",
@@ -5430,6 +5612,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.RegeneratorCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\RegeneratorCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.MedicalCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\MedicalCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'medicinesCraft1'",
+            "matched_by": "exact:medicinesCraft1",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.RegeneratorCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\RegeneratorCraft1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠️ Крафт {$q} шт",
@@ -5465,6 +5657,16 @@
             "label": "🛍️ Купить",
             "callback": "'buy'",
             "matched_by": "exact:buy",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.SedativeCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\SedativeCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.MedicalCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\MedicalCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'medicinesCraft1'",
+            "matched_by": "exact:medicinesCraft1",
             "unresolved": false
         },
         {
@@ -5520,6 +5722,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.StimulatorCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\StimulatorCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.MedicalCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\MedicalCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'medicinesCraft1'",
+            "matched_by": "exact:medicinesCraft1",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.StimulatorCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\StimulatorCraft1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠️ Крафт {$q}шт",
@@ -5570,6 +5782,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.StrengthElixirCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\StrengthElixirCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.MedicalCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\MedicalCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'medicinesCraft1'",
+            "matched_by": "exact:medicinesCraft1",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.StrengthElixirCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\StrengthElixirCraft1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠️ Крафт {$q}шт",
@@ -5610,6 +5832,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.FishingRodCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\FishingRodCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.ToolsCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\ToolsCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'tools'",
+            "matched_by": "exact:tools",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.FishingRodCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\FishingRodCraft1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠️ Крафт {$q} шт",
@@ -5645,6 +5877,16 @@
             "label": "🛍️ Купить",
             "callback": "'buy'",
             "matched_by": "exact:buy",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.FoldingKnifeCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\FoldingKnifeCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.ToolsCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\ToolsCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'tools'",
+            "matched_by": "exact:tools",
             "unresolved": false
         },
         {
@@ -5700,6 +5942,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.HoeCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\HoeCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.ToolsCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\ToolsCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'tools'",
+            "matched_by": "exact:tools",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.HoeCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\HoeCraft1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠️ Крафт {$q} шт",
@@ -5745,6 +5997,16 @@
             "label": "🛍️ Купить",
             "callback": "'buy'",
             "matched_by": "exact:buy",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.IronPickaxeCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\IronPickaxeCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.ToolsCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\ToolsCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'tools'",
+            "matched_by": "exact:tools",
             "unresolved": false
         },
         {
@@ -5800,6 +6062,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.IronShovelCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\IronShovelCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.ToolsCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\ToolsCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'tools'",
+            "matched_by": "exact:tools",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.IronShovelCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\IronShovelCraft1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠️ Крафт {$q}шт",
@@ -5825,6 +6097,16 @@
             "label": "🎒 Инвентарь",
             "callback": "'inventory'",
             "matched_by": "exact:inventory",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.LumberjackAxeCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\LumberjackAxeCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.ToolsCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\ToolsCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'tools'",
+            "matched_by": "exact:tools",
             "unresolved": false
         },
         {
@@ -5880,6 +6162,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.StonePickaxeCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\StonePickaxeCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.ToolsCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\ToolsCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'tools'",
+            "matched_by": "exact:tools",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.StonePickaxeCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\StonePickaxeCraft1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠️ Крафт {$q}шт",
@@ -5925,6 +6217,16 @@
             "label": "🛍️ Купить",
             "callback": "'buy'",
             "matched_by": "exact:buy",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.TireIronCraft1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\TireIronCraft1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Tools.ToolsCraft1Action",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\ToolsCraft1Action",
+            "label": "⬅️ Назад",
+            "callback": "'tools'",
+            "matched_by": "exact:tools",
             "unresolved": false
         },
         {
@@ -6680,6 +6982,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorDrifterClothes2Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorDrifterClothes2Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorCraft2Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorCraft2Select",
+            "label": "⬅️ Назад",
+            "callback": "'armorCraft2'",
+            "matched_by": "exact:armorCraft2",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorDrifterClothes2Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorDrifterClothes2Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.StartCraftArmorDrifterClothes2Action",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\StartCraftArmorDrifterClothes2Action",
             "label": "🛠 Крафт {$q}шт",
@@ -6725,6 +7037,16 @@
             "label": "🛍 Купить",
             "callback": "'buy'",
             "matched_by": "exact:buy",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorLeatherJacket2Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorLeatherJacket2Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorCraft2Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorCraft2Select",
+            "label": "⬅️ Назад",
+            "callback": "'armorCraft2'",
+            "matched_by": "exact:armorCraft2",
             "unresolved": false
         },
         {
@@ -6780,6 +7102,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorRaggedShirt2Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorRaggedShirt2Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorCraft2Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorCraft2Select",
+            "label": "⬅️ Назад",
+            "callback": "'armorCraft2'",
+            "matched_by": "exact:armorCraft2",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorRaggedShirt2Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorRaggedShirt2Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.StartCraftArmorRaggedShirt2Action",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\StartCraftArmorRaggedShirt2Action",
             "label": "🛠 Крафт {$q}шт",
@@ -6825,6 +7157,16 @@
             "label": "🛍 Купить",
             "callback": "'buy'",
             "matched_by": "exact:buy",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorReinforcedLeather2Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorReinforcedLeather2Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorCraft2Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Armor\\ArmorCraft2Select",
+            "label": "⬅️ Назад",
+            "callback": "'armorCraft2'",
+            "matched_by": "exact:armorCraft2",
             "unresolved": false
         },
         {
@@ -7200,6 +7542,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponCrossbowMk1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponCrossbowMk1Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponsCraft2Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponsCraft2Select",
+            "label": "⬅️ Назад",
+            "callback": "'weaponsCraft2'",
+            "matched_by": "exact:weaponsCraft2",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponCrossbowMk1Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponCrossbowMk1Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠 Крафт {$q}шт",
@@ -7250,6 +7602,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponMetalSpear2Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponMetalSpear2Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponsCraft2Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponsCraft2Select",
+            "label": "⬅️ Назад",
+            "callback": "'weaponsCraft2'",
+            "matched_by": "exact:weaponsCraft2",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponMetalSpear2Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponMetalSpear2Action",
             "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠 Крафт {$q}шт",
@@ -7295,6 +7657,16 @@
             "label": "🛍 Купить",
             "callback": "'buy'",
             "matched_by": "exact:buy",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponPipeGun2Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponPipeGun2Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponsCraft2Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponsCraft2Select",
+            "label": "⬅️ Назад",
+            "callback": "'weaponsCraft2'",
+            "matched_by": "exact:weaponsCraft2",
             "unresolved": false
         },
         {
@@ -7385,6 +7757,16 @@
             "label": "🛍 Купить",
             "callback": "'buy'",
             "matched_by": "exact:buy",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponWiredBat2Action",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponWiredBat2Action",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Weapons.WeaponsCraft2Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\Weapons\\WeaponsCraft2Select",
+            "label": "⬅️ Назад",
+            "callback": "'weaponsCraft2'",
+            "matched_by": "exact:weaponsCraft2",
             "unresolved": false
         },
         {
@@ -8670,11 +9052,11 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Sell.BuyCraftAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftAction",
-            "to": "Controllers.Telegram.Commands.Actions.Sell.BuyCraftItemListAction",
-            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftItemListAction",
-            "label": "$typeRus,",
-            "callback": "'buyCraftList_' . $type",
-            "matched_by": "exact:buyCraftList",
+            "to": "Controllers.Telegram.Commands.Actions.ShopAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\ShopAction",
+            "label": "🛒 Магазин",
+            "callback": "'shop'",
+            "matched_by": "exact:shop",
             "unresolved": false
         },
         {
@@ -8685,6 +9067,16 @@
             "label": "👨‍🎤 Персонаж",
             "callback": "'character'",
             "matched_by": "character-shortcut",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Sell.BuyCraftAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftAction",
+            "to": "Controllers.Telegram.Commands.Actions.Sell.BuyCraftItemListAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftItemListAction",
+            "label": "$typeRus,",
+            "callback": "'buyCraftList_' . $type",
+            "matched_by": "exact:buyCraftList",
             "unresolved": false
         },
         {
@@ -9110,11 +9502,11 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Sell.SellCraftAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\SellCraftAction",
-            "to": "Controllers.Telegram.Commands.Actions.Sell.SellCraftItemListAction",
-            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\SellCraftItemListAction",
-            "label": "type_rus",
-            "callback": "'sellCraftList_' . $type",
-            "matched_by": "exact:sellCraftList",
+            "to": "Controllers.Telegram.Commands.Actions.InventoryAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\InventoryAction",
+            "label": "🎒 Инвентарь",
+            "callback": "'inventory'",
+            "matched_by": "exact:inventory",
             "unresolved": false
         },
         {
@@ -9130,11 +9522,11 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Sell.SellCraftAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\SellCraftAction",
-            "to": "Controllers.Telegram.Commands.Actions.InventoryAction",
-            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\InventoryAction",
-            "label": "🎒 Инвентарь",
-            "callback": "'inventory'",
-            "matched_by": "exact:inventory",
+            "to": "Controllers.Telegram.Commands.Actions.Sell.SellCraftItemListAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\SellCraftItemListAction",
+            "label": "type_rus",
+            "callback": "'sellCraftList_' . $type",
+            "matched_by": "exact:sellCraftList",
             "unresolved": false
         },
         {
@@ -9768,6 +10160,26 @@
             "unresolved": false
         },
         {
+            "from": "Controllers.Telegram.Commands.Profile.CalculateInsuranceAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Profile\\CalculateInsuranceAction",
+            "to": "Controllers.Telegram.Commands.Profile.PersonalInsurance",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Profile\\PersonalInsurance",
+            "label": "🛡️ Страховка",
+            "callback": "'PersonalInsurance'",
+            "matched_by": "exact:PersonalInsurance",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Profile.CalculateInsuranceAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Profile\\CalculateInsuranceAction",
+            "to": "Services.Player.CharacterService",
+            "to_class": "App\\Services\\Player\\CharacterService",
+            "label": "👨‍🎤 Персонаж",
+            "callback": "'character'",
+            "matched_by": "character-shortcut",
+            "unresolved": false
+        },
+        {
             "from": "app.Controllers.Telegram.Commands.Profile.GearAction",
             "from_class": "app\\Controllers\\Telegram\\Commands\\Profile\\GearAction",
             "to": "Controllers.Telegram.Commands.Profile.GearArmorAction",
@@ -9785,6 +10197,16 @@
             "label": "⚔️ Оружие",
             "callback": "'gearWeapons'",
             "matched_by": "exact:gearWeapons",
+            "unresolved": false
+        },
+        {
+            "from": "app.Controllers.Telegram.Commands.Profile.GearAction",
+            "from_class": "app\\Controllers\\Telegram\\Commands\\Profile\\GearAction",
+            "to": "Services.Player.CharacterService",
+            "to_class": "App\\Services\\Player\\CharacterService",
+            "label": "⬅️ Назад",
+            "callback": "'character'",
+            "matched_by": "character-shortcut",
             "unresolved": false
         },
         {
@@ -9955,6 +10377,26 @@
             "label": "🤔 Задать имя персонажа",
             "callback": "'setCharacterName'",
             "matched_by": "exact:setCharacterName",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.SystemCommands.GenericmessageCommand",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\SystemCommands\\GenericmessageCommand",
+            "to": "Controllers.Telegram.Commands.Actions.ShopAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\ShopAction",
+            "label": "🛒 Магазин",
+            "callback": "'shop'",
+            "matched_by": "exact:shop",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.SystemCommands.GenericmessageCommand",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\SystemCommands\\GenericmessageCommand",
+            "to": "Controllers.Telegram.Commands.Actions.InventoryAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\InventoryAction",
+            "label": "🎒 Инвентарь",
+            "callback": "'inventory'",
+            "matched_by": "exact:inventory",
             "unresolved": false
         },
         {

@@ -225,6 +225,9 @@ class WeaponPipeGun2Action extends BaseAction
                         ['text' => '💰 Продать',   'callback_data' => 'sell'],
                         ['text' => '🛍 Купить',    'callback_data' => 'buy'],
                     ],
+                    [
+                        ['text' => '⬅️ Назад', 'callback_data' => 'weaponsCraft2'],
+                    ],
                 ],
             ];
 
@@ -290,6 +293,9 @@ class WeaponPipeGun2Action extends BaseAction
                         ['text' => '💰 Продать',   'callback_data' => 'sell'],
                         ['text' => '🛍 Купить',    'callback_data' => 'buy'],
                     ],
+                    [
+                        ['text' => '⬅️ Назад', 'callback_data' => 'weaponsCraft2'],
+                    ],
                 ],
             ];
         } else {
@@ -309,6 +315,7 @@ class WeaponPipeGun2Action extends BaseAction
                 ['text' => '💰 Продать',   'callback_data' => 'sell'],
                 ['text' => '🛍 Купить',    'callback_data' => 'buy'],
             ];
+            $rows[] = [['text' => '⬅️ Назад', 'callback_data' => 'weaponsCraft2']];
             $keyboard = [ 'inline_keyboard' => $rows ];
         }
 

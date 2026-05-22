@@ -101,6 +101,9 @@ class TeleportationCenterHandler extends BaseAction
         $keyboard = [
             'inline_keyboard' => [
                 [
+                    ['text' => '📡 Маяки', 'callback_data' => 'teleportBeacon'],
+                ],
+                [
                     ['text' => '🆙 Поднять уровень', 'callback_data' => 'upgrade_building_' . $buildingId],
                     ['text' => '🏠 База', 'callback_data' => 'Base'],
                 ],

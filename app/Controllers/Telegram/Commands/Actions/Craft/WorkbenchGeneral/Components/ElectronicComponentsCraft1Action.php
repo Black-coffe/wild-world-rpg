@@ -122,6 +122,9 @@ class ElectronicComponentsCraft1Action extends BaseAction
                         ['text' => '💰 Продать',   'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить',   'callback_data' => 'buy'],
                     ],
+                    [
+                        ['text' => '⬅️ Назад', 'callback_data' => 'componentsCraft'],
+                    ],
                 ]
             ];
         } else {
@@ -137,6 +140,7 @@ class ElectronicComponentsCraft1Action extends BaseAction
                 ['text' => '💰 Продать',   'callback_data' => 'sell'],
                 ['text' => '🛍️ Купить',   'callback_data' => 'buy'],
             ];
+            $rows[] = [['text' => '⬅️ Назад', 'callback_data' => 'componentsCraft']];
 
             $keyboard = ['inline_keyboard' => $rows];
         }
