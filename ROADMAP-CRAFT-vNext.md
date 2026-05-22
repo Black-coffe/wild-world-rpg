@@ -25,6 +25,7 @@
 | V10 | Свежесть еды + консервы (ADR-035) — 🏁 закрытие Фазы 2 | ✅ SHIPPED | v0.51.224 | 2026-05-21 |
 | V11 | Quest-chain foundation (prerequisite-цепочки, ADR-036) — 🏛 старт Фазы 3 | ✅ SHIPPED | v0.51.225 | 2026-05-21 |
 | V12 | Strategic quest-chains Bunker+Technopark + objective-движок (ADR-037) | ✅ SHIPPED | v0.51.226 | 2026-05-21 |
+| V13 | Strategic quest-chains GhostCity+IslandFarm + craft_item-фикс (ADR-037) | ✅ SHIPPED | v0.51.227 | 2026-05-22 |
 
 🏁 **ФАЗА 1 ЗАКРЫТА (V1-V5, 2026-05-20):** 20 рецептов × 4 сезона + 15 картинок + 4 сезонных события (Snowfall→winter / SpringFlood→spring / Dryness→summer / BerryBoom→autumn). Авто-ротация 21 день. Бонус: prod-хотфикс краша завершения построек/крафта (daily-log-review находка).
 
@@ -33,6 +34,8 @@
 **Следующее: Фаза 2 — V7-V10** (harvest scheduling → campfire cooking → food-buffs → хранение). V6 фундамент seed/plant/grow переиспользуется.
 
 **Image-tail'ы прочие** (WatchTower S26b + 4 strategic-объекта) — отдельный scope (Фаза 6 V28).
+
+🏛 **ФАЗА 3 (V11-V13): endgame quest-chains.** V11 — prerequisite-фундамент (ADR-036). V12 — objective-движок (discover/craft/explore/level) + цепочки Bunker+Technopark (ADR-037). **V13 (2026-05-22)** — цепочки GhostCity (Партизаны) + IslandFarm (Фермеры): Capture(discover)→mid(char_level)→final(craft signature weapon). Теперь все 4 фракции имеют полную цепочку фракция→объект→quest→оружие. **Audit-first вскрыл латентный баг V12** (исправлен в V13): `craft_item`-objective не видел faction-weapons (output_type=weapon в `characters_weapons` мимо `crafted_items_log`) → финалы были недостижимы (BUILT-BUT-DEAD); фикс — `craftedCount` суммирует все output-пути. +5 тестов (762), phpstan L9, testbot e2e 11/11 + 4 реальных Telegram-уведомления.
 
 ---
 
