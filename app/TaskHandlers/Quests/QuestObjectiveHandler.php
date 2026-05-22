@@ -13,6 +13,7 @@ use App\Models\TelegramUserModel;
 use App\Services\Endgame\EndgameProgressionService;
 use App\Services\Quest\QuestChainService;
 use App\TaskHandlers\BaseTaskHandler;
+use CodeIgniter\Database\BaseConnection;
 
 /**
  * V12 (ADR-037) — генерик-завершение data-driven квестов цепочек.
@@ -80,7 +81,7 @@ class QuestObjectiveHandler extends BaseTaskHandler
                 continue;
             }
 
-            if (!$this->objectiveMet($row, $character)) {
+            if (!$this->objectiveMet($row, $character, $db)) {
                 continue;
             }
 
@@ -106,10 +107,11 @@ class QuestObjectiveHandler extends BaseTaskHandler
     }
 
     /**
-     * @param array<string,mixed> $row
-     * @param array<string,mixed> $character
+     * @param array<string,mixed>            $row
+     * @param array<string,mixed>            $character
+     * @param BaseConnection<object, object> $db
      */
-    private function objectiveMet(array $row, array $character): bool
+    private function objectiveMet(array $row, array $character, BaseConnection $db): bool
     {
         $type = is_string($row['objective_type'] ?? null) ? $row['objective_type'] : '';
         $qty  = is_numeric($row['objective_qty'] ?? null) ? (int) $row['objective_qty'] : 1;
@@ -129,24 +131,73 @@ class QuestObjectiveHandler extends BaseTaskHandler
                 if (!is_string($target) || $target === '') {
                     return false;
                 }
-                $db = \Config\Database::connect();
-                $itemRes = $db->table('crafted_items')->select('id')->where('name_eng', $target)->get();
-                $itemRow = $itemRes === false ? null : $itemRes->getRowArray();
-                if (!is_array($itemRow) || !is_numeric($itemRow['id'] ?? null)) {
-                    return false;
-                }
-                $logRes = $db->table('crafted_items_log')
-                    ->selectSum('quantity', 'total')
-                    ->where('character_id', $cid)
-                    ->where('crafted_item_id', (int) $itemRow['id'])
-                    ->get();
-                $logRow = $logRes === false ? null : $logRes->getRowArray();
-                $have = is_array($logRow) && is_numeric($logRow['total'] ?? null) ? (int) $logRow['total'] : 0;
-                return $have >= $qty;
+                return $this->craftedCount($db, $cid, $target) >= $qty;
 
             default:
                 return false;
         }
+    }
+
+    /**
+     * Сколько единиц предмета `$target` (name) есть у персонажа — суммарно по ВСЕМ
+     * путям материализации крафта:
+     *   - crafted_items_log (default crafted_item output, name_eng);
+     *   - characters_weapons (output_type=weapon, weapons.name_en);
+     *   - characters_outfits (output_type=outfit, outfits.name_en).
+     *
+     * Без weapon/outfit-ветки craft_item-цель на faction-weapon никогда не
+     * выполнялась бы: оружие пишется в characters_weapons мимо crafted_items_log
+     * (а crafted_items строк для оружия нет вовсе) → финалы цепочек V12/V13
+     * (Bunker/Technopark/GhostCity/IslandFarm) были бы недостижимы. ADR-037.
+     *
+     * @param BaseConnection<object, object> $db
+     */
+    private function craftedCount(BaseConnection $db, int $characterId, string $target): int
+    {
+        $total = 0;
+
+        // 1. crafted_item → crafted_items_log.
+        $itemRes = $db->table('crafted_items')->select('id')->where('name_eng', $target)->get();
+        $itemRow = $itemRes === false ? null : $itemRes->getRowArray();
+        if (is_array($itemRow) && is_numeric($itemRow['id'] ?? null)) {
+            $logRes = $db->table('crafted_items_log')
+                ->selectSum('quantity', 'total')
+                ->where('character_id', $characterId)
+                ->where('crafted_item_id', (int) $itemRow['id'])
+                ->get();
+            $logRow = $logRes === false ? null : $logRes->getRowArray();
+            if (is_array($logRow) && is_numeric($logRow['total'] ?? null)) {
+                $total += (int) $logRow['total'];
+            }
+        }
+
+        // 2. weapon → characters_weapons. 3. outfit → characters_outfits.
+        $total += $this->ownedCount($db, $characterId, 'weapons', 'characters_weapons', 'weapon_id', $target);
+        $total += $this->ownedCount($db, $characterId, 'outfits', 'characters_outfits', 'outfit_id', $target);
+
+        return $total;
+    }
+
+    /**
+     * Сумма quantity в pivot-таблице ($pivotTable) для предмета с name_en=$target
+     * из справочника ($refTable). 0, если справочник не содержит такого name_en.
+     *
+     * @param BaseConnection<object, object> $db
+     */
+    private function ownedCount(BaseConnection $db, int $characterId, string $refTable, string $pivotTable, string $fkColumn, string $target): int
+    {
+        $refRes = $db->table($refTable)->select('id')->where('name_en', $target)->get();
+        $refRow = $refRes === false ? null : $refRes->getRowArray();
+        if (!is_array($refRow) || !is_numeric($refRow['id'] ?? null)) {
+            return 0;
+        }
+        $sumRes = $db->table($pivotTable)
+            ->selectSum('quantity', 'total')
+            ->where('character_id', $characterId)
+            ->where($fkColumn, (int) $refRow['id'])
+            ->get();
+        $sumRow = $sumRes === false ? null : $sumRes->getRowArray();
+        return is_array($sumRow) && is_numeric($sumRow['total'] ?? null) ? (int) $sumRow['total'] : 0;
     }
 
     /**
