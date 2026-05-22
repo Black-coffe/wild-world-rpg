@@ -38,7 +38,7 @@
 
 ## 2. Системные находки (cross-cutting)
 
-### 🔴 S1. L4–L10 «dead-upgrade плато»
+### 🔴 S1. L4–L10 «dead-upgrade плато» — ✅ ИСПРАВЛЕНО (v0.51.236, ADR-042)
 GameSettings-ключи эффектов засеяны только для **L2 и L3**; `BuildingEffectsService::resolveLevelMultiplier()` (`BuildingEffectsService.php:261-271`) каскадит L4-L10 вниз к L3. При этом единая шкала апгрейда продолжает расти: L4=100k … **L10=1 000 000 золота** (+ гейты уровня чара L14…L30). Игрок платит **~3.49M золота за L4-L10** и получает **ноль доп-эффекта**. Бьёт Workshop, BlastFurnace, Lab, Robotics, TeleportCenter(цена), Greenhouse(актив). Исключения, что масштабируются дальше L3: CommunicationTower (`level×100`), TeleportCenter (лимит маяков), production-здания (HandPump/Gym выход).
 
 ### 🔴 S2. Оборонные апгрейды + отсутствие ремонта — ✅ ИСПРАВЛЕНО (v0.51.235, ADR-041)
@@ -74,7 +74,7 @@ GameSettings-ключи эффектов засеяны только для **L2
 4. ✅ **(v0.51.234)** **Arsenal**: текст → «хранение и экипировка оружия/брони»; убраны produce/upgrade/ammo. *Остаётся 🟠: дать реальный эффект, чтобы оправдать L15+4-зависимости.*
 
 ### 🟠 / через ADR / GameSettings
-5. **L4-L10 плато** (S1): засеять `building.*.l4..l10.*` ключи с пологим спуском ИЛИ блокировать/удешевить апгрейд craft-only зданий выше L3.
+5. ✅ **(v0.51.236, ADR-042)** **L4-L10 плато** (S1): `BuildingEffectsService` интерполирует L4-L9 между L3 и новым L10-якорем (7 ключей: Workshop/Lab/Robotics 0.55, BlastFurnace 1.70, TeleportCost 0.45, Greenhouse 1.65/0.60). Каждый апгрейд улучшает; обратно совместимо; retroactively вознаграждает переплативших.
 6. ✅ **(v0.51.235, ADR-041)** **Оборона** (S2): per-level scaling эффекта+maxHp (levelMult, ×1.0 при L1) + мгновенный **building-repair** (стоимость пропорц. потерянному hp) + авто-restore hp при апгрейде + новый экран оборонного здания (чинит dead-end). *Остаётся: HandPump/Gym/Greenhouse не оборонные — их апгрейд-плато и кап силы Gym отдельно.*
 7. **Per-building цена апгрейда** (S4): дифференцировать `BuildingUpgrades` по ценности здания (ADR).
 8. **Двойная правда** (S5): мигрировать greenhouseLevels/gym*/handPump* из `Config\GameBalance` в `GameSettings`.
