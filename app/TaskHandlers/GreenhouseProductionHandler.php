@@ -10,6 +10,7 @@ use App\Models\ResourceModel;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Services\BuildingEffects\BuildingEffectsService;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use Config\GameBalance;
 
 /**
@@ -28,6 +29,8 @@ use Config\GameBalance;
 )]
 class GreenhouseProductionHandler extends BaseTaskHandler
 {
+    use GameSettingsReaderTrait;
+
     protected $characterBuildingModel;
     protected $characterResourceModel;
     protected $buildingModel;
@@ -122,7 +125,7 @@ class GreenhouseProductionHandler extends BaseTaskHandler
             }
 
             // === (1) Проверяем, не надо ли отправить уведомление "мало воды" (<= threshold) ===
-            if ($charResWater['quantity'] <= $this->cfg->greenhouseWaterShortageThreshold) {
+            if ($charResWater['quantity'] <= $this->gsInt('building.greenhouse.water_shortage_threshold', (int) $this->cfg->greenhouseWaterShortageThreshold)) {
                 $this->checkAndNotifyWaterShortage($charResWater, $characterId);
             }
 
@@ -153,7 +156,7 @@ class GreenhouseProductionHandler extends BaseTaskHandler
     private function checkAndNotifyWaterShortage(array $charResWater, int $characterId): void
     {
         // Если воды больше threshold (default 3), ничего не делаем
-        if ($charResWater['quantity'] > $this->cfg->greenhouseWaterShortageThreshold) {
+        if ($charResWater['quantity'] > $this->gsInt('building.greenhouse.water_shortage_threshold', (int) $this->cfg->greenhouseWaterShortageThreshold)) {
             return;
         }
 
@@ -174,7 +177,7 @@ class GreenhouseProductionHandler extends BaseTaskHandler
             $lastTime = new \DateTime($lastNotification);
             $diff = $now->getTimestamp() - $lastTime->getTimestamp();
             // Если прошло меньше cooldown (default 1800 секунд = 30 минут), выходим
-            if ($diff < $this->cfg->greenhouseWaterShortageCooldownSec) {
+            if ($diff < $this->gsInt('building.greenhouse.water_shortage_cooldown_sec', (int) $this->cfg->greenhouseWaterShortageCooldownSec)) {
                 return;
             }
         }

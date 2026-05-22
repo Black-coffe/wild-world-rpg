@@ -7,6 +7,7 @@ use App\Models\CharacterModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\BuildingModel;
 use App\TaskHandlers\BaseTaskHandler;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use Config\GameBalance;
 
 /**
@@ -25,6 +26,8 @@ use Config\GameBalance;
 )]
 class GymProductionHandler extends BaseTaskHandler
 {
+    use GameSettingsReaderTrait;
+
     protected $characterModel;
     protected $characterBuildingModel;
     protected $buildingModel;
@@ -46,9 +49,10 @@ class GymProductionHandler extends BaseTaskHandler
      */
     public function handle(array $task = []): void
     {
-        // Tick раз на gymTickIntervalMinutes (default 30 хв).
+        // Tick раз на tick-interval (D: GameSettings live-tunable, fallback GameBalance).
+        $tickInterval  = max(1, $this->gsInt('building.gym.tick_interval_minutes', (int) $this->cfg->gymTickIntervalMinutes));
         $currentMinute = (int) date('i');
-        if ($currentMinute % $this->cfg->gymTickIntervalMinutes !== 0) {
+        if ($currentMinute % $tickInterval !== 0) {
             return; // не время
         }
 

@@ -12,6 +12,7 @@ use App\Models\ClaimedCellModel;
 use App\Models\MapModel;
 use App\Models\BiomeModel;
 use App\TaskHandlers\BaseTaskHandler;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use Config\GameBalance;
 
 /**
@@ -32,6 +33,8 @@ use Config\GameBalance;
 )]
 class HandPumpProductionHandler extends BaseTaskHandler
 {
+    use GameSettingsReaderTrait;
+
     protected $buildingModel;
     protected $characterBuildingModel;
     protected $characterResourceModel;
@@ -185,8 +188,11 @@ class HandPumpProductionHandler extends BaseTaskHandler
      */
     private function getBiomeMultiplier(array|\App\Entities\BiomeEntity $biome): float
     {
-        $type = $biome['biome_type'] ?? '';
-        return $this->cfg->handPumpBiomeMultipliers[$type] ?? 1.0;
+        $typeRaw = $biome['biome_type'] ?? '';
+        $type    = is_string($typeRaw) ? $typeRaw : '';
+        // D: GameSettings live-tunable биом-множитель, fallback на GameBalance.
+        $default = $this->cfg->handPumpBiomeMultipliers[$type] ?? 1.0;
+        return $this->gsFloat('building.handpump.biome_multiplier.' . $type, (float) $default);
     }
 
     /**

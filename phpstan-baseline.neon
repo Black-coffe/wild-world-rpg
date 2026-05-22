@@ -15553,12 +15553,6 @@ parameters:
 			path: app/TaskHandlers/Built/GymProductionHandler.php
 
 		-
-			message: '#^Possibly invalid array key type mixed\.$#'
-			identifier: offsetAccess.invalidOffset
-			count: 1
-			path: app/TaskHandlers/Built/HandPumpProductionHandler.php
-
-		-
 			message: '#^Property App\\TaskHandlers\\Built\\HandPumpProductionHandler\:\:\$biomeModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
