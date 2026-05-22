@@ -4,7 +4,6 @@ namespace App\Controllers\Telegram\Commands\Actions\StartGame;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterModel;
-use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -30,23 +29,25 @@ class SetNameAction extends BaseAction
             ]);
         }
 
-        $message = "📝 *Правила выбора имени (чтобы понял даже тот, кто впервые в интернете)*:\n\n"
-            . "1️⃣ *Длина:* от 3 до 20 символов.\n\n"
-            . "2️⃣ *Разрешены только английские буквы* (A-Z, a-z), *цифры* (0-9) и *подчёркивание* (\_).\n"
-            . "   ➡️ *Никаких* пробелов, спецсимволов, скобок, эмодзи, русских букв, мата, и т.д.\n\n"
-            . "3️⃣ *Если твой «ник» нарушит эти правила — он не будет принят*.\n\n"
-            . "☝️ *ВАЖНО!* 🤖 Чтобы я принял твоё имя, введи команду:\n"
-            . "   `/name` (пробел) и затем _без кавычек_ впиши имя, например:\n"
-            . "   `/name My_NewName123`\n\n"
-            . "После этого я закреплю его за тобой!";
+        // N4 (ADR-039): вместо «введи /name ИМЯ» (slash рвёт inline-флоу) — forceReply.
+        // Игрок отвечает на это сообщение именем; GenericmessageCommand ловит ответ
+        // по маркеру «✍ NAME» → NameService->applyName. Зеркало трейд-паттерна SELL:/BUY:.
+        $message = "📝 *Придумай имя герою* и пришли его *ответом на это сообщение*.\n\n"
+            . "Правила: *3–20 символов*, только латиница (A-Z, a-z), цифры и «\_».\n"
+            . "Без пробелов, кириллицы, эмодзи и спецсимволов.\n\n"
+            . "Например: `My_Hero123`\n\n"
+            . "_✍ NAME_";
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        // #12 edit-in-place (ADR-018): экран-инструкция «введи /name ИМЯ» — навигация →
-        // редактируем сообщение, на котором нажата кнопка (fallback на новое при ошибке).
-        return MediaSender::editTextOrSend($this->navTarget() + [
-            'text' => $message,
-            'parse_mode' => 'Markdown',
-            'disable_web_page_preview' => true,
+
+        return Request::sendMessage([
+            'chat_id'      => $chatId,
+            'text'         => $message,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode([
+                'force_reply'            => true,
+                'input_field_placeholder' => 'My_Hero123',
+            ]),
         ]);
     }
 

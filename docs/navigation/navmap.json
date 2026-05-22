@@ -1,13 +1,13 @@
 {
-    "generated_at": "2026-05-22T14:34:24+03:00",
+    "generated_at": "2026-05-22T15:01:12+03:00",
     "stats": {
         "nodes": 223,
-        "edges": 857,
+        "edges": 859,
         "entrypoints": 9,
         "unresolved": 19,
         "dead_ends": 22,
         "orphans": 49,
-        "unreachable": 60,
+        "unreachable": 59,
         "max_depth": 7
     },
     "entrypoints": [
@@ -1525,8 +1525,8 @@
             ],
             "kind": "action",
             "out": 11,
-            "in": 10,
-            "depth": null
+            "in": 11,
+            "depth": 2
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Games.FortuneWheelAction",
@@ -2205,18 +2205,6 @@
             "depth": 3
         },
         {
-            "id": "Controllers.Telegram.Commands.NameCommand",
-            "class": "App\\Controllers\\Telegram\\Commands\\NameCommand",
-            "short": "NameCommand",
-            "group": "commands",
-            "file": "app/Controllers/Telegram/Commands/NameCommand.php",
-            "routes": [],
-            "kind": "command",
-            "out": 2,
-            "in": 0,
-            "depth": null
-        },
-        {
             "id": "Controllers.Telegram.Commands.Profile.CalculateInsuranceAction",
             "class": "App\\Controllers\\Telegram\\Commands\\Profile\\CalculateInsuranceAction",
             "short": "CalculateInsuranceAction",
@@ -2422,7 +2410,7 @@
             "file": "app/Services/Player/CharacterService.php",
             "routes": [],
             "kind": "service-screen",
-            "out": 9,
+            "out": 10,
             "in": 65,
             "depth": 1
         },
@@ -2444,6 +2432,18 @@
             "short": "GatherMessageFormatter",
             "group": "services",
             "file": "app/Services/Player/Gather/GatherMessageFormatter.php",
+            "routes": [],
+            "kind": "service-screen",
+            "out": 3,
+            "in": 0,
+            "depth": null
+        },
+        {
+            "id": "Services.Player.NameService",
+            "class": "App\\Services\\Player\\NameService",
+            "short": "NameService",
+            "group": "services",
+            "file": "app/Services/Player/NameService.php",
             "routes": [],
             "kind": "service-screen",
             "out": 3,
@@ -2797,7 +2797,7 @@
             ],
             "kind": "action",
             "out": 0,
-            "in": 1,
+            "in": 2,
             "depth": 3
         },
         {
@@ -10128,26 +10128,6 @@
             "unresolved": false
         },
         {
-            "from": "Controllers.Telegram.Commands.NameCommand",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\NameCommand",
-            "to": "Controllers.Telegram.Commands.Actions.StartGame.WithoutTrainingStartAction",
-            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\StartGame\\WithoutTrainingStartAction",
-            "label": "✖️ Без обучения",
-            "callback": "'withoutTrainingStart'",
-            "matched_by": "exact:withoutTrainingStart",
-            "unresolved": false
-        },
-        {
-            "from": "Controllers.Telegram.Commands.NameCommand",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\NameCommand",
-            "to": "Controllers.Telegram.Commands.Actions.StartGame.GetTrainingStartAction",
-            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\StartGame\\GetTrainingStartAction",
-            "label": "💡 Пройти обучение",
-            "callback": "'getTrainedStart'",
-            "matched_by": "exact:getTrainedStart",
-            "unresolved": false
-        },
-        {
             "from": "Controllers.Telegram.Commands.Profile.CalculateInsuranceAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Profile\\CalculateInsuranceAction",
             "to": "Controllers.Telegram.Commands.Profile.PersonalInsurance",
@@ -10648,6 +10628,16 @@
             "unresolved": false
         },
         {
+            "from": "Services.Player.CharacterService",
+            "from_class": "App\\Services\\Player\\CharacterService",
+            "to": "Controllers.Telegram.Commands.Actions.Faction.ChooseFaction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Faction\\ChooseFaction",
+            "label": "⚑ Выбрать фракцию",
+            "callback": "'chooseFaction_info'",
+            "matched_by": "exact:chooseFaction",
+            "unresolved": false
+        },
+        {
             "from": "Services.Player.CraftService",
             "from_class": "App\\Services\\Player\\CraftService",
             "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.GeneralCraftingAction",
@@ -10695,6 +10685,36 @@
             "label": "🎉 События",
             "callback": "'events'",
             "matched_by": "exact:events",
+            "unresolved": false
+        },
+        {
+            "from": "Services.Player.NameService",
+            "from_class": "App\\Services\\Player\\NameService",
+            "to": "Controllers.Telegram.Commands.Actions.StartGame.WithoutTrainingStartAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\StartGame\\WithoutTrainingStartAction",
+            "label": "✖️ Без обучения",
+            "callback": "'withoutTrainingStart'",
+            "matched_by": "exact:withoutTrainingStart",
+            "unresolved": false
+        },
+        {
+            "from": "Services.Player.NameService",
+            "from_class": "App\\Services\\Player\\NameService",
+            "to": "Controllers.Telegram.Commands.Actions.StartGame.GetTrainingStartAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\StartGame\\GetTrainingStartAction",
+            "label": "💡 Пройти обучение",
+            "callback": "'getTrainedStart'",
+            "matched_by": "exact:getTrainedStart",
+            "unresolved": false
+        },
+        {
+            "from": "Services.Player.NameService",
+            "from_class": "App\\Services\\Player\\NameService",
+            "to": "Controllers.Telegram.Commands.Actions.StartGame.SetNameAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\StartGame\\SetNameAction",
+            "label": "📝 Попробовать снова",
+            "callback": "'setName'",
+            "matched_by": "exact:setName",
             "unresolved": false
         },
         {

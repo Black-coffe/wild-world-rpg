@@ -45,13 +45,6 @@ class StartCommand extends UserCommand
             'selective'         => false, // показывать всем
         ]);
 
-        // Отправляем сообщение для отображения клавиатуры
-        Request::sendMessage([
-            'chat_id'      => $chatId,
-            'text'         => 'Добро пожаловать! Используйте меню ниже для выбора действия.',
-            'reply_markup' => $replyKeyboard,
-        ]);
-
         // 2. Проверяем/создаём пользователя
         $telegramUserModel = new TelegramUserModel();
         $existingUser      = $telegramUserModel->where('telegram_id', $telegramId)->first();
@@ -129,6 +122,15 @@ class StartCommand extends UserCommand
                 ];
                 $encodedKeyboard = json_encode($keyboard);
             }
+
+            // N4 (ADR-039): постоянную reply-клавиатуру шлём только новичку. Для
+            // существующих игроков её ставит CharacterService::showCharacterInfo —
+            // раньше StartCommand слал её безусловно → дубль keyboard-сообщения на /start.
+            Request::sendMessage([
+                'chat_id'      => $chatId,
+                'text'         => 'Добро пожаловать! Используйте меню ниже для выбора действия.',
+                'reply_markup' => $replyKeyboard,
+            ]);
 
             // Возвращаем результат
             return Request::sendMessage([

@@ -39,6 +39,11 @@ class GenericmessageCommand extends SystemCommand
             if (preg_match('/(SELL|BUY):(\d+)/', $promptText, $m)) {
                 return $this->handleTradeReply($chatId, $m[1], (int) $m[2], $rawText);
             }
+            // N4 (ADR-039): forceReply-ввод имени персонажа в онбординге.
+            // SetNameAction шлёт промпт с маркером «✍ NAME» → имя из ответа в NameService.
+            if (mb_strpos($promptText, '✍ NAME') !== false) {
+                return $this->handleNameReply($chatId, $rawText);
+            }
         }
 
         switch ($text) {
@@ -186,6 +191,33 @@ class GenericmessageCommand extends SystemCommand
                     ],
                 ],
             ]),
+        ]);
+    }
+
+    /**
+     * N4 (ADR-039): обработка ForceReply-ответа на промпт ввода имени (онбординг).
+     * Имя из ответа → NameService->applyName (та же валидация/tier-логика, что и /name slash).
+     */
+    private function handleNameReply(int $chatId, string $rawName): ServerResponse
+    {
+        $telegramId = $this->getMessage()->getFrom()->getId();
+        $user       = (new TelegramUserModel())->asArray()->where('telegram_id', $telegramId)->first();
+        if (!is_array($user)) {
+            return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Пользователь не найден.']);
+        }
+
+        $character = (new CharacterModel())->asArray()->where('telegram_user_id', $user['id'])->first();
+        if (!is_array($character)) {
+            return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Персонаж не найден.']);
+        }
+
+        $result = (new \App\Services\Player\NameService())->applyName($character, $rawName);
+
+        return Request::sendMessage([
+            'chat_id'      => $chatId,
+            'text'         => $result['text'],
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => $result['keyboard'] !== null ? json_encode($result['keyboard']) : null,
         ]);
     }
 

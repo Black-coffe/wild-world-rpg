@@ -8887,30 +8887,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
 
 		-
-			message: '#^Cannot access offset ''has_renamed'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/NameCommand.php
-
-		-
-			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/NameCommand.php
-
-		-
-			message: '#^Cannot access offset ''last_name_change'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/NameCommand.php
-
-		-
-			message: '#^Cannot access offset ''level'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/NameCommand.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Profile\\CalculateInsuranceAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1

@@ -136,25 +136,37 @@ class CharacterService
         $text .= "⚔️ *Оружие:* " . ($equippedWeapon ?: "❌ Нет") . "\n";
 
         // Инлайн-кнопки
-        $inlineKeyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
-                    ['text' => '🎉 События',     'callback_data' => 'events'],
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                ],
-                [
-                    ['text' => '📡 Маяки',       'callback_data' => 'teleportBeacon'],
-                    ['text' => '🎒 Инвентарь',   'callback_data' => 'inventory'],
-                    ['text' => '🛒 Магазин',     'callback_data' => 'shop'],
-                ],
-                [
-                    ['text' => '🧍 Страховка',      'callback_data' => 'PersonalInsurance'],
-                    ['text' => '💊 Аптечка',        'callback_data' => 'pharmacy'],
-                    ['text' => '⚔️ Экип',           'callback_data' => 'equipMenu'],
-                ],
-            ]
+        $inlineRows = [
+            [
+                ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
+                ['text' => '🎉 События',     'callback_data' => 'events'],
+                ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+            ],
+            [
+                ['text' => '📡 Маяки',       'callback_data' => 'teleportBeacon'],
+                ['text' => '🎒 Инвентарь',   'callback_data' => 'inventory'],
+                ['text' => '🛒 Магазин',     'callback_data' => 'shop'],
+            ],
+            [
+                ['text' => '🧍 Страховка',      'callback_data' => 'PersonalInsurance'],
+                ['text' => '💊 Аптечка',        'callback_data' => 'pharmacy'],
+                ['text' => '⚔️ Экип',           'callback_data' => 'equipMenu'],
+            ],
         ];
+
+        // N4 (ADR-039): on-demand вход к выбору фракции — кнопка появляется только
+        // когда lvl≥10 и фракция ещё не выбрана (faction_id=5/нет записи, joined_at пуст).
+        // Раньше попасть на выбор можно было лишь по крон-пингу (FactionNotificationHandler,
+        // повтор раз в 24ч). После выбора кнопка исчезает.
+        $level            = (int) ($characterRow['level'] ?? 0);
+        $hasChosenFaction = $charFaction
+            && (int) ($charFaction['faction_id'] ?? 0) !== 5
+            && !empty($charFaction['joined_at']);
+        if ($level >= 10 && !$hasChosenFaction) {
+            $inlineRows[] = [['text' => '⚑ Выбрать фракцию', 'callback_data' => 'chooseFaction_info']];
+        }
+
+        $inlineKeyboard = ['inline_keyboard' => $inlineRows];
 
         return Request::sendMessage([
             'chat_id'    => $chatId,
