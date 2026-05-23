@@ -46,6 +46,8 @@ $RECYCLE.BIN/
 .env.*.local
 .env.production
 .env.staging
+.env.bak*
+.env.backup*
 .vagrant
 Vagrantfile
 
