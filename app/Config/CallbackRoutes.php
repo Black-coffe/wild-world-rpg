@@ -170,6 +170,8 @@ class CallbackRoutes extends BaseConfig
         'craftUtilityT3Select'            => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional\UtilityCraftT3Select::class,
         // S25 (v0.51.205) — faction-unique weapons (4, ADR-029, Фаза 5 — закрывает фазу)
         'craftFactionWeaponsSelect'       => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional\FactionWeaponsCraftSelect::class,
+        // V14 (ADR-046) — faction-unique armor (4, сиблинг S25; reuse craftPreviewT3Armor_ prefix)
+        'craftFactionArmorSelect'         => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional\FactionArmorCraftSelect::class,
         'glassBags'                       => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\GlassBagsCraft1Action::class,
         'electronicComponents'            => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\ElectronicComponentsCraft1Action::class,
         'wiring'                          => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\WiringCraft1Action::class,

@@ -263,6 +263,7 @@ class WorkbenchProfessionalAction extends BaseAction
                 ],
                 [
                     ['text' => '🎖 Фракционное оружие', 'callback_data' => 'craftFactionWeaponsSelect'],
+                    ['text' => '🛡 Фракционная броня', 'callback_data' => 'craftFactionArmorSelect'],
                 ],
                 [
                     ['text' => '📋 Очередь крафта', 'callback_data' => 'craftQueue'],
