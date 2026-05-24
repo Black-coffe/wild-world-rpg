@@ -31,7 +31,7 @@ final class EventMessageFormatter
             $msg .= "_{$description}_\n\n";
         }
         $msg .= "⏳ Продлится приблизительно: {$duration} мин.\n";
-        $msg .= "_Сводкв отправим когда событие закончится._";
+        $msg .= "_Сводку отправим, когда событие закончится._";
 
         return $msg;
     }
