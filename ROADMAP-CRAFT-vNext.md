@@ -148,5 +148,5 @@ Greenhouse (S13b) → углубление + новая ось «еда».
 
 ## §4. Источники
 
-- v1 итоги: `ROADMAP-CRAFT.md` §0 (S1–S29), retrospective `mmorpg-vault/inbox/2026-05-20-roadmap-v1-retrospective.md`.
-- Алгоритм: `ROADMAP-CRAFT.md` §S30. Валидация: `GAME_RULES_AND_VALIDATION_FRAMEWORK.md` (7 ворот, 10 портретов).
+- v1 итоги: `mmorpg-vault/reference/ROADMAP-CRAFT-v1.md` §0 (S1–S29, архив), retrospective `mmorpg-vault/inbox/2026-05-20-roadmap-v1-retrospective.md`.
+- Алгоритм: `mmorpg-vault/reference/ROADMAP-CRAFT-v1.md` §S30. Валидация: `GAME_RULES_AND_VALIDATION_FRAMEWORK.md` (7 ворот, 10 портретов).
