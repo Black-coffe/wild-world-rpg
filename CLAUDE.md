@@ -311,7 +311,7 @@ edit-in-place / callback flow / forceReply / typing delay).
 
 **Resource & Crafting System**
 - Resource gathering with biome-specific modifiers
-- Multi-tier crafting system (Workbench General → Workbench Standard)
+- Multi-tier crafting system (Workbench General → Workbench Standard → Professional Workbench T3)
 - Crafted items and recipes managed through dedicated models
 - Resource banking and trading mechanics
 

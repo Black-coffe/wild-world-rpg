@@ -27,7 +27,7 @@ Built with **CodeIgniter 4** and the **Longman Telegram Bot** library, this proj
 ### Core Gameplay
 - **Exploration** - Navigate a cell-based world map with multiple biomes (forests, deserts, mountains, swamps, etc.)
 - **Resource Gathering** - Collect materials based on your location and biome modifiers
-- **Crafting System** - Multi-tier crafting with Workbench General and Workbench Standard
+- **Crafting System** - Three-tier crafting: Workbench General → Workbench Standard → Professional Workbench (endgame Tier 3)
 - **Base Building** - Establish camps with various buildings (Workshop, Arsenal, Laboratory, Greenhouse, and more)
 - **PvE Combat** - Battle NPCs with a detailed damage and effects system
 - **PvP System** - Player detection and combat mechanics
@@ -67,8 +67,9 @@ Players can construct various structures at their base:
 | Warehouse | Resource storage |
 
 ### Crafting Tiers
-1. **Basic Workbench** - Components, medical supplies, basic tools
-2. **Standard Workbench** - Armor, weapons, robots, teleport beacons
+1. **Workbench General** (basic) - Components, medical supplies, basic tools
+2. **Workbench Standard** - Armor, weapons, robots, teleport beacons
+3. **Professional Workbench** (Tier 3, endgame) - High-tier weapons, advanced armor, premium medical items, advanced tools, and faction-unique signature weapons. The workbench is itself a crafted item gated behind character level 20 and an upgraded base (Blast Furnace L3 + Laboratory L3).
 
 ## Installation
 
