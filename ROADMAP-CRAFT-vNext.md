@@ -27,6 +27,7 @@
 | V12 | Strategic quest-chains Bunker+Technopark + objective-движок (ADR-037) | ✅ SHIPPED | v0.51.226 | 2026-05-21 |
 | V13 | Strategic quest-chains GhostCity+IslandFarm + craft_item-фикс (ADR-037) | ✅ SHIPPED | v0.51.227 | 2026-05-22 |
 | V14 | Faction-unique armor (4 signature-брони, re-scope: weapons уже в S25) (ADR-046) | ✅ SHIPPED | v0.51.242 | 2026-05-24 |
+| — | 🎨 V14 image-tail: 4 картинки faction-брони (loot.armor, gpt-image-2 V4, 0-text) | ✅ SHIPPED | v0.51.243 | 2026-05-25 |
 
 🏁 **ФАЗА 1 ЗАКРЫТА (V1-V5, 2026-05-20):** 20 рецептов × 4 сезона + 15 картинок + 4 сезонных события (Snowfall→winter / SpringFlood→spring / Dryness→summer / BerryBoom→autumn). Авто-ротация 21 день. Бонус: prod-хотфикс краша завершения построек/крафта (daily-log-review находка).
 
