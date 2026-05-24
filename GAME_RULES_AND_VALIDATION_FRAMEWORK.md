@@ -247,7 +247,7 @@ Wild World — текстовая постапок-MMORPG в Telegram с реа�
 
 ### Код и процесс
 13. **Крупный рефактор без fixture-fence** на hot-path god-классах. _Исключение:_ если есть byte-equivalent regression baseline (ADR-014) — тогда можно.
-14. **Менять deploy-pipeline** (`develop`→preprod, `master`+tag→prod, PHPUnit gate, rsync, smoke). _Исключение:_ с ADR + проверкой на preprod.
+14. **Менять deploy-pipeline** (`develop`→preprod, tag `v*`→prod, PHPUnit gate, rsync, smoke). _Исключение:_ с ADR + проверкой на preprod.
 15. **Вводить новую внешнюю зависимость** (composer-пакет). _Исключение:_ с обоснованием «почему не нативно CI4/PHP» + проверкой лицензии + ADR.
 16. **Менять структуру каталогов** `Services/Repositories/TaskHandlers/Actions`. _Исключение:_ с ADR и обновлением `apps/<подсистема>/index.md`.
 

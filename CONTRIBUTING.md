@@ -42,7 +42,7 @@ The framework was validated against ten deliberately different target-audience p
 
 ### Pull requests
 
-1. Fork the repo and branch off `master`
+1. Fork the repo and branch off `develop`
 2. **Run your change through the validation framework** and include the filled-in idea card in the PR description (skip only for trivial typo/doc fixes)
 3. Follow the coding standards below (PSR-12, strict types, PHPStan Level 9)
 4. Write clear commit messages (see *Commit messages*)
