@@ -36,6 +36,7 @@
 | — | 🎨 V18 image-tail: 2 картинки T2-роботов (robot.scout/robot.industrial, gpt-image-2 V4, 0-text) | ✅ SHIPPED | v0.51.249 | 2026-05-25 |
 | V19 | Robot repair — восстановление durability роботов (закрытие dead promise здания, re-scope с T3, ADR-050) | ✅ SHIPPED | v0.51.250 | 2026-05-25 |
 | V20 | Faction communal project — async вклад → фракц-buff крафта (re-scope с «2+ одновременно», ADR-051) — 🏁 закрытие Фазы 4 | ✅ SHIPPED | v0.51.251 | 2026-05-25 |
+| V21 | Crafting economy dashboard (admin-аналитика gold/turnover/inflation + период-фильтр, ADR-053) — 💹 старт Фазы 5 | ✅ SHIPPED | v0.51.252 | 2026-05-25 |
 
 🏁 **ФАЗА 1 ЗАКРЫТА (V1-V5, 2026-05-20):** 20 рецептов × 4 сезона + 15 картинок + 4 сезонных события (Snowfall→winter / SpringFlood→spring / Dryness→summer / BerryBoom→autumn). Авто-ротация 21 день. Бонус: prod-хотфикс краша завершения построек/крафта (daily-log-review находка).
 
@@ -135,7 +136,7 @@ Greenhouse (S13b) → углубление + новая ось «еда».
 🏁 **ФАЗА 4 ЗАКРЫТА (V16-V20, 2026-05-25):** player progression branching. V16-17 крафт-специализация (3 ветки + scaling по уровню, ADR-047/048). V18-19 роботы (T2 Разведчик/Промышленник tier-aware + ремонт, ADR-049/050). V20 фракц-кооп (async communal project → фракц-buff, ADR-051). 6 ADR, прод-теги v0.51.245→251. **Следующее: Фаза 5 — Economy & services (V21 crafting dashboard).**
 
 ### 💹 Фаза 5 — Economy & services (P7/P8)
-- **V21** — Crafting economy dashboard (admin; реюз S30 CSV + craft-tree; графики цен/оборота/инфляции).
+- **V21** ✅ **SHIPPED v0.51.252 (2026-05-25, ADR-053) — 💹 СТАРТ ФАЗЫ 5.** Crafting economy dashboard — read-only admin-аналитика `/admin/crafting-economy`. **Audit-first:** scaffold готов (BaseAdminController + admin login-filter + sidebar + `templates/dashboard`); S30 CSV = `CraftTreeController::export()` (reuse 1:1); данные populated на проде (108.7M золота/365 чаров/кит 68M, 6432 крафт-лога 14 мес, 340 транзакций, 1611 ресурс-строк → НЕ BUILT-BUT-DEAD). **Сделано:** `CraftingEconomyService` (read-only агрегаты) + `CraftingEconomyController` (index/data/export); KPI-карточки + **5 ApexCharts** (концентрация золота=инфляц-сигнал, оборот крафта по месяцам, топ крафтов, топ ресурсов, транзакции buy/sell) + CSV-экспорт + sidebar «Экономика крафта». **По фидбэку user'а:** добавлен **фильтр периода** (пресеты 3/12/24 мес / всё время + календарный диапазon С—По; применяется к временны́м метрикам; золото/ресурсы=текущий снимок) + CSV синхронит период. **+7 тестов (831→838), phpstan L9 ✅** (view `$this` — конвенц. baseline как все 44 view). **Tier-2 real-admin (Chrome MCP):** все 5 графиков рисуются, KPI заполнены, фильтр-пресеты/календарь переключают данные, CSV-href синхронит период — full PASS. **🐛 Tier-2 поймал:** `vendor/apexcharts/apexcharts.min.js` → 404 (public/vendor в .gitignore, не деплоится; все theme-vendor 404) → графики не рисовались при заполненных KPI; фикс — self-host ApexCharts в tracked `public/assets/js/admin/`. Урок → memory `feedback_admin_theme_vendor_not_deployed`. Read-only: баланс не меняет (правки — через GameSettings).
 - **V22** — Map-driven gather rebalance (rare biome-spots от S10, по прод-фидбэку + dashboard-данным).
 - **V23** — NPC repair shops (реюз S5 repair + GameSettings cost).
 - **V24** — Crafted-item insurance (NPC-сервис; P2 оффлайн-защита).
