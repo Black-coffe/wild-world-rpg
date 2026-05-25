@@ -358,7 +358,7 @@ Key tables managed through migrations in `app/Database/Migrations/`:
 ### Configuration
 
 **Environment Setup**
-- Copy `env` to `.env` and configure database and Telegram bot credentials
+- Copy `.env.example` to `.env` and configure database and Telegram bot credentials
 - Required: `telegram.API_KEY` and `telegram.BOT_USERNAME`
 - Database configuration for MySQL/MariaDB
 

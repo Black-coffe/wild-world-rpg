@@ -70,7 +70,7 @@ cd wild-world-rpg
 composer install
 
 # Configure environment
-cp env .env
+cp .env.example .env
 # Edit .env: database creds, telegram.API_KEY, telegram.BOT_USERNAME
 
 # Run migrations
@@ -120,7 +120,7 @@ The codebase is enforced at **PHPStan Level 9** with a managed baseline (`phpsta
 
 ### Directory structure
 
-When adding new features, follow the layout in [`README.md`](./README.md) §Architecture. Service-layer code lives under `app/Services/<Domain>/`; background work under `app/TaskHandlers/<Group>/`; Telegram callback handlers under `app/Controllers/Telegram/Commands/Actions/<Group>/`.
+When adding new features, follow the layout in [`README.md`](./README.md) §Project Structure. Service-layer code lives under `app/Services/<Domain>/`; background work under `app/TaskHandlers/<Group>/`; Telegram callback handlers under `app/Controllers/Telegram/Commands/Actions/<Group>/`.
 
 ## Documentation contract
 
