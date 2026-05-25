@@ -138,6 +138,10 @@ class CallbackRoutes extends BaseConfig
         'startRobotExplorer'              => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\StartRobotExplorationAction::class,
         'setCoordinatesRobotExplorer'     => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\SetCoordinatesRobotExplorerAction::class,
         'startRobotGatherer'              => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\StartRobotGatheringAction::class,
+        // V19 (ADR-050) — ремонт роботов (восстановление durability). Ключ = сегмент до 1-го `_`,
+        // поэтому robotRepair / robotRepairConfirm не коллизят.
+        'robotRepair'                     => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\RobotRepairAction::class,
+        'robotRepairConfirm'              => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots\RobotRepairConfirmAction::class,
 
         // === Crafting (Workbench General) ===
         'generalCraft'                    => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\GeneralCraftingAction::class,

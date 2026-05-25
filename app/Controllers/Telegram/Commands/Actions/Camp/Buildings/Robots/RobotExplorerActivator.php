@@ -148,21 +148,33 @@ class RobotExplorerActivator implements RobotActivatorInterface
         // 6) Делаем кнопки:
         //    — «Запустить рандомно»
         //    — «Указать координаты запуска»
+        //    — (V19) «Ремонт», если текущий робот частично израсходован
         //    — «Роботы»
-        // Каждую кнопку — в своей строке (два ряда + третий ряд)
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🚀 Запустить рандомно', 'callback_data' => 'startRobotExplorer_' . $this->robotId],
-                ],
-                [
-                    ['text' => '📍 Указать координаты', 'callback_data' => 'setCoordinatesRobotExplorer_' . $this->robotId],
-                ],
-                [
-                    ['text' => '🤖 Роботы', 'callback_data' => 'AllRobots'],
-                ],
-            ]
+        $rows = [
+            [['text' => '🚀 Запустить рандомно', 'callback_data' => 'startRobotExplorer_' . $this->robotId]],
+            [['text' => '📍 Указать координаты', 'callback_data' => 'setCoordinatesRobotExplorer_' . $this->robotId]],
         ];
+
+        // V19 (ADR-050): кнопка ремонта, если есть частично израсходованный робот этого типа.
+        if ((new \App\Services\Player\RobotRepairService())->enabled()) {
+            $robotItem = $this->craftedItemsModel->find($this->robotId);
+            $baseDur   = is_array($robotItem) && isset($robotItem['durability_count']) && is_numeric($robotItem['durability_count'])
+                ? (int) $robotItem['durability_count'] : 0;
+            $needsRepair = false;
+            foreach ($logRows as $lr) {
+                $d = isset($lr['durability_count']) && is_numeric($lr['durability_count']) ? (int) $lr['durability_count'] : 0;
+                if ($baseDur > 0 && $d < $baseDur) {
+                    $needsRepair = true;
+                    break;
+                }
+            }
+            if ($needsRepair) {
+                $rows[] = [['text' => '🔧 Ремонт', 'callback_data' => 'robotRepair_' . $this->robotId]];
+            }
+        }
+
+        $rows[] = [['text' => '🤖 Роботы', 'callback_data' => 'AllRobots']];
+        $keyboard = ['inline_keyboard' => $rows];
 
         // 7) Отправляем
         $imagePath = base_url('uploads/telegram/craft/standard/robot_explorer.jpg');

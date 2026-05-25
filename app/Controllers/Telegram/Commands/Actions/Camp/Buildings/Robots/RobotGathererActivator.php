@@ -143,21 +143,31 @@ class RobotGathererActivator implements RobotActivatorInterface
             . "   • Одновременно может работать только один робот‐добытчик (по умолчанию).\n\n"
             . "🎉 Готов к сбору? Жми «Запуск робота» ниже!";
 
-        // 8) Две кнопки: «Запуск робота» и «Назад»
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    [
-                        'text'          => '🚀 Запуск робота',
-                        'callback_data' => 'startRobotGatherer_' . $this->robotId,
-                    ],
-                    [
-                        'text'          => '◀️ Назад',
-                        'callback_data' => 'AllRobots',
-                    ],
-                ],
-            ]
+        // 8) Кнопки: «Запуск робота», (V19) «Ремонт» если частично израсходован, «Назад»
+        $rows = [
+            [['text' => '🚀 Запуск робота', 'callback_data' => 'startRobotGatherer_' . $this->robotId]],
         ];
+
+        // V19 (ADR-050): кнопка ремонта, если есть частично израсходованный робот этого типа.
+        if ((new \App\Services\Player\RobotRepairService())->enabled()) {
+            $robotItem = $this->craftedItemsModel->find($this->robotId);
+            $baseDur   = is_array($robotItem) && isset($robotItem['durability_count']) && is_numeric($robotItem['durability_count'])
+                ? (int) $robotItem['durability_count'] : 0;
+            $needsRepair = false;
+            foreach ($logRows as $lr) {
+                $d = isset($lr['durability_count']) && is_numeric($lr['durability_count']) ? (int) $lr['durability_count'] : 0;
+                if ($baseDur > 0 && $d < $baseDur) {
+                    $needsRepair = true;
+                    break;
+                }
+            }
+            if ($needsRepair) {
+                $rows[] = [['text' => '🔧 Ремонт', 'callback_data' => 'robotRepair_' . $this->robotId]];
+            }
+        }
+
+        $rows[] = [['text' => '◀️ Назад', 'callback_data' => 'AllRobots']];
+        $keyboard = ['inline_keyboard' => $rows];
 
         // 9) Отправляем результат
         $imagePath = base_url('uploads/telegram/craft/standard/robot_gatherer.jpg'); // условный путь к картинке
