@@ -44,7 +44,7 @@ class ApplyCanonCorrections extends BaseCommand
     ];
 
     /**
-     * @var list<array{slug:string,replace:array<string,string>,mark_reviewed:bool,note:string}>
+     * @var list<array{slug:string,replace:array<string,string>,mark_reviewed:bool,note:string,content_file?:string}>
      */
     private const CORRECTIONS = [
         [
@@ -58,6 +58,16 @@ class ApplyCanonCorrections extends BaseCommand
             'replace'       => self::FACTION_RENAME,
             'mark_reviewed' => false, // большой обзорный пост — систем. фикс, полный ревью отдельно
             'note'          => 'Упоминание фракции «Разбойники» → «Партизаны» в списке фракций',
+        ],
+        [
+            // Полный переписанный пост: формула боя приведена к коду (PvpDamageCalculator/
+            // GameBalance) — урон от оружия (не strength×0.5), уклонение ≤75%, Lucky Strike/
+            // One-Shot, 150 раундов; смерть −0.5% (не 10%), победитель ~+0.1% (не +2%).
+            'slug'          => 'pvp-rezhim-wild-world-mehanika-srazheniy-strahovanie-strategii',
+            'replace'       => [],
+            'content_file'  => 'pvp-rezhim-wild-world-mehanika-srazheniy-strahovanie-strategii.html',
+            'mark_reviewed' => true,
+            'note'          => 'PvP-формула и числа смерти/победы приведены к актуальному коду (ADR-010)',
         ],
     ];
 
@@ -79,11 +89,23 @@ class ApplyCanonCorrections extends BaseCommand
             $content = is_string($post['content_html'] ?? null) ? $post['content_html'] : '';
             $excerpt = is_string($post['excerpt'] ?? null) ? $post['excerpt'] : '';
 
-            $from        = array_keys($c['replace']);
-            $to          = array_values($c['replace']);
-            $newContent  = str_replace($from, $to, $content);
-            $newExcerpt  = str_replace($from, $to, $excerpt);
-            $changed     = $newContent !== $content || $newExcerpt !== $excerpt;
+            $file = $c['content_file'] ?? '';
+            if ($file !== '') {
+                $path   = APPPATH . 'Data/site_canon/' . $file;
+                $loaded = is_file($path) ? file_get_contents($path) : false;
+                if ($loaded === false) {
+                    CLI::write('  ⚠ файл-оверрайд не найден: ' . $file, 'red');
+                    continue;
+                }
+                $newContent = $loaded;
+                $newExcerpt = $excerpt;
+            } else {
+                $from       = array_keys($c['replace']);
+                $to         = array_values($c['replace']);
+                $newContent = str_replace($from, $to, $content);
+                $newExcerpt = str_replace($from, $to, $excerpt);
+            }
+            $changed = $newContent !== $content || $newExcerpt !== $excerpt;
 
             $alreadyReviewed = (int) (is_numeric($post['canon_reviewed'] ?? null) ? $post['canon_reviewed'] : 0) === 1;
             $willMark        = $c['mark_reviewed'] && ! $alreadyReviewed;
