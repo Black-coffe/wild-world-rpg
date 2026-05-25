@@ -46,20 +46,28 @@ class ApplyCanonCorrections extends BaseCommand
     ];
 
     /**
-     * @var list<array{slug:string,replace:array<string,string>,mark_reviewed:bool,note:string,content_file?:string}>
+     * @var list<array{slug:string,replace:array<string,string>,note:string,content_file?:string}>
      */
     private const CORRECTIONS = [
         [
             'slug'          => 'predstavljaem-chetyre-frakcii-v-nashej-igre-wild-world',
             'replace'       => self::FACTION_RENAME,
-            'mark_reviewed' => true,
             'note'          => 'Фракция «Разбойники» → канон «Партизаны» (ADR-010)',
         ],
         [
+            // Полный ревью: «концепт-док» переписан в игрок-обзор под канон — фракции
+            // Милитари/Партизаны/Инженеры/Фермеры (были Остин Тех/Наследники Военных/Мутанты),
+            // PvP полевые дуэли + 150 раундов + death −0.5%, стратегобъекты, 4 финала.
             'slug'          => 'wild-world-masshtabnaya-tekstovaya-mmorpg-s-elementami-pesochnitsy-i-vyzhivaniya',
-            'replace'       => self::FACTION_RENAME,
-            'mark_reviewed' => false, // большой обзорный пост — систем. фикс, полный ревью отдельно
-            'note'          => 'Упоминание фракции «Разбойники» → «Партизаны» в списке фракций',
+            'replace'       => [],
+            'content_file'  => 'wild-world-masshtabnaya-tekstovaya-mmorpg-s-elementami-pesochnitsy-i-vyzhivaniya.html',
+            'note'          => 'Флагманский обзор переписан под канон (фракции/PvP/финалы)',
+        ],
+        [
+            'slug'          => 'wild-world-novaja-tekstovaja-rpg-v-postapokalipticheskom-settinge',
+            'replace'       => [],
+            'content_file'  => 'wild-world-novaja-tekstovaja-rpg-v-postapokalipticheskom-settinge.html',
+            'note'          => 'Обзорный пост: точные имена фракций + стратегобъекты + https-ссылки',
         ],
         [
             // Полный переписанный пост: формула боя приведена к коду (PvpDamageCalculator/
@@ -68,7 +76,6 @@ class ApplyCanonCorrections extends BaseCommand
             'slug'          => 'pvp-rezhim-wild-world-mehanika-srazheniy-strahovanie-strategii',
             'replace'       => [],
             'content_file'  => 'pvp-rezhim-wild-world-mehanika-srazheniy-strahovanie-strategii.html',
-            'mark_reviewed' => true,
             'note'          => 'PvP-формула и числа смерти/победы приведены к актуальному коду (ADR-010)',
         ],
         [
@@ -78,7 +85,6 @@ class ApplyCanonCorrections extends BaseCommand
             'slug'          => 'wild-world-koncepcija-i-razvitie-igry',
             'replace'       => [],
             'content_file'  => 'wild-world-koncepcija-i-razvitie-igry.html',
-            'mark_reviewed' => true,
             'note'          => 'Названия фракций → канон + привязка финалов к фракциям',
         ],
     ];
@@ -154,7 +160,7 @@ class ApplyCanonCorrections extends BaseCommand
             $changed = $newContent !== $content || $newExcerpt !== $excerpt;
 
             $alreadyReviewed = (int) (is_numeric($post['canon_reviewed'] ?? null) ? $post['canon_reviewed'] : 0) === 1;
-            $willMark        = $c['mark_reviewed'] && ! $alreadyReviewed;
+            $willMark        = ! $alreadyReviewed; // запись в CORRECTIONS = сверённый пост
 
             if (! $changed && ! $willMark) {
                 CLI::write('  = без изменений: ' . $c['slug'], 'dark_gray');
@@ -168,10 +174,7 @@ class ApplyCanonCorrections extends BaseCommand
                 continue;
             }
 
-            $data = ['id' => $id, 'content_html' => $newContent, 'excerpt' => $newExcerpt !== '' ? $newExcerpt : null];
-            if ($c['mark_reviewed']) {
-                $data['canon_reviewed'] = 1;
-            }
+            $data = ['id' => $id, 'content_html' => $newContent, 'excerpt' => $newExcerpt !== '' ? $newExcerpt : null, 'canon_reviewed' => 1];
             if ($model->update($id, $data)) {
                 if ($changed) {
                     $applied++;
