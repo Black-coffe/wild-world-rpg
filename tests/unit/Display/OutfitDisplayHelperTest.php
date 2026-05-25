@@ -49,25 +49,27 @@ final class OutfitDisplayHelperTest extends CIUnitTestCase
         $this->assertNull(OutfitDisplayHelper::factionArmorImageRel('TitanPowerArmor'));
     }
 
-    public function testResistanceLinesShowOnlyNonZeroWithSigns(): void
+    public function testResistanceLinesUseStoredScaleAndOnlyThreeResistances(): void
     {
-        // Бункерная бронеплита: +20% физ., +5% огонь, −8% скорость, −5% скрытность; яд=0.
+        // Шкала 0–100 (как в БД: armor_value-стиль). Бункерная бронеплита после
+        // V15-фикса: phys 20, fire 5, poison 0. speed/stealth НЕ показываем.
         $outfit = [
-            'physical_resistance' => 0.20,
-            'fire_resistance'     => 0.05,
+            'physical_resistance' => 20,
+            'fire_resistance'     => 5,
             'poison_resistance'   => 0,
-            'speed_modifier'      => -0.08,
-            'stealth_modifier'    => -0.05,
+            'speed_modifier'      => -8,   // не должно попасть в вывод
+            'stealth_modifier'    => -5,   // не должно попасть в вывод
         ];
         $lines = OutfitDisplayHelper::resistanceLines($outfit);
 
-        $this->assertCount(4, $lines, 'нулевое сопротивление к ядам не должно показываться');
+        $this->assertCount(2, $lines, 'нулевой яд + speed/stealth не показываются');
         $joined = implode("\n", $lines);
-        $this->assertStringContainsString('+20%', $joined);
+        $this->assertStringContainsString('+20%', $joined, 'значение шкалы 0–100 выводится как есть, без ×100');
         $this->assertStringContainsString('+5%', $joined);
-        $this->assertStringContainsString('-8%', $joined);
-        $this->assertStringContainsString('-5%', $joined);
-        $this->assertStringNotContainsString('ядам', $joined, 'нулевое поле не должно попадать в вывод');
+        $this->assertStringNotContainsString('ядам', $joined, 'нулевое поле не показывается');
+        $this->assertStringNotContainsString('Скорость', $joined, 'модификаторы не показываем (нет боевого эффекта)');
+        $this->assertStringNotContainsString('Скрытность', $joined);
+        $this->assertStringNotContainsString('2000%', $joined, 'регресс-гард: НЕТ ×100 (стар. броня 20 не должна стать 2000%)');
     }
 
     public function testResistanceLinesEmptyForPlainArmor(): void
@@ -87,7 +89,16 @@ final class OutfitDisplayHelperTest extends CIUnitTestCase
 
     public function testHasSpecialPropertiesTrueWhenAnyNonZero(): void
     {
-        $this->assertTrue(OutfitDisplayHelper::hasSpecialProperties(['poison_resistance' => 0.25]));
+        $this->assertTrue(OutfitDisplayHelper::hasSpecialProperties(['poison_resistance' => 25]));
+    }
+
+    public function testHasSpecialPropertiesIgnoresModifiers(): void
+    {
+        // Только speed/stealth (без сопротивлений) → нечего показывать.
+        $this->assertFalse(OutfitDisplayHelper::hasSpecialProperties([
+            'speed_modifier'   => 10,
+            'stealth_modifier' => 20,
+        ]));
     }
 
     public function testPvpNoteIsNonEmptyAndMentionsDuels(): void

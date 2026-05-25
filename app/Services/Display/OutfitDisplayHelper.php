@@ -37,8 +37,8 @@ final class OutfitDisplayHelper
         'FarmsteadGuardArmor' => 'uploads/telegram/craft/professional/farmstead_guard_armor.jpg',
     ];
 
-    /** Честная сноска: эти модификаторы работают в PvP-дуэлях, armor_value — везде. */
-    public const PVP_NOTE = '_⚔️ Сопротивления и модификаторы действуют в PvP-дуэлях; защита брони работает везде._';
+    /** Честная сноска: сопротивления работают в PvP-дуэлях, armor_value (защита) — везде. */
+    public const PVP_NOTE = '_⚔️ Сопротивления действуют в PvP-дуэлях; защита брони работает везде._';
 
     /**
      * Относительный путь картинки фракционной брони или null, если это не она.
@@ -49,7 +49,13 @@ final class OutfitDisplayHelper
     }
 
     /**
-     * Ненулевые сопротивления/модификаторы брони → форматированные строки.
+     * Ненулевые сопротивления брони → форматированные строки.
+     *
+     * Показываем ТОЛЬКО три сопротивления (physical/fire/poison), которые реально
+     * читаются боёвкой (`PvpDamageCalculator::computeArmorResistance`, `/100`).
+     * Значения хранятся в шкале 0–100 (как `armor_value`: `40` = 40%), поэтому
+     * выводим число как есть с «%» (без ×100). `speed/stealth_modifier` НЕ
+     * показываем — они нигде в боёвке не читаются (был бы новый lying-description).
      *
      * @param array<array-key,mixed> $outfit Строка из таблицы outfits (CI4 model row).
      * @return list<string>
@@ -60,8 +66,6 @@ final class OutfitDisplayHelper
             'physical_resistance' => '🛡 Физ. сопротивление',
             'fire_resistance'     => '🔥 Огнестойкость',
             'poison_resistance'   => '☣️ Сопр. ядам',
-            'speed_modifier'      => '🏃 Скорость',
-            'stealth_modifier'    => '👤 Скрытность',
         ];
 
         $lines = [];
@@ -74,7 +78,7 @@ final class OutfitDisplayHelper
             if ($val === 0.0) {
                 continue;
             }
-            $pct  = (int) round($val * 100);
+            $pct  = (int) round($val);
             $sign = $pct > 0 ? '+' : '';
             $lines[] = "{$label}: {$sign}{$pct}%";
         }
