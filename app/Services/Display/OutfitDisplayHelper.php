@@ -1,0 +1,94 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services\Display;
+
+/**
+ * V15 (ROADMAP-vNext Фаза 3 closer) — pure-хелпер показа брони.
+ *
+ * Две задачи «честного closer'а»:
+ *
+ *  1. Резолв картинки фракционной брони (V14/ADR-046). `GearArmorDetailAction`
+ *     держит карту картинок только для standard/-брони; 4 фракционные брони
+ *     лежат в professional/ → при осмотре owned-брони показывалась заглушка
+ *     default_armor.jpg. Хелпер отдаёт правильный относительный путь.
+ *
+ *  2. Честный показ сопротивлений. Колонки physical/fire/poison_resistance,
+ *     speed/stealth_modifier реально читаются ТОЛЬКО в PvP
+ *     (PvpDamageCalculator/PvpEquipmentRepository); PvE (EquipmentService)
+ *     учитывает лишь armor_value. До V15 эти числа игроку не показывались
+ *     вовсе, а flavor-описания намекали на эффект → полу-честно. Хелпер
+ *     рендерит реальные ненулевые числа + честную сноску, что они работают
+ *     в дуэлях (broня-защита — везде). Media-off инвариант: всё в тексте.
+ *
+ * Чистый, без зависимостей и состояния — легко юнит-тестируется.
+ */
+final class OutfitDisplayHelper
+{
+    /**
+     * Фракционная броня V14 → относительный путь картинки (professional/).
+     * Ключ = outfits.name_en.
+     */
+    private const FACTION_ARMOR_IMAGES = [
+        'BunkerPlateArmor'    => 'uploads/telegram/craft/professional/bunker_plate_armor.jpg',
+        'TechnoShieldSuit'    => 'uploads/telegram/craft/professional/techno_shield_suit.jpg',
+        'GhostCityCloak'      => 'uploads/telegram/craft/professional/ghost_city_cloak.jpg',
+        'FarmsteadGuardArmor' => 'uploads/telegram/craft/professional/farmstead_guard_armor.jpg',
+    ];
+
+    /** Честная сноска: эти модификаторы работают в PvP-дуэлях, armor_value — везде. */
+    public const PVP_NOTE = '_⚔️ Сопротивления и модификаторы действуют в PvP-дуэлях; защита брони работает везде._';
+
+    /**
+     * Относительный путь картинки фракционной брони или null, если это не она.
+     */
+    public static function factionArmorImageRel(string $nameEn): ?string
+    {
+        return self::FACTION_ARMOR_IMAGES[$nameEn] ?? null;
+    }
+
+    /**
+     * Ненулевые сопротивления/модификаторы брони → форматированные строки.
+     *
+     * @param array<array-key,mixed> $outfit Строка из таблицы outfits (CI4 model row).
+     * @return list<string>
+     */
+    public static function resistanceLines(array $outfit): array
+    {
+        $defs = [
+            'physical_resistance' => '🛡 Физ. сопротивление',
+            'fire_resistance'     => '🔥 Огнестойкость',
+            'poison_resistance'   => '☣️ Сопр. ядам',
+            'speed_modifier'      => '🏃 Скорость',
+            'stealth_modifier'    => '👤 Скрытность',
+        ];
+
+        $lines = [];
+        foreach ($defs as $key => $label) {
+            $raw = $outfit[$key] ?? 0;
+            if (! is_numeric($raw)) {
+                continue;
+            }
+            $val = (float) $raw;
+            if ($val === 0.0) {
+                continue;
+            }
+            $pct  = (int) round($val * 100);
+            $sign = $pct > 0 ? '+' : '';
+            $lines[] = "{$label}: {$sign}{$pct}%";
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Есть ли у брони ненулевые спец-свойства (→ показывать блок + PvP-сноску).
+     *
+     * @param array<array-key,mixed> $outfit
+     */
+    public static function hasSpecialProperties(array $outfit): bool
+    {
+        return self::resistanceLines($outfit) !== [];
+    }
+}

@@ -215,6 +215,14 @@ class ArmorRecipePreviewT3Action extends BaseAction
             $weightNum = is_numeric($weightRaw) ? (float) $weightRaw : 0.0;
             $weight    = number_format($weightNum, 1, '.', ' ');
             $caption .= "_Редкость: {$rarity} | Броня: {$armor} | Вес: {$weight}_\n";
+
+            // V15 (честный closer): реальные ненулевые сопротивления/модификаторы
+            // + честная сноска про PvP — чтобы решение крафтить было информированным.
+            $resLines = \App\Services\Display\OutfitDisplayHelper::resistanceLines($outfit);
+            if (! empty($resLines)) {
+                $caption .= "\n*Спец-свойства:*\n" . implode("\n", $resLines) . "\n";
+                $caption .= \App\Services\Display\OutfitDisplayHelper::PVP_NOTE . "\n";
+            }
         }
         $caption .= "\n*Уровень:* L{$needLevel} (у вас L{$charLevel})\n";
         $caption .= "*Золото:* {$goldNeed} / {$goldHave}\n";

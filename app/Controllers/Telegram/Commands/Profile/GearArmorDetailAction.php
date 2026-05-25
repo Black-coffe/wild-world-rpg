@@ -72,6 +72,16 @@ class GearArmorDetailAction extends BaseAction
      */
     protected function getArmorImagePath(string $armorEnName): string
     {
+        // V15: фракционная броня (V14/ADR-046) лежит в professional/, её нет
+        // в standard/-карте ниже → раньше осмотр owned-брони падал на заглушку.
+        $factionRel = \App\Services\Display\OutfitDisplayHelper::factionArmorImageRel($armorEnName);
+        if ($factionRel !== null) {
+            $factionAbs = FCPATH . $factionRel;
+            if (is_file($factionAbs)) {
+                return $factionAbs;
+            }
+        }
+
         $map = $this->getArmorImageMap();
 
         // Проверяем, есть ли изображение для данной брони
@@ -148,6 +158,17 @@ class GearArmorDetailAction extends BaseAction
         $text .= "Прочность: {$durability} / {$durabilityMax}\n";
         $text .= "Защита: *{$armorValue}*\n\n";
         $text .= "Описание: _{$description}_\n\n";
+
+        // V15 (честный closer): показываем реальные ненулевые сопротивления/
+        // модификаторы + честную сноску, что они работают в PvP-дуэлях
+        // (PvE учитывает лишь armor_value). Раньше эти числа не показывались.
+        $resLines = \App\Services\Display\OutfitDisplayHelper::resistanceLines(
+            is_array($outfitInfo) ? $outfitInfo : []
+        );
+        if (! empty($resLines)) {
+            $text .= "*Спец-свойства:*\n" . implode("\n", $resLines) . "\n";
+            $text .= \App\Services\Display\OutfitDisplayHelper::PVP_NOTE . "\n\n";
+        }
 
         // Определяем, находится ли игрок на базе
         $isOnBase = $this->isOnBase($character['id']);
