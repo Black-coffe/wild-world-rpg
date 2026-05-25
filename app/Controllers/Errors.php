@@ -21,10 +21,29 @@ class Errors extends BaseController
      * Сначала ищем 301/302-редирект в site_redirects (SEO-преемственность при
      * переезде с WordPress), иначе отдаём 404.
      */
+    /**
+     * Хардкод старых кириллических WP-URL → канон (не зависит от засева site_redirects;
+     * percent-encoded кириллица проблемна в CI4-URI и таблице — гарантируем явно).
+     */
+    private const HARD_REDIRECTS = [
+        '/главная'  => '/',
+        '/блог'     => '/devblog',
+        '/контакты' => '/contacts',
+    ];
+
     public function notFound(?string $message = null): ResponseInterface
     {
-        $path = $this->normalizePath((string) $this->request->getUri()->getPath());
+        // Сырой REQUEST_URI (не CI4-getPath, который теряет percent-encoded кириллицу на nginx).
+        $rawUri   = is_string($_SERVER['REQUEST_URI'] ?? null) ? (string) $_SERVER['REQUEST_URI'] : (string) $this->request->getUri()->getPath();
+        $pathOnly = parse_url($rawUri, PHP_URL_PATH);
+        $path     = $this->normalizePath(is_string($pathOnly) ? $pathOnly : '');
 
+        // 1) Хардкод-редиректы кириллических URL.
+        if (isset(self::HARD_REDIRECTS[$path])) {
+            return redirect()->to(self::HARD_REDIRECTS[$path], 301);
+        }
+
+        // 2) Таблица site_redirects (остальные перемещённые URL).
         $model    = new SiteRedirectModel();
         $redirect = $model->matchPath($path);
         if ($redirect !== null) {
