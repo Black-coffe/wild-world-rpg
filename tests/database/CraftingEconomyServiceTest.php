@@ -116,7 +116,7 @@ final class CraftingEconomyServiceTest extends CIUnitTestCase
 
     public function testCraftVolumeByMonth(): void
     {
-        $cv = (new CraftingEconomyService())->craftVolumeByMonth(12);
+        $cv = (new CraftingEconomyService())->craftVolumeByMonth();
         $this->assertCount(1, $cv, 'все сидированы в текущем месяце');
         $this->assertSame(10, $cv[0]['qty']);
         $this->assertSame(3, $cv[0]['count']);
@@ -125,7 +125,7 @@ final class CraftingEconomyServiceTest extends CIUnitTestCase
 
     public function testTransactionsByMonth(): void
     {
-        $tx = (new CraftingEconomyService())->transactionsByMonth(12);
+        $tx = (new CraftingEconomyService())->transactionsByMonth();
         $this->assertCount(1, $tx);
         $this->assertSame(1, $tx[0]['buy']);
         $this->assertSame(1, $tx[0]['sell']);
@@ -137,7 +137,8 @@ final class CraftingEconomyServiceTest extends CIUnitTestCase
         $this->assertCount(3, $svc->csvHeader());
         $rows = $svc->buildCsvRows();
         $this->assertNotEmpty($rows);
-        // первая строка — сводка «Игроков».
-        $this->assertSame(['Сводка', 'Игроков', '3'], $rows[0]);
+        // первая строка — период, вторая — сводка «Игроков».
+        $this->assertSame('Период', $rows[0][0]);
+        $this->assertSame(['Сводка', 'Игроков', '3'], $rows[1]);
     }
 }

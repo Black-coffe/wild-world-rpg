@@ -10,42 +10,53 @@ use Config\Database;
 /**
  * V21 (ADR-053) — агрегатор экономики для admin-дашборда `/admin/crafting-economy`.
  *
- * Read-only: только агрегирующие SELECT'ы из живых таблиц (characters / crafted_items_log /
- * crafted_items / character_resources / resources / transactions). Возвращает plain-массивы
- * для JSON-эндпоинта и CSV-экспорта. Ничего не пишет, баланс не меняет (правки — через
- * GameSettings, ADR-024). Реюз паттерна CraftTreeService (S30).
+ * Read-only: только агрегирующие SELECT'ы из живых таблиц. Возвращает plain-массивы
+ * для JSON-эндпоинта и CSV-экспорта. Ничего не пишет, баланс не меняет.
+ *
+ * Период (from/to, YYYY-MM-DD) применяется к ВРЕМЕННЫ́М метрикам (оборот крафта,
+ * топ крафтов, транзакции, крафт-счётчики KPI). Золото и ресурсы — ТЕКУЩИЙ снимок
+ * (склад «сейчас»), период к ним неприменим. from/to валидируются (YYYY-MM-DD),
+ * иначе fallback на последние 12 месяцев → защита от инъекций.
  */
 final class CraftingEconomyService
 {
+    private const DEFAULT_MONTHS = 12;
+
     /**
      * Полный payload для дашборда.
      *
      * @return array<string,mixed>
      */
-    public function dashboard(): array
+    public function dashboard(?string $from = null, ?string $to = null): array
     {
+        [$from, $to] = $this->resolveRange($from, $to);
+
         return [
-            'summary'            => $this->summary(),
+            'range'              => ['from' => $from, 'to' => $to],
+            'summary'            => $this->summary($from, $to),
             'gold_concentration' => $this->goldConcentration(10),
-            'craft_volume'       => $this->craftVolumeByMonth(12),
-            'top_crafted'        => $this->topCraftedItems(15),
+            'craft_volume'       => $this->craftVolumeByMonth($from, $to),
+            'top_crafted'        => $this->topCraftedItems(15, $from, $to),
             'top_resources'      => $this->topResourcesHeld(15),
-            'transactions'       => $this->transactionsByMonth(12),
+            'transactions'       => $this->transactionsByMonth($from, $to),
             'generated_at'       => date('Y-m-d H:i:s'),
         ];
     }
 
     /**
-     * KPI-снимок.
+     * KPI-снимок. Золото/игроки/ресурсы — текущие; крафт-счётчики — за период [from,to].
      *
      * @return array<string,int>
      */
-    public function summary(): array
+    public function summary(?string $from = null, ?string $to = null): array
     {
+        [$from, $to] = $this->resolveRange($from, $to);
+        $craftRange  = $this->between('created_at', $from, $to);
+
         $chars = $this->row('SELECT COUNT(*) c, COALESCE(SUM(gold),0) g FROM characters');
-        $log   = $this->row('SELECT COUNT(*) c, COALESCE(SUM(quantity),0) q FROM crafted_items_log');
+        $log   = $this->row("SELECT COUNT(*) c, COALESCE(SUM(quantity),0) q FROM crafted_items_log WHERE 1=1 {$craftRange}");
         $res   = $this->row('SELECT COALESCE(SUM(quantity),0) q FROM character_resources');
-        $tx    = $this->row('SELECT COUNT(*) c FROM transactions');
+        $tx    = $this->row("SELECT COUNT(*) c FROM transactions WHERE 1=1 " . $this->between('transaction_date', $from, $to));
 
         $players = $this->n($chars['c'] ?? 0);
         $gold    = $this->n($chars['g'] ?? 0);
@@ -62,7 +73,7 @@ final class CraftingEconomyService
     }
 
     /**
-     * Концентрация золота: общий запас + топ-холдеры + доля топ-холдера (whale/инфляц-сигнал).
+     * Концентрация золота (текущий снимок, период неприменим).
      *
      * @return array<string,mixed>
      */
@@ -89,17 +100,16 @@ final class CraftingEconomyService
     }
 
     /**
-     * Объём крафта по месяцам (turnover).
+     * Объём крафта по месяцам за период (turnover).
      *
      * @return list<array{month:string,qty:int,count:int}>
      */
-    public function craftVolumeByMonth(int $months = 12): array
+    public function craftVolumeByMonth(?string $from = null, ?string $to = null): array
     {
-        $months = max(1, min(36, $months));
-        $rows   = $this->rows(
+        [$from, $to] = $this->resolveRange($from, $to);
+        $rows = $this->rows(
             "SELECT DATE_FORMAT(created_at, '%Y-%m') ym, COALESCE(SUM(quantity),0) qty, COUNT(*) cnt
-             FROM crafted_items_log
-             WHERE created_at >= DATE_SUB(NOW(), INTERVAL {$months} MONTH)
+             FROM crafted_items_log WHERE 1=1 " . $this->between('created_at', $from, $to) . "
              GROUP BY ym ORDER BY ym"
         );
         $out = [];
@@ -110,16 +120,18 @@ final class CraftingEconomyService
     }
 
     /**
-     * Топ скрафченных предметов по суммарному количеству.
+     * Топ скрафченных предметов за период.
      *
      * @return list<array{name:string,type:string,qty:int}>
      */
-    public function topCraftedItems(int $topN = 15): array
+    public function topCraftedItems(int $topN = 15, ?string $from = null, ?string $to = null): array
     {
+        [$from, $to] = $this->resolveRange($from, $to);
         $topN = max(1, min(50, $topN));
         $rows = $this->rows(
             "SELECT ci.name_rus name, ci.type type, COALESCE(SUM(cil.quantity),0) qty
              FROM crafted_items_log cil JOIN crafted_items ci ON ci.id = cil.crafted_item_id
+             WHERE 1=1 " . $this->between('cil.created_at', $from, $to) . "
              GROUP BY cil.crafted_item_id ORDER BY qty DESC LIMIT {$topN}"
         );
         $out = [];
@@ -130,7 +142,7 @@ final class CraftingEconomyService
     }
 
     /**
-     * Топ удерживаемых ресурсов по суммарному количеству.
+     * Топ удерживаемых ресурсов (текущий снимок, период неприменим).
      *
      * @return list<array{name:string,qty:int}>
      */
@@ -150,17 +162,16 @@ final class CraftingEconomyService
     }
 
     /**
-     * Транзакции по месяцам: объём buy/sell + средняя цена.
+     * Транзакции по месяцам за период: объём buy/sell + средняя цена.
      *
      * @return list<array{month:string,buy:int,sell:int,avg_buy:int,avg_sell:int}>
      */
-    public function transactionsByMonth(int $months = 12): array
+    public function transactionsByMonth(?string $from = null, ?string $to = null): array
     {
-        $months = max(1, min(36, $months));
-        $rows   = $this->rows(
+        [$from, $to] = $this->resolveRange($from, $to);
+        $rows = $this->rows(
             "SELECT DATE_FORMAT(transaction_date, '%Y-%m') ym, type, COUNT(*) cnt, ROUND(AVG(price)) avg_price
-             FROM transactions
-             WHERE transaction_date >= DATE_SUB(NOW(), INTERVAL {$months} MONTH)
+             FROM transactions WHERE 1=1 " . $this->between('transaction_date', $from, $to) . "
              GROUP BY ym, type ORDER BY ym"
         );
         $byMonth = [];
@@ -193,17 +204,19 @@ final class CraftingEconomyService
     }
 
     /** @return list<list<string>> */
-    public function buildCsvRows(): array
+    public function buildCsvRows(?string $from = null, ?string $to = null): array
     {
+        [$from, $to] = $this->resolveRange($from, $to);
         $rows = [];
-        $sum  = $this->summary();
+        $rows[] = ['Период', 'С — По', $from . ' — ' . $to];
+        $sum  = $this->summary($from, $to);
         $rows[] = ['Сводка', 'Игроков', (string) $sum['players']];
         $rows[] = ['Сводка', 'Всего золота', (string) $sum['total_gold']];
         $rows[] = ['Сводка', 'Среднее золото', (string) $sum['avg_gold']];
-        $rows[] = ['Сводка', 'Крафт-записей', (string) $sum['crafted_rows']];
-        $rows[] = ['Сводка', 'Крафт-количество', (string) $sum['crafted_qty']];
+        $rows[] = ['Сводка', 'Крафт-записей (период)', (string) $sum['crafted_rows']];
+        $rows[] = ['Сводка', 'Крафт-количество (период)', (string) $sum['crafted_qty']];
         $rows[] = ['Сводка', 'Ресурсов на руках', (string) $sum['resource_qty']];
-        $rows[] = ['Сводка', 'Транзакций', (string) $sum['transactions']];
+        $rows[] = ['Сводка', 'Транзакций (период)', (string) $sum['transactions']];
 
         $gc = $this->goldConcentration(10);
         $topShare  = is_numeric($gc['top_share_pct'] ?? null) ? (string) $gc['top_share_pct'] : '0';
@@ -217,19 +230,51 @@ final class CraftingEconomyService
             }
             $rows[] = ['Золото: холдер', $this->s($h['name'] ?? ''), (string) $this->n($h['gold'] ?? 0)];
         }
-        foreach ($this->topCraftedItems(15) as $i) {
+        foreach ($this->topCraftedItems(15, $from, $to) as $i) {
             $rows[] = ['Топ крафт', $i['name'], (string) $i['qty']];
         }
         foreach ($this->topResourcesHeld(15) as $i) {
             $rows[] = ['Топ ресурс', $i['name'], (string) $i['qty']];
         }
-        foreach ($this->craftVolumeByMonth(12) as $m) {
+        foreach ($this->craftVolumeByMonth($from, $to) as $m) {
             $rows[] = ['Крафт/месяц', $m['month'], (string) $m['qty']];
         }
         return $rows;
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
+    // ── period helpers ────────────────────────────────────────────────────────
+
+    /**
+     * Нормализует/валидирует период. null или некорректный YYYY-MM-DD → дефолт
+     * (последние DEFAULT_MONTHS месяцев). Возвращает [from, to] (обе YYYY-MM-DD).
+     *
+     * @return array{0:string,1:string}
+     */
+    private function resolveRange(?string $from, ?string $to): array
+    {
+        $to   = $this->validDate($to)   ?? date('Y-m-d');
+        $from = $this->validDate($from) ?? date('Y-m-d', strtotime('-' . self::DEFAULT_MONTHS . ' months'));
+        if ($from > $to) {
+            [$from, $to] = [$to, $from];
+        }
+        return [$from, $to];
+    }
+
+    private function validDate(?string $d): ?string
+    {
+        if ($d === null || preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) !== 1) {
+            return null;
+        }
+        return $d;
+    }
+
+    /** SQL-фрагмент «AND col BETWEEN from 00:00 AND to 23:59». from/to уже валидны. */
+    private function between(string $col, string $from, string $to): string
+    {
+        return " AND {$col} >= '{$from} 00:00:00' AND {$col} <= '{$to} 23:59:59'";
+    }
+
+    // ── db helpers ─────────────────────────────────────────────────────────────
 
     /** @return array<string,mixed> */
     private function row(string $sql): array

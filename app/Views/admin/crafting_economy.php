@@ -24,11 +24,31 @@
                 <button class="btn btn-sm btn-soft-primary" id="econ-refresh" type="button" title="Перезагрузить">
                     <i class="ri-refresh-line"></i>
                 </button>
-                <a class="btn btn-sm btn-soft-success" href="<?= site_url('admin/crafting-economy/export') ?>" title="Экспорт в CSV" download>
+                <a class="btn btn-sm btn-soft-success" id="econ-export" data-base="<?= site_url('admin/crafting-economy/export') ?>" href="<?= site_url('admin/crafting-economy/export') ?>" title="Экспорт в CSV (за выбранный период)" download>
                     <i class="ri-file-excel-2-line"></i>
                 </a>
             </div>
         </div>
+
+        <!-- Period filter -->
+        <div class="card mb-3"><div class="card-body py-2">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <span class="text-muted small me-1"><i class="ri-calendar-line"></i> Период:</span>
+                <div class="btn-group btn-group-sm" role="group" id="econ-presets">
+                    <button type="button" class="btn btn-soft-primary" data-months="3">3 мес</button>
+                    <button type="button" class="btn btn-soft-primary active" data-months="12">12 мес</button>
+                    <button type="button" class="btn btn-soft-primary" data-months="24">24 мес</button>
+                    <button type="button" class="btn btn-soft-primary" data-months="all">Всё время</button>
+                </div>
+                <span class="text-muted small ms-2">или диапазон:</span>
+                <input type="date" class="form-control form-control-sm" id="econ-from" style="max-width:160px;">
+                <span class="text-muted">—</span>
+                <input type="date" class="form-control form-control-sm" id="econ-to" style="max-width:160px;">
+                <button type="button" class="btn btn-sm btn-primary" id="econ-apply">Применить</button>
+                <span class="text-muted small ms-auto" id="econ-range"></span>
+            </div>
+            <p class="text-muted small mb-0 mt-1">Период применяется к графикам оборота/крафтов/транзакций и крафт-счётчикам. <b>Золото и ресурсы</b> — текущий снимок склада.</p>
+        </div></div>
 
         <!-- KPI cards -->
         <div class="row" id="econ-kpis">
