@@ -599,7 +599,12 @@ class GenericCraftActionStart extends BaseAction
         // V9 (ADR-034): «Сытость» ускоряет крафт (food.well_fed.craft_time_multiplier),
         // пока now < character.well_fed_until. Не сыт / выключено → ×1.0 (no-op).
         $foodMult = (new \App\Services\Food\FoodBuffService())->craftTimeMultiplierFor($character['well_fed_until'] ?? null);
-        return max(1, (int) round($baseDuration * $multiplier * $foodMult));
+        // V16 (ADR-047): крафт-специализация ускоряет «свою» категорию (по zone_name
+        // рецепта). Нет ветки / зона не маппится / выключено → ×1.0 (no-op).
+        $specRaw  = $character['specialization'] ?? null;
+        $specMult = (new \App\Services\Player\SpecializationService())
+            ->getCraftTimeMultiplierFor(is_string($specRaw) ? $specRaw : null, $recipe);
+        return max(1, (int) round($baseDuration * $multiplier * $foodMult * $specMult));
     }
 
     /**

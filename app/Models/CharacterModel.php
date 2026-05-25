@@ -48,6 +48,8 @@ class CharacterModel extends Model
         'last_planted_crop',   // V6 (ADR-033) — rotation-память активного земледелия
         'well_fed_until',      // V9 (ADR-034) — момент истечения buff'а «Сытость»
         'daily_tips_enabled',  // ADR-038 Фаза C — тумблер «Совет дня» (opt-out, default 1)
+        'specialization',      // V16 (ADR-047) — крафт-ветка (weaponsmith/medic/engineer)
+        'specialization_changed_at', // V16 (ADR-047) — момент последней смены (кулдаун respec)
     ];
 
     protected $useTimestamps = true;

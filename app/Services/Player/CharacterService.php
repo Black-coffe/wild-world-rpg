@@ -135,6 +135,13 @@ class CharacterService
         $text .= "🛡 *Броня:* " . ($equippedArmor ?: "❌ Нет") . "\n";
         $text .= "⚔️ *Оружие:* " . ($equippedWeapon ?: "❌ Нет") . "\n";
 
+        // V16 (ADR-047): крафт-специализация.
+        $specSvc = new \App\Services\Player\SpecializationService();
+        if ($specSvc->isEnabled()) {
+            $specRaw = $characterRow['specialization'] ?? null;
+            $text .= "🎓 *Специализация:* " . $specSvc->labelFor(is_string($specRaw) ? $specRaw : null) . "\n";
+        }
+
         // Инлайн-кнопки
         $inlineRows = [
             [
@@ -164,6 +171,11 @@ class CharacterService
             && !empty($charFaction['joined_at']);
         if ($level >= 10 && !$hasChosenFaction) {
             $inlineRows[] = [['text' => '⚑ Выбрать фракцию', 'callback_data' => 'chooseFaction_info']];
+        }
+
+        // V16 (ADR-047): вход в выбор крафт-специализации (когда слой включён).
+        if ($specSvc->isEnabled()) {
+            $inlineRows[] = [['text' => '🎓 Специализация', 'callback_data' => 'specialization']];
         }
 
         $inlineKeyboard = ['inline_keyboard' => $inlineRows];

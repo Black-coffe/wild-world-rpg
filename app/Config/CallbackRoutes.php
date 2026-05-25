@@ -43,6 +43,8 @@ class CallbackRoutes extends BaseConfig
         // CancelExplorationAction) удалён после дренажа in-flight задач. Вход в разведку = «Поход»
         // (callback `march`); кнопки, ранее звавшие `explore`, переведены на `march`.
         'characterActions'                => \App\Controllers\Telegram\Commands\Actions\CharacterGoActions::class,
+        // V16 (ADR-047) — крафт-специализация: меню выбора ветки.
+        'specialization'                  => \App\Controllers\Telegram\Commands\Actions\Specialization\SpecializationAction::class,
         'move'                            => \App\Controllers\Telegram\Commands\Actions\MoveCharacterAction::class,
         'march'                           => \App\Controllers\Telegram\Commands\Actions\MarchAction::class,          // ADR-019 — «Поход»
         'cancelMarch'                     => \App\Controllers\Telegram\Commands\Actions\CancelMarchAction::class,    // ADR-019 — остановить поход
@@ -265,6 +267,8 @@ class CallbackRoutes extends BaseConfig
      */
     public array $prefixRoutes = [
         'sellResource' => \App\Controllers\Telegram\Commands\Actions\Sell\SellResourceAction::class,
+        // V16 (ADR-047) — выбор/смена крафт-специализации. Callback: `specChoose_<branch>`.
+        'specChoose' => \App\Controllers\Telegram\Commands\Actions\Specialization\SpecializationChooseAction::class,
         // v0.51.129 (community idea #1) — cancel queued craft з refund ресурсів
         'cancelQueued' => \App\Controllers\Telegram\Commands\Actions\Craft\CancelQueuedCraftAction::class,
         // S28 — generic preview сезонного рецепта. Callback: `craftPreviewSeasonal_<RecipeKey>`.
