@@ -13,9 +13,9 @@ $robots      = is_string($m['robots'] ?? null) ? $m['robots'] : 'index,follow';
 $ogType      = is_string($m['ogType'] ?? null) ? $m['ogType'] : 'website';
 $ogImage     = is_string($m['ogImage'] ?? null) && $m['ogImage'] !== '' ? $m['ogImage'] : null;
 
-$botUser = env('telegram.BOT_USERNAME', '@wildworldrpg_bot');
-$botUser = is_string($botUser) ? ltrim($botUser, '@') : 'wildworldrpg_bot';
-$tgLink  = 'https://t.me/' . $botUser;
+$social    = config('Social');
+$tgLink    = $social->botLink;   // CTA — играть в боте
+$groupLink = $social->groupLink; // инфо/сообщество — группа
 
 $navCats = (new \App\Models\SiteCategoryModel())->orderBy('sort')->findAll();
 $uri     = uri_string();
@@ -114,7 +114,8 @@ $uri     = uri_string();
             <div class="col-lg-4 col-6">
                 <h6 class="ww-foot-h">Сообщество</h6>
                 <ul class="ww-foot-links">
-                    <li><a href="<?= esc($tgLink, 'url') ?>" target="_blank" rel="noopener">Telegram-бот</a></li>
+                    <li><a href="<?= esc($tgLink, 'url') ?>" target="_blank" rel="noopener">🎮 Играть в боте</a></li>
+                    <li><a href="<?= esc($groupLink, 'url') ?>" target="_blank" rel="noopener">💬 Новости и обсуждение</a></li>
                 </ul>
             </div>
         </div>

@@ -4,9 +4,9 @@
  * @var list<array{key:string,title:string,count:int}> $wikiSections
  * @var list<array<string,mixed>> $factions
  */
-$tgUser = env('telegram.BOT_USERNAME', '@wildworldrpg_bot');
-$tgUser = is_string($tgUser) ? ltrim($tgUser, '@') : 'wildworldrpg_bot';
-$tg     = 'https://t.me/' . $tgUser;
+$social = config('Social');
+$tg     = $social->botLink;   // CTA — играть в боте
+$group  = $social->groupLink; // инфо/сообщество — группа
 ?>
 <?= $this->extend('site/layout') ?>
 <?= $this->section('content') ?>
@@ -118,7 +118,10 @@ $tg     = 'https://t.me/' . $tgUser;
     <div class="container text-center">
         <h2>Готов выжить в Wild World?</h2>
         <p>Запусти бота в Telegram и начни свою историю прямо сейчас — бесплатно.</p>
-        <a class="ww-btn ww-btn-play ww-btn-lg" href="<?= esc($tg, 'url') ?>" target="_blank" rel="noopener">▶ Играть в Telegram</a>
+        <div class="ww-hero-cta justify-content-center">
+            <a class="ww-btn ww-btn-play ww-btn-lg" href="<?= esc($tg, 'url') ?>" target="_blank" rel="noopener">▶ Играть в Telegram</a>
+            <a class="ww-btn ww-btn-ghost ww-btn-lg" href="<?= esc($group, 'url') ?>" target="_blank" rel="noopener">💬 Новости и сообщество</a>
+        </div>
     </div>
 </section>
 

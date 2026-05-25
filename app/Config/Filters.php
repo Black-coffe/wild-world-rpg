@@ -2,6 +2,7 @@
 
 namespace Config;
 
+use App\Filters\BotHostFilter;
 use App\Filters\LoginFilter;
 use App\Filters\TelegramRateLimitFilter;
 use CodeIgniter\Config\Filters as BaseFilters;
@@ -36,6 +37,7 @@ class Filters extends BaseFilters
         'pagecache'         => PageCache::class,
         'performance'       => PerformanceMetrics::class,
         // Кастомные:
+        'botHost'           => BotHostFilter::class,
         'login'             => LoginFilter::class,
         'telegramRateLimit' => TelegramRateLimitFilter::class,
     ];
@@ -48,6 +50,9 @@ class Filters extends BaseFilters
      */
     public array $required = [
         'before' => [
+            // ADR-052 — раньше pagecache/роутинга: на хосте бота отдаём заглушку/301,
+            // на сайте — no-op. Иначе кэш мог бы отдать страницу сайта на bot.wildworld.fun.
+            'botHost',
             'forcehttps', // Force Global Secure Requests
             'pagecache',  // Web Page Caching
         ],
