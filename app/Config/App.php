@@ -39,7 +39,15 @@ class App extends BaseConfig
      *
      * @var list<string>
      */
-    public array $allowedHostnames = [];
+    public array $allowedHostnames = [
+        // ADR-052 — одно приложение обслуживает сайт (корень wildworld.fun) и webhook
+        // бота (bot.wildworld.fun/telegram/webhook). baseURL у каждого окружения свой
+        // (.env), а эти хосты принимаются без редиректа на baseURL-хост.
+        'wildworld.fun',
+        'www.wildworld.fun',
+        'bot.wildworld.fun',
+        'testbot.wildworld.fun',
+    ];
 
     /**
      * --------------------------------------------------------------------------
