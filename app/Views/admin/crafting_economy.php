@@ -133,6 +133,6 @@
 <script>
     window.__econDataUrl = "<?= site_url('admin/crafting-economy/data') ?>";
 </script>
-<script src="<?= base_url('assets/js/admin/crafting-economy.js') ?>?v=1"></script>
+<script src="<?= base_url('assets/js/admin/crafting-economy.js') ?>?v=2"></script>
 
 <?= $this->endSection() ?>
