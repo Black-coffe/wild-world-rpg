@@ -7,7 +7,7 @@ namespace App\Models;
 use CodeIgniter\Model;
 
 /**
- * Категории публичного сайта (ADR-050). Источник — WP-категории; `wp_term_id`
+ * Категории публичного сайта (ADR-052). Источник — WP-категории; `wp_term_id`
  * для идемпотентного импорта.
  */
 class SiteCategoryModel extends Model

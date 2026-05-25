@@ -7,7 +7,7 @@ namespace App\Models;
 use CodeIgniter\Model;
 
 /**
- * Пивот пост↔категория (M:N) (ADR-050). Управляется импортёром/CRUD через
+ * Пивот пост↔категория (M:N) (ADR-052). Управляется импортёром/CRUD через
  * {@see syncForPost()}; find/update по композитному ключу не используются.
  */
 class SitePostCategoryModel extends Model

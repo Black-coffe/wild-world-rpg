@@ -15,7 +15,7 @@ use JsonException;
 use Throwable;
 
 /**
- * Импорт публичного сайта wildworld.fun (WordPress) в CMS-таблицы CI4 (ADR-050).
+ * Импорт публичного сайта wildworld.fun (WordPress) в CMS-таблицы CI4 (ADR-052).
  *
  * Тянет категории + посты + featured-картинки через публичный WP REST API,
  * сохраняет slug'и (SEO-преемственность), идемпотентно апсертит по wp_post_id /
@@ -35,7 +35,7 @@ class ImportWordPress extends BaseCommand
 {
     protected $group       = 'Site';
     protected $name        = 'site:import-wp';
-    protected $description = 'Импорт постов/категорий/картинок с wildworld.fun (WordPress REST API) в CMS-таблицы (ADR-050).';
+    protected $description = 'Импорт постов/категорий/картинок с wildworld.fun (WordPress REST API) в CMS-таблицы (ADR-052).';
     protected $usage       = 'site:import-wp [--dry-run] [--limit N] [--skip-images] [--base-url <url>] [--force-content]';
     protected $options     = [
         '--dry-run'       => 'Не писать в БД и не качать картинки — только показать план.',

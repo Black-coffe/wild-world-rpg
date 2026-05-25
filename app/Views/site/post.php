@@ -53,7 +53,7 @@ $canonical = is_string($meta['canonical'] ?? null) ? $meta['canonical'] : rtrim(
             <div class="ww-article-cover"><img src="<?= esc($img, 'attr') ?>" alt="<?= esc($title) ?>" loading="lazy"></div>
         <?php endif; ?>
 
-        <?php /* content_html — доверенный HTML из собственного WordPress (ADR-050) */ ?>
+        <?php /* content_html — доверенный HTML из собственного WordPress (ADR-052) */ ?>
         <div class="ww-prose"><?= $content ?></div>
     </div>
 </article>

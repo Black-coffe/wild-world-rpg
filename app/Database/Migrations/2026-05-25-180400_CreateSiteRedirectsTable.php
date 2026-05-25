@@ -8,7 +8,7 @@ use CodeIgniter\Database\Migration;
 use CodeIgniter\Database\RawSql;
 
 /**
- * Website-в-CI4 (ADR-050) — таблица 301/302-редиректов для сохранения SEO.
+ * Website-в-CI4 (ADR-052) — таблица 301/302-редиректов для сохранения SEO.
  *
  * Проверяется в Errors::notFound (через set404Override) ПЕРЕД отдачей 404.
  * `from_path` нормализован: ведущий `/`, без хвостового `/`, URL-ДЕКОДИРОВАН

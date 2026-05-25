@@ -7,7 +7,7 @@ namespace App\Models;
 use CodeIgniter\Model;
 
 /**
- * Статические страницы публичного сайта (ADR-050): О проекте, Контакты и т.п.
+ * Статические страницы публичного сайта (ADR-052): О проекте, Контакты и т.п.
  */
 class SitePageModel extends Model
 {

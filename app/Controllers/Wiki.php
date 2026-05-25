@@ -8,7 +8,7 @@ use App\Services\WikiContentService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 
 /**
- * Публичная вики (ADR-050) — разделы генерятся из живых игровых таблиц
+ * Публичная вики (ADR-052) — разделы генерятся из живых игровых таблиц
  * ({@see WikiContentService}), поэтому всегда актуальны.
  */
 class Wiki extends BaseController

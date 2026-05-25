@@ -11,7 +11,7 @@ use App\Services\WikiContentService;
 use CodeIgniter\HTTP\ResponseInterface;
 
 /**
- * Динамический sitemap.xml (ADR-050): главная + категории + посты + страницы + вики.
+ * Динамический sitemap.xml (ADR-052): главная + категории + посты + страницы + вики.
  * URL'ы каноничны (без хвостового слэша — SLASH-OFF, .htaccess срезает `/`).
  */
 class Sitemap extends BaseController

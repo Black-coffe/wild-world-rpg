@@ -22,7 +22,7 @@ parameters:
         - app/Database/Migrations
         - app/ThirdParty
         - app/Views/errors    # CI4 framework default templates
-        - app/Views/site      # ADR-050 публичные view (presentation; $this->extend + view-model mixed)
+        - app/Views/site      # ADR-052 публичные view (presentation; $this->extend + view-model mixed)
         - vendor
 
     # Оптимизация — параллельные процессы

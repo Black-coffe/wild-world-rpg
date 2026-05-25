@@ -17,7 +17,7 @@ class Errors extends BaseController
     }
 
     /**
-     * ADR-050 — обработчик нераспознанных маршрутов (set404Override).
+     * ADR-052 — обработчик нераспознанных маршрутов (set404Override).
      * Сначала ищем 301/302-редирект в site_redirects (SEO-преемственность при
      * переезде с WordPress), иначе отдаём 404.
      */

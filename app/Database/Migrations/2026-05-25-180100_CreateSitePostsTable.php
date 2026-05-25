@@ -8,7 +8,7 @@ use CodeIgniter\Database\Migration;
 use CodeIgniter\Database\RawSql;
 
 /**
- * Website-в-CI4 (ADR-050) — посты публичного сайта (блог/devblog/лор).
+ * Website-в-CI4 (ADR-052) — посты публичного сайта (блог/devblog/лор).
  *
  * `wp_post_id` — UNIQUE-ключ идемпотентного upsert при импорте из WP REST API.
  * `slug` сохраняется из WP как есть (latin/SEO) → 301-преемственность через .htaccess.

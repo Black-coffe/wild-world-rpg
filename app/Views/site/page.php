@@ -13,7 +13,7 @@ $content = is_string($page['content_html'] ?? null) ? $page['content_html'] : ''
         <header class="ww-article-head">
             <h1><?= esc($title) ?></h1>
         </header>
-        <?php /* доверенный HTML (ADR-050) */ ?>
+        <?php /* доверенный HTML (ADR-052) */ ?>
         <div class="ww-prose"><?= $content ?></div>
     </div>
 </article>

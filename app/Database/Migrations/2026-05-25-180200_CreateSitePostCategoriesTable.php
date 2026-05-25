@@ -7,7 +7,7 @@ namespace App\Database\Migrations;
 use CodeIgniter\Database\Migration;
 
 /**
- * Website-в-CI4 (ADR-050) — связь постов и категорий (M:N).
+ * Website-в-CI4 (ADR-052) — связь постов и категорий (M:N).
  *
  * Один WP-пост числится в нескольких категориях → many-to-many. Композитный
  * первичный ключ (post_id, category_id) = естественная дедупликация. FK не ставим

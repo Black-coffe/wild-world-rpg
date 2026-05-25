@@ -198,7 +198,7 @@ nul
 public/uploads/telegram/_legacy/
 
 #-------------------------
-# Website CMS (ADR-050) — featured-картинки импортируются из WordPress командой
+# Website CMS (ADR-052) — featured-картинки импортируются из WordPress командой
 # site:import-wp на каждом окружении (testbot/prod) вместе с DB-строками постов
 # (контент сайта = данные в БД, не в git). Регенерируемо → в репо не держим.
 #-------------------------

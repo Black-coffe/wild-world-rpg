@@ -12,7 +12,7 @@ use App\Services\WikiContentService;
 use CodeIgniter\Exceptions\PageNotFoundException;
 
 /**
- * Публичный сайт wildworld.fun в CI4-экосистеме (ADR-050): главная, лента/категории,
+ * Публичный сайт wildworld.fun в CI4-экосистеме (ADR-052): главная, лента/категории,
  * одиночный пост, статические страницы. Catch-all `Front::resolve` разводит
  * корневой slug → пост / страница / 404 (404 → Errors::notFound → site_redirects).
  */

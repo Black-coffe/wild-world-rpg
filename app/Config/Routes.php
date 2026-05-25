@@ -5,7 +5,7 @@ use CodeIgniter\Router\RouteCollection;
 /**
  * @var RouteCollection $routes
  */
-// ADR-050 — публичный сайт занимает корень; админ-логин переехал на /admin/login
+// ADR-052 — публичный сайт занимает корень; админ-логин переехал на /admin/login
 // (старый /login сохранён для совместимости). Форма логина постит на /login/authenticate.
 $routes->get('/', 'Front::home');
 $routes->get('admin/login', 'Login::new');
@@ -144,7 +144,7 @@ $routes->get('dashboard', 'AdminController::index', ['filter' => 'login']);
 $routes->post('telegram/webhook', 'Telegram\BotController::webhook');
 
 
-// ===== ADR-050 — публичный сайт wildworld.fun в CI4 =====
+// ===== ADR-052 — публичный сайт wildworld.fun в CI4 =====
 // Порядок важен (Routing::$prioritize=false → первое совпадение): SEO/wiki/категории
 // объявлены ДО корневого catch-all, который должен идти ПОСЛЕДНИМ GET-маршрутом.
 $routes->get('sitemap.xml', 'Sitemap::index');

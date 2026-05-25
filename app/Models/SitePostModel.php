@@ -7,7 +7,7 @@ namespace App\Models;
 use CodeIgniter\Model;
 
 /**
- * Посты публичного сайта (ADR-050) — блог/devblog/лор. Импортируются из WP,
+ * Посты публичного сайта (ADR-052) — блог/devblog/лор. Импортируются из WP,
  * сверяются с каноном (`canon_reviewed`) и переписываются под текущий ЛОР.
  */
 class SitePostModel extends Model

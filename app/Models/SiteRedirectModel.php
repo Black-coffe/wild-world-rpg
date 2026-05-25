@@ -7,7 +7,7 @@ namespace App\Models;
 use CodeIgniter\Model;
 
 /**
- * 301/302-редиректы для сохранения SEO при переезде с WordPress (ADR-050).
+ * 301/302-редиректы для сохранения SEO при переезде с WordPress (ADR-052).
  * Резолвится в {@see \App\Controllers\Errors::notFound()} перед отдачей 404.
  */
 class SiteRedirectModel extends Model

@@ -1,6 +1,6 @@
 <?php
 /**
- * Публичный layout сайта Wild World (ADR-050). Самодостаточный (не зависит от
+ * Публичный layout сайта Wild World (ADR-052). Самодостаточный (не зависит от
  * агентских front-партиалов). Динамические SEO-мета через $meta.
  *
  * @var array<string,mixed> $meta

@@ -8,7 +8,7 @@ use CodeIgniter\Database\Migration;
 use CodeIgniter\Database\RawSql;
 
 /**
- * Website-в-CI4 (ADR-050) — категории публичного сайта.
+ * Website-в-CI4 (ADR-052) — категории публичного сайта.
  *
  * Источник: WordPress-категории wildworld.fun (DevBlog, Информация, Местность,
  * Сырьё, Летопись Мира, NPC, Крафт). `wp_term_id` хранит исходный WP term id
