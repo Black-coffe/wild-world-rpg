@@ -122,22 +122,22 @@ final class SpecializationServiceTest extends CIUnitTestCase
     public function testMatchingBranchGetsDefaultMultiplier(): void
     {
         $svc = new SpecializationService();
-        // Дефолт 0.90 (без seeded-строки).
-        $this->assertEqualsWithDelta(0.90, $svc->getCraftTimeMultiplierFor('weaponsmith', ['zone_name' => 'оружие']), 1e-9);
-        $this->assertEqualsWithDelta(0.90, $svc->getCraftTimeMultiplierFor('engineer', ['zone_name' => 'защита']), 1e-9);
+        // Без per-branch anchor'ов и без global → дефолт 0.90 на любом уровне.
+        $this->assertEqualsWithDelta(0.90, $svc->getCraftTimeMultiplierFor('weaponsmith', ['zone_name' => 'оружие'], 10), 1e-9);
+        $this->assertEqualsWithDelta(0.90, $svc->getCraftTimeMultiplierFor('engineer', ['zone_name' => 'защита'], 10), 1e-9);
     }
 
     public function testNonMatchingPathsAreNoOp(): void
     {
         $svc = new SpecializationService();
         // ветка ≠ зона.
-        $this->assertSame(1.0, $svc->getCraftTimeMultiplierFor('weaponsmith', ['zone_name' => 'медицина']));
+        $this->assertSame(1.0, $svc->getCraftTimeMultiplierFor('weaponsmith', ['zone_name' => 'медицина'], 10));
         // нет ветки у персонажа.
-        $this->assertSame(1.0, $svc->getCraftTimeMultiplierFor(null, ['zone_name' => 'оружие']));
+        $this->assertSame(1.0, $svc->getCraftTimeMultiplierFor(null, ['zone_name' => 'оружие'], 10));
         // невалидная ветка.
-        $this->assertSame(1.0, $svc->getCraftTimeMultiplierFor('archer', ['zone_name' => 'оружие']));
+        $this->assertSame(1.0, $svc->getCraftTimeMultiplierFor('archer', ['zone_name' => 'оружие'], 10));
         // зона рецепта не маппится ни на одну ветку.
-        $this->assertSame(1.0, $svc->getCraftTimeMultiplierFor('engineer', ['zone_name' => 'земледелие']));
+        $this->assertSame(1.0, $svc->getCraftTimeMultiplierFor('engineer', ['zone_name' => 'земледелие'], 10));
     }
 
     public function testKillswitchForcesNoOp(): void
@@ -145,14 +145,64 @@ final class SpecializationServiceTest extends CIUnitTestCase
         $this->seedBool('specialization.enabled', 0);
         $svc = new SpecializationService();
         // Даже при матче — 1.0, когда слой выключен.
-        $this->assertSame(1.0, $svc->getCraftTimeMultiplierFor('weaponsmith', ['zone_name' => 'оружие']));
+        $this->assertSame(1.0, $svc->getCraftTimeMultiplierFor('weaponsmith', ['zone_name' => 'оружие'], 25));
     }
 
-    public function testTunedMultiplierApplied(): void
+    public function testFallbackToV16GlobalWithoutAnchors(): void
     {
-        $this->seedFloat('specialization.craft_time_multiplier', 0.80);
+        // V17: без per-branch anchor'ов — падаем на V16 global (0 регрессии).
+        $this->seedFloat('specialization.craft_time_multiplier', 0.88);
         $svc = new SpecializationService();
-        $this->assertEqualsWithDelta(0.80, $svc->getCraftTimeMultiplierFor('medic', ['zone_name' => 'медицина']), 1e-9);
+        // На любом уровне — плоский global, т.к. anchor'ов нет.
+        $this->assertEqualsWithDelta(0.88, $svc->craftTimeMultiplierForLevel('medic', 5), 1e-9);
+        $this->assertEqualsWithDelta(0.88, $svc->craftTimeMultiplierForLevel('medic', 25), 1e-9);
+        $this->assertEqualsWithDelta(0.88, $svc->getCraftTimeMultiplierFor('medic', ['zone_name' => 'медицина'], 25), 1e-9);
+    }
+
+    // ── V17 (ADR-048): scaling по уровню (интерполяция L5↔L25) ──────────────
+
+    public function testCraftTimeScalesByLevelBetweenAnchors(): void
+    {
+        $this->seedFloat('specialization.weaponsmith.l5.craft_time_multiplier', 0.90);
+        $this->seedFloat('specialization.weaponsmith.l25.craft_time_multiplier', 0.80);
+        $svc = new SpecializationService();
+
+        $this->assertEqualsWithDelta(0.90, $svc->craftTimeMultiplierForLevel('weaponsmith', 5), 1e-9, 'L5 = нижний anchor');
+        $this->assertEqualsWithDelta(0.80, $svc->craftTimeMultiplierForLevel('weaponsmith', 25), 1e-9, 'L25 = верхний anchor');
+        // Середина L15: 0.90 + (0.80-0.90)*(15-5)/20 = 0.85.
+        $this->assertEqualsWithDelta(0.85, $svc->craftTimeMultiplierForLevel('weaponsmith', 15), 1e-9, 'L15 = интерполяция');
+        // Вне диапазона — клампится к anchor'ам.
+        $this->assertEqualsWithDelta(0.90, $svc->craftTimeMultiplierForLevel('weaponsmith', 3), 1e-9, '<L5 → нижний');
+        $this->assertEqualsWithDelta(0.80, $svc->craftTimeMultiplierForLevel('weaponsmith', 40), 1e-9, '>L25 → верхний');
+    }
+
+    public function testPerBranchCurvesDiffer(): void
+    {
+        $this->seedFloat('specialization.weaponsmith.l25.craft_time_multiplier', 0.80);
+        $this->seedFloat('specialization.engineer.l25.craft_time_multiplier', 0.85);
+        // l5 не сидим → fallback на global (нет → 0.90).
+        $svc = new SpecializationService();
+        $this->assertEqualsWithDelta(0.80, $svc->craftTimeMultiplierForLevel('weaponsmith', 25), 1e-9);
+        $this->assertEqualsWithDelta(0.85, $svc->craftTimeMultiplierForLevel('engineer', 25), 1e-9);
+        // Узкая ветка (weaponsmith) сильнее широкой (engineer) в эндгейме.
+        $this->assertLessThan(
+            $svc->craftTimeMultiplierForLevel('engineer', 25),
+            $svc->craftTimeMultiplierForLevel('weaponsmith', 25),
+            'weaponsmith должен быть быстрее (меньше множитель) engineer в эндгейме'
+        );
+    }
+
+    public function testGetCraftTimeMultiplierForUsesLevel(): void
+    {
+        $this->seedFloat('specialization.weaponsmith.l5.craft_time_multiplier', 0.90);
+        $this->seedFloat('specialization.weaponsmith.l25.craft_time_multiplier', 0.80);
+        $svc    = new SpecializationService();
+        $recipe = ['zone_name' => 'оружие'];
+        // Низкий уровень → вход, высокий → эндгейм.
+        $this->assertEqualsWithDelta(0.90, $svc->getCraftTimeMultiplierFor('weaponsmith', $recipe, 5), 1e-9);
+        $this->assertEqualsWithDelta(0.80, $svc->getCraftTimeMultiplierFor('weaponsmith', $recipe, 25), 1e-9);
+        // Не матч → 1.0 независимо от уровня.
+        $this->assertSame(1.0, $svc->getCraftTimeMultiplierFor('weaponsmith', ['zone_name' => 'медицина'], 25));
     }
 
     // ── respec-политика ───────────────────────────────────────────────────

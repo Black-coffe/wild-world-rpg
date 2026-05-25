@@ -601,9 +601,12 @@ class GenericCraftActionStart extends BaseAction
         $foodMult = (new \App\Services\Food\FoodBuffService())->craftTimeMultiplierFor($character['well_fed_until'] ?? null);
         // V16 (ADR-047): крафт-специализация ускоряет «свою» категорию (по zone_name
         // рецепта). Нет ветки / зона не маппится / выключено → ×1.0 (no-op).
-        $specRaw  = $character['specialization'] ?? null;
-        $specMult = (new \App\Services\Player\SpecializationService())
-            ->getCraftTimeMultiplierFor(is_string($specRaw) ? $specRaw : null, $recipe);
+        // V17 (ADR-048): множитель растёт по уровню персонажа (интерполяция L5↔L25).
+        $specRaw   = $character['specialization'] ?? null;
+        $lvlRaw    = $character['level'] ?? 0;
+        $charLevel = is_numeric($lvlRaw) ? (int) $lvlRaw : 0;
+        $specMult  = (new \App\Services\Player\SpecializationService())
+            ->getCraftTimeMultiplierFor(is_string($specRaw) ? $specRaw : null, $recipe, $charLevel);
         return max(1, (int) round($baseDuration * $multiplier * $foodMult * $specMult));
     }
 

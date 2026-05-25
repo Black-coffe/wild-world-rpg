@@ -53,6 +53,10 @@ final class SpecializationService
         $this->settings = $settings ?? new GameSettingsService();
     }
 
+    /** V17 (ADR-048): уровни-anchor'ы кривой перка (интерполяция между ними). */
+    private const ENTRY_ANCHOR_LEVEL   = 5;
+    private const ENDGAME_ANCHOR_LEVEL = 25;
+
     /** Killswitch слоя специализаций. */
     public function isEnabled(): bool
     {
@@ -142,13 +146,15 @@ final class SpecializationService
     }
 
     /**
-     * Множитель времени крафта с учётом специализации персонажа.
+     * Множитель времени крафта с учётом специализации персонажа и его уровня.
      * 1.0 (no-op), если: killswitch off / нет ветки у персонажа / зона рецепта не
      * маппится / ветка ≠ матч. Множитель — только когда ветка совпадает с зоной рецепта.
      *
+     * V17 (ADR-048): значение растёт по уровню (интерполяция L5↔L25 per-branch).
+     *
      * @param array<array-key,mixed> $recipe
      */
-    public function getCraftTimeMultiplierFor(?string $specialization, array $recipe): float
+    public function getCraftTimeMultiplierFor(?string $specialization, array $recipe, int $charLevel): float
     {
         if (! $this->isEnabled()) {
             return 1.0;
@@ -160,7 +166,31 @@ final class SpecializationService
         if ($branch === null) {
             return 1.0;
         }
-        return $specialization === $branch ? $this->craftTimeMultiplier() : 1.0;
+        return $specialization === $branch ? $this->craftTimeMultiplierForLevel($branch, $charLevel) : 1.0;
+    }
+
+    /**
+     * V17 (ADR-048): множитель времени крафта матч-ветки на данном уровне.
+     * Интерполяция между anchor'ами L5 (вход) и L25 (эндгейм) per-branch:
+     * `m = v_low + (v_high − v_low) × (level − 5) / 20` для L6–L24; ≤L5 → v_low; ≥L25 → v_high.
+     * Без per-branch anchor'ов оба падают на V16 global → плоский 0.90 (0 регрессии).
+     */
+    public function craftTimeMultiplierForLevel(string $branch, int $charLevel): float
+    {
+        $base  = $this->craftTimeMultiplier(); // V16 fallback (specialization.craft_time_multiplier)
+        $vLow  = $this->floatSetting("specialization.{$branch}.l5.craft_time_multiplier", $base);
+        $vHigh = $this->floatSetting("specialization.{$branch}.l25.craft_time_multiplier", $vLow);
+
+        if ($charLevel <= self::ENTRY_ANCHOR_LEVEL) {
+            $m = $vLow;
+        } elseif ($charLevel >= self::ENDGAME_ANCHOR_LEVEL) {
+            $m = $vHigh;
+        } else {
+            $span = self::ENDGAME_ANCHOR_LEVEL - self::ENTRY_ANCHOR_LEVEL; // 20
+            $m = $vLow + ($vHigh - $vLow) * ($charLevel - self::ENTRY_ANCHOR_LEVEL) / $span;
+        }
+
+        return $m > 0 ? $m : 1.0;
     }
 
     /**

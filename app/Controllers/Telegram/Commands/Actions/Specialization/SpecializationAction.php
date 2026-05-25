@@ -47,14 +47,21 @@ class SpecializationAction extends BaseAction
         $curRaw   = $character['specialization'] ?? null;
         $current  = is_string($curRaw) ? $curRaw : null;
         $minLevel = $svc->minLevel();
-        $pct      = (int) round((1.0 - $svc->craftTimeMultiplier()) * 100);
 
         $text  = "🎓 *Крафт-специализация*\n\n";
-        $text .= "Текущая: *" . $svc->labelFor($current) . "*\n\n";
-        $text .= "Специалист крафтит предметы «своей» категории на *−{$pct}%* быстрее (стакается с верстаком и сытостью).\n\n";
+        if ($current !== null) {
+            $curPct = (int) round((1.0 - $svc->craftTimeMultiplierForLevel($current, $level)) * 100);
+            $text .= "Текущая: *" . $svc->labelFor($current) . "* (−{$curPct}% на L{$level})\n\n";
+        } else {
+            $text .= "Текущая: *не выбрана*\n\n";
+        }
+        $text .= "Специалист крафтит предметы «своей» категории быстрее. Бонус *растёт с уровнем* (потолок на L25). Стакается с верстаком и сытостью.\n\n";
         foreach ($svc->branches() as $key => $def) {
+            $entry = (int) round((1.0 - $svc->craftTimeMultiplierForLevel($key, 5)) * 100);
+            $end   = (int) round((1.0 - $svc->craftTimeMultiplierForLevel($key, 25)) * 100);
+            $range = $entry === $end ? "−{$entry}%" : "−{$entry}%…−{$end}%";
             $mark  = $current === $key ? ' ✅' : '';
-            $text .= "{$def['emoji']} *{$def['label']}*{$mark} — {$def['desc']}\n";
+            $text .= "{$def['emoji']} *{$def['label']}*{$mark} — {$def['desc']} _({$range})_\n";
         }
         $text .= "\n";
 

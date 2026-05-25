@@ -88,9 +88,9 @@ class SpecializationChooseAction extends BaseAction
         }
         $this->characterModel->update($charId, $update);
 
-        $pct  = (int) round((1.0 - $svc->craftTimeMultiplier()) * 100);
+        $pct  = (int) round((1.0 - $svc->craftTimeMultiplierForLevel($branch, $level)) * 100);
         $text = "✅ Специализация: *" . $svc->labelFor($branch) . "*\n\n"
-              . "Крафт предметов своей категории теперь идёт на *−{$pct}%* быстрее.";
+              . "Крафт предметов своей категории теперь идёт на *−{$pct}%* быстрее (на L{$level}). Бонус растёт с уровнем.";
         if ($isRespec && $cost > 0) {
             $text .= "\n\nСписано " . number_format($cost) . " 🪙.";
         }
