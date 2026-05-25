@@ -8,8 +8,10 @@ use App\Models\SiteCategoryModel;
 use App\Models\SitePageModel;
 use App\Models\SitePostCategoryModel;
 use App\Models\SitePostModel;
+use App\Models\SiteRedirectModel;
 use App\Services\WikiContentService;
 use CodeIgniter\Exceptions\PageNotFoundException;
+use CodeIgniter\HTTP\ResponseInterface;
 
 /**
  * Публичный сайт wildworld.fun в CI4-экосистеме (ADR-052): главная, лента/категории,
@@ -18,8 +20,26 @@ use CodeIgniter\Exceptions\PageNotFoundException;
  */
 class Front extends BaseController
 {
-    public function home(): string
+    public function home(): string|ResponseInterface
     {
+        // Старые кириллические WP-URL (/блог, /контакты, /главная) CI4 ошибочно сводит к
+        // home: percent-encoded не-ASCII одиночный сегмент теряется при разборе URI (nginx,
+        // .htaccess не применяется). Ловим их здесь по сырому REQUEST_URI через site_redirects.
+        $rawUri = $this->request->getServer('REQUEST_URI');
+        if (is_string($rawUri)) {
+            $pathPart = parse_url($rawUri, PHP_URL_PATH);
+            $decoded  = '/' . trim(rawurldecode(is_string($pathPart) ? $pathPart : ''), '/');
+            if ($decoded !== '/') {
+                $redirectModel = new SiteRedirectModel();
+                $redirect      = $redirectModel->matchPath($decoded);
+                if ($redirect !== null) {
+                    $redirectModel->recordHit($redirect['id']);
+
+                    return redirect()->to($redirect['to_path'], $redirect['code'] === 302 ? 302 : 301);
+                }
+            }
+        }
+
         $posts = new SitePostModel();
         $wiki  = new WikiContentService();
 
