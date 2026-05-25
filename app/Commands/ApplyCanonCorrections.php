@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\SitePageModel;
 use App\Models\SitePostModel;
+use App\Models\SiteRedirectModel;
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
 
@@ -81,6 +83,40 @@ class ApplyCanonCorrections extends BaseCommand
         ],
     ];
 
+    /**
+     * Статические страницы (контент — файлы app/Data/site_canon/pages/). Insert-or-update по slug.
+     *
+     * @var list<array{slug:string,title:string,content_file:string,meta:string}>
+     */
+    private const PAGES = [
+        [
+            'slug'         => 'about',
+            'title'        => 'О проекте Wild World',
+            'content_file' => 'about.html',
+            'meta'         => 'Wild World — постапокалиптическая текстовая MMORPG в Telegram: исследование, крафт, база, фракции и PvP.',
+        ],
+        [
+            'slug'         => 'contacts',
+            'title'        => 'Контакты',
+            'content_file' => 'contacts.html',
+            'meta'         => 'Связь с командой Wild World и ссылка на игрового Telegram-бота.',
+        ],
+    ];
+
+    /**
+     * 301-редиректы старых WP-URL (нормализованы: ведущий /, без хвостового /, UTF-8).
+     *
+     * @var list<array{from:string,to:string,code:int}>
+     */
+    private const REDIRECTS = [
+        ['from' => '/главная', 'to' => '/', 'code' => 301],          // WP homepage → новый корень
+        ['from' => '/блог', 'to' => '/devblog', 'code' => 301],       // WP «Блог» → рубрика DevBlog
+        ['from' => '/контакты', 'to' => '/contacts', 'code' => 301],  // кириллический slug → латиница
+        ['from' => '/dashboard', 'to' => '/admin/dashboard', 'code' => 301],
+        ['from' => '/login', 'to' => '/admin/login', 'code' => 301],
+        ['from' => '/logout', 'to' => '/admin/logout', 'code' => 301],
+    ];
+
     /** @param array<int|string,string|null> $params */
     public function run(array $params): int
     {
@@ -148,9 +184,78 @@ class ApplyCanonCorrections extends BaseCommand
             }
         }
 
+        $pagesN = $this->seedPages($dryRun);
+        $redirN = $this->seedRedirects($dryRun);
+
         CLI::write('');
-        CLI::write(sprintf('Готово%s. Изменено текстов: %d, отмечено сверёнными: %d.', $dryRun ? ' (dry-run)' : '', $applied, $marked), 'yellow');
+        CLI::write(sprintf(
+            'Готово%s. Тексты: %d, сверено: %d, страниц: %d, редиректов: %d.',
+            $dryRun ? ' (dry-run)' : '',
+            $applied,
+            $marked,
+            $pagesN,
+            $redirN
+        ), 'yellow');
 
         return EXIT_SUCCESS;
+    }
+
+    /** Insert-or-update статических страниц из app/Data/site_canon/pages/. */
+    private function seedPages(bool $dryRun): int
+    {
+        $model = new SitePageModel();
+        $n     = 0;
+        foreach (self::PAGES as $p) {
+            $path   = APPPATH . 'Data/site_canon/pages/' . $p['content_file'];
+            $loaded = is_file($path) ? file_get_contents($path) : false;
+            if ($loaded === false) {
+                CLI::write('  ⚠ страница: файл не найден ' . $p['content_file'], 'red');
+                continue;
+            }
+            CLI::write('  • страница /' . $p['slug'], 'green');
+            if ($dryRun) {
+                $n++;
+                continue;
+            }
+            $existing = $model->where('slug', $p['slug'])->first();
+            $data     = [
+                'slug'             => $p['slug'],
+                'title'            => $p['title'],
+                'content_html'     => $loaded,
+                'meta_description' => $p['meta'],
+                'status'           => 'published',
+            ];
+            if (is_array($existing) && is_numeric($existing['id'] ?? null)) {
+                $data['id'] = (int) $existing['id'];
+                $model->update((int) $existing['id'], $data);
+            } else {
+                $model->insert($data);
+            }
+            $n++;
+        }
+
+        return $n;
+    }
+
+    /** Insert редиректов (по from_path; существующие не трогаем). */
+    private function seedRedirects(bool $dryRun): int
+    {
+        $model = new SiteRedirectModel();
+        $n     = 0;
+        foreach (self::REDIRECTS as $r) {
+            $exists = $model->where('from_path', $r['from'])->first() !== null;
+            if ($exists) {
+                continue;
+            }
+            CLI::write('  • редирект ' . $r['from'] . ' → ' . $r['to'] . ' (' . $r['code'] . ')', 'green');
+            if ($dryRun) {
+                $n++;
+                continue;
+            }
+            $model->insert(['from_path' => $r['from'], 'to_path' => $r['to'], 'code' => $r['code']]);
+            $n++;
+        }
+
+        return $n;
     }
 }
