@@ -11,27 +11,32 @@ use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
 
 /**
- * Систематические правки импортированного контента под текущий ЛОР (ADR-052 + ADR-010).
+ * Ревизия импортированного контента под текущий ЛОР (ADR-052 + ADR-010).
  *
  * Версионируется в git и идемпотентна → прогоняется на каждом окружении ПОСЛЕ
  * `site:import-wp` (контент в БД, правки в коде → переносимы local→testbot→prod).
- * Каждая правка scoped по slug (не глобальный replace — «Разбойники»-фракция ≠
- * «шайка разбойников»-NPC). Повторный прогон безопасен (str_replace отсутствующего = no-op).
+ *
+ * Три механизма:
+ *   1. File-override (АВТО): любой `app/Data/site_canon/<slug>.html` → полностью
+ *      заменяет content_html поста с этим slug + canon_reviewed=1. Просто кладёшь
+ *      файл — он применяется (масштабируемо для марафона ревизии всех постов).
+ *   2. Replace-правки: точечные str_replace по slug (напр. фракция Разбойники→Партизаны),
+ *      где полный rewrite не нужен.
+ *   3. Seed: статические страницы (app/Data/site_canon/pages/) + 301-редиректы.
  *
  *   php spark site:apply-canon            # применить
- *   php spark site:apply-canon --dry-run  # показать что изменится
+ *   php spark site:apply-canon --dry-run  # показать план
  */
 class ApplyCanonCorrections extends BaseCommand
 {
     protected $group       = 'Site';
     protected $name        = 'site:apply-canon';
-    protected $description = 'Систематические правки контента сайта под канон (ADR-010): фракция Разбойники→Партизаны и др.';
+    protected $description = 'Ревизия контента сайта под канон: file-override постов + точечные правки + статические страницы/редиректы.';
     protected $usage       = 'site:apply-canon [--dry-run]';
     protected $options     = ['--dry-run' => 'Показать изменения без записи.'];
 
     /**
-     * Падежи фракции: длинные формы ПЕРВЫМИ (str_replace по порядку), иначе
-     * «Разбойники» превратится в «Партизани» при раннем «Разбойник»→«Партизан».
+     * Падежи фракции: длинные формы ПЕРВЫМИ (str_replace по порядку).
      */
     private const FACTION_RENAME = [
         'Разбойниками' => 'Партизанами',
@@ -46,67 +51,26 @@ class ApplyCanonCorrections extends BaseCommand
     ];
 
     /**
-     * @var list<array{slug:string,replace:array<string,string>,note:string,content_file?:string}>
+     * Точечные str_replace-правки (где полный file-override не нужен).
+     *
+     * @var list<array{slug:string,replace:array<string,string>,note:string}>
      */
-    private const CORRECTIONS = [
+    private const REPLACE_CORRECTIONS = [
         [
-            'slug'          => 'predstavljaem-chetyre-frakcii-v-nashej-igre-wild-world',
-            'replace'       => self::FACTION_RENAME,
-            'note'          => 'Фракция «Разбойники» → канон «Партизаны» (ADR-010)',
-        ],
-        [
-            // Полный ревью: «концепт-док» переписан в игрок-обзор под канон — фракции
-            // Милитари/Партизаны/Инженеры/Фермеры (были Остин Тех/Наследники Военных/Мутанты),
-            // PvP полевые дуэли + 150 раундов + death −0.5%, стратегобъекты, 4 финала.
-            'slug'          => 'wild-world-masshtabnaya-tekstovaya-mmorpg-s-elementami-pesochnitsy-i-vyzhivaniya',
-            'replace'       => [],
-            'content_file'  => 'wild-world-masshtabnaya-tekstovaya-mmorpg-s-elementami-pesochnitsy-i-vyzhivaniya.html',
-            'note'          => 'Флагманский обзор переписан под канон (фракции/PvP/финалы)',
-        ],
-        [
-            'slug'          => 'wild-world-novaja-tekstovaja-rpg-v-postapokalipticheskom-settinge',
-            'replace'       => [],
-            'content_file'  => 'wild-world-novaja-tekstovaja-rpg-v-postapokalipticheskom-settinge.html',
-            'note'          => 'Обзорный пост: точные имена фракций + стратегобъекты + https-ссылки',
-        ],
-        [
-            // Полный переписанный пост: формула боя приведена к коду (PvpDamageCalculator/
-            // GameBalance) — урон от оружия (не strength×0.5), уклонение ≤75%, Lucky Strike/
-            // One-Shot, 150 раундов; смерть −0.5% (не 10%), победитель ~+0.1% (не +2%).
-            'slug'          => 'pvp-rezhim-wild-world-mehanika-srazheniy-strahovanie-strategii',
-            'replace'       => [],
-            'content_file'  => 'pvp-rezhim-wild-world-mehanika-srazheniy-strahovanie-strategii.html',
-            'note'          => 'PvP-формула и числа смерти/победы приведены к актуальному коду (ADR-010)',
-        ],
-        [
-            // Концепт-пост: фракции «Остин Тех»/«Наследники Военных» → канон (Милитари/
-            // Партизаны/Инженеры/Фермеры); стратегобъекты и 4 финала теперь реальны
-            // (V12-V13 + эндгейм), финалы привязаны к фракциям.
-            'slug'          => 'wild-world-koncepcija-i-razvitie-igry',
-            'replace'       => [],
-            'content_file'  => 'wild-world-koncepcija-i-razvitie-igry.html',
-            'note'          => 'Названия фракций → канон + привязка финалов к фракциям',
+            'slug'    => 'predstavljaem-chetyre-frakcii-v-nashej-igre-wild-world',
+            'replace' => self::FACTION_RENAME,
+            'note'    => 'Фракция «Разбойники» → канон «Партизаны» (ADR-010)',
         ],
     ];
 
     /**
-     * Статические страницы (контент — файлы app/Data/site_canon/pages/). Insert-or-update по slug.
+     * Статические страницы (контент — app/Data/site_canon/pages/). Insert-or-update по slug.
      *
      * @var list<array{slug:string,title:string,content_file:string,meta:string}>
      */
     private const PAGES = [
-        [
-            'slug'         => 'about',
-            'title'        => 'О проекте Wild World',
-            'content_file' => 'about.html',
-            'meta'         => 'Wild World — постапокалиптическая текстовая MMORPG в Telegram: исследование, крафт, база, фракции и PvP.',
-        ],
-        [
-            'slug'         => 'contacts',
-            'title'        => 'Контакты',
-            'content_file' => 'contacts.html',
-            'meta'         => 'Связь с командой Wild World и ссылка на игрового Telegram-бота.',
-        ],
+        ['slug' => 'about', 'title' => 'О проекте Wild World', 'content_file' => 'about.html', 'meta' => 'Wild World — постапокалиптическая текстовая MMORPG в Telegram: исследование, крафт, база, фракции и PvP.'],
+        ['slug' => 'contacts', 'title' => 'Контакты', 'content_file' => 'contacts.html', 'meta' => 'Связь с командой Wild World и ссылка на игрового Telegram-бота.'],
     ];
 
     /**
@@ -115,9 +79,9 @@ class ApplyCanonCorrections extends BaseCommand
      * @var list<array{from:string,to:string,code:int}>
      */
     private const REDIRECTS = [
-        ['from' => '/главная', 'to' => '/', 'code' => 301],          // WP homepage → новый корень
-        ['from' => '/блог', 'to' => '/devblog', 'code' => 301],       // WP «Блог» → рубрика DevBlog
-        ['from' => '/контакты', 'to' => '/contacts', 'code' => 301],  // кириллический slug → латиница
+        ['from' => '/главная', 'to' => '/', 'code' => 301],
+        ['from' => '/блог', 'to' => '/devblog', 'code' => 301],
+        ['from' => '/контакты', 'to' => '/contacts', 'code' => 301],
         ['from' => '/dashboard', 'to' => '/admin/dashboard', 'code' => 301],
         ['from' => '/login', 'to' => '/admin/login', 'code' => 301],
         ['from' => '/logout', 'to' => '/admin/logout', 'code' => 301],
@@ -127,75 +91,18 @@ class ApplyCanonCorrections extends BaseCommand
     public function run(array $params): int
     {
         $dryRun = (bool) CLI::getOption('dry-run');
-        $model  = new SitePostModel();
-        $applied = 0;
-        $marked  = 0;
 
-        foreach (self::CORRECTIONS as $c) {
-            $post = $model->where('slug', $c['slug'])->first();
-            if (! is_array($post)) {
-                CLI::write('  ⚠ пост не найден: ' . $c['slug'], 'red');
-                continue;
-            }
-            $id      = is_numeric($post['id'] ?? null) ? (int) $post['id'] : 0;
-            $content = is_string($post['content_html'] ?? null) ? $post['content_html'] : '';
-            $excerpt = is_string($post['excerpt'] ?? null) ? $post['excerpt'] : '';
-
-            $file = $c['content_file'] ?? '';
-            if ($file !== '') {
-                $path   = APPPATH . 'Data/site_canon/' . $file;
-                $loaded = is_file($path) ? file_get_contents($path) : false;
-                if ($loaded === false) {
-                    CLI::write('  ⚠ файл-оверрайд не найден: ' . $file, 'red');
-                    continue;
-                }
-                $newContent = $loaded;
-                $newExcerpt = $excerpt;
-            } else {
-                $from       = array_keys($c['replace']);
-                $to         = array_values($c['replace']);
-                $newContent = str_replace($from, $to, $content);
-                $newExcerpt = str_replace($from, $to, $excerpt);
-            }
-            $changed = $newContent !== $content || $newExcerpt !== $excerpt;
-
-            $alreadyReviewed = (int) (is_numeric($post['canon_reviewed'] ?? null) ? $post['canon_reviewed'] : 0) === 1;
-            $willMark        = ! $alreadyReviewed; // запись в CORRECTIONS = сверённый пост
-
-            if (! $changed && ! $willMark) {
-                CLI::write('  = без изменений: ' . $c['slug'], 'dark_gray');
-                continue;
-            }
-
-            CLI::write('  • ' . $c['slug'] . ' — ' . $c['note']
-                . ($changed ? ' [текст]' : '') . ($willMark ? ' [canon✓]' : ''), 'green');
-
-            if ($dryRun) {
-                continue;
-            }
-
-            $data = ['id' => $id, 'content_html' => $newContent, 'excerpt' => $newExcerpt !== '' ? $newExcerpt : null, 'canon_reviewed' => 1];
-            if ($model->update($id, $data)) {
-                if ($changed) {
-                    $applied++;
-                }
-                if ($willMark) {
-                    $marked++;
-                }
-            } else {
-                CLI::error('  ✗ update failed: ' . implode('; ', $model->errors()));
-            }
-        }
-
-        $pagesN = $this->seedPages($dryRun);
-        $redirN = $this->seedRedirects($dryRun);
+        $files    = $this->applyFileOverrides($dryRun);
+        $replaced = $this->applyReplaceCorrections($dryRun);
+        $pagesN   = $this->seedPages($dryRun);
+        $redirN   = $this->seedRedirects($dryRun);
 
         CLI::write('');
         CLI::write(sprintf(
-            'Готово%s. Тексты: %d, сверено: %d, страниц: %d, редиректов: %d.',
+            'Готово%s. Постов (file): %d, постов (replace): %d, страниц: %d, редиректов: %d.',
             $dryRun ? ' (dry-run)' : '',
-            $applied,
-            $marked,
+            $files,
+            $replaced,
             $pagesN,
             $redirN
         ), 'yellow');
@@ -203,7 +110,90 @@ class ApplyCanonCorrections extends BaseCommand
         return EXIT_SUCCESS;
     }
 
-    /** Insert-or-update статических страниц из app/Data/site_canon/pages/. */
+    /**
+     * АВТО file-override: app/Data/site_canon/*.html → пост с slug=basename + canon_reviewed=1.
+     */
+    private function applyFileOverrides(bool $dryRun): int
+    {
+        $dir   = APPPATH . 'Data/site_canon/';
+        $found = glob($dir . '*.html');
+        if ($found === false) {
+            return 0;
+        }
+
+        $model = new SitePostModel();
+        $n     = 0;
+        foreach ($found as $path) {
+            $slug    = basename($path, '.html');
+            $content = file_get_contents($path);
+            if ($content === false) {
+                continue;
+            }
+
+            $post = $model->where('slug', $slug)->first();
+            if (! is_array($post)) {
+                CLI::write('  ⚠ file-override: нет поста для ' . $slug, 'red');
+                continue;
+            }
+            $id      = is_numeric($post['id'] ?? null) ? (int) $post['id'] : 0;
+            $current = is_string($post['content_html'] ?? null) ? $post['content_html'] : '';
+            $reviewed = (int) (is_numeric($post['canon_reviewed'] ?? null) ? $post['canon_reviewed'] : 0) === 1;
+
+            if ($content === $current && $reviewed) {
+                continue; // уже применено
+            }
+
+            CLI::write('  • file: ' . $slug, 'green');
+            if ($dryRun) {
+                $n++;
+                continue;
+            }
+            if ($model->update($id, ['id' => $id, 'content_html' => $content, 'canon_reviewed' => 1])) {
+                $n++;
+            } else {
+                CLI::error('  ✗ update failed (' . $slug . '): ' . implode('; ', $model->errors()));
+            }
+        }
+
+        return $n;
+    }
+
+    /** Точечные str_replace-правки. */
+    private function applyReplaceCorrections(bool $dryRun): int
+    {
+        $model = new SitePostModel();
+        $n     = 0;
+        foreach (self::REPLACE_CORRECTIONS as $c) {
+            $post = $model->where('slug', $c['slug'])->first();
+            if (! is_array($post)) {
+                continue;
+            }
+            $id      = is_numeric($post['id'] ?? null) ? (int) $post['id'] : 0;
+            $content = is_string($post['content_html'] ?? null) ? $post['content_html'] : '';
+            $excerpt = is_string($post['excerpt'] ?? null) ? $post['excerpt'] : '';
+            $reviewed = (int) (is_numeric($post['canon_reviewed'] ?? null) ? $post['canon_reviewed'] : 0) === 1;
+
+            $newContent = str_replace(array_keys($c['replace']), array_values($c['replace']), $content);
+            $newExcerpt = str_replace(array_keys($c['replace']), array_values($c['replace']), $excerpt);
+
+            if ($newContent === $content && $newExcerpt === $excerpt && $reviewed) {
+                continue;
+            }
+
+            CLI::write('  • replace: ' . $c['slug'] . ' — ' . $c['note'], 'green');
+            if ($dryRun) {
+                $n++;
+                continue;
+            }
+            if ($model->update($id, ['id' => $id, 'content_html' => $newContent, 'excerpt' => $newExcerpt !== '' ? $newExcerpt : null, 'canon_reviewed' => 1])) {
+                $n++;
+            }
+        }
+
+        return $n;
+    }
+
+    /** Insert-or-update статических страниц. */
     private function seedPages(bool $dryRun): int
     {
         $model = new SitePageModel();
@@ -215,7 +205,6 @@ class ApplyCanonCorrections extends BaseCommand
                 CLI::write('  ⚠ страница: файл не найден ' . $p['content_file'], 'red');
                 continue;
             }
-            CLI::write('  • страница /' . $p['slug'], 'green');
             if ($dryRun) {
                 $n++;
                 continue;
@@ -246,11 +235,9 @@ class ApplyCanonCorrections extends BaseCommand
         $model = new SiteRedirectModel();
         $n     = 0;
         foreach (self::REDIRECTS as $r) {
-            $exists = $model->where('from_path', $r['from'])->first() !== null;
-            if ($exists) {
+            if ($model->where('from_path', $r['from'])->first() !== null) {
                 continue;
             }
-            CLI::write('  • редирект ' . $r['from'] . ' → ' . $r['to'] . ' (' . $r['code'] . ')', 'green');
             if ($dryRun) {
                 $n++;
                 continue;
