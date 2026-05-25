@@ -199,3 +199,9 @@ nul
 #-------------------------
 public/uploads/telegram/_legacy/
 app/Commands/SmokeS26b.php
+
+#-------------------------
+# Website CMS (ADR-052) — featured-картинки импортируются командой site:import-wp
+# на каждом окружении вместе с DB-строками постов (контент = данные в БД, не в git).
+#-------------------------
+public/uploads/site/

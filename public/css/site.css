@@ -1,0 +1,160 @@
+/* Wild World — публичный сайт (ADR-052). Тёмный постапок-стиль «найденная плёнка». */
+:root{
+  --ww-bg:#13110e;
+  --ww-bg2:#1b1814;
+  --ww-panel:#211d18;
+  --ww-line:#352f27;
+  --ww-text:#e7e0d4;
+  --ww-muted:#9a907f;
+  --ww-accent:#e0823a;   /* ржавый янтарь */
+  --ww-accent2:#c8581f;
+  --ww-tg:#2aabee;       /* telegram */
+}
+*{box-sizing:border-box}
+.ww-body{
+  margin:0;background:var(--ww-bg);color:var(--ww-text);
+  font-family:"PT Sans",system-ui,Arial,sans-serif;line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.ww-body h1,.ww-body h2,.ww-body h3,.ww-body h4,.ww-brand,.ww-hero-title{
+  font-family:"Oswald",Impact,sans-serif;font-weight:600;letter-spacing:.02em;
+}
+a{color:var(--ww-accent);text-decoration:none}
+a:hover{color:var(--ww-accent2)}
+img{max-width:100%}
+
+/* Header */
+.ww-header{position:sticky;top:0;z-index:50;background:rgba(19,17,14,.92);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--ww-line)}
+.ww-header .navbar{padding:.6rem 0}
+.ww-brand{font-size:1.5rem;color:var(--ww-text)!important;letter-spacing:.06em;text-transform:uppercase}
+.ww-brand span{color:var(--ww-accent)}
+.ww-header .nav-link{color:var(--ww-text)!important;font-weight:700;text-transform:uppercase;
+  font-size:.82rem;letter-spacing:.05em;padding:.4rem .9rem!important;opacity:.85}
+.ww-header .nav-link:hover,.ww-header .nav-link.active{opacity:1;color:var(--ww-accent)!important}
+.navbar-toggler{border-color:var(--ww-line)}
+.navbar-toggler-icon{filter:invert(1) opacity(.7)}
+.ww-dropdown{background:var(--ww-panel);border:1px solid var(--ww-line)}
+.ww-dropdown .dropdown-item{color:var(--ww-text)}
+.ww-dropdown .dropdown-item:hover{background:var(--ww-bg2);color:var(--ww-accent)}
+
+/* Buttons */
+.ww-btn{display:inline-block;font-family:"Oswald",sans-serif;font-weight:600;text-transform:uppercase;
+  letter-spacing:.04em;padding:.6rem 1.3rem;border-radius:4px;border:1px solid transparent;transition:.15s;cursor:pointer}
+.ww-btn-lg{padding:.85rem 1.8rem;font-size:1.05rem}
+.ww-btn-play{background:var(--ww-accent);color:#1a1408!important;border-color:var(--ww-accent)}
+.ww-btn-play:hover{background:var(--ww-accent2);color:#1a1408!important}
+.ww-btn-ghost{background:transparent;color:var(--ww-text)!important;border-color:var(--ww-line)}
+.ww-btn-ghost:hover{border-color:var(--ww-accent);color:var(--ww-accent)!important}
+
+/* Hero */
+.ww-hero{position:relative;padding:5rem 0 4rem;
+  background:linear-gradient(180deg,rgba(19,17,14,.4),var(--ww-bg)),radial-gradient(120% 80% at 70% 0%,rgba(224,130,58,.14),transparent 60%);
+  border-bottom:1px solid var(--ww-line)}
+.ww-hero-inner{max-width:780px}
+.ww-eyebrow{display:inline-block;text-transform:uppercase;letter-spacing:.18em;font-size:.78rem;
+  color:var(--ww-accent);border:1px solid var(--ww-line);padding:.3rem .8rem;border-radius:40px;margin-bottom:1.2rem}
+.ww-hero-title{font-size:clamp(2.2rem,5vw,3.7rem);line-height:1.05;margin:0 0 1.1rem}
+.ww-hero-lead{font-size:1.15rem;color:var(--ww-muted);max-width:640px;margin-bottom:1.8rem}
+.ww-hero-cta{display:flex;gap:.8rem;flex-wrap:wrap}
+
+/* Sections */
+.ww-section{padding:3.6rem 0}
+.ww-section-alt{background:var(--ww-bg2);border-top:1px solid var(--ww-line);border-bottom:1px solid var(--ww-line)}
+.ww-section-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:1.8rem;gap:1rem}
+.ww-section-head h2{font-size:1.9rem;margin:0;text-transform:uppercase}
+.ww-link{font-weight:700;white-space:nowrap}
+.ww-muted{color:var(--ww-muted)}
+
+/* Features */
+.ww-feature{background:var(--ww-panel);border:1px solid var(--ww-line);border-radius:8px;padding:1.5rem;height:100%}
+.ww-feature-ico{font-size:2rem;margin-bottom:.6rem}
+.ww-feature h3{font-size:1.15rem;margin:0 0 .4rem;text-transform:uppercase}
+.ww-feature p{color:var(--ww-muted);margin:0;font-size:.95rem}
+
+/* Cards (posts) */
+.ww-card{display:block;background:var(--ww-panel);border:1px solid var(--ww-line);border-radius:8px;
+  overflow:hidden;height:100%;color:var(--ww-text)!important;transition:.18s}
+.ww-card:hover{transform:translateY(-3px);border-color:var(--ww-accent);box-shadow:0 10px 30px rgba(0,0,0,.4)}
+.ww-card-img{height:180px;background-size:cover;background-position:center;background-color:#0e0c0a}
+.ww-card-img-empty{background:linear-gradient(135deg,#262019,#15120e)}
+.ww-card-body{padding:1.1rem 1.2rem 1.3rem}
+.ww-card-date{display:block;color:var(--ww-accent);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.35rem}
+.ww-card-title{font-size:1.15rem;margin:0 0 .5rem;line-height:1.25}
+.ww-card-exc{color:var(--ww-muted);font-size:.92rem;margin:0}
+
+/* Factions */
+.ww-faction{background:var(--ww-panel);border:1px solid var(--ww-line);border-radius:8px;overflow:hidden;height:100%;text-align:center}
+.ww-faction-img{height:150px;background-size:cover;background-position:center}
+.ww-faction h3{font-size:1.1rem;margin:.8rem 0 .3rem;text-transform:uppercase}
+.ww-faction p{color:var(--ww-muted);font-size:.85rem;padding:0 .9rem 1rem;margin:0}
+
+/* Chips */
+.ww-chips{display:flex;flex-wrap:wrap;gap:.7rem}
+.ww-chip{background:var(--ww-panel);border:1px solid var(--ww-line);border-radius:40px;
+  padding:.5rem 1.1rem;color:var(--ww-text)!important;font-weight:700;text-transform:uppercase;font-size:.85rem}
+.ww-chip:hover{border-color:var(--ww-accent);color:var(--ww-accent)!important}
+.ww-chip span{color:var(--ww-accent);margin-left:.3rem}
+
+/* CTA band */
+.ww-cta-band{padding:4rem 0;background:linear-gradient(180deg,var(--ww-bg2),var(--ww-bg));border-top:1px solid var(--ww-line)}
+.ww-cta-band h2{font-size:2rem;text-transform:uppercase;margin-bottom:.5rem}
+.ww-cta-band p{color:var(--ww-muted);margin-bottom:1.4rem}
+
+/* Page head */
+.ww-page-head{padding:2.6rem 0 1.4rem;border-bottom:1px solid var(--ww-line);background:var(--ww-bg2)}
+.ww-page-head h1{font-size:2.2rem;margin:.3rem 0 .4rem;text-transform:uppercase}
+.ww-back{display:inline-block;color:var(--ww-muted);font-size:.85rem;margin-bottom:.5rem}
+
+/* Article */
+.ww-article{padding:2.4rem 0 3.5rem}
+.ww-article .container{max-width:820px}
+.ww-article-head h1{font-size:2.3rem;margin:.5rem 0;line-height:1.12}
+.ww-article-meta{color:var(--ww-accent);font-size:.85rem;text-transform:uppercase;letter-spacing:.08em}
+.ww-article-cover{margin:1.4rem 0;border-radius:8px;overflow:hidden;border:1px solid var(--ww-line)}
+.ww-article-cover img{display:block;width:100%}
+.ww-tags{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem}
+.ww-tag{background:var(--ww-panel);border:1px solid var(--ww-line);border-radius:4px;padding:.2rem .6rem;font-size:.75rem;text-transform:uppercase}
+
+/* Prose (post content from WP) */
+.ww-prose{font-size:1.08rem;color:#ded7c9}
+.ww-prose h2,.ww-prose h3,.ww-prose h4{font-family:"Oswald",sans-serif;margin:1.8rem 0 .7rem;color:var(--ww-text)}
+.ww-prose h2{font-size:1.6rem}.ww-prose h3{font-size:1.3rem}
+.ww-prose p{margin:0 0 1.1rem}
+.ww-prose img{border-radius:6px;margin:1.2rem 0;height:auto}
+.ww-prose ul,.ww-prose ol{margin:0 0 1.1rem 1.2rem}
+.ww-prose li{margin:.3rem 0}
+.ww-prose a{text-decoration:underline}
+.ww-prose blockquote{border-left:3px solid var(--ww-accent);margin:1.2rem 0;padding:.4rem 1rem;color:var(--ww-muted);background:var(--ww-bg2)}
+.ww-prose code,.ww-prose pre{background:#0e0c0a;border:1px solid var(--ww-line);border-radius:4px;font-family:ui-monospace,monospace}
+.ww-prose pre{padding:1rem;overflow:auto}
+.ww-prose code{padding:.1rem .35rem}
+.ww-prose hr{border:0;border-top:1px solid var(--ww-line);margin:2rem 0}
+.ww-prose table{width:100%;border-collapse:collapse;margin:1.2rem 0}
+.ww-prose th,.ww-prose td{border:1px solid var(--ww-line);padding:.5rem .7rem;text-align:left}
+
+/* Wiki */
+.ww-wiki-card{display:flex;flex-direction:column;align-items:center;text-align:center;gap:.3rem;
+  background:var(--ww-panel);border:1px solid var(--ww-line);border-radius:8px;padding:1.5rem 1rem;height:100%;color:var(--ww-text)!important}
+.ww-wiki-card:hover{border-color:var(--ww-accent);transform:translateY(-3px)}
+.ww-wiki-ico{font-size:2rem}
+.ww-wiki-title{font-family:"Oswald",sans-serif;text-transform:uppercase;font-weight:600}
+.ww-wiki-count{color:var(--ww-accent);font-weight:700}
+.ww-entry{background:var(--ww-panel);border:1px solid var(--ww-line);border-radius:8px;overflow:hidden;height:100%}
+.ww-entry-img{height:150px;background-size:cover;background-position:center}
+.ww-entry-body{padding:1.1rem 1.2rem}
+.ww-entry-title{font-size:1.15rem;margin:0 0 .4rem}
+.ww-entry-ability{color:var(--ww-accent);font-size:.88rem;margin:0 0 .4rem}
+.ww-entry-desc{color:var(--ww-muted);font-size:.92rem;margin:0 0 .7rem}
+.ww-badges{display:flex;flex-wrap:wrap;gap:.4rem}
+.ww-badge{background:var(--ww-bg2);border:1px solid var(--ww-line);border-radius:4px;padding:.18rem .5rem;font-size:.78rem}
+.ww-badge-k{color:var(--ww-muted)}
+
+/* Footer */
+.ww-footer{background:#0f0d0b;border-top:1px solid var(--ww-line);padding:3rem 0 2rem;margin-top:1rem}
+.ww-foot-h{text-transform:uppercase;font-family:"Oswald",sans-serif;font-size:.95rem;color:var(--ww-muted);margin-bottom:.8rem}
+.ww-foot-links{list-style:none;padding:0;margin:0}
+.ww-foot-links li{margin:.35rem 0}
+.ww-foot-links a{color:var(--ww-text)}
+.ww-foot-links a:hover{color:var(--ww-accent)}
+.ww-copy{border-top:1px solid var(--ww-line);margin-top:2rem;padding-top:1.2rem;color:var(--ww-muted);font-size:.85rem}

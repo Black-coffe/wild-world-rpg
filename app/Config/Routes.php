@@ -5,7 +5,10 @@ use CodeIgniter\Router\RouteCollection;
 /**
  * @var RouteCollection $routes
  */
-$routes->get('/', 'Login::new');
+// ADR-052 — публичный сайт занимает корень; админ-логин переехал на /admin/login
+// (старый /login сохранён для совместимости). Форма логина постит на /login/authenticate.
+$routes->get('/', 'Front::home');
+$routes->get('admin/login', 'Login::new');
 // v0.51.6 security cleanup: removed public unprotected routes
 // - /migrate -> MigrationController (CRITICAL: anyone could trigger migrations->latest() via GET)
 // - /pve-test, /pve-test-view -> PvETestController (dead test scaffolding, replaced by PHPUnit)
@@ -125,6 +128,22 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->post('game-settings/update', 'Admin\GameSettingsController::update');
     $routes->post('game-settings/reset', 'Admin\GameSettingsController::reset');
 
+    // ADR-052 — CMS публичного сайта (посты + страницы)
+    $routes->get('site/posts', 'Admin\SitePostController::index');
+    $routes->get('site/posts/create', 'Admin\SitePostController::createForm');
+    $routes->post('site/posts/store', 'Admin\SitePostController::store');
+    $routes->get('site/posts/edit/(:num)', 'Admin\SitePostController::editForm/$1');
+    $routes->post('site/posts/update/(:num)', 'Admin\SitePostController::update/$1');
+    $routes->get('site/posts/review/(:num)', 'Admin\SitePostController::markReviewed/$1');
+    $routes->get('site/posts/delete/(:num)', 'Admin\SitePostController::delete/$1');
+
+    $routes->get('site/pages', 'Admin\SitePageController::index');
+    $routes->get('site/pages/create', 'Admin\SitePageController::createForm');
+    $routes->post('site/pages/store', 'Admin\SitePageController::store');
+    $routes->get('site/pages/edit/(:num)', 'Admin\SitePageController::editForm/$1');
+    $routes->post('site/pages/update/(:num)', 'Admin\SitePageController::update/$1');
+    $routes->get('site/pages/delete/(:num)', 'Admin\SitePageController::delete/$1');
+
 });
 
 
@@ -148,6 +167,37 @@ $routes->get('dashboard', 'AdminController::index', ['filter' => 'login']);
 
 // TELEGRAM
 $routes->post('telegram/webhook', 'Telegram\BotController::webhook');
+
+
+// ===== ADR-052 — публичный сайт wildworld.fun в CI4 =====
+// Порядок важен (Routing::$prioritize=false → первое совпадение): SEO/wiki/категории
+// объявлены ДО корневого catch-all, который должен идти ПОСЛЕДНИМ GET-маршрутом.
+// Карты сайта в формате Yoast/WP (имена совпадают со старыми сабмитами в GSC).
+$routes->get('sitemap.xml', 'Sitemap::index');
+$routes->get('sitemap_index.xml', 'Sitemap::index');
+$routes->get('post-sitemap.xml', 'Sitemap::posts');
+$routes->get('page-sitemap.xml', 'Sitemap::pages');
+$routes->get('category-sitemap.xml', 'Sitemap::categories');
+$routes->get('post_tag-sitemap.xml', 'Sitemap::tags');
+$routes->get('author-sitemap.xml', 'Sitemap::authors');
+
+$routes->get('wiki', 'Wiki::index');
+$routes->get('wiki/(:segment)', 'Wiki::entry/$1');
+
+// 7 категорий блога (явно — иначе их перехватит корневой catch-all postslug).
+$routes->get('devblog', 'Front::category/devblog');
+$routes->get('informacija', 'Front::category/informacija');
+$routes->get('mestnost', 'Front::category/mestnost');
+$routes->get('syre', 'Front::category/syre');
+$routes->get('letopis-mira', 'Front::category/letopis-mira');
+$routes->get('npc', 'Front::category/npc');
+$routes->get('kraft', 'Front::category/kraft');
+
+// Корневой catch-all: одиночный slug → пост или страница. ОБЯЗАТЕЛЬНО последним.
+$routes->get('(:segment)', 'Front::resolve/$1');
+
+// 404 → проверка таблицы site_redirects (301/302) перед отдачей 404.
+$routes->set404Override('App\Controllers\Errors::notFound');
 
 
 

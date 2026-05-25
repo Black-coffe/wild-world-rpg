@@ -1,2 +1,9 @@
 User-agent: *
-Disallow: 
+Disallow: /admin/
+Disallow: /admin/login
+Disallow: /dashboard
+Disallow: /signup/
+Disallow: /password/
+Disallow: /telegram/
+
+Sitemap: https://wildworld.fun/sitemap_index.xml
