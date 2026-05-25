@@ -18511,6 +18511,12 @@ parameters:
 			path: app/Views/admin/dashboard.php
 
 		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/crafting_economy.php
+
+		-
 			message: '#^Binary operation "\." between ''🔥 TRIGGERED '' and array\<int\|string, array\<int\|string, mixed\>\|string\>\|string results in an error\.$#'
 			identifier: binaryOp.invalid
 			count: 1

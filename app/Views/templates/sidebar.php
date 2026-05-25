@@ -68,6 +68,13 @@
             </li>
 
             <li class="side-nav-item">
+                <a href="<?= base_url('admin/crafting-economy')?>" class="side-nav-link">
+                    <i class="ri-line-chart-line"></i>
+                    <span> Экономика крафта </span>
+                </a>
+            </li>
+
+            <li class="side-nav-item">
                 <a href="<?= base_url('admin/navigation')?>" class="side-nav-link">
                     <i class="ri-route-line"></i>
                     <span> Дерево навигации </span>

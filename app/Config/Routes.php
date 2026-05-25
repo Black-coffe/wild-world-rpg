@@ -111,6 +111,11 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->get('craft-tree/data', 'Admin\CraftTreeController::data');
     $routes->get('craft-tree/export', 'Admin\CraftTreeController::export'); // S30 — CSV-экспорт
 
+    // V21 (ADR-053) — Crafting economy dashboard (read-only аналитика gold/turnover/inflation)
+    $routes->get('crafting-economy', 'Admin\CraftingEconomyController::index');
+    $routes->get('crafting-economy/data', 'Admin\CraftingEconomyController::data');
+    $routes->get('crafting-economy/export', 'Admin\CraftingEconomyController::export');
+
     // Navigation tree visualisation (read-only) — дерево кнопок/экранов/переходов игры
     $routes->get('navigation', 'Admin\NavigationMapController::index');
     $routes->get('navigation/data', 'Admin\NavigationMapController::data');
