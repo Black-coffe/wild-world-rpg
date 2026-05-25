@@ -24,6 +24,7 @@ class SitePageModel extends Model
     protected $updatedField  = 'updated_at';
 
     protected $validationRules = [
+        'id'               => 'permit_empty|is_natural',
         'slug'             => 'required|max_length[200]|is_unique[site_pages.slug,id,{id}]',
         'title'            => 'required|max_length[255]',
         'content_html'     => 'required',

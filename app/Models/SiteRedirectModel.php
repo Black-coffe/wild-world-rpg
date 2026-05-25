@@ -25,6 +25,7 @@ class SiteRedirectModel extends Model
     protected $updatedField  = 'updated_at';
 
     protected $validationRules = [
+        'id'        => 'permit_empty|is_natural',
         'from_path' => 'required|max_length[255]|is_unique[site_redirects.from_path,id,{id}]',
         'to_path'   => 'required|max_length[255]',
         'code'      => 'required|in_list[301,302,308]',

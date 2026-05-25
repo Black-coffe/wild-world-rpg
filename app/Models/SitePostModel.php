@@ -36,6 +36,7 @@ class SitePostModel extends Model
     protected $updatedField  = 'updated_at';
 
     protected $validationRules = [
+        'id'               => 'permit_empty|is_natural',
         'wp_post_id'       => 'permit_empty|is_natural',
         'slug'             => 'required|max_length[200]|is_unique[site_posts.slug,id,{id}]',
         'title'            => 'required|max_length[255]',
