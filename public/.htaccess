@@ -16,6 +16,16 @@ Options -Indexes
 	# http://httpd.apache.org/docs/current/mod/mod_rewrite.html#rewritebase
 	# RewriteBase /
 
+	# ADR-052 — 301 со старых кириллических WP-URL (Apache обрабатывает encoded URI
+	# раньше CI4-роутера; одиночные кириллические сегменты до него не доходят).
+	# /?$ ловит и с хвостовым слэшем → один хоп. [NC] — регистр hex может отличаться.
+	RewriteCond %{REQUEST_URI} ^/%D0%B3%D0%BB%D0%B0%D0%B2%D0%BD%D0%B0%D1%8F/?$ [NC]
+	RewriteRule ^ / [R=301,L]
+	RewriteCond %{REQUEST_URI} ^/%D0%B1%D0%BB%D0%BE%D0%B3/?$ [NC]
+	RewriteRule ^ /devblog [R=301,L]
+	RewriteCond %{REQUEST_URI} ^/%D0%BA%D0%BE%D0%BD%D1%82%D0%B0%D0%BA%D1%82%D1%8B/?$ [NC]
+	RewriteRule ^ /contacts [R=301,L]
+
 	# Redirect Trailing Slashes...
 	RewriteCond %{REQUEST_FILENAME} !-d
 	RewriteCond %{REQUEST_URI} (.+)/$
