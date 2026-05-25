@@ -120,9 +120,9 @@ abstract class RobotRepairBaseAction extends BaseAction
      * Хватает ли ресурсов + золота на ремонт.
      *
      * @param array{gold:int,resources:array<string,int>,restored:int} $cost
-     * @param array<array-key,mixed> $character
+     * @param array<array-key,mixed>|\App\Entities\CharacterEntity $character
      */
-    protected function canAfford(array $cost, array $character, int $characterId): bool
+    protected function canAfford(array $cost, array|\App\Entities\CharacterEntity $character, int $characterId): bool
     {
         $gold = is_numeric($character['gold'] ?? null) ? (int) $character['gold'] : 0;
         if ($gold < $cost['gold']) {
