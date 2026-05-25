@@ -43,6 +43,7 @@ class ImportWordPress extends BaseCommand
         '--skip-images'   => 'Не скачивать featured-картинки.',
         '--base-url'      => 'База WordPress (по умолчанию https://wildworld.fun).',
         '--force-content' => 'Перезаписывать content_html/title/excerpt даже если canon_reviewed=1.',
+        '--only-if-empty' => 'Импортировать только если таблица site_posts пуста (для авто-импорта в post-deploy).',
     ];
 
     private const PER_PAGE = 20;
@@ -74,6 +75,16 @@ class ImportWordPress extends BaseCommand
 
         $baseOpt = CLI::getOption('base-url');
         $base    = rtrim(is_string($baseOpt) && $baseOpt !== '' ? $baseOpt : 'https://wildworld.fun', '/') . '/';
+
+        // Авто-импорт в post-deploy: пропустить, если контент уже есть (не дёргать WP каждый деплой).
+        if (! $this->dryRun && (bool) CLI::getOption('only-if-empty')) {
+            $existing = (new SitePostModel())->countAllResults();
+            if ($existing > 0) {
+                CLI::write(sprintf('site:import-wp: пропуск — уже есть %d постов (--only-if-empty).', $existing), 'yellow');
+
+                return EXIT_SUCCESS;
+            }
+        }
 
         CLI::write('Импорт WordPress → CMS' . ($this->dryRun ? ' (dry-run)' : ''), 'yellow');
         CLI::write('База: ' . $base . ($this->limit > 0 ? '  | limit=' . $this->limit : ''), 'dark_gray');

@@ -35,8 +35,22 @@ ln -sfn "$SHARED/.env" .env
 rm -rf writable
 ln -sfn "$SHARED/writable" writable
 
+# ADR-052 — featured-картинки сайта (uploads/site) держим в shared, чтобы они
+# переживали новые релизы (контент в БД shared, картинки gitignored → не в rsync).
+echo ">>> [post-deploy] symlink public/uploads/site -> shared"
+mkdir -p "$SHARED/uploads/site"
+mkdir -p public/uploads
+rm -rf public/uploads/site
+ln -sfn "$SHARED/uploads/site" public/uploads/site
+
 echo ">>> [post-deploy] migrate"
 php spark migrate --all -n
+
+# ADR-052 — контент публичного сайта: импорт из WP при первом деплое (если site_posts
+# пуст) + ревизия под канон (идемпотентно). Non-fatal: сбой контента не валит деплой.
+echo ">>> [post-deploy] website content (import-if-empty + canon)"
+php spark site:import-wp --only-if-empty || echo "WARN: site:import-wp failed, continuing"
+php spark site:apply-canon || echo "WARN: site:apply-canon failed, continuing"
 
 echo ">>> [post-deploy] atomic switch"
 ln -sfn "$NEW_RELEASE" "$WEBROOT.tmp"
