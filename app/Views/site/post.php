@@ -7,34 +7,15 @@
 $title = is_string($post['title'] ?? null) ? $post['title'] : '';
 $img   = is_string($post['featured_image'] ?? null) && $post['featured_image'] !== '' ? base_url($post['featured_image']) : null;
 $date  = is_string($post['published_at'] ?? null) ? date('d.m.Y', (int) strtotime($post['published_at'])) : '';
-$dateISO = is_string($post['published_at'] ?? null) ? date('c', (int) strtotime($post['published_at'])) : '';
-$updISO  = is_string($post['updated_at'] ?? null) ? date('c', (int) strtotime($post['updated_at'])) : $dateISO;
 $content = is_string($post['content_html'] ?? null) ? $post['content_html'] : '';
-$canonical = is_string($meta['canonical'] ?? null) ? $meta['canonical'] : rtrim(base_url(), '/');
 ?>
 <?= $this->extend('site/layout') ?>
-
-<?= $this->section('head') ?>
-<script type="application/ld+json">
-<?= json_encode([
-    '@context'         => 'https://schema.org',
-    '@type'            => 'BlogPosting',
-    'headline'         => $title,
-    'datePublished'    => $dateISO,
-    'dateModified'     => $updISO,
-    'image'            => $img !== null ? [$img] : [],
-    'mainEntityOfPage' => $canonical,
-    'author'           => ['@type' => 'Organization', 'name' => 'Wild World'],
-    'publisher'        => ['@type' => 'Organization', 'name' => 'Wild World'],
-], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>
-</script>
-<?= $this->endSection() ?>
-
 <?= $this->section('content') ?>
+
+<?= view('site/_breadcrumbs', ['items' => $breadcrumbs ?? []]) ?>
 
 <article class="ww-article">
     <div class="container">
-        <a class="ww-back" href="<?= base_url('devblog') ?>">← Назад к девблогу</a>
         <header class="ww-article-head">
             <?php if ($categories !== []): ?>
                 <div class="ww-tags">

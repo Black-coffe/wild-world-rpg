@@ -29,9 +29,10 @@ $labels = [
 <?= $this->extend('site/layout') ?>
 <?= $this->section('content') ?>
 
+<?= view('site/_breadcrumbs', ['items' => $breadcrumbs ?? []]) ?>
+
 <section class="ww-page-head">
     <div class="container">
-        <a class="ww-back" href="<?= base_url('wiki') ?>">← Вся вики</a>
         <h1><?= esc($heading) ?></h1>
     </div>
 </section>

@@ -53,6 +53,13 @@ class Front extends BaseController
                 'Wild World — постапокалиптическая текстовая MMORPG в Telegram',
                 'Выживай в огромном открытом мире: исследуй земли, добывай ресурсы, крафти снаряжение, строй базу, вступай во фракции и сражайся — прямо в Telegram.',
                 rtrim(base_url(), '/'),
+                null,
+                'index,follow',
+                'website',
+                [
+                    'keywords' => 'Wild World, текстовая MMORPG, игра в Telegram, постапокалипсис, выживание, крафт, ролевая игра, RPG, песочница, PvP',
+                    'jsonld'   => [$this->videoGameSchema()],
+                ],
             ),
         ]);
     }
@@ -89,14 +96,35 @@ class Front extends BaseController
         $name  = is_string($cat['name'] ?? null) ? $cat['name'] : $slug;
         $desc  = is_string($cat['description'] ?? null) ? $cat['description'] : '';
 
+        $canonical = rtrim(base_url($slug), '/');
+        $metaDesc  = $desc !== ''
+            ? mb_substr(trim(strip_tags($desc)), 0, 160)
+            : ('Материалы рубрики «' . $name . '» — Wild World, постапокалиптическая текстовая MMORPG в Telegram.');
+
         return view('site/posts', [
-            'heading' => $name,
-            'lead'    => $desc,
-            'posts'   => (new SitePostModel())->publishedInCategory($catId),
-            'meta'    => $this->meta(
+            'heading'     => $name,
+            'lead'        => $desc,
+            'breadcrumbs' => [$this->homeCrumb(), ['name' => $name, 'url' => $canonical]],
+            'posts'       => (new SitePostModel())->publishedInCategory($catId),
+            'meta'        => $this->meta(
                 $name . ' — Wild World',
-                $desc !== '' ? mb_substr(strip_tags($desc), 0, 300) : ('Материалы рубрики «' . $name . '» — Wild World.'),
-                rtrim(base_url($slug), '/'),
+                $metaDesc,
+                $canonical,
+                null,
+                'index,follow',
+                'website',
+                [
+                    'keywords'    => $name . ', Wild World, вики, гайд, текстовая MMORPG, Telegram',
+                    'breadcrumbs' => [$this->homeCrumb(), ['name' => $name, 'url' => $canonical]],
+                    'jsonld'      => [[
+                        '@type'       => 'CollectionPage',
+                        'name'        => $name,
+                        'url'         => $canonical,
+                        'description' => $metaDesc,
+                        'inLanguage'  => 'ru',
+                        'isPartOf'    => ['@id' => rtrim(base_url(), '/') . '/#website'],
+                    ]],
+                ],
             ),
         ]);
     }
@@ -125,16 +153,65 @@ class Front extends BaseController
         $catIds     = (new SitePostCategoryModel())->categoryIdsForPost($id);
         $categories = $catIds !== [] ? (new SiteCategoryModel())->whereIn('id', $catIds)->orderBy('sort')->findAll() : [];
 
+        $canonical = rtrim(base_url($slug), '/');
+        $imageUrl  = $image !== null ? rtrim(base_url($image), '/') : null;
+        $descr     = $metaDesc !== ''
+            ? mb_substr(trim($metaDesc), 0, 160)
+            : ($title . ' — Wild World, постапокалиптическая текстовая MMORPG в Telegram.');
+
+        // ISO-даты для article-меты и BlogPosting.
+        $pubRaw = is_string($post['published_at'] ?? null) ? $post['published_at'] : '';
+        $modRaw = is_string($post['updated_at'] ?? null) && $post['updated_at'] !== '' ? $post['updated_at'] : $pubRaw;
+        $pubISO = $pubRaw !== '' ? date('c', (int) strtotime($pubRaw)) : '';
+        $modISO = $modRaw !== '' ? date('c', (int) strtotime($modRaw)) : $pubISO;
+
+        // Первая категория → раздел + средняя крошка (иначе «Девблог»).
+        $firstCat = null;
+        foreach ($categories as $c) {
+            if (is_array($c) && is_string($c['name'] ?? null) && is_string($c['slug'] ?? null)) {
+                $firstCat = ['name' => $c['name'], 'url' => rtrim(base_url($c['slug']), '/')];
+                break;
+            }
+        }
+        $midCrumb = $firstCat ?? ['name' => 'Девблог', 'url' => rtrim(base_url('devblog'), '/')];
+        $section  = $firstCat['name'] ?? 'Девблог';
+
+        $breadcrumbs = [$this->homeCrumb(), $midCrumb, ['name' => $title, 'url' => $canonical]];
+
+        $site = rtrim(base_url(), '/');
+
         return view('site/post', [
             'post'       => $post,
             'categories' => $categories,
+            'breadcrumbs' => $breadcrumbs,
             'meta'       => $this->meta(
                 $title . ' — Wild World',
-                $metaDesc !== '' ? $metaDesc : ($title . ' — Wild World, постапокалиптическая MMORPG в Telegram.'),
-                rtrim(base_url($slug), '/'),
-                $image !== null ? rtrim(base_url($image), '/') : null,
+                $descr,
+                $canonical,
+                $imageUrl,
                 'index,follow',
                 'article',
+                [
+                    'keywords'      => $title . ', ' . $section . ', Wild World, текстовая MMORPG, Telegram',
+                    'publishedTime' => $pubISO,
+                    'modifiedTime'  => $modISO,
+                    'section'       => $section,
+                    'breadcrumbs'   => $breadcrumbs,
+                    'jsonld'        => [[
+                        '@type'            => 'BlogPosting',
+                        'headline'         => mb_substr($title, 0, 110),
+                        'datePublished'    => $pubISO,
+                        'dateModified'     => $modISO,
+                        'image'            => [$imageUrl ?? base_url('og-default.jpg')],
+                        'mainEntityOfPage' => $canonical,
+                        'url'              => $canonical,
+                        'inLanguage'       => 'ru',
+                        'description'      => $descr,
+                        'articleSection'   => $section,
+                        'author'           => ['@type' => 'Organization', 'name' => 'Wild World', 'url' => $site . '/'],
+                        'publisher'        => ['@id' => $site . '/#organization'],
+                    ]],
+                ],
             ),
         ]);
     }
@@ -148,17 +225,27 @@ class Front extends BaseController
         $title    = is_string($page['title'] ?? null) ? $page['title'] : '';
         $metaDesc = is_string($page['meta_description'] ?? null) ? $page['meta_description'] : '';
 
+        $canonical   = rtrim(base_url($slug), '/');
+        $breadcrumbs = [$this->homeCrumb(), ['name' => $title, 'url' => $canonical]];
+
         return view('site/page', [
-            'page' => $page,
-            'meta' => $this->meta(
+            'page'        => $page,
+            'breadcrumbs' => $breadcrumbs,
+            'meta'        => $this->meta(
                 $title . ' — Wild World',
-                $metaDesc !== '' ? $metaDesc : $title,
-                rtrim(base_url($slug), '/'),
+                $metaDesc !== '' ? mb_substr(trim($metaDesc), 0, 160) : $title . ' — Wild World.',
+                $canonical,
+                null,
+                'index,follow',
+                'website',
+                ['breadcrumbs' => $breadcrumbs],
             ),
         ]);
     }
 
     /**
+     * @param array<string,mixed> $extra доп. SEO-поля: keywords, breadcrumbs, jsonld, publishedTime, modifiedTime, section
+     *
      * @return array<string,mixed>
      */
     private function meta(
@@ -167,15 +254,52 @@ class Front extends BaseController
         string $canonical,
         ?string $ogImage = null,
         string $robots = 'index,follow',
-        string $ogType = 'website'
+        string $ogType = 'website',
+        array $extra = []
     ): array {
-        return [
+        return array_merge([
             'title'       => $title,
             'description' => $description,
             'canonical'   => $canonical,
             'ogImage'     => $ogImage,
             'robots'      => $robots,
             'ogType'      => $ogType,
+        ], $extra);
+    }
+
+    /**
+     * Хлебная крошка «Главная».
+     *
+     * @return array{name:string,url:string}
+     */
+    private function homeCrumb(): array
+    {
+        return ['name' => 'Главная', 'url' => rtrim(base_url(), '/') . '/'];
+    }
+
+    /**
+     * Schema.org VideoGame для главной — игра как сущность (rich-результаты).
+     *
+     * @return array<string,mixed>
+     */
+    private function videoGameSchema(): array
+    {
+        $site = rtrim(base_url(), '/');
+
+        return [
+            '@type'               => 'VideoGame',
+            'name'                => 'Wild World',
+            'url'                 => $site . '/',
+            'description'         => 'Постапокалиптическая текстовая MMORPG в Telegram: исследование открытого мира, добыча, крафт, строительство баз, фракции и PvP.',
+            'image'               => base_url('og-default.jpg'),
+            'inLanguage'          => 'ru',
+            'genre'               => ['MMORPG', 'Текстовая RPG', 'Выживание', 'Песочница'],
+            'gamePlatform'        => ['Telegram', 'Web'],
+            'applicationCategory' => 'GameApplication',
+            'operatingSystem'     => 'Telegram',
+            'author'              => ['@type' => 'Organization', 'name' => 'Wild World'],
+            'publisher'           => ['@id' => $site . '/#organization'],
+            'offers'              => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'USD'],
         ];
     }
 }

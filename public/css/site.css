@@ -158,3 +158,12 @@ img{max-width:100%}
 .ww-foot-links a{color:var(--ww-text)}
 .ww-foot-links a:hover{color:var(--ww-accent)}
 .ww-copy{border-top:1px solid var(--ww-line);margin-top:2rem;padding-top:1.2rem;color:var(--ww-muted);font-size:.85rem}
+
+/* Breadcrumbs (SEO + UX) */
+.ww-crumbs{border-bottom:1px solid var(--ww-line);background:var(--ww-bg2)}
+.ww-crumbs ol{list-style:none;display:flex;flex-wrap:wrap;gap:.4rem;margin:0;padding:.7rem 0;font-size:.82rem}
+.ww-crumbs li{display:flex;align-items:center;color:var(--ww-muted)}
+.ww-crumbs li+li::before{content:"›";margin-right:.4rem;color:var(--ww-line)}
+.ww-crumbs a{color:var(--ww-muted)}
+.ww-crumbs a:hover{color:var(--ww-accent)}
+.ww-crumbs li[aria-current] span{color:var(--ww-text)}

@@ -10,6 +10,8 @@ $icons = [
 <?= $this->extend('site/layout') ?>
 <?= $this->section('content') ?>
 
+<?= view('site/_breadcrumbs', ['items' => $breadcrumbs ?? []]) ?>
+
 <section class="ww-page-head">
     <div class="container">
         <h1>Вики мира Wild World</h1>

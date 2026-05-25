@@ -8,6 +8,8 @@ $content = is_string($page['content_html'] ?? null) ? $page['content_html'] : ''
 <?= $this->extend('site/layout') ?>
 <?= $this->section('content') ?>
 
+<?= view('site/_breadcrumbs', ['items' => $breadcrumbs ?? []]) ?>
+
 <article class="ww-article">
     <div class="container">
         <header class="ww-article-head">
