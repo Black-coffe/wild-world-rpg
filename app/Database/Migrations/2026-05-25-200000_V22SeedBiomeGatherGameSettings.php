@@ -53,7 +53,7 @@ class V22SeedBiomeGatherGameSettings extends Migration
             'value_float'        => 0.5,
             'value_string'       => null,
             'default_value_text' => '0.5',
-            'rationale_text'     => 'Множитель «дефицитных» (scarce, off-theme) ресурсов биома. 0.5 = вдвое меньше обычного. Применяется только к ресурсам из scarce-списка биома (Config\GatherBiomeProfiles): Лес→Камни, Горы→Древесина/Мхи/Вода, Пустыни→Вода. 0.5 точно воспроизводит legacy ÷2 (Лес Камни, Горы Древесина/Мхи) и мягче прежних Горы Вода ÷4 / Пустыни Вода ÷10 (послабление, не nerf).',
+            'rationale_text'     => 'Множитель «дефицитных» (scarce, off-theme) ресурсов биома. 0.5 = вдвое меньше обычного. Применяется только к ресурсам из scarce-списка биома (Config\GatherBiomeProfiles): Лес→Камни, Горы→Древесина/Мхи/Вода. 0.5 точно воспроизводит legacy ÷2 (Лес Камни, Горы Древесина/Мхи) и мягче прежней Горы Вода ÷4 (послабление, не nerf).',
             'effect_text'        => 'BiomeGatherProfileService::offbiomeMultiplier. Применяется в modifyResourcesByBiome к scarce-ресурсам биома (amount × это).',
             'above_effect_text'  => 'При 1.0 дефицит исчезает — off-theme ресурсы добываются как обычно, биомы менее различимы.',
             'below_effect_text'  => 'При 0.1 off-theme ресурсы почти не добываются в чужом биоме (жёстко, как старый Пустыни Вода ÷10) — может раздражать игроков, которым нужен «не тот» ресурс здесь.',
