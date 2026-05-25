@@ -15,7 +15,6 @@ use App\Models\WeaponModel;
 use App\Models\CharactersOutfitsModel;
 use App\Models\OutfitModel;
 use DateTime;
-use Longman\TelegramBot\Entities\Keyboard;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -55,24 +54,14 @@ class CharacterService
      */
     public function showCharacterInfo(int $chatId, array|\App\Entities\CharacterEntity $characterRow): ServerResponse
     {
-        // 1. Устанавливаем клавиатуру
-        $replyKeyboard = new Keyboard([
-            'keyboard' => [
-                ['Перс', 'База', 'Крафт', 'Карта'],
-                ['Настройки'],
-            ],
-            'resize_keyboard'   => true,
-            'one_time_keyboard' => false,
-            'selective'         => false,
-        ]);
+        // Reply-keyboard (нижнее меню Перс/База/Крафт/Карта/Настройки) ставится в
+        // StartCommand и НИГДЕ не снимается (нет ReplyKeyboardRemove) → персистентно
+        // для всех игроков. Раньше здесь слалось отдельное сообщение «Используйте меню
+        // внизу экрана…» только чтобы повторно привязать клавиатуру — это был мусор в
+        // чате (Telegram не даёт привязать reply-keyboard без сообщения, а карточке
+        // нужен inline-keyboard → совмещать нельзя). Убрано: клавиатура уже есть.
 
-        Request::sendMessage([
-            'chat_id'      => $chatId,
-            'text'         => "Используйте меню внизу экрана, чтобы выбрать действие.",
-            'reply_markup' => $replyKeyboard,
-        ]);
-
-        // 2. Собираем сведения о персонаже
+        // Собираем сведения о персонаже
         $exploredCount = $this->exploredCellsModel->where('character_id', $characterRow['id'])->countAllResults();
         $totalResources = $this->characterResourceModel->where('id_characters', $characterRow['id'])->countAllResults();
 
