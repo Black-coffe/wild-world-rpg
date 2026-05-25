@@ -916,6 +916,74 @@ class CraftRecipes extends BaseConfig
         ],
 
         // ============================================================
+        // V18 (ADR-049) — Robotics T2: специализированные роботы.
+        // Гейт RoboticsWorkshop L2 через `required_building_levels` (S16/ADR-026).
+        // output_type не задан → default crafted_item → crafted_items_log type=robots
+        // (как T1). Рантайм-различие — RobotService по name_eng (Scout/Industrial).
+        // ============================================================
+        'RobotScout' => [
+            'task_name'                => 'craftRobotScout',
+            'resources'                => [
+                'Янтарь'           => 12,
+                'Смола деревьев'   => 70,
+                'Солнечные камни'  => 55,
+            ],
+            'crafted_items'            => [
+                'GlassBags'      => 4,
+                'Fabric'         => 22,
+                'metalFragments' => 70,
+            ],
+            'gold_required'            => 40000,
+            'requires_base'            => true,
+            'required_buildings'       => ['RoboticsWorkshop'],
+            'required_building_levels' => ['RoboticsWorkshop' => 2],
+            'image_in_progress'        => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'start_caption_name'       => 'робота 🔭 *Разведчика!*',
+            'info_callback'            => 'robotScout',
+            'item_name_eng'            => 'RobotScout',
+            'item_name_rus'            => 'Робот-разведчик',
+            'icon_emoji'               => '🔭',
+            'zone_emoji'               => '🌳',
+            'zone_name'                => 'биом',
+            'agility_bonus'            => 0.06,
+            'intellect_bonus'          => 0.06,
+            'image_completed'          => 'uploads/telegram/craft/standard/robot_scout.jpg',
+            'craft_again_callback'     => 'genericCraft_RobotScout_1',
+            'boost_building_time'      => 'RoboticsWorkshop',
+        ],
+
+        'RobotIndustrial' => [
+            'task_name'                => 'craftRobotIndustrial',
+            'resources'                => [
+                'Янтарь'           => 12,
+                'Смола деревьев'   => 70,
+                'Солнечные камни'  => 55,
+            ],
+            'crafted_items'            => [
+                'GlassBags'      => 5,
+                'Fabric'         => 26,
+                'metalFragments' => 80,
+            ],
+            'gold_required'            => 48000,
+            'requires_base'            => true,
+            'required_buildings'       => ['RoboticsWorkshop', 'Workshop'],
+            'required_building_levels' => ['RoboticsWorkshop' => 2],
+            'image_in_progress'        => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'start_caption_name'       => 'робота 🏭 *Промышленника!*',
+            'info_callback'            => 'robotIndustrial',
+            'item_name_eng'            => 'RobotIndustrial',
+            'item_name_rus'            => 'Робот-промышленник',
+            'icon_emoji'               => '🏭',
+            'zone_emoji'               => '🌳',
+            'zone_name'                => 'биом',
+            'agility_bonus'            => 0.06,
+            'intellect_bonus'          => 0.06,
+            'image_completed'          => 'uploads/telegram/craft/standard/robot_industrial.jpg',
+            'craft_again_callback'     => 'genericCraft_RobotIndustrial_1',
+            'boost_building_time'      => 'RoboticsWorkshop',
+        ],
+
+        // ============================================================
         // F3.B9 (v0.25.0) — WorkbenchStandard Weapons (4 крафта).
         // Особенности относительно B5-B8:
         //   - `output_type` = 'weapon' (новое поле): результат пишется в

@@ -55,9 +55,14 @@ class ActivateRobotHandler extends BaseAction
         // Вызываем метод для конкретного робота
         switch ($robot['name_eng']) {
             case 'RobotExplorer':
+            // V18 (ADR-049): T2 Разведчик — семья explorer, тот же активатор
+            // (рантайм-различие применяется в CompleteRobotExplorationHandler по name_eng).
+            case 'RobotScout':
                 $activator = new RobotExplorerActivator($robotId);
                 break;
             case 'RobotGatherer':
+            // V18 (ADR-049): T2 Промышленник — семья gatherer, тот же активатор.
+            case 'RobotIndustrial':
                 $activator = new RobotGathererActivator($robotId);
                 break;
             // Добавьте здесь другие роботы и их классы активации

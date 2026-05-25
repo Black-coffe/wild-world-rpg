@@ -205,6 +205,9 @@ class StartRobotExplorationAction extends BaseAction
             'start_time'       => $startTime->format('Y-m-d H:i:s'),
             'end_time'         => $endTime->format('Y-m-d H:i:s'),
             'status'           => 'in_work',
+            // V18 (ADR-049): какой именно робот запущен — для tier-aware множителя
+            // в CompleteRobotExplorationHandler (T2 Scout открывает больше клеток).
+            'task_settings'    => json_encode(['crafted_item_id' => (int) $robotId]),
         ]);
 
         // 11. Считаем, сколько роботов и суммарной прочности осталось

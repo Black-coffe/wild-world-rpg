@@ -101,6 +101,8 @@ class CallbackRoutes extends BaseConfig
         'robotsCraft2'                    => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotsCraft2Select::class,
         'robotExplorer'                   => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotExplorer2Action::class,
         'robotGatherer'                   => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotGatherer2Action::class,
+        'robotScout'                      => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotScout2Action::class,
+        'robotIndustrial'                 => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Robots\RobotIndustrial2Action::class,
         'teleportBeaconCraft2'            => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\TeleportBeaconCraft2Select::class,
         'teleportBeaconBasic2'            => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\TeleportBeaconBasic2Action::class,
         'startCraftTeleportBeaconBasic2'  => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\StartCraftTeleportBeaconBasic2Action::class,

@@ -16,14 +16,24 @@ class RobotsCraft2Select extends BaseAction
             . "Раздел крафта роботизированных вещей.\n\n"
             . "_Выбирай нужного робота и приступай к крафту_ 👇\n";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🔍 Исследователь', 'callback_data' => 'robotExplorer'],
-                    ['text' => '⛏️ Добытчик', 'callback_data' => 'robotGatherer'],
-                ],
-            ]
+        $rows = [
+            [
+                ['text' => '🔍 Исследователь', 'callback_data' => 'robotExplorer'],
+                ['text' => '⛏️ Добытчик', 'callback_data' => 'robotGatherer'],
+            ],
         ];
+
+        // V18 (ADR-049): T2-роботы (Разведчик/Промышленник) — гейт RoboticsWorkshop L2,
+        // показываем только когда killswitch включён.
+        if ((new \App\Services\Player\RobotService())->t2Enabled()) {
+            $text .= "\n🔬 *T2 (нужна Мастерская робототехники 2 ур.):*\n";
+            $rows[] = [
+                ['text' => '🔭 Разведчик', 'callback_data' => 'robotScout'],
+                ['text' => '🏭 Промышленник', 'callback_data' => 'robotIndustrial'],
+            ];
+        }
+
+        $keyboard = ['inline_keyboard' => $rows];
 
         $imagePath = base_url('uploads/telegram/craft/standard/all_robots.jpg');
 

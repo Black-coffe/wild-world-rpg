@@ -184,32 +184,46 @@ class StartrobotexplorerCommand extends UserCommand
         $workshopLevel = $roboticsWorkshop['level'] ?? 1;
         $this->logger->debug("Уровень мастерской: {$workshopLevel}");
 
-        // 9) Ищем робот (ID=81) - робот-исследователь
-        $robotId              = 81;
+        // 9) V18 (ADR-049): резолвим explorer-робота игрока, ПРЕДПОЧИТАЯ T2 Разведчика
+        //    (раньше хардкод ID=81 → coords-таргет был только для T1 и хрупок к id).
+        //    Fresh-model per итерацию — CI4 builder-state quirk (where() не сбрасывается).
         $craftedItemsLogModel = new CraftedItemsLogModel();
-        $robotLogEntry        = $craftedItemsLogModel
-            ->where('character_id', $characterId)
-            ->where('crafted_item_id', $robotId)
-            ->where('quantity >', 0)
-            ->orderBy('id', 'ASC')
-            ->first();
 
-        if (!$robotLogEntry) {
-            $this->logger->debug("Робот-исследователь (ID={$robotId}) не найден или закончился.");
-            return $this->sendMessage($chatId, "Нет роботов типа (ID={$robotId}) либо они закончились.");
+        $robotId       = null;
+        $robotItemData = null;
+        $robotLogEntry = null;
+        foreach (['RobotScout', 'RobotExplorer'] as $robotNameEn) {
+            $robotItem = (new CraftedItemsModel())->where('name_eng', $robotNameEn)->first();
+            if (!is_array($robotItem)) {
+                continue;
+            }
+            $idRaw = $robotItem['id'] ?? null;
+            if (!is_numeric($idRaw)) {
+                continue;
+            }
+            $candidateId = (int) $idRaw;
+            $candidate = (new CraftedItemsLogModel())
+                ->where('character_id', $characterId)
+                ->where('crafted_item_id', $candidateId)
+                ->where('quantity >', 0)
+                ->orderBy('id', 'ASC')
+                ->first();
+            if ($candidate) {
+                $robotId       = $candidateId;
+                $robotItemData = $robotItem;
+                $robotLogEntry = $candidate;
+                break;
+            }
         }
-        $this->logger->debug("Робот-исследователь: " . print_r($robotLogEntry, true));
 
-        // 9.1) Получаем baseDurability
-        $robotItemModel = new CraftedItemsModel();
-        $robotItemData  = $robotItemModel->find($robotId);
-        if (!$robotItemData) {
-            return $this->sendMessage(
-                $chatId,
-                "Не удалось найти описание робота #{$robotId} в crafted_items."
-            );
+        if (!$robotLogEntry || !$robotItemData || $robotId === null) {
+            $this->logger->debug('Explorer-роботов (Разведчик/Исследователь) у персонажа нет.');
+            return $this->sendMessage($chatId, "У тебя нет роботов-исследователей. Возможно, они закончились или не были скрафчены.");
         }
-        $baseDurability = (int)$robotItemData['durability_count'];
+        $this->logger->debug("Explorer-робот (id={$robotId}): " . print_r($robotLogEntry, true));
+
+        $durRaw         = $robotItemData['durability_count'] ?? null;
+        $baseDurability = is_numeric($durRaw) ? (int) $durRaw : 0;
         $this->logger->debug("baseDurability робота (ID={$robotId}): {$baseDurability}");
 
         // Текущее состояние роботов
@@ -270,7 +284,9 @@ class StartrobotexplorerCommand extends UserCommand
         $taskSettings = json_encode([
             'coordinates'        => ['x' => $x, 'y' => $y],
             'duration_hours'     => $hoursUntilBreakdown,
-            'exploration_radius' => $workshopLevel
+            'exploration_radius' => $workshopLevel,
+            // V18 (ADR-049): робот для tier-aware множителя (T2 Разведчик = больше клеток).
+            'crafted_item_id'    => $robotId,
         ]);
 
         $characterTaskModel->insert([

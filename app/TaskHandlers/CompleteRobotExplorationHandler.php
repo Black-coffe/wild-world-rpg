@@ -13,7 +13,9 @@ use App\Models\BiomeWorldObjectMapModel;
 use App\Models\WorldObjectModel;
 use App\Models\TelegramUserModel;
 use App\Services\Player\PlayerDetectionService;
-use Config\GameBalance;
+use App\Services\Player\RobotService;
+use App\Models\BuildingModel;
+use App\Models\CraftedItemsModel;
 
 /**
  * Обработчик завершения задачи исследования робота.
@@ -38,11 +40,13 @@ use Config\GameBalance;
 class CompleteRobotExplorationHandler extends BaseTaskHandler
 {
     private PlayerDetectionService $playerDetectionService;
-    private GameBalance $cfg;
+    private RobotService $robotService;
 
-    public function __construct(?GameBalance $cfg = null)
+    public function __construct(?RobotService $robotService = null)
     {
-        $this->cfg = $cfg ?? config('GameBalance');
+        // V18 (ADR-049): cells_base/per_level + tier-множитель читаются через
+        // RobotService (GameSettings, ADR-024) вместо Config\GameBalance.
+        $this->robotService = $robotService ?? new RobotService();
         // Сервис обнаружения ближайших игроков (PvP-логика)
         $this->playerDetectionService = new PlayerDetectionService();
     }
@@ -87,21 +91,32 @@ class CompleteRobotExplorationHandler extends BaseTaskHandler
         $endTime    = strtotime($task['end_time']);
         $hoursSpent = max(0, ($endTime - $startTime) / 3600);
 
-        // 5) Определяем уровень мастерской (например, RoboticsWorkshop; здесь для примера используется building_id = 999)
-        $workshopLevel = 1;
+        // 5) Уровень Мастерской робототехники.
+        // V18 (ADR-049) FIX: раньше искали building_id=999 (placeholder) → уровень
+        // всегда = 1, а per-level cells-rate был МЁРТВ (на L10 робот открывал ~3000
+        // клеток вместо задуманных ~8400). Резолвим по name_en (как gathering-хендлер).
+        $workshopLevel      = 1;
+        $workshopRow        = (new BuildingModel())->where('name_en', 'RoboticsWorkshop')->first();
+        $workshopBuildingId = is_array($workshopRow) && isset($workshopRow['id']) && is_numeric($workshopRow['id'])
+            ? (int) $workshopRow['id']
+            : 9;
         $roboticsWorkshop = $characterBuildingModel
             ->where('character_id', $character['id'])
-            ->where('building_id', 999)
+            ->where('building_id', $workshopBuildingId)
             ->first();
         if ($roboticsWorkshop) {
-            $workshopLevel = $roboticsWorkshop['level'] ?? 1;
+            $lvlRaw        = $roboticsWorkshop['level'] ?? 1;
+            $workshopLevel = is_numeric($lvlRaw) ? (int) $lvlRaw : 1;
         }
 
-        // 6) Рассчитываем количество ячеек для открытия
-        // v0.51.24: base + (level-1) × perLevel читається через GameBalance
-        $cellsPerHour = $this->cfg->roboticsExplorationCellsBase
-                      + max(0, $workshopLevel - 1) * $this->cfg->roboticsExplorationCellsPerLevel;
+        // 6) Кол-во ячеек/час: base + (level-1)×perLevel (V18: через RobotService/GameSettings).
+        $cellsPerHour = $this->robotService->explorationCellsBase()
+                      + max(0, $workshopLevel - 1) * $this->robotService->explorationCellsPerLevel();
         $cellsToOpen  = (int) floor($hoursSpent * $cellsPerHour);
+
+        // V18 (ADR-049): tier-множитель по запущенному роботу (T2 Разведчик → больше клеток).
+        $robotNameEn = $this->resolveRobotNameEn($task);
+        $cellsToOpen = (int) floor($cellsToOpen * $this->robotService->explorationCellsMultiplierFor($robotNameEn));
 
         // 7) Проверяем, заданы ли стартовые координаты в task_settings (ожидается формат "X,Y")
         $startCoords = null;
@@ -437,5 +452,27 @@ class CompleteRobotExplorationHandler extends BaseTaskHandler
 
         $msg .= "\n🔎 Надеюсь, эти данные помогут тебе в дальнейшем путешествии!";
         return $msg;
+    }
+
+    /**
+     * V18 (ADR-049): name_eng запущенного робота из task_settings.crafted_item_id
+     * (старт-экшены/команда его пишут). null → старый task без поля / робот не найден
+     * → RobotService вернёт нейтральный множитель 1.0 (0 регрессии).
+     *
+     * @param array<string,mixed> $task
+     */
+    private function resolveRobotNameEn(array $task): ?string
+    {
+        $raw = $task['task_settings'] ?? null;
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded) || !isset($decoded['crafted_item_id']) || !is_numeric($decoded['crafted_item_id'])) {
+            return null;
+        }
+        $row  = (new CraftedItemsModel())->find((int) $decoded['crafted_item_id']);
+        $name = is_array($row) && isset($row['name_eng']) ? $row['name_eng'] : null;
+        return is_string($name) ? $name : null;
     }
 }

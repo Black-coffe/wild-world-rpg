@@ -9387,7 +9387,7 @@ parameters:
 		-
 			message: '#^Cannot access offset ''durability_count'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
+			count: 1
 			path: app/Controllers/Telegram/Commands/StartrobotexplorerCommand.php
 
 		-
@@ -15807,12 +15807,6 @@ parameters:
 		-
 			message: '#^Parameter \#1 \$json of function json_decode expects string, mixed given\.$#'
 			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
-
-		-
-			message: '#^Property App\\TaskHandlers\\CompleteRobotExplorationHandler\:\:\$cfg \(Config\\GameBalance\) does not accept object\|null\.$#'
-			identifier: assign.propertyType
 			count: 1
 			path: app/TaskHandlers/CompleteRobotExplorationHandler.php
 

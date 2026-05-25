@@ -14,6 +14,8 @@ use App\Models\ResourceModel;
 use App\Models\TelegramUserModel;
 use App\Models\TaskModel;
 use App\Models\BiomeModel;
+use App\Models\CraftedItemsModel;
+use App\Services\Player\RobotService;
 use Config\GameBalance;
 
 /**
@@ -47,6 +49,7 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
 
     private int $workshopBuildingId;
     private GameBalance $cfg;
+    private RobotService $robotService;
 
     /**
      * F2.10 wire-in (v0.51.4): RANDOM_PERCENT (±20% yield variance) читається
@@ -55,9 +58,11 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
      *
      * v0.51.21 (F2.9 batch-3): Telegram init removed (lazy через BaseTaskHandler).
      */
-    public function __construct(?GameBalance $cfg = null)
+    public function __construct(?GameBalance $cfg = null, ?RobotService $robotService = null)
     {
         $this->cfg = $cfg ?? config('GameBalance');
+        // V18 (ADR-049): tier-множители + random_percent — через RobotService (GameSettings).
+        $this->robotService = $robotService ?? new RobotService();
 
         $this->characterModel         = new CharacterModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
@@ -140,8 +145,14 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         $actualEnd  = min($endTime, $now);
         $hoursSpent = max(0, ($actualEnd - $startTime) / 3600);
 
+        // V18 (ADR-049): какой робот запущен → tier-бонусы (T2 Промышленник:
+        // +extra_cells к охвату, ×yield_multiplier к выходу). T1/неизвестный → 0/1.0.
+        $robotNameEn = $this->resolveRobotNameEn($task);
+        $extraCells  = $this->robotService->gatheringExtraCellsFor($robotNameEn);
+        $yieldMult   = $this->robotService->gatheringYieldMultiplierFor($robotNameEn);
+
         // 7) Собираем ячейки BFS
-        $desiredCellsCount = max(1, $workshopLevel);
+        $desiredCellsCount = max(1, $workshopLevel + $extraCells);
         $uniqueCells = $this->getLimitedCells($baseCellNumber, $desiredCellsCount);
 
         if (empty($uniqueCells)) {
@@ -184,7 +195,8 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
             $resMap = $this->calculateBiomeResources($available, $hoursSpent);
             $ratio  = $bCount / $totalCells;
             foreach ($resMap as $rId => $val) {
-                $val *= $ratio;
+                // V18 (ADR-049): yieldMult = T2 Промышленник (×1.5), иначе ×1.0.
+                $val *= $ratio * $yieldMult;
                 $resMap[$rId] = (int) round($val);
             }
             $biomeGroupedResources[$bId] = $resMap;
@@ -306,7 +318,8 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         // v0.51.16: yield tables wired-in через GameBalance (admin може ребалансити через .env)
         $baseAt2h = $this->cfg->robotGatheringBaseAt2h;
         $damping  = $this->cfg->robotGatheringLowRarityDamping;
-        $rndRange = $this->cfg->robotGatheringRandomPercent;
+        // V18 (ADR-049): random_percent мигрирован в GameSettings (admin-tunable).
+        $rndRange = $this->robotService->gatheringRandomPercent();
 
         foreach ($availableResources as $r) {
             $rarity= (int)$r['rarity'];
@@ -427,5 +440,27 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         //            $text = str_replace($char, '\\' . $char, $text);
         //        }
         return $text;
+    }
+
+    /**
+     * V18 (ADR-049): name_eng запущенного робота из task_settings.crafted_item_id
+     * (StartRobotGatheringAction его пишет). null → старый task / робот не найден →
+     * RobotService вернёт нейтральные значения (×1.0 / +0).
+     *
+     * @param array<string,mixed> $task
+     */
+    private function resolveRobotNameEn(array $task): ?string
+    {
+        $raw = $task['task_settings'] ?? null;
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded) || !isset($decoded['crafted_item_id']) || !is_numeric($decoded['crafted_item_id'])) {
+            return null;
+        }
+        $row  = (new CraftedItemsModel())->find((int) $decoded['crafted_item_id']);
+        $name = is_array($row) && isset($row['name_eng']) ? $row['name_eng'] : null;
+        return is_string($name) ? $name : null;
     }
 }

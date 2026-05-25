@@ -211,6 +211,9 @@ class StartRobotGatheringAction extends BaseAction
             'start_time'       => $startTime->format('Y-m-d H:i:s'),
             'end_time'         => $endTime->format('Y-m-d H:i:s'),
             'status'           => 'in_work',
+            // V18 (ADR-049): какой именно робот запущен — для tier-aware множителя
+            // в CompleteRobotGatheringHandler (T2 Промышленник = больше выхода + клеток).
+            'task_settings'    => json_encode(['crafted_item_id' => (int) $robotId]),
         ]);
 
         // 8) Считаем, сколько роботов и «общей прочности» осталось
