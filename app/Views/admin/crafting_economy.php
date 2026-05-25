@@ -108,6 +108,8 @@
     </div>
 </div>
 
+<!-- V21: self-hosted ApexCharts (theme vendor/ не задеплоен → 404; кладём в tracked assets/js/admin). -->
+<script src="<?= base_url('assets/js/admin/apexcharts.min.js') ?>?v=1"></script>
 <script>
     window.__econDataUrl = "<?= site_url('admin/crafting-economy/data') ?>";
 </script>
