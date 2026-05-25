@@ -61,6 +61,24 @@ class ApplyCanonCorrections extends BaseCommand
             'replace' => self::FACTION_RENAME,
             'note'    => 'Фракция «Разбойники» → канон «Партизаны» (ADR-010)',
         ],
+        [
+            // Genre-обзор без дрейфа, но без упоминания игры — добавляем Wild World CTA
+            // (конвертация топ-SEO трафика «текстовые мморпг/игры»). + canon_reviewed.
+            'slug'    => 'tekstovye-igry-proshloe-nastojashhee-i-budushhee-zhanra-v-2024-2025-godah',
+            'replace' => [
+                'чем наше воображение.</p>' => 'чем наше воображение.</p>' . "\n"
+                    . '<hr />' . "\n"
+                    . '<h2>Wild World — текстовая MMORPG, в которую можно играть прямо сейчас</h2>' . "\n"
+                    . '<p>Захотелось попробовать жанр на практике? <strong>Wild World</strong> — масштабная постапокалиптическая текстовая MMORPG прямо в Telegram: огромный остров, 9 биомов, крафт, базы, фракции и PvP, без установки и с телефона. Запусти бота <a href="https://t.me/wildworldrpg_bot" target="_blank" rel="noopener"><strong>@wildworldrpg_bot</strong></a> и начни своё выживание.</p>',
+            ],
+            'note'    => 'Genre-пост: добавлен Wild World CTA',
+        ],
+        [
+            // Genre-обзор text-RPG: уже точен и с CTA на бота → только пометка сверки.
+            'slug'    => 'tekstovye-rpg-v-2024-godu-vozrozhdenie-klassiki-ili-novyj-vitok-razvitija',
+            'replace' => [],
+            'note'    => 'Genre-пост точен (CTA уже есть) — пометка canon_reviewed',
+        ],
     ];
 
     /**
