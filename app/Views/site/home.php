@@ -27,6 +27,7 @@ $group  = $social->groupLink; // инфо/сообщество — группа
 
 <section class="ww-section">
     <div class="container">
+        <div class="ww-section-head"><h2>Что вас ждёт в Wild World</h2></div>
         <div class="row g-4">
             <?php
             $features = [

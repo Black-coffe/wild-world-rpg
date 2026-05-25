@@ -167,7 +167,7 @@ $uri     = uri_string();
                 <a class="ww-btn ww-btn-play" href="<?= esc($tgLink, 'url') ?>" target="_blank" rel="noopener">▶ Начать играть</a>
             </div>
             <div class="col-lg-3 col-6">
-                <h6 class="ww-foot-h">Разделы</h6>
+                <div class="ww-foot-h">Разделы</div>
                 <ul class="ww-foot-links">
                     <li><a href="<?= base_url('devblog') ?>">Девблог</a></li>
                     <li><a href="<?= base_url('wiki') ?>">Вики мира</a></li>
@@ -179,7 +179,7 @@ $uri     = uri_string();
                 </ul>
             </div>
             <div class="col-lg-4 col-6">
-                <h6 class="ww-foot-h">Сообщество</h6>
+                <div class="ww-foot-h">Сообщество</div>
                 <ul class="ww-foot-links">
                     <li><a href="<?= esc($tgLink, 'url') ?>" target="_blank" rel="noopener">🎮 Играть в боте</a></li>
                     <li><a href="<?= esc($groupLink, 'url') ?>" target="_blank" rel="noopener">💬 Новости и обсуждение</a></li>
