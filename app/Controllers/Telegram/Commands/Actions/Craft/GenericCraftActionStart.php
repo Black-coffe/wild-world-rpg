@@ -607,7 +607,11 @@ class GenericCraftActionStart extends BaseAction
         $charLevel = is_numeric($lvlRaw) ? (int) $lvlRaw : 0;
         $specMult  = (new \App\Services\Player\SpecializationService())
             ->getCraftTimeMultiplierFor(is_string($specRaw) ? $specRaw : null, $recipe, $charLevel);
-        return max(1, (int) round($baseDuration * $multiplier * $foodMult * $specMult));
+        // V20 (ADR-051): фракц-buff проекта снабжения — ускоряет крафт всем членам
+        // фракции, пока активен buff_until. Нет фракции / буффа / выключено → ×1.0 (no-op).
+        $charIdForFaction = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $factionMult = (new \App\Services\Player\FactionProjectService())->craftTimeMultiplierFor($charIdForFaction);
+        return max(1, (int) round($baseDuration * $multiplier * $foodMult * $specMult * $factionMult));
     }
 
     /**

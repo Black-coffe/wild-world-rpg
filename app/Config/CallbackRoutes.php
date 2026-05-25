@@ -206,6 +206,9 @@ class CallbackRoutes extends BaseConfig
 
         // === Faction ===
         'chooseFaction'                   => \App\Controllers\Telegram\Commands\Actions\Faction\ChooseFaction::class,
+        // V20 (ADR-051) — фракц-проект (общий вклад → фракц-buff).
+        'factionProject'                  => \App\Controllers\Telegram\Commands\Actions\Faction\FactionProjectAction::class,
+        'factionDeposit'                  => \App\Controllers\Telegram\Commands\Actions\Faction\FactionProjectDepositConfirmAction::class,
 
         // === Camp / Base management ===
         'entrench'                        => \App\Controllers\Telegram\Commands\Actions\Camp\EntrenchAction::class,

@@ -167,6 +167,11 @@ class CharacterService
             $inlineRows[] = [['text' => '🎓 Специализация', 'callback_data' => 'specialization']];
         }
 
+        // V20 (ADR-051): вход в фракц-проект — только для выбравших фракцию (1-4).
+        if ($hasChosenFaction && (new \App\Services\Player\FactionProjectService())->enabled()) {
+            $inlineRows[] = [['text' => '🤝 Проект фракции', 'callback_data' => 'factionProject']];
+        }
+
         $inlineKeyboard = ['inline_keyboard' => $inlineRows];
 
         return Request::sendMessage([
