@@ -11,7 +11,8 @@ class LoginFilter implements FilterInterface
     public function before(RequestInterface $request, $arguments = null)
     {
         if (! service('auth')->isAdmin()){
-            return redirect()->to('/')
+            // ADR-050 — корень `/` теперь публичный сайт; админ-логин на /admin/login.
+            return redirect()->to('/admin/login')
                 ->with('message', 'Войдите, как администратор ресурса');
         }
     }

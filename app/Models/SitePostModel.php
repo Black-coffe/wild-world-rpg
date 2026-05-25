@@ -69,4 +69,26 @@ class SitePostModel extends Model
 
         return $rows;
     }
+
+    /**
+     * Опубликованные посты одной категории (через M:N), новые сверху.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function publishedInCategory(int $categoryId, int $limit = 0): array
+    {
+        $builder = $this->select('site_posts.*')
+            ->join('site_post_categories', 'site_post_categories.post_id = site_posts.id')
+            ->where('site_post_categories.category_id', $categoryId)
+            ->where('site_posts.status', 'published')
+            ->orderBy('site_posts.published_at', 'DESC');
+        if ($limit > 0) {
+            $builder->limit($limit);
+        }
+
+        /** @var list<array<string,mixed>> $rows */
+        $rows = $builder->findAll();
+
+        return $rows;
+    }
 }

@@ -5,7 +5,10 @@ use CodeIgniter\Router\RouteCollection;
 /**
  * @var RouteCollection $routes
  */
-$routes->get('/', 'Login::new');
+// ADR-050 — публичный сайт занимает корень; админ-логин переехал на /admin/login
+// (старый /login сохранён для совместимости). Форма логина постит на /login/authenticate.
+$routes->get('/', 'Front::home');
+$routes->get('admin/login', 'Login::new');
 // v0.51.6 security cleanup: removed public unprotected routes
 // - /migrate -> MigrationController (CRITICAL: anyone could trigger migrations->latest() via GET)
 // - /pve-test, /pve-test-view -> PvETestController (dead test scaffolding, replaced by PHPUnit)
@@ -139,6 +142,29 @@ $routes->get('dashboard', 'AdminController::index', ['filter' => 'login']);
 
 // TELEGRAM
 $routes->post('telegram/webhook', 'Telegram\BotController::webhook');
+
+
+// ===== ADR-050 — публичный сайт wildworld.fun в CI4 =====
+// Порядок важен (Routing::$prioritize=false → первое совпадение): SEO/wiki/категории
+// объявлены ДО корневого catch-all, который должен идти ПОСЛЕДНИМ GET-маршрутом.
+$routes->get('sitemap.xml', 'Sitemap::index');
+$routes->get('wiki', 'Wiki::index');
+$routes->get('wiki/(:segment)', 'Wiki::entry/$1');
+
+// 7 категорий блога (явно — иначе их перехватит корневой catch-all postslug).
+$routes->get('devblog', 'Front::category/devblog');
+$routes->get('informacija', 'Front::category/informacija');
+$routes->get('mestnost', 'Front::category/mestnost');
+$routes->get('syre', 'Front::category/syre');
+$routes->get('letopis-mira', 'Front::category/letopis-mira');
+$routes->get('npc', 'Front::category/npc');
+$routes->get('kraft', 'Front::category/kraft');
+
+// Корневой catch-all: одиночный slug → пост или страница. ОБЯЗАТЕЛЬНО последним.
+$routes->get('(:segment)', 'Front::resolve/$1');
+
+// 404 → проверка таблицы site_redirects (301/302) перед отдачей 404.
+$routes->set404Override('App\Controllers\Errors::notFound');
 
 
 
