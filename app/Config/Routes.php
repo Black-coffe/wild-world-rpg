@@ -119,6 +119,22 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->post('game-settings/update', 'Admin\GameSettingsController::update');
     $routes->post('game-settings/reset', 'Admin\GameSettingsController::reset');
 
+    // ADR-052 — CMS публичного сайта (посты + страницы)
+    $routes->get('site/posts', 'Admin\SitePostController::index');
+    $routes->get('site/posts/create', 'Admin\SitePostController::createForm');
+    $routes->post('site/posts/store', 'Admin\SitePostController::store');
+    $routes->get('site/posts/edit/(:num)', 'Admin\SitePostController::editForm/$1');
+    $routes->post('site/posts/update/(:num)', 'Admin\SitePostController::update/$1');
+    $routes->get('site/posts/review/(:num)', 'Admin\SitePostController::markReviewed/$1');
+    $routes->get('site/posts/delete/(:num)', 'Admin\SitePostController::delete/$1');
+
+    $routes->get('site/pages', 'Admin\SitePageController::index');
+    $routes->get('site/pages/create', 'Admin\SitePageController::createForm');
+    $routes->post('site/pages/store', 'Admin\SitePageController::store');
+    $routes->get('site/pages/edit/(:num)', 'Admin\SitePageController::editForm/$1');
+    $routes->post('site/pages/update/(:num)', 'Admin\SitePageController::update/$1');
+    $routes->get('site/pages/delete/(:num)', 'Admin\SitePageController::delete/$1');
+
 });
 
 

@@ -115,6 +115,21 @@
             </li>
             <!-- Конец нового пункта меню -->
 
+            <!-- ADR-052 — Контент публичного сайта -->
+            <li class="side-nav-item">
+                <a data-bs-toggle="collapse" href="#siteContentMenu" aria-expanded="false" aria-controls="siteContentMenu" class="side-nav-link collapsed">
+                    <i class="ri-global-line"></i>
+                    <span> Контент сайта </span>
+                    <span class="menu-arrow"></span>
+                </a>
+                <div class="collapse" id="siteContentMenu">
+                    <ul class="side-nav-second-level">
+                        <li><a href="<?= base_url('admin/site/posts')?>">Посты</a></li>
+                        <li><a href="<?= base_url('admin/site/pages')?>">Страницы</a></li>
+                    </ul>
+                </div>
+            </li>
+
         </ul>
         <!--- End Sidemenu -->
 
