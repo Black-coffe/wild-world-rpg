@@ -11,6 +11,8 @@ use App\Models\OutfitModel;
 use App\Models\ResourceModel;
 use App\Models\WeaponModel;
 use App\Models\WorldObjectModel;
+use Config\Buildings as BuildingsConfig;
+use Config\CraftRecipes;
 use Config\ImageRegistry;
 
 /**
@@ -38,8 +40,24 @@ final class WikiContentService
         'Фермеры'   => 'farmers',
     ];
 
+    /** name_en объекта мира → ключ картинки (ImageRegistry objects/<...>). */
+    private const WORLD_OBJECT_IMAGE_KEYS = [
+        'Bunker'           => 'objects/bunker',
+        'Technopark'       => 'objects/technopark',
+        'GhostCity'        => 'objects/ghostcity',
+        'IslandFarm'       => 'objects/islandfarm',
+        'Toolkit'          => 'objects/collection-of-rusted-and-weathered-tools-including',
+        'Closed warehouse' => 'objects/an-old-long-abandoned-warehouse',
+    ];
+
     /** @var array<string,string>|null Кэш карты ImageRegistry key(lowercase) => file. */
     private ?array $imageMap = null;
+
+    /** @var array<string,array<string,string>>|null name_en→relPath по output_type (weapon|outfit). */
+    private ?array $craftImagesByType = null;
+
+    /** @var array<string,string>|null name_en постройки → relPath (Config\Buildings). */
+    private ?array $buildingImagesMap = null;
 
     /**
      * Биомы мира.
@@ -134,7 +152,7 @@ final class WikiContentService
                 'level'               => self::asInt($b['level'] ?? null),
                 'min_character_level' => self::asInt($b['min_character_level'] ?? null),
                 'effects'             => $this->decodeJson(self::asString($b['effects'] ?? '')),
-                'image'               => $nameEn !== '' ? $this->resolveImage('camp/' . $nameEn) : null,
+                'image'               => $this->buildingImages()[$nameEn] ?? ($nameEn !== '' ? $this->resolveImage('camp/' . $nameEn) : null),
             ];
         }
 
@@ -149,11 +167,13 @@ final class WikiContentService
     public function weapons(): array
     {
         $out = [];
+        $images = $this->craftImagesFor('weapon');
         foreach ((new WeaponModel())->findAll() as $row) {
-            $w     = self::asArray($row);
-            $out[] = [
+            $w      = self::asArray($row);
+            $nameEn = self::asString($w['name_en'] ?? '');
+            $out[]  = [
                 'name'           => self::asString($w['name'] ?? ''),
-                'name_en'        => self::asString($w['name_en'] ?? ''),
+                'name_en'        => $nameEn,
                 'description'    => self::asString($w['description'] ?? ''),
                 'weapon_type'    => self::asString($w['weapon_type'] ?? ''),
                 'damage_value'   => self::asFloat($w['damage_value'] ?? null),
@@ -161,7 +181,7 @@ final class WikiContentService
                 'required_level' => self::asInt($w['required_level'] ?? null),
                 'rarity'         => self::asString($w['rarity'] ?? ''),
                 'price'          => self::asInt($w['price'] ?? null),
-                'image'          => null,
+                'image'          => $images[$nameEn] ?? null,
             ];
         }
 
@@ -177,11 +197,13 @@ final class WikiContentService
     public function outfits(): array
     {
         $out = [];
+        $images = $this->craftImagesFor('outfit');
         foreach ((new OutfitModel())->findAll() as $row) {
-            $o     = self::asArray($row);
-            $out[] = [
+            $o      = self::asArray($row);
+            $nameEn = self::asString($o['name_en'] ?? '');
+            $out[]  = [
                 'name'           => self::asString($o['name'] ?? ''),
-                'name_en'        => self::asString($o['name_en'] ?? ''),
+                'name_en'        => $nameEn,
                 'description'    => self::asString($o['description'] ?? ''),
                 'armor_type'     => self::asString($o['armor_type'] ?? ''),
                 'slot'           => self::asString($o['slot'] ?? ''),
@@ -189,7 +211,7 @@ final class WikiContentService
                 'required_level' => self::asInt($o['required_level'] ?? null),
                 'rarity'         => self::asString($o['rarity'] ?? ''),
                 'price'          => self::asInt($o['price'] ?? null),
-                'image'          => null,
+                'image'          => $images[$nameEn] ?? null,
             ];
         }
 
@@ -205,12 +227,14 @@ final class WikiContentService
     {
         $out = [];
         foreach ((new WorldObjectModel())->where('status', 'active')->findAll() as $row) {
-            $w     = self::asArray($row);
-            $out[] = [
+            $w      = self::asArray($row);
+            $nameEn = self::asString($w['name_en'] ?? '');
+            $key    = self::WORLD_OBJECT_IMAGE_KEYS[$nameEn] ?? null;
+            $out[]  = [
                 'name'        => self::asString($w['name'] ?? ''),
-                'name_en'     => self::asString($w['name_en'] ?? ''),
+                'name_en'     => $nameEn,
                 'description' => self::asString($w['description'] ?? ''),
-                'image'       => null,
+                'image'       => $key !== null ? $this->resolveImage($key) : null,
             ];
         }
 
@@ -287,6 +311,68 @@ final class WikiContentService
         }
 
         return $this->imageMap = $map;
+    }
+
+    /**
+     * name_en крафтового предмета → relPath картинки, из `Config\CraftRecipes`
+     * (тот же source-of-truth, что бот при крафте). Только для существующих файлов.
+     *
+     * @return array<string,string>
+     */
+    private function craftImagesFor(string $outputType): array
+    {
+        if ($this->craftImagesByType === null) {
+            $byType = ['weapon' => [], 'outfit' => []];
+            foreach ((new CraftRecipes())->recipes as $recipe) {
+                if (! is_array($recipe)) {
+                    continue;
+                }
+                $type = self::asString($recipe['output_type'] ?? '');
+                if (! isset($byType[$type])) {
+                    continue;
+                }
+                $nameEn = self::asString($recipe[$type . '_name_en'] ?? '');
+                $image  = self::asString($recipe['image_completed'] ?? '');
+                if ($image === '') {
+                    $image = self::asString($recipe['image_in_progress'] ?? '');
+                }
+                if ($nameEn === '' || ! $this->imageExists($image)) {
+                    continue;
+                }
+                $byType[$type][$nameEn] = $image;
+            }
+            $this->craftImagesByType = $byType;
+        }
+
+        return $this->craftImagesByType[$outputType] ?? [];
+    }
+
+    /**
+     * name_en постройки → relPath картинки, из `Config\Buildings` (completion_image).
+     * Только для существующих файлов.
+     *
+     * @return array<string,string>
+     */
+    private function buildingImages(): array
+    {
+        if ($this->buildingImagesMap === null) {
+            $map = [];
+            foreach ((new BuildingsConfig())->recipes as $key => $b) {
+                $image = self::asString($b['completion_image'] ?? '');
+                if ($this->imageExists($image)) {
+                    $map[(string) $key] = $image;
+                }
+            }
+            $this->buildingImagesMap = $map;
+        }
+
+        return $this->buildingImagesMap;
+    }
+
+    /** Файл картинки физически существует в public/ (relPath относителен public). */
+    private function imageExists(string $relPath): bool
+    {
+        return $relPath !== '' && is_file(FCPATH . $relPath);
     }
 
     /**
