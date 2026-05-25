@@ -69,6 +69,16 @@ class ApplyCanonCorrections extends BaseCommand
             'mark_reviewed' => true,
             'note'          => 'PvP-формула и числа смерти/победы приведены к актуальному коду (ADR-010)',
         ],
+        [
+            // Концепт-пост: фракции «Остин Тех»/«Наследники Военных» → канон (Милитари/
+            // Партизаны/Инженеры/Фермеры); стратегобъекты и 4 финала теперь реальны
+            // (V12-V13 + эндгейм), финалы привязаны к фракциям.
+            'slug'          => 'wild-world-koncepcija-i-razvitie-igry',
+            'replace'       => [],
+            'content_file'  => 'wild-world-koncepcija-i-razvitie-igry.html',
+            'mark_reviewed' => true,
+            'note'          => 'Названия фракций → канон + привязка финалов к фракциям',
+        ],
     ];
 
     /** @param array<int|string,string|null> $params */
