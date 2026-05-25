@@ -33,6 +33,7 @@
 | — | 🐛 UX-фикс: убран спам «Используйте меню внизу экрана» из карточки перса (reply-keyboard персистит) | ✅ SHIPPED | v0.51.246 | 2026-05-25 |
 | V17 | Specialization perks — scaling craft-time по уровню (per-branch кривые L5↔L25, ADR-048) | ✅ SHIPPED | v0.51.247 | 2026-05-25 |
 | V18 | Robotics T2 — специализированные роботы Разведчик/Промышленник (tier-aware рантайм + 999-фикс, ADR-049) | ✅ SHIPPED | v0.51.248 | 2026-05-25 |
+| — | 🎨 V18 image-tail: 2 картинки T2-роботов (robot.scout/robot.industrial, gpt-image-2 V4, 0-text) | ✅ SHIPPED | v0.51.249 | 2026-05-25 |
 
 🏁 **ФАЗА 1 ЗАКРЫТА (V1-V5, 2026-05-20):** 20 рецептов × 4 сезона + 15 картинок + 4 сезонных события (Snowfall→winter / SpringFlood→spring / Dryness→summer / BerryBoom→autumn). Авто-ротация 21 день. Бонус: prod-хотфикс краша завершения построек/крафта (daily-log-review находка).
 
