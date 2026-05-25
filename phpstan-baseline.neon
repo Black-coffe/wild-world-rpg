@@ -9763,72 +9763,6 @@ parameters:
 			path: app/Libraries/Authentication.php
 
 		-
-			message: '#^Method App\\Libraries\\BiomeResourceModifier\:\:modifyForDesert\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Libraries/BiomeResourceModifier.php
-
-		-
-			message: '#^Method App\\Libraries\\BiomeResourceModifier\:\:modifyForDesert\(\) has parameter \$resources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Libraries/BiomeResourceModifier.php
-
-		-
-			message: '#^Method App\\Libraries\\BiomeResourceModifier\:\:modifyForForest\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Libraries/BiomeResourceModifier.php
-
-		-
-			message: '#^Method App\\Libraries\\BiomeResourceModifier\:\:modifyForForest\(\) has parameter \$resources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Libraries/BiomeResourceModifier.php
-
-		-
-			message: '#^Method App\\Libraries\\BiomeResourceModifier\:\:modifyForMountains\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Libraries/BiomeResourceModifier.php
-
-		-
-			message: '#^Method App\\Libraries\\BiomeResourceModifier\:\:modifyForMountains\(\) has parameter \$resources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Libraries/BiomeResourceModifier.php
-
-		-
-			message: '#^Method App\\Libraries\\BiomeResourceModifier\:\:modifyResourcesByBiome\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: app/Libraries/BiomeResourceModifier.php
-
-		-
-			message: '#^Method App\\Libraries\\BiomeResourceModifier\:\:modifyResourcesByBiome\(\) has parameter \$biomeId with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Libraries/BiomeResourceModifier.php
-
-		-
-			message: '#^Method App\\Libraries\\BiomeResourceModifier\:\:modifyResourcesByBiome\(\) has parameter \$resources with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Libraries/BiomeResourceModifier.php
-
-		-
-			message: '#^Property App\\Libraries\\BiomeResourceModifier\:\:\$biomeModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Libraries/BiomeResourceModifier.php
-
-		-
-			message: '#^Property App\\Libraries\\BiomeResourceModifier\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Libraries/BiomeResourceModifier.php
-
-		-
 			message: '#^Method App\\Libraries\\Slugifier\:\:transliterate\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1
@@ -17035,12 +16969,6 @@ parameters:
 			path: app/TaskHandlers/GatherTaskHandler.php
 
 		-
-			message: '#^Method App\\TaskHandlers\\GatherTaskHandler\:\:calculateFoundResources\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/TaskHandlers/GatherTaskHandler.php
-
-		-
 			message: '#^Method App\\TaskHandlers\\GatherTaskHandler\:\:getAllowedRarities\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -17109,12 +17037,6 @@ parameters:
 		-
 			message: '#^Parameter \#4 \$biomeName of method App\\TaskHandlers\\GatherTaskHandler\:\:sendResourcesFoundReply\(\) expects string, mixed given\.$#'
 			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/GatherTaskHandler.php
-
-		-
-			message: '#^Property App\\TaskHandlers\\GatherTaskHandler\:\:\$biomeResourceModifier has no type specified\.$#'
-			identifier: missingType.property
 			count: 1
 			path: app/TaskHandlers/GatherTaskHandler.php
 

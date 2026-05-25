@@ -23,6 +23,8 @@ final class GatherMessageFormatter
      * @param array<string, bool>          $brokenTools       S4: tool_name_eng → true для инструментов,
      *                                                        сломавшихся за сессию (последняя единица
      *                                                        исчерпала durability)
+     * @param list<string>                 $signatureNames    V22 (ADR-054): signature-ресурсы биома
+     *                                                        для хинта «этот биом богат на …»
      *
      * @return array{text: string, keyboard: string}
      */
@@ -33,11 +35,19 @@ final class GatherMessageFormatter
         array $resourceMap,
         array $usedToolsCount,
         array $toolByName,
-        array $brokenTools = []
+        array $brokenTools = [],
+        array $signatureNames = []
     ): array {
         $msg  = "<b>Успешная добыча ресурсов!</b>\n";
         $msg .= "Время, затраченное на добычу: <b>{$spentMinutes}</b> мин.\n";
-        $msg .= "Биом: <b>" . htmlspecialchars($biomeName, ENT_QUOTES, 'UTF-8') . "</b>\n\n";
+        $msg .= "Биом: <b>" . htmlspecialchars($biomeName, ENT_QUOTES, 'UTF-8') . "</b>\n";
+
+        // V22 (ADR-054): биом-специализация — куда идти за чем (media-off safe: текст в caption).
+        if ($signatureNames !== []) {
+            $sig = htmlspecialchars(implode(', ', $signatureNames), ENT_QUOTES, 'UTF-8');
+            $msg .= "🌟 Этот биом богат на: <b>{$sig}</b>\n";
+        }
+        $msg .= "\n";
 
         $groupedByRarity = []; // rarity (int) => list of [entity, amount]
         foreach ($foundResources as $item) {

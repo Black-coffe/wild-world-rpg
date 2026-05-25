@@ -11,8 +11,8 @@ use App\Models\CraftedItemsModel;
 use App\Models\EventModel;
 use App\Models\ResourceModel;
 use App\Models\TelegramUserModel;
-use App\Libraries\BiomeResourceModifier;
 use App\Libraries\ToolManager;
+use App\Services\Player\Gather\BiomeGatherProfileService;
 use App\Services\Player\Gather\GatherCellResourceQuery;
 use App\Services\Player\Gather\GatherEventModifierService;
 use App\Services\Player\Gather\GatherFormulaService;
@@ -64,7 +64,8 @@ class GatherTaskHandler extends BaseTaskHandler
     protected $resourceModel;
     protected $telegramUserModel;
     protected $craftedItemsModel;
-    protected $biomeResourceModifier;
+    // V22 (ADR-054): biome-driven профиль добычи (заменил Libraries\BiomeResourceModifier).
+    private BiomeGatherProfileService $biomeGatherProfile;
 
     // V6 (ADR-033): вторичный источник семян — light drop при сборе ресурсов.
     private FarmingService $farming;
@@ -88,7 +89,8 @@ class GatherTaskHandler extends BaseTaskHandler
         $this->resourceModel          = new ResourceModel();
         $this->telegramUserModel      = new TelegramUserModel();
         $this->craftedItemsModel      = new CraftedItemsModel();
-        $this->biomeResourceModifier  = new BiomeResourceModifier();
+        // V22 (ADR-054): GameSettings-driven biome-профиль (9 биомов, live-tunable).
+        $this->biomeGatherProfile     = new BiomeGatherProfileService();
 
         // F2.7 first slice: чистые формулы.
         $this->formulaService         = new GatherFormulaService();
@@ -159,8 +161,19 @@ class GatherTaskHandler extends BaseTaskHandler
             loadedEvents: $loadedEvents
         );
 
-        // Применяем возможные модификаторы биома
-        $foundResources = $this->biomeResourceModifier->modifyResourcesByBiome($biome['id'] ?? null, $foundResources);
+        // V22 (ADR-054): biome-driven профиль добычи — signature-ресурсы ×буст,
+        // scarce-ресурсы ×дефицит (live-tunable, killswitch). Имена резолвим из уже
+        // загруженных $resources (без доп. SQL — не N+1). Детерминированно (0 RNG).
+        $biomeId  = isset($biome['id']) && is_numeric($biome['id']) ? (int) $biome['id'] : null;
+        $nameById = [];
+        foreach ($resources as $r) {
+            $ridRaw  = $r['id'] ?? null;
+            $nameRaw = $r['name'] ?? null;
+            if (is_numeric($ridRaw) && is_scalar($nameRaw)) {
+                $nameById[(int) $ridRaw] = (string) $nameRaw;
+            }
+        }
+        $foundResources = $this->biomeGatherProfile->modifyResourcesByBiome($biomeId, $foundResources, $nameById);
 
         // V9 (ADR-034): «Сытость» делает добычу щедрее (детерминир., pure-bonus;
         // не сыт / выключено → no-op). Изолировано: только масштаб итоговой добычи.
@@ -170,8 +183,9 @@ class GatherTaskHandler extends BaseTaskHandler
         $this->saveFoundResources($foundResources, $character, $task);
         $this->characterTaskModel->update($task['id'], ['status' => 'completed']);
 
-        // Отправляем уведомление
-        $this->sendResourcesFoundReply($foundResources, $character, $spentMinutes, $biomeName);
+        // Отправляем уведомление (V22: + signature-хинт «биом богат на …»).
+        $signatureNames = $this->biomeGatherProfile->signatureNamesFor($biomeId);
+        $this->sendResourcesFoundReply($foundResources, $character, $spentMinutes, $biomeName, $signatureNames);
 
         // V6 (ADR-033): вторичный источник семян (defensive, killswitch+chance).
         // Изолировано от gather-математики — не влияет на расчёт/сохранение добычи.
@@ -268,6 +282,8 @@ class GatherTaskHandler extends BaseTaskHandler
     /**
      * Основной метод расчёта добытых ресурсов
      * (блочная логика по 10 минут + бонус от инструментов).
+     *
+     * @return list<array<string,mixed>>
      */
     protected function calculateFoundResources(
         array $resources,
@@ -469,11 +485,15 @@ class GatherTaskHandler extends BaseTaskHandler
      * after warm = 0 SQL). Property-access ($entity->name typed string, $entity->rarity
      * typed int) дає PHPStan-clean reply path.
      */
+    /**
+     * @param list<string> $signatureNames V22: signature-ресурсы биома для UI-хинта.
+     */
     protected function sendResourcesFoundReply(
         array $foundResources,
         array|\App\Entities\CharacterEntity $character,
         int $spentMinutes,
-        string $biomeName
+        string $biomeName,
+        array $signatureNames = []
     ): void {
         $userRow = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
         if (!$userRow || empty($userRow['telegram_id'])) {
@@ -515,7 +535,8 @@ class GatherTaskHandler extends BaseTaskHandler
             $resourceMap,
             $this->usedToolsCount,
             $toolByName,
-            $brokenTools
+            $brokenTools,
+            $signatureNames
         );
 
         $this->safeSendPhoto(
