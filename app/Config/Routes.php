@@ -163,7 +163,15 @@ $routes->post('telegram/webhook', 'Telegram\BotController::webhook');
 // ===== ADR-052 — публичный сайт wildworld.fun в CI4 =====
 // Порядок важен (Routing::$prioritize=false → первое совпадение): SEO/wiki/категории
 // объявлены ДО корневого catch-all, который должен идти ПОСЛЕДНИМ GET-маршрутом.
+// Карты сайта в формате Yoast/WP (имена совпадают со старыми сабмитами в GSC).
 $routes->get('sitemap.xml', 'Sitemap::index');
+$routes->get('sitemap_index.xml', 'Sitemap::index');
+$routes->get('post-sitemap.xml', 'Sitemap::posts');
+$routes->get('page-sitemap.xml', 'Sitemap::pages');
+$routes->get('category-sitemap.xml', 'Sitemap::categories');
+$routes->get('post_tag-sitemap.xml', 'Sitemap::tags');
+$routes->get('author-sitemap.xml', 'Sitemap::authors');
+
 $routes->get('wiki', 'Wiki::index');
 $routes->get('wiki/(:segment)', 'Wiki::entry/$1');
 

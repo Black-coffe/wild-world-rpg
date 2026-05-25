@@ -6,4 +6,4 @@ Disallow: /signup/
 Disallow: /password/
 Disallow: /telegram/
 
-Sitemap: https://wildworld.fun/sitemap.xml
+Sitemap: https://wildworld.fun/sitemap_index.xml
