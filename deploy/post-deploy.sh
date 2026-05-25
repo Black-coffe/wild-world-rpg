@@ -1,8 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
-DOMAIN="${1:?usage: post-deploy.sh <domain> <ts>}"
-TS="${2:?usage: post-deploy.sh <domain> <ts>}"
+DOMAIN="${1:?usage: post-deploy.sh <domain> <ts> [link-mode] [skip-db]}"
+TS="${2:?usage: post-deploy.sh <domain> <ts> [link-mode] [skip-db]}"
+# ADR-052 — две площадки шарят кодовую базу и игровую БД:
+#   bot.wildworld.fun — nginx root = htdocs/<domain>/public, htdocs/<domain> → КОРЕНЬ релиза (link-mode=release, дефолт)
+#   wildworld.fun     — nginx root = htdocs/<domain> (дефолт CloudPanel), htdocs/<domain> → release/PUBLIC (link-mode=public)
+LINK_MODE="${3:-release}"   # release | public — куда указывает симлинк htdocs/<domain>
+# Игровая БД ОДНА на обе площадки. migrate/import/canon выполняет только владелец БД (бот);
+# публичный сайт деплоится после бота со SKIP_DB=1, чтобы не было гонки по таблице миграций.
+SKIP_DB="${4:-0}"          # 1 = пропустить migrate + site:import-wp + site:apply-canon
 
 BASE="$HOME"
 RELEASES="$BASE/releases"
@@ -43,17 +50,26 @@ mkdir -p public/uploads
 rm -rf public/uploads/site
 ln -sfn "$SHARED/uploads/site" public/uploads/site
 
-echo ">>> [post-deploy] migrate"
-php spark migrate --all -n
+if [[ "$SKIP_DB" == "1" ]]; then
+    echo ">>> [post-deploy] SKIP_DB=1 — пропускаю migrate/import/canon (общая игровая БД ведётся ботом)"
+else
+    echo ">>> [post-deploy] migrate"
+    php spark migrate --all -n
 
-# ADR-052 — контент публичного сайта: импорт из WP при первом деплое (если site_posts
-# пуст) + ревизия под канон (идемпотентно). Non-fatal: сбой контента не валит деплой.
-echo ">>> [post-deploy] website content (import-if-empty + canon)"
-php spark site:import-wp --only-if-empty || echo "WARN: site:import-wp failed, continuing"
-php spark site:apply-canon || echo "WARN: site:apply-canon failed, continuing"
+    # ADR-052 — контент публичного сайта: импорт из WP при первом деплое (если site_posts
+    # пуст) + ревизия под канон (идемпотентно). Non-fatal: сбой контента не валит деплой.
+    echo ">>> [post-deploy] website content (import-if-empty + canon)"
+    php spark site:import-wp --only-if-empty || echo "WARN: site:import-wp failed, continuing"
+    php spark site:apply-canon || echo "WARN: site:apply-canon failed, continuing"
+fi
 
-echo ">>> [post-deploy] atomic switch"
-ln -sfn "$NEW_RELEASE" "$WEBROOT.tmp"
+echo ">>> [post-deploy] atomic switch (link-mode=$LINK_MODE)"
+if [[ "$LINK_MODE" == "public" ]]; then
+    SWITCH_TARGET="$NEW_RELEASE/public"
+else
+    SWITCH_TARGET="$NEW_RELEASE"
+fi
+ln -sfn "$SWITCH_TARGET" "$WEBROOT.tmp"
 mv -Tf "$WEBROOT.tmp" "$WEBROOT"
 
 echo ">>> [post-deploy] cleanup old releases (keep 5 newest)"

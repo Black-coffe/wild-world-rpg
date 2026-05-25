@@ -145,3 +145,78 @@ jobs:
           DOMAIN: ${{ steps.target.outputs.domain }}
         run: |
           ssh "$USER@$HOST" "bash ~/htdocs/$DOMAIN/deploy/rollback.sh '$DOMAIN'"
+
+  # ADR-052 — публичный сайт wildworld.fun. Отдельная CloudPanel-площадка (user=wildworld),
+  # та же кодовая база и ОБЩАЯ игровая БД с ботом (wiki берётся из живых таблиц).
+  # Катится только на прод-тегах и ТОЛЬКО ПОСЛЕ деплоя бота (needs: deploy), чтобы:
+  #   1) миграции/контент уже применены ботом к общей БД (здесь SKIP_DB=1 — без гонки);
+  #   2) сайт не поднялся на новом коде против старой схемы.
+  # link-mode=public: nginx root = htdocs/wildworld.fun → симлинк на release/public.
+  deploy-website:
+    name: Deploy public site (wildworld.fun)
+    needs: deploy
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Trust SSH host
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KNOWN_HOSTS }}" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Stamp release SHA
+        run: echo "${{ github.sha }}" > .release-sha
+
+      - name: Compute TS
+        id: ts
+        run: echo "ts=$(date -u +%Y-%m-%d-%H%M%S)" >> "$GITHUB_OUTPUT"
+
+      - name: Rsync release
+        env:
+          USER: wildworld
+          HOST: ${{ secrets.SSH_HOST }}
+          TS: ${{ steps.ts.outputs.ts }}
+        run: |
+          ssh "$USER@$HOST" "mkdir -p ~/releases/$TS"
+          rsync -az --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='vendor' \
+            --exclude='writable' \
+            --exclude='node_modules' \
+            --exclude='tests/_output' \
+            --exclude='build' \
+            ./ "$USER@$HOST:~/releases/$TS/"
+
+      - name: Run post-deploy (public-rooted, shared DB)
+        id: postdeploy
+        env:
+          USER: wildworld
+          HOST: ${{ secrets.SSH_HOST }}
+          TS: ${{ steps.ts.outputs.ts }}
+        run: |
+          ssh "$USER@$HOST" "bash ~/releases/$TS/deploy/post-deploy.sh 'wildworld.fun' '$TS' public 1"
+
+      - name: Smoke test (HTTP)
+        id: smoke
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 25 https://wildworld.fun/)
+          echo "home HTTP $code"
+          [ "$code" = "200" ]
+
+      - name: Auto-rollback on smoke failure
+        if: failure() && steps.smoke.outcome == 'failure' && steps.postdeploy.outcome == 'success'
+        env:
+          USER: wildworld
+          HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          ssh "$USER@$HOST" 'PREV=$(ls -1dt ~/releases/*/ | sed -n 2p | sed "s:/$::"); if [ -n "$PREV" ] && [ -d "$PREV/public" ]; then ln -sfn "$PREV/public" ~/htdocs/wildworld.fun.tmp && mv -Tf ~/htdocs/wildworld.fun.tmp ~/htdocs/wildworld.fun && echo "rolled back to $PREV"; else echo "no previous release to roll back to"; fi'
