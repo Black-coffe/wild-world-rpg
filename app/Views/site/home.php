@@ -18,7 +18,7 @@ $group  = $social->groupLink; // инфо/сообщество — группа
             <h1 class="ww-hero-title">Мир рухнул. <br>Твоя история — только начинается.</h1>
             <p class="ww-hero-lead">Огромный открытый мир 100×100&nbsp;км. Исследуй земли, добывай ресурсы, крафти снаряжение, строй базу, вступай во фракции и сражайся с другими выжившими — прямо в чате Telegram.</p>
             <div class="ww-hero-cta">
-                <a class="ww-btn ww-btn-play ww-btn-lg" href="<?= esc($tg, 'url') ?>" target="_blank" rel="noopener">▶ Играть бесплатно</a>
+                <a class="ww-btn ww-btn-play ww-btn-lg" href="<?= esc($tg, 'attr') ?>" target="_blank" rel="noopener">▶ Играть бесплатно</a>
                 <a class="ww-btn ww-btn-ghost ww-btn-lg" href="<?= base_url('wiki') ?>">Изучить мир</a>
             </div>
         </div>
@@ -120,8 +120,8 @@ $group  = $social->groupLink; // инфо/сообщество — группа
         <h2>Готов выжить в Wild World?</h2>
         <p>Запусти бота в Telegram и начни свою историю прямо сейчас — бесплатно.</p>
         <div class="ww-hero-cta justify-content-center">
-            <a class="ww-btn ww-btn-play ww-btn-lg" href="<?= esc($tg, 'url') ?>" target="_blank" rel="noopener">▶ Играть в Telegram</a>
-            <a class="ww-btn ww-btn-ghost ww-btn-lg" href="<?= esc($group, 'url') ?>" target="_blank" rel="noopener">💬 Новости и сообщество</a>
+            <a class="ww-btn ww-btn-play ww-btn-lg" href="<?= esc($tg, 'attr') ?>" target="_blank" rel="noopener">▶ Играть в Telegram</a>
+            <a class="ww-btn ww-btn-ghost ww-btn-lg" href="<?= esc($group, 'attr') ?>" target="_blank" rel="noopener">💬 Новости и сообщество</a>
         </div>
     </div>
 </section>

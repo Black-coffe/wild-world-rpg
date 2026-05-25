@@ -21,7 +21,7 @@ $last = count($items) - 1;
                     <?php if ($i === $last || $url === ''): ?>
                         <span><?= esc($nm) ?></span>
                     <?php else: ?>
-                        <a href="<?= esc($url, 'url') ?>"><?= esc($nm) ?></a>
+                        <a href="<?= esc($url, 'attr') ?>"><?= esc($nm) ?></a>
                     <?php endif; ?>
                 </li>
             <?php endforeach; ?>

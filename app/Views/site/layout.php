@@ -146,7 +146,7 @@ $uri     = uri_string();
                     </li>
                     <li class="nav-item"><a class="nav-link <?= str_starts_with($uri, 'wiki') ? 'active' : '' ?>" href="<?= base_url('wiki') ?>">Вики</a></li>
                     <li class="nav-item ms-lg-3 mt-2 mt-lg-0">
-                        <a class="ww-btn ww-btn-play" href="<?= esc($tgLink, 'url') ?>" target="_blank" rel="noopener">▶ Играть в Telegram</a>
+                        <a class="ww-btn ww-btn-play" href="<?= esc($tgLink, 'attr') ?>" target="_blank" rel="noopener">▶ Играть в Telegram</a>
                     </li>
                 </ul>
             </div>
@@ -164,7 +164,7 @@ $uri     = uri_string();
             <div class="col-lg-5">
                 <a class="ww-brand" href="<?= base_url() ?>">WILD<span>WORLD</span></a>
                 <p class="ww-muted mt-2">Постапокалиптическая текстовая MMORPG в Telegram. Исследуй, выживай, крафти, сражайся и строй базу в огромном открытом мире.</p>
-                <a class="ww-btn ww-btn-play" href="<?= esc($tgLink, 'url') ?>" target="_blank" rel="noopener">▶ Начать играть</a>
+                <a class="ww-btn ww-btn-play" href="<?= esc($tgLink, 'attr') ?>" target="_blank" rel="noopener">▶ Начать играть</a>
             </div>
             <div class="col-lg-3 col-6">
                 <div class="ww-foot-h">Разделы</div>
@@ -181,8 +181,8 @@ $uri     = uri_string();
             <div class="col-lg-4 col-6">
                 <div class="ww-foot-h">Сообщество</div>
                 <ul class="ww-foot-links">
-                    <li><a href="<?= esc($tgLink, 'url') ?>" target="_blank" rel="noopener">🎮 Играть в боте</a></li>
-                    <li><a href="<?= esc($groupLink, 'url') ?>" target="_blank" rel="noopener">💬 Новости и обсуждение</a></li>
+                    <li><a href="<?= esc($tgLink, 'attr') ?>" target="_blank" rel="noopener">🎮 Играть в боте</a></li>
+                    <li><a href="<?= esc($groupLink, 'attr') ?>" target="_blank" rel="noopener">💬 Новости и обсуждение</a></li>
                 </ul>
             </div>
         </div>
