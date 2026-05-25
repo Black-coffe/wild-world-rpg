@@ -23,20 +23,22 @@ class Front extends BaseController
     public function home(): string|ResponseInterface
     {
         // Старые кириллические WP-URL (/блог, /контакты, /главная) CI4 ошибочно сводит к
-        // home: percent-encoded не-ASCII одиночный сегмент теряется при разборе URI (nginx,
-        // .htaccess не применяется). Ловим их здесь по сырому REQUEST_URI через site_redirects.
-        $rawUri = $this->request->getServer('REQUEST_URI');
-        if (is_string($rawUri)) {
-            $pathPart = parse_url($rawUri, PHP_URL_PATH);
-            $decoded  = '/' . trim(rawurldecode(is_string($pathPart) ? $pathPart : ''), '/');
-            if ($decoded !== '/') {
-                $redirectModel = new SiteRedirectModel();
-                $redirect      = $redirectModel->matchPath($decoded);
-                if ($redirect !== null) {
-                    $redirectModel->recordHit($redirect['id']);
+        // home: percent-encoded не-ASCII одиночный сегмент теряется при разборе URI (nginx).
+        // Ловим по СЫРОМУ $_SERVER['REQUEST_URI'] (CI4-getPath его теряет) + хардкод-карта.
+        $rawUri   = is_string($_SERVER['REQUEST_URI'] ?? null) ? (string) $_SERVER['REQUEST_URI'] : '';
+        $pathPart = parse_url($rawUri, PHP_URL_PATH);
+        $decoded  = '/' . trim(rawurldecode(is_string($pathPart) ? $pathPart : ''), '/');
+        $hard     = ['/главная' => '/', '/блог' => '/devblog', '/контакты' => '/contacts'];
+        if ($decoded !== '/' && isset($hard[$decoded])) {
+            return redirect()->to($hard[$decoded], 301);
+        }
+        if ($decoded !== '/') {
+            $redirectModel = new SiteRedirectModel();
+            $redirect      = $redirectModel->matchPath($decoded);
+            if ($redirect !== null) {
+                $redirectModel->recordHit($redirect['id']);
 
-                    return redirect()->to($redirect['to_path'], $redirect['code'] === 302 ? 302 : 301);
-                }
+                return redirect()->to($redirect['to_path'], $redirect['code'] === 302 ? 302 : 301);
             }
         }
 
