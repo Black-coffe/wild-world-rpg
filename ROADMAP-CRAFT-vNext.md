@@ -42,6 +42,7 @@
 | V24 | Селективная страховка крафта — pre-paid вечный полис на robots/workbench/transport (NPC-агент, complement PersonalInsurance, ADR-056) | ✅ SHIPPED | v0.51.260 | 2026-05-27 |
 | V25 | Странствующие NPC-караваны на карте — fix-price offer редких ресурсов со скидкой (literal «trade routes», 🏁 закрытие Фазы 5, ADR-057) | ✅ SHIPPED | v0.51.261 | 2026-05-27 |
 | V26 | GAME_DESCRIPTION canon reconciliation — V16-V21 6 секций (Специализация / T2-роботы / Ремонт роботов / Фракц-проект / Дашборд экономики) — 📚 старт Фазы 6 | ✅ SHIPPED | v0.51.262 | 2026-05-27 |
+| V27 | Content-pass v2 — sweep советов под V14-V25 (2 update + 7 new tips: FactionArmor / WorkshopSpecialization / RobotsT2 / FactionProject / BiomeProfile / CraftInsurance / Caravans) | ✅ SHIPPED | v0.51.263 | 2026-05-27 |
 
 🏁 **ФАЗА 1 ЗАКРЫТА (V1-V5, 2026-05-20):** 20 рецептов × 4 сезона + 15 картинок + 4 сезонных события (Snowfall→winter / SpringFlood→spring / Dryness→summer / BerryBoom→autumn). Авто-ротация 21 день. Бонус: prod-хотфикс краша завершения построек/крафта (daily-log-review находка).
 
