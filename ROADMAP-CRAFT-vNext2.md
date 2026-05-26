@@ -132,7 +132,7 @@ Player-retention foundation. Сессии 6-8 — onboarding redux #11, 9-10 —
 
 ## §4. Источники
 
-- vNext итоги: `ROADMAP-CRAFT-vNext.md` §0 (V1–V29 журнал), retrospective `mmorpg-vault/inbox/2026-05-26-roadmap-vnext-retrospective.md`.
-- v1 итоги: `mmorpg-vault/reference/ROADMAP-CRAFT-v1.md` §0 (S1–S29, архив), retrospective `mmorpg-vault/inbox/2026-05-20-roadmap-v1-retrospective.md`.
+- vNext итоги: `mmorpg-vault/reference/archive-roadmaps/ROADMAP-CRAFT-vNext.md` §0 (V1–V29 журнал — закрыт V30, перемещён в архив), retrospective `mmorpg-vault/inbox/2026-05-26-roadmap-vnext-retrospective.md`.
+- v1 итоги: `mmorpg-vault/reference/archive-roadmaps/ROADMAP-CRAFT-v1.md` §0 (S1–S29, архив), retrospective `mmorpg-vault/inbox/2026-05-20-roadmap-v1-retrospective.md`.
 - Алгоритм: общий 5-осевой (v1 §S30, vNext §0). Валидация: `GAME_RULES_AND_VALIDATION_FRAMEWORK.md` (7 ворот, 10 портретов).
-- Drone-идея full-card: `ROADMAP-CRAFT-vNext.md §2.7 Inbox` (зафиксирована user'ом 2026-05-26 на финише vNext).
+- Drone-идея full-card: `mmorpg-vault/reference/archive-roadmaps/ROADMAP-CRAFT-vNext.md §2.7 Inbox` (зафиксирована user'ом 2026-05-26 на финише vNext).

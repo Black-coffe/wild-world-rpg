@@ -231,7 +231,7 @@ edit-in-place / callback flow / forceReply / typing delay).
 
 ### Foundation
 
-`GameSettings` framework — выход **S5 ROADMAP-CRAFT v1** (`ADR-024`; роадмап архивирован в `mmorpg-vault/reference/ROADMAP-CRAFT-v1.md`). До его реализации новые tunable параметры можно временно держать в `Config\GameBalance` с TODO-комментарием «→ GameSettings после S5», но **с момента ship'а S5 — миграция обязательна**.
+`GameSettings` framework — выход **S5 ROADMAP-CRAFT v1** (`ADR-024`; роадмап архивирован в `mmorpg-vault/reference/archive-roadmaps/ROADMAP-CRAFT-v1.md`). До его реализации новые tunable параметры можно временно держать в `Config\GameBalance` с TODO-комментарием «→ GameSettings после S5», но **с момента ship'а S5 — миграция обязательна**.
 
 ### Чек-лист «закрытой задачи» дополнен (новый пункт)
 

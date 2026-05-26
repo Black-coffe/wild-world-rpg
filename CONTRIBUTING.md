@@ -145,9 +145,9 @@ The repository root holds a **deliberately small, fixed set** of Markdown files.
 
 - **Entry / infra docs:** `README.md`, `CONTRIBUTING.md`, `LICENSE`, `CLAUDE.md` (the latter is auto-loaded by Claude Code from the project root).
 - **North-stars** — referenced from `CLAUDE.md` / this file via relative links, so they must live in the repo: `GAME_DESCRIPTION.md` (gameplay canon) and `GAME_RULES_AND_VALIDATION_FRAMEWORK.md` (validation process).
-- **Exactly one active roadmap** (currently `ROADMAP-CRAFT-vNext.md`).
+- **Exactly one active roadmap** (currently `ROADMAP-CRAFT-vNext2.md`).
 
-Everything else — **completed/superseded roadmaps, one-off migration or refactor plans, audit write-ups** — must **not** sit in the root. When a roadmap closes or a plan is executed, archive it in the sibling vault and delete it from the root: finished roadmaps → `mmorpg-vault/reference/`, one-off notes/audits → `mmorpg-vault/inbox/` (or `docs/` if the audit documents a live in-repo feature). Precedent: ROADMAP-CRAFT v1 (S1–S30, shipped) now lives at `mmorpg-vault/reference/ROADMAP-CRAFT-v1.md`.
+Everything else — **completed/superseded roadmaps, one-off migration or refactor plans, audit write-ups** — must **not** sit in the root. When a roadmap closes or a plan is executed, archive it in the sibling vault and delete it from the root: finished roadmaps → `mmorpg-vault/reference/archive-roadmaps/`, one-off notes/audits → `mmorpg-vault/inbox/` (or `docs/` if the audit documents a live in-repo feature). Precedent: ROADMAP-CRAFT v1 (S1–S30, shipped 2026-05-20) and ROADMAP-CRAFT vNext (V1–V30, shipped 2026-05-26) both archived at `mmorpg-vault/reference/archive-roadmaps/`.
 
 ### Image contract
 
