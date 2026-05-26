@@ -10,19 +10,30 @@
 
 | # | Сессия | Статус | Тег | Дата |
 |---|---|---|---|---|
-| W1 | **Drone-recon foundation (split: audit+ADR+seed)** | ✅ SHIPPED (code), 🟡 deploy ждёт GA recovery | TBD (GA в major outage) | 2026-05-26 |
-| W2 | Drone-recon **build** (DroneService + RecceDroneAction + DroneRechargeCron + image-generate) | ⏳ pending | — | — |
+| W1 | **Drone-recon foundation (audit+ADR+seed)** | ✅ SHIPPED (code), 🟡 deploy ждёт GA recovery | TBD (GA major outage) | 2026-05-26 |
+| W2 | **Drone-recon build** (DroneService + RecceDroneAction + DroneRechargeCron + UI + 9 tests) | ✅ SHIPPED (code), 🟡 deploy ждёт GA recovery | TBD (GA major outage) | 2026-05-26 |
 | W3 | Cargo drone | ⏳ pending | — | — |
 | W4 | Repair drone | ⏳ pending | — | — |
 | W5 | Combat drone + Caravan blueprint integration (🏁 закрытие Фазы 1) | ⏳ pending | — | — |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
-> questions ADR-058) + 6 GameSettings `drone.scout.*` (rich rationale ADR-024) + crafted_items
+> questions) + 6 GameSettings `drone.scout.*` (rich rationale ADR-024) + crafted_items
 > `DroneScout` + tasks `craftDroneScout` + recipe (gate Workshop L1, gold=8000) + LEXICON
 > `drone.scout` + ImageRegistry row (status='pending'). Tier-1 ✅ 898/898 + phpstan L9.
-> Deploy ожидает восстановления GitHub Actions (major_outage с ~11:19 UTC 2026-05-26).
-> Image-generate отложен на post-deploy. W2 (build full service + action + cron) — next.
+>
+> **W2 SHIPPED 2026-05-26 (code-level):** `DroneService` (pure GameSettings-reader, 8 методов) +
+> `DroneScoutCraftedListAction` (callback `droneScoutList`, charge-bar UI) + `RecceDroneAction`
+> (callback `recceDrone_<log_id>` через CallbackPrefixDispatcher, full launch chain + PvP-zone
+> block anti-snooping) + `DroneRechargeCron` (everyMinute on_base recharge) +
+> MoveCharacterToDirectionAction patch (кнопка «🚁 Дрон» в move-keyboard) + 9 unit-тестов
+> (DroneServiceTest, 22 assertions). Tier-1 ✅ **907/907 + phpstan L9 NO ERRORS**. PHPStan
+> fix-цикл: 5 ошибок (4× cast.int mixed + 1× BiomeEntity vs is_array) поправил через
+> `$raw = $row[key] ?? null; is_numeric($raw) ? (int) $raw : 0` паттерн.
+>
+> **Deploy:** ожидает восстановления GitHub Actions (major_outage с 11:19 UTC 2026-05-26;
+> 11:53 UTC всё ещё outage). Image-generate откладывается на post-deploy. Tier-2 admin UI +
+> Tier-3 real-Telegram smoke отложены до GA recovery + testbot deploy.
 
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
