@@ -165,6 +165,12 @@ class SellResourceAction extends BaseAction
             $text .= "\n*❗️Реальная цена может быть другой исходя из спроса ресурса❗️*";
         }
 
+        // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на выбор редкости.
+        $keyboardButtons[] = [
+            ['text' => '⬅️ Назад',  'callback_data' => 'sell'],
+            ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+        ];
+
         $keyboard = ['inline_keyboard' => $keyboardButtons];
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
@@ -206,11 +212,21 @@ class SellResourceAction extends BaseAction
             ];
         };
 
+        // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на список ресурсов
+        // той же редкости (а не на выбор редкости через 2 шага).
+        $rawRarity    = $resource['rarity'] ?? null;
+        $rarity       = is_numeric($rawRarity) ? (int) $rawRarity : 0;
+        $backCallback = $rarity > 0 ? "sellResource_rarity_{$rarity}" : 'sell';
+
         $keyboardButtons = [
             [$btn(1),   $btn(5),    $btn(10),   $btn(15)],
             [$btn(25),  $btn(50),   $btn(100),  $btn(150)],
             [$btn(250), $btn(500),  $btn(1000), $btn(5000)],
             [['text' => '📝 Своё число', 'callback_data' => "sellResource_{$resourceId}_custom"]],
+            [
+                ['text' => '⬅️ Назад',  'callback_data' => $backCallback],
+                ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+            ],
         ];
 
         $keyboard = ['inline_keyboard' => $keyboardButtons];

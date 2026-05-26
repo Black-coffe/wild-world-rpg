@@ -68,7 +68,11 @@ class SellAction extends BaseAction
                     ['text' => '🔟 редкость', 'callback_data' => 'sellResource_rarity_10'],
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                ]
+                ],
+                // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на главный экран магазина.
+                [
+                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+                ],
             ]
         ];
 

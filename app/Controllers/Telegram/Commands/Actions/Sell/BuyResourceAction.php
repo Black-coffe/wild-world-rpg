@@ -149,7 +149,11 @@ class BuyResourceAction extends BaseAction
                     ['text' => '🔟 редкость', 'callback_data' => 'buy_rarity_10'],
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                ]
+                ],
+                // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на главный экран магазина.
+                [
+                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+                ],
             ]
         ];
 
@@ -197,6 +201,12 @@ class BuyResourceAction extends BaseAction
         // Добавляем фразу о том, что цена может отличаться
         $text .= "*\n❗️Реальная цена может быть другой исходя из спроса ресурса❗️*";
 
+        // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на выбор редкости.
+        $keyboardButtons[] = [
+            ['text' => '⬅️ Назад', 'callback_data' => 'buy'],
+            ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+        ];
+
         $keyboard = ['inline_keyboard' => $keyboardButtons];
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         // #12 edit-in-place (ADR-018): список ресурсов редкости для покупки — навигация.
@@ -235,12 +245,22 @@ class BuyResourceAction extends BaseAction
             ];
         };
 
+        // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на список ресурсов
+        // той же редкости (а не на выбор редкости через 2 шага).
+        $rawRarity     = $resource['rarity'] ?? null;
+        $rarity        = is_numeric($rawRarity) ? (int) $rawRarity : 0;
+        $backCallback  = $rarity > 0 ? "buy_rarity_{$rarity}" : 'buy';
+
         $keyboardButtons = [
             'inline_keyboard' => [
                 [$btn(1),   $btn(5),    $btn(10),   $btn(15)],
                 [$btn(25),  $btn(50),   $btn(100),  $btn(150)],
                 [$btn(250), $btn(500),  $btn(1000), $btn(5000)],
                 [['text' => '📝 Своё число', 'callback_data' => "buy_custom_{$resourceId}"]],
+                [
+                    ['text' => '⬅️ Назад',  'callback_data' => $backCallback],
+                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+                ],
             ]
         ];
 
