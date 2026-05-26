@@ -250,9 +250,11 @@ class MoveCharacterToDirectionAction
             ],
         ];
 
-        // V25 (ADR-057) — если на этой клетке стоит активный караван, показать кнопку «🚚 Караван».
+        // V25 (ADR-057) — если на НОВОЙ клетке (после move) стоит активный караван,
+        // показать кнопку «🚚 Караван». `$character` загружен ДО update'а, поэтому
+        // берём `$targetCell['cell_number']` — куда персонаж только что перешёл.
         if ((new \App\Services\Player\CaravanService())->enabled()) {
-            $caravansHere = (new \App\Models\CaravanModel())->findActiveOnCell((int) $character['cell_number']);
+            $caravansHere = (new \App\Models\CaravanModel())->findActiveOnCell((int) $targetCell['cell_number']);
             if (! empty($caravansHere)) {
                 $directionsKeyboard[] = [
                     ['text' => '🚚 Караван', 'callback_data' => 'caravanLook'],
