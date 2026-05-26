@@ -103,9 +103,14 @@ class BuyCraftItemAction extends BaseAction
         ];
 
         $keyboard = array_chunk($keyboardButtons, 4);
+        // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на список этой же категории
+        // (а не на старт buyCraft через 2 шага). type берём из crafted_item.
+        $rawType    = $craftedItem['type'] ?? '';
+        $type       = is_string($rawType) ? $rawType : '';
+        $backCb     = $type !== '' ? "buyCraftList_{$type}" : 'buyCraft';
         $keyboard[] = [
-            ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-            ['text' => '🛍️ Купить крафт', 'callback_data' => 'buyCraft'],
+            ['text' => '⬅️ Назад',   'callback_data' => $backCb],
+            ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
         ];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);

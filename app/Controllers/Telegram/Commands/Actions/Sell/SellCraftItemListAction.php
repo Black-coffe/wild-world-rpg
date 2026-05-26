@@ -88,6 +88,11 @@ class SellCraftItemListAction extends BaseAction
 
         // Добавляем остальные кнопки по 2 в ряд
         $keyboard[] = [['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'], ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']];
+        // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на выбор категории + Магазин.
+        $keyboard[] = [
+            ['text' => '⬅️ Назад',   'callback_data' => 'sellCraft'],
+            ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+        ];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 

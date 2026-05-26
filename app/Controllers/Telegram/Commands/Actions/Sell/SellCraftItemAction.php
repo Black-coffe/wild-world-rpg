@@ -76,9 +76,14 @@ class SellCraftItemAction extends BaseAction
         ];
 
         $keyboard = array_chunk($keyboardButtons, 4);
+        // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на список той же категории
+        // (а не на старт sellCraft через 2 шага). type берём из crafted_item.
+        $rawType    = $craftedItem['type'] ?? '';
+        $type       = is_string($rawType) ? $rawType : '';
+        $backCb     = $type !== '' ? "sellCraftList_{$type}" : 'sellCraft';
         $keyboard[] = [
-            ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-            ['text' => 'Продать крафт', 'callback_data' => 'sellCraft'],
+            ['text' => '⬅️ Назад',   'callback_data' => $backCb],
+            ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
         ];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);

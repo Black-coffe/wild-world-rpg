@@ -90,6 +90,10 @@ class SellCraftAction extends BaseAction
         $keyboardButtons[] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];
 
         $keyboard = array_chunk($keyboardButtons, 2);
+        // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на главный экран магазина.
+        $keyboard[] = [
+            ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+        ];
 
         $imagePath = base_url('uploads/telegram/craft/vendor_kiosk_in_the_game_world.jpg');
 

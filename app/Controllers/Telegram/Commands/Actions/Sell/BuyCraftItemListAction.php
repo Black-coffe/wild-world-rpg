@@ -111,9 +111,13 @@ class BuyCraftItemListAction extends BaseAction
 
         $keyboardButtons[] = ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'];
         $keyboardButtons[] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];
-        $keyboardButtons[] = ['text' => '🛍️ Купить крафт', 'callback_data' => 'buyCraft'];
 
         $keyboard = array_chunk($keyboardButtons, 3);
+        // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на выбор категории + Магазин.
+        $keyboard[] = [
+            ['text' => '⬅️ Назад',   'callback_data' => 'buyCraft'],
+            ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+        ];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
