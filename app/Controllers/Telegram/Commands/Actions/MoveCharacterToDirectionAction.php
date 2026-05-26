@@ -249,6 +249,17 @@ class MoveCharacterToDirectionAction
                 ['text' => '🗺️ Поход', 'callback_data' => 'march'], // ADR-019
             ],
         ];
+
+        // V25 (ADR-057) — если на этой клетке стоит активный караван, показать кнопку «🚚 Караван».
+        if ((new \App\Services\Player\CaravanService())->enabled()) {
+            $caravansHere = (new \App\Models\CaravanModel())->findActiveOnCell((int) $character['cell_number']);
+            if (! empty($caravansHere)) {
+                $directionsKeyboard[] = [
+                    ['text' => '🚚 Караван', 'callback_data' => 'caravanLook'],
+                ];
+            }
+        }
+
         $keyboard = ['inline_keyboard' => $directionsKeyboard];
 
         // Редактируем ИМЕННО ТО сообщение, на котором нажали кнопку направления

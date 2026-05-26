@@ -125,6 +125,10 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\NPC\SpawnSandyWolfRaidersCron())->run())
             ->everyMinute()->singleInstance()->named('npc.sandy-wolves');
 
+        // V25 (ADR-057) — спавн странствующих NPC-караванов до caravan.max_active.
+        $schedule->call(static fn() => (new \App\TaskHandlers\NPC\SpawnCaravanCron())->run())
+            ->everyMinute()->singleInstance()->named('npc.caravans');
+
         $schedule->call(static fn() => (new \App\TaskHandlers\NPC\AutoPveHandler())->run())
             ->everyMinute()->singleInstance()->named('npc.auto-pve');
 

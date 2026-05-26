@@ -252,6 +252,11 @@ class CallbackRoutes extends BaseConfig
         // - confirm_craft_insure_<log_id>: списать gold + insured=1
         'craftInsuranceList'              => \App\Controllers\Telegram\Commands\Actions\Craft\Insurance\CraftInsuranceListAction::class,
 
+        // V25 (ADR-057) — странствующие NPC-караваны на карте.
+        // - caravanLook: показать караван(ы) на текущей клетке игрока
+        // - caravanBuyAll_<id>: купить весь offer (через PrefixDispatcher)
+        'caravanLook'                     => \App\Controllers\Telegram\Commands\Actions\Caravan\CaravanLookAction::class,
+
         // === PvP ===
         'runAway'                         => \App\Controllers\Telegram\Commands\Actions\PVP\RunAwayAction::class,
         'attackPlayer'                    => \App\Controllers\Telegram\Commands\Actions\PVP\AttackPlayerAction::class,

@@ -6,6 +6,7 @@ namespace App\Services\Telegram;
 
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\UpgradeBuildingAction;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\RepairBuildingAction;
+use App\Controllers\Telegram\Commands\Actions\Caravan\CaravanBuyAction;
 use App\Controllers\Telegram\Commands\Actions\Craft\Insurance\CraftInsureItemAction;
 use App\Controllers\Telegram\Commands\Actions\Craft\Repair\NpcRepairAction;
 use App\Controllers\Telegram\Commands\Actions\Craft\Repair\RepairCraftedItemAction;
@@ -75,6 +76,11 @@ final class CallbackPrefixDispatcher
             return $this->dispatchRepairBuildingAsk($callbackQuery);
         }
 
+        // V25 (ADR-057): NPC-караван — покупка всего offer'а.
+        if (str_starts_with($callbackData, 'caravanBuyAll_')) {
+            return $this->dispatchCaravanBuyAll($callbackQuery);
+        }
+
         // V24 (ADR-056): NPC-страховой агент. confirm перед ask (конвенция).
         if (str_starts_with($callbackData, 'confirm_craft_insure_')) {
             return $this->dispatchCraftInsureConfirm($callbackQuery);
@@ -106,6 +112,16 @@ final class CallbackPrefixDispatcher
         }
 
         return null;
+    }
+
+    /** V25 (ADR-057): caravanBuyAll_{caravan_id} → списать gold + выдать ресурс. */
+    private function dispatchCaravanBuyAll(CallbackQuery $callbackQuery): ServerResponse
+    {
+        if (! class_exists(CaravanBuyAction::class)) {
+            return Request::emptyResponse();
+        }
+        $handler = new CaravanBuyAction($callbackQuery);
+        return $handler->handle();
     }
 
     /** V24 (ADR-056): craftInsure_{log_id} → расчёт gold + Confirm. */

@@ -40,6 +40,7 @@
 | V22 | «Биомы решают» — biome-driven gather rebalance (BiomeResourceModifier → GameSettings, 9 биомов, re-scope с rare biome-spots, ADR-054) | ✅ SHIPPED | v0.51.253 | 2026-05-25 |
 | V23 | NPC-мастер на базе — gold-only мгновенный ремонт tools как gold-sink эндгейма (re-scope c literal «NPC repair shop», ADR-055) | ✅ SHIPPED | v0.51.259 | 2026-05-27 |
 | V24 | Селективная страховка крафта — pre-paid вечный полис на robots/workbench/transport (NPC-агент, complement PersonalInsurance, ADR-056) | ✅ SHIPPED | v0.51.260 | 2026-05-27 |
+| V25 | Странствующие NPC-караваны на карте — fix-price offer редких ресурсов со скидкой (literal «trade routes», 🏁 закрытие Фазы 5, ADR-057) | ✅ SHIPPED | tbd | 2026-05-27 |
 
 🏁 **ФАЗА 1 ЗАКРЫТА (V1-V5, 2026-05-20):** 20 рецептов × 4 сезона + 15 картинок + 4 сезонных события (Snowfall→winter / SpringFlood→spring / Dryness→summer / BerryBoom→autumn). Авто-ротация 21 день. Бонус: prod-хотфикс краша завершения построек/крафта (daily-log-review находка).
 
