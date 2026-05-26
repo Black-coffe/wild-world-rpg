@@ -10,8 +10,19 @@
 
 | # | Сессия | Статус | Тег | Дата |
 |---|---|---|---|---|
-| W1 | (см. Фаза 1) | ⏳ pending | — | — |
+| W1 | **Drone-recon foundation (split: audit+ADR+seed)** | ✅ SHIPPED (code), 🟡 deploy ждёт GA recovery | TBD (GA в major outage) | 2026-05-26 |
+| W2 | Drone-recon **build** (DroneService + RecceDroneAction + DroneRechargeCron + image-generate) | ⏳ pending | — | — |
+| W3 | Cargo drone | ⏳ pending | — | — |
+| W4 | Repair drone | ⏳ pending | — | — |
+| W5 | Combat drone + Caravan blueprint integration (🏁 закрытие Фазы 1) | ⏳ pending | — | — |
 | … | … | … | … | … |
+
+> **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
+> questions ADR-058) + 6 GameSettings `drone.scout.*` (rich rationale ADR-024) + crafted_items
+> `DroneScout` + tasks `craftDroneScout` + recipe (gate Workshop L1, gold=8000) + LEXICON
+> `drone.scout` + ImageRegistry row (status='pending'). Tier-1 ✅ 898/898 + phpstan L9.
+> Deploy ожидает восстановления GitHub Actions (major_outage с ~11:19 UTC 2026-05-26).
+> Image-generate отложен на post-deploy. W2 (build full service + action + cron) — next.
 
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 

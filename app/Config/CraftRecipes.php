@@ -984,6 +984,44 @@ class CraftRecipes extends BaseConfig
         ],
 
         // ============================================================
+        // W1 (ADR-058) — Drone-recon foundation (старт Фазы 1 vNext2).
+        // Ручной разведывательный квадрокоптер. Per-instance battery через
+        // crafted_items_log.durability_count (V18 паттерн). Gate Workshop L1
+        // (низкий MVP-вход; W2-W4 Cargo/Repair/Combat могут гейтить L2/L3).
+        // Recipe — для GenericCraftActionStart (write на crafted_items_log).
+        // Action запуска (RecceDroneAction) — W2 build.
+        // ============================================================
+        'DroneScout' => [
+            'task_name'                => 'craftDroneScout',
+            'resources'                => [
+                'Янтарь'         => 4,
+                'Смола деревьев' => 25,
+            ],
+            'crafted_items'            => [
+                'GlassBags'      => 2,
+                'Fabric'         => 8,
+                'metalFragments' => 30,
+            ],
+            'gold_required'            => 8000,
+            'requires_base'            => true,
+            'required_buildings'       => ['RoboticsWorkshop'],
+            'required_building_levels' => ['RoboticsWorkshop' => 1],
+            'image_in_progress'        => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'start_caption_name'       => 'дрон 🚁 *Разведчик!*',
+            'info_callback'            => 'droneScout',
+            'item_name_eng'            => 'DroneScout',
+            'item_name_rus'            => 'Дрон-разведчик',
+            'icon_emoji'               => '🚁',
+            'zone_emoji'               => '🌳',
+            'zone_name'                => 'разведка',
+            'agility_bonus'            => 0.03,
+            'intellect_bonus'          => 0.04,
+            'image_completed'          => 'uploads/telegram/craft/standard/drone_scout.jpg',
+            'craft_again_callback'     => 'genericCraft_DroneScout_1',
+            'boost_building_time'      => 'RoboticsWorkshop',
+        ],
+
+        // ============================================================
         // F3.B9 (v0.25.0) — WorkbenchStandard Weapons (4 крафта).
         // Особенности относительно B5-B8:
         //   - `output_type` = 'weapon' (новое поле): результат пишется в
