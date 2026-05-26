@@ -379,16 +379,25 @@ class GenericCraftActionStart extends BaseAction
     }
 
     /**
-     * v0.51.129: рахує distinct task_ids з active або queued tasks для character.
-     * Кожен такий task_id = окремий "slot". 0..craftMaxConcurrentSlots допустимо.
+     * Рахує distinct task_ids з активних/чергованих **крафт-задач** для character.
+     * Кожен такий task_id = окремий "slot крафта". 0..craftMaxConcurrentSlots допустимо.
+     *
+     * v0.51.265 (Arseny report 2026-05-26): JOIN tasks + WHERE tasks.type='craft' —
+     * раніше лічило ВСІ active задачі (включно з робот-добувачем = tasks.type='optionally'),
+     * через що повідомлення «Все 3 слота крафта заняты» брехало про gather-задачу.
+     * Тепер слот крафта = лише крафт (user-вердикт «крафт 100%»). Інші типи
+     * (`optionally` робот-gather/explore, `building` стройка, `quest`) — свої циклы,
+     * слот крафта не займають.
      */
     private function countDistinctActiveSlots(int $characterId): int
     {
         $rows = $this->characterTaskModel
-            ->select('task_id')
+            ->select('character_tasks.task_id')
             ->distinct()
-            ->where('character_id', $characterId)
-            ->whereIn('status', ['in_work', 'queued'])
+            ->join('tasks', 'tasks.id = character_tasks.task_id', 'inner')
+            ->where('character_tasks.character_id', $characterId)
+            ->whereIn('character_tasks.status', ['in_work', 'queued'])
+            ->where('tasks.type', 'craft')
             ->findAll();
         return count($rows);
     }
