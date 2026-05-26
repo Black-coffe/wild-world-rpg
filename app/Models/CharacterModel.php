@@ -50,6 +50,7 @@ class CharacterModel extends Model
         'daily_tips_enabled',  // ADR-038 Фаза C — тумблер «Совет дня» (opt-out, default 1)
         'specialization',      // V16 (ADR-047) — крафт-ветка (weaponsmith/medic/engineer)
         'specialization_changed_at', // V16 (ADR-047) — момент последней смены (кулдаун respec)
+        'weight_capacity',     // W3a (ADR-059) — soft-cap веса инвентаря (default 9999 = off до W3b balance-pass)
     ];
 
     protected $useTimestamps = true;
