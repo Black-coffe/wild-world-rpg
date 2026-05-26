@@ -64,13 +64,22 @@ class LootProcessor
     }
 
     /**
-     * @param list<array{id:int,crafted_item_id:int,quantity:int|string}> $loserCraftedItems
+     * V24 (ADR-056): строки с `insured=1` пропускаются — селективный полис
+     * защищает дорогие предметы (robots/workbench/transport). Killswitch
+     * `craft_insurance.enabled` обрабатывается выше (caller не передаёт
+     * insured-флаг если выключено).
+     *
+     * @param list<array{id:int,crafted_item_id:int,quantity:int|string,insured?:int|string}> $loserCraftedItems
      * @return list<array{logId:int,craftedItemId:int,lossAmount:int}>
      */
     public function computeCraftLoss(array $loserCraftedItems, float $deathPenalty): array
     {
         $lost = [];
         foreach ($loserCraftedItems as $item) {
+            $insured = (int) ($item['insured'] ?? 0);
+            if ($insured === 1) {
+                continue;
+            }
             $oldQty = (int) $item['quantity'];
             if ($oldQty <= 0) {
                 continue;

@@ -54,6 +54,12 @@ class PersonalInsurance extends BaseAction
                     ['text' => $toggleLabel,    'callback_data' => 'toggleInsurance'],
                     ['text' => '🧮 Просчет',    'callback_data' => 'calculateInsurance'],
                 ],
+                // V24 (ADR-056): селективная страховка крафта — pre-paid вечный полис
+                // на дорогие предметы (robots/workbench/transport). Альтернатива
+                // pay-on-death страховке всего персонажа.
+                [
+                    ['text' => '📦 Крафт-страховка', 'callback_data' => 'craftInsuranceList'],
+                ],
             ],
         ];
 

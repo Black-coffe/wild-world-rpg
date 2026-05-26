@@ -24,6 +24,7 @@ class CraftedItemsLogModel extends Model
         'durability_count',
         'durability_time',
         'quantity',
+        'insured',
         'custom_setting',
     ];
 

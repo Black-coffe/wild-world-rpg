@@ -14113,7 +14113,7 @@ parameters:
 			path: app/Services/Player/DeathService.php
 
 		-
-			message: '#^Parameter \#1 \$loserCraftedItems of method App\\Services\\Player\\Death\\LootProcessor\:\:computeCraftLoss\(\) expects list\<array\{id\: int, crafted_item_id\: int, quantity\: int\|string\}\>, list\<array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\> given\.$#'
+			message: '#^Parameter \#1 \$loserCraftedItems of method App\\Services\\Player\\Death\\LootProcessor\:\:computeCraftLoss\(\) expects list\<array\{id\: int, crafted_item_id\: int, quantity\: int\|string, insured\?\: int\|string\}\>, list\<array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\> given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Player/DeathService.php

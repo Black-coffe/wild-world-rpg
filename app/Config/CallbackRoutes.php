@@ -245,6 +245,12 @@ class CallbackRoutes extends BaseConfig
         'PersonalInsurance'               => \App\Controllers\Telegram\Commands\Profile\PersonalInsurance::class,
         'toggleInsurance'                 => \App\Controllers\Telegram\Commands\Profile\ToggleInsuranceAction::class,
         'calculateInsurance'              => \App\Controllers\Telegram\Commands\Profile\CalculateInsuranceAction::class,
+        // V24 (ADR-056) — NPC-страховой агент для селективной защиты крафтовых
+        // предметов (robots/workbench/transport). Pre-paid вечный полис.
+        // - craftInsuranceList: список eligible нестрахованных предметов
+        // - craftInsure_<log_id>: ask (через PrefixDispatcher) — расчёт gold + Confirm
+        // - confirm_craft_insure_<log_id>: списать gold + insured=1
+        'craftInsuranceList'              => \App\Controllers\Telegram\Commands\Actions\Craft\Insurance\CraftInsuranceListAction::class,
 
         // === PvP ===
         'runAway'                         => \App\Controllers\Telegram\Commands\Actions\PVP\RunAwayAction::class,

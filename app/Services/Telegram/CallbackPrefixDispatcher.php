@@ -6,6 +6,7 @@ namespace App\Services\Telegram;
 
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\UpgradeBuildingAction;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\RepairBuildingAction;
+use App\Controllers\Telegram\Commands\Actions\Craft\Insurance\CraftInsureItemAction;
 use App\Controllers\Telegram\Commands\Actions\Craft\Repair\NpcRepairAction;
 use App\Controllers\Telegram\Commands\Actions\Craft\Repair\RepairCraftedItemAction;
 use App\Controllers\Telegram\Commands\Actions\Poll\PollVoteAction;
@@ -74,6 +75,15 @@ final class CallbackPrefixDispatcher
             return $this->dispatchRepairBuildingAsk($callbackQuery);
         }
 
+        // V24 (ADR-056): NPC-страховой агент. confirm перед ask (конвенция).
+        if (str_starts_with($callbackData, 'confirm_craft_insure_')) {
+            return $this->dispatchCraftInsureConfirm($callbackQuery);
+        }
+
+        if (str_starts_with($callbackData, 'craftInsure_')) {
+            return $this->dispatchCraftInsureAsk($callbackQuery);
+        }
+
         // V23 (ADR-055): NPC-мастер на базе. confirm перед ask (конвенция).
         // ⚠️ Порядок: npc_repair_ ДО repair_ (S5), т.к. 'npc_repair_' начинается
         // с 'npc_' — не коллизит с 'repair_', но для читаемости держим вместе с S5.
@@ -96,6 +106,26 @@ final class CallbackPrefixDispatcher
         }
 
         return null;
+    }
+
+    /** V24 (ADR-056): craftInsure_{log_id} → расчёт gold + Confirm. */
+    private function dispatchCraftInsureAsk(CallbackQuery $callbackQuery): ServerResponse
+    {
+        if (! class_exists(CraftInsureItemAction::class)) {
+            return Request::emptyResponse();
+        }
+        $handler = new CraftInsureItemAction($callbackQuery);
+        return $handler->askForInsurance();
+    }
+
+    /** V24 (ADR-056): confirm_craft_insure_{log_id} → списать gold + insured=1. */
+    private function dispatchCraftInsureConfirm(CallbackQuery $callbackQuery): ServerResponse
+    {
+        if (! class_exists(CraftInsureItemAction::class)) {
+            return Request::emptyResponse();
+        }
+        $handler = new CraftInsureItemAction($callbackQuery);
+        return $handler->confirmInsurance();
     }
 
     /** V23 (ADR-055): npc_repair_{log_id} → расчёт gold-цены + Confirm. */
