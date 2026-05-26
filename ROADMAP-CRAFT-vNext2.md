@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | W1 | **Drone-recon foundation (audit+ADR+seed)** | ✅ SHIPPED prod (Tier-1/2/3 PASS) | v0.51.268 | 2026-05-26 |
 | W2 | **Drone-recon build** (DroneService + RecceDroneAction + DroneRechargeCron + UI + 9 tests) | ✅ SHIPPED prod (Tier-1/2/3 PASS) | v0.51.268 (+ art v0.51.269) | 2026-05-26 |
-| W3a | **Weight-cap + base_storage foundation** (ADR-059, default OFF на ship) | ✅ SHIPPED preprod (Tier-1/2 PASS) | TBD (no tag yet) | 2026-05-26 |
+| W3a | **Weight-cap + base_storage foundation** (ADR-059, default OFF на ship) | ✅ SHIPPED prod (Tier-1/2 PASS) | v0.51.270 | 2026-05-26 |
 | W3b | **Cargo drone build** (uses W3a primitives) | ⏳ pending | — | — |
 | W4 | Repair drone | ⏳ pending | — | — |
 | W5 | Combat drone + Caravan blueprint integration (🏁 закрытие Фазы 1) | ⏳ pending | — | — |
@@ -62,16 +62,19 @@
 > через `default=9999` effectively off на ship). **Split: W3a (foundation) → W3b (drone),**
 > sequential.
 >
-> **W3a SHIPPED 2026-05-26 (preprod):** 3 миграции (`characters.weight_capacity int default
-> 9999` + NEW `base_storage` table + 3 GameSettings `inventory.weight_cap.*` с rich rationale
-> ADR-024) + `WeightCapacityService` (pure GameSettings-reader, 7 методов: isEnabled/l1Base/
-> perLevel/computeCapacity/getCurrentLoad/getRemainingCapacity/canAdd) + `BaseStorageModel`
-> (findByCharacter/findEntry/deliver idempotent merge) + `CharacterModel::$allowedFields`
-> += `weight_capacity` (memory feedback_ci4_alter_column_needs_allowedfields). Tier-1 ✅
-> **907/907 + phpstan L9 NO ERRORS (641 файлов)**. Tier-2 ✅ admin/game-settings рендерит
-> 3 новых ключа (`inventory.weight_cap.*`) с recommended/hard bounds + «Сбросить». Deploy
-> commit `1768b8a`, 1m56s ✅. **`enabled=false` default → 0 регрессии: gather проходит без
-> cap-check, существующие игроки не видят изменений.** W3b (cargo drone) = следующая сессия.
+> **W3a SHIPPED prod 2026-05-26 (`v0.51.270`):** 3 миграции (`characters.weight_capacity int
+> default 9999` + NEW `base_storage` table + 3 GameSettings `inventory.weight_cap.*` с rich
+> rationale ADR-024) + `WeightCapacityService` (pure GameSettings-reader, 7 методов: isEnabled/
+> l1Base/perLevel/computeCapacity/getCurrentLoad/getRemainingCapacity/canAdd) +
+> `BaseStorageModel` (findByCharacter/findEntry/deliver idempotent merge) +
+> `CharacterModel::$allowedFields` += `weight_capacity` (memory
+> feedback_ci4_alter_column_needs_allowedfields). Tier-1 ✅ **907/907 + phpstan L9 NO ERRORS
+> (641 файлов)**. Tier-2 ✅ admin/game-settings рендерит 3 новых ключа
+> (`inventory.weight_cap.*`) с recommended/hard bounds + «Сбросить». Preprod deploy
+> commit `1768b8a` 1m56s ✅; prod tag `v0.51.270` (GA run `26472897473`, 2m57s) ✅;
+> миграции применились на проде (verified via SSH SQL: 3 keys + column + table). **`enabled=false`
+> default → 0 регрессии: gather проходит без cap-check, существующие игроки не видят изменений.**
+> W3b (cargo drone uses W3a primitives) = следующая сессия.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
