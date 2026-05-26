@@ -10,8 +10,8 @@
 
 | # | Сессия | Статус | Тег | Дата |
 |---|---|---|---|---|
-| W1 | **Drone-recon foundation (audit+ADR+seed)** | ✅ SHIPPED (code), 🟡 deploy ждёт GA recovery | TBD (GA major outage) | 2026-05-26 |
-| W2 | **Drone-recon build** (DroneService + RecceDroneAction + DroneRechargeCron + UI + 9 tests) | ✅ SHIPPED (code), 🟡 deploy ждёт GA recovery | TBD (GA major outage) | 2026-05-26 |
+| W1 | **Drone-recon foundation (audit+ADR+seed)** | ✅ SHIPPED prod (Tier-1/2/3 PASS) | v0.51.268 | 2026-05-26 |
+| W2 | **Drone-recon build** (DroneService + RecceDroneAction + DroneRechargeCron + UI + 9 tests) | ✅ SHIPPED prod (Tier-1/2/3 PASS) | v0.51.268 (+ art v0.51.269) | 2026-05-26 |
 | W3 | Cargo drone | ⏳ pending | — | — |
 | W4 | Repair drone | ⏳ pending | — | — |
 | W5 | Combat drone + Caravan blueprint integration (🏁 закрытие Фазы 1) | ⏳ pending | — | — |
@@ -31,9 +31,24 @@
 > fix-цикл: 5 ошибок (4× cast.int mixed + 1× BiomeEntity vs is_array) поправил через
 > `$raw = $row[key] ?? null; is_numeric($raw) ? (int) $raw : 0` паттерн.
 >
-> **Deploy:** ожидает восстановления GitHub Actions (major_outage с 11:19 UTC 2026-05-26;
-> 11:53 UTC всё ещё outage). Image-generate откладывается на post-deploy. Tier-2 admin UI +
-> Tier-3 real-Telegram smoke отложены до GA recovery + testbot deploy.
+> **Deploy SHIPPED 2026-05-26:** GA восстановилась в течение того же дня. W1+W2 ушли на прод
+> bundle'ом `v0.51.268` (commit `0d4c0cd`, deploy 13:02 UTC, 2m12s ✅); image-tail `drone_scout`
+> сгенерирован и закоммичен как `v0.51.269` (commit `c030640`, deploy 18:17 UTC, 2m6s ✅).
+>
+> **Tier-2 PASS 2026-05-26:** `/admin/game-settings` рендерит все 6 `drone.scout.*` ключей
+> (категория `resources`) с collapse-блоком rationale/effect/above/below, корректными
+> recommended/hard границами, кнопками «Сохранить» / «Сбросить к default». Screenshot
+> `.tmp/w1w2-tier2-game-settings.png`.
+>
+> **Tier-3 PASS 2026-05-26:** real-Telegram chain на testbot (char 491, tg_user 25).
+> (A) Кнопка «🚁 Дрон» в move-keyboard появляется при наличии скрафченного дрона. (B)
+> `droneScoutList` рендерит charge-bar UI (▰▰▰▰▰▰▰▰▰▰ 100/100) + 3 кнопки (Запустить #N /
+> Карта / База). (C) Callback `recceDrone_531` через `CallbackPrefixDispatcher` → запуск.
+> (D) `ExploredCellsModel::revealAround(radius=10)` → 441 клеток зоны, 424 новых записаны;
+> SQL verify: `crafted_items_log.id=531 durability_count 100→0`, `+427 explored_cells` за
+> 5 мин (424 drone + 3 move). Caption media-off-friendly (числа+биомы в тексте, не картинке).
+> Deferred: (E) recharge cron — unit-тесты покрывают, естественная игра закроет; (F)
+> PvP-zone block — `map.pvp` колонки нет, механизм отложу до W4/W5.
 
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
