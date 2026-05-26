@@ -129,6 +129,10 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\NPC\SpawnCaravanCron())->run())
             ->everyMinute()->singleInstance()->named('npc.caravans');
 
+        // W2 (ADR-058) — recharge дронов on_base (everyMinute, charge_rate × interval).
+        $schedule->call(static fn() => (new \App\TaskHandlers\Drone\DroneRechargeCron())->run(1))
+            ->everyMinute()->singleInstance()->named('drone.recharge');
+
         $schedule->call(static fn() => (new \App\TaskHandlers\NPC\AutoPveHandler())->run())
             ->everyMinute()->singleInstance()->named('npc.auto-pve');
 

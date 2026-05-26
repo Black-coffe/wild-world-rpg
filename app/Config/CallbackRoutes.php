@@ -257,6 +257,11 @@ class CallbackRoutes extends BaseConfig
         // - caravanBuyAll_<id>: купить весь offer (через PrefixDispatcher)
         'caravanLook'                     => \App\Controllers\Telegram\Commands\Actions\Caravan\CaravanLookAction::class,
 
+        // W2 (ADR-058) — Drone-recon. Список дрон-инстансов чара с charge-bar.
+        // - droneScoutList: показать все DroneScout с qty>0 + кнопки запуска
+        // - recceDrone_<log_id>: launch action (через PrefixDispatcher)
+        'droneScoutList'                  => \App\Controllers\Telegram\Commands\Actions\Drone\DroneScoutCraftedListAction::class,
+
         // === PvP ===
         'runAway'                         => \App\Controllers\Telegram\Commands\Actions\PVP\RunAwayAction::class,
         'attackPlayer'                    => \App\Controllers\Telegram\Commands\Actions\PVP\AttackPlayerAction::class,

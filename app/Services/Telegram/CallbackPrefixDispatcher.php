@@ -7,6 +7,7 @@ namespace App\Services\Telegram;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\UpgradeBuildingAction;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\RepairBuildingAction;
 use App\Controllers\Telegram\Commands\Actions\Caravan\CaravanBuyAction;
+use App\Controllers\Telegram\Commands\Actions\Drone\RecceDroneAction;
 use App\Controllers\Telegram\Commands\Actions\Craft\Insurance\CraftInsureItemAction;
 use App\Controllers\Telegram\Commands\Actions\Craft\Repair\NpcRepairAction;
 use App\Controllers\Telegram\Commands\Actions\Craft\Repair\RepairCraftedItemAction;
@@ -81,6 +82,11 @@ final class CallbackPrefixDispatcher
             return $this->dispatchCaravanBuyAll($callbackQuery);
         }
 
+        // W2 (ADR-058): Drone-recon launch.
+        if (str_starts_with($callbackData, 'recceDrone_')) {
+            return $this->dispatchRecceDrone($callbackQuery);
+        }
+
         // V24 (ADR-056): NPC-страховой агент. confirm перед ask (конвенция).
         if (str_starts_with($callbackData, 'confirm_craft_insure_')) {
             return $this->dispatchCraftInsureConfirm($callbackQuery);
@@ -121,6 +127,16 @@ final class CallbackPrefixDispatcher
             return Request::emptyResponse();
         }
         $handler = new CaravanBuyAction($callbackQuery);
+        return $handler->handle();
+    }
+
+    /** W2 (ADR-058): recceDrone_{crafted_items_log_id} → revealAround + drain. */
+    private function dispatchRecceDrone(CallbackQuery $callbackQuery): ServerResponse
+    {
+        if (! class_exists(RecceDroneAction::class)) {
+            return Request::emptyResponse();
+        }
+        $handler = new RecceDroneAction($callbackQuery);
         return $handler->handle();
     }
 

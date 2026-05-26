@@ -262,6 +262,30 @@ class MoveCharacterToDirectionAction
             }
         }
 
+        // W2 (ADR-058) — кнопка «🚁 Дрон» если у чара есть DroneScout с qty>0.
+        // Дрон запускается с любой клетки (не только базы), поэтому кнопка
+        // всегда видна при наличии инстансов. Список + charge-bar в действии.
+        $droneService = new \App\Services\Player\DroneService();
+        if ($droneService->isEnabled()) {
+            $droneRow = (new \App\Models\CraftedItemsModel())->where('name_eng', 'DroneScout')->first();
+            if (is_array($droneRow)) {
+                $rawDroneId = $droneRow['id'] ?? null;
+                $droneId    = is_numeric($rawDroneId) ? (int) $rawDroneId : 0;
+                if ($droneId > 0) {
+                    $hasDrone = (new \App\Models\CraftedItemsLogModel())
+                        ->where('character_id', $character['id'])
+                        ->where('crafted_item_id', $droneId)
+                        ->where('quantity >', 0)
+                        ->first();
+                    if ($hasDrone) {
+                        $directionsKeyboard[] = [
+                            ['text' => '🚁 Дрон', 'callback_data' => 'droneScoutList'],
+                        ];
+                    }
+                }
+            }
+        }
+
         $keyboard = ['inline_keyboard' => $directionsKeyboard];
 
         // Редактируем ИМЕННО ТО сообщение, на котором нажали кнопку направления
