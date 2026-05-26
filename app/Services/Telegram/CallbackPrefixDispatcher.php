@@ -6,6 +6,7 @@ namespace App\Services\Telegram;
 
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\UpgradeBuildingAction;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\RepairBuildingAction;
+use App\Controllers\Telegram\Commands\Actions\Craft\Repair\NpcRepairAction;
 use App\Controllers\Telegram\Commands\Actions\Craft\Repair\RepairCraftedItemAction;
 use App\Controllers\Telegram\Commands\Actions\Poll\PollVoteAction;
 use App\Controllers\Telegram\Commands\BaseShiftingCommand;
@@ -73,6 +74,17 @@ final class CallbackPrefixDispatcher
             return $this->dispatchRepairBuildingAsk($callbackQuery);
         }
 
+        // V23 (ADR-055): NPC-мастер на базе. confirm перед ask (конвенция).
+        // ⚠️ Порядок: npc_repair_ ДО repair_ (S5), т.к. 'npc_repair_' начинается
+        // с 'npc_' — не коллизит с 'repair_', но для читаемости держим вместе с S5.
+        if (str_starts_with($callbackData, 'confirm_npc_repair_')) {
+            return $this->dispatchNpcRepairConfirm($callbackQuery);
+        }
+
+        if (str_starts_with($callbackData, 'npc_repair_')) {
+            return $this->dispatchNpcRepairAsk($callbackQuery);
+        }
+
         // S5b (v0.51.188+): repair flow (must check confirm_repair_ BEFORE repair_,
         // т.к. confirm_repair_ начинается с repair-prefix substring через подстроку).
         if (str_starts_with($callbackData, 'confirm_repair_')) {
@@ -84,6 +96,26 @@ final class CallbackPrefixDispatcher
         }
 
         return null;
+    }
+
+    /** V23 (ADR-055): npc_repair_{log_id} → расчёт gold-цены + Confirm. */
+    private function dispatchNpcRepairAsk(CallbackQuery $callbackQuery): ServerResponse
+    {
+        if (! class_exists(NpcRepairAction::class)) {
+            return Request::emptyResponse();
+        }
+        $handler = new NpcRepairAction($callbackQuery);
+        return $handler->askForRepair();
+    }
+
+    /** V23 (ADR-055): confirm_npc_repair_{log_id} → списать gold + instant restore. */
+    private function dispatchNpcRepairConfirm(CallbackQuery $callbackQuery): ServerResponse
+    {
+        if (! class_exists(NpcRepairAction::class)) {
+            return Request::emptyResponse();
+        }
+        $handler = new NpcRepairAction($callbackQuery);
+        return $handler->confirmRepair();
     }
 
     /**

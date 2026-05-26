@@ -233,6 +233,9 @@ class CallbackRoutes extends BaseConfig
         // - repairToolsList: список изношенных инструментов с кнопкой Ремонт per item
         // - repair_<log_id>: 2-step ask (показывает стоимость через repair.cost_fraction)
         // - confirm_repair_<log_id>: списывает ресурсы, создаёт `repair` task → RepairCompletionHandler
+        // V23 (ADR-055): NPC-мастер на базе — gold-only мгновенный ремонт (через PrefixDispatcher).
+        // - npc_repair_<log_id>: расчёт gold + Confirm
+        // - confirm_npc_repair_<log_id>: списать gold + instant restore durability
         'repairToolsList'                 => \App\Controllers\Telegram\Commands\Actions\Craft\Repair\RepairToolsListAction::class,
 
         // === Objects ===

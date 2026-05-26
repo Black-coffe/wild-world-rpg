@@ -116,6 +116,7 @@ class RepairCraftedItemAction extends BaseAction
 
             $keyboard = [
                 'inline_keyboard' => [
+                    [['text' => '🛠 NPC-мастер (gold, мгновенно)', 'callback_data' => "npc_repair_{$logId}"]],
                     [
                         ['text' => '⬅️ Назад к списку', 'callback_data' => 'repairToolsList'],
                         ['text' => '🎒 Инвентарь',       'callback_data' => 'inventory'],
@@ -128,6 +129,7 @@ class RepairCraftedItemAction extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [['text' => '✅ Подтвердить ремонт', 'callback_data' => "confirm_repair_{$logId}"]],
+                    [['text' => '🛠 Или к NPC (gold, мгновенно)', 'callback_data' => "npc_repair_{$logId}"]],
                     [
                         ['text' => '⬅️ Назад к списку', 'callback_data' => 'repairToolsList'],
                         ['text' => '🎒 Инвентарь',       'callback_data' => 'inventory'],

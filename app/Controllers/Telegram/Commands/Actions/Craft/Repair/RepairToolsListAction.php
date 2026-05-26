@@ -102,15 +102,15 @@ class RepairToolsListAction extends BaseAction
 
             $text .= "• *{$name}*: {$cur}/{$max}\n";
             $buttons[] = [
-                'text'          => "🔧 {$name} ({$cur}/{$max})",
-                'callback_data' => "repair_{$logId}",
+                ['text' => "🔧 {$name} ({$cur}/{$max})", 'callback_data' => "repair_{$logId}"],
+                ['text' => '🛠 NPC', 'callback_data' => "npc_repair_{$logId}"],
             ];
         }
 
-        // 1 кнопка в строке (длинные имена).
+        // V23: 2 кнопки в строке — S5 (ресурсы) и NPC (gold).
         $keyboard = [
             'inline_keyboard' => array_merge(
-                array_map(fn ($b) => [$b], $buttons),
+                $buttons,
                 [[
                     ['text' => '🔨 Крафтовые ресурсы', 'callback_data' => 'resourcesCrafting'],
                     ['text' => '🎒 Инвентарь',         'callback_data' => 'inventory'],
