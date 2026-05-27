@@ -17,7 +17,7 @@
 | W4 | **Repair drone build** (ADR-063, gold-only batch ремонтник, gate RoboticsWorkshop L3, V19 overlay distinct-value) | ✅ SHIPPED prod (Tier-1 + Tier-3 partial PASS) | v0.51.284 | 2026-05-27 |
 | W5 | **Combat drone + Caravan drone-offer integration** (ADR-064, 🏁 закрытие Фазы 1 Drone-family) | ✅ SHIPPED prod (Tier-1 PASS + Tier-3 partial PASS — bug catch + hotfix) | v0.51.287 | 2026-05-27 |
 | W6 | **Onboarding redux #11 — audit + scope** (ADR-065, hybrid: Robi 4→7 + «Что нового» catalog) | ✅ SHIPPED docs-only (без кода, реализация в W7) | — | 2026-05-27 |
-| W7a | **Onboarding redux — Robi extension 4→7 шагов** (ADR-065 implement Part 1: шаги 5/7 «Подсказки и советы» + 6/7 «Этапы прокачки» + 7/7 closer; killswitch GameSettings) | ⏳ Tier-1 ✅ ждёт deploy | — | 2026-05-27 |
+| W7a | **Onboarding redux — Robi extension 4→7 шагов** (ADR-065 implement Part 1: шаги 5/7 «Подсказки и советы» + 6/7 «Этапы прокачки» + 7/7 closer; killswitch GameSettings) | ✅ SHIPPED prod (Tier-1 + Tier-3 PASS + 2 Tier-3 hotfix'а: PNG→JPG + caption 1068→605) | v0.51.288 | 2026-05-27 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -107,7 +107,7 @@
 > default → 0 регрессии: gather проходит без cap-check, существующие игроки не видят изменений.**
 > W3b (cargo drone uses W3a primitives) = следующая сессия.
 >
-> **W7a Tier-1 PASS 2026-05-27 (без deploy):** Старт Фазы 2 vNext2 (Onboarding & Achievement),
+> **W7a SHIPPED prod 2026-05-27 (`v0.51.288`):** Старт Фазы 2 vNext2 (Onboarding & Achievement),
 > implement Part 1 ADR-065 hybrid. Split W7→W7a (Robi extension сейчас) + W7b (Catalog «Что
 > нового» отдельно с фото-art-tail). Сделано: 1 migration `2026-06-02-100000_W7aSeedOnboardingRobiExtendedGameSettings`
 > (1 killswitch `onboarding.robi_extended.enabled` default=true, category=world, rich
@@ -124,11 +124,20 @@
 > fix-цикл: type narrowing для `$lastAction['action_status']` (`$lastAction` = `array|object|null`
 > из `first()`) через `is_array($lastAction) && ($lastAction['action_status'] ?? null) ===
 > 'Completed'`; убрать redeclare of parent's `$characterModel` property. Photos: W7a
-> переиспользует existing assets (`final-step-image.jpg` / `beautiful_map.png` / `ready-for-adventure.jpg`)
-> как placeholders — dedicated LEXICON-asset'ы придут в W7b вместе с catalog photos.
-> Media-off safe: caption полноценный, картинки = enhancement. ADR-065 закрытие Part 1 в
-> рамках hybrid-плана; Part 2 (catalog «📚 Что нового» + JSON column + topic seed-table +
-> Перс button + returning-cooldown + 5-6 LEXICON photos) = W7b. **🏁 W7a/30, Фаза 2 — 1/5.**
+> переиспользует existing assets: Step5 `final-step-image.jpg`, Step6
+> `bioms-for-game-tips.jpg` (placeholder JPG после hotfix PNG→JPG), Step7
+> `ready-for-adventure.jpg`. Dedicated LEXICON-asset'ы придут в W7b. Media-off safe:
+> caption полноценный, картинки = enhancement. **Tier-3 cold-smoke на testbot (char 491,
+> MCP Chrome + Telegram Web + bot API curl smoke-trigger):** chain 1/7 → 2/7 → ... → 7/7
+> → startAdventure все переходы видны через edit-in-place ✅; caption нумерация dynamic
+> «N/7» ✅; Step4 conditional кнопка «💡 Продолжить обучение» ✅; новые шаги 5/6/7
+> рендерятся корректно ✅. **2 hotfix'а внутри Tier-3 цикла:** (1) Step6 PNG → JPG
+> (editMessageMedia edge case с GD-PNG asset через `encodeFile()`), (2) Step6 caption
+> 1068 → 605 chars (Telegram 1024 photo-caption limit). Memory урок:
+> [[../claude-memory/feedback_telegram_photo_caption_1024_limit]] — `mb_strlen` обязателен
+> перед commit, fallback `sendPhotoOrText` НЕ спасает за лимитом. ADR-065 закрытие Part 1
+> в рамках hybrid-плана; Part 2 (catalog «📚 Что нового» + JSON column + topic seed-table
+> + Перс button + returning-cooldown + 5-6 LEXICON photos) = W7b. **🏁 W7a/30, Фаза 2 — 1/5.**
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
