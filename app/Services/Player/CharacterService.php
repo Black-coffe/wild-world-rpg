@@ -167,9 +167,17 @@ class CharacterService
             $inlineRows[] = [['text' => '🎓 Специализация', 'callback_data' => 'specialization']];
         }
 
-        // V20 (ADR-051): вход в фракц-проект — только для выбравших фракцию (1-4).
-        if ($hasChosenFaction && (new \App\Services\Player\FactionProjectService())->enabled()) {
-            $inlineRows[] = [['text' => '🤝 Проект фракции', 'callback_data' => 'factionProject']];
+        // V20 (ADR-051): вход в фракц-проект.
+        // CLAUDE.md §🎮 UX-DISCOVERABILITY: фича ОБЯЗАНА быть видна даже когда условие не выполнено —
+        // иначе игрок видит tip «👤 Перс → 🤝 Проект фракции» и не находит кнопку.
+        // Conditional → lock-button с объяснением prerequisite.
+        if ((new \App\Services\Player\FactionProjectService())->enabled()) {
+            if ($hasChosenFaction) {
+                $inlineRows[] = [['text' => '🤝 Проект фракции', 'callback_data' => 'factionProject']];
+            } else {
+                $lockHint     = $level >= 10 ? 'выбери фракцию' : 'с lvl 10';
+                $inlineRows[] = [['text' => "🔒 Проект фракции ({$lockHint})", 'callback_data' => 'factionProjectLocked']];
+            }
         }
 
         $inlineKeyboard = ['inline_keyboard' => $inlineRows];
