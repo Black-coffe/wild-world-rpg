@@ -438,26 +438,38 @@ foreach ($biomes as $b) {
         ctx.restore();
     }
 
+    // 3 последовательные волны от точки персонажа — расходятся по всей карте,
+    // каждая следующая слабее, затухание opacity. Web-3.0-style визуал, easeOutQuad
+    // на radius чтобы волна быстрее расходилась в начале.
     function drawRipples(){
         if (!state.ripple || !state.me) return;
         var elapsed = performance.now() - state.ripple.t0;
-        var progress = elapsed / state.ripple.duration; // 0..1
-        if (progress >= 1) return;
         var vsCells = viewSizeCells();
         var pxPerCell = CANVAS_SIZE / vsCells;
-        if (state.me.x < state.viewX || state.me.x > state.viewX + vsCells) return;
-        if (state.me.y < state.viewY || state.me.y > state.viewY + vsCells) return;
         var cx = (state.me.x - state.viewX) * pxPerCell;
         var cy = (state.me.y - state.viewY) * pxPerCell;
-        var MAX_R = 280; // canvas-px
+        // Радиус волны рассчитан до угла canvas с любой точки (max distance) — всегда
+        // покрывает всю видимую карту независимо от позиции игрока.
+        var maxR = Math.sqrt(
+            Math.max(cx, CANVAS_SIZE - cx) * Math.max(cx, CANVAS_SIZE - cx) +
+            Math.max(cy, CANVAS_SIZE - cy) * Math.max(cy, CANVAS_SIZE - cy)
+        );
+        var WAVE_DURATION = 1500;          // ms — каждая волна
+        var WAVE_STAGGER  = 500;           // ms — задержка между стартами волн
+        var INTENSITY     = [0.85, 0.55, 0.32]; // 1-я ярче, 3-я слабее
+        var WIDTH         = [7, 5, 3];     // line-width
         ctx.save();
         for (var i = 0; i < 3; i++){
-            var phase = (progress + i * 0.33) % 1;
-            var radius = phase * MAX_R;
-            var opacity = (1 - phase) * 0.75;
+            var waveStart = i * WAVE_STAGGER;
+            var waveAge   = elapsed - waveStart;
+            if (waveAge < 0 || waveAge > WAVE_DURATION) continue;
+            var t = waveAge / WAVE_DURATION;           // 0..1
+            var eased = 1 - (1 - t) * (1 - t);          // easeOutQuad для radius
+            var radius = eased * maxR;
+            var opacity = (1 - t) * INTENSITY[i];
             ctx.beginPath();
             ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-            ctx.lineWidth = 5;
+            ctx.lineWidth = WIDTH[i];
             ctx.strokeStyle = 'rgba(57,219,151,' + opacity + ')';
             ctx.stroke();
         }

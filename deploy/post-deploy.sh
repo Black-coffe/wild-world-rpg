@@ -72,6 +72,34 @@ fi
 ln -sfn "$SWITCH_TARGET" "$WEBROOT.tmp"
 mv -Tf "$WEBROOT.tmp" "$WEBROOT"
 
+# CloudPanel + atomic-symlink switch — OPcache держит realpath старого release'а
+# даже при validate_timestamps=On (realpath_cache_ttl 120 сек). На практике
+# приводило к тому, что новые view'ы НЕ были видны после deploy. Решение —
+# временно дёрнуть opcache_reset() из index.php через HTTP.
+# Цикл: backup index.php → инжект reset-вызова на первой строке → curl сам себя
+# → восстановить из backup. Trap на cleanup гарантирует что index.php не останется
+# битым даже если curl упадёт.
+echo ">>> [post-deploy] OPcache reset (одна HTTP-итерация для PHP-FPM workers)"
+INDEX="$WEBROOT/index.php"
+INDEX_BAK="$INDEX.opcache-bak.$$"
+if [[ -f "$INDEX" ]]; then
+    cp -p "$INDEX" "$INDEX_BAK"
+    cleanup_opcache_index() {
+        if [[ -f "$INDEX_BAK" ]]; then
+            mv -f "$INDEX_BAK" "$INDEX"
+        fi
+    }
+    trap cleanup_opcache_index EXIT
+    sed -i '1a if(function_exists("opcache_reset"))opcache_reset();clearstatcache(true);' "$INDEX"
+    curl -sfk --max-time 10 "https://127.0.0.1/" -H "Host: $DOMAIN" -o /dev/null 2>&1 || \
+        curl -sf --max-time 10 "http://127.0.0.1:8080/" -H "Host: $DOMAIN" -o /dev/null 2>&1 || \
+        echo "WARN: opcache reset curl failed (page will still revalidate naturally)"
+    cleanup_opcache_index
+    trap - EXIT
+else
+    echo "WARN: $INDEX not found — пропускаю OPcache reset"
+fi
+
 echo ">>> [post-deploy] cleanup old releases (keep 5 newest)"
 cd "$RELEASES"
 ls -1dt */ 2>/dev/null | sed 's:/$::' | tail -n +6 | xargs -r rm -rf
