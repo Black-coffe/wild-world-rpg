@@ -75,7 +75,9 @@ class GetTrainingStart6Action extends BaseAction
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        $imagePath = base_url('uploads/telegram/character/beautiful_map.png');
+        // W7a placeholder: JPG (не PNG) — editMessageMedia предсказуемо
+        // конвертит между JPG-сообщениями. W7b заменит на dedicated LEXICON-asset.
+        $imagePath = base_url('uploads/telegram/character/bioms-for-game-tips.jpg');
 
         return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'photo'        => Request::encodeFile($imagePath),
