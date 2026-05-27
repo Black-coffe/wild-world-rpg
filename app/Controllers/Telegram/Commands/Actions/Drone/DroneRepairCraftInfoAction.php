@@ -124,7 +124,15 @@ final class DroneRepairCraftInfoAction extends BaseAction
             ]]];
         }
 
-        $imageRel  = is_string($recipe['image_completed'] ?? null) ? $recipe['image_completed'] : '';
+        // W4: art-tail ждёт `php spark images:generate --missing` — до тех пор fallback
+        // на image_in_progress (standard_craft_area.jpg), который уже существует.
+        // Проверка через FCPATH (local disk), а не HTTP — encodeFile() fopen'ит URL.
+        $imageRel = is_string($recipe['image_completed'] ?? null) ? $recipe['image_completed'] : '';
+        $imageAbs = FCPATH . str_replace('/', DIRECTORY_SEPARATOR, $imageRel);
+        if ($imageRel === '' || ! is_file($imageAbs)) {
+            $fallback = is_string($recipe['image_in_progress'] ?? null) ? $recipe['image_in_progress'] : '';
+            $imageRel = $fallback;
+        }
         $imagePath = base_url($imageRel);
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
