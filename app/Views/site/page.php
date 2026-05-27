@@ -1,6 +1,9 @@
 <?php
 /**
+ * Статичная страница — ADR-062 design system.
+ *
  * @var array<string,mixed> $page
+ * @var list<array{name:string,url:string}> $breadcrumbs
  */
 $title   = is_string($page['title'] ?? null) ? $page['title'] : '';
 $content = is_string($page['content_html'] ?? null) ? $page['content_html'] : '';
@@ -10,13 +13,13 @@ $content = is_string($page['content_html'] ?? null) ? $page['content_html'] : ''
 
 <?= view('site/_breadcrumbs', ['items' => $breadcrumbs ?? []]) ?>
 
-<article class="ww-article">
+<article class="block" style="padding-top:24px">
     <div class="container">
-        <header class="ww-article-head">
-            <h1><?= esc($title) ?></h1>
+        <header style="max-width:70ch">
+            <h1 class="mb-0"><?= esc($title) ?></h1>
         </header>
         <?php /* доверенный HTML (ADR-052) */ ?>
-        <div class="ww-prose"><?= $content ?></div>
+        <div class="prose mt-3"><?= $content ?></div>
     </div>
 </article>
 

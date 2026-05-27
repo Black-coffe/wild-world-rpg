@@ -1,18 +1,33 @@
 <?php
 /**
- * Публичный layout сайта Wild World (ADR-052). Самодостаточный (не зависит от
- * агентских front-партиалов). Динамические SEO-мета через $meta.
+ * Публичный layout сайта Wild World.
  *
+ * ИСТОРИЯ:
+ * - ADR-052 (2026-05-25) — миграция сайта WordPress → CI4.
+ * - ADR-062 (2026-05-27) — flat-stencil design system «Найденная фотоплёнка».
+ *   Стили — public/assets/css/wildworld-ui.css (единый source of truth).
+ *   Скрипт — public/assets/js/wildworld-ui.js (только burger/drawer/dropdown).
+ *   Living styleguide — /ui-kit.html.
+ *
+ * Контракт переменных (без изменений с ADR-052):
  * @var array<string,mixed> $meta
+ *
+ * Секции (CI4 view layout):
+ * - head     — дополнительные теги в <head> (например, страничный CSS-override)
+ * - content  — основной контент страницы (внутри <main id="ww-main">)
+ * - scripts  — дополнительные скрипты в конце <body>
+ *
+ * 🔴 ПРАВИЛО: при добавлении новой страницы — extend этого layout, секции «content».
+ * Если нужен новый компонент — сначала добавить в /ui-kit.html и wildworld-ui.css.
  */
 $m = is_array($meta ?? null) ? $meta : [];
-$title       = is_string($m['title'] ?? null) ? $m['title'] : 'Wild World';
-$description = is_string($m['description'] ?? null) ? $m['description'] : '';
+$title       = is_string($m['title'] ?? null) ? $m['title'] : 'Wild World — постапокалиптическая MMORPG в Telegram';
+$description = is_string($m['description'] ?? null) ? $m['description'] : 'Постапокалиптическая текстовая MMORPG в Telegram. Исследуй, выживай, крафти, сражайся и строй базу в большом открытом мире.';
 $canonical   = is_string($m['canonical'] ?? null) ? $m['canonical'] : rtrim(base_url(), '/');
 $robots      = is_string($m['robots'] ?? null) ? $m['robots'] : 'index,follow';
 $ogType      = is_string($m['ogType'] ?? null) ? $m['ogType'] : 'website';
 $ogImage     = is_string($m['ogImage'] ?? null) && $m['ogImage'] !== '' ? $m['ogImage'] : null;
-$ogImageUrl  = $ogImage ?? base_url('og-default.jpg');           // дефолтная соц-карта
+$ogImageUrl  = $ogImage ?? base_url('og-default.jpg');
 $keywords    = is_string($m['keywords'] ?? null) ? $m['keywords'] : '';
 $publishedAt = is_string($m['publishedTime'] ?? null) ? $m['publishedTime'] : null;
 $modifiedAt  = is_string($m['modifiedTime'] ?? null) ? $m['modifiedTime'] : null;
@@ -21,12 +36,11 @@ $breadcrumbs = is_array($m['breadcrumbs'] ?? null) ? $m['breadcrumbs'] : [];
 $extraLd     = is_array($m['jsonld'] ?? null) ? $m['jsonld'] : [];
 
 $social    = config('Social');
-$tgLink    = $social->botLink;   // CTA — играть в боте
-$groupLink = $social->groupLink; // инфо/сообщество — группа
+$tgLink    = $social->botLink;
+$groupLink = $social->groupLink;
+$siteUrl   = rtrim(base_url(), '/');
 
-$siteUrl = rtrim(base_url(), '/');
-
-// ── Единый JSON-LD @graph (Schema.org): Organization + WebSite + крошки + per-page.
+// JSON-LD @graph (Schema.org): Organization + WebSite + крошки + per-page.
 $graph = [
     [
         '@type'  => 'Organization',
@@ -72,126 +86,42 @@ $jsonLd = json_encode(['@context' => 'https://schema.org', '@graph' => $graph], 
 
 $navCats = (new \App\Models\SiteCategoryModel())->orderBy('sort')->findAll();
 $uri     = uri_string();
-?>
-<!DOCTYPE html>
-<html lang="ru">
+
+// Контракт для partials — CI4 $this->include() НЕ пробрасывает scope (см. memory
+// reference_ci4_view_helpers), поэтому передаём данные через view() helper явно.
+$metaData = [
+    'title'       => $title,
+    'description' => $description,
+    'canonical'   => $canonical,
+    'robots'      => $robots,
+    'ogType'      => $ogType,
+    'ogImageUrl'  => $ogImageUrl,
+    'ogImage'     => $ogImage,
+    'keywords'    => $keywords,
+    'publishedAt' => $publishedAt,
+    'modifiedAt'  => $modifiedAt,
+    'artSection'  => $artSection,
+    'jsonLd'      => $jsonLd,
+];
+$headerData = ['navCats' => $navCats, 'uri' => $uri, 'tgLink' => $tgLink];
+$footerData = ['navCats' => $navCats, 'tgLink' => $tgLink, 'groupLink' => $groupLink];
+?><!DOCTYPE html>
+<html lang="ru" data-theme="ash">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= esc($title) ?></title>
-    <meta name="description" content="<?= esc($description) ?>">
-    <?php if ($keywords !== ''): ?><meta name="keywords" content="<?= esc($keywords) ?>">
-    <?php endif; ?><meta name="robots" content="<?= esc($robots) ?>">
-    <meta name="theme-color" content="#0d1118">
-    <link rel="canonical" href="<?= esc($canonical) ?>">
-
-    <!-- Open Graph -->
-    <meta property="og:site_name" content="Wild World">
-    <meta property="og:locale" content="ru_RU">
-    <meta property="og:type" content="<?= esc($ogType) ?>">
-    <meta property="og:title" content="<?= esc($title) ?>">
-    <meta property="og:description" content="<?= esc($description) ?>">
-    <meta property="og:url" content="<?= esc($canonical) ?>">
-    <meta property="og:image" content="<?= esc($ogImageUrl) ?>">
-    <?php if ($ogImage === null): ?>
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
-    <?php endif; ?>
-    <?php if ($ogType === 'article'): ?>
-    <?php if ($publishedAt !== null): ?><meta property="article:published_time" content="<?= esc($publishedAt) ?>">
-    <?php endif; ?><?php if ($modifiedAt !== null): ?><meta property="article:modified_time" content="<?= esc($modifiedAt) ?>">
-    <?php endif; ?><?php if ($artSection !== null): ?><meta property="article:section" content="<?= esc($artSection) ?>">
-    <?php endif; ?>
-    <?php endif; ?>
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="<?= esc($title) ?>">
-    <meta name="twitter:description" content="<?= esc($description) ?>">
-    <meta name="twitter:image" content="<?= esc($ogImageUrl) ?>">
-
-    <link rel="icon" href="<?= base_url('favicon.ico') ?>" sizes="any">
-    <link rel="icon" type="image/svg+xml" href="<?= base_url('favicon.svg') ?>">
-    <link rel="icon" type="image/png" sizes="32x32" href="<?= base_url('favicon-32x32.png') ?>">
-    <link rel="icon" type="image/png" sizes="16x16" href="<?= base_url('favicon-16x16.png') ?>">
-    <link rel="apple-touch-icon" href="<?= base_url('apple-touch-icon.png') ?>">
-    <link rel="manifest" href="<?= base_url('site.webmanifest') ?>">
-    <link rel="stylesheet" href="<?= base_url('css/vendors/bootstrap.min.css') ?>">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=PT+Sans:ital,wght@0,400;0,700;1,400&display=swap">
-    <link rel="stylesheet" href="<?= base_url('css/site.css') ?>">
-    <script type="application/ld+json"><?= $jsonLd ?></script>
-    <?= $this->renderSection('head') ?>
+<?= view('site/_layout/meta', $metaData) ?>
+<?= $this->renderSection('head') ?>
 </head>
-<body class="ww-body">
+<body>
 
-<header class="ww-header">
-    <div class="container">
-        <nav class="navbar navbar-expand-lg">
-            <a class="ww-brand" href="<?= base_url() ?>">WILD<span>WORLD</span></a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#wwNav" aria-label="Меню">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="wwNav">
-                <ul class="navbar-nav ms-auto align-items-lg-center">
-                    <li class="nav-item"><a class="nav-link <?= $uri === '' ? 'active' : '' ?>" href="<?= base_url() ?>">Главная</a></li>
-                    <li class="nav-item"><a class="nav-link <?= $uri === 'devblog' ? 'active' : '' ?>" href="<?= base_url('devblog') ?>">Девблог</a></li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Разделы</a>
-                        <ul class="dropdown-menu dropdown-menu-end ww-dropdown">
-                            <?php foreach ($navCats as $c): ?>
-                                <?php if (is_array($c) && is_string($c['slug'] ?? null)): ?>
-                                    <li><a class="dropdown-item" href="<?= base_url(esc($c['slug'], 'url')) ?>"><?= esc($c['name'] ?? $c['slug']) ?></a></li>
-                                <?php endif; ?>
-                            <?php endforeach; ?>
-                        </ul>
-                    </li>
-                    <li class="nav-item"><a class="nav-link <?= str_starts_with($uri, 'wiki') ? 'active' : '' ?>" href="<?= base_url('wiki') ?>">Вики</a></li>
-                    <li class="nav-item"><a class="nav-link <?= $uri === 'map' ? 'active' : '' ?>" href="<?= base_url('map') ?>">Карта</a></li>
-                    <li class="nav-item ms-lg-3 mt-2 mt-lg-0">
-                        <a class="ww-btn ww-btn-play" href="<?= esc($tgLink, 'attr') ?>" target="_blank" rel="noopener">▶ Играть в Telegram</a>
-                    </li>
-                </ul>
-            </div>
-        </nav>
-    </div>
-</header>
+<?= view('site/_layout/header', $headerData) ?>
 
-<main class="ww-main">
-    <?= $this->renderSection('content') ?>
+<main id="ww-main" role="main">
+<?= $this->renderSection('content') ?>
 </main>
 
-<footer class="ww-footer">
-    <div class="container">
-        <div class="row gy-4">
-            <div class="col-lg-5">
-                <a class="ww-brand" href="<?= base_url() ?>">WILD<span>WORLD</span></a>
-                <p class="ww-muted mt-2">Постапокалиптическая текстовая MMORPG в Telegram. Исследуй, выживай, крафти, сражайся и строй базу в огромном открытом мире.</p>
-                <a class="ww-btn ww-btn-play" href="<?= esc($tgLink, 'attr') ?>" target="_blank" rel="noopener">▶ Начать играть</a>
-            </div>
-            <div class="col-lg-3 col-6">
-                <div class="ww-foot-h">Разделы</div>
-                <ul class="ww-foot-links">
-                    <li><a href="<?= base_url('devblog') ?>">Девблог</a></li>
-                    <li><a href="<?= base_url('wiki') ?>">Вики мира</a></li>
-                    <?php foreach (array_slice(is_array($navCats) ? $navCats : [], 0, 4) as $c): ?>
-                        <?php if (is_array($c) && is_string($c['slug'] ?? null)): ?>
-                            <li><a href="<?= base_url(esc($c['slug'], 'url')) ?>"><?= esc($c['name'] ?? $c['slug']) ?></a></li>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                </ul>
-            </div>
-            <div class="col-lg-4 col-6">
-                <div class="ww-foot-h">Сообщество</div>
-                <ul class="ww-foot-links">
-                    <li><a href="<?= esc($tgLink, 'attr') ?>" target="_blank" rel="noopener">🎮 Играть в боте</a></li>
-                    <li><a href="<?= esc($groupLink, 'attr') ?>" target="_blank" rel="noopener">💬 Новости и обсуждение</a></li>
-                </ul>
-            </div>
-        </div>
-        <div class="ww-copy">© <?= date('Y') ?> Wild World. Текстовая MMORPG в Telegram.</div>
-    </div>
-</footer>
+<?= view('site/_layout/footer', $footerData) ?>
 
-<script src="<?= base_url('js/vendors/bootstrap.bundle.min.js') ?>"></script>
+<script src="<?= base_url('assets/js/wildworld-ui.js') ?>?v=1" defer></script>
 <?= $this->renderSection('scripts') ?>
 </body>
 </html>
