@@ -2,8 +2,12 @@
 /**
  * @var array<int,array<string,mixed>> $biomes
  * @var array<string,mixed>            $meta
+ * @var array{logged_in: bool, first_name: string} $auth
+ * @var string                         $botUsername
  */
 $this->extend('site/layout');
+$csrfHash = csrf_hash();
+$csrfName = csrf_token();
 
 // Цвета биомов — синхронизированы с App\Services\World\MiniMapService::$biomeColors
 $biomeColors = [
@@ -78,6 +82,12 @@ foreach ($biomes as $b) {
 .ww-map-events .ww-ev-tag-local{background:rgba(217,210,41,.15);color:#d9d229;border:1px solid rgba(217,210,41,.4)}
 .ww-map-events .ww-ev-tag-global{background:rgba(204,0,0,.18);color:#e85555;border:1px solid rgba(204,0,0,.5)}
 .ww-map-future{font-size:.82rem;color:var(--ww-muted);line-height:1.5;margin:.6rem 0 0}
+.ww-map-auth{display:flex;flex-direction:column;gap:.5rem}
+.ww-map-auth .ww-auth-hello{font-size:.92rem}
+.ww-map-auth .ww-auth-hello b{color:var(--ww-accent)}
+.ww-map-auth .ww-auth-hint{font-size:.78rem;color:var(--ww-muted);line-height:1.4;margin:.3rem 0 0}
+.ww-map-auth .ww-auth-logout{display:inline-block;padding:.4rem .8rem;background:transparent;border:1px solid var(--ww-line);color:var(--ww-muted);border-radius:4px;font-family:"Oswald",sans-serif;text-transform:uppercase;font-size:.78rem;letter-spacing:.04em;cursor:pointer}
+.ww-map-auth .ww-auth-logout:hover{border-color:#e85555;color:#e85555}
 </style>
 <?= $this->endSection() ?>
 
@@ -100,6 +110,33 @@ foreach ($biomes as $b) {
             </div>
 
             <aside>
+                <div class="ww-map-panel ww-map-auth">
+                    <h3>Доступ</h3>
+                    <?php if ($auth['logged_in']): ?>
+                        <span class="ww-auth-hello">Привет, <b><?= esc($auth['first_name'] !== '' ? $auth['first_name'] : 'игрок') ?></b>!</span>
+                        <form method="post" action="<?= esc(base_url('logout/telegram'), 'attr') ?>">
+                            <input type="hidden" name="<?= esc($csrfName, 'attr') ?>" value="<?= esc($csrfHash, 'attr') ?>">
+                            <button type="submit" class="ww-auth-logout">Выйти</button>
+                        </form>
+                        <p class="ww-auth-hint">Видишь свою позицию на карте (зелёный маркер ●). Других игроков карта не показывает.</p>
+                    <?php elseif ($botUsername !== ''): ?>
+                        <span class="ww-auth-hello">Войди через Telegram, чтобы видеть свою позицию на карте.</span>
+                        <?php /* SRI integrity= намеренно опущен: Telegram обновляет widget script
+                                 (security fixes), хеш слетел бы. Trust-anchor = telegram.org TLS.
+                                 crossorigin+referrerpolicy — anti-credential leak (ADR-061). */ ?>
+                        <script async src="https://telegram.org/js/telegram-widget.js?22"
+                                data-telegram-login="<?= esc($botUsername, 'attr') ?>"
+                                data-size="medium"
+                                data-auth-url="<?= esc(base_url('login/telegram/callback'), 'attr') ?>"
+                                data-request-access="write"
+                                crossorigin="anonymous"
+                                referrerpolicy="no-referrer"></script>
+                        <noscript><span class="ww-auth-hint">Для входа нужен JavaScript.</span></noscript>
+                    <?php else: ?>
+                        <span class="ww-auth-hint">Авторизация временно недоступна.</span>
+                    <?php endif; ?>
+                </div>
+
                 <div class="ww-map-panel">
                     <h3>Подложка</h3>
                     <label class="ww-map-opt">
@@ -142,6 +179,13 @@ foreach ($biomes as $b) {
                         Контуры биомов
                         <small>Тонкие границы между биомами. Доступно только с «художественной» подложкой.</small>
                     </label>
+                    <?php if ($auth['logged_in']): ?>
+                    <label class="ww-map-opt" id="ww-me-label">
+                        <input type="checkbox" id="ww-toggle-me" checked>
+                        Моя позиция ●
+                        <small>Зелёный маркер на координатах твоего персонажа.</small>
+                    </label>
+                    <?php endif; ?>
                 </div>
 
                 <div class="ww-map-panel">
@@ -194,6 +238,7 @@ foreach ($biomes as $b) {
     var WORLD_SIZE  = 1000;        // 1000×1000 логических клеток
     var PNG_NATIVE  = 2000;        // нативный размер исходных PNG = WORLD_SIZE * 2
 
+    var meChk   = document.getElementById('ww-toggle-me');  // может быть null если не auth'ован
     var canvas  = document.getElementById('ww-map-canvas');
     var ctx     = canvas.getContext('2d');
     var loader  = document.getElementById('ww-map-loader');
@@ -214,6 +259,7 @@ foreach ($biomes as $b) {
         showGrid:      true,
         showCar:       false,
         showTint:      false,
+        showMe:        meChk ? meChk.checked : false,
         scale:         1,
         viewX:         0,    // worldX левого края viewport (0..1000-viewSize)
         viewY:         0,
@@ -222,6 +268,7 @@ foreach ($biomes as $b) {
         contourCanvas: null, // pre-computed offscreen canvas с контурами биомов
         caravans:      [],
         events:        [],
+        me:            null, // ADR-061: {x, y, name, level} если auth'ован, иначе null
         drag:          null  // {startX, startY, startViewX, startViewY}
     };
 
@@ -363,6 +410,42 @@ foreach ($biomes as $b) {
         ctx.restore();
     }
 
+    function drawMe(){
+        if (!state.me) return;
+        var vsCells = viewSizeCells();
+        var pxPerCell = CANVAS_SIZE / vsCells;
+        if (state.me.x < state.viewX || state.me.x > state.viewX + vsCells) return;
+        if (state.me.y < state.viewY || state.me.y > state.viewY + vsCells) return;
+        var px = (state.me.x - state.viewX) * pxPerCell;
+        var py = (state.me.y - state.viewY) * pxPerCell;
+        ctx.save();
+        // тень
+        ctx.beginPath();
+        ctx.arc(px, py, 22, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fill();
+        // основной круг — зелёный
+        ctx.beginPath();
+        ctx.arc(px, py, 17, 0, Math.PI * 2);
+        ctx.fillStyle = '#39db97';
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = '#0a1f15';
+        ctx.stroke();
+        // точка в центре
+        ctx.fillStyle = '#0a1f15';
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, Math.PI * 2);
+        ctx.fill();
+        // пульсирующее кольцо (статичный декор без анимации — кольцо вокруг)
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(57,219,151,0.55)';
+        ctx.beginPath();
+        ctx.arc(px, py, 28, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+    }
+
     function render(){
         if (!state.baseImg) return;
         clampPan();
@@ -371,6 +454,7 @@ foreach ($biomes as $b) {
         if (state.showTint && state.basemap === 'beautiful') drawContours();
         if (state.showGrid)  drawGrid();
         if (state.showCar)   drawCaravans();
+        if (state.showMe)    drawMe();
     }
 
     function renderEvents(){
@@ -482,6 +566,7 @@ foreach ($biomes as $b) {
             .then(function(json){
                 state.caravans = Array.isArray(json.caravans) ? json.caravans : [];
                 state.events   = Array.isArray(json.events)   ? json.events   : [];
+                state.me       = (json.me && typeof json.me === 'object') ? json.me : null;
                 renderEvents();
             })
             .catch(function(err){
@@ -574,6 +659,12 @@ foreach ($biomes as $b) {
         state.showTint = this.checked;
         render();
     });
+    if (meChk){
+        meChk.addEventListener('change', function(){
+            state.showMe = this.checked;
+            render();
+        });
+    }
     refresh.addEventListener('click',  function(){ reload(state.basemap); });
 
     // --- pointer math + tooltip + drag-pan ---

@@ -7,6 +7,7 @@ namespace App\Controllers;
 use App\Models\BiomeModel;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Database;
+use Config\Services;
 
 /**
  * Публичная карта мира 1000×1000 (MVP-v2, ADR-N/A — 🟢 wiki-style расширение).
@@ -18,7 +19,16 @@ class Map extends BaseController
 {
     public function index(): string
     {
-        $biomes = (new BiomeModel())->orderBy('id')->findAll();
+        $biomes  = (new BiomeModel())->orderBy('id')->findAll();
+        $session = Services::session();
+        $tgUserId  = $session->get('tg_user_id');
+        $firstName = $session->get('tg_first_name');
+        $authState = [
+            'logged_in'  => is_numeric($tgUserId) && (int) $tgUserId > 0,
+            'first_name' => is_string($firstName) ? $firstName : '',
+        ];
+        $rawBotName  = env('telegram.BOT_USERNAME');
+        $botUsername = is_string($rawBotName) ? ltrim($rawBotName, '@') : '';
 
         $canonical = rtrim(base_url('map'), '/');
         $title     = 'Карта мира — Wild World';
@@ -39,8 +49,10 @@ class Map extends BaseController
         ];
 
         return view('site/map', [
-            'biomes' => $biomes,
-            'meta'   => $meta,
+            'biomes'      => $biomes,
+            'meta'        => $meta,
+            'auth'        => $authState,
+            'botUsername' => $botUsername,
         ]);
     }
 
@@ -120,12 +132,39 @@ class Map extends BaseController
             ];
         }
 
+        // ADR-061: own-position block если игрок auth'ован
+        $me       = null;
+        $session  = Services::session();
+        $tgUserPk = $session->get('tg_user_id');
+        if (is_numeric($tgUserPk) && (int) $tgUserPk > 0) {
+            $tgUserPk = (int) $tgUserPk;
+            $meRow = $db->table('characters AS c')
+                ->select('c.id, c.name, c.level, c.cell_number, m.coordinate_x, m.coordinate_y')
+                ->join('map AS m', 'm.cell_number = c.cell_number', 'left')
+                ->where('c.telegram_user_id', $tgUserPk)
+                ->limit(1)
+                ->get();
+            $meRows = $meRow !== false ? $meRow->getResultArray() : [];
+            if (count($meRows) === 1) {
+                $row = $meRows[0];
+                if (is_numeric($row['coordinate_x'] ?? null) && is_numeric($row['coordinate_y'] ?? null)) {
+                    $me = [
+                        'x'     => (int) $row['coordinate_x'],
+                        'y'     => (int) $row['coordinate_y'],
+                        'name'  => is_string($row['name']  ?? null) ? $row['name']  : '?',
+                        'level' => is_numeric($row['level'] ?? null) ? (int) $row['level'] : 0,
+                    ];
+                }
+            }
+        }
+
         return $this->response
             ->setJSON([
                 'caravans'   => $caravans,
                 'events'     => $events,
+                'me'         => $me,
                 'fetched_at' => $now,
             ])
-            ->setHeader('Cache-Control', 'public, max-age=30');
+            ->setHeader('Cache-Control', 'private, max-age=15');
     }
 }

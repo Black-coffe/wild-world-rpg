@@ -188,6 +188,10 @@ $routes->get('wiki/(:segment)', 'Wiki::entry/$1');
 $routes->get('map', 'Map::index');
 $routes->get('map/data', 'Map::data');
 
+// ADR-061 — Telegram Login Widget для игроков на сайте (видят свою позицию).
+$routes->get('login/telegram/callback', 'TelegramLogin::callback');
+$routes->post('logout/telegram', 'TelegramLogin::logout');
+
 // 7 категорий блога (явно — иначе их перехватит корневой catch-all postslug).
 $routes->get('devblog', 'Front::category/devblog');
 $routes->get('informacija', 'Front::category/informacija');
