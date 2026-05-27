@@ -123,11 +123,25 @@ foreach ($biomes as $b) {
                         <span class="ww-auth-hello">Войди через Telegram, чтобы видеть свою позицию на карте.</span>
                         <?php /* SRI integrity= намеренно опущен: Telegram обновляет widget script
                                  (security fixes), хеш слетел бы. Trust-anchor = telegram.org TLS.
-                                 crossorigin+referrerpolicy — anti-credential leak (ADR-061). */ ?>
+                                 crossorigin+referrerpolicy — anti-credential leak (ADR-061).
+                                 data-onauth (а не data-auth-url) — JS-callback надёжнее срабатывает
+                                 в iframe-mode виджета v22 (data-auth-url оставался в iframe). */ ?>
+                        <script>
+                        (function(){
+                            window.onTelegramAuth = function(user){
+                                if (!user || typeof user !== 'object') return;
+                                var qs = Object.keys(user)
+                                    .filter(function(k){ return user[k] !== null && user[k] !== undefined; })
+                                    .map(function(k){ return encodeURIComponent(k) + '=' + encodeURIComponent(user[k]); })
+                                    .join('&');
+                                window.location.href = <?= json_encode(base_url('login/telegram/callback'), JSON_UNESCAPED_SLASHES) ?> + '?' + qs;
+                            };
+                        })();
+                        </script>
                         <script async src="https://telegram.org/js/telegram-widget.js?22"
                                 data-telegram-login="<?= esc($botUsername, 'attr') ?>"
                                 data-size="medium"
-                                data-auth-url="<?= esc(base_url('login/telegram/callback'), 'attr') ?>"
+                                data-onauth="onTelegramAuth(user)"
                                 data-request-access="write"
                                 crossorigin="anonymous"
                                 referrerpolicy="no-referrer"></script>
