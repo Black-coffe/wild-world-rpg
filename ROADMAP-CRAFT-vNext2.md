@@ -14,7 +14,7 @@
 | W2 | **Drone-recon build** (DroneService + RecceDroneAction + DroneRechargeCron + UI + 9 tests) | ✅ SHIPPED prod (Tier-1/2/3 PASS) | v0.51.268 (+ art v0.51.269) | 2026-05-26 |
 | W3a | **Weight-cap + base_storage foundation** (ADR-059, default OFF на ship) | ✅ SHIPPED prod (Tier-1/2 PASS) | v0.51.270 | 2026-05-26 |
 | W3b | **Cargo drone build** (ADR-060, lock-button discoverability + atomic delivery + retrieve UI) | ✅ SHIPPED prod (Tier-1 + Tier-2 + Tier-3 partial PASS) | v0.51.274 | 2026-05-27 |
-| W4 | Repair drone | ⏳ pending | — | — |
+| W4 | **Repair drone build** (ADR-063, gold-only batch ремонтник, gate RoboticsWorkshop L3, V19 overlay distinct-value) | ✅ SHIPPED prod (Tier-1 + Tier-3 partial PASS) | v0.51.284 | 2026-05-27 |
 | W5 | Combat drone + Caravan blueprint integration (🏁 закрытие Фазы 1) | ⏳ pending | — | — |
 | … | … | … | … | … |
 
