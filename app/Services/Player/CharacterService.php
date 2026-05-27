@@ -162,22 +162,24 @@ class CharacterService
             $inlineRows[] = [['text' => '⚑ Выбрать фракцию', 'callback_data' => 'chooseFaction_info']];
         }
 
-        // V16 (ADR-047): вход в выбор крафт-специализации (когда слой включён).
+        // V16 (ADR-047) Специализация + V20 (ADR-051) Проект фракции — обе endgame-фичи,
+        // пакуем в одну строку чтобы не плодить одиночные ряды.
+        // UX-DISCOVERABILITY (CLAUDE.md §🎮): Проект фракции обязан быть виден даже без
+        // фракции — рендерим lock-кнопку с подсказкой prerequisite, не скрываем молча.
+        $endgameRow = [];
         if ($specSvc->isEnabled()) {
-            $inlineRows[] = [['text' => '🎓 Специализация', 'callback_data' => 'specialization']];
+            $endgameRow[] = ['text' => '🎓 Специализация', 'callback_data' => 'specialization'];
         }
-
-        // V20 (ADR-051): вход в фракц-проект.
-        // CLAUDE.md §🎮 UX-DISCOVERABILITY: фича ОБЯЗАНА быть видна даже когда условие не выполнено —
-        // иначе игрок видит tip «👤 Перс → 🤝 Проект фракции» и не находит кнопку.
-        // Conditional → lock-button с объяснением prerequisite.
         if ((new \App\Services\Player\FactionProjectService())->enabled()) {
             if ($hasChosenFaction) {
-                $inlineRows[] = [['text' => '🤝 Проект фракции', 'callback_data' => 'factionProject']];
+                $endgameRow[] = ['text' => '🤝 Проект фракции', 'callback_data' => 'factionProject'];
             } else {
                 $lockHint     = $level >= 10 ? 'выбери фракцию' : 'с lvl 10';
-                $inlineRows[] = [['text' => "🔒 Проект фракции ({$lockHint})", 'callback_data' => 'factionProjectLocked']];
+                $endgameRow[] = ['text' => "🔒 Проект фракции ({$lockHint})", 'callback_data' => 'factionProjectLocked'];
             }
+        }
+        if (! empty($endgameRow)) {
+            $inlineRows[] = $endgameRow;
         }
 
         $inlineKeyboard = ['inline_keyboard' => $inlineRows];
