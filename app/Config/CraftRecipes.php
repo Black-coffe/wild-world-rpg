@@ -1022,6 +1022,42 @@ class CraftRecipes extends BaseConfig
         ],
 
         // ============================================================
+        // W3b (ADR-060) — Cargo drone (Фаза 1 vNext2). Грузовой
+        // квадрокоптер, переносит до 30 кг ресурсов с любой клетки в
+        // base_storage. Gate RoboticsWorkshop L2. Per-instance battery
+        // через crafted_items_log.durability_count (зеркало W1).
+        // ============================================================
+        'DroneCargo' => [
+            'task_name'                => 'craftDroneCargo',
+            'resources'                => [
+                'Янтарь'         => 6,
+                'Смола деревьев' => 40,
+            ],
+            'crafted_items'            => [
+                'GlassBags'      => 3,
+                'Fabric'         => 14,
+                'metalFragments' => 50,
+            ],
+            'gold_required'            => 12000,
+            'requires_base'            => true,
+            'required_buildings'       => ['RoboticsWorkshop'],
+            'required_building_levels' => ['RoboticsWorkshop' => 2],
+            'image_in_progress'        => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'start_caption_name'       => 'карго-дрон 🚚 *Грузовой!*',
+            'info_callback'            => 'droneCargo',
+            'item_name_eng'            => 'DroneCargo',
+            'item_name_rus'            => 'Карго-дрон',
+            'icon_emoji'               => '🚚',
+            'zone_emoji'               => '🌳',
+            'zone_name'                => 'логистика',
+            'agility_bonus'            => 0.02,
+            'intellect_bonus'          => 0.05,
+            'image_completed'          => 'uploads/telegram/craft/standard/drone_cargo.jpg',
+            'craft_again_callback'     => 'genericCraft_DroneCargo_1',
+            'boost_building_time'      => 'RoboticsWorkshop',
+        ],
+
+        // ============================================================
         // F3.B9 (v0.25.0) — WorkbenchStandard Weapons (4 крафта).
         // Особенности относительно B5-B8:
         //   - `output_type` = 'weapon' (новое поле): результат пишется в

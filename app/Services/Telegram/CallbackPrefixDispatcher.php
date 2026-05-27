@@ -7,6 +7,7 @@ namespace App\Services\Telegram;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\UpgradeBuildingAction;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\RepairBuildingAction;
 use App\Controllers\Telegram\Commands\Actions\Caravan\CaravanBuyAction;
+use App\Controllers\Telegram\Commands\Actions\Drone\CargoDroneSendAction;
 use App\Controllers\Telegram\Commands\Actions\Drone\RecceDroneAction;
 use App\Controllers\Telegram\Commands\Actions\Craft\Insurance\CraftInsureItemAction;
 use App\Controllers\Telegram\Commands\Actions\Craft\Repair\NpcRepairAction;
@@ -87,6 +88,11 @@ final class CallbackPrefixDispatcher
             return $this->dispatchRecceDrone($callbackQuery);
         }
 
+        // W3b (ADR-060): Cargo drone send (atomic delivery).
+        if (str_starts_with($callbackData, 'cargoDroneSend_')) {
+            return $this->dispatchCargoDroneSend($callbackQuery);
+        }
+
         // V24 (ADR-056): NPC-страховой агент. confirm перед ask (конвенция).
         if (str_starts_with($callbackData, 'confirm_craft_insure_')) {
             return $this->dispatchCraftInsureConfirm($callbackQuery);
@@ -137,6 +143,16 @@ final class CallbackPrefixDispatcher
             return Request::emptyResponse();
         }
         $handler = new RecceDroneAction($callbackQuery);
+        return $handler->handle();
+    }
+
+    /** W3b (ADR-060): cargoDroneSend_{log_id}_{res_id} → atomic delivery в base_storage. */
+    private function dispatchCargoDroneSend(CallbackQuery $callbackQuery): ServerResponse
+    {
+        if (! class_exists(CargoDroneSendAction::class)) {
+            return Request::emptyResponse();
+        }
+        $handler = new CargoDroneSendAction($callbackQuery);
         return $handler->handle();
     }
 

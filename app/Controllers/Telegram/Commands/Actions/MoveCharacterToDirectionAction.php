@@ -265,6 +265,9 @@ class MoveCharacterToDirectionAction
         // W2 (ADR-058) — кнопка «🚁 Дрон» если у чара есть DroneScout с qty>0.
         // Дрон запускается с любой клетки (не только базы), поэтому кнопка
         // всегда видна при наличии инстансов. Список + charge-bar в действии.
+        // W3b (ADR-060) + CLAUDE.md §🎮 UX-DISCOVERABILITY правило #4 —
+        // Карго-дрон ВСЕГДА виден (active или lock-state), discoverability
+        // без предзнаний. Active → cargoDroneList; lock → cargoDroneLocked alert.
         $droneService = new \App\Services\Player\DroneService();
         if ($droneService->isEnabled()) {
             $droneRow = (new \App\Models\CraftedItemsModel())->where('name_eng', 'DroneScout')->first();
@@ -283,6 +286,40 @@ class MoveCharacterToDirectionAction
                         ];
                     }
                 }
+            }
+        }
+
+        if ($droneService->cargoIsEnabled()) {
+            $cargoRow = (new \App\Models\CraftedItemsModel())->where('name_eng', 'DroneCargo')->first();
+            $cargoId  = is_array($cargoRow) && is_numeric($cargoRow['id'] ?? null) ? (int) $cargoRow['id'] : 0;
+            $hasCargo = false;
+            if ($cargoId > 0) {
+                $cargoLog = (new \App\Models\CraftedItemsLogModel())
+                    ->where('character_id', $character['id'])
+                    ->where('crafted_item_id', $cargoId)
+                    ->where('quantity >', 0)
+                    ->first();
+                $hasCargo = is_array($cargoLog);
+            }
+            if ($hasCargo) {
+                $directionsKeyboard[] = [
+                    ['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList'],
+                ];
+            } else {
+                $directionsKeyboard[] = [
+                    ['text' => '🔒 Карго-дрон', 'callback_data' => 'cargoDroneLocked'],
+                ];
+            }
+
+            // W3b: кнопка «📦 Склад» видна когда у чара есть entries в base_storage
+            // (закрывает loop: cargo доставил → retrieve UI достижим без предзнаний).
+            $hasStorage = (new \App\Models\BaseStorageModel())
+                ->where('character_id', $character['id'])
+                ->countAllResults();
+            if ($hasStorage > 0) {
+                $directionsKeyboard[] = [
+                    ['text' => '📦 Склад базы', 'callback_data' => 'baseStorageList'],
+                ];
             }
         }
 

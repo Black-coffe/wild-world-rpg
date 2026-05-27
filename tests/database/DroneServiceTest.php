@@ -167,4 +167,84 @@ final class DroneServiceTest extends CIUnitTestCase
         $this->seedFloat('drone.scout.caravan_offer_chance', -0.5);
         $this->assertSame(0.0, (new DroneService())->caravanOfferChance());
     }
+
+    // ──────────────────────────────────────────────────────────────────
+    // W3b (ADR-060) — Cargo drone extension. Параллельные knob'ы cargo*.
+    // ──────────────────────────────────────────────────────────────────
+
+    public function testCargoDefaults(): void
+    {
+        $svc = new DroneService();
+        $this->assertTrue($svc->cargoIsEnabled());
+        $this->assertSame(30, $svc->cargoPayloadKg());
+        $this->assertSame(100, $svc->cargoBatteryDrainPerLaunch());
+        $this->assertSame(100, $svc->cargoBatteryMax());
+        $this->assertSame(180, $svc->cargoChargeMinutesPerFull());
+        $this->assertEqualsWithDelta(100.0 / 180.0, $svc->cargoChargeRatePerMinute(), 1e-6);
+    }
+
+    public function testCargoKillswitchOff(): void
+    {
+        $this->seedBool('drone.cargo.enabled', 0);
+        $svc = new DroneService();
+        $this->assertFalse($svc->cargoIsEnabled());
+        // Scout остаётся независимым.
+        $this->assertTrue($svc->isEnabled());
+    }
+
+    public function testCanSendCargoRespectsKillswitch(): void
+    {
+        $this->seedBool('drone.cargo.enabled', 0);
+        $svc = new DroneService();
+        $this->assertFalse($svc->canSendCargo(100));
+        // Даже при полном заряде — killswitch блокирует.
+        $this->assertFalse($svc->canSendCargo(999));
+    }
+
+    public function testCanSendCargoRequiresFullDrain(): void
+    {
+        $svc = new DroneService();
+        // drain=100, charge=99 → false; charge=100 → true; charge=200 → true.
+        $this->assertFalse($svc->canSendCargo(99));
+        $this->assertTrue($svc->canSendCargo(100));
+        $this->assertTrue($svc->canSendCargo(200));
+    }
+
+    public function testCargoPayloadTuned(): void
+    {
+        $this->seedInt('drone.cargo.payload_kg', 75);
+        $this->assertSame(75, (new DroneService())->cargoPayloadKg());
+    }
+
+    public function testCargoBatteryMaxAndDrainTuned(): void
+    {
+        $this->seedInt('drone.cargo.battery_max', 250);
+        $this->seedInt('drone.cargo.battery_drain_per_launch', 50);
+        $svc = new DroneService();
+        $this->assertSame(250, $svc->cargoBatteryMax());
+        $this->assertSame(50, $svc->cargoBatteryDrainPerLaunch());
+        // 250/50=5 доставок на полный заряд.
+        $this->assertTrue($svc->canSendCargo(50));
+        $this->assertTrue($svc->canSendCargo(250));
+        $this->assertFalse($svc->canSendCargo(49));
+    }
+
+    public function testCargoChargeRatePerMinute(): void
+    {
+        $this->seedInt('drone.cargo.battery_max', 300);
+        $this->seedInt('drone.cargo.base_charge_minutes_per_full', 100);
+        // 300 / 100 = 3.0 charge/мин.
+        $this->assertEqualsWithDelta(3.0, (new DroneService())->cargoChargeRatePerMinute(), 1e-9);
+    }
+
+    public function testScoutAndCargoIndependent(): void
+    {
+        // Scout off, cargo on — независимые слои.
+        $this->seedBool('drone.scout.enabled', 0);
+        $svc = new DroneService();
+        $this->assertFalse($svc->isEnabled());
+        $this->assertTrue($svc->cargoIsEnabled());
+        $this->assertFalse($svc->canLaunch(100));
+        $this->assertTrue($svc->canSendCargo(100));
+    }
 }

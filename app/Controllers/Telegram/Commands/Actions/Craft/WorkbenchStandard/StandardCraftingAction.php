@@ -29,13 +29,20 @@ class StandardCraftingAction extends BaseAction
             ],
         ];
 
-        // W1+W2 (ADR-058) — Drone-recon. Точка входа в крафт первого DroneScout
-        // (без неё фича была BUILT-BUT-DEAD: recipe был, кнопки не было).
-        // Показываем только при включённом killswitch — иначе категория пустая.
-        if ((new \App\Services\Player\DroneService())->isEnabled()) {
-            $rows[] = [
-                ['text' => '🚁 Дрон-разведчик', 'callback_data' => 'droneScout'],
-            ];
+        // W1+W2 (ADR-058) + W3b (ADR-060) — Drones. Точки входа в крафт DroneScout
+        // и DroneCargo (без них фичи становятся BUILT-BUT-DEAD: recipe есть,
+        // кнопки нет). Кнопки sibling-класса пакуем в одну строку
+        // (memory feedback_inline_keyboard_pack_sibling_buttons).
+        $droneService = new \App\Services\Player\DroneService();
+        $droneRow = [];
+        if ($droneService->isEnabled()) {
+            $droneRow[] = ['text' => '🚁 Дрон-разведчик', 'callback_data' => 'droneScout'];
+        }
+        if ($droneService->cargoIsEnabled()) {
+            $droneRow[] = ['text' => '🚚 Карго-дрон', 'callback_data' => 'droneCargo'];
+        }
+        if (! empty($droneRow)) {
+            $rows[] = $droneRow;
         }
 
         $rows[]    = [

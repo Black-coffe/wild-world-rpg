@@ -130,4 +130,89 @@ final class DroneService
         }
         return $currentCharge >= $this->batteryDrainPerLaunch();
     }
+
+    // ──────────────────────────────────────────────────────────────────
+    // W3b (ADR-060) — Cargo drone extension. Параллельные knob'ы под
+    // префиксом `cargo*`, читают из `drone.cargo.*` GameSettings.
+    // ──────────────────────────────────────────────────────────────────
+
+    /**
+     * Killswitch cargo-слоя (W3b). Независим от scout-slayer'а.
+     * false → CargoDroneSendAction отвергает, кнопка в move-keyboard остаётся
+     * в lock-state, DroneRechargeCron пропускает cargo-инстансы.
+     */
+    public function cargoIsEnabled(): bool
+    {
+        $v = $this->settings->get('drone.cargo.enabled', true);
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+        return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /**
+     * Полезная нагрузка карго-дрона за один вылет (kg). Default 30.
+     * CargoDroneSendAction вычисляет qty = floor(payload_kg / resource.weight),
+     * затем clamp по реальному запасу в character_resources.
+     */
+    public function cargoPayloadKg(): int
+    {
+        $v = $this->settings->get('drone.cargo.payload_kg', 30);
+        return is_numeric($v) && (int) $v >= 1 ? (int) $v : 30;
+    }
+
+    /**
+     * Сколько единиц durability_count вычитается при отправке cargo. Default 100.
+     */
+    public function cargoBatteryDrainPerLaunch(): int
+    {
+        $v = $this->settings->get('drone.cargo.battery_drain_per_launch', 100);
+        return is_numeric($v) && (int) $v >= 1 ? (int) $v : 100;
+    }
+
+    /**
+     * Макс. заряд одного cargo-инстанса (= durability_count при крафте). Default 100.
+     */
+    public function cargoBatteryMax(): int
+    {
+        $v = $this->settings->get('drone.cargo.battery_max', 100);
+        return is_numeric($v) && (int) $v >= 1 ? (int) $v : 100;
+    }
+
+    /**
+     * За сколько минут on_base cargo-дрон заряжается с 0 до battery_max. Default 180.
+     */
+    public function cargoChargeMinutesPerFull(): int
+    {
+        $v = $this->settings->get('drone.cargo.base_charge_minutes_per_full', 180);
+        return is_numeric($v) && (int) $v >= 1 ? (int) $v : 180;
+    }
+
+    /**
+     * Charge per minute для cargo (computed). DroneRechargeCron generalize
+     * читает per-type для UPDATE durability_count += rate × interval.
+     */
+    public function cargoChargeRatePerMinute(): float
+    {
+        $minutes = $this->cargoChargeMinutesPerFull();
+        if ($minutes <= 0) {
+            return 0.0;
+        }
+        return $this->cargoBatteryMax() / $minutes;
+    }
+
+    /**
+     * Можно ли отправить cargo с этим зарядом. true если durability >= drain
+     * И cargoIsEnabled.
+     */
+    public function canSendCargo(int $currentCharge): bool
+    {
+        if (! $this->cargoIsEnabled()) {
+            return false;
+        }
+        return $currentCharge >= $this->cargoBatteryDrainPerLaunch();
+    }
 }

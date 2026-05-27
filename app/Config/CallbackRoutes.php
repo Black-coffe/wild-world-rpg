@@ -268,6 +268,17 @@ class CallbackRoutes extends BaseConfig
         // - droneScoutList: показать все DroneScout с qty>0 + кнопки запуска
         // - recceDrone_<log_id>: launch action (через PrefixDispatcher)
         'droneScoutList'                  => \App\Controllers\Telegram\Commands\Actions\Drone\DroneScoutCraftedListAction::class,
+        // W3b (ADR-060) — Cargo drone. Доставка ресурсов на base_storage.
+        // - cargoDroneList: charge-bar + список ресурсов для отправки
+        // - cargoDroneSend_<log_id>_<res_id>: atomic send (через PrefixDispatcher)
+        // - cargoDroneLocked: alert prerequisite (lock-state кнопки)
+        // - droneCargo: preview-экран чек-листа крафта
+        // - baseStorageList / baseStorageList_all: retrieve UI склада (Q5 ADR-059)
+        'cargoDroneList'                  => \App\Controllers\Telegram\Commands\Actions\Drone\CargoDroneSelectAction::class,
+        'cargoDroneLocked'                => \App\Controllers\Telegram\Commands\Actions\Drone\CargoDroneLockedAction::class,
+        'droneCargo'                      => \App\Controllers\Telegram\Commands\Actions\Drone\DroneCargoCraftInfoAction::class,
+        'baseStorageList'                 => \App\Controllers\Telegram\Commands\Actions\Storage\BaseStorageListAction::class,
+        'baseStorageList_all'             => \App\Controllers\Telegram\Commands\Actions\Storage\BaseStorageListAction::class,
 
         // === PvP ===
         'runAway'                         => \App\Controllers\Telegram\Commands\Actions\PVP\RunAwayAction::class,
