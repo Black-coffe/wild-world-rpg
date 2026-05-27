@@ -16,6 +16,7 @@
 | W3b | **Cargo drone build** (ADR-060, lock-button discoverability + atomic delivery + retrieve UI) | ✅ SHIPPED prod (Tier-1 + Tier-2 + Tier-3 partial PASS) | v0.51.274 | 2026-05-27 |
 | W4 | **Repair drone build** (ADR-063, gold-only batch ремонтник, gate RoboticsWorkshop L3, V19 overlay distinct-value) | ✅ SHIPPED prod (Tier-1 + Tier-3 partial PASS) | v0.51.284 | 2026-05-27 |
 | W5 | **Combat drone + Caravan drone-offer integration** (ADR-064, 🏁 закрытие Фазы 1 Drone-family) | ✅ SHIPPED prod (Tier-1 PASS + Tier-3 partial PASS — bug catch + hotfix) | v0.51.287 | 2026-05-27 |
+| W6 | **Onboarding redux #11 — audit + scope** (ADR-065, hybrid: Robi 4→7 + «Что нового» catalog) | ✅ SHIPPED docs-only (без кода, реализация в W7) | — | 2026-05-27 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
