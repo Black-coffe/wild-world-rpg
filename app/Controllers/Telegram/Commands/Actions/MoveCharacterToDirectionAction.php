@@ -245,9 +245,16 @@ class MoveCharacterToDirectionAction
                 ['text' => '⬇️ Юг',      'callback_data' => 'move_dir_south'],
                 ['text' => '↘️ Юго-Восток','callback_data' => 'move_dir_southeast'],
             ],
-            [
-                ['text' => '🗺️ Поход', 'callback_data' => 'march'], // ADR-019
-            ],
+        ];
+
+        // Tail (sibling-кнопки за пределами 3×3 направлений): Поход / Караван / Дрон /
+        // Карго-дрон / Склад. Накопить в одном массиве и разбить по 2 в строку —
+        // memory feedback_inline_keyboard_pack_sibling_buttons (rework-rule, повторно
+        // нарушено 2026-05-27: cargo-button и storage-button сначала шли соло-строками
+        // тогда как «Поход» был sibling-кандидатом для паковки). Telegram inline
+        // keyboard вмещает 2-3 короткие кнопки в строку — компактнее, читабельнее.
+        $tail = [
+            ['text' => '🗺️ Поход', 'callback_data' => 'march'], // ADR-019
         ];
 
         // V25 (ADR-057) — если на НОВОЙ клетке (после move) стоит активный караван,
@@ -256,15 +263,11 @@ class MoveCharacterToDirectionAction
         if ((new \App\Services\Player\CaravanService())->enabled()) {
             $caravansHere = (new \App\Models\CaravanModel())->findActiveOnCell((int) $targetCell['cell_number']);
             if (! empty($caravansHere)) {
-                $directionsKeyboard[] = [
-                    ['text' => '🚚 Караван', 'callback_data' => 'caravanLook'],
-                ];
+                $tail[] = ['text' => '🚚 Караван', 'callback_data' => 'caravanLook'];
             }
         }
 
         // W2 (ADR-058) — кнопка «🚁 Дрон» если у чара есть DroneScout с qty>0.
-        // Дрон запускается с любой клетки (не только базы), поэтому кнопка
-        // всегда видна при наличии инстансов. Список + charge-bar в действии.
         // W3b (ADR-060) + CLAUDE.md §🎮 UX-DISCOVERABILITY правило #4 —
         // Карго-дрон ВСЕГДА виден (active или lock-state), discoverability
         // без предзнаний. Active → cargoDroneList; lock → cargoDroneLocked alert.
@@ -281,9 +284,7 @@ class MoveCharacterToDirectionAction
                         ->where('quantity >', 0)
                         ->first();
                     if ($hasDrone) {
-                        $directionsKeyboard[] = [
-                            ['text' => '🚁 Дрон', 'callback_data' => 'droneScoutList'],
-                        ];
+                        $tail[] = ['text' => '🚁 Дрон', 'callback_data' => 'droneScoutList'];
                     }
                 }
             }
@@ -301,26 +302,23 @@ class MoveCharacterToDirectionAction
                     ->first();
                 $hasCargo = is_array($cargoLog);
             }
-            if ($hasCargo) {
-                $directionsKeyboard[] = [
-                    ['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList'],
-                ];
-            } else {
-                $directionsKeyboard[] = [
-                    ['text' => '🔒 Карго-дрон', 'callback_data' => 'cargoDroneLocked'],
-                ];
-            }
+            $tail[] = $hasCargo
+                ? ['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList']
+                : ['text' => '🔒 Карго-дрон', 'callback_data' => 'cargoDroneLocked'];
 
-            // W3b: кнопка «📦 Склад» видна когда у чара есть entries в base_storage
+            // W3b: «📦 Склад» видна когда у чара есть entries в base_storage
             // (закрывает loop: cargo доставил → retrieve UI достижим без предзнаний).
             $hasStorage = (new \App\Models\BaseStorageModel())
                 ->where('character_id', $character['id'])
                 ->countAllResults();
             if ($hasStorage > 0) {
-                $directionsKeyboard[] = [
-                    ['text' => '📦 Склад базы', 'callback_data' => 'baseStorageList'],
-                ];
+                $tail[] = ['text' => '📦 Склад базы', 'callback_data' => 'baseStorageList'];
             }
+        }
+
+        // Пакуем tail по 2 кнопки в строку (компактнее, sibling-rule).
+        for ($i = 0, $n = count($tail); $i < $n; $i += 2) {
+            $directionsKeyboard[] = array_slice($tail, $i, 2);
         }
 
         $keyboard = ['inline_keyboard' => $directionsKeyboard];
