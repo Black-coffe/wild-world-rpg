@@ -1058,6 +1058,45 @@ class CraftRecipes extends BaseConfig
         ],
 
         // ============================================================
+        // W4 (ADR-063) — Repair drone (Фаза 1 vNext2). Полевой дрон с
+        // паяльной станцией и запчастями: gold-only batch ремонтник
+        // всех роботов чара одним кликом. Gate RoboticsWorkshop L3.
+        // V19 RobotRepair остаётся живым параллельным путём (дешёвый,
+        // ручной, мгновенный per-robot). Distinct-value: DroneRepair =
+        // конвертация накопленного gold (V21 dashboard 108M на проде).
+        // ============================================================
+        'DroneRepair' => [
+            'task_name'                => 'craftDroneRepair',
+            'resources'                => [
+                'Янтарь'         => 8,
+                'Смола деревьев' => 55,
+            ],
+            'crafted_items'            => [
+                'GlassBags'            => 4,
+                'Fabric'               => 18,
+                'metalFragments'       => 80,
+                'electronicComponents' => 6,
+            ],
+            'gold_required'            => 18000,
+            'requires_base'            => true,
+            'required_buildings'       => ['RoboticsWorkshop'],
+            'required_building_levels' => ['RoboticsWorkshop' => 3],
+            'image_in_progress'        => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'start_caption_name'       => 'дрон-ремонтник 🔧 *Полевой техник!*',
+            'info_callback'            => 'droneRepair',
+            'item_name_eng'            => 'DroneRepair',
+            'item_name_rus'            => 'Дрон-ремонтник',
+            'icon_emoji'               => '🚁',
+            'zone_emoji'               => '🌳',
+            'zone_name'                => 'ремонт',
+            'agility_bonus'            => 0.02,
+            'intellect_bonus'          => 0.06,
+            'image_completed'          => 'uploads/telegram/craft/standard/drone_repair.jpg',
+            'craft_again_callback'     => 'genericCraft_DroneRepair_1',
+            'boost_building_time'      => 'RoboticsWorkshop',
+        ],
+
+        // ============================================================
         // F3.B9 (v0.25.0) — WorkbenchStandard Weapons (4 крафта).
         // Особенности относительно B5-B8:
         //   - `output_type` = 'weapon' (новое поле): результат пишется в

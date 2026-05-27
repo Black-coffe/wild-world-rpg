@@ -279,6 +279,13 @@ class CallbackRoutes extends BaseConfig
         'droneCargo'                      => \App\Controllers\Telegram\Commands\Actions\Drone\DroneCargoCraftInfoAction::class,
         'baseStorageList'                 => \App\Controllers\Telegram\Commands\Actions\Storage\BaseStorageListAction::class,
         'baseStorageList_all'             => \App\Controllers\Telegram\Commands\Actions\Storage\BaseStorageListAction::class,
+        // W4 (ADR-063) — Repair drone. Gold-only batch ремонтник всех роботов чара.
+        // - repairDrone: preview-экран (charge-bar + список роботов + cumulative cost)
+        // - repairDroneRun: atomic batch commit (decrement gold, restore all durability)
+        // - droneRepair: preview-экран чек-листа крафта (info-callback из CraftRecipes)
+        'repairDrone'                     => \App\Controllers\Telegram\Commands\Actions\Drone\RepairDroneInfoAction::class,
+        'repairDroneRun'                  => \App\Controllers\Telegram\Commands\Actions\Drone\RepairDroneRunAction::class,
+        'droneRepair'                     => \App\Controllers\Telegram\Commands\Actions\Drone\DroneRepairCraftInfoAction::class,
 
         // === PvP ===
         'runAway'                         => \App\Controllers\Telegram\Commands\Actions\PVP\RunAwayAction::class,

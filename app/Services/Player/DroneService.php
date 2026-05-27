@@ -215,4 +215,112 @@ final class DroneService
         }
         return $currentCharge >= $this->cargoBatteryDrainPerLaunch();
     }
+
+    // ──────────────────────────────────────────────────────────────────
+    // W4 (ADR-063) — Repair drone extension. Параллельные knob'ы под
+    // префиксом `repair*`, читают из `drone.repair.*` GameSettings.
+    // Gold-only batch ремонтник: один клик чинит ВСЕХ роботов чара с
+    // current<base до base за 1 battery drain. V19 RobotRepair остаётся
+    // живым (resources+gold, per-robot, мгновенно) как параллельный путь.
+    // ──────────────────────────────────────────────────────────────────
+
+    /**
+     * Killswitch repair-слоя (W4). Независим от scout/cargo killswitch'ей.
+     * false → RepairDroneRunAction отвергает, кнопка в Робот-меню остаётся
+     * в lock-state, DroneRechargeCron пропускает repair-инстансы.
+     */
+    public function repairIsEnabled(): bool
+    {
+        $v = $this->settings->get('drone.repair.enabled', true);
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+        return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /**
+     * Доля template-ресурсов рецепта робота, учитываемая в gold-формуле ремонта.
+     * Default 0.6 (зеркало V19 RobotRepairService::costFraction).
+     */
+    public function repairCostFraction(): float
+    {
+        $v = $this->settings->get('drone.repair.cost_fraction', 0.6);
+        return is_numeric($v) && (float) $v > 0 ? (float) $v : 0.6;
+    }
+
+    /**
+     * Drone-overhead markup сверх рыночной gold-стоимости ресурсов.
+     * Default 1.2 (+20% — мягче V23 NPC markup=1.5).
+     */
+    public function repairMarkup(): float
+    {
+        $v = $this->settings->get('drone.repair.markup', 1.2);
+        return is_numeric($v) && (float) $v > 0 ? (float) $v : 1.2;
+    }
+
+    /**
+     * Минимальный итоговый gold-cost batch-операции (защита от 0-cost edge).
+     * Default 10.
+     */
+    public function repairMinCostGold(): int
+    {
+        $v = $this->settings->get('drone.repair.min_cost_gold', 10);
+        return is_numeric($v) && (int) $v >= 0 ? (int) $v : 10;
+    }
+
+    /**
+     * Сколько единиц durability_count вычитается из repair-инстанса при batch.
+     * Default 100 = 1 batch на полный заряд.
+     */
+    public function repairBatteryDrainPerLaunch(): int
+    {
+        $v = $this->settings->get('drone.repair.battery_drain_per_launch', 100);
+        return is_numeric($v) && (int) $v >= 1 ? (int) $v : 100;
+    }
+
+    /**
+     * Макс. заряд одного repair-инстанса (= durability_count при крафте). Default 100.
+     */
+    public function repairBatteryMax(): int
+    {
+        $v = $this->settings->get('drone.repair.battery_max', 100);
+        return is_numeric($v) && (int) $v >= 1 ? (int) $v : 100;
+    }
+
+    /**
+     * За сколько минут on_base repair-дрон заряжается с 0 до battery_max. Default 240 (4 ч).
+     */
+    public function repairChargeMinutesPerFull(): int
+    {
+        $v = $this->settings->get('drone.repair.base_charge_minutes_per_full', 240);
+        return is_numeric($v) && (int) $v >= 1 ? (int) $v : 240;
+    }
+
+    /**
+     * Charge per minute для repair (computed). DroneRechargeCron generalize
+     * читает per-type для UPDATE durability_count += rate × interval.
+     */
+    public function repairChargeRatePerMinute(): float
+    {
+        $minutes = $this->repairChargeMinutesPerFull();
+        if ($minutes <= 0) {
+            return 0.0;
+        }
+        return $this->repairBatteryMax() / $minutes;
+    }
+
+    /**
+     * Можно ли запустить batch-ремонт с этим зарядом. true если durability >= drain
+     * И repairIsEnabled.
+     */
+    public function canRunRepair(int $currentCharge): bool
+    {
+        if (! $this->repairIsEnabled()) {
+            return false;
+        }
+        return $currentCharge >= $this->repairBatteryDrainPerLaunch();
+    }
 }

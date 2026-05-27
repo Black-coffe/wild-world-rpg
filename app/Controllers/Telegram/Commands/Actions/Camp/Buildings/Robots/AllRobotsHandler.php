@@ -58,8 +58,9 @@ class AllRobotsHandler extends BaseAction
 
         if (empty($allRobots)) {
             return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => 'Похоже, ни одного робота пока не существует.',
+                'chat_id'      => $chatId,
+                'text'         => 'Похоже, ни одного робота пока не существует.',
+                'reply_markup' => json_encode(['inline_keyboard' => [$this->droneRepairRow()]]),
             ]);
         }
 
@@ -75,8 +76,9 @@ class AllRobotsHandler extends BaseAction
 
         if (empty($robotsLogRows)) {
             return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => 'У вас нет доступных роботов.',
+                'chat_id'      => $chatId,
+                'text'         => 'У вас нет доступных роботов.',
+                'reply_markup' => json_encode(['inline_keyboard' => [$this->droneRepairRow()]]),
             ]);
         }
 
@@ -134,8 +136,9 @@ class AllRobotsHandler extends BaseAction
 
         if (empty($filteredRobots)) {
             return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => 'Все роботы полностью израсходованы, запусков не осталось.',
+                'chat_id'      => $chatId,
+                'text'         => 'Все роботы полностью израсходованы, запусков не осталось.',
+                'reply_markup' => json_encode(['inline_keyboard' => [$this->droneRepairRow()]]),
             ]);
         }
 
@@ -160,10 +163,11 @@ class AllRobotsHandler extends BaseAction
             ];
         }
 
+        $rows = [$inlineButtons];
+        $rows[] = $this->droneRepairRow();
+
         $keyboard = [
-            'inline_keyboard' => [
-                $inlineButtons
-            ]
+            'inline_keyboard' => $rows,
         ];
 
         // 7) Отправляем результат
@@ -177,5 +181,24 @@ class AllRobotsHandler extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * W4 (ADR-063) — кнопка «🔧 Дрон-ремонтник» ВСЕГДА видна на всех ветках выхода
+     * (правило #4 UX-discoverability CLAUDE.md). Callback `repairDrone` сам
+     * рендерит lock-state когда инстанса нет (инструкция крафтить в Стандартном
+     * верстаке + RoboticsWorkshop L3).
+     *
+     * @return list<array{text:string,callback_data:string}>
+     */
+    private function droneRepairRow(): array
+    {
+        $service = new \App\Services\Player\DroneService();
+        $row = [];
+        if ($service->repairIsEnabled()) {
+            $row[] = ['text' => '🔧 Дрон-ремонтник', 'callback_data' => 'repairDrone'];
+        }
+        $row[] = ['text' => '🏠 База', 'callback_data' => 'Base'];
+        return $row;
     }
 }

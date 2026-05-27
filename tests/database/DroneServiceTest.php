@@ -247,4 +247,92 @@ final class DroneServiceTest extends CIUnitTestCase
         $this->assertFalse($svc->canLaunch(100));
         $this->assertTrue($svc->canSendCargo(100));
     }
+
+    // ──────────────────────────────────────────────────────────────────
+    // W4 (ADR-063) — Repair drone extension. Параллельные knob'ы repair*.
+    // ──────────────────────────────────────────────────────────────────
+
+    public function testRepairDefaults(): void
+    {
+        $svc = new DroneService();
+        $this->assertTrue($svc->repairIsEnabled());
+        $this->assertEqualsWithDelta(0.6, $svc->repairCostFraction(), 1e-9);
+        $this->assertEqualsWithDelta(1.2, $svc->repairMarkup(), 1e-9);
+        $this->assertSame(10, $svc->repairMinCostGold());
+        $this->assertSame(100, $svc->repairBatteryDrainPerLaunch());
+        $this->assertSame(100, $svc->repairBatteryMax());
+        $this->assertSame(240, $svc->repairChargeMinutesPerFull());
+        $this->assertEqualsWithDelta(100.0 / 240.0, $svc->repairChargeRatePerMinute(), 1e-6);
+    }
+
+    public function testRepairKillswitchOff(): void
+    {
+        $this->seedBool('drone.repair.enabled', 0);
+        $svc = new DroneService();
+        $this->assertFalse($svc->repairIsEnabled());
+        // Scout и cargo остаются независимыми.
+        $this->assertTrue($svc->isEnabled());
+        $this->assertTrue($svc->cargoIsEnabled());
+    }
+
+    public function testCanRunRepairRespectsKillswitch(): void
+    {
+        $this->seedBool('drone.repair.enabled', 0);
+        $svc = new DroneService();
+        $this->assertFalse($svc->canRunRepair(100));
+        $this->assertFalse($svc->canRunRepair(999));
+    }
+
+    public function testCanRunRepairRequiresFullDrain(): void
+    {
+        $svc = new DroneService();
+        $this->assertFalse($svc->canRunRepair(99));
+        $this->assertTrue($svc->canRunRepair(100));
+        $this->assertTrue($svc->canRunRepair(200));
+    }
+
+    public function testRepairCostFractionAndMarkupTuned(): void
+    {
+        $this->seedFloat('drone.repair.cost_fraction', 0.4);
+        $this->seedFloat('drone.repair.markup', 1.5);
+        $svc = new DroneService();
+        $this->assertEqualsWithDelta(0.4, $svc->repairCostFraction(), 1e-9);
+        $this->assertEqualsWithDelta(1.5, $svc->repairMarkup(), 1e-9);
+    }
+
+    public function testRepairBatteryAndChargeTuned(): void
+    {
+        $this->seedInt('drone.repair.battery_max', 200);
+        $this->seedInt('drone.repair.battery_drain_per_launch', 50);
+        $this->seedInt('drone.repair.base_charge_minutes_per_full', 100);
+        $svc = new DroneService();
+        $this->assertSame(200, $svc->repairBatteryMax());
+        $this->assertSame(50, $svc->repairBatteryDrainPerLaunch());
+        $this->assertSame(100, $svc->repairChargeMinutesPerFull());
+        // 200/100 = 2.0 charge/мин.
+        $this->assertEqualsWithDelta(2.0, $svc->repairChargeRatePerMinute(), 1e-9);
+        $this->assertTrue($svc->canRunRepair(50));
+        $this->assertTrue($svc->canRunRepair(200));
+        $this->assertFalse($svc->canRunRepair(49));
+    }
+
+    public function testRepairMinCostGoldTuned(): void
+    {
+        $this->seedInt('drone.repair.min_cost_gold', 500);
+        $this->assertSame(500, (new DroneService())->repairMinCostGold());
+    }
+
+    public function testAllThreeDroneLayersIndependent(): void
+    {
+        // Scout off, cargo on, repair off — три независимых слоя.
+        $this->seedBool('drone.scout.enabled', 0);
+        $this->seedBool('drone.repair.enabled', 0);
+        $svc = new DroneService();
+        $this->assertFalse($svc->isEnabled());
+        $this->assertTrue($svc->cargoIsEnabled());
+        $this->assertFalse($svc->repairIsEnabled());
+        $this->assertFalse($svc->canLaunch(100));
+        $this->assertTrue($svc->canSendCargo(100));
+        $this->assertFalse($svc->canRunRepair(100));
+    }
 }
