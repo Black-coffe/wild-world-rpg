@@ -59,10 +59,16 @@
             <td class="text-nowrap">
                 <a href="<?= site_url('admin/site/posts/edit/' . (int) ($p['id'] ?? 0)) ?>" class="action-icon" title="Редактировать"><i class="mdi mdi-pencil"></i></a>
                 <?php if (! $reviewed): ?>
-                    <a href="<?= site_url('admin/site/posts/review/' . (int) ($p['id'] ?? 0)) ?>" class="action-icon text-success" title="Отметить сверённым с каноном"><i class="mdi mdi-check-decagram"></i></a>
+                    <form action="<?= site_url('admin/site/posts/review/' . (int) ($p['id'] ?? 0)) ?>" method="post" class="d-inline">
+                        <?= csrf_field() ?>
+                        <button type="submit" class="action-icon text-success" style="background:none;border:0;padding:0;cursor:pointer" title="Отметить сверённым с каноном"><i class="mdi mdi-check-decagram"></i></button>
+                    </form>
                 <?php endif; ?>
                 <a href="<?= base_url(esc($p['slug'] ?? '', 'url')) ?>" target="_blank" class="action-icon" title="Открыть на сайте"><i class="mdi mdi-open-in-new"></i></a>
-                <a href="<?= site_url('admin/site/posts/delete/' . (int) ($p['id'] ?? 0)) ?>" class="action-icon text-danger" title="Удалить" onclick="return confirm('Удалить пост?');"><i class="mdi mdi-delete"></i></a>
+                <form action="<?= site_url('admin/site/posts/delete/' . (int) ($p['id'] ?? 0)) ?>" method="post" class="d-inline">
+                    <?= csrf_field() ?>
+                    <button type="submit" class="action-icon text-danger" style="background:none;border:0;padding:0;cursor:pointer" title="Удалить" onclick="return confirm('Удалить пост?');"><i class="mdi mdi-delete"></i></button>
+                </form>
             </td>
         </tr>
     <?php endforeach; ?>

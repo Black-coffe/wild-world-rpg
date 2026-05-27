@@ -44,7 +44,7 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->post('quests/store', 'Admin\QuestController::storeQuest'); // Store a new quest
     $routes->get('quests/edit/(:segment)', 'Admin\QuestController::editQuestForm/$1'); // Form for editing a quest
     $routes->post('quests/update/(:segment)', 'Admin\QuestController::updateQuest/$1'); // Update a quest
-    $routes->get('quests/delete/(:segment)', 'Admin\QuestController::deleteQuest/$1'); // Delete a quest
+    $routes->post('quests/delete/(:segment)', 'Admin\QuestController::deleteQuest/$1'); // Delete a quest (POST — destructive, CSRF + защита от случайного клика по URL)
 
     // Добавляем роутинг для объектов мира
     $routes->get('world-objects', 'Admin\WorldObjectController::index'); // Список всех объектов мира
@@ -52,7 +52,7 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->post('world-objects/store', 'Admin\WorldObjectController::storeObject'); // Сохранение нового объекта
     $routes->get('world-objects/edit/(:segment)', 'Admin\WorldObjectController::editObjectForm/$1'); // Форма редактирования объекта
     $routes->post('world-objects/update/(:segment)', 'Admin\WorldObjectController::updateObject/$1'); // Обновление объекта
-    $routes->get('world-objects/delete/(:segment)', 'Admin\WorldObjectController::deleteObject/$1'); // Удаление объекта
+    $routes->post('world-objects/delete/(:segment)', 'Admin\WorldObjectController::deleteObject/$1'); // Удаление объекта (POST — destructive, CSRF)
 
     // страница сброса персонажа и начальная проверка
     $routes->get('character-reset', 'Admin\CharacterResetController::index');
@@ -67,7 +67,7 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->post('tips/store', 'Admin\GameTipsController::storeTip'); // Сохранение нового совета
     $routes->get('tips/edit/(:segment)', 'Admin\GameTipsController::editTipForm/$1'); // Форма редактирования совета
     $routes->post('tips/update/(:segment)', 'Admin\GameTipsController::updateTip/$1'); // Обновление совета
-    $routes->get('tips/delete/(:segment)', 'Admin\GameTipsController::deleteTip/$1'); // Удаление совета
+    $routes->post('tips/delete/(:segment)', 'Admin\GameTipsController::deleteTip/$1'); // Удаление совета (POST — destructive, CSRF)
 
     // Роутинг для биомов
     $routes->get('biomes', 'Admin\BiomeController::index');
@@ -81,7 +81,7 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->post('resources/store', 'Admin\ResourceController::storeResource'); // Для сохранения нового ресурса
     $routes->get('resources/edit/(:segment)', 'Admin\ResourceController::editResourceForm/$1'); // Для отображения формы редактирования ресурса
     $routes->post('resources/update/(:segment)', 'Admin\ResourceController::updateResource/$1'); // Для обновления ресурса
-    $routes->get('resources/delete/(:segment)', 'Admin\ResourceController::deleteResource/$1'); // Для удаления ресурса
+    $routes->post('resources/delete/(:segment)', 'Admin\ResourceController::deleteResource/$1'); // Для удаления ресурса (POST — destructive, CSRF)
 
     // Добавляем роутинг для задач
     $routes->get('tasks', 'Admin\TaskController::index'); // Для отображения списка задач
@@ -134,15 +134,15 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->post('site/posts/store', 'Admin\SitePostController::store');
     $routes->get('site/posts/edit/(:num)', 'Admin\SitePostController::editForm/$1');
     $routes->post('site/posts/update/(:num)', 'Admin\SitePostController::update/$1');
-    $routes->get('site/posts/review/(:num)', 'Admin\SitePostController::markReviewed/$1');
-    $routes->get('site/posts/delete/(:num)', 'Admin\SitePostController::delete/$1');
+    $routes->post('site/posts/review/(:num)', 'Admin\SitePostController::markReviewed/$1'); // POST — изменяет состояние, CSRF
+    $routes->post('site/posts/delete/(:num)', 'Admin\SitePostController::delete/$1'); // POST — destructive, CSRF
 
     $routes->get('site/pages', 'Admin\SitePageController::index');
     $routes->get('site/pages/create', 'Admin\SitePageController::createForm');
     $routes->post('site/pages/store', 'Admin\SitePageController::store');
     $routes->get('site/pages/edit/(:num)', 'Admin\SitePageController::editForm/$1');
     $routes->post('site/pages/update/(:num)', 'Admin\SitePageController::update/$1');
-    $routes->get('site/pages/delete/(:num)', 'Admin\SitePageController::delete/$1');
+    $routes->post('site/pages/delete/(:num)', 'Admin\SitePageController::delete/$1'); // POST — destructive, CSRF
 
 });
 

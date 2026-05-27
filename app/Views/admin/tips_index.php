@@ -37,7 +37,10 @@
             <td><?= esc(substr($tip['content'], 0, 110)) ?>...</td> <!-- Show a snippet -->
             <td>
                 <a href="<?= site_url('admin/tips/edit/' . $tip['id']) ?>" class="action-icon"> <i class="mdi mdi-pencil"></i></a>
-                <a href="<?= site_url('admin/tips/delete/' . $tip['id']) ?>" class="action-icon" onclick="return confirm('Вы уверены, что хотите удалить этот совет?');"> <i class="mdi mdi-delete"></i></a>
+                <form action="<?= site_url('admin/tips/delete/' . $tip['id']) ?>" method="post" class="d-inline">
+                    <?= csrf_field() ?>
+                    <button type="submit" class="action-icon" style="background:none;border:0;padding:0;cursor:pointer" onclick="return confirm('Вы уверены, что хотите удалить этот совет?');" title="Удалить"><i class="mdi mdi-delete"></i></button>
+                </form>
             </td>
         </tr>
     <?php endforeach; ?>

@@ -31,7 +31,10 @@
             <td class="text-nowrap">
                 <a href="<?= site_url('admin/site/pages/edit/' . (int) ($p['id'] ?? 0)) ?>" class="action-icon"><i class="mdi mdi-pencil"></i></a>
                 <a href="<?= base_url(esc($p['slug'] ?? '', 'url')) ?>" target="_blank" class="action-icon"><i class="mdi mdi-open-in-new"></i></a>
-                <a href="<?= site_url('admin/site/pages/delete/' . (int) ($p['id'] ?? 0)) ?>" class="action-icon text-danger" onclick="return confirm('Удалить страницу?');"><i class="mdi mdi-delete"></i></a>
+                <form action="<?= site_url('admin/site/pages/delete/' . (int) ($p['id'] ?? 0)) ?>" method="post" class="d-inline">
+                    <?= csrf_field() ?>
+                    <button type="submit" class="action-icon text-danger" style="background:none;border:0;padding:0;cursor:pointer" title="Удалить" onclick="return confirm('Удалить страницу?');"><i class="mdi mdi-delete"></i></button>
+                </form>
             </td>
         </tr>
     <?php endforeach; ?>

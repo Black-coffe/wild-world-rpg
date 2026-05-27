@@ -43,7 +43,6 @@
             <td><?= esc($event['effect_value']) ?></td>
             <td>
                 <a href="<?= site_url('admin/events/edit/' . $event['event_id']) ?>" class="action-icon"> <i class="mdi mdi-pencil"></i></a>
-                <a href="<?= site_url('admin/events/delete/' . $event['event_id']) ?>" class="action-icon" onclick="return confirm('Вы уверены, что хотите удалить это событие?');"> <i class="mdi mdi-delete"></i></a>
             </td>
         </tr>
     <?php endforeach; ?>
