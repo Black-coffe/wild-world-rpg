@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\PVE;
 
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Player\DroneService;
 use Config\Database;
 use Throwable;
 
@@ -22,15 +23,20 @@ use Throwable;
  *   - BarbedFence: flat урон атакующему за каждый раунд боя у базы.
  *   - WatchTower (S26b, ADR-031): +initiative_bonus защитнику-владельцу у базы
  *     (presence-based). Alert-range detection вышки — отдельно (TowerAlertService).
+ *   - W5 (ADR-064): Combat drone — defensive time-window initiative_bonus (НЕ tied
+ *     к базе; layer'ится через characters.combat_drone_active_until > NOW). Стек с
+ *     tower-bonus → min(sum, drone.combat.max_combined_initiative_percent).
  * Combat-балАнсы — из GameSettings (live-tunable). hp decays за каждую атаку.
  */
 final class DefenseStructureService
 {
     private GameSettingsService $settings;
+    private DroneService $droneService;
 
-    public function __construct(?GameSettingsService $settings = null)
+    public function __construct(?GameSettingsService $settings = null, ?DroneService $droneService = null)
     {
-        $this->settings = $settings ?? new GameSettingsService();
+        $this->settings     = $settings ?? new GameSettingsService();
+        $this->droneService = $droneService ?? new DroneService($this->settings);
     }
 
     /**
@@ -39,6 +45,12 @@ final class DefenseStructureService
      * S26b (ADR-031): + `initiative_bonus` от WatchTower (presence-based — не
      * стакает по числу вышек, иначе build-N-towers эксплойт). Tower-only база
      * тоже возвращает профиль (initiative_bonus>0, damage_reduction=0).
+     *
+     * W5 (ADR-064): + combat-drone bonus (НЕ tied к базе; читает
+     * characters.combat_drone_active_until). Суммируется с tower-bonus и clamp'ится
+     * по drone.combat.max_combined_initiative_percent. Drone-only сценарий (нет
+     * структур, но активен combat-дрон) тоже возвращает профиль (initiative_bonus
+     * от drone, damage_reduction=0, fence_damage=0, structure_ids=[]).
      *
      * @return array{owner_id:int, damage_reduction:float, fence_damage:int, initiative_bonus:float, structure_ids:list<int>}|null
      */
@@ -49,7 +61,10 @@ final class DefenseStructureService
         }
 
         $rows = $this->activeStructures($defenderId, $defenderCellNumber);
-        if ($rows === []) {
+        $droneInitPercent = $this->combatDroneActiveBonusPercent($defenderId);
+
+        // Если нет структур И combat-drone bonus = 0 → нет защитного профиля.
+        if ($rows === [] && $droneInitPercent <= 0) {
             return null;
         }
 
@@ -85,20 +100,56 @@ final class DefenseStructureService
             $structureIds[] = $id;
         }
 
-        if ($structureIds === []) {
-            return null;
-        }
-
+        // Без структур и без drone-bonus уже отсеяли выше; если структур нет, но drone active —
+        // profile с damage_reduction=0/fence_damage=0/structure_ids=[].
         $cappedPercent = min($sumWallPercent, max(0, $capPercent));
         $towerScaled   = $hasTower ? max(0, (int) round($towerInit * $this->levelMult($maxTowerLevel))) : 0;
+
+        // W5 (ADR-064): combined initiative bonus = min(tower + drone, max_combined). RNG-fence safe.
+        $combinedInitPercent = $towerScaled + max(0, $droneInitPercent);
+        $maxCombined         = $this->droneService->combatMaxCombinedInitiativePercent();
+        if ($maxCombined > 0 && $combinedInitPercent > $maxCombined) {
+            $combinedInitPercent = $maxCombined;
+        }
 
         return [
             'owner_id'         => $defenderId,
             'damage_reduction' => $cappedPercent / 100.0,
             'fence_damage'     => $sumFence,
-            'initiative_bonus' => $towerScaled / 100.0,
+            'initiative_bonus' => $combinedInitPercent / 100.0,
             'structure_ids'    => $structureIds,
         ];
+    }
+
+    /**
+     * W5 (ADR-064): возвращает текущий combat-drone initiative bonus (в процентах)
+     * для defender'а если активен (NOW < combat_drone_active_until И killswitch on).
+     * Иначе 0. NO mt_rand — pure DB read.
+     */
+    public function combatDroneActiveBonusPercent(int $defenderId): int
+    {
+        if ($defenderId <= 0 || ! $this->droneService->combatIsEnabled()) {
+            return 0;
+        }
+        try {
+            $db    = Database::connect();
+            $query = $db->table('characters')
+                ->select('combat_drone_active_until')
+                ->where('id', $defenderId)
+                ->where('combat_drone_active_until >', date('Y-m-d H:i:s'))
+                ->get();
+            if ($query === false) {
+                return 0;
+            }
+            $row = $query->getRowArray();
+            if (! is_array($row)) {
+                return 0;
+            }
+            return $this->droneService->combatInitiativeBonusPercent();
+        } catch (Throwable $e) {
+            log_message('error', '[DefenseStructureService] combatDroneActiveBonusPercent failed: ' . $e->getMessage());
+            return 0;
+        }
     }
 
     /**

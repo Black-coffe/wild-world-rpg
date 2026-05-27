@@ -1097,6 +1097,44 @@ class CraftRecipes extends BaseConfig
         ],
 
         // ============================================================
+        // W5 (ADR-064) — Combat drone (capstone Фазы 1 vNext2).
+        // Бронированный квадрокоптер с slung tear-gas + spinning blade.
+        // Defensive time-window: активация даёт +12% инициативы защитнику
+        // на 30 мин (cap 25% combined с WatchTower). RNG-fence safe.
+        // Gate RoboticsWorkshop L4 (capstone L1→L2→L3→L4 Drone-family).
+        // ============================================================
+        'DroneCombat' => [
+            'task_name'                => 'craftDroneCombat',
+            'resources'                => [
+                'Янтарь'         => 10,
+                'Смола деревьев' => 70,
+            ],
+            'crafted_items'            => [
+                'GlassBags'            => 6,
+                'Fabric'               => 22,
+                'metalFragments'       => 110,
+                'electronicComponents' => 10,
+            ],
+            'gold_required'            => 27000,
+            'requires_base'            => true,
+            'required_buildings'       => ['RoboticsWorkshop'],
+            'required_building_levels' => ['RoboticsWorkshop' => 4],
+            'image_in_progress'        => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'start_caption_name'       => 'боевой дрон 🛡 *Защитный кружок!*',
+            'info_callback'            => 'droneCombat',
+            'item_name_eng'            => 'DroneCombat',
+            'item_name_rus'            => 'Боевой дрон',
+            'icon_emoji'               => '🛡',
+            'zone_emoji'               => '🌳',
+            'zone_name'                => 'оборона',
+            'agility_bonus'            => 0.03,
+            'intellect_bonus'          => 0.05,
+            'image_completed'          => 'uploads/telegram/craft/standard/drone_combat.jpg',
+            'craft_again_callback'     => 'genericCraft_DroneCombat_1',
+            'boost_building_time'      => 'RoboticsWorkshop',
+        ],
+
+        // ============================================================
         // F3.B9 (v0.25.0) — WorkbenchStandard Weapons (4 крафта).
         // Особенности относительно B5-B8:
         //   - `output_type` = 'weapon' (новое поле): результат пишется в

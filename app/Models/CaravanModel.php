@@ -26,6 +26,10 @@ class CaravanModel extends Model
         'spawned_at',
         'expires_at',
         'status',
+        // W5 (ADR-064) — drone-offer extension
+        'offer_type',  // 'resource' (default V25) / 'drone_scout' / 'drone_cargo' / 'drone_repair' / 'drone_combat'
+        'drone_type',  // name_eng DroneScout/DroneCargo/... NULL для resource-offer'ов
+        'gold_price',  // recipe.gold × markup; NULL для resource-offer'ов
     ];
 
     /**

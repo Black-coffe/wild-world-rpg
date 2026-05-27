@@ -19,7 +19,11 @@ use App\Services\GameSettings\GameSettingsService;
  *  - drone.scout.battery_drain_per_launch (int=100)
  *  - drone.scout.battery_max (int=100)
  *  - drone.scout.base_charge_minutes_per_full (int=120)
- *  - drone.scout.caravan_offer_chance (float=0.02, для W5)
+ *  - drone.scout.caravan_offer_chance (float=0.02)
+ *
+ * W5 (ADR-064): + combat-слой (drone.combat.*) для defensive time-window
+ * initiative-buff + caravan-offer integration (drone.<type>.caravan_offer_chance +
+ * drone.<type>.caravan_markup_multiplier per scout/cargo/repair/combat).
  */
 final class DroneService
 {
@@ -322,5 +326,158 @@ final class DroneService
             return false;
         }
         return $currentCharge >= $this->repairBatteryDrainPerLaunch();
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // W5 (ADR-064) — Combat drone extension. Параллельные knob'ы под
+    // префиксом `combat*`, читают из `drone.combat.*` GameSettings.
+    // Defensive time-window дрон: запуск выставляет characters.combat_drone_active_until
+    // = NOW + activation_minutes, drains battery. PvP-attack в window →
+    // DefenseStructureService подмешивает initiative_bonus_percent к tower-bonus,
+    // clamp'ed до max_combined_initiative_percent. RNG-fence: zero new mt_rand.
+    // ──────────────────────────────────────────────────────────────────
+
+    /**
+     * Killswitch combat-слоя (W5). Независим от scout/cargo/repair killswitch'ей.
+     * false → CombatDroneActivateAction отвергает, кнопка в Перс остаётся в lock-state,
+     * DroneRechargeCron пропускает combat-инстансы, DefenseStructureService skip add-drone-bonus.
+     */
+    public function combatIsEnabled(): bool
+    {
+        $v = $this->settings->get('drone.combat.enabled', true);
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+        return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /**
+     * Бонус инициативы защитнику-владельцу при активном combat-дроне (целое в процентах).
+     * Default 12. DefenseStructureService суммирует с tower-bonus и применяет cap.
+     */
+    public function combatInitiativeBonusPercent(): int
+    {
+        $v = $this->settings->get('drone.combat.initiative_bonus_percent', 12);
+        return is_numeric($v) && (int) $v >= 0 ? (int) $v : 12;
+    }
+
+    /**
+     * Длительность активного buff после запуска (минуты). Default 30.
+     * CombatDroneActivateAction: UPDATE characters.combat_drone_active_until = NOW + N min.
+     */
+    public function combatActivationMinutes(): int
+    {
+        $v = $this->settings->get('drone.combat.activation_minutes', 30);
+        return is_numeric($v) && (int) $v >= 1 ? (int) $v : 30;
+    }
+
+    /**
+     * Сколько единиц durability_count вычитается из combat-инстанса при активации. Default 100.
+     */
+    public function combatBatteryDrainPerLaunch(): int
+    {
+        $v = $this->settings->get('drone.combat.battery_drain_per_launch', 100);
+        return is_numeric($v) && (int) $v >= 1 ? (int) $v : 100;
+    }
+
+    /**
+     * Макс. заряд одного combat-инстанса (= durability_count при крафте). Default 100.
+     */
+    public function combatBatteryMax(): int
+    {
+        $v = $this->settings->get('drone.combat.battery_max', 100);
+        return is_numeric($v) && (int) $v >= 1 ? (int) $v : 100;
+    }
+
+    /**
+     * За сколько минут on_base combat-дрон заряжается с 0 до battery_max. Default 360 (6 ч).
+     */
+    public function combatChargeMinutesPerFull(): int
+    {
+        $v = $this->settings->get('drone.combat.base_charge_minutes_per_full', 360);
+        return is_numeric($v) && (int) $v >= 1 ? (int) $v : 360;
+    }
+
+    /**
+     * Charge per minute для combat (computed). DroneRechargeCron generalize
+     * читает per-type для UPDATE durability_count += rate × interval.
+     */
+    public function combatChargeRatePerMinute(): float
+    {
+        $minutes = $this->combatChargeMinutesPerFull();
+        if ($minutes <= 0) {
+            return 0.0;
+        }
+        return $this->combatBatteryMax() / $minutes;
+    }
+
+    /**
+     * Soft cap для combined initiative-bonus (WatchTower + Combat drone).
+     * DefenseStructureService применяет min(tower + drone, cap). Default 25.
+     */
+    public function combatMaxCombinedInitiativePercent(): int
+    {
+        $v = $this->settings->get('drone.combat.max_combined_initiative_percent', 25);
+        return is_numeric($v) && (int) $v >= 0 ? (int) $v : 25;
+    }
+
+    /**
+     * Можно ли активировать combat-дрон с этим зарядом. true если durability >= drain
+     * И combatIsEnabled.
+     */
+    public function canActivateCombat(int $currentCharge): bool
+    {
+        if (! $this->combatIsEnabled()) {
+            return false;
+        }
+        return $currentCharge >= $this->combatBatteryDrainPerLaunch();
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // W5 (ADR-064) — Caravan drone-offer helpers. Симметричное чтение
+    // per-type chance + markup. SpawnCaravanCron rolls через эти helper'ы.
+    // ──────────────────────────────────────────────────────────────────
+
+    /**
+     * Шанс (0..1) что NPC-караван (V25) выставит готовый дрон указанного типа.
+     * $droneType ∈ {scout, cargo, repair, combat}.
+     * Default 0.02 per-type. Закрывает W1 dead promise drone.scout.caravan_offer_chance.
+     */
+    public function caravanOfferChanceFor(string $droneType): float
+    {
+        if (! in_array($droneType, ['scout', 'cargo', 'repair', 'combat'], true)) {
+            return 0.0;
+        }
+        $v = $this->settings->get("drone.{$droneType}.caravan_offer_chance", 0.02);
+        if (! is_numeric($v)) {
+            return 0.02;
+        }
+        $f = (float) $v;
+        if ($f < 0) {
+            return 0.0;
+        }
+        if ($f > 1) {
+            return 1.0;
+        }
+        return $f;
+    }
+
+    /**
+     * Множитель recipe.gold для caravan-offer цены (premium для не-крафтящих).
+     * Default 3.0 per-type. CaravanService::computeDroneOfferGold использует.
+     */
+    public function caravanMarkupMultiplierFor(string $droneType): float
+    {
+        if (! in_array($droneType, ['scout', 'cargo', 'repair', 'combat'], true)) {
+            return 0.0;
+        }
+        $v = $this->settings->get("drone.{$droneType}.caravan_markup_multiplier", 3.0);
+        if (! is_numeric($v) || (float) $v <= 0) {
+            return 3.0;
+        }
+        return (float) $v;
     }
 }

@@ -8,6 +8,7 @@ use App\Models\CaravanModel;
 use App\Models\MapModel;
 use App\Models\ResourceModel;
 use App\Services\Player\CaravanService;
+use App\Services\Player\DroneService;
 
 /**
  * V25 (ADR-057) — спавн странствующих NPC-караванов. Запускается every minute
@@ -16,11 +17,16 @@ use App\Services\Player\CaravanService;
  * Алгоритм:
  *   1. enabled? → no-op если killswitch off.
  *   2. countActive(status=active AND expires_at>NOW()). Если ≥ max_active → no-op.
- *   3. Выбираем случайный редкий ресурс (rarity ≥ 7) с price > 0.
- *   4. Выбираем случайную клетку (Y in 401-900 — населённые ярусы, где игроки).
- *   5. INSERT caravans с lifetime_minutes, qty в [qty_min, qty_max], price со скидкой.
+ *   3. W5 (ADR-064): roll per-type drone.<type>.caravan_offer_chance (scout/cargo/
+ *      repair/combat). Первый matching → drone-offer INSERT (offer_type='drone_<type>',
+ *      gold_price = recipe.gold × markup). Иначе fallback на resource.
+ *   4. Выбираем случайный редкий ресурс (rarity ≥ 7) с price > 0.
+ *   5. Выбираем случайную клетку (Y in 401-900 — населённые ярусы, где игроки).
+ *   6. INSERT caravans (resource или drone, см. шаг 3).
  *
  * Без Telegram-уведомлений (игрок узнаёт когда сам подходит на клетку).
+ *
+ * mt_rand используется ВНЕ simulateFight (cron context) → не задевает PvP fixture-fence.
  */
 class SpawnCaravanCron
 {
@@ -28,17 +34,20 @@ class SpawnCaravanCron
     private MapModel $mapModel;
     private ResourceModel $resourceModel;
     private CaravanService $service;
+    private DroneService $droneService;
 
     public function __construct(
         ?CaravanModel $caravanModel = null,
         ?MapModel $mapModel = null,
         ?ResourceModel $resourceModel = null,
-        ?CaravanService $service = null
+        ?CaravanService $service = null,
+        ?DroneService $droneService = null
     ) {
         $this->caravanModel  = $caravanModel  ?? new CaravanModel();
         $this->mapModel      = $mapModel      ?? new MapModel();
         $this->resourceModel = $resourceModel ?? new ResourceModel();
         $this->service       = $service       ?? new CaravanService();
+        $this->droneService  = $droneService  ?? new DroneService();
     }
 
     public function run(): void
@@ -52,6 +61,34 @@ class SpawnCaravanCron
             return;
         }
 
+        $cellNumber = $this->pickRandomCell();
+        if ($cellNumber <= 0) {
+            return;
+        }
+
+        $now     = date('Y-m-d H:i:s');
+        $expires = date('Y-m-d H:i:s', time() + $this->service->lifetimeMinutes() * 60);
+
+        // W5 (ADR-064): roll drone-offer chance per type. Первый matching выигрывает.
+        // Если ни один не сработал → fallback на resource (V25 поведение).
+        $droneOffer = $this->rollDroneOffer();
+        if ($droneOffer !== null) {
+            $this->caravanModel->insert([
+                'cell_number'    => $cellNumber,
+                'resource_id'    => null,
+                'quantity'       => null,
+                'price_per_unit' => null,
+                'spawned_at'     => $now,
+                'expires_at'     => $expires,
+                'status'         => 'active',
+                'offer_type'     => 'drone_' . $droneOffer['type'],
+                'drone_type'     => $droneOffer['drone_name_eng'],
+                'gold_price'     => $droneOffer['gold_price'],
+            ]);
+            return;
+        }
+
+        // Resource fallback (V25 unchanged).
         $resource = $this->pickRandomRareResource();
         if ($resource === null) {
             return;
@@ -64,19 +101,11 @@ class SpawnCaravanCron
             return;
         }
 
-        $cellNumber = $this->pickRandomCell();
-        if ($cellNumber <= 0) {
-            return;
-        }
-
-        $qtyMin  = $this->service->qtyMin();
-        $qtyMax  = $this->service->qtyMax();
+        $qtyMin   = $this->service->qtyMin();
+        $qtyMax   = $this->service->qtyMax();
         $quantity = mt_rand($qtyMin, $qtyMax);
 
         $pricePerUnit = $this->service->computePricePerUnit($price);
-
-        $now     = date('Y-m-d H:i:s');
-        $expires = date('Y-m-d H:i:s', time() + $this->service->lifetimeMinutes() * 60);
 
         $this->caravanModel->insert([
             'cell_number'    => $cellNumber,
@@ -86,7 +115,40 @@ class SpawnCaravanCron
             'spawned_at'     => $now,
             'expires_at'     => $expires,
             'status'         => 'active',
+            'offer_type'     => 'resource',
         ]);
+    }
+
+    /**
+     * W5 (ADR-064): roll per-type drone.<type>.caravan_offer_chance (scout/cargo/
+     * repair/combat). Возвращает первый matching {type, drone_name_eng, gold_price}
+     * или null если ни один не сработал. mt_rand вне simulateFight (cron context).
+     *
+     * @return array{type:string,drone_name_eng:string,gold_price:int}|null
+     */
+    private function rollDroneOffer(): ?array
+    {
+        $catalog = $this->service->droneOfferCatalog();
+        foreach ($catalog as $type => $meta) {
+            $chance = $this->droneService->caravanOfferChanceFor($type);
+            if ($chance <= 0.0) {
+                continue;
+            }
+            // Резолюция 1 промилле: mt_rand(1..10000) vs chance×10000.
+            $roll = mt_rand(1, 10000);
+            if ($roll <= (int) round($chance * 10000)) {
+                $gold = $this->service->computeDroneOfferGold($type);
+                if ($gold <= 0) {
+                    continue;
+                }
+                return [
+                    'type'           => $type,
+                    'drone_name_eng' => $meta['recipe'],
+                    'gold_price'     => $gold,
+                ];
+            }
+        }
+        return null;
     }
 
     /**

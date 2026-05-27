@@ -60,23 +60,31 @@ class CaravanLookAction extends BaseAction
             ]);
         }
 
-        $caravan = $caravans[0];
+        $caravan        = $caravans[0];
+        $rawOfferType   = $caravan['offer_type'] ?? 'resource';
+        $offerType      = is_string($rawOfferType) ? $rawOfferType : 'resource';
+        $rawId          = $caravan['id']             ?? null;
+        $caravanId      = is_numeric($rawId)    ? (int) $rawId    : 0;
+        $rawExpires     = $caravan['expires_at'] ?? '';
+        $expires        = is_string($rawExpires) ? $rawExpires : '';
+        $expiresShort   = $expires !== '' ? substr($expires, 11, 5) : '??:??';
+        $haveGold       = $this->extractInt($character, 'gold');
+
+        // W5 (ADR-064): drone-offer branch.
+        if ($this->service->isDroneOfferType($offerType)) {
+            return $this->renderDroneOffer($chatId, $caravan, $caravanId, $offerType, $haveGold, $expiresShort);
+        }
+
+        // V25 resource-offer branch (unchanged).
         $rawResId = $caravan['resource_id'] ?? null;
         $resourceId = is_numeric($rawResId) ? (int) $rawResId : 0;
         $resName  = $this->resolveResourceName($resourceId);
 
         $rawQty   = $caravan['quantity']       ?? null;
         $rawPrice = $caravan['price_per_unit'] ?? null;
-        $rawId    = $caravan['id']             ?? null;
         $qty       = is_numeric($rawQty)   ? (int) $rawQty   : 0;
         $price     = is_numeric($rawPrice) ? (int) $rawPrice : 0;
-        $caravanId = is_numeric($rawId)    ? (int) $rawId    : 0;
         $total     = $qty * $price;
-        $haveGold  = $this->extractInt($character, 'gold');
-
-        $rawExpires = $caravan['expires_at'] ?? '';
-        $expires    = is_string($rawExpires) ? $rawExpires : '';
-        $expiresShort = $expires !== '' ? substr($expires, 11, 5) : '??:??';
 
         $text  = "🚚 *Странствующий караван*\n\n";
         $text .= "Перед тобой стоит крытая повозка. Торговец предлагает:\n\n";
@@ -133,6 +141,86 @@ class CaravanLookAction extends BaseAction
             return is_numeric($v) ? (int) $v : 0;
         }
         return 0;
+    }
+
+    /**
+     * W5 (ADR-064): рендер карточки drone-offer'а.
+     *
+     * @param array<string,mixed> $caravan
+     */
+    private function renderDroneOffer(
+        int $chatId,
+        array $caravan,
+        int $caravanId,
+        string $offerType,
+        int $haveGold,
+        string $expiresShort
+    ): ServerResponse {
+        $droneType = $this->service->droneTypeFromOffer($offerType);
+        $catalog   = $this->service->droneOfferCatalog();
+        $meta      = $catalog[$droneType] ?? null;
+        if (! is_array($meta)) {
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => '🚚 *Караван*' . "\n\n" . '_Этот лот не идентифицирован — попробуй позже._',
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
+        $rawGold     = $caravan['gold_price'] ?? null;
+        $goldPrice   = is_numeric($rawGold) ? (int) $rawGold : 0;
+        $emoji       = $meta['emoji'];
+        $nameRus     = $meta['name_rus'];
+
+        $capability  = match ($droneType) {
+            'scout'  => 'Открывает 21×21 клеток вокруг тебя без передвижения. Заряжается на базе ~2 часа.',
+            'cargo'  => 'Перевозит до 30 кг ресурсов на твою базу за один взлёт. Заряжается на базе ~3 часа.',
+            'repair' => 'Один взлёт чинит ВСЕХ твоих роботов разом за чистое золото. Заряжается ~4 часа.',
+            'combat' => 'Активируется по запросу: +12% инициативы защитнику в PvP-бою на 30 мин (cap 25% с Дозорной вышкой). Заряжается ~6 часов.',
+            default  => '',
+        };
+
+        $text  = "🚚 *Странствующий караван*\n\n";
+        $text .= "На повозке — собранный кустарным мастером *готовый дрон*.\n\n";
+        $text .= "{$emoji} *{$nameRus}* (full battery)\n";
+        $text .= "_{$capability}_\n\n";
+        $text .= "💰 Цена: *{$goldPrice}* 🪙 (premium-наценка vs крафт)\n";
+        $text .= "⏱ Караван уйдёт около *{$expiresShort}*.\n\n";
+        $text .= "💰 У тебя: *{$haveGold}* 🪙";
+
+        if ($goldPrice <= 0) {
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => $text . "\n\n_Лот не выставлен на продажу._",
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
+        if ($haveGold < $goldPrice) {
+            $need = $goldPrice - $haveGold;
+            $text .= "\n\n❌ _Не хватает {$need} 🪙._";
+            $keyboard = [
+                'inline_keyboard' => [
+                    [['text' => '🗺 Карта',     'callback_data' => 'inlineMap']],
+                    [['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']],
+                ],
+            ];
+        } else {
+            $text .= "\n\n✅ _Готов к покупке._";
+            $keyboard = [
+                'inline_keyboard' => [
+                    [['text' => "🛍 Купить ({$goldPrice} 🪙)", 'callback_data' => "caravanBuyDrone_{$caravanId}"]],
+                    [['text' => '🗺 Карта', 'callback_data' => 'inlineMap'], ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']],
+                ],
+            ];
+        }
+
+        return Request::sendMessage([
+            'chat_id'      => $chatId,
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
+        ]);
     }
 
     private function resolveResourceName(int $resourceId): string

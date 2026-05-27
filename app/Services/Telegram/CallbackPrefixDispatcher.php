@@ -7,7 +7,9 @@ namespace App\Services\Telegram;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\UpgradeBuildingAction;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\RepairBuildingAction;
 use App\Controllers\Telegram\Commands\Actions\Caravan\CaravanBuyAction;
+use App\Controllers\Telegram\Commands\Actions\Caravan\CaravanBuyDroneAction;
 use App\Controllers\Telegram\Commands\Actions\Drone\CargoDroneSendAction;
+use App\Controllers\Telegram\Commands\Actions\Drone\CombatDroneActivateAction;
 use App\Controllers\Telegram\Commands\Actions\Drone\RecceDroneAction;
 use App\Controllers\Telegram\Commands\Actions\Craft\Insurance\CraftInsureItemAction;
 use App\Controllers\Telegram\Commands\Actions\Craft\Repair\NpcRepairAction;
@@ -83,6 +85,11 @@ final class CallbackPrefixDispatcher
             return $this->dispatchCaravanBuyAll($callbackQuery);
         }
 
+        // W5 (ADR-064): NPC-караван — покупка готового дрона.
+        if (str_starts_with($callbackData, 'caravanBuyDrone_')) {
+            return $this->dispatchCaravanBuyDrone($callbackQuery);
+        }
+
         // W2 (ADR-058): Drone-recon launch.
         if (str_starts_with($callbackData, 'recceDrone_')) {
             return $this->dispatchRecceDrone($callbackQuery);
@@ -91,6 +98,11 @@ final class CallbackPrefixDispatcher
         // W3b (ADR-060): Cargo drone send (atomic delivery).
         if (str_starts_with($callbackData, 'cargoDroneSend_')) {
             return $this->dispatchCargoDroneSend($callbackQuery);
+        }
+
+        // W5 (ADR-064): Combat drone activation (out-of-band, RNG-fence safe).
+        if (str_starts_with($callbackData, 'combatDroneActivate_')) {
+            return $this->dispatchCombatDroneActivate($callbackQuery);
         }
 
         // V24 (ADR-056): NPC-страховой агент. confirm перед ask (конвенция).
@@ -136,6 +148,16 @@ final class CallbackPrefixDispatcher
         return $handler->handle();
     }
 
+    /** W5 (ADR-064): caravanBuyDrone_{caravan_id} → списать gold + INSERT crafted_items_log. */
+    private function dispatchCaravanBuyDrone(CallbackQuery $callbackQuery): ServerResponse
+    {
+        if (! class_exists(CaravanBuyDroneAction::class)) {
+            return Request::emptyResponse();
+        }
+        $handler = new CaravanBuyDroneAction($callbackQuery);
+        return $handler->handle();
+    }
+
     /** W2 (ADR-058): recceDrone_{crafted_items_log_id} → revealAround + drain. */
     private function dispatchRecceDrone(CallbackQuery $callbackQuery): ServerResponse
     {
@@ -153,6 +175,16 @@ final class CallbackPrefixDispatcher
             return Request::emptyResponse();
         }
         $handler = new CargoDroneSendAction($callbackQuery);
+        return $handler->handle();
+    }
+
+    /** W5 (ADR-064): combatDroneActivate_{crafted_items_log_id} → atomic activation. */
+    private function dispatchCombatDroneActivate(CallbackQuery $callbackQuery): ServerResponse
+    {
+        if (! class_exists(CombatDroneActivateAction::class)) {
+            return Request::emptyResponse();
+        }
+        $handler = new CombatDroneActivateAction($callbackQuery);
         return $handler->handle();
     }
 

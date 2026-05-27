@@ -34,6 +34,7 @@ final class DefenseStructureServiceTest extends CIUnitTestCase
         $db->query('DROP TABLE IF EXISTS character_buildings');
         $db->query('DROP TABLE IF EXISTS buildings');
         $db->query('DROP TABLE IF EXISTS game_settings');
+        $db->query('DROP TABLE IF EXISTS characters');
 
         $db->query('
             CREATE TABLE buildings (
@@ -66,6 +67,13 @@ final class DefenseStructureServiceTest extends CIUnitTestCase
                 hard_max VARCHAR(32) NULL
             )
         ');
+        // W5 (ADR-064) — characters table для combat_drone_active_until lazy-expiry check.
+        $db->query('
+            CREATE TABLE characters (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                combat_drone_active_until DATETIME NULL DEFAULT NULL
+            )
+        ');
 
         $db->table('buildings')->insert(['name_en' => 'WoodenWall']);
         $this->wallId = (int) $db->insertID();
@@ -96,8 +104,20 @@ final class DefenseStructureServiceTest extends CIUnitTestCase
         $db->query('DROP TABLE IF EXISTS character_buildings');
         $db->query('DROP TABLE IF EXISTS buildings');
         $db->query('DROP TABLE IF EXISTS game_settings');
+        $db->query('DROP TABLE IF EXISTS characters');
         $this->cleanCache();
         parent::tearDown();
+    }
+
+    /**
+     * W5 (ADR-064): создать character row с (опциональным) активным combat-drone.
+     */
+    private function makeCharacter(int $charId, ?string $combatDroneActiveUntil = null): void
+    {
+        Database::connect('tests')->table('characters')->insert([
+            'id' => $charId,
+            'combat_drone_active_until' => $combatDroneActiveUntil,
+        ]);
     }
 
     private function cleanCache(): void
@@ -278,5 +298,93 @@ final class DefenseStructureServiceTest extends CIUnitTestCase
         $this->assertSame(240, $svc->maxHpFor(200, 2));   // ×1.2
         $this->assertSame(280, $svc->maxHpFor(200, 3));   // ×1.4
         $this->assertSame(96, $svc->maxHpFor(80, 2));     // ограда ×1.2
+    }
+
+    // ---- W5 (ADR-064): Combat drone integration ----
+
+    public function testCombatDroneAloneGivesInitiativeWithoutStructures(): void
+    {
+        // Только combat-drone (active_until > NOW), без зданий → профиль не null,
+        // damage_reduction=0, fence_damage=0, initiative_bonus = 12% (default).
+        $this->makeCharacter(1, date('Y-m-d H:i:s', time() + 1800)); // +30 мин
+
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+
+        $this->assertNotNull($profile);
+        $this->assertSame(1, $profile['owner_id']);
+        $this->assertEqualsWithDelta(0.0, $profile['damage_reduction'], 0.0001);
+        $this->assertSame(0, $profile['fence_damage']);
+        $this->assertEqualsWithDelta(0.12, $profile['initiative_bonus'], 0.0001);
+        $this->assertCount(0, $profile['structure_ids']);
+    }
+
+    public function testCombatDroneExpiredGivesNoBonus(): void
+    {
+        // active_until в прошлом → бонус не применяется → нет структур → null.
+        $this->makeCharacter(1, date('Y-m-d H:i:s', time() - 3600));
+        $this->assertNull((new DefenseStructureService())->getDefenseProfile(1, 100));
+    }
+
+    public function testCombatDroneNullActiveUntilGivesNoBonus(): void
+    {
+        // NULL active_until → нет бонуса → нет структур → null.
+        $this->makeCharacter(1, null);
+        $this->assertNull((new DefenseStructureService())->getDefenseProfile(1, 100));
+    }
+
+    public function testCombatDroneStacksWithTowerUnderCap(): void
+    {
+        // Tower 8% + Combat 12% = 20% < cap 25% → ожидаем 0.20.
+        $this->buildStructure(1, $this->towerId, 100, 300);
+        $this->makeCharacter(1, date('Y-m-d H:i:s', time() + 1800));
+
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+
+        $this->assertNotNull($profile);
+        $this->assertEqualsWithDelta(0.20, $profile['initiative_bonus'], 0.0001);
+    }
+
+    public function testCombatDroneCappedWhenSumOverflows(): void
+    {
+        // Tower bonus admin-tuned до 20%, combat до 20% → sum=40% → clamp 25% (default cap).
+        $db = Database::connect('tests');
+        $db->table('game_settings')->update(
+            ['value_int' => 20],
+            ['setting_key' => 'defense.tower.defender_initiative_bonus_percent']
+        );
+        // seed drone.combat.initiative_bonus_percent=20 (drone-side)
+        $db->table('game_settings')->insert([
+            'setting_key' => 'drone.combat.initiative_bonus_percent',
+            'category' => 'combat', 'value_type' => 'int', 'value_int' => 20,
+        ]);
+        $this->cleanCache();
+
+        $this->buildStructure(1, $this->towerId, 100, 300);
+        $this->makeCharacter(1, date('Y-m-d H:i:s', time() + 1800));
+
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+
+        $this->assertNotNull($profile);
+        // Cap default = 25 → 0.25.
+        $this->assertEqualsWithDelta(0.25, $profile['initiative_bonus'], 0.0001);
+    }
+
+    public function testCombatDroneKillswitchOffSkipsDrone(): void
+    {
+        // drone.combat.enabled=0 → drone-bonus игнорируется, остаются только структуры.
+        Database::connect('tests')->table('game_settings')->insert([
+            'setting_key' => 'drone.combat.enabled',
+            'category' => 'combat', 'value_type' => 'bool', 'value_bool' => 0,
+        ]);
+        $this->cleanCache();
+
+        $this->buildStructure(1, $this->towerId, 100, 300);
+        $this->makeCharacter(1, date('Y-m-d H:i:s', time() + 1800));
+
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+
+        $this->assertNotNull($profile);
+        // Tower-only (combat-bonus заморожен): 8%.
+        $this->assertEqualsWithDelta(0.08, $profile['initiative_bonus'], 0.0001);
     }
 }

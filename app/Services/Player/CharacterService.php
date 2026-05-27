@@ -131,6 +131,18 @@ class CharacterService
             $text .= "🎓 *Специализация:* " . $specSvc->labelFor(is_string($specRaw) ? $specRaw : null) . "\n";
         }
 
+        // W5 (ADR-064): combat-drone active status line (только если активен).
+        $droneSvc = new \App\Services\Player\DroneService();
+        if ($droneSvc->combatIsEnabled()) {
+            $activeUntilRaw = $characterRow['combat_drone_active_until'] ?? null;
+            $activeUntilTs  = is_string($activeUntilRaw) && $activeUntilRaw !== '' ? strtotime($activeUntilRaw) : 0;
+            if ($activeUntilTs !== false && $activeUntilTs > time()) {
+                $minsLeft = max(1, (int) ceil(($activeUntilTs - time()) / 60));
+                $bonus    = $droneSvc->combatInitiativeBonusPercent();
+                $text .= "🛡 *Боевой дрон:* активен `{$minsLeft}` мин (+{$bonus}% инициативы)\n";
+            }
+        }
+
         // Инлайн-кнопки
         $inlineRows = [
             [
@@ -162,24 +174,29 @@ class CharacterService
             $inlineRows[] = [['text' => '⚑ Выбрать фракцию', 'callback_data' => 'chooseFaction_info']];
         }
 
-        // V16 (ADR-047) Специализация + V20 (ADR-051) Проект фракции — обе endgame-фичи,
-        // пакуем в одну строку чтобы не плодить одиночные ряды.
-        // UX-DISCOVERABILITY (CLAUDE.md §🎮): Проект фракции обязан быть виден даже без
-        // фракции — рендерим lock-кнопку с подсказкой prerequisite, не скрываем молча.
-        $endgameRow = [];
+        // V16 (ADR-047) Специализация + V20 (ADR-051) Проект фракции + W5 (ADR-064) Combat drone —
+        // endgame-фичи. Пакуем accumulator-pattern по 2 кнопки в строку (memory
+        // feedback_inline_keyboard_pack_sibling_buttons).
+        // UX-DISCOVERABILITY (CLAUDE.md §🎮): Проект фракции и Боевой дрон обязаны быть видны
+        // всегда — lock-кнопка с prerequisite подсказкой, не скрываем молча.
+        $endgameButtons = [];
         if ($specSvc->isEnabled()) {
-            $endgameRow[] = ['text' => '🎓 Специализация', 'callback_data' => 'specialization'];
+            $endgameButtons[] = ['text' => '🎓 Специализация', 'callback_data' => 'specialization'];
         }
         if ((new \App\Services\Player\FactionProjectService())->enabled()) {
             if ($hasChosenFaction) {
-                $endgameRow[] = ['text' => '🤝 Проект фракции', 'callback_data' => 'factionProject'];
+                $endgameButtons[] = ['text' => '🤝 Проект фракции', 'callback_data' => 'factionProject'];
             } else {
-                $lockHint     = $level >= 10 ? 'выбери фракцию' : 'с lvl 10';
-                $endgameRow[] = ['text' => "🔒 Проект фракции ({$lockHint})", 'callback_data' => 'factionProjectLocked'];
+                $lockHint         = $level >= 10 ? 'выбери фракцию' : 'с lvl 10';
+                $endgameButtons[] = ['text' => "🔒 Проект фракции ({$lockHint})", 'callback_data' => 'factionProjectLocked'];
             }
         }
-        if (! empty($endgameRow)) {
-            $inlineRows[] = $endgameRow;
+        if ($droneSvc->combatIsEnabled()) {
+            $endgameButtons[] = ['text' => '🛡 Боевой дрон', 'callback_data' => 'combatDroneList'];
+        }
+        // Накладываем по 2 на строку через accumulator-pattern.
+        for ($i = 0; $i < count($endgameButtons); $i += 2) {
+            $inlineRows[] = array_slice($endgameButtons, $i, 2);
         }
 
         $inlineKeyboard = ['inline_keyboard' => $inlineRows];

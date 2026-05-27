@@ -29,10 +29,10 @@ class StandardCraftingAction extends BaseAction
             ],
         ];
 
-        // W1+W2 (ADR-058) + W3b (ADR-060) + W4 (ADR-063) — Drones. Точки входа
-        // в крафт DroneScout / DroneCargo / DroneRepair (без них фичи становятся
-        // BUILT-BUT-DEAD: recipe есть, кнопки нет). Кнопки sibling-класса
-        // пакуем по 2-3 в строку (memory feedback_inline_keyboard_pack_sibling_buttons).
+        // W1+W2 (ADR-058) + W3b (ADR-060) + W4 (ADR-063) + W5 (ADR-064) — Drones.
+        // Точки входа в крафт DroneScout / DroneCargo / DroneRepair / DroneCombat
+        // (без них фичи становятся BUILT-BUT-DEAD: recipe есть, кнопки нет). Кнопки
+        // sibling-класса пакуем по 2 в строку (memory feedback_inline_keyboard_pack_sibling_buttons).
         $droneService = new \App\Services\Player\DroneService();
         $droneRow = [];
         if ($droneService->isEnabled()) {
@@ -43,6 +43,9 @@ class StandardCraftingAction extends BaseAction
         }
         if ($droneService->repairIsEnabled()) {
             $droneRow[] = ['text' => '🔧 Дрон-ремонтник', 'callback_data' => 'droneRepair'];
+        }
+        if ($droneService->combatIsEnabled()) {
+            $droneRow[] = ['text' => '🛡 Боевой дрон', 'callback_data' => 'droneCombat'];
         }
         if (! empty($droneRow)) {
             // 3+ кнопок — паковать по 2 в строку.

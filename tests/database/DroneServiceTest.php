@@ -335,4 +335,143 @@ final class DroneServiceTest extends CIUnitTestCase
         $this->assertTrue($svc->canSendCargo(100));
         $this->assertFalse($svc->canRunRepair(100));
     }
+
+    // ──────────────────────────────────────────────────────────────────
+    // W5 (ADR-064) — Combat drone extension + caravan-offer helpers.
+    // ──────────────────────────────────────────────────────────────────
+
+    public function testCombatDefaults(): void
+    {
+        $svc = new DroneService();
+        $this->assertTrue($svc->combatIsEnabled());
+        $this->assertSame(12, $svc->combatInitiativeBonusPercent());
+        $this->assertSame(30, $svc->combatActivationMinutes());
+        $this->assertSame(100, $svc->combatBatteryDrainPerLaunch());
+        $this->assertSame(100, $svc->combatBatteryMax());
+        $this->assertSame(360, $svc->combatChargeMinutesPerFull());
+        $this->assertEqualsWithDelta(100.0 / 360.0, $svc->combatChargeRatePerMinute(), 1e-6);
+        $this->assertSame(25, $svc->combatMaxCombinedInitiativePercent());
+    }
+
+    public function testCombatKillswitchOff(): void
+    {
+        $this->seedBool('drone.combat.enabled', 0);
+        $svc = new DroneService();
+        $this->assertFalse($svc->combatIsEnabled());
+        // Все остальные слои независимы.
+        $this->assertTrue($svc->isEnabled());
+        $this->assertTrue($svc->cargoIsEnabled());
+        $this->assertTrue($svc->repairIsEnabled());
+    }
+
+    public function testCanActivateCombatRespectsKillswitch(): void
+    {
+        $this->seedBool('drone.combat.enabled', 0);
+        $svc = new DroneService();
+        $this->assertFalse($svc->canActivateCombat(100));
+        $this->assertFalse($svc->canActivateCombat(999));
+    }
+
+    public function testCanActivateCombatRequiresFullDrain(): void
+    {
+        $svc = new DroneService();
+        // drain=100 default.
+        $this->assertFalse($svc->canActivateCombat(99));
+        $this->assertTrue($svc->canActivateCombat(100));
+        $this->assertTrue($svc->canActivateCombat(200));
+    }
+
+    public function testCombatInitiativeBonusTuned(): void
+    {
+        $this->seedInt('drone.combat.initiative_bonus_percent', 20);
+        $this->assertSame(20, (new DroneService())->combatInitiativeBonusPercent());
+    }
+
+    public function testCombatActivationMinutesTuned(): void
+    {
+        $this->seedInt('drone.combat.activation_minutes', 60);
+        $this->assertSame(60, (new DroneService())->combatActivationMinutes());
+    }
+
+    public function testCombatMaxCombinedTuned(): void
+    {
+        $this->seedInt('drone.combat.max_combined_initiative_percent', 40);
+        $this->assertSame(40, (new DroneService())->combatMaxCombinedInitiativePercent());
+    }
+
+    public function testCombatBatteryAndChargeTuned(): void
+    {
+        $this->seedInt('drone.combat.battery_max', 200);
+        $this->seedInt('drone.combat.battery_drain_per_launch', 50);
+        $this->seedInt('drone.combat.base_charge_minutes_per_full', 100);
+        $svc = new DroneService();
+        $this->assertSame(200, $svc->combatBatteryMax());
+        $this->assertSame(50, $svc->combatBatteryDrainPerLaunch());
+        $this->assertSame(100, $svc->combatChargeMinutesPerFull());
+        $this->assertEqualsWithDelta(2.0, $svc->combatChargeRatePerMinute(), 1e-9);
+        $this->assertTrue($svc->canActivateCombat(50));
+        $this->assertFalse($svc->canActivateCombat(49));
+    }
+
+    public function testAllFourDroneLayersIndependent(): void
+    {
+        // Scout off, cargo on, repair off, combat off — четыре независимых слоя.
+        $this->seedBool('drone.scout.enabled', 0);
+        $this->seedBool('drone.repair.enabled', 0);
+        $this->seedBool('drone.combat.enabled', 0);
+        $svc = new DroneService();
+        $this->assertFalse($svc->isEnabled());
+        $this->assertTrue($svc->cargoIsEnabled());
+        $this->assertFalse($svc->repairIsEnabled());
+        $this->assertFalse($svc->combatIsEnabled());
+        $this->assertFalse($svc->canLaunch(100));
+        $this->assertTrue($svc->canSendCargo(100));
+        $this->assertFalse($svc->canRunRepair(100));
+        $this->assertFalse($svc->canActivateCombat(100));
+    }
+
+    public function testCaravanOfferChanceForAllTypesDefault(): void
+    {
+        $svc = new DroneService();
+        // Defaults: scout already 0.02 (W1 seed). Cargo/Repair/Combat — fallback в getter (нет seed).
+        $this->assertEqualsWithDelta(0.02, $svc->caravanOfferChanceFor('scout'),  1e-9);
+        $this->assertEqualsWithDelta(0.02, $svc->caravanOfferChanceFor('cargo'),  1e-9);
+        $this->assertEqualsWithDelta(0.02, $svc->caravanOfferChanceFor('repair'), 1e-9);
+        $this->assertEqualsWithDelta(0.02, $svc->caravanOfferChanceFor('combat'), 1e-9);
+    }
+
+    public function testCaravanOfferChanceUnknownTypeReturnsZero(): void
+    {
+        $this->assertSame(0.0, (new DroneService())->caravanOfferChanceFor('unknown'));
+        $this->assertSame(0.0, (new DroneService())->caravanOfferChanceFor(''));
+    }
+
+    public function testCaravanOfferChanceClampedPerType(): void
+    {
+        $this->seedFloat('drone.cargo.caravan_offer_chance', 2.5);
+        $this->seedFloat('drone.repair.caravan_offer_chance', -0.5);
+        $svc = new DroneService();
+        $this->assertSame(1.0, $svc->caravanOfferChanceFor('cargo'));
+        $this->assertSame(0.0, $svc->caravanOfferChanceFor('repair'));
+    }
+
+    public function testCaravanMarkupMultiplierForAllTypesDefault(): void
+    {
+        $svc = new DroneService();
+        $this->assertEqualsWithDelta(3.0, $svc->caravanMarkupMultiplierFor('scout'),  1e-9);
+        $this->assertEqualsWithDelta(3.0, $svc->caravanMarkupMultiplierFor('cargo'),  1e-9);
+        $this->assertEqualsWithDelta(3.0, $svc->caravanMarkupMultiplierFor('repair'), 1e-9);
+        $this->assertEqualsWithDelta(3.0, $svc->caravanMarkupMultiplierFor('combat'), 1e-9);
+    }
+
+    public function testCaravanMarkupMultiplierForUnknownReturnsZero(): void
+    {
+        $this->assertSame(0.0, (new DroneService())->caravanMarkupMultiplierFor('unknown'));
+    }
+
+    public function testCaravanMarkupMultiplierTuned(): void
+    {
+        $this->seedFloat('drone.combat.caravan_markup_multiplier', 5.0);
+        $this->assertEqualsWithDelta(5.0, (new DroneService())->caravanMarkupMultiplierFor('combat'), 1e-9);
+    }
 }

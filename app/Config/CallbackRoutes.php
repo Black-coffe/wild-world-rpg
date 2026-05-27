@@ -286,6 +286,12 @@ class CallbackRoutes extends BaseConfig
         'repairDrone'                     => \App\Controllers\Telegram\Commands\Actions\Drone\RepairDroneInfoAction::class,
         'repairDroneRun'                  => \App\Controllers\Telegram\Commands\Actions\Drone\RepairDroneRunAction::class,
         'droneRepair'                     => \App\Controllers\Telegram\Commands\Actions\Drone\DroneRepairCraftInfoAction::class,
+        // W5 (ADR-064) — Combat drone. Defensive time-window initiative-buff.
+        // - combatDroneList: список инстансов + activate buttons (либо «active X мин» статус)
+        // - droneCombat: preview-чек-лист крафта (info-callback)
+        // (combatDroneActivate_<log_id> — prefix через CallbackPrefixDispatcher)
+        'combatDroneList'                 => \App\Controllers\Telegram\Commands\Actions\Drone\CombatDroneListAction::class,
+        'droneCombat'                     => \App\Controllers\Telegram\Commands\Actions\Drone\DroneCombatCraftInfoAction::class,
 
         // === PvP ===
         'runAway'                         => \App\Controllers\Telegram\Commands\Actions\PVP\RunAwayAction::class,

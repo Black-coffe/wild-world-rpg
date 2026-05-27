@@ -76,4 +76,76 @@ final class CaravanService
         $price = (int) ceil($marketPrice * (1.0 - $this->discountPercent()));
         return max(1, $price);
     }
+
+    // ──────────────────────────────────────────────────────────────────
+    // W5 (ADR-064) — Drone-offer integration. Сallback из SpawnCaravanCron
+    // и CaravanLookAction. Premium для не-крафтящих игроков (markup ×3 default).
+    // ──────────────────────────────────────────────────────────────────
+
+    /**
+     * Map drone-type → recipe-key + name_rus + emoji для caravan-offer.
+     *
+     * @return array<string, array{recipe:string, name_rus:string, emoji:string}>
+     */
+    public function droneOfferCatalog(): array
+    {
+        return [
+            'scout'  => ['recipe' => 'DroneScout',  'name_rus' => 'Дрон-разведчик',  'emoji' => '🚁'],
+            'cargo'  => ['recipe' => 'DroneCargo',  'name_rus' => 'Карго-дрон',      'emoji' => '🚚'],
+            'repair' => ['recipe' => 'DroneRepair', 'name_rus' => 'Дрон-ремонтник', 'emoji' => '🔧'],
+            'combat' => ['recipe' => 'DroneCombat', 'name_rus' => 'Боевой дрон',    'emoji' => '🛡'],
+        ];
+    }
+
+    /**
+     * Gold-цена готового дрона у каравана. Формула:
+     *   gold = ceil(recipe.gold_required × drone.<type>.caravan_markup_multiplier).
+     * Если recipe не найден или gold_required<=0 → 0.
+     */
+    public function computeDroneOfferGold(string $droneType): int
+    {
+        $catalog = $this->droneOfferCatalog();
+        if (! isset($catalog[$droneType])) {
+            return 0;
+        }
+        $recipeKey = $catalog[$droneType]['recipe'];
+        $recipe    = config(\Config\CraftRecipes::class)->get($recipeKey);
+        if (! is_array($recipe)) {
+            return 0;
+        }
+        $rawGold = $recipe['gold_required'] ?? 0;
+        $baseGold = is_numeric($rawGold) ? (int) $rawGold : 0;
+        if ($baseGold <= 0) {
+            return 0;
+        }
+        $markup = (new \App\Services\Player\DroneService($this->settings))->caravanMarkupMultiplierFor($droneType);
+        if ($markup <= 0) {
+            return 0;
+        }
+        return (int) ceil($baseGold * $markup);
+    }
+
+    /**
+     * Проверка: offer_type принадлежит drone-семейству ('drone_scout'/'drone_cargo'/'drone_repair'/'drone_combat').
+     */
+    public function isDroneOfferType(string $offerType): bool
+    {
+        return in_array(
+            $offerType,
+            ['drone_scout', 'drone_cargo', 'drone_repair', 'drone_combat'],
+            true
+        );
+    }
+
+    /**
+     * Извлекает drone-type из offer_type. 'drone_scout' → 'scout'.
+     * Возвращает пустую строку для не-drone offer_type.
+     */
+    public function droneTypeFromOffer(string $offerType): string
+    {
+        if (! $this->isDroneOfferType($offerType)) {
+            return '';
+        }
+        return substr($offerType, strlen('drone_'));
+    }
 }
