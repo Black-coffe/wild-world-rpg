@@ -42,8 +42,10 @@ foreach ($biomes as $b) {
 @media (max-width: 980px){.ww-map-layout{grid-template-columns:1fr}}
 .ww-map-stage{background:var(--ww-panel);border:1px solid var(--ww-line);border-radius:8px;padding:.6rem;position:relative;overflow:hidden}
 .ww-map-canvas-box{position:relative;width:100%;aspect-ratio:1/1;background:#0e0c0a;border-radius:4px;overflow:hidden}
-.ww-map-canvas-box canvas{display:block;width:100%;height:100%;cursor:crosshair;image-rendering:pixelated;image-rendering:crisp-edges}
-.ww-map-canvas-box .ww-map-loader{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ww-muted);font-size:.95rem;pointer-events:none;background:rgba(14,12,10,.85)}
+.ww-map-canvas-box canvas{display:block;width:100%;height:100%;cursor:grab;image-rendering:pixelated;image-rendering:crisp-edges;user-select:none;-webkit-user-select:none}
+.ww-map-canvas-box canvas.is-dragging{cursor:grabbing}
+.ww-map-canvas-box.zoom-1 canvas{cursor:crosshair}
+.ww-map-canvas-box .ww-map-loader{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ww-muted);font-size:.95rem;pointer-events:none;background:rgba(14,12,10,.85);text-align:center;padding:1rem}
 .ww-map-canvas-box .ww-map-loader.is-hidden{display:none}
 .ww-map-tooltip{position:absolute;pointer-events:none;background:rgba(13,17,24,.95);border:1px solid var(--ww-line);color:var(--ww-text);padding:.4rem .6rem;border-radius:4px;font-size:.82rem;font-family:"PT Sans",sans-serif;line-height:1.35;white-space:nowrap;transform:translate(-50%,-130%);display:none;z-index:5;box-shadow:0 4px 14px rgba(0,0,0,.5)}
 .ww-map-tooltip.is-visible{display:block}
@@ -54,6 +56,12 @@ foreach ($biomes as $b) {
 .ww-map-opt{display:block;padding:.45rem .1rem;cursor:pointer;font-size:.92rem;color:var(--ww-text)}
 .ww-map-opt input{margin-right:.55rem;vertical-align:middle}
 .ww-map-opt small{display:block;color:var(--ww-muted);font-size:.78rem;margin-left:1.4rem;margin-top:.1rem}
+.ww-map-opt.is-locked{cursor:not-allowed;opacity:.5}
+.ww-map-opt.is-locked input{cursor:not-allowed}
+.ww-map-scale-row{display:flex;gap:.35rem;flex-wrap:wrap}
+.ww-map-scale-row label{flex:1 1 calc(25% - .35rem);min-width:60px;text-align:center;padding:.4rem .25rem;border:1px solid var(--ww-line);border-radius:4px;cursor:pointer;font-family:"Oswald",sans-serif;font-size:.85rem;letter-spacing:.04em;background:rgba(0,0,0,.18);user-select:none}
+.ww-map-scale-row label.is-active{border-color:var(--ww-accent);background:rgba(245,165,36,.12);color:var(--ww-accent)}
+.ww-map-scale-row input{position:absolute;opacity:0;pointer-events:none}
 .ww-map-refresh{display:inline-flex;align-items:center;gap:.4rem;padding:.5rem .9rem;background:transparent;border:1px solid var(--ww-line);color:var(--ww-text);border-radius:4px;cursor:pointer;font-family:"Oswald",sans-serif;text-transform:uppercase;font-size:.85rem;letter-spacing:.05em}
 .ww-map-refresh:hover{border-color:var(--ww-accent);color:var(--ww-accent)}
 .ww-map-status{margin-top:.6rem;font-size:.8rem;color:var(--ww-muted)}
@@ -78,12 +86,12 @@ foreach ($biomes as $b) {
     <div class="container">
         <header class="ww-map-head">
             <h1>Карта мира</h1>
-            <p>Остров Wild World 1000×1000 клеток. Переключай подложку, включай слои с караванами и подсветкой биомов, смотри список активных мировых событий. Подсказка по клетке — при наведении.</p>
+            <p>Остров Wild World 1000×1000 клеток. Переключай подложку, увеличивай масштаб и двигай мышкой/тачем. Контуры биомов поверх «художественной» подложки — для географической ясности.</p>
         </header>
 
         <div class="ww-map-layout">
             <div class="ww-map-stage">
-                <div class="ww-map-canvas-box" id="ww-map-box">
+                <div class="ww-map-canvas-box zoom-1" id="ww-map-box">
                     <canvas id="ww-map-canvas" width="2000" height="2000" aria-label="Карта мира Wild World"></canvas>
                     <div class="ww-map-loader" id="ww-map-loader">Загружаем карту…</div>
                     <div class="ww-map-tooltip" id="ww-map-tooltip">(0, 0)</div>
@@ -107,6 +115,17 @@ foreach ($biomes as $b) {
                 </div>
 
                 <div class="ww-map-panel">
+                    <h3>Масштаб</h3>
+                    <div class="ww-map-scale-row" id="ww-scale-row">
+                        <label class="is-active" data-scale="1"><input type="radio" name="ww-scale" value="1" checked>1×</label>
+                        <label data-scale="2"><input type="radio" name="ww-scale" value="2">2×</label>
+                        <label data-scale="5"><input type="radio" name="ww-scale" value="5">5×</label>
+                        <label data-scale="10"><input type="radio" name="ww-scale" value="10">10×</label>
+                    </div>
+                    <small class="ww-map-future">При 2× и выше — тащи мышкой / пальцем, чтобы двигать карту.</small>
+                </div>
+
+                <div class="ww-map-panel">
                     <h3>Слои</h3>
                     <label class="ww-map-opt">
                         <input type="checkbox" id="ww-toggle-grid" checked>
@@ -118,12 +137,11 @@ foreach ($biomes as $b) {
                         Караваны 🚚
                         <small>Активные NPC-торговцы (V25): точки на карте, hover — что продают и почём.</small>
                     </label>
-                    <label class="ww-map-opt">
+                    <label class="ww-map-opt is-locked" id="ww-tint-label">
                         <input type="checkbox" id="ww-toggle-biome-tint">
-                        Биом-tint поверх
-                        <small>Полупрозрачный biom-overlay поверх любой подложки (особенно полезно с «художественной»).</small>
+                        Контуры биомов
+                        <small>Тонкие границы между биомами. Доступно только с «художественной» подложкой.</small>
                     </label>
-                    <p class="ww-map-future">Скрыто от публичного доступа: игроки, базы фракций, схроны/объекты мира (для админа — отдельным release'ом).</p>
                 </div>
 
                 <div class="ww-map-panel">
@@ -172,10 +190,9 @@ foreach ($biomes as $b) {
     };
     var DATA_URL    = <?= json_encode($dataEndpoint, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?>;
     var BIOMES      = <?= json_encode($biomeMap, JSON_UNESCAPED_UNICODE) ?>;
-    var CANVAS_SIZE = 2000;
-    var WORLD_SIZE  = 1000;
-    var PX_PER_CELL = CANVAS_SIZE / WORLD_SIZE;
-    var CARAVAN_HIT_RADIUS = 40; // в canvas-px = 20 логических клеток
+    var CANVAS_SIZE = 2000;        // внутреннее разрешение canvas
+    var WORLD_SIZE  = 1000;        // 1000×1000 логических клеток
+    var PNG_NATIVE  = 2000;        // нативный размер исходных PNG = WORLD_SIZE * 2
 
     var canvas  = document.getElementById('ww-map-canvas');
     var ctx     = canvas.getContext('2d');
@@ -188,24 +205,46 @@ foreach ($biomes as $b) {
     var gridChk = document.getElementById('ww-toggle-grid');
     var carChk  = document.getElementById('ww-toggle-caravans');
     var tintChk = document.getElementById('ww-toggle-biome-tint');
+    var tintLab = document.getElementById('ww-tint-label');
     var eventsList = document.getElementById('ww-events-list');
+    var scaleRow = document.getElementById('ww-scale-row');
 
     var state = {
-        basemap:   'pixel',
-        showGrid:  true,
-        showCar:   false,
-        showTint:  false,
-        baseImg:   null,
-        pixelImg:  null, // отдельно для biome-tint поверх beautiful
-        caravans:  [],
-        events:    []
+        basemap:       'pixel',
+        showGrid:      true,
+        showCar:       false,
+        showTint:      false,
+        scale:         1,
+        viewX:         0,    // worldX левого края viewport (0..1000-viewSize)
+        viewY:         0,
+        baseImg:       null, // текущая подложка
+        pixelImg:      null, // pixel-биом-карта (для contour precompute)
+        contourCanvas: null, // pre-computed offscreen canvas с контурами биомов
+        caravans:      [],
+        events:        [],
+        drag:          null  // {startX, startY, startViewX, startViewY}
     };
 
+    // --- утилиты ---
+
+    function viewSizeCells(){ return WORLD_SIZE / state.scale; }
+    function clampPan(){
+        var max = WORLD_SIZE - viewSizeCells();
+        if (state.viewX < 0) state.viewX = 0;
+        if (state.viewY < 0) state.viewY = 0;
+        if (state.viewX > max) state.viewX = max;
+        if (state.viewY > max) state.viewY = max;
+    }
+    function centerOn(cx, cy){
+        var half = viewSizeCells() / 2;
+        state.viewX = cx - half;
+        state.viewY = cy - half;
+        clampPan();
+    }
     function setLoader(visible, text){
         if (text) loader.textContent = text;
         loader.classList.toggle('is-hidden', !visible);
     }
-
     function loadImage(url){
         return new Promise(function(resolve, reject){
             var img = new Image();
@@ -215,58 +254,108 @@ foreach ($biomes as $b) {
         });
     }
 
-    function drawGrid(){
+    // --- рендер ---
+
+    function drawBasemap(){
+        if (!state.baseImg) return;
+        var vsCells = viewSizeCells();
+        // источник в PNG-px: 1 cell = 2 PNG-px
+        var sx = state.viewX * 2;
+        var sy = state.viewY * 2;
+        var sw = vsCells * 2;
+        var sh = vsCells * 2;
+        ctx.drawImage(state.baseImg, sx, sy, sw, sh, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+    }
+
+    function drawContours(){
+        if (!state.contourCanvas) return;
+        var vsCells = viewSizeCells();
+        var sx = state.viewX * 2;
+        var sy = state.viewY * 2;
+        var sw = vsCells * 2;
+        var sh = vsCells * 2;
         ctx.save();
+        ctx.globalAlpha = 0.85;
+        ctx.drawImage(state.contourCanvas, sx, sy, sw, sh, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+        ctx.restore();
+    }
+
+    function drawGrid(){
+        var vsCells = viewSizeCells();
+        var pxPerCell = CANVAS_SIZE / vsCells; // 2 (scale=1), 4 (2×), 10 (5×), 20 (10×)
+        var startX = Math.ceil(state.viewX / 50) * 50;
+        var endX   = state.viewX + vsCells;
+        var startY = Math.ceil(state.viewY / 50) * 50;
+        var endY   = state.viewY + vsCells;
+
+        ctx.save();
+        // тонкие линии каждые 50 cells
         ctx.strokeStyle = 'rgba(255,255,255,0.10)';
         ctx.lineWidth = 1;
-        for (var i = 50; i < WORLD_SIZE; i += 50){
-            if (i % 100 === 0) continue;
-            var p = i * PX_PER_CELL;
-            ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, CANVAS_SIZE); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(CANVAS_SIZE, p); ctx.stroke();
+        for (var x = startX; x <= endX; x += 50){
+            if (x % 100 === 0) continue;
+            var px = (x - state.viewX) * pxPerCell;
+            ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, CANVAS_SIZE); ctx.stroke();
         }
-        ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+        for (var y = startY; y <= endY; y += 50){
+            if (y % 100 === 0) continue;
+            var py = (y - state.viewY) * pxPerCell;
+            ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(CANVAS_SIZE, py); ctx.stroke();
+        }
+        // жирные линии каждые 100 cells
+        ctx.strokeStyle = 'rgba(255,255,255,0.24)';
         ctx.lineWidth = 2;
-        for (var j = 100; j < WORLD_SIZE; j += 100){
-            var q = j * PX_PER_CELL;
-            ctx.beginPath(); ctx.moveTo(q, 0); ctx.lineTo(q, CANVAS_SIZE); ctx.stroke();
-            ctx.beginPath(); ctx.moveTo(0, q); ctx.lineTo(CANVAS_SIZE, q); ctx.stroke();
+        var startX100 = Math.ceil(state.viewX / 100) * 100;
+        var startY100 = Math.ceil(state.viewY / 100) * 100;
+        for (var xx = startX100; xx <= endX; xx += 100){
+            var px2 = (xx - state.viewX) * pxPerCell;
+            ctx.beginPath(); ctx.moveTo(px2, 0); ctx.lineTo(px2, CANVAS_SIZE); ctx.stroke();
         }
-        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        for (var yy = startY100; yy <= endY; yy += 100){
+            var py2 = (yy - state.viewY) * pxPerCell;
+            ctx.beginPath(); ctx.moveTo(0, py2); ctx.lineTo(CANVAS_SIZE, py2); ctx.stroke();
+        }
+        // подписи
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
         ctx.font = 'bold 22px "Oswald", sans-serif';
         ctx.textBaseline = 'top';
-        for (var k = 100; k < WORLD_SIZE; k += 100){
-            var r = k * PX_PER_CELL;
-            ctx.fillText(String(k), r + 4, 4);
-            ctx.fillText(String(k), 4, r + 4);
+        for (var xl = startX100; xl <= endX; xl += 100){
+            var pxL = (xl - state.viewX) * pxPerCell;
+            ctx.fillText(String(xl), pxL + 4, 4);
+        }
+        for (var yl = startY100; yl <= endY; yl += 100){
+            var pyL = (yl - state.viewY) * pxPerCell;
+            ctx.fillText(String(yl), 4, pyL + 4);
         }
         ctx.restore();
     }
 
     function drawCaravans(){
         if (!state.caravans.length) return;
+        var vsCells = viewSizeCells();
+        var pxPerCell = CANVAS_SIZE / vsCells;
         ctx.save();
         for (var i = 0; i < state.caravans.length; i++){
             var c = state.caravans[i];
             if (!c.x || !c.y) continue;
-            var px = (c.x - 1) * PX_PER_CELL;
-            var py = (c.y - 1) * PX_PER_CELL;
-            // тень
+            if (c.x < state.viewX || c.x > state.viewX + vsCells) continue;
+            if (c.y < state.viewY || c.y > state.viewY + vsCells) continue;
+            var px = (c.x - state.viewX) * pxPerCell;
+            var py = (c.y - state.viewY) * pxPerCell;
+            // маркер всегда фиксированный размер вне зависимости от scale
             ctx.beginPath();
-            ctx.arc(px, py, 18, 0, Math.PI * 2);
+            ctx.arc(px, py, 20, 0, Math.PI * 2);
             ctx.fillStyle = 'rgba(0,0,0,0.55)';
             ctx.fill();
-            // обводка
             ctx.beginPath();
-            ctx.arc(px, py, 14, 0, Math.PI * 2);
+            ctx.arc(px, py, 16, 0, Math.PI * 2);
             ctx.fillStyle = '#f5a524';
             ctx.fill();
             ctx.lineWidth = 3;
             ctx.strokeStyle = '#1a1408';
             ctx.stroke();
-            // символ
             ctx.fillStyle = '#1a1408';
-            ctx.font = 'bold 22px "Oswald", sans-serif';
+            ctx.font = 'bold 24px "Oswald", sans-serif';
             ctx.textBaseline = 'middle';
             ctx.textAlign = 'center';
             ctx.fillText('₸', px, py + 1);
@@ -276,16 +365,12 @@ foreach ($biomes as $b) {
 
     function render(){
         if (!state.baseImg) return;
+        clampPan();
         ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-        ctx.drawImage(state.baseImg, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
-        if (state.showTint && state.pixelImg && state.basemap !== 'pixel'){
-            ctx.save();
-            ctx.globalAlpha = 0.45;
-            ctx.drawImage(state.pixelImg, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
-            ctx.restore();
-        }
-        if (state.showGrid)   drawGrid();
-        if (state.showCar)    drawCaravans();
+        drawBasemap();
+        if (state.showTint && state.basemap === 'beautiful') drawContours();
+        if (state.showGrid)  drawGrid();
+        if (state.showCar)   drawCaravans();
     }
 
     function renderEvents(){
@@ -307,14 +392,11 @@ foreach ($biomes as $b) {
             name.appendChild(tag);
             name.appendChild(document.createTextNode(e.name || '?'));
             li.appendChild(name);
-
             var meta = document.createElement('span');
             meta.className = 'ww-ev-meta';
             var parts = [];
             if (e.biome_ids && e.biome_ids.length){
-                var biomeNames = e.biome_ids
-                    .map(function(id){ return BIOMES[id] || ('Биом #' + id); })
-                    .join(', ');
+                var biomeNames = e.biome_ids.map(function(id){ return BIOMES[id] || ('Биом #' + id); }).join(', ');
                 parts.push('Биомы: ' + biomeNames);
             }
             if (e.effect && e.effect !== 'none') parts.push('Эффект: ' + e.effect);
@@ -325,17 +407,82 @@ foreach ($biomes as $b) {
         });
     }
 
+    // --- contour edge detection (pre-compute один раз после загрузки pixel-карты) ---
+    function precomputeContours(pixelImage){
+        try {
+            var n = PNG_NATIVE;
+            var off = document.createElement('canvas');
+            off.width = n; off.height = n;
+            var octx = off.getContext('2d');
+            octx.drawImage(pixelImage, 0, 0, n, n);
+            var src = octx.getImageData(0, 0, n, n).data;
+
+            // сэмплируем биом-цвет в центре каждой cell (2x2 px). cells WORLD_SIZE×WORLD_SIZE.
+            var biomeKey = new Uint32Array(WORLD_SIZE * WORLD_SIZE);
+            for (var cy = 0; cy < WORLD_SIZE; cy++){
+                for (var cx = 0; cx < WORLD_SIZE; cx++){
+                    var px = cx * 2;
+                    var py = cy * 2;
+                    var idx = (py * n + px) * 4;
+                    // packed (r<<16)|(g<<8)|b
+                    biomeKey[cy * WORLD_SIZE + cx] = (src[idx] << 16) | (src[idx + 1] << 8) | src[idx + 2];
+                }
+            }
+
+            var out = document.createElement('canvas');
+            out.width = n; out.height = n;
+            var outCtx = out.getContext('2d');
+            var outImage = outCtx.createImageData(n, n);
+            var dst = outImage.data;
+
+            // контур: проверяем правый и нижний соседи cell'а.
+            // если разные биомы — заполняем граничные пиксели тёмным.
+            function setPixel(px, py){
+                if (px < 0 || px >= n || py < 0 || py >= n) return;
+                var di = (py * n + px) * 4;
+                dst[di]     = 28;
+                dst[di + 1] = 22;
+                dst[di + 2] = 16;
+                dst[di + 3] = 230;
+            }
+
+            for (var iy = 0; iy < WORLD_SIZE; iy++){
+                for (var ix = 0; ix < WORLD_SIZE; ix++){
+                    var base = biomeKey[iy * WORLD_SIZE + ix];
+                    var pxN = ix * 2;
+                    var pyN = iy * 2;
+                    // правый сосед
+                    if (ix < WORLD_SIZE - 1){
+                        if (biomeKey[iy * WORLD_SIZE + (ix + 1)] !== base){
+                            setPixel(pxN + 1, pyN);
+                            setPixel(pxN + 1, pyN + 1);
+                        }
+                    }
+                    // нижний сосед
+                    if (iy < WORLD_SIZE - 1){
+                        if (biomeKey[(iy + 1) * WORLD_SIZE + ix] !== base){
+                            setPixel(pxN,     pyN + 1);
+                            setPixel(pxN + 1, pyN + 1);
+                        }
+                    }
+                }
+            }
+            outCtx.putImageData(outImage, 0, 0);
+            return out;
+        } catch (e){
+            // CORS / OOM / etc — контуры просто не появятся
+            return null;
+        }
+    }
+
+    // --- fetch data ---
     function fetchData(){
         return fetch(DATA_URL, {credentials: 'same-origin'})
-            .then(function(r){
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                return r.json();
-            })
+            .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(function(json){
                 state.caravans = Array.isArray(json.caravans) ? json.caravans : [];
                 state.events   = Array.isArray(json.events)   ? json.events   : [];
                 renderEvents();
-                render();
             })
             .catch(function(err){
                 status.textContent = 'Ошибка слоёв: ' + (err.message || err);
@@ -343,67 +490,119 @@ foreach ($biomes as $b) {
     }
 
     function reload(kind){
-        setLoader(true, 'Загружаем карту…');
+        setLoader(true, kind === 'pixel' ? 'Загружаем карту + считаем контуры…' : 'Загружаем карту…');
         var basePromise = loadImage(SOURCES[kind]);
-        // Параллельно тянем pixel-карту для biome-tint, если ещё не загружена
-        var tintPromise = (kind === 'pixel' || state.pixelImg)
-            ? Promise.resolve(state.pixelImg)
-            : loadImage(SOURCES.pixel).catch(function(){ return null; });
+        var tintNeeded  = !state.pixelImg;
+        var pixelPromise = (kind === 'pixel')
+            ? basePromise
+            : (tintNeeded ? loadImage(SOURCES.pixel).catch(function(){ return null; })
+                          : Promise.resolve(state.pixelImg));
 
-        return Promise.all([basePromise, tintPromise, fetchData()])
+        return Promise.all([basePromise, pixelPromise, fetchData()])
             .then(function(results){
-                state.baseImg  = results[0];
-                if (kind === 'pixel') state.pixelImg = results[0];
-                else if (results[1])  state.pixelImg = results[1];
+                state.baseImg = results[0];
+                if (results[1] && !state.pixelImg){
+                    state.pixelImg = results[1];
+                    // pre-compute контуры (один раз)
+                    setLoader(true, 'Считаем контуры биомов…');
+                    // даём loader отрисоваться
+                    return new Promise(function(res){ setTimeout(function(){
+                        state.contourCanvas = precomputeContours(state.pixelImg);
+                        res();
+                    }, 30); });
+                }
+                return null;
+            })
+            .then(function(){
                 render();
+                updateTintLockState();
                 setLoader(false);
                 status.textContent = 'Snapshot: ' + new Date().toLocaleTimeString()
                     + ' · караванов: ' + state.caravans.length
                     + ' · событий: ' + state.events.length;
             })
             .catch(function(err){
-                setLoader(true, 'Ошибка: ' + err.message);
+                setLoader(true, 'Ошибка: ' + (err.message || err));
                 status.textContent = String(err.message || err);
             });
     }
 
-    // --- UI ---
+    function updateTintLockState(){
+        var locked = state.basemap === 'pixel';
+        tintLab.classList.toggle('is-locked', locked);
+        tintChk.disabled = locked;
+        if (locked && tintChk.checked){
+            tintChk.checked = false;
+            state.showTint = false;
+        }
+    }
 
+    function applyScale(newScale){
+        var oldVsCells = viewSizeCells();
+        var centerX = state.viewX + oldVsCells / 2;
+        var centerY = state.viewY + oldVsCells / 2;
+        state.scale = newScale;
+        centerOn(centerX, centerY);
+        // CSS class для cursor (zoom-1 = crosshair, 2/5/10 = grab)
+        box.classList.remove('zoom-1', 'zoom-2', 'zoom-5', 'zoom-10');
+        box.classList.add('zoom-' + newScale);
+        // активный label
+        document.querySelectorAll('#ww-scale-row label').forEach(function(l){
+            l.classList.toggle('is-active', parseInt(l.getAttribute('data-scale'), 10) === newScale);
+        });
+        render();
+    }
+
+    // --- UI ---
     document.querySelectorAll('input[name="ww-basemap"]').forEach(function(r){
         r.addEventListener('change', function(){
             state.basemap = this.value;
+            updateTintLockState();
             reload(state.basemap);
+        });
+    });
+    document.querySelectorAll('input[name="ww-scale"]').forEach(function(r){
+        r.addEventListener('change', function(){
+            var s = parseInt(this.value, 10);
+            if (s === 1 || s === 2 || s === 5 || s === 10) applyScale(s);
         });
     });
     gridChk.addEventListener('change', function(){ state.showGrid = this.checked; render(); });
     carChk.addEventListener('change',  function(){ state.showCar  = this.checked; render(); });
-    tintChk.addEventListener('change', function(){ state.showTint = this.checked; render(); });
+    tintChk.addEventListener('change', function(){
+        if (this.disabled) return;
+        state.showTint = this.checked;
+        render();
+    });
     refresh.addEventListener('click',  function(){ reload(state.basemap); });
 
-    // hover → координаты + tooltip + проверка попадания в караван
-    function pointerToCanvas(evt){
+    // --- pointer math + tooltip + drag-pan ---
+    function eventToCanvas(evt){
         var rect = canvas.getBoundingClientRect();
         var cx = (evt.clientX - rect.left) * (CANVAS_SIZE / rect.width);
         var cy = (evt.clientY - rect.top)  * (CANVAS_SIZE / rect.height);
-        var wx = Math.min(WORLD_SIZE, Math.max(1, Math.floor(cx / PX_PER_CELL) + 1));
-        var wy = Math.min(WORLD_SIZE, Math.max(1, Math.floor(cy / PX_PER_CELL) + 1));
+        var pxPerCell = CANVAS_SIZE / viewSizeCells();
+        // floor сначала суммы (cell в worldCoords) → потом +1 даёт 1..1000
+        var wx = Math.min(WORLD_SIZE, Math.max(1, Math.floor(cx / pxPerCell + state.viewX) + 1));
+        var wy = Math.min(WORLD_SIZE, Math.max(1, Math.floor(cy / pxPerCell + state.viewY) + 1));
         return {cx: cx, cy: cy, wx: wx, wy: wy, clientX: evt.clientX, clientY: evt.clientY};
     }
     function nearestCaravan(cx, cy){
         if (!state.showCar || !state.caravans.length) return null;
-        var best = null, bestD = CARAVAN_HIT_RADIUS * CARAVAN_HIT_RADIUS;
+        var pxPerCell = CANVAS_SIZE / viewSizeCells();
+        var HIT2 = 36 * 36;
+        var best = null, bestD = HIT2;
         for (var i = 0; i < state.caravans.length; i++){
             var c = state.caravans[i];
             if (!c.x || !c.y) continue;
-            var px = (c.x - 1) * PX_PER_CELL;
-            var py = (c.y - 1) * PX_PER_CELL;
+            var px = (c.x - state.viewX) * pxPerCell;
+            var py = (c.y - state.viewY) * pxPerCell;
             var d = (cx - px) * (cx - px) + (cy - py) * (cy - py);
             if (d < bestD){ bestD = d; best = c; }
         }
         return best;
     }
     function buildCaravanTip(car){
-        // Безопасное построение через DOM API + textContent — не использовать innerHTML с данными из БД.
         while (tip.firstChild) tip.removeChild(tip.firstChild);
         var header = document.createElement('b');
         header.textContent = '🚚 Караван';
@@ -419,30 +618,78 @@ foreach ($biomes as $b) {
         });
     }
 
-    canvas.addEventListener('mousemove', function(evt){
-        var p = pointerToCanvas(evt);
+    canvas.addEventListener('mousedown', function(evt){
+        if (state.scale === 1) return; // на 1× pan не нужен
+        state.drag = {
+            startClientX: evt.clientX,
+            startClientY: evt.clientY,
+            startViewX:   state.viewX,
+            startViewY:   state.viewY
+        };
+        canvas.classList.add('is-dragging');
+        evt.preventDefault();
+    });
+    window.addEventListener('mousemove', function(evt){
+        if (state.drag){
+            var rect = canvas.getBoundingClientRect();
+            var pxPerCellScreen = rect.width / viewSizeCells();
+            var dxCells = (evt.clientX - state.drag.startClientX) / pxPerCellScreen;
+            var dyCells = (evt.clientY - state.drag.startClientY) / pxPerCellScreen;
+            state.viewX = state.drag.startViewX - dxCells;
+            state.viewY = state.drag.startViewY - dyCells;
+            render();
+            return;
+        }
+        // обычный hover — только если курсор над canvas
+        if (evt.target !== canvas) return;
+        var p = eventToCanvas(evt);
         var car = nearestCaravan(p.cx, p.cy);
         coords.textContent = 'Клетка (X=' + p.wx + ', Y=' + p.wy + ')';
-        if (car){
-            buildCaravanTip(car);
-        } else {
-            tip.textContent = '(' + p.wx + ', ' + p.wy + ')';
-        }
+        if (car){ buildCaravanTip(car); }
+        else { tip.textContent = '(' + p.wx + ', ' + p.wy + ')'; }
         tip.classList.add('is-visible');
         var boxRect = box.getBoundingClientRect();
         tip.style.left = (p.clientX - boxRect.left) + 'px';
         tip.style.top  = (p.clientY - boxRect.top) + 'px';
     });
-    canvas.addEventListener('mouseleave', function(){
-        tip.classList.remove('is-visible');
-        coords.textContent = 'Наведи курсор, чтобы увидеть координаты клетки';
+    window.addEventListener('mouseup', function(){
+        if (state.drag){
+            state.drag = null;
+            canvas.classList.remove('is-dragging');
+        }
     });
-    canvas.addEventListener('touchstart', function(evt){
-        if (!evt.touches || !evt.touches[0]) return;
-        var p = pointerToCanvas(evt.touches[0]);
-        coords.textContent = 'Клетка (X=' + p.wx + ', Y=' + p.wy + ')';
-    }, {passive: true});
+    canvas.addEventListener('mouseleave', function(){
+        if (!state.drag){
+            tip.classList.remove('is-visible');
+            coords.textContent = 'Наведи курсор, чтобы увидеть координаты клетки';
+        }
+    });
 
+    // touch — drag-pan + tap координаты
+    canvas.addEventListener('touchstart', function(evt){
+        if (state.scale === 1 || !evt.touches || !evt.touches[0]) return;
+        var t = evt.touches[0];
+        state.drag = {
+            startClientX: t.clientX,
+            startClientY: t.clientY,
+            startViewX:   state.viewX,
+            startViewY:   state.viewY
+        };
+    }, {passive: true});
+    canvas.addEventListener('touchmove', function(evt){
+        if (!state.drag || !evt.touches || !evt.touches[0]) return;
+        var t = evt.touches[0];
+        var rect = canvas.getBoundingClientRect();
+        var pxPerCellScreen = rect.width / viewSizeCells();
+        state.viewX = state.drag.startViewX - (t.clientX - state.drag.startClientX) / pxPerCellScreen;
+        state.viewY = state.drag.startViewY - (t.clientY - state.drag.startClientY) / pxPerCellScreen;
+        render();
+        evt.preventDefault();
+    }, {passive: false});
+    canvas.addEventListener('touchend', function(){ state.drag = null; }, {passive: true});
+
+    // первый запуск
+    updateTintLockState();
     reload(state.basemap);
 })();
 </script>
