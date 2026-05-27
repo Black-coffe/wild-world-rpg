@@ -209,6 +209,12 @@ class CallbackRoutes extends BaseConfig
         // V20 (ADR-051) — фракц-проект (общий вклад → фракц-buff).
         'factionProject'                  => \App\Controllers\Telegram\Commands\Actions\Faction\FactionProjectAction::class,
         'factionProjectLocked'            => \App\Controllers\Telegram\Commands\Actions\Faction\FactionProjectLockedAction::class,
+        // W1+W2 (ADR-058) — Drone-recon. info-callback из CraftRecipes['DroneScout']
+        // → DroneScoutCraftInfoAction (preview-экран с чек-листом ✅/❌ требований +
+        // «🛠 Крафтить» когда всё доступно). CLAUDE.md §🎮 UX-DISCOVERABILITY fix:
+        // ранее этот ключ был указан в recipe info_callback, но не зарегистрирован
+        // здесь, и в StandardCraftingAction не было кнопки → BUILT-BUT-DEAD.
+        'droneScout'                      => \App\Controllers\Telegram\Commands\Actions\Drone\DroneScoutCraftInfoAction::class,
         'factionDeposit'                  => \App\Controllers\Telegram\Commands\Actions\Faction\FactionProjectDepositConfirmAction::class,
 
         // === Camp / Base management ===
