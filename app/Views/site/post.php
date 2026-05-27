@@ -22,7 +22,10 @@ $tg     = $social->botLink;
 
 <article class="block" style="padding-top:24px">
     <div class="container">
-        <header style="max-width:70ch">
+        <?php /* Текстовая колонка (header/prose) центрирована (max-width:70ch + margin:0 auto),
+                hero-img ограничен той же шириной — устраняет визуальную асимметрию
+                «header слева — image full — prose слева». */ ?>
+        <header style="max-width:70ch;margin-left:auto;margin-right:auto">
             <?php if ($categories !== []): ?>
                 <div class="row gap-1" style="margin-bottom:16px">
                     <?php foreach ($categories as $c): ?>
@@ -39,13 +42,14 @@ $tg     = $social->botLink;
         </header>
 
         <?php if ($img !== null): ?>
-            <figure style="margin:32px 0 24px">
+            <figure style="max-width:70ch;margin:32px auto 24px">
                 <img src="<?= esc($img, 'attr') ?>" alt="<?= esc($title) ?>" loading="lazy" style="width:100%;border:1px solid var(--border)">
             </figure>
         <?php endif ?>
 
-        <?php /* content_html — доверенный HTML из собственного WordPress (ADR-052) */ ?>
-        <div class="prose mt-3"><?= $content ?></div>
+        <?php /* content_html — доверенный HTML из собственного WordPress (ADR-052).
+                .prose уже max-width:70ch; margin:0 auto центрирует под header. */ ?>
+        <div class="prose mt-3" style="margin-left:auto;margin-right:auto"><?= $content ?></div>
 
         <div class="cta mt-4">
             <div>

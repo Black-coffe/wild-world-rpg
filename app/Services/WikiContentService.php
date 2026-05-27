@@ -38,6 +38,7 @@ final class WikiContentService
         'Партизаны' => 'partisans',
         'Инженеры'  => 'engineers',
         'Фермеры'   => 'farmers',
+        'Нейтралы'  => 'neutrals',
     ];
 
     /** name_en объекта мира → ключ картинки (ImageRegistry objects/<...>). */
