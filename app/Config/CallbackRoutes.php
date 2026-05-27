@@ -33,6 +33,10 @@ class CallbackRoutes extends BaseConfig
         'getTrainedStart2'                => \App\Controllers\Telegram\Commands\Actions\StartGame\GetTrainingStart2Action::class,
         'getTrainedStart3'                => \App\Controllers\Telegram\Commands\Actions\StartGame\GetTrainingStart3Action::class,
         'getTrainedStart4'                => \App\Controllers\Telegram\Commands\Actions\StartGame\GetTrainingStart4Action::class,
+        // W7a (ADR-065): расширение Robi-chain 4 → 7 шагов под killswitch onboarding.robi_extended.enabled.
+        'getTrainedStart5'                => \App\Controllers\Telegram\Commands\Actions\StartGame\GetTrainingStart5Action::class,
+        'getTrainedStart6'                => \App\Controllers\Telegram\Commands\Actions\StartGame\GetTrainingStart6Action::class,
+        'getTrainedStart7'                => \App\Controllers\Telegram\Commands\Actions\StartGame\GetTrainingStart7Action::class,
         'startAdventure'                  => \App\Controllers\Telegram\Commands\Actions\StartGame\StartAdventureAction::class,
         'exploreAreaTips'                 => \App\Controllers\Telegram\Commands\Actions\StartGame\ExploreAreaTipsAction::class,
         'moveNorthEastTips'               => \App\Controllers\Telegram\Commands\Actions\StartGame\MoveNorthEastTips::class,

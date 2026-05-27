@@ -6,11 +6,14 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterModel;
 use App\Models\ResourceModel;
 use App\Models\ActionLogModel;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
 class GetTrainingStartAction extends BaseAction
 {
+    use GameSettingsReaderTrait;
+
     protected $characterModel;
     protected $resourceModel;
     protected $actionLogModel;
@@ -57,8 +60,9 @@ class GetTrainingStartAction extends BaseAction
             ]);
         }
 
-        // Формируем сообщение
-        $text = "📍 *Шаг 1/4*\n\n"
+        // W7a (ADR-065): расширение Robi-chain 4 → 7 шагов под killswitch.
+        $total = $this->gsBool('onboarding.robi_extended.enabled', true) ? 7 : 4;
+        $text  = "📍 *Шаг 1/{$total}*\n\n"
             . "🤖 *Приветствую тебя в академии выживания Wild World!* 🌟\n\n"
             . "🗺 Ты находишься на пороге увлекательного путешествия по огромному миру.\n\n"
             . "🗺 Мир — это огромный остров: каждая ячейка на карте — возможность для приключений, ресурсов и испытаний.\n\n"

@@ -5,11 +5,14 @@ namespace App\Controllers\Telegram\Commands\Actions\StartGame;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterModel;
 use App\Models\ActionLogModel;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
 class GetTrainingStart2Action extends BaseAction
 {
+    use GameSettingsReaderTrait;
+
     protected $characterModel;
     protected $actionLogModel;
 
@@ -54,8 +57,9 @@ class GetTrainingStart2Action extends BaseAction
             ]);
         }
 
-        // Form the message
-        $text = "📍 *Шаг 2/4*\n\n"
+        // W7a (ADR-065): расширение Robi-chain 4 → 7 шагов под killswitch.
+        $total = $this->gsBool('onboarding.robi_extended.enabled', true) ? 7 : 4;
+        $text  = "📍 *Шаг 2/{$total}*\n\n"
             . "🤖 *Биомы в Wild World!* 🌳\n\n"
             . "🔍 На острове ты можешь найти *9 различных биомов*, каждый со своими особенностями, рисками и ресурсами:\n\n"
             . "- Леса, Горы, Тундра и ледяные пустоши, Реки, Тропические джунгли, Поля и равнины, Пещеры и подземелья, Вулканические территории и Пустыни\n\n"

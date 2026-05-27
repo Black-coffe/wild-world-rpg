@@ -17,6 +17,7 @@
 | W4 | **Repair drone build** (ADR-063, gold-only batch ремонтник, gate RoboticsWorkshop L3, V19 overlay distinct-value) | ✅ SHIPPED prod (Tier-1 + Tier-3 partial PASS) | v0.51.284 | 2026-05-27 |
 | W5 | **Combat drone + Caravan drone-offer integration** (ADR-064, 🏁 закрытие Фазы 1 Drone-family) | ✅ SHIPPED prod (Tier-1 PASS + Tier-3 partial PASS — bug catch + hotfix) | v0.51.287 | 2026-05-27 |
 | W6 | **Onboarding redux #11 — audit + scope** (ADR-065, hybrid: Robi 4→7 + «Что нового» catalog) | ✅ SHIPPED docs-only (без кода, реализация в W7) | — | 2026-05-27 |
+| W7a | **Onboarding redux — Robi extension 4→7 шагов** (ADR-065 implement Part 1: шаги 5/7 «Подсказки и советы» + 6/7 «Этапы прокачки» + 7/7 closer; killswitch GameSettings) | ⏳ Tier-1 ✅ ждёт deploy | — | 2026-05-27 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -105,6 +106,29 @@
 > миграции применились на проде (verified via SSH SQL: 3 keys + column + table). **`enabled=false`
 > default → 0 регрессии: gather проходит без cap-check, существующие игроки не видят изменений.**
 > W3b (cargo drone uses W3a primitives) = следующая сессия.
+>
+> **W7a Tier-1 PASS 2026-05-27 (без deploy):** Старт Фазы 2 vNext2 (Onboarding & Achievement),
+> implement Part 1 ADR-065 hybrid. Split W7→W7a (Robi extension сейчас) + W7b (Catalog «Что
+> нового» отдельно с фото-art-tail). Сделано: 1 migration `2026-06-02-100000_W7aSeedOnboardingRobiExtendedGameSettings`
+> (1 killswitch `onboarding.robi_extended.enabled` default=true, category=world, rich
+> rationale ADR-024) + 3 NEW handlers `GetTrainingStart5/6/7Action` (Шаг 5/7 «Подсказки и
+> советы» = объяснение `/tips` + Совет дня 10:00 + opt-out через ⚙️ Настройки; Шаг 6/7
+> «Этапы прокачки» = lvl 5 Специализация → lvl 10 фракция → Robotics L1-L4 каскад дронов →
+> защита базы → ремонт/полис/караваны; Шаг 7/7 «Готов идти» closer + CTA) + 4 PATCH
+> existing (Step1/2/3/4Action: dynamic «N/4» vs «N/7» через `gsBool('onboarding.robi_extended.enabled', true)`;
+> Step4 — conditional nextStep=`startAdventure` legacy vs `getTrainedStart5` extended + кнопка
+> label change «🛣 К приключениям!» vs «💡 Продолжить обучение») + CallbackRoutes +3 exact
+> (`getTrainedStart5/6/7`). **0 новых тестов** (handler-trivial copy-of-pattern; Tier-3
+> cold-smoke на чистом тест-чаре покрывает chain end-to-end). **Tier-1 ✅ 952/952 PASS +
+> 8026 assertions + phpstan L9 NO ERRORS на 662 файлах + php -l все 8 файлов.** PHPStan
+> fix-цикл: type narrowing для `$lastAction['action_status']` (`$lastAction` = `array|object|null`
+> из `first()`) через `is_array($lastAction) && ($lastAction['action_status'] ?? null) ===
+> 'Completed'`; убрать redeclare of parent's `$characterModel` property. Photos: W7a
+> переиспользует existing assets (`final-step-image.jpg` / `beautiful_map.png` / `ready-for-adventure.jpg`)
+> как placeholders — dedicated LEXICON-asset'ы придут в W7b вместе с catalog photos.
+> Media-off safe: caption полноценный, картинки = enhancement. ADR-065 закрытие Part 1 в
+> рамках hybrid-плана; Part 2 (catalog «📚 Что нового» + JSON column + topic seed-table +
+> Перс button + returning-cooldown + 5-6 LEXICON photos) = W7b. **🏁 W7a/30, Фаза 2 — 1/5.**
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 

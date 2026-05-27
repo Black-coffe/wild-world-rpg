@@ -5,11 +5,14 @@ namespace App\Controllers\Telegram\Commands\Actions\StartGame;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterModel;
 use App\Models\ActionLogModel;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
 class GetTrainingStart3Action extends BaseAction
 {
+    use GameSettingsReaderTrait;
+
     protected $characterModel;
     protected $actionLogModel;
 
@@ -54,8 +57,9 @@ class GetTrainingStart3Action extends BaseAction
             ]);
         }
 
-        // Сформируем сообщение
-        $text = "📍 *Шаг 3/4*\n\n"
+        // W7a (ADR-065): расширение Robi-chain 4 → 7 шагов под killswitch.
+        $total = $this->gsBool('onboarding.robi_extended.enabled', true) ? 7 : 4;
+        $text  = "📍 *Шаг 3/{$total}*\n\n"
             . "🤖 *События в мире Wild World!* 🌍\n\n"
             . "🎉 На острове тебя ждут разные уникальные события, готовые добавить приключений в твою игру!\n\n"
             . "⚡ События в игре бывают разных видов: некоторые дают усиливающие эффекты, другие ослабляют персонажа, а некоторые даже наносят серьезный урон.\n\n"

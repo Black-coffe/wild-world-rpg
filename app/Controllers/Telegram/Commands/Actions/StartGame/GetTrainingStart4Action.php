@@ -5,11 +5,14 @@ namespace App\Controllers\Telegram\Commands\Actions\StartGame;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterModel;
 use App\Models\ActionLogModel;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
 class GetTrainingStart4Action extends BaseAction
 {
+    use GameSettingsReaderTrait;
+
     protected $characterModel;
     protected $actionLogModel;
 
@@ -37,11 +40,9 @@ class GetTrainingStart4Action extends BaseAction
             'action_name' => $className
         ])->orderBy('created_at', 'DESC')->first();
 
-        $nextStep = 'getTrainedStart4'; // Default next step
-        if ($lastAction && $lastAction['action_status'] === 'Completed') {
-            // Update to the actual next step if the last action is completed
-            $nextStep = 'getTrainedStart5'; // Assume this is the correct next step
-        }
+        // W7a (ADR-065): killswitch для шагов 5-7. Если выключен — закрываем
+        // онбординг на шаге 4/4 как раньше (startAdventure).
+        $extended = $this->gsBool('onboarding.robi_extended.enabled', true);
 
         // Log this action as done only if it's not logged yet
         if (!$lastAction || $lastAction['action_status'] !== 'Completed') {
@@ -54,8 +55,14 @@ class GetTrainingStart4Action extends BaseAction
             ]);
         }
 
+        $total       = $extended ? 7 : 4;
+        $nextStep    = $extended ? 'getTrainedStart5' : 'startAdventure';
+        $continueBtn = $extended
+            ? ['text' => '💡 Продолжить обучение', 'callback_data' => $nextStep]
+            : ['text' => '🛣 К приключениям!',     'callback_data' => $nextStep];
+
         // Формируем финальное информационное сообщение
-        $text = "📍 *Шаг 4/4*\n\n"
+        $text = "📍 *Шаг 4/{$total}*\n\n"
             . "🤖 *Сеттинг: Wild World*\n\n"
             . "Это текстовая RPG с элементами песочницы — выживание после глобальной катастрофы на изолированном острове. Цивилизация рухнула, ты разбираешься как жить дальше.\n\n"
             . "📜 *В игре ты будешь:*\n"
@@ -74,7 +81,7 @@ class GetTrainingStart4Action extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '✖️ Завершить обучение', 'callback_data' => 'withoutTrainingStart'],
-                    ['text' => '🛣 К приключениям!', 'callback_data' => 'startAdventure']
+                    $continueBtn,
                 ],
             ]
         ];
