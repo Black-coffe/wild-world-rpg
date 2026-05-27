@@ -86,8 +86,13 @@ foreach ($biomes as $b) {
 .ww-map-auth .ww-auth-hello{font-size:.92rem}
 .ww-map-auth .ww-auth-hello b{color:var(--ww-accent)}
 .ww-map-auth .ww-auth-hint{font-size:.78rem;color:var(--ww-muted);line-height:1.4;margin:.3rem 0 0}
-.ww-map-auth .ww-auth-logout{display:inline-block;padding:.4rem .8rem;background:transparent;border:1px solid var(--ww-line);color:var(--ww-muted);border-radius:4px;font-family:"Oswald",sans-serif;text-transform:uppercase;font-size:.78rem;letter-spacing:.04em;cursor:pointer}
+.ww-map-auth .ww-auth-logout{display:inline-flex;align-items:center;padding:.45rem .8rem;background:transparent;border:1px solid var(--ww-line);color:var(--ww-muted);border-radius:4px;font-family:"Oswald",sans-serif;text-transform:uppercase;font-size:.78rem;letter-spacing:.04em;cursor:pointer}
 .ww-map-auth .ww-auth-logout:hover{border-color:#e85555;color:#e85555}
+.ww-map-auth .ww-auth-row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+.ww-auth-locate{display:inline-flex;align-items:center;gap:.4rem;padding:.45rem .8rem;background:#39db97;color:#0a1f15;border:none;border-radius:4px;font-family:"Oswald",sans-serif;text-transform:uppercase;font-size:.82rem;letter-spacing:.05em;cursor:pointer;font-weight:600}
+.ww-auth-locate:hover{background:#2ec384}
+.ww-auth-locate:disabled{background:#2a3a30;color:#5a6a60;cursor:not-allowed}
+.ww-auth-locate svg{width:18px;height:18px;fill:currentColor;flex-shrink:0}
 </style>
 <?= $this->endSection() ?>
 
@@ -114,10 +119,16 @@ foreach ($biomes as $b) {
                     <h3>Доступ</h3>
                     <?php if ($auth['logged_in']): ?>
                         <span class="ww-auth-hello">Привет, <b><?= esc($auth['first_name'] !== '' ? $auth['first_name'] : 'игрок') ?></b>!</span>
-                        <form method="post" action="<?= esc(base_url('logout/telegram'), 'attr') ?>">
-                            <input type="hidden" name="<?= esc($csrfName, 'attr') ?>" value="<?= esc($csrfHash, 'attr') ?>">
-                            <button type="submit" class="ww-auth-logout">Выйти</button>
-                        </form>
+                        <div class="ww-auth-row">
+                            <button type="button" class="ww-auth-locate" id="ww-locate-me" disabled title="Подсветить позицию персонажа на карте">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
+                                Я на карте
+                            </button>
+                            <form method="post" action="<?= esc(base_url('logout/telegram'), 'attr') ?>" style="margin:0">
+                                <input type="hidden" name="<?= esc($csrfName, 'attr') ?>" value="<?= esc($csrfHash, 'attr') ?>">
+                                <button type="submit" class="ww-auth-logout">Выйти</button>
+                            </form>
+                        </div>
                         <p class="ww-auth-hint">Видишь свою позицию на карте (зелёный маркер ●). Других игроков карта не показывает.</p>
                     <?php elseif ($botUsername !== ''): ?>
                         <span class="ww-auth-hello">Войди через Telegram, чтобы видеть свою позицию на карте.</span>
@@ -252,7 +263,8 @@ foreach ($biomes as $b) {
     var WORLD_SIZE  = 1000;        // 1000×1000 логических клеток
     var PNG_NATIVE  = 2000;        // нативный размер исходных PNG = WORLD_SIZE * 2
 
-    var meChk   = document.getElementById('ww-toggle-me');  // может быть null если не auth'ован
+    var meChk    = document.getElementById('ww-toggle-me');   // может быть null если не auth'ован
+    var locateBtn = document.getElementById('ww-locate-me'); // null если не auth'ован
     var canvas  = document.getElementById('ww-map-canvas');
     var ctx     = canvas.getContext('2d');
     var loader  = document.getElementById('ww-map-loader');
@@ -283,7 +295,9 @@ foreach ($biomes as $b) {
         caravans:      [],
         events:        [],
         me:            null, // ADR-061: {x, y, name, level} если auth'ован, иначе null
-        drag:          null  // {startX, startY, startViewX, startViewY}
+        drag:          null, // {startX, startY, startViewX, startViewY}
+        ripple:        null, // {t0, duration} — анимация подсветки позиции (Я на карте)
+        panAnim:       null  // {t0, duration, fromX, fromY, toX, toY, onDone}
     };
 
     // --- утилиты ---
@@ -424,6 +438,32 @@ foreach ($biomes as $b) {
         ctx.restore();
     }
 
+    function drawRipples(){
+        if (!state.ripple || !state.me) return;
+        var elapsed = performance.now() - state.ripple.t0;
+        var progress = elapsed / state.ripple.duration; // 0..1
+        if (progress >= 1) return;
+        var vsCells = viewSizeCells();
+        var pxPerCell = CANVAS_SIZE / vsCells;
+        if (state.me.x < state.viewX || state.me.x > state.viewX + vsCells) return;
+        if (state.me.y < state.viewY || state.me.y > state.viewY + vsCells) return;
+        var cx = (state.me.x - state.viewX) * pxPerCell;
+        var cy = (state.me.y - state.viewY) * pxPerCell;
+        var MAX_R = 280; // canvas-px
+        ctx.save();
+        for (var i = 0; i < 3; i++){
+            var phase = (progress + i * 0.33) % 1;
+            var radius = phase * MAX_R;
+            var opacity = (1 - phase) * 0.75;
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = 'rgba(57,219,151,' + opacity + ')';
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
     function drawMe(){
         if (!state.me) return;
         var vsCells = viewSizeCells();
@@ -468,7 +508,74 @@ foreach ($biomes as $b) {
         if (state.showTint && state.basemap === 'beautiful') drawContours();
         if (state.showGrid)  drawGrid();
         if (state.showCar)   drawCaravans();
+        if (state.ripple)    drawRipples();
         if (state.showMe)    drawMe();
+    }
+
+    // --- animated pan + ripples ---
+
+    function animatePan(toX, toY, duration, onDone){
+        var fromX = state.viewX;
+        var fromY = state.viewY;
+        if (Math.abs(toX - fromX) < 0.01 && Math.abs(toY - fromY) < 0.01){
+            if (onDone) onDone();
+            return;
+        }
+        state.panAnim = {t0: performance.now(), duration: duration, fromX: fromX, fromY: fromY, toX: toX, toY: toY, onDone: onDone};
+        requestAnimationFrame(panStep);
+    }
+    function panStep(){
+        if (!state.panAnim) return;
+        var t = (performance.now() - state.panAnim.t0) / state.panAnim.duration;
+        if (t >= 1){
+            state.viewX = state.panAnim.toX;
+            state.viewY = state.panAnim.toY;
+            var done = state.panAnim.onDone;
+            state.panAnim = null;
+            render();
+            if (done) done();
+            return;
+        }
+        var k = 1 - Math.pow(1 - t, 3); // easeOutCubic
+        state.viewX = state.panAnim.fromX + (state.panAnim.toX - state.panAnim.fromX) * k;
+        state.viewY = state.panAnim.fromY + (state.panAnim.toY - state.panAnim.fromY) * k;
+        render();
+        requestAnimationFrame(panStep);
+    }
+
+    function startRipple(){
+        state.ripple = {t0: performance.now(), duration: 1800};
+        function tick(){
+            if (!state.ripple) return;
+            var elapsed = performance.now() - state.ripple.t0;
+            if (elapsed >= state.ripple.duration){
+                state.ripple = null;
+                render();
+                return;
+            }
+            render();
+            requestAnimationFrame(tick);
+        }
+        requestAnimationFrame(tick);
+    }
+
+    function locateMe(){
+        if (!state.me) return;
+        // Гарантируем что слой Моя позиция включён
+        if (meChk && !meChk.checked){
+            meChk.checked = true;
+            state.showMe = true;
+        }
+        // На 1× viewport покрывает весь мир — pan не нужен. На 2×+ — центрируем.
+        var vsCells = viewSizeCells();
+        var max = WORLD_SIZE - vsCells;
+        var targetX = state.me.x - vsCells / 2;
+        var targetY = state.me.y - vsCells / 2;
+        if (targetX < 0) targetX = 0;
+        if (targetY < 0) targetY = 0;
+        if (targetX > max) targetX = max;
+        if (targetY > max) targetY = max;
+        animatePan(targetX, targetY, 600, startRipple);
     }
 
     function renderEvents(){
@@ -582,6 +689,7 @@ foreach ($biomes as $b) {
                 state.events   = Array.isArray(json.events)   ? json.events   : [];
                 state.me       = (json.me && typeof json.me === 'object') ? json.me : null;
                 renderEvents();
+                if (locateBtn) locateBtn.disabled = !state.me;
             })
             .catch(function(err){
                 status.textContent = 'Ошибка слоёв: ' + (err.message || err);
@@ -677,6 +785,12 @@ foreach ($biomes as $b) {
         meChk.addEventListener('change', function(){
             state.showMe = this.checked;
             render();
+        });
+    }
+    if (locateBtn){
+        locateBtn.addEventListener('click', function(){
+            if (this.disabled) return;
+            locateMe();
         });
     }
     refresh.addEventListener('click',  function(){ reload(state.basemap); });
