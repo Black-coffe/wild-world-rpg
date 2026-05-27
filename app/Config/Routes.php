@@ -184,6 +184,9 @@ $routes->get('author-sitemap.xml', 'Sitemap::authors');
 $routes->get('wiki', 'Wiki::index');
 $routes->get('wiki/(:segment)', 'Wiki::entry/$1');
 
+// Интерактивная карта мира (MVP: 2 подложки + сетка + легенда; будущие слои — следующей итерацией).
+$routes->get('map', 'Map::index');
+
 // 7 категорий блога (явно — иначе их перехватит корневой catch-all postslug).
 $routes->get('devblog', 'Front::category/devblog');
 $routes->get('informacija', 'Front::category/informacija');

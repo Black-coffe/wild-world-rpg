@@ -145,6 +145,7 @@ $uri     = uri_string();
                         </ul>
                     </li>
                     <li class="nav-item"><a class="nav-link <?= str_starts_with($uri, 'wiki') ? 'active' : '' ?>" href="<?= base_url('wiki') ?>">Вики</a></li>
+                    <li class="nav-item"><a class="nav-link <?= $uri === 'map' ? 'active' : '' ?>" href="<?= base_url('map') ?>">Карта</a></li>
                     <li class="nav-item ms-lg-3 mt-2 mt-lg-0">
                         <a class="ww-btn ww-btn-play" href="<?= esc($tgLink, 'attr') ?>" target="_blank" rel="noopener">▶ Играть в Telegram</a>
                     </li>
