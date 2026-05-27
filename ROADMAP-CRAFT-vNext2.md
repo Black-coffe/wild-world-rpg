@@ -15,7 +15,7 @@
 | W3a | **Weight-cap + base_storage foundation** (ADR-059, default OFF на ship) | ✅ SHIPPED prod (Tier-1/2 PASS) | v0.51.270 | 2026-05-26 |
 | W3b | **Cargo drone build** (ADR-060, lock-button discoverability + atomic delivery + retrieve UI) | ✅ SHIPPED prod (Tier-1 + Tier-2 + Tier-3 partial PASS) | v0.51.274 | 2026-05-27 |
 | W4 | **Repair drone build** (ADR-063, gold-only batch ремонтник, gate RoboticsWorkshop L3, V19 overlay distinct-value) | ✅ SHIPPED prod (Tier-1 + Tier-3 partial PASS) | v0.51.284 | 2026-05-27 |
-| W5 | Combat drone + Caravan blueprint integration (🏁 закрытие Фазы 1) | ⏳ pending | — | — |
+| W5 | **Combat drone + Caravan drone-offer integration** (ADR-064, 🏁 закрытие Фазы 1 Drone-family) | ✅ SHIPPED prod (Tier-1 PASS + Tier-3 partial PASS — bug catch + hotfix) | v0.51.287 | 2026-05-27 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -51,6 +51,35 @@
 > Deferred: (E) recharge cron — unit-тесты покрывают, естественная игра закроет; (F)
 > PvP-zone block — `map.pvp` колонки нет, механизм отложу до W4/W5.
 
+> **W5 SHIPPED preprod 2026-05-27 (commit `b0d1059`, GA Deploy run `26533176168`):**
+> 🏁 **Закрытие Drone-family Фазы 1 (5/5).** Combined-сессия (user-pick через
+> AskUserQuestion 2026-05-27): Combat drone (defensive time-window, +12% инициативы
+> защитнику на 30 мин, cap 25% combined с WatchTower; activation by-request, drains
+> battery; recharge 6 ч on_base — premium-est tier) + Caravan drone-offer integration
+> (per-type chance/markup, закрытие W1 dead promise `drone.scout.caravan_offer_chance`
+> — теперь все 4 типа дронов могут продаваться готовыми у NPC-каравaнов за gold с
+> премиум-наценкой 3×). [[mmorpg-vault/decisions/ADR-064-Combat-drone-and-caravan-drone-offer]]
+> — 12 резолюций, 5-осевая Σ=13, 7 ворот ✅, 10-портретный чек (8/10 profit, 2 нейтрал,
+> 0 negative). **5 миграций** (drone.combat.* 7 ключей rich rationale ADR-024 + crafted_items
+> DroneCombat type='drones' durability=100 gate RoboticsWorkshop L4 + ALTER characters
+> ADD combat_drone_active_until DATETIME NULL lazy-expiry pattern + ALTER caravans ADD
+> offer_type/drone_type/gold_price backward-compat 'resource' default + drone.<type>.caravan_offer_chance × 3
+> + caravan_markup_multiplier × 4). **+4 NEW handlers** (CombatDroneListAction charge-bar +
+> active/charging status, CombatDroneActivateAction atomic tx + double-activation guard,
+> DroneCombatCraftInfoAction preview-чек-лист, CaravanBuyDroneAction atomic INSERT crafted_items_log
+> full battery) + **6 PATCH** (DroneService +9 combat* + 2 caravan helpers,
+> DefenseStructureService integration with DroneService + lazy combat_drone_active_until
+> check / **NO new mt_rand → RNG-fence safe**, DroneRechargeCron +4-й type DroneCombat,
+> CaravanService +droneOfferCatalog/computeDroneOfferGold/isDroneOfferType/droneTypeFromOffer,
+> SpawnCaravanCron +rollDroneOffer перед resource fallback, CaravanLookAction +branch drone-offer
+> карточки, CharacterService +status-строка «🛡 Боевой дрон активен X мин» + lock-aware кнопка
+> endgame row, StandardCraftingAction +🛡 в droneRow accumulator-pack, CallbackRoutes +combatDroneList/
+> droneCombat, CallbackPrefixDispatcher +combatDroneActivate_/caravanBuyDrone_).
+> **+21 unit-тестов** (931→952, 8026 assertions). **Tier-1 ✅ phpstan L9 NO ERRORS на 659 файлах.**
+> **Дальше:** Tier-3 cold-smoke на testbot после deploy (Combat activation flow + Caravan
+> force drone-offer + atomic buy) → cherry-pick на master + prod tag → art-tail
+> (`php spark images:generate --missing` для `drone_combat.jpg`) отдельным тегом.
+>
 > **W3 AUDIT+ADR DONE 2026-05-26:** Audit-first выявил drift — ROADMAP §2 line 100
 > описывает Cargo drone через «переноска ресурса из дальней клетки на базу», но
 > `GatherResultPersister:74` пишет gather напрямую в `character_resources` (нет «ресурса
