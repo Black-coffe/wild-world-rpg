@@ -123,15 +123,11 @@ class AchievementCheckCron extends BaseTaskHandler
         }
         $msg .= '_Так держать, выживший._';
 
-        $keyboard = [
-            'inline_keyboard' => [[
-                ['text' => '👤 Персонаж', 'callback_data' => 'character'],
-            ]],
-        ];
-
-        $this->safeSendMessage($chatId, $msg, [
-            'parse_mode'   => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
+        // Без inline-кнопок: «Перс» уже зафиксирован в постоянной reply-клавиатуре бота
+        // (Перс / База / Крафт / Карта / Настройки, StartCommand:40, one_time_keyboard=false).
+        // Дублировать persistent-кнопку inline'ом = шум (button-connectedness rule, см.
+        // memory feedback_no_duplicate_persistent_keyboard_buttons). W10 добавит уместную
+        // «🏅 Достижения» (когда появится экран просмотра).
+        $this->safeSendMessage($chatId, $msg, ['parse_mode' => 'Markdown']);
     }
 }
