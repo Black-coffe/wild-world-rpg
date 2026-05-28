@@ -137,4 +137,93 @@ final class DuelServiceTest extends CIUnitTestCase
             $this->assertSame($strong[$k], $weak[$k], "Поле {$k} должно быть равным после equalize");
         }
     }
+
+    // ---- W18.5 (ADR-073): resolveDuel — детерминированный исход, без ничьи ----
+
+    /** @param array<int,array<string,mixed>> $logs */
+    private function exhausted(array $logs): array
+    {
+        return ['type' => 'exhausted', 'rounds' => 150, 'winner' => null, 'loser' => null, 'roundLogs' => $logs];
+    }
+
+    public function testResolveKnockout(): void
+    {
+        $svc    = new DuelService();
+        $result = ['type' => 'normal', 'rounds' => 7, 'winner' => ['id' => 1, 'name' => 'A'], 'loser' => ['id' => 2, 'name' => 'B'], 'roundLogs' => []];
+        $r      = $svc->resolveDuel($result, ['id' => 1, 'name' => 'A'], ['id' => 2, 'name' => 'B']);
+        $this->assertSame(1, $r['winnerId']);
+        $this->assertSame(2, $r['loserId']);
+        $this->assertSame('knockout', $r['reason']);
+    }
+
+    public function testResolveByRemainingHp(): void
+    {
+        // A получил 50, B получил 100 → A «здоровее» → побеждает A.
+        $svc  = new DuelService();
+        $logs = [
+            ['attacker' => 'A', 'defender' => 'B', 'finalDamage' => 100, 'D_equip' => 10],
+            ['attacker' => 'B', 'defender' => 'A', 'finalDamage' => 50,  'D_equip' => 10],
+        ];
+        $r = $svc->resolveDuel($this->exhausted($logs), ['id' => 1, 'name' => 'A'], ['id' => 2, 'name' => 'B']);
+        $this->assertSame(1, $r['winnerId']);
+        $this->assertSame('hp', $r['reason']);
+    }
+
+    public function testResolveByRemainingHpOtherSide(): void
+    {
+        // B получил меньше → побеждает B.
+        $svc  = new DuelService();
+        $logs = [
+            ['attacker' => 'A', 'defender' => 'B', 'finalDamage' => 30,  'D_equip' => 10],
+            ['attacker' => 'B', 'defender' => 'A', 'finalDamage' => 120, 'D_equip' => 10],
+        ];
+        $r = $svc->resolveDuel($this->exhausted($logs), ['id' => 1, 'name' => 'A'], ['id' => 2, 'name' => 'B']);
+        $this->assertSame(2, $r['winnerId']);
+        $this->assertSame('hp', $r['reason']);
+    }
+
+    public function testResolveByBuildWhenHpEqual(): void
+    {
+        // Равный полученный урон (по 50) → решает D_equip: у A 20 > у B 10 → A.
+        $svc  = new DuelService();
+        $logs = [
+            ['attacker' => 'A', 'defender' => 'B', 'finalDamage' => 50, 'D_equip' => 20],
+            ['attacker' => 'B', 'defender' => 'A', 'finalDamage' => 50, 'D_equip' => 10],
+        ];
+        $r = $svc->resolveDuel($this->exhausted($logs), ['id' => 1, 'name' => 'A'], ['id' => 2, 'name' => 'B']);
+        $this->assertSame(1, $r['winnerId']);
+        $this->assertSame('build', $r['reason']);
+    }
+
+    public function testResolveBySeniorityCreatedAt(): void
+    {
+        // Равны HP и билд → раньше created_at побеждает (A 2025 < B 2026).
+        $svc  = new DuelService();
+        $logs = [
+            ['attacker' => 'A', 'defender' => 'B', 'finalDamage' => 50, 'D_equip' => 10],
+            ['attacker' => 'B', 'defender' => 'A', 'finalDamage' => 50, 'D_equip' => 10],
+        ];
+        $r = $svc->resolveDuel(
+            $this->exhausted($logs),
+            ['id' => 7, 'name' => 'A', 'created_at' => '2025-04-21 14:16:20'],
+            ['id' => 3, 'name' => 'B', 'created_at' => '2026-05-11 12:21:42']
+        );
+        $this->assertSame(7, $r['winnerId']); // старше по дате, несмотря на больший id
+        $this->assertSame('seniority', $r['reason']);
+    }
+
+    public function testResolveBySeniorityIdWhenNoDate(): void
+    {
+        // Всё равно + created_at отсутствует → меньше id побеждает.
+        $svc  = new DuelService();
+        $logs = [
+            ['attacker' => 'A', 'defender' => 'B', 'finalDamage' => 50, 'D_equip' => 10],
+            ['attacker' => 'B', 'defender' => 'A', 'finalDamage' => 50, 'D_equip' => 10],
+        ];
+        $r = $svc->resolveDuel($this->exhausted($logs), ['id' => 2, 'name' => 'A'], ['id' => 5, 'name' => 'B']);
+        $this->assertSame(2, $r['winnerId']);
+        $this->assertSame('seniority', $r['reason']);
+        // Ничья невозможна — всегда есть победитель.
+        $this->assertNotSame($r['winnerId'], $r['loserId']);
+    }
 }

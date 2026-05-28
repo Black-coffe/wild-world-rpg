@@ -80,4 +80,155 @@ final class DuelService
 
         return $char;
     }
+
+    /**
+     * W18.5 (ADR-073) — детерминированный исход дуэли: убрать ничью тай-брейком ПОСЛЕ боя.
+     *
+     * Вызывается из DuelAction с результатом НЕИЗМЕНЁННОГО simulateFight + обоими (реальными)
+     * бойцами. RNG-fence-safe: 0 нового mt_rand, движок не тронут — всё вычисляется из
+     * `result['roundLogs']` + created_at/id. Ничья математически невозможна (см. ADR-073).
+     *
+     * Цепочка при 'exhausted': остаток HP (= меньше полученного урона) → ценность билда
+     * (D_equip) → старшинство (раньше created_at; при равенстве/NULL — меньше id).
+     * При 'normal' (килл) победитель уже есть → reason 'knockout'.
+     *
+     * @param array<string,mixed> $result выход simulateFight
+     * @param array<string,mixed> $charA
+     * @param array<string,mixed> $charB
+     * @return array{winnerId:int, loserId:int, reason:string} reason: knockout|hp|build|seniority
+     */
+    public function resolveDuel(array $result, array $charA, array $charB): array
+    {
+        $aId = $this->intOf($charA['id'] ?? null);
+        $bId = $this->intOf($charB['id'] ?? null);
+
+        // Нокаут в бою — победитель определён движком.
+        $type = is_string($result['type'] ?? null) ? $result['type'] : 'normal';
+        if ($type !== 'exhausted') {
+            $winner = is_array($result['winner'] ?? null) ? $result['winner'] : null;
+            $wId    = $winner !== null ? $this->intOf($winner['id'] ?? null) : 0;
+            if ($wId > 0) {
+                $lId = $wId === $aId ? $bId : $aId;
+                return ['winnerId' => $wId, 'loserId' => $lId, 'reason' => 'knockout'];
+            }
+            // winner не определился (edge) → падаем в тай-брейк ниже.
+        }
+
+        $aName = $this->nameOf($charA);
+        $bName = $this->nameOf($charB);
+        $logs  = is_array($result['roundLogs'] ?? null) ? $result['roundLogs'] : [];
+
+        // 1) Остаток HP = меньше полученного урона (симметрия: оба стартуют с baseline HP).
+        $dmgA = $this->damageTaken($logs, $aName);
+        $dmgB = $this->damageTaken($logs, $bName);
+        if ($dmgA < $dmgB) {
+            return ['winnerId' => $aId, 'loserId' => $bId, 'reason' => 'hp'];
+        }
+        if ($dmgB < $dmgA) {
+            return ['winnerId' => $bId, 'loserId' => $aId, 'reason' => 'hp'];
+        }
+
+        // 2) Ценность билда (D_equip как атакующего; снаряжение постоянно в бою).
+        $buildA = $this->buildValue($logs, $aName);
+        $buildB = $this->buildValue($logs, $bName);
+        if ($buildA > $buildB) {
+            return ['winnerId' => $aId, 'loserId' => $bId, 'reason' => 'build'];
+        }
+        if ($buildB > $buildA) {
+            return ['winnerId' => $bId, 'loserId' => $aId, 'reason' => 'build'];
+        }
+
+        // 3) Старшинство: раньше created_at → победа; при равенстве/NULL — меньше id.
+        if ($this->isSenior($charA, $aId, $charB, $bId)) {
+            return ['winnerId' => $aId, 'loserId' => $bId, 'reason' => 'seniority'];
+        }
+        return ['winnerId' => $bId, 'loserId' => $aId, 'reason' => 'seniority'];
+    }
+
+    private function intOf(mixed $v): int
+    {
+        return is_numeric($v) ? (int) $v : 0;
+    }
+
+    /** @param array<string,mixed> $char */
+    private function nameOf(array $char): string
+    {
+        $n = $char['name'] ?? null;
+        return is_string($n) && $n !== '' ? $n : '';
+    }
+
+    /**
+     * Σ finalDamage round-логов, где боец был defender (= полученный им урон).
+     *
+     * @param array<int,mixed> $logs
+     */
+    private function damageTaken(array $logs, string $name): float
+    {
+        if ($name === '') {
+            return 0.0;
+        }
+        $sum = 0.0;
+        foreach ($logs as $log) {
+            if (! is_array($log) || ($log['defender'] ?? null) !== $name) {
+                continue;
+            }
+            $fd = $log['finalDamage'] ?? null;
+            $sum += is_numeric($fd) ? (float) $fd : 0.0;
+        }
+        return $sum;
+    }
+
+    /**
+     * D_equip из первого round-лога, где боец атаковал (компонент урона от снаряжения).
+     *
+     * @param array<int,mixed> $logs
+     */
+    private function buildValue(array $logs, string $name): float
+    {
+        if ($name === '') {
+            return 0.0;
+        }
+        foreach ($logs as $log) {
+            if (! is_array($log) || ($log['attacker'] ?? null) !== $name) {
+                continue;
+            }
+            $de = $log['D_equip'] ?? null;
+            return is_numeric($de) ? (float) $de : 0.0;
+        }
+        return 0.0;
+    }
+
+    /**
+     * A старше B: раньше created_at; при NULL/равенстве — меньше id (раньше зарегистрирован).
+     *
+     * @param array<string,mixed> $a
+     * @param array<string,mixed> $b
+     */
+    private function isSenior(array $a, int $aId, array $b, int $bId): bool
+    {
+        $ta = $this->createdTs($a);
+        $tb = $this->createdTs($b);
+        if ($ta !== null && $tb !== null && $ta !== $tb) {
+            return $ta < $tb;
+        }
+        if ($ta !== null && $tb === null) {
+            return true;
+        }
+        if ($ta === null && $tb !== null) {
+            return false;
+        }
+        // оба NULL или равны → меньше id = раньше зарегистрирован.
+        return $aId <= $bId;
+    }
+
+    /** @param array<string,mixed> $char */
+    private function createdTs(array $char): ?int
+    {
+        $c = $char['created_at'] ?? null;
+        if (! is_string($c) || $c === '') {
+            return null;
+        }
+        $ts = strtotime($c);
+        return $ts === false ? null : $ts;
+    }
 }

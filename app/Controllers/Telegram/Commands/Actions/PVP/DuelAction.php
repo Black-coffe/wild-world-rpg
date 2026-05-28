@@ -121,27 +121,31 @@ final class DuelAction extends BaseAction
         }
 
         // Stat-equalize обоих (билд/снаряжение остаётся) → неизменный simulateFight, null defense (спорт).
-        $eqAttacker = $this->duelService->equalize($this->toArray($attacker));
-        $eqDefender = $this->duelService->equalize($this->toArray($defender));
-        $result     = $this->roundOrchestrator->simulateFight($eqAttacker, $eqDefender, $biome, null);
+        $attackerArr = $this->toArray($attacker);
+        $defenderArr = $this->toArray($defender);
+        $eqAttacker  = $this->duelService->equalize($attackerArr);
+        $eqDefender  = $this->duelService->equalize($defenderArr);
+        $result      = $this->roundOrchestrator->simulateFight($eqAttacker, $eqDefender, $biome, null);
 
-        // W18 (ADR-072): post-combat scoring в PvP-ладдер — ПОСЛЕ боя (simulateFight уже посчитан,
-        // 0 нового mt_rand → fence-safe). Killswitch pvp.ladder.enabled внутри recordDuel (dormant = no-op).
-        $duelType   = is_string($result['type'] ?? null) ? $result['type'] : 'normal';
-        $winnerRow  = is_array($result['winner'] ?? null) ? $result['winner'] : null;
-        $winnerId   = $winnerRow !== null && is_numeric($winnerRow['id'] ?? null) ? (int) $winnerRow['id'] : 0;
-        if ($duelType === 'exhausted' || $winnerId <= 0) {
-            $this->ladderService->recordDuel($attackerId, $defenderId, true);
-        } else {
-            $loserId = $winnerId === $attackerId ? $defenderId : $attackerId;
+        // W18.5 (ADR-073): детерминированный исход — тай-брейк ПОСЛЕ боя (fence-safe, из roundLogs).
+        // Ничья устранена: всегда есть победитель (HP → билд → старшинство). Реальные чары не тронуты.
+        $resolution = $this->duelService->resolveDuel($result, $attackerArr, $defenderArr);
+        $winnerId   = $resolution['winnerId'];
+        $loserId    = $resolution['loserId'];
+        $reason     = $resolution['reason'];
+
+        // W18 (ADR-072): post-combat scoring в PvP-ладдер (ПОСЛЕ боя, 0 mt_rand → fence-safe;
+        // killswitch pvp.ladder.enabled внутри recordDuel = dormant no-op). Теперь всегда win/loss.
+        if ($winnerId > 0 && $loserId > 0) {
             $this->ladderService->recordDuel($winnerId, $loserId, false);
         }
 
         // НЕТ death/reward — реальные чары не тронуты (спортивный поединок).
         $aName = is_string($attacker['name'] ?? null) && $attacker['name'] !== '' ? $attacker['name'] : ('№' . $attackerId);
         $dName = is_string($defender['name'] ?? null) && $defender['name'] !== '' ? $defender['name'] : ('№' . $defenderId);
+        $winnerName = $winnerId === $attackerId ? $aName : $dName;
 
-        $text = $this->formatDuelResult($result, $aName, $dName);
+        $text = $this->formatDuelResult($result, $reason, $winnerName, $aName, $dName);
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         $this->notifyDefender($defender, $text);
@@ -164,24 +168,26 @@ final class DuelAction extends BaseAction
     }
 
     /**
+     * W18.5 (ADR-073): исход всегда называет победителя + причину (knockout/hp/build/seniority).
+     * Caption самодостаточен (media-off safe). Ничьи больше нет.
+     *
      * @param array<string,mixed> $result
      */
-    private function formatDuelResult(array $result, string $aName, string $dName): string
+    private function formatDuelResult(array $result, string $reason, string $winnerName, string $aName, string $dName): string
     {
         $rounds = is_numeric($result['rounds'] ?? null) ? (int) $result['rounds'] : 0;
-        $type   = is_string($result['type'] ?? null) ? $result['type'] : 'normal';
 
         $head = "🤺 <b>Дуэль (равный бой)</b>\n"
             . "{$aName} ⚔️ {$dName}\n"
             . "🔁 Обменов ударами: {$rounds}\n\n";
 
-        if ($type === 'exhausted') {
-            $body = "<b>Ничья!</b> Оба выдохлись на равных.";
-        } else {
-            $winner = is_array($result['winner'] ?? null) ? $result['winner'] : null;
-            $wName  = $winner !== null && is_string($winner['name'] ?? null) ? $winner['name'] : '?';
-            $body   = "🏆 Победитель: <b>{$wName}</b>";
-        }
+        $body = match ($reason) {
+            'knockout'  => "🏆 Победитель: <b>{$winnerName}</b> (нокаут)",
+            'hp'        => "🏆 Победа по очкам: <b>{$winnerName}</b>\n<i>Осталось больше здоровья.</i>",
+            'build'     => "🏆 Победа по очкам: <b>{$winnerName}</b>\n<i>Крепче снаряжение.</i>",
+            'seniority' => "🏆 Победа по очкам: <b>{$winnerName}</b>\n<i>Больше времени в Пустоши.</i>",
+            default     => "🏆 Победитель: <b>{$winnerName}</b>",
+        };
 
         return $head . $body . "\n\n<i>Спортивный поединок: ни здоровья, ни опыта не потеряно. На равных статах решают билд и удача.</i>";
     }
