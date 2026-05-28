@@ -24,6 +24,7 @@
 | W10 | **Achievement T1 set + UI** (+14 medals = 21 total + экран «🏅 Достижения» + Перс button; killswitch остаётся OFF — активация в конце ROADMAP) 🏁 закрытие Фазы 2 | ✅ SHIPPED prod dormant (Tier-1 984/984 + Tier-3 cold-smoke PASS) | v0.51.294 | 2026-05-28 |
 | W11 | **Quest T2 branching foundation** (ADR-067: развилка player-choice → branch_group+branch_label на quests, reuse quest_steps; killswitch `quests.branching_enabled` OFF dormant; +1 демо-ветка; старт Фазы 3) | ✅ SHIPPED prod dormant (Tier-1 995/995 + Tier-3 cold-smoke PASS) | v0.51.295 | 2026-05-28 |
 | W12 | **Quest T2 faction-specific branching** (ADR-067 контент: 8 эпилог-развилок = 4 фракции × 2, ПОСЛЕ сигнатурного оружия — contract-safe; чистый data-seed на W11-движке; dormant) | ✅ SHIPPED prod dormant (Tier-1 995/995 + Tier-3 cold-smoke PASS) | v0.51.296 | 2026-05-28 |
+| W13 | **Quest T2 story arc — капстон главы 1 «остров»** (ADR-067: новый faction-agnostic ландмарк «Сердце острова» + многошаговая арка → ветвящийся финал «судьба острова» 3-way; reuse S24 strategic-discovery; dormant) 🏁 закрытие Quest T2 | ✅ SHIPPED prod dormant (Tier-1 995/995 + Tier-3 cold-smoke PASS) | v0.51.297 | 2026-05-28 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -313,6 +314,35 @@
 > **Killswitch OFF на prod → 0 player-эффекта** (активация в конце ROADMAP с анонсом). **Doc:**
 > ADR-067 W12-секция + ROADMAP §0 + hot.md + daily. **🏁 W12/30, Фаза 3 — 2/5.** Дальше: **W13
 > Quest T2 story arc** (multi-step master-quest, капстон главы 1 «остров») ИЛИ пауза.
+>
+> **W13 SHIPPED prod dormant 2026-05-28 (`v0.51.297`) — 🌳 Фаза 3 — 3/5, 🏁 Quest T2 ЗАКРЫТ.**
+> Островная story-arc — капстон главы 1 «остров» (ADR-067 W13-секция). Капстон трилогии Quest T2
+> (W11 движок → W12 эпилоги → W13 финал). **Форма (user-pick AskUserQuestion из 2: остров-ландмарк /
+> лёгкий на хвосте эпилогов):** единый faction-agnostic островной финал через НОВЫЙ стратегический
+> ландмарк «Сердце острова» (reuse S24-паттерна strategic discovery — канон-grounded: остров =
+> «таинственный живой организм»). **Сделано (3 migration + generator-патч + ImageRegistry):**
+> world_objects «Сердце острова» (IslandHeart, biome 8, handler strategic_loot, no tool gate) +
+> spawn-cap `world.strategic.islandheart.max_spawns`=0 (dormant, ADR-024) + WorldObjectGeneratorHandler
+> (+IslandHeart в STRATEGIC_SPAWN_TYPES/SUPPORTED + case, reuse generic placer) + 6 квестов:
+> StrategicCaptureIslandHeart (discover root, авто-complete+advanceChain) → IslandHeartAwakening (lvl25)
+> → IslandHeartRevelation (lvl28) → ВЕТВЯЩИЙСЯ финал (branch_group='island_fate', lvl30, выбор необратим):
+> ⚡ Зажечь маяк (позвать помощь) / 🤫 Хранить тайну (остров сокрыт) / 🤝 Объединить выживших (новый дом).
+> Награды 5k→8k→12k→20k (финал-ветки равны, нарратив). ImageRegistry `objects/islandheart` pending
+> (art-tail при активации; StrategicLootHandler text-fallback → media-off safe). **Faction-agnostic
+> осознанно:** не даёт +500 фракции (story-капстон, не faction-capture); discovery содержателен
+> (loot+5k gold+quest+arc); StrategicObjectWiringTest обновлён (документированное исключение). **Двойной
+> dormant:** spawn=0 + branching OFF. **Tier-1 ✅ 995/995 PASS, phpstan L9 NO ERRORS, php -l** (фикс:
+> wiring-тест faction-agnostic исключение). **Tier-3 cold-smoke на testbot (MCP Chrome, char 489):**
+> seed verified (IslandHeart + 6 квестов + 3-way island_fate, emoji intact) ✅; finale-pending (root+mids
+> done) + branching ON → Доступные квесты → «🔀 Развилка! После «Откровение острова»: • Зажечь маяк •
+> Хранить тайну • Объединить выживших» + 3 кнопки ✅ → клик «⚡ Зажечь маяк» → «Путь выбран! +20000,
+> ветки закрыты» ✅ → re-open → развилка исчезла (2 другие концовки закрыты — N-way mutual exclusion) ✅;
+> SQL IslandFateBeacon chosen / Sanctuary+Unity absent ✅. Spawn-механизм покрыт StrategicObjectSpawnTest +
+> wiring (IslandHeart ∈ SUPPORTED). testbot восстановлен dormant+clean. **Killswitch OFF + spawn 0 на
+> prod → 0 player-эффекта** (активация в конце ROADMAP: spawn>0 + branching ON + art-tail islandheart.jpg).
+> **Doc:** ADR-067 W13-секция + ROADMAP §0 + hot.md + daily + apps/quests. **🏁 W13/30, Фаза 3 — 3/5;
+> Quest T2 (W11+W12+W13) ЗАКРЫТ.** Дальше: **W14 Caravan V2 — multi-resource offer** (несколько товаров
+> в одном offer'е + bargain/torg) ИЛИ пауза.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
