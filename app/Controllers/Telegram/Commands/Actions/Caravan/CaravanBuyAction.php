@@ -49,7 +49,11 @@ class CaravanBuyAction extends BaseAction
             return $this->errReply($chatId, 'Караванов сейчас не видно.');
         }
 
-        $caravanId = $this->parseIdSuffix($this->callbackQuery->getData(), 'caravanBuyAll_');
+        // W14b (ADR-068): bargained-покупка (caravanBuyBargain_<id>) применяет скидку торга,
+        // пересчитанную от trading_karma (не доверяем callback — server recompute).
+        $data      = (string) $this->callbackQuery->getData();
+        $bargained = str_starts_with($data, 'caravanBuyBargain_');
+        $caravanId = $this->parseIdSuffix($data, $bargained ? 'caravanBuyBargain_' : 'caravanBuyAll_');
         if ($caravanId <= 0) {
             return $this->errReply($chatId, 'Неверный идентификатор каравана.');
         }
@@ -82,6 +86,11 @@ class CaravanBuyAction extends BaseAction
         $price = is_numeric($rawPrice) ? (int) $rawPrice : 0;
         if ($qty <= 0 || $price <= 0) {
             return $this->errReply($chatId, 'Караван распродал всё.');
+        }
+
+        // W14b: применяем скидку торга (детерминированно от trading_karma) при bargained-покупке.
+        if ($bargained && $this->service->bargainEnabled()) {
+            $price = $this->service->applyBargain($price, $this->extractInt($character, 'trading_karma'));
         }
 
         $haveGold = $this->extractInt($character, 'gold');

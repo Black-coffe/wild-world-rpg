@@ -272,6 +272,8 @@ class CallbackRoutes extends BaseConfig
         // - caravanLook: показать караван(ы) на текущей клетке игрока
         // - caravanBuyAll_<id>: купить весь offer (через PrefixDispatcher)
         'caravanLook'                     => \App\Controllers\Telegram\Commands\Actions\Caravan\CaravanLookAction::class,
+        // W14b (ADR-068) — bargained-режим осмотра каравана (договорная цена от trading_karma).
+        'caravanLookBargain'              => \App\Controllers\Telegram\Commands\Actions\Caravan\CaravanLookAction::class,
 
         // W2 (ADR-058) — Drone-recon. Список дрон-инстансов чара с charge-bar.
         // - droneScoutList: показать все DroneScout с qty>0 + кнопки запуска

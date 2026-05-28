@@ -91,6 +91,64 @@ final class CaravanService
         return max($max, $this->bundleMin());
     }
 
+    // ──────────────────────────────────────────────────────────────────
+    // W14b (ADR-068) — bargain/торг: детерминированная скидка от trading_karma.
+    // RNG-fence safe (0 mt_rand). Стэкается поверх caravan fix-discount, bounded cap.
+    // ──────────────────────────────────────────────────────────────────
+
+    /** Killswitch торга. Default OFF = dormant. */
+    public function bargainEnabled(): bool
+    {
+        $v = $this->settings->get('caravan.bargain.enabled', false);
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+        return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /** Максимальная скидка торга (%). */
+    public function bargainMaxPct(): int
+    {
+        $v = $this->settings->get('caravan.bargain.max_pct', 15);
+        return is_numeric($v) && (int) $v >= 0 ? (int) $v : 15;
+    }
+
+    /** Делитель trading_karma для расчёта скидки торга. */
+    public function bargainDivisor(): int
+    {
+        $v = $this->settings->get('caravan.bargain.divisor', 10);
+        return is_numeric($v) && (int) $v >= 1 ? (int) $v : 10;
+    }
+
+    /**
+     * Скидка торга (%) = min(max_pct, intdiv(trading_karma, divisor)). Чистая формула
+     * (без killswitch-проверки — caller гейтит через bargainEnabled). Negative karma → 0.
+     */
+    public function bargainDiscountPct(int $tradingKarma): int
+    {
+        $pct = intdiv(max(0, $tradingKarma), $this->bargainDivisor());
+        return max(0, min($this->bargainMaxPct(), $pct));
+    }
+
+    /**
+     * Цена за единицу после торга. max(1, ceil(price × (100 − pct) / 100)).
+     * pct=0 → цена без изменений.
+     */
+    public function applyBargain(int $price, int $tradingKarma): int
+    {
+        if ($price <= 0) {
+            return $price;
+        }
+        $pct = $this->bargainDiscountPct($tradingKarma);
+        if ($pct <= 0) {
+            return $price;
+        }
+        return max(1, (int) ceil($price * (100 - $pct) / 100));
+    }
+
     /**
      * Цена за единицу со скидкой. price = max(1, ceil(market_price × (1 - discount))).
      */

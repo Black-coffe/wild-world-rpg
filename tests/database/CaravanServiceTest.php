@@ -174,4 +174,52 @@ final class CaravanServiceTest extends CIUnitTestCase
         $this->seedFloat('caravan.bundle_chance', 5.0); // вне [0,1] → fallback 0
         $this->assertEqualsWithDelta(0.0, (new CaravanService())->bundleChance(), 1e-9);
     }
+
+    // ── W14b (ADR-068): bargain/торг ────────────────────────────────────
+
+    public function testBargainDefaultsDormant(): void
+    {
+        $svc = new CaravanService();
+        $this->assertFalse($svc->bargainEnabled()); // default OFF
+        $this->assertSame(15, $svc->bargainMaxPct());
+        $this->assertSame(10, $svc->bargainDivisor());
+    }
+
+    public function testBargainDiscountPctFormula(): void
+    {
+        $svc = new CaravanService();
+        // intdiv(karma, divisor=10), cap max_pct=15.
+        $this->assertSame(10, $svc->bargainDiscountPct(100)); // 100/10 = 10
+        $this->assertSame(5, $svc->bargainDiscountPct(50));   // 50/10 = 5
+        $this->assertSame(15, $svc->bargainDiscountPct(150)); // 200/10=20 → cap 15
+        $this->assertSame(15, $svc->bargainDiscountPct(300)); // cap 15
+        $this->assertSame(0, $svc->bargainDiscountPct(0));
+        $this->assertSame(0, $svc->bargainDiscountPct(-50));  // negative → 0
+    }
+
+    public function testApplyBargain(): void
+    {
+        $svc = new CaravanService();
+        // price 100, karma 100 → 10% → ceil(100*0.9)=90.
+        $this->assertSame(90, $svc->applyBargain(100, 100));
+        // price 10, karma 100 → ceil(10*0.9)=9.
+        $this->assertSame(9, $svc->applyBargain(10, 100));
+        // karma 0 → no discount.
+        $this->assertSame(100, $svc->applyBargain(100, 0));
+        // floor 1.
+        $this->assertSame(1, $svc->applyBargain(1, 100));
+    }
+
+    public function testBargainEnabledTuned(): void
+    {
+        $this->seedBool('caravan.bargain.enabled', 1);
+        $this->assertTrue((new CaravanService())->bargainEnabled());
+    }
+
+    public function testBargainDivisorTuned(): void
+    {
+        $this->seedInt('caravan.bargain.divisor', 5);
+        // karma 100 / 5 = 20 → cap 15.
+        $this->assertSame(15, (new CaravanService())->bargainDiscountPct(100));
+    }
 }

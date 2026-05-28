@@ -81,7 +81,9 @@ final class CallbackPrefixDispatcher
         }
 
         // V25 (ADR-057): NPC-караван — покупка всего offer'а.
-        if (str_starts_with($callbackData, 'caravanBuyAll_')) {
+        // W14b (ADR-068): caravanBuyBargain_ — покупка с торгом (тот же CaravanBuyAction,
+        // он сам распознаёт prefix и пересчитывает скидку от trading_karma).
+        if (str_starts_with($callbackData, 'caravanBuyAll_') || str_starts_with($callbackData, 'caravanBuyBargain_')) {
             return $this->dispatchCaravanBuyAll($callbackQuery);
         }
 

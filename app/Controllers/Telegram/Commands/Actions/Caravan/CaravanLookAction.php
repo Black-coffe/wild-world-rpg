@@ -70,6 +70,11 @@ class CaravanLookAction extends BaseAction
         $expiresShort   = $expires !== '' ? substr($expires, 11, 5) : '??:??';
         $haveGold       = $this->extractInt($character, 'gold');
 
+        // W14b (ADR-068): bargained-режим (callback caravanLookBargain) — детерминированная
+        // скидка торга от trading_karma. RNG-fence safe.
+        $bargained    = ((string) $this->callbackQuery->getData()) === 'caravanLookBargain';
+        $tradingKarma = $this->extractInt($character, 'trading_karma');
+
         // W14a (ADR-068): богатый караван (multi-resource bundle) — несколько строк
         // с общим caravan_group_id на клетке. Рендерим списком, покупка поресурсно.
         $rawGroupId = $caravan['caravan_group_id'] ?? null;
@@ -79,7 +84,7 @@ class CaravanLookAction extends BaseAction
                 $caravans,
                 fn ($c) => is_numeric($c['caravan_group_id'] ?? null) && (int) $c['caravan_group_id'] === $groupId
             ));
-            return $this->renderBundle($chatId, $groupRows, $haveGold, $expiresShort);
+            return $this->renderBundle($chatId, $groupRows, $haveGold, $expiresShort, $bargained, $tradingKarma);
         }
 
         // W5 (ADR-064): drone-offer branch.
@@ -95,13 +100,21 @@ class CaravanLookAction extends BaseAction
         $rawQty   = $caravan['quantity']       ?? null;
         $rawPrice = $caravan['price_per_unit'] ?? null;
         $qty       = is_numeric($rawQty)   ? (int) $rawQty   : 0;
-        $price     = is_numeric($rawPrice) ? (int) $rawPrice : 0;
-        $total     = $qty * $price;
+        $basePrice = is_numeric($rawPrice) ? (int) $rawPrice : 0;
+
+        // W14b: bargained-режим → договорная цена (детерминированно от trading_karma).
+        $price = $bargained ? $this->service->applyBargain($basePrice, $tradingKarma) : $basePrice;
+        $total = $qty * $price;
 
         $text  = "🚚 *Странствующий караван*\n\n";
         $text .= "Перед тобой стоит крытая повозка. Торговец предлагает:\n\n";
         $text .= "📦 *{$resName}* — {$qty} шт.\n";
-        $text .= "💰 Цена: *{$price}* 🪙 за единицу (скидка к рынку!)\n";
+        if ($bargained && $price < $basePrice) {
+            $pct = $this->service->bargainDiscountPct($tradingKarma);
+            $text .= "💰 Договорная цена: *{$price}* 🪙/шт. (торг −{$pct}%, было {$basePrice})\n";
+        } else {
+            $text .= "💰 Цена: *{$price}* 🪙 за единицу (скидка к рынку!)\n";
+        }
         $text .= "💼 Полная сделка: *{$total}* 🪙\n";
         $text .= "⏱ Караван уйдёт около *{$expiresShort}*.\n\n";
         $text .= "💰 У тебя: *{$haveGold}* 🪙";
@@ -116,22 +129,26 @@ class CaravanLookAction extends BaseAction
 
         if ($haveGold < $price) {
             $text .= "\n\n❌ _Не хватает золота даже на 1 шт. ({$price} 🪙)._";
-            $keyboard = [
-                'inline_keyboard' => [
-                    [['text' => '🗺 Карта', 'callback_data' => 'inlineMap']],
-                    [['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']],
-                ],
-            ];
+            $keyboard = ['inline_keyboard' => [
+                [['text' => '🗺 Карта', 'callback_data' => 'inlineMap']],
+                [['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']],
+            ]];
         } else {
             $affordableQty = (int) floor($haveGold / $price);
             $canBuy        = min($qty, $affordableQty);
+            $buyCallback   = $bargained ? "caravanBuyBargain_{$caravanId}" : "caravanBuyAll_{$caravanId}";
+            $buyLabel      = $bargained
+                ? "🤝 Купить по торгу (×{$canBuy} = " . ($canBuy * $price) . " 🪙)"
+                : "🛍 Купить всё (×{$canBuy} = " . ($canBuy * $price) . " 🪙)";
 
-            $keyboard = [
-                'inline_keyboard' => [
-                    [['text' => "🛍 Купить всё (×{$canBuy} = " . ($canBuy * $price) . " 🪙)", 'callback_data' => "caravanBuyAll_{$caravanId}"]],
-                    [['text' => '🗺 Карта', 'callback_data' => 'inlineMap'], ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']],
-                ],
-            ];
+            $rows = [[['text' => $buyLabel, 'callback_data' => $buyCallback]]];
+            // W14b: кнопка «Торговаться» — только в обычном режиме при включённом торге.
+            if (! $bargained && $this->service->bargainEnabled() && $this->service->bargainDiscountPct($tradingKarma) > 0) {
+                $pct = $this->service->bargainDiscountPct($tradingKarma);
+                $rows[] = [['text' => "💱 Торговаться (−{$pct}%)", 'callback_data' => 'caravanLookBargain']];
+            }
+            $rows[] = [['text' => '🗺 Карта', 'callback_data' => 'inlineMap'], ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']];
+            $keyboard = ['inline_keyboard' => $rows];
         }
 
         return Request::sendMessage([
@@ -241,8 +258,10 @@ class CaravanLookAction extends BaseAction
      *
      * @param list<array<string,mixed>> $groupRows
      */
-    private function renderBundle(int $chatId, array $groupRows, int $haveGold, string $expiresShort): ServerResponse
+    private function renderBundle(int $chatId, array $groupRows, int $haveGold, string $expiresShort, bool $bargained = false, int $tradingKarma = 0): ServerResponse
     {
+        $pct = $bargained ? $this->service->bargainDiscountPct($tradingKarma) : 0;
+
         $text  = "🚛 *Богатый караван*\n\n";
         $text .= "Большой обоз с несколькими товарами. Торговец предлагает:\n\n";
 
@@ -255,30 +274,44 @@ class CaravanLookAction extends BaseAction
             $rawQty     = $row['quantity'] ?? null;
             $rawPrice   = $row['price_per_unit'] ?? null;
             $qty        = is_numeric($rawQty)   ? (int) $rawQty   : 0;
-            $price      = is_numeric($rawPrice) ? (int) $rawPrice : 0;
+            $basePrice  = is_numeric($rawPrice) ? (int) $rawPrice : 0;
             $resName    = $this->resolveResourceName($resourceId);
 
-            if ($qty <= 0 || $price <= 0) {
+            if ($qty <= 0 || $basePrice <= 0) {
                 $text .= "📦 *{$resName}* — _распродано_\n";
                 continue;
             }
-            $text .= "📦 *{$resName}* — {$qty} шт. по *{$price}* 🪙\n";
+            $price = $bargained ? $this->service->applyBargain($basePrice, $tradingKarma) : $basePrice;
+            if ($bargained && $price < $basePrice) {
+                $text .= "📦 *{$resName}* — {$qty} шт. по *{$price}* 🪙 _(торг, было {$basePrice})_\n";
+            } else {
+                $text .= "📦 *{$resName}* — {$qty} шт. по *{$price}* 🪙\n";
+            }
 
             if ($haveGold >= $price && $rowId > 0) {
-                $canBuy = min($qty, (int) floor($haveGold / $price));
+                $canBuy   = min($qty, (int) floor($haveGold / $price));
+                $callback = $bargained ? "caravanBuyBargain_{$rowId}" : "caravanBuyAll_{$rowId}";
                 $buttons[] = [[
                     'text'          => "🛍 {$resName} ×{$canBuy} (" . ($canBuy * $price) . " 🪙)",
-                    'callback_data' => "caravanBuyAll_{$rowId}",
+                    'callback_data' => $callback,
                 ]];
             }
         }
 
         $text .= "\n⏱ Караван уйдёт около *{$expiresShort}*.\n";
         $text .= "💰 У тебя: *{$haveGold}* 🪙";
+        if ($bargained && $pct > 0) {
+            $text .= "\n_Договорная цена (торг −{$pct}%)._";
+        }
         if ($buttons === []) {
             $text .= "\n\n❌ _Не хватает золота ни на один товар (или всё распродано)._";
         }
 
+        // W14b: «Торговаться» — только в обычном режиме при включённом торге.
+        if (! $bargained && $this->service->bargainEnabled() && $this->service->bargainDiscountPct($tradingKarma) > 0) {
+            $hagglePct = $this->service->bargainDiscountPct($tradingKarma);
+            $buttons[] = [['text' => "💱 Торговаться (−{$hagglePct}%)", 'callback_data' => 'caravanLookBargain']];
+        }
         $buttons[] = [
             ['text' => '🗺 Карта', 'callback_data' => 'inlineMap'],
             ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
