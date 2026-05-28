@@ -27,6 +27,7 @@
 | W13 | **Quest T2 story arc — капстон главы 1 «остров»** (ADR-067: новый faction-agnostic ландмарк «Сердце острова» + многошаговая арка → ветвящийся финал «судьба острова» 3-way; reuse S24 strategic-discovery; dormant) 🏁 закрытие Quest T2 | ✅ SHIPPED prod dormant (Tier-1 995/995 + Tier-3 cold-smoke PASS) | v0.51.297 | 2026-05-28 |
 | W14a | **Caravan V2 — multi-resource «богатый караван»** (ADR-068: `caravan_group_id` связывает 2-4 ресурса в один караван, reuse buy-хэндлеров; killswitch `caravan.bundle_chance`=0 dormant) | ✅ SHIPPED prod dormant (Tier-1 999/999 + Tier-3 cold-smoke PASS) | v0.51.298 | 2026-05-28 |
 | W14b | **Caravan V2 — bargain/торг** (ADR-068: детерминированная скидка от `trading_karma`, RNG-fence safe; «💱 Торговаться»; killswitch `caravan.bargain.enabled`=false dormant) 🏁 закрытие W14 | ✅ SHIPPED prod dormant (Tier-1 1004/1004 + Tier-3 cold-smoke PASS) | v0.51.299 | 2026-05-28 |
+| W15 | **Caravan V2 — faction-aligned** (ADR-069: `caravans.faction_id`, скидка члену / наценка ривалу: Милитари↔Партизаны, Инженеры↔Фермеры; hostility=markup contract-safe; killswitch `caravan.faction.enabled`=false dormant) 🏁 закрытие Фазы 3 | ✅ SHIPPED prod dormant (Tier-1 1009/1009 + Tier-3 cold-smoke PASS) | v0.51.300 | 2026-05-28 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -393,6 +394,28 @@
 > trading_karma. **Doc:** ADR-068 W14b + [[mmorpg-vault/tech-writing/services/CaravanService]] + ROADMAP §0 +
 > hot.md + daily. **🏁 W14b/30, W14 (multi-resource + bargain) ЗАКРЫТ, Фаза 3 — 4/5.** Дальше: **W15 Caravan
 > V2 faction-aligned** (караваны с faction-affinity: скидка фракции / враждебность; 🏁 закрытие Фазы 3) ИЛИ пауза.
+>
+> **W15 SHIPPED prod dormant 2026-05-28 (`v0.51.300`) — 🏁🌳 ЗАКРЫТИЕ ФАЗЫ 3 (Quest T2 & Caravan-V2, 5/5).**
+> Faction-aligned caravans — [[mmorpg-vault/decisions/ADR-069-Caravan-V2-faction-aligned|ADR-069]].
+> **Модель (user-pick AskUserQuestion из 3):** ривалри-пары — своя фракция = скидка, ривал = наценка,
+> прочие/нейтрал = обычно. **Hostility (user-pick из 2):** markup (наценка чужакам) — contract-safe (можно
+> купить дороже, НЕ бой/НЕ отказ; настоящий бой отклонён — RNG-fence + player-hostile). **Audit:** энмити-
+> матрицы в игре не было → ривалри net-new W15 lore: Милитари(1)↔Партизаны(2) (оккупант vs сопротивление),
+> Инженеры(3)↔Фермеры(4) (тех-хоардеры vs аграрии). **Сделано (2 migration + 2 model-ext + service-ext +
+> cron-патч + look/buy-патч):** ALTER caravans +faction_id (NULL=нейтральный, 0 регрессии) + CharacterFactionModel
+> +getFactionId + GameSettings `caravan.faction.enabled`(OFF dormant)/affinity_chance(0.5)/member_discount_pct(5)/
+> rival_markup_pct(15) + CaravanService(factionAffinityEnabled/Chance/memberDiscountPct/rivalMarkupPct/rivalFactionOf/
+> factionAffinity/applyFactionAffinity) + SpawnCaravanCron(rollFactionId на resource-спавне, single+bundle) +
+> CaravanLookAction/CaravanBuyAction (faction-affinity ДО bargain + статус-строка 🤝/⚔️/🏳). **Pricing pipeline:**
+> base → faction-affinity (авто) → bargain (opt-in W14b). **+5 unit.** **Tier-1 ✅ 1009/1009 PASS, phpstan L9
+> NO ERRORS, php -l.** **Tier-3 cold-smoke на testbot (MCP Chrome, char 489=Милитари):** member caravan
+> (Милитари) → «🤝 Свой караван (Милитари)» + 3325 (−5% от 3500) ✅; rival caravan (Партизаны) → «⚔️ Караван
+> соперников (Партизаны)» + 4025 (+15%) ✅ → купил ривал → «Списано 136850 (4025/шт.)» (markup enforced
+> server-side) ✅. testbot восстановлен dormant+clean (gold 300000). **Killswitch `caravan.faction.enabled`=false
+> на prod → 0 player-эффекта** (активация в конце ROADMAP). **Doc:** ADR-069 + decisions/index +
+> [[mmorpg-vault/tech-writing/services/CaravanService]] W15 + ROADMAP §0 + hot.md + daily. **🏁🏁 W15/30,
+> ФАЗА 3 ЗАКРЫТА (5/5): Quest T2 (W11 движок + W12 эпилоги + W13 капстон) + Caravan-V2 (W14a multi-resource +
+> W14b bargain + W15 faction-aligned).** Дальше: ⚔ Фаза 4 — PvP depth & Crafted modifiers (W16 PvP audit + fixture rebuild plan) ИЛИ пауза.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
