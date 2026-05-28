@@ -82,4 +82,22 @@ class QuestStepsModel extends Model
     {
         return $this->update($id, ['is_completed' => true]);
     }
+
+    /**
+     * W11 (ADR-067) — сколько шагов у персонажа среди указанных квестов (любой статус).
+     * Используется QuestChainService для проверки «выбор развилки уже сделан».
+     * Raw db-builder (как getCompletedQuestTitles) — без model-builder-state quirk.
+     *
+     * @param list<int> $questIds
+     */
+    public function countStepsForQuests(int $characterId, array $questIds): int
+    {
+        if ($questIds === []) {
+            return 0;
+        }
+        return (int) $this->db->table('quest_steps')
+            ->where('character_id', $characterId)
+            ->whereIn('quest_id', $questIds)
+            ->countAllResults();
+    }
 }

@@ -12,7 +12,7 @@ class QuestModel extends Model
     protected $returnType = 'array';
     protected $useSoftDeletes = false;
 
-    protected $allowedFields = ['title_ru', 'title_en', 'description', 'status', 'reward', 'min_level', 'reward_type', 'prerequisite_quest', 'objective_type', 'objective_target', 'objective_qty'];
+    protected $allowedFields = ['title_ru', 'title_en', 'description', 'status', 'reward', 'min_level', 'reward_type', 'prerequisite_quest', 'objective_type', 'objective_target', 'objective_qty', 'branch_group', 'branch_label'];
 
     protected $useTimestamps = false;
     protected $createdField  = '';
@@ -101,5 +101,55 @@ class QuestModel extends Model
             }
         }
         return $out;
+    }
+
+    /**
+     * W11 (ADR-067) — active branch-квесты (branch_group непустой) для данного
+     * prerequisite. Raw db-builder (как getCompletedQuestTitles) — без model-builder
+     * state quirk при множественных запросах.
+     *
+     * @return list<array<int|string,mixed>>
+     */
+    public function getActiveBranchQuests(string $prerequisiteTitleEn): array
+    {
+        if ($prerequisiteTitleEn === '') {
+            return [];
+        }
+        $rows = $this->db->table('quests')
+            ->where('prerequisite_quest', $prerequisiteTitleEn)
+            ->where('status', 'active')
+            ->where('branch_group IS NOT NULL', null, false)
+            ->get();
+        return $rows === false ? [] : array_values($rows->getResultArray());
+    }
+
+    /**
+     * W11 (ADR-067) — active branch-квесты для набора prerequisite (hub-экран развилок).
+     *
+     * @param list<string> $prerequisiteTitlesEn
+     * @return list<array<int|string,mixed>>
+     */
+    public function getActiveBranchQuestsForPrereqs(array $prerequisiteTitlesEn): array
+    {
+        if ($prerequisiteTitlesEn === []) {
+            return [];
+        }
+        $rows = $this->db->table('quests')
+            ->whereIn('prerequisite_quest', $prerequisiteTitlesEn)
+            ->where('status', 'active')
+            ->where('branch_group IS NOT NULL', null, false)
+            ->get();
+        return $rows === false ? [] : array_values($rows->getResultArray());
+    }
+
+    /** W11 — title_ru квеста по title_en (шапка развилки). Fallback на сам title_en. */
+    public function titleRuByEn(string $titleEn): string
+    {
+        if ($titleEn === '') {
+            return '';
+        }
+        $row = $this->db->table('quests')->select('title_ru')->where('title_en', $titleEn)->get();
+        $r   = $row === false ? null : $row->getRowArray();
+        return is_array($r) && is_string($r['title_ru'] ?? null) && $r['title_ru'] !== '' ? $r['title_ru'] : $titleEn;
     }
 }

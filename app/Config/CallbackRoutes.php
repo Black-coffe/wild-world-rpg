@@ -351,6 +351,8 @@ class CallbackRoutes extends BaseConfig
         // W7b (ADR-065 Part 2) — тема каталога «Что нового». Callback `whatsNew_<topic_key>`
         // (первый сегмент `whatsNew` после explode('_'); exact `whatsNewCatalog` ловится раньше).
         'whatsNew' => \App\Controllers\Telegram\Commands\Actions\WhatsNew\WhatsNewTopicAction::class,
+        // W11 (ADR-067) — выбор ветки квест-развилки. Callback `questBranch_<quest_id>`.
+        'questBranch' => \App\Controllers\Telegram\Commands\Actions\Quest\QuestBranchChooseAction::class,
     ];
 
     /**

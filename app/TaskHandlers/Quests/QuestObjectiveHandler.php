@@ -100,7 +100,9 @@ class QuestObjectiveHandler extends BaseTaskHandler
             $titleEn = is_string($row['title_en'] ?? null) ? $row['title_en'] : '';
             $titleRu = is_string($row['title_ru'] ?? null) ? $row['title_ru'] : '';
             $advanced = $this->chainService->advanceChain($charId, $titleEn);
-            $this->notify($character, $titleRu, $reward, $advanced);
+            // W11 (ADR-067): если завершён branch-point — предлагаем выбор пути (вместо «след. этап»).
+            $branchOptions = $this->chainService->pendingBranchOptions($charId, $titleEn);
+            $this->notify($character, $titleRu, $reward, $advanced, $branchOptions);
 
             log_message('info', "[QuestObjective] completed {$titleEn} char_id={$charId} (+{$reward} gold)");
         }
@@ -203,8 +205,9 @@ class QuestObjectiveHandler extends BaseTaskHandler
     /**
      * @param array<string,mixed> $character
      * @param list<string> $advanced
+     * @param list<array{quest_id:int,title_en:string,title_ru:string,label:string}> $branchOptions
      */
-    private function notify(array $character, string $titleRu, int $reward, array $advanced): void
+    private function notify(array $character, string $titleRu, int $reward, array $advanced, array $branchOptions = []): void
     {
         $tgUserId = is_numeric($character['telegram_user_id'] ?? null) ? (int) $character['telegram_user_id'] : 0;
         if ($tgUserId <= 0) {
@@ -216,6 +219,34 @@ class QuestObjectiveHandler extends BaseTaskHandler
         }
         $chatId = is_numeric($tg['telegram_id']) ? (int) $tg['telegram_id'] : 0;
         if ($chatId === 0) {
+            return;
+        }
+
+        // W11 (ADR-067): branch-point завершён → развилка с выбором пути.
+        if (!empty($branchOptions)) {
+            $msg  = "🔀 *Развилка!*\n";
+            $msg .= "✅ *{$titleRu}*";
+            if ($reward > 0) {
+                $msg .= " (+{$reward} золота)";
+            }
+            $msg .= "\n\nВыбери, как продолжить — *решение необратимо*:";
+
+            $rows = [];
+            $pair = [];
+            foreach ($branchOptions as $opt) {
+                $pair[] = ['text' => $opt['label'], 'callback_data' => 'questBranch_' . $opt['quest_id']];
+                if (count($pair) === 2) {
+                    $rows[] = $pair;
+                    $pair = [];
+                }
+            }
+            if (!empty($pair)) {
+                $rows[] = $pair;
+            }
+            $this->safeSendMessage($chatId, $msg, [
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode(['inline_keyboard' => $rows]),
+            ]);
             return;
         }
 

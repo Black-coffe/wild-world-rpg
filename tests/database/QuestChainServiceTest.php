@@ -44,8 +44,12 @@ final class QuestChainServiceTest extends CIUnitTestCase
         $db->table('game_settings')->insert([
             'setting_key' => 'quests.chains_enabled', 'category' => 'world', 'value_type' => 'bool', 'value_bool' => 1,
         ]);
+        // W11 (ADR-067): killswitch branching, default OFF dormant.
+        $db->table('game_settings')->insert([
+            'setting_key' => 'quests.branching_enabled', 'category' => 'world', 'value_type' => 'bool', 'value_bool' => 0,
+        ]);
 
-        // V12: quests + quest_steps для advanceChain.
+        // V12: quests + quest_steps для advanceChain. W11: + branch_group/branch_label.
         $db->query('DROP TABLE IF EXISTS quest_steps');
         $db->query('DROP TABLE IF EXISTS quests');
         $db->query('
@@ -55,7 +59,8 @@ final class QuestChainServiceTest extends CIUnitTestCase
                 description TEXT NULL, status VARCHAR(32) NULL, min_level INT NULL,
                 reward INT NULL, reward_type VARCHAR(64) NULL,
                 prerequisite_quest VARCHAR(255) NULL,
-                objective_type VARCHAR(32) NULL, objective_target VARCHAR(100) NULL, objective_qty INT NULL
+                objective_type VARCHAR(32) NULL, objective_target VARCHAR(100) NULL, objective_qty INT NULL,
+                branch_group VARCHAR(64) NULL, branch_label VARCHAR(100) NULL
             )
         ');
         $db->query('
@@ -166,5 +171,149 @@ final class QuestChainServiceTest extends CIUnitTestCase
         $db = Database::connect('tests');
         $db->table('quests')->insert(['title_en' => 'Lonely', 'title_ru' => 'Одиночка', 'status' => 'active']);
         $this->assertSame([], (new QuestChainService())->advanceChain(999, 'Lonely'));
+    }
+
+    // ── W11 (ADR-067): branching engine ──────────────────────────────────
+
+    /** Включить branching killswitch (с очисткой 60s-кэша GameSettings). */
+    private function enableBranching(): void
+    {
+        Database::connect('tests')->table('game_settings')
+            ->where('setting_key', 'quests.branching_enabled')->update(['value_bool' => 1]);
+        $this->cleanCache();
+    }
+
+    /** Засеять развилку: branch-point ForkPoint + 2 ветки (branch_group=g1). @return array{0:int,1:int} ids веток */
+    private function seedFork(): array
+    {
+        $db = Database::connect('tests');
+        $db->table('quests')->insert(['title_en' => 'ForkPoint', 'title_ru' => 'Развилка', 'status' => 'active']);
+        $db->table('quests')->insert(['title_en' => 'BranchA', 'title_ru' => 'Ветка А', 'status' => 'active', 'reward' => 1500, 'prerequisite_quest' => 'ForkPoint', 'objective_type' => 'char_level', 'objective_qty' => 3, 'branch_group' => 'g1', 'branch_label' => '🤝 Путь А']);
+        $aId = (int) $db->insertID();
+        $db->table('quests')->insert(['title_en' => 'BranchB', 'title_ru' => 'Ветка Б', 'status' => 'active', 'reward' => 1500, 'prerequisite_quest' => 'ForkPoint', 'objective_type' => 'char_level', 'objective_qty' => 3, 'branch_group' => 'g1', 'branch_label' => '🎒 Путь Б']);
+        $bId = (int) $db->insertID();
+        return [$aId, $bId];
+    }
+
+    /** Отметить ForkPoint завершённым персонажем (quest_steps is_completed=1). */
+    private function completeForkPoint(int $charId): void
+    {
+        $db   = Database::connect('tests');
+        $fork = $db->table('quests')->where('title_en', 'ForkPoint')->get()->getRowArray();
+        $db->table('quest_steps')->insert([
+            'quest_id' => (int) $fork['id'], 'character_id' => $charId, 'step_order' => 1,
+            'description' => 'Развилка', 'is_completed' => 1,
+        ]);
+    }
+
+    public function testBranchingDisabledByDefault(): void
+    {
+        $this->assertFalse((new QuestChainService())->branchingEnabled());
+    }
+
+    public function testBranchingEnabledAfterFlip(): void
+    {
+        $this->enableBranching();
+        $this->assertTrue((new QuestChainService())->branchingEnabled());
+    }
+
+    public function testAdvanceChainSkipsBranchQuests(): void
+    {
+        // Завершение branch-point НЕ авто-назначает ветки развилки (идут через выбор).
+        $this->seedFork();
+        $advanced = (new QuestChainService())->advanceChain(777, 'ForkPoint');
+        $this->assertSame([], $advanced);
+        $count = Database::connect('tests')->table('quest_steps')->where('character_id', 777)->countAllResults();
+        $this->assertSame(0, $count);
+    }
+
+    public function testPendingBranchOptionsEmptyWhenDisabled(): void
+    {
+        $this->seedFork();
+        // branching OFF → dormant.
+        $this->assertSame([], (new QuestChainService())->pendingBranchOptions(777, 'ForkPoint'));
+    }
+
+    public function testPendingBranchOptionsWhenEnabled(): void
+    {
+        $this->seedFork();
+        $this->enableBranching();
+        $opts = (new QuestChainService())->pendingBranchOptions(777, 'ForkPoint');
+        $this->assertCount(2, $opts);
+        $labels = array_column($opts, 'label');
+        $this->assertContains('🤝 Путь А', $labels);
+        $this->assertContains('🎒 Путь Б', $labels);
+    }
+
+    public function testPendingBranchOptionsEmptyAfterChoice(): void
+    {
+        [$aId] = $this->seedFork();
+        $this->enableBranching();
+        // персонаж уже выбрал ветку А → больше не pending.
+        Database::connect('tests')->table('quest_steps')->insert([
+            'quest_id' => $aId, 'character_id' => 777, 'step_order' => 1, 'description' => 'А', 'is_completed' => 0,
+        ]);
+        $this->assertSame([], (new QuestChainService())->pendingBranchOptions(777, 'ForkPoint'));
+    }
+
+    public function testChooseBranchHappyPath(): void
+    {
+        [$aId] = $this->seedFork();
+        $this->enableBranching();
+        $this->completeForkPoint(777);
+
+        $res = (new QuestChainService())->chooseBranch(777, $aId);
+        $this->assertTrue($res['ok']);
+        $this->assertSame(1500, $res['reward']);
+        $step = Database::connect('tests')->table('quest_steps')
+            ->where('character_id', 777)->where('quest_id', $aId)->get()->getRowArray();
+        $this->assertIsArray($step);
+        $this->assertSame(0, (int) $step['is_completed']);
+    }
+
+    public function testChooseBranchRejectsWhenDisabled(): void
+    {
+        [$aId] = $this->seedFork();
+        $this->completeForkPoint(777); // branching НЕ включён
+        $res = (new QuestChainService())->chooseBranch(777, $aId);
+        $this->assertFalse($res['ok']);
+        $this->assertSame('disabled', $res['reason']);
+    }
+
+    public function testChooseBranchRejectsWhenPrereqNotMet(): void
+    {
+        [$aId] = $this->seedFork();
+        $this->enableBranching();
+        // ForkPoint НЕ завершён персонажем.
+        $res = (new QuestChainService())->chooseBranch(777, $aId);
+        $this->assertFalse($res['ok']);
+        $this->assertSame('prereq_not_met', $res['reason']);
+    }
+
+    public function testChooseBranchRejectsSiblingAlreadyChosen(): void
+    {
+        [$aId, $bId] = $this->seedFork();
+        $this->enableBranching();
+        $this->completeForkPoint(777);
+
+        $svc = new QuestChainService();
+        $first = $svc->chooseBranch(777, $aId);
+        $this->assertTrue($first['ok']);
+        // вторая ветка той же группы → отказ (выбор необратим).
+        $second = $svc->chooseBranch(777, $bId);
+        $this->assertFalse($second['ok']);
+        $this->assertSame('already_chosen', $second['reason']);
+    }
+
+    public function testPendingBranchesForCharacter(): void
+    {
+        $this->seedFork();
+        $this->enableBranching();
+        $this->completeForkPoint(777);
+
+        $pending = (new QuestChainService())->pendingBranchesForCharacter(777);
+        $this->assertCount(1, $pending);
+        $this->assertSame('Развилка', $pending[0]['branch_point_ru']);
+        $this->assertCount(2, $pending[0]['options']);
     }
 }

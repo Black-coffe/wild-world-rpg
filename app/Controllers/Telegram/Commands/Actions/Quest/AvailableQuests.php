@@ -73,11 +73,28 @@ class AvailableQuests extends BaseAction
             $availableQuests[] = $quest;
         }
 
-        if (empty($availableQuests) && empty($lockedQuests)) {
+        // W11 (ADR-067): pending-развилки (branching включён) — выбор пути приоритетно сверху.
+        $pendingBranches = $chain->pendingBranchesForCharacter((int) $characterId);
+
+        if (empty($availableQuests) && empty($lockedQuests) && empty($pendingBranches)) {
             $text = "На данный момент нет доступных квестов. Проверьте позже!";
         } else {
             $text = "*📜 Доступные квесты:*\n\n";
-            if (empty($availableQuests)) {
+            // W11: развилки цепочек — выбор необратим, показываем первыми.
+            if (! empty($pendingBranches)) {
+                $text .= "*🔀 Развилка цепочки!* Выбери путь — решение необратимо:\n";
+                foreach ($pendingBranches as $pb) {
+                    $bp = $pb['branch_point_ru'] !== '' ? $pb['branch_point_ru'] : 'развилки';
+                    $text .= "\n_После «{$bp}»:_\n";
+                    foreach ($pb['options'] as $opt) {
+                        $text .= "• {$opt['label']}\n";
+                    }
+                }
+                $text .= "\n";
+            }
+            if (empty($availableQuests) && empty($lockedQuests)) {
+                $text .= "_Других открытых квестов сейчас нет._\n";
+            } elseif (empty($availableQuests)) {
                 $text .= "_Сейчас открытых квестов нет._\n";
             }
             foreach ($availableQuests as $quest) {
@@ -97,7 +114,7 @@ class AvailableQuests extends BaseAction
             }
         }
 
-        $keyboard = $this->generateQuestKeyboard($availableQuests);
+        $keyboard = $this->generateQuestKeyboard($availableQuests, $pendingBranches);
         //log_message('debug', "keyboard: " . print_r($keyboard, true));
         // Ответ на callback запрос, чтобы убрать часики на кнопке
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
@@ -136,9 +153,28 @@ class AvailableQuests extends BaseAction
             : $prereqTitleEn;
     }
 
-    private function generateQuestKeyboard($quests)
+    /**
+     * @param list<array{branch_point_ru:string,options:list<array{quest_id:int,title_en:string,title_ru:string,label:string}>}> $pendingBranches
+     */
+    private function generateQuestKeyboard($quests, array $pendingBranches = [])
     {
         $keyboard = ['inline_keyboard' => []];
+
+        // W11 (ADR-067): кнопки выбора веток развилки — первыми, паковка 2/строку.
+        foreach ($pendingBranches as $pb) {
+            $branchRow = [];
+            foreach ($pb['options'] as $opt) {
+                $branchRow[] = ['text' => $opt['label'], 'callback_data' => 'questBranch_' . $opt['quest_id']];
+                if (count($branchRow) === 2) {
+                    $keyboard['inline_keyboard'][] = $branchRow;
+                    $branchRow = [];
+                }
+            }
+            if (! empty($branchRow)) {
+                $keyboard['inline_keyboard'][] = $branchRow;
+            }
+        }
+
         $row = [];
         foreach ($quests as $quest) {
             $row[] = ['text' => $quest['title_ru'], 'callback_data' => 'questStart' . $quest['title_en']];
