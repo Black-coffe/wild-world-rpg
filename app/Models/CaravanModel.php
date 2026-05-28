@@ -65,6 +65,25 @@ class CaravanModel extends Model
     }
 
     /**
+     * W14a (ADR-068) — сколько ещё активных товаров (qty>0) осталось в богатом
+     * караване (группе). Для корректного сообщения после покупки одного товара
+     * («у каравана ещё есть товары» vs «распродал всё»). Raw db-builder.
+     */
+    public function countActiveInGroup(int $groupId): int
+    {
+        if ($groupId <= 0) {
+            return 0;
+        }
+        $count = $this->db->table('caravans')
+            ->where('caravan_group_id', $groupId)
+            ->where('status', 'active')
+            ->where('quantity >', 0)
+            ->where('expires_at >', date('Y-m-d H:i:s'))
+            ->countAllResults();
+        return is_numeric($count) ? (int) $count : 0;
+    }
+
+    /**
      * W14a (ADR-068) — следующий свободный caravan_group_id для нового богатого
      * каравана (MAX+1). Raw db-builder — без model-builder-state quirk.
      */

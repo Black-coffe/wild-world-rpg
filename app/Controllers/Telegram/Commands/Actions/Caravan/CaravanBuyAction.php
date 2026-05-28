@@ -118,23 +118,32 @@ class CaravanBuyAction extends BaseAction
             'text'              => 'Сделка завершена!',
         ]);
 
+        // W14a (ADR-068): если это товар богатого каравана — у группы могут остаться
+        // другие товары → корректное сообщение + кнопка вернуться к каравану.
+        $rawGroupId    = $caravan['caravan_group_id'] ?? null;
+        $groupId       = is_numeric($rawGroupId) ? (int) $rawGroupId : 0;
+        $groupRemaining = $groupId > 0 ? $this->caravanModel->countActiveInGroup($groupId) : 0;
+
         $text  = "🚚 *Сделка с караваном*\n\n"
             . "Куплено: *{$resName}* × *{$buyQty}*\n"
             . "Списано: *{$totalCost}* 🪙 ({$price}/шт.)\n";
         if ($remaining > 0) {
             $text .= "У каравана осталось: {$remaining} шт.\n";
+        } elseif ($groupRemaining > 0) {
+            $text .= "_Этот товар распродан, но у каравана ещё есть товары._\n";
         } else {
             $text .= "_Караван распродал всё и уезжает._\n";
         }
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🗺 Карта',     'callback_data' => 'inlineMap'],
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                ],
-            ],
+        $rows = [];
+        if ($remaining > 0 || $groupRemaining > 0) {
+            $rows[] = [['text' => '🚚 Караван', 'callback_data' => 'caravanLook']];
+        }
+        $rows[] = [
+            ['text' => '🗺 Карта',     'callback_data' => 'inlineMap'],
+            ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
         ];
+        $keyboard = ['inline_keyboard' => $rows];
 
         return Request::sendMessage([
             'chat_id'      => $chatId,
