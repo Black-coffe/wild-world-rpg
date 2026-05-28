@@ -165,6 +165,16 @@ class Tasks extends BaseTasks
             ->everyMinute()->singleInstance()->named('faction.notification');
 
         // ============================================================
+        // ACHIEVEMENTS — W9 (ADR-066) state-driven cron-poll выдача
+        // ============================================================
+        // everyMinute: для каждого enabled-достижения set-based SQL находит выполнивших
+        // критерий и ещё не получивших → выдаёт + батч-уведомление per-player. Killswitch
+        // achievement.enabled (default OFF на ship W9 — no-op до активации в W10). Cap
+        // achievement.max_awards_per_tick против notification-шторма при активации.
+        $schedule->call(static fn() => (new \App\TaskHandlers\Achievements\AchievementCheckCron())->handle())
+            ->everyMinute()->singleInstance()->named('achievement.check');
+
+        // ============================================================
         // CHARACTER TASKS DISPATCHER (главный Worker loop)
         // ============================================================
 
