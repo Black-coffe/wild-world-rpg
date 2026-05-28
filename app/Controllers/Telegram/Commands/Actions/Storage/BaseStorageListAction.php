@@ -8,6 +8,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Helpers\ResourceIconHelper;
 use App\Models\BaseStorageModel;
 use App\Models\CharacterResourceModel;
+use App\Services\Bases\BaseCheckService;
 use App\Services\Player\InventorySortService;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
@@ -222,23 +223,15 @@ class BaseStorageListAction extends BaseAction
         return $row;
     }
 
+    /**
+     * На своей ли базе игрок. Reuse канонического BaseCheckService (map_cell_id ==
+     * cell_number) — тот же критерий, что у дронов/построек. W8: заменил латентно-битый
+     * inline-запрос (claimed_cells.cell_number — такой колонки нет, бросал SQL-исключение).
+     */
     private function isOnBase(int $characterId): bool
     {
-        $db = \Config\Database::connect();
-        $q  = $db->query(
-            'SELECT c.cell_number AS char_cell, cc.cell_number AS base_cell
-             FROM characters c
-             LEFT JOIN claimed_cells cc ON cc.character_id = c.id
-             WHERE c.id = ?',
-            [$characterId]
-        );
-        $row = is_object($q) && method_exists($q, 'getRowArray') ? $q->getRowArray() : null;
-        if (! is_array($row)) {
-            return false;
-        }
-        $charCell = is_numeric($row['char_cell'] ?? null) ? (int) $row['char_cell'] : 0;
-        $baseCell = is_numeric($row['base_cell'] ?? null) ? (int) $row['base_cell'] : 0;
-        return $charCell > 0 && $charCell === $baseCell;
+        $status = (new BaseCheckService())->checkBaseStatus($characterId);
+        return ! empty($status['isOnBase']);
     }
 
     private function errReply(int $chatId, string $msg): ServerResponse
