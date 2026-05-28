@@ -26,6 +26,7 @@
 | W12 | **Quest T2 faction-specific branching** (ADR-067 контент: 8 эпилог-развилок = 4 фракции × 2, ПОСЛЕ сигнатурного оружия — contract-safe; чистый data-seed на W11-движке; dormant) | ✅ SHIPPED prod dormant (Tier-1 995/995 + Tier-3 cold-smoke PASS) | v0.51.296 | 2026-05-28 |
 | W13 | **Quest T2 story arc — капстон главы 1 «остров»** (ADR-067: новый faction-agnostic ландмарк «Сердце острова» + многошаговая арка → ветвящийся финал «судьба острова» 3-way; reuse S24 strategic-discovery; dormant) 🏁 закрытие Quest T2 | ✅ SHIPPED prod dormant (Tier-1 995/995 + Tier-3 cold-smoke PASS) | v0.51.297 | 2026-05-28 |
 | W14a | **Caravan V2 — multi-resource «богатый караван»** (ADR-068: `caravan_group_id` связывает 2-4 ресурса в один караван, reuse buy-хэндлеров; killswitch `caravan.bundle_chance`=0 dormant) | ✅ SHIPPED prod dormant (Tier-1 999/999 + Tier-3 cold-smoke PASS) | v0.51.298 | 2026-05-28 |
+| W14b | **Caravan V2 — bargain/торг** (ADR-068: детерминированная скидка от `trading_karma`, RNG-fence safe; «💱 Торговаться»; killswitch `caravan.bargain.enabled`=false dormant) 🏁 закрытие W14 | ✅ SHIPPED prod dormant (Tier-1 1004/1004 + Tier-3 cold-smoke PASS) | v0.51.299 | 2026-05-28 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -369,6 +370,29 @@
 > ROADMAP §0 + hot.md + daily. **🏁 W14a/30, Фаза 3 — 4/5 (Quest T2 закрыт + Caravan-V2 начат).**
 > Дальше: **W14b Caravan bargain/торг** (stat-based детерминированная скидка от trading_karma,
 > mechanism уже выбран) ИЛИ W15 Caravan V2 faction-aligned ИЛИ пауза.
+>
+> **W14b SHIPPED prod dormant 2026-05-28 (`v0.51.299`) — 🏁 W14 (a+b) ЗАКРЫТ, Фаза 3 — 4/5.**
+> Caravan bargain/торг — [[mmorpg-vault/decisions/ADR-068-Caravan-V2-multi-resource-and-bargain|ADR-068]]
+> W14b. **Механизм (user-pick AskUserQuestion из 3, выбран в W14):** детерминированная скидка от
+> характеристики `trading_karma` — **RNG-fence safe** (0 mt_rand, не задевает PvP-фикстуры/spawn-RNG;
+> зеркало N5 честных мини-игр ADR-040). **Формула:** `bargain_pct = min(max_pct=15, intdiv(trading_karma,
+> divisor=10))` → karma 100 = 10%, 150+ = 15% cap. `applyBargain` = `max(1, ceil(price×(100−pct)/100))`;
+> стэкается поверх caravan fix-discount (−30% рынок), bounded cap (~0.595× рынка). **Сделано (1 migration
+> + service-ext + look-патч + buy-патч + 2 route):** GameSettings `caravan.bargain.enabled`(OFF
+> dormant)/max_pct(15)/divisor(10) + CaravanService(bargainEnabled/MaxPct/Divisor/bargainDiscountPct/
+> applyBargain) + CaravanLookAction (bargained-режим `caravanLookBargain` — «💱 Торговаться (−X%)» на
+> resource+bundle, НЕ drone → договорная цена + bargained-buy) + CaravanBuyAction (`caravanBuyBargain_`
+> prefix → пересчёт скидки server-side от trading_karma, secure) + CallbackRoutes `caravanLookBargain` +
+> PrefixDispatcher `caravanBuyBargain_`. **+5 unit.** **Tier-1 ✅ 1004/1004 PASS, phpstan L9 NO ERRORS,
+> php -l.** **Tier-3 cold-smoke на testbot (MCP Chrome, char 489, trading_karma 100):** enable bargain +
+> seed offer (Корона подземного короля, caravan price 3500) → caravanLook → «💱 Торговаться (−10%)» ✅ →
+> bargained-режим «Договорная цена: 3150/шт. (торг −10%, было 3500), Итого 157500» + «🤝 Купить по торгу» ✅
+> → купил → «Списано 157500 (3150/шт.)» ✅ → SQL: gold 298250→140750 (списано 157500, не 175000 — скидка
+> применена server-side) ✅. testbot восстановлен dormant+clean. **Killswitch `caravan.bargain.enabled`=false
+> на prod → 0 player-эффекта** (активация в конце ROADMAP). Награждает недоиспользованный стат
+> trading_karma. **Doc:** ADR-068 W14b + [[mmorpg-vault/tech-writing/services/CaravanService]] + ROADMAP §0 +
+> hot.md + daily. **🏁 W14b/30, W14 (multi-resource + bargain) ЗАКРЫТ, Фаза 3 — 4/5.** Дальше: **W15 Caravan
+> V2 faction-aligned** (караваны с faction-affinity: скидка фракции / враждебность; 🏁 закрытие Фазы 3) ИЛИ пауза.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
