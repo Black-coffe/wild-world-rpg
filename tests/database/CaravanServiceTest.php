@@ -143,4 +143,35 @@ final class CaravanServiceTest extends CIUnitTestCase
         $this->seedInt('caravan.lifetime_minutes', 60);
         $this->assertSame(60, (new CaravanService())->lifetimeMinutes());
     }
+
+    // ── W14a (ADR-068): multi-resource bundle config ────────────────────
+
+    public function testBundleDefaultsDormant(): void
+    {
+        $svc = new CaravanService();
+        $this->assertEqualsWithDelta(0.0, $svc->bundleChance(), 1e-9); // default 0 = dormant
+        $this->assertSame(2, $svc->bundleMin());
+        $this->assertSame(4, $svc->bundleMax());
+    }
+
+    public function testBundleChanceTuned(): void
+    {
+        $this->seedFloat('caravan.bundle_chance', 0.3);
+        $this->assertEqualsWithDelta(0.3, (new CaravanService())->bundleChance(), 1e-9);
+    }
+
+    public function testBundleMaxAlwaysAtLeastMin(): void
+    {
+        $this->seedInt('caravan.bundle_min', 4);
+        $this->seedInt('caravan.bundle_max', 2);
+        $svc = new CaravanService();
+        $this->assertSame(4, $svc->bundleMin());
+        $this->assertSame(4, $svc->bundleMax());
+    }
+
+    public function testBundleChanceClampedToRange(): void
+    {
+        $this->seedFloat('caravan.bundle_chance', 5.0); // вне [0,1] → fallback 0
+        $this->assertEqualsWithDelta(0.0, (new CaravanService())->bundleChance(), 1e-9);
+    }
 }

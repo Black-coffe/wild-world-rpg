@@ -65,6 +65,32 @@ final class CaravanService
         return max($max, $this->qtyMin());
     }
 
+    // ──────────────────────────────────────────────────────────────────
+    // W14a (ADR-068) — multi-resource bundle («богатый караван»).
+    // ──────────────────────────────────────────────────────────────────
+
+    /** Шанс, что спавн станет богатым караваном (multi-resource bundle). Default 0 = dormant. */
+    public function bundleChance(): float
+    {
+        $v = $this->settings->get('caravan.bundle_chance', 0.0);
+        return is_numeric($v) && (float) $v >= 0 && (float) $v <= 1 ? (float) $v : 0.0;
+    }
+
+    /** Минимум товаров в богатом караване. */
+    public function bundleMin(): int
+    {
+        $v = $this->settings->get('caravan.bundle_min', 2);
+        return is_numeric($v) && (int) $v >= 1 ? (int) $v : 2;
+    }
+
+    /** Максимум товаров в богатом караване (clamp ≥ bundleMin). */
+    public function bundleMax(): int
+    {
+        $v   = $this->settings->get('caravan.bundle_max', 4);
+        $max = is_numeric($v) && (int) $v >= 1 ? (int) $v : 4;
+        return max($max, $this->bundleMin());
+    }
+
     /**
      * Цена за единицу со скидкой. price = max(1, ceil(market_price × (1 - discount))).
      */

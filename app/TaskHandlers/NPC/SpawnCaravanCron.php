@@ -88,6 +88,12 @@ class SpawnCaravanCron
             return;
         }
 
+        // W14a (ADR-068): roll богатый караван (multi-resource bundle). Hit → bundle и return;
+        // miss (или пул < 2 ресурсов) → одиночный resource-offer (V25 поведение ниже).
+        if ($this->shouldBundle() && $this->spawnBundle($cellNumber, $now, $expires)) {
+            return;
+        }
+
         // Resource fallback (V25 unchanged).
         $resource = $this->pickRandomRareResource();
         if ($resource === null) {
@@ -156,16 +162,87 @@ class SpawnCaravanCron
      */
     private function pickRandomRareResource(): ?array
     {
+        $pool = $this->rareResourcePool();
+        if ($pool === []) {
+            return null;
+        }
+        return $pool[array_rand($pool)];
+    }
+
+    /**
+     * W14a (ADR-068) — пул редких торгуемых ресурсов (rarity≥7, price>0, tradeable),
+     * нормализованных в array. Общий для одиночного offer'а и bundle.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function rareResourcePool(): array
+    {
         $rows = $this->resourceModel
             ->where('rarity >=', 7)
             ->where('price >', 0)
             ->where('is_tradeable', 1)
             ->findAll();
-        if (empty($rows)) {
-            return null;
+        $out = [];
+        foreach ($rows as $row) {
+            $norm = $this->normalizeRow($row);
+            if ($norm !== null) {
+                $out[] = $norm;
+            }
         }
-        $pick = $rows[array_rand($rows)];
-        return $this->normalizeRow($pick);
+        return $out;
+    }
+
+    /** W14a — сработал ли roll богатого каравана (детерминированный promille-roll, как drone). */
+    private function shouldBundle(): bool
+    {
+        $chance = $this->service->bundleChance();
+        if ($chance <= 0.0) {
+            return false;
+        }
+        return mt_rand(1, 10000) <= (int) round($chance * 10000);
+    }
+
+    /**
+     * W14a (ADR-068) — спавнит богатый караван: N=rand(bundle_min..bundle_max) РАЗНЫХ
+     * редких ресурсов с общим caravan_group_id+cell+expires. Возвращает false, если
+     * пул < 2 (нет смысла в bundle → caller fallback'нет на одиночный offer).
+     */
+    private function spawnBundle(int $cellNumber, string $now, string $expires): bool
+    {
+        $pool = $this->rareResourcePool();
+        if (count($pool) < 2) {
+            return false;
+        }
+        shuffle($pool);
+
+        $n = mt_rand($this->service->bundleMin(), $this->service->bundleMax());
+        $n = max(2, min($n, count($pool)));
+
+        $groupId  = $this->caravanModel->nextGroupId();
+        $inserted = 0;
+        for ($i = 0; $i < $n; $i++) {
+            $resource   = $pool[$i];
+            $rawId      = $resource['id']    ?? null;
+            $rawPrice   = $resource['price'] ?? null;
+            $resourceId = is_numeric($rawId)    ? (int) $rawId    : 0;
+            $price      = is_numeric($rawPrice) ? (int) $rawPrice : 0;
+            if ($resourceId <= 0 || $price <= 0) {
+                continue;
+            }
+            $this->caravanModel->insert([
+                'cell_number'      => $cellNumber,
+                'caravan_group_id' => $groupId,
+                'resource_id'      => $resourceId,
+                'quantity'         => mt_rand($this->service->qtyMin(), $this->service->qtyMax()),
+                'price_per_unit'   => $this->service->computePricePerUnit($price),
+                'spawned_at'       => $now,
+                'expires_at'       => $expires,
+                'status'           => 'active',
+                'offer_type'       => 'resource',
+            ]);
+            $inserted++;
+        }
+        return $inserted >= 2;
     }
 
     private function pickRandomCell(): int

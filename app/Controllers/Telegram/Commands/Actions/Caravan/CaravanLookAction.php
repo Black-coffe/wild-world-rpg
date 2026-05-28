@@ -70,6 +70,18 @@ class CaravanLookAction extends BaseAction
         $expiresShort   = $expires !== '' ? substr($expires, 11, 5) : '??:??';
         $haveGold       = $this->extractInt($character, 'gold');
 
+        // W14a (ADR-068): богатый караван (multi-resource bundle) — несколько строк
+        // с общим caravan_group_id на клетке. Рендерим списком, покупка поресурсно.
+        $rawGroupId = $caravan['caravan_group_id'] ?? null;
+        $groupId    = is_numeric($rawGroupId) ? (int) $rawGroupId : 0;
+        if ($groupId > 0) {
+            $groupRows = array_values(array_filter(
+                $caravans,
+                fn ($c) => is_numeric($c['caravan_group_id'] ?? null) && (int) $c['caravan_group_id'] === $groupId
+            ));
+            return $this->renderBundle($chatId, $groupRows, $haveGold, $expiresShort);
+        }
+
         // W5 (ADR-064): drone-offer branch.
         if ($this->service->isDroneOfferType($offerType)) {
             return $this->renderDroneOffer($chatId, $caravan, $caravanId, $offerType, $haveGold, $expiresShort);
@@ -220,6 +232,63 @@ class CaravanLookAction extends BaseAction
             'text'         => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
+        ]);
+    }
+
+    /**
+     * W14a (ADR-068): рендер богатого каравана — список товаров + кнопка покупки
+     * на каждый (reuse caravanBuyAll_<id>; каждый товар = обычная caravan-строка).
+     *
+     * @param list<array<string,mixed>> $groupRows
+     */
+    private function renderBundle(int $chatId, array $groupRows, int $haveGold, string $expiresShort): ServerResponse
+    {
+        $text  = "🚛 *Богатый караван*\n\n";
+        $text .= "Большой обоз с несколькими товарами. Торговец предлагает:\n\n";
+
+        $buttons = [];
+        foreach ($groupRows as $row) {
+            $rawResId   = $row['resource_id'] ?? null;
+            $resourceId = is_numeric($rawResId) ? (int) $rawResId : 0;
+            $rawId      = $row['id'] ?? null;
+            $rowId      = is_numeric($rawId) ? (int) $rawId : 0;
+            $rawQty     = $row['quantity'] ?? null;
+            $rawPrice   = $row['price_per_unit'] ?? null;
+            $qty        = is_numeric($rawQty)   ? (int) $rawQty   : 0;
+            $price      = is_numeric($rawPrice) ? (int) $rawPrice : 0;
+            $resName    = $this->resolveResourceName($resourceId);
+
+            if ($qty <= 0 || $price <= 0) {
+                $text .= "📦 *{$resName}* — _распродано_\n";
+                continue;
+            }
+            $text .= "📦 *{$resName}* — {$qty} шт. по *{$price}* 🪙\n";
+
+            if ($haveGold >= $price && $rowId > 0) {
+                $canBuy = min($qty, (int) floor($haveGold / $price));
+                $buttons[] = [[
+                    'text'          => "🛍 {$resName} ×{$canBuy} (" . ($canBuy * $price) . " 🪙)",
+                    'callback_data' => "caravanBuyAll_{$rowId}",
+                ]];
+            }
+        }
+
+        $text .= "\n⏱ Караван уйдёт около *{$expiresShort}*.\n";
+        $text .= "💰 У тебя: *{$haveGold}* 🪙";
+        if ($buttons === []) {
+            $text .= "\n\n❌ _Не хватает золота ни на один товар (или всё распродано)._";
+        }
+
+        $buttons[] = [
+            ['text' => '🗺 Карта', 'callback_data' => 'inlineMap'],
+            ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+        ];
+
+        return Request::sendMessage([
+            'chat_id'      => $chatId,
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode(['inline_keyboard' => $buttons]),
         ]);
     }
 

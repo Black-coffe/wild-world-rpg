@@ -20,6 +20,7 @@ class CaravanModel extends Model
 
     protected $allowedFields = [
         'cell_number',
+        'caravan_group_id', // W14a (ADR-068) — multi-resource bundle: общий id строк одного богатого каравана; NULL = одиночный offer
         'resource_id',
         'quantity',
         'price_per_unit',
@@ -61,5 +62,19 @@ class CaravanModel extends Model
             ->where('expires_at >', date('Y-m-d H:i:s'))
             ->countAllResults();
         return is_numeric($count) ? (int) $count : 0;
+    }
+
+    /**
+     * W14a (ADR-068) — следующий свободный caravan_group_id для нового богатого
+     * каравана (MAX+1). Raw db-builder — без model-builder-state quirk.
+     */
+    public function nextGroupId(): int
+    {
+        $row = $this->db->table('caravans')
+            ->selectMax('caravan_group_id', 'max_gid')
+            ->get();
+        $arr = $row === false ? null : $row->getRowArray();
+        $max = is_array($arr) && is_numeric($arr['max_gid'] ?? null) ? (int) $arr['max_gid'] : 0;
+        return $max + 1;
     }
 }
