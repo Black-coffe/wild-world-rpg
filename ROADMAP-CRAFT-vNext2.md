@@ -28,6 +28,7 @@
 | W14a | **Caravan V2 — multi-resource «богатый караван»** (ADR-068: `caravan_group_id` связывает 2-4 ресурса в один караван, reuse buy-хэндлеров; killswitch `caravan.bundle_chance`=0 dormant) | ✅ SHIPPED prod dormant (Tier-1 999/999 + Tier-3 cold-smoke PASS) | v0.51.298 | 2026-05-28 |
 | W14b | **Caravan V2 — bargain/торг** (ADR-068: детерминированная скидка от `trading_karma`, RNG-fence safe; «💱 Торговаться»; killswitch `caravan.bargain.enabled`=false dormant) 🏁 закрытие W14 | ✅ SHIPPED prod dormant (Tier-1 1004/1004 + Tier-3 cold-smoke PASS) | v0.51.299 | 2026-05-28 |
 | W15 | **Caravan V2 — faction-aligned** (ADR-069: `caravans.faction_id`, скидка члену / наценка ривалу: Милитари↔Партизаны, Инженеры↔Фермеры; hostility=markup contract-safe; killswitch `caravan.faction.enabled`=false dormant) 🏁 закрытие Фазы 3 | ✅ SHIPPED prod dormant (Tier-1 1009/1009 + Tier-3 cold-smoke PASS) | v0.51.300 | 2026-05-28 |
+| W16 | **PvP audit + fixture-rebuild plan** (ADR-070: RNG-инвентарь боя, fence-механизм mt_srand=42 golden-master, Фаза 4 RNG-fence-safe план; старт Фазы 4) — БЕЗ кода | ✅ SHIPPED docs-only (audit + ADR, без кода/прод-тега) | — | 2026-05-28 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -416,6 +417,28 @@
 > [[mmorpg-vault/tech-writing/services/CaravanService]] W15 + ROADMAP §0 + hot.md + daily. **🏁🏁 W15/30,
 > ФАЗА 3 ЗАКРЫТА (5/5): Quest T2 (W11 движок + W12 эпилоги + W13 капстон) + Caravan-V2 (W14a multi-resource +
 > W14b bargain + W15 faction-aligned).** Дальше: ⚔ Фаза 4 — PvP depth & Crafted modifiers (W16 PvP audit + fixture rebuild plan) ИЛИ пауза.
+>
+> **W16 SHIPPED docs-only 2026-05-28 — ⚔ СТАРТ ФАЗЫ 4 (PvP depth & Crafted modifiers).** PvP audit +
+> fixture-rebuild plan — [[mmorpg-vault/decisions/ADR-070-PvP-audit-and-fixture-rebuild-plan|ADR-070]]
+> (audit-decision, **БЕЗ кода**, зеркало W6). **Audit-first карта PvP:** ядро `PvpRoundOrchestrator::simulateFight`
+> ($p1,$p2,$biome,?$defense=null), round-loop ≤150 раундов. **RNG-инвентарь:** 6 mt_rand В loop
+> (fenced): lucky-strike (cond lvlDiff<0) / weapon-crit (dead) / dodge / crit (dead) / one-shot (cond
+> lvlDiff≥50) / lucky-debuff stat-pick (cond) — строгий порядок; 3 ВНЕ loop (free): winner-bonus /
+> respawn-cell / run-away. **Fence-механизм:** caller-side `mt_srand(42)` (нет seed-параметра в
+> сигнатуре), golden-master `AttackPlayerActionFixtureFenceTest` (scenario 4 = byte-equivalent
+> reseed→identical). Интеграция новых фич = `?param=null` no-op (доказано $defense=null, S26/ADR-030).
+> Foundational fence — [[mmorpg-vault/decisions/ADR-014-Fixture-fence-for-hot-path-refactoring|ADR-014]].
+> **🔴 Находка:** faction-бонусы в активном PvP DEAD (лор обещает «фракционные модификаторы», но к урону
+> не применяются — только логирование; хардкод +10% Милитари жил в legacy web `PvPController`, не в боевом
+> пути). **Решение (audit-decision):** сохранить fence как есть; Фаза 4 интегрируется ДЕТЕРМИНИРОВАННО ВНЕ
+> loop-RNG, **fixture-rebuild НЕ требуется**. План: W17 duels = пре-процесс структур $p1/$p2 ДО simulateFight
+> (fairness stat-equalize/level-bracket = детерм., 0 нового loop-mt_rand); W18 ladder = post-combat scoring
+> (NEW pvp_ladder + чтение battles, вне боя); W19-20 modifiers = детерм. бонусы через экипировку (прок →
+> ?param=null + НОВЫЙ сценарий). Правило: scenario 4 неприкосновенен; loop-mt_rand не добавлять; каждая
+> build-сессия гоняет fence ПЕРЕД ship. **Отклонено:** рефактор на `?int $seed`+RandomService (ADR-014 §C —
+> риск>польза) / big-bang+rebuild фикстур. **Doc:** ADR-070 + decisions/index + ROADMAP §0 + hot.md + daily.
+> **🏁 W16/30, старт Фазы 4 (1/5).** Дальше: **W17 PvP duels** (opt-in, fairness pick stat-equalize/level-bracket,
+> RNG-fence-safe pre-process) ИЛИ пауза.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
