@@ -8,7 +8,6 @@ use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\InventorySortService;
-use App\Services\Player\WeightCapacityService;
 
 class ResourcesGatheredAction extends BaseAction
 {
@@ -37,7 +36,7 @@ class ResourcesGatheredAction extends BaseAction
         $mode = $this->parseSortMode((string) $this->callbackQuery->getData());
 
         $characterResources = $this->characterResourceModel
-            ->select('character_resources.quantity, resources.name, resources.rarity, resources.price, resources.weight')
+            ->select('character_resources.quantity, resources.name, resources.rarity, resources.price')
             ->join('resources', 'resources.id = character_resources.id_resources')
             ->where('character_resources.id_characters', $character['id'])
             ->findAll();
@@ -56,14 +55,11 @@ class ResourcesGatheredAction extends BaseAction
             $rows[] = is_array($r) ? $r : (array) $r;
         }
 
-        $totalValue  = 0.0;
-        $totalWeight = 0.0;
+        $totalValue = 0.0;
         foreach ($rows as $r) {
             $qty   = is_numeric($r['quantity'] ?? null) ? (int) $r['quantity'] : 0;
             $price = is_numeric($r['price'] ?? null) ? (float) $r['price'] : 0.0;
-            $w     = is_numeric($r['weight'] ?? null) ? (float) $r['weight'] : 0.0;
-            $totalValue  += $price * $qty;
-            $totalWeight += $w * $qty;
+            $totalValue += $price * $qty;
         }
 
         $sorted = InventorySortService::sortRows($rows, $mode);
@@ -86,18 +82,13 @@ class ResourcesGatheredAction extends BaseAction
             }
         }
 
-        $charId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
-        $level  = is_numeric($character['level'] ?? null) ? (int) $character['level'] : 1;
-        $cap    = is_numeric($character['weight_capacity'] ?? null) ? (int) $character['weight_capacity'] : 0;
-
-        $text .= "\n💰 *Общая стоимость* ~ " . number_format($totalValue) . "\n";
-        $text .= $this->weightLine($charId, $level, $cap, $totalWeight);
+        $text .= "\n💰 *Общая стоимость* ~ " . number_format($totalValue) . " 💰";
 
         return $this->reply($text, $mode);
     }
 
     /**
-     * Строка одного ресурса: «📦 name | N шт · X кг».
+     * Строка одного ресурса: «📦 name | N шт».
      *
      * @param array<string,mixed> $r
      */
@@ -105,22 +96,7 @@ class ResourcesGatheredAction extends BaseAction
     {
         $name = is_string($r['name'] ?? null) ? $r['name'] : '';
         $qty  = is_numeric($r['quantity'] ?? null) ? (int) $r['quantity'] : 0;
-        $w    = is_numeric($r['weight'] ?? null) ? (float) $r['weight'] : 0.0;
-        $kg   = round($qty * $w, 1);
-        return "📦 {$name} | " . number_format($qty) . " шт · {$kg} кг\n";
-    }
-
-    /** Футер веса: при включённом weight-cap — load/cap/остаток, иначе общий вес. */
-    private function weightLine(int $charId, int $level, int $cap, float $totalWeight): string
-    {
-        $svc = new WeightCapacityService();
-        if (! $svc->isEnabled()) {
-            return "⚖️ *Общий вес:* " . round($totalWeight, 1) . " кг";
-        }
-        $current = round($svc->getCurrentLoad($charId), 1);
-        $capVal  = $cap > 0 ? $cap : $svc->computeCapacity($level);
-        $remain  = round($svc->getRemainingCapacity($charId, $level, $cap), 1);
-        return "⚖️ *Вес:* {$current} / {$capVal} кг (осталось {$remain})";
+        return "📦 {$name} | " . number_format($qty) . " шт\n";
     }
 
     private function parseSortMode(string $callbackData): string

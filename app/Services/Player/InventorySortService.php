@@ -18,14 +18,13 @@ final class InventorySortService
     public const MODE_NAME   = 'name';
     public const MODE_QTY    = 'qty';
     public const MODE_VALUE  = 'value';
-    public const MODE_WEIGHT = 'weight';
     public const MODE_RECENT = 'recent';
 
     /** Режимы экрана «Добытые ресурсы». */
     public const RESOURCE_MODES = [self::MODE_RARITY, self::MODE_NAME, self::MODE_QTY, self::MODE_VALUE];
 
-    /** Режимы экрана «Склад базы». */
-    public const STORAGE_MODES = [self::MODE_RECENT, self::MODE_NAME, self::MODE_QTY, self::MODE_WEIGHT];
+    /** Режимы экрана «Склад базы» (price/weight у base_storage нет → recent/name/qty). */
+    public const STORAGE_MODES = [self::MODE_RECENT, self::MODE_NAME, self::MODE_QTY];
 
     /**
      * Вернуть НОВЫЙ отсортированный список (исходный не мутируется).
@@ -53,11 +52,6 @@ final class InventorySortService
             case self::MODE_VALUE:
                 usort($sorted, static fn (array $a, array $b): int =>
                     (self::flt($b, 'price') * self::int($b, 'quantity')) <=> (self::flt($a, 'price') * self::int($a, 'quantity')));
-                return $sorted;
-
-            case self::MODE_WEIGHT:
-                usort($sorted, static fn (array $a, array $b): int =>
-                    (self::flt($b, 'weight') * self::int($b, 'quantity')) <=> (self::flt($a, 'weight') * self::int($a, 'quantity')));
                 return $sorted;
 
             case self::MODE_RARITY:

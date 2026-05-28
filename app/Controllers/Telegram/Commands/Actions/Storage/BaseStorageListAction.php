@@ -90,23 +90,19 @@ class BaseStorageListAction extends BaseAction
         $onBase = $this->isOnBase($characterId);
 
         $text   = "📦 *Склад базы*\n\n";
-        $totalKg = 0.0;
         $totalUnits = 0;
         foreach ($entries as $e) {
             $rawName = $e['name'] ?? '';
             $name    = is_string($rawName) ? $rawName : '';
             $qty     = is_numeric($e['quantity'] ?? null) ? (int) $e['quantity'] : 0;
-            $weight  = is_numeric($e['weight'] ?? null) ? (float) $e['weight'] : 0.0;
             if ($name === '' || $qty <= 0) {
                 continue;
             }
-            $kg     = round($qty * $weight, 1);
-            $totalKg += $kg;
             $totalUnits += $qty;
             $emoji  = ResourceIconHelper::for($name);
-            $text  .= "{$emoji} {$name} — *{$qty}* шт. ({$kg} кг)\n";
+            $text  .= "{$emoji} {$name} — *{$qty}* шт.\n";
         }
-        $text .= "\nИтого: *{$totalUnits}* шт. / *" . round($totalKg, 1) . " кг*\n\n";
+        $text .= "\nИтого: *{$totalUnits}* шт.\n\n";
 
         $rows = [$this->sortRow($mode)]; // W8: переключатель сортировки
 
@@ -185,7 +181,7 @@ class BaseStorageListAction extends BaseAction
     {
         $db = \Config\Database::connect();
         $q  = $db->query(
-            'SELECT bs.id, bs.resource_id, bs.quantity, bs.arrived_from_cell, r.name, r.weight
+            'SELECT bs.id, bs.resource_id, bs.quantity, bs.arrived_from_cell, r.name
              FROM base_storage bs
              INNER JOIN resources r ON r.id = bs.resource_id
              WHERE bs.character_id = ?
@@ -217,7 +213,6 @@ class BaseStorageListAction extends BaseAction
             InventorySortService::MODE_RECENT => '🕒 Недавние',
             InventorySortService::MODE_NAME   => '🔤 Название',
             InventorySortService::MODE_QTY    => '🔢 Кол-во',
-            InventorySortService::MODE_WEIGHT => '⚖️ Вес',
         ] as $m => $label) {
             $row[] = [
                 'text'          => ($m === $mode ? '• ' : '') . $label,

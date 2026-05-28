@@ -49,14 +49,6 @@ final class InventorySortServiceTest extends CIUnitTestCase
         $this->assertSame(200.0, $out[0]['price'] * $out[0]['quantity']);
     }
 
-    public function testSortByWeightDescending(): void
-    {
-        // weight = weight * qty: Берёза 5.0, Алмаз 1.0, Веточка 5.0 → max первым
-        $out = S::sortRows($this->rows(), S::MODE_WEIGHT);
-        $top = $out[0]['weight'] * $out[0]['quantity'];
-        $this->assertSame(5.0, $top);
-    }
-
     public function testSortByRarityNumericAscending(): void
     {
         $out = S::sortRows($this->rows(), S::MODE_RARITY);
