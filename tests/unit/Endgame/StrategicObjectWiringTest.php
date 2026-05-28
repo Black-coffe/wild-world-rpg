@@ -50,7 +50,16 @@ final class StrategicObjectWiringTest extends CIUnitTestCase
     {
         $map = (new EndgameScoring())->strategicObjectFactionMap;
 
+        // W13 (ADR-067): faction-agnostic ландмарки (story-капстоны, НЕ faction-capture)
+        // намеренно не дают +500 фракции. Discovery всё равно содержателен (loot + gold +
+        // авто-завершение квеста + старт арки через StrategicLootHandler::checkStrategicCaptureQuest)
+        // — цепочка НЕ мёртвая, просто без faction-routing. Исключены из инварианта.
+        $factionAgnostic = ['IslandHeart'];
+
         foreach (WorldObjectGeneratorHandler::STRATEGIC_SPAWN_TYPES as $type) {
+            if (in_array($type, $factionAgnostic, true)) {
+                continue;
+            }
             $this->assertArrayHasKey(
                 $type,
                 $map,

@@ -219,6 +219,8 @@ class ImageRegistry extends BaseConfig
         'world.technopark'        => 'a half-collapsed pre-collapse research compound clinging to a mountainside — cracked concrete pillars, toppled dish antennas, salvaged solar panels half-buried in scree, dead cables hanging; eerie, silent, salvageable technology.',
         'world.ghost-city'        => 'an abandoned pre-collapse small town seen across open ground — rows of empty hollow windows, leaning cracked walls, vegetation reclaiming the streets, a thin thread of smoke from one far chimney hinting at hidden survivors; quiet, watchful, eerie.',
         'world.island-farm'       => 'a forgotten pre-collapse farmstead in tall dry grass — weathered sun-bleached barns, an empty rusted silo, fruit trees still bearing, a slowly turning windmill; a calm fertile ruin under warm low light.',
+        // W13 (ADR-067) — island-chapter-1 capstone landmark.
+        'world.island-heart'      => 'a deep fissure in black volcanic rock with a faint warm glow rising from within — pre-collapse machinery fused into the stone walls, melted cables, dead instrument panels, a steady unseen hum; the hidden core that kept the island alive amid a dead world, ancient and still faintly working; ominous, sacred, mysterious.',
         // — Квесты —
         'quests.journal'          => "a survivor's hand-bound quest journal open on a workbench — pages of pencil sketches and little drawings, pinned scraps, a stub of pencil, pictures only and no writing; the survivor's record of what's been done.",
         // — Карта (РЕШЕНИЕ: стилизованная картинка острова или skip) —
@@ -455,6 +457,7 @@ class ImageRegistry extends BaseConfig
         ['key' => 'objects/technopark', 'file' => 'uploads/telegram/objects/technopark.jpg', 'lexicon' => 'world.technopark', 'scene' => '', 'mode' => 'V2', 'status' => 'generated', 'used_in' => 'strategic object: Technopark discovery (S21)'],
         ['key' => 'objects/ghostcity', 'file' => 'uploads/telegram/objects/ghostcity.jpg', 'lexicon' => 'world.ghost-city', 'scene' => '', 'mode' => 'V2', 'status' => 'generated', 'used_in' => 'strategic object: GhostCity discovery (S21)'],
         ['key' => 'objects/islandfarm', 'file' => 'uploads/telegram/objects/islandfarm.jpg', 'lexicon' => 'world.island-farm', 'scene' => '', 'mode' => 'V3', 'status' => 'generated', 'used_in' => 'strategic object: IslandFarm discovery (S24)'],
+        ['key' => 'objects/islandheart', 'file' => 'uploads/telegram/objects/islandheart.jpg', 'lexicon' => 'world.island-heart', 'scene' => '', 'mode' => 'V4', 'status' => 'pending', 'used_in' => 'strategic object: IslandHeart discovery (W13 capstone) — art-tail at activation; handler text-fallback meanwhile'],
 
         // ─────────────── КВЕСТЫ ───────────────
         ['key' => 'quests/Quests-and-Missions', 'file' => 'uploads/telegram/quests/Quests-and-Missions.jpg', 'lexicon' => 'quests.journal', 'scene' => '', 'mode' => 'V1', 'status' => 'generated', 'used_in' => 'QuestAndTaskAction menu'],

@@ -36,7 +36,7 @@ class WorldObjectGeneratorHandler extends BaseTaskHandler
      *
      * @var list<string>
      */
-    public const STRATEGIC_SPAWN_TYPES = ['Bunker', 'Technopark', 'GhostCity', 'IslandFarm'];
+    public const STRATEGIC_SPAWN_TYPES = ['Bunker', 'Technopark', 'GhostCity', 'IslandFarm', 'IslandHeart'];
 
     /**
      * Все name_en, для которых {@see generateObjectByType()} имеет рабочий
@@ -47,7 +47,7 @@ class WorldObjectGeneratorHandler extends BaseTaskHandler
      */
     public const SUPPORTED_SPAWN_TYPES = [
         'Abandoned truck', 'Toolkit', 'Closed warehouse',
-        'Bunker', 'Technopark', 'GhostCity', 'IslandFarm',
+        'Bunker', 'Technopark', 'GhostCity', 'IslandFarm', 'IslandHeart',
     ];
 
     protected $worldObjectModel;
@@ -143,6 +143,9 @@ class WorldObjectGeneratorHandler extends BaseTaskHandler
             case 'Technopark':
             case 'GhostCity':
             case 'IslandFarm':
+            // W13 (ADR-067): IslandHeart — faction-agnostic ландмарк-капстон главы 1
+            // (тот же generic placer; dormant через max_spawns=0 до активации).
+            case 'IslandHeart':
                 $this->generateStrategicObject($object, $addNewRowCount);
                 break;
 
