@@ -15,6 +15,7 @@ use App\Models\MapModel;
 use App\Models\OutfitModel;
 use App\Models\WeaponModel;
 use App\Services\PVE\DuelService;
+use App\Services\PVE\PvpLadderService;
 use App\Services\PVE\PvpDamageCalculator;
 use App\Services\PVE\PvpEquipmentRepository;
 use App\Services\PVE\PvpFormulaService;
@@ -37,6 +38,7 @@ final class DuelAction extends BaseAction
     private MapModel $mapModel;
     private BiomeModel $biomeModel;
     private DuelService $duelService;
+    private PvpLadderService $ladderService;
     private PvpEquipmentRepository $equipmentRepo;
     private PvpRoundOrchestrator $roundOrchestrator;
     private GameBalance $cfg;
@@ -46,9 +48,10 @@ final class DuelAction extends BaseAction
         parent::__construct($callbackQuery);
 
         $this->cfg         = config(GameBalance::class);
-        $this->mapModel    = new MapModel();
-        $this->biomeModel  = new BiomeModel();
-        $this->duelService = new DuelService();
+        $this->mapModel      = new MapModel();
+        $this->biomeModel    = new BiomeModel();
+        $this->duelService   = new DuelService();
+        $this->ladderService = new PvpLadderService();
 
         $formulas            = new PvpFormulaService();
         $this->equipmentRepo = new PvpEquipmentRepository(
@@ -122,6 +125,18 @@ final class DuelAction extends BaseAction
         $eqDefender = $this->duelService->equalize($this->toArray($defender));
         $result     = $this->roundOrchestrator->simulateFight($eqAttacker, $eqDefender, $biome, null);
 
+        // W18 (ADR-072): post-combat scoring в PvP-ладдер — ПОСЛЕ боя (simulateFight уже посчитан,
+        // 0 нового mt_rand → fence-safe). Killswitch pvp.ladder.enabled внутри recordDuel (dormant = no-op).
+        $duelType   = is_string($result['type'] ?? null) ? $result['type'] : 'normal';
+        $winnerRow  = is_array($result['winner'] ?? null) ? $result['winner'] : null;
+        $winnerId   = $winnerRow !== null && is_numeric($winnerRow['id'] ?? null) ? (int) $winnerRow['id'] : 0;
+        if ($duelType === 'exhausted' || $winnerId <= 0) {
+            $this->ladderService->recordDuel($attackerId, $defenderId, true);
+        } else {
+            $loserId = $winnerId === $attackerId ? $defenderId : $attackerId;
+            $this->ladderService->recordDuel($winnerId, $loserId, false);
+        }
+
         // НЕТ death/reward — реальные чары не тронуты (спортивный поединок).
         $aName = is_string($attacker['name'] ?? null) && $attacker['name'] !== '' ? $attacker['name'] : ('№' . $attackerId);
         $dName = is_string($defender['name'] ?? null) && $defender['name'] !== '' ? $defender['name'] : ('№' . $defenderId);
@@ -131,14 +146,20 @@ final class DuelAction extends BaseAction
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         $this->notifyDefender($defender, $text);
 
+        $row = [
+            ['text' => '◀️ Перс', 'callback_data' => 'character'],
+            ['text' => '🗺 Карта', 'callback_data' => 'inlineMap'],
+        ];
+        // W18 (ADR-072): «🏆 Рейтинг» только при активном ладдере (dormant — скрыта).
+        if ($this->ladderService->enabled()) {
+            $row[] = ['text' => '🏆 Рейтинг', 'callback_data' => 'pvpLadder'];
+        }
+
         return Request::sendMessage([
             'chat_id'      => $chatId,
             'text'         => $text,
             'parse_mode'   => 'HTML',
-            'reply_markup' => json_encode(['inline_keyboard' => [[
-                ['text' => '◀️ Перс', 'callback_data' => 'character'],
-                ['text' => '🗺 Карта', 'callback_data' => 'inlineMap'],
-            ]]]),
+            'reply_markup' => json_encode(['inline_keyboard' => [$row]]),
         ]);
     }
 

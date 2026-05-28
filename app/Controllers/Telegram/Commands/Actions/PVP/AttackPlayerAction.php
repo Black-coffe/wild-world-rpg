@@ -295,6 +295,17 @@ class AttackPlayerAction extends BaseAction
             'log_data'    => json_encode($logDetails, JSON_UNESCAPED_UNICODE),
         ]);
 
+        // W18 (ADR-072): post-combat scoring в PvP-ладдер — ПОСЛЕ battle_logs-insert, ВНЕ simulateFight
+        // (0 нового mt_rand → fence byte-equivalent сохраняется). Killswitch pvp.ladder.enabled внутри
+        // recordPvpAttack (dormant = no-op). Летальная PvP-победа дороже дуэли (риск death/XP-loss).
+        $ladderWinnerId = is_numeric($winnerId) ? (int) $winnerId : 0;
+        if ($ladderWinnerId > 0) {
+            $atkId         = is_numeric($attacker['id'] ?? null) ? (int) $attacker['id'] : 0;
+            $defId         = is_numeric($defender['id'] ?? null) ? (int) $defender['id'] : 0;
+            $ladderLoserId = $ladderWinnerId === $atkId ? $defId : $atkId;
+            (new \App\Services\PVE\PvpLadderService())->recordPvpAttack($ladderWinnerId, $ladderLoserId);
+        }
+
         $battleUrl = base_url('battles/view/') . $battleId;
         $attackerFinalText .= "\n\n<a href=\"{$battleUrl}\">[Посмотреть детали боя]</a>";
         $defenderFinalText .= "\n\n<a href=\"{$battleUrl}\">[Посмотреть детали боя]</a>";

@@ -210,6 +210,10 @@ class CharacterService
         if ((new \App\Services\Player\AchievementService())->isEnabled()) {
             $infoButtons[] = ['text' => '🏅 Достижения', 'callback_data' => 'achievements'];
         }
+        // W18 (ADR-072) — «🏆 Рейтинг PvP» под своим killswitch (pvp.ladder.enabled).
+        if ((new \App\Services\PVE\PvpLadderService())->enabled()) {
+            $infoButtons[] = ['text' => '🏆 Рейтинг PvP', 'callback_data' => 'pvpLadder'];
+        }
         for ($i = 0; $i < count($infoButtons); $i += 2) {
             $inlineRows[] = array_slice($infoButtons, $i, 2);
         }

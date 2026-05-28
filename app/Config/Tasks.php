@@ -217,5 +217,11 @@ class Tasks extends BaseTasks
         // Killswitch tips.daily_enabled. singleInstance против overlap при рассылке 364.
         $schedule->call(static fn() => (new \App\TaskHandlers\Tips\DailyTipBroadcastHandler())->handle())
             ->everyMinute()->singleInstance()->named('tips.daily-broadcast');
+
+        // W18 (ADR-072) — PvP-ладдер: еженедельный топ + сброс сезона.
+        // everyMinute + внутренние guard'ы (day/hour/once-week). Killswitch pvp.ladder.enabled
+        // + pvp.ladder.broadcast_enabled (оба OFF dormant). singleInstance против overlap.
+        $schedule->call(static fn() => (new \App\TaskHandlers\PVP\PvpLadderWeeklyBroadcastHandler())->handle())
+            ->everyMinute()->singleInstance()->named('pvp-ladder.weekly-broadcast');
     }
 }
