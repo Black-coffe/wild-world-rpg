@@ -18,7 +18,8 @@
 | W5 | **Combat drone + Caravan drone-offer integration** (ADR-064, 🏁 закрытие Фазы 1 Drone-family) | ✅ SHIPPED prod (Tier-1 PASS + Tier-3 partial PASS — bug catch + hotfix) | v0.51.287 | 2026-05-27 |
 | W6 | **Onboarding redux #11 — audit + scope** (ADR-065, hybrid: Robi 4→7 + «Что нового» catalog) | ✅ SHIPPED docs-only (без кода, реализация в W7) | — | 2026-05-27 |
 | W7a | **Onboarding redux — Robi extension 4→7 шагов** (ADR-065 implement Part 1: шаги 5/7 «Подсказки и советы» + 6/7 «Этапы прокачки» + 7/7 closer; killswitch GameSettings) | ✅ SHIPPED prod (Tier-1 + Tier-3 PASS + 2 Tier-3 hotfix'а: PNG→JPG + caption 1068→605) | v0.51.288 | 2026-05-27 |
-| W7b | **Onboarding redux — каталог «📚 Что нового»** (ADR-065 implement Part 2: WhatsNewCatalog/Topic + 6 тем + JSON seen-tracking + Перс button + Step7 promo; forced-show отложен) | ✅ SHIPPED prod (Tier-1 961/961 + Tier-3 cold-smoke PASS) | v0.51.289 | 2026-05-28 |
+| W7b | **Onboarding redux — каталог «📚 Что нового»** (ADR-065 implement Part 2: WhatsNewCatalog/Topic + 6 тем + JSON seen-tracking + Перс button + Step7 promo; forced-show отложен) | ✅ SHIPPED prod (Tier-1 961/961 + Tier-3 cold-smoke PASS) + art-tail v0.51.290 | v0.51.289 | 2026-05-28 |
+| W8 | **Inventory polish** (re-scope: «Склад базы» в хаб rule #4 + сортировка ресурсов/склада; weight отброшен — нет колонки + ADR-059 конфликт; +фикс 2 латентных багов) | ✅ SHIPPED prod (Tier-1 970/970 + Tier-3 cold-smoke PASS) | v0.51.291 | 2026-05-28 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -168,6 +169,31 @@
 > [[mmorpg-vault/tech-writing/services/WhatsNewService]] + handlers/onboarding/index +
 > ROADMAP §0. **🏁 W7b/30 + art-tail SHIPPED, Фаза 2 Onboarding & Achievement — 2/5.** Дальше:
 > пауза ИЛИ W8 Inventory revamp UI (следующая сессия Фазы 2).
+>
+> **W8 SHIPPED prod 2026-05-28 (`v0.51.291`):** **Re-scope (user-pick AskUserQuestion):**
+> литеральное «weight-cap для outfits» отброшено — audit-first вскрыл, что (а) weight-cap
+> OFF на проде, (б) ADR-059 Q4 исключил crafted/outfits из веса, (в) у `resources` ВООБЩЕ
+> нет колонки `weight`. Честное reuse-only ядро: discoverability + сортировка. **Сделано
+> (1 service + 3 PATCH + 0 миграций):** NEW `InventorySortService` (pure stateless: sortRows
+> rarity/name/qty/value + normalizeMode allowlist, +10 unit) + `InventoryAction` (кнопка
+> «📦 Склад базы» в хаб — rule #4, раньше base_storage достижим только из move-keyboard/cargo)
+> + `ResourcesGatheredAction` (сортировка через callback-param `resourcesGathered_sort_<mode>`
+> + sort-toggle row; убран вес) + `BaseStorageListAction` (сортировка `baseStorageList_sort_<mode>`:
+> recent/name/qty + sort-toggle row). **Без новых routes** (sort-callback резолвится в
+> существующий exact-route по первому сегменту explode('_')). **🐛 Попутно пофикшены 2
+> латентных бага** в `BaseStorageListAction` (W3b, экран был малодостижим → не всплывало):
+> (1) `loadEnrichedEntries` селектил несуществующий `resources.weight` → SQL-исключение при
+> любом открытии; (2) `isOnBase()` селектил несуществующий `claimed_cells.cell_number` →
+> SQL-исключение при открытии с данными (заменён на канонический `BaseCheckService`).
+> **Tier-1 ✅ 970/970 PASS, 8068 assertions, phpstan L9 NO ERRORS, php -l все файлы.** **Tier-3
+> cold-smoke на testbot (char 491, MCP Chrome + Telegram Web, БЕЗ предзнаний):** Перс →
+> Инвентарь → кнопка «📦 Склад базы» видна ✅ → «Добытые ресурсы» (sort-toggle Редкость/
+> Название/Кол-во/Стоимость, qty-сорт verified descending `[4568,544,435,357,324]`, без веса) ✅
+> → «Склад базы» (3 seeded rows, Итого 55 шт, off-base hint, isOnBase без краша) ✅ → stash sort
+> «Кол-во» reorder descending ✅. Seeded rows подчищены. **Doc:**
+> [[mmorpg-vault/tech-writing/services/InventorySortService]] (+2 латентных бага задокументированы) +
+> hot.md + daily + ROADMAP §0. **🏁 W8/30, Фаза 2 — 3/5.** Дальше: W9 Achievement system
+> foundation ИЛИ W10 Achievement T1 set ИЛИ пауза.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
