@@ -21,6 +21,7 @@
 | W7b | **Onboarding redux — каталог «📚 Что нового»** (ADR-065 implement Part 2: WhatsNewCatalog/Topic + 6 тем + JSON seen-tracking + Перс button + Step7 promo; forced-show отложен) | ✅ SHIPPED prod (Tier-1 961/961 + Tier-3 cold-smoke PASS) + art-tail v0.51.290 | v0.51.289 | 2026-05-28 |
 | W8 | **Inventory polish** (re-scope: «Склад базы» в хаб rule #4 + сортировка ресурсов/склада; weight отброшен — нет колонки + ADR-059 конфликт; +фикс 2 латентных багов) | ✅ SHIPPED prod (Tier-1 970/970 + Tier-3 cold-smoke PASS) | v0.51.291 | 2026-05-28 |
 | W9 | **Achievement system foundation** (ADR-066: cron-poll state-driven award engine, 2 таблицы + 7 starter + killswitch OFF dormant; W10 активирует + UI) | ✅ SHIPPED prod dormant (Tier-1 981/981 + Tier-3 cold-smoke PASS) | v0.51.292 | 2026-05-28 |
+| W10 | **Achievement T1 set + UI** (+14 medals = 21 total + экран «🏅 Достижения» + Перс button; killswitch остаётся OFF — активация в конце ROADMAP) 🏁 закрытие Фазы 2 | ✅ SHIPPED prod dormant (Tier-1 984/984 + Tier-3 cold-smoke PASS) | v0.51.294 | 2026-05-28 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -226,6 +227,31 @@
 > hot.md + daily + ROADMAP §0. **🏁 W9/30, Фаза 2 — 4/5.** Дальше: **W10 Achievement T1 set**
 > (20+ medals + UI «🏅 Достижения» в карточке перса + активация killswitch + анонс) — закрывает
 > Фазу 2. ИЛИ пауза.
+>
+> **W10 SHIPPED prod dormant 2026-05-28 (`v0.51.294`) — 🏁 ЗАКРЫТИЕ ФАЗЫ 2 (Onboarding &
+> Achievement, 5/5).** Контент-пасс T1 + UI поверх W9 foundation. **Сделано (1 seed + 1 NEW
+> handler + 3 PATCH):** seed +14 достижений (W9 7 → **21 total**): тиры char_level 10/25/50,
+> quests 10/30/50, explored_cells 100/500/1000, craft_total 10/50/200, gold_total 50k/500k.
+> `AchievementService::currentValue(charId, criteria_type)` — прогресс X/Y для locked.
+> NEW `AchievementsAction` (callback `achievements`): группировка по 5 категориям (Прогресс/
+> Разведка/Крафт/Экономика/Фракции), открытые «✅ {icon} title (+points)» / закрытые «🔒 {icon}
+> title — X/Y», сводка «Открыто N/всего · Очки P». edit-in-place, **БЕЗ inline-дублей**
+> постоянной reply-клавиатуры (правило feedback_no_duplicate_persistent_keyboard_buttons).
+> `CharacterService` +кнопка «🏅 Достижения» в Перс (gated isEnabled, запакована с «📚 Что
+> нового» по 2 в строку). `CallbackRoutes` +exact `achievements`. **+3 unit** (currentValue).
+> **Tier-1 ✅ 984/984 PASS (+3), 8090 assertions, phpstan L9 NO ERRORS, php -l все файлы.**
+> **Tier-3 cold-smoke на testbot (killswitch ON via SQL + cache:clear → tasks:run):** 21 medals
+> засеяны ✅; char 491 → 14/21 unlocked; Перс card «🏅 Достижения» (запакована с «📚 Что нового») ✅;
+> экран рендерит сводку «14/21 · Очки 410» + 5 категорий + открытые (+points) + закрытые с реальным
+> прогрессом (Первопроходец 470/500, Магнат 84083/500000, Искатель 1/3) ✅. testbot восстановлен
+> dormant+clean. **Активация (user-pick AskUserQuestion): ship dormant** — killswitch остаётся OFF,
+> кнопка/выдача невидимы; активация в конце ROADMAP вместе с консолидированным анонсом
+> (`feedback_announce_after_roadmap_done` — не выкатываем mass per-player уведомления 342 игрокам
+> мид-роудмеп). **Doc:** [[mmorpg-vault/decisions/ADR-066-Achievement-system-foundation]] W10
+> секция + [[mmorpg-vault/tech-writing/handlers/achievements/AchievementsAction]] +
+> AchievementService нота + hot.md + daily + ROADMAP §0. **🏁 W10/30, Фаза 2 Onboarding &
+> Achievement ЗАКРЫТА (5/5: W6 audit + W7a/W7b onboarding + W8 inventory + W9/W10 achievements).**
+> Дальше: 🌳 Фаза 3 — Quest T2 & Caravan-V2 (W11 Quest T2 foundation) ИЛИ пауза.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
