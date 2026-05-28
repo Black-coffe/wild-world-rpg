@@ -22,6 +22,7 @@
 | W8 | **Inventory polish** (re-scope: «Склад базы» в хаб rule #4 + сортировка ресурсов/склада; weight отброшен — нет колонки + ADR-059 конфликт; +фикс 2 латентных багов) | ✅ SHIPPED prod (Tier-1 970/970 + Tier-3 cold-smoke PASS) | v0.51.291 | 2026-05-28 |
 | W9 | **Achievement system foundation** (ADR-066: cron-poll state-driven award engine, 2 таблицы + 7 starter + killswitch OFF dormant; W10 активирует + UI) | ✅ SHIPPED prod dormant (Tier-1 981/981 + Tier-3 cold-smoke PASS) | v0.51.292 | 2026-05-28 |
 | W10 | **Achievement T1 set + UI** (+14 medals = 21 total + экран «🏅 Достижения» + Перс button; killswitch остаётся OFF — активация в конце ROADMAP) 🏁 закрытие Фазы 2 | ✅ SHIPPED prod dormant (Tier-1 984/984 + Tier-3 cold-smoke PASS) | v0.51.294 | 2026-05-28 |
+| W11 | **Quest T2 branching foundation** (ADR-067: развилка player-choice → branch_group+branch_label на quests, reuse quest_steps; killswitch `quests.branching_enabled` OFF dormant; +1 демо-ветка; старт Фазы 3) | ✅ SHIPPED prod dormant (Tier-1 995/995 + Tier-3 cold-smoke PASS) | v0.51.295 | 2026-05-28 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -252,6 +253,41 @@
 > AchievementService нота + hot.md + daily + ROADMAP §0. **🏁 W10/30, Фаза 2 Onboarding &
 > Achievement ЗАКРЫТА (5/5: W6 audit + W7a/W7b onboarding + W8 inventory + W9/W10 achievements).**
 > Дальше: 🌳 Фаза 3 — Quest T2 & Caravan-V2 (W11 Quest T2 foundation) ИЛИ пауза.
+>
+> **W11 SHIPPED prod dormant 2026-05-28 (`v0.51.295`) — 🌳 СТАРТ ФАЗЫ 3 (Quest T2 & Caravan-V2).**
+> Quest T2 branching foundation. 🟠-сессия — [[mmorpg-vault/decisions/ADR-067-Quest-T2-branching-engine|ADR-067]]
+> (7 ворот + 5-осевая Σ15 + 10-портретный 7/3/0) ДО кода. **Механизм = 2 колонки на `quests`**
+> (user-pick AskUserQuestion из 3 опций: 2 колонки / junction-таблицы / JSON): `branch_group` +
+> `branch_label`, состояние выбора ВЫВОДИТСЯ из существующей `quest_steps` — **0 новых таблиц/
+> моделей** (линия ADR-036/037 «простая колонка чище junction»). Развилка = несколько квестов с
+> общим branch_group + общим prerequisite_quest → игрок выбирает ОДИН путь, остальные навсегда
+> закрыты. **Сделано (4 миграции + service-ext + 2 model-ext + 1 NEW handler + 3 PATCH):** ALTER
+> quests +branch_group(64)/+branch_label(100) + QuestModel allowedFields + killswitch
+> `quests.branching_enabled` (default **OFF dormant**, rich rationale ADR-024) + seed 1 демо-развилка
+> (DemoScoutCrossroads → 2 взаимоисключающие ветки) + 🔧 fix-миграция utf8mb4 для branch_label
+> (таблица quests была utf8mb3 → emoji-лейблы 🤝/🎒 усекались в '?'; поймано hex-verify на testbot,
+> урок feedback_emoji_content_needs_utf8mb4). **QuestChainService:** branchingEnabled / branchGroupOf /
+> branchLabelOf / pendingBranchOptions / pendingBranchesForCharacter / chooseBranch + advanceChain
+> **branch-guard** (branch_group квесты НЕ авто-назначаются → только явный выбор; 0 регрессии для
+> линейных цепочек V11/V12/V13). **QuestModel** +getActiveBranchQuests(ForPrereqs)/titleRuByEn,
+> **QuestStepsModel** +countStepsForQuests (raw db — без model-state quirk). **NEW**
+> `QuestBranchChooseAction` (prefix `questBranch_<quest_id>`) + CallbackRoutes. **PATCH:**
+> `AvailableQuests` hub-surface развилок (блок «🔀 Развилка цепочки!» + кнопки — discoverability
+> правило #4) + `QuestObjectiveHandler::notify` (branch-point → «🔀 Развилка!» + кнопки вместо
+> «след. этап»). **+10 unit** (QuestChainServiceTest 8→18). **Tier-1 ✅ 995/995 PASS, phpstan L9
+> NO ERRORS, php -l все файлы.** PHPStan fix-цикл: array-key типизация (getResultArray =
+> array<int|string,...>) + убрать redundant is_array на уже-типизированных + int|string→int cast.
+> **Tier-3 cold-smoke на testbot (MCP Chrome + Telegram Web, char 489 — личный аккаунт, swap с 491):**
+> killswitch ON via SQL + branch-point completed → (cron-completion + branch-guard verified на char 491:
+> quest 18 done, ветки НЕ авто-назначены) → Перс → Действия → Квесты → Доступные квесты → блок
+> «🔀 Развилка цепочки!» + 2 кнопки (🤝 Помочь поселению / 🎒 Забрать припасы) ✅ → клик «Помочь
+> поселению» → «🔀 Путь выбран! +1500 золота, ветки закрыты» edit-in-place, без дублей клавиатуры ✅ →
+> re-open Доступные → развилка ИСЧЕЗЛА (сиблинг закрыт) ✅; SQL: quest 19 chosen (step), quest 20 absent ✅;
+> utf8mb4 hex F09FA49D=🤝 ✅. testbot восстановлен dormant+clean. **Killswitch OFF на prod → 0
+> player-эффекта** (зеркало W9/W3a); активация в конце ROADMAP с анонсом. **Doc:** ADR-067 +
+> decisions/index + QuestChainService/QuestObjectiveHandler ноты + handlers/quest/QuestBranchChooseAction +
+> apps/quests/index + hot.md + daily + ROADMAP §0. **🏁 W11/30, Фаза 3 — 1/5.** Дальше: **W12 Quest T2
+> faction-specific branching** (1 ветвящаяся цепочка на фракцию) ИЛИ пауза.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
