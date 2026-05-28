@@ -7,6 +7,7 @@ namespace App\Controllers\Telegram\Commands\Actions\StartGame;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterModel;
 use App\Models\ActionLogModel;
+use App\Services\Player\WhatsNewService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
@@ -51,6 +52,8 @@ class GetTrainingStart7Action extends BaseAction
             ]);
         }
 
+        $whatsNewEnabled = (new WhatsNewService())->isEnabled();
+
         $text = "📍 *Шаг 7/7*\n\n"
             . "🤖 *Готов идти?* 🌅\n\n"
             . "Это всё что нужно знать на старте. Дальше — на карту, добывать ресурсы, строить базу, разбираться с миром.\n\n"
@@ -58,17 +61,22 @@ class GetTrainingStart7Action extends BaseAction
             . "1️⃣ Двигайся на север-восток — там твоя мирная стартовая зона.\n"
             . "2️⃣ Собирай ресурсы на каждой клетке, прокачивай уровень.\n"
             . "3️⃣ Когда наберёшь стартовые материалы — открой 🛠 *Крафт* и сделай первые инструменты.\n"
-            . "4️⃣ Строй базу — она даёт хранилище, защиту и доступ к продвинутому крафту.\n\n"
-            . "🤖 *Я остаюсь рядом.* Если что-то непонятно — открой /tips или зайди в карточку персонажа. Большинство действий доступно прямо из кнопок.\n\n"
+            . "4️⃣ Строй базу — она даёт хранилище, защиту и доступ к продвинутому крафту.\n\n";
+
+        if ($whatsNewEnabled) {
+            $text .= "📚 *Что нового* — в карточке персонажа есть раздел-справочник по механикам (крафт, роботы, дроны, фракции, оборона, экономика). Загляни, когда захочешь разобраться глубже.\n\n";
+        }
+
+        $text .= "🤖 *Я остаюсь рядом.* Если что-то непонятно — открой /tips или зайди в карточку персонажа. Большинство действий доступно прямо из кнопок.\n\n"
             . "_Удачи на острове. Возвращайся живым._";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🛣 К приключениям!', 'callback_data' => 'startAdventure'],
-                ],
-            ],
-        ];
+        $buttons = [];
+        if ($whatsNewEnabled) {
+            $buttons[] = [['text' => '📚 Что нового', 'callback_data' => 'whatsNewCatalog']];
+        }
+        $buttons[] = [['text' => '🛣 К приключениям!', 'callback_data' => 'startAdventure']];
+
+        $keyboard = ['inline_keyboard' => $buttons];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 

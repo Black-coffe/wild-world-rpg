@@ -38,6 +38,9 @@ class CallbackRoutes extends BaseConfig
         'getTrainedStart6'                => \App\Controllers\Telegram\Commands\Actions\StartGame\GetTrainingStart6Action::class,
         'getTrainedStart7'                => \App\Controllers\Telegram\Commands\Actions\StartGame\GetTrainingStart7Action::class,
         'startAdventure'                  => \App\Controllers\Telegram\Commands\Actions\StartGame\StartAdventureAction::class,
+        // W7b (ADR-065 Part 2) — каталог «📚 Что нового». Вход с экрана Перс + промо в Шаге 7/7.
+        // Топики — через prefixRoute `whatsNew` (callback `whatsNew_<topic_key>`).
+        'whatsNewCatalog'                 => \App\Controllers\Telegram\Commands\Actions\WhatsNew\WhatsNewCatalogAction::class,
         'exploreAreaTips'                 => \App\Controllers\Telegram\Commands\Actions\StartGame\ExploreAreaTipsAction::class,
         'moveNorthEastTips'               => \App\Controllers\Telegram\Commands\Actions\StartGame\MoveNorthEastTips::class,
         'gatherTips'                      => \App\Controllers\Telegram\Commands\Actions\StartGame\GatherTips::class,
@@ -343,6 +346,9 @@ class CallbackRoutes extends BaseConfig
         'craftPreviewT3Medical' => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional\MedicalRecipePreviewT3Action::class,
         'craftPreviewT3Utility' => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional\UtilityRecipePreviewT3Action::class,
         'craftPreviewT3' => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional\WeaponRecipePreviewT3Action::class,
+        // W7b (ADR-065 Part 2) — тема каталога «Что нового». Callback `whatsNew_<topic_key>`
+        // (первый сегмент `whatsNew` после explode('_'); exact `whatsNewCatalog` ловится раньше).
+        'whatsNew' => \App\Controllers\Telegram\Commands\Actions\WhatsNew\WhatsNewTopicAction::class,
     ];
 
     /**

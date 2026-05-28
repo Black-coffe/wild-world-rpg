@@ -199,6 +199,13 @@ class CharacterService
             $inlineRows[] = array_slice($endgameButtons, $i, 2);
         }
 
+        // W7b (ADR-065 Part 2): каталог «📚 Что нового» — вход в справочник по механикам.
+        // UX-DISCOVERABILITY (CLAUDE.md §🎮): кнопка видна ВСЕГДА (killswitch = только
+        // админ-аварийный тумблер, не player-условие), отдельной строкой.
+        if ((new \App\Services\Player\WhatsNewService())->isEnabled()) {
+            $inlineRows[] = [['text' => '📚 Что нового', 'callback_data' => 'whatsNewCatalog']];
+        }
+
         $inlineKeyboard = ['inline_keyboard' => $inlineRows];
 
         return Request::sendMessage([

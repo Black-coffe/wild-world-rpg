@@ -48,6 +48,7 @@ class CharacterModel extends Model
         'last_planted_crop',   // V6 (ADR-033) — rotation-память активного земледелия
         'well_fed_until',      // V9 (ADR-034) — момент истечения buff'а «Сытость»
         'daily_tips_enabled',  // ADR-038 Фаза C — тумблер «Совет дня» (opt-out, default 1)
+        'whats_new_seen',      // W7b (ADR-065) — JSON-массив прочитанных тем каталога «Что нового»
         'specialization',      // V16 (ADR-047) — крафт-ветка (weaponsmith/medic/engineer)
         'specialization_changed_at', // V16 (ADR-047) — момент последней смены (кулдаун respec)
         'weight_capacity',     // W3a (ADR-059) — soft-cap веса инвентаря (default 9999 = off до W3b balance-pass)
