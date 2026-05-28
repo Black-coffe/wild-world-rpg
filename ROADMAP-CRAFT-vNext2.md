@@ -30,6 +30,7 @@
 | W15 | **Caravan V2 — faction-aligned** (ADR-069: `caravans.faction_id`, скидка члену / наценка ривалу: Милитари↔Партизаны, Инженеры↔Фермеры; hostility=markup contract-safe; killswitch `caravan.faction.enabled`=false dormant) 🏁 закрытие Фазы 3 | ✅ SHIPPED prod dormant (Tier-1 1009/1009 + Tier-3 cold-smoke PASS) | v0.51.300 | 2026-05-28 |
 | W16 | **PvP audit + fixture-rebuild plan** (ADR-070: RNG-инвентарь боя, fence-механизм mt_srand=42 golden-master, Фаза 4 RNG-fence-safe план; старт Фазы 4) — БЕЗ кода | ✅ SHIPPED docs-only (audit + ADR, без кода/прод-тега) | — | 2026-05-28 |
 | W17 | **PvP duels** (ADR-071: opt-in честный бой, stat-equalize обоих → НЕИЗМЕНЁННЫЙ `simulateFight` (null defense), БЕЗ потери HP/XP; `characters.duels_open` opt-in флаг; «🤺 Дуэль» в детект-карте; killswitch `pvp.duel.enabled`=false dormant) | ✅ SHIPPED prod dormant (Tier-1 1014/1014 + fence byte-equiv GREEN + Tier-3 cold-smoke PASS: lvl1↔lvl306 → ничья, чары не тронуты) | v0.51.301 | 2026-05-28 |
+| W18 | **PvP ladder** (ADR-072: post-combat scoring дуэлей+PvP-атак, NEW `pvp_ladder` cumulative+weekly, 8 GameSettings, экран «🏆 Рейтинг PvP» global/per-faction, weekly-broadcast cron; killswitch `pvp.ladder.enabled`=false dormant) | ✅ SHIPPED prod dormant (Tier-1 1025/1025 + fence GREEN + Tier-3 cold-smoke PASS: дуэль→pvp_ladder +1/+1, экран+табы, dormant-gate). 🔴 User-фидбэк: ничья неприемлема → тай-брейк след. сессией | v0.51.302 | 2026-05-28 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -462,6 +463,42 @@
 > (level/health/stats идентичны); killswitch OFF → тумблер+секция исчезли (dormant gate). **Doc:** ADR-071 +
 > decisions/index + DuelAction/DuelService tech-writing + ROADMAP §0 + hot.md + daily. **🏁 W17/30, Фаза 4 (2/5).**
 > Дальше: **W18 PvP ladder** (post-combat scoring, NEW `pvp_ladder` + чтение `battles`, вне боя — ADR-070 план) ИЛИ пауза.
+>
+> **W18 SHIPPED prod dormant 2026-05-28 (`v0.51.302`) — ⚔ Фаза 4 (3/5).** PvP-ладдер — соревновательный
+> рейтинг дуэлей (W17) + летальных PvP-атак, post-combat scoring — [[mmorpg-vault/decisions/ADR-072-PvP-ladder|ADR-072]].
+> **🔴 Audit-находка (определила дизайн):** прод-аудит `battle_logs` = 41 517 PVE-боёв, **0 PVP-боёв за всё время**,
+> 0 уникальных PvP-атакующих → ладдер «читающий battle_logs PVP» по буквальному плану ADR-070 был бы пустым
+> (BUILT-BUT-DEAD). **Источник (user-pick AskUserQuestion из 3):** дуэли W17 + PvP-атаки (дуэли — единственная
+> реалистичная opt-in PvP-активность). **Механизм = post-combat scoring ВНЕ `simulateFight`** (RNG-fence-safe,
+> ADR-070): `DuelAction`/`AttackPlayerAction` ПОСЛЕ боя → `PvpLadderService::recordDuel/recordPvpAttack` (0 нового
+> mt_rand, движок не тронут). **Сделано (2 migration + service + 2 model-touch + NEW handler + cron + 3 PATCH):**
+> NEW `pvp_ladder` (одна строка/чар: cumulative `points` + `duel_wins/losses/draws` + `pvp_wins/losses` + `week_*` +
+> `faction_id` snapshot, utf8mb4, UNIQUE character_id) + 8 GameSettings `pvp.ladder.*` (`enabled` OFF dormant +
+> `points_duel_win`=3/`points_duel_draw`=1/`points_pvp_win`=5 + `broadcast_enabled` OFF/`broadcast_top_n`=5/`broadcast_day`=1/
+> `broadcast_hour`=12, rich rationale ADR-024) + `PvpLadderService` (killswitch + recordDuel/recordPvpAttack атомарные
+> инкременты `set(field,'field+N',false)` + topGlobal/topByFaction/weeklyTop/resetWeek/rankOf/rowOf) + PATCH
+> `DuelAction`+`AttackPlayerAction` (scoring post-combat) + NEW `PvpLadderAction` (экран «🏆 Рейтинг PvP» global/
+> per-faction табы + личная позиция, edit-in-place, dormant-alert) + кнопка «🏆 Рейтинг» в Перс (`CharacterService`,
+> gated) + в исходе дуэли + NEW cron `PvpLadderWeeklyBroadcastHandler` (everyMinute + day/hour-guard + killswitch
+> broadcast_enabled, reuse DailyTipBroadcast-паттерна) + Tasks.php + CallbackRoutes `pvpLadder`. **+11 unit**
+> (`PvpLadderServiceTest`). **Tier-1 ✅ 1025/1025 PASS, 8225 assertions, phpstan L9 NO ERRORS, php -l, fence
+> byte-equivalent GREEN** (AttackPlayerAction-правка = post-write в `handle()`, `simulateFight` не тронут).
+> **Tier-3 cold-smoke на testbot (char 489↔491, MCP Chrome + Telegram Web, БЕЗ предзнаний):** killswitch ON via SQL +
+> cache:clear → ход 491 (детект 489) → «🤺 Дуэль» появилась conditionally (target duels_open=1) ✅ → дуэль → **ничья**
+> (equalize → exhausted) → исход с кнопкой «🏆 Рейтинг» ✅ → экран «🏆 Рейтинг PvP — 🌍 Глобальный»: 🥇 aviad_echo 1 очк
+> 🥈 andreii0 1 очк + «👤 Ты: #1 · 1 очк» + дисклеймер «престиж, без наград» ✅ → таб «Моя фракция» = только Фермеры
+> (faction-filter) ✅ → SQL verify: pvp_ladder 2 строки (491 faction 4 / 489 faction 0, оба duel_draws=1 points=1
+> week_points=1, draw-scoring + faction-snapshot верны) ✅ → killswitch OFF + cache:clear → ладдер «временно
+> недоступен» (dormant-gate) ✅. testbot восстановлен dormant+clean (pvp_ladder пуст, duels_open=0, клетки/killswitch
+> возвращены). **Связь с ADR-071:** дуэль теперь пишет ОДНУ post-combat строку (bragging-rights), исход по-прежнему
+> без потерь HP/XP. **Killswitch `pvp.ladder.enabled`=false + broadcast OFF на prod → 0 player-эффекта** (активация
+> в конце ROADMAP с анонсом). **🔴 User-фидбэк на Tier-3 (зафиксирован):** ничья в дуэли неприемлема как штатный
+> исход — equalize+round-cap даёт частые `exhausted`-ничьи; нужен детерминированный тай-брейк ПОСЛЕ `simulateFight`
+> (остаток HP → урон → билд → старшинство), fence-safe. **→ Следующая 🟠-сессия (резолв дуэли), ДО W19**
+> ([[mmorpg-vault/claude-memory/feedback_pvp_duels_must_be_decisive]]). **Doc:** ADR-072 + decisions/index +
+> [[mmorpg-vault/tech-writing/services/PvpLadderService]] + [[mmorpg-vault/tech-writing/handlers/pvp/PvpLadderAction]] +
+> ROADMAP §0 + hot.md + daily. **🏁 W18/30, Фаза 4 (3/5).** Дальше: **PvP-резолв (тай-брейк дуэли, 🟠 ADR)** →
+> затем W19 Crafted item modifiers ИЛИ пауза.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
