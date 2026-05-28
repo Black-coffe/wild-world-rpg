@@ -23,6 +23,7 @@
 | W9 | **Achievement system foundation** (ADR-066: cron-poll state-driven award engine, 2 таблицы + 7 starter + killswitch OFF dormant; W10 активирует + UI) | ✅ SHIPPED prod dormant (Tier-1 981/981 + Tier-3 cold-smoke PASS) | v0.51.292 | 2026-05-28 |
 | W10 | **Achievement T1 set + UI** (+14 medals = 21 total + экран «🏅 Достижения» + Перс button; killswitch остаётся OFF — активация в конце ROADMAP) 🏁 закрытие Фазы 2 | ✅ SHIPPED prod dormant (Tier-1 984/984 + Tier-3 cold-smoke PASS) | v0.51.294 | 2026-05-28 |
 | W11 | **Quest T2 branching foundation** (ADR-067: развилка player-choice → branch_group+branch_label на quests, reuse quest_steps; killswitch `quests.branching_enabled` OFF dormant; +1 демо-ветка; старт Фазы 3) | ✅ SHIPPED prod dormant (Tier-1 995/995 + Tier-3 cold-smoke PASS) | v0.51.295 | 2026-05-28 |
+| W12 | **Quest T2 faction-specific branching** (ADR-067 контент: 8 эпилог-развилок = 4 фракции × 2, ПОСЛЕ сигнатурного оружия — contract-safe; чистый data-seed на W11-движке; dormant) | ✅ SHIPPED prod dormant (Tier-1 995/995 + Tier-3 cold-smoke PASS) | v0.51.296 | 2026-05-28 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -288,6 +289,30 @@
 > decisions/index + QuestChainService/QuestObjectiveHandler ноты + handlers/quest/QuestBranchChooseAction +
 > apps/quests/index + hot.md + daily + ROADMAP §0. **🏁 W11/30, Фаза 3 — 1/5.** Дальше: **W12 Quest T2
 > faction-specific branching** (1 ветвящаяся цепочка на фракцию) ИЛИ пауза.
+>
+> **W12 SHIPPED prod dormant 2026-05-28 (`v0.51.296`) — 🌳 Фаза 3 — 2/5.** Quest T2
+> faction-specific branching: контент-пасс на branching-движке W11 ([[mmorpg-vault/decisions/ADR-067-Quest-T2-branching-engine|ADR-067]]
+> W12-секция). **Чистый data-seed (0 кода, зеркало V13 на V12-движке):** 1 миграция
+> `2026-06-04-140000` = 8 эпилог-квестов. **Место развилки (user-pick AskUserQuestion из 2:
+> эпилог-после-оружия / середина-цепочки):** развилка ПОСЛЕ сигнатурного оружия каждой фракции
+> → **contract-safe** (оружие уже получено, выбор не отнимает контент → не ломает П2/П3;
+> середина-цепочки заблокировала бы оружие → отклонено). Финал-крафт = branch-point; завершившись,
+> advanceChain видит 2 эпилог-ветки (branch_group + prerequisite=финал) → НЕ авто-назначает →
+> игрок выбирает ОДИН эпилог (необратимо). **4 фракции × 2 = 8 квестов:** Военные(BunkerDominance)→
+> ⚔️Господство силой/🤝Союз гарнизонов · Инженеры(TechnoparkBreakthrough)→🤖Эра автоматизации/
+> 📡Открытый код · Партизаны(GhostCityDominance)→🗡️Тихая война/📻Голос подполья ·
+> Фермеры(IslandFarmAbundance)→🌾Закрома общины/🌱Семена надежды. Награды gold равны внутри пары
+> (выбор = нарратив, не мин-макс; admin-editable). Эмодзи только в branch_label (utf8mb4);
+> title_ru/description без эмодзи (utf8mb3). Ретроактивно: завершившие финал до активации увидят
+> выбор в hub-экране (pendingBranchesForCharacter). **Tier-1 ✅ 995/995 PASS (0 регрессии — data-only),
+> phpstan L9 NO ERRORS, php -l.** **Tier-3 cold-smoke на testbot (MCP Chrome, char 489):** 8 эпилогов
+> засеяны + emoji hex F09FA49D=🤝 ✅; BunkerDominance completed + killswitch ON → Доступные квесты →
+> «🔀 Развилка цепочки! После «Господство Военных»: • Господство силой • Союз гарнизонов» + 2 кнопки ✅
+> → клик «⚔️ Господство силой» → «Путь выбран! +6000, ветки закрыты» ✅ → re-open → развилка исчезла ✅;
+> SQL: BunkerIronRule chosen, BunkerGarrisonPact absent ✅. testbot восстановлен dormant+clean.
+> **Killswitch OFF на prod → 0 player-эффекта** (активация в конце ROADMAP с анонсом). **Doc:**
+> ADR-067 W12-секция + ROADMAP §0 + hot.md + daily. **🏁 W12/30, Фаза 3 — 2/5.** Дальше: **W13
+> Quest T2 story arc** (multi-step master-quest, капстон главы 1 «остров») ИЛИ пауза.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
