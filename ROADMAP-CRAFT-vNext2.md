@@ -32,6 +32,7 @@
 | W17 | **PvP duels** (ADR-071: opt-in честный бой, stat-equalize обоих → НЕИЗМЕНЁННЫЙ `simulateFight` (null defense), БЕЗ потери HP/XP; `characters.duels_open` opt-in флаг; «🤺 Дуэль» в детект-карте; killswitch `pvp.duel.enabled`=false dormant) | ✅ SHIPPED prod dormant (Tier-1 1014/1014 + fence byte-equiv GREEN + Tier-3 cold-smoke PASS: lvl1↔lvl306 → ничья, чары не тронуты) | v0.51.301 | 2026-05-28 |
 | W18 | **PvP ladder** (ADR-072: post-combat scoring дуэлей+PvP-атак, NEW `pvp_ladder` cumulative+weekly, 8 GameSettings, экран «🏆 Рейтинг PvP» global/per-faction, weekly-broadcast cron; killswitch `pvp.ladder.enabled`=false dormant) | ✅ SHIPPED prod dormant (Tier-1 1025/1025 + fence GREEN + Tier-3 cold-smoke PASS: дуэль→pvp_ladder +1/+1, экран+табы, dormant-gate). 🔴 User-фидбэк: ничья неприемлема → тай-брейк след. сессией | v0.51.302 | 2026-05-28 |
 | W18.5 | **PvP дуэль — детерминированный исход** (ADR-073: убрать ничью тай-брейком ПОСЛЕ боя — остаток HP → ценность билда → старшинство; fence-safe из roundLogs, 0 engine-touch; equalize сохранён; сообщение с причиной победы) | ✅ SHIPPED prod dormant (Tier-1 1031/1031 + fence byte-equiv GREEN + Tier-3 cold-smoke PASS: «Победа по очкам: andreii0 — осталось больше здоровья», ладдер win/loss 0 draws) | v0.51.303 | 2026-05-28 |
+| W19 | **Модернизация предметов** (ADR-074: per-instance +X% урон экземпляра оружия за gold+ресурс, перезапись; NEW `item_modifiers` + ItemModifierService killswitch try/catch fence-safe; интеграция PvE+PvP детерм. ×множитель dormant ×1.0; только урон оружия user-pick; 🔴 «Зачарование»→«Модернизация» лор-фикс без магии) | ✅ SHIPPED prod dormant (Tier-1 1038/1038 + fence byte-equiv GREEN + Tier-3 cold-smoke PASS: модернизация +5%, gold/ресурс списаны, read-back; rename verified) | v0.51.304 | 2026-05-28 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -528,6 +529,35 @@
 > decisions/index + [[mmorpg-vault/tech-writing/services/DuelService]] + ROADMAP §0 + hot.md + daily +
 > memory [[mmorpg-vault/claude-memory/feedback_pvp_duels_must_be_decisive]]. **🏁 W18.5, Фаза 4 (PvP-резолв
 > закрыт).** Дальше: **W19 Crafted item modifiers foundation** (🟠 ADR) ИЛИ пауза.
+>
+> **W19 SHIPPED prod dormant 2026-05-28 (`v0.51.304`) — ⚔ Фаза 4 (Crafted item modifiers foundation).**
+> «🔧 Модернизация» оружия — [[mmorpg-vault/decisions/ADR-074-Crafted-item-modifiers|ADR-074]] (🟠-сессия,
+> 7 ворот + Σ11 ДО кода). **Audit-first:** enchant-инфры нет (net-new); урон оружия читается в ОБОИХ боевых
+> путях через экземпляр `characters_weapons` (PvE `EquipmentService::getEquipmentBonuses` живой `PvEService:74`;
+> PvP `PvpEquipmentRepository::getEquippedWeapon`); сопр outfit'ов PvE-мёртвые. **Дизайн (user-pick ×2):** только
+> урон оружия (не броня/сопр — W20); 1 модификатор на экземпляр, перезапись (не стэки — W20). **Сделано (2 migration
+> + service + model + handler + 2 интеграции + craft-меню + 2 route):** NEW `item_modifiers` (per-instance,
+> UNIQUE item_type+item_instance_id) + 5 GameSettings `craft.modifier.*` (enabled OFF dormant + gold_cost 2000 +
+> resource_name «Минералы» + resource_qty 5 + bonus_pct 5, rich rationale ADR-024) + `ItemModifierService`
+> (killswitch **try/catch → false при отсутствии game_settings** = fence-safe; `weaponDamageMultiplier` детерм.
+> 1.0 при dormant БЕЗ запроса; `enchant` атомарно gold+ресурс, upsert) + `ItemModifierModel` + NEW `EnchantAction`
+> («🔧 Модернизация»: превью + confirm, callback `enchant`/`enchantConfirm`) + кнопка «🔧 Модернизация» в craft-меню
+> (`CraftService::showCraftMenu`, gated) + интеграция множителя в PvP `getEquippedWeapon` и PvE `getEquipmentBonuses`
+> (детерм., dormant ×1.0). **+7 unit** (1031→1038). **Tier-1 ✅ 1038/1038 PASS, phpstan L9 NO ERRORS, php -l,
+> fence byte-equivalent GREEN** (try/catch покрывает отсутствие game_settings в схеме fence-теста → ×1.0 → урон
+> идентичен). **Tier-3 cold-smoke на testbot (MCP Chrome, char 491):** killswitch ON → крафт → «🔧 Модернизация»
+> видна (gated) ✅ → экран (Гаусс-пистолет, базовый 25, стоимость 2000 gold + 5 Минералов) ✅ → «Модернизировать»
+> → «теперь +5% к урону (26.3)» ✅ → SQL: item_modifiers (instance 9, +5%), gold −2000, Минералы −5 ✅ → re-open
+> показывает «Текущая модернизация: +5%» + «заменит» (read-back) ✅. testbot восстановлен dormant+clean.
+> **🔴 Лор-фикс (user-фидбэк на Tier-3):** изначально назвал «Зачарование» — это магия, ломает реалистичный
+> безмагический постапок. Переименовано в **«Модернизация»** (физ-термин под scrap-tech) во всех player-facing
+> строках ДО прод-тега; механика не менялась. Новое правило memory
+> [[mmorpg-vault/claude-memory/feedback_no_magic_terms_realistic_setting]]. **Killswitch
+> `craft.modifier.enabled`=false на prod → 0 player-эффекта** (активация в конце ROADMAP). **Doc:** ADR-074 +
+> decisions/index + [[mmorpg-vault/tech-writing/services/ItemModifierService]] +
+> [[mmorpg-vault/tech-writing/handlers/craft/EnchantAction]] + ROADMAP §0 + hot.md + daily. **🏁 W19, Фаза 4
+> (Crafted modifiers foundation).** Дальше: **W20 Modifier T1 set + balance** (броня/сопротивления + тиры/cap'ы,
+> 🏁 закрытие Фазы 4) ИЛИ пауза.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
