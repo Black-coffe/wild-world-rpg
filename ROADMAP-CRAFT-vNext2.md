@@ -31,6 +31,7 @@
 | W16 | **PvP audit + fixture-rebuild plan** (ADR-070: RNG-инвентарь боя, fence-механизм mt_srand=42 golden-master, Фаза 4 RNG-fence-safe план; старт Фазы 4) — БЕЗ кода | ✅ SHIPPED docs-only (audit + ADR, без кода/прод-тега) | — | 2026-05-28 |
 | W17 | **PvP duels** (ADR-071: opt-in честный бой, stat-equalize обоих → НЕИЗМЕНЁННЫЙ `simulateFight` (null defense), БЕЗ потери HP/XP; `characters.duels_open` opt-in флаг; «🤺 Дуэль» в детект-карте; killswitch `pvp.duel.enabled`=false dormant) | ✅ SHIPPED prod dormant (Tier-1 1014/1014 + fence byte-equiv GREEN + Tier-3 cold-smoke PASS: lvl1↔lvl306 → ничья, чары не тронуты) | v0.51.301 | 2026-05-28 |
 | W18 | **PvP ladder** (ADR-072: post-combat scoring дуэлей+PvP-атак, NEW `pvp_ladder` cumulative+weekly, 8 GameSettings, экран «🏆 Рейтинг PvP» global/per-faction, weekly-broadcast cron; killswitch `pvp.ladder.enabled`=false dormant) | ✅ SHIPPED prod dormant (Tier-1 1025/1025 + fence GREEN + Tier-3 cold-smoke PASS: дуэль→pvp_ladder +1/+1, экран+табы, dormant-gate). 🔴 User-фидбэк: ничья неприемлема → тай-брейк след. сессией | v0.51.302 | 2026-05-28 |
+| W18.5 | **PvP дуэль — детерминированный исход** (ADR-073: убрать ничью тай-брейком ПОСЛЕ боя — остаток HP → ценность билда → старшинство; fence-safe из roundLogs, 0 engine-touch; equalize сохранён; сообщение с причиной победы) | ✅ SHIPPED prod dormant (Tier-1 1031/1031 + fence byte-equiv GREEN + Tier-3 cold-smoke PASS: «Победа по очкам: andreii0 — осталось больше здоровья», ладдер win/loss 0 draws) | v0.51.303 | 2026-05-28 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -499,6 +500,34 @@
 > [[mmorpg-vault/tech-writing/services/PvpLadderService]] + [[mmorpg-vault/tech-writing/handlers/pvp/PvpLadderAction]] +
 > ROADMAP §0 + hot.md + daily. **🏁 W18/30, Фаза 4 (3/5).** Дальше: **PvP-резолв (тай-брейк дуэли, 🟠 ADR)** →
 > затем W19 Crafted item modifiers ИЛИ пауза.
+>
+> **W18.5 SHIPPED prod dormant 2026-05-28 (`v0.51.303`) — ⚔ Фаза 4 (PvP-резолв, вне очереди по user-фидбэку).**
+> Детерминированный исход дуэли — убрать ничью — [[mmorpg-vault/decisions/ADR-073-PvP-duel-decisive-tiebreak|ADR-073]]
+> (🟠-сессия, 7 ворот + Σ10 ДО кода). **Триггер:** user-фидбэк на Tier-3 W18 — ничья в дуэли неприемлема.
+> **Диагноз:** ничья = следствие дизайна W17 (equalize обоих к identical baseline + 1000 HP + round-cap →
+> `simulateFight` упирается в лимит без килла → `exhausted`), а не совпадение микропараметров. **Решение
+> (user-pick AskUserQuestion):** equalize СОХРАНИТЬ (честность lvl1↔lvl306), добавить **детерминированный
+> тай-брейк ПОСЛЕ боя** (RNG-fence-safe, 0 нового mt_rand, движок не тронут — линия ADR-070/014). **Ключевой
+> инсайт:** оба стартуют с 1000 HP → «больше остаток HP» ⟺ «получил меньше урона» ⟺ «нанёс больше» — цепочка
+> «HP→урон» схлопывается в один критерий. **Всё вычисляется из `result['roundLogs']`** (`finalDamage` +
+> `D_equip` по раундам) → 0 запросов, 0 касаний engine. **Цепочка:** остаток HP → ценность билда (`D_equip`)
+> → старшинство (раньше `created_at`; при NULL/равенстве — меньше `id`; идея user'а, последним) → ничья
+> математически невозможна. **Сделано (0 migration, 2 файла + тесты):** `DuelService::resolveDuel`
+> (+5 private helpers: intOf/nameOf/damageTaken/buildValue/isSenior/createdTs) + PATCH `DuelAction` (scoring
+> всегда win/loss — recordDuel(w,l,false); сообщение исхода с причиной: knockout «(нокаут)» / hp «осталось
+> больше здоровья» / build «крепче снаряжение» / seniority «больше времени в Пустоши»; media-off safe).
+> **AttackPlayerAction НЕ тронут** (exhausted там = провал атаки, не «победа по очкам»). **GameSettings не
+> добавлял** (resolution-логика, не balance-число — ADR-024 §когда-не-нужно). **+6 unit** (DuelServiceTest
+> 5→11: knockout/hp×2/build/seniority-by-date/seniority-by-id). **Tier-1 ✅ 1031/1031 PASS (+6), 8239
+> assertions, phpstan L9 NO ERRORS, php -l, fence byte-equivalent GREEN** (resolveDuel = post-combat, golden-master
+> simulateFight цел). **Tier-3 cold-smoke на testbot (MCP Chrome, char 489↔491, новый код):** дуэль 491 vs 489 →
+> **«🏆 Победа по очкам: andreii0 — Осталось больше здоровья»** (НЕ ничья!) ✅ → ладдер записал **win/loss**
+> (489 duel_wins=1 points=3 week_wins=1 / 491 duel_losses=1 points=0, **0 draws**) ✅ → reason=`hp` сработал
+> (бой не идеально симметричен — 489 выжил здоровее). testbot восстановлен dormant+clean. **Killswitch
+> `pvp.duel.enabled`=false на prod → 0 player-эффекта** (активация в конце ROADMAP). **Doc:** ADR-073 +
+> decisions/index + [[mmorpg-vault/tech-writing/services/DuelService]] + ROADMAP §0 + hot.md + daily +
+> memory [[mmorpg-vault/claude-memory/feedback_pvp_duels_must_be_decisive]]. **🏁 W18.5, Фаза 4 (PvP-резолв
+> закрыт).** Дальше: **W19 Crafted item modifiers foundation** (🟠 ADR) ИЛИ пауза.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
