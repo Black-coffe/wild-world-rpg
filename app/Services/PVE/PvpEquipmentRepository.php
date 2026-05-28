@@ -11,6 +11,7 @@ use App\Models\FactionModel;
 use App\Models\MapModel;
 use App\Models\OutfitModel;
 use App\Models\WeaponModel;
+use App\Services\Craft\ItemModifierService;
 
 /**
  * F2.3b Step 1 — DB reads для PvP боя.
@@ -46,6 +47,7 @@ final class PvpEquipmentRepository
     private MapModel $mapModel;
     private CharacterFactionModel $characterFactionModel;
     private FactionModel $factionModel;
+    private ItemModifierService $itemModifiers;
 
     public function __construct(
         ?CharactersWeaponsModel $charactersWeaponsModel = null,
@@ -54,7 +56,8 @@ final class PvpEquipmentRepository
         ?OutfitModel $outfitsModel = null,
         ?MapModel $mapModel = null,
         ?CharacterFactionModel $characterFactionModel = null,
-        ?FactionModel $factionModel = null
+        ?FactionModel $factionModel = null,
+        ?ItemModifierService $itemModifiers = null
     ) {
         $this->charactersWeaponsModel = $charactersWeaponsModel ?? new CharactersWeaponsModel();
         $this->weaponsModel           = $weaponsModel           ?? new WeaponModel();
@@ -63,6 +66,7 @@ final class PvpEquipmentRepository
         $this->mapModel               = $mapModel               ?? new MapModel();
         $this->characterFactionModel  = $characterFactionModel  ?? new CharacterFactionModel();
         $this->factionModel           = $factionModel           ?? new FactionModel();
+        $this->itemModifiers          = $itemModifiers          ?? new ItemModifierService();
     }
 
     /**
@@ -87,8 +91,17 @@ final class PvpEquipmentRepository
             return null;
         }
 
+        // W19 (ADR-074): per-instance модификатор урона. Детерминированный множитель;
+        // при dormant killswitch = 1.0 БЕЗ запроса item_modifiers → fence byte-equivalent.
+        $cwId = 0;
+        if (is_array($row)) {
+            $rawCwId = $row['id'] ?? null;
+            $cwId    = is_numeric($rawCwId) ? (int) $rawCwId : 0;
+        }
+        $damageMult = $this->itemModifiers->weaponDamageMultiplier($cwId);
+
         return [
-            'damage_value' => (float) $weapon['damage_value'],
+            'damage_value' => (float) $weapon['damage_value'] * $damageMult,
             'range_value'  => (float) $weapon['range_value'],
             'damage_type'  => $weapon['damage_type'],
             'rarity'       => $weapon['rarity'],

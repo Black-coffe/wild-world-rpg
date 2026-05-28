@@ -315,6 +315,9 @@ class CallbackRoutes extends BaseConfig
         // W18 (ADR-072) — PvP-ладдер. Callback `pvpLadder` / `pvpLadder_global` / `pvpLadder_faction_<id>`
         // (первый сегмент `pvpLadder` → этот handler; вкладка парсится из полного callback_data).
         'pvpLadder'                       => \App\Controllers\Telegram\Commands\Actions\PVP\PvpLadderAction::class,
+        // W19 (ADR-074) — зачарование предмета. `enchant` (превью) / `enchantConfirm` (применить).
+        'enchant'                         => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
+        'enchantConfirm'                  => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
 
         // === Teleport beacons ===
         'teleportBeacon'                  => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportBeacon::class,

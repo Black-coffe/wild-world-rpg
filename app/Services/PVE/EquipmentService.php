@@ -8,16 +8,19 @@ use App\Models\CharactersOutfitsModel;
 use App\Models\OutfitModel;
 use App\Models\CharactersWeaponsModel;
 use App\Models\WeaponModel;
+use App\Services\Craft\ItemModifierService;
 use Psr\Log\LoggerInterface;
 use App\Entities\BattleCharacter;
 
 class EquipmentService
 {
     private LoggerInterface $logger;
+    private ItemModifierService $itemModifiers;
 
-    public function __construct(LoggerInterface $logger)
+    public function __construct(LoggerInterface $logger, ?ItemModifierService $itemModifiers = null)
     {
-        $this->logger = $logger;
+        $this->logger        = $logger;
+        $this->itemModifiers = $itemModifiers ?? new ItemModifierService();
     }
 
     /**
@@ -64,7 +67,14 @@ class EquipmentService
         if ($equippedWeapon) {
             $weapon = $weaponModel->find($equippedWeapon['weapon_id']);
             if ($weapon) {
-                $bonus['weapon_damage'] = (float)$weapon['damage_value'];
+                // W19 (ADR-074): per-instance модификатор урона (детерм.; dormant = ×1.0).
+                $cwId = 0;
+                if (is_array($equippedWeapon)) {
+                    $rawCwId = $equippedWeapon['id'] ?? null;
+                    $cwId    = is_numeric($rawCwId) ? (int) $rawCwId : 0;
+                }
+                $mult = $this->itemModifiers->weaponDamageMultiplier($cwId);
+                $bonus['weapon_damage'] = (float)$weapon['damage_value'] * $mult;
                 $bonus['attack_speed_bonus'] = (float)$weapon['attack_speed'];
                 // Дополнительно можно учитывать критический шанс, armor_penetration и т.д.
             }

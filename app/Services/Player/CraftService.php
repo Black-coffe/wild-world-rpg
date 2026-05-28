@@ -32,19 +32,19 @@ class CraftService
 
         // Добавляем кнопки аналогично, как в CraftingAction,
         // + две новые: «Броня» и «Оружие», если нужно расширить меню
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🔨 Общий крафт',    'callback_data' => 'generalCraft'],
-                    ['text' => '🔧 Стандарт крафт', 'callback_data' => 'standardCraft'],
-                ],
-                // Если потребуется вернуть «Профи крафт» и «Уникальный крафт»:
-                // [
-                //     ['text' => '⚙️ Профи крафт',     'callback_data' => 'proCraft'],
-                //     ['text' => '🏆 Уникальный крафт', 'callback_data' => 'uniqueCraft'],
-                // ],
-            ]
+        $rows = [
+            [
+                ['text' => '🔨 Общий крафт',    'callback_data' => 'generalCraft'],
+                ['text' => '🔧 Стандарт крафт', 'callback_data' => 'standardCraft'],
+            ],
         ];
+
+        // W19 (ADR-074): «✨ Зачарование» — gated killswitch'ом (dormant → скрыта, как W9-W18).
+        if ((new \App\Services\Craft\ItemModifierService())->enabled()) {
+            $rows[] = [['text' => '✨ Зачарование', 'callback_data' => 'enchant']];
+        }
+
+        $keyboard = ['inline_keyboard' => $rows];
 
         // Картинка та же, что и в CraftingAction
         $imagePath = base_url('uploads/telegram/craft/crafting_area.png');
