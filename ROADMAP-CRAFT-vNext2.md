@@ -33,6 +33,7 @@
 | W18 | **PvP ladder** (ADR-072: post-combat scoring дуэлей+PvP-атак, NEW `pvp_ladder` cumulative+weekly, 8 GameSettings, экран «🏆 Рейтинг PvP» global/per-faction, weekly-broadcast cron; killswitch `pvp.ladder.enabled`=false dormant) | ✅ SHIPPED prod dormant (Tier-1 1025/1025 + fence GREEN + Tier-3 cold-smoke PASS: дуэль→pvp_ladder +1/+1, экран+табы, dormant-gate). 🔴 User-фидбэк: ничья неприемлема → тай-брейк след. сессией | v0.51.302 | 2026-05-28 |
 | W18.5 | **PvP дуэль — детерминированный исход** (ADR-073: убрать ничью тай-брейком ПОСЛЕ боя — остаток HP → ценность билда → старшинство; fence-safe из roundLogs, 0 engine-touch; equalize сохранён; сообщение с причиной победы) | ✅ SHIPPED prod dormant (Tier-1 1031/1031 + fence byte-equiv GREEN + Tier-3 cold-smoke PASS: «Победа по очкам: andreii0 — осталось больше здоровья», ладдер win/loss 0 draws) | v0.51.303 | 2026-05-28 |
 | W19 | **Модернизация предметов** (ADR-074: per-instance +X% урон экземпляра оружия за gold+ресурс, перезапись; NEW `item_modifiers` + ItemModifierService killswitch try/catch fence-safe; интеграция PvE+PvP детерм. ×множитель dormant ×1.0; только урон оружия user-pick; 🔴 «Зачарование»→«Модернизация» лор-фикс без магии) | ✅ SHIPPED prod dormant (Tier-1 1038/1038 + fence byte-equiv GREEN + Tier-3 cold-smoke PASS: модернизация +5%, gold/ресурс списаны, read-back; rename verified) | v0.51.304 | 2026-05-28 |
+| W20 | **Modifier T1 set — броня + тиры** (ADR-075: модернизация брони (armor_value PvE + resistances PvP, per-instance) + накапливаемые тиры +5%/тир до +25%, цена ×тир; generalized enchant; EnchantAction листинг оружие+слоты брони; без миграции таблицы; 🏁 закрытие Фазы 4) | ✅ SHIPPED prod dormant (Tier-1 1040/1040 + fence byte-equiv GREEN + Tier-3 cold-smoke PASS: оружие тир1→тир2 цена×тир, броня +5%, SQL weapon+10%/outfit+5% gold−8000) | v0.51.305 | 2026-05-29 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -558,6 +559,29 @@
 > [[mmorpg-vault/tech-writing/handlers/craft/EnchantAction]] + ROADMAP §0 + hot.md + daily. **🏁 W19, Фаза 4
 > (Crafted modifiers foundation).** Дальше: **W20 Modifier T1 set + balance** (броня/сопротивления + тиры/cap'ы,
 > 🏁 закрытие Фазы 4) ИЛИ пауза.
+>
+> **W20 SHIPPED prod dormant 2026-05-29 (`v0.51.305`) — 🏁 ЗАКРЫТИЕ ФАЗЫ 4 (PvP depth & Crafted modifiers).**
+> Modifier T1 set — броня + накапливаемые тиры — [[mmorpg-vault/decisions/ADR-075-Modifier-T1-set-armor-and-tiers|ADR-075]]
+> (🟠-сессия, 7 ворот + Σ11). Расширяет W19 ([[mmorpg-vault/decisions/ADR-074-Crafted-item-modifiers|ADR-074]]).
+> **Дизайн (user-pick ×2):** броня + тиры (полное закрытие); +5%/тир, cap +25% (5 тиров), цена ×тир.
+> **Audit:** `item_modifiers` уже generic (item_type/stat/bonus_pct) → **тиры и броня без миграции таблицы**;
+> combat читает bonus_pct обобщённо → тиры fence-нейтральны; броня = мульти-слот (`characters_outfits.id`
+> per-instance). **Сделано (1 migration + service-ext + 2 combat-интеграции + handler-rewrite + 2 prefix-route):**
+> +1 GameSettings `craft.modifier.max_bonus_pct`(25) + ItemModifierService (`maxBonusPct`/`bonusStep`/
+> `armorMultiplier`/`previewFor` + **generalized** `enchant(charId, itemType, instanceId)` тир-инкремент до cap +
+> цена ×тир) + PvE `EquipmentService` (armor_value ×armorMultiplier per-instance) + PvP
+> `getEquippedOutfitsWithDetails` (resistances ×armorMultiplier, **батч сохранён — без N+1**) + `EnchantAction`
+> rewrite (листинг оружие+слоты брони → `enchantSel_<type>_<id>` превью → `enchantApply_<type>_<id>`) + 2 prefix-route.
+> **+2 unit (1038→1040).** **Tier-1 ✅ 1040/1040 PASS, phpstan L9 NO ERRORS** (убраны 2 obsolete baseline) **, php -l,
+> fence byte-equivalent GREEN** (тиры читают bonus_pct; броня dormant ×1.0 + try/catch). **Tier-3 cold-smoke
+> (MCP Chrome, char 491):** крафт → «🔧 Модернизация» → листинг (🗡 оружие + 🛡 броня) ✅ → оружие тир1 (+5%) →
+> тир2 (+10%, **цена 4000/10 Минералов — ×тир**) ✅ → броня тир1 (+5% к защите, 26→27.3) ✅ → SQL: weapon +10% /
+> outfit +5%, gold −8000, Минералы −20 (cost×tier точно) ✅. testbot dormant+clean. **🐛 Tier-3 catch:** «усилить
+> защита»→«усилить защиту» пофикшено до прод-тега. **Killswitch `craft.modifier.enabled`=false → 0 player-эффекта.**
+> **Doc:** ADR-075 + decisions/index + [[mmorpg-vault/tech-writing/services/ItemModifierService]] +
+> [[mmorpg-vault/tech-writing/handlers/craft/EnchantAction]] + ROADMAP §0 + hot.md + daily. **🏁🏁 W20, ФАЗА 4
+> ЗАКРЫТА (W16 audit + W17 duels + W18 ladder + W18.5 duel-resolve + W19 modifiers foundation + W20 modifier set).**
+> Дальше: 🏠 Фаза 5 — Housing/fishing/economy-player (W21) ИЛИ пауза.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
