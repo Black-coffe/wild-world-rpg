@@ -7,10 +7,10 @@ namespace App\Database\Migrations;
 use CodeIgniter\Database\Migration;
 
 /**
- * W19 (ADR-074) — таблица модификаторов экземпляров предметов («Зачарование»).
+ * W19 (ADR-074) — таблица модификаторов экземпляров предметов (player-facing «Модернизация»).
  *
  * Один модификатор на экземпляр (UNIQUE item_type+item_instance_id → перезапись через upsert).
- * `item_instance_id` = `characters_weapons.id` (per-instance, НЕ определение weapons.id → зачарование
+ * `item_instance_id` = `characters_weapons.id` (per-instance, НЕ определение weapons.id → модернизация
  * одного меча не баффает чужие). Foundation: item_type='weapon', stat='damage'. Idempotent. utf8mb4.
  */
 class W19CreateItemModifiersTable extends Migration

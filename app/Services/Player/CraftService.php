@@ -39,9 +39,9 @@ class CraftService
             ],
         ];
 
-        // W19 (ADR-074): «✨ Зачарование» — gated killswitch'ом (dormant → скрыта, как W9-W18).
+        // W19 (ADR-074): «🔧 Модернизация» — gated killswitch'ом (dormant → скрыта, как W9-W18).
         if ((new \App\Services\Craft\ItemModifierService())->enabled()) {
-            $rows[] = [['text' => '✨ Зачарование', 'callback_data' => 'enchant']];
+            $rows[] = [['text' => '🔧 Модернизация', 'callback_data' => 'enchant']];
         }
 
         $keyboard = ['inline_keyboard' => $rows];

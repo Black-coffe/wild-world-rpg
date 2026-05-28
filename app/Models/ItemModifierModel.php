@@ -7,7 +7,7 @@ namespace App\Models;
 use CodeIgniter\Model;
 
 /**
- * W19 (ADR-074) — модификаторы экземпляров предметов («Зачарование»).
+ * W19 (ADR-074) — модификаторы экземпляров предметов (player-facing «Модернизация»).
  *
  * Одна строка = один модификатор на экземпляр (UNIQUE item_type+item_instance_id).
  * `item_instance_id` = `characters_weapons.id` (per-instance).

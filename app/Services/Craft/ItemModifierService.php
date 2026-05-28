@@ -10,7 +10,7 @@ use App\Services\GameSettings\GameSettingsService;
 use Config\Database;
 
 /**
- * W19 (ADR-074) — зачарование экземпляров предметов: детерминированный +X% к стату.
+ * W19 (ADR-074) — модернизация экземпляров предметов (player-facing «Модернизация»): детерминированный +X% к стату.
  *
  * Foundation: item_type='weapon', stat='damage'. Per-instance (item_instance_id = characters_weapons.id).
  *

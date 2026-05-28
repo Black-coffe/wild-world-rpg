@@ -14,9 +14,10 @@ use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
 /**
- * W19 (ADR-074) — экран «✨ Зачарование». Callback `enchant` (превью) / `enchantConfirm` (применить).
+ * W19 (ADR-074) — экран «🔧 Модернизация». Callback `enchant` (превью) / `enchantConfirm` (применить).
+ * (player-facing термин — «Модернизация»: реалистичный постапок без магии; callback/класс — техн. legacy-имя.)
  *
- * Зачаровывает ЭКИПИРОВАННОЕ оружие персонажа: +X% к урону (per-instance, перезапись).
+ * Модернизирует ЭКИПИРОВАННОЕ оружие персонажа: +X% к урону (per-instance, перезапись).
  * Стоимость gold + ресурс — из GameSettings. Killswitch `craft.modifier.enabled`: при dormant — alert.
  * Caption самодостаточен (media-off safe). edit-in-place.
  */
@@ -42,7 +43,7 @@ final class EnchantAction extends BaseAction
             return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Персонаж не найден.']);
         }
         if (! $this->modifiers->enabled()) {
-            return $this->editText($chatId, "✨ *Зачарование временно недоступно*\n\n_Раздел отключён администрацией._", [
+            return $this->editText($chatId, "🔧 *Модернизация временно недоступна*\n\n_Раздел отключён администрацией._", [
                 [['text' => '◀️ Перс', 'callback_data' => 'character']],
             ]);
         }
@@ -51,7 +52,7 @@ final class EnchantAction extends BaseAction
         $weapon      = $this->equippedWeapon($characterId);
 
         if ($weapon === null) {
-            return $this->editText($chatId, "✨ *Зачарование*\n\nУ тебя не экипировано оружие. Надень оружие в разделе персонажа, чтобы усилить его.", [
+            return $this->editText($chatId, "🔧 *Модернизация*\n\nУ тебя не экипировано оружие. Надень оружие в разделе персонажа, чтобы усилить его.", [
                 [['text' => '◀️ Перс', 'callback_data' => 'character']],
             ]);
         }
@@ -85,17 +86,17 @@ final class EnchantAction extends BaseAction
         $newBonus  = $bonus; // 1 модификатор на предмет → перезапись на текущий bonus_pct.
         $newEffDmg = $baseDmg * (1 + $newBonus / 100.0);
 
-        $text  = "✨ *Зачарование оружия*\n\n";
+        $text  = "🔧 *Модернизация оружия*\n\n";
         $text .= "Оружие: *{$name}*\n";
         $text .= "Базовый урон: " . $this->fmt($baseDmg) . "\n";
         if ($curBonus > 0) {
-            $text .= "Текущее зачарование: *+{$curBonus}%* (урон " . $this->fmt($effDmg) . ")\n";
+            $text .= "Текущая модернизация: *+{$curBonus}%* (урон " . $this->fmt($effDmg) . ")\n";
         } else {
-            $text .= "Текущее зачарование: нет\n";
+            $text .= "Текущая модернизация: нет\n";
         }
-        $text .= "\nНаложить *+{$newBonus}%* к урону → станет " . $this->fmt($newEffDmg) . ".\n";
+        $text .= "\nУсилить урон на *+{$newBonus}%* → станет " . $this->fmt($newEffDmg) . ".\n";
         if ($curBonus > 0) {
-            $text .= "_(заменит текущее зачарование этого оружия)_\n";
+            $text .= "_(заменит текущую модернизацию этого оружия)_\n";
         }
         $text .= "\n💰 Стоимость: *{$goldCost}* золота";
         if ($resName !== '' && $resQty > 0) {
@@ -111,9 +112,9 @@ final class EnchantAction extends BaseAction
 
         $rows = [];
         if ($canAfford) {
-            $rows[] = [['text' => "✨ Зачаровать (+{$newBonus}%)", 'callback_data' => 'enchantConfirm']];
+            $rows[] = [['text' => "🔧 Модернизировать (+{$newBonus}%)", 'callback_data' => 'enchantConfirm']];
         } else {
-            $text .= "\n\n_Недостаточно ресурсов для зачарования._";
+            $text .= "\n\n_Недостаточно ресурсов для модернизации._";
         }
         $rows[] = [['text' => '◀️ Перс', 'callback_data' => 'character']];
 
@@ -131,15 +132,15 @@ final class EnchantAction extends BaseAction
         if ($result['ok'] === true) {
             $baseDmg = is_numeric($weapon['damage_value'] ?? null) ? (float) $weapon['damage_value'] : 0.0;
             $eff     = $baseDmg * (1 + $result['bonus_pct'] / 100.0);
-            $text    = "✨ *Зачарование наложено!*\n\n"
+            $text    = "🔧 *Модернизация выполнена!*\n\n"
                 . "*{$name}* теперь *+{$result['bonus_pct']}%* к урону (" . $this->fmt($eff) . ").\n\n"
                 . "_Бонус действует в PvE и PvP, пока это оружие экипировано._";
         } else {
-            $text = "✨ *Зачарование не выполнено*\n\n" . $this->errorText($result['error']);
+            $text = "🔧 *Модернизация не выполнена*\n\n" . $this->errorText($result['error']);
         }
 
         return $this->editText($chatId, $text, [
-            [['text' => '✨ Зачарование', 'callback_data' => 'enchant']],
+            [['text' => '🔧 Модернизация', 'callback_data' => 'enchant']],
             [['text' => '◀️ Перс', 'callback_data' => 'character']],
         ]);
     }
@@ -151,7 +152,7 @@ final class EnchantAction extends BaseAction
             case 'no_resource': return 'Недостаточно ресурса-катализатора.';
             case 'not_equipped':return 'Оружие не экипировано.';
             case 'disabled':    return 'Раздел отключён.';
-            default:            return 'Не удалось наложить зачарование. Попробуй позже.';
+            default:            return 'Не удалось выполнить модернизацию. Попробуй позже.';
         }
     }
 
