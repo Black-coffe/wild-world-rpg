@@ -53,6 +53,7 @@ class CharacterModel extends Model
         'specialization_changed_at', // V16 (ADR-047) — момент последней смены (кулдаун respec)
         'weight_capacity',     // W3a (ADR-059) — soft-cap веса инвентаря (default 9999 = off до W3b balance-pass)
         'combat_drone_active_until', // W5 (ADR-064) — lazy-expiry окно активного combat-drone defensive buff
+        'duels_open',          // W17 (ADR-071) — opt-in флаг «открыт к дуэлям» (default 0)
     ];
 
     protected $useTimestamps = true;

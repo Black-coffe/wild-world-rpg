@@ -68,6 +68,9 @@ class CallbackRoutes extends BaseConfig
         // ADR-038 Фаза C — тумблер «Совет дня»
         'dailyTipsOn'                     => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         'dailyTipsOff'                    => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
+        // W17 (ADR-071) — тумблер «открыт к дуэлям».
+        'duelsOpenOn'                     => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
+        'duelsOpenOff'                    => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         // 'character' route handled by inline shortcut у CallbackqueryCommand
         // (calls CharacterService::showCharacterInfo з equipment info — НЕ
         // CharacterAction). CharacterAction.php був dead code, видалено v0.51.79.
@@ -307,6 +310,8 @@ class CallbackRoutes extends BaseConfig
         // === PvP ===
         'runAway'                         => \App\Controllers\Telegram\Commands\Actions\PVP\RunAwayAction::class,
         'attackPlayer'                    => \App\Controllers\Telegram\Commands\Actions\PVP\AttackPlayerAction::class,
+        // W17 (ADR-071) — PvP-дуэль (opt-in честный бой). Callback `duel_<defenderId>` (первый сегмент `duel`).
+        'duel'                            => \App\Controllers\Telegram\Commands\Actions\PVP\DuelAction::class,
 
         // === Teleport beacons ===
         'teleportBeacon'                  => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportBeacon::class,

@@ -72,6 +72,19 @@ class SettingsAction extends BaseAction
             $toast = ($enabled === 1)
                 ? '📌 Совет дня включён — Роби будет писать раз в сутки'
                 : '🔕 Совет дня отключён';
+        } elseif ($data === 'duelsOpenOn' || $data === 'duelsOpenOff') {
+            // W17 (ADR-071) — тумблер «открыт к дуэлям» (opt-in честный PvP).
+            $open = ($data === 'duelsOpenOn') ? 1 : 0;
+            if (self::duelsOpenFlag($character) !== $open) {
+                $this->characterModel->update($character->id, ['duels_open' => $open]);
+                $reloaded = $this->characterModel->find($character->id);
+                if ($reloaded instanceof CharacterEntity) {
+                    $character = $reloaded;
+                }
+            }
+            $toast = ($open === 1)
+                ? '⚔️ Ты открыт к дуэлям — соперники на твоей клетке могут вызвать на честный бой'
+                : '🛡 Ты закрыт для дуэлей';
         }
 
         Request::answerCallbackQuery(array_filter([
@@ -137,6 +150,23 @@ class SettingsAction extends BaseAction
     }
 
     /**
+     * W17 (ADR-071) — извлекает `duels_open` (0/1). 0 — дефолт (закрыт).
+     *
+     * @param array<int|string,mixed>|object|null $character
+     */
+    public static function duelsOpenFlag($character): int
+    {
+        $raw = 0;
+        if ($character instanceof ArrayAccess) {
+            $raw = $character['duels_open'] ?? 0;
+        } elseif (is_array($character)) {
+            $raw = $character['duels_open'] ?? 0;
+        }
+
+        return is_numeric($raw) ? (int) $raw : 0;
+    }
+
+    /**
      * Собирает text + reply_markup экрана настроек по текущему состоянию персонажа.
      * Используется и callback-handler'ом, и `/settings`-командой, и текстом «настройки».
      *
@@ -173,13 +203,23 @@ class SettingsAction extends BaseAction
             ? ['text' => '🔕 Отключить совет дня', 'callback_data' => 'dailyTipsOff']
             : ['text' => '📌 Включить совет дня',  'callback_data' => 'dailyTipsOn'];
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [$toggleButton],
-                [$tipsButton],
-                [['text' => '🔙 Назад', 'callback_data' => 'characterActions']],
-            ],
-        ];
+        $rows = [[$toggleButton], [$tipsButton]];
+
+        // W17 (ADR-071) — тумблер «открыт к дуэлям» показываем только при активном killswitch.
+        if ((new \App\Services\PVE\DuelService())->enabled()) {
+            $duelsOpen = self::duelsOpenFlag($character) === 1;
+            $duelState = $duelsOpen
+                ? '⚔️ *открыт* — соперники могут вызвать на честную дуэль'
+                : '🛡 *закрыт* — дуэли отключены';
+            $text .= "\n\n⚔️ Открыт к дуэлям: {$duelState}\n\n"
+                . "_Дуэль — честный бой на равных статах (без потери здоровья и опыта). Открой, если хочешь принимать вызовы соперников на твоей клетке._";
+            $rows[] = [$duelsOpen
+                ? ['text' => '🛡 Закрыться от дуэлей', 'callback_data' => 'duelsOpenOff']
+                : ['text' => '⚔️ Открыться к дуэлям',  'callback_data' => 'duelsOpenOn']];
+        }
+
+        $rows[] = [['text' => '🔙 Назад', 'callback_data' => 'characterActions']];
+        $keyboard = ['inline_keyboard' => $rows];
 
         return [
             'text'                     => $text,

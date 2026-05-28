@@ -19,6 +19,7 @@ class PlayerDetectionService
     protected $detectionHistoryModel;
     protected $telegram;
     private GameBalance $cfg;
+    private ?\App\Services\PVE\DuelService $duelService = null;
 
     /**
      * F2.10 wire-in: $cfg инжектируется опционально (для тестов), по умолчанию
@@ -119,10 +120,12 @@ class PlayerDetectionService
             if ($distanceSq <= $detectionRadiusSq) {
                 $distance = (int) sqrt($distanceSq); // Округляем до целого числа
 
+                $detectedPid = is_numeric($player['id'] ?? null) ? (int) $player['id'] : 0;
+
                 // Проверяем, было ли уже отправлено уведомление об этом игроке
-                if ($this->canSendNotification($characterId, $player['id'])) {
+                if ($detectedPid > 0 && $this->canSendNotification($characterId, $detectedPid)) {
                     $detectedPlayers[] = [
-                        'id' => $player['id'],
+                        'id' => $detectedPid,
                         'name' => $player['name'] ?? '',
                         'cell_number' => $player['cell_number'],
                         'distance' => $distance,
@@ -131,7 +134,7 @@ class PlayerDetectionService
                     // Сохраняем запись в историю обнаружений
                     $this->detectionHistoryModel->insert([
                         'detector_player_id' => $characterId,
-                        'detected_player_id' => $player['id'],
+                        'detected_player_id' => $detectedPid,
                         'detected_at' => date('Y-m-d H:i:s'),
                     ]);
                 }
@@ -160,7 +163,7 @@ class PlayerDetectionService
 
                 // Для каждой цели можно сделать и отдельную строку клавиатуры,
                 // или общий набор кнопок, если нужно.
-                $keyboardRows[] = [
+                $row = [
                     [
                         'text' => '🏃 Бежать',
                         'callback_data' => 'runAway'
@@ -171,6 +174,17 @@ class PlayerDetectionService
                         'callback_data' => 'attackPlayer_' . $detected['id']
                     ],
                 ];
+
+                // W17 (ADR-071): «🤺 Дуэль» только при активном killswitch и если цель открыта
+                // к дуэлям. При dormant (killswitch OFF) — детект 100% без изменений (0 риска).
+                if ($this->duelsEnabledAndOpen((int) $detected['id'])) {
+                    $row[] = [
+                        'text'          => '🤺 Дуэль',
+                        'callback_data' => 'duel_' . $detected['id'],
+                    ];
+                }
+
+                $keyboardRows[] = $row;
             }
 
             $message .= "\n_Вы можете предпринять дальнейшие действия._";
@@ -204,7 +218,26 @@ class PlayerDetectionService
      * @param int $detectedPlayerId ID обнаруженного игрока.
      * @return bool Возвращает true, если уведомление можно отправить.
      */
-    protected function canSendNotification($detectorPlayerId, $detectedPlayerId)
+    /**
+     * W17 (ADR-071) — показывать ли «🤺 Дуэль» для цели: killswitch ON И цель открыта.
+     * Killswitch проверяется ПЕРВЫМ → при dormant (OFF) запросов нет (детект без изменений,
+     * 0 риска до миграции duels_open). Raw db-builder — без model-builder-state quirk в цикле.
+     */
+    private function duelsEnabledAndOpen(int $targetId): bool
+    {
+        if ($this->duelService === null) {
+            $this->duelService = new \App\Services\PVE\DuelService();
+        }
+        if (! $this->duelService->enabled()) {
+            return false;
+        }
+        $row = \Config\Database::connect()->table('characters')
+            ->select('duels_open')->where('id', $targetId)->get();
+        $arr = $row === false ? null : $row->getRowArray();
+        return is_array($arr) && is_numeric($arr['duels_open'] ?? null) && (int) $arr['duels_open'] === 1;
+    }
+
+    protected function canSendNotification(int $detectorPlayerId, int $detectedPlayerId): bool
     {
         $lastDetection = $this->detectionHistoryModel
             ->where('detector_player_id', $detectorPlayerId)
