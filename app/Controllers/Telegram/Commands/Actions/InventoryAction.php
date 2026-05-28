@@ -27,12 +27,14 @@ class InventoryAction extends BaseAction
                 [
                     ['text' => '🔄 Добытые ресурсы', 'callback_data' => 'resourcesGathered'],
                     ['text' => '🔨 Крафтовые ресурсы', 'callback_data' => 'resourcesCrafting'],
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
                 ],
-//                [
-//                    ['text' => '🤝 Ресурсы от NPC', 'callback_data' => 'resourcesNpc'],
-//                    ['text' => '📦 Прочие', 'callback_data' => 'resourcesOther']
-//                ],
+                // W8: вход на склад базы (base_storage) прямо из хаба инвентаря —
+                // раньше достижим только из move-keyboard / после cargo-доставки
+                // (UX-discoverability, CLAUDE.md §🎮 правило #4). Пустой склад — graceful.
+                [
+                    ['text' => '📦 Склад базы', 'callback_data' => 'baseStorageList'],
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                ],
             ]
         ];
 

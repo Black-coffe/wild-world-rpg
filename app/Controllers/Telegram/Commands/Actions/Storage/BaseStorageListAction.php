@@ -8,6 +8,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Helpers\ResourceIconHelper;
 use App\Models\BaseStorageModel;
 use App\Models\CharacterResourceModel;
+use App\Services\Player\InventorySortService;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -56,19 +57,24 @@ class BaseStorageListAction extends BaseAction
             return $this->errReply($chatId, 'Невозможно определить персонажа.');
         }
 
-        $callbackData = $this->callbackQuery->getData();
-        $isRetrieveAll = $callbackData === 'baseStorageList_all';
+        $callbackData = (string) $this->callbackQuery->getData();
 
-        if ($isRetrieveAll) {
+        if ($callbackData === 'baseStorageList_all') {
             return $this->retrieveAll($chatId, $characterId);
         }
 
-        return $this->renderList($chatId, $characterId);
+        // W8: режим сортировки из `baseStorageList_sort_<mode>` (stateless). Default — recent.
+        $rawMode = str_starts_with($callbackData, 'baseStorageList_sort_')
+            ? substr($callbackData, strlen('baseStorageList_sort_'))
+            : null;
+        $mode = InventorySortService::normalizeMode($rawMode, InventorySortService::STORAGE_MODES, InventorySortService::MODE_RECENT);
+
+        return $this->renderList($chatId, $characterId, $mode);
     }
 
-    private function renderList(int $chatId, int $characterId): ServerResponse
+    private function renderList(int $chatId, int $characterId, string $mode = InventorySortService::MODE_RECENT): ServerResponse
     {
-        $entries = $this->loadEnrichedEntries($characterId);
+        $entries = InventorySortService::sortRows($this->loadEnrichedEntries($characterId), $mode);
         if (empty($entries)) {
             return Request::sendMessage([
                 'chat_id'    => $chatId,
@@ -102,18 +108,17 @@ class BaseStorageListAction extends BaseAction
         }
         $text .= "\nИтого: *{$totalUnits}* шт. / *" . round($totalKg, 1) . " кг*\n\n";
 
+        $rows = [$this->sortRow($mode)]; // W8: переключатель сортировки
+
         if ($onBase) {
             $text .= "Ты на базе — можно забрать всё в инвентарь.";
-            $keyboard = ['inline_keyboard' => [
-                [['text' => '🎒 Забрать всё', 'callback_data' => 'baseStorageList_all']],
-                [['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList'], ['text' => '🏠 База', 'callback_data' => 'Base']],
-            ]];
+            $rows[] = [['text' => '🎒 Забрать всё', 'callback_data' => 'baseStorageList_all']];
+            $rows[] = [['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList'], ['text' => '🏠 База', 'callback_data' => 'Base']];
         } else {
             $text .= "_Склад физически на базе. Вернись на свою клейм-клетку, чтобы забрать._";
-            $keyboard = ['inline_keyboard' => [
-                [['text' => '🗺 Карта', 'callback_data' => 'inlineMap']],
-            ]];
+            $rows[] = [['text' => '🗺 Карта', 'callback_data' => 'inlineMap']];
         }
+        $keyboard = ['inline_keyboard' => $rows];
 
         return Request::sendMessage([
             'chat_id'      => $chatId,
@@ -198,6 +203,28 @@ class BaseStorageListAction extends BaseAction
             }
         }
         return $out;
+    }
+
+    /**
+     * W8: ряд кнопок переключения сортировки склада. Текущий режим помечен «•».
+     *
+     * @return list<array{text:string,callback_data:string}>
+     */
+    private function sortRow(string $mode): array
+    {
+        $row = [];
+        foreach ([
+            InventorySortService::MODE_RECENT => '🕒 Недавние',
+            InventorySortService::MODE_NAME   => '🔤 Название',
+            InventorySortService::MODE_QTY    => '🔢 Кол-во',
+            InventorySortService::MODE_WEIGHT => '⚖️ Вес',
+        ] as $m => $label) {
+            $row[] = [
+                'text'          => ($m === $mode ? '• ' : '') . $label,
+                'callback_data' => "baseStorageList_sort_{$m}",
+            ];
+        }
+        return $row;
     }
 
     private function isOnBase(int $characterId): bool
