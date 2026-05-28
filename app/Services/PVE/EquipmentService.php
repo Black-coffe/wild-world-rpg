@@ -49,11 +49,22 @@ class EquipmentService
 
         if (!empty($equippedOutfits)) {
             foreach ($equippedOutfits as $item) {
-                $outfit = $outfitModel->find($item['outfit_id']);
-                if ($outfit) {
+                if (!is_array($item)) {
+                    continue;
+                }
+                $oid = is_numeric($item['outfit_id'] ?? null) ? (int) $item['outfit_id'] : 0;
+                if ($oid <= 0) {
+                    continue;
+                }
+                $outfit = $outfitModel->find($oid);
+                if (is_array($outfit)) {
+                    // W20 (ADR-075): per-instance модификатор брони (детерм.; dormant ×1.0).
+                    $rawCoId = $item['id'] ?? null;
+                    $coId    = is_numeric($rawCoId) ? (int) $rawCoId : 0;
+                    $mult    = $this->itemModifiers->armorMultiplier($coId);
                     // Бонус брони берется из поля armor_value
-                    $bonus['armor_bonus'] += (float)$outfit['armor_value'];
-                    // Дополнительно можно учитывать stealth_modifier, speed_modifier и т.д.
+                    $av = is_numeric($outfit['armor_value'] ?? null) ? (float) $outfit['armor_value'] : 0.0;
+                    $bonus['armor_bonus'] += $av * $mult;
                 }
             }
         }

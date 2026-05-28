@@ -13129,12 +13129,6 @@ parameters:
 			path: app/Services/PVE/EquipmentService.php
 
 		-
-			message: '#^Cannot access offset ''armor_value'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/PVE/EquipmentService.php
-
-		-
 			message: '#^Cannot access offset ''attack_speed'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -13142,12 +13136,6 @@ parameters:
 
 		-
 			message: '#^Cannot access offset ''damage_value'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/PVE/EquipmentService.php
-
-		-
-			message: '#^Cannot access offset ''outfit_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Services/PVE/EquipmentService.php

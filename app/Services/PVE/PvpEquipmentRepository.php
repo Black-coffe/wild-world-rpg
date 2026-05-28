@@ -126,9 +126,39 @@ final class PvpEquipmentRepository
         }
 
         $outfitIds = array_column($equipped, 'outfit_id');
-        return $this->outfitsModel
-            ->whereIn('id', $outfitIds)
-            ->findAll();
+        $defs      = $this->outfitsModel->whereIn('id', $outfitIds)->findAll();
+
+        // Карта outfit_id → def (батч сохранён, без N+1).
+        $defById = [];
+        foreach ($defs as $d) {
+            if (is_array($d) && is_numeric($d['id'] ?? null)) {
+                $defById[(int) $d['id']] = $d;
+            }
+        }
+
+        // W20 (ADR-075): per-instance модификатор брони множит resistances (PvP). dormant → ×1.0 → байт-идентично.
+        $out = [];
+        foreach ($equipped as $eq) {
+            if (! is_array($eq)) {
+                continue;
+            }
+            $outfitId = is_numeric($eq['outfit_id'] ?? null) ? (int) $eq['outfit_id'] : 0;
+            $coId     = is_numeric($eq['id'] ?? null) ? (int) $eq['id'] : 0;
+            if ($outfitId <= 0 || ! isset($defById[$outfitId])) {
+                continue;
+            }
+            $row  = $defById[$outfitId];
+            $mult = $this->itemModifiers->armorMultiplier($coId);
+            if ($mult !== 1.0) {
+                foreach (['physical_resistance', 'fire_resistance', 'poison_resistance'] as $rk) {
+                    if (isset($row[$rk]) && is_numeric($row[$rk])) {
+                        $row[$rk] = (float) $row[$rk] * $mult;
+                    }
+                }
+            }
+            $out[] = $row;
+        }
+        return $out;
     }
 
     /**

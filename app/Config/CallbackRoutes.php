@@ -315,9 +315,9 @@ class CallbackRoutes extends BaseConfig
         // W18 (ADR-072) — PvP-ладдер. Callback `pvpLadder` / `pvpLadder_global` / `pvpLadder_faction_<id>`
         // (первый сегмент `pvpLadder` → этот handler; вкладка парсится из полного callback_data).
         'pvpLadder'                       => \App\Controllers\Telegram\Commands\Actions\PVP\PvpLadderAction::class,
-        // W19 (ADR-074) — модернизация предмета (player-facing «Модернизация»; callback — техн. legacy-имя). `enchant` (превью) / `enchantConfirm` (применить).
+        // W19/W20 (ADR-074/075) — модернизация (player-facing «Модернизация»; callback — техн. legacy-имя).
+        // `enchant` = листинг предметов (exact); выбор/применение — prefix enchantSel_/enchantApply_ ниже.
         'enchant'                         => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
-        'enchantConfirm'                  => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
 
         // === Teleport beacons ===
         'teleportBeacon'                  => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportBeacon::class,
@@ -366,6 +366,9 @@ class CallbackRoutes extends BaseConfig
         'whatsNew' => \App\Controllers\Telegram\Commands\Actions\WhatsNew\WhatsNewTopicAction::class,
         // W11 (ADR-067) — выбор ветки квест-развилки. Callback `questBranch_<quest_id>`.
         'questBranch' => \App\Controllers\Telegram\Commands\Actions\Quest\QuestBranchChooseAction::class,
+        // W20 (ADR-075) — модернизация: выбор/применение по предмету. `enchantSel_<type>_<id>` / `enchantApply_<type>_<id>`.
+        'enchantSel' => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
+        'enchantApply' => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
     ];
 
     /**

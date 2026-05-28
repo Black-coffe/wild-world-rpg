@@ -117,10 +117,11 @@ final class ItemModifierServiceTest extends CIUnitTestCase
         $db->table('characters_weapons')->insert(['id' => 50, 'character_id' => 1, 'weapon_id' => 7, 'equipped' => 1]);
 
         $svc = new ItemModifierService();
-        $res = $svc->enchant(1, 50);
+        $res = $svc->enchant(1, 'weapon', 50);
 
         $this->assertTrue($res['ok']);
         $this->assertSame(5, $res['bonus_pct']);
+        $this->assertSame(1, $res['tier']);
         // Золото списано.
         $gold = (int) $db->table('characters')->select('gold')->where('id', 1)->get()->getRowArray()['gold'];
         $this->assertSame(8000, $gold);
@@ -131,7 +132,59 @@ final class ItemModifierServiceTest extends CIUnitTestCase
         $this->assertSame(5, $svc->modifierBonusPct('weapon', 50, 'damage'));
     }
 
-    public function testEnchantOverwritesSameInstance(): void
+    public function testEnchantTiersAccumulateWithRisingCost(): void
+    {
+        $db = Database::connect('tests');
+        $this->seedBool('craft.modifier.enabled', 1);
+        $this->seedInt('craft.modifier.gold_cost', 1000);
+        $this->seedString('craft.modifier.resource_name', '');
+        $this->seedInt('craft.modifier.resource_qty', 0);
+        $this->seedInt('craft.modifier.bonus_pct', 5);
+        $this->seedInt('craft.modifier.max_bonus_pct', 25);
+
+        $db->table('characters')->insert(['id' => 1, 'name' => 'Hero', 'gold' => 10000]);
+        $db->table('characters_weapons')->insert(['id' => 50, 'character_id' => 1, 'weapon_id' => 7, 'equipped' => 1]);
+
+        $svc = new ItemModifierService();
+        $r1  = $svc->enchant(1, 'weapon', 50); // tier1 +5%, цена 1000×1
+        $r2  = $svc->enchant(1, 'weapon', 50); // tier2 +10%, цена 1000×2
+        $this->assertSame(5, $r1['bonus_pct']);
+        $this->assertSame(1, $r1['tier']);
+        $this->assertSame(10, $r2['bonus_pct']);
+        $this->assertSame(2, $r2['tier']);
+
+        // 1 строка (накопление, не дубль).
+        $count = (int) $db->table('item_modifiers')->where('item_type', 'weapon')->where('item_instance_id', 50)->countAllResults();
+        $this->assertSame(1, $count);
+        // Цена ×тир: 1000 + 2000 = 3000 списано.
+        $gold = (int) $db->table('characters')->select('gold')->where('id', 1)->get()->getRowArray()['gold'];
+        $this->assertSame(7000, $gold);
+    }
+
+    public function testEnchantCapStopsAtMaxTier(): void
+    {
+        $db = Database::connect('tests');
+        $this->seedBool('craft.modifier.enabled', 1);
+        $this->seedInt('craft.modifier.gold_cost', 1);
+        $this->seedString('craft.modifier.resource_name', '');
+        $this->seedInt('craft.modifier.resource_qty', 0);
+        $this->seedInt('craft.modifier.bonus_pct', 5);
+        $this->seedInt('craft.modifier.max_bonus_pct', 25);
+
+        $db->table('characters')->insert(['id' => 1, 'name' => 'Hero', 'gold' => 100000]);
+        $db->table('characters_weapons')->insert(['id' => 50, 'character_id' => 1, 'weapon_id' => 7, 'equipped' => 1]);
+
+        $svc = new ItemModifierService();
+        for ($i = 0; $i < 5; $i++) {
+            $this->assertTrue($svc->enchant(1, 'weapon', 50)['ok']);
+        }
+        $this->assertSame(25, $svc->modifierBonusPct('weapon', 50, 'damage')); // cap
+        $sixth = $svc->enchant(1, 'weapon', 50);
+        $this->assertFalse($sixth['ok']);
+        $this->assertSame('max_tier', $sixth['error']);
+    }
+
+    public function testEnchantOutfitAndArmorMultiplier(): void
     {
         $db = Database::connect('tests');
         $this->seedBool('craft.modifier.enabled', 1);
@@ -140,18 +193,19 @@ final class ItemModifierServiceTest extends CIUnitTestCase
         $this->seedInt('craft.modifier.resource_qty', 0);
         $this->seedInt('craft.modifier.bonus_pct', 5);
 
+        $db->query('CREATE TABLE IF NOT EXISTS characters_outfits (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NOT NULL, outfit_id INT NOT NULL, equipped TINYINT NOT NULL DEFAULT 0, created_at DATETIME NULL, updated_at DATETIME NULL)');
         $db->table('characters')->insert(['id' => 1, 'name' => 'Hero', 'gold' => 10000]);
-        $db->table('characters_weapons')->insert(['id' => 50, 'character_id' => 1, 'weapon_id' => 7, 'equipped' => 1]);
+        $db->table('characters_outfits')->insert(['id' => 70, 'character_id' => 1, 'outfit_id' => 3, 'equipped' => 1]);
 
         $svc = new ItemModifierService();
-        $this->assertTrue($svc->enchant(1, 50)['ok']);
-        $this->assertTrue($svc->enchant(1, 50)['ok']); // повтор → перезапись, не дубль
+        $this->assertSame(1.0, $svc->armorMultiplier(70)); // нет модификатора
+        $res = $svc->enchant(1, 'outfit', 70);
+        $this->assertTrue($res['ok']);
+        $this->assertSame(5, $res['bonus_pct']);
+        $this->assertSame(1.05, $svc->armorMultiplier(70)); // +5% брони
+        $this->assertSame(0, $svc->modifierBonusPct('weapon', 70, 'damage')); // не путает stat/тип
 
-        $count = (int) $db->table('item_modifiers')->where('item_type', 'weapon')->where('item_instance_id', 50)->countAllResults();
-        $this->assertSame(1, $count, '1 модификатор на экземпляр (перезапись)');
-        // Дважды списали золото.
-        $gold = (int) $db->table('characters')->select('gold')->where('id', 1)->get()->getRowArray()['gold'];
-        $this->assertSame(8000, $gold);
+        $db->query('DROP TABLE IF EXISTS characters_outfits');
     }
 
     public function testEnchantFailsNoGold(): void
@@ -165,7 +219,7 @@ final class ItemModifierServiceTest extends CIUnitTestCase
         $db->table('characters')->insert(['id' => 1, 'name' => 'Hero', 'gold' => 100]);
         $db->table('characters_weapons')->insert(['id' => 50, 'character_id' => 1, 'weapon_id' => 7, 'equipped' => 1]);
 
-        $res = (new ItemModifierService())->enchant(1, 50);
+        $res = (new ItemModifierService())->enchant(1, 'weapon', 50);
         $this->assertFalse($res['ok']);
         $this->assertSame('no_gold', $res['error']);
         // Золото не тронуто.
@@ -176,7 +230,7 @@ final class ItemModifierServiceTest extends CIUnitTestCase
     public function testEnchantFailsDormant(): void
     {
         // killswitch off → enchant отказывает.
-        $res = (new ItemModifierService())->enchant(1, 50);
+        $res = (new ItemModifierService())->enchant(1, 'weapon', 50);
         $this->assertFalse($res['ok']);
         $this->assertSame('disabled', $res['error']);
     }
