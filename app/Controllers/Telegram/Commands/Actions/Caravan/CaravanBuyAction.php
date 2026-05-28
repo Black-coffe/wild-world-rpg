@@ -88,6 +88,12 @@ class CaravanBuyAction extends BaseAction
             return $this->errReply($chatId, 'Караван распродал всё.');
         }
 
+        // W15 (ADR-069): faction-affinity (член скидка / ривал наценка) ДО торга. Server-side
+        // пересчёт по фракции игрока (не доверяем callback).
+        $caravanFactionId = $this->extractInt($caravan, 'faction_id');
+        $playerFactionId  = (new \App\Models\CharacterFactionModel())->getFactionId($this->extractInt($character, 'id'));
+        $price = $this->service->applyFactionAffinity($price, $caravanFactionId, $playerFactionId);
+
         // W14b: применяем скидку торга (детерминированно от trading_karma) при bargained-покупке.
         if ($bargained && $this->service->bargainEnabled()) {
             $price = $this->service->applyBargain($price, $this->extractInt($character, 'trading_karma'));

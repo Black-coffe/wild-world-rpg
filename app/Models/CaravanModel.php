@@ -21,6 +21,7 @@ class CaravanModel extends Model
     protected $allowedFields = [
         'cell_number',
         'caravan_group_id', // W14a (ADR-068) — multi-resource bundle: общий id строк одного богатого каравана; NULL = одиночный offer
+        'faction_id',       // W15 (ADR-069) — faction-affinity каравана (1-4); NULL = нейтральный
         'resource_id',
         'quantity',
         'price_per_unit',

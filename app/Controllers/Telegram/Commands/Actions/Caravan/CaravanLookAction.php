@@ -75,6 +75,9 @@ class CaravanLookAction extends BaseAction
         $bargained    = ((string) $this->callbackQuery->getData()) === 'caravanLookBargain';
         $tradingKarma = $this->extractInt($character, 'trading_karma');
 
+        // W15 (ADR-069): фракция игрока для faction-affinity (0 = нет фракции/Нейтрал).
+        $playerFactionId = (new \App\Models\CharacterFactionModel())->getFactionId($this->extractInt($character, 'id'));
+
         // W14a (ADR-068): богатый караван (multi-resource bundle) — несколько строк
         // с общим caravan_group_id на клетке. Рендерим списком, покупка поресурсно.
         $rawGroupId = $caravan['caravan_group_id'] ?? null;
@@ -84,7 +87,7 @@ class CaravanLookAction extends BaseAction
                 $caravans,
                 fn ($c) => is_numeric($c['caravan_group_id'] ?? null) && (int) $c['caravan_group_id'] === $groupId
             ));
-            return $this->renderBundle($chatId, $groupRows, $haveGold, $expiresShort, $bargained, $tradingKarma);
+            return $this->renderBundle($chatId, $groupRows, $haveGold, $expiresShort, $bargained, $tradingKarma, $playerFactionId);
         }
 
         // W5 (ADR-064): drone-offer branch.
@@ -102,12 +105,19 @@ class CaravanLookAction extends BaseAction
         $qty       = is_numeric($rawQty)   ? (int) $rawQty   : 0;
         $basePrice = is_numeric($rawPrice) ? (int) $rawPrice : 0;
 
-        // W14b: bargained-режим → договорная цена (детерминированно от trading_karma).
-        $price = $bargained ? $this->service->applyBargain($basePrice, $tradingKarma) : $basePrice;
+        // W15 (ADR-069): faction-affinity (член → скидка / ривал → наценка) ДО торга.
+        $caravanFactionId = $this->extractInt($caravan, 'faction_id');
+        $factionPrice = $this->service->applyFactionAffinity($basePrice, $caravanFactionId, $playerFactionId);
+        // W14b: bargained-режим → договорная цена (детерминированно от trading_karma) поверх faction.
+        $price = $bargained ? $this->service->applyBargain($factionPrice, $tradingKarma) : $factionPrice;
         $total = $qty * $price;
 
         $text  = "🚚 *Странствующий караван*\n\n";
         $text .= "Перед тобой стоит крытая повозка. Торговец предлагает:\n\n";
+        $affinityLine = $this->affinityLine($caravanFactionId, $playerFactionId);
+        if ($affinityLine !== '') {
+            $text .= $affinityLine;
+        }
         $text .= "📦 *{$resName}* — {$qty} шт.\n";
         if ($bargained && $price < $basePrice) {
             $pct = $this->service->bargainDiscountPct($tradingKarma);
@@ -258,12 +268,18 @@ class CaravanLookAction extends BaseAction
      *
      * @param list<array<string,mixed>> $groupRows
      */
-    private function renderBundle(int $chatId, array $groupRows, int $haveGold, string $expiresShort, bool $bargained = false, int $tradingKarma = 0): ServerResponse
+    private function renderBundle(int $chatId, array $groupRows, int $haveGold, string $expiresShort, bool $bargained = false, int $tradingKarma = 0, int $playerFactionId = 0): ServerResponse
     {
         $pct = $bargained ? $this->service->bargainDiscountPct($tradingKarma) : 0;
+        // W15: faction-affinity богатого каравана (все строки группы — один faction_id).
+        $caravanFactionId = isset($groupRows[0]) ? $this->extractInt($groupRows[0], 'faction_id') : 0;
 
         $text  = "🚛 *Богатый караван*\n\n";
         $text .= "Большой обоз с несколькими товарами. Торговец предлагает:\n\n";
+        $affinityLine = $this->affinityLine($caravanFactionId, $playerFactionId);
+        if ($affinityLine !== '') {
+            $text .= $affinityLine;
+        }
 
         $buttons = [];
         foreach ($groupRows as $row) {
@@ -281,7 +297,9 @@ class CaravanLookAction extends BaseAction
                 $text .= "📦 *{$resName}* — _распродано_\n";
                 continue;
             }
-            $price = $bargained ? $this->service->applyBargain($basePrice, $tradingKarma) : $basePrice;
+            // W15 faction-affinity → W14b bargain поверх.
+            $factionPrice = $this->service->applyFactionAffinity($basePrice, $caravanFactionId, $playerFactionId);
+            $price = $bargained ? $this->service->applyBargain($factionPrice, $tradingKarma) : $factionPrice;
             if ($bargained && $price < $basePrice) {
                 $text .= "📦 *{$resName}* — {$qty} шт. по *{$price}* 🪙 _(торг, было {$basePrice})_\n";
             } else {
@@ -323,6 +341,25 @@ class CaravanLookAction extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $buttons]),
         ]);
+    }
+
+    /** W15 (ADR-069) — статус-строка faction-affinity (пусто если выключено/нейтральный караван). */
+    private function affinityLine(int $caravanFactionId, int $playerFactionId): string
+    {
+        if (! $this->service->factionAffinityEnabled() || $caravanFactionId <= 0) {
+            return '';
+        }
+        $fname = $this->factionName($caravanFactionId);
+        return match ($this->service->factionAffinity($caravanFactionId, $playerFactionId)) {
+            'member' => "🤝 *Свой караван* ({$fname}) — скидка члену фракции.\n",
+            'rival'  => "⚔️ *Караван соперников* ({$fname}) — наценка чужой фракции.\n",
+            default  => "🏳 Караван фракции *{$fname}* (нейтрально к тебе).\n",
+        };
+    }
+
+    private function factionName(int $id): string
+    {
+        return [1 => 'Милитари', 2 => 'Партизаны', 3 => 'Инженеры', 4 => 'Фермеры'][$id] ?? '???';
     }
 
     private function resolveResourceName(int $resourceId): string

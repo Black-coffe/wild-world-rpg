@@ -122,7 +122,25 @@ class SpawnCaravanCron
             'expires_at'     => $expires,
             'status'         => 'active',
             'offer_type'     => 'resource',
+            'faction_id'     => $this->rollFactionId(), // W15 (ADR-069)
         ]);
+    }
+
+    /**
+     * W15 (ADR-069) — faction-affinity каравана: при factionAffinityEnabled + roll
+     * affinity_chance → random фракция 1-4; иначе null (нейтральный). mt_rand вне
+     * simulateFight (cron context) → RNG-fence safe.
+     */
+    private function rollFactionId(): ?int
+    {
+        if (! $this->service->factionAffinityEnabled()) {
+            return null;
+        }
+        $chance = $this->service->factionAffinityChance();
+        if ($chance <= 0.0 || mt_rand(1, 10000) > (int) round($chance * 10000)) {
+            return null;
+        }
+        return mt_rand(1, 4);
     }
 
     /**
@@ -218,8 +236,9 @@ class SpawnCaravanCron
         $n = mt_rand($this->service->bundleMin(), $this->service->bundleMax());
         $n = max(2, min($n, count($pool)));
 
-        $groupId  = $this->caravanModel->nextGroupId();
-        $inserted = 0;
+        $groupId   = $this->caravanModel->nextGroupId();
+        $factionId = $this->rollFactionId(); // W15: один faction_id на весь bundle
+        $inserted  = 0;
         for ($i = 0; $i < $n; $i++) {
             $resource   = $pool[$i];
             $rawId      = $resource['id']    ?? null;
@@ -232,6 +251,7 @@ class SpawnCaravanCron
             $this->caravanModel->insert([
                 'cell_number'      => $cellNumber,
                 'caravan_group_id' => $groupId,
+                'faction_id'       => $factionId, // W15: общий для bundle
                 'resource_id'      => $resourceId,
                 'quantity'         => mt_rand($this->service->qtyMin(), $this->service->qtyMax()),
                 'price_per_unit'   => $this->service->computePricePerUnit($price),

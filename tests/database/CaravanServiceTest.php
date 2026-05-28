@@ -222,4 +222,52 @@ final class CaravanServiceTest extends CIUnitTestCase
         // karma 100 / 5 = 20 → cap 15.
         $this->assertSame(15, (new CaravanService())->bargainDiscountPct(100));
     }
+
+    // ── W15 (ADR-069): faction-affinity ─────────────────────────────────
+
+    public function testFactionAffinityDefaultsDormant(): void
+    {
+        $svc = new CaravanService();
+        $this->assertFalse($svc->factionAffinityEnabled()); // default OFF
+        $this->assertSame(5, $svc->factionMemberDiscountPct());
+        $this->assertSame(15, $svc->factionRivalMarkupPct());
+    }
+
+    public function testRivalPairs(): void
+    {
+        $svc = new CaravanService();
+        $this->assertSame(2, $svc->rivalFactionOf(1)); // Милитари ↔ Партизаны
+        $this->assertSame(1, $svc->rivalFactionOf(2));
+        $this->assertSame(4, $svc->rivalFactionOf(3)); // Инженеры ↔ Фермеры
+        $this->assertSame(3, $svc->rivalFactionOf(4));
+        $this->assertSame(0, $svc->rivalFactionOf(5)); // Нейтрал — нет ривала
+    }
+
+    public function testFactionAffinityStates(): void
+    {
+        $svc = new CaravanService();
+        $this->assertSame('member',  $svc->factionAffinity(1, 1)); // та же фракция
+        $this->assertSame('rival',   $svc->factionAffinity(1, 2)); // ривал
+        $this->assertSame('neutral', $svc->factionAffinity(1, 3)); // не ривал
+        $this->assertSame('neutral', $svc->factionAffinity(0, 1)); // нейтральный караван
+        $this->assertSame('neutral', $svc->factionAffinity(1, 0)); // игрок без фракции
+    }
+
+    public function testApplyFactionAffinityDisabledNoChange(): void
+    {
+        // killswitch OFF (default) → цена без изменений даже для member/rival.
+        $this->assertSame(100, (new CaravanService())->applyFactionAffinity(100, 1, 1));
+    }
+
+    public function testApplyFactionAffinityMemberAndRival(): void
+    {
+        $this->seedBool('caravan.faction.enabled', 1);
+        $svc = new CaravanService();
+        // member: 100 × (100−5)/100 = 95.
+        $this->assertSame(95, $svc->applyFactionAffinity(100, 1, 1));
+        // rival: 100 × (100+15)/100 = 115.
+        $this->assertSame(115, $svc->applyFactionAffinity(100, 1, 2));
+        // neutral: без изменений.
+        $this->assertSame(100, $svc->applyFactionAffinity(100, 1, 3));
+    }
 }

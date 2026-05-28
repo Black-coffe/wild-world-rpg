@@ -92,6 +92,91 @@ final class CaravanService
     }
 
     // ──────────────────────────────────────────────────────────────────
+    // W15 (ADR-069) — faction-aligned: скидка члену / наценка ривалу.
+    // Ривалри-пары: Милитари(1)↔Партизаны(2), Инженеры(3)↔Фермеры(4). RNG-fence safe.
+    // ──────────────────────────────────────────────────────────────────
+
+    /** Killswitch faction-affinity. Default OFF = dormant. */
+    public function factionAffinityEnabled(): bool
+    {
+        $v = $this->settings->get('caravan.faction.enabled', false);
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+        return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /** Доля resource-караванов, получающих фракцию (когда enabled). */
+    public function factionAffinityChance(): float
+    {
+        $v = $this->settings->get('caravan.faction.affinity_chance', 0.5);
+        return is_numeric($v) && (float) $v >= 0 && (float) $v <= 1 ? (float) $v : 0.5;
+    }
+
+    /** Скидка члену фракции (%). */
+    public function factionMemberDiscountPct(): int
+    {
+        $v = $this->settings->get('caravan.faction.member_discount_pct', 5);
+        return is_numeric($v) && (int) $v >= 0 ? (int) $v : 5;
+    }
+
+    /** Наценка ривалу фракции (%). */
+    public function factionRivalMarkupPct(): int
+    {
+        $v = $this->settings->get('caravan.faction.rival_markup_pct', 15);
+        return is_numeric($v) && (int) $v >= 0 ? (int) $v : 15;
+    }
+
+    /** Ривал фракции (карта 1↔2, 3↔4). 0 — нет ривала (Нейтрал/неизвестно). */
+    public function rivalFactionOf(int $factionId): int
+    {
+        $map = [1 => 2, 2 => 1, 3 => 4, 4 => 3];
+        return $map[$factionId] ?? 0;
+    }
+
+    /**
+     * Стойка каравана к игроку: 'member' (своя фракция) / 'rival' (ривал) / 'neutral'.
+     * caravanFactionId<=0 (нейтральный караван) или playerFactionId<=0 (нет фракции) → 'neutral'.
+     */
+    public function factionAffinity(int $caravanFactionId, int $playerFactionId): string
+    {
+        if ($caravanFactionId <= 0 || $playerFactionId <= 0) {
+            return 'neutral';
+        }
+        if ($caravanFactionId === $playerFactionId) {
+            return 'member';
+        }
+        if ($this->rivalFactionOf($caravanFactionId) === $playerFactionId) {
+            return 'rival';
+        }
+        return 'neutral';
+    }
+
+    /**
+     * Цена за единицу после faction-affinity. member → скидка, rival → наценка,
+     * neutral → без изменений. Применяется ДО bargain (W14b). max(1, ...).
+     */
+    public function applyFactionAffinity(int $price, int $caravanFactionId, int $playerFactionId): int
+    {
+        if ($price <= 0 || ! $this->factionAffinityEnabled()) {
+            return $price;
+        }
+        $affinity = $this->factionAffinity($caravanFactionId, $playerFactionId);
+        if ($affinity === 'member') {
+            $pct = $this->factionMemberDiscountPct();
+            return $pct > 0 ? max(1, (int) ceil($price * (100 - $pct) / 100)) : $price;
+        }
+        if ($affinity === 'rival') {
+            $pct = $this->factionRivalMarkupPct();
+            return $pct > 0 ? max(1, (int) ceil($price * (100 + $pct) / 100)) : $price;
+        }
+        return $price;
+    }
+
+    // ──────────────────────────────────────────────────────────────────
     // W14b (ADR-068) — bargain/торг: детерминированная скидка от trading_karma.
     // RNG-fence safe (0 mt_rand). Стэкается поверх caravan fix-discount, bounded cap.
     // ──────────────────────────────────────────────────────────────────

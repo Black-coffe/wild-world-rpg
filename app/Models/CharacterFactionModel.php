@@ -59,6 +59,23 @@ class CharacterFactionModel extends Model
     protected $skipValidation = false;
 
     /**
+     * W15 (ADR-069) — faction_id персонажа (0 если фракция не выбрана / Нейтрал).
+     * Raw db-builder — без model-builder-state quirk.
+     */
+    public function getFactionId(int $characterId): int
+    {
+        if ($characterId <= 0) {
+            return 0;
+        }
+        $row = $this->db->table('character_factions')
+            ->select('faction_id')
+            ->where('character_id', $characterId)
+            ->get();
+        $arr = $row === false ? null : $row->getRowArray();
+        return is_array($arr) && is_numeric($arr['faction_id'] ?? null) ? (int) $arr['faction_id'] : 0;
+    }
+
+    /**
      * Логирование уведомления о необходимости выбора фракции.
      *
      * @param int $characterId Идентификатор персонажа.
