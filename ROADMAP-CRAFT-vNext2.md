@@ -18,6 +18,7 @@
 | W5 | **Combat drone + Caravan drone-offer integration** (ADR-064, 🏁 закрытие Фазы 1 Drone-family) | ✅ SHIPPED prod (Tier-1 PASS + Tier-3 partial PASS — bug catch + hotfix) | v0.51.287 | 2026-05-27 |
 | W6 | **Onboarding redux #11 — audit + scope** (ADR-065, hybrid: Robi 4→7 + «Что нового» catalog) | ✅ SHIPPED docs-only (без кода, реализация в W7) | — | 2026-05-27 |
 | W7a | **Onboarding redux — Robi extension 4→7 шагов** (ADR-065 implement Part 1: шаги 5/7 «Подсказки и советы» + 6/7 «Этапы прокачки» + 7/7 closer; killswitch GameSettings) | ✅ SHIPPED prod (Tier-1 + Tier-3 PASS + 2 Tier-3 hotfix'а: PNG→JPG + caption 1068→605) | v0.51.288 | 2026-05-27 |
+| W7b | **Onboarding redux — каталог «📚 Что нового»** (ADR-065 implement Part 2: WhatsNewCatalog/Topic + 6 тем + JSON seen-tracking + Перс button + Step7 promo; forced-show отложен) | ✅ SHIPPED prod (Tier-1 961/961 + Tier-3 cold-smoke PASS) | v0.51.289 | 2026-05-28 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -138,6 +139,34 @@
 > перед commit, fallback `sendPhotoOrText` НЕ спасает за лимитом. ADR-065 закрытие Part 1
 > в рамках hybrid-плана; Part 2 (catalog «📚 Что нового» + JSON column + topic seed-table
 > + Перс button + returning-cooldown + 5-6 LEXICON photos) = W7b. **🏁 W7a/30, Фаза 2 — 1/5.**
+>
+> **W7b SHIPPED prod 2026-05-28 (`v0.51.289`):** Implement Part 2 ADR-065 — каталог
+> «📚 Что нового». Сделано: **3 миграции** (`2026-06-02-110000` ALTER characters ADD
+> `whats_new_seen TEXT` JSON-трекинг прочитанного + CharacterModel allowedFields;
+> `_120000` killswitch `onboarding.whats_new.enabled` rich rationale ADR-024;
+> `_130000` NEW table `whats_new_topics` utf8mb4 + seed 6 тем crafting/robots/defense/
+> drones/factions/economy, каждый caption ≤1024) + **WhatsNewService** (killswitch +
+> allTopics + topicByKey + seenKeys/markSeen JSON + imageRelOrFallback) + **WhatsNewTopicModel**
+> + **2 NEW handlers** (WhatsNewCatalogAction `whatsNewCatalog` — список 6 тем с маркером 🆕
+> непрочитанных + edit-in-place; WhatsNewTopicAction `whatsNew_<key>` prefix-route — рендер
+> темы + markSeen + back) + **3 PATCH** (GetTrainingStart7Action +промо-кнопка каталога при
+> killswitch on; CharacterService +кнопка «📚 Что нового» в Перс ВСЕГДА видна правило #4;
+> CallbackRoutes +exact `whatsNewCatalog` +prefix `whatsNew`) + ImageRegistry (LEXICON
+> `onboarding.catalog` + 6 `whatsnew.*` + 7 rows status=pending). **+9 unit** (WhatsNewServiceTest,
+> вкл. permanent-гард 1024-лимита: token-scan строк миграции-сида). **forced-show вернувшимся
+> отложен** (не трогаем /start; `returning_cooldown_days` не сеяли → без BUILT-BUT-DEAD).
+> **Tier-1 ✅ 961/961 PASS (+9), 8054 assertions, phpstan L9 NO ERRORS, php -l все файлы.**
+> PHPStan fix-цикл (3): return-type `list<array<int|string,mixed>>` под model-keys + убрать
+> redundant `array_values` на list. **Tier-3 cold-smoke на testbot (char 491, MCP Chrome +
+> Telegram Web, БЕЗ предзнаний):** «Перс» → кнопка «📚 Что нового» видна ✅ → каталог (фото +
+> 6 тем + 🆕) ✅ → тема «Дроны» (фото + полный caption, edit-in-place) ✅ → «К каталогу» →
+> «Дроны» теперь «•» (seen), остальные 🆕 ✅ → SQL verify `characters.whats_new_seen=["drones"]`
+> ✅; Step7/7 promo-кнопка «📚 Что нового» + текст present ✅. Картинки = art-tail pending
+> (handler is_file-fallback на `final-step-image.jpg` до генерации; media-off safe). **Doc:**
+> [[mmorpg-vault/decisions/ADR-065-Onboarding-redux-hybrid]] W7b SHIPPED секция +
+> [[mmorpg-vault/tech-writing/services/WhatsNewService]] + handlers/onboarding/index +
+> ROADMAP §0. **🏁 W7b/30, Фаза 2 Onboarding & Achievement — 2/5.** Дальше: art-tail
+> (7 картинок `php spark images:generate --missing` → отдельный тег) ИЛИ пауза ИЛИ W8 Inventory revamp.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
