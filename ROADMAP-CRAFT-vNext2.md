@@ -20,6 +20,7 @@
 | W7a | **Onboarding redux — Robi extension 4→7 шагов** (ADR-065 implement Part 1: шаги 5/7 «Подсказки и советы» + 6/7 «Этапы прокачки» + 7/7 closer; killswitch GameSettings) | ✅ SHIPPED prod (Tier-1 + Tier-3 PASS + 2 Tier-3 hotfix'а: PNG→JPG + caption 1068→605) | v0.51.288 | 2026-05-27 |
 | W7b | **Onboarding redux — каталог «📚 Что нового»** (ADR-065 implement Part 2: WhatsNewCatalog/Topic + 6 тем + JSON seen-tracking + Перс button + Step7 promo; forced-show отложен) | ✅ SHIPPED prod (Tier-1 961/961 + Tier-3 cold-smoke PASS) + art-tail v0.51.290 | v0.51.289 | 2026-05-28 |
 | W8 | **Inventory polish** (re-scope: «Склад базы» в хаб rule #4 + сортировка ресурсов/склада; weight отброшен — нет колонки + ADR-059 конфликт; +фикс 2 латентных багов) | ✅ SHIPPED prod (Tier-1 970/970 + Tier-3 cold-smoke PASS) | v0.51.291 | 2026-05-28 |
+| W9 | **Achievement system foundation** (ADR-066: cron-poll state-driven award engine, 2 таблицы + 7 starter + killswitch OFF dormant; W10 активирует + UI) | ✅ SHIPPED prod dormant (Tier-1 981/981 + Tier-3 cold-smoke PASS) | v0.51.292 | 2026-05-28 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -194,6 +195,37 @@
 > [[mmorpg-vault/tech-writing/services/InventorySortService]] (+2 латентных бага задокументированы) +
 > hot.md + daily + ROADMAP §0. **🏁 W8/30, Фаза 2 — 3/5.** Дальше: W9 Achievement system
 > foundation ИЛИ W10 Achievement T1 set ИЛИ пауза.
+>
+> **W9 SHIPPED prod dormant 2026-05-28 (`v0.51.292` + fix `v0.51.293`):** Achievement system
+> foundation. 🟠-сессия — [[mmorpg-vault/decisions/ADR-066-Achievement-system-foundation|ADR-066]]
+> (7 резолюций + 7 ворот + 5-осевая Σ=14 + 10-портретный 7/3/0) ДО кода. **Механизм = cron-poll
+> state-driven** (user-pick AskUserQuestion) — 0 правок gameplay-хэндлеров (нулевой риск
+> сломать боёвку/крафт), точная копия `QuestObjectiveHandler`. **Сделано (3 migration + 1 service
+> + 1 cron + 2 model):** `achievements` (utf8mb4) + seed 7 starter (по 1 на criteria_type:
+> char_level/explored_cells/craft_total/has_base/has_faction/quests_completed/gold_total) +
+> `character_achievements` (UNIQUE char+ach = идемпотентность) + 2 GameSettings
+> (`achievement.enabled` default **OFF** dormant + `achievement.max_awards_per_tick`=25 анти-шторм,
+> rich rationale ADR-024). `AchievementService` (killswitch + definitions + idempotent award +
+> set-based `qualifyingCharacterIds` per criteria_type). `AchievementCheckCron` (HandlerKey
+> `achievement_check`, everyMinute: per-achievement выдача + per-player **батч**-уведомление +
+> per-tick **cap**). Tasks.php +1. **+11 unit** (AchievementServiceTest). **Tier-1 ✅ 981/981
+> PASS (+11), 8085 assertions, phpstan L9 NO ERRORS, php -l все файлы.** PHPStan fix-цикл:
+> `handle(array $task = [])` сигнатура vs BaseTaskHandler (PHP fatal, php -l не ловит) +
+> offset-on-mixed (character через builder array) + key-type. **Tier-3 cold-smoke на testbot
+> (killswitch ON через SQL → `php spark tasks:run`):** char 491 получил 6/7 достижений
+> (quest_novice НЕ выдан — <3 квестов, критерий корректно дискриминирует) ✅; **per-player
+> батч-уведомление** «🏅 Новые достижения!» одним сообщением (6 в списке) ✅; **idempotent**
+> re-run → 0 новых, без дубля ✅; cap соблюдён (awarded=10 to 2 chars < 25) ✅. **Урок:**
+> GameSettings 60s-кэш → killswitch-флип виден через ≤60s / `cache:clear` (важно для активации
+> W10). testbot восстановлен dormant+clean. **🐛 Hotfix `v0.51.293`** (user-репорт скриншотом):
+> убрана redundant inline-кнопка «👤 Персонаж» из уведомления — «Перс» уже зафиксирован в
+> постоянной reply-клавиатуре (StartCommand:40). Новое правило memory
+> [[mmorpg-vault/claude-memory/feedback_no_duplicate_persistent_keyboard_buttons]]. **Killswitch
+> OFF на prod → 0 player-эффекта до W10** (зеркало W3a). **Doc:** ADR-066 + decisions/index +
+> [[mmorpg-vault/tech-writing/services/AchievementService]] + tasks/achievements cron-нота +
+> hot.md + daily + ROADMAP §0. **🏁 W9/30, Фаза 2 — 4/5.** Дальше: **W10 Achievement T1 set**
+> (20+ medals + UI «🏅 Достижения» в карточке перса + активация killswitch + анонс) — закрывает
+> Фазу 2. ИЛИ пауза.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
