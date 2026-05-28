@@ -25,6 +25,7 @@
 | W11 | **Quest T2 branching foundation** (ADR-067: развилка player-choice → branch_group+branch_label на quests, reuse quest_steps; killswitch `quests.branching_enabled` OFF dormant; +1 демо-ветка; старт Фазы 3) | ✅ SHIPPED prod dormant (Tier-1 995/995 + Tier-3 cold-smoke PASS) | v0.51.295 | 2026-05-28 |
 | W12 | **Quest T2 faction-specific branching** (ADR-067 контент: 8 эпилог-развилок = 4 фракции × 2, ПОСЛЕ сигнатурного оружия — contract-safe; чистый data-seed на W11-движке; dormant) | ✅ SHIPPED prod dormant (Tier-1 995/995 + Tier-3 cold-smoke PASS) | v0.51.296 | 2026-05-28 |
 | W13 | **Quest T2 story arc — капстон главы 1 «остров»** (ADR-067: новый faction-agnostic ландмарк «Сердце острова» + многошаговая арка → ветвящийся финал «судьба острова» 3-way; reuse S24 strategic-discovery; dormant) 🏁 закрытие Quest T2 | ✅ SHIPPED prod dormant (Tier-1 995/995 + Tier-3 cold-smoke PASS) | v0.51.297 | 2026-05-28 |
+| W14a | **Caravan V2 — multi-resource «богатый караван»** (ADR-068: `caravan_group_id` связывает 2-4 ресурса в один караван, reuse buy-хэндлеров; killswitch `caravan.bundle_chance`=0 dormant) | ✅ SHIPPED prod dormant (Tier-1 999/999 + Tier-3 cold-smoke PASS) | v0.51.298 | 2026-05-28 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -343,6 +344,31 @@
 > **Doc:** ADR-067 W13-секция + ROADMAP §0 + hot.md + daily + apps/quests. **🏁 W13/30, Фаза 3 — 3/5;
 > Quest T2 (W11+W12+W13) ЗАКРЫТ.** Дальше: **W14 Caravan V2 — multi-resource offer** (несколько товаров
 > в одном offer'е + bargain/torg) ИЛИ пауза.
+>
+> **W14a SHIPPED prod dormant 2026-05-28 (`v0.51.298`) — 🌳 Фаза 3 Caravan-V2 (старт второй половины).**
+> Multi-resource «богатый караван» — [[mmorpg-vault/decisions/ADR-068-Caravan-V2-multi-resource-and-bargain|ADR-068]]
+> (split W14a multi-resource / W14b bargain — зеркало W3a/W3b, W7a/W7b). **Механизм (user-pick
+> AskUserQuestion из 3: group-колонка / junction / JSON):** `caravans.caravan_group_id` связывает
+> несколько СУЩЕСТВУЮЩИХ caravan-строк (2-4 ресурса) в один богатый караван (общий cell+expiry);
+> покупка поресурсно через существующий `caravanBuyAll_<id>` — «простая колонка чище junction»
+> (ADR-036/037/067). NULL = одиночный offer (V25/W5, 0 регрессии). **Сделано (2 migration + model-ext
+> + service-ext + cron-патч + look-патч + buy-патч):** ALTER caravans +caravan_group_id +
+> CaravanModel(allowedFields/nextGroupId/countActiveInGroup) + GameSettings `caravan.bundle_chance`
+> (default **0 dormant**)/bundle_min(2)/bundle_max(4) + CaravanService(bundleChance/Min/Max) +
+> SpawnCaravanCron(shouldBundle+spawnBundle, rareResourcePool рефактор, после drone-roll) +
+> CaravanLookAction(renderBundle список+кнопка-на-товар) + CaravanBuyAction(group-aware completion).
+> **+4 unit** (CaravanServiceTest bundle config). **Tier-1 ✅ 999/999 PASS, phpstan L9 NO ERRORS, php -l.**
+> **Tier-3 cold-smoke на testbot (MCP Chrome, char 489):** seed bundle на клетке → Действия →
+> Переехать → Север → «🚚 Караван» button → caravanLook → «🚛 Богатый караван» 3 товара
+> (Древесина/Шерсть/Кора) + кнопка-на-товар ✅ → купил Древесину (gold списан, ресурс выдан,
+> строка depleted) ✅ → re-open → bundle показывает 2 оставшихся товара ✅ → купил Шерсть →
+> «Этот товар распродан, но у каравана ещё есть товары» + кнопка «🚚 Караван» ✅ (group-aware fix
+> пойман Tier-3 и переделан). testbot восстановлен dormant+clean. **Killswitch `caravan.bundle_chance`=0
+> на prod → 0 player-эффекта** (одиночные/drone offer'ы как в V25/W5; активация в конце ROADMAP).
+> **Doc:** ADR-068 + decisions/index + [[mmorpg-vault/tech-writing/services/CaravanService]] W14a-секция +
+> ROADMAP §0 + hot.md + daily. **🏁 W14a/30, Фаза 3 — 4/5 (Quest T2 закрыт + Caravan-V2 начат).**
+> Дальше: **W14b Caravan bargain/торг** (stat-based детерминированная скидка от trading_karma,
+> mechanism уже выбран) ИЛИ W15 Caravan V2 faction-aligned ИЛИ пауза.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
