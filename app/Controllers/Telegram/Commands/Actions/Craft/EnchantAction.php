@@ -99,7 +99,8 @@ final class EnchantAction extends BaseAction
             return $this->renderList($chatId, $characterId);
         }
         $p        = $this->modifiers->previewFor($type, $id);
-        $statWord = $type === 'weapon' ? 'урон' : 'защита';
+        $statWord = $type === 'weapon' ? 'урон' : 'защита';   // именительный (для «защита X»)
+        $statAcc  = $type === 'weapon' ? 'урон' : 'защиту';   // винительный (для «усилить X»)
         $base     = $info['base'];
         $curEff   = $base * (1 + $p['current'] / 100.0);
 
@@ -120,7 +121,7 @@ final class EnchantAction extends BaseAction
         }
 
         $newEff = $base * (1 + $p['next'] / 100.0);
-        $text .= "\nТир {$p['tier']}: усилить {$statWord} до *+{$p['next']}%* → станет " . $this->fmt($newEff) . ".\n";
+        $text .= "\nТир {$p['tier']}: усилить {$statAcc} до *+{$p['next']}%* → станет " . $this->fmt($newEff) . ".\n";
         $text .= "\n💰 Стоимость: *{$p['gold']}* золота";
         $resName = $this->modifiers->resourceName();
         if ($resName !== '' && $p['resourceQty'] > 0) {
