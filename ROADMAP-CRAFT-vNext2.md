@@ -29,6 +29,7 @@
 | W14b | **Caravan V2 — bargain/торг** (ADR-068: детерминированная скидка от `trading_karma`, RNG-fence safe; «💱 Торговаться»; killswitch `caravan.bargain.enabled`=false dormant) 🏁 закрытие W14 | ✅ SHIPPED prod dormant (Tier-1 1004/1004 + Tier-3 cold-smoke PASS) | v0.51.299 | 2026-05-28 |
 | W15 | **Caravan V2 — faction-aligned** (ADR-069: `caravans.faction_id`, скидка члену / наценка ривалу: Милитари↔Партизаны, Инженеры↔Фермеры; hostility=markup contract-safe; killswitch `caravan.faction.enabled`=false dormant) 🏁 закрытие Фазы 3 | ✅ SHIPPED prod dormant (Tier-1 1009/1009 + Tier-3 cold-smoke PASS) | v0.51.300 | 2026-05-28 |
 | W16 | **PvP audit + fixture-rebuild plan** (ADR-070: RNG-инвентарь боя, fence-механизм mt_srand=42 golden-master, Фаза 4 RNG-fence-safe план; старт Фазы 4) — БЕЗ кода | ✅ SHIPPED docs-only (audit + ADR, без кода/прод-тега) | — | 2026-05-28 |
+| W17 | **PvP duels** (ADR-071: opt-in честный бой, stat-equalize обоих → НЕИЗМЕНЁННЫЙ `simulateFight` (null defense), БЕЗ потери HP/XP; `characters.duels_open` opt-in флаг; «🤺 Дуэль» в детект-карте; killswitch `pvp.duel.enabled`=false dormant) | ✅ SHIPPED prod dormant (Tier-1 1014/1014 + fence byte-equiv GREEN + Tier-3 cold-smoke PASS: lvl1↔lvl306 → ничья, чары не тронуты) | v0.51.301 | 2026-05-28 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -439,6 +440,28 @@
 > риск>польза) / big-bang+rebuild фикстур. **Doc:** ADR-070 + decisions/index + ROADMAP §0 + hot.md + daily.
 > **🏁 W16/30, старт Фазы 4 (1/5).** Дальше: **W17 PvP duels** (opt-in, fairness pick stat-equalize/level-bracket,
 > RNG-fence-safe pre-process) ИЛИ пауза.
+>
+> **W17 SHIPPED prod dormant 2026-05-28 (`v0.51.301`) — ⚔ Фаза 4 (2/5).** PvP-дуэли —
+> [[mmorpg-vault/decisions/ADR-071-PvP-duels|ADR-071]]. **Opt-in честный бой:** stat-equalize обоих бойцов
+> (`DuelService::equalize` — клонирует структуру, перетирает level/strength/agility/intellect/health/max_health
+> к baseline `pvp.duel.baseline_*`=20/50/50/1000, tired=100, СОХРАНЯЕТ id/name/cell/снаряжение) → НЕИЗМЕНЁННЫЙ
+> `simulateFight($eqA,$eqB,$biome,null)` (null defense = спорт без базовых структур). **0 DB-записей по
+> результату:** ни HP, ни XP, ни ресурсов не теряется (спортивный поединок). **Discoverability:** «🤺 Дуэль»
+> в детект-карте (`PlayerDetectionService`, рядом с ⚔️ Атаковать) — видна ТОЛЬКО при killswitch ON И цель
+> `duels_open=1`; opt-in тумблер «⚔️ Открыться к дуэлям» в ⚙️ Настройках (тоже скрыт при dormant). Callback
+> `duel_<defenderId>` → [[mmorpg-vault/tech-writing/handlers/pvp/DuelAction|DuelAction]] (killswitch → цель open
+> → adjacency → cooldown `pvp_duel_cd_<id>` → equalize обоих → simulateFight → исход + notifyDefender).
+> **RNG-fence:** `simulateFight`/`PvpRoundOrchestrator`/`PvpDamageCalculator` НЕ тронуты → дуэль = новый caller
+> с equalized-входом → fence byte-equivalent (`AttackPlayerActionFixtureFenceTest` 4 сценария/1794 assert GREEN),
+> **fixture-rebuild не потребовался** (как обещал ADR-070). **Killswitch** `pvp.duel.enabled`=false dormant +
+> `characters.duels_open` (default 0) — 0 эффекта до activation-batch конца роудмепа. **Tier-1:** 1014/1014 PASS
+> (+5 `DuelServiceTest`), phpstan L9 clean, php -l clean, fence GREEN. **Tier-3 cold-smoke testbot (PASS):**
+> killswitch ON → тумблер в Настройках появился + флип `duels_open` 0→1 (edit-in-place); ход char489 (lvl1) →
+> детект-карта показала «🤺 Дуэль» для aviad_echo (lvl306, open); дуэль → **ничья (равный бой, 150 обменов)**
+> вместо стомпа (доказывает equalize: без неё lvl306 с agi/int 400+ снёс бы lvl1) + **оба чара не тронуты**
+> (level/health/stats идентичны); killswitch OFF → тумблер+секция исчезли (dormant gate). **Doc:** ADR-071 +
+> decisions/index + DuelAction/DuelService tech-writing + ROADMAP §0 + hot.md + daily. **🏁 W17/30, Фаза 4 (2/5).**
+> Дальше: **W18 PvP ladder** (post-combat scoring, NEW `pvp_ladder` + чтение `battles`, вне боя — ADR-070 план) ИЛИ пауза.
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
