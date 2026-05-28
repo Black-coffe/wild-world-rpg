@@ -41,6 +41,8 @@ class CallbackRoutes extends BaseConfig
         // W7b (ADR-065 Part 2) — каталог «📚 Что нового». Вход с экрана Перс + промо в Шаге 7/7.
         // Топики — через prefixRoute `whatsNew` (callback `whatsNew_<topic_key>`).
         'whatsNewCatalog'                 => \App\Controllers\Telegram\Commands\Actions\WhatsNew\WhatsNewCatalogAction::class,
+        // W10 (ADR-066) — экран «🏅 Достижения» (вход с карточки Перс при killswitch on).
+        'achievements'                    => \App\Controllers\Telegram\Commands\Actions\Achievements\AchievementsAction::class,
         'exploreAreaTips'                 => \App\Controllers\Telegram\Commands\Actions\StartGame\ExploreAreaTipsAction::class,
         'moveNorthEastTips'               => \App\Controllers\Telegram\Commands\Actions\StartGame\MoveNorthEastTips::class,
         'gatherTips'                      => \App\Controllers\Telegram\Commands\Actions\StartGame\GatherTips::class,

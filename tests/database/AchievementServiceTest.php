@@ -190,4 +190,29 @@ final class AchievementServiceTest extends CIUnitTestCase
         $this->seedChar(99);
         $this->assertSame([], $this->svc()->qualifyingCharacterIds((new AchievementModel())->find($achId)));
     }
+
+    public function testCurrentValueCharLevelAndGold(): void
+    {
+        $cid = $this->seedChar(42, 7777);
+        $svc = $this->svc();
+        $this->assertSame(42, $svc->currentValue($cid, 'char_level'));
+        $this->assertSame(7777, $svc->currentValue($cid, 'gold_total'));
+    }
+
+    public function testCurrentValueHasBase(): void
+    {
+        $withBase = $this->seedChar();
+        $noBase   = $this->seedChar();
+        Database::connect('tests')->table('claimed_cells')->insert(['character_id' => $withBase, 'status' => 'active']);
+
+        $svc = $this->svc();
+        $this->assertSame(1, $svc->currentValue($withBase, 'has_base'));
+        $this->assertSame(0, $svc->currentValue($noBase, 'has_base'));
+    }
+
+    public function testCurrentValueUnknownTypeZero(): void
+    {
+        $cid = $this->seedChar(99);
+        $this->assertSame(0, $this->svc()->currentValue($cid, 'nonsense_type'));
+    }
 }

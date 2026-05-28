@@ -185,6 +185,40 @@ final class AchievementService
     }
 
     /**
+     * Текущее значение прогресса персонажа по criteria_type (для UI «X/Y» на locked-ачивках).
+     * has_base/has_faction → 0/1. Неизвестный тип → 0.
+     */
+    public function currentValue(int $characterId, string $criteriaType): int
+    {
+        if ($characterId <= 0) {
+            return 0;
+        }
+        $db = \Config\Database::connect();
+
+        $sql = match ($criteriaType) {
+            'char_level'       => 'SELECT level AS v FROM characters WHERE id = ?',
+            'gold_total'       => 'SELECT gold AS v FROM characters WHERE id = ?',
+            'explored_cells'   => 'SELECT COUNT(*) AS v FROM explored_cells WHERE character_id = ?',
+            'craft_total'      => 'SELECT COALESCE(SUM(quantity), 0) AS v FROM crafted_items_log WHERE character_id = ?',
+            'quests_completed' => 'SELECT COUNT(*) AS v FROM quest_steps WHERE character_id = ? AND is_completed = 1',
+            'has_base'         => 'SELECT EXISTS(SELECT 1 FROM claimed_cells WHERE character_id = ? AND status = \'active\') AS v',
+            'has_faction'      => 'SELECT EXISTS(SELECT 1 FROM character_factions WHERE character_id = ? AND joined_at IS NOT NULL AND faction_id <> 5) AS v',
+            default            => null,
+        };
+        if ($sql === null) {
+            return 0;
+        }
+
+        $query = $db->query($sql, [$characterId]);
+        if (! is_object($query) || ! method_exists($query, 'getRowArray')) {
+            return 0;
+        }
+        $row = $query->getRowArray();
+        $raw = is_array($row) ? ($row['v'] ?? 0) : 0;
+        return is_numeric($raw) ? (int) $raw : 0;
+    }
+
+    /**
      * SQL-фрагмент критерия (whitelist по criteria_type — без инъекции; target — bound int).
      *
      * @return array{0:string,1:list<mixed>}|null

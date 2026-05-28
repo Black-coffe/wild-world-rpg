@@ -199,11 +199,19 @@ class CharacterService
             $inlineRows[] = array_slice($endgameButtons, $i, 2);
         }
 
-        // W7b (ADR-065 Part 2): каталог «📚 Что нового» — вход в справочник по механикам.
-        // UX-DISCOVERABILITY (CLAUDE.md §🎮): кнопка видна ВСЕГДА (killswitch = только
-        // админ-аварийный тумблер, не player-условие), отдельной строкой.
+        // W7b «📚 Что нового» + W10 «🏅 Достижения» — info-разделы карточки перса.
+        // Каждый под своим killswitch (= админ-тумблер, не player-условие). Пакуем
+        // по 2 в строку (memory feedback_inline_keyboard_pack_sibling_buttons). Это
+        // контекстные кнопки, НЕ дубль постоянной reply-клавиатуры (feedback_no_duplicate_persistent_keyboard_buttons).
+        $infoButtons = [];
         if ((new \App\Services\Player\WhatsNewService())->isEnabled()) {
-            $inlineRows[] = [['text' => '📚 Что нового', 'callback_data' => 'whatsNewCatalog']];
+            $infoButtons[] = ['text' => '📚 Что нового', 'callback_data' => 'whatsNewCatalog'];
+        }
+        if ((new \App\Services\Player\AchievementService())->isEnabled()) {
+            $infoButtons[] = ['text' => '🏅 Достижения', 'callback_data' => 'achievements'];
+        }
+        for ($i = 0; $i < count($infoButtons); $i += 2) {
+            $inlineRows[] = array_slice($infoButtons, $i, 2);
         }
 
         $inlineKeyboard = ['inline_keyboard' => $inlineRows];
