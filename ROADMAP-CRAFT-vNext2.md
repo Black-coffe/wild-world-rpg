@@ -161,12 +161,13 @@
 > Telegram Web, БЕЗ предзнаний):** «Перс» → кнопка «📚 Что нового» видна ✅ → каталог (фото +
 > 6 тем + 🆕) ✅ → тема «Дроны» (фото + полный caption, edit-in-place) ✅ → «К каталогу» →
 > «Дроны» теперь «•» (seen), остальные 🆕 ✅ → SQL verify `characters.whats_new_seen=["drones"]`
-> ✅; Step7/7 promo-кнопка «📚 Что нового» + текст present ✅. Картинки = art-tail pending
-> (handler is_file-fallback на `final-step-image.jpg` до генерации; media-off safe). **Doc:**
+> ✅; Step7/7 promo-кнопка «📚 Что нового» + текст present ✅. **Art-tail SHIPPED (`v0.51.290`):**
+> 7 картинок (`onboarding.catalog` + 6 `whatsnew.*`, gpt-image-2 V4, 118-244 KB, 0-text verified
+> multimodal-Read, HTTP 200 prod); handler сохраняет is_file-fallback как защиту. **Doc:**
 > [[mmorpg-vault/decisions/ADR-065-Onboarding-redux-hybrid]] W7b SHIPPED секция +
 > [[mmorpg-vault/tech-writing/services/WhatsNewService]] + handlers/onboarding/index +
-> ROADMAP §0. **🏁 W7b/30, Фаза 2 Onboarding & Achievement — 2/5.** Дальше: art-tail
-> (7 картинок `php spark images:generate --missing` → отдельный тег) ИЛИ пауза ИЛИ W8 Inventory revamp.
+> ROADMAP §0. **🏁 W7b/30 + art-tail SHIPPED, Фаза 2 Onboarding & Achievement — 2/5.** Дальше:
+> пауза ИЛИ W8 Inventory revamp UI (следующая сессия Фазы 2).
 >
 > Префикс `W` (W1..W30) — чтобы tracker уникально различал vNext / vNext / vNext2. Журнал заполняется по мере follow-through (как v1 §0 и vNext-журнал).
 
