@@ -43,6 +43,8 @@ class CallbackRoutes extends BaseConfig
         'whatsNewCatalog'                 => \App\Controllers\Telegram\Commands\Actions\WhatsNew\WhatsNewCatalogAction::class,
         // W10 (ADR-066) — экран «🏅 Достижения» (вход с карточки Перс при killswitch on).
         'achievements'                    => \App\Controllers\Telegram\Commands\Actions\Achievements\AchievementsAction::class,
+        // W24 (ADR-079) — экран «💰 Моя экономика» (вход с карточки Перс при killswitch on).
+        'myEconomy'                       => \App\Controllers\Telegram\Commands\Actions\Economy\PlayerEconomyAction::class,
         'exploreAreaTips'                 => \App\Controllers\Telegram\Commands\Actions\StartGame\ExploreAreaTipsAction::class,
         'moveNorthEastTips'               => \App\Controllers\Telegram\Commands\Actions\StartGame\MoveNorthEastTips::class,
         'gatherTips'                      => \App\Controllers\Telegram\Commands\Actions\StartGame\GatherTips::class,

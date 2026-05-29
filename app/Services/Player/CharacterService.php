@@ -214,6 +214,10 @@ class CharacterService
         if ((new \App\Services\PVE\PvpLadderService())->enabled()) {
             $infoButtons[] = ['text' => '🏆 Рейтинг PvP', 'callback_data' => 'pvpLadder'];
         }
+        // W24 (ADR-079) — «💰 Моя экономика» под killswitch (economy.player_report.enabled).
+        if ((new \App\Services\Economy\PlayerEconomyService())->enabled()) {
+            $infoButtons[] = ['text' => '💰 Моя экономика', 'callback_data' => 'myEconomy'];
+        }
         for ($i = 0; $i < count($infoButtons); $i += 2) {
             $inlineRows[] = array_slice($infoButtons, $i, 2);
         }
