@@ -55,6 +55,7 @@ class CharacterModel extends Model
         'combat_drone_active_until', // W5 (ADR-064) — lazy-expiry окно активного combat-drone defensive buff
         'duels_open',          // W17 (ADR-071) — opt-in флаг «открыт к дуэлям» (default 0)
         'locale',              // W27 (ADR-082) — язык интерфейса игрока (ru/en, default ru)
+        'notify_sound',        // W28 (ADR-083) — override «звук о завершении задач» (default 0 = тихо при killswitch ON)
     ];
 
     protected $useTimestamps = true;

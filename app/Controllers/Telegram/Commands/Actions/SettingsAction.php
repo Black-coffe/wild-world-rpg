@@ -96,6 +96,22 @@ class SettingsAction extends BaseAction
                 }
             }
             $toast = ($newLocale === 'en') ? '🇬🇧 Language: English' : '🇷🇺 Язык: русский';
+        } elseif ($data === 'notifySoundOn' || $data === 'notifySoundOff') {
+            // W28 (ADR-083) — тумблер «звук о завершении задач» (gated killswitch
+            // notifications.silent_threshold.enabled). notify_sound=1 → рутинные
+            // завершения приходят со звуком; 0 → тихо (disable_notification).
+            $sound = ($data === 'notifySoundOn') ? 1 : 0;
+            if (self::notifySoundFlag($character) !== $sound) {
+                $this->characterModel->update($character->id, ['notify_sound' => $sound]);
+                \App\Services\Notifications\SilentNotificationPolicy::reset();
+                $reloaded = $this->characterModel->find($character->id);
+                if ($reloaded instanceof CharacterEntity) {
+                    $character = $reloaded;
+                }
+            }
+            $toast = ($sound === 1)
+                ? '🔔 Звук завершения задач включён'
+                : '🔕 Завершения задач теперь тихие — без звука';
         }
 
         Request::answerCallbackQuery(array_filter([
@@ -206,6 +222,24 @@ class SettingsAction extends BaseAction
     }
 
     /**
+     * W28 (ADR-083) — извлекает `notify_sound` (0/1). 0 — дефолт (рутинные завершения
+     * тихие при активном killswitch). 1 — игрок вернул себе звук.
+     *
+     * @param array<int|string,mixed>|object|null $character
+     */
+    public static function notifySoundFlag($character): int
+    {
+        $raw = 0;
+        if ($character instanceof ArrayAccess) {
+            $raw = $character['notify_sound'] ?? 0;
+        } elseif (is_array($character)) {
+            $raw = $character['notify_sound'] ?? 0;
+        }
+
+        return is_numeric($raw) ? (int) $raw : 0;
+    }
+
+    /**
      * Собирает text + reply_markup экрана настроек по текущему состоянию персонажа.
      * Используется и callback-handler'ом, и `/settings`-командой, и текстом «настройки».
      *
@@ -265,6 +299,21 @@ class SettingsAction extends BaseAction
             $rows[] = [$isEn
                 ? ['text' => '🇷🇺 Русский', 'callback_data' => 'localeRu']
                 : ['text' => '🇬🇧 English', 'callback_data' => 'localeEn']];
+        }
+
+        // W28 (ADR-083) — тумблер «звук о завершении задач» (показываем только при killswitch on).
+        if (\App\Services\Notifications\SilentNotificationPolicy::enabled()) {
+            $soundOn     = self::notifySoundFlag($character) === 1;
+            $soundState  = $soundOn
+                ? '🔔 *включён* — завершения приходят со звуком'
+                : '🔕 *тихо* — завершения приходят без звука/вибро';
+            $text .= "\n\n🔔 Звук о завершении задач: {$soundState}\n\n"
+                . "_Рутинные завершения (добыча / крафт / стройка / разведка) по умолчанию приходят тихо — "
+                . "видны в чате, но телефон не звенит. Важные события (атаки, мировые события, награды) всегда со звуком. "
+                . "Хочешь слышать каждое завершение — включи звук._";
+            $rows[] = [$soundOn
+                ? ['text' => '🔕 Сделать тихими', 'callback_data' => 'notifySoundOff']
+                : ['text' => '🔔 Включить звук',  'callback_data' => 'notifySoundOn']];
         }
 
         $rows[] = [['text' => '🔙 Назад', 'callback_data' => 'characterActions']];

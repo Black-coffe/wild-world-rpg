@@ -31,6 +31,12 @@ class GreenhouseProductionHandler extends BaseTaskHandler
 {
     use GameSettingsReaderTrait;
 
+    /** W28 (ADR-083) — рутинное завершение задачи: при активном killswitch уведомление шлётся тихо (disable_notification). */
+    protected function isRoutineNotification(): bool
+    {
+        return true;
+    }
+
     protected $characterBuildingModel;
     protected $characterResourceModel;
     protected $buildingModel;

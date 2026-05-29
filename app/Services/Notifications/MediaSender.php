@@ -50,7 +50,9 @@ final class MediaSender
                 'chat_id' => $chatId,
                 'text'    => (string) ($params['caption'] ?? ''),
             ];
-            foreach (['parse_mode', 'reply_markup', 'disable_web_page_preview'] as $key) {
+            // W28 (ADR-083): несём disable_notification в text-ветку, иначе при
+            // disable_media тихие рутинные уведомления зазвучали бы.
+            foreach (['parse_mode', 'reply_markup', 'disable_web_page_preview', 'disable_notification'] as $key) {
                 if (isset($params[$key])) {
                     $textParams[$key] = $params[$key];
                 }

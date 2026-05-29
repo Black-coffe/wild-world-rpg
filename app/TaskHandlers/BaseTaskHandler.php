@@ -55,6 +55,45 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
     }
 
     /**
+     * W28 (ADR-083) — помечает ли этот handler свои уведомления как РУТИННЫЕ
+     * (завершение добычи/крафта/стройки/разведки). Рутинные при активном
+     * killswitch `notifications.silent_threshold.enabled` доставляются тихо
+     * (disable_notification=true). Default false — handler шлёт со звуком.
+     *
+     * Routine-handler'ы переопределяют это на `true` одной строкой; конкретные
+     * send-call'ы трогать не нужно — решение принимается централизованно в
+     * {@see safeSendMessage()} / {@see safeSendPhoto()}.
+     */
+    protected function isRoutineNotification(): bool
+    {
+        return false;
+    }
+
+    /**
+     * W28 — подмешивает disable_notification=true в $extra, если уведомление
+     * рутинное И policy разрешает тишину для этого чата И caller сам флаг не
+     * задал. Иначе возвращает $extra без изменений (всегда со звуком).
+     *
+     * @param int|string          $chatId
+     * @param array<string,mixed> $extra
+     * @return array<string,mixed>
+     */
+    private function applySilentThreshold($chatId, array $extra): array
+    {
+        if (! $this->isRoutineNotification()) {
+            return $extra;
+        }
+        if (array_key_exists('disable_notification', $extra)) {
+            return $extra; // caller уже решил — не перетираем
+        }
+        if (\App\Services\Notifications\SilentNotificationPolicy::routineSilentFor((int) $chatId)) {
+            $extra['disable_notification'] = true;
+        }
+
+        return $extra;
+    }
+
+    /**
      * Безопасная отправка текста. Никогда не бросает наружу.
      *
      * @param int|string         $chatId
@@ -64,6 +103,7 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
     {
         // Гарантируем что Telegram инициализирован.
         $this->telegram();
+        $extra = $this->applySilentThreshold($chatId, $extra);
         try {
             $payload = array_merge([
                 'chat_id'    => $chatId,
@@ -90,6 +130,7 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
     protected function safeSendPhoto($chatId, string $photoPath, string $caption = '', array $extra = []): void
     {
         $this->telegram();
+        $extra = $this->applySilentThreshold($chatId, $extra);
         try {
             $payload = array_merge([
                 'chat_id'    => $chatId,

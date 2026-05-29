@@ -76,6 +76,9 @@ class CallbackRoutes extends BaseConfig
         // W17 (ADR-071) — тумблер «открыт к дуэлям».
         'duelsOpenOn'                     => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         'duelsOpenOff'                    => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
+        // W28 (ADR-083) — тумблер «звук о завершении задач» (silent threshold).
+        'notifySoundOn'                   => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
+        'notifySoundOff'                  => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         // 'character' route handled by inline shortcut у CallbackqueryCommand
         // (calls CharacterService::showCharacterInfo з equipment info — НЕ
         // CharacterAction). CharacterAction.php був dead code, видалено v0.51.79.

@@ -32,6 +32,12 @@ use Config\GameBalance;
 )]
 class CompleteRobotGatheringHandler extends BaseTaskHandler
 {
+    /** W28 (ADR-083) — рутинное завершение задачи: при активном killswitch уведомление шлётся тихо (disable_notification). */
+    protected function isRoutineNotification(): bool
+    {
+        return true;
+    }
+
     /** Fallback building_id, если RoboticsWorkshop не найден в `buildings`. Infra-константа, не balance. */
     private const FALLBACK_WORKSHOP_ID = 9;
 

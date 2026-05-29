@@ -52,6 +52,12 @@ use App\Services\Food\FoodBuffService;
 )]
 class GatherTaskHandler extends BaseTaskHandler
 {
+    /** W28 (ADR-083) — рутинное завершение задачи: при активном killswitch уведомление шлётся тихо (disable_notification). */
+    protected function isRoutineNotification(): bool
+    {
+        return true;
+    }
+
     private GatherFormulaService $formulaService;
     private ToolDurabilityProcessor $toolDurability;
     private GatherEventModifierService $eventService;

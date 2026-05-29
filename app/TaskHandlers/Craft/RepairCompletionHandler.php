@@ -35,6 +35,12 @@ use App\TaskHandlers\BaseTaskHandler;
 )]
 class RepairCompletionHandler extends BaseTaskHandler
 {
+    /** W28 (ADR-083) — рутинное завершение задачи: при активном killswitch уведомление шлётся тихо (disable_notification). */
+    protected function isRoutineNotification(): bool
+    {
+        return true;
+    }
+
     private CharacterTaskModel   $characterTaskModel;
     private CraftedItemsLogModel $logModel;
     private CraftedItemsModel    $itemsModel;

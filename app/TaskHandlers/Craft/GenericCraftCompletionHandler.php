@@ -61,6 +61,12 @@ use Longman\TelegramBot\Request;
 )]
 class GenericCraftCompletionHandler extends BaseTaskHandler
 {
+    /** W28 (ADR-083) — рутинное завершение задачи: при активном killswitch уведомление шлётся тихо (disable_notification). */
+    protected function isRoutineNotification(): bool
+    {
+        return true;
+    }
+
     private CharacterModel          $characterModel;
     private CharacterTaskModel      $characterTaskModel;
     private CraftedItemsModel       $craftedItemsModel;
