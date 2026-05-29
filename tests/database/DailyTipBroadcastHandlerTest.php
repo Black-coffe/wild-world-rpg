@@ -156,10 +156,35 @@ final class DailyTipBroadcastHandlerTest extends CIUnitTestCase
         $first->handle();
         $this->assertCount(1, $first->sent);
 
-        // Повторный запуск в тот же день (cache-маркер выставлен) — не шлёт.
+        // Повторный запуск в тот же день (DB-маркер tips.daily_last_broadcast выставлен) — не шлёт.
         $second = $this->makeHandler();
         $second->handle();
         $this->assertCount(0, $second->sent);
         $this->assertSame(1, $this->viewCount(1)); // у A по-прежнему 1 показ
+    }
+
+    public function testDbGuardSurvivesCacheClear(): void
+    {
+        // Закалка: once/day-guard теперь в БД, а не в cache. Очистка cache между прогонами
+        // (имитирует cache:clear/деплой в час рассылки) НЕ должна вызывать повторную рассылку.
+        $first = $this->makeHandler();
+        $first->handle();
+        $this->assertCount(1, $first->sent);
+
+        $this->cleanCache(); // ← раньше это «сбрасывало» guard и вызывало повторный спам
+
+        $second = $this->makeHandler();
+        $second->handle();
+        $this->assertCount(0, $second->sent, 'DB-маркер должен пережить cache:clear');
+        $this->assertSame(1, $this->viewCount(1));
+    }
+
+    public function testMarkerRowSetToTodayAfterBroadcast(): void
+    {
+        $this->makeHandler()->handle();
+        $row = Database::connect('tests')->table('game_settings')
+            ->where('setting_key', 'tips.daily_last_broadcast')->get()->getRowArray();
+        $this->assertNotNull($row, 'маркер-строка создана (self-heal)');
+        $this->assertSame(date('Y-m-d'), $row['value_string']);
     }
 }
