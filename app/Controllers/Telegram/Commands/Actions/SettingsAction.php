@@ -85,6 +85,17 @@ class SettingsAction extends BaseAction
             $toast = ($open === 1)
                 ? '⚔️ Ты открыт к дуэлям — соперники на твоей клетке могут вызвать на честный бой'
                 : '🛡 Ты закрыт для дуэлей';
+        } elseif ($data === 'localeRu' || $data === 'localeEn') {
+            // W27 (ADR-082) — переключатель языка интерфейса (gated killswitch i18n.locale_switch.enabled).
+            $newLocale = ($data === 'localeEn') ? 'en' : 'ru';
+            if (self::localeOf($character) !== $newLocale) {
+                $this->characterModel->update($character->id, ['locale' => $newLocale]);
+                $reloaded = $this->characterModel->find($character->id);
+                if ($reloaded instanceof CharacterEntity) {
+                    $character = $reloaded;
+                }
+            }
+            $toast = ($newLocale === 'en') ? '🇬🇧 Language: English' : '🇷🇺 Язык: русский';
         }
 
         Request::answerCallbackQuery(array_filter([
@@ -167,6 +178,34 @@ class SettingsAction extends BaseAction
     }
 
     /**
+     * W27 — текущая локаль персонажа (ru/en, default ru).
+     *
+     * @param array<int|string,mixed>|object|null $character
+     */
+    private static function localeOf($character): string
+    {
+        $raw = '';
+        if ($character instanceof ArrayAccess) {
+            $raw = $character['locale'] ?? '';
+        } elseif (is_array($character)) {
+            $raw = $character['locale'] ?? '';
+        }
+        $loc = is_string($raw) ? strtolower(trim($raw)) : '';
+        return $loc === 'en' ? 'en' : 'ru';
+    }
+
+    /** W27 — killswitch переключателя языка (default OFF dormant до локализации поверхностей W28+). */
+    private static function localeSwitchEnabled(): bool
+    {
+        try {
+            $v = (new \App\Services\GameSettings\GameSettingsService())->get('i18n.locale_switch.enabled', false);
+        } catch (\Throwable) {
+            return false;
+        }
+        return is_bool($v) ? $v : (is_numeric($v) && (int) $v === 1);
+    }
+
+    /**
      * Собирает text + reply_markup экрана настроек по текущему состоянию персонажа.
      * Используется и callback-handler'ом, и `/settings`-командой, и текстом «настройки».
      *
@@ -216,6 +255,16 @@ class SettingsAction extends BaseAction
             $rows[] = [$duelsOpen
                 ? ['text' => '🛡 Закрыться от дуэлей', 'callback_data' => 'duelsOpenOff']
                 : ['text' => '⚔️ Открыться к дуэлям',  'callback_data' => 'duelsOpenOn']];
+        }
+
+        // W27 (ADR-082) — переключатель языка интерфейса (показываем только при killswitch on).
+        if (self::localeSwitchEnabled()) {
+            $isEn      = self::localeOf($character) === 'en';
+            $langState = $isEn ? '🇬🇧 *English*' : '🇷🇺 *русский*';
+            $text .= "\n\n🌐 Язык / Language: {$langState}";
+            $rows[] = [$isEn
+                ? ['text' => '🇷🇺 Русский', 'callback_data' => 'localeRu']
+                : ['text' => '🇬🇧 English', 'callback_data' => 'localeEn']];
         }
 
         $rows[] = [['text' => '🔙 Назад', 'callback_data' => 'characterActions']];

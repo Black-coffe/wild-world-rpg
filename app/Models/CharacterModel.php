@@ -54,6 +54,7 @@ class CharacterModel extends Model
         'weight_capacity',     // W3a (ADR-059) — soft-cap веса инвентаря (default 9999 = off до W3b balance-pass)
         'combat_drone_active_until', // W5 (ADR-064) — lazy-expiry окно активного combat-drone defensive buff
         'duels_open',          // W17 (ADR-071) — opt-in флаг «открыт к дуэлям» (default 0)
+        'locale',              // W27 (ADR-082) — язык интерфейса игрока (ru/en, default ru)
     ];
 
     protected $useTimestamps = true;

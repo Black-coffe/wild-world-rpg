@@ -70,6 +70,9 @@ class CallbackRoutes extends BaseConfig
         // ADR-038 Фаза C — тумблер «Совет дня»
         'dailyTipsOn'                     => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         'dailyTipsOff'                    => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
+        // W27 (ADR-082) — переключатель языка интерфейса (ru/en).
+        'localeRu'                        => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
+        'localeEn'                        => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         // W17 (ADR-071) — тумблер «открыт к дуэлям».
         'duelsOpenOn'                     => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         'duelsOpenOff'                    => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,

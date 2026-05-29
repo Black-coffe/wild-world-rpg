@@ -43,6 +43,9 @@ abstract class BaseAction
 
         $character = $this->characterModel->where('telegram_user_id', $user['id'])->first();
 
+        // W27 (ADR-082): применяем язык интерфейса игрока → все lang() в экране на его локали.
+        (new \App\Services\Localization\LocaleService())->applyForCharacter($character);
+
         return [$user, $character];
     }
 
