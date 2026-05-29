@@ -53,8 +53,21 @@
   rollout ~25/мин. Уведомления ЛОУД (не silenced A2 — корректно для engagement). Идемпотентность гарантирует терминацию.
 - **A5 — `cooking.fish_dishes.enabled`** (W23, ADR-078). **БЛОКЕР: заменить placeholder-картинки 3 блюд на реальные
   «Найденная фотоплёнка» (ADR-022) ДО активации.** Heal-значения tunable.
-- **A6 — `caravan.bargain.enabled` + `caravan.faction.enabled`** (W14b/W15, ADR-068/069). Скидки/наценки — balance-чувствительно
-  (проверить, что торг не ломает экономику; faction-affinity справедлив).
+- **A6 — `caravan.bargain.enabled` + `caravan.faction.enabled`** (W14b/W15, ADR-068/069). Скидки/наценки — balance-чувствительно.
+  ✅ **АКТИВИРОВАН на проде 2026-05-29 23:21** (оба killswitch через admin-UI `/admin/game-settings?category=world`, audit-trail;
+  prod cache:clear → live; throwaway `a6:confirm` подтвердил bot читает оба ON). **Balance pre-flight на ЖИВОЙ торговой экономике
+  (prod-данные + testbot service-layer smoke):**
+  - **trading_karma** (вход торга): 354/365 чаров на дефолте 100 → `intdiv(100,10)=10%`; только 4 чара >110 (max 210 → cap 15%);
+    1 negative-karma → 0% (guard `max(0,…)`). Итог: торг ≈ **плоские −10%** почти всем. Мягко, предсказуемо.
+  - **faction**: лишь **15 чаров** в ривалри-способных фракциях (Милитари 3/Партизаны 5/Инженеры 6/Фермеры 1); Нейтралы (8) всегда
+    neutral (караваны роллят faction 1-4, не 5). Существующие 5 активных караванов faction_id=NULL → нейтральны до истечения (~2ч);
+    affinity только у НОВЫХ спавнов (chance 0.5).
+  - **Стэк-математика (base=70% рынка):** member+торг ~60.2% рынка (глубочайший); neutral+торг 63%; **rival+торг ~72.8% — всё ещё
+    НИЖЕ рынка** (торг частично гасит наценку до +4% над base) → contract-safe, ривал не наказан, просто меньше скидка.
+  - **Killswitch-ON path** проверен throwaway `a6:preflight` на testbot (char 491 Фермер/karma100): member 100→95→86, rival 100→115→104,
+    neutral 100→100→90 — совпало с hand-calc. Buy-handler пересчитывает обе скидки server-side (secure, не доверяет callback).
+  - Defaults не трогал (designed safe baseline, live-данные подтвердили мягкость). Код не менялся (W14b/W15 уже Tier-3'д визуально).
+  - **NB:** `caravan.bundle_chance` (W14a «богатый караван») остаётся 0 — НЕ в scope A6; кандидат на отдельную активацию.
 
 ### Stage D — crafted modifiers (средне-высокий, balance)
 - **A7 — `craft.modifier.enabled`** (W19/W20, ADR-074/075). +5%/тир оружие+броня, cap +25%, цена gold+Минералы ×тир.
