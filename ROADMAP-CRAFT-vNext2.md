@@ -36,6 +36,7 @@
 | W20 | **Modifier T1 set — броня + тиры** (ADR-075: модернизация брони (armor_value PvE + resistances PvP, per-instance) + накапливаемые тиры +5%/тир до +25%, цена ×тир; generalized enchant; EnchantAction листинг оружие+слоты брони; без миграции таблицы; 🏁 закрытие Фазы 4) | ✅ SHIPPED prod dormant (Tier-1 1040/1040 + fence byte-equiv GREEN + Tier-3 cold-smoke PASS: оружие тир1→тир2 цена×тир, броня +5%, SQL weapon+10%/outfit+5% gold−8000) | v0.51.305 | 2026-05-29 |
 | W21 | **Player housing customisation** (ADR-076: декор базы — имя лагеря 12 пресетов + emoji-флаг 16 вариантов; ALTER claimed_cells +camp_name/+camp_flag utf8mb4; BaseCampDecorService + BaseCampDecorAction; caption «🏕️ ⚔️ Форт Надежды»; PvP-контекст; killswitch `housing.decoration.enabled`=false dormant; старт Фазы 5) | ✅ SHIPPED prod dormant (Tier-1 1048/1048 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: кнопка «🎨 Декор» видна, 12 пресетов, 16 флагов, caption ⚔️ Форт Надежды, SQL camp_name+camp_flag ✅) | v0.51.306 | 2026-05-29 |
 | W22 | **Housing W2 — interior items** (ADR-077: интерьер базы — очаг/обстановка/питомец, по 6 пресетов; ALTER claimed_cells +camp_hearth/+camp_furniture/+camp_pet utf8mb4; расширяет хаб «🎨 Декор» + блок caption «🏠 Обустройство»; переиспользует killswitch `housing.decoration.enabled` как W19→W20; свой экран only, не PvP; 0 механики) | ✅ SHIPPED prod dormant (Tier-1 1052/1052 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: 3 палитры по 6, read-back overview, caption блок «🏠 Обустройство» 🔥/🔧/🐺, SQL utf8mb4 persist HEX-verified) | v0.51.307 | 2026-05-29 |
+| W23 | **Fishing — рыбные блюда** (ADR-078: 🔴 audit re-scope — ресурс «Рыба» id18 + ловля (gather в Реках) УЖЕ в игре, реальный gap = у рыбы нет применения; 3 блюда в Config\CraftRecipes (Уха/Жареная рыба/Рыбные консервы), требующие Рыбу; 3 migration: crafted_items + tasks + 10 GameSettings; killswitch `cooking.fish_dishes.enabled` dormant; 0 правок gather/боя) | ✅ SHIPPED prod dormant (Tier-1 1055/1055 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: 3 блюда в меню готовки, Уха скрафчена, Рыба−3/Травы−1, FishSoup в инвентаре; 🐛 craftFishSoup task-row пойман Tier-3 → migration C) | v0.51.308 | 2026-05-29 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -615,6 +616,28 @@
 > **Killswitch `housing.decoration.enabled`=false на prod → 0 player-эффекта** (активация в конце ROADMAP).
 > **Doc:** ADR-077 + decisions/index + ROADMAP §0 + hot.md + daily. **🏠 W22/30, Фаза 5 — 2/5.**
 > Дальше: **W23 Fishing as new gather** (🟠 ADR — water-biome opt-in fishing + ресурс «Рыба» + 3 рецепта) ИЛИ пауза.
+>
+> **W23 SHIPPED prod dormant 2026-05-29 (`v0.51.308`) — Fishing (рыбные блюда), Фаза 5 — 3/5.**
+> Fishing — [[mmorpg-vault/decisions/ADR-078-Fishing-fish-dishes-W23|ADR-078]]. 🟠-сессия (ADR + 7 ворот ДО кода).
+> **🔴 Audit-first re-scope:** SSH-прод вскрыл — премиса roadmap уже построена: ресурс «Рыба» (id18, type food,
+> биомы 3/4/7) + ловля (gather в Реках + event FishStock) ЖИВЫ; 0 рецептов с рыбой, 3 legacy food битые
+> («Рыбный суп» = Кактус+Галька, без рыбы). Реальный gap = **у рыбы нет применения** (sell 1.90, dead-end).
+> **User-pick (AskUserQuestion из 3):** 3 рыбных блюда в config-cooking (не отдельная «🎣 Рыбалка» — продублировала бы gather).
+> **Сделано (3 migration + config + 1 PATCH):** crafted_items ×3 (FishSoup/GrilledFish/FishPreserve, type=drug,
+> Campfire) + tasks ×3 (handler_key=generic_craft) + 10 GameSettings (killswitch `cooking.fish_dishes.enabled` OFF
+> dormant + 9 balance medical.*.heal_health/heal_tired + food.*.well_fed_minutes, rich rationale) +
+> Config\CraftRecipes ×3 (Уха Рыба×3+Вода×2+Травы×1 / Жареная Рыба×4+Травы×1 / Консервы Рыба×5+Вода×2) +
+> PATCH CampfireCookingSelect (FISH_RECIPES гейтятся killswitch). placeholder-картинки (art-tail при активации).
+> **+3 unit (1052→1055), phpstan L9 NO ERRORS, php -l.** 0 правок gather-движка/боя.
+> **Tier-3 cold-smoke (MCP Chrome + Telegram Web, char 491 testbot, killswitch ON):** Крафт → Общий крафт → Костёр →
+> 3 рыбных блюда в меню ✅ → «Уха» → крафт запущен → fast-forward → FishSoup в инвентаре (qty 1), Рыба−3/Травы−1 ✅.
+> **🐛 craftFishSoup task-row пойман Tier-3** («Задача не найдена в базе») → добавлена migration C (tasks). testbot dormant+clean.
+> **Killswitch `cooking.fish_dishes.enabled`=false на prod → 0 player-эффекта** (активация в конце ROADMAP).
+> **🔍 Побочно (user-репорт):** авто-«Совет дня» спамил на testbot — диагностика: прод здоров (1/сутки в 10:00, лог
+> подтвердил), спам = мои cache:clear в час рассылки (cache-only once/day guard). Прод-аномалии 05-23(22×)/05-27(4×) →
+> guard хрупкий → задача закалить через БД (после W23). testbot tips заглушены.
+> **Doc:** ADR-078 + decisions/index + ROADMAP §0 + hot.md + daily. **🐟 W23/30, Фаза 5 — 3/5.**
+> Дальше: **W24 In-game economy reports для игрока** (per-character slice V21 dashboard) ИЛИ закалить tips-guard ИЛИ пауза.
 >
 > **W20 SHIPPED prod dormant 2026-05-29 (`v0.51.305`) — 🏁 ЗАКРЫТИЕ ФАЗЫ 4 (PvP depth & Crafted modifiers).**
 > Modifier T1 set — броня + накапливаемые тиры — [[mmorpg-vault/decisions/ADR-075-Modifier-T1-set-armor-and-tiers|ADR-075]]
