@@ -37,6 +37,8 @@
 | W21 | **Player housing customisation** (ADR-076: декор базы — имя лагеря 12 пресетов + emoji-флаг 16 вариантов; ALTER claimed_cells +camp_name/+camp_flag utf8mb4; BaseCampDecorService + BaseCampDecorAction; caption «🏕️ ⚔️ Форт Надежды»; PvP-контекст; killswitch `housing.decoration.enabled`=false dormant; старт Фазы 5) | ✅ SHIPPED prod dormant (Tier-1 1048/1048 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: кнопка «🎨 Декор» видна, 12 пресетов, 16 флагов, caption ⚔️ Форт Надежды, SQL camp_name+camp_flag ✅) | v0.51.306 | 2026-05-29 |
 | W22 | **Housing W2 — interior items** (ADR-077: интерьер базы — очаг/обстановка/питомец, по 6 пресетов; ALTER claimed_cells +camp_hearth/+camp_furniture/+camp_pet utf8mb4; расширяет хаб «🎨 Декор» + блок caption «🏠 Обустройство»; переиспользует killswitch `housing.decoration.enabled` как W19→W20; свой экран only, не PvP; 0 механики) | ✅ SHIPPED prod dormant (Tier-1 1052/1052 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: 3 палитры по 6, read-back overview, caption блок «🏠 Обустройство» 🔥/🔧/🐺, SQL utf8mb4 persist HEX-verified) | v0.51.307 | 2026-05-29 |
 | W23 | **Fishing — рыбные блюда** (ADR-078: 🔴 audit re-scope — ресурс «Рыба» id18 + ловля (gather в Реках) УЖЕ в игре, реальный gap = у рыбы нет применения; 3 блюда в Config\CraftRecipes (Уха/Жареная рыба/Рыбные консервы), требующие Рыбу; 3 migration: crafted_items + tasks + 10 GameSettings; killswitch `cooking.fish_dishes.enabled` dormant; 0 правок gather/боя) | ✅ SHIPPED prod dormant (Tier-1 1055/1055 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: 3 блюда в меню готовки, Уха скрафчена, Рыба−3/Травы−1, FishSoup в инвентаре; 🐛 craftFishSoup task-row пойман Tier-3 → migration C) | v0.51.308 | 2026-05-29 |
+| — | **🔧 Закалка tips daily-guard** (cache-only once/day → атомарный DB-claim `tips.daily_last_broadcast`; race-safe, self-heal; прод-аномалии 05-23 ×22/05-27 ×4 устранены) | ✅ SHIPPED prod live (Tier-1 1057/1057 + phpstan L9 + Tier-3 testbot: cache:clear + повторный run → 0 дублей) | v0.51.309 | 2026-05-29 |
+| W24 | **«💰 Моя экономика» — персональный snapshot** (ADR-079: 🔴 audit re-scope — gold-ledger по времени НЕ существует → «инфляция/профит-месяц» из roadmap отложены; честный snapshot: net worth = gold + ресурсы×sell_price + крафт×price, топ-холдинги, сводка торговли; кнопка на Перс gated; killswitch `economy.player_report.enabled` dormant; 0 правок gold-путей) | ✅ SHIPPED prod dormant (Tier-1 1061/1061 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: net worth 703 422 = 84583+12234+606605, топ-5 рес + топ-3 крафт, trade=null «не торговал») | v0.51.310 | 2026-05-29 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -641,6 +643,27 @@
 > testbot tips заглушены. Урок memory `feedback_once_per_day_guard_db_not_cache`.
 > **Doc:** ADR-078 + decisions/index + ROADMAP §0 + hot.md + daily. **🐟 W23/30 + tips-guard fix, Фаза 5 — 3/5.**
 > Дальше: **W24 In-game economy reports для игрока** (per-character slice V21 dashboard) ИЛИ пауза.
+>
+> **W24 SHIPPED prod dormant 2026-05-29 (`v0.51.310`) — «💰 Моя экономика», Фаза 5 — 4/5.**
+> Player economy report — [[mmorpg-vault/decisions/ADR-079-Player-economy-report-W24|ADR-079]]. 🟡→🟢-сессия.
+> **🔴 Audit-first re-scope:** V21 = admin crafting-dashboard (агрегаты по игре, не per-char); per-character
+> gold-ledger ПО ВРЕМЕНИ НЕ существует (action_log без сумм, transactions у 11/364 чаров) → «инфляция/профит
+> за месяц» из roadmap честно не построить без новой инфры + месяцев накопления. **User-pick (из 3):** честный
+> SNAPSHOT из существующих данных (работает для всех 355+ чаров сразу); отклонены gold-ledger foundation
+> (большой risky scope, отчёты пусты до накопления) и пауза. **Сделано (1 service + 1 Action + 1 PATCH + migration):**
+> `PlayerEconomyService::report()` (net worth = gold + Σ ресурсы×sell_price + Σ крафт×price; топ-5 рес + топ-3 крафт
+> по ценности; сводка торговли из transactions, price=итог, null если не торговал) + NEW `PlayerEconomyAction`
+> (callback `myEconomy`, media-off safe, без inline-дублей reply-клавиатуры) + PATCH `CharacterService`
+> (кнопка «💰 Моя экономика» в $infoButtons, gated, пакуется по 2) + killswitch `economy.player_report.enabled`
+> (OFF dormant, category experimental). **+4 db-test (1057→1061), phpstan L9 NO ERRORS** (фикс get()→false guard
+> + BaseConnection generic), php -l. **0 правок боевых/gold-путей → нулевой риск.**
+> **Tier-3 cold-smoke (MCP Chrome + Telegram Web, char 491 testbot, killswitch ON):** Перс → «💰 Моя экономика»
+> видна ✅ → отчёт: net worth **703 422** (=84583 gold + 12234 рес + 606605 крафт, математика верна) + топ-5 рес
+> (Лианы 2804…) + топ-3 крафт (Проф. верстак 150k…) + «Ты ещё не торговал» (trade=null) ✅. testbot dormant+clean.
+> **Killswitch OFF на prod → 0 player-эффекта** (активация в конце ROADMAP). **Отложено:** time-series (инфляция/
+> профит-месяц) — нужен gold-ledger foundation (отдельная сессия). **Doc:** ADR-079 + decisions/index + ROADMAP §0
+> + hot.md + daily. **💰 W24/30, Фаза 5 — 4/5.** Дальше: **W25 Economy reports W2** (comparison vs faction-median —
+> тоже упрётся в отсутствие ledger; либо ledger-foundation, либо re-scope) ИЛИ пауза.
 >
 > **W20 SHIPPED prod dormant 2026-05-29 (`v0.51.305`) — 🏁 ЗАКРЫТИЕ ФАЗЫ 4 (PvP depth & Crafted modifiers).**
 > Modifier T1 set — броня + накапливаемые тиры — [[mmorpg-vault/decisions/ADR-075-Modifier-T1-set-armor-and-tiers|ADR-075]]
