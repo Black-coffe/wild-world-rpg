@@ -131,6 +131,7 @@ final class BaseServiceMessageFormatter
      * Happy path при on-base АБО tower-covered.
      *
      * @param array<string, mixed>|null $coverageResult
+     * @param array{name?: string|null, flag?: string|null, hearth?: string|null, furniture?: string|null, pet?: string|null}|null $interior W22 interior items
      * @return array{caption: string, parse_mode: string, reply_markup: string}
      */
     public function baseBuildings(
@@ -143,7 +144,8 @@ final class BaseServiceMessageFormatter
         ?array $coverageResult = null,
         ?string $campName = null,
         ?string $campFlag = null,
-        bool $decorEnabled = false
+        bool $decorEnabled = false,
+        ?array $interior = null
     ): array {
         $coverageText = "";
         if ($coverageResult !== null && !empty($coverageResult['isCovered'])) {
@@ -164,12 +166,28 @@ final class BaseServiceMessageFormatter
             $campHeader = "🏕️ *{$label}*\n";
         }
 
+        // W22: интерьер — очаг/обстановка/питомец отдельным блоком (media-off safe).
+        $interiorBlock = '';
+        if ($interior !== null) {
+            $interiorLines = [];
+            foreach (['hearth', 'furniture', 'pet'] as $slot) {
+                $val = $interior[$slot] ?? null;
+                if (is_string($val) && $val !== '') {
+                    $interiorLines[] = $val;
+                }
+            }
+            if ($interiorLines !== []) {
+                $interiorBlock = "\n🏠 *Обустройство:*\n" . implode("\n", $interiorLines) . "\n";
+            }
+        }
+
         $caption = "🤖 Это я – *Роби*!\n\n"
             . $campHeader
             . ($coverageText ?: '')
             . "📍 *Координаты базы*: x={$coordX} y={$coordY}\n"
-            . "🌍 *Биом*: {$biomeName}\n\n"
-            . "*Твоя база содержит:*\n"
+            . "🌍 *Биом*: {$biomeName}\n"
+            . $interiorBlock
+            . "\n*Твоя база содержит:*\n"
             . "*Построек:* {$buildingCount} шт.\n"
             . "*Налог:* {$totalTax} ед. золота в сутки\n\n"
             . "*Список построек:*\n"

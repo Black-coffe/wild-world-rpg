@@ -8,13 +8,21 @@ use App\Models\ClaimedCellModel;
 use App\Services\GameSettings\GameSettingsService;
 
 /**
- * W21 (ADR-076) — Housing customisation: декор базы (косметика, 0 механики).
+ * W21 (ADR-076) + W22 (ADR-077) — Housing customisation: декор базы (косметика, 0 механики).
  *
- * Имя лагеря: 12 постапок-пресетов (игрок выбирает один).
- * Флаг лагеря: 16 emoji-вариантов (игрок выбирает один).
- * Хранится в claimed_cells.camp_name / camp_flag (NULL = не задано).
+ * W21 (экстерьер):
+ *   Имя лагеря: 12 постапок-пресетов (игрок выбирает один).
+ *   Флаг лагеря: 16 emoji-вариантов (игрок выбирает один).
+ *   Хранится в claimed_cells.camp_name / camp_flag (NULL = не задано).
  *
- * Killswitch housing.decoration.enabled: при dormant — кнопка «🎨 Декор» скрыта.
+ * W22 (интерьер — interior items):
+ *   Очаг: 6 пресетов (костёр/генератор/печь…) → camp_hearth.
+ *   Обстановка: 6 пресетов (стулья/диван/верстак…) → camp_furniture.
+ *   Питомец-маскот: 6 пресетов (пёс/волк/кот…) → camp_pet.
+ *   Хранится готовая display-строка с emoji (NULL = не задано).
+ *
+ * Killswitch housing.decoration.enabled: при dormant — кнопка «🎨 Декор» скрыта
+ * (W22 переиспользует тот же killswitch — единый housing-feature, как W19→W20).
  * try/catch → false при отсутствии game_settings (тест-среда).
  */
 final class BaseCampDecorService
@@ -41,6 +49,36 @@ final class BaseCampDecorService
         '💀', '⚙️', '🌑', '🗡️', '🏹', '🔱', '⚜️', '🌪️',
     ];
 
+    /** W22: 6 пресетов очага (центр атмосферы базы). Display-строка с emoji. */
+    public const PRESET_HEARTHS = [
+        '🔥 Костёр',
+        '🛢️ Бочка с огнём',
+        '⚙️ Генератор',
+        '🕯️ Факелы',
+        '♨️ Печь-буржуйка',
+        '🪵 Поленница',
+    ];
+
+    /** W22: 6 пресетов обстановки (мебель/утварь). Display-строка с emoji. */
+    public const PRESET_FURNITURE = [
+        '🪑 Складные стулья',
+        '🛋️ Старый диван',
+        '🛏️ Лежанка',
+        '🔧 Верстак',
+        '🧶 Самотканый ковёр',
+        '📻 Радиоприёмник',
+    ];
+
+    /** W22: 6 пресетов питомца-маскота. Display-строка с emoji. */
+    public const PRESET_PETS = [
+        '🐕 Сторожевой пёс',
+        '🐺 Прирученный волк',
+        '🐈 Кот-крысолов',
+        '🐐 Коза',
+        '🐦 Ворон-разведчик',
+        '🐀 Ручная крыса',
+    ];
+
     public function enabled(): bool
     {
         try {
@@ -55,9 +93,9 @@ final class BaseCampDecorService
     }
 
     /**
-     * Возвращает текущий декор активной базы персонажа.
+     * Возвращает текущий декор активной базы персонажа (экстерьер W21 + интерьер W22).
      *
-     * @return array{name: string|null, flag: string|null}
+     * @return array{name: string|null, flag: string|null, hearth: string|null, furniture: string|null, pet: string|null}
      */
     public function getCampDecor(int $charId): array
     {
@@ -65,11 +103,17 @@ final class BaseCampDecorService
             ->where('character_id', $charId)
             ->where('status', 'active')
             ->first();
-        $name = is_array($row) ? ($row['camp_name'] ?? null) : null;
-        $flag = is_array($row) ? ($row['camp_flag'] ?? null) : null;
+        $get = static function (?array $r, string $col): ?string {
+            $v = is_array($r) ? ($r[$col] ?? null) : null;
+            return is_string($v) && $v !== '' ? $v : null;
+        };
+        $row = is_array($row) ? $row : null;
         return [
-            'name' => is_string($name) && $name !== '' ? $name : null,
-            'flag' => is_string($flag) && $flag !== '' ? $flag : null,
+            'name'      => $get($row, 'camp_name'),
+            'flag'      => $get($row, 'camp_flag'),
+            'hearth'    => $get($row, 'camp_hearth'),
+            'furniture' => $get($row, 'camp_furniture'),
+            'pet'       => $get($row, 'camp_pet'),
         ];
     }
 
@@ -89,14 +133,7 @@ final class BaseCampDecorService
         if (! array_key_exists($idx, self::PRESET_NAMES)) {
             return false;
         }
-        $model = new ClaimedCellModel();
-        $row   = $model->where('character_id', $charId)->where('status', 'active')->first();
-        if (! is_array($row)) {
-            return false;
-        }
-        $id = $row['id'] ?? null;
-        $model->update(is_numeric($id) ? (int) $id : 0, ['camp_name' => self::PRESET_NAMES[$idx]]);
-        return true;
+        return $this->setCampField($charId, 'camp_name', self::PRESET_NAMES[$idx]);
     }
 
     /**
@@ -107,13 +144,55 @@ final class BaseCampDecorService
         if (! array_key_exists($idx, self::PRESET_FLAGS)) {
             return false;
         }
+        return $this->setCampField($charId, 'camp_flag', self::PRESET_FLAGS[$idx]);
+    }
+
+    /**
+     * W22: устанавливает очаг по индексу из PRESET_HEARTHS. Возвращает false при невалидном idx.
+     */
+    public function setCampHearth(int $charId, int $idx): bool
+    {
+        if (! array_key_exists($idx, self::PRESET_HEARTHS)) {
+            return false;
+        }
+        return $this->setCampField($charId, 'camp_hearth', self::PRESET_HEARTHS[$idx]);
+    }
+
+    /**
+     * W22: устанавливает обстановку по индексу из PRESET_FURNITURE. Возвращает false при невалидном idx.
+     */
+    public function setCampFurniture(int $charId, int $idx): bool
+    {
+        if (! array_key_exists($idx, self::PRESET_FURNITURE)) {
+            return false;
+        }
+        return $this->setCampField($charId, 'camp_furniture', self::PRESET_FURNITURE[$idx]);
+    }
+
+    /**
+     * W22: устанавливает питомца по индексу из PRESET_PETS. Возвращает false при невалидном idx.
+     */
+    public function setCampPet(int $charId, int $idx): bool
+    {
+        if (! array_key_exists($idx, self::PRESET_PETS)) {
+            return false;
+        }
+        return $this->setCampField($charId, 'camp_pet', self::PRESET_PETS[$idx]);
+    }
+
+    /**
+     * Записывает одно поле декора в active claimed_cells строку персонажа.
+     * Возвращает false, если базы (active-строки) нет.
+     */
+    private function setCampField(int $charId, string $field, string $value): bool
+    {
         $model = new ClaimedCellModel();
         $row   = $model->where('character_id', $charId)->where('status', 'active')->first();
         if (! is_array($row)) {
             return false;
         }
         $id = $row['id'] ?? null;
-        $model->update(is_numeric($id) ? (int) $id : 0, ['camp_flag' => self::PRESET_FLAGS[$idx]]);
+        $model->update(is_numeric($id) ? (int) $id : 0, [$field => $value]);
         return true;
     }
 }

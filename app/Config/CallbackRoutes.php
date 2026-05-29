@@ -324,6 +324,10 @@ class CallbackRoutes extends BaseConfig
         'campDecor'                       => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
         'campDecorName'                   => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
         'campDecorFlag'                   => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
+        // W22 (ADR-077) — Housing W2: interior items. Exact routes для палитр; prefix campSetHearth_/Furniture_/Pet_ ниже.
+        'campDecorHearth'                 => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
+        'campDecorFurniture'              => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
+        'campDecorPet'                    => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
 
         // === Teleport beacons ===
         'teleportBeacon'                  => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportBeacon::class,
@@ -378,6 +382,10 @@ class CallbackRoutes extends BaseConfig
         // W21 (ADR-076) — Housing: сохранение выбранного имени/флага лагеря. `campSetName_<idx>` / `campSetFlag_<idx>`.
         'campSetName' => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
         'campSetFlag' => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
+        // W22 (ADR-077) — Housing W2: сохранение interior items. `campSetHearth_<idx>` / `campSetFurniture_<idx>` / `campSetPet_<idx>`.
+        'campSetHearth' => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
+        'campSetFurniture' => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
+        'campSetPet' => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
     ];
 
     /**

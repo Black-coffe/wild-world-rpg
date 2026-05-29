@@ -210,6 +210,7 @@ class BaseService
                 $decor['name'],
                 $decor['flag'],
                 $decorEnabled,
+                $decorEnabled ? $decor : null, // W22: interior items только при включённом killswitch
             ),
             $editMessageId,
         );

@@ -19,6 +19,9 @@ class ClaimedCellModel extends Model
         'status',
         'camp_name',
         'camp_flag',
+        'camp_hearth',
+        'camp_furniture',
+        'camp_pet',
     ];
 
     protected $useTimestamps = true;

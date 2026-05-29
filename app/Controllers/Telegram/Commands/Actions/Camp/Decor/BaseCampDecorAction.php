@@ -14,14 +14,23 @@ use Longman\TelegramBot\Request;
 /**
  * W21 (ADR-076) — Housing customisation: экран декора базы.
  *
- * Callbacks:
- *   campDecor          — обзорный экран (текущий декор + кнопки изменить)
- *   campDecorName      — палитра из 12 пресетных имён
- *   campDecorFlag      — палитра из 16 emoji-флагов
- *   campSetName_<idx>  — сохранить имя по индексу → вернуть обзор
- *   campSetFlag_<idx>  — сохранить флаг по индексу → вернуть обзор
+ * Callbacks (W21 — экстерьер):
+ *   campDecor              — обзорный экран (текущий декор + кнопки изменить)
+ *   campDecorName          — палитра из 12 пресетных имён
+ *   campDecorFlag          — палитра из 16 emoji-флагов
+ *   campSetName_<idx>      — сохранить имя по индексу → вернуть обзор
+ *   campSetFlag_<idx>      — сохранить флаг по индексу → вернуть обзор
  *
- * Killswitch housing.decoration.enabled. edit-in-place через MediaSender::editTextOrSend.
+ * Callbacks (W22 — интерьер, interior items):
+ *   campDecorHearth        — палитра из 6 пресетов очага
+ *   campDecorFurniture     — палитра из 6 пресетов обстановки
+ *   campDecorPet           — палитра из 6 пресетов питомца
+ *   campSetHearth_<idx>    — сохранить очаг → вернуть обзор
+ *   campSetFurniture_<idx> — сохранить обстановку → вернуть обзор
+ *   campSetPet_<idx>       — сохранить питомца → вернуть обзор
+ *
+ * Killswitch housing.decoration.enabled (W22 переиспользует тот же — единый housing-feature).
+ * edit-in-place через MediaSender::editTextOrSend.
  * Caption самодостаточен (media-off safe: только текст, без фото).
  */
 final class BaseCampDecorAction extends BaseAction
@@ -62,10 +71,28 @@ final class BaseCampDecorAction extends BaseAction
             return $this->showOverview($chatId, $charId);
         }
 
+        if (preg_match('/^campSetHearth_(\d+)$/', $data, $m) === 1) {
+            $this->decor->setCampHearth($charId, (int) $m[1]);
+            return $this->showOverview($chatId, $charId);
+        }
+
+        if (preg_match('/^campSetFurniture_(\d+)$/', $data, $m) === 1) {
+            $this->decor->setCampFurniture($charId, (int) $m[1]);
+            return $this->showOverview($chatId, $charId);
+        }
+
+        if (preg_match('/^campSetPet_(\d+)$/', $data, $m) === 1) {
+            $this->decor->setCampPet($charId, (int) $m[1]);
+            return $this->showOverview($chatId, $charId);
+        }
+
         return match ($data) {
-            'campDecorName' => $this->showNamePalette($chatId),
-            'campDecorFlag' => $this->showFlagPalette($chatId),
-            default         => $this->showOverview($chatId, $charId),
+            'campDecorName'      => $this->showNamePalette($chatId),
+            'campDecorFlag'      => $this->showFlagPalette($chatId),
+            'campDecorHearth'    => $this->showPalette($chatId, '🔥 *Выбери очаг базы:*', BaseCampDecorService::PRESET_HEARTHS, 'campSetHearth', 2),
+            'campDecorFurniture' => $this->showPalette($chatId, '🪑 *Выбери обстановку:*', BaseCampDecorService::PRESET_FURNITURE, 'campSetFurniture', 2),
+            'campDecorPet'       => $this->showPalette($chatId, '🐾 *Выбери питомца-маскота:*', BaseCampDecorService::PRESET_PETS, 'campSetPet', 2),
+            default              => $this->showOverview($chatId, $charId),
         };
     }
 
@@ -75,12 +102,26 @@ final class BaseCampDecorAction extends BaseAction
         $name = $d['name'];
         $flag = $d['flag'];
 
-        $current = ($name !== null || $flag !== null)
+        $exterior = ($name !== null || $flag !== null)
             ? trim(($flag !== null ? $flag . ' ' : '') . ($name ?? '(без имени)'))
             : '_не настроен_';
 
+        // W22: блок интерьера — каждый слот отдельной строкой (media-off safe).
+        $interiorLines = [];
+        if ($d['hearth'] !== null) {
+            $interiorLines[] = $d['hearth'];
+        }
+        if ($d['furniture'] !== null) {
+            $interiorLines[] = $d['furniture'];
+        }
+        if ($d['pet'] !== null) {
+            $interiorLines[] = $d['pet'];
+        }
+        $interior = $interiorLines !== [] ? implode("\n", $interiorLines) : '_пусто_';
+
         $text = "🎨 *Декор базы*\n\n"
-            . "Текущий вид: {$current}\n\n"
+            . "🏕️ Вид снаружи: {$exterior}\n\n"
+            . "🏠 *Обустройство:*\n{$interior}\n\n"
             . "Выбери, что изменить:";
 
         return $this->editText($chatId, $text, [
@@ -88,8 +129,36 @@ final class BaseCampDecorAction extends BaseAction
                 ['text' => '✏️ Имя лагеря', 'callback_data' => 'campDecorName'],
                 ['text' => '🏴 Флаг',       'callback_data' => 'campDecorFlag'],
             ],
+            [
+                ['text' => '🔥 Очаг',       'callback_data' => 'campDecorHearth'],
+                ['text' => '🪑 Обстановка', 'callback_data' => 'campDecorFurniture'],
+                ['text' => '🐾 Питомец',    'callback_data' => 'campDecorPet'],
+            ],
             [['text' => '◀️ База', 'callback_data' => 'Base']],
         ]);
+    }
+
+    /**
+     * W22: generic палитра interior items — кнопки-пресеты + «Назад».
+     *
+     * @param list<string> $presets  отображаемые подписи (они же display-строки)
+     * @param string       $prefix   callback-prefix без `_<idx>`
+     * @param int<1, max>  $perRow   кнопок в строке
+     */
+    private function showPalette(int $chatId, string $title, array $presets, string $prefix, int $perRow): ServerResponse
+    {
+        $rows   = [];
+        $groups = array_chunk($presets, $perRow, true);
+        foreach ($groups as $group) {
+            $row = [];
+            foreach ($group as $idx => $label) {
+                $row[] = ['text' => $label, 'callback_data' => "{$prefix}_{$idx}"];
+            }
+            $rows[] = $row;
+        }
+        $rows[] = [['text' => '◀️ Назад', 'callback_data' => 'campDecor']];
+
+        return $this->editText($chatId, $title, $rows);
     }
 
     private function showNamePalette(int $chatId): ServerResponse
