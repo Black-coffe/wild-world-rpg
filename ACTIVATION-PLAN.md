@@ -32,6 +32,11 @@
   killswitch ON): база-экран → кнопка «🎨 Декор» видна, caption чист, 0 регрессии (housing-код не трогался с W22). Prod
   `value_bool=1` + cache:clear → live для всех. Observe: прод-логи чисты. Анонс — в батч.
 - **A2 — `notifications.silent_threshold.enabled`** (W28, ADR-083). UX: рутинные завершения тихие; per-char opt-out на звук. 0 баланса.
+  ✅ **АКТИВИРОВАН на проде 2026-05-29 16:11** (admin-UI, audit-trail). Pre-flight покрыт same-session W28 Tier-3 (toggle
+  gated-visibility + flip обе стороны + dormant-gate + e2e DB 3-state); код не трогался. Prod `value_bool=1` + cache:clear,
+  0 чаров opted sound-on → все получают редизайн-дефолт (рутинные тихо). **⚠️ Поведенческое изменение** (не косметика):
+  task-done уведомления больше не звенят. **Анонс-батч ОБЯЗАН объяснить:** «завершения задач теперь тихие по умолчанию;
+  вернуть звук — Настройки → 🔔 Звук о завершении задач». Draft в inbox.
 
 ### Stage B — read-only отчёты (низкий риск)
 - **A3 — `economy.player_report.enabled` + `economy.comparison.enabled`** (W24/W25, ADR-079/080). Read-only, 0 мутаций gold.
