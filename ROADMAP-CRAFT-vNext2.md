@@ -41,6 +41,7 @@
 | W24 | **«💰 Моя экономика» — персональный snapshot** (ADR-079: 🔴 audit re-scope — gold-ledger по времени НЕ существует → «инфляция/профит-месяц» из roadmap отложены; честный snapshot: net worth = gold + ресурсы×sell_price + крафт×price, топ-холдинги, сводка торговли; кнопка на Перс gated; killswitch `economy.player_report.enabled` dormant; 0 правок gold-путей) | ✅ SHIPPED prod dormant (Tier-1 1061/1061 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: net worth 703 422 = 84583+12234+606605, топ-5 рес + топ-3 крафт, trade=null «не торговал») | v0.51.310 | 2026-05-29 |
 | W25 | **Economy reports W2 — «На фоне выживших»** (ADR-080: 🔴 audit re-scope — фракцию выбрали 23/365 → «vs faction-median» бессмысленна; server-wide перцентиль (богаче Y%, #N из M, медиана) для всех + faction-строка при ≥порога членов; блок в «Моя экономика»; killswitch `economy.comparison.enabled` dormant; батч ~55мс; 🏁 закрытие Фазы 5) | ✅ SHIPPED prod dormant (Tier-1 1065/1065 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: «богаче 100% #1 из 3, медиана 457744» + faction-строка рендерится) | v0.51.311 | 2026-05-29 |
 | W26 | **Localization en-US — i18n foundation** (ADR-081: 🔴 audit — 0 lang(), defaultLocale='en' при русском, 381 файл; foundation НЕ масс-перевод; Config defaultLocale→'ru' + supportedLocales['ru','en']; app/Language/{ru,en}/Economy.php эталон; PoC = «Моя экономика» на lang(); фазовый план код-vs-DB + per-char locale W27; 🌍 старт Фазы 6) | ✅ SHIPPED prod (Tier-1 1069/1069 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: «Моя экономика» через lang() byte-identical ru; en-файл unit-verified) | v0.51.312 | 2026-05-29 |
+| W27 | **Localization — implement core** (ADR-082: end-to-end per-char locale; characters.locale (ru/en, default ru) + LocaleService + инъекция в BaseAction → все Action-экраны на языке игрока; «🌐 Язык/Language» тумблер в Настройках gated killswitch `i18n.locale_switch.enabled` dormant; масс-конверсия+DB-контент инкрементально W28+) | ✅ SHIPPED prod dormant (Tier-1 1076/1076 + phpstan L9 NO ERRORS + Tier-3 END-TO-END PASS: тумблер→en→«My Economy» на English; DB-имена остались ru как спроектировано) | v0.51.313 | 2026-05-29 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -699,6 +700,23 @@
 > стратегия (колонка `*_en` vs таблица переводов), масс-конверсия handler'ов по подсистемам.
 > **Doc:** ADR-081 + decisions/index + ROADMAP §0 + hot.md + daily. **🌍 W26/30, Фаза 6 — 1/5.**
 > Дальше: **W27 Localization implement core** (per-char locale + DB-content стратегия + конверсия топ-поверхностей) ИЛИ пауза.
+>
+> **W27 SHIPPED prod dormant 2026-05-29 (`v0.51.313`) — i18n per-character locale, Фаза 6 — 2/5.**
+> implement core — [[mmorpg-vault/decisions/ADR-082-i18n-per-character-locale-W27|ADR-082]]. Продолжает W26.
+> **Audit:** characters.locale не было; точка инъекции = `BaseAction::getUserAndCharacter` (покрывает все Action-экраны);
+> SettingsAction toggle-паттерн готов. **User-pick (из 3):** end-to-end плюмбинг + Settings-тумблер (bounded);
+> отклонены масс-конверсия многих экранов (риск live) + пауза. **Сделано (2 migration + service + 3 PATCH):**
+> ALTER characters +locale(VARCHAR 5 default 'ru') + allowedFields + `LocaleService` (localeFor с fallback ru +
+> applyForCharacter→setLocale; SUPPORTED синхронен Config) + инъекция в `BaseAction::getUserAndCharacter` (язык игрока
+> ко всем lang()) + `SettingsAction` «🌐 Язык/Language» ru↔en тумблер (localeRu/localeEn) + routes + killswitch
+> `i18n.locale_switch.enabled` (OFF dormant — не показываем half-localized UI пока локализована лишь часть). **+7 unit
+> (1069→1076), phpstan L9 NO ERRORS, php -l.** **Tier-3 END-TO-END (char 491 testbot, оба killswitch ON):** Настройки →
+> «🌐 English» → клик → locale=en → «Моя экономика» рендерит **English** (My Economy/Gold/Net worth/Trading…) ✅;
+> DB-имена (Лианы/Проф.верстак) остались ru как спроектировано (DB-контент отложен) — подтверждает killswitch-gating.
+> testbot восстановлен (locale=ru, killswitch 0). **Default ru + killswitch OFF → 0 player-эффекта.**
+> **Отложено W28+:** масс-конверсия handler-поверхностей + DB-контент перевод (колонка *_en) + активация killswitch.
+> **Doc:** ADR-082 + decisions/index + ROADMAP §0 + hot.md + daily. **🌍 W27/30, Фаза 6 — 2/5.**
+> Дальше: W28 Sound/notification redesign ИЛИ продолжить локализацию (масс-конверсия) ИЛИ пауза.
 >
 > **W20 SHIPPED prod dormant 2026-05-29 (`v0.51.305`) — 🏁 ЗАКРЫТИЕ ФАЗЫ 4 (PvP depth & Crafted modifiers).**
 > Modifier T1 set — броня + накапливаемые тиры — [[mmorpg-vault/decisions/ADR-075-Modifier-T1-set-armor-and-tiers|ADR-075]]
