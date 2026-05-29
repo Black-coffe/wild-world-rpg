@@ -718,6 +718,28 @@
 > **Doc:** ADR-082 + decisions/index + ROADMAP §0 + hot.md + daily. **🌍 W27/30, Фаза 6 — 2/5.**
 > Дальше: W28 Sound/notification redesign ИЛИ продолжить локализацию (масс-конверсия) ИЛИ пауза.
 >
+> **W28 SHIPPED prod dormant 2026-05-29 (`v0.51.314`) — 🔕 Silent threshold уведомлений, Фаза 6 — 3/5.**
+> Sound/notification redesign — [[mmorpg-vault/decisions/ADR-083-Notifications-silent-threshold-W28|ADR-083]].
+> **🔴 Audit (Explore):** `disable_notification` НЕ используется НИГДЕ; единого chokepoint нет (~599 вызовов/248 файлов),
+> НО task-completions ВСЕ через `BaseTaskHandler::safeSend*` (принимают `$extra` → флаг протекает без рефактора); per-char
+> префы есть как паттерн; throttle частичный (event 1/час, бродкаст 35ms), batching-инфры нет. **User-pick (из 3):**
+> Silent threshold [рекомендовано]; Throttle (риск недосчёта) + Batching (high scope) → backlog W29+. **Дизайн (DRY):**
+> `BaseTaskHandler::isRoutineNotification()` (default false) + `applySilentThreshold()` (решение в safeSend*, call-site не
+> трогаются); 8 routine-handler override 1 строкой (Gather/GenericCraft/GenericBuilding/RobotGather/RobotExplore/
+> Greenhouse/PlantCrop/Repair); важные (PvP/события/ачивки/бродкаст/low-health/death/находки/квесты) НЕ тронуты. **NEW
+> `SilentNotificationPolicy`** (зеркало MediaSender::isMediaDisabled) — двойной гейт: killswitch
+> `notifications.silent_threshold.enabled` (OFF dormant) И per-char `characters.notify_sound` (0=тихо/1=звук); ошибка →
+> со звуком. MediaSender несёт disable_notification в media-off ветку. `SettingsAction` тумблер «🔔 Звук о завершении
+> задач» (gated) + notifySoundOn/Off + routes. **2 migration** (characters +notify_sound default 0 + allowedFields;
+> GameSettings killswitch bool OFF experimental). **+6 unit (1076→1082), phpstan L9 NO ERRORS** (offsetAccess через
+> intField, без baseline), php -l. **E2E DB-smoke (throwaway testbot):** OFF→false / ON+sound0→true / ON+sound1→false ✅.
+> **Tier-3 (char 491 testbot):** killswitch ON → тумблер «🔕 тихо» виден (gated) → «Включить звук» → flip «🔔 включён» +
+> notify_sound=1 → «Сделать тихими» → flip back notify_sound=0 → killswitch OFF → тумблер ИСЧЕЗ (dormant-gate) ✅.
+> testbot восстановлен (notify_sound=0, locale=ru, killswitch=0). **Default OFF + notify_sound 0 → 0 player-эффекта.**
+> **Отложено W29+ backlog:** batching/digest (очередь+flush-cron) + throttle/anti-flood (rate-limit per-char).
+> **Doc:** ADR-083 + decisions/index + tech-writing/SilentNotificationPolicy + ROADMAP §0 + hot.md + daily. **🔕 W28/30, Фаза 6 — 3/5.**
+> Дальше: W29 Tech-writing closer vNext2 (zero-drift ADR-009 + missing-нот sweep) ИЛИ пауза.
+>
 > **W20 SHIPPED prod dormant 2026-05-29 (`v0.51.305`) — 🏁 ЗАКРЫТИЕ ФАЗЫ 4 (PvP depth & Crafted modifiers).**
 > Modifier T1 set — броня + накапливаемые тиры — [[mmorpg-vault/decisions/ADR-075-Modifier-T1-set-armor-and-tiers|ADR-075]]
 > (🟠-сессия, 7 ворот + Σ11). Расширяет W19 ([[mmorpg-vault/decisions/ADR-074-Crafted-item-modifiers|ADR-074]]).
@@ -841,7 +863,7 @@ Player-retention foundation. Сессии 6-8 — onboarding redux #11, 9-10 —
 ### 🌍 Фаза 6 — Localization, polish, vNext3
 - **W26** — **Localization en-US — scope + i18n foundation** (CI4 Language helper, language-key extract из user-facing strings).
 - **W27** — **Localization en-US — implement core** (Telegram-side: handlers + actions + сообщения).
-- **W28** — **Sound / notification redesign** (Telegram-side: silent threshold, batching, throttle).
+- **W28** — **Sound / notification redesign** (Telegram-side: silent threshold, batching, throttle). ✅ SHIPPED `v0.51.314` dormant (ADR-083) — silent threshold реализован (рутинные завершения тихие при killswitch ON + per-char notify_sound override); batching/throttle → backlog.
 - **W29** — **Tech-writing closer vNext2** (zero-drift contract ADR-009 + missing-нот sweep).
 - **W30** — **Retrospective v3 + ROADMAP-CRAFT-vNext3.md** (тот же 5-осевой алгоритм поверх W1–W29). 🏁
 
