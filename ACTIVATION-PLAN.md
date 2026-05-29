@@ -71,7 +71,20 @@
 
 ### Stage D — crafted modifiers (средне-высокий, balance)
 - **A7 — `craft.modifier.enabled`** (W19/W20, ADR-074/075). +5%/тир оружие+броня, cap +25%, цена gold+Минералы ×тир.
-  **Balance-tune ДО live:** power-creep риск; выверить bonus_pct/cost/cap против PvE/PvP. Fence byte-equivalent уже подтверждён.
+  ✅ **АКТИВИРОВАН на проде 2026-05-29 23:30** (admin-UI `?category=craft`, audit-trail; cache:clear; throwaway `a7:confirm` → enabled=true).
+  **Balance pre-flight на ЖИВЫХ prod-данных (power-creep чек):**
+  - **Cap +25% умеренный:** оружие 4-45 dmg (avg 22) → max 45→56; броня 1-32 (avg 16) → max 32→40. **Симметрично в PvP**
+    (обе стороны могут модернизировать) → не даёт нечестного преимущества, только поднимает потолок. PvP duels/ladder пока OFF
+    (A8/A9) → эффект сейчас в основном PvE + base-raids.
+  - **Tiny blast radius:** лишь **6 экипированных оружий + 6 outfit'ов** на весь сервер → минимальная экспозиция power-creep.
+  - **Gold-sink здоровый:** 30k gold за полный max одного предмета (5 тиров: 2000×tier). Avg gold 286k, один хордер 67M →
+    модернизация = осмысленный gold-sink (дренирует хорды).
+  - **Минералы (id11, rarity-1, 10g):** держат лишь 16/365 чаров (был near-dead ресурс) → модернизация даёт ему смысл (как
+    рыба в W23); 75 за max-предмет (~750g) = мягкий gather-gate, не реальная цена.
+  - **Killswitch-ON path verified** throwaway `a7:preflight` на testbot (char 491 Гаусс-пистолет): 5 тиров 5%→25%, цена
+    2000×tier gold + 5×tier Минералы (итого 30k+75), 6-й отклонён `max_tier`, множитель 1.25 (25→31.3 dmg), preview-цены верны.
+  - Defaults НЕ трогал (designed safe baseline, live-данные подтвердили умеренность + почти нулевой addressable audience).
+    Можно поднять gold_cost позже, если данные покажут тривиальный sink для китов. **Fence byte-equivalent подтверждён ранее (W19/W20).**
 
 ### Stage E — live PvP (наивысший риск)
 - **A8 — `pvp.duel.enabled`** (W17/W18.5, ADR-071/073). Opt-in, equalized, 0 DB-записей, decisive tiebreak. Относительно
