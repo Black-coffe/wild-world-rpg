@@ -27,7 +27,10 @@
 Порядок активации — по возрастанию риска (cosmetic → read-only → engagement → balance → live-PvP).
 
 ### Stage A — косметика / UX (нулевой balance-риск)
-- **A1 — `housing.decoration.enabled`** (W21/W22, ADR-076/077). Чистая косметика базы, 0 механики. Самый безопасный старт.
+- **A1 — `housing.decoration.enabled`** (W21/W22, ADR-076/077). Чистая косметика базы, 0 механики. ✅ **АКТИВИРОВАН на проде
+  2026-05-29 16:08** (admin-UI `/admin/game-settings`, audit-trail; не raw SQL). Pre-flight Tier-3 на testbot (char 491,
+  killswitch ON): база-экран → кнопка «🎨 Декор» видна, caption чист, 0 регрессии (housing-код не трогался с W22). Prod
+  `value_bool=1` + cache:clear → live для всех. Observe: прод-логи чисты. Анонс — в батч.
 - **A2 — `notifications.silent_threshold.enabled`** (W28, ADR-083). UX: рутинные завершения тихие; per-char opt-out на звук. 0 баланса.
 
 ### Stage B — read-only отчёты (низкий риск)
