@@ -34,6 +34,8 @@
 | W18.5 | **PvP дуэль — детерминированный исход** (ADR-073: убрать ничью тай-брейком ПОСЛЕ боя — остаток HP → ценность билда → старшинство; fence-safe из roundLogs, 0 engine-touch; equalize сохранён; сообщение с причиной победы) | ✅ SHIPPED prod dormant (Tier-1 1031/1031 + fence byte-equiv GREEN + Tier-3 cold-smoke PASS: «Победа по очкам: andreii0 — осталось больше здоровья», ладдер win/loss 0 draws) | v0.51.303 | 2026-05-28 |
 | W19 | **Модернизация предметов** (ADR-074: per-instance +X% урон экземпляра оружия за gold+ресурс, перезапись; NEW `item_modifiers` + ItemModifierService killswitch try/catch fence-safe; интеграция PvE+PvP детерм. ×множитель dormant ×1.0; только урон оружия user-pick; 🔴 «Зачарование»→«Модернизация» лор-фикс без магии) | ✅ SHIPPED prod dormant (Tier-1 1038/1038 + fence byte-equiv GREEN + Tier-3 cold-smoke PASS: модернизация +5%, gold/ресурс списаны, read-back; rename verified) | v0.51.304 | 2026-05-28 |
 | W20 | **Modifier T1 set — броня + тиры** (ADR-075: модернизация брони (armor_value PvE + resistances PvP, per-instance) + накапливаемые тиры +5%/тир до +25%, цена ×тир; generalized enchant; EnchantAction листинг оружие+слоты брони; без миграции таблицы; 🏁 закрытие Фазы 4) | ✅ SHIPPED prod dormant (Tier-1 1040/1040 + fence byte-equiv GREEN + Tier-3 cold-smoke PASS: оружие тир1→тир2 цена×тир, броня +5%, SQL weapon+10%/outfit+5% gold−8000) | v0.51.305 | 2026-05-29 |
+| W21 | **Player housing customisation** (ADR-076: декор базы — имя лагеря 12 пресетов + emoji-флаг 16 вариантов; ALTER claimed_cells +camp_name/+camp_flag utf8mb4; BaseCampDecorService + BaseCampDecorAction; caption «🏕️ ⚔️ Форт Надежды»; PvP-контекст; killswitch `housing.decoration.enabled`=false dormant; старт Фазы 5) | ✅ SHIPPED prod dormant (Tier-1 1048/1048 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: кнопка «🎨 Декор» видна, 12 пресетов, 16 флагов, caption ⚔️ Форт Надежды, SQL camp_name+camp_flag ✅) | v0.51.306 | 2026-05-29 |
+| W22 | **Housing W2 — interior items** (ADR-077: интерьер базы — очаг/обстановка/питомец, по 6 пресетов; ALTER claimed_cells +camp_hearth/+camp_furniture/+camp_pet utf8mb4; расширяет хаб «🎨 Декор» + блок caption «🏠 Обустройство»; переиспользует killswitch `housing.decoration.enabled` как W19→W20; свой экран only, не PvP; 0 механики) | ✅ SHIPPED prod dormant (Tier-1 1052/1052 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: 3 палитры по 6, read-back overview, caption блок «🏠 Обустройство» 🔥/🔧/🐺, SQL utf8mb4 persist HEX-verified) | v0.51.307 | 2026-05-29 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -559,6 +561,60 @@
 > [[mmorpg-vault/tech-writing/handlers/craft/EnchantAction]] + ROADMAP §0 + hot.md + daily. **🏁 W19, Фаза 4
 > (Crafted modifiers foundation).** Дальше: **W20 Modifier T1 set + balance** (броня/сопротивления + тиры/cap'ы,
 > 🏁 закрытие Фазы 4) ИЛИ пауза.
+>
+> **W21 SHIPPED prod dormant 2026-05-29 (`v0.51.306`) — 🏠 СТАРТ ФАЗЫ 5 (Housing, fishing, economy-player), 1/5.**
+> Housing customisation — [[mmorpg-vault/decisions/ADR-076-Housing-customisation-W21|ADR-076]].
+> **User-pick ×3 (AskUserQuestion):** scope = имя лагеря (12 пресетов) + emoji-флаг (16 вариантов);
+> visibility = свой экран + PvP-контекст; cost = бесплатно.
+> **Audit-first (Explore-agent):** claimed_cells — нет косметических колонок; bases не посещаемы;
+> 0 GameSettings housing.* — всё net-new. **Сделано (2 migration + service + handler + 4 PATCH):**
+> ALTER claimed_cells +camp_name(VARCHAR 50)/+camp_flag(VARCHAR 10 utf8mb4 char-level charset) +
+> GameSettings `housing.decoration.enabled`(OFF dormant, rich rationale) +
+> `BaseCampDecorService` (PRESET_NAMES[12] постапок-названия + PRESET_FLAGS[16] emoji + getCampDecor/
+> setCampName/setCampFlag/getDefenderCampName/enabled) + NEW `BaseCampDecorAction` (exact campDecor/
+> campDecorName/campDecorFlag + prefix campSetName_/campSetFlag_; edit-in-place, media-off safe) +
+> PATCH `ClaimedCellModel::$allowedFields` (+camp_name/camp_flag) +
+> PATCH `BaseServiceMessageFormatter::baseBuildings` (params ?campName/?campFlag/decorEnabled +
+> campHeader «🏕️ name» + кнопка «🎨 Декор» при decorEnabled) +
+> PATCH `BaseService::showBaseBuildings` (BaseCampDecorService::getCampDecor/enabled → передаёт форматтеру) +
+> PATCH `AttackPlayerAction` (getDefenderCampName → «🏕️ База: «Форт Надежды»» в тексте атакующего; NULL → без изменений).
+> **+8 unit (1040→1048)**, phpstan L9 NO ERRORS, php -l все файлы.
+> **Tier-3 cold-smoke (MCP Chrome, char 489 testbot, killswitch ON):** База → «🎨 Декор» кнопка видна (gated) ✅ →
+> экран «🎨 Декор базы / не настроен» ✅ → «✏️ Имя лагеря» → 12 пресетов ✅ → «Форт Надежды» →
+> overview «Текущий вид: Форт Надежды» ✅ → «🏴 Флаг» → 16 emoji ✅ → «⚔️» → «⚔️ Форт Надежды» ✅ →
+> «◀️ База» → caption «🏕️ ⚔️ Форт Надежды» (campHeader) ✅ →
+> SQL char 491: camp_name='Форт Надежды'/camp_flag='⚔️' ✅. testbot dormant+clean.
+> **Killswitch `housing.decoration.enabled`=false на prod → 0 player-эффекта** (активация в конце ROADMAP).
+> **Doc:** ADR-076 + ROADMAP §0 + hot.md + daily. **🏁🏠 W21/30, Фаза 5 — 1/5.**
+> Дальше: **W22 Housing W2** (interior items) ИЛИ пауза.
+>
+> **W22 SHIPPED prod dormant 2026-05-29 (`v0.51.307`) — Housing W2 (interior items), Фаза 5 — 2/5.**
+> Housing W2 — [[mmorpg-vault/decisions/ADR-077-Housing-W2-interior-items|ADR-077]]. Продолжает W21.
+> **User-pick ×2 (AskUserQuestion):** scope = все 3 слота (очаг+обстановка+питомец);
+> killswitch = переиспользовать `housing.decoration.enabled` (аналог W19→W20 foundation→set).
+> visibility (решено без pick) = свой экран only, интерьер НЕ в PvP (приватная начинка).
+> **Audit-first:** прочитан весь W21-код (service/action/formatter/routes/model/test) → строил
+> в той же парадигме (preset-pattern ×3). **Сделано (1 migration + 5 PATCH):**
+> ALTER claimed_cells +camp_hearth/+camp_furniture/+camp_pet (VARCHAR 40 utf8mb4 — display-строка с emoji) +
+> `BaseCampDecorService` (PRESET_HEARTHS[6]/PRESET_FURNITURE[6]/PRESET_PETS[6] + getCampDecor вернул
+> interior + setCampHearth/Furniture/Pet через DRY-helper setCampField, через него же переведены W21-сеттеры) +
+> `BaseCampDecorAction` (overview блок «🏠 Обустройство» + 3 кнопки + generic showPalette; exact
+> campDecorHearth/Furniture/Pet + prefix campSetHearth_/Furniture_/Pet_) +
+> `BaseServiceMessageFormatter::baseBuildings` (+param ?array $interior → блок «🏠 Обустройство» в caption;
+> byte-equivalent при пустом interior) +
+> `BaseService::showBaseBuildings` (передаёт interior форматтеру ТОЛЬКО при killswitch ON) +
+> `ClaimedCellModel::$allowedFields` +3 + `CallbackRoutes` exact+prefix.
+> **+4 unit (1048→1052)**, phpstan L9 NO ERRORS (фикс int<1,max> $perRow + value-type $interior), php -l.
+> **Tier-3 cold-smoke (MCP Chrome + Telegram Web, char 491 testbot tg25, killswitch ON):**
+> База → «🎨 Декор» (gated) ✅ → overview «Вид снаружи: не настроен / 🏠 Обустройство: пусто» +
+> 3 новые кнопки ✅ → «🔥 Очаг» → 6 пресетов → «Костёр» → overview «🔥 Костёр» (read-back) ✅ →
+> «🪑 Обстановка» → 6 → «Верстак» → «🔥 Костёр / 🔧 Верстак» ✅ → «🐾 Питомец» → 6 →
+> «Прирученный волк» → 3 слота ✅ → «◀️ База» → caption блок «🏠 Обустройство» 🔥/🔧/🐺 между
+> Биомом и постройками (фото+текст) ✅ → SQL char 491 camp_hearth/furniture/pet persisted,
+> HEX F09F90BA=🐺 не усечён (utf8mb4 verified) ✅. testbot восстановлен dormant+clean.
+> **Killswitch `housing.decoration.enabled`=false на prod → 0 player-эффекта** (активация в конце ROADMAP).
+> **Doc:** ADR-077 + decisions/index + ROADMAP §0 + hot.md + daily. **🏠 W22/30, Фаза 5 — 2/5.**
+> Дальше: **W23 Fishing as new gather** (🟠 ADR — water-biome opt-in fishing + ресурс «Рыба» + 3 рецепта) ИЛИ пауза.
 >
 > **W20 SHIPPED prod dormant 2026-05-29 (`v0.51.305`) — 🏁 ЗАКРЫТИЕ ФАЗЫ 4 (PvP depth & Crafted modifiers).**
 > Modifier T1 set — броня + накапливаемые тиры — [[mmorpg-vault/decisions/ADR-075-Modifier-T1-set-armor-and-tiers|ADR-075]]
