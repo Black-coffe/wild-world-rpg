@@ -40,7 +40,10 @@
 
 ### Stage B — read-only отчёты (низкий риск)
 - **A3 — `economy.player_report.enabled` + `economy.comparison.enabled`** (W24/W25, ADR-079/080). Read-only, 0 мутаций gold.
-  Проверить производительность comparison-батча на живых ~365 чарах (~55мс на testbot).
+  ✅ **АКТИВИРОВАН на проде 2026-05-29 16:17** (оба killswitch через admin-UI). **Perf-чек PASS:** comparison-батч на проде
+  (365 чаров, 2 correlated subquery/чар) = **41.9мс** (план был ~55мс). Pre-flight покрыт W24/W25 Tier-3. Read-only →
+  0 риска записи. Faction-блок покажется только фракциям с ≥5 членов (Нейтралы 8/Инженеры 6/Партизаны 5; Милитари 3/
+  Фермеры 1 — нет); server-wide блок всегда. Кнопка «💰 Моя экономика» в карточке Перса live.
 
 ### Stage C — контент / engagement (средний риск)
 - **A4 — `achievement.enabled`** (W9/W10). Event-driven награды. Проверить: нет спама, идемпотентность (max_awards_per_tick).
