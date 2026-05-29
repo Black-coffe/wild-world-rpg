@@ -39,6 +39,7 @@
 | W23 | **Fishing — рыбные блюда** (ADR-078: 🔴 audit re-scope — ресурс «Рыба» id18 + ловля (gather в Реках) УЖЕ в игре, реальный gap = у рыбы нет применения; 3 блюда в Config\CraftRecipes (Уха/Жареная рыба/Рыбные консервы), требующие Рыбу; 3 migration: crafted_items + tasks + 10 GameSettings; killswitch `cooking.fish_dishes.enabled` dormant; 0 правок gather/боя) | ✅ SHIPPED prod dormant (Tier-1 1055/1055 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: 3 блюда в меню готовки, Уха скрафчена, Рыба−3/Травы−1, FishSoup в инвентаре; 🐛 craftFishSoup task-row пойман Tier-3 → migration C) | v0.51.308 | 2026-05-29 |
 | — | **🔧 Закалка tips daily-guard** (cache-only once/day → атомарный DB-claim `tips.daily_last_broadcast`; race-safe, self-heal; прод-аномалии 05-23 ×22/05-27 ×4 устранены) | ✅ SHIPPED prod live (Tier-1 1057/1057 + phpstan L9 + Tier-3 testbot: cache:clear + повторный run → 0 дублей) | v0.51.309 | 2026-05-29 |
 | W24 | **«💰 Моя экономика» — персональный snapshot** (ADR-079: 🔴 audit re-scope — gold-ledger по времени НЕ существует → «инфляция/профит-месяц» из roadmap отложены; честный snapshot: net worth = gold + ресурсы×sell_price + крафт×price, топ-холдинги, сводка торговли; кнопка на Перс gated; killswitch `economy.player_report.enabled` dormant; 0 правок gold-путей) | ✅ SHIPPED prod dormant (Tier-1 1061/1061 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: net worth 703 422 = 84583+12234+606605, топ-5 рес + топ-3 крафт, trade=null «не торговал») | v0.51.310 | 2026-05-29 |
+| W25 | **Economy reports W2 — «На фоне выживших»** (ADR-080: 🔴 audit re-scope — фракцию выбрали 23/365 → «vs faction-median» бессмысленна; server-wide перцентиль (богаче Y%, #N из M, медиана) для всех + faction-строка при ≥порога членов; блок в «Моя экономика»; killswitch `economy.comparison.enabled` dormant; батч ~55мс; 🏁 закрытие Фазы 5) | ✅ SHIPPED prod dormant (Tier-1 1065/1065 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: «богаче 100% #1 из 3, медиана 457744» + faction-строка рендерится) | v0.51.311 | 2026-05-29 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -664,6 +665,21 @@
 > профит-месяц) — нужен gold-ledger foundation (отдельная сессия). **Doc:** ADR-079 + decisions/index + ROADMAP §0
 > + hot.md + daily. **💰 W24/30, Фаза 5 — 4/5.** Дальше: **W25 Economy reports W2** (comparison vs faction-median —
 > тоже упрётся в отсутствие ledger; либо ledger-foundation, либо re-scope) ИЛИ пауза.
+>
+> **W25 SHIPPED prod dormant 2026-05-29 (`v0.51.311`) — «На фоне выживших», 🏁🏁 ЗАКРЫТИЕ ФАЗЫ 5 (5/5).**
+> Economy comparison — [[mmorpg-vault/decisions/ADR-080-Economy-comparison-W25|ADR-080]]. Продолжает W24.
+> **🔴 Audit-first re-scope:** фракцию выбрали 23/365 чаров (Нейтралы 8 / Инженеры 6 / Партизаны 5 / Милитари 3 /
+> Фермеры 1) → «vs faction-median» из roadmap бессмысленна для большинства (у малых медиана = сам игрок). Server-wide
+> net worth по 365 чарам ~55мс → осмысленно для всех. **User-pick (из 3):** server-wide перцентиль + faction-строка
+> при ≥порога. Отклонены строгий faction-median (бесполезен) + пауза. **Сделано (service-ext + Action-блок + migration):**
+> `PlayerEconomyService::comparison()` (1 батч net worth по всем чарам + LEFT JOIN character_factions/factions; server
+> median/rank/percentile + faction если ≥`economy.comparison.faction_min_members`; rankOf/richerThanPct/median в PHP) +
+> блок «📊 На фоне выживших» в PlayerEconomyAction (gated) + killswitch `economy.comparison.enabled` (OFF dormant) +
+> tunable faction_min_members(5). **+4 db-test (1061→1065), phpstan L9 NO ERRORS, php -l.** 0 правок gold-путей (read-only).
+> **Tier-3 (char 491 testbot, оба killswitch ON, threshold=1):** «Богаче 100% выживших · #1 из 3 · медиана 457744» +
+> faction-строка «Фермеры #1 из 1» рендерятся ✅. testbot dormant+clean. **Killswitch OFF на prod → 0 player-эффекта.**
+> **Doc:** ADR-080 + decisions/index + ROADMAP §0 + hot.md + daily. **🏁🏁 W25/30, ФАЗА 5 ЗАКРЫТА**
+> (W21 housing + W22 interior + W23 fishing + W24 economy + W25 comparison). Дальше: 🌍 Фаза 6 — Localization/polish (W26) ИЛИ пауза.
 >
 > **W20 SHIPPED prod dormant 2026-05-29 (`v0.51.305`) — 🏁 ЗАКРЫТИЕ ФАЗЫ 4 (PvP depth & Crafted modifiers).**
 > Modifier T1 set — броня + накапливаемые тиры — [[mmorpg-vault/decisions/ADR-075-Modifier-T1-set-armor-and-tiers|ADR-075]]
