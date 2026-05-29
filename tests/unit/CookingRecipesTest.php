@@ -62,4 +62,46 @@ final class CookingRecipesTest extends CIUnitTestCase
             $this->assertNotEmpty($recipe['resources'], "{$key}: resources пусты");
         }
     }
+
+    // ── W23 (ADR-078) — рыбные блюда (дают «Рыбе» применение) ──
+
+    public function testFishRecipesList(): void
+    {
+        $this->assertCount(3, CampfireCookingSelect::FISH_RECIPES);
+        $this->assertSame(
+            ['FishSoup', 'GrilledFish', 'FishPreserve'],
+            CampfireCookingSelect::FISH_RECIPES,
+        );
+        // Рыбные НЕ дублируются в базовом меню (показываются только при killswitch).
+        $this->assertSame(
+            [],
+            array_intersect(CampfireCookingSelect::FISH_RECIPES, CampfireCookingSelect::COOKING_RECIPES),
+            'рыбные блюда не должны быть в COOKING_RECIPES (гейтятся отдельно)',
+        );
+    }
+
+    public function testFishRecipesResolveAndRequireFish(): void
+    {
+        $cfg = config('CraftRecipes');
+
+        foreach (CampfireCookingSelect::FISH_RECIPES as $key) {
+            $recipe = $cfg->get($key);
+            $this->assertIsArray($recipe, "fish recipe {$key} отсутствует в CraftRecipes");
+            $this->assertSame($key, $recipe['item_name_eng'] ?? null, "{$key}: item_name_eng mismatch");
+            $this->assertSame('craft' . $key, $recipe['task_name'] ?? null, "{$key}: task_name mismatch");
+            $this->assertArrayNotHasKey('required_season', $recipe, "{$key}: cooking без сезонного гейта");
+            // Главное: рыбное блюдо ОБЯЗАНО требовать «Рыбу» (иначе fishing бессмыслен).
+            $this->assertArrayHasKey('Рыба', $recipe['resources'] ?? [], "{$key}: рецепт должен требовать Рыбу");
+            $this->assertGreaterThan(0, $recipe['resources']['Рыба'], "{$key}: кол-во Рыбы > 0");
+        }
+    }
+
+    public function testFishPerishableVsPreserved(): void
+    {
+        $cfg = config('CraftRecipes');
+        foreach (['FishSoup', 'GrilledFish'] as $key) {
+            $this->assertTrue(!empty($cfg->get($key)['perishable']), "{$key}: горячее блюдо perishable");
+        }
+        $this->assertTrue(!empty($cfg->get('FishPreserve')['preserved']), 'FishPreserve: консерва preserved');
+    }
 }

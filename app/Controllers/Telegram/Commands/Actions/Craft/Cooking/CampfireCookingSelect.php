@@ -33,6 +33,18 @@ class CampfireCookingSelect extends BaseAction
         'DryRation',
     ];
 
+    /**
+     * W23 (ADR-078) — рыбные блюда (дают «Рыбе» применение). Показываются только
+     * при killswitch cooking.fish_dishes.enabled (dormant до активации).
+     *
+     * @var list<string>
+     */
+    public const FISH_RECIPES = [
+        'FishSoup',
+        'GrilledFish',
+        'FishPreserve',
+    ];
+
     public function handle(): ServerResponse
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
@@ -60,8 +72,16 @@ class CampfireCookingSelect extends BaseAction
         }
         $text .= "\n";
 
+        // W23: рыбные блюда добавляются в меню только при включённом killswitch (dormant-safe).
+        $recipeKeys = self::COOKING_RECIPES;
+        $fishRaw    = $gs->get('cooking.fish_dishes.enabled', false);
+        $fishOn     = is_bool($fishRaw) ? $fishRaw : (is_numeric($fishRaw) && (int) $fishRaw === 1);
+        if ($fishOn) {
+            $recipeKeys = array_merge($recipeKeys, self::FISH_RECIPES);
+        }
+
         $rows = [];
-        foreach (self::COOKING_RECIPES as $key) {
+        foreach ($recipeKeys as $key) {
             $recipe = $cfg->get($key);
             if ($recipe === null) {
                 continue;
