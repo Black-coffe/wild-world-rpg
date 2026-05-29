@@ -140,7 +140,10 @@ final class BaseServiceMessageFormatter
         int $buildingCount,
         int $totalTax,
         string $buildingList,
-        ?array $coverageResult = null
+        ?array $coverageResult = null,
+        ?string $campName = null,
+        ?string $campFlag = null,
+        bool $decorEnabled = false
     ): array {
         $coverageText = "";
         if ($coverageResult !== null && !empty($coverageResult['isCovered'])) {
@@ -154,7 +157,15 @@ final class BaseServiceMessageFormatter
                 . "**Управление базой доступно дистанционно!**\n\n";
         }
 
+        // W21: декор базы — имя + флаг в шапке caption (media-off safe: только текст).
+        $campHeader = '';
+        if ($campName !== null || $campFlag !== null) {
+            $label      = trim(($campFlag !== null ? $campFlag . ' ' : '') . ($campName ?? ''));
+            $campHeader = "🏕️ *{$label}*\n";
+        }
+
         $caption = "🤖 Это я – *Роби*!\n\n"
+            . $campHeader
             . ($coverageText ?: '')
             . "📍 *Координаты базы*: x={$coordX} y={$coordY}\n"
             . "🌍 *Биом*: {$biomeName}\n\n"
@@ -164,23 +175,26 @@ final class BaseServiceMessageFormatter
             . "*Список построек:*\n"
             . "{$buildingList}";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🏗 Строить',     'callback_data' => 'Build'],
-                    ['text' => '🏘 Постройки',   'callback_data' => 'construction'],
-                    ['text' => '📡 Маяки',       'callback_data' => 'teleportBeacon'],
-                ],
-                [
-                    ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
-                    ['text' => '🚜 Переехать', 'callback_data' => 'move'],
-                ],
-                [
-                    ['text' => '❌ Удалить базу',         'callback_data' => 'DeleteBase'],
-                    ['text' => '🚚 Полноценный переезд', 'callback_data' => 'DeleteBase_FullRelocation'],
-                ],
+        $kbRows = [
+            [
+                ['text' => '🏗 Строить',   'callback_data' => 'Build'],
+                ['text' => '🏘 Постройки', 'callback_data' => 'construction'],
+                ['text' => '📡 Маяки',     'callback_data' => 'teleportBeacon'],
             ],
         ];
+        if ($decorEnabled) {
+            $kbRows[] = [['text' => '🎨 Декор', 'callback_data' => 'campDecor']];
+        }
+        $kbRows[] = [
+            ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
+            ['text' => '🚜 Переехать', 'callback_data' => 'move'],
+        ];
+        $kbRows[] = [
+            ['text' => '❌ Удалить базу',         'callback_data' => 'DeleteBase'],
+            ['text' => '🚚 Полноценный переезд', 'callback_data' => 'DeleteBase_FullRelocation'],
+        ];
+
+        $keyboard = ['inline_keyboard' => $kbRows];
 
         return [
             'caption'      => $caption,

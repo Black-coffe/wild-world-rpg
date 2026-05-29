@@ -16,7 +16,9 @@ class ClaimedCellModel extends Model
         'character_id',
         'map_cell_id',
         'claimed_at',
-        'status'
+        'status',
+        'camp_name',
+        'camp_flag',
     ];
 
     protected $useTimestamps = true;

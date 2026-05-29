@@ -319,6 +319,12 @@ class CallbackRoutes extends BaseConfig
         // `enchant` = листинг предметов (exact); выбор/применение — prefix enchantSel_/enchantApply_ ниже.
         'enchant'                         => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
 
+        // W21 (ADR-076) — Housing customisation: декор базы (имя + флаг). Exact routes для overview/palette;
+        // prefix campSetName_/campSetFlag_ зарегистрированы ниже в prefixRoutes.
+        'campDecor'                       => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
+        'campDecorName'                   => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
+        'campDecorFlag'                   => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
+
         // === Teleport beacons ===
         'teleportBeacon'                  => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportBeacon::class,
         'teleportBeaconSet'               => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportBeaconSetAction::class,
@@ -369,6 +375,9 @@ class CallbackRoutes extends BaseConfig
         // W20 (ADR-075) — модернизация: выбор/применение по предмету. `enchantSel_<type>_<id>` / `enchantApply_<type>_<id>`.
         'enchantSel' => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
         'enchantApply' => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
+        // W21 (ADR-076) — Housing: сохранение выбранного имени/флага лагеря. `campSetName_<idx>` / `campSetFlag_<idx>`.
+        'campSetName' => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
+        'campSetFlag' => \App\Controllers\Telegram\Commands\Actions\Camp\Decor\BaseCampDecorAction::class,
     ];
 
     /**

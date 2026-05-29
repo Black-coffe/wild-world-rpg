@@ -18,6 +18,7 @@ use App\Models\TelegramUserModel;
 use App\Models\WeaponModel;
 
 use App\Services\Endgame\EndgameProgressionService;
+use App\Services\Housing\BaseCampDecorService;
 use App\Services\Player\DeathService;
 use App\Services\Player\PvPRestrictionService;
 use App\Services\PVE\DefenseStructureService;
@@ -189,6 +190,10 @@ class AttackPlayerAction extends BaseAction
         $winner        = $fightResult['winner'] ?? null;
         $attackerName  = $attacker['name'];
         $defenderName  = $defender['name'];
+        // W21: имя базы защитника для PvP-контекста (NULL если не задано / killswitch OFF).
+        $defCampName = (new BaseCampDecorService())->getDefenderCampName(
+            is_numeric($defender['id'] ?? null) ? (int) $defender['id'] : 0
+        );
         $attackerIntro = '';
         $defenderIntro = '';
 
@@ -243,7 +248,8 @@ class AttackPlayerAction extends BaseAction
                 : "Тебя атаковали, и ты пал в этом бою...";
         }
 
-        $attackerFinalText = "🤺 <b>{$attackerName}</b>, {$attackerIntro}\n\n{$summaryText}";
+        $campCtx           = $defCampName !== null ? "\n🏕️ База: «{$defCampName}»" : '';
+        $attackerFinalText = "🤺 <b>{$attackerName}</b>, {$attackerIntro}{$campCtx}\n\n{$summaryText}";
         $defenderFinalText = "🛡 <b>{$defenderName}</b>, {$defenderIntro}\n\n{$summaryText}";
 
         Request::answerCallbackQuery([

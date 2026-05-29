@@ -8,6 +8,7 @@ use App\Services\Bases\BaseLocationResolver;
 use App\Services\Bases\BaseServiceMessageFormatter;
 use App\Services\Bases\CampCheckService;
 use App\Services\Coverage\CommunicationTowerCoverageService;
+use App\Services\Housing\BaseCampDecorService;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -190,6 +191,11 @@ class BaseService
         $biomeRow = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
         $summary  = $this->buildingsList->buildSummary((int) $characterRow['id']);
 
+        // W21: декор базы (имя + флаг) и killswitch для кнопки «🎨 Декор».
+        $decorSvc    = new BaseCampDecorService();
+        $decor       = $decorSvc->getCampDecor((int) $characterRow['id']);
+        $decorEnabled = $decorSvc->enabled();
+
         return $this->sendPhoto(
             $chatId,
             self::PHOTO_BASE,
@@ -201,6 +207,9 @@ class BaseService
                 $summary['totalTax'],
                 $summary['list'],
                 $coverageResult,
+                $decor['name'],
+                $decor['flag'],
+                $decorEnabled,
             ),
             $editMessageId,
         );
