@@ -40,6 +40,7 @@
 | — | **🔧 Закалка tips daily-guard** (cache-only once/day → атомарный DB-claim `tips.daily_last_broadcast`; race-safe, self-heal; прод-аномалии 05-23 ×22/05-27 ×4 устранены) | ✅ SHIPPED prod live (Tier-1 1057/1057 + phpstan L9 + Tier-3 testbot: cache:clear + повторный run → 0 дублей) | v0.51.309 | 2026-05-29 |
 | W24 | **«💰 Моя экономика» — персональный snapshot** (ADR-079: 🔴 audit re-scope — gold-ledger по времени НЕ существует → «инфляция/профит-месяц» из roadmap отложены; честный snapshot: net worth = gold + ресурсы×sell_price + крафт×price, топ-холдинги, сводка торговли; кнопка на Перс gated; killswitch `economy.player_report.enabled` dormant; 0 правок gold-путей) | ✅ SHIPPED prod dormant (Tier-1 1061/1061 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: net worth 703 422 = 84583+12234+606605, топ-5 рес + топ-3 крафт, trade=null «не торговал») | v0.51.310 | 2026-05-29 |
 | W25 | **Economy reports W2 — «На фоне выживших»** (ADR-080: 🔴 audit re-scope — фракцию выбрали 23/365 → «vs faction-median» бессмысленна; server-wide перцентиль (богаче Y%, #N из M, медиана) для всех + faction-строка при ≥порога членов; блок в «Моя экономика»; killswitch `economy.comparison.enabled` dormant; батч ~55мс; 🏁 закрытие Фазы 5) | ✅ SHIPPED prod dormant (Tier-1 1065/1065 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: «богаче 100% #1 из 3, медиана 457744» + faction-строка рендерится) | v0.51.311 | 2026-05-29 |
+| W26 | **Localization en-US — i18n foundation** (ADR-081: 🔴 audit — 0 lang(), defaultLocale='en' при русском, 381 файл; foundation НЕ масс-перевод; Config defaultLocale→'ru' + supportedLocales['ru','en']; app/Language/{ru,en}/Economy.php эталон; PoC = «Моя экономика» на lang(); фазовый план код-vs-DB + per-char locale W27; 🌍 старт Фазы 6) | ✅ SHIPPED prod (Tier-1 1069/1069 + phpstan L9 NO ERRORS + Tier-3 cold-smoke PASS: «Моя экономика» через lang() byte-identical ru; en-файл unit-verified) | v0.51.312 | 2026-05-29 |
 | … | … | … | … | … |
 
 > **W1 SHIPPED 2026-05-26 (code-level):** ADR-058 (Drone-recon foundation, 6 резолюций open
@@ -680,6 +681,24 @@
 > faction-строка «Фермеры #1 из 1» рендерятся ✅. testbot dormant+clean. **Killswitch OFF на prod → 0 player-эффекта.**
 > **Doc:** ADR-080 + decisions/index + ROADMAP §0 + hot.md + daily. **🏁🏁 W25/30, ФАЗА 5 ЗАКРЫТА**
 > (W21 housing + W22 interior + W23 fishing + W24 economy + W25 comparison). Дальше: 🌍 Фаза 6 — Localization/polish (W26) ИЛИ пауза.
+>
+> **W26 SHIPPED prod 2026-05-29 (`v0.51.312`) — 🌍 Localization i18n foundation, СТАРТ ФАЗЫ 6 (1/5).**
+> i18n foundation — [[mmorpg-vault/decisions/ADR-081-i18n-foundation-W26|ADR-081]]. 🟠-сессия.
+> **🔴 Audit:** i18n-инфра не использовалась (0 lang(), defaultLocale='en' при русском контенте), 381 файл с
+> кириллицей + DB-контент (имена ресурсов/предметов/квестов/советов) → полная локализация многосессионна.
+> **User-pick (из 3):** foundation (рельсы + конвенция + PoC + план), НЕ масс-перевод. Отклонены plan-only ADR + пересмотр.
+> **Сделано (Config + 2 lang-файла + PoC + тест):** `Config\App` defaultLocale `'en'→'ru'` (игра русская, lang() теперь
+> отдаёт ru) + supportedLocales `['ru','en']` + `app/Language/{ru,en}/Economy.php` (первые lang-файлы, эталон конвенции:
+> метки + ICU `{0}`-плейсхолдеры, числа форматируются в PHP и передаются строкой — иначе ICU переформатирует int) +
+> `PlayerEconomyAction` (W24/W25, dormant) → `lang('Economy.*')` через helper `t()` как PoC-срез (ru byte-identical).
+> **+4 unit (1065→1069):** паритет ключей ru↔en (anti-drift), ru byte-identical, en переведён, string-arg без
+> ICU-reformatting. phpstan L9 NO ERRORS (t() guard на lang()→list<string>), php -l. **Tier-3 (char 491 testbot, killswitch ON):**
+> «💰 Моя экономика» через lang() рендерит идентичный русский (все метки совпали) ✅. testbot dormant.
+> **PoC изолирован + dormant → нулевой риск; defaultLocale=ru → весь прод-текст без изменений.**
+> **Отложено в W27:** per-character locale (колонка `characters.locale` + переключатель + service-seam), DB-контент
+> стратегия (колонка `*_en` vs таблица переводов), масс-конверсия handler'ов по подсистемам.
+> **Doc:** ADR-081 + decisions/index + ROADMAP §0 + hot.md + daily. **🌍 W26/30, Фаза 6 — 1/5.**
+> Дальше: **W27 Localization implement core** (per-char locale + DB-content стратегия + конверсия топ-поверхностей) ИЛИ пауза.
 >
 > **W20 SHIPPED prod dormant 2026-05-29 (`v0.51.305`) — 🏁 ЗАКРЫТИЕ ФАЗЫ 4 (PvP depth & Crafted modifiers).**
 > Modifier T1 set — броня + накапливаемые тиры — [[mmorpg-vault/decisions/ADR-075-Modifier-T1-set-armor-and-tiers|ADR-075]]
