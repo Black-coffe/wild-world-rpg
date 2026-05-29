@@ -635,9 +635,12 @@
 > **Killswitch `cooking.fish_dishes.enabled`=false на prod → 0 player-эффекта** (активация в конце ROADMAP).
 > **🔍 Побочно (user-репорт):** авто-«Совет дня» спамил на testbot — диагностика: прод здоров (1/сутки в 10:00, лог
 > подтвердил), спам = мои cache:clear в час рассылки (cache-only once/day guard). Прод-аномалии 05-23(22×)/05-27(4×) →
-> guard хрупкий → задача закалить через БД (после W23). testbot tips заглушены.
-> **Doc:** ADR-078 + decisions/index + ROADMAP §0 + hot.md + daily. **🐟 W23/30, Фаза 5 — 3/5.**
-> Дальше: **W24 In-game economy reports для игрока** (per-character slice V21 dashboard) ИЛИ закалить tips-guard ИЛИ пауза.
+> guard хрупкий. **✅ ЗАКАЛЕНО (`v0.51.309`, «погнали A»):** once/day-guard с cache-маркера → атомарный
+> DB-claim `tips.daily_last_broadcast` (conditional UPDATE WHERE value!=today + affectedRows===1, race-safe,
+> self-heal); migration + claimToday(); +2 db-test (1057/1057). Tier-3 testbot: cache:clear + повторный run → 0 дублей.
+> testbot tips заглушены. Урок memory `feedback_once_per_day_guard_db_not_cache`.
+> **Doc:** ADR-078 + decisions/index + ROADMAP §0 + hot.md + daily. **🐟 W23/30 + tips-guard fix, Фаза 5 — 3/5.**
+> Дальше: **W24 In-game economy reports для игрока** (per-character slice V21 dashboard) ИЛИ пауза.
 >
 > **W20 SHIPPED prod dormant 2026-05-29 (`v0.51.305`) — 🏁 ЗАКРЫТИЕ ФАЗЫ 4 (PvP depth & Crafted modifiers).**
 > Modifier T1 set — броня + накапливаемые тиры — [[mmorpg-vault/decisions/ADR-075-Modifier-T1-set-armor-and-tiers|ADR-075]]
