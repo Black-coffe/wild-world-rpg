@@ -756,6 +756,18 @@
 > индексы + ROADMAP §0 + hot.md + daily. **📚 W29/30, Фаза 6 — 4/5.**
 > Дальше: W30 Retrospective v3 + ROADMAP-CRAFT-vNext3.md (5-осевой алгоритм поверх W1-W29) — 🏁 ЗАКРЫТИЕ vNext2 ИЛИ пауза.
 >
+> **W30 DONE 2026-05-29 — 🏁 ЗАКРЫТИЕ ROADMAP-CRAFT-vNext2 (6 фаз). Retrospective v3 + СТРАТЕГИЧЕСКИЙ ПИВОТ.** Docs/strategy (0 кода).
+> Ретроспектива vNext2 (W1-W29) — `mmorpg-vault/inbox/2026-05-29-roadmap-vnext2-retrospective.md`. Метрики: +184 теста
+> (898→1082), 27 ADR (058→084), ~49 тегов (v0.51.266→314), 0 прод-инцидентов, drift ~30% (норма 3-й роадмеп), PvP
+> разморожен БЕЗ fixture-rebuild (ADR-070 выдержал). **🔴 User-развилка вместо авто-vNext3:** прод-аудит `game_settings`
+> → **13 killswitch OFF** (построено+тестировано, игроки НЕ видят); drone-family/robots-T2/faction-project/onboarding/
+> seasonal УЖЕ live. **User-pick (из 3): ГИБРИД** — активация сейчас, vNext3 ПОЗЖЕ (НЕ авто-генерировать). **Сделано:** NEW
+> `ACTIVATION-PLAN.md` (root) — методика gate (re-read ADR→balance-tune→Tier-3 live→admin-UI enable→observe→анонс) + 13
+> killswitch по риску (A cosmetic→B read-only→C content→D modifiers→E live-PvP) + отложено i18n-switch (нужна масс-
+> локализация) / weight-cap (нужен W3b balance) + тейл-трек (DRIFT-BACKLOG ~45 / Asana-2022 / W28-batching / gold-ledger).
+> Урок memory `feedback_activate_before_new_roadmap`. **Doc:** retrospective + ACTIVATION-PLAN + memory + ROADMAP §0 + hot + daily.
+> **🏁🏁 ROADMAP-CRAFT-vNext2 ЗАКРЫТ 30/30 (6 фаз).** Дальше: активация Stage A1 (housing.decoration) ИЛИ Asana-триаж ИЛИ пауза.
+>
 > **W20 SHIPPED prod dormant 2026-05-29 (`v0.51.305`) — 🏁 ЗАКРЫТИЕ ФАЗЫ 4 (PvP depth & Crafted modifiers).**
 > Modifier T1 set — броня + накапливаемые тиры — [[mmorpg-vault/decisions/ADR-075-Modifier-T1-set-armor-and-tiers|ADR-075]]
 > (🟠-сессия, 7 ворот + Σ11). Расширяет W19 ([[mmorpg-vault/decisions/ADR-074-Crafted-item-modifiers|ADR-074]]).
@@ -881,7 +893,7 @@ Player-retention foundation. Сессии 6-8 — onboarding redux #11, 9-10 —
 - **W27** — **Localization en-US — implement core** (Telegram-side: handlers + actions + сообщения).
 - **W28** — **Sound / notification redesign** (Telegram-side: silent threshold, batching, throttle). ✅ SHIPPED `v0.51.314` dormant (ADR-083) — silent threshold реализован (рутинные завершения тихие при killswitch ON + per-char notify_sound override); batching/throttle → backlog.
 - **W29** — **Tech-writing closer vNext2** (zero-drift contract ADR-009 + missing-нот sweep). ✅ DONE (ADR-084) — 13 нот для vNext2 W-сущностей + 3 stale sync + 3 orphan→deprecated + DRIFT-BACKLOG.md (pre-vNext2 ~45). Docs-only.
-- **W30** — **Retrospective v3 + ROADMAP-CRAFT-vNext3.md** (тот же 5-осевой алгоритм поверх W1–W29). 🏁
+- **W30** — **Retrospective v3 + СТРАТЕГИЧЕСКИЙ ПИВОТ.** 🏁🏁 DONE — ретроспектива vNext2 написана; vNext3 НЕ сгенерирован (user-pick гибрид): вместо него `ACTIVATION-PLAN.md` (активация 13 dormant killswitch + закрытие хвостов), vNext3 — позже на реальных данных. ROADMAP-CRAFT-vNext2 ЗАКРЫТ 30/30.
 
 ---
 
