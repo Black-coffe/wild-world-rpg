@@ -46,7 +46,11 @@
   Фермеры 1 — нет); server-wide блок всегда. Кнопка «💰 Моя экономика» в карточке Перса live.
 
 ### Stage C — контент / engagement (средний риск)
-- **A4 — `achievement.enabled`** (W9/W10). Event-driven награды. Проверить: нет спама, идемпотентность (max_awards_per_tick).
+- **A4 — `achievement.enabled`** (W9/W10). Event-driven награды. ✅ **АКТИВИРОВАН на проде 2026-05-29 16:28** (admin-UI).
+  **Pre-flight testbot (throwaway cron-run):** RUN1 awarded 20 (char 491→14/489→6), RUN2 +0 (идемпотентно → rollout
+  терминирует); батч-уведомление «🏅 Новые достижения!» (14 в одном msg) рендерится чисто в Telegram Web. **Prod rollout
+  подтверждён:** 1-й тик = 25 наград 25 чарам (cap=25/tick работает). 21 ачивка, 0 pre-awards, 365 чаров → throttled
+  rollout ~25/мин. Уведомления ЛОУД (не silenced A2 — корректно для engagement). Идемпотентность гарантирует терминацию.
 - **A5 — `cooking.fish_dishes.enabled`** (W23, ADR-078). **БЛОКЕР: заменить placeholder-картинки 3 блюд на реальные
   «Найденная фотоплёнка» (ADR-022) ДО активации.** Heal-значения tunable.
 - **A6 — `caravan.bargain.enabled` + `caravan.faction.enabled`** (W14b/W15, ADR-068/069). Скидки/наценки — balance-чувствительно
