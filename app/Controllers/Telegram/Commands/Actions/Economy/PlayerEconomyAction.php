@@ -82,6 +82,21 @@ final class PlayerEconomyAction extends BaseAction
                 . "Баланс: *{$sign}" . $this->fmt($profAbs) . "* (за {$t['count']} сделок)\n";
         }
 
+        // W25 (ADR-080) — сравнение «на фоне выживших» (отдельный killswitch).
+        if ($this->economy->comparisonEnabled()) {
+            $cmp = $this->economy->comparison($charId);
+            if ($cmp !== null) {
+                $s = $cmp['server'];
+                $text .= "\n📊 *На фоне выживших:*\n"
+                    . "Богаче *{$s['richer_than_pct']}%* выживших · позиция *#{$s['rank']}* из {$s['count']}\n"
+                    . "Медиана сервера: " . $this->fmt($s['median']) . "\n";
+                if ($cmp['faction'] !== null) {
+                    $f = $cmp['faction'];
+                    $text .= "🏳 *{$f['name']}*: #{$f['rank']} из {$f['count']} · медиана " . $this->fmt($f['median']) . "\n";
+                }
+            }
+        }
+
         $text .= "\n_Стоимость инвентаря оценена по ценам скупки. Снимок на текущий момент._";
 
         return MediaSender::editTextOrSend($this->navTarget() + [

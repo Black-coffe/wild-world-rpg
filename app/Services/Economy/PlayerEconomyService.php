@@ -24,8 +24,19 @@ final class PlayerEconomyService
 {
     public function enabled(): bool
     {
+        return $this->boolSetting('economy.player_report.enabled');
+    }
+
+    /** W25 (ADR-080) — killswitch блока сравнения «на фоне выживших». */
+    public function comparisonEnabled(): bool
+    {
+        return $this->boolSetting('economy.comparison.enabled');
+    }
+
+    private function boolSetting(string $key): bool
+    {
         try {
-            $v = (new GameSettingsService())->get('economy.player_report.enabled', false);
+            $v = (new GameSettingsService())->get($key, false);
         } catch (\Throwable) {
             return false;
         }
@@ -33,6 +44,144 @@ final class PlayerEconomyService
             return $v;
         }
         return is_numeric($v) && (int) $v === 1;
+    }
+
+    /** W25 — минимум членов фракции для осмысленного сравнения (tunable). */
+    private function factionMinMembers(): int
+    {
+        try {
+            $v = (new GameSettingsService())->get('economy.comparison.faction_min_members', 5);
+        } catch (\Throwable) {
+            return 5;
+        }
+        return is_numeric($v) ? max(1, (int) $v) : 5;
+    }
+
+    /**
+     * W25 (ADR-080) — сравнение чистой стоимости игрока с выжившими.
+     *
+     * Audit: фракцию выбрали лишь 23/365 чаров (малые выборки) → основное сравнение
+     * server-wide перцентиль (осмысленно для всех); faction-строка — ТОЛЬКО если в
+     * фракции ≥ factionMinMembers (иначе медиана = ты сам, бессмысленно). Анонимно.
+     * Один батч-запрос net worth по всем чарам (~55мс, не hot-path).
+     *
+     * @return array{
+     *   net_worth: int,
+     *   server: array{count: int, rank: int, richer_than_pct: int, median: int},
+     *   faction: array{name: string, count: int, rank: int, median: int}|null
+     * }|null  null если персонаж не найден среди чаров
+     */
+    public function comparison(int $charId): ?array
+    {
+        $db = Database::connect();
+        $sql = 'SELECT c.id AS id, COALESCE(cf.faction_id,0) AS fid, f.name AS fname, '
+            . '(COALESCE(c.gold,0) '
+            . '+ COALESCE((SELECT SUM(cr.quantity*r.sell_price) FROM character_resources cr JOIN resources r ON r.id=cr.id_resources WHERE cr.id_characters=c.id),0) '
+            . '+ COALESCE((SELECT SUM(cil.quantity*ci.price) FROM crafted_items_log cil JOIN crafted_items ci ON ci.id=cil.crafted_item_id WHERE cil.character_id=c.id),0)) AS nw '
+            . 'FROM characters c '
+            . 'LEFT JOIN character_factions cf ON cf.character_id = c.id '
+            . 'LEFT JOIN factions f ON f.id = cf.faction_id';
+        $res  = $db->query($sql);
+        $rows = $res instanceof \CodeIgniter\Database\ResultInterface ? $res->getResultArray() : [];
+
+        $serverNw = [];        // все net worth
+        $playerNw = null;
+        $playerFid = 0;
+        $playerFname = '';
+        $factionNw = [];       // net worth членов фракции игрока (заполним после)
+        $factionRows = [];     // fid => list<int>
+        foreach ($rows as $row) {
+            $id  = $this->toInt($row['id'] ?? 0);
+            $nw  = $this->toInt($row['nw'] ?? 0);
+            $fid = $this->toInt($row['fid'] ?? 0);
+            $serverNw[] = $nw;
+            if ($fid > 0) {
+                $factionRows[$fid][] = $nw;
+            }
+            if ($id === $charId) {
+                $playerNw    = $nw;
+                $playerFid   = $fid;
+                $playerFname = isset($row['fname']) && is_scalar($row['fname']) ? (string) $row['fname'] : '';
+            }
+        }
+
+        if ($playerNw === null) {
+            return null;
+        }
+
+        $factionNw = $playerFid > 0 ? ($factionRows[$playerFid] ?? []) : [];
+
+        $faction = null;
+        if ($playerFid > 0 && count($factionNw) >= $this->factionMinMembers()) {
+            $faction = [
+                'name'   => $playerFname !== '' ? $playerFname : 'Фракция',
+                'count'  => count($factionNw),
+                'rank'   => $this->rankOf($playerNw, $factionNw),
+                'median' => $this->median($factionNw),
+            ];
+        }
+
+        return [
+            'net_worth' => $playerNw,
+            'server'    => [
+                'count'           => count($serverNw),
+                'rank'            => $this->rankOf($playerNw, $serverNw),
+                'richer_than_pct' => $this->richerThanPct($playerNw, $serverNw),
+                'median'          => $this->median($serverNw),
+            ],
+            'faction'   => $faction,
+        ];
+    }
+
+    /**
+     * Позиция (1 = богатейший): кол-во строго богаче + 1.
+     *
+     * @param list<int> $all
+     */
+    private function rankOf(int $value, array $all): int
+    {
+        $greater = 0;
+        foreach ($all as $v) {
+            if ($v > $value) {
+                $greater++;
+            }
+        }
+        return $greater + 1;
+    }
+
+    /**
+     * «Богаче Y%»: доля строго беднее.
+     *
+     * @param list<int> $all
+     */
+    private function richerThanPct(int $value, array $all): int
+    {
+        $total = count($all);
+        if ($total <= 1) {
+            return 0;
+        }
+        $less = 0;
+        foreach ($all as $v) {
+            if ($v < $value) {
+                $less++;
+            }
+        }
+        return (int) round(100 * $less / ($total - 1));
+    }
+
+    /** @param list<int> $values */
+    private function median(array $values): int
+    {
+        if ($values === []) {
+            return 0;
+        }
+        sort($values);
+        $n   = count($values);
+        $mid = intdiv($n, 2);
+        if ($n % 2 === 1) {
+            return $values[$mid];
+        }
+        return (int) round(($values[$mid - 1] + $values[$mid]) / 2);
     }
 
     /**

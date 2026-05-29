@@ -21,7 +21,7 @@ final class PlayerEconomyServiceTest extends CIUnitTestCase
 
     protected $migrate = false;
 
-    private const TABLES = ['characters', 'character_resources', 'resources', 'crafted_items_log', 'crafted_items', 'transactions'];
+    private const TABLES = ['characters', 'character_resources', 'resources', 'crafted_items_log', 'crafted_items', 'transactions', 'character_factions', 'factions'];
 
     protected function setUp(): void
     {
@@ -54,6 +54,22 @@ final class PlayerEconomyServiceTest extends CIUnitTestCase
 
         // Игрок 2: gold NULL, без ресурсов/крафта/торговли.
         $db->table('characters')->insert(['id' => 2, 'gold' => null]);
+
+        // W25 comparison: фракции + ещё чары (gold-only net worth для предсказуемости).
+        $db->query('CREATE TABLE factions (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(255) NULL)');
+        $db->query('CREATE TABLE character_factions (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NULL, faction_id INT NULL)');
+        $db->table('factions')->insert(['id' => 1, 'name' => 'Тестовая']);
+        $db->table('factions')->insert(['id' => 2, 'name' => 'Малая']);
+        // Чары 3-6 (gold-only nw): 5000/3000/10000/500.
+        foreach ([3 => 5000, 4 => 3000, 5 => 10000, 6 => 500] as $id => $g) {
+            $db->table('characters')->insert(['id' => $id, 'gold' => $g]);
+        }
+        // Фракция 1 = 5 членов (1,3,4,5,6) → faction-сравнение показывается.
+        foreach ([1, 3, 4, 5, 6] as $cid) {
+            $db->table('character_factions')->insert(['character_id' => $cid, 'faction_id' => 1]);
+        }
+        // Фракция 2 = 1 член (char 2) → faction-строка скрыта (< min 5).
+        $db->table('character_factions')->insert(['character_id' => 2, 'faction_id' => 2]);
     }
 
     protected function tearDown(): void
@@ -99,5 +115,46 @@ final class PlayerEconomyServiceTest extends CIUnitTestCase
         $this->assertSame(0, $r['net_worth']);
         $this->assertSame([], $r['top_resources']);
         $this->assertNull($r['trade']);               // не торговал
+    }
+
+    // ── W25 (ADR-080) — сравнение «на фоне выживших» ──
+
+    public function testServerComparisonPercentileAndMedian(): void
+    {
+        // Net worth: char1=1900, char2=0, char3=5000, char4=3000, char5=10000, char6=500.
+        // sorted: [0,500,1900,3000,5000,10000] → медиана (n=6) = (1900+3000)/2 = 2450.
+        $cmp = (new PlayerEconomyService())->comparison(1);
+        $this->assertNotNull($cmp);
+        $this->assertSame(1900, $cmp['net_worth']);
+        $this->assertSame(6, $cmp['server']['count']);
+        $this->assertSame(4, $cmp['server']['rank']);            // 3 богаче (5000,3000,10000) +1
+        $this->assertSame(40, $cmp['server']['richer_than_pct']); // 2 беднее /(6-1)=40%
+        $this->assertSame(2450, $cmp['server']['median']);
+    }
+
+    public function testFactionComparisonShownWhenEnoughMembers(): void
+    {
+        // Фракция 1 = 5 членов (1,3,4,5,6) nw [1900,5000,3000,10000,500] → median 3000.
+        $cmp = (new PlayerEconomyService())->comparison(1);
+        $this->assertNotNull($cmp['faction']);
+        $this->assertSame('Тестовая', $cmp['faction']['name']);
+        $this->assertSame(5, $cmp['faction']['count']);
+        $this->assertSame(4, $cmp['faction']['rank']);   // в фракции 3 богаче +1
+        $this->assertSame(3000, $cmp['faction']['median']);
+    }
+
+    public function testFactionComparisonHiddenWhenTooFewMembers(): void
+    {
+        // Фракция 2 = 1 член (char 2) < min 5 → faction null; server всё равно есть.
+        $cmp = (new PlayerEconomyService())->comparison(2);
+        $this->assertNotNull($cmp);
+        $this->assertNull($cmp['faction']);
+        $this->assertSame(6, $cmp['server']['count']);
+        $this->assertSame(6, $cmp['server']['rank']);    // nw 0 — беднейший
+    }
+
+    public function testComparisonNullForUnknownChar(): void
+    {
+        $this->assertNull((new PlayerEconomyService())->comparison(999));
     }
 }
