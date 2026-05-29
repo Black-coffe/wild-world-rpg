@@ -87,7 +87,9 @@ class App extends BaseConfig
      * strings (like currency markers, numbers, etc), that your program
      * should run under for this request.
      */
-    public string $defaultLocale = 'en';
+    // W26 (ADR-081): игра ведётся на русском → defaultLocale 'ru' (было 'en' —
+    // вводило в заблуждение, lang() не использовался). en — целевая локаль локализации.
+    public string $defaultLocale = 'ru';
 
     /**
      * --------------------------------------------------------------------------
@@ -114,7 +116,7 @@ class App extends BaseConfig
      *
      * @var list<string>
      */
-    public array $supportedLocales = ['en'];
+    public array $supportedLocales = ['ru', 'en'];
 
     /**
      * --------------------------------------------------------------------------
