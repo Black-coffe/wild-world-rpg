@@ -740,6 +740,22 @@
 > **Doc:** ADR-083 + decisions/index + tech-writing/SilentNotificationPolicy + ROADMAP §0 + hot.md + daily. **🔕 W28/30, Фаза 6 — 3/5.**
 > Дальше: W29 Tech-writing closer vNext2 (zero-drift ADR-009 + missing-нот sweep) ИЛИ пауза.
 >
+> **W29 DONE 2026-05-29 — 📚 Tech-writing closer vNext2 (zero-drift sweep), Фаза 6 — 4/5. Docs-only (0 кода).**
+> Closer ADR-009 — [[mmorpg-vault/decisions/ADR-084-Tech-writing-closer-W29|ADR-084]]. **🔴 Audit (Explore cross-reference
+> git new-files × tech-writing/):** ~76 нот в синке; ~64 «missing» по широкому счёту, НО агент смешал эпохи — генуинный
+> vNext2 (W1-W28) gap ≈13 нот, остальное pre-vNext2 (V*/S*/F*). 3 stale, 3 orphan, false-flag GetTrainingStart5/6/7
+> (уже в RobiChain.md). **User-pick (из 3):** vNext2-scope + backlog-реестр [рекомендовано]; отклонены full sweep
+> (~64, объём>качество) + только-реестр. **Сделано:** 13 нот создано (4 service: LocaleService/PlayerEconomyService/
+> BaseCampDecorService/WeightCapacityService; 2 model: ItemModifierModel/BaseStorageModel; 1 task:
+> PvpLadderWeeklyBroadcastHandler; 3 single handler: PlayerEconomyAction/BaseCampDecorAction/WhatsNewActions; 3
+> consolidated drone-кластера: Cargo/Repair/CombatDroneActions — прецедент RobiChain) + RecceDroneAction обновлён. **Sync
+> 3 stale:** CampfireCookingSelect (+W23 fish-gating), CaravanBuyAction (+W14-W15); EnchantAction актуальна. **3 orphan →
+> status: deprecated** + superseded_by (ADR-009: не удалять): CraftedItemModel/PlayerDetectionModel/QuestRequirementsModel.
+> **NEW DRIFT-BACKLOG.md** — ~45 pre-vNext2 missing нот (no silent caps). Индексы services/models/handlers/tasks
+> обновлены. **Покрытие vNext2 NEW-сущностей → 100%.** **Doc:** ADR-084 + decisions/index + tech-writing/DRIFT-BACKLOG +
+> индексы + ROADMAP §0 + hot.md + daily. **📚 W29/30, Фаза 6 — 4/5.**
+> Дальше: W30 Retrospective v3 + ROADMAP-CRAFT-vNext3.md (5-осевой алгоритм поверх W1-W29) — 🏁 ЗАКРЫТИЕ vNext2 ИЛИ пауза.
+>
 > **W20 SHIPPED prod dormant 2026-05-29 (`v0.51.305`) — 🏁 ЗАКРЫТИЕ ФАЗЫ 4 (PvP depth & Crafted modifiers).**
 > Modifier T1 set — броня + накапливаемые тиры — [[mmorpg-vault/decisions/ADR-075-Modifier-T1-set-armor-and-tiers|ADR-075]]
 > (🟠-сессия, 7 ворот + Σ11). Расширяет W19 ([[mmorpg-vault/decisions/ADR-074-Crafted-item-modifiers|ADR-074]]).
@@ -864,7 +880,7 @@ Player-retention foundation. Сессии 6-8 — onboarding redux #11, 9-10 —
 - **W26** — **Localization en-US — scope + i18n foundation** (CI4 Language helper, language-key extract из user-facing strings).
 - **W27** — **Localization en-US — implement core** (Telegram-side: handlers + actions + сообщения).
 - **W28** — **Sound / notification redesign** (Telegram-side: silent threshold, batching, throttle). ✅ SHIPPED `v0.51.314` dormant (ADR-083) — silent threshold реализован (рутинные завершения тихие при killswitch ON + per-char notify_sound override); batching/throttle → backlog.
-- **W29** — **Tech-writing closer vNext2** (zero-drift contract ADR-009 + missing-нот sweep).
+- **W29** — **Tech-writing closer vNext2** (zero-drift contract ADR-009 + missing-нот sweep). ✅ DONE (ADR-084) — 13 нот для vNext2 W-сущностей + 3 stale sync + 3 orphan→deprecated + DRIFT-BACKLOG.md (pre-vNext2 ~45). Docs-only.
 - **W30** — **Retrospective v3 + ROADMAP-CRAFT-vNext3.md** (тот же 5-осевой алгоритм поверх W1–W29). 🏁
 
 ---
