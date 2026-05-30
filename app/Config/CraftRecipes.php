@@ -254,6 +254,10 @@ class CraftRecipes extends BaseConfig
             'task_name'            => 'craftWiring',
             'resources'            => ['Мхи' => 2],
             'crafted_items'        => ['metalFragments' => 3],
+            // S12-ext (доменная печь): металл-компонент → yield multiplier від
+            // BlastFurnace L2+ (1.15/1.35 cascade). Pure bonus; char'и без печі
+            // продовжують крафтити з baseline qty. Зеркалить MetalFragments.
+            'boost_building'       => 'BlastFurnace',
             'image_in_progress'    => 'uploads/telegram/craft/components/wiring_craft.jpg',
             'start_caption_name'   => '🔌 *Проводку*',
             'info_callback'        => 'wiring',
@@ -320,6 +324,10 @@ class CraftRecipes extends BaseConfig
             'task_name'            => 'craftElectronicComponents',
             'resources'            => ['Нефть' => 3],
             'crafted_items'        => ['metalFragments' => 5],
+            // S12-ext (доменная печь): металл-компонент → yield multiplier від
+            // BlastFurnace L2+ (1.15/1.35 cascade). Pure bonus; char'и без печі
+            // продовжують крафтити з baseline qty. Зеркалить MetalFragments.
+            'boost_building'       => 'BlastFurnace',
             'image_in_progress'    => 'uploads/telegram/craft/components/electronic_components.jpg',
             'start_caption_name'   => '💻 *Электронные компоненты*',
             'info_callback'        => 'electronicComponents',

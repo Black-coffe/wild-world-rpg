@@ -170,6 +170,25 @@ final class CraftRecipesTest extends CIUnitTestCase
     }
 
     /**
+     * S12-ext (доменная печь) — yield-баф BlastFurnace расширен с MetalFragments
+     * на металл-компоненты Wiring + ElectronicComponents. Анти-drift guard:
+     * удаление boost_building возвращает рецепт к baseline qty (баф не применится).
+     * Читается в GenericCraftCompletionHandler через BuildingEffectsService::getCraftYieldMultiplier.
+     */
+    public function testBlastFurnaceYieldBoostCoversMetalComponents(): void
+    {
+        foreach (['MetalFragments', 'Wiring', 'ElectronicComponents'] as $key) {
+            $recipe = $this->cfg->get($key);
+            $this->assertNotNull($recipe, "{$key} recipe missing");
+            $this->assertSame(
+                'BlastFurnace',
+                $recipe['boost_building'] ?? null,
+                "{$key} должен объявлять boost_building=BlastFurnace для yield-бафа печи"
+            );
+        }
+    }
+
+    /**
      * F3.B6 — у CharcoalBriquettes картинка с расширением .png
      * (исторически у остальных components — .jpg).
      */
