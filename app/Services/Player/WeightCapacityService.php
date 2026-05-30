@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Player;
 
+use App\Models\BuildingModel;
+use App\Models\CharacterBuildingModel;
 use App\Services\GameSettings\GameSettingsService;
 
 /**
@@ -21,16 +23,28 @@ use App\Services\GameSettings\GameSettingsService;
  *
  * Формула: `cap(level) = l1_base + (level - 1) × per_level`. L1=100/L100=397kg.
  *
+ * **ADR-085 (Склад = источник ёмкости).** Если у персонажа есть Warehouse —
+ * к cap добавляется `building.warehouse.l<N>.storage_bonus_kg` (cascade вниз до L1).
+ * Эффективный cap = базовая формула + Warehouse-бонус. Без Склада → только база.
+ * Применяется в getRemainingCapacity/canAdd (dormant до killswitch ON).
+ *
  * W3b (Cargo drone) использует `getRemainingCapacity()` как gate для launch
  * (canLaunchCargo(charge, payload_weight) ∧ payload_weight ≤ remaining).
  */
 final class WeightCapacityService
 {
-    private GameSettingsService $settings;
+    private GameSettingsService    $settings;
+    private BuildingModel          $buildingModel;
+    private CharacterBuildingModel $charBuildingModel;
 
-    public function __construct(?GameSettingsService $settings = null)
-    {
-        $this->settings = $settings ?? new GameSettingsService();
+    public function __construct(
+        ?GameSettingsService $settings = null,
+        ?BuildingModel $buildingModel = null,
+        ?CharacterBuildingModel $charBuildingModel = null,
+    ) {
+        $this->settings          = $settings ?? new GameSettingsService();
+        $this->buildingModel     = $buildingModel ?? new BuildingModel();
+        $this->charBuildingModel = $charBuildingModel ?? new CharacterBuildingModel();
     }
 
     /**
@@ -82,6 +96,51 @@ final class WeightCapacityService
     }
 
     /**
+     * ADR-085 — Warehouse-бонус ёмкости (kg) для персонажа. 0 если нет Склада.
+     * Cascade: от текущего уровня Склада вниз до L1, первый заданный
+     * `building.warehouse.l<N>.storage_bonus_kg`. Default-ключи: L1=200/L2=400/L3=700.
+     */
+    public function warehouseBonusKg(int $characterId): int
+    {
+        $level = $this->resolveWarehouseLevel($characterId);
+        if ($level < 1) {
+            return 0;
+        }
+        for ($l = $level; $l >= 1; $l--) {
+            $v = $this->settings->get("building.warehouse.l{$l}.storage_bonus_kg", null);
+            if ($v !== null && is_numeric($v)) {
+                return (int) $v >= 0 ? (int) $v : 0;
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * Максимальный (max) level Склада у персонажа. 0 если нет.
+     */
+    private function resolveWarehouseLevel(int $characterId): int
+    {
+        $building = $this->buildingModel->where('name_en', 'Warehouse')->first();
+        if (! is_array($building)) {
+            return 0;
+        }
+        $idRaw = $building['id'] ?? null;
+        if (! is_numeric($idRaw) || (int) $idRaw === 0) {
+            return 0;
+        }
+        $row = $this->charBuildingModel
+            ->where('character_id', $characterId)
+            ->where('building_id', (int) $idRaw)
+            ->orderBy('level', 'DESC')
+            ->first();
+        if (! is_array($row)) {
+            return 0;
+        }
+        $levelRaw = $row['level'] ?? null;
+        return is_numeric($levelRaw) ? (int) $levelRaw : 0;
+    }
+
+    /**
      * Текущая загрузка персонажа (сумма weight × quantity по character_resources).
      * Возвращает kg в DECIMAL-precision (0.05 + 0.05 + ... = float).
      *
@@ -121,7 +180,9 @@ final class WeightCapacityService
             return (float) PHP_INT_MAX;
         }
         $current = $this->getCurrentLoad($characterId);
-        $cap     = $weightCapacity > 0 ? $weightCapacity : $this->computeCapacity($characterLevel);
+        // ADR-085: базовый cap (явный weight_capacity или формула) + Warehouse-бонус.
+        $base    = $weightCapacity > 0 ? $weightCapacity : $this->computeCapacity($characterLevel);
+        $cap     = $base + $this->warehouseBonusKg($characterId);
         $remain  = $cap - $current;
         return $remain > 0 ? $remain : 0.0;
     }

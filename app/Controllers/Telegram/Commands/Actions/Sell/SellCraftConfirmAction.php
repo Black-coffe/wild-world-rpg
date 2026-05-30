@@ -98,6 +98,8 @@ class SellCraftConfirmAction extends BaseAction
         // Расчёт цены с учётом кармы торговли (0.33x..10.5x ограничение)
         $price = $basePrice * (1 + ($charRefresh['trading_karma'] - 100) / 200);
         $price = max($basePrice * 0.33, min($price, $basePrice * 10.5));
+        // ADR-085: мягкий бонус цены владельцам Склада (dormant → ×1.0).
+        $price *= (new \App\Services\Player\WarehouseSellBonusService())->sellPriceMultiplier((int) $character['id']);
         $totalPrice = $price * $quantity;
 
         // 1) Обновление таблицы sales
