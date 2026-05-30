@@ -51,8 +51,12 @@
   терминирует); батч-уведомление «🏅 Новые достижения!» (14 в одном msg) рендерится чисто в Telegram Web. **Prod rollout
   подтверждён:** 1-й тик = 25 наград 25 чарам (cap=25/tick работает). 21 ачивка, 0 pre-awards, 365 чаров → throttled
   rollout ~25/мин. Уведомления ЛОУД (не silenced A2 — корректно для engagement). Идемпотентность гарантирует терминацию.
-- **A5 — `cooking.fish_dishes.enabled`** (W23, ADR-078). **БЛОКЕР: заменить placeholder-картинки 3 блюд на реальные
-  «Найденная фотоплёнка» (ADR-022) ДО активации.** Heal-значения tunable.
+- **A5 — `cooking.fish_dishes.enabled`** (W23, ADR-078). ✅ **ART-БЛОКЕР СНЯТ 2026-05-30:** 3 placeholder'а заменены на
+  реальные «Найденная фотоплёнка» (ADR-022, gpt-image-2, V4) — `fish_soup` (котёл рыбного бульона), `grilled_fish`
+  (рыба на решётке над углями), `fish_preserve` (банки рыбных филе, отличны от stew_preserve). Все 3 в реестре
+  `status: approved`, 0 текста, взаимно не путаются, placeholder'ы в `_legacy/`. **Осталось для активации:** деплой картинок
+  на прод + Tier-3 на ЖИВОМ testbot (killswitch ON, готовка блюда + heal) + enable через admin-UI + observe + анонс-батч.
+  Heal-значения tunable (`medical.fish_*`/`food.fish_*`).
 - **A6 — `caravan.bargain.enabled` + `caravan.faction.enabled`** (W14b/W15, ADR-068/069). Скидки/наценки — balance-чувствительно.
   ✅ **АКТИВИРОВАН на проде 2026-05-29 23:21** (оба killswitch через admin-UI `/admin/game-settings?category=world`, audit-trail;
   prod cache:clear → live; throwaway `a6:confirm` подтвердил bot читает оба ON). **Balance pre-flight на ЖИВОЙ торговой экономике
