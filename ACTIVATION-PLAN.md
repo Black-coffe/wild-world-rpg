@@ -62,6 +62,11 @@
   Balance-дефолты (Уха 35/45/45, Жареная 40/30/35, Консервы 45/45/80) — designed safe baseline между mushroom_soup и
   hearty_stew, рыба rarity-7; не трогал (как A6/A7). **Observe:** прод-логи 2026-05-30 чисты (0 ERROR после активации).
   Heal-значения tunable (`medical.fish_*`/`food.fish_*`). Анонс — в батч (добавлен в inbox-драфт).
+  **✅ Tier-3 живой визуальный confirm (MCP Chrome + Telegram Web, testbot, killswitch ON):** Крафт → Общий крафт → Костёр →
+  3 рыбных блюда в меню (killswitch-гейтинг работает) → «Уха» → start-сообщение с **новым артом** (котёл рыбного бульона) →
+  fast-forward → completion «📌 Крафт завершён! Уха x1» с тем же новым артом + блюдо в `crafted_items_log` + ресурсы списаны
+  (Рыба −3 / Травы −1) ✅. Оба сообщения рендерят «Найденную фотоплёнку», не placeholder. testbot восстановлен dormant.
+  🔴 Урок: лишний FK-swap сломал смоук (user залогинился тест-аккаунтом id25, swap не был нужен) — [[../claude-memory/feedback_mcp_chrome_telegram_real_game_smoke]].
 - **A6 — `caravan.bargain.enabled` + `caravan.faction.enabled`** (W14b/W15, ADR-068/069). Скидки/наценки — balance-чувствительно.
   ✅ **АКТИВИРОВАН на проде 2026-05-29 23:21** (оба killswitch через admin-UI `/admin/game-settings?category=world`, audit-trail;
   prod cache:clear → live; throwaway `a6:confirm` подтвердил bot читает оба ON). **Balance pre-flight на ЖИВОЙ торговой экономике
