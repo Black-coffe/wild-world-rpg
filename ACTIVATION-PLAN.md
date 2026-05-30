@@ -101,8 +101,16 @@
     Можно поднять gold_cost позже, если данные покажут тривиальный sink для китов. **Fence byte-equivalent подтверждён ранее (W19/W20).**
 
 ### Stage E — live PvP (наивысший риск)
-- **A8 — `pvp.duel.enabled`** (W17/W18.5, ADR-071/073). Opt-in, equalized, 0 DB-записей, decisive tiebreak. Относительно
-  безопасно (спортивный поединок), но первый live-PvP UX — наблюдать.
+- **A8 — `pvp.duel.enabled`** (W17/W18.5, ADR-071/073). ✅ **АКТИВИРОВАН на проде 2026-05-30 22:17** (admin-UI
+  `?category=combat`, POST `/update` с CSRF, audit-trail `value_bool=1`; cache:clear → live). Opt-in, equalized, 0 DB-записей,
+  decisive tiebreak. **0 prod-чаров `duels_open=1`** → никто не втянут принудительно; killswitch ON лишь делает доступным
+  (тумблер «🤺 Дуэль» в Настройках + кнопка на карточке обнаруженного opted-in игрока). Baseline арены (lvl20/stat50/HP1000)
+  designed default, не трогал. **✅ Tier-3 живой smoke (MCP Chrome + Telegram Web, testbot, killswitch ON):** throwaway
+  `a8:detect` → push «Обнаружение игроков! andreii0 на 0 ячеек» с кнопкой «🤺 Дуэль» (killswitch+duels_open гейтинг работает) →
+  клик → «⚔️ Дуэль (равный бой) aviad_echo vs andreii0, 150 обменов, 🏆 Победа по очкам: aviad_echo (больше здоровья)» —
+  детерминированный исход (ничьи нет, tiebreak HP, ADR-073) ✅; equalize L1↔L306 честно (решил билд) ✅; **0 DB-записей подтверждено**
+  (491 health 7.43/exp 401.46 неизменны; 489 exp 1.62 неизменно — health +0.05 regen, не дуэль) ✅; caption media-off safe.
+  testbot восстановлен dormant + throwaway удалён. **Observe:** прод-логи 2026-05-30 чисты.
 - **A9 — `pvp.ladder.enabled`** затем `pvp.ladder.broadcast_enabled` (W18, ADR-072). Сначала scoring (накопить данные),
   ПОТОМ еженедельный broadcast. **Broadcast = mass-message: проверить once/week guard** (урок `feedback_once_per_day_guard_db_not_cache`
   — ladder-handler пока cache-маркер, кандидат на DB-claim перед активацией broadcast).
