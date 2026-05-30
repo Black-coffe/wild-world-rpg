@@ -51,12 +51,17 @@
   терминирует); батч-уведомление «🏅 Новые достижения!» (14 в одном msg) рендерится чисто в Telegram Web. **Prod rollout
   подтверждён:** 1-й тик = 25 наград 25 чарам (cap=25/tick работает). 21 ачивка, 0 pre-awards, 365 чаров → throttled
   rollout ~25/мин. Уведомления ЛОУД (не silenced A2 — корректно для engagement). Идемпотентность гарантирует терминацию.
-- **A5 — `cooking.fish_dishes.enabled`** (W23, ADR-078). ✅ **ART-БЛОКЕР СНЯТ 2026-05-30:** 3 placeholder'а заменены на
-  реальные «Найденная фотоплёнка» (ADR-022, gpt-image-2, V4) — `fish_soup` (котёл рыбного бульона), `grilled_fish`
-  (рыба на решётке над углями), `fish_preserve` (банки рыбных филе, отличны от stew_preserve). Все 3 в реестре
-  `status: approved`, 0 текста, взаимно не путаются, placeholder'ы в `_legacy/`. **Осталось для активации:** деплой картинок
-  на прод + Tier-3 на ЖИВОМ testbot (killswitch ON, готовка блюда + heal) + enable через admin-UI + observe + анонс-батч.
-  Heal-значения tunable (`medical.fish_*`/`food.fish_*`).
+- **A5 — `cooking.fish_dishes.enabled`** (W23, ADR-078). ✅ **АКТИВИРОВАН на проде 2026-05-30 21:54** (admin-UI
+  `/admin/game-settings?category=craft`, audit-trail — POST `/update` с CSRF, `value_bool=1`; prod cache:clear → live).
+  **Art-блокер снят (`v0.51.315`):** 3 placeholder'а заменены реальным «Найденная фотоплёнка» (ADR-022, gpt-image-2, V4) —
+  `fish_soup` (котёл рыбного бульона + куски рыбы/голова/ложка), `grilled_fish` (рыба на решётке над углями), `fish_preserve`
+  (банки рыбных филе в масле, отличны от stew_preserve); все 3 `status: approved`, 0 текста, взаимно не путаются,
+  placeholder'ы в `_legacy/`. **Verify:** md5 картинок идентичны local=prod=testbot; HTTP 200 image/jpeg на обоих серверах.
+  **Pre-flight (прецедент A6/A7):** код W23 (CampfireCookingSelect/MediaSender/caption) байт-идентичен с момента полного
+  Tier-3 в W23 — дельта только байты картинок (валидный JPEG 3:2, под лимитами Telegram); render-путь идентичен прошлому smoke.
+  Balance-дефолты (Уха 35/45/45, Жареная 40/30/35, Консервы 45/45/80) — designed safe baseline между mushroom_soup и
+  hearty_stew, рыба rarity-7; не трогал (как A6/A7). **Observe:** прод-логи 2026-05-30 чисты (0 ERROR после активации).
+  Heal-значения tunable (`medical.fish_*`/`food.fish_*`). Анонс — в батч (добавлен в inbox-драфт).
 - **A6 — `caravan.bargain.enabled` + `caravan.faction.enabled`** (W14b/W15, ADR-068/069). Скидки/наценки — balance-чувствительно.
   ✅ **АКТИВИРОВАН на проде 2026-05-29 23:21** (оба killswitch через admin-UI `/admin/game-settings?category=world`, audit-trail;
   prod cache:clear → live; throwaway `a6:confirm` подтвердил bot читает оба ON). **Balance pre-flight на ЖИВОЙ торговой экономике
