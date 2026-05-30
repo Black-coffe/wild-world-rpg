@@ -111,9 +111,16 @@
   детерминированный исход (ничьи нет, tiebreak HP, ADR-073) ✅; equalize L1↔L306 честно (решил билд) ✅; **0 DB-записей подтверждено**
   (491 health 7.43/exp 401.46 неизменны; 489 exp 1.62 неизменно — health +0.05 regen, не дуэль) ✅; caption media-off safe.
   testbot восстановлен dormant + throwaway удалён. **Observe:** прод-логи 2026-05-30 чисты.
-- **A9 — `pvp.ladder.enabled`** затем `pvp.ladder.broadcast_enabled` (W18, ADR-072). Сначала scoring (накопить данные),
-  ПОТОМ еженедельный broadcast. **Broadcast = mass-message: проверить once/week guard** (урок `feedback_once_per_day_guard_db_not_cache`
-  — ladder-handler пока cache-маркер, кандидат на DB-claim перед активацией broadcast).
+- **A9 — `pvp.ladder.enabled` + `pvp.ladder.broadcast_enabled`** (W18, ADR-072). ✅ **АКТИВИРОВАН на проде 2026-05-30**
+  в два захода: **(a) scoring** `pvp.ladder.enabled`=1 @22:23 (admin-UI `?category=combat`, audit-trail) — дуэли/PvP пишут
+  очки, кнопка «🏆 Рейтинг PvP» в карточке Перса + исходе дуэли. Tier-3 живой (testbot): дуэль → `pvp_ladder` строка
+  (победитель +3 очка, faction-snapshot), UI global/faction + личная позиция рендерится ✅. **(b) broadcast**
+  `pvp.ladder.broadcast_enabled`=1 @22:35 — еженедельная рассылка топа (Пн 12:00, top-5). **ПЕРЕД broadcast — DB-claim фикс
+  (`v0.51.316`):** once/week guard переведён с cache-маркера на атомарный game_settings `pvp.ladder.weekly_last_broadcast`
+  (conditional UPDATE WHERE value_string!=week + affectedRows===1, self-heal, durable — переживает cache:clear/деплой; урок
+  `feedback_once_per_day_guard_db_not_cache`). +6 db-test (1082→1088), phpstan L9 clean (без baseline). Real-env smoke testbot:
+  RUN1 marker→`2026-22`, cache:clear, RUN2 marker остался `2026-22` (durable, без re-broadcast) ✅. Рассылка сработает ближайший
+  Пн 12:00 (если у кого week_points>0). **Observe:** прод-логи чисты.
 
 ### Отложено (блокировано зависимостями — НЕ активировать сейчас)
 - **`i18n.locale_switch.enabled`** (W26/W27) — PREMATURE: локализована лишь «Моя экономика». Активация = half-localized UI
