@@ -64,6 +64,14 @@ class TeleportBeaconMoveConfirmAction
             return $this->sendError($chatId, "Ошибка: персонаж не найден.");
         }
 
+        // ADR-086 Фаза 1b: телепорт-маяк требует Солнечную станцию (dormant killswitch).
+        // Только НОВЫЕ перемещения; идущие задачи не трогаются (grandfather).
+        // (класс не extends BaseAction → без logRejected; гейт самодостаточен)
+        $solarGate = new \App\Services\Player\AutomationGateService();
+        if ($solarGate->blocksLaunch((int) $characterId)) {
+            return $this->sendError($chatId, $solarGate->lockMessage());
+        }
+
         // Проверка базы
         $base = $this->claimedCellModel
             ->where('character_id', $characterId)

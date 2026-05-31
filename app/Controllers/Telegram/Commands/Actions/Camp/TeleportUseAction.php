@@ -44,6 +44,14 @@ class TeleportUseAction extends BaseAction
             return Request::emptyResponse();
         }
 
+        // ADR-086 Фаза 1b: телепорт требует Солнечную станцию (dormant killswitch).
+        // Только НОВЫЕ телепортации; идущие задачи не трогаются (grandfather).
+        $solarGate = new \App\Services\Player\AutomationGateService();
+        if ($solarGate->blocksLaunch((int) $character['id'])) {
+            $this->logRejected((int) $character['id'], 'TELEPORT_USE', 'no_solarstation');
+            return $this->sendFormatted(['text' => $solarGate->lockMessage()]);
+        }
+
         switch ($this->callbackQuery->getData()) {
             case 'TeleportUse_Portable':
                 return $this->usePortableTeleport($character);

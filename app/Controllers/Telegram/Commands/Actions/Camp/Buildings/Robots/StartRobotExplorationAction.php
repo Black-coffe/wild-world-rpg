@@ -49,6 +49,14 @@ class StartRobotExplorationAction extends BaseAction
             return $this->sendError('Пользователь не найден в базе данных или персонаж не определён.');
         }
 
+        // ADR-086 Фаза 1b: запуск робота требует Солнечную станцию (dormant killswitch).
+        // Только НОВЫЕ запуски; идущие задачи не трогаются (grandfather).
+        $solarGate = new \App\Services\Player\AutomationGateService();
+        if ($solarGate->blocksLaunch((int) $character['id'])) {
+            $this->logRejected((int) $character['id'], 'START_ROBOT_EXPLORER', 'no_solarstation');
+            return $this->sendError($solarGate->lockMessage());
+        }
+
         // Проверка активного переезда (BaseRelocation)
         if ((new \App\Services\Tasks\ActiveTasksService())->checkRelocationAndBlock(
             $character['id'],
