@@ -189,6 +189,26 @@ final class CraftRecipesTest extends CIUnitTestCase
     }
 
     /**
+     * ADR-086 Фаза 1a — Солнечная станция ускоряет craft-TIME электроники
+     * (Wiring + ElectronicComponents). Анти-drift guard: рецепт должен объявлять
+     * boost_building_time=SolarStation, чтобы BuildingEffectsService::getCraftTimeMultiplier
+     * подхватил множитель (при killswitch building.solarstation.boost.enabled=true).
+     * Не конфликтует с boost_building=BlastFurnace (yield) — разные механики.
+     */
+    public function testSolarStationCraftTimeBoostCoversElectronics(): void
+    {
+        foreach (['Wiring', 'ElectronicComponents'] as $key) {
+            $recipe = $this->cfg->get($key);
+            $this->assertNotNull($recipe, "{$key} recipe missing");
+            $this->assertSame(
+                'SolarStation',
+                $recipe['boost_building_time'] ?? null,
+                "{$key} должен объявлять boost_building_time=SolarStation для craft-time бафа Станции"
+            );
+        }
+    }
+
+    /**
      * F3.B6 — у CharcoalBriquettes картинка с расширением .png
      * (исторически у остальных components — .jpg).
      */

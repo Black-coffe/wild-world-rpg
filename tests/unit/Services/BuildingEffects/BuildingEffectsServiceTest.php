@@ -796,4 +796,122 @@ final class BuildingEffectsServiceTest extends CIUnitTestCase
         );
         $this->assertSame(0.60, $svc->getCraftTimeMultiplier(491));
     }
+
+    // ============================================================
+    // ADR-086 Фаза 1a — SolarStation craft-time буст электроники + dormant killswitch
+    // ============================================================
+    // Рецепты Wiring/ElectronicComponents декларируют boost_building_time=SolarStation.
+    // Опциональный killswitch building.solarstation.boost.enabled: ОТСУТСТВУЕТ → enabled
+    // (Workshop/Lab/Robotics не тронуты); ПРИСУТСТВУЕТ falsey → ветка пропускается (dormant).
+
+    /**
+     * Reader с произвольными типами значений (killswitch = bool, не float).
+     *
+     * @param array<string, mixed> $overrides
+     */
+    private function readerMixed(array $overrides): callable
+    {
+        return static fn (string $key, mixed $default): mixed
+            => array_key_exists($key, $overrides) ? $overrides[$key] : $default;
+    }
+
+    public function testSolarStationBoostDormantWhenKillswitchOff(): void
+    {
+        // Станция L2, killswitch OFF, нет Workshop → SolarStation-ветка пропущена → 1.0.
+        $svc = $this->service(
+            [['id' => 9, 'name_en' => 'SolarStation']],
+            [['character_id' => 491, 'building_id' => 9, 'level' => 2]],
+            $this->readerMixed([
+                'building.solarstation.boost.enabled'          => false,
+                'building.solarstation.l2.craft_time_multiplier' => 0.95,
+            ]),
+        );
+        $this->assertSame(1.0, $svc->getCraftTimeMultiplier(491, 'SolarStation'));
+    }
+
+    public function testSolarStationDormantStillAppliesWorkshop(): void
+    {
+        // Fence-safety: killswitch OFF не должен влиять на Workshop-ветку → остаётся 0.90.
+        $svc = $this->service(
+            [['id' => 4, 'name_en' => 'Workshop'], ['id' => 9, 'name_en' => 'SolarStation']],
+            [
+                ['character_id' => 491, 'building_id' => 4, 'level' => 2],
+                ['character_id' => 491, 'building_id' => 9, 'level' => 2],
+            ],
+            $this->readerMixed([
+                'building.workshop.l2.craft_time_multiplier'     => 0.90,
+                'building.solarstation.boost.enabled'            => false,
+                'building.solarstation.l2.craft_time_multiplier' => 0.95,
+            ]),
+        );
+        $this->assertSame(0.90, $svc->getCraftTimeMultiplier(491, 'SolarStation'));
+    }
+
+    public function testSolarStationBoostActiveL2(): void
+    {
+        // Killswitch ON, Станция L2 (0.95), нет Workshop → 0.95.
+        $svc = $this->service(
+            [['id' => 9, 'name_en' => 'SolarStation']],
+            [['character_id' => 491, 'building_id' => 9, 'level' => 2]],
+            $this->readerMixed([
+                'building.solarstation.boost.enabled'            => true,
+                'building.solarstation.l2.craft_time_multiplier' => 0.95,
+                'building.solarstation.l3.craft_time_multiplier' => 0.90,
+            ]),
+        );
+        $this->assertSame(0.95, $svc->getCraftTimeMultiplier(491, 'SolarStation'));
+    }
+
+    public function testSolarStationBoostActiveStacksWithWorkshop(): void
+    {
+        // Killswitch ON: Workshop L3 (0.75) × SolarStation L3 (0.90) = 0.675.
+        $svc = $this->service(
+            [['id' => 4, 'name_en' => 'Workshop'], ['id' => 9, 'name_en' => 'SolarStation']],
+            [
+                ['character_id' => 491, 'building_id' => 4, 'level' => 3],
+                ['character_id' => 491, 'building_id' => 9, 'level' => 3],
+            ],
+            $this->readerMixed([
+                'building.workshop.l3.craft_time_multiplier'     => 0.75,
+                'building.solarstation.boost.enabled'            => true,
+                'building.solarstation.l3.craft_time_multiplier' => 0.90,
+            ]),
+        );
+        $this->assertSame(0.675, round($svc->getCraftTimeMultiplier(491, 'SolarStation'), 4));
+    }
+
+    public function testSolarStationBoostInterpolatesL5(): void
+    {
+        // ADR-042: L5 = 0.90 + (0.80−0.90)×(5−3)/7 = 0.87143. Killswitch ON, нет Workshop.
+        $svc = $this->service(
+            [['id' => 9, 'name_en' => 'SolarStation']],
+            [['character_id' => 491, 'building_id' => 9, 'level' => 5]],
+            $this->readerMixed([
+                'building.solarstation.boost.enabled'             => true,
+                'building.solarstation.l3.craft_time_multiplier'  => 0.90,
+                'building.solarstation.l10.craft_time_multiplier' => 0.80,
+            ]),
+        );
+        $this->assertEqualsWithDelta(0.87143, $svc->getCraftTimeMultiplier(491, 'SolarStation'), 0.0001);
+    }
+
+    public function testBoostKillswitchAbsentKeepsLaboratoryEnabled(): void
+    {
+        // 🔴 Регресс-гард fence-safety: Laboratory/Robotics НЕ имеют killswitch-ключа →
+        // boostBuildingEnabled() → true (absent=enabled) → стак как раньше (0.90×0.90=0.81).
+        // Гарантирует, что generic-правка ADR-086 не сломала существующие boost-здания.
+        $svc = $this->service(
+            [['id' => 4, 'name_en' => 'Workshop'], ['id' => 8, 'name_en' => 'Laboratory']],
+            [
+                ['character_id' => 491, 'building_id' => 4, 'level' => 2],
+                ['character_id' => 491, 'building_id' => 8, 'level' => 2],
+            ],
+            $this->readerMixed([
+                'building.workshop.l2.craft_time_multiplier'   => 0.90,
+                'building.laboratory.l2.craft_time_multiplier' => 0.90,
+                // НЕТ building.laboratory.boost.enabled → absent → enabled.
+            ]),
+        );
+        $this->assertSame(0.81, round($svc->getCraftTimeMultiplier(491, 'Laboratory'), 4));
+    }
 }

@@ -258,6 +258,10 @@ class CraftRecipes extends BaseConfig
             // BlastFurnace L2+ (1.15/1.35 cascade). Pure bonus; char'и без печі
             // продовжують крафтити з baseline qty. Зеркалить MetalFragments.
             'boost_building'       => 'BlastFurnace',
+            // ADR-086 Фаза 1a (dormant): Солнечная станция ускоряет craft-TIME электроники
+            // (множитель, стак с Workshop). Активно ТОЛЬКО при killswitch
+            // building.solarstation.boost.enabled=true (OFF на ship). Зеркалит ElectronicComponents.
+            'boost_building_time'  => 'SolarStation',
             'image_in_progress'    => 'uploads/telegram/craft/components/wiring_craft.jpg',
             'start_caption_name'   => '🔌 *Проводку*',
             'info_callback'        => 'wiring',
@@ -328,6 +332,10 @@ class CraftRecipes extends BaseConfig
             // BlastFurnace L2+ (1.15/1.35 cascade). Pure bonus; char'и без печі
             // продовжують крафтити з baseline qty. Зеркалить MetalFragments.
             'boost_building'       => 'BlastFurnace',
+            // ADR-086 Фаза 1a (dormant): Солнечная станция ускоряет craft-TIME электроники
+            // (множитель, стак с Workshop). Активно ТОЛЬКО при killswitch
+            // building.solarstation.boost.enabled=true (OFF на ship). Зеркалит Wiring.
+            'boost_building_time'  => 'SolarStation',
             'image_in_progress'    => 'uploads/telegram/craft/components/electronic_components.jpg',
             'start_caption_name'   => '💻 *Электронные компоненты*',
             'info_callback'        => 'electronicComponents',

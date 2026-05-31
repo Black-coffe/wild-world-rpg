@@ -70,7 +70,8 @@ final class BuildingEffectsService
             $multiplier *= $this->resolveLevelMultiplier('workshop', $workshopLevel, 'craft_time_multiplier');
         }
 
-        if ($extraBuilding !== null && $extraBuilding !== '' && strcasecmp($extraBuilding, 'Workshop') !== 0) {
+        if ($extraBuilding !== null && $extraBuilding !== '' && strcasecmp($extraBuilding, 'Workshop') !== 0
+            && $this->boostBuildingEnabled($extraBuilding)) {
             $extraLevel = $this->resolveBuildingLevel($charId, $extraBuilding);
             if ($extraLevel >= 2) {
                 $multiplier *= $this->resolveLevelMultiplier(
@@ -288,18 +289,54 @@ final class BuildingEffectsService
 
     /**
      * Прочитати tunable значення з GameSettings; повертає null якщо запис
-     * відсутній (cascade продовжується).
+     * відсутній (cascade продовжується) або не числовий.
      */
     private function tunable(string $key): ?float
+    {
+        $val = $this->rawSetting($key);
+        return is_numeric($val) ? (float)$val : null;
+    }
+
+    /**
+     * Сире значення GameSettings або null, якщо ключа немає (sentinel-патерн).
+     * Дозволяє відрізнити «ключ відсутній» від «ключ = falsey-значення» —
+     * потрібно для опціонального killswitch (boostBuildingEnabled).
+     *
+     * @return mixed null = ключ відсутній.
+     */
+    private function rawSetting(string $key): mixed
     {
         $sentinel = '__missing__';
         $reader   = $this->tunableReader ?? static fn (string $k, mixed $d): mixed
             => (new GameSettingsService())->get($k, $d);
         $val = $reader($key, $sentinel);
 
-        if ($val === $sentinel) {
-            return null;
+        return $val === $sentinel ? null : $val;
+    }
+
+    /**
+     * ADR-086 — опціональний dormant-killswitch craft-time ефекту boost-будівлі.
+     *
+     * Ключ `building.<lower_name_en>.boost.enabled`. **ВІДСУТНІЙ → enabled**
+     * (зворотна сумісність: Workshop/Laboratory/RoboticsWorkshop не мають такого
+     * ключа, їх ефект продовжує діяти). **ПРИСУТНІЙ і falsey → ефект пропускається**
+     * (Солнечна станція відвантажена dormant; активація = флип у admin-UI).
+     */
+    private function boostBuildingEnabled(string $buildingNameEn): bool
+    {
+        $raw = $this->rawSetting('building.' . strtolower($buildingNameEn) . '.boost.enabled');
+        if ($raw === null) {
+            return true; // немає killswitch → ефект активний (Workshop/Lab/Robotics)
         }
-        return is_numeric($val) ? (float)$val : null;
+        if (is_bool($raw)) {
+            return $raw;
+        }
+        if (is_numeric($raw)) {
+            return (int) $raw === 1;
+        }
+        if (is_string($raw)) {
+            return in_array(strtolower($raw), ['1', 'true', 'yes', 'on'], true);
+        }
+        return false; // неочікуваний тип → dormant (безпечно)
     }
 }
