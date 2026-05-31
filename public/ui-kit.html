@@ -1475,6 +1475,44 @@ section.block:first-of-type { border-top: 0; }
   body { background: #fff; color: #000; }
   body::before, body::after { display: none; }
 }
+
+/* CTA-BREAK — узнаваемая внутристатейная «перебивка» (зеркало wildworld-ui.css) */
+.ww-cta-break {
+  position: relative; overflow: hidden;
+  margin: 2.4em 0; padding: 38px 32px;
+  border: 1px solid var(--accent);
+  background: linear-gradient(180deg, var(--bg-elev-2), var(--bg-elev-1));
+  text-align: center;
+}
+.ww-cta-break::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 6px;
+  background-image: repeating-linear-gradient(45deg, var(--accent) 0 10px, var(--accent-ink) 10px 20px);
+  animation: ww-cta-stripes 2.6s linear infinite;
+}
+.ww-cta-break::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(120deg, transparent 42%, rgba(232,155,46,.10) 50%, transparent 58%);
+  background-size: 250% 100%; animation: ww-cta-sweep 6.5s var(--ease) infinite;
+}
+.ww-cta-break > * { position: relative; z-index: 1; }
+.ww-cta-break .ww-cta-kicker { font-family: var(--font-mono); font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--accent); margin: 0 0 10px; }
+.ww-cta-break .ww-cta-title { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 4.4vw, 34px); line-height: 1.05; letter-spacing: .01em; text-transform: uppercase; color: var(--text); margin: 0 0 22px; }
+.ww-cta-break .ww-cta-btn {
+  display: inline-flex; align-items: center; gap: 10px; height: 54px; padding: 0 34px;
+  font-family: var(--font-display); font-weight: 600; font-size: 16px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--accent-ink); background: var(--accent); border: 1px solid var(--accent);
+  position: relative; overflow: hidden; text-decoration: none;
+  transition: background var(--dur-2) var(--ease), transform var(--dur-1) var(--ease);
+}
+.ww-cta-break .ww-cta-btn:hover { background: var(--accent-hi); color: var(--accent-ink); }
+.ww-cta-break .ww-cta-btn:active { transform: translateY(1px); }
+.ww-cta-break .ww-cta-btn:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 3px; }
+.ww-cta-break .ww-cta-btn::after { content: ""; position: absolute; top: 0; bottom: 0; left: -45%; width: 32%; background: linear-gradient(90deg, transparent, rgba(26,17,6,.4), transparent); transform: skewX(-20deg); transition: left var(--dur-3) var(--ease); }
+.ww-cta-break .ww-cta-btn:hover::after { left: 135%; }
+@keyframes ww-cta-stripes { to { background-position: 28.28px 0; } }
+@keyframes ww-cta-sweep { 0% { background-position: 120% 0; } 55%, 100% { background-position: -25% 0; } }
+@media (prefers-reduced-motion: reduce) { .ww-cta-break::before, .ww-cta-break::after, .ww-cta-break .ww-cta-btn::after { animation: none; transition: none; } }
+@media (max-width: 480px) { .ww-cta-break { padding: 28px 18px; } .ww-cta-break .ww-cta-btn { display: flex; width: 100%; justify-content: center; } }
 </style>
 </head>
 
