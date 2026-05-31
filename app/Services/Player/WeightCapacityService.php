@@ -198,4 +198,66 @@ final class WeightCapacityService
         }
         return $this->getRemainingCapacity($characterId, $characterLevel, $weightCapacity) >= $additionalKg;
     }
+
+    /**
+     * ADR-085 Фаза 1b — clamp списка found-resources к remaining capacity (greedy
+     * по порядку). Каждый элемент должен иметь 'amount' (int) и 'weight' (float kg/ед.).
+     *
+     * Overflow-политика (user-pick): «добор до cap + излишек не собран». kept = что
+     * влезло (amount может быть урезан до влезающего), skipped = недобранное (amount =
+     * остаток). Безвесые (weight ≤ 0) всегда влезают. Полный рюкзак → всё в skipped.
+     *
+     * Killswitch OFF (dormant) → всё в kept, skipped пуст (byte-identical, 0 эффекта).
+     *
+     * @param list<array<string,mixed>> $found
+     * @return array{kept: list<array<string,mixed>>, skipped: list<array<string,mixed>>}
+     */
+    public function clampToCapacity(int $characterId, int $characterLevel, int $weightCapacity, array $found): array
+    {
+        if (! $this->isEnabled()) {
+            return ['kept' => $found, 'skipped' => []];
+        }
+        $remaining = $this->getRemainingCapacity($characterId, $characterLevel, $weightCapacity);
+        return $this->clampToRemaining($remaining, $found);
+    }
+
+    /**
+     * Чистый greedy-clamp при заданном остатке ёмкости $remaining (kg). Без DB/settings —
+     * тестируется юнит-тестом. Семантика kept/skipped — см. clampToCapacity.
+     *
+     * @param list<array<string,mixed>> $found
+     * @return array{kept: list<array<string,mixed>>, skipped: list<array<string,mixed>>}
+     */
+    public function clampToRemaining(float $remaining, array $found): array
+    {
+        $kept    = [];
+        $skipped = [];
+        foreach ($found as $res) {
+            $amount = isset($res['amount']) && is_numeric($res['amount']) ? (int) $res['amount'] : 0;
+            $weight = isset($res['weight']) && is_numeric($res['weight']) ? (float) $res['weight'] : 0.0;
+            if ($amount < 1) {
+                continue;
+            }
+            if ($weight <= 0.0) {
+                $kept[] = $res; // безвесый → всегда влезает, не занимает cap
+                continue;
+            }
+            $fitUnits = (int) floor($remaining / $weight);
+            if ($fitUnits >= $amount) {
+                $kept[] = $res;
+                $remaining -= $weight * $amount;
+            } elseif ($fitUnits > 0) {
+                $keptRes           = $res;
+                $keptRes['amount'] = $fitUnits;
+                $kept[]            = $keptRes;
+                $skRes             = $res;
+                $skRes['amount']   = $amount - $fitUnits;
+                $skipped[]         = $skRes;
+                $remaining -= $weight * $fitUnits;
+            } else {
+                $skipped[] = $res; // ничего не влезает
+            }
+        }
+        return ['kept' => $kept, 'skipped' => $skipped];
+    }
 }

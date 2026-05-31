@@ -185,6 +185,10 @@ class GatherTaskHandler extends BaseTaskHandler
         // не сыт / выключено → no-op). Изолировано: только масштаб итоговой добычи.
         $foundResources = $this->applyWellFedGatherBonus($foundResources, $character);
 
+        // ADR-085 Склад Фаза 1b: weight-cap clamp (dormant до killswitch ON).
+        // Overflow-политика «добор до cap + излишек не собран». OFF → byte-identical.
+        $foundResources = $this->applyWeightCapClamp($foundResources, $character);
+
         // Сохраняем результаты
         $this->saveFoundResources($foundResources, $character, $task);
         $this->characterTaskModel->update($task['id'], ['status' => 'completed']);
@@ -192,6 +196,9 @@ class GatherTaskHandler extends BaseTaskHandler
         // Отправляем уведомление (V22: + signature-хинт «биом богат на …»).
         $signatureNames = $this->biomeGatherProfile->signatureNamesFor($biomeId);
         $this->sendResourcesFoundReply($foundResources, $character, $spentMinutes, $biomeName, $signatureNames);
+
+        // ADR-085 Склад Фаза 1b: уведомить, если рюкзак переполнился (clamp+notify). Dormant → no-op.
+        $this->notifyWeightCapOverflow($character);
 
         // V6 (ADR-033): вторичный источник семян (defensive, killswitch+chance).
         // Изолировано от gather-математики — не влияет на расчёт/сохранение добычи.
@@ -220,6 +227,101 @@ class GatherTaskHandler extends BaseTaskHandler
             }
         }
         return $foundResources;
+    }
+
+    /** @var list<array{name: string, amount: int}> Срезанное weight-cap'ом (для notify). */
+    private array $weightCapSkipped = [];
+
+    /**
+     * ADR-085 Склад Фаза 1b — clamp добычи к остатку ёмкости (dormant до killswitch ON).
+     * Привязывает вес (resources.weight) к каждому ресурсу и зовёт
+     * WeightCapacityService::clampToCapacity. Срезанное запоминает для notifyWeightCapOverflow.
+     * Killswitch OFF → возврат без изменений (byte-identical, 0 эффекта на живых).
+     *
+     * @param list<array<string,mixed>> $foundResources
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     * @return list<array<string,mixed>>
+     */
+    private function applyWeightCapClamp(array $foundResources, array|\App\Entities\CharacterEntity $character): array
+    {
+        $this->weightCapSkipped = [];
+        $weightCap = new \App\Services\Player\WeightCapacityService();
+        if (! $weightCap->isEnabled()) {
+            return $foundResources; // dormant → no-op
+        }
+
+        // map resource_id => [weight, name]
+        $meta = [];
+        foreach ($this->resourceModel->findAllCached() as $entity) {
+            $idRaw = $entity['id'] ?? null;
+            if (! is_numeric($idRaw)) {
+                continue;
+            }
+            $wRaw = $entity['weight'] ?? null;
+            $meta[(int) $idRaw] = [
+                'weight' => is_numeric($wRaw) ? (float) $wRaw : 0.0,
+                'name'   => is_scalar($entity['name'] ?? null) ? (string) $entity['name'] : ('#' . (int) $idRaw),
+            ];
+        }
+
+        $withWeight = [];
+        foreach ($foundResources as $res) {
+            $rid           = isset($res['resource_id']) && is_numeric($res['resource_id']) ? (int) $res['resource_id'] : 0;
+            $res['weight'] = $meta[$rid]['weight'] ?? 0.0;
+            $withWeight[]  = $res;
+        }
+
+        $charId = isset($character['id']) && is_numeric($character['id']) ? (int) $character['id'] : 0;
+        $level  = isset($character['level']) && is_numeric($character['level']) ? (int) $character['level'] : 1;
+        $wcRaw  = isset($character['weight_capacity']) && is_numeric($character['weight_capacity']) ? (int) $character['weight_capacity'] : 0;
+        $wc     = $wcRaw >= 9999 ? 0 : $wcRaw; // 9999 = legacy sentinel «без cap» → формула
+
+        $result = $weightCap->clampToCapacity($charId, $level, $wc, $withWeight);
+
+        foreach ($result['skipped'] as $sk) {
+            $rid = isset($sk['resource_id']) && is_numeric($sk['resource_id']) ? (int) $sk['resource_id'] : 0;
+            $amt = isset($sk['amount']) && is_numeric($sk['amount']) ? (int) $sk['amount'] : 0;
+            if ($amt > 0) {
+                $this->weightCapSkipped[] = [
+                    'name'   => $meta[$rid]['name'] ?? ('#' . $rid),
+                    'amount' => $amt,
+                ];
+            }
+        }
+
+        /** @var list<array<string,mixed>> $kept */
+        $kept = $result['kept'];
+        return $kept;
+    }
+
+    /**
+     * ADR-085 Склад Фаза 1b — уведомление о переполнении рюкзака (clamp+notify).
+     * Шлёт только при наличии срезанного (т.е. killswitch ON). Dormant → no-op.
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     */
+    private function notifyWeightCapOverflow(array|\App\Entities\CharacterEntity $character): void
+    {
+        if ($this->weightCapSkipped === []) {
+            return;
+        }
+        $userRow = $this->telegramUserModel->where('id', $character['telegram_user_id'] ?? 0)->first();
+        if (! is_array($userRow) || empty($userRow['telegram_id'])) {
+            return;
+        }
+        $chatIdRaw = $userRow['telegram_id'];
+        $chatId    = is_numeric($chatIdRaw) ? (int) $chatIdRaw : 0;
+        if ($chatId === 0) {
+            return;
+        }
+        $lines = [];
+        foreach ($this->weightCapSkipped as $sk) {
+            $lines[] = "• {$sk['name']} ×{$sk['amount']}";
+        }
+        $text = "🎒 *Рюкзак переполнен* — часть добычи не влезла:\n"
+            . implode("\n", $lines)
+            . "\n\nРазгрузись (продай излишки или перенеси в Склад) либо подними вместимость.";
+        $this->safeSendMessage($chatId, $text, ['parse_mode' => 'Markdown']);
     }
 
     /**

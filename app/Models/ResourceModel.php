@@ -33,6 +33,7 @@ class ResourceModel extends Model
         'buy_price',
         'sell_price',
         'rarity',
+        'weight',
         'level_required',
         'initial_quantity',
         'icon_text',
