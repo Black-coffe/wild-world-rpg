@@ -178,6 +178,9 @@ writable/secrets/
 # Локальные выгрузки семантики (Bukvarix scrape, research) — не в git.
 writable/bukvarix/
 
+# Локальные обложки постов сайта (генерятся throwaway site:cover-gen → scp на прод) — не в git.
+writable/site-covers/
+
 # SSH keys
 *.pem
 *.key

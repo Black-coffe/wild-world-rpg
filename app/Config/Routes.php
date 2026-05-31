@@ -136,6 +136,7 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->post('site/posts/update/(:num)', 'Admin\SitePostController::update/$1');
     $routes->post('site/posts/review/(:num)', 'Admin\SitePostController::markReviewed/$1'); // POST — изменяет состояние, CSRF
     $routes->post('site/posts/delete/(:num)', 'Admin\SitePostController::delete/$1'); // POST — destructive, CSRF
+    $routes->get('site/posts/preview/(:num)', 'Front::preview/$1'); // UI/UX-превью черновика (редколлегия): рендер ЛЮБОГО статуса в site-лейауте, noindex, admin-only
 
     $routes->get('site/pages', 'Admin\SitePageController::index');
     $routes->get('site/pages/create', 'Admin\SitePageController::createForm');

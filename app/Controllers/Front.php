@@ -140,9 +140,24 @@ class Front extends BaseController
     }
 
     /**
+     * Admin-only превью поста ЛЮБОГО статуса (включая draft) для UI/UX-ревью
+     * редколлегии перед публикацией. За login-фильтром (admin-группа в Routes),
+     * noindex,nofollow — превью не для поисковиков. Рендерит тем же site/post-view.
+     */
+    public function preview(int $id): string|ResponseInterface
+    {
+        $post = (new SitePostModel())->find($id);
+        if (! is_array($post)) {
+            throw PageNotFoundException::forPageNotFound('Нет такого поста для превью: ' . $id);
+        }
+
+        return $this->renderPost($post, 'noindex,nofollow');
+    }
+
+    /**
      * @param array<array-key,mixed> $post
      */
-    private function renderPost(array $post): string
+    private function renderPost(array $post, string $robots = 'index,follow'): string
     {
         $id       = is_numeric($post['id'] ?? null) ? (int) $post['id'] : 0;
         $slug     = is_string($post['slug'] ?? null) ? $post['slug'] : '';
@@ -189,7 +204,7 @@ class Front extends BaseController
                 $descr,
                 $canonical,
                 $imageUrl,
-                'index,follow',
+                $robots,
                 'article',
                 [
                     'keywords'      => $title . ', ' . $section . ', Wild World, текстовая MMORPG, Telegram',
