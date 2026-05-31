@@ -126,9 +126,23 @@
 - **`i18n.locale_switch.enabled`** (W26/W27) — PREMATURE: локализована лишь «Моя экономика». Активация = half-localized UI
   для игрока. **Блокер:** масс-конверсия handler-поверхностей на `lang()` + DB-контент перевод (колонка `*_en`). Это
   объём отдельной серии — кандидат в будущий vNext3 ИЛИ тейл-трек, не в near-term активацию.
-- **`inventory.weight_cap.enabled`** (W3a) — RESTRICTS игроков (soft-cap веса); `weight_capacity` default 9999=off.
-  **Блокер:** balance-pass W3b (реальные l1_base/per_level) НЕ сделан. Player-hostile без выверенного баланса —
-  активировать ТОЛЬКО после дизайн-решения; возможно никогда без явного game-design обоснования.
+- **`inventory.weight_cap.enabled`** (W3a + ADR-085 Фаза 1b) — RESTRICTS игроков (clamp сбора по весу). resources.weight
+  ДОБАВЛЕНА (v0.51.321, блокер краша снят), enforcement подключён к gather. **Блокер активации:** balance-pass калибровки
+  весов vs типичные инвентари (char 491 уже 1990кг над cap → активация заблокирует сбор хордерам до разгрузки; grandfather
+  сохраняет имеющееся). Player-hostile — активировать ТОЛЬКО после выверки весов/cap + анонса.
+
+### Stage F — Блок АЛЬФА: Склад/Станция (ADR-085/086, не из 13 vNext2)
+Парные 🟠-хвосты аудита бафов зданий. Build закрыт dormant 2026-05-31 (v0.51.318-321).
+- **✅ `economy.sell.warehouse_bonus.enabled`** (ADR-085 Склад 1a) — **АКТИВИРОВАН 2026-05-31 14:49** (throwaway spark →
+  `GameSettingsService::set` с updated_by + AdminAuditLog, не raw SQL; cache:clear). Pure-bonus: +повышенная цена продажи
+  крафта владельцам Склада (7 владельцев). Pre-flight: код байт-идентичен с Tier-3 (v318), warehouse_bonus_pct=0.10. info_text
+  дописан (v0.51.322). Прод-логи 2026-05-31 чисты (0 ERROR). Анонс — Батч 2.
+- **✅ `building.solarstation.boost.enabled`** (ADR-086 Станция 1a) — **АКТИВИРОВАН 2026-05-31 14:49** (тем же путём).
+  Pure-bonus: ускорение крафта электроники (Wiring/ElectronicComponents) у Станции L2+. Blast radius КРОШЕЧНЫЙ — 7 владельцев,
+  но только **2×L2** (5×L1 без эффекта by design). Pre-flight: runtime-смоук v319 (×0.95 verified), множители 0.95/0.90/0.80.
+  info_text дописан (v0.51.322). Анонс — Батч 2.
+- **⏸ `building.solarstation.gate.enabled`** (ADR-086 Станция 1b) — НЕ активирован: player-hostile (гейт роботов/телепорта),
+  нужен balance-pass overlap (сколько robot/teleport-владельцев имеют Станцию) + анонс. Отдельная сессия.
 
 ## Параллельный тейл-трек (не-активационный долг)
 
