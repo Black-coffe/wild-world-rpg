@@ -23,6 +23,7 @@ class TelegramUserModel extends Model
         'last_map_message_id',
         'last_map_message_created_at',
         'event_pref',  // F7.5 — JSON для NotificationPolicy (throttle/mute prefs)
+        'blocked_at',  // 2026-05-31 — отметка блокировки бота (broadcast-гигиена)
     ];
 
     protected $useTimestamps = true;
@@ -52,5 +53,29 @@ class TelegramUserModel extends Model
         } else {
             return null;
         }
+    }
+
+    /**
+     * Отметить, что пользователь заблокировал бота / деактивирован (broadcast 403).
+     * Условный UPDATE (только если ещё не отмечен) — без лишних записей.
+     */
+    public function markBlocked(string $telegramId): void
+    {
+        db_connect()->table($this->table)
+            ->where('telegram_id', $telegramId)
+            ->where('blocked_at', null)
+            ->update(['blocked_at' => date('Y-m-d H:i:s')]);
+    }
+
+    /**
+     * Снять отметку блокировки (пользователь вернулся — успешная отправка).
+     * Условный UPDATE (только если был отмечен) — self-heal без лишних записей.
+     */
+    public function clearBlocked(string $telegramId): void
+    {
+        db_connect()->table($this->table)
+            ->where('telegram_id', $telegramId)
+            ->where('blocked_at !=', null)
+            ->update(['blocked_at' => null]);
     }
 }
