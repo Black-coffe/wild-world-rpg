@@ -172,6 +172,12 @@ nb-configuration.xml
 auth.json
 .composer/auth.json
 
+# Google service-account key (GSC SEO-пайплайн, Config\Seo) — НИКОГДА в git.
+writable/secrets/
+
+# Локальные выгрузки семантики (Bukvarix scrape, research) — не в git.
+writable/bukvarix/
+
 # SSH keys
 *.pem
 *.key
