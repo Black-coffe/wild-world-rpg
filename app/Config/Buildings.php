@@ -158,7 +158,7 @@ class Buildings extends BaseConfig
         'Warehouse' => [
             'name_rus'          => 'Склад',
             'emoji'             => '🏚️',
-            'info_text'         => 'Открывает закрытый рынок: позволяет покупать крафтовые предметы у других игроков.',
+            'info_text'         => 'Открывает закрытый рынок: позволяет покупать крафтовые предметы у других игроков. Владельцам — повышенная цена продажи крафта.',
             'level_required'    => 1,
             'task_name'         => 'startBuildWarehouse',
             'task_settings'     => ['building' => 'Warehouse'],
@@ -211,7 +211,7 @@ class Buildings extends BaseConfig
         'SolarStation' => [
             'name_rus'          => 'Солнечная станция',
             'emoji'             => '☀️',
-            'info_text'         => 'Энергетическая постройка. Требуется как условие для строительства Арсенала.',
+            'info_text'         => 'Энергетическая постройка. Требуется как условие для строительства Арсенала. С уровня 2 ускоряет производство электроники (проводка, электронные компоненты).',
             'level_required'    => 1,
             'task_name'         => 'startBuildSolarStation',
             'task_settings'     => ['building' => 'SolarStation'],
