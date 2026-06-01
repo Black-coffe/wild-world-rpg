@@ -58,8 +58,13 @@ class AvailableQuests extends BaseAction
 
             // V12 (ADR-037): objective-квесты (strategic capture + этапы цепочек) —
             // авто-управляемые (стартуют/завершаются через handler'ы, не вручную).
-            // Не показываем их с manual start-кнопкой (раньше были dead-кнопки).
+            // ADR-088: ИСКЛЮЧЕНИЕ — расширенные STANDALONE «корни» (collect_resource /
+            // building_level / npc_kills / char_level / craft_item без prerequisite,
+            // killswitch quests.extended_enabled ON) показываем как startable.
             if (!empty($quest['objective_type'])) {
+                if ($chain->isExtendedStartableRoot($quest)) {
+                    $availableQuests[] = $quest;
+                }
                 continue;
             }
 

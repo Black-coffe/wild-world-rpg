@@ -47,6 +47,46 @@ final class QuestChainService
     }
 
     /**
+     * ADR-088 killswitch: расширенные категории квестов (collect_resource /
+     * building_level / npc_kills) видны/стартуемы только при quests.extended_enabled=ON.
+     * Default false → dormant.
+     */
+    public function extendedEnabled(): bool
+    {
+        $v = $this->settings->get('quests.extended_enabled', false);
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+        return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /**
+     * ADR-088: является ли квест STANDALONE расширенным «корнем», который игрок может
+     * запустить вручную (objective_type задан, НЕ discover_object, без prerequisite).
+     * Существующие objective-квесты — discover_object (авто) либо этапы цепочек (есть
+     * prerequisite, авто-advance) → НЕ корни → 0 регрессии.
+     *
+     * @param array<int|string,mixed> $quest
+     */
+    public function isExtendedStartableRoot(array $quest): bool
+    {
+        if (! $this->extendedEnabled()) {
+            return false;
+        }
+        $type = $quest['objective_type'] ?? '';
+        // Только НОВЫЕ расширенные типы (ADR-088). char_level/craft_item исключены намеренно:
+        // их используют этапы цепочек и demo branch-point (char_level root) — их нельзя
+        // делать manual-startable. Майлстоуны роста = отдельный тип level_milestone.
+        if (!is_string($type) || !in_array($type, ['collect_resource', 'building_level', 'level_milestone', 'npc_kills'], true)) {
+            return false;
+        }
+        return $this->prerequisiteOf($quest) === null;
+    }
+
+    /**
      * Выполнено ли предусловие квеста. true если: гейт выключен / нет предусловия /
      * предусловие в списке завершённых квестов персонажа.
      *

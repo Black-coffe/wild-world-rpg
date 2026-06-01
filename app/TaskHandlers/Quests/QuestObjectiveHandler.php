@@ -11,6 +11,7 @@ use App\Models\ExploredCellsModel;
 use App\Models\QuestStepsModel;
 use App\Models\TelegramUserModel;
 use App\Services\Endgame\EndgameProgressionService;
+use App\Services\GameSettings\GameSettingsService;
 use App\Services\Quest\QuestChainService;
 use App\TaskHandlers\BaseTaskHandler;
 use CodeIgniter\Database\BaseConnection;
@@ -40,6 +41,7 @@ class QuestObjectiveHandler extends BaseTaskHandler
     protected TelegramUserModel $telegramUserModel;
     protected EndgameProgressionService $endgameService;
     protected QuestChainService $chainService;
+    protected GameSettingsService $settings;
 
     public function __construct()
     {
@@ -50,6 +52,24 @@ class QuestObjectiveHandler extends BaseTaskHandler
         $this->telegramUserModel  = new TelegramUserModel();
         $this->endgameService     = new EndgameProgressionService();
         $this->chainService       = new QuestChainService();
+        $this->settings           = new GameSettingsService();
+    }
+
+    /**
+     * ADR-088 killswitch: расширенные категории квестов (collect_resource /
+     * building_level / npc_kills) прогрессят только при quests.extended_enabled=ON.
+     * Default false → dormant (новый контент невидим/не прогрессит до активации).
+     */
+    private function extendedEnabled(): bool
+    {
+        $v = $this->settings->get('quests.extended_enabled', false);
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+        return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
     }
 
     /**
@@ -59,11 +79,19 @@ class QuestObjectiveHandler extends BaseTaskHandler
     {
         $db = \Config\Database::connect();
 
+        // ADR-088: расширенные типы добавляются в обработку только при killswitch ON.
+        $types = ['craft_item', 'explore_cells', 'char_level'];
+        if ($this->extendedEnabled()) {
+            $types[] = 'collect_resource';
+            $types[] = 'building_level';
+            $types[] = 'level_milestone';
+        }
+
         $rows = $db->table('quest_steps qs')
             ->select('qs.id AS step_id, qs.character_id, q.id AS quest_id, q.title_en, q.title_ru, q.reward, q.objective_type, q.objective_target, q.objective_qty')
             ->join('quests q', 'q.id = qs.quest_id')
             ->where('qs.is_completed', 0)
-            ->whereIn('q.objective_type', ['craft_item', 'explore_cells', 'char_level'])
+            ->whereIn('q.objective_type', $types)
             ->where('q.status', 'active')
             ->get();
         if ($rows === false) {
@@ -121,6 +149,7 @@ class QuestObjectiveHandler extends BaseTaskHandler
 
         switch ($type) {
             case 'char_level':
+            case 'level_milestone': // ADR-088: майлстоун роста (startable-вариант char_level).
                 $lvl = is_numeric($character['level'] ?? null) ? (int) $character['level'] : 0;
                 return $lvl >= $qty;
 
@@ -135,9 +164,69 @@ class QuestObjectiveHandler extends BaseTaskHandler
                 }
                 return $this->craftedCount($db, $cid, $target) >= $qty;
 
+            case 'collect_resource':
+                // ADR-088: владеть ≥qty ресурса (resources.name_en = target) в инвентаре.
+                $target = $row['objective_target'] ?? null;
+                if (!is_string($target) || $target === '') {
+                    return false;
+                }
+                return $this->resourceCount($db, $cid, $target) >= $qty;
+
+            case 'building_level':
+                // ADR-088: построить/прокачать здание (buildings.name_en = target) до ур.≥qty.
+                $target = $row['objective_target'] ?? null;
+                if (!is_string($target) || $target === '') {
+                    return false;
+                }
+                return $this->maxBuildingLevel($db, $cid, $target) >= $qty;
+
             default:
                 return false;
         }
+    }
+
+    /**
+     * Сумма quantity ресурса (resources.name_en=$target) в инвентаре персонажа
+     * (character_resources.id_characters / id_resources). ADR-088.
+     *
+     * @param BaseConnection<object, object> $db
+     */
+    private function resourceCount(BaseConnection $db, int $characterId, string $target): int
+    {
+        $refRes = $db->table('resources')->select('id')->where('name_en', $target)->get();
+        $refRow = $refRes === false ? null : $refRes->getRowArray();
+        if (!is_array($refRow) || !is_numeric($refRow['id'] ?? null)) {
+            return 0;
+        }
+        $sumRes = $db->table('character_resources')
+            ->selectSum('quantity', 'total')
+            ->where('id_characters', $characterId)
+            ->where('id_resources', (int) $refRow['id'])
+            ->get();
+        $sumRow = $sumRes === false ? null : $sumRes->getRowArray();
+        return is_array($sumRow) && is_numeric($sumRow['total'] ?? null) ? (int) $sumRow['total'] : 0;
+    }
+
+    /**
+     * Максимальный уровень здания (buildings.name_en=$target), построенного персонажем
+     * (character_buildings.character_id / building_id / level). 0 если не построено. ADR-088.
+     *
+     * @param BaseConnection<object, object> $db
+     */
+    private function maxBuildingLevel(BaseConnection $db, int $characterId, string $target): int
+    {
+        $refRes = $db->table('buildings')->select('id')->where('name_en', $target)->get();
+        $refRow = $refRes === false ? null : $refRes->getRowArray();
+        if (!is_array($refRow) || !is_numeric($refRow['id'] ?? null)) {
+            return 0;
+        }
+        $maxRes = $db->table('character_buildings')
+            ->selectMax('level', 'maxlvl')
+            ->where('character_id', $characterId)
+            ->where('building_id', (int) $refRow['id'])
+            ->get();
+        $maxRow = $maxRes === false ? null : $maxRes->getRowArray();
+        return is_array($maxRow) && is_numeric($maxRow['maxlvl'] ?? null) ? (int) $maxRow['maxlvl'] : 0;
     }
 
     /**

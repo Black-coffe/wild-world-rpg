@@ -384,6 +384,9 @@ class CallbackRoutes extends BaseConfig
         'whatsNew' => \App\Controllers\Telegram\Commands\Actions\WhatsNew\WhatsNewTopicAction::class,
         // W11 (ADR-067) — выбор ветки квест-развилки. Callback `questBranch_<quest_id>`.
         'questBranch' => \App\Controllers\Telegram\Commands\Actions\Quest\QuestBranchChooseAction::class,
+        // ADR-088 — generic-старт STANDALONE расширенных квестов. Callback `questStart<TitleEn>`.
+        // ⚠️ exact-роуты questStartExplore30Cells/300Cells/AllBiomes/FirstAidkitBasic ловятся РАНЬШЕ.
+        'questStart' => \App\Controllers\Telegram\Commands\Actions\Quest\GenericQuestStartAction::class,
         // W20 (ADR-075) — модернизация: выбор/применение по предмету. `enchantSel_<type>_<id>` / `enchantApply_<type>_<id>`.
         'enchantSel' => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
         'enchantApply' => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
