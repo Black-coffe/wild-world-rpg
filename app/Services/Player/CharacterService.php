@@ -54,12 +54,13 @@ class CharacterService
      */
     public function showCharacterInfo(int $chatId, array|\App\Entities\CharacterEntity $characterRow): ServerResponse
     {
-        // Reply-keyboard (нижнее меню Перс/База/Крафт/Карта/Настройки) ставится в
-        // StartCommand и НИГДЕ не снимается (нет ReplyKeyboardRemove) → персистентно
-        // для всех игроков. Раньше здесь слалось отдельное сообщение «Используйте меню
-        // внизу экрана…» только чтобы повторно привязать клавиатуру — это был мусор в
-        // чате (Telegram не даёт привязать reply-keyboard без сообщения, а карточке
-        // нужен inline-keyboard → совмещать нельзя). Убрано: клавиатура уже есть.
+        // Reply-keyboard (нижнее меню Перс/База/Крафт/Карта/Настройки) ставит /start
+        // (StartCommand — теперь ВСЕГДА, и новым, и существующим игрокам; см. правку
+        // 2026-06-01 после ADR-087) и НИГДЕ не снимается → персистентна на клиенте.
+        // showCharacterInfo НЕ шлёт её сама: сюда попадают либо через /start (только что
+        // переотправил), либо по нажатию reply-кнопки «Перс» (клавиатура уже на экране).
+        // Карточке нужен inline-keyboard, а reply+inline на одном сообщении Telegram не
+        // совмещает → отдельное «привязочное» сообщение тут было бы мусором.
 
         // Собираем сведения о персонаже
         $exploredCount = $this->exploredCellsModel->where('character_id', $characterRow['id'])->countAllResults();

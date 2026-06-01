@@ -142,7 +142,22 @@ class StartCommand extends UserCommand
             ]);
 
         } else {
-            // Если персонаж УЖЕ существует → используем CharacterService
+            // Если персонаж УЖЕ существует → используем CharacterService.
+            //
+            // ADR-039 N4 пересмотрен (2026-06-01, после ADR-087 вайпа): /start ВСЕГДА
+            // (пере)отправляет постоянную reply-клавиатуру. Раньше для существующих
+            // игроков она НЕ слалась (полагались на то, что она уже стоит на клиенте),
+            // но игрок, потерявший её (почистил чат / после вайпа), не мог вернуть меню
+            // через /start. Карточка персонажа несёт inline-keyboard, а reply+inline
+            // на одном сообщении Telegram не совмещает → шлём отдельным лёгким сообщением
+            // ПЕРЕД карточкой. Пост-вайп рассылка зовёт «напиши /start» — меню обязано
+            // гарантированно вернуться.
+            Request::sendMessage([
+                'chat_id'      => $chatId,
+                'text'         => '🧭 Меню ниже.',
+                'reply_markup' => $replyKeyboard,
+            ]);
+
             $charService = new CharacterService();
             return $charService->showCharacterInfo($chatId, $existingCharacter);
         }
