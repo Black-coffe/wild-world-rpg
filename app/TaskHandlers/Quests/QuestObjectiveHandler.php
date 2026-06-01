@@ -85,6 +85,7 @@ class QuestObjectiveHandler extends BaseTaskHandler
             $types[] = 'collect_resource';
             $types[] = 'building_level';
             $types[] = 'level_milestone';
+            $types[] = 'npc_kills';
         }
 
         $rows = $db->table('quest_steps qs')
@@ -152,6 +153,10 @@ class QuestObjectiveHandler extends BaseTaskHandler
             case 'level_milestone': // ADR-088: майлстоун роста (startable-вариант char_level).
                 $lvl = is_numeric($character['level'] ?? null) ? (int) $character['level'] : 0;
                 return $lvl >= $qty;
+
+            case 'npc_kills': // ADR-088 Фаза 2: побед над NPC ≥ qty (монотонный счётчик characters.npc_kills).
+                $kills = is_numeric($character['npc_kills'] ?? null) ? (int) $character['npc_kills'] : 0;
+                return $kills >= $qty;
 
             case 'explore_cells':
                 $count = $this->exploredCellsModel->where('character_id', $cid)->countAllResults();

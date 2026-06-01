@@ -222,6 +222,7 @@ class WipeManifest extends BaseConfig
         'well_fed_until'            => null,
         'specialization_changed_at' => null,
         'whats_new_seen'            => null,
+        'npc_kills'                 => 0, // ADR-088 Фаза 2 — счётчик побед над NPC (прогресс).
     ];
 
     /**

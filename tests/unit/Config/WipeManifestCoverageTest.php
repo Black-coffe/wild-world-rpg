@@ -120,6 +120,14 @@ final class WipeManifestCoverageTest extends CIUnitTestCase
         }
     }
 
+    public function testProgressCountersAreReset(): void
+    {
+        // ADR-088 Фаза 2: npc_kills — прогресс-счётчик, ОБЯЗАН сбрасываться при вайпе.
+        $values = (new WipeManifest())->characterResetValues;
+        $this->assertArrayHasKey('npc_kills', $values, 'npc_kills (прогресс) должен сбрасываться при вайпе');
+        $this->assertSame(0, $values['npc_kills']);
+    }
+
     public function testCriticalTablesAreKept(): void
     {
         $manifest = (new WipeManifest())->tables;

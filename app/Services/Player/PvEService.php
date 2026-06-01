@@ -89,6 +89,13 @@ class PvEService
         $rewards = $this->rewardService->grantRewards($fightResult['winner'], $fightResult['loser']);
         log_message('info', "Игрок {$player->name} получил: +{$rewards['exp']} опыта, +{$rewards['gold']} золота");
 
+        // ADR-088 Фаза 2: победа игрока над NPC → +1 к счётчику (квесты objective_type=npc_kills).
+        // Гейт по winner==player; счётчик ведём всегда (квест-прогрессия гейтится killswitch в handler).
+        $winner = $fightResult['winner'];
+        if ($winner instanceof BattleCharacter && (int) $winner->id === (int) $player->id) {
+            $this->characterModel->incrementNpcKills((int) $player->id);
+        }
+
         // Обновляем данные игрока
         $this->characterModel->update($player->id, [
             'health'     => max(1, $player->health),

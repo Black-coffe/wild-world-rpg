@@ -56,6 +56,7 @@ class CharacterModel extends Model
         'duels_open',          // W17 (ADR-071) — opt-in флаг «открыт к дуэлям» (default 0)
         'locale',              // W27 (ADR-082) — язык интерфейса игрока (ru/en, default ru)
         'notify_sound',        // W28 (ADR-083) — override «звук о завершении задач» (default 0 = тихо при killswitch ON)
+        'npc_kills',           // ADR-088 Фаза 2 — монотонный счётчик побед над NPC (квесты npc_kills)
     ];
 
     protected $useTimestamps = true;
@@ -123,6 +124,18 @@ class CharacterModel extends Model
 
         $newGoldAmount = $character->gold + $amount;
         return $this->update($characterId, ['gold' => $newGoldAmount]);
+    }
+
+    /**
+     * ADR-088 Фаза 2 — атомарный инкремент счётчика побед над NPC (+1).
+     * Raw SQL increment (без read-modify-write) — race-safe при параллельных боях.
+     */
+    public function incrementNpcKills(int $characterId): bool
+    {
+        return $this->db->table($this->table)
+            ->where('id', $characterId)
+            ->set('npc_kills', 'npc_kills + 1', false)
+            ->update();
     }
 
     // Ниже — дополнительные методы.
