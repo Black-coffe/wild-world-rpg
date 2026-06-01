@@ -163,12 +163,6 @@ parameters:
 			path: app/Config/Modules.php
 
 		-
-			message: '#^Property Config\\ResetTables\:\:\$tables has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Config/ResetTables.php
-
-		-
 			message: '#^Method Config\\Services\:\:auth\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1
@@ -285,12 +279,6 @@ parameters:
 		-
 			message: '#^Cannot access offset ''telegram_user_id'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Admin/CharacterResetController.php
-
-		-
-			message: '#^Method App\\Controllers\\Admin\\CharacterResetController\:\:getAffectedTablesData\(\) should return array\<string, int\> but returns array\<int\<1, max\>\|string\>\.$#'
-			identifier: return.type
 			count: 1
 			path: app/Controllers/Admin/CharacterResetController.php
 
@@ -18418,13 +18406,13 @@ parameters:
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
 			count: 3
-			path: app/Views/admin/dashboard.php
+			path: app/Views/admin/crafting_economy.php
 
 		-
 			message: '#^Variable \$this might not be defined\.$#'
 			identifier: variable.undefined
 			count: 3
-			path: app/Views/admin/crafting_economy.php
+			path: app/Views/admin/dashboard.php
 
 		-
 			message: '#^Binary operation "\." between ''🔥 TRIGGERED '' and array\<int\|string, array\<int\|string, mixed\>\|string\>\|string results in an error\.$#'
@@ -19163,6 +19151,72 @@ parameters:
 			identifier: variable.undefined
 			count: 1
 			path: app/Views/admin/tips_index.php
+
+		-
+			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
+			identifier: echo.nonString
+			count: 4
+			path: app/Views/admin/wipe_confirm.php
+
+		-
+			message: '#^Variable \$broadcastMessage might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/admin/wipe_confirm.php
+
+		-
+			message: '#^Variable \$broadcastTitle might not be defined\.$#'
+			identifier: variable.undefined
+			count: 2
+			path: app/Views/admin/wipe_confirm.php
+
+		-
+			message: '#^Variable \$preview might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/wipe_confirm.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/wipe_confirm.php
+
+		-
+			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Views/admin/wipe_index.php
+
+		-
+			message: '#^Parameter \#1 \(array\<int\|string, array\<int\|string, mixed\>\|string\>\|string\) of echo cannot be converted to string\.$#'
+			identifier: echo.nonString
+			count: 10
+			path: app/Views/admin/wipe_index.php
+
+		-
+			message: '#^Variable \$broadcastMessage might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/wipe_index.php
+
+		-
+			message: '#^Variable \$broadcastTitle might not be defined\.$#'
+			identifier: variable.undefined
+			count: 1
+			path: app/Views/admin/wipe_index.php
+
+		-
+			message: '#^Variable \$preview might not be defined\.$#'
+			identifier: variable.undefined
+			count: 8
+			path: app/Views/admin/wipe_index.php
+
+		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/wipe_index.php
 
 		-
 			message: '#^Variable \$biomes might not be defined\.$#'

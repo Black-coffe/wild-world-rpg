@@ -2,16 +2,11 @@
 
 namespace App\Controllers\Admin;
 
-use App\Models\TelegramUserModel;
 use App\Services\Images\AnnouncementImageService;
 use App\Services\Images\OpenAiImageProvider;
-use App\Services\Notifications\BroadcastDeliveryClassifier;
+use App\Services\Notifications\BroadcastService;
 use CodeIgniter\HTTP\RedirectResponse;
 use Config\ImageRegistry;
-use Longman\TelegramBot\Telegram;
-use Longman\TelegramBot\Request;
-use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Exception\TelegramException;
 use Throwable;
 
 /**
@@ -24,11 +19,8 @@ use Throwable;
  */
 class MessageController extends BaseAdminController
 {
-    // Telegram-лимиты по API на 2026-05.
-    private const TELEGRAM_CAPTION_LIMIT = 1024;
-    private const TELEGRAM_MESSAGE_LIMIT = 4096;
-    private const UPLOAD_MAX_BYTES       = 5_000_000;
-    private const UPLOAD_ALLOWED_MIME    = ['image/jpeg', 'image/png', 'image/webp'];
+    private const UPLOAD_MAX_BYTES    = 5_000_000;
+    private const UPLOAD_ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 
     public function index(): string
     {
@@ -176,105 +168,18 @@ class MessageController extends BaseAdminController
     }
 
     /**
-     * @param list<string>|null $telegramIds  null = всем
-     * @return int  количество фактически отправленных сообщений
-     */
-    /**
      * Рассылает сообщение получателям с проверкой доставки (isOk).
+     * Делегирует в {@see BroadcastService} (общий код с пост-вайп рассылкой, ADR-087).
      *
      * @param list<string>|null $telegramIds null = всем
      * @return array{sent:int, blocked:int, failed:int, total:int}
      */
     private function dispatch(string $fullMessage, ?string $imagePath, ?array $telegramIds): array
     {
-        $apiKeyEnv      = getenv('telegram.API_KEY');
-        $botUsernameEnv = getenv('telegram.BOT_USERNAME');
-        $apiKey         = is_string($apiKeyEnv) ? $apiKeyEnv : '';
-        $botUsername    = is_string($botUsernameEnv) ? $botUsernameEnv : '';
-        $telegram       = new Telegram($apiKey, $botUsername);
-        Request::initialize($telegram);
+        $broadcast = new BroadcastService();
 
-        $recipients = $telegramIds;
-        if ($recipients === null) {
-            /** @var list<string> $collected */
-            $collected = [];
-            foreach ((new TelegramUserModel())->findAll() as $u) {
-                if (is_array($u) && isset($u['telegram_id']) && is_scalar($u['telegram_id'])) {
-                    $id = (string) $u['telegram_id'];
-                    if ($id !== '') {
-                        $collected[] = $id;
-                    }
-                }
-            }
-            $recipients = $collected;
-        }
-
-        $userModel = new TelegramUserModel();
-        $sent = 0;
-        $blocked = 0;
-        $failed = 0;
-        foreach ($recipients as $telegramId) {
-            try {
-                $resp = $this->sendOne($telegramId, $fullMessage, $imagePath);
-                // 🔑 2026-05-31: Longman НЕ бросает на 403/429 — проверяем isOk(),
-                // иначе счётчик «sent» завышен (считает заблокировавших за успех).
-                if ($resp->isOk()) {
-                    $sent++;
-                    $userModel->clearBlocked($telegramId); // вернулся — снять отметку (self-heal)
-                    continue;
-                }
-                $desc = $resp->getDescription();
-                if (BroadcastDeliveryClassifier::isBlocked($desc)) {
-                    $blocked++;
-                    $userModel->markBlocked($telegramId);
-                } else {
-                    $failed++;
-                }
-                log_message('error', "Broadcast to {$telegramId} not delivered (isOk=false): {$desc}");
-            } catch (TelegramException $e) {
-                $failed++;
-                log_message('error', 'Telegram send to ' . $telegramId . ': ' . $e->getMessage());
-            } catch (Throwable $e) {
-                $failed++;
-                log_message('error', 'Send failure to ' . $telegramId . ': ' . $e->getMessage());
-            }
-        }
-
-        return ['sent' => $sent, 'blocked' => $blocked, 'failed' => $failed, 'total' => count($recipients)];
-    }
-
-    private function sendOne(string $chatId, string $fullMessage, ?string $imagePath): ServerResponse
-    {
-        if ($imagePath === null) {
-            return Request::sendMessage([
-                'chat_id'    => $chatId,
-                'text'       => mb_substr($fullMessage, 0, self::TELEGRAM_MESSAGE_LIMIT),
-                'parse_mode' => 'Markdown',
-            ]);
-        }
-
-        // Есть картинка. Если текст помещается в caption (≤1024) — sendPhoto с caption.
-        // Если длиннее — sendPhoto без caption + отдельным sendMessage полный текст.
-        if (mb_strlen($fullMessage) <= self::TELEGRAM_CAPTION_LIMIT) {
-            return Request::sendPhoto([
-                'chat_id'    => $chatId,
-                'photo'      => Request::encodeFile($imagePath),
-                'caption'    => $fullMessage,
-                'parse_mode' => 'Markdown',
-            ]);
-        }
-
-        $photoResp = Request::sendPhoto([
-            'chat_id' => $chatId,
-            'photo'   => Request::encodeFile($imagePath),
-        ]);
-        if (! $photoResp->isOk()) {
-            return $photoResp; // недостижим/ошибка фото — текст не шлём, отдаём провал
-        }
-        return Request::sendMessage([
-            'chat_id'    => $chatId,
-            'text'       => mb_substr($fullMessage, 0, self::TELEGRAM_MESSAGE_LIMIT),
-            'parse_mode' => 'Markdown',
-        ]);
+        return $telegramIds === null
+            ? $broadcast->broadcastToAll($fullMessage, $imagePath)
+            : $broadcast->broadcastTo($telegramIds, $fullMessage, $imagePath);
     }
 }

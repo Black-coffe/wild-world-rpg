@@ -109,6 +109,13 @@
                 </a>
             </li>
 
+            <li class="side-nav-item">
+                <a href="<?= base_url('admin/wipe')?>" class="side-nav-link">
+                    <i class="uil-trash-alt"></i>
+                    <span> 🔥 Вайп сервера </span>
+                </a>
+            </li>
+
             <!-- Новый пункт меню: Опросы -->
             <li class="side-nav-item">
                 <a data-bs-toggle="collapse" href="#pollsMenu" aria-expanded="false" aria-controls="pollsMenu" class="side-nav-link collapsed">

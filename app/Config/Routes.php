@@ -61,6 +61,11 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->post('character-reset/confirm', 'Admin\CharacterResetController::confirmReset');
     $routes->post('character-reset/reset-all', 'Admin\CharacterResetController::resetAllCharacters');
 
+    // ADR-087 — полный вайп сервера (preview → arm → пароль+подтверждение → wipe → broadcast)
+    $routes->get('wipe', 'Admin\WipeController::index');
+    $routes->post('wipe/arm', 'Admin\WipeController::arm');
+    $routes->post('wipe/execute', 'Admin\WipeController::execute');
+
     // Роутинг для советов
     $routes->get('tips', 'Admin\GameTipsController::index'); // Список всех советов
     $routes->get('tips/create', 'Admin\GameTipsController::createTipForm'); // Форма создания совета

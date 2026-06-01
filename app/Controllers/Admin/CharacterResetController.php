@@ -5,8 +5,8 @@ namespace App\Controllers\Admin;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Models\GeneralModel;
+use App\Services\Admin\WipeService;
 use CodeIgniter\HTTP\RedirectResponse;
-use Config\ResetTables;
 use App\Controllers\Telegram\BotController;
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Request;
@@ -81,18 +81,7 @@ class CharacterResetController extends BaseAdminController
      */
     private function getAffectedTablesData(int|string $characterId): array
     {
-        $resetConfig = new ResetTables();
-        $db = db_connect();
-        $affectedRows = [];
-
-        foreach ($resetConfig->tables as $table => $column) {
-            $count = $db->table($table)->where($column, $characterId)->countAllResults();
-            if ($count > 0) {
-                $affectedRows[$table] = $count;
-            }
-        }
-
-        return $affectedRows;
+        return (new WipeService())->previewCharacter((int) $characterId);
     }
 
     public function confirmReset(): RedirectResponse
@@ -100,20 +89,17 @@ class CharacterResetController extends BaseAdminController
         $rawCid = $this->request->getPost('characterId');
         $characterId = (int) (is_scalar($rawCid) ? $rawCid : 0);
         $telegramId = $this->request->getPost('telegramId');
-        $db = db_connect();
-        $resetConfig = new ResetTables();
 
-        $deletedTotals = [];
-        foreach ($resetConfig->tables as $table => $column) {
-            if ($db->tableExists($table) && $db->fieldExists($column, $table)) {
-                $db->table($table)->where($column, $characterId)->delete();
-                $deletedTotals[$table] = $db->affectedRows();
-            }
-        }
+        // ADR-087: единый манифест (WipeService.resetCharacter) — сбрасывает строку
+        // персонажа к стартовым + удаляет ВСЕ его player_data (без сирот, в отличие
+        // от прежнего 15-таблиц ResetTables) + респавн на юг.
+        $report        = (new WipeService())->resetCharacter($characterId);
+        $deletedTotals = $report['deleted'];
 
         $this->audit('CHARACTER_RESET', 'character', $characterId, [
             'telegram_id'     => $telegramId,
             'tables_affected' => $deletedTotals,
+            'respawned'       => $report['respawned'],
         ]);
 
         if ($telegramId) {
