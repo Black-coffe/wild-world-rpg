@@ -33,9 +33,9 @@ class SetNameAction extends BaseAction
         // Игрок отвечает на это сообщение именем; GenericmessageCommand ловит ответ
         // по маркеру «✍ NAME» → NameService->applyName. Зеркало трейд-паттерна SELL:/BUY:.
         $message = "📝 *Придумай имя герою* и пришли его *ответом на это сообщение*.\n\n"
-            . "Правила: *3–20 символов*, только латиница (A-Z, a-z), цифры и «\_».\n"
-            . "Без пробелов, кириллицы, эмодзи и спецсимволов.\n\n"
-            . "Например: `My_Hero123`\n\n"
+            . "Правила: *3–20 символов*, буквы любого языка (кириллица, латиница и др.), цифры и «\_».\n"
+            . "Без пробелов, эмодзи и спецсимволов.\n\n"
+            . "Например: `Иван_Грозный` или `My_Hero123`\n\n"
             . "_✍ NAME_";
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
@@ -63,8 +63,8 @@ class SetNameAction extends BaseAction
             ]);
         }
 
-        // Проверяем, что имя соответствует правилам
-        if (preg_match('/^[a-zA-Z0-9_]{3,20}$/', $name)) {
+        // Проверяем, что имя соответствует правилам (любой язык, см. NameService).
+        if (preg_match('/^[\p{L}\p{N}_]{3,20}$/u', $name)) {
             // Обновляем имя персонажа
             $this->characterModel->update($character['id'], ['name' => $name]);
 
