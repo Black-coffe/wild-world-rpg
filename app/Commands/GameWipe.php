@@ -50,8 +50,7 @@ class GameWipe extends BaseCommand
             CLI::write('⚠ Stale-записи манифеста (таблиц нет в БД): ' . implode(', ', $gaps['stale']), 'yellow');
         }
 
-        $confirmRaw = CLI::getOption('confirm');
-        $confirm    = is_string($confirmRaw) ? $confirmRaw : '';
+        $confirm = $this->resolveConfirm();
 
         if ($confirm === '') {
             CLI::write('');
@@ -93,6 +92,29 @@ class GameWipe extends BaseCommand
 
         log_message('info', "[game:wipe] DONE deleted={$deletedTotal} respawned={$report['characters_respawned']}");
         CLI::write('Не забудь разослать игрокам сообщение о вайпе (admin /admin/wipe или send-message).', 'yellow');
+    }
+
+    /**
+     * Достаёт фразу подтверждения, поддерживая обе формы:
+     *   --confirm WIPE-ALL-PLAYERS   (пробел; нативно для CI4)
+     *   --confirm=WIPE-ALL-PLAYERS   (=; CI4-парсер кладёт всё в ключ опции)
+     *
+     * Без этого `=`-форма (которую советует usage-строка) молча уходила бы в dry-run.
+     */
+    private function resolveConfirm(): string
+    {
+        $confirmRaw = CLI::getOption('confirm');
+        if (is_string($confirmRaw) && $confirmRaw !== '') {
+            return $confirmRaw;
+        }
+
+        foreach (array_keys(CLI::getOptions()) as $key) {
+            if (str_starts_with($key, 'confirm=')) {
+                return substr($key, strlen('confirm='));
+            }
+        }
+
+        return '';
     }
 
     /**

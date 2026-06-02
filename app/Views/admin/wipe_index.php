@@ -54,6 +54,7 @@
 <div class="card mb-4">
     <div class="card-header">Что произойдёт с каждой таблицей (KEEP скрыты — раскрой ниже)</div>
     <div class="card-body">
+        <div class="table-responsive">
         <table class="table table-sm table-striped">
             <thead><tr><th>Таблица</th><th>Стратегия</th><th>Строк сейчас</th><th>Действие</th></tr></thead>
             <tbody>
@@ -76,9 +77,11 @@
             <?php endforeach; ?>
             </tbody>
         </table>
+        </div>
 
         <details>
             <summary class="text-muted">🟢 Сохраняемые таблицы (KEEP) — <?= esc((string) $preview['totals']['tables_kept']) ?> шт.</summary>
+            <div class="table-responsive">
             <table class="table table-sm mt-2">
                 <tbody>
                 <?php foreach ($preview['tables'] as $t): ?>
@@ -91,6 +94,7 @@
                 <?php endforeach; ?>
                 </tbody>
             </table>
+            </div>
         </details>
     </div>
 </div>
