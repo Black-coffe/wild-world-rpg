@@ -54,6 +54,34 @@ final class NpcInteractionService
         return $this->boolSetting('npc.interaction_enabled', false);
     }
 
+    /** ADR-089 Фаза 3: шанс встречи с нейтралом на клетке во время Похода (0..1). */
+    public function marchEncounterChance(): float
+    {
+        $v = $this->settings->get('npc.march_encounter_chance', 0.0);
+
+        return is_numeric($v) ? (float) $v : 0.0;
+    }
+
+    /**
+     * ADR-089 Фаза 3: есть ли у персонажа поход на паузе из-за встречи с NPC.
+     * Используется encounter-экраном, чтобы предложить «🚜 Продолжить поход» вместо «🚶 Уйти».
+     */
+    public function pausedMarchExists(int $characterId): bool
+    {
+        $res = $this->spawns->db->table('character_tasks ct')
+            ->select('ct.id')
+            ->join('tasks t', 't.id = ct.task_id')
+            ->where('ct.character_id', $characterId)
+            ->where('ct.status', 'paused')
+            ->where('t.name', 'Marching')
+            ->get();
+        if ($res === false) {
+            return false;
+        }
+
+        return is_array($res->getRowArray());
+    }
+
     /**
      * Живой НЕЙТРАЛЬНЫЙ (passive) спавн на клетке + данные шаблона npcs, либо null.
      *

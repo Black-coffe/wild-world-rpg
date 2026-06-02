@@ -52,6 +52,11 @@ final class NpcEncounterAction extends BaseAction
         $attitude = (new NpcRelationService())->attitude($charId, $npcId);
         $greet    = $svc->greetingFor($npcId, $attitude);
 
+        // ADR-089 Фаза 3: если встреча произошла в Походе (поход на паузе) — выход возобновляет поход.
+        $exitRow = $svc->pausedMarchExists($charId)
+            ? [['text' => '🚜 Продолжить поход', 'callback_data' => 'march_resume']]
+            : [['text' => '🚶 Уйти', 'callback_data' => 'inlineMap']];
+
         $text  = "👤 *{$nameRu}*\n\n";
         $text .= "{$greet}\n\n";
         $text .= 'Что будешь делать?';
@@ -63,7 +68,7 @@ final class NpcEncounterAction extends BaseAction
                     ['text' => '⚔️ Напасть', 'callback_data' => "npcAct_attack_{$spawnId}"],
                     ['text' => '🗡 Убить',    'callback_data' => "npcAct_kill_{$spawnId}"],
                 ],
-                [['text' => '🚶 Уйти', 'callback_data' => 'inlineMap']],
+                $exitRow,
             ]];
         } else {
             $keyboard = ['inline_keyboard' => [
@@ -79,7 +84,7 @@ final class NpcEncounterAction extends BaseAction
                     ['text' => '💬 Поговорить', 'callback_data' => "npcAct_talk_{$spawnId}"],
                     ['text' => '❓ Спросить',   'callback_data' => "npcAct_ask_{$spawnId}"],
                 ],
-                [['text' => '🚶 Уйти', 'callback_data' => 'inlineMap']],
+                $exitRow,
             ]];
         }
 

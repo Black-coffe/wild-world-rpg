@@ -226,6 +226,11 @@ class MarchingTaskHandler extends BaseTaskHandler
             log_message('error', '[MarchingTaskHandler] towerAlerts: ' . $e->getMessage());
         }
 
+        // — ADR-089 Фаза 3: случайная встреча с нейтральным NPC в пути → пауза похода —
+        if ($this->tryRandomNpcEncounter($characterId, $telegramUserId, $targetCellNumber, $s, $character, $stepsPlanned - $stepsDone)) {
+            return;
+        }
+
         // — PvP detection: обнаружили игрока → пауза с промптом —
         if ($this->detector->detectNearbyPlayers($characterId)) {
             $this->pauseMarch($characterId, $telegramUserId, $s, $character, 'player_detected', $stepsPlanned - $stepsDone);
@@ -385,6 +390,41 @@ class MarchingTaskHandler extends BaseTaskHandler
     }
 
     /**
+     * ADR-089 Фаза 3 — случайная встреча с нейтральным NPC на текущей клетке.
+     * Гейт: killswitch npc.interaction_enabled + RNG(npc.march_encounter_chance) + наличие
+     * живого passive-NPC. При успехе → pauseMarch(npc_encounter) + spawn_id в settings.
+     * При выключенном шансе/killswitch — мгновенный false (0 регрессии похода).
+     *
+     * @param array<int|string, mixed> $s
+     * @param array<int|string, mixed> $character
+     * @return bool true → поход прерван (встреча)
+     */
+    private function tryRandomNpcEncounter(int $characterId, int $telegramUserId, int $targetCellNumber, array $s, array $character, int $stepsRemaining): bool
+    {
+        $svc = new \App\Services\NPC\NpcInteractionService();
+        if (! $svc->enabled()) {
+            return false;
+        }
+        $chance = $svc->marchEncounterChance();
+        if ($chance <= 0.0) {
+            return false;
+        }
+        if (mt_rand(0, 9999) / 10000.0 >= $chance) {
+            return false;
+        }
+        $npc = $svc->passiveSpawnOnCell($targetCellNumber);
+        if ($npc === null) {
+            return false;
+        }
+
+        $spawnRaw = $npc['spawn_id'] ?? null;
+        $s['npc_encounter_spawn_id'] = is_numeric($spawnRaw) ? (int) $spawnRaw : 0;
+        $this->pauseMarch($characterId, $telegramUserId, $s, $character, 'npc_encounter', $stepsRemaining);
+
+        return true;
+    }
+
+    /**
      * Пауза: новый character_tasks row со status='paused' (steps_remaining +
      * paused_reason) + сообщение с промптом. Текущая задача уже 'completed'.
      *
@@ -417,16 +457,22 @@ class MarchingTaskHandler extends BaseTaskHandler
         $text = match ($reason) {
             'player_detected' => "👀 *Поблизости кто-то есть.* Поход на паузе (осталось `{$stepsRemaining}` " . $this->plural($stepsRemaining, 'клетку', 'клетки', 'клеток') . ").\n"
                 . '_Промпт «атаковать / бежать» придёт отдельным сообщением. Или продолжай поход — пройдёшь мимо._',
+            'npc_encounter' => "👤 *Встреча в пути.* На клетке кто-то живой — настороженно смотрит на тебя. Поход на паузе (осталось `{$stepsRemaining}` " . $this->plural($stepsRemaining, 'клетку', 'клетки', 'клеток') . ").\n"
+                . '_Подойти — поговорить, торговать, напасть. Или пройти мимо и продолжить путь._',
             default => "⏸ *Поход на паузе* (осталось `{$stepsRemaining}` " . $this->plural($stepsRemaining, 'клетку', 'клетки', 'клеток') . ').',
         };
         $text .= "\n\n" . $this->renderMap($character);
 
-        $keyboardRows = [
-            [
+        // ADR-089 Фаза 3: для встречи с NPC — «подойти» (encounter) / «пройти мимо» (resume).
+        $keyboardRows = $reason === 'npc_encounter'
+            ? [[
+                ['text' => '👤 Подойти', 'callback_data' => 'npcEncounter'],
+                ['text' => '🚶 Пройти мимо', 'callback_data' => 'march_resume'],
+            ]]
+            : [[
                 ['text' => '🚜 Продолжить поход', 'callback_data' => 'march_resume'],
                 ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-            ],
-        ];
+            ]];
 
         $this->deliverMarchMessage($telegramUserId, $s, $text, $keyboardRows);
     }

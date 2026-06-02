@@ -45,6 +45,8 @@ final class NpcActionChoiceAction extends BaseAction
         $spawnId = (int) substr($rest, $pos + 1);
         $pidRaw  = $character['id'] ?? null;
         $playerId = is_numeric($pidRaw) ? (int) $pidRaw : 0;
+        // ADR-089 Фаза 3: встреча в Походе → выход возобновляет поход (а не уводит на карту).
+        $inMarch  = $svc->pausedMarchExists($playerId);
 
         $spawn = (new NpcSpawnModel())->find($spawnId);
         if (! is_array($spawn)) {
@@ -71,44 +73,48 @@ final class NpcActionChoiceAction extends BaseAction
                 $text = $won
                     ? '⚔️ Ты одолел противника. Пустошь стала на одного тише.'
                     : '⚔️ Схватка кончилась не в твою пользу — ты отступил, едва держась на ногах.';
-                return $this->finish($text);
+                return $this->finish($text, $inMarch);
 
             case 'rob':
                 $r = $svc->rob($playerId, $spawnId);
                 if ($r['outcome'] === 'success') {
                     $gold = $r['gold'] ?? 0;
-                    return $this->finish("💰 {$r['line']}\n\nДобыча: *+{$gold}* золота.");
+                    return $this->finish("💰 {$r['line']}\n\nДобыча: *+{$gold}* золота.", $inMarch);
                 }
                 if ($r['outcome'] === 'fail') {
                     $won  = ($r['fight']['won'] ?? false) === true;
                     $tail = $won ? 'Ты всё же одолел его в драке.' : 'Драка обернулась против тебя — ты отступил.';
-                    return $this->finish("💢 {$r['line']}\n\n{$tail}");
+                    return $this->finish("💢 {$r['line']}\n\n{$tail}", $inMarch);
                 }
-                return $this->finish($r['line']);
+                return $this->finish($r['line'], $inMarch);
 
             case 'talk':
-                return $this->reShowMenu($svc, $spawnId, $npcId, '💬 ' . $svc->line($npcId, 'talk'));
+                return $this->reShowMenu($svc, $spawnId, $npcId, '💬 ' . $svc->line($npcId, 'talk'), $inMarch);
 
             case 'ask':
-                return $this->reShowMenu($svc, $spawnId, $npcId, '❓ ' . $svc->line($npcId, 'ask'));
+                return $this->reShowMenu($svc, $spawnId, $npcId, '❓ ' . $svc->line($npcId, 'ask'), $inMarch);
 
             case 'trade':
-                return $this->reShowMenu($svc, $spawnId, $npcId, '🤝 ' . $svc->line($npcId, 'trade'));
+                return $this->reShowMenu($svc, $spawnId, $npcId, '🤝 ' . $svc->line($npcId, 'trade'), $inMarch);
 
             default:
                 return $this->alert('Неизвестное действие.');
         }
     }
 
-    /** Терминальный исход (NPC ушёл/повержен): текст + кнопка на карту. */
-    private function finish(string $text): ServerResponse
+    /** Терминальный исход (NPC ушёл/повержен): текст + выход (карта или возобновление похода). */
+    private function finish(string $text, bool $inMarch): ServerResponse
     {
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        $keyboard = ['inline_keyboard' => [[
-            ['text' => '🗺 Карта', 'callback_data' => 'inlineMap'],
-            ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-        ]]];
+        $keyboard = ['inline_keyboard' => [
+            $inMarch
+                ? [['text' => '🚜 Продолжить поход', 'callback_data' => 'march_resume']]
+                : [
+                    ['text' => '🗺 Карта', 'callback_data' => 'inlineMap'],
+                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                ],
+        ]];
 
         return MediaSender::editTextOrSend($this->navTarget() + [
             'text'         => $text,
@@ -118,9 +124,13 @@ final class NpcActionChoiceAction extends BaseAction
     }
 
     /** Не-боевой исход: реплика + меню встречи (NPC остаётся). */
-    private function reShowMenu(NpcInteractionService $svc, int $spawnId, int $npcId, string $line): ServerResponse
+    private function reShowMenu(NpcInteractionService $svc, int $spawnId, int $npcId, string $line, bool $inMarch): ServerResponse
     {
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+        $exitRow = $inMarch
+            ? [['text' => '🚜 Продолжить поход', 'callback_data' => 'march_resume']]
+            : [['text' => '🚶 Уйти', 'callback_data' => 'inlineMap']];
 
         $text = "{$line}\n\nЧто дальше?";
         $keyboard = ['inline_keyboard' => [
@@ -136,9 +146,7 @@ final class NpcActionChoiceAction extends BaseAction
                 ['text' => '💬 Поговорить', 'callback_data' => "npcAct_talk_{$spawnId}"],
                 ['text' => '❓ Спросить',   'callback_data' => "npcAct_ask_{$spawnId}"],
             ],
-            [
-                ['text' => '🚶 Уйти', 'callback_data' => 'inlineMap'],
-            ],
+            $exitRow,
         ]];
 
         return MediaSender::editTextOrSend($this->navTarget() + [
