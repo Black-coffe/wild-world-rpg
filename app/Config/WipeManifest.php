@@ -135,6 +135,7 @@ class WipeManifest extends BaseConfig
         'character_factions'     => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Членство во фракции'],
         'character_game_tips'    => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Просмотренные советы'],
         'character_message_status' => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Статус сообщений персонажа'],
+        'character_npc_relations' => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Отношения NPC к персонажу (ADR-089 Фаза 2 reactivity)'],
         'character_resources'    => ['strategy' => self::PLAYER_DATA, 'link' => 'id_characters', 'by' => 'character', 'note' => 'Инвентарь ресурсов'],
         'character_tasks'        => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Активные/очередные задачи'],
         'characters_outfits'     => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Броня игрока'],

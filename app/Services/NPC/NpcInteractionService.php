@@ -73,6 +73,32 @@ final class NpcInteractionService
         return is_array($row) ? $row : null;
     }
 
+    /**
+     * ADR-089 Фаза 2 — приветствие с учётом attitude: пробуем greeting_<attitude>,
+     * затем базовое greeting. neutral → базовое.
+     */
+    public function greetingFor(int $npcId, string $attitude): string
+    {
+        if ($attitude !== '' && $attitude !== 'neutral') {
+            $variant = $this->dialogues->lineFor($npcId, 'greeting_' . $attitude);
+            if ($variant !== null) {
+                return $variant;
+            }
+            // Фолбэк для attitude без засеянной строки.
+            $fallback = match ($attitude) {
+                'hostile'  => 'NPC узнаёт тебя. Рука тянется к оружию — прошлые встречи не забыты.',
+                'wary'     => 'NPC смотрит настороженно, держа дистанцию.',
+                'friendly' => 'NPC сдержанно кивает — он тебя помнит, и, похоже, неплохо.',
+                default    => '',
+            };
+            if ($fallback !== '') {
+                return $fallback;
+            }
+        }
+
+        return $this->line($npcId, 'greeting');
+    }
+
     /** Реплика заданного типа для NPC, с дефолтным фолбэком (контент полноценен без БД). */
     public function line(int $npcId, string $type): string
     {

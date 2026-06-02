@@ -6,6 +6,7 @@ namespace App\Controllers\Telegram\Commands\Actions\NPC;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\NPC\NpcInteractionService;
+use App\Services\NPC\NpcRelationService;
 use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
@@ -45,29 +46,42 @@ final class NpcEncounterAction extends BaseAction
         $npcId    = is_numeric($npcRaw) ? (int) $npcRaw : 0;
         $nameRaw  = $npc['npc_name_ru'] ?? null;
         $nameRu   = is_string($nameRaw) && $nameRaw !== '' ? $nameRaw : 'Незнакомец';
-        $greet   = $svc->line($npcId, 'greeting');
+
+        // ADR-089 Фаза 2: приветствие и доступные действия зависят от отношения NPC к игроку.
+        $charId   = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $attitude = (new NpcRelationService())->attitude($charId, $npcId);
+        $greet    = $svc->greetingFor($npcId, $attitude);
 
         $text  = "👤 *{$nameRu}*\n\n";
         $text .= "{$greet}\n\n";
         $text .= 'Что будешь делать?';
 
-        $keyboard = ['inline_keyboard' => [
-            [
-                ['text' => '⚔️ Напасть', 'callback_data' => "npcAct_attack_{$spawnId}"],
-                ['text' => '🗡 Убить',    'callback_data' => "npcAct_kill_{$spawnId}"],
-            ],
-            [
-                ['text' => '💰 Ограбить', 'callback_data' => "npcAct_rob_{$spawnId}"],
-                ['text' => '🤝 Торговать', 'callback_data' => "npcAct_trade_{$spawnId}"],
-            ],
-            [
-                ['text' => '💬 Поговорить', 'callback_data' => "npcAct_talk_{$spawnId}"],
-                ['text' => '❓ Спросить',   'callback_data' => "npcAct_ask_{$spawnId}"],
-            ],
-            [
-                ['text' => '🚶 Уйти', 'callback_data' => 'inlineMap'],
-            ],
-        ]];
+        if ($attitude === NpcRelationService::HOSTILE) {
+            // Враждебный NPC не желает говорить/торговать — только бой или уход.
+            $keyboard = ['inline_keyboard' => [
+                [
+                    ['text' => '⚔️ Напасть', 'callback_data' => "npcAct_attack_{$spawnId}"],
+                    ['text' => '🗡 Убить',    'callback_data' => "npcAct_kill_{$spawnId}"],
+                ],
+                [['text' => '🚶 Уйти', 'callback_data' => 'inlineMap']],
+            ]];
+        } else {
+            $keyboard = ['inline_keyboard' => [
+                [
+                    ['text' => '⚔️ Напасть', 'callback_data' => "npcAct_attack_{$spawnId}"],
+                    ['text' => '🗡 Убить',    'callback_data' => "npcAct_kill_{$spawnId}"],
+                ],
+                [
+                    ['text' => '💰 Ограбить', 'callback_data' => "npcAct_rob_{$spawnId}"],
+                    ['text' => '🤝 Торговать', 'callback_data' => "npcAct_trade_{$spawnId}"],
+                ],
+                [
+                    ['text' => '💬 Поговорить', 'callback_data' => "npcAct_talk_{$spawnId}"],
+                    ['text' => '❓ Спросить',   'callback_data' => "npcAct_ask_{$spawnId}"],
+                ],
+                [['text' => '🚶 Уйти', 'callback_data' => 'inlineMap']],
+            ]];
+        }
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 

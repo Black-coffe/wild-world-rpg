@@ -7,6 +7,7 @@ namespace App\Controllers\Telegram\Commands\Actions\NPC;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\NpcSpawnModel;
 use App\Services\NPC\NpcInteractionService;
+use App\Services\NPC\NpcRelationService;
 use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
@@ -58,6 +59,9 @@ final class NpcActionChoiceAction extends BaseAction
         }
         $npcIdRaw = $spawn['npc_id'] ?? null;
         $npcId    = is_numeric($npcIdRaw) ? (int) $npcIdRaw : 0;
+
+        // ADR-089 Фаза 2: действие игрока меняет отношение NPC (no-op при выключенной реактивности).
+        (new NpcRelationService())->registerAction($playerId, $npcId, $action);
 
         switch ($action) {
             case 'attack':
