@@ -390,9 +390,12 @@ class CallbackRoutes extends BaseConfig
         // ⚠️ exact-роуты questStartExplore30Cells/300Cells/AllBiomes/FirstAidkitBasic ловятся РАНЬШЕ.
         'questStart' => \App\Controllers\Telegram\Commands\Actions\Quest\GenericQuestStartAction::class,
         // ADR-089 Фаза 1 — выбор действия в экране встречи с NPC. Callback `npcAct_<action>_<spawnId>`.
-        'npcAct_' => \App\Controllers\Telegram\Commands\Actions\NPC\NpcActionChoiceAction::class,
+        // ⚠️ Ключ БЕЗ хвостового `_`: resolve() матчит первый сегмент `explode('_')[0]` = 'npcAct'
+        // через str_starts_with($action, $prefix). С 'npcAct_' (длиннее сегмента) матч НИКОГДА
+        // не срабатывал → все кнопки встречи были мёртвыми (прод-баг, пойман live-тапом 2026-06-02).
+        'npcAct' => \App\Controllers\Telegram\Commands\Actions\NPC\NpcActionChoiceAction::class,
         // ADR-089 Фаза 5+ — ветвящийся диалог именного NPC. Callback `npcDlg_<spawnId>_<nodeKey>_<rel>`.
-        'npcDlg_' => \App\Controllers\Telegram\Commands\Actions\NPC\NpcDialogueAction::class,
+        'npcDlg' => \App\Controllers\Telegram\Commands\Actions\NPC\NpcDialogueAction::class,
         // W20 (ADR-075) — модернизация: выбор/применение по предмету. `enchantSel_<type>_<id>` / `enchantApply_<type>_<id>`.
         'enchantSel' => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
         'enchantApply' => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
