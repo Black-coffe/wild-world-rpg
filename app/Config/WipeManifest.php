@@ -79,6 +79,7 @@ class WipeManifest extends BaseConfig
         'tasks'                => ['strategy' => self::KEEP, 'note' => 'Определения задач (хэндлеры)'],
         'quests'               => ['strategy' => self::KEEP, 'note' => 'Определения квестов'],
         'quest_requirements'   => ['strategy' => self::KEEP, 'note' => 'Требования квестов (определения)'],
+        'npc_dialogues'        => ['strategy' => self::KEEP, 'note' => 'Реплики NPC (ADR-089, контент-определения, не player-данные)'],
         'sales'                => ['strategy' => self::KEEP, 'note' => 'Прайс-лист рынка (сид, без привязки к игроку)'],
         'game_settings'        => ['strategy' => self::KEEP, 'note' => 'Admin-tunable баланс (КРИТИЧНО сохранить)'],
         'settings'             => ['strategy' => self::KEEP, 'note' => 'CI4 Settings'],

@@ -121,6 +121,13 @@ class AutoPveHandler
         if (!$npcInfo) {
             return;
         }
+
+        // ADR-089: нейтральный NPC (ai_behavior='passive') НЕ атакует первым — авто-бой пропускаем.
+        // С ним игрок взаимодействует через экран встречи (NpcEncounterAction).
+        if (is_array($npcInfo) && ($npcInfo['ai_behavior'] ?? null) === 'passive') {
+            return;
+        }
+
         $npcData['name'] = $npcInfo['npc_name_ru'] ?? 'Неизвестный враг';
 
         // Запускаем бой

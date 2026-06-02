@@ -267,6 +267,14 @@ class MoveCharacterToDirectionAction
             }
         }
 
+        // ADR-089 Фаза 1 — если на клетке стоит нейтральный (passive) NPC, показать
+        // кнопку «👤 Незнакомец» → экран встречи. Killswitch npc.interaction_enabled (dormant).
+        $npcInteraction = new \App\Services\NPC\NpcInteractionService();
+        if ($npcInteraction->enabled()
+            && $npcInteraction->passiveSpawnOnCell((int) $targetCell['cell_number']) !== null) {
+            $tail[] = ['text' => '👤 Незнакомец', 'callback_data' => 'npcEncounter'];
+        }
+
         // W2 (ADR-058) — кнопка «🚁 Дрон» если у чара есть DroneScout с qty>0.
         // W3b (ADR-060) + CLAUDE.md §🎮 UX-DISCOVERABILITY правило #4 —
         // Карго-дрон ВСЕГДА виден (active или lock-state), discoverability

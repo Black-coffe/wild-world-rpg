@@ -285,6 +285,8 @@ class CallbackRoutes extends BaseConfig
         'caravanLook'                     => \App\Controllers\Telegram\Commands\Actions\Caravan\CaravanLookAction::class,
         // W14b (ADR-068) — bargained-режим осмотра каравана (договорная цена от trading_karma).
         'caravanLookBargain'              => \App\Controllers\Telegram\Commands\Actions\Caravan\CaravanLookAction::class,
+        // ADR-089 Фаза 1 — экран встречи с нейтральным NPC на клетке игрока.
+        'npcEncounter'                    => \App\Controllers\Telegram\Commands\Actions\NPC\NpcEncounterAction::class,
 
         // W2 (ADR-058) — Drone-recon. Список дрон-инстансов чара с charge-bar.
         // - droneScoutList: показать все DroneScout с qty>0 + кнопки запуска
@@ -387,6 +389,8 @@ class CallbackRoutes extends BaseConfig
         // ADR-088 — generic-старт STANDALONE расширенных квестов. Callback `questStart<TitleEn>`.
         // ⚠️ exact-роуты questStartExplore30Cells/300Cells/AllBiomes/FirstAidkitBasic ловятся РАНЬШЕ.
         'questStart' => \App\Controllers\Telegram\Commands\Actions\Quest\GenericQuestStartAction::class,
+        // ADR-089 Фаза 1 — выбор действия в экране встречи с NPC. Callback `npcAct_<action>_<spawnId>`.
+        'npcAct_' => \App\Controllers\Telegram\Commands\Actions\NPC\NpcActionChoiceAction::class,
         // W20 (ADR-075) — модернизация: выбор/применение по предмету. `enchantSel_<type>_<id>` / `enchantApply_<type>_<id>`.
         'enchantSel' => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
         'enchantApply' => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
