@@ -57,6 +57,9 @@ final class NpcEncounterAction extends BaseAction
             ? [['text' => '🚜 Продолжить поход', 'callback_data' => 'march_resume']]
             : [['text' => '🚶 Уйти', 'callback_data' => 'inlineMap']];
 
+        // ADR-089 Фаза 4: NPC-квестгивер — если предлагает доступный квест, показываем «📜 Задание».
+        $hasQuest = $svc->offeredQuestFor($charId, $npcId) !== null;
+
         $text  = "👤 *{$nameRu}*\n\n";
         $text .= "{$greet}\n\n";
         $text .= 'Что будешь делать?';
@@ -84,8 +87,11 @@ final class NpcEncounterAction extends BaseAction
                     ['text' => '💬 Поговорить', 'callback_data' => "npcAct_talk_{$spawnId}"],
                     ['text' => '❓ Спросить',   'callback_data' => "npcAct_ask_{$spawnId}"],
                 ],
-                $exitRow,
             ]];
+            if ($hasQuest) {
+                $keyboard['inline_keyboard'][] = [['text' => '📜 Задание', 'callback_data' => "npcAct_quest_{$spawnId}"]];
+            }
+            $keyboard['inline_keyboard'][] = $exitRow;
         }
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);

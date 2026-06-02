@@ -69,6 +69,7 @@ class NpcModel extends Model
         'ai_behavior',
         'custom_settings',
         'is_rage', // ✅ Добавили флаг "ярости"
+        'offers_quest_title_en', // ADR-089 Ф4: квест, который NPC предлагает (NULL = не квестгивер)
         // Обычно 'created_at' и 'updated_at' можно не указывать,
         // если они работают автоматически. Но при желании можно оставить и здесь:
         'created_at',

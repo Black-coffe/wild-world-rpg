@@ -97,6 +97,24 @@ final class NpcActionChoiceAction extends BaseAction
             case 'trade':
                 return $this->reShowMenu($svc, $spawnId, $npcId, '🤝 ' . $svc->line($npcId, 'trade'), $inMarch);
 
+            case 'quest':
+                $q = $svc->acceptOfferedQuest($playerId, $npcId);
+                if ($q['ok'] !== true) {
+                    return $this->alert('Это задание сейчас недоступно.');
+                }
+                $title  = is_string($q['title'] ?? null) && $q['title'] !== '' ? $q['title'] : 'Задание';
+                $reward = is_numeric($q['reward'] ?? null) ? (int) $q['reward'] : 0;
+                $descr  = is_string($q['description'] ?? null) ? $q['description'] : '';
+                $qt  = "📜 *Задание принято: {$title}*\n\n";
+                if ($descr !== '') {
+                    $qt .= "{$descr}\n\n";
+                }
+                if ($reward > 0) {
+                    $qt .= "🏆 Награда: *{$reward}* золота\n\n";
+                }
+                $qt .= 'Отслеживай в «🚀 Активные квесты».';
+                return $this->finish($qt, $inMarch);
+
             default:
                 return $this->alert('Неизвестное действие.');
         }

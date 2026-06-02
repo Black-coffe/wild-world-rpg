@@ -68,6 +68,19 @@ final class NpcInteractionServiceTest extends CIUnitTestCase
         $this->assertSame('Канон-реплика из БД.', $svc->line(1, 'talk'));
     }
 
+    public function testQuestgiverDisabledByDefaultStyle(): void
+    {
+        $svc = new NpcInteractionService($this->settings(false), null, null, $this->dialogues());
+        $this->assertFalse($svc->questgiverEnabled());
+    }
+
+    public function testNoOfferedQuestWhenQuestgiverOff(): void
+    {
+        // questgiver OFF → offeredQuestFor возвращает null до обращения к моделям.
+        $svc = new NpcInteractionService($this->settings(false), null, null, $this->dialogues());
+        $this->assertNull($svc->offeredQuestFor(1, 4));
+    }
+
     public function testLineFallsBackWhenAbsent(): void
     {
         $svc = new NpcInteractionService($this->settings(true), null, null, $this->dialogues());

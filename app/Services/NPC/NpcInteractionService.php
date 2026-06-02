@@ -8,7 +8,10 @@ use App\Models\CharacterModel;
 use App\Models\NpcModel;
 use App\Models\NpcSpawnModel;
 use App\Models\NpcDialogueModel;
+use App\Models\QuestModel;
+use App\Models\QuestStepsModel;
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Quest\QuestChainService;
 use App\Services\PVE\BattleService;
 use App\Services\PVE\BattleLogger;
 use App\Services\PVE\DamageService;
@@ -125,6 +128,95 @@ final class NpcInteractionService
         }
 
         return $this->line($npcId, 'greeting');
+    }
+
+    /** ADR-089 Фаза 4: killswitch NPC-квестгиверов. Default false → dormant. */
+    public function questgiverEnabled(): bool
+    {
+        return $this->boolSetting('npc.questgiver_enabled', false);
+    }
+
+    /**
+     * ADR-089 Фаза 4: квест, который NPC предлагает данному персонажу, ЕСЛИ доступен:
+     * questgiver ON + у NPC задан offers_quest_title_en + квест active + startable-root
+     * (extended_enabled+тип+без prerequisite) + по уровню + ещё не начат. Иначе null.
+     *
+     * @return array<int|string,mixed>|null
+     */
+    public function offeredQuestFor(int $charId, int $npcId): ?array
+    {
+        if (! $this->questgiverEnabled() || $charId <= 0 || $npcId <= 0) {
+            return null;
+        }
+        $npc = $this->npcs->find($npcId);
+        if (! is_array($npc)) {
+            return null;
+        }
+        $titleRaw = $npc['offers_quest_title_en'] ?? null;
+        $title    = is_string($titleRaw) ? $titleRaw : '';
+        if ($title === '') {
+            return null;
+        }
+
+        $quest = (new QuestModel())->where('title_en', $title)->where('status', 'active')->first();
+        if (! is_array($quest)) {
+            return null;
+        }
+        // Startable-корень (внутри проверяется quests.extended_enabled + тип + отсутствие prerequisite).
+        if (! (new QuestChainService())->isExtendedStartableRoot($quest)) {
+            return null;
+        }
+
+        // Уровень персонажа.
+        $character = $this->characters->find($charId);
+        $charLevel = 0;
+        if ($character instanceof \App\Entities\CharacterEntity) {
+            $lvlRaw    = $character['level'] ?? null;
+            $charLevel = is_numeric($lvlRaw) ? (int) $lvlRaw : 0;
+        }
+        $minRaw   = $quest['min_level'] ?? null;
+        $minLevel = is_numeric($minRaw) ? (int) $minRaw : 0;
+        if ($charLevel < $minLevel) {
+            return null;
+        }
+
+        // Уже начат/в работе?
+        $questIdRaw = $quest['id'] ?? null;
+        $questId    = is_numeric($questIdRaw) ? (int) $questIdRaw : 0;
+        if ((new QuestStepsModel())->where(['quest_id' => $questId, 'character_id' => $charId])->first() !== null) {
+            return null;
+        }
+
+        return $quest;
+    }
+
+    /**
+     * ADR-089 Фаза 4: принять квест у NPC → создать quest_step (как GenericQuestStartAction).
+     *
+     * @return array{ok:bool, title?:string, reward?:int, description?:string}
+     */
+    public function acceptOfferedQuest(int $charId, int $npcId): array
+    {
+        $quest = $this->offeredQuestFor($charId, $npcId);
+        if ($quest === null) {
+            return ['ok' => false];
+        }
+        $questIdRaw = $quest['id'] ?? null;
+        $questId    = is_numeric($questIdRaw) ? (int) $questIdRaw : 0;
+        $titleRu    = is_string($quest['title_ru'] ?? null) ? $quest['title_ru'] : '';
+        $descr      = is_string($quest['description'] ?? null) ? $quest['description'] : '';
+        $rewardRaw  = $quest['reward'] ?? null;
+        $reward     = is_numeric($rewardRaw) ? (int) $rewardRaw : 0;
+
+        (new QuestStepsModel())->insert([
+            'quest_id'     => $questId,
+            'character_id' => $charId,
+            'step_order'   => 1,
+            'description'  => $titleRu !== '' ? $titleRu : 'Квест начат',
+            'is_completed' => false,
+        ]);
+
+        return ['ok' => true, 'title' => $titleRu, 'reward' => $reward, 'description' => $descr];
     }
 
     /** Реплика заданного типа для NPC, с дефолтным фолбэком (контент полноценен без БД). */
