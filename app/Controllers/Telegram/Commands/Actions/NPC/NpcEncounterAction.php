@@ -57,7 +57,7 @@ final class NpcEncounterAction extends BaseAction
         // ADR-089 Фаза 3: если встреча произошла в Походе (поход на паузе) — выход возобновляет поход.
         $exitRow = $svc->pausedMarchExists($charId)
             ? [['text' => '🚜 Продолжить поход', 'callback_data' => 'march_resume']]
-            : [['text' => '🚶 Уйти', 'callback_data' => 'inlineMap']];
+            : [['text' => '🚶 Уйти', 'callback_data' => 'move']];
 
         // ADR-089 Phase 6: диалого-центричная встреча — если включён rich-диалог И у NPC есть
         // дерево, рендерим корневой узел (приветствие + реплики-выборы, действия = act-* исходы

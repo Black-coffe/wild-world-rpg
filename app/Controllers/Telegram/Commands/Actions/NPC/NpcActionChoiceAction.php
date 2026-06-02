@@ -129,7 +129,7 @@ final class NpcActionChoiceAction extends BaseAction
             $inMarch
                 ? [['text' => '🚜 Продолжить поход', 'callback_data' => 'march_resume']]
                 : [
-                    ['text' => '🗺 Карта', 'callback_data' => 'inlineMap'],
+                    ['text' => '🗺 Карта', 'callback_data' => 'move'],
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                 ],
         ]];
@@ -148,7 +148,7 @@ final class NpcActionChoiceAction extends BaseAction
 
         $exitRow = $inMarch
             ? [['text' => '🚜 Продолжить поход', 'callback_data' => 'march_resume']]
-            : [['text' => '🚶 Уйти', 'callback_data' => 'inlineMap']];
+            : [['text' => '🚶 Уйти', 'callback_data' => 'move']];
 
         $text = "{$line}\n\nЧто дальше?";
         $keyboard = ['inline_keyboard' => [

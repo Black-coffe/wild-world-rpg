@@ -200,7 +200,7 @@ final class NpcDialogueAction extends BaseAction
         }
         $rows[] = $inMarch
             ? [['text' => '🚜 Продолжить поход', 'callback_data' => 'march_resume']]
-            : [['text' => '🚶 Уйти', 'callback_data' => 'inlineMap']];
+            : [['text' => '🚶 Уйти', 'callback_data' => 'move']];
 
         return MediaSender::editTextOrSend($this->navTarget() + [
             'text'         => $node['text'],
@@ -214,7 +214,7 @@ final class NpcDialogueAction extends BaseAction
     {
         $keyboard = ['inline_keyboard' => [
             [['text' => '💬 Продолжить разговор', 'callback_data' => "npcDlg_{$spawnId}_root_0"]],
-            [['text' => '🚶 Уйти', 'callback_data' => 'inlineMap']],
+            [['text' => '🚶 Уйти', 'callback_data' => 'move']],
         ]];
 
         return MediaSender::editTextOrSend($this->navTarget() + [
@@ -248,7 +248,7 @@ final class NpcDialogueAction extends BaseAction
             $inMarch
                 ? [['text' => '🚜 Продолжить поход', 'callback_data' => 'march_resume']]
                 : [
-                    ['text' => '🗺 Карта', 'callback_data' => 'inlineMap'],
+                    ['text' => '🗺 Карта', 'callback_data' => 'move'],
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                 ],
         ]];
