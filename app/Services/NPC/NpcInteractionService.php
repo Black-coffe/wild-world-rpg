@@ -66,6 +66,48 @@ final class NpcInteractionService
     }
 
     /**
+     * ADR-089 Phase 6: killswitch диалого-центричной встречи (ветвящееся дерево
+     * вместо меню 6 кнопок). Default false → dormant.
+     */
+    public function richDialogueEnabled(): bool
+    {
+        return $this->boolSetting('npc.rich_dialogue_enabled', false);
+    }
+
+    /**
+     * ADR-089 Phase 6: побег NPC, который слабее игрока, при провокации. Default true.
+     */
+    public function fleeEnabled(): bool
+    {
+        return $this->boolSetting('npc.flee_enabled', true);
+    }
+
+    /**
+     * ADR-089 Phase 6: слабее ли NPC игрока (для механики побега при провокации).
+     * Детерминированно (без RNG): сравнение по уровню, тай-брейк по текущему HP NPC.
+     */
+    public function npcWeakerThanPlayer(int $playerId, int $npcId): bool
+    {
+        $player = $this->characters->find($playerId);
+        $npc    = $this->npcs->find($npcId);
+        if (! $player instanceof \App\Entities\CharacterEntity || ! is_array($npc)) {
+            return false;
+        }
+        $pLvlRaw  = $player['level'] ?? null;
+        $nLvlRaw  = $npc['level'] ?? null;
+        $pLevel   = is_numeric($pLvlRaw) ? (int) $pLvlRaw : 0;
+        $nLevel   = is_numeric($nLvlRaw) ? (int) $nLvlRaw : 0;
+
+        return $nLevel < $pLevel;
+    }
+
+    /** ADR-089 Phase 6: NPC сбегает (провокация + слабее) — спавн исчезает. */
+    public function npcFlees(int $spawnId): void
+    {
+        $this->consumeSpawn($spawnId);
+    }
+
+    /**
      * ADR-089 Фаза 3: есть ли у персонажа поход на паузе из-за встречи с NPC.
      * Используется encounter-экраном, чтобы предложить «🚜 Продолжить поход» вместо «🚶 Уйти».
      */

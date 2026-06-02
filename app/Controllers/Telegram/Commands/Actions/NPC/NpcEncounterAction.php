@@ -59,13 +59,47 @@ final class NpcEncounterAction extends BaseAction
             ? [['text' => '🚜 Продолжить поход', 'callback_data' => 'march_resume']]
             : [['text' => '🚶 Уйти', 'callback_data' => 'inlineMap']];
 
+        // ADR-089 Phase 6: диалого-центричная встреча — если включён rich-диалог И у NPC есть
+        // дерево, рендерим корневой узел (приветствие + реплики-выборы, действия = act-* исходы
+        // внутри диалога). Иначе — легаси-меню 6 кнопок ниже (dormant-совместимо).
+        $tree = new NpcDialogueTreeService();
+        if ($svc->richDialogueEnabled() && $tree->hasTree($npcId)) {
+            $root = $tree->node($npcId, 'root');
+            if ($root !== null) {
+                $head = "👤 *{$nameRu}*\n\n";
+                if ($rel->enabled()) {
+                    $st = $rel->standing($charId, $npcId);
+                    $head .= "📊 Отношение: _{$st['label']}_\n\n";
+                }
+                $head .= $root['text'];
+
+                $rows = [];
+                foreach ($root['options'] as $opt) {
+                    if ($opt['gate'] !== '' && ! $rel->meetsStanding($charId, $npcId, $opt['gate'])) {
+                        continue;
+                    }
+                    $next   = $opt['next'] !== '' ? $opt['next'] : 'end';
+                    $rows[] = [['text' => $opt['label'], 'callback_data' => "npcDlg_{$spawnId}_{$next}_{$opt['rel']}"]];
+                }
+                $rows[] = $exitRow;
+
+                Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+                return MediaSender::editTextOrSend($this->navTarget() + [
+                    'text'         => $head,
+                    'parse_mode'   => 'Markdown',
+                    'reply_markup' => json_encode(['inline_keyboard' => $rows]),
+                ]);
+            }
+        }
+
         // ADR-089 Фаза 4: NPC-квестгивер — если предлагает доступный квест, показываем «📜 Задание».
         $hasQuest = $svc->offeredQuestFor($charId, $npcId) !== null;
 
-        // ADR-089 Фаза 5+: у именного NPC «Поговорить» открывает ветвящийся диалог, иначе — одну реплику.
-        $talkCb = (new NpcDialogueTreeService())->hasTree($npcId)
-            ? "npcDlg_{$spawnId}_root_0"
-            : "npcAct_talk_{$spawnId}";
+        // ADR-089 Phase 6: rich-диалог рендерится диалого-центрично ВЫШЕ (early return при
+        // rich_dialogue_enabled ON). Сюда попадаем только при rich OFF → «Поговорить» = легаси
+        // одиночная реплика, чтобы Phase 6 (засеянные деревья) был полностью dormant до активации.
+        $talkCb = "npcAct_talk_{$spawnId}";
 
         $text  = "👤 *{$nameRu}*\n\n";
         // ADR-089 Фаза 5: показываем ступень репутации (только при включённой реактивности).

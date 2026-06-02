@@ -124,6 +124,25 @@ final class NpcRelationService
         return ['tier' => $tier, 'label' => self::TIER_LABELS[$tier]];
     }
 
+    /** ADR-089 Phase 6 — порядок ступеней (для гейтинга опций диалога по standing). */
+    private const TIER_ORDER = ['enemy' => 0, 'wary' => 1, 'neutral' => 2, 'acquaintance' => 3, 'ally' => 4];
+
+    /**
+     * ADR-089 Phase 6 — удовлетворяет ли текущая ступень минимальному гейту опции.
+     * Пустой гейт = опция видна всегда. Неизвестный гейт = считаем выполненным (fail-open
+     * на контент-ошибке, чтобы реплика не пропадала молча).
+     */
+    public function meetsStanding(int $characterId, int $npcId, string $minTier): bool
+    {
+        if ($minTier === '' || ! isset(self::TIER_ORDER[$minTier])) {
+            return true;
+        }
+        $current = $this->standing($characterId, $npcId)['tier'];
+        $curRank = self::TIER_ORDER[$current] ?? 2;
+
+        return $curRank >= self::TIER_ORDER[$minTier];
+    }
+
     /**
      * ADR-089 Фаза 5+ — применить произвольный сдвиг отношения (эффект ветки диалога).
      * No-op при выключенной реактивности.

@@ -31,7 +31,11 @@ final class NpcDialogueTreeService
     /**
      * Узел: текст + декодированные опции. null если узла нет.
      *
-     * @return array{text:string, options:list<array{label:string, next:string, rel:int}>}|null
+     * Опция: {label, next, rel, gate?}. ADR-089 Phase 6:
+     *  - `next` = node_key → переход вглубь; `act-quest|act-rob|act-fight|act-trade|act-leave|act-provoke` → исход.
+     *  - `gate` (опц.) = минимальная ступень standing для показа опции (stranger|acquaintance|ally).
+     *
+     * @return array{text:string, options:list<array{label:string, next:string, rel:int, gate:string}>}|null
      */
     public function node(int $npcId, string $nodeKey): ?array
     {
@@ -54,8 +58,9 @@ final class NpcDialogueTreeService
                     $next  = is_string($opt['next'] ?? null) ? $opt['next'] : '';
                     $relR  = $opt['rel'] ?? 0;
                     $rel   = is_numeric($relR) ? (int) $relR : 0;
+                    $gate  = is_string($opt['gate'] ?? null) ? $opt['gate'] : '';
                     if ($label !== '') {
-                        $options[] = ['label' => $label, 'next' => $next, 'rel' => $rel];
+                        $options[] = ['label' => $label, 'next' => $next, 'rel' => $rel, 'gate' => $gate];
                     }
                 }
             }
