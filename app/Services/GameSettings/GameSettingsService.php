@@ -58,7 +58,13 @@ final class GameSettingsService
             }
         }
 
-        $row = $this->model->findByKey($key);
+        // Безопасная деградация: если game_settings недоступна (напр. частичная тест-БД),
+        // возвращаем default — фичи остаются в безопасном dormant-состоянии, не падая.
+        try {
+            $row = $this->model->findByKey($key);
+        } catch (\Throwable $e) {
+            return $default;
+        }
         if ($row === null) {
             return $default;
         }
