@@ -89,7 +89,7 @@ class QuestObjectiveHandler extends BaseTaskHandler
         }
 
         $rows = $db->table('quest_steps qs')
-            ->select('qs.id AS step_id, qs.character_id, q.id AS quest_id, q.title_en, q.title_ru, q.reward, q.objective_type, q.objective_target, q.objective_qty')
+            ->select('qs.id AS step_id, qs.character_id, q.id AS quest_id, q.title_en, q.title_ru, q.reward, q.objective_type, q.objective_target, q.objective_qty, q.faction_id')
             ->join('quests q', 'q.id = qs.quest_id')
             ->where('qs.is_completed', 0)
             ->whereIn('q.objective_type', $types)
@@ -99,10 +99,26 @@ class QuestObjectiveHandler extends BaseTaskHandler
             return;
         }
 
+        // ADR-088 Фаза 3: прогресс фракционных квестов гейтится отдельным killswitch'ом.
+        $factionQuestsEnabled = $this->chainService->factionQuestsEnabled();
+
         foreach ($rows->getResultArray() as $row) {
             $charId = is_numeric($row['character_id'] ?? null) ? (int) $row['character_id'] : 0;
             if ($charId <= 0) {
                 continue;
+            }
+
+            // ADR-088 Фаза 3: фракционный квест (faction_id 1-4) прогрессит только при
+            // killswitch ON И совпадении фракции персонажа с фракцией квеста.
+            $questFaction = is_numeric($row['faction_id'] ?? null) ? (int) $row['faction_id'] : 0;
+            if ($questFaction !== 0) {
+                if (! $factionQuestsEnabled) {
+                    continue;
+                }
+                $charFaction = (new \App\Models\CharacterFactionModel())->getFactionId($charId);
+                if ($charFaction !== $questFaction) {
+                    continue;
+                }
             }
             $charRes = $db->table('characters')->where('id', $charId)->get();
             $character = $charRes === false ? null : $charRes->getRowArray();

@@ -12,7 +12,7 @@ class QuestModel extends Model
     protected $returnType = 'array';
     protected $useSoftDeletes = false;
 
-    protected $allowedFields = ['title_ru', 'title_en', 'description', 'status', 'reward', 'min_level', 'reward_type', 'prerequisite_quest', 'objective_type', 'objective_target', 'objective_qty', 'branch_group', 'branch_label'];
+    protected $allowedFields = ['title_ru', 'title_en', 'description', 'status', 'reward', 'min_level', 'reward_type', 'prerequisite_quest', 'objective_type', 'objective_target', 'objective_qty', 'branch_group', 'branch_label', 'faction_id'];
 
     protected $useTimestamps = false;
     protected $createdField  = '';

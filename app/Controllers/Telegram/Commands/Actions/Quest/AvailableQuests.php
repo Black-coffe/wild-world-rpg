@@ -9,6 +9,7 @@ use Longman\TelegramBot\Request;
 use App\Models\QuestModel;
 use App\Models\QuestStepsModel;
 use App\Models\CharacterModel;
+use App\Models\CharacterFactionModel;
 
 class AvailableQuests extends BaseAction
 {
@@ -40,6 +41,8 @@ class AvailableQuests extends BaseAction
         // после завершения предусловия. Собираем завершённые квесты персонажа один раз.
         $chain           = new \App\Services\Quest\QuestChainService();
         $completedTitles = $questModel->getCompletedQuestTitles((int) $characterId);
+        // ADR-088 Фаза 3: фракция персонажа для гейтинга фракционных квестов (0/5 = нет).
+        $charFactionId   = (new CharacterFactionModel())->getFactionId((int) $characterId);
 
         $availableQuests = [];
         $lockedQuests    = [];
@@ -62,7 +65,8 @@ class AvailableQuests extends BaseAction
             // building_level / npc_kills / char_level / craft_item без prerequisite,
             // killswitch quests.extended_enabled ON) показываем как startable.
             if (!empty($quest['objective_type'])) {
-                if ($chain->isExtendedStartableRoot($quest)) {
+                // ADR-088: расширенный «корень» + (Фаза 3) фракционный гейт по фракции игрока.
+                if ($chain->isExtendedStartableRoot($quest) && $chain->factionGateOk($quest, $charFactionId)) {
                     $availableQuests[] = $quest;
                 }
                 continue;

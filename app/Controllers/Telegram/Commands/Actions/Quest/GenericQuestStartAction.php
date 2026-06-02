@@ -64,6 +64,13 @@ final class GenericQuestStartAction extends BaseAction
             return $this->alert('Этот квест нельзя начать вручную.');
         }
 
+        // ADR-088 Фаза 3: фракционный квест — только для игроков своей фракции
+        // (и при killswitch quests.faction_quests_enabled=ON).
+        $charFactionId = (new \App\Models\CharacterFactionModel())->getFactionId($charId);
+        if (! $this->chain->factionGateOk($quest, $charFactionId)) {
+            return $this->alert('Этот квест доступен только членам соответствующей фракции.');
+        }
+
         $charLevel = is_numeric($character['level'] ?? null) ? (int) $character['level'] : 0;
         $minLevel  = is_numeric($quest['min_level'] ?? null) ? (int) $quest['min_level'] : 0;
         if ($charLevel < $minLevel) {

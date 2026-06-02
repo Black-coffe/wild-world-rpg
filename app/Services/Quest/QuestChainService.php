@@ -87,6 +87,52 @@ final class QuestChainService
     }
 
     /**
+     * ADR-088 Фаза 3 killswitch: фракционные квесты (quests.faction_id 1-4) видны/
+     * стартуемы/прогрессят только при quests.faction_quests_enabled=ON. Отдельный гейт
+     * поверх extended_enabled → можно держать faction-контент dormant, пока общие
+     * расширенные квесты (Фазы 1-2) уже активны. Default false → dormant.
+     */
+    public function factionQuestsEnabled(): bool
+    {
+        $v = $this->settings->get('quests.faction_quests_enabled', false);
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+        return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /**
+     * ADR-088 Фаза 3: faction_id квеста (1-4) или 0 если квест не привязан к фракции.
+     *
+     * @param array<int|string,mixed> $quest
+     */
+    public function factionOf(array $quest): int
+    {
+        $f = $quest['faction_id'] ?? null;
+        return is_numeric($f) ? (int) $f : 0;
+    }
+
+    /**
+     * ADR-088 Фаза 3: проходит ли квест фракционный гейт для данного персонажа.
+     * Не-фракционный квест (faction_id 0/null) — всегда ОК. Фракционный — только если
+     * killswitch faction_quests_enabled=ON И фракция персонажа совпадает с quest.faction_id.
+     *
+     * @param array<int|string,mixed> $quest
+     * @param int $charFactionId фракция персонажа (CharacterFactionModel::getFactionId; 0/5 = нет)
+     */
+    public function factionGateOk(array $quest, int $charFactionId): bool
+    {
+        $questFaction = $this->factionOf($quest);
+        if ($questFaction === 0) {
+            return true; // не фракционный квест
+        }
+        return $this->factionQuestsEnabled() && $charFactionId === $questFaction;
+    }
+
+    /**
      * Выполнено ли предусловие квеста. true если: гейт выключен / нет предусловия /
      * предусловие в списке завершённых квестов персонажа.
      *
