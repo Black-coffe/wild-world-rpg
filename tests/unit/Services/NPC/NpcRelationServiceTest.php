@@ -34,6 +34,7 @@ final class NpcRelationServiceTest extends CIUnitTestCase
                     'npc.reactivity_enabled'   => $this->on ? 1 : 0,
                     'npc.relation_hostile_at'  => -50,
                     'npc.relation_friendly_at' => 30,
+                    'npc.relation_ally_at'     => 80,
                     'npc.relation_faction_same'  => 25,
                     'npc.relation_faction_other' => -15,
                 ], $this->values);
@@ -117,5 +118,75 @@ final class NpcRelationServiceTest extends CIUnitTestCase
     {
         $svc = $this->service(true, 40);
         $this->assertSame(NpcRelationService::FRIENDLY, $svc->attitude(1, 4));
+    }
+
+    // ── ADR-089 Фаза 5: репутация-тиры ──
+
+    public function testStandingNeutralWhenReactivityOff(): void
+    {
+        $this->assertSame('neutral', $this->service(false, 90)->standing(1, 4)['tier']);
+    }
+
+    /**
+     * @dataProvider standingTiers
+     */
+    public function testStandingTiers(int $score, string $expectedTier, string $expectedLabel): void
+    {
+        $st = $this->service(true, $score)->standing(1, 4);
+        $this->assertSame($expectedTier, $st['tier']);
+        $this->assertSame($expectedLabel, $st['label']);
+    }
+
+    /**
+     * @return list<array{int,string,string}>
+     */
+    public static function standingTiers(): array
+    {
+        return [
+            [-60, 'enemy', 'Враг'],
+            [-20, 'wary', 'Чужак'],
+            [5, 'neutral', 'Незнакомец'],
+            [40, 'acquaintance', 'Знакомый'],
+            [90, 'ally', 'Союзник'],
+        ];
+    }
+
+    public function testBetrayalMultipliesPenaltyAgainstAlly(): void
+    {
+        // Союзник (score 90) + грабёж (relation_rob=-30) × betrayal_mult(2) = -60.
+        $relations = new class extends CharacterNpcRelationModel {
+            public ?int $captured = null;
+            public function __construct() {}
+            public function scoreFor(int $characterId, int $npcId): int { return 90; }
+            public function adjust(int $characterId, int $npcId, int $delta): int { $this->captured = $delta; return $delta; }
+        };
+        $settingsModel = new class extends GameSettingsModel {
+            public function __construct() {}
+            public function findByKey(string $key): ?array
+            {
+                $map = ['npc.reactivity_enabled'=>1,'npc.relation_friendly_at'=>30,'npc.relation_rob'=>-30,'npc.relation_betrayal_mult'=>2];
+                if (! array_key_exists($key, $map)) return null;
+                return ['id'=>1,'setting_key'=>$key,'value_type'=>'int','value_int'=>$map[$key],'value_bool'=>$key==='npc.reactivity_enabled'?1:null,'hard_min'=>null,'hard_max'=>null];
+            }
+        };
+        $npcs = new class extends NpcModel {
+            public function __construct() {}
+
+            /**
+             * @param int|array<int|string,mixed>|string|null $id
+             * @return array<string,mixed>
+             */
+            public function find($id = null): array
+            {
+                return ['id' => $id, 'faction_id' => null];
+            }
+        };
+        $factions = new class extends CharacterFactionModel {
+            public function __construct() {}
+            public function getFactionId(int $characterId): int { return 0; }
+        };
+        $svc = new NpcRelationService(new GameSettingsService($settingsModel), $relations, $npcs, $factions);
+        $svc->registerAction(1, 4, 'rob');
+        $this->assertSame(-60, $relations->captured);
     }
 }

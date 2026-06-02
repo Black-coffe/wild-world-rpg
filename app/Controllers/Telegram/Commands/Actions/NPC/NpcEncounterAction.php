@@ -49,7 +49,8 @@ final class NpcEncounterAction extends BaseAction
 
         // ADR-089 Фаза 2: приветствие и доступные действия зависят от отношения NPC к игроку.
         $charId   = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
-        $attitude = (new NpcRelationService())->attitude($charId, $npcId);
+        $rel      = new NpcRelationService();
+        $attitude = $rel->attitude($charId, $npcId);
         $greet    = $svc->greetingFor($npcId, $attitude);
 
         // ADR-089 Фаза 3: если встреча произошла в Походе (поход на паузе) — выход возобновляет поход.
@@ -61,6 +62,11 @@ final class NpcEncounterAction extends BaseAction
         $hasQuest = $svc->offeredQuestFor($charId, $npcId) !== null;
 
         $text  = "👤 *{$nameRu}*\n\n";
+        // ADR-089 Фаза 5: показываем ступень репутации (только при включённой реактивности).
+        if ($rel->enabled()) {
+            $standing = $rel->standing($charId, $npcId);
+            $text .= "📊 Отношение: _{$standing['label']}_\n\n";
+        }
         $text .= "{$greet}\n\n";
         $text .= 'Что будешь делать?';
 

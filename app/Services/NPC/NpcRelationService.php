@@ -24,6 +24,15 @@ final class NpcRelationService
     public const NEUTRAL  = 'neutral';
     public const FRIENDLY = 'friendly';
 
+    /** ADR-089 Фаза 5 — именованные ступени репутации (label для UI). */
+    private const TIER_LABELS = [
+        'enemy'        => 'Враг',
+        'wary'         => 'Чужак',
+        'neutral'      => 'Незнакомец',
+        'acquaintance' => 'Знакомый',
+        'ally'         => 'Союзник',
+    ];
+
     private GameSettingsService $settings;
     private CharacterNpcRelationModel $relations;
     private NpcModel $npcs;
@@ -75,7 +84,44 @@ final class NpcRelationService
         if ($key === null) {
             return;
         }
-        $this->relations->adjust($characterId, $npcId, $this->intSetting($key, 0));
+        $delta = $this->intSetting($key, 0);
+
+        // ADR-089 Фаза 5 — предательство: враждебное действие против дружелюбного NPC бьёт сильнее.
+        if ($delta < 0 && in_array($action, ['rob', 'kill', 'attack'], true)) {
+            $scoreBefore = $this->effectiveScore($characterId, $npcId);
+            if ($scoreBefore >= $this->intSetting('npc.relation_friendly_at', 30)) {
+                $delta = (int) round($delta * $this->floatSetting('npc.relation_betrayal_mult', 1.0));
+            }
+        }
+
+        $this->relations->adjust($characterId, $npcId, $delta);
+    }
+
+    /**
+     * ADR-089 Фаза 5 — именованная ступень репутации NPC к персонажу.
+     * При выключенной реактивности — neutral («Незнакомец»).
+     *
+     * @return array{tier:string, label:string}
+     */
+    public function standing(int $characterId, int $npcId): array
+    {
+        if (! $this->enabled()) {
+            return ['tier' => 'neutral', 'label' => self::TIER_LABELS['neutral']];
+        }
+        $score      = $this->effectiveScore($characterId, $npcId);
+        $hostileAt  = $this->intSetting('npc.relation_hostile_at', -50);
+        $friendlyAt = $this->intSetting('npc.relation_friendly_at', 30);
+        $allyAt     = $this->intSetting('npc.relation_ally_at', 80);
+
+        $tier = match (true) {
+            $score <= $hostileAt  => 'enemy',
+            $score < 0            => 'wary',
+            $score < $friendlyAt  => 'neutral',
+            $score < $allyAt      => 'acquaintance',
+            default               => 'ally',
+        };
+
+        return ['tier' => $tier, 'label' => self::TIER_LABELS[$tier]];
     }
 
     /**
@@ -140,5 +186,12 @@ final class NpcRelationService
         $v = $this->settings->get($key, $default);
 
         return is_numeric($v) ? (int) $v : $default;
+    }
+
+    private function floatSetting(string $key, float $default): float
+    {
+        $v = $this->settings->get($key, $default);
+
+        return is_numeric($v) ? (float) $v : $default;
     }
 }
