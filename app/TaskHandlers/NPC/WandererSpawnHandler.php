@@ -43,9 +43,9 @@ class WandererSpawnHandler
             return;
         }
 
-        // ID шаблонов нейтральных NPC.
+        // ID шаблонов нейтральных NPC (исключая именных — ADR-089 Ф5+, они не масс-спавнятся).
         $neutralIds = [];
-        foreach ($this->npcs->where('ai_behavior', 'passive')->findAll() as $n) {
+        foreach ($this->npcs->where('ai_behavior', 'passive')->where('npc_type !=', 'named')->findAll() as $n) {
             if (! is_array($n)) {
                 continue;
             }

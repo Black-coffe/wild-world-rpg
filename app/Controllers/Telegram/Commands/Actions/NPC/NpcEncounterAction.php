@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers\Telegram\Commands\Actions\NPC;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Services\NPC\NpcDialogueTreeService;
 use App\Services\NPC\NpcInteractionService;
 use App\Services\NPC\NpcRelationService;
 use App\Services\Notifications\MediaSender;
@@ -61,6 +62,11 @@ final class NpcEncounterAction extends BaseAction
         // ADR-089 Фаза 4: NPC-квестгивер — если предлагает доступный квест, показываем «📜 Задание».
         $hasQuest = $svc->offeredQuestFor($charId, $npcId) !== null;
 
+        // ADR-089 Фаза 5+: у именного NPC «Поговорить» открывает ветвящийся диалог, иначе — одну реплику.
+        $talkCb = (new NpcDialogueTreeService())->hasTree($npcId)
+            ? "npcDlg_{$spawnId}_root_0"
+            : "npcAct_talk_{$spawnId}";
+
         $text  = "👤 *{$nameRu}*\n\n";
         // ADR-089 Фаза 5: показываем ступень репутации (только при включённой реактивности).
         if ($rel->enabled()) {
@@ -90,7 +96,7 @@ final class NpcEncounterAction extends BaseAction
                     ['text' => '🤝 Торговать', 'callback_data' => "npcAct_trade_{$spawnId}"],
                 ],
                 [
-                    ['text' => '💬 Поговорить', 'callback_data' => "npcAct_talk_{$spawnId}"],
+                    ['text' => '💬 Поговорить', 'callback_data' => $talkCb],
                     ['text' => '❓ Спросить',   'callback_data' => "npcAct_ask_{$spawnId}"],
                 ],
             ]];

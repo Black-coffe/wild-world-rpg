@@ -125,6 +125,18 @@ final class NpcRelationService
     }
 
     /**
+     * ADR-089 Фаза 5+ — применить произвольный сдвиг отношения (эффект ветки диалога).
+     * No-op при выключенной реактивности.
+     */
+    public function adjustBy(int $characterId, int $npcId, int $delta): void
+    {
+        if (! $this->enabled() || $delta === 0 || $characterId <= 0 || $npcId <= 0) {
+            return;
+        }
+        $this->relations->adjust($characterId, $npcId, $delta);
+    }
+
+    /**
      * Эффективное отношение = stored relation + faction-модификатор.
      */
     public function effectiveScore(int $characterId, int $npcId): int
