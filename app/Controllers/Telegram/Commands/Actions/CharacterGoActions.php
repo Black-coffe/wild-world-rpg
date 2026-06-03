@@ -72,6 +72,10 @@ class CharacterGoActions extends BaseAction
         $keyboardButtons[] = ['text' => '📜 Квесты и задания', 'callback_data' => 'questAndTask'];
         $keyboardButtons[] = ['text' => '🗺️ Поход', 'callback_data' => 'march'];
         $keyboardButtons[] = ['text' => '⛏️ Добыть ресурсы',    'callback_data' => 'gather'];
+        // ADR-094 discoverability: аптечка (лечение/расходники) — раньше пряталась в
+        // экране Окопаться (только при наличии базы). Выносим на главный хаб действий,
+        // всегда доступна. PharmacyAction сам объяснит, если медикаментов нет.
+        $keyboardButtons[] = ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'];
 
         // Превращаем список кнопок в массив по строкам (2 кнопки в строке)
         $inlineKeyboard = array_chunk($keyboardButtons, 2);
