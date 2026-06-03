@@ -102,6 +102,10 @@ class CallbackRoutes extends BaseConfig
         'WheelOfFortune'                  => \App\Controllers\Telegram\Commands\Actions\Games\FortuneWheelAction::class,
         'GuessNumber'                     => \App\Controllers\Telegram\Commands\Actions\Games\GuessNumberAction::class,
         'RockPaperScissors'               => \App\Controllers\Telegram\Commands\Actions\Games\RockPaperScissorsAction::class,
+        // ADR-093 — «Перемешать ресурсы»: RNG-конвертер внутри одной редкости.
+        // Exact-роут (первый сегмент 'ShuffleResources' без `_`); хвосты rarity_/go_/restart
+        // разбирает сам action через explode('_'). НЕ prefix — иначе ловил бы лишнее.
+        'ShuffleResources'                => \App\Controllers\Telegram\Commands\Actions\Games\ShuffleResourcesAction::class,
         'events'                          => \App\Controllers\Telegram\Commands\Actions\EventAction::class,
         'finishAllTasks'                  => \App\Controllers\Telegram\Commands\Actions\FinishTaskAction::class,
 

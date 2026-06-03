@@ -122,4 +122,27 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
             $this->cbRoutes->resolve('npcEncounter')
         );
     }
+
+    /**
+     * ADR-093 «Перемешать ресурсы» — exact-роут 'ShuffleResources'; все хвосты
+     * (rarity_/go_/restart) дают тот же первый сегмент → один обработчик. Тот же
+     * class-of-bug, что npcAct_ (мёртвый prefix с `_`): фиксируем, что роут жив.
+     */
+    public function testShuffleResourcesCallbackRoutesResolve(): void
+    {
+        $expected = \App\Controllers\Telegram\Commands\Actions\Games\ShuffleResourcesAction::class;
+
+        foreach ([
+            'ShuffleResources',                 // вход (меню редкостей)
+            'ShuffleResources_rarity_5',        // выбор редкости → меню количеств
+            'ShuffleResources_go_5_25',         // выполнить перемешивание
+            'ShuffleResources_restart',         // назад на выбор редкости
+        ] as $callbackData) {
+            $this->assertSame(
+                $expected,
+                $this->cbRoutes->resolve(explode('_', $callbackData)[0]),
+                "callback_data «{$callbackData}» обязан резолвиться в ShuffleResourcesAction."
+            );
+        }
+    }
 }
