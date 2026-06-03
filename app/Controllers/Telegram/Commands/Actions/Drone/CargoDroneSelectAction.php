@@ -106,7 +106,7 @@ class CargoDroneSelectAction extends BaseAction
                 'parse_mode'   => 'Markdown',
                 'reply_markup' => json_encode(['inline_keyboard' => [[
                     ['text' => '🏠 База', 'callback_data' => 'Base'],
-                    ['text' => '🗺 Карта', 'callback_data' => 'inlineMap'],
+                    ['text' => '🗺 Карта', 'callback_data' => 'move'],
                 ]]]),
             ]);
         }
@@ -119,7 +119,7 @@ class CargoDroneSelectAction extends BaseAction
                 'text'         => $text,
                 'parse_mode'   => 'Markdown',
                 'reply_markup' => json_encode(['inline_keyboard' => [[
-                    ['text' => '🗺 Карта', 'callback_data' => 'inlineMap'],
+                    ['text' => '🗺 Карта', 'callback_data' => 'move'],
                     ['text' => '🏠 База', 'callback_data' => 'Base'],
                 ]]]),
             ]);
@@ -162,7 +162,7 @@ class CargoDroneSelectAction extends BaseAction
         }
 
         $buttons[] = [
-            ['text' => '🗺 Карта', 'callback_data' => 'inlineMap'],
+            ['text' => '🗺 Карта', 'callback_data' => 'move'],
             ['text' => '🏠 База', 'callback_data' => 'Base'],
         ];
 

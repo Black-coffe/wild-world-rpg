@@ -178,7 +178,7 @@ final class CaravanBuyDroneAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '🗺 Карта',     'callback_data' => 'inlineMap'],
+                    ['text' => '🗺 Карта',     'callback_data' => 'move'],
                 ],
             ],
         ];

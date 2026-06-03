@@ -172,7 +172,7 @@ class RecceDroneAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '🚁 Мои дроны', 'callback_data' => 'droneScoutList'],
-                    ['text' => '🗺 Карта',     'callback_data' => 'inlineMap'],
+                    ['text' => '🗺 Карта',     'callback_data' => 'move'],
                 ],
             ],
         ];

@@ -140,7 +140,7 @@ class CaravanLookAction extends BaseAction
         if ($haveGold < $price) {
             $text .= "\n\n❌ _Не хватает золота даже на 1 шт. ({$price} 🪙)._";
             $keyboard = ['inline_keyboard' => [
-                [['text' => '🗺 Карта', 'callback_data' => 'inlineMap']],
+                [['text' => '🗺 Карта', 'callback_data' => 'move']],
                 [['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']],
             ]];
         } else {
@@ -157,7 +157,7 @@ class CaravanLookAction extends BaseAction
                 $pct = $this->service->bargainDiscountPct($tradingKarma);
                 $rows[] = [['text' => "💱 Торговаться (−{$pct}%)", 'callback_data' => 'caravanLookBargain']];
             }
-            $rows[] = [['text' => '🗺 Карта', 'callback_data' => 'inlineMap'], ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']];
+            $rows[] = [['text' => '🗺 Карта', 'callback_data' => 'move'], ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']];
             $keyboard = ['inline_keyboard' => $rows];
         }
 
@@ -240,7 +240,7 @@ class CaravanLookAction extends BaseAction
             $text .= "\n\n❌ _Не хватает {$need} 🪙._";
             $keyboard = [
                 'inline_keyboard' => [
-                    [['text' => '🗺 Карта',     'callback_data' => 'inlineMap']],
+                    [['text' => '🗺 Карта',     'callback_data' => 'move']],
                     [['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']],
                 ],
             ];
@@ -249,7 +249,7 @@ class CaravanLookAction extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [['text' => "🛍 Купить ({$goldPrice} 🪙)", 'callback_data' => "caravanBuyDrone_{$caravanId}"]],
-                    [['text' => '🗺 Карта', 'callback_data' => 'inlineMap'], ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']],
+                    [['text' => '🗺 Карта', 'callback_data' => 'move'], ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory']],
                 ],
             ];
         }
@@ -331,7 +331,7 @@ class CaravanLookAction extends BaseAction
             $buttons[] = [['text' => "💱 Торговаться (−{$hagglePct}%)", 'callback_data' => 'caravanLookBargain']];
         }
         $buttons[] = [
-            ['text' => '🗺 Карта', 'callback_data' => 'inlineMap'],
+            ['text' => '🗺 Карта', 'callback_data' => 'move'],
             ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
         ];
 

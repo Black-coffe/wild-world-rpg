@@ -130,7 +130,7 @@ class DroneScoutCraftedListAction extends BaseAction
         }
 
         $rows[] = [
-            ['text' => '🗺 Карта', 'callback_data' => 'inlineMap'],
+            ['text' => '🗺 Карта', 'callback_data' => 'move'],
             ['text' => '🏠 База', 'callback_data' => 'Base'],
         ];
 

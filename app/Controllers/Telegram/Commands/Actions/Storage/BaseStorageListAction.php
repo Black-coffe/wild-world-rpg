@@ -113,7 +113,7 @@ class BaseStorageListAction extends BaseAction
             $rows[] = [['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList'], ['text' => '🏠 База', 'callback_data' => 'Base']];
         } else {
             $text .= "_Склад физически на базе. Вернись на свою клейм-клетку, чтобы забрать._";
-            $rows[] = [['text' => '🗺 Карта', 'callback_data' => 'inlineMap']];
+            $rows[] = [['text' => '🗺 Карта', 'callback_data' => 'move']];
         }
         $keyboard = ['inline_keyboard' => $rows];
 

@@ -158,7 +158,7 @@ class CargoDroneSendAction extends BaseAction
                 ['text' => '📦 Склад',      'callback_data' => 'baseStorageList'],
             ],
             [
-                ['text' => '🗺 Карта', 'callback_data' => 'inlineMap'],
+                ['text' => '🗺 Карта', 'callback_data' => 'move'],
                 ['text' => '🏠 База',  'callback_data' => 'Base'],
             ],
         ]];

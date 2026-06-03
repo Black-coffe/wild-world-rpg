@@ -152,7 +152,7 @@ final class DuelAction extends BaseAction
 
         $row = [
             ['text' => '◀️ Перс', 'callback_data' => 'character'],
-            ['text' => '🗺 Карта', 'callback_data' => 'inlineMap'],
+            ['text' => '🗺 Карта', 'callback_data' => 'move'],
         ];
         // W18 (ADR-072): «🏆 Рейтинг» только при активном ладдере (dormant — скрыта).
         if ($this->ladderService->enabled()) {

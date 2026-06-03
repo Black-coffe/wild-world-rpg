@@ -45,6 +45,61 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
     }
 
     /**
+     * 🔴 Регресс v0.51.342+ (sweep `inlineMap`→`move`): кнопка «🗺 Карта» во встречах,
+     * караване, дронах, дуэли и складе слала callback_data `inlineMap`, который НИКОГДА
+     * не был зарегистрирован → unrouted → мёртвая кнопка (спиннер висит). Рабочий роут —
+     * exact `move` (→ MoveCharacterAction, рендер карты 12×12). Этот тест фиксирует, что
+     * `move` резолвится, а мёртвый `inlineMap` — нет (документирует, почему его убрали).
+     */
+    public function testMapButtonUsesResolvableMoveRoute(): void
+    {
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\MoveCharacterAction::class,
+            $this->cbRoutes->resolve('move'),
+            'callback_data «move» обязан резолвиться в MoveCharacterAction (кнопка «🗺 Карта»).'
+        );
+
+        $this->assertNull(
+            $this->cbRoutes->resolve('inlineMap'),
+            'callback_data «inlineMap» не зарегистрирован — мёртвая кнопка. Используй «move».'
+        );
+    }
+
+    /**
+     * 🔴 Анти-дрифт source-scan: мёртвый литерал `inlineMap` не должен вернуться в код
+     * Actions. Class-of-bug «unrouted callback» уже бил дважды (npcAct_ + inlineMap);
+     * урок feedback_control_tap_not_throwaway — гейтить на resolve, а не на throwaway-тап.
+     */
+    public function testNoDeadInlineMapLiteralInActions(): void
+    {
+        $dir = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator(
+                APPPATH . 'Controllers/Telegram/Commands/Actions',
+                \FilesystemIterator::SKIP_DOTS
+            )
+        );
+
+        $offenders = [];
+        foreach ($dir as $file) {
+            /** @var \SplFileInfo $file */
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
+            $contents = (string) file_get_contents($file->getPathname());
+            if (str_contains($contents, 'inlineMap')) {
+                $offenders[] = $file->getFilename();
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $offenders,
+            'Мёртвый callback_data «inlineMap» вернулся в: ' . implode(', ', $offenders)
+            . '. Замени на «move» (exact-роут → MoveCharacterAction).'
+        );
+    }
+
+    /**
      * NPC-роуты встречи/диалога резолвятся по первому сегменту реального callback_data.
      */
     public function testNpcCallbackRoutesResolve(): void
