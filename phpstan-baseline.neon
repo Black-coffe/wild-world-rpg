@@ -11359,12 +11359,6 @@ parameters:
 			path: app/Repositories/CI4CharacterRepository.php
 
 		-
-			message: '#^Cannot access offset ''map_cell_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/BaseService.php
-
-		-
 			message: '#^Cannot cast mixed to int\.$#'
 			identifier: cast.int
 			count: 8
@@ -11425,12 +11419,6 @@ parameters:
 			path: app/Services/BaseService.php
 
 		-
-			message: '#^Parameter \#2 \$claimedCell of method App\\Services\\BaseService\:\:showNotOnBaseInfo\(\) expects array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Services/BaseService.php
-
-		-
 			message: '#^Parameter \#2 \$coordY of method App\\Services\\Bases\\BaseServiceMessageFormatter\:\:baseBuildings\(\) expects int\|string, mixed given\.$#'
 			identifier: argument.type
 			count: 1
@@ -11452,12 +11440,6 @@ parameters:
 			message: '#^Parameter \#2 \$coordY of method App\\Services\\Bases\\BaseServiceMessageFormatter\:\:notOnBasePhysically\(\) expects int\|string, mixed given\.$#'
 			identifier: argument.type
 			count: 1
-			path: app/Services/BaseService.php
-
-		-
-			message: '#^Parameter \#3 \$claimedCell of method App\\Services\\BaseService\:\:showBaseBuildings\(\) expects array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
-			identifier: argument.type
-			count: 2
 			path: app/Services/BaseService.php
 
 		-

@@ -77,6 +77,32 @@ class ClaimedCellModel extends Model
         if (! is_array($row)) {
             return null;
         }
+        return $this->normalizeKeys($row);
+    }
+
+    /**
+     * ADR-095 Фаза 1b — первая активная база игрока (нормализованные string-ключи), для
+     * дистанционного просмотра, когда игрок не на базе. null — активных баз нет.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function findFirstActiveCell(int $characterId): ?array
+    {
+        $row = $this->where('character_id', $characterId)
+            ->where('status', 'active')
+            ->first();
+        if (! is_array($row)) {
+            return null;
+        }
+        return $this->normalizeKeys($row);
+    }
+
+    /**
+     * @param array<int|string,mixed> $row
+     * @return array<string,mixed>
+     */
+    private function normalizeKeys(array $row): array
+    {
         $out = [];
         foreach ($row as $k => $v) {
             $out[(string) $k] = $v;

@@ -55,19 +55,20 @@ class BaseService
      */
     public function showBaseInfo(int $chatId, array|\App\Entities\CharacterEntity $characterRow, ?int $editMessageId = null): ServerResponse
     {
-        $claimedCell = $this->claimedCellModel
-            ->where('character_id', $characterRow['id'])
-            ->first();
-
-        if (!$claimedCell) {
-            return $this->showNoBaseInfo($chatId, $characterRow, $editMessageId);
+        // ADR-095 Фаза 1b: «активная база» = база на ТЕКУЩЕЙ клетке (а не первая). Чинит
+        // мульти-бэйс: стоя на 2-й базе раньше показывалась 1-я / «не на базе».
+        $activeCell = $this->claimedCellModel->findActiveCell(
+            (int) $characterRow['id'],
+            (int) ($characterRow['cell_number'] ?? 0)
+        );
+        if ($activeCell !== null) {
+            return $this->showBaseBuildings($chatId, $characterRow, $activeCell, null, $editMessageId);
         }
 
-        // v0.51.59 hotfix (F1.4.4-B 10th occurrence): explicit (int) cast.
-        // Раніше strict `===` між string `$claimedCell['map_cell_id']` (raw SQL row)
-        // і int `$characterRow['cell_number']` (CharacterEntity post-F1.4.2) — завжди false.
-        if ((int) $claimedCell['map_cell_id'] === (int) $characterRow['cell_number']) {
-            return $this->showBaseBuildings($chatId, $characterRow, $claimedCell, null, $editMessageId);
+        // Не на базе физически — берём первую активную базу для дистанционного просмотра.
+        $claimedCell = $this->claimedCellModel->findFirstActiveCell((int) $characterRow['id']);
+        if ($claimedCell === null) {
+            return $this->showNoBaseInfo($chatId, $characterRow, $editMessageId);
         }
 
         $coverage = $this->towerCoverageService->checkCoverage($characterRow['id']);
@@ -88,12 +89,21 @@ class BaseService
             return $this->sendMessage($chatId, $this->formatter->cellNumberMissingError());
         }
 
-        $existingCamp = $this->claimedCellModel
+        // ADR-095 Фаза 1b: разрешаем НЕСКОЛЬКО баз — гейтим по лимиту уровня, а не «есть ли
+        // уже база» (раньше любая активная база блокировала создание 2-й полностью).
+        $level     = is_numeric($characterRow['level'] ?? null) ? (int) $characterRow['level'] : 1;
+        $rawCount  = $this->claimedCellModel
             ->where('character_id', $characterRow['id'])
             ->where('status', 'active')
-            ->first();
-        if ($existingCamp) {
-            return $this->sendMessage($chatId, $this->formatter->alreadyHaveActiveCampError());
+            ->countAllResults();
+        $campCount = is_numeric($rawCount) ? (int) $rawCount : 0;
+        $baseLimit = new \App\Services\Bases\BaseLimitService();
+        if ($campCount >= $baseLimit->maxBasesForLevel($level)) {
+            $nextLevel = $baseLimit->nextBaseLevel($campCount);
+            $msg = $nextLevel === null
+                ? "🤖 У тебя максимально возможное число баз (*{$campCount}*). Больше построить нельзя."
+                : "🤖 Лимит баз для уровня *{$level}* достигнут (*{$campCount}*). Следующая база откроется на *{$nextLevel}-м уровне* — каждые *{$baseLimit->levelsPerBase()}* уровней открывают ещё одну.";
+            return $this->sendMessage($chatId, ['text' => $msg, 'parse_mode' => 'Markdown']);
         }
 
         if ($this->campCheck->isCellClaimedByAnyone($cellNumber)) {
@@ -189,7 +199,11 @@ class BaseService
         }
 
         $biomeRow = $this->resolver->findBiomeRow((int) $mapRow['biome_id']);
-        $summary  = $this->buildingsList->buildSummary((int) $characterRow['id']);
+        // ADR-095 Фаза 1b: постройки именно активной/просматриваемой базы (этой ячейки).
+        // Нарроуим map_cell_id через переменную (feedback_phpstan_no_mixed_to_int_cast).
+        $mapCellRaw = $claimedCell['map_cell_id'] ?? null;
+        $cellNum    = is_numeric($mapCellRaw) ? (int) $mapCellRaw : 0;
+        $summary    = $this->buildingsList->buildSummary((int) $characterRow['id'], $cellNum);
 
         // W21: декор базы (имя + флаг) и killswitch для кнопки «🎨 Декор».
         $decorSvc    = new BaseCampDecorService();

@@ -33,11 +33,18 @@ final class BaseBuildingsList
     }
 
     /**
+     * ADR-095 Фаза 1b: $cellNumber !== null → постройки ТОЛЬКО активной базы (этой
+     * ячейки), иначе — все постройки персонажа (legacy-поведение).
+     *
      * @return array{count: int, totalTax: int, list: string}
      */
-    public function buildSummary(int $characterId): array
+    public function buildSummary(int $characterId, ?int $cellNumber = null): array
     {
-        $buildings = $this->characterBuildingModel->where('character_id', $characterId)->findAll();
+        $query = $this->characterBuildingModel->where('character_id', $characterId);
+        if ($cellNumber !== null) {
+            $query->where('map_cell_id', $cellNumber);
+        }
+        $buildings = $query->findAll();
 
         $count    = count($buildings);
         $totalTax = (int) array_sum(array_column($buildings, 'tax'));
