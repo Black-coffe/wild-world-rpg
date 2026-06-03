@@ -145,4 +145,28 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
             );
         }
     }
+
+    /**
+     * ADR-096 «Оптовая продажа» — exact-роут 'bulkSell'; все хвосты (all_/rarity_/go_)
+     * дают тот же первый сегмент → один обработчик. Тот же class-of-bug, что npcAct_
+     * (мёртвый prefix с `_`): фиксируем, что роут жив для предпросмотра и выполнения.
+     */
+    public function testBulkSellCallbackRoutesResolve(): void
+    {
+        $expected = \App\Controllers\Telegram\Commands\Actions\Sell\BulkSellAction::class;
+
+        foreach ([
+            'bulkSell_all_10',        // предпросмотр: все ресурсы
+            'bulkSell_all_50',
+            'bulkSell_rarity_3_25',   // предпросмотр: редкость 3
+            'bulkSell_go_all_50',     // выполнить: все
+            'bulkSell_go_rarity_7_10', // выполнить: редкость 7
+        ] as $callbackData) {
+            $this->assertSame(
+                $expected,
+                $this->cbRoutes->resolve(explode('_', $callbackData)[0]),
+                "callback_data «{$callbackData}» обязан резолвиться в BulkSellAction."
+            );
+        }
+    }
 }

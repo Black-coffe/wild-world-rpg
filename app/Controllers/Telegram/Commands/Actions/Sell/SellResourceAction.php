@@ -10,11 +10,14 @@ use App\Models\CharacterResourceModel;
 use App\Models\CharacterModel;
 use App\Models\ResourcesBankModel;
 use App\Services\Notifications\MediaSender;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 // Если хотим сразу пересчитывать цены после сделки
 use App\TaskHandlers\ResourceBankUpdateHandler;
 
 class SellResourceAction extends BaseAction
 {
+    use GameSettingsReaderTrait;
+
     protected $resourceModel;
     protected $characterResourceModel;
     protected $characterModel;
@@ -126,6 +129,7 @@ class SellResourceAction extends BaseAction
 
         $text            = "📦 *Ресурсы редкости {$rarity}:*\n\n";
         $keyboardButtons = [];
+        $hasSellable     = false; // есть ли ходовой ресурс (sell_price>0) — для оптовых кнопок
 
         foreach ($characterResources as $cr) {
             // Смотрим ресурс из $resources, у которого id = $cr['id_resources']
@@ -137,6 +141,12 @@ class SellResourceAction extends BaseAction
             $quantity = $cr['quantity'];
             if ($quantity <= 0) {
                 continue;
+            }
+
+            // ADR-096 — оптом продаются только ресурсы с ценой > 0 (флаг для кнопок ниже).
+            $sellPriceRaw = $res['sell_price'] ?? null;
+            if (is_numeric($sellPriceRaw) && (float) $sellPriceRaw > 0) {
+                $hasSellable = true;
             }
 
             // Считаем «на сумму» исходя из sell_price, добавляем "~" перед значением
@@ -163,6 +173,16 @@ class SellResourceAction extends BaseAction
         } else {
             // Добавляем пояснение о том, что цена может отличаться
             $text .= "\n*❗️Реальная цена может быть другой исходя из спроса ресурса❗️*";
+        }
+
+        // ADR-096 — оптовая продажа внутри редкости: ряд «💰 N%» (продать долю всех
+        // показанных ресурсов этой редкости). Только если есть ходовой ресурс и фича вкл.
+        if (!empty($keyboardButtons) && $hasSellable && $this->gsBool(BulkSellAction::KEY_ENABLED, true)) {
+            $percents = BulkSellAction::parsePercents($this->gsString(BulkSellAction::KEY_PERCENTS, BulkSellAction::DEFAULT_PERCENTS));
+            if ($percents !== []) {
+                $text .= "\n🧺 *Оптом по этой редкости* — продать долю всех показанных ресурсов:";
+                $keyboardButtons[] = BulkSellAction::buttonsRow("rarity_{$rarity}", $percents);
+            }
         }
 
         // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на выбор редкости.

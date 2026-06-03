@@ -8,9 +8,12 @@ use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Notifications\MediaSender;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 
 class SellAction extends BaseAction
 {
+    use GameSettingsReaderTrait;
+
     protected $characterResourceModel;
     protected $resourceModel;
 
@@ -47,34 +50,43 @@ class SellAction extends BaseAction
             . "👉Их общая стоимость = *" . number_format($totalValue) . "💰*\n\n"
             . "_📌ВАЖНО📌 Чтобы и тебе, и мне, как торговцу, было проще, пересмотри ресурсы и обрати внимание на их редкость. Ниже отметь цифрой, какой редкости ресурсы ты готов продать. Если их там будет несколько, на следующем шаге ты выберешь нужный ресурс._";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '1️⃣ редкость', 'callback_data' => 'sellResource_rarity_1'],
-                    ['text' => '2️⃣ редкость', 'callback_data' => 'sellResource_rarity_2'],
-                    ['text' => '3️⃣ редкость', 'callback_data' => 'sellResource_rarity_3'],
-                ],
-                [
-                    ['text' => '4️⃣ редкость', 'callback_data' => 'sellResource_rarity_4'],
-                    ['text' => '5️⃣ редкость', 'callback_data' => 'sellResource_rarity_5'],
-                    ['text' => '6️⃣ редкость', 'callback_data' => 'sellResource_rarity_6'],
-                ],
-                [
-                    ['text' => '7️⃣ редкость', 'callback_data' => 'sellResource_rarity_7'],
-                    ['text' => '8️⃣ редкость', 'callback_data' => 'sellResource_rarity_8'],
-                    ['text' => '9️⃣ редкость', 'callback_data' => 'sellResource_rarity_9'],
-                ],
-                [
-                    ['text' => '🔟 редкость', 'callback_data' => 'sellResource_rarity_10'],
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                ],
-                // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на главный экран магазина.
-                [
-                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                ],
-            ]
+        $rows = [
+            [
+                ['text' => '1️⃣ редкость', 'callback_data' => 'sellResource_rarity_1'],
+                ['text' => '2️⃣ редкость', 'callback_data' => 'sellResource_rarity_2'],
+                ['text' => '3️⃣ редкость', 'callback_data' => 'sellResource_rarity_3'],
+            ],
+            [
+                ['text' => '4️⃣ редкость', 'callback_data' => 'sellResource_rarity_4'],
+                ['text' => '5️⃣ редкость', 'callback_data' => 'sellResource_rarity_5'],
+                ['text' => '6️⃣ редкость', 'callback_data' => 'sellResource_rarity_6'],
+            ],
+            [
+                ['text' => '7️⃣ редкость', 'callback_data' => 'sellResource_rarity_7'],
+                ['text' => '8️⃣ редкость', 'callback_data' => 'sellResource_rarity_8'],
+                ['text' => '9️⃣ редкость', 'callback_data' => 'sellResource_rarity_9'],
+            ],
+            [
+                ['text' => '🔟 редкость', 'callback_data' => 'sellResource_rarity_10'],
+                ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+            ],
         ];
+
+        // ADR-096 — оптовая продажа: ряд «💰 N%» под выбором редкости (продать долю ВСЕХ
+        // ресурсов сразу). Только если есть что продавать (totalValue>0) и фича включена.
+        $percents = BulkSellAction::parsePercents($this->gsString(BulkSellAction::KEY_PERCENTS, BulkSellAction::DEFAULT_PERCENTS));
+        if ($totalValue > 0 && $percents !== [] && $this->gsBool(BulkSellAction::KEY_ENABLED, true)) {
+            $text .= "\n\n🧺 *Оптом* — продать сразу долю *всех* ресурсов:";
+            $rows[] = BulkSellAction::buttonsRow('all', $percents);
+        }
+
+        // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на главный экран магазина.
+        $rows[] = [
+            ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+        ];
+
+        $keyboard = ['inline_keyboard' => $rows];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 

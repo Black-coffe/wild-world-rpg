@@ -87,6 +87,10 @@ class CallbackRoutes extends BaseConfig
         // === Sell/Buy flow ===
         'sell'                            => \App\Controllers\Telegram\Commands\Actions\Sell\SellAction::class,
         'sellSelectRarity'                => \App\Controllers\Telegram\Commands\Actions\Sell\SellResourceAction::class,
+        // ADR-096 — оптовая продажа («Продать N% всех ресурсов»). Exact-роут (первый
+        // сегмент 'bulkSell' без `_`); хвосты all_/rarity_/go_ разбирает сам action
+        // через explode('_'). НЕ prefix — урок мёртвых `npcAct_` (ADR-089).
+        'bulkSell'                        => \App\Controllers\Telegram\Commands\Actions\Sell\BulkSellAction::class,
         'buy'                             => \App\Controllers\Telegram\Commands\Actions\Sell\BuyResourceAction::class,
         'sellCraft'                       => \App\Controllers\Telegram\Commands\Actions\Sell\SellCraftAction::class,
         'sellCraftList'                   => \App\Controllers\Telegram\Commands\Actions\Sell\SellCraftItemListAction::class,
