@@ -18,12 +18,14 @@
  * @var bool $authed
  * @var string $tgName
  * @var string $botUsername
+ * @var int $myCharId  ID персонажа залогиненного игрока (0 если нет) — для приватности координат
  */
 $num = static fn ($v): ?float => is_numeric($v) ? (float) $v : null;
 $fmt = static fn (?float $v): string => $v === null ? '—' : (string) (round($v * 10) / 10);
 
-// Карточка бойца. $authed решает, показывать ли HP до/после и координаты.
-$playerCard = static function (array $p, ?int $winnerId, string $roleLabel, bool $authed) use ($num, $fmt): string {
+// Карточка бойца. $authed → HP до/после и раунды. Координаты (локация) — ТОЛЬКО для своего
+// персонажа ($myCharId): чужие локации не раскрываем даже залогиненным (приватность, фидбэк владельца).
+$playerCard = static function (array $p, ?int $winnerId, string $roleLabel, bool $authed, int $myCharId) use ($num, $fmt): string {
     $id      = is_numeric($p['id'] ?? null) ? (int) $p['id'] : 0;
     $name    = is_scalar($p['name'] ?? null) ? (string) $p['name'] : '—';
     $level   = is_numeric($p['level'] ?? null) ? (int) $p['level'] : null;
@@ -62,7 +64,7 @@ $playerCard = static function (array $p, ?int $winnerId, string $roleLabel, bool
             <div class="stat-line"><span class="lbl">Сила</span><span class="val mono"><?= $fmt($num($p['strength'] ?? null)) ?></span></div>
             <div class="stat-line"><span class="lbl">Ловкость</span><span class="val mono"><?= $fmt($num($p['agility'] ?? null)) ?></span></div>
             <div class="stat-line"><span class="lbl">Интеллект</span><span class="val mono"><?= $fmt($num($p['intellect'] ?? null)) ?></span></div>
-            <?php if ($authed && $coords !== null): ?>
+            <?php if ($authed && $coords !== null && $myCharId > 0 && $id === $myCharId): ?>
                 <div class="stat-line">
                     <span class="lbl">📍 Где</span>
                     <span class="val mono">X <?= is_numeric($coords['x'] ?? null) ? (int) $coords['x'] : '?' ?> · Y <?= is_numeric($coords['y'] ?? null) ? (int) $coords['y'] : '?' ?> <span class="caption">(клетка <?= is_numeric($coords['cell'] ?? null) ? (int) $coords['cell'] : '?' ?>)</span></span>
@@ -122,7 +124,7 @@ $currentPath = '/' . uri_string();
         <!-- ADR-092 Фаза 3: auth-бар (расширенный тир через Telegram-вход, общая сессия ADR-061) -->
         <div class="card row" style="margin-bottom:20px;flex-wrap:wrap;gap:12px;justify-content:space-between">
             <?php if ($authed): ?>
-                <span class="caption">🔓 Вы вошли как <b><?= esc($tgName) ?></b> — открыт расширенный обзор: координаты, HP до/после и ход боя по раундам.</span>
+                <span class="caption">🔓 Вы вошли как <b><?= esc($tgName) ?></b> — виден ход боя по раундам и HP до/после. 📍 Координаты показываются только для <b>вашего</b> персонажа (чужие локации скрыты).</span>
                 <form method="post" action="<?= site_url('logout/telegram') ?>" style="margin:0">
                     <?= csrf_field() ?>
                     <input type="hidden" name="next" value="<?= esc($currentPath, 'attr') ?>">
@@ -137,8 +139,8 @@ $currentPath = '/' . uri_string();
         </div>
 
         <div class="grid grid-2" style="gap:20px">
-            <?= $playerCard($att, $winnerId, 'Атакующий', $authed) ?>
-            <?= $playerCard($def, $winnerId, 'Защитник', $authed) ?>
+            <?= $playerCard($att, $winnerId, 'Атакующий', $authed, $myCharId) ?>
+            <?= $playerCard($def, $winnerId, 'Защитник', $authed, $myCharId) ?>
         </div>
 
         <h3 class="kicker mt-4">Ход боя по раундам</h3>
@@ -162,10 +164,10 @@ $currentPath = '/' . uri_string();
                             $crit = ($r['luckyStrikeApplied'] ?? false) === true;
                             $pct  = (int) round($dmg / $maxDmg * 100);
                         ?>
-                        <div class="stat-line">
-                            <span class="lbl" style="min-width:64px">Раунд <?= $rn ?></span>
-                            <div class="bar hp"><span style="--val:<?= max(2, $pct) ?>%"></span></div>
-                            <span class="val mono" style="min-width:max-content">
+                        <div style="display:flex;gap:12px;align-items:center">
+                            <span class="lbl mono" style="flex:0 0 68px;white-space:nowrap">Раунд <?= $rn ?></span>
+                            <div class="bar hp" style="flex:0 0 120px;max-width:120px"><span style="--val:<?= max(2, $pct) ?>%"></span></div>
+                            <span class="caption mono" style="flex:1 1 auto;min-width:0">
                                 <?= esc($aN) ?> → <?= esc($dN) ?> · −<?= round($dmg * 10) / 10 ?><?= $crit ? ' ⚡' : '' ?><?= $hpAf !== null ? ' (HP ' . (round($hpAf * 10) / 10) . ')' : '' ?>
                             </span>
                         </div>

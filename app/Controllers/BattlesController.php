@@ -138,6 +138,7 @@ class BattlesController extends Controller
             'authed'      => $auth['authed'],
             'tgName'      => $auth['name'],
             'botUsername' => $auth['botUsername'],
+            'myCharId'    => $auth['characterId'],
             'meta'     => [
                 'title'       => "Бой #{$battle->id} — {$attName} против {$defName} — Wild World",
                 'description' => 'Детальный разбор PvP-боя: уровни, параметры, экипировка и ход схватки по раундам.',
@@ -186,13 +187,16 @@ class BattlesController extends Controller
      * ADR-092 Фаза 3 — контекст авторизации через Telegram (общая сессия ADR-061).
      * Авторизованные видят расширенный тир (координаты + HP до/после + раунды).
      *
-     * @return array{authed:bool, name:string, botUsername:string}
+     * @return array{authed:bool, name:string, botUsername:string, characterId:int}
      */
     private function authContext(): array
     {
         $session = session();
         $tgId    = $session->get('tg_user_id');
         $authed  = is_numeric($tgId) && (int) $tgId > 0;
+
+        $charIdRaw   = $session->get('character_id');
+        $characterId = ($authed && is_numeric($charIdRaw)) ? (int) $charIdRaw : 0;
 
         $name = '';
         if ($authed) {
@@ -213,6 +217,7 @@ class BattlesController extends Controller
             'authed'      => $authed,
             'name'        => $name,
             'botUsername' => is_string($rawBot) ? ltrim($rawBot, '@') : '',
+            'characterId' => $characterId,
         ];
     }
 
