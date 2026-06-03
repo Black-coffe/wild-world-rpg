@@ -5,6 +5,7 @@ namespace App\TaskHandlers;
 use App\Attributes\HandlerKey;
 use App\Models\CharacterBuildingModel;
 use App\Models\CharacterModel;
+use App\Models\ClaimedCellModel;
 use App\Models\TelegramUserModel;
 use App\Models\TeleportBeaconModel;
 use DateTime;
@@ -108,6 +109,11 @@ class TaxCollectionHandler extends BaseTaskHandler
                 continue;
             }
 
+            // ADR-095 Фаза 2 (DORMANT) — налог-каскад до уничтожения базы. При killswitch
+            // OFF поведение byte-identical (удаление постройки на 2-й FAILURE).
+            $lifecycle = new \App\Services\Bases\BaseLifecycleService();
+            $cascadeOn = $lifecycle->taxCascadeEnabled();
+
             // ---------------------
             // 3.1) Списываем налог за здания
             // ---------------------
@@ -123,36 +129,60 @@ class TaxCollectionHandler extends BaseTaskHandler
                 $collectedTaxBuildings = $availableGold; // собираем всё, что есть
                 $newGoldAmount         = 0;
 
-                // Смотрим, был ли уже ранее FAILURE (значит это второй)
-                $lastFailedBuilding = $characterBuildingModel
-                    ->where('character_id', $characterId)
-                    ->where('tax_collection_status', 'FAILURE')
-                    ->orderBy('created_at', 'DESC')
-                    ->first();
-
-                if ($lastFailedBuilding) {
-                    // Второй раз => удаляем самую новую постройку
-                    $latestBuilding = $characterBuildingModel
+                if ($cascadeOn) {
+                    // ADR-095 Фаза 2: налог-каскад. Ведём streak неуплаты; после grace —
+                    // сносим наименьшую (наименее застроенную) базу, streak сбрасываем.
+                    $streak = $this->unpaidStreak($characterId) + 1;
+                    $grace  = $lifecycle->taxCascadeGraceDays();
+                    if ($streak >= $grace) {
+                        $this->cascadeDestroySmallestBase($characterId, $characterBuildingModel);
+                        $streak = 0;
+                    } else {
+                        $left = $grace - $streak;
+                        $this->notifyCharacterById(
+                            $characterId,
+                            "⚠ Налог за базы не оплачен (*{$streak}* дн. подряд)!\n" .
+                            "Ещё *{$left}* дн. без оплаты — и самая маленькая база будет *уничтожена*."
+                        );
+                    }
+                    $characterModel->update($characterId, ['tax_unpaid_streak' => $streak]);
+                } else {
+                    // Существующее поведение (dormant): удаление постройки на 2-й FAILURE подряд.
+                    $lastFailedBuilding = $characterBuildingModel
                         ->where('character_id', $characterId)
+                        ->where('tax_collection_status', 'FAILURE')
                         ->orderBy('created_at', 'DESC')
                         ->first();
 
-                    if ($latestBuilding) {
-                        $buildingId = $latestBuilding['id'];
-                        $characterBuildingModel->delete($buildingId);
+                    if ($lastFailedBuilding) {
+                        // Второй раз => удаляем самую новую постройку
+                        $latestBuilding = $characterBuildingModel
+                            ->where('character_id', $characterId)
+                            ->orderBy('created_at', 'DESC')
+                            ->first();
+
+                        if ($latestBuilding) {
+                            $buildingId = $latestBuilding['id'];
+                            $characterBuildingModel->delete($buildingId);
+                            $this->sendTelegramNotification(
+                                $character,
+                                "🏚 Не хватило золота на налог во второй раз подряд!\n" .
+                                "Поэтому здание (ID={$buildingId}) было *удалено*."
+                            );
+                        }
+                    } else {
+                        // Первый раз => лишь предупреждение
                         $this->sendTelegramNotification(
                             $character,
-                            "🏚 Не хватило золота на налог во второй раз подряд!\n" .
-                            "Поэтому здание (ID={$buildingId}) было *удалено*."
+                            "⚠ Недостаточно золота, чтобы оплатить налог за *все здания*!\n" .
+                            "Если это произойдёт *снова*, будет удалена твоя последняя постройка!"
                         );
                     }
-                } else {
-                    // Первый раз => лишь предупреждение
-                    $this->sendTelegramNotification(
-                        $character,
-                        "⚠ Недостаточно золота, чтобы оплатить налог за *все здания*!\n" .
-                        "Если это произойдёт *снова*, будет удалена твоя последняя постройка!"
-                    );
+                }
+            } elseif ($cascadeOn) {
+                // Налог уплачен полностью — сбрасываем streak неуплаты (каскад).
+                if ($this->unpaidStreak($characterId) !== 0) {
+                    $characterModel->update($characterId, ['tax_unpaid_streak' => 0]);
                 }
             }
 
@@ -299,6 +329,87 @@ class TaxCollectionHandler extends BaseTaskHandler
 
             // Отправляем фото + итоговое сообщение
             $this->sendTelegramNotificationPhoto($character, $summaryMsg);
+        }
+    }
+
+    /**
+     * ADR-095 Фаза 2 — снос наименьшей (наименее застроенной) активной базы персонажа
+     * вместе с её постройками + уведомление. Триггер: streak неуплаты ≥ grace при cascade ON.
+     */
+    private function cascadeDestroySmallestBase(int $characterId, CharacterBuildingModel $buildingModel): void
+    {
+        $db    = \Config\Database::connect();
+        $bases = $db->table('claimed_cells')
+            ->select('id, map_cell_id, camp_name')
+            ->where('character_id', $characterId)
+            ->where('status', 'active')
+            ->get();
+        if ($bases === false) {
+            return;
+        }
+        $baseRows = $bases->getResultArray();
+        if ($baseRows === []) {
+            return;
+        }
+
+        // Наименьшая = с наименьшим числом построек на её ячейке.
+        $smallest      = null;
+        $smallestCount = PHP_INT_MAX;
+        foreach ($baseRows as $b) {
+            $mapCellId = is_numeric($b['map_cell_id'] ?? null) ? (int) $b['map_cell_id'] : 0;
+            $cntRaw    = $buildingModel->where('character_id', $characterId)->where('map_cell_id', $mapCellId)->countAllResults();
+            $cnt       = is_numeric($cntRaw) ? (int) $cntRaw : 0;
+            if ($cnt < $smallestCount) {
+                $smallestCount = $cnt;
+                $smallest      = $b;
+            }
+        }
+        if ($smallest === null) {
+            return;
+        }
+
+        $cellRowId = is_numeric($smallest['id'] ?? null) ? (int) $smallest['id'] : 0;
+        $mapCellId = is_numeric($smallest['map_cell_id'] ?? null) ? (int) $smallest['map_cell_id'] : 0;
+        if ($cellRowId === 0) {
+            return;
+        }
+
+        $buildingModel->where('character_id', $characterId)->where('map_cell_id', $mapCellId)->delete();
+        (new ClaimedCellModel())->delete($cellRowId);
+
+        $name = is_string($smallest['camp_name'] ?? null) && $smallest['camp_name'] !== '' ? $smallest['camp_name'] : 'База';
+        $this->notifyCharacterById(
+            $characterId,
+            "🏚 *{$name} уничтожена за неуплату налогов!*\n"
+            . "Копи золото — иначе следующая база тоже падёт."
+        );
+    }
+
+    /**
+     * ADR-095 Фаза 2 — текущий streak неуплаты налога (characters.tax_unpaid_streak),
+     * скалярным запросом (без Entity/offset-неоднозначности).
+     */
+    private function unpaidStreak(int $characterId): int
+    {
+        $q = \Config\Database::connect()->table('characters')
+            ->select('tax_unpaid_streak')->where('id', $characterId)->get();
+        $row = $q !== false ? $q->getRowArray() : null;
+        return is_array($row) && is_numeric($row['tax_unpaid_streak'] ?? null) ? (int) $row['tax_unpaid_streak'] : 0;
+    }
+
+    /**
+     * ADR-095 Фаза 2 — уведомление игрока по character_id (скалярный telegram_id lookup,
+     * без Entity-неоднозначности). Для каскадных сообщений Фазы 2.
+     */
+    private function notifyCharacterById(int $characterId, string $message): void
+    {
+        $q = \Config\Database::connect()->table('characters c')
+            ->select('u.telegram_id')
+            ->join('telegram_users u', 'u.id = c.telegram_user_id')
+            ->where('c.id', $characterId)->get();
+        $row = $q !== false ? $q->getRowArray() : null;
+        if (is_array($row) && is_numeric($row['telegram_id'] ?? null)) {
+            $this->safeSendMessage((int) $row['telegram_id'], $message, ['parse_mode' => 'Markdown']);
         }
     }
 

@@ -57,6 +57,7 @@ class CharacterModel extends Model
         'locale',              // W27 (ADR-082) — язык интерфейса игрока (ru/en, default ru)
         'notify_sound',        // W28 (ADR-083) — override «звук о завершении задач» (default 0 = тихо при killswitch ON)
         'npc_kills',           // ADR-088 Фаза 2 — монотонный счётчик побед над NPC (квесты npc_kills)
+        'tax_unpaid_streak',   // ADR-095 Фаза 2 (dormant) — подряд дней неуплаты налога (налог-каскад)
     ];
 
     protected $useTimestamps = true;

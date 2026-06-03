@@ -68,10 +68,11 @@ class CampCreateConfirmAction extends BaseAction
         // 4. Сохраняем в claimed_cells новую запись (лагерь)
         $claimedCellModel = new ClaimedCellModel();
         $newCampData = [
-            'character_id' => $character['id'],
-            'map_cell_id'  => $mapRow['id'], // важно: 'map_cell_id' хранит ID в таблице map, а не cell_number
-            'claimed_at'   => date('Y-m-d H:i:s'),
-            'status'       => 'active',
+            'character_id'    => $character['id'],
+            'map_cell_id'     => $mapRow['id'], // важно: 'map_cell_id' хранит ID в таблице map, а не cell_number
+            'claimed_at'      => date('Y-m-d H:i:s'),
+            'last_visited_at' => date('Y-m-d H:i:s'), // ADR-095 Фаза 2: старт TTL с момента создания
+            'status'          => 'active',
         ];
         $claimedCellModel->save($newCampData);
 

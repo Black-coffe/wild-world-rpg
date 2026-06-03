@@ -77,6 +77,11 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\TaxCollectionHandler())->handle())
             ->daily('03:00')->singleInstance()->named('tax.collection');
 
+        // ADR-095 Фаза 2 (DORMANT) — суточный снос просроченных баз (base-TTL).
+        // Killswitch buildings.lifecycle.ttl_enabled (OFF) → handler выходит мгновенно.
+        $schedule->call(static fn() => (new \App\TaskHandlers\BaseLifecycleHandler())->handle())
+            ->daily('04:00')->singleInstance()->named('base.lifecycle');
+
         // ============================================================
         // BUILDING PRODUCTION — каждую минуту
         // ============================================================

@@ -16,6 +16,7 @@ class ClaimedCellModel extends Model
         'character_id',
         'map_cell_id',
         'claimed_at',
+        'last_visited_at',
         'status',
         'camp_name',
         'camp_flag',

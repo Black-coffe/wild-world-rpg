@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ClaimedCellModel;
 use App\Services\Bases\BaseBuildingsList;
+use App\Services\Bases\BaseLifecycleService;
 use App\Services\Bases\BaseLocationResolver;
 use App\Services\Bases\BaseServiceMessageFormatter;
 use App\Services\Bases\CampCheckService;
@@ -62,6 +63,10 @@ class BaseService
             (int) ($characterRow['cell_number'] ?? 0)
         );
         if ($activeCell !== null) {
+            // ADR-095 Фаза 2: визит на базу сбрасывает TTL (last_visited_at = now). Делаем
+            // ВСЕГДА (даже при dormant) — чтобы к моменту активации last_visited был свежим
+            // у активных игроков и их базы не снеслись разом. Безвредно: просто timestamp.
+            $this->touchVisit($activeCell);
             return $this->showBaseBuildings($chatId, $characterRow, $activeCell, null, $editMessageId);
         }
 
@@ -122,6 +127,21 @@ class BaseService
             $mapRow['coordinate_y'],
             (string) ($biomeRow['name'] ?? '???'),
         ));
+    }
+
+    /**
+     * ADR-095 Фаза 2: отметить визит на базу (last_visited_at = now) — сбрасывает TTL.
+     * Делается всегда (даже при dormant), чтобы last_visited «прогрелся» к активации.
+     *
+     * @param array<string,mixed> $claimedCell
+     */
+    private function touchVisit(array $claimedCell): void
+    {
+        $id = $claimedCell['id'] ?? null;
+        if (! is_numeric($id)) {
+            return;
+        }
+        $this->claimedCellModel->update((int) $id, ['last_visited_at' => date('Y-m-d H:i:s')]);
     }
 
     /**
@@ -211,24 +231,32 @@ class BaseService
         $decor       = $decorSvc->getCampDecor((int) $characterRow['id'], $cellNum);
         $decorEnabled = $decorSvc->enabled();
 
-        return $this->sendPhoto(
-            $chatId,
-            self::PHOTO_BASE,
-            $this->formatter->baseBuildings(
-                $mapRow['coordinate_x'],
-                $mapRow['coordinate_y'],
-                (string) ($biomeRow['name'] ?? '???'),
-                $summary['count'],
-                $summary['totalTax'],
-                $summary['list'],
-                $coverageResult,
-                $decor['name'],
-                $decor['flag'],
-                $decorEnabled,
-                $decorEnabled ? $decor : null, // W22: interior items только при включённом killswitch
-            ),
-            $editMessageId,
+        $payload = $this->formatter->baseBuildings(
+            $mapRow['coordinate_x'],
+            $mapRow['coordinate_y'],
+            (string) ($biomeRow['name'] ?? '???'),
+            $summary['count'],
+            $summary['totalTax'],
+            $summary['list'],
+            $coverageResult,
+            $decor['name'],
+            $decor['flag'],
+            $decorEnabled,
+            $decorEnabled ? $decor : null, // W22: interior items только при включённом killswitch
         );
+
+        // ADR-095 Фаза 2 (DORMANT): остаток срока жизни базы. daysRemaining = null при
+        // ttl_enabled OFF → строка не добавляется (byte-identical в dormant).
+        $lifecycle = new BaseLifecycleService();
+        $levelInt  = is_numeric($characterRow['level'] ?? null) ? (int) $characterRow['level'] : 1;
+        $daysLeft  = $lifecycle->daysRemaining($claimedCell['last_visited_at'] ?? null, $levelInt);
+        if ($daysLeft !== null) {
+            $payload['caption'] .= $daysLeft > 0
+                ? "\n\n⏳ База простоит ещё *{$daysLeft}* дн. — заходи, чтобы продлить."
+                : "\n\n⏳ *База на грани разрушения!* Срок истёк — она исчезнет при ближайшем обходе.";
+        }
+
+        return $this->sendPhoto($chatId, self::PHOTO_BASE, $payload, $editMessageId);
     }
 
     /**
