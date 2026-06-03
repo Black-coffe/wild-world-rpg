@@ -11,16 +11,37 @@ use CodeIgniter\Test\CIUnitTestCase;
  *
  * Требование владельца (2026-06-02): «ни одного узла с единственным вариантом —
  * минимум 2 реплики в каждом, до конца дерева». Тест статически парсит JSON
- * миграции глубоких деревьев и проверяет ВСЕ узлы: >=2 опции, валидный next,
+ * миграций глубоких деревьев и проверяет ВСЕ узлы: >=2 опции, валидный next,
  * ключ только a-z (без '_'), наличие root. Падение = блок deploy.
+ *
+ * Покрывает ОБЕ миграции деревьев: нейтралы+Корвин (2026-06-21-130000) и
+ * фракционные именные NPC (2026-06-22-120000, контент-пасс 2026-06-03).
  */
 final class NpcDialogueTreeInvariantTest extends CIUnitTestCase
 {
     private const SENTINELS = ['end', 'root', 'act-quest', 'act-rob', 'act-fight', 'act-trade', 'act-leave', 'act-provoke'];
 
-    public function testDeepTreesSatisfyTwoOptionInvariant(): void
+    public function testNeutralDeepTreesSatisfyTwoOptionInvariant(): void
     {
-        $file = APPPATH . 'Database/Migrations/2026-06-21-130000_DeepDialogueTreesAllNeutrals.php';
+        $this->assertTreeMigrationValid(
+            APPPATH . 'Database/Migrations/2026-06-21-130000_DeepDialogueTreesAllNeutrals.php',
+            200
+        );
+    }
+
+    public function testFactionNamedTreesSatisfyTwoOptionInvariant(): void
+    {
+        $this->assertTreeMigrationValid(
+            APPPATH . 'Database/Migrations/2026-06-22-120000_DeepFactionDialogueTrees.php',
+            120
+        );
+    }
+
+    /**
+     * Парсит встроенный JSON деревьев из миграции и проверяет инвариант по всем узлам.
+     */
+    private function assertTreeMigrationValid(string $file, int $minTotal): void
+    {
         $this->assertFileExists($file);
         $src = file_get_contents($file);
         $this->assertIsString($src);
@@ -72,6 +93,6 @@ final class NpcDialogueTreeInvariantTest extends CIUnitTestCase
             }
         }
 
-        $this->assertGreaterThanOrEqual(200, $total, 'ожидаются глубокие деревья (>=200 узлов суммарно)');
+        $this->assertGreaterThanOrEqual($minTotal, $total, "ожидаются глубокие деревья (>={$minTotal} узлов суммарно) в {$file}");
     }
 }
