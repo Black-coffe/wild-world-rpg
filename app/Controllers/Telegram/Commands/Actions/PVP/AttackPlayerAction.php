@@ -25,6 +25,7 @@ use App\Services\PVE\DefenseStructureService;
 use App\Services\PVE\PvpDamageCalculator;
 use App\Services\PVE\PvpEquipmentRepository;
 use App\Services\PVE\PvpFormulaService;
+use App\Services\PVE\PvpActivityContextService;
 use App\Services\PVE\PvpRewardOrchestrator;
 use App\Services\PVE\PvpRoundOrchestrator;
 
@@ -168,6 +169,12 @@ class AttackPlayerAction extends BaseAction
         $attacker['faction'] = $this->equipmentRepo->getCharacterFaction((int) $attacker['id']);
         $defender['faction'] = $this->equipmentRepo->getCharacterFaction((int) $defender['id']);
 
+        // Asana «PvP-контекст»: чем защитник (атакованная сторона) был занят в момент атаки.
+        // Захватываем ДО симуляции/смерти — обработка смерти отменяет активные задачи.
+        $defenderActivityPhrase = (new PvpActivityContextService())->activityPhraseFor(
+            is_numeric($defender['id'] ?? null) ? (int) $defender['id'] : 0
+        );
+
         // S26 (ADR-030): defensive structures защитника, если он стоит на своей
         // клетке со структурами (active hp>0). null → бой без защиты (как раньше).
         $defenseService = new DefenseStructureService();
@@ -235,6 +242,11 @@ class AttackPlayerAction extends BaseAction
             $winner         = $this->characterModel->find($winner['id']);
             $winnerDiffText = $this->rewardOrchestrator->makeWinnerDiffText($winnerBefore);
             $summaryText   .= "\n\n🏆 <b>{$winner['name']}</b> торжествует! {$winnerDiffText}";
+
+            // Asana «PvP-контекст»: чем защитник был занят, когда на него напали (флейвор).
+            if ($defenderActivityPhrase !== null) {
+                $summaryText .= "\n\n🎯 <i>{$defenderName} был застигнут {$defenderActivityPhrase}.</i>";
+            }
 
             // v0.51.112 endgame hook: PvP kill → winner's faction score.
             (new EndgameProgressionService())->recordPvpKill($winner);
