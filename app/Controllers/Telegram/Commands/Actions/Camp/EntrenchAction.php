@@ -33,52 +33,50 @@ class EntrenchAction extends BaseAction
         $claimedCells = $claimedCellModel->where('character_id', $character['id'])->findAll();
         $campCount = count($claimedCells);
 
-        if ($campCount >= 2) {
-            // У персонажа уже 2 базы
-            $text = "🤖 Это снова я – *Роби*!\n\n"
-                . "У тебя уже есть две базы. В игре можно иметь только две базы, больше не получится.";
+        // ADR-095 Фаза 1a: лимит баз по уровню (admin-tunable, заменяет хардкод «2 / L100»).
+        $baseLimit = new \App\Services\Bases\BaseLimitService();
+        $level     = is_numeric($character['level'] ?? null) ? (int) $character['level'] : 1;
+        $maxBases  = $baseLimit->maxBasesForLevel($level);
 
-            $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
-                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                        ['text' => '🎉 События', 'callback_data' => 'events']
-                    ],
-                    [
-                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                        ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                        ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
-                    ]
-                ]
-            ];
-        } elseif ($campCount == 1 && $character['level'] < 100) {
-            // У персонажа один лагерь и уровень меньше 100
-            $text = "🤖 Это снова я – *Роби*!\n\n"
-                . "У тебя уже есть один лагерь, и ты не можешь построить еще один до достижения 100-го уровня. Желаем тебе быстрее достичь 100-го уровня!";
+        // Management-клавиатура (когда строить новую базу нельзя).
+        $manageKeyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                    ['text' => '🎉 События', 'callback_data' => 'events'],
+                ],
+                [
+                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+                    ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
+                ],
+            ],
+        ];
 
-            $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
-                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                        ['text' => '🎉 События', 'callback_data' => 'events']
-                    ],
-                    [
-                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                        ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                        ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
-                    ]
-                ]
-            ];
+        if ($campCount >= $maxBases) {
+            // Лимит баз для текущего уровня достигнут — объясняем игроку (UX-discoverability).
+            $nextLevel = $baseLimit->nextBaseLevel($campCount);
+            if ($nextLevel === null) {
+                $text = "🤖 Это снова я – *Роби*!\n\n"
+                    . "У тебя максимально возможное число баз — *{$campCount}*. Больше построить нельзя ни на каком уровне.";
+            } else {
+                $text = "🤖 Это снова я – *Роби*!\n\n"
+                    . "Сейчас тебе доступно баз: *{$maxBases}* (по твоему уровню *{$level}*), и все они заняты.\n\n"
+                    . "🔒 Следующая база откроется на *{$nextLevel}-м уровне*. Каждые *{$baseLimit->levelsPerBase()}* уровней "
+                    . "открывают ещё одну базу (всего до *{$baseLimit->hardCap()}*).";
+            }
+            $keyboard = $manageKeyboard;
         } else {
-            // Либо нет лагерей, либо один лагерь и уровень больше 100
+            // Можно построить новую базу.
             $text = "🏕 *Разбить лагерь*\n\n"
                 . "Сейчас ты стоишь на пороге выбора: оставаться здесь или продолжить свой путь путешественника! "
                 . "Как только ты поставишь палатку, это будет место закрепленное за тобой, и дальнейшие постройки ты можешь производить только в этой ячейке. "
                 . "Ты сможешь все так же _добывать ресурсы_ и _исследовать территорию_. Чтобы вернуться на базу, тебе нужно будет иметь портативный телепорт или же за каждый возврат терять 1 единицу опыта!\n\n"
-                . "*После 100 уровня персонажа* ты сможешь построить еще одну базу в любой другой точке карты. Принимай решение."
-                . "\n\n*P.S.* Обязательно прочти о [системе разбивки лагеря](https://t.me/wild_world_info/418) 🌎";
+                . ($maxBases > 1
+                    ? "Тебе доступно баз: *{$maxBases}* (по уровню *{$level}*). Сейчас занято: *{$campCount}*. Каждые *{$baseLimit->levelsPerBase()}* уровней открывают ещё одну.\n\n"
+                    : "")
+                . "*P.S.* Обязательно прочти о [системе разбивки лагеря](https://t.me/wild_world_info/418) 🌎";
 
             $keyboard = [
                 'inline_keyboard' => [
@@ -86,7 +84,7 @@ class EntrenchAction extends BaseAction
                         ['text' => '🏕 Разбить лагерь', 'callback_data' => 'Camp'],
                         ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ],
-                ]
+                ],
             ];
         }
 

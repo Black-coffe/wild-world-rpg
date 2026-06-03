@@ -31,6 +31,20 @@ class CampCreateConfirmAction extends BaseAction
             ]);
         }
 
+        // ADR-095 Фаза 1a: defense-in-depth лимит баз по уровню — на случай прямого
+        // callback 'Camp' в обход гейта EntrenchAction.
+        $baseLimit = new \App\Services\Bases\BaseLimitService();
+        $level     = is_numeric($character['level'] ?? null) ? (int) $character['level'] : 1;
+        $rawCount  = (new ClaimedCellModel())->where('character_id', $character['id'])->countAllResults();
+        $campCount = is_numeric($rawCount) ? (int) $rawCount : 0;
+        if ($campCount >= $baseLimit->maxBasesForLevel($level)) {
+            $nextLevel = $baseLimit->nextBaseLevel($campCount);
+            $msg = $nextLevel === null
+                ? "🚫 У тебя максимально возможное число баз ({$campCount}). Больше построить нельзя."
+                : "🚫 Лимит баз для уровня {$level} достигнут ({$campCount}). Следующая база откроется на {$nextLevel}-м уровне.";
+            return Request::sendMessage(['chat_id' => $chatId, 'text' => $msg, 'parse_mode' => 'Markdown']);
+        }
+
         // 3. Убеждаемся, что у игрока нет базы
         $cellNumber = $character['cell_number'] ?? 0;
         if (!$cellNumber) {
