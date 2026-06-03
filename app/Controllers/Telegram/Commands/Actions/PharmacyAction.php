@@ -32,7 +32,7 @@ class PharmacyAction extends BaseAction
 
         // Выбираем только те предметы, у которых quantity > 0
         $craftedItemsLogs = $this->craftedItemsLogModel
-            ->select('crafted_items_log.quantity, crafted_items.name_rus, crafted_items.name_eng, crafted_items.character_boost')
+            ->select('crafted_items_log.quantity, crafted_items_log.durability_time, crafted_items.name_rus, crafted_items.name_eng, crafted_items.character_boost')
             ->join('crafted_items', 'crafted_items.id = crafted_items_log.crafted_item_id')
             ->where([
                 'crafted_items_log.character_id' => $character['id'],
@@ -40,6 +40,9 @@ class PharmacyAction extends BaseAction
             ])
             ->where('crafted_items_log.quantity >', 0)
             ->findAll();
+
+        // ADR-094: статус годности медикамента (свежо / просрочен → эффект снижен).
+        $expirySvc = new \App\Services\Craft\ConsumableExpiryService();
 
         // Если ничего нет, предлагаем перейти к крафту
         if (empty($craftedItemsLogs)) {
@@ -79,7 +82,20 @@ class PharmacyAction extends BaseAction
                 $boostText = rtrim($boostText, ', ');
             }
 
+            // ADR-094: строка годности (только если механика включена и срок задан).
+            $freshLine = '';
+            if ($expirySvc->enabled()) {
+                $durTime = $item['durability_time'] ?? null;
+                if ($expirySvc->isExpired($durTime)) {
+                    $lostPct = 100 - $expirySvc->stalePercent();
+                    $freshLine = " 🕒 *просрочен* (эффект −{$lostPct}%)\n";
+                } elseif (is_string($durTime) && $durTime !== '') {
+                    $freshLine = " ✅ годен до " . substr($durTime, 0, 10) . "\n";
+                }
+            }
+
             $text .= "📋 *{$item['name_rus']}* | {$item['quantity']} шт.\n"
+                . $freshLine
                 . " *Баф:* {$boostText}\n\n";
 
             // Добавляем кнопку для использования

@@ -177,6 +177,17 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
             }
         }
 
+        // ADR-094: медикаменты (type='drug') получают срок годности из template
+        // crafted_items.durability_time (дней), либо fallback default_shelf_days.
+        // Деградация heal при просрочке — в UsePharmacyAction (предмет не теряется).
+        // is_array — CraftedItemsModel returnType='array' (runtime всегда массив).
+        if ($foodDurability === null && is_array($craftedItem) && ($craftedItem['type'] ?? null) === 'drug') {
+            $expirySvc = new \App\Services\Craft\ConsumableExpiryService();
+            $tplRaw    = $craftedItem['durability_time'] ?? null;
+            $tplDays   = is_numeric($tplRaw) ? (int) $tplRaw : null;
+            $foodDurability = $expirySvc->expiryDateFor($tplDays);
+        }
+
         // 5. update / insert crafted_items_log
         $existingLog = $this->craftedItemsLogModel->where([
             'character_id'    => $task['character_id'],

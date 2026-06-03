@@ -9,12 +9,16 @@ use App\Models\CraftedItemsModel;
 use App\Models\CharacterModel;
 use App\Services\Food\FoodBuffService;
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Craft\ConsumableExpiryService;
 
 class UsePharmacyAction extends BaseAction
 {
     protected $craftedItemsLogModel;
     protected $craftedItemsModel;
     protected $characterModel;
+
+    /** ADR-094: множитель heal-эффекта при просрочке медикамента (1.0 = свежий). */
+    private float $degradeMult = 1.0;
 
     public function __construct($callbackQuery)
     {
@@ -59,6 +63,17 @@ class UsePharmacyAction extends BaseAction
 
         if (!$itemUsage || $itemUsage['quantity'] <= 0) {
             return $this->sendResponse("У тебя нет нужного препарата, или он закончился.");
+        }
+
+        // ADR-094: медикамент (type='drug') с durability_time в прошлом → heal-эффект
+        // деградирует (× stale_effect_percent%). Предмет НЕ теряется, заряды не трогаются.
+        // Еда деградирует свою «Сытость» отдельно (ниже, FoodBuffService).
+        $this->degradeMult = 1.0;
+        $craftedItemRow    = $this->craftedItemsModel->find($itemId);
+        $isMedical         = is_array($craftedItemRow) && ($craftedItemRow['type'] ?? '') === 'drug';
+        if ($isMedical) {
+            $this->degradeMult = (new ConsumableExpiryService())
+                ->effectMultiplier($itemUsage['durability_time'] ?? null);
         }
 
         // V9 (ADR-034): если съеденное — блюдо (food-buff), ставим «Сытость»
@@ -186,6 +201,21 @@ class UsePharmacyAction extends BaseAction
 
     private function applyMedicineEffect(array|\App\Entities\CharacterEntity $character, int $itemId, array $effects)
     {
+        // ADR-094: просроченный медикамент лечит слабее (× degradeMult). Знак сохраняется,
+        // ненулевой эффект не схлопывается в 0 (min |1|) — предмет всё ещё что-то делает.
+        if ($this->degradeMult < 1.0) {
+            foreach ($effects as $key => $val) {
+                if (!is_numeric($val) || (int) $val === 0) {
+                    continue;
+                }
+                $scaled = (int) round((int) $val * $this->degradeMult);
+                if ($scaled === 0) {
+                    $scaled = (int) $val > 0 ? 1 : -1;
+                }
+                $effects[$key] = $scaled;
+            }
+        }
+
         // Сохраняем исходные значения
         $originalValues = [
             'health'    => $character['health']     ?? 0,
@@ -325,6 +355,12 @@ class UsePharmacyAction extends BaseAction
 
         // Сколько осталось единиц препарата
         $message .= "\nОстаток «{$itemName}»: *{$qtyLeft} шт.*\n";
+
+        // ADR-094: предупреждение о просрочке (эффект был снижен).
+        if ($this->degradeMult < 1.0) {
+            $lostPct = (int) round((1 - $this->degradeMult) * 100);
+            $message .= "\n🕒 *Препарат просрочен* — лечебный эффект снижен на {$lostPct}%. Крафти свежее, чтобы лечило в полную силу.\n";
+        }
 
         // V9 (ADR-034): если активна «Сытость» (поел блюдо) — сообщаем о buff'е.
         $fb      = new FoodBuffService();
