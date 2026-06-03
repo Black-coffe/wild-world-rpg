@@ -9,6 +9,12 @@ use CodeIgniter\Router\RouteCollection;
 // (старый /login сохранён для совместимости). Форма логина постит на /login/authenticate.
 $routes->get('/', 'Front::home');
 $routes->get('admin/login', 'Login::new');
+
+// Asana «Расширение логирования PVP» Фаза 2 (ADR-092): ПУБЛИЧНЫЙ просмотр боёв (flat ADR-062).
+// Публичный тир — общая статистика (без координат; координаты gated за Фазой 3 TG-auth).
+// Admin-версия (/admin/battles) сохранена ниже для review. Намеренная публикация (пересмотр v0.51.7).
+$routes->get('battles', 'BattlesController::publicIndex');
+$routes->get('battles/view/(:num)', 'BattlesController::publicView/$1');
 // v0.51.6 security cleanup: removed public unprotected routes
 // - /migrate -> MigrationController (CRITICAL: anyone could trigger migrations->latest() via GET)
 // - /pve-test, /pve-test-view -> PvETestController (dead test scaffolding, replaced by PHPUnit)
