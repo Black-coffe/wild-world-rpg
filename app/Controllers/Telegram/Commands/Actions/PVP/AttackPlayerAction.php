@@ -196,8 +196,8 @@ class AttackPlayerAction extends BaseAction
         // ДО обработки смерти/респауна (она снимает экипировку и сбрасывает статы проигравшего).
         // health_after берётся из fightResult; экип/координаты — из БД (ещё боевое состояние).
         $battleLogData = (new PvpBattleLogBuilder())->build(
-            is_array($attacker) ? $attacker : (array) $attacker,
-            is_array($defender) ? $defender : (array) $defender,
+            $attacker,
+            $defender,
             $fightResult,
             is_array($biome) ? (is_string($biome['name'] ?? null) ? $biome['name'] : null) : null
         );

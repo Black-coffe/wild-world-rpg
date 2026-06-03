@@ -45,12 +45,15 @@ final class PvpBattleLogBuilder
     }
 
     /**
-     * @param array<string,mixed> $attacker     строка/энтити атакующего (статы на начало)
-     * @param array<string,mixed> $defender     строка/энтити защитника (статы на начало)
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $attacker  атакующий (статы на начало)
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $defender  защитник (статы на начало)
      * @param array<string,mixed> $fightResult  результат simulateFight (winner/loser/roundLogs/type)
      * @return array<string,mixed> log_data v2
+     *
+     * Принимает CharacterEntity (ArrayAccess) ИЛИ массив — доступ через `$p['key']` работает для обоих.
+     * НЕ кастить Entity к (array) — у CI4-Entity это ломает ключи (приватный $attributes).
      */
-    public function build(array $attacker, array $defender, array $fightResult, ?string $biomeName): array
+    public function build(array|\App\Entities\CharacterEntity $attacker, array|\App\Entities\CharacterEntity $defender, array $fightResult, ?string $biomeName): array
     {
         $winnerId = $this->idOf($fightResult['winner'] ?? null);
         $loserId  = $this->idOf($fightResult['loser'] ?? null);
@@ -72,11 +75,11 @@ final class PvpBattleLogBuilder
     }
 
     /**
-     * @param array<string,mixed> $p
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $p
      * @param array<string,mixed> $fightResult
      * @return array<string,mixed>
      */
-    private function playerBlock(array $p, array $fightResult): array
+    private function playerBlock(array|\App\Entities\CharacterEntity $p, array $fightResult): array
     {
         $id = is_numeric($p['id'] ?? null) ? (int) $p['id'] : 0;
 
@@ -117,10 +120,10 @@ final class PvpBattleLogBuilder
     }
 
     /**
-     * @param array<string,mixed> $p
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $p
      * @return array{cell:int, x:int, y:int}|null
      */
-    private function coords(array $p): ?array
+    private function coords(array|\App\Entities\CharacterEntity $p): ?array
     {
         $cell = is_numeric($p['cell_number'] ?? null) ? (int) $p['cell_number'] : 0;
         if ($cell <= 0) {
