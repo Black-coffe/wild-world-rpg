@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace AppDatabaseMigrations;
+namespace App\Database\Migrations;
 
-use CodeIgniterDatabaseMigration;
+use CodeIgniter\Database\Migration;
 
 /**
  * ADR-089 Phase 6 (контент-пасс 2026-06-03) — ГЛУБОКИЕ ветвящиеся деревья диалога 4 фракционных
