@@ -92,11 +92,38 @@ class GenericBuildingAction extends BaseAction
             return $this->sendError('Персонаж не найден. Попробуйте /start.');
         }
 
-        // 4. Проверка лагеря
-        $cells = $this->claimedCellModel->where('character_id', $character['id'])->findAll();
-        if (empty($cells)) {
-            $this->logRejected($character['id'], "BUILD_{$buildingKey}", 'no_camp');
-            return $this->sendError('У вас нет лагеря. Сначала разбейте лагерь.');
+        // 4. ADR-095 Фаза 1b: «активная база» — строить можно только стоя на своей базе
+        // (на той, которую и застраиваешь). Чинит мульти-бэйс (раньше сверялись с первой
+        // базой) и закрывает постройку «в чистом поле». GenericBuildingInfoAction уже
+        // гейтит кнопку «Строить» по этому же признаку — здесь defense-in-depth.
+        $currentCell = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
+        $activeBase  = $this->claimedCellModel->findActiveCell((int) $character['id'], $currentCell);
+        if ($activeBase === null) {
+            $this->logRejected($character['id'], "BUILD_{$buildingKey}", 'not_on_base');
+            return $this->sendError('Ты не на своей базе. Постройки возводятся только когда стоишь на базе — телепортируйся или дойди до неё.');
+        }
+
+        // 4b. ADR-095 Фаза 1b: лимит построек на ячейку (built + in-flight build tasks).
+        $limitSvc   = new \App\Services\Bases\BaseLimitService();
+        $maxPerCell = $limitSvc->maxBuildingsPerCell();
+        $built      = $this->characterBuildingModel
+            ->where('character_id', $character['id'])
+            ->where('map_cell_id', $currentCell)
+            ->countAllResults();
+        $built      = is_numeric($built) ? (int) $built : 0;
+        $db         = \Config\Database::connect();
+        $inflightRaw = $db->table('character_tasks ct')
+            ->join('tasks t', 't.id = ct.task_id')
+            ->where('ct.character_id', $character['id'])
+            ->whereIn('ct.status', ['in_work', 'queued'])
+            ->where('t.handler_key', 'generic_building')
+            ->countAllResults();
+        $inflight   = is_numeric($inflightRaw) ? (int) $inflightRaw : 0;
+        if ($built + $inflight >= $maxPerCell) {
+            $this->logRejected($character['id'], "BUILD_{$buildingKey}", 'cell_full', [
+                'built' => $built, 'inflight' => $inflight, 'max' => $maxPerCell,
+            ]);
+            return $this->sendError("На этой базе уже максимум построек (*{$maxPerCell}*): возведено {$built}, в работе {$inflight}. Снеси что-нибудь или развивай другую базу.");
         }
 
         // 5. Уровень персонажа

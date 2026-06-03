@@ -44,24 +44,28 @@ class DetailedBaseInfoAction extends BaseAction
         // >>> Создаём сервис проверки вышки связи
         $towerService           = new CommunicationTowerCoverageService();
 
-        // Проверяем, есть ли у персонажа лагерь
+        // ADR-095 Фаза 1b: «активная база» — если игрок стоит на ОДНОЙ ИЗ своих баз,
+        // показываем ИМЕННО её постройки (а не всегда первую). Чинит мульти-бэйс:
+        // на 2-й базе раньше показывалась 1-я (или «не на базе»).
+        $activeCell = $claimedCellModel->findActiveCell(
+            (int) $character['id'],
+            (int) ($character['cell_number'] ?? 0)
+        );
+        if ($activeCell !== null) {
+            return $this->showBuildings($character, $activeCell, $mapModel, $biomeModel, $buildingModel, $characterBuildingModel);
+        }
+
+        // Не на базе физически — берём первую базу для дистанционного просмотра / координат.
         $claimedCell = $claimedCellModel
             ->where('character_id', $character['id'])
             ->first();
 
-        // Если лагеря нет
-        if (!$claimedCell) {
+        // Если лагеря нет вообще (is_array нарроуит для showBuildings: returnType='array').
+        if (! is_array($claimedCell)) {
             return $this->handleNoBase($character);
         }
 
-        // Если у персонажа есть лагерь, проверяем:
-        $onBasePhysically = ($claimedCell['map_cell_id'] == $character['cell_number']);
-        if ($onBasePhysically) {
-            // Физически на базе: показываем постройки
-            return $this->showBuildings($character, $claimedCell, $mapModel, $biomeModel, $buildingModel, $characterBuildingModel);
-        }
-
-        // Если не на базе, проверяем сигнал вышки
+        // Не на базе, проверяем сигнал вышки
         $coverageResult = $towerService->checkCoverage($character['id']);
         if ($coverageResult['isCovered']) {
             // Покрывает вышка → можно дистанционно посмотреть постройки

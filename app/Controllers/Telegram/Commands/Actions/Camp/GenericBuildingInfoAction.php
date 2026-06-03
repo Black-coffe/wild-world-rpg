@@ -129,10 +129,13 @@ class GenericBuildingInfoAction extends BaseAction
             : (is_object($charRefreshed) && method_exists($charRefreshed, 'toArray')
                 ? $charRefreshed->toArray()
                 : []);
-        $currentCell = $charArr['cell_number'] ?? null;
-        $firstCellArr = $this->rowToArr($claimedCells[0]);
-        $campCell     = $firstCellArr !== null ? ($firstCellArr['map_cell_id'] ?? null) : null;
-        if ($currentCell != $campCell) {
+        // ADR-095 Фаза 1b: «активная база» — строить можно на ЛЮБОЙ своей базе, на
+        // которой стоишь (раньше сравнивалось только с ПЕРВОЙ базой → на 2-й базе
+        // игрок ошибочно получал «не в лагере»).
+        $currentCellRaw = $charArr['cell_number'] ?? null;
+        $currentCell    = is_numeric($currentCellRaw) ? (int) $currentCellRaw : 0;
+        $activeBase     = $this->claimedCellModel->findActiveCell((int) $character['id'], $currentCell);
+        if ($activeBase === null) {
             return MediaSender::editOrSend($this->navTarget() + [
                 'photo'        => Request::encodeFile($imagePath),
                 'caption'      => "Вы находитесь не в лагере. Переместитесь в лагерь, чтобы продолжить строительство.",

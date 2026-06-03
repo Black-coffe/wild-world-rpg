@@ -45,6 +45,7 @@ final class BaseLimitServiceTest extends CIUnitTestCase
         // дефолты ADR-095 (как сидит миграция)
         $this->seedInt('buildings.bases.levels_per_base', 50);
         $this->seedInt('buildings.bases.hard_cap', 19);
+        $this->seedInt('buildings.cells.max_buildings_per_cell', 20);
     }
 
     protected function tearDown(): void
@@ -76,6 +77,15 @@ final class BaseLimitServiceTest extends CIUnitTestCase
         $svc = new BaseLimitService();
         $this->assertSame(50, $svc->levelsPerBase());
         $this->assertSame(19, $svc->hardCap());
+        $this->assertSame(20, $svc->maxBuildingsPerCell());
+    }
+
+    public function testMaxBuildingsPerCellTunable(): void
+    {
+        Database::connect('tests')->table('game_settings')
+            ->where('setting_key', 'buildings.cells.max_buildings_per_cell')->update(['value_int' => 30]);
+        $this->cleanCache();
+        $this->assertSame(30, (new BaseLimitService())->maxBuildingsPerCell());
     }
 
     public function testMaxBasesForLevelMatchesSpecAnchors(): void

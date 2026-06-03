@@ -46,6 +46,15 @@ final class BaseLimitService
     }
 
     /**
+     * ADR-095 Фаза 1b — максимум построек на одну ячейку (базу). Дефолт 20 (на проде
+     * макс ~14/ячейку → не ломает существующих). Считается built + in-flight.
+     */
+    public function maxBuildingsPerCell(): int
+    {
+        return max(1, $this->intSetting('buildings.cells.max_buildings_per_cell', 20));
+    }
+
+    /**
      * Максимум баз, доступных персонажу данного уровня.
      * max(1, min(hardCap, floor(level / levelsPerBase))) — стартовая база бесплатна.
      */

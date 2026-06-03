@@ -56,4 +56,31 @@ class ClaimedCellModel extends Model
     ];
 
     protected $skipValidation = false;
+
+    /**
+     * ADR-095 Фаза 1b — «активная база»: claimed_cell, на которой персонаж стоит
+     * СЕЙЧАС (map_cell_id == текущий cell_number, status='active'). null — игрок не
+     * на своей базе. В таблице map id == cell_number для всех клеток, поэтому
+     * map_cell_id (= map.id) корректно сравнивается с character.cell_number.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function findActiveCell(int $characterId, int $cellNumber): ?array
+    {
+        if ($cellNumber <= 0) {
+            return null;
+        }
+        $row = $this->where('character_id', $characterId)
+            ->where('map_cell_id', $cellNumber)
+            ->where('status', 'active')
+            ->first();
+        if (! is_array($row)) {
+            return null;
+        }
+        $out = [];
+        foreach ($row as $k => $v) {
+            $out[(string) $k] = $v;
+        }
+        return $out;
+    }
 }
