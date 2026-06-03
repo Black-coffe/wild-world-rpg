@@ -31,18 +31,23 @@ class TelegramLogin extends BaseController
             return redirect()->to('/map?auth=bad_payload');
         }
 
+        // ADR-092 Фаза 3: куда вернуть после входа (по умолчанию /map). `next` НЕ подписан
+        // Telegram'ом → убираем ДО verify (иначе попадёт в data_check_string и сломает подпись).
+        $next = $this->safeNext(is_scalar($payload['next'] ?? null) ? (string) $payload['next'] : null);
+        unset($payload['next']);
+
         $verifier = new TelegramLoginVerifier();
         $result   = $verifier->verify($payload);
         if ($result['ok'] !== true) {
             log_message('warning', 'TelegramLogin verify failed: ' . $result['error']);
-            return redirect()->to('/map?auth=fail&reason=' . urlencode($result['error']));
+            return redirect()->to($this->withParam($next, 'auth=fail'));
         }
 
         $tgId      = $result['tg_id'];
         $firstName = $result['first_name'];
         $username  = $result['username'];
         if ($tgId <= 0) {
-            return redirect()->to('/map?auth=bad_id');
+            return redirect()->to($this->withParam($next, 'auth=bad_id'));
         }
 
         // Найти или создать telegram_users
@@ -59,7 +64,7 @@ class TelegramLogin extends BaseController
             $tgUser = $tgUserModel->where('telegram_id', $tgId)->first();
         }
         if (! is_array($tgUser) || ! isset($tgUser['id']) || ! is_numeric($tgUser['id'])) {
-            return redirect()->to('/map?auth=db_error');
+            return redirect()->to($this->withParam($next, 'auth=db_error'));
         }
 
         $tgUserPk = (int) $tgUser['id'];
@@ -77,14 +82,38 @@ class TelegramLogin extends BaseController
             $session->set('character_id', (int) $character['id']);
         }
 
-        return redirect()->to('/map?auth=ok');
+        return redirect()->to($this->withParam($next, 'auth=ok'));
     }
 
     public function logout(): ResponseInterface
     {
+        $next    = $this->safeNext(is_scalar($this->request->getPost('next') ?? null) ? (string) $this->request->getPost('next') : null);
         $session = Services::session();
         $session->remove(['tg_user_id', 'tg_first_name', 'tg_username', 'character_id']);
         $session->regenerate(true);
-        return redirect()->to('/map?auth=logged_out');
+
+        return redirect()->to($this->withParam($next, 'auth=logged_out'));
+    }
+
+    /**
+     * Безопасный локальный путь для возврата (anti open-redirect). Дефолт /map.
+     * Допускаем только относительные пути, начинающиеся с одного «/» (не «//», без схемы).
+     */
+    private function safeNext(?string $next): string
+    {
+        if ($next === null || $next === '') {
+            return '/map';
+        }
+        if ($next[0] !== '/' || str_starts_with($next, '//') || str_contains($next, '://')) {
+            return '/map';
+        }
+
+        return $next;
+    }
+
+    /** Добавить query-параметр к пути, корректно выбрав ?/&. */
+    private function withParam(string $path, string $param): string
+    {
+        return $path . (str_contains($path, '?') ? '&' : '?') . $param;
     }
 }

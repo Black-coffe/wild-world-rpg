@@ -123,6 +123,7 @@ class BattlesController extends Controller
         $attName = is_scalar($att['name'] ?? null) ? (string) $att['name'] : '?';
         $defName = is_scalar($def['name'] ?? null) ? (string) $def['name'] : '?';
         $base    = rtrim(base_url(), '/');
+        $auth    = $this->authContext();
 
         return view('site/battles/view', [
             'battle'   => $battle,
@@ -134,6 +135,9 @@ class BattlesController extends Controller
             'outcome'  => $oc,
             'biome'    => is_string($log['biome'] ?? null) ? $log['biome'] : null,
             'version'  => is_numeric($log['version'] ?? null) ? (int) $log['version'] : 1,
+            'authed'      => $auth['authed'],
+            'tgName'      => $auth['name'],
+            'botUsername' => $auth['botUsername'],
             'meta'     => [
                 'title'       => "Бой #{$battle->id} — {$attName} против {$defName} — Wild World",
                 'description' => 'Детальный разбор PvP-боя: уровни, параметры, экипировка и ход схватки по раундам.',
@@ -175,6 +179,40 @@ class BattlesController extends Controller
             'defenderId'    => is_numeric($def['id'] ?? null) ? (int) $def['id'] : ($b->player2_id ?? 0),
             'winnerId'      => $winnerId,
             'type'          => is_string($oc['type'] ?? null) ? $oc['type'] : null,
+        ];
+    }
+
+    /**
+     * ADR-092 Фаза 3 — контекст авторизации через Telegram (общая сессия ADR-061).
+     * Авторизованные видят расширенный тир (координаты + HP до/после + раунды).
+     *
+     * @return array{authed:bool, name:string, botUsername:string}
+     */
+    private function authContext(): array
+    {
+        $session = session();
+        $tgId    = $session->get('tg_user_id');
+        $authed  = is_numeric($tgId) && (int) $tgId > 0;
+
+        $name = '';
+        if ($authed) {
+            $uname = $session->get('tg_username');
+            $fname = $session->get('tg_first_name');
+            if (is_string($uname) && $uname !== '') {
+                $name = '@' . ltrim($uname, '@');
+            } elseif (is_string($fname) && $fname !== '') {
+                $name = $fname;
+            } else {
+                $name = 'выживший';
+            }
+        }
+
+        $rawBot = env('telegram.BOT_USERNAME');
+
+        return [
+            'authed'      => $authed,
+            'name'        => $name,
+            'botUsername' => is_string($rawBot) ? ltrim($rawBot, '@') : '',
         ];
     }
 

@@ -1,8 +1,10 @@
 <?php
 /**
- * Публичная детальная страница PvP-боя (ADR-092 Фаза 2, flat ADR-062).
+ * Публичная детальная страница PvP-боя (ADR-092 Фаза 2-3, flat ADR-062).
  *
- * Публичный тир: общая статистика. Координаты НЕ рендерятся (gated за Фазой 3 TG-auth).
+ * Тиринг (Фаза 3): незарегистрированные видят общую сводку (имена/уровни/фракции/статы/экип/исход);
+ * зарегистрированные через Telegram (сессия ADR-061) — ДОПОЛНИТЕЛЬНО координаты, HP до/после и
+ * пораундовый ход боя.
  *
  * @var object $battle
  * @var string $createdAt
@@ -13,12 +15,15 @@
  * @var array<string,mixed> $outcome
  * @var string|null $biome
  * @var int $version
+ * @var bool $authed
+ * @var string $tgName
+ * @var string $botUsername
  */
-$num = static fn($v): ?float => is_numeric($v) ? (float) $v : null;
-$fmt = static fn(?float $v): string => $v === null ? '—' : (string) (round($v * 10) / 10);
+$num = static fn ($v): ?float => is_numeric($v) ? (float) $v : null;
+$fmt = static fn (?float $v): string => $v === null ? '—' : (string) (round($v * 10) / 10);
 
-// Карточка бойца.
-$playerCard = static function (array $p, ?int $winnerId, string $roleLabel) use ($num, $fmt): string {
+// Карточка бойца. $authed решает, показывать ли HP до/после и координаты.
+$playerCard = static function (array $p, ?int $winnerId, string $roleLabel, bool $authed) use ($num, $fmt): string {
     $id      = is_numeric($p['id'] ?? null) ? (int) $p['id'] : 0;
     $name    = is_scalar($p['name'] ?? null) ? (string) $p['name'] : '—';
     $level   = is_numeric($p['level'] ?? null) ? (int) $p['level'] : null;
@@ -27,13 +32,13 @@ $playerCard = static function (array $p, ?int $winnerId, string $roleLabel) use 
     $hpAfter  = $num($p['health_after'] ?? null);
     $weapon   = is_array($p['weapon'] ?? null) ? $p['weapon'] : null;
     $armor    = is_array($p['armor'] ?? null) ? $p['armor'] : [];
+    $coords   = is_array($p['coords'] ?? null) ? $p['coords'] : null;
     $won      = $winnerId !== null && $id === $winnerId;
     $lost     = $winnerId !== null && $id !== $winnerId;
 
-    // HP-бар: остаток после боя относительно стартового.
     $pct = ($hpBefore !== null && $hpBefore > 0 && $hpAfter !== null)
         ? max(0, min(100, (int) round($hpAfter / $hpBefore * 100)))
-        : ($hpBefore !== null ? 100 : 0);
+        : 0;
 
     ob_start(); ?>
     <div class="card">
@@ -47,23 +52,22 @@ $playerCard = static function (array $p, ?int $winnerId, string $roleLabel) use 
         <div class="caption mt-1"><?= esc($roleLabel) ?></div>
 
         <div class="stack mt-2" style="gap:8px">
-            <div class="stat-line">
-                <span class="lbl">HP</span>
-                <div class="bar hp"><span style="--val:<?= $pct ?>%"></span></div>
-                <span class="val mono"><?= $fmt($hpBefore) ?> → <?= $fmt($hpAfter) ?></span>
-            </div>
-            <div class="stat-line">
-                <span class="lbl">Сила</span>
-                <span class="val mono"><?= $fmt($num($p['strength'] ?? null)) ?></span>
-            </div>
-            <div class="stat-line">
-                <span class="lbl">Ловкость</span>
-                <span class="val mono"><?= $fmt($num($p['agility'] ?? null)) ?></span>
-            </div>
-            <div class="stat-line">
-                <span class="lbl">Интеллект</span>
-                <span class="val mono"><?= $fmt($num($p['intellect'] ?? null)) ?></span>
-            </div>
+            <?php if ($authed): ?>
+                <div class="stat-line">
+                    <span class="lbl">HP</span>
+                    <div class="bar hp"><span style="--val:<?= $pct ?>%"></span></div>
+                    <span class="val mono"><?= $fmt($hpBefore) ?> → <?= $fmt($hpAfter) ?></span>
+                </div>
+            <?php endif ?>
+            <div class="stat-line"><span class="lbl">Сила</span><span class="val mono"><?= $fmt($num($p['strength'] ?? null)) ?></span></div>
+            <div class="stat-line"><span class="lbl">Ловкость</span><span class="val mono"><?= $fmt($num($p['agility'] ?? null)) ?></span></div>
+            <div class="stat-line"><span class="lbl">Интеллект</span><span class="val mono"><?= $fmt($num($p['intellect'] ?? null)) ?></span></div>
+            <?php if ($authed && $coords !== null): ?>
+                <div class="stat-line">
+                    <span class="lbl">📍 Где</span>
+                    <span class="val mono">X <?= is_numeric($coords['x'] ?? null) ? (int) $coords['x'] : '?' ?> · Y <?= is_numeric($coords['y'] ?? null) ? (int) $coords['y'] : '?' ?> <span class="caption">(клетка <?= is_numeric($coords['cell'] ?? null) ? (int) $coords['cell'] : '?' ?>)</span></span>
+                </div>
+            <?php endif ?>
         </div>
 
         <div class="divider-stencil" style="margin:16px 0"></div>
@@ -77,9 +81,7 @@ $playerCard = static function (array $p, ?int $winnerId, string $roleLabel) use 
                 <span class="lbl">🛡 Броня</span>
                 <span class="val">
                     <?php if ($armor === []): ?><span class="dim">—</span>
-                    <?php else: foreach ($armor as $a): ?>
-                        <?= isset($a['name']) ? esc((string) $a['name']) : '' ?><br>
-                    <?php endforeach; endif ?>
+                    <?php else: foreach ($armor as $a): ?><?= isset($a['name']) ? esc((string) $a['name']) : '' ?><br><?php endforeach; endif ?>
                 </span>
             </div>
         </div>
@@ -88,7 +90,6 @@ $playerCard = static function (array $p, ?int $winnerId, string $roleLabel) use 
     return (string) ob_get_clean();
 };
 
-// Масштаб диаграммы раундов по максимальному урону.
 $maxDmg = 1.0;
 foreach ($rounds as $r) {
     $d = is_numeric($r['finalDamage'] ?? null) ? (float) $r['finalDamage'] : 0.0;
@@ -96,7 +97,8 @@ foreach ($rounds as $r) {
         $maxDmg = $d;
     }
 }
-$type = is_string($outcome['type'] ?? null) ? $outcome['type'] : null;
+$type        = is_string($outcome['type'] ?? null) ? $outcome['type'] : null;
+$currentPath = '/' . uri_string();
 ?>
 <?= $this->extend('site/layout') ?>
 <?= $this->section('content') ?>
@@ -117,13 +119,35 @@ $type = is_string($outcome['type'] ?? null) ? $outcome['type'] : null;
             </p>
         </div>
 
+        <!-- ADR-092 Фаза 3: auth-бар (расширенный тир через Telegram-вход, общая сессия ADR-061) -->
+        <div class="card row" style="margin-bottom:20px;flex-wrap:wrap;gap:12px;justify-content:space-between">
+            <?php if ($authed): ?>
+                <span class="caption">🔓 Вы вошли как <b><?= esc($tgName) ?></b> — открыт расширенный обзор: координаты, HP до/после и ход боя по раундам.</span>
+                <form method="post" action="<?= site_url('logout/telegram') ?>" style="margin:0">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="next" value="<?= esc($currentPath, 'attr') ?>">
+                    <button class="btn" type="submit">Выйти</button>
+                </form>
+            <?php else: ?>
+                <span class="caption">🔒 Войдите через Telegram, чтобы увидеть <b>координаты боя</b>, <b>ход по раундам</b> и <b>HP до/после</b>.</span>
+                <?php if ($botUsername !== ''): ?>
+                    <div id="ww-battle-login"></div>
+                <?php endif ?>
+            <?php endif ?>
+        </div>
+
         <div class="grid grid-2" style="gap:20px">
-            <?= $playerCard($att, $winnerId, 'Атакующий') ?>
-            <?= $playerCard($def, $winnerId, 'Защитник') ?>
+            <?= $playerCard($att, $winnerId, 'Атакующий', $authed) ?>
+            <?= $playerCard($def, $winnerId, 'Защитник', $authed) ?>
         </div>
 
         <h3 class="kicker mt-4">Ход боя по раундам</h3>
-        <?php if ($rounds === []): ?>
+        <?php if (! $authed): ?>
+            <div class="card center" style="padding:32px 24px">
+                <div style="font-family:var(--font-display);font-size:40px;color:var(--text-muted)">🔒</div>
+                <p class="dim mb-0">Пораундовый разбор доступен после входа через Telegram.</p>
+            </div>
+        <?php elseif ($rounds === []): ?>
             <div class="card"><p class="dim mb-0">Пораундовый лог для этого боя не сохранён.</p></div>
         <?php else: ?>
             <div class="card">
@@ -151,7 +175,7 @@ $type = is_string($outcome['type'] ?? null) ? $outcome['type'] : null;
         <?php endif ?>
 
         <?php if ($version < 2): ?>
-            <p class="caption mt-2 dim">Это старый бой — расширенные данные (экипировка, статы на конец боя) для него не сохранялись.</p>
+            <p class="caption mt-2 dim">Это старый бой — расширенные данные (экипировка, статы на конец боя, координаты) для него не сохранялись.</p>
         <?php endif ?>
 
         <div class="row mt-4">
@@ -161,3 +185,31 @@ $type = is_string($outcome['type'] ?? null) ? $outcome['type'] : null;
 </section>
 
 <?= $this->endSection() ?>
+
+<?php if (! $authed && $botUsername !== ''): ?>
+<?= $this->section('scripts') ?>
+<script>
+(function(){
+    window.onTelegramAuthBattle = function(user){
+        if (!user || typeof user !== 'object') return;
+        var qs = Object.keys(user)
+            .filter(function(k){ return user[k] !== null && user[k] !== undefined; })
+            .map(function(k){ return encodeURIComponent(k) + '=' + encodeURIComponent(user[k]); })
+            .join('&');
+        var next = encodeURIComponent(window.location.pathname + window.location.search);
+        window.location.href = <?= json_encode(base_url('login/telegram/callback'), JSON_UNESCAPED_SLASHES) ?> + '?' + qs + '&next=' + next;
+    };
+    var s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://telegram.org/js/telegram-widget.js?22';
+    s.setAttribute('data-telegram-login', <?= json_encode($botUsername) ?>);
+    s.setAttribute('data-size', 'medium');
+    s.setAttribute('data-onauth', 'onTelegramAuthBattle(user)');
+    s.setAttribute('crossorigin', 'anonymous');
+    s.setAttribute('referrerpolicy', 'no-referrer');
+    var mount = document.getElementById('ww-battle-login');
+    if (mount) { mount.appendChild(s); }
+})();
+</script>
+<?= $this->endSection() ?>
+<?php endif ?>
