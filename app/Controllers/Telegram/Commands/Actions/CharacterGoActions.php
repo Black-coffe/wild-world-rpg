@@ -59,13 +59,30 @@ class CharacterGoActions extends BaseAction
             ['text' => '🚜 Переехать',       'callback_data' => 'move'],
         ];
 
-        // Вторая строка: "Окопаться" либо "Телепорт" — в зависимости от наличия базы
+        // Вторая строка: "Окопаться" либо "Телепорт" — в зависимости от наличия базы.
         if (!$hasBase) {
             // Нет базы => «Окопаться»
             $keyboardButtons[] = ['text' => '🏕️ Окопаться', 'callback_data' => 'entrench'];
         } else {
-            // База есть => «Телепорт»
+            // База есть => «Телепорт».
             $keyboardButtons[] = ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'];
+
+            // ADR-095 Фаза 1b: если по уровню доступно ещё баз — показываем вход «Новая база»
+            // (иначе мульти-бэйс был бы BUILT-BUT-INVISIBLE: создание разблокировано, а кнопки нет).
+            $campCountRaw = $this->claimedCellModel
+                ->where('character_id', $character_id)
+                ->where('status', 'active')
+                ->countAllResults();
+            $campCount = is_numeric($campCountRaw) ? (int) $campCountRaw : 0;
+            // Уровень — скалярным запросом (getRowArray → чистый array, без Entity/object-union).
+            $lvlQuery = \Config\Database::connect()->table('characters')
+                ->select('level')->where('id', $character_id)->get();
+            $lvlRow   = $lvlQuery !== false ? $lvlQuery->getRowArray() : null;
+            $levelRaw = is_array($lvlRow) ? ($lvlRow['level'] ?? null) : null;
+            $level    = is_numeric($levelRaw) ? (int) $levelRaw : 1;
+            if ((new \App\Services\Bases\BaseLimitService())->canBuildMore($level, $campCount)) {
+                $keyboardButtons[] = ['text' => '🏕️ Новая база', 'callback_data' => 'entrench'];
+            }
         }
 
         // Добавим остальные кнопки (например, Квесты, Исследования...)
