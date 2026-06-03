@@ -59,31 +59,33 @@ final class BaseCampDecorAction extends BaseAction
         }
 
         $charId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        // ADR-095 Фаза 1b: декор cell-aware — редактируем базу, на которой стоим (активную).
+        $cell   = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
         $data   = (string) $this->callbackQuery->getData();
 
         if (preg_match('/^campSetName_(\d+)$/', $data, $m) === 1) {
-            $this->decor->setCampName($charId, (int) $m[1]);
-            return $this->showOverview($chatId, $charId);
+            $this->decor->setCampName($charId, (int) $m[1], $cell);
+            return $this->showOverview($chatId, $charId, $cell);
         }
 
         if (preg_match('/^campSetFlag_(\d+)$/', $data, $m) === 1) {
-            $this->decor->setCampFlag($charId, (int) $m[1]);
-            return $this->showOverview($chatId, $charId);
+            $this->decor->setCampFlag($charId, (int) $m[1], $cell);
+            return $this->showOverview($chatId, $charId, $cell);
         }
 
         if (preg_match('/^campSetHearth_(\d+)$/', $data, $m) === 1) {
-            $this->decor->setCampHearth($charId, (int) $m[1]);
-            return $this->showOverview($chatId, $charId);
+            $this->decor->setCampHearth($charId, (int) $m[1], $cell);
+            return $this->showOverview($chatId, $charId, $cell);
         }
 
         if (preg_match('/^campSetFurniture_(\d+)$/', $data, $m) === 1) {
-            $this->decor->setCampFurniture($charId, (int) $m[1]);
-            return $this->showOverview($chatId, $charId);
+            $this->decor->setCampFurniture($charId, (int) $m[1], $cell);
+            return $this->showOverview($chatId, $charId, $cell);
         }
 
         if (preg_match('/^campSetPet_(\d+)$/', $data, $m) === 1) {
-            $this->decor->setCampPet($charId, (int) $m[1]);
-            return $this->showOverview($chatId, $charId);
+            $this->decor->setCampPet($charId, (int) $m[1], $cell);
+            return $this->showOverview($chatId, $charId, $cell);
         }
 
         return match ($data) {
@@ -92,13 +94,13 @@ final class BaseCampDecorAction extends BaseAction
             'campDecorHearth'    => $this->showPalette($chatId, '🔥 *Выбери очаг базы:*', BaseCampDecorService::PRESET_HEARTHS, 'campSetHearth', 2),
             'campDecorFurniture' => $this->showPalette($chatId, '🪑 *Выбери обстановку:*', BaseCampDecorService::PRESET_FURNITURE, 'campSetFurniture', 2),
             'campDecorPet'       => $this->showPalette($chatId, '🐾 *Выбери питомца-маскота:*', BaseCampDecorService::PRESET_PETS, 'campSetPet', 2),
-            default              => $this->showOverview($chatId, $charId),
+            default              => $this->showOverview($chatId, $charId, $cell),
         };
     }
 
-    private function showOverview(int $chatId, int $charId): ServerResponse
+    private function showOverview(int $chatId, int $charId, int $cellNumber = 0): ServerResponse
     {
-        $d    = $this->decor->getCampDecor($charId);
+        $d    = $this->decor->getCampDecor($charId, $cellNumber > 0 ? $cellNumber : null);
         $name = $d['name'];
         $flag = $d['flag'];
 

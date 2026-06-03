@@ -93,21 +93,19 @@ final class BaseCampDecorService
     }
 
     /**
-     * Возвращает текущий декор активной базы персонажа (экстерьер W21 + интерьер W22).
+     * Возвращает текущий декор базы персонажа. ADR-095 Фаза 1b: $cellNumber !== null →
+     * декор ИМЕННО этой базы (claimed_cells на этой ячейке); если её нет — fallback на
+     * первую активную базу (legacy / дистанционный просмотр). Декор хранится per-base.
      *
      * @return array{name: string|null, flag: string|null, hearth: string|null, furniture: string|null, pet: string|null}
      */
-    public function getCampDecor(int $charId): array
+    public function getCampDecor(int $charId, ?int $cellNumber = null): array
     {
-        $row = (new ClaimedCellModel())
-            ->where('character_id', $charId)
-            ->where('status', 'active')
-            ->first();
+        $row = $this->resolveCell($charId, $cellNumber);
         $get = static function (?array $r, string $col): ?string {
             $v = is_array($r) ? ($r[$col] ?? null) : null;
             return is_string($v) && $v !== '' ? $v : null;
         };
-        $row = is_array($row) ? $row : null;
         return [
             'name'      => $get($row, 'camp_name'),
             'flag'      => $get($row, 'camp_flag'),
@@ -115,6 +113,24 @@ final class BaseCampDecorService
             'furniture' => $get($row, 'camp_furniture'),
             'pet'       => $get($row, 'camp_pet'),
         ];
+    }
+
+    /**
+     * Резолв claimed_cells-строки для декора: указанная база (cellNumber) или первая
+     * активная (fallback). ADR-095 Фаза 1b — cell-aware декор для мульти-бэйс.
+     *
+     * @return array<string,mixed>|null
+     */
+    private function resolveCell(int $charId, ?int $cellNumber): ?array
+    {
+        $model = new ClaimedCellModel();
+        if ($cellNumber !== null && $cellNumber > 0) {
+            $row = $model->findActiveCell($charId, $cellNumber);
+            if ($row !== null) {
+                return $row;
+            }
+        }
+        return $model->findFirstActiveCell($charId);
     }
 
     /**
@@ -127,72 +143,72 @@ final class BaseCampDecorService
 
     /**
      * Устанавливает имя лагеря по индексу из PRESET_NAMES. Возвращает false при невалидном idx.
+     * ADR-095 Фаза 1b: $cellNumber — на какую базу (по умолчанию первая активная).
      */
-    public function setCampName(int $charId, int $idx): bool
+    public function setCampName(int $charId, int $idx, ?int $cellNumber = null): bool
     {
         if (! array_key_exists($idx, self::PRESET_NAMES)) {
             return false;
         }
-        return $this->setCampField($charId, 'camp_name', self::PRESET_NAMES[$idx]);
+        return $this->setCampField($charId, 'camp_name', self::PRESET_NAMES[$idx], $cellNumber);
     }
 
     /**
      * Устанавливает emoji-флаг по индексу из PRESET_FLAGS. Возвращает false при невалидном idx.
      */
-    public function setCampFlag(int $charId, int $idx): bool
+    public function setCampFlag(int $charId, int $idx, ?int $cellNumber = null): bool
     {
         if (! array_key_exists($idx, self::PRESET_FLAGS)) {
             return false;
         }
-        return $this->setCampField($charId, 'camp_flag', self::PRESET_FLAGS[$idx]);
+        return $this->setCampField($charId, 'camp_flag', self::PRESET_FLAGS[$idx], $cellNumber);
     }
 
     /**
      * W22: устанавливает очаг по индексу из PRESET_HEARTHS. Возвращает false при невалидном idx.
      */
-    public function setCampHearth(int $charId, int $idx): bool
+    public function setCampHearth(int $charId, int $idx, ?int $cellNumber = null): bool
     {
         if (! array_key_exists($idx, self::PRESET_HEARTHS)) {
             return false;
         }
-        return $this->setCampField($charId, 'camp_hearth', self::PRESET_HEARTHS[$idx]);
+        return $this->setCampField($charId, 'camp_hearth', self::PRESET_HEARTHS[$idx], $cellNumber);
     }
 
     /**
      * W22: устанавливает обстановку по индексу из PRESET_FURNITURE. Возвращает false при невалидном idx.
      */
-    public function setCampFurniture(int $charId, int $idx): bool
+    public function setCampFurniture(int $charId, int $idx, ?int $cellNumber = null): bool
     {
         if (! array_key_exists($idx, self::PRESET_FURNITURE)) {
             return false;
         }
-        return $this->setCampField($charId, 'camp_furniture', self::PRESET_FURNITURE[$idx]);
+        return $this->setCampField($charId, 'camp_furniture', self::PRESET_FURNITURE[$idx], $cellNumber);
     }
 
     /**
      * W22: устанавливает питомца по индексу из PRESET_PETS. Возвращает false при невалидном idx.
      */
-    public function setCampPet(int $charId, int $idx): bool
+    public function setCampPet(int $charId, int $idx, ?int $cellNumber = null): bool
     {
         if (! array_key_exists($idx, self::PRESET_PETS)) {
             return false;
         }
-        return $this->setCampField($charId, 'camp_pet', self::PRESET_PETS[$idx]);
+        return $this->setCampField($charId, 'camp_pet', self::PRESET_PETS[$idx], $cellNumber);
     }
 
     /**
-     * Записывает одно поле декора в active claimed_cells строку персонажа.
-     * Возвращает false, если базы (active-строки) нет.
+     * Записывает одно поле декора в claimed_cells. ADR-095 Фаза 1b: $cellNumber — на
+     * указанную базу (cell-aware), иначе первая активная. Возвращает false, если базы нет.
      */
-    private function setCampField(int $charId, string $field, string $value): bool
+    private function setCampField(int $charId, string $field, string $value, ?int $cellNumber = null): bool
     {
-        $model = new ClaimedCellModel();
-        $row   = $model->where('character_id', $charId)->where('status', 'active')->first();
-        if (! is_array($row)) {
+        $row = $this->resolveCell($charId, $cellNumber);
+        if ($row === null) {
             return false;
         }
         $id = $row['id'] ?? null;
-        $model->update(is_numeric($id) ? (int) $id : 0, [$field => $value]);
+        (new ClaimedCellModel())->update(is_numeric($id) ? (int) $id : 0, [$field => $value]);
         return true;
     }
 }

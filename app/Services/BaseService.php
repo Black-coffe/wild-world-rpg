@@ -206,8 +206,9 @@ class BaseService
         $summary    = $this->buildingsList->buildSummary((int) $characterRow['id'], $cellNum);
 
         // W21: декор базы (имя + флаг) и killswitch для кнопки «🎨 Декор».
+        // ADR-095 Фаза 1b: декор ИМЕННО показываемой базы (cell-aware), не первой.
         $decorSvc    = new BaseCampDecorService();
-        $decor       = $decorSvc->getCampDecor((int) $characterRow['id']);
+        $decor       = $decorSvc->getCampDecor((int) $characterRow['id'], $cellNum);
         $decorEnabled = $decorSvc->enabled();
 
         return $this->sendPhoto(
