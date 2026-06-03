@@ -77,6 +77,8 @@ class GatherTaskHandler extends BaseTaskHandler
     private FarmingService $farming;
     // V9 (ADR-034): «Сытость» — множитель добычи, пока сыт.
     private FoodBuffService $foodBuff;
+    // ADR-090 «Мягкий старт»: soft-ramp rarity-доступа на низких уровнях (live-tunable, killswitch).
+    private \App\Services\GameSettings\GameSettingsService $gameSettings;
 
     /**
      * Сохраняет, сколько инструментов мы использовали в рамках одного процесса сбора
@@ -125,6 +127,30 @@ class GatherTaskHandler extends BaseTaskHandler
         $this->farming                = new FarmingService();
         // V9 (ADR-034): food-buff reader (well-fed gather multiplier).
         $this->foodBuff               = new FoodBuffService();
+        // ADR-090 «Мягкий старт»: reader soft-ramp параметров (killswitch+window+step).
+        $this->gameSettings           = new \App\Services\GameSettings\GameSettingsService();
+    }
+
+    /**
+     * ADR-090 — параметры «мягкого старта» добычи из GameSettings (live-tunable).
+     *
+     * @return array{enabled:bool, window:int, step:float}
+     */
+    private function earlyAccessParams(): array
+    {
+        $enRaw = $this->gameSettings->get('gather.early_access_enabled', false);
+        $enabled = is_bool($enRaw)
+            ? $enRaw
+            : (is_numeric($enRaw) ? ((int) $enRaw === 1) : in_array(strtolower((string) $enRaw), ['1', 'true', 'yes', 'on'], true));
+
+        $winRaw  = $this->gameSettings->get('gather.early_access_window', 2);
+        $stepRaw = $this->gameSettings->get('gather.early_access_step', 0.20);
+
+        return [
+            'enabled' => $enabled,
+            'window'  => is_numeric($winRaw) ? (int) $winRaw : 2,
+            'step'    => is_numeric($stepRaw) ? (float) $stepRaw : 0.20,
+        ];
     }
 
     /**
@@ -400,17 +426,24 @@ class GatherTaskHandler extends BaseTaskHandler
         array $task,
         array $loadedEvents
     ): array {
-        $allowedRarities = $this->getAllowedRarities($character['level']);
+        // ADR-090 «Мягкий старт»: soft-ramp rarity-доступа вместо бинарного гейта.
+        // Killswitch OFF → жёсткий гейт как раньше (byte-identical).
+        $level = (int) $character['level'];
+        $ea    = $this->earlyAccessParams();
 
         $blocksCount = intdiv($spentMinutes, 10);
         $remainder   = $spentMinutes % 10;
 
         $baseBlockResources = [];
         foreach ($resources as $resource) {
-            if (!in_array($resource['rarity'], $allowedRarities)) {
+            $rarity = (int) $resource['rarity'];
+            $factor = $this->formulaService->rarityYieldFactor($level, $rarity, $ea['enabled'], $ea['window'], $ea['step']);
+            if ($factor <= 0.0) {
                 continue;
             }
-            $baseFor10Min = $this->getBaseQuantityByRarity($resource['rarity']);
+            // Базовый выход за 10 мин × фактор доступа (1.0 для разблокированных,
+            // step^tiersEarly для превью-тиров). Дробный — финальное округление позже.
+            $baseFor10Min = $this->getBaseQuantityByRarity($rarity) * $factor;
 
             $baseBlockResources[$resource['id']] = [
                 'resource' => $resource,

@@ -44,6 +44,40 @@ final class GatherFormulaService
     }
 
     /**
+     * Уровень, на котором rarity полностью разблокирована (соответствует getAllowedRarities):
+     * rarity 10 → L1, rarity 9 → L2, … rarity 1 → L10.
+     */
+    public function unlockLevelForRarity(int $rarity): int
+    {
+        return 11 - $rarity;
+    }
+
+    /**
+     * ADR-090 «Мягкий старт» — множитель выхода ресурса по (уровень, редкость).
+     *
+     * - level >= unlock(rarity) → 1.0 (разблокировано, полный выход — как сегодня).
+     * - level <  unlock, early-access ON, в окне превью (tiersEarly <= window) → step^tiersEarly
+     *   (редкий тир доступен раньше, но с малым выходом, растущим к уровню разблокировки).
+     * - иначе → 0.0 (недоступно).
+     *
+     * При $earlyAccess=false — жёсткий гейт как раньше (1.0 если разблокировано, иначе 0.0):
+     * byte-identical поведению до ADR-090.
+     */
+    public function rarityYieldFactor(int $level, int $rarity, bool $earlyAccess, int $window, float $step): float
+    {
+        $tiersEarly = $this->unlockLevelForRarity($rarity) - $level;
+
+        if ($tiersEarly <= 0) {
+            return 1.0; // разблокировано → полный выход
+        }
+        if (! $earlyAccess || $window <= 0 || $tiersEarly > $window) {
+            return 0.0; // killswitch OFF / вне окна превью → недоступно
+        }
+
+        return max(0.0, $step ** $tiersEarly);
+    }
+
+    /**
      * Базовое количество ресурса rarity X за блок 10 минут.
      */
     public function getBaseQuantityByRarity(int $rarity): int

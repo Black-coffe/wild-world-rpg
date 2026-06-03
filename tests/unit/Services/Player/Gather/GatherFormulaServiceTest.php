@@ -46,6 +46,65 @@ final class GatherFormulaServiceTest extends CIUnitTestCase
         $this->assertSame($expected, $this->svc->getAllowedRarities(335));
     }
 
+    // ---- unlockLevelForRarity (ADR-090) ----
+
+    public function testUnlockLevelForRarity(): void
+    {
+        $this->assertSame(1, $this->svc->unlockLevelForRarity(10));
+        $this->assertSame(2, $this->svc->unlockLevelForRarity(9));
+        $this->assertSame(5, $this->svc->unlockLevelForRarity(6));
+        $this->assertSame(10, $this->svc->unlockLevelForRarity(1));
+    }
+
+    // ---- rarityYieldFactor (ADR-090 «Мягкий старт») ----
+
+    /** Killswitch OFF → жёсткий гейт (byte-identical): 1.0 если разблокировано, иначе 0.0. */
+    public function testYieldFactorDisabledIsHardGate(): void
+    {
+        // L1: только rarity 10 разблокирована.
+        $this->assertSame(1.0, $this->svc->rarityYieldFactor(1, 10, false, 2, 0.20));
+        $this->assertSame(0.0, $this->svc->rarityYieldFactor(1, 9, false, 2, 0.20));
+        $this->assertSame(0.0, $this->svc->rarityYieldFactor(1, 1, false, 2, 0.20));
+        // L5: rarity 6..10 разблокированы (unlock L5..L1).
+        $this->assertSame(1.0, $this->svc->rarityYieldFactor(5, 6, false, 2, 0.20));
+        $this->assertSame(0.0, $this->svc->rarityYieldFactor(5, 5, false, 2, 0.20));
+    }
+
+    /** Контракт byte-identical: OFF-фактор == (level>=unlock ? 1.0 : 0.0) для всех пар. */
+    public function testYieldFactorDisabledMatchesAllowedRarities(): void
+    {
+        foreach ([1, 2, 3, 5, 8, 10, 50] as $level) {
+            $allowed = $this->svc->getAllowedRarities($level);
+            for ($rarity = 1; $rarity <= 10; $rarity++) {
+                $expected = in_array($rarity, $allowed, true) ? 1.0 : 0.0;
+                $this->assertSame(
+                    $expected,
+                    $this->svc->rarityYieldFactor($level, $rarity, false, 2, 0.20),
+                    "OFF factor должен совпадать с жёстким гейтом: level={$level} rarity={$rarity}"
+                );
+            }
+        }
+    }
+
+    /** Killswitch ON → soft-ramp: разблокированные полны, превью-тиры step^tiersEarly, дальше окна 0. */
+    public function testYieldFactorEnabledSoftRamp(): void
+    {
+        // L1, window 2, step 0.20:
+        $this->assertSame(1.0, $this->svc->rarityYieldFactor(1, 10, true, 2, 0.20));            // unlock L1, full
+        $this->assertEqualsWithDelta(0.20, $this->svc->rarityYieldFactor(1, 9, true, 2, 0.20), 1e-9); // 1 early
+        $this->assertEqualsWithDelta(0.04, $this->svc->rarityYieldFactor(1, 8, true, 2, 0.20), 1e-9); // 2 early
+        $this->assertSame(0.0, $this->svc->rarityYieldFactor(1, 7, true, 2, 0.20));             // 3 early > window → 0
+        // Разблокированный тир на более высоком уровне → full.
+        $this->assertSame(1.0, $this->svc->rarityYieldFactor(3, 8, true, 2, 0.20));             // r8 unlock L3
+    }
+
+    /** window 0 → превью выключено (эквивалент жёсткого гейта даже при ON). */
+    public function testYieldFactorZeroWindowNoPreview(): void
+    {
+        $this->assertSame(1.0, $this->svc->rarityYieldFactor(1, 10, true, 0, 0.20));
+        $this->assertSame(0.0, $this->svc->rarityYieldFactor(1, 9, true, 0, 0.20));
+    }
+
     // ---- getBaseQuantityByRarity ----
 
     public function testBaseQuantityByRarityTable(): void

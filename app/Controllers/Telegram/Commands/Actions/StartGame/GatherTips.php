@@ -150,7 +150,14 @@ class GatherTips extends Controller
     protected function calculateFoundResources($resources, $character)
     {
         $foundResources = [];
-        $waterResourcesIds = [];
+
+        // ADR-090 «Мягкий старт»: при включённом early-access применяем тот же soft-ramp,
+        // что и реальный сбор (GatherTaskHandler) → туториал и реальная добыча консистентны
+        // (вода доминирует + базовый спред). При killswitch OFF — прежнее поведение туториала
+        // (все level_required<=level), чтобы dormant был no-op.
+        $ea      = $this->earlyAccessParams();
+        $formula = new \App\Services\Player\Gather\GatherFormulaService();
+        $level   = (int) $character['level'];
 
         foreach ($resources as $resource) {
             if ($this->isResourceCollectible($resource, $character)) {
@@ -159,6 +166,14 @@ class GatherTips extends Controller
                 $characterFactor = $this->getCharacterFactor($character);
 
                 $totalAmount = round($resourceFactor * $characterFactor);
+
+                if ($ea['enabled']) {
+                    $access = $formula->rarityYieldFactor($level, (int) $resource['rarity'], true, $ea['window'], $ea['step']);
+                    if ($access <= 0.0) {
+                        continue; // вне окна превью — как в реальном сборе
+                    }
+                    $totalAmount = round($totalAmount * $access);
+                }
 
                 if ($totalAmount > 0) {
                     $foundResources[] = [
@@ -170,6 +185,29 @@ class GatherTips extends Controller
         }
 
         return $foundResources;
+    }
+
+    /**
+     * ADR-090 — параметры «мягкого старта» добычи из GameSettings (live-tunable).
+     *
+     * @return array{enabled:bool, window:int, step:float}
+     */
+    private function earlyAccessParams(): array
+    {
+        $gs    = new \App\Services\GameSettings\GameSettingsService();
+        $enRaw = $gs->get('gather.early_access_enabled', false);
+        $enabled = is_bool($enRaw)
+            ? $enRaw
+            : (is_numeric($enRaw) ? ((int) $enRaw === 1) : in_array(strtolower((string) $enRaw), ['1', 'true', 'yes', 'on'], true));
+
+        $winRaw  = $gs->get('gather.early_access_window', 2);
+        $stepRaw = $gs->get('gather.early_access_step', 0.20);
+
+        return [
+            'enabled' => $enabled,
+            'window'  => is_numeric($winRaw) ? (int) $winRaw : 2,
+            'step'    => is_numeric($stepRaw) ? (float) $stepRaw : 0.20,
+        ];
     }
 
     protected function isResourceCollectible($resource, $character)
@@ -247,8 +285,10 @@ class GatherTips extends Controller
         }
 
         // ⚠️ Это caption фото — лимит Telegram 1024 символа (UTF-16, эмодзи = 2). Текст держим коротким.
-        $messageText .= "\nЭто первые ресурсы — они доступны в этом биоме. Дальше добыча будет занимать "
-            . "от 3 до 15 минут в зависимости от прокачки. Разведка идёт сама: двигаясь, ты открываешь клетки вокруг.\n\n"
+        $messageText .= "\nЭто первые ресурсы из этого биома. Сейчас добыча — в основном вода и базовые "
+            . "материалы; с ростом уровня открываются новые ресурсы (древесина, камень, руды…) и сбор "
+            . "становится щедрее. Дальше добыча займёт от 3 до 15 минут. Разведка идёт сама: двигаясь, "
+            . "ты открываешь клетки вокруг.\n\n"
             . "🤖 Проверенный метод первой недели:\n"
             . "1️⃣ Двигайся и открывай местность\n"
             . "2️⃣ Постоянно собирай ресурсы\n"
