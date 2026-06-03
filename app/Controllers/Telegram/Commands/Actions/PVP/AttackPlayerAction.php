@@ -26,6 +26,7 @@ use App\Services\PVE\PvpDamageCalculator;
 use App\Services\PVE\PvpEquipmentRepository;
 use App\Services\PVE\PvpFormulaService;
 use App\Services\PVE\PvpActivityContextService;
+use App\Services\PVE\PvpBattleLogBuilder;
 use App\Services\PVE\PvpRewardOrchestrator;
 use App\Services\PVE\PvpRoundOrchestrator;
 
@@ -191,6 +192,16 @@ class AttackPlayerAction extends BaseAction
             $defenseService->applyDecay($defenseProfile['structure_ids']);
         }
 
+        // Asana «Расширение логирования»: собираем обогащённый log_data (v2) СРАЗУ после боя —
+        // ДО обработки смерти/респауна (она снимает экипировку и сбрасывает статы проигравшего).
+        // health_after берётся из fightResult; экип/координаты — из БД (ещё боевое состояние).
+        $battleLogData = (new PvpBattleLogBuilder())->build(
+            is_array($attacker) ? $attacker : (array) $attacker,
+            is_array($defender) ? $defender : (array) $defender,
+            $fightResult,
+            is_array($biome) ? (is_string($biome['name'] ?? null) ? $biome['name'] : null) : null
+        );
+
         // 2) Текст итогов.
         $summaryText   = $this->formatShortFightResult($fightResult);
         $loser         = $fightResult['loser']  ?? null;
@@ -272,37 +283,7 @@ class AttackPlayerAction extends BaseAction
         $endTime  = date('Y-m-d H:i:s');
         $winnerId = $winner ? $winner['id'] : null;
 
-        $logDetails = [
-            'characters' => [
-                'attacker' => [
-                    'id'        => $attacker['id'],
-                    'name'      => $attacker['name'],
-                    'level'     => $attacker['level'],
-                    'faction'   => $attacker['faction']['name'] ?? null,
-                    'strength'  => $attacker['strength'],
-                    'agility'   => $attacker['agility'],
-                    'intellect' => $attacker['intellect'],
-                    'health'    => $attacker['health'],
-                ],
-                'defender' => [
-                    'id'        => $defender['id'],
-                    'name'      => $defender['name'],
-                    'level'     => $defender['level'],
-                    'faction'   => $defender['faction']['name'] ?? null,
-                    'strength'  => $defender['strength'],
-                    'agility'   => $defender['agility'],
-                    'intellect' => $defender['intellect'],
-                    'health'    => $defender['health'],
-                ],
-            ],
-            'rounds'  => $fightResult['roundLogs'] ?? [],
-            'outcome' => [
-                'type'     => $fightResult['type'],
-                'winnerId' => $winnerId,
-                'loserId'  => $loser ? $loser['id'] : null,
-            ],
-        ];
-
+        // Asana «Расширение логирования»: log_data v2 уже собран ВЫШЕ (до обработки смерти).
         $battleId = $this->battleLogModel->insert([
             'battle_type' => 'PVP',
             'player1_id'  => $attacker['id'],
@@ -310,7 +291,7 @@ class AttackPlayerAction extends BaseAction
             'winner_id'   => $winnerId,
             'created_at'  => $battleStartTime,
             'finished_at' => $endTime,
-            'log_data'    => json_encode($logDetails, JSON_UNESCAPED_UNICODE),
+            'log_data'    => json_encode($battleLogData, JSON_UNESCAPED_UNICODE),
         ]);
 
         // W18 (ADR-072): post-combat scoring в PvP-ладдер — ПОСЛЕ battle_logs-insert, ВНЕ simulateFight
