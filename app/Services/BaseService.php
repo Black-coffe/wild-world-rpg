@@ -67,6 +67,7 @@ class BaseService
             // ВСЕГДА (даже при dormant) — чтобы к моменту активации last_visited был свежим
             // у активных игроков и их базы не снеслись разом. Безвредно: просто timestamp.
             $this->touchVisit($activeCell);
+            $activeCell['last_visited_at'] = date('Y-m-d H:i:s'); // отразить визит для TTL-дисплея (база свежа)
             return $this->showBaseBuildings($chatId, $characterRow, $activeCell, null, $editMessageId);
         }
 
@@ -251,9 +252,16 @@ class BaseService
         $levelInt  = is_numeric($characterRow['level'] ?? null) ? (int) $characterRow['level'] : 1;
         $daysLeft  = $lifecycle->daysRemaining($claimedCell['last_visited_at'] ?? null, $levelInt);
         if ($daysLeft !== null) {
-            $payload['caption'] .= $daysLeft > 0
-                ? "\n\n⏳ База простоит ещё *{$daysLeft}* дн. — заходи, чтобы продлить."
-                : "\n\n⏳ *База на грани разрушения!* Срок истёк — она исчезнет при ближайшем обходе.";
+            // На базе (coverageResult === null) визит уже продлил срок → «свежа». Дистанционно
+            // (через вышку) — реальный остаток + напоминание заглянуть.
+            $onBase = $coverageResult === null;
+            if ($daysLeft <= 0) {
+                $payload['caption'] .= "\n\n⏳ *База на грани разрушения!* Срок истёк — она исчезнет при ближайшем обходе.";
+            } elseif ($onBase) {
+                $payload['caption'] .= "\n\n⏳ База свежа — простоит ещё *{$daysLeft}* дн.";
+            } else {
+                $payload['caption'] .= "\n\n⏳ База простоит ещё *{$daysLeft}* дн. — загляни, чтобы продлить срок.";
+            }
         }
 
         return $this->sendPhoto($chatId, self::PHOTO_BASE, $payload, $editMessageId);
