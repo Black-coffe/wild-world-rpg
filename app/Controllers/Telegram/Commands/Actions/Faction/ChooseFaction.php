@@ -210,20 +210,36 @@ class ChooseFaction extends BaseAction
             'notified_at'         => $currentTime, // можно обновить, чтоб не слало напоминания
         ];
 
+        // notification_count обязателен по валидации CharacterFactionModel — insert-ветка
+        // без него МОЛЧА падала (insert() → false), запись не создавалась. С ADR-097-стимулом
+        // это стало эксплойтом (золото без записи → повторный выбор), поэтому: (а) даём
+        // notification_count, (б) начисляем подъёмные ТОЛЬКО при успешной фиксации выбора.
+        $data['notification_count'] = is_array($existingFaction) && isset($existingFaction['notification_count'])
+            ? $existingFaction['notification_count']
+            : 0;
+
         if ($existingFaction) {
-            // update
-            $characterFactionModel
+            // update (query-builder минует валидацию — обновляем запись faction_id=5 на выбор)
+            $saved = (bool) $characterFactionModel
                 ->where('id', $existingFaction['id'])
                 ->set($data)
                 ->update();
         } else {
-            // insert (если на момент вызова записи вообще не было)
+            // insert (записи не было — например, выбор раньше крон-уведомления)
             $data['character_id'] = $character['id'];
-            $characterFactionModel->insert($data);
+            $saved = (bool) $characterFactionModel->insert($data);
         }
 
-        // ADR-097 — ОДНОРАЗОВЫЕ «подъёмные» за первый выбор фракции. Безопасно: выше стоит
-        // гейт «уже выбрана» (return), поэтому эта ветка исполняется лишь при первом вступлении.
+        if (! $saved) {
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => '⚠️ Не удалось закрепить выбор фракции. Попробуйте ещё раз.',
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
+        // ADR-097 — ОДНОРАЗОВЫЕ «подъёмные» за первый выбор. Безопасно: выше гейт «уже выбрана»
+        // (return) + начисляем ТОЛЬКО после успешной записи выбора ($saved) → не профармить.
         $incentiveText = '';
         if ($this->gsBool('faction.choice.incentive_enabled', true)) {
             $gold = $this->gsInt('faction.choice.incentive_gold', 1000);
