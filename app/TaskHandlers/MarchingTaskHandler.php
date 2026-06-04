@@ -9,6 +9,7 @@ use App\Models\ExploredCellsModel;
 use App\Services\Player\PlayerDetectionService;
 use App\Services\PVE\TowerAlertService;
 use App\Services\World\ObjectDiscoveryService;
+use App\Services\World\ObjectSignalService;
 use App\Services\World\TextMapService;
 use CodeIgniter\Database\BaseResult;
 use Config\Database;
@@ -55,6 +56,7 @@ class MarchingTaskHandler extends BaseTaskHandler
     private GameBalance $cfg;
     private PlayerDetectionService $detector;
     private TowerAlertService $towerAlerts;
+    private ObjectSignalService $objectSignal;
 
     /** @var array<string, array{int,int}> dx,dy по направлениям (y растёт на юг). */
     private const DIRECTIONS = [
@@ -80,11 +82,12 @@ class MarchingTaskHandler extends BaseTaskHandler
         'southeast' => '↘️ юго-восток',
     ];
 
-    public function __construct(?GameBalance $cfg = null, ?PlayerDetectionService $detector = null, ?TowerAlertService $towerAlerts = null)
+    public function __construct(?GameBalance $cfg = null, ?PlayerDetectionService $detector = null, ?TowerAlertService $towerAlerts = null, ?ObjectSignalService $objectSignal = null)
     {
-        $this->cfg         = $cfg ?? new GameBalance();
-        $this->detector    = $detector ?? new PlayerDetectionService();
-        $this->towerAlerts = $towerAlerts ?? new TowerAlertService();
+        $this->cfg          = $cfg ?? new GameBalance();
+        $this->detector     = $detector ?? new PlayerDetectionService();
+        $this->towerAlerts  = $towerAlerts ?? new TowerAlertService();
+        $this->objectSignal = $objectSignal ?? new ObjectSignalService();
     }
 
     /**
@@ -224,6 +227,13 @@ class MarchingTaskHandler extends BaseTaskHandler
             $this->towerAlerts->notifyTowersNear($characterId, $newX, $newY);
         } catch (\Throwable $e) {
             log_message('error', '[MarchingTaskHandler] towerAlerts: ' . $e->getMessage());
+        }
+
+        // — ADR-098: радио-сигнал к ближайшему редкому (strategic) объекту в радиусе —
+        try {
+            $this->objectSignal->signalNearbyObjects($characterId, $newX, $newY);
+        } catch (\Throwable $e) {
+            log_message('error', '[MarchingTaskHandler] objectSignal: ' . $e->getMessage());
         }
 
         // — ADR-089 Фаза 3: случайная встреча с нейтральным NPC в пути → пауза похода —

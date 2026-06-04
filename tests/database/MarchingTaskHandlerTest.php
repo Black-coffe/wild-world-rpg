@@ -103,7 +103,7 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
         $this->cfg     = new GameBalance();
         // Детектор-стаб (по умолчанию никого не обнаруживает) — реальный
         // PlayerDetectionService на CI падает на Request не инициализирован при send.
-        $this->handler = new TestableMarchingTaskHandler($this->cfg, new StubDetector(), new StubTowerAlerts());
+        $this->handler = new TestableMarchingTaskHandler($this->cfg, new StubDetector(), new StubTowerAlerts(), new StubObjectSignal());
     }
 
     protected function tearDown(): void
@@ -344,7 +344,7 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
     public function testPlayerDetectedAfterStepPausesMarch(): void
     {
         // Детектор-стаб возвращает true → после шага поход обязан встать на паузу.
-        $handler = new TestableMarchingTaskHandler($this->cfg, new StubDetector(true), new StubTowerAlerts());
+        $handler = new TestableMarchingTaskHandler($this->cfg, new StubDetector(true), new StubTowerAlerts(), new StubObjectSignal());
         $char = $this->makeCharacter(5, 5);
         $task = $this->makeMarchTask((int) $char['id'], 'north', 5, 0);
 
@@ -422,6 +422,26 @@ final class StubTowerAlerts extends \App\Services\PVE\TowerAlertService
     }
 
     public function notifyTowersNear(int $moverId, int $newX, int $newY): int
+    {
+        return 0;
+    }
+}
+
+/**
+ * Стаб ObjectSignalService: signalNearbyObjects no-op (ADR-098). На CI Request
+ * не инициализирован — стаб убирает лишние DB-запросы/Telegram-init в марш-тестах
+ * (сам сервис покрыт ObjectSignalServiceTest).
+ *
+ * @internal
+ */
+final class StubObjectSignal extends \App\Services\World\ObjectSignalService
+{
+    public function __construct()
+    {
+        parent::__construct();
+    }
+
+    public function signalNearbyObjects(int $moverId, int $newX, int $newY): int
     {
         return 0;
     }
