@@ -33,6 +33,20 @@ final class NpcRelationService
         'ally'         => 'Союзник',
     ];
 
+    /** ADR-099 — канонические русские названия фракций (id→label). Единый источник для UI. */
+    public const FACTION_LABELS = [
+        1 => 'Милитари',
+        2 => 'Партизаны',
+        3 => 'Инженеры',
+        4 => 'Фермеры',
+    ];
+
+    /** ADR-099 — русское название фракции по id (1-4), либо '' для нейтрального/безфракционного NPC. */
+    public static function factionLabel(int $factionId): string
+    {
+        return self::FACTION_LABELS[$factionId] ?? '';
+    }
+
     private GameSettingsService $settings;
     private CharacterNpcRelationModel $relations;
     private NpcModel $npcs;

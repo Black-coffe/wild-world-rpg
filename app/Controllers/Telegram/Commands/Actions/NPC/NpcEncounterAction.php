@@ -48,6 +48,13 @@ final class NpcEncounterAction extends BaseAction
         $nameRaw  = $npc['npc_name_ru'] ?? null;
         $nameRu   = is_string($nameRaw) && $nameRaw !== '' ? $nameRaw : 'Незнакомец';
 
+        // ADR-099: фракционная принадлежность NPC (1-4) → строка в caption (своя/чужая
+        // фракция объясняет реакцию). Нейтральный/безфракционный NPC (0/NULL) → строки нет.
+        $facRaw  = $npc['faction_id'] ?? null;
+        $facId   = is_numeric($facRaw) ? (int) $facRaw : 0;
+        $facName = NpcRelationService::factionLabel($facId);
+        $facLine = $facName !== '' ? "🛡️ Фракция: _{$facName}_\n\n" : '';
+
         // ADR-089 Фаза 2: приветствие и доступные действия зависят от отношения NPC к игроку.
         $charId   = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
         $rel      = new NpcRelationService();
@@ -67,6 +74,7 @@ final class NpcEncounterAction extends BaseAction
             $root = $tree->node($npcId, 'root');
             if ($root !== null) {
                 $head = "👤 *{$nameRu}*\n\n";
+                $head .= $facLine;
                 if ($rel->enabled()) {
                     $st = $rel->standing($charId, $npcId);
                     $head .= "📊 Отношение: _{$st['label']}_\n\n";
@@ -102,6 +110,7 @@ final class NpcEncounterAction extends BaseAction
         $talkCb = "npcAct_talk_{$spawnId}";
 
         $text  = "👤 *{$nameRu}*\n\n";
+        $text .= $facLine;
         // ADR-089 Фаза 5: показываем ступень репутации (только при включённой реактивности).
         if ($rel->enabled()) {
             $standing = $rel->standing($charId, $npcId);

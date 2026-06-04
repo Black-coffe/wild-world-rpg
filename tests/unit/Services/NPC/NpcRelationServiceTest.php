@@ -22,7 +22,7 @@ final class NpcRelationServiceTest extends CIUnitTestCase
     /**
      * @param array<string,int|bool> $values
      */
-    private function service(bool $on, int $storedScore, array $values = []): NpcRelationService
+    private function service(bool $on, int $storedScore, array $values = [], ?int $npcFaction = null, int $playerFaction = 0): NpcRelationService
     {
         $settingsModel = new class ($on, $values) extends GameSettingsModel {
             /** @param array<string,int|bool> $values */
@@ -62,9 +62,9 @@ final class NpcRelationServiceTest extends CIUnitTestCase
             }
         };
 
-        // NPC без фракции → faction-модификатор 0.
-        $npcs = new class extends NpcModel {
-            public function __construct() {}
+        // ADR-099: faction_id NPC задаётся параметром (null → нейтральный, модификатор 0).
+        $npcs = new class ($npcFaction) extends NpcModel {
+            public function __construct(private ?int $fac) {}
 
             /**
              * @param int|array<int|string,mixed>|string|null $id
@@ -72,16 +72,16 @@ final class NpcRelationServiceTest extends CIUnitTestCase
              */
             public function find($id = null): array
             {
-                return ['id' => $id, 'faction_id' => null];
+                return ['id' => $id, 'faction_id' => $this->fac];
             }
         };
 
-        $factions = new class extends CharacterFactionModel {
-            public function __construct() {}
+        $factions = new class ($playerFaction) extends CharacterFactionModel {
+            public function __construct(private int $fac) {}
 
             public function getFactionId(int $characterId): int
             {
-                return 0;
+                return $this->fac;
             }
         };
 
@@ -118,6 +118,53 @@ final class NpcRelationServiceTest extends CIUnitTestCase
     {
         $svc = $this->service(true, 40);
         $this->assertSame(NpcRelationService::FRIENDLY, $svc->attitude(1, 4));
+    }
+
+    // ── ADR-099: фракционные рядовые — реакция «бесплатно» через faction_id ──
+
+    public function testFactionNpcSameFactionLiftsAttitude(): void
+    {
+        // NPC фракции 1, игрок фракции 1, stored 10 → +25 = 35 ≥ friendly_at(30) → FRIENDLY.
+        $svc = $this->service(true, 10, [], 1, 1);
+        $this->assertSame(NpcRelationService::FRIENDLY, $svc->attitude(1, 4));
+    }
+
+    public function testFactionNpcOtherFactionLowersAttitude(): void
+    {
+        // NPC фракции 1, игрок фракции 2, stored 10 → −15 = −5 → WARY.
+        $svc = $this->service(true, 10, [], 1, 2);
+        $this->assertSame(NpcRelationService::WARY, $svc->attitude(1, 4));
+    }
+
+    public function testFactionModifierIgnoredWhenPlayerHasNoFaction(): void
+    {
+        // NPC фракции 1, игрок без фракции (0) → модификатора нет, stored 10 → NEUTRAL.
+        $svc = $this->service(true, 10, [], 1, 0);
+        $this->assertSame(NpcRelationService::NEUTRAL, $svc->attitude(1, 4));
+    }
+
+    /**
+     * @dataProvider factionLabels
+     */
+    public function testFactionLabel(int $id, string $expected): void
+    {
+        $this->assertSame($expected, NpcRelationService::factionLabel($id));
+    }
+
+    /**
+     * @return list<array{int,string}>
+     */
+    public static function factionLabels(): array
+    {
+        return [
+            [1, 'Милитари'],
+            [2, 'Партизаны'],
+            [3, 'Инженеры'],
+            [4, 'Фермеры'],
+            [0, ''],
+            [5, ''],   // «фракция не выбрана» (sentinel) → без метки
+            [-1, ''],
+        ];
     }
 
     // ── ADR-089 Фаза 5: репутация-тиры ──
