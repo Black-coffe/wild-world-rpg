@@ -8,9 +8,12 @@ use Longman\TelegramBot\Request;
 use App\Models\CharacterModel;
 use App\Models\CharacterFactionModel;
 use App\Models\FactionModel;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 
 class ChooseFaction extends BaseAction
 {
+    use GameSettingsReaderTrait;
+
     public function handle(): ServerResponse
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
@@ -62,18 +65,20 @@ class ChooseFaction extends BaseAction
 
     protected function sendFactionInfo($chatId)
     {
-        $message = "*🎉 Поздравляем!*  
+        $message = "*🎉 Поздравляем!*
 
-Ваш персонаж достиг уровня 10. Теперь вы можете выбрать фракцию, за которую будете играть.  
+Ваш персонаж достиг уровня 10. Теперь вы можете выбрать фракцию, за которую будете играть.
 
-*⚠️ Выберите мудро!* Сменить фракцию будет невозможно вплоть до вайпа вашего персонажа.  
+1. 🛡️ *Милитари* — специализируются на военных технологиях и прямом столкновении.
+2. 🌲 *Партизаны* — делают ставку на скрытность, саботаж и партизанскую войну.
+3. 🛠️ *Инженеры* — развивают робототехнику и лаборатории для стратегического превосходства.
+4. 🌾 *Фермеры* — акцент на производство ресурсов и продовольствия, однако при необходимости готовы вступить в бой.
 
-*Учтите:* Все фракции являются PVP, но сражения доступны только за пределами стартовой зоны респавна игроков.  
+*Что даёт членство:* легендарное оружие и броню своей фракции, общий крафт-проект (−10% к крафту всем своим на время) и скидки у караванов-союзников.
+" . $this->incentiveLine() . "
+*⚠️ Выберите мудро!* Сменить фракцию будет невозможно вплоть до вайпа вашего персонажа.
 
-1. 🛡️ *Милитари* — специализируются на военных технологиях и прямом столкновении.  
-2. 🌲 *Партизаны* — делают ставку на скрытность, саботаж и партизанскую войну.  
-3. 🛠️ *Инженеры* — развивают робототехнику и лаборатории для стратегического превосходства.  
-4. 🌾 *Фермеры* — акцент на производство ресурсов и продовольствия, однако при необходимости готовы вступить в бой.  
+*Учтите:* Все фракции являются PVP, но сражения доступны только за пределами стартовой зоны респавна игроков.
 
 🔽 *Нажатие на кнопку ниже не совершит окончательный выбор, а лишь покажет подробное описание каждой фракции.*";
 
@@ -135,6 +140,23 @@ class ChooseFaction extends BaseAction
         ];
     }
 
+    /**
+     * Строка-стимул «подъёмные за выбор» для экрана выбора (ADR-097). Пусто, если стимул
+     * выключен / сумма 0. Сумма live-tunable (GameSettings faction.choice.incentive_*).
+     */
+    protected function incentiveLine(): string
+    {
+        if (! $this->gsBool('faction.choice.incentive_enabled', true)) {
+            return '';
+        }
+        $gold = $this->gsInt('faction.choice.incentive_gold', 1000);
+        if ($gold <= 0) {
+            return '';
+        }
+
+        return "💰 *Бонус за выбор фракции: +" . number_format($gold) . "💰* — начислим сразу при вступлении.\n";
+    }
+
     protected function fractionation($chatId, $character, $faction)
     {
         $factionIds = [
@@ -168,8 +190,9 @@ class ChooseFaction extends BaseAction
             && $existingFaction['notification_status'] === 'True'
             && (int)$existingFaction['faction_id'] !== 5
         ) {
-            $message = "Ахах, думал самый умный, не выйдет!\n\n"
-                . "Фракция уже выбрана... (и т.д.)";
+            $message = "⚑ *Фракция уже выбрана.*\n\n"
+                . "Сменить сторону нельзя до вайпа персонажа — присяга есть присяга. "
+                . "Сражайся за своих и веди фракцию к превосходству.";
 
             return Request::sendMessage([
                 'chat_id' => $chatId,
@@ -199,11 +222,23 @@ class ChooseFaction extends BaseAction
             $characterFactionModel->insert($data);
         }
 
+        // ADR-097 — ОДНОРАЗОВЫЕ «подъёмные» за первый выбор фракции. Безопасно: выше стоит
+        // гейт «уже выбрана» (return), поэтому эта ветка исполняется лишь при первом вступлении.
+        $incentiveText = '';
+        if ($this->gsBool('faction.choice.incentive_enabled', true)) {
+            $gold = $this->gsInt('faction.choice.incentive_gold', 1000);
+            if ($gold > 0) {
+                (new CharacterModel())->increaseGold((int) $character['id'], (float) $gold);
+                $incentiveText = "\n💰 *Подъёмные зачислены: +" . number_format($gold) . "💰*\n";
+            }
+        }
+
         // Получаем данные о новой фракции
         $factionDetails = $this->getFactionDetails($faction);
         $message = "*🎉 Поздравляем!*\n\n"
-            . "Вы выбрали фракцию: {$factionDetails['title']}\n\n"
-            . "*Описание:*\n{$factionDetails['description']}\n\n"
+            . "Вы выбрали фракцию: {$factionDetails['title']}\n"
+            . $incentiveText
+            . "\n*Описание:*\n{$factionDetails['description']}\n\n"
             . "*➕ Преимущества:*\n{$factionDetails['advantages']}\n\n"
             . "*➖ Недостатки:*\n{$factionDetails['disadvantages']}";
 
