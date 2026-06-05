@@ -40,6 +40,17 @@ final class SettlementHubAction extends BaseAction
         'repair'      => ['🔧 Ремонт', 'repairToolsList'],
         'blackmarket' => ['🖤 Чёрный рынок', 'sell'],          // Фаза 2 — Логово (тёмная торговля)
         'casino'      => ['🎰 Казино', 'entertainment'],       // Фаза 2 — Логово (азартные игры)
+        'project'     => ['💎 Проект фракции', 'factionProject'], // Фаза 3 — оплот (factionProject сам гейтит)
+    ];
+
+    /** Услуги по ТИПУ поселения (в дополнение к резидентским service_key). Фаза 3: оплоты всегда дают лавку+проект. */
+    private const TYPE_SERVICES = [
+        'faction' => ['trade', 'project'],
+    ];
+
+    /** Метка фракции для caption оплота. */
+    private const FACTION_LABELS = [
+        1 => 'Милитари', 2 => 'Партизаны', 3 => 'Инженеры', 4 => 'Фермеры',
     ];
 
     /** Эмодзи роли жителя. */
@@ -95,6 +106,21 @@ final class SettlementHubAction extends BaseAction
             }
         }
 
+        // Фаза 3 — услуги по типу поселения (оплоты всегда дают лавку+проект, независимо от резидентов).
+        // TYPE_SERVICES ссылается только на валидные SERVICE_ROUTES-ключи → доп. isset не нужен.
+        foreach (self::TYPE_SERVICES[$type] ?? [] as $svcKey) {
+            if (! isset($seenService[$svcKey])) {
+                $seenService[$svcKey] = true;
+                $serviceButtons[]     = ['text' => self::SERVICE_ROUTES[$svcKey][0], 'callback_data' => self::SERVICE_ROUTES[$svcKey][1]];
+            }
+        }
+
+        // Фаза 3 — метка фракции для оплота.
+        $facId   = is_numeric($settlement['faction_id'] ?? null) ? (int) $settlement['faction_id'] : 0;
+        $facLine = ($type === 'faction' && isset(self::FACTION_LABELS[$facId]))
+            ? "🚩 Фракция: *" . self::FACTION_LABELS[$facId] . "*\n\n"
+            : '';
+
         $typeLabel = self::TYPE_LABELS[$type] ?? '🏚 Поселение';
         $zoneLine  = $policy['policy'] === 'safe'
             ? '🕊 *Безопасная зона.* Здесь не нападают — таков уговор.'
@@ -102,6 +128,7 @@ final class SettlementHubAction extends BaseAction
 
         $head  = "{$icon} *{$name}*\n";
         $head .= "_{$typeLabel}_\n\n";
+        $head .= $facLine;
         if ($zoneLine !== '') {
             $head .= "{$zoneLine}\n\n";
         }
