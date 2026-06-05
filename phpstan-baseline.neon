@@ -17191,6 +17191,18 @@ parameters:
 			path: app/TaskHandlers/NPC/AutoPveHandler.php
 
 		-
+			message: '#^Cannot access offset ''name'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 2
+			path: app/TaskHandlers/NPC/AutoPveHandler.php
+
+		-
+			message: '#^Cannot access offset ''npc_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/TaskHandlers/NPC/AutoPveHandler.php
+
+		-
 			message: '#^Cannot access offset ''npc_name_ru'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -17203,19 +17215,13 @@ parameters:
 			path: app/TaskHandlers/NPC/AutoPveHandler.php
 
 		-
-			message: '#^Parameter \#1 \$id of method CodeIgniter\\BaseModel\:\:find\(\) expects int\|list\<int\|string\>\|string\|null, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/NPC/AutoPveHandler.php
-
-		-
 			message: '#^Parameter \#1 \$num of function floor expects float\|int, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/NPC/AutoPveHandler.php
 
 		-
-			message: '#^Parameter \#1 \$playerData of method App\\Services\\Player\\PvEService\:\:attack\(\) expects App\\Entities\\CharacterEntity\|array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|ArrayAccess given\.$#'
+			message: '#^Parameter \#1 \$playerData of method App\\Services\\Player\\PvEService\:\:attack\(\) expects App\\Entities\\CharacterEntity\|array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/NPC/AutoPveHandler.php

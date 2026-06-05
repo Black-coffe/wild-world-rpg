@@ -110,8 +110,14 @@ class AutoPveHandler
             return;
         }
 
-        // Проверяем, что игрок и NPC действительно в одной клетке
-        if ($playerData['cell_number'] !== $npcData['cell_number']) {
+        // Проверяем, что игрок и NPC действительно в одной клетке. Сравниваем как int:
+        // CharacterModel возвращает CharacterEntity (cell_number — int), спавн из модели — string;
+        // строгое !== давало ложное «разные клетки» (int !== string) → авто-бой не запускался → npc_kills не рос.
+        $pCellRaw = $playerData['cell_number'] ?? null;
+        $sCellRaw = $npcData['cell_number'] ?? null;
+        $pCell    = is_numeric($pCellRaw) ? (int) $pCellRaw : -1;
+        $sCell    = is_numeric($sCellRaw) ? (int) $sCellRaw : -2;
+        if ($pCell !== $sCell) {
             return;
         }
 
