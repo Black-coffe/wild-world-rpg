@@ -27,6 +27,7 @@ final class AchievementsAction extends BaseAction
         'progression' => '📈 Прогресс',
         'exploration' => '🧭 Разведка',
         'survival'    => '🛡 Выживание',
+        'combat'      => '⚔️ Бой',
         'crafting'    => '🔨 Крафт',
         'building'    => '🏗 Стройка',
         'economy'     => '💰 Экономика',

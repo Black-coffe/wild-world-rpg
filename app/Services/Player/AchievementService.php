@@ -212,6 +212,8 @@ final class AchievementService
             // Оборот (transactions.price = итог строки, см. PlayerEconomyService::tradeSummary):
             'gold_sold'        => "SELECT COALESCE(SUM(price), 0) AS v FROM transactions WHERE character_id = ? AND type = 'sell'",
             'gold_bought'      => "SELECT COALESCE(SUM(price), 0) AS v FROM transactions WHERE character_id = ? AND type = 'buy'",
+            // Бой (монотонный счётчик побед над NPC; путь боя починен v0.51.370):
+            'npc_kills'        => 'SELECT COALESCE(npc_kills, 0) AS v FROM characters WHERE id = ?',
             default            => null,
         };
         if ($sql === null) {
@@ -319,6 +321,10 @@ final class AchievementService
 
             case 'gold_bought':
                 return ["(SELECT COALESCE(SUM(t.price), 0) FROM transactions t WHERE t.character_id = c.id AND t.type = 'buy') >= ?", [$target]];
+
+            // Бой: монотонный счётчик побед над NPC (characters.npc_kills; путь боя починен v0.51.370).
+            case 'npc_kills':
+                return ['COALESCE(c.npc_kills, 0) >= ?', [$target]];
 
             default:
                 return null;
