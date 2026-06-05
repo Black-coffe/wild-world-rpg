@@ -144,6 +144,11 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\NPC\NamedNpcPlacementHandler())->run())
             ->everyMinute()->singleInstance()->named('npc.named-placement');
 
+        // ADR-101 Фаза 0 — размещение жителей статических поселений на якорных клетках
+        // (killswitch settlements.enabled → dormant = no-op; settlements пуст → no-op).
+        $schedule->call(static fn() => (new \App\TaskHandlers\NPC\SettlementPlacementHandler())->run())
+            ->everyMinute()->singleInstance()->named('settlements.placement');
+
         // W2 (ADR-058) — recharge дронов on_base (everyMinute, charge_rate × interval).
         $schedule->call(static fn() => (new \App\TaskHandlers\Drone\DroneRechargeCron())->run(1))
             ->everyMinute()->singleInstance()->named('drone.recharge');

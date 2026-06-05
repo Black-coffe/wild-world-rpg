@@ -63,6 +63,8 @@ class WipeManifest extends BaseConfig
         'biome_world_object_map' => ['strategy' => self::KEEP, 'note' => 'Размещение мировых объектов по карте (генерация мира)'],
         'world_objects'        => ['strategy' => self::KEEP, 'note' => 'Определения мировых объектов'],
         'npcs'                 => ['strategy' => self::KEEP, 'note' => 'Определения NPC (не спавны)'],
+        'settlements'          => ['strategy' => self::KEEP, 'note' => 'Статические NPC-поселения (ADR-101) — мировой контент, курируемые координаты'],
+        'settlement_npcs'      => ['strategy' => self::KEEP, 'note' => 'Ростер жителей поселений (ADR-101) — контент-определение (спавны жителей в npc_spawns=TRANSIENT)'],
 
         // ─────────────────────────────────────────────────────────────
         // 🟢 KEEP — Контент и правила игры (определения, не данные игроков)
