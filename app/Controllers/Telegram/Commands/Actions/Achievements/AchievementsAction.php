@@ -30,6 +30,7 @@ final class AchievementsAction extends BaseAction
         'crafting'    => '🔨 Крафт',
         'building'    => '🏗 Стройка',
         'economy'     => '💰 Экономика',
+        'trade'       => '🤝 Торговля',
         'social'      => '🏳️ Фракции',
     ];
 

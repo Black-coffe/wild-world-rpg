@@ -209,6 +209,9 @@ final class AchievementService
             'buildings_max_level'   => 'SELECT COALESCE(MAX(level), 0) AS v FROM character_buildings WHERE character_id = ?',
             'distinct_biomes'       => 'SELECT COUNT(DISTINCT biome_id) AS v FROM explored_cells WHERE character_id = ?',
             'distinct_items_crafted' => 'SELECT COUNT(DISTINCT crafted_item_id) AS v FROM crafted_items_log WHERE character_id = ?',
+            // Оборот (transactions.price = итог строки, см. PlayerEconomyService::tradeSummary):
+            'gold_sold'        => "SELECT COALESCE(SUM(price), 0) AS v FROM transactions WHERE character_id = ? AND type = 'sell'",
+            'gold_bought'      => "SELECT COALESCE(SUM(price), 0) AS v FROM transactions WHERE character_id = ? AND type = 'buy'",
             default            => null,
         };
         if ($sql === null) {
@@ -309,6 +312,13 @@ final class AchievementService
 
             case 'distinct_items_crafted':
                 return ['(SELECT COUNT(DISTINCT cil.crafted_item_id) FROM crafted_items_log cil WHERE cil.character_id = c.id) >= ?', [$target]];
+
+            // Оборот (важно для экономики — фидбэк владельца). price = итог строки транзакции.
+            case 'gold_sold':
+                return ["(SELECT COALESCE(SUM(t.price), 0) FROM transactions t WHERE t.character_id = c.id AND t.type = 'sell') >= ?", [$target]];
+
+            case 'gold_bought':
+                return ["(SELECT COALESCE(SUM(t.price), 0) FROM transactions t WHERE t.character_id = c.id AND t.type = 'buy') >= ?", [$target]];
 
             default:
                 return null;
