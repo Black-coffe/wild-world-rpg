@@ -211,6 +211,7 @@ foreach ($biomes as $b) {
                         <small>Зелёный маркер на координатах твоего персонажа.</small>
                     </label>
                     <?php endif; ?>
+                    <p class="ww-map-future">🏚 Поселения — постоянные обжитые места (аутпост и др.). Всегда отмечены на карте; наведи на значок, чтобы прочитать описание и лор.</p>
                 </div>
 
                 <div class="ww-map-panel">
@@ -293,6 +294,7 @@ foreach ($biomes as $b) {
         pixelImg:      null, // pixel-биом-карта (для contour precompute)
         contourCanvas: null, // pre-computed offscreen canvas с контурами биомов
         caravans:      [],
+        settlements:   [], // ADR-101: статические поселения-лендмарки {x,y,name,type,zone,icon,lore}
         events:        [],
         me:            null, // ADR-061: {x, y, name, level} если auth'ован, иначе null
         drag:          null, // {startX, startY, startViewX, startViewY}
@@ -438,6 +440,34 @@ foreach ($biomes as $b) {
         ctx.restore();
     }
 
+    // ADR-101 §Принцип 2 — статические поселения-лендмарки. Всегда видны (постоянные точки),
+    // flat-маркер (квадрат + amber-рамка + emoji-иконка), hover → лор-tooltip.
+    function drawSettlements(){
+        if (!state.settlements.length) return;
+        var vsCells = viewSizeCells();
+        var pxPerCell = CANVAS_SIZE / vsCells;
+        ctx.save();
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = 'center';
+        for (var i = 0; i < state.settlements.length; i++){
+            var s = state.settlements[i];
+            if (!s.x || !s.y) continue;
+            if (s.x < state.viewX || s.x > state.viewX + vsCells) continue;
+            if (s.y < state.viewY || s.y > state.viewY + vsCells) continue;
+            var px = (s.x - state.viewX) * pxPerCell;
+            var py = (s.y - state.viewY) * pxPerCell;
+            ctx.fillStyle = 'rgba(14,11,7,0.88)';
+            ctx.fillRect(px - 19, py - 19, 38, 38);
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = '#E89B2E';
+            ctx.strokeRect(px - 19, py - 19, 38, 38);
+            ctx.font = '26px "Manrope", sans-serif';
+            ctx.fillStyle = '#fff';
+            ctx.fillText(s.icon || '🏚', px, py + 2);
+        }
+        ctx.restore();
+    }
+
     // 3 последовательные волны от точки персонажа — расходятся по всей карте,
     // каждая следующая слабее, затухание opacity. Web-3.0-style визуал, easeOutQuad
     // на radius чтобы волна быстрее расходилась в начале.
@@ -520,6 +550,7 @@ foreach ($biomes as $b) {
         if (state.showTint && state.basemap === 'beautiful') drawContours();
         if (state.showGrid)  drawGrid();
         if (state.showCar)   drawCaravans();
+        drawSettlements();   // ADR-101 — лендмарки всегда видны
         if (state.ripple)    drawRipples();
         if (state.showMe)    drawMe();
     }
@@ -698,6 +729,7 @@ foreach ($biomes as $b) {
             .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(function(json){
                 state.caravans = Array.isArray(json.caravans) ? json.caravans : [];
+                state.settlements = Array.isArray(json.settlements) ? json.settlements : [];
                 state.events   = Array.isArray(json.events)   ? json.events   : [];
                 state.me       = (json.me && typeof json.me === 'object') ? json.me : null;
                 renderEvents();
@@ -737,6 +769,7 @@ foreach ($biomes as $b) {
                 updateTintLockState();
                 setLoader(false);
                 status.textContent = 'Snapshot: ' + new Date().toLocaleTimeString()
+                    + ' · поселений: ' + state.settlements.length
                     + ' · караванов: ' + state.caravans.length
                     + ' · событий: ' + state.events.length;
             })
@@ -849,6 +882,40 @@ foreach ($biomes as $b) {
         });
     }
 
+    // ADR-101 §Принцип 2 — hit-test + лор-tooltip поселения.
+    function nearestSettlement(cx, cy){
+        if (!state.settlements.length) return null;
+        var pxPerCell = CANVAS_SIZE / viewSizeCells();
+        var HIT2 = 42 * 42;
+        var best = null, bestD = HIT2;
+        for (var i = 0; i < state.settlements.length; i++){
+            var s = state.settlements[i];
+            if (!s.x || !s.y) continue;
+            var px = (s.x - state.viewX) * pxPerCell;
+            var py = (s.y - state.viewY) * pxPerCell;
+            var d = (cx - px) * (cx - px) + (cy - py) * (cy - py);
+            if (d < bestD){ bestD = d; best = s; }
+        }
+        return best;
+    }
+    var SETTLE_TYPE = {outpost:'Аутпост (нейтральный)', bandit:'Логово', faction:'Оплот фракции', ruins:'Руины'};
+    var SETTLE_ZONE = {safe:'🕊 Безопасная зона', hostile:'☠️ Опасная зона', neutral:''};
+    function buildSettlementTip(s){
+        while (tip.firstChild) tip.removeChild(tip.firstChild);
+        var header = document.createElement('b');
+        header.textContent = (s.icon || '🏚') + ' ' + (s.name || 'Поселение');
+        tip.appendChild(header);
+        var lines = [];
+        if (SETTLE_TYPE[s.type]) lines.push(SETTLE_TYPE[s.type]);
+        if (SETTLE_ZONE[s.zone]) lines.push(SETTLE_ZONE[s.zone]);
+        if (s.lore) lines.push(s.lore);
+        lines.push('X=' + s.x + ', Y=' + s.y);
+        lines.forEach(function(text){
+            tip.appendChild(document.createElement('br'));
+            tip.appendChild(document.createTextNode(text));
+        });
+    }
+
     canvas.addEventListener('mousedown', function(evt){
         if (state.scale === 1) return; // на 1× pan не нужен
         state.drag = {
@@ -874,9 +941,11 @@ foreach ($biomes as $b) {
         // обычный hover — только если курсор над canvas
         if (evt.target !== canvas) return;
         var p = eventToCanvas(evt);
-        var car = nearestCaravan(p.cx, p.cy);
+        var st  = nearestSettlement(p.cx, p.cy);
+        var car = st ? null : nearestCaravan(p.cx, p.cy);
         coords.textContent = 'Клетка (X=' + p.wx + ', Y=' + p.wy + ')';
-        if (car){ buildCaravanTip(car); }
+        if (st){ buildSettlementTip(st); }
+        else if (car){ buildCaravanTip(car); }
         else { tip.textContent = '(' + p.wx + ', ' + p.wy + ')'; }
         tip.classList.add('is-visible');
         var boxRect = box.getBoundingClientRect();

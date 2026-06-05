@@ -132,6 +132,30 @@ class Map extends BaseController
             ];
         }
 
+        // ADR-101 §Принцип 2 — слой статических поселений (постоянные лендмарки с лором).
+        // Gated killswitch settlements.enabled (dormant → пусто). Strategic-объекты НЕ включаем:
+        // они спавнятся случайно + респавнятся (не статичны), а поселения — курируемые фикс-точки.
+        $settlements = [];
+        if ($db->tableExists('settlements') && (new \App\Services\Settlement\SettlementZoneService())->layerEnabled()) {
+            $stQuery = $db->table('settlements')
+                ->select('name_ru, type, coordinate_x, coordinate_y, zone_policy, icon, description_ru')
+                ->where('enabled', 1)
+                ->where('coordinate_x IS NOT NULL', null, false)
+                ->get();
+            $stRows = $stQuery !== false ? $stQuery->getResultArray() : [];
+            foreach ($stRows as $row) {
+                $settlements[] = [
+                    'x'    => is_numeric($row['coordinate_x'] ?? null) ? (int) $row['coordinate_x'] : 0,
+                    'y'    => is_numeric($row['coordinate_y'] ?? null) ? (int) $row['coordinate_y'] : 0,
+                    'name' => is_string($row['name_ru'] ?? null) ? $row['name_ru'] : '?',
+                    'type' => is_string($row['type'] ?? null) ? $row['type'] : 'outpost',
+                    'zone' => is_string($row['zone_policy'] ?? null) ? $row['zone_policy'] : 'neutral',
+                    'icon' => is_string($row['icon'] ?? null) && $row['icon'] !== '' ? $row['icon'] : '🏚',
+                    'lore' => is_string($row['description_ru'] ?? null) ? $row['description_ru'] : '',
+                ];
+            }
+        }
+
         // ADR-061: own-position block если игрок auth'ован
         $me       = null;
         $session  = Services::session();
@@ -160,10 +184,11 @@ class Map extends BaseController
 
         return $this->response
             ->setJSON([
-                'caravans'   => $caravans,
-                'events'     => $events,
-                'me'         => $me,
-                'fetched_at' => $now,
+                'caravans'    => $caravans,
+                'events'      => $events,
+                'settlements' => $settlements,
+                'me'          => $me,
+                'fetched_at'  => $now,
             ])
             ->setHeader('Cache-Control', 'private, max-age=15');
     }
