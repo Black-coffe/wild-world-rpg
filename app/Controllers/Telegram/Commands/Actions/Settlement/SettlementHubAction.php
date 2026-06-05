@@ -31,6 +31,15 @@ final class SettlementHubAction extends BaseAction
         'ruins'   => '🏛 Руины',
     ];
 
+    /**
+     * Услуги жителей → существующий ungated callback (Фаза 1b). trade=продажа ресурсов за золото
+     * (SellAction, с переходом в магазин), repair=ремонт изношенных инструментов (RepairToolsListAction).
+     */
+    private const SERVICE_ROUTES = [
+        'trade'  => ['🛒 Торговать', 'sell'],
+        'repair' => ['🔧 Ремонт', 'repairToolsList'],
+    ];
+
     /** Эмодзи роли жителя. */
     private const ROLE_ICONS = [
         'mayor'   => '🎖',
@@ -63,16 +72,25 @@ final class SettlementHubAction extends BaseAction
         $type   = is_string($settlement['type'] ?? null) ? $settlement['type'] : 'outpost';
         $descr  = is_string($settlement['description_ru'] ?? null) ? $settlement['description_ru'] : '';
 
-        // Жители (ростер + имена).
-        $residents = (new SettlementNpcModel())->forSettlement($sid);
-        $lines     = [];
+        // Жители (ростер + имена) + услуги (Фаза 1b: data-driven по service_key, реюз ungated flows).
+        $residents      = (new SettlementNpcModel())->forSettlement($sid);
+        $lines          = [];
+        $serviceButtons = [];
+        $seenService    = [];
         foreach ($residents as $r) {
             $npcId  = is_numeric($r['npc_id'] ?? null) ? (int) $r['npc_id'] : 0;
             $role   = is_string($r['role'] ?? null) ? $r['role'] : 'vendor';
+            $svcKey = is_string($r['service_key'] ?? null) ? $r['service_key'] : '';
             $npcRow = $npcId > 0 ? (new \App\Models\NpcModel())->find($npcId) : null;
             $nm     = is_array($npcRow) && is_string($npcRow['npc_name_ru'] ?? null) ? $npcRow['npc_name_ru'] : 'Житель';
             $rIcon  = self::ROLE_ICONS[$role] ?? '👤';
-            $lines[] = "{$rIcon} {$nm}";
+            $svcTag = $svcKey !== '' && isset(self::SERVICE_ROUTES[$svcKey]) ? ' — ' . self::SERVICE_ROUTES[$svcKey][0] : '';
+            $lines[] = "{$rIcon} {$nm}{$svcTag}";
+
+            if ($svcKey !== '' && isset(self::SERVICE_ROUTES[$svcKey]) && ! isset($seenService[$svcKey])) {
+                $seenService[$svcKey] = true;
+                $serviceButtons[]     = ['text' => self::SERVICE_ROUTES[$svcKey][0], 'callback_data' => self::SERVICE_ROUTES[$svcKey][1]];
+            }
         }
 
         $typeLabel = self::TYPE_LABELS[$type] ?? '🏚 Поселение';
@@ -93,10 +111,13 @@ final class SettlementHubAction extends BaseAction
         }
         $head .= 'Что будешь делать?';
 
-        // Действия (Фаза 1a): поговорить с жителями + уйти. Лавка/ремонт — Фаза 1b.
+        // Действия: услуги жителей (Фаза 1b) + поговорить + уйти.
         $rows = [];
+        for ($i = 0, $n = count($serviceButtons); $i < $n; $i += 2) {
+            $rows[] = array_slice($serviceButtons, $i, 2);
+        }
         if ((new NpcInteractionService())->enabled()) {
-            $rows[] = [['text' => '💬 Подойти к жителям', 'callback_data' => 'npcEncounter']];
+            $rows[] = [['text' => '💬 Поговорить с жителями', 'callback_data' => 'npcEncounter']];
         }
         $rows[] = [['text' => '🚶 Уйти', 'callback_data' => 'move']];
 
