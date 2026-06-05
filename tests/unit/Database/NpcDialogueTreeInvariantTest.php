@@ -37,6 +37,15 @@ final class NpcDialogueTreeInvariantTest extends CIUnitTestCase
         );
     }
 
+    public function testNewNamedTreesSatisfyTwoOptionInvariant(): void
+    {
+        // ADR-089 Phase 6 контент-пасс №2 — Карн / Полынь / Ворон (122 узла).
+        $this->assertTreeMigrationValid(
+            APPPATH . 'Database/Migrations/2026-07-02-110000_Adr089Ph6NewNamedNpcTrees.php',
+            120
+        );
+    }
+
     /**
      * Парсит встроенный JSON деревьев из миграции и проверяет инвариант по всем узлам.
      */
