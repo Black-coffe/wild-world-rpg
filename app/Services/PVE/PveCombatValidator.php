@@ -44,8 +44,12 @@ final class PveCombatValidator
             return ['ok' => false, 'response' => ['error' => "NPC спавн ID {$spawnId} не найден"]];
         }
 
-        // 2. Один cell?
-        if ($playerData['cell_number'] !== $npcSpawnData['cell_number']) {
+        // 2. Один cell? Сравниваем как int: путь встречи передаёт CharacterEntity (cell_number — int),
+        // а спавн из модели — string. Строгое !== давало ложное «разные клетки» (int !== string) и рубило
+        // бой во встрече до начала → npc_kills не рос. Auto-PvE (массив, string vs string) проходил.
+        $pCellRaw = $playerData['cell_number'] ?? null;
+        $sCellRaw = $npcSpawnData['cell_number'] ?? null;
+        if (! is_numeric($pCellRaw) || ! is_numeric($sCellRaw) || (int) $pCellRaw !== (int) $sCellRaw) {
             log_message('warning', "⚠️ Игрок ID={$playerData['id']} и NPC спавн ID={$spawnId} в разных клетках! Бой не начинается.");
             return ['ok' => false, 'response' => ['message' => "Игрок и NPC находятся в разных клетках"]];
         }

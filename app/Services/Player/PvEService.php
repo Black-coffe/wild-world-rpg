@@ -57,7 +57,21 @@ class PvEService
      */
     public function attack(array|\App\Entities\CharacterEntity $playerData, array $npcData, string $biome): array
     {
-        log_message('debug', "Атака: Игрок {$playerData['name']} против NPC ID={$npcData['npc_id']}");
+        // Путь встречи (NpcInteractionService::fight) передаёт CharacterEntity; нормализуем в массив —
+        // ниже new BattleCharacter() и offset-доступ требуют array (auto-PvE всегда даёт массив).
+        // toArray(), НЕ (array)-каст: каст Entity ломает ключи (фидбэк ADR-092).
+        if ($playerData instanceof \App\Entities\CharacterEntity) {
+            $playerData = $playerData->toArray();
+        }
+
+        // npc_id может отсутствовать на входе: путь встречи (NpcInteractionService::fight) передаёт
+        // ['id' => spawnId] — полные данные грузит validateAndLoadNpc ниже. Не обращаемся к npc_id напрямую
+        // (иначе Undefined array key → бой во встрече падал до начала → npc_kills не рос).
+        $npcRefRaw = $npcData['npc_id'] ?? $npcData['id'] ?? '?';
+        $npcRef    = is_scalar($npcRefRaw) ? (string) $npcRefRaw : '?';
+        $pNameRaw  = $playerData['name'] ?? '?';
+        $pName     = is_scalar($pNameRaw) ? (string) $pNameRaw : '?';
+        log_message('debug', "Атака: Игрок {$pName} против NPC ID={$npcRef}");
 
         // Validate + load NPC merged data (Step 2 v0.51.87)
         $validation = $this->combatValidator->validateAndLoadNpc($playerData, $npcData);
@@ -117,7 +131,13 @@ class PvEService
             $mapLocation,
             $rewards
         );
-        $this->notificationSender->send($updatedPlayerData, $finalText);
+        // Уведомление НЕ должно ронять уже завершённый бой (награды + npc_kills уже применены выше).
+        // В пути встречи Telegram-бот может быть не инициализирован в момент вызова → ловим и логируем.
+        try {
+            $this->notificationSender->send($updatedPlayerData, $finalText);
+        } catch (\Throwable $e) {
+            log_message('warning', 'PvE notify failed (бой уже засчитан): ' . $e->getMessage());
+        }
 
         return [
             'message' => "Бой завершён! Победитель: " . ($fightResult['winner']->name ?? "Ничья"),
