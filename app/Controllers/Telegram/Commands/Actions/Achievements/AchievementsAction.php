@@ -26,7 +26,9 @@ final class AchievementsAction extends BaseAction
     private const CATEGORY_LABELS = [
         'progression' => '📈 Прогресс',
         'exploration' => '🧭 Разведка',
+        'survival'    => '🛡 Выживание',
         'crafting'    => '🔨 Крафт',
+        'building'    => '🏗 Стройка',
         'economy'     => '💰 Экономика',
         'social'      => '🏳️ Фракции',
     ];

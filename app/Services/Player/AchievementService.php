@@ -203,6 +203,12 @@ final class AchievementService
             'quests_completed' => 'SELECT COUNT(*) AS v FROM quest_steps WHERE character_id = ? AND is_completed = 1',
             'has_base'         => 'SELECT EXISTS(SELECT 1 FROM claimed_cells WHERE character_id = ? AND status = \'active\') AS v',
             'has_faction'      => 'SELECT EXISTS(SELECT 1 FROM character_factions WHERE character_id = ? AND joined_at IS NOT NULL AND faction_id <> 5) AS v',
+            // Контент-пасс «оцифровка механик» (ADR-066):
+            'survival_days'         => 'SELECT DATEDIFF(NOW(), COALESCE(last_respawn_at, created_at)) AS v FROM characters WHERE id = ?',
+            'buildings_count'       => 'SELECT COUNT(*) AS v FROM character_buildings WHERE character_id = ?',
+            'buildings_max_level'   => 'SELECT COALESCE(MAX(level), 0) AS v FROM character_buildings WHERE character_id = ?',
+            'distinct_biomes'       => 'SELECT COUNT(DISTINCT biome_id) AS v FROM explored_cells WHERE character_id = ?',
+            'distinct_items_crafted' => 'SELECT COUNT(DISTINCT crafted_item_id) AS v FROM crafted_items_log WHERE character_id = ?',
             default            => null,
         };
         if ($sql === null) {
@@ -286,6 +292,23 @@ final class AchievementService
 
             case 'has_faction':
                 return ['EXISTS (SELECT 1 FROM character_factions cf WHERE cf.character_id = c.id AND cf.joined_at IS NOT NULL AND cf.faction_id <> ?)', [5]];
+
+            // Контент-пасс «оцифровка механик» (ADR-066) — все монотонны (растут или булевы):
+            case 'survival_days':
+                // «Время бессмертия»: дни с последнего возрождения (или создания, если не умирал).
+                return ['DATEDIFF(NOW(), COALESCE(c.last_respawn_at, c.created_at)) >= ?', [$target]];
+
+            case 'buildings_count':
+                return ['(SELECT COUNT(*) FROM character_buildings cb WHERE cb.character_id = c.id) >= ?', [$target]];
+
+            case 'buildings_max_level':
+                return ['(SELECT COALESCE(MAX(cb.level), 0) FROM character_buildings cb WHERE cb.character_id = c.id) >= ?', [$target]];
+
+            case 'distinct_biomes':
+                return ['(SELECT COUNT(DISTINCT ec.biome_id) FROM explored_cells ec WHERE ec.character_id = c.id) >= ?', [$target]];
+
+            case 'distinct_items_crafted':
+                return ['(SELECT COUNT(DISTINCT cil.crafted_item_id) FROM crafted_items_log cil WHERE cil.character_id = c.id) >= ?', [$target]];
 
             default:
                 return null;

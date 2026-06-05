@@ -20,12 +20,14 @@
 $catMeta = [
     'progression' => ['📈', 'Развитие'],
     'exploration' => ['🧭', 'Исследование'],
+    'survival'    => ['🛡', 'Выживание'],
     'crafting'    => ['🔨', 'Крафт'],
+    'building'    => ['🏗', 'Стройка'],
     'economy'     => ['💰', 'Экономика'],
     'social'      => ['🏳️', 'Социальное'],
     'general'     => ['🏅', 'Общее'],
 ];
-$catOrder = ['progression', 'exploration', 'crafting', 'economy', 'social', 'general'];
+$catOrder = ['progression', 'exploration', 'survival', 'crafting', 'building', 'economy', 'social', 'general'];
 
 // Редкость из глобального процента (Steam-логика: реже открыли → ценнее).
 $rarityOf = static function (float $pct): array {
