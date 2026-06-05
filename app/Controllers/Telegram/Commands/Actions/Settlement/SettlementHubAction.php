@@ -41,11 +41,13 @@ final class SettlementHubAction extends BaseAction
         'blackmarket' => ['🖤 Чёрный рынок', 'sell'],          // Фаза 2 — Логово (тёмная торговля)
         'casino'      => ['🎰 Казино', 'entertainment'],       // Фаза 2 — Логово (азартные игры)
         'project'     => ['💎 Проект фракции', 'factionProject'], // Фаза 3 — оплот (factionProject сам гейтит)
+        'ruinloot'    => ['💀 Обыскать руины', 'ruinLoot'],     // Фаза 4 — руины (повторяемый лут по кулдауну)
     ];
 
-    /** Услуги по ТИПУ поселения (в дополнение к резидентским service_key). Фаза 3: оплоты всегда дают лавку+проект. */
+    /** Услуги по ТИПУ поселения (в дополнение к резидентским service_key). Ф3: оплоты дают лавку+проект; Ф4: руины — обыск. */
     private const TYPE_SERVICES = [
         'faction' => ['trade', 'project'],
+        'ruins'   => ['ruinloot'],
     ];
 
     /** Метка фракции для caption оплота. */

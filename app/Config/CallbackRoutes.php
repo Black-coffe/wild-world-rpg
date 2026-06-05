@@ -298,6 +298,8 @@ class CallbackRoutes extends BaseConfig
         // ADR-101 Фаза 1 — экран-хаб статического поселения (Перекрёсток). Callback `settleHub`
         // (поселение определяется по клетке персонажа через SettlementZoneService).
         'settleHub'                       => \App\Controllers\Telegram\Commands\Actions\Settlement\SettlementHubAction::class,
+        // ADR-101 Фаза 4 — обыск охраняемых руин (повторяемый лут по кулдауну). Callback `ruinLoot`.
+        'ruinLoot'                        => \App\Controllers\Telegram\Commands\Actions\Settlement\RuinLootAction::class,
 
         // W2 (ADR-058) — Drone-recon. Список дрон-инстансов чара с charge-bar.
         // - droneScoutList: показать все DroneScout с qty>0 + кнопки запуска

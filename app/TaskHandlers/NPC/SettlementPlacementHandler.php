@@ -58,6 +58,13 @@ class SettlementPlacementHandler
                     continue;
                 }
 
+                // ADR-101 Ф4: стража руин (role=guard) размещается ТОЛЬКО при guard_enabled
+                // (hostile-спавн → AutoPveHandler авто-бьёт). Отдельный killswitch от лута.
+                $role = is_string($resident['role'] ?? null) ? $resident['role'] : '';
+                if ($role === 'guard' && ! $this->guardsEnabled()) {
+                    continue;
+                }
+
                 // Уже есть живой спавн этого жителя — ничего не делаем (ровно 1 присутствует).
                 if ((new NpcSpawnModel())->where('npc_id', $npcId)->where('status', 'alive')->countAllResults() > 0) {
                     continue;
@@ -84,7 +91,18 @@ class SettlementPlacementHandler
 
     private function enabled(): bool
     {
-        $v = $this->settings->get('settlements.enabled', false);
+        return $this->boolSetting('settlements.enabled');
+    }
+
+    /** ADR-101 Ф4: killswitch размещения стражи руин (hostile-спавны). */
+    private function guardsEnabled(): bool
+    {
+        return $this->boolSetting('settlements.ruins.guard_enabled');
+    }
+
+    private function boolSetting(string $key): bool
+    {
+        $v = $this->settings->get($key, false);
         if (is_bool($v)) {
             return $v;
         }

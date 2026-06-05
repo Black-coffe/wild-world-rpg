@@ -147,6 +147,25 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
     }
 
     /**
+     * ADR-101 поселения — exact-роуты 'settleHub' (экран-хаб) и 'ruinLoot' (обыск руин, Ф4).
+     * Фиксируем, что услуги хаба ведут на живые роуты (не мёртвый callback, как npcAct_/inlineMap).
+     */
+    public function testSettlementCallbackRoutesResolve(): void
+    {
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\Settlement\SettlementHubAction::class,
+            $this->cbRoutes->resolve('settleHub'),
+            'callback_data «settleHub» обязан резолвиться в SettlementHubAction (вход в поселение).'
+        );
+
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\Settlement\RuinLootAction::class,
+            $this->cbRoutes->resolve('ruinLoot'),
+            'callback_data «ruinLoot» обязан резолвиться в RuinLootAction (услуга «Обыскать руины», Ф4).'
+        );
+    }
+
+    /**
      * ADR-096 «Оптовая продажа» — exact-роут 'bulkSell'; все хвосты (all_/rarity_/go_)
      * дают тот же первый сегмент → один обработчик. Тот же class-of-bug, что npcAct_
      * (мёртвый prefix с `_`): фиксируем, что роут жив для предпросмотра и выполнения.
