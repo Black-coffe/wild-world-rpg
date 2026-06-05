@@ -110,6 +110,11 @@ class SeedSandwolvesDen extends Migration
             $cs['home_x']    = $ax;
             $cs['home_y']    = $ay;
             $this->db->table('npcs')->where('id', $karnId)->update(['custom_settings' => json_encode($cs, JSON_UNESCAPED_UNICODE)]);
+
+            // Карн уже мог быть заспавнен на старой случайной home-клетке. Смена home_cell НЕ двигает
+            // живой спавн (NamedNpcPlacementHandler пересоздаёт только при отсутствии спавна) → удаляем
+            // его текущие спавны, чтобы крон пересоздал Карна на новой home (= якорь Логова).
+            $this->db->table('npc_spawns')->where('npc_id', $karnId)->delete();
         }
 
         // 4. Поселение (idempotent по code).
