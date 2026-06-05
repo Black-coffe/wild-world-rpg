@@ -36,8 +36,10 @@ final class SettlementHubAction extends BaseAction
      * (SellAction, с переходом в магазин), repair=ремонт изношенных инструментов (RepairToolsListAction).
      */
     private const SERVICE_ROUTES = [
-        'trade'  => ['🛒 Торговать', 'sell'],
-        'repair' => ['🔧 Ремонт', 'repairToolsList'],
+        'trade'       => ['🛒 Торговать', 'sell'],
+        'repair'      => ['🔧 Ремонт', 'repairToolsList'],
+        'blackmarket' => ['🖤 Чёрный рынок', 'sell'],          // Фаза 2 — Логово (тёмная торговля)
+        'casino'      => ['🎰 Казино', 'entertainment'],       // Фаза 2 — Логово (азартные игры)
     ];
 
     /** Эмодзи роли жителя. */
