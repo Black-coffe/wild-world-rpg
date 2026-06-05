@@ -51,7 +51,8 @@ foreach ($biomes as $b) {
 .ww-map-canvas-box.zoom-1 canvas{cursor:crosshair}
 .ww-map-canvas-box .ww-map-loader{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ww-muted);font-size:.95rem;pointer-events:none;background:rgba(14,12,10,.85);text-align:center;padding:1rem}
 .ww-map-canvas-box .ww-map-loader.is-hidden{display:none}
-.ww-map-tooltip{position:absolute;pointer-events:none;background:rgba(13,17,24,.95);border:1px solid var(--ww-line);color:var(--ww-text);padding:.4rem .6rem;border-radius:4px;font-size:.82rem;font-family:"PT Sans",sans-serif;line-height:1.35;white-space:nowrap;transform:translate(-50%,-130%);display:none;z-index:5;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+.ww-map-tooltip{position:absolute;pointer-events:none;background:rgba(13,17,24,.96);border:1px solid var(--ww-line);color:var(--ww-text);padding:.5rem .65rem;border-radius:4px;font-size:.8rem;font-family:"PT Sans",sans-serif;line-height:1.4;white-space:normal;max-width:230px;overflow-wrap:break-word;transform:translate(-50%,-108%);display:none;z-index:5;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+.ww-map-tooltip b{display:block;margin-bottom:.15rem}
 .ww-map-tooltip.is-visible{display:block}
 .ww-map-tooltip b{color:var(--ww-accent)}
 .ww-map-panel{background:var(--ww-panel);border:1px solid var(--ww-line);border-radius:8px;padding:1.1rem 1.2rem}
