@@ -55,6 +55,13 @@ final class NpcEncounterAction extends BaseAction
         $facName = NpcRelationService::factionLabel($facId);
         $facLine = $facName !== '' ? "🛡️ Фракция: _{$facName}_\n\n" : '';
 
+        // ADR-101 Фаза 1: безопасная зона поселения — нельзя нападать/грабить жителей.
+        $safeZone = (new \App\Services\Settlement\SettlementZoneService())->isSafeZone(
+            $cell,
+            is_numeric($character['coordinate_x'] ?? null) ? (int) $character['coordinate_x'] : null,
+            is_numeric($character['coordinate_y'] ?? null) ? (int) $character['coordinate_y'] : null
+        );
+
         // ADR-089 Фаза 2: приветствие и доступные действия зависят от отношения NPC к игроку.
         $charId   = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
         $rel      = new NpcRelationService();
@@ -119,7 +126,21 @@ final class NpcEncounterAction extends BaseAction
         $text .= "{$greet}\n\n";
         $text .= 'Что будешь делать?';
 
-        if ($attitude === NpcRelationService::HOSTILE) {
+        if ($safeZone) {
+            // ADR-101 — безопасная зона поселения: боевые/грабёж-опции скрыты (жителей не тронуть).
+            $rowsKb = [
+                [
+                    ['text' => '🤝 Торговать', 'callback_data' => "npcAct_trade_{$spawnId}"],
+                    ['text' => '💬 Поговорить', 'callback_data' => $talkCb],
+                ],
+                [['text' => '❓ Спросить', 'callback_data' => "npcAct_ask_{$spawnId}"]],
+            ];
+            if ($hasQuest) {
+                $rowsKb[] = [['text' => '📜 Задание', 'callback_data' => "npcAct_quest_{$spawnId}"]];
+            }
+            $rowsKb[] = $exitRow;
+            $keyboard = ['inline_keyboard' => $rowsKb];
+        } elseif ($attitude === NpcRelationService::HOSTILE) {
             // Враждебный NPC не желает говорить/торговать — только бой или уход.
             $keyboard = ['inline_keyboard' => [
                 [

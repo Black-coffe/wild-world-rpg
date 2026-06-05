@@ -267,12 +267,22 @@ class MoveCharacterToDirectionAction
             }
         }
 
-        // ADR-089 Фаза 1 — если на клетке стоит нейтральный (passive) NPC, показать
-        // кнопку «👤 Незнакомец» → экран встречи. Killswitch npc.interaction_enabled (dormant).
-        $npcInteraction = new \App\Services\NPC\NpcInteractionService();
-        if ($npcInteraction->enabled()
-            && $npcInteraction->passiveSpawnOnCell((int) $targetCell['cell_number']) !== null) {
-            $tail[] = ['text' => '👤 Незнакомец', 'callback_data' => 'npcEncounter'];
+        // ADR-101 Фаза 1 — если на клетке активное поселение, показать «🏚 Войти» → экран-хаб.
+        // Подавляем «👤 Незнакомец»: жители поселения доступны через хаб (safe-зона блокирует атаку).
+        // Killswitch settlements.enabled → policyAt=null = dormant.
+        $settleCell   = (int) $targetCell['cell_number'];
+        $settlePolicy = (new \App\Services\Settlement\SettlementZoneService())->policyAt($settleCell);
+        if ($settlePolicy !== null) {
+            $sName = is_string($settlePolicy['settlement']['name_ru'] ?? null) ? $settlePolicy['settlement']['name_ru'] : 'Поселение';
+            $tail[] = ['text' => '🏚 ' . $sName, 'callback_data' => 'settleHub'];
+        } else {
+            // ADR-089 Фаза 1 — если на клетке стоит нейтральный (passive) NPC, показать
+            // кнопку «👤 Незнакомец» → экран встречи. Killswitch npc.interaction_enabled (dormant).
+            $npcInteraction = new \App\Services\NPC\NpcInteractionService();
+            if ($npcInteraction->enabled()
+                && $npcInteraction->passiveSpawnOnCell($settleCell) !== null) {
+                $tail[] = ['text' => '👤 Незнакомец', 'callback_data' => 'npcEncounter'];
+            }
         }
 
         // W2 (ADR-058) — кнопка «🚁 Дрон» если у чара есть DroneScout с qty>0.

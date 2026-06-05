@@ -157,6 +157,23 @@ class TextMapService
             }
         }
 
+        // ADR-101 — активные поселения в видимой области (маркер-ландмарк для discoverability,
+        // gated killswitch settlements.enabled).
+        $settlementCells = [];
+        $settleZone      = new \App\Services\Settlement\SettlementZoneService();
+        if ($settleZone->layerEnabled()) {
+            foreach ((new \App\Models\SettlementModel())->allActive() as $st) {
+                $sx = is_numeric($st['coordinate_x'] ?? null) ? (int) $st['coordinate_x'] : null;
+                $sy = is_numeric($st['coordinate_y'] ?? null) ? (int) $st['coordinate_y'] : null;
+                if ($sx === null || $sy === null) {
+                    continue;
+                }
+                if ($sx >= $xMin && $sx <= $xMax && $sy >= $yMin && $sy <= $yMax) {
+                    $settlementCells["{$sx}_{$sy}"] = is_string($st['icon'] ?? null) && $st['icon'] !== '' ? $st['icon'] : '🏚';
+                }
+            }
+        }
+
         // Получаем NPC вокруг игрока (в 12×12)
         $npcsInArea = $this->getNpcsInArea($pX, $pY);
 
@@ -191,6 +208,12 @@ class TextMapService
 
                 // Собираем ключ
                 $cellKey = "{$worldX}_{$worldY}";
+
+                // ADR-101 — поселение-ландмарк приоритетнее иконки жителей-NPC.
+                if (isset($settlementCells[$cellKey])) {
+                    $mapText .= $settlementCells[$cellKey];
+                    continue;
+                }
 
                 // Если есть живой NPC
                 if (isset($npcsInArea[$cellKey])) {
@@ -243,6 +266,7 @@ class TextMapService
             . "🙎‍♂️ — игрок\n"
             . "🏕 — ваша база\n"
             . "🚫 — чужая база\n"
+            . "🏚 — поселение\n"
             . "🥷 — NPC\n"
             . "⬛️ — не изучено\n"
             . "⬜ — за пределами мира\n\n"

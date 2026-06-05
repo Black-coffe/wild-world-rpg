@@ -295,6 +295,9 @@ class CallbackRoutes extends BaseConfig
         'caravanLookBargain'              => \App\Controllers\Telegram\Commands\Actions\Caravan\CaravanLookAction::class,
         // ADR-089 Фаза 1 — экран встречи с нейтральным NPC на клетке игрока.
         'npcEncounter'                    => \App\Controllers\Telegram\Commands\Actions\NPC\NpcEncounterAction::class,
+        // ADR-101 Фаза 1 — экран-хаб статического поселения (Перекрёсток). Callback `settleHub`
+        // (поселение определяется по клетке персонажа через SettlementZoneService).
+        'settleHub'                       => \App\Controllers\Telegram\Commands\Actions\Settlement\SettlementHubAction::class,
 
         // W2 (ADR-058) — Drone-recon. Список дрон-инстансов чара с charge-bar.
         // - droneScoutList: показать все DroneScout с qty>0 + кнопки запуска

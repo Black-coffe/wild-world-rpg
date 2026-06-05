@@ -62,6 +62,16 @@ final class NpcActionChoiceAction extends BaseAction
         $npcIdRaw = $spawn['npc_id'] ?? null;
         $npcId    = is_numeric($npcIdRaw) ? (int) $npcIdRaw : 0;
 
+        // ADR-101 Фаза 1: в безопасной зоне поселения боевые действия и грабёж жителей запрещены
+        // (defense-in-depth — кнопки скрыты в NpcEncounterAction, но callback мог быть собран вручную).
+        if (in_array($action, ['attack', 'kill', 'rob'], true)) {
+            $cx = is_numeric($character['coordinate_x'] ?? null) ? (int) $character['coordinate_x'] : null;
+            $cy = is_numeric($character['coordinate_y'] ?? null) ? (int) $character['coordinate_y'] : null;
+            if ((new \App\Services\Settlement\SettlementZoneService())->isSafeZone($cCell, $cx, $cy)) {
+                return $this->alert('🕊 Это безопасная зона — здесь нельзя нападать на местных.');
+            }
+        }
+
         // ADR-089 Фаза 2: действие игрока меняет отношение NPC (no-op при выключенной реактивности).
         (new NpcRelationService())->registerAction($playerId, $npcId, $action);
 
