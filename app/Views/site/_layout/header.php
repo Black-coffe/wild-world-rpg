@@ -17,6 +17,7 @@ $navItems = [
     ['href' => base_url('devblog'),     'label' => 'Девблог', 'match' => fn($u) => $u === 'devblog'],
     ['href' => base_url('wiki'),        'label' => 'Вики',    'match' => fn($u) => str_starts_with($u, 'wiki')],
     ['href' => base_url('map'),         'label' => 'Карта',   'match' => fn($u) => $u === 'map'],
+    ['href' => base_url('achievements'), 'label' => '🏅 Достижения', 'match' => fn($u) => $u === 'achievements'],
 ];
 ?>
 <a class="skip-link" href="#ww-main">К содержимому</a>

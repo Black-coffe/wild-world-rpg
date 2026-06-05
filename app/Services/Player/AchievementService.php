@@ -219,6 +219,46 @@ final class AchievementService
     }
 
     /**
+     * Публичная статистика достижений для веб-страницы (Asana, ADR-066-web): каждое enabled
+     * достижение + сколько персонажей его разблокировали + глобальный процент (% от всех
+     * персонажей). Процент, не число — чтобы не демотивировать (требование владельца).
+     *
+     * @return array{total:int, achievements:list<array<int|string,mixed>>}
+     */
+    public function statsWithPercent(): array
+    {
+        $db    = \Config\Database::connect();
+        $total = 0;
+        $totQ  = $db->query('SELECT COUNT(*) AS v FROM characters');
+        if (is_object($totQ) && method_exists($totQ, 'getRowArray')) {
+            $totRow = $totQ->getRowArray();
+            $total  = is_array($totRow) && is_numeric($totRow['v'] ?? null) ? (int) $totRow['v'] : 0;
+        }
+
+        // Один запрос: разблокировки по достижению.
+        $counts = [];
+        $cntRows = $db->query('SELECT achievement_id, COUNT(*) AS c FROM character_achievements GROUP BY achievement_id');
+        if (is_object($cntRows) && method_exists($cntRows, 'getResultArray')) {
+            foreach ($cntRows->getResultArray() as $r) {
+                if (is_array($r) && is_numeric($r['achievement_id'] ?? null)) {
+                    $counts[(int) $r['achievement_id']] = is_numeric($r['c'] ?? null) ? (int) $r['c'] : 0;
+                }
+            }
+        }
+
+        $out = [];
+        foreach ($this->definitions() as $a) {
+            $id  = is_numeric($a['id'] ?? null) ? (int) $a['id'] : 0;
+            $cnt = $counts[$id] ?? 0;
+            $a['unlocked_count'] = $cnt;
+            $a['percent']        = $total > 0 ? round(100.0 * $cnt / $total, 1) : 0.0;
+            $out[] = $a;
+        }
+
+        return ['total' => $total, 'achievements' => $out];
+    }
+
+    /**
      * SQL-фрагмент критерия (whitelist по criteria_type — без инъекции; target — bound int).
      *
      * @return array{0:string,1:list<mixed>}|null

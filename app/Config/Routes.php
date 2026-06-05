@@ -15,6 +15,10 @@ $routes->get('admin/login', 'Login::new');
 // Admin-версия (/admin/battles) сохранена ниже для review. Намеренная публикация (пересмотр v0.51.7).
 $routes->get('battles', 'BattlesController::publicIndex');
 $routes->get('battles/view/(:num)', 'BattlesController::publicView/$1');
+
+// Asana «Визуальная таблица достижений на сайте» (Steam/Монобанк-стиль, flat ADR-062).
+// Публичная сетка достижений + глобальный % игроков; личный прогресс — за TG-входом (ADR-061).
+$routes->get('achievements', 'AchievementsController::publicIndex');
 // v0.51.6 security cleanup: removed public unprotected routes
 // - /migrate -> MigrationController (CRITICAL: anyone could trigger migrations->latest() via GET)
 // - /pve-test, /pve-test-view -> PvETestController (dead test scaffolding, replaced by PHPUnit)
