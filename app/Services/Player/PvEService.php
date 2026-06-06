@@ -99,14 +99,22 @@ class PvEService
         // Подробное логирование боя через PveBattleLogWriter (Step 3 v0.51.88)
         $this->battleLogWriter->write($playerData, $npcData, $fightResult);
 
-        // Выдача наград через RewardService
-        $rewards = $this->rewardService->grantRewards($fightResult['winner'], $fightResult['loser']);
+        // Награды выдаёт ТОЛЬКО победивший ИГРОК. Если победил NPC (игрок проиграл),
+        // grantRewards писал бы по winner->id = id NPC: adjustGold/update/insert в
+        // character_resources с id, которого нет в characters → FK fail каждую минуту
+        // на застрявших AFK-игроках у агрессивных NPC (AutoPveHandler-крон). Гейт по
+        // winner==player. Бонус: проигравший больше не получает exp/gold победителя
+        // (раньше $rewards победителя-NPC ошибочно начислялись игроку ниже).
+        $winner    = $fightResult['winner'];
+        $playerWon = self::playerIsWinner($winner, (int) $player->id);
+
+        $rewards = $playerWon
+            ? $this->rewardService->grantRewards($winner, $fightResult['loser'])
+            : ['exp' => 0, 'gold' => 0, 'strength' => 0, 'agility' => 0, 'intellect' => 0, 'resource' => null, 'craftedItem' => null];
         log_message('info', "Игрок {$player->name} получил: +{$rewards['exp']} опыта, +{$rewards['gold']} золота");
 
         // ADR-088 Фаза 2: победа игрока над NPC → +1 к счётчику (квесты objective_type=npc_kills).
-        // Гейт по winner==player; счётчик ведём всегда (квест-прогрессия гейтится killswitch в handler).
-        $winner = $fightResult['winner'];
-        if ($winner instanceof BattleCharacter && (int) $winner->id === (int) $player->id) {
+        if ($playerWon) {
             $this->characterModel->incrementNpcKills((int) $player->id);
         }
 
@@ -146,6 +154,18 @@ class PvEService
             'winner'  => $fightResult['winner'],
             'player'  => $updatedPlayerData,
         ];
+    }
+
+    /**
+     * Победитель боя — это ИГРОК? Чистый предикат (вынесен для тестируемости гейта наград).
+     *
+     * Награду выдаём только победившему игроку: если победил NPC, grantRewards писал бы по
+     * winner->id = id NPC (нет в characters) → FK fail на character_resources (AutoPveHandler-крон,
+     * застрявшие AFK-игроки у агрессивных NPC). См. PvEServiceRewardGateTest.
+     */
+    public static function playerIsWinner(mixed $winner, int $playerId): bool
+    {
+        return $winner instanceof BattleCharacter && (int) $winner->id === $playerId;
     }
 
 }
