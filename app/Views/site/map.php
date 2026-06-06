@@ -51,7 +51,8 @@ foreach ($biomes as $b) {
 .ww-map-canvas-box.zoom-1 canvas{cursor:crosshair}
 .ww-map-canvas-box .ww-map-loader{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ww-muted);font-size:.95rem;pointer-events:none;background:rgba(14,12,10,.85);text-align:center;padding:1rem}
 .ww-map-canvas-box .ww-map-loader.is-hidden{display:none}
-.ww-map-tooltip{position:absolute;pointer-events:none;background:rgba(13,17,24,.96);border:1px solid var(--ww-line);color:var(--ww-text);padding:.5rem .65rem;border-radius:4px;font-size:.8rem;font-family:"PT Sans",sans-serif;line-height:1.4;white-space:normal;max-width:230px;overflow-wrap:break-word;transform:translate(-50%,-108%);display:none;z-index:5;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+.ww-map-tooltip{position:absolute;pointer-events:none;background:rgba(13,17,24,.98);border:1px solid var(--ww-line);color:var(--ww-text);padding:.5rem .65rem;font-size:.8rem;font-family:"PT Sans",sans-serif;line-height:1.4;white-space:normal;max-width:230px;overflow-wrap:break-word;transform:translate(-50%,-108%);display:none;z-index:5}
+.ww-map-tooltip.is-below{transform:translate(-50%,14%)}
 .ww-map-tooltip b{display:block;margin-bottom:.15rem}
 .ww-map-tooltip.is-visible{display:block}
 .ww-map-tooltip b{color:var(--ww-accent)}
@@ -950,8 +951,18 @@ foreach ($biomes as $b) {
         else { tip.textContent = '(' + p.wx + ', ' + p.wy + ')'; }
         tip.classList.add('is-visible');
         var boxRect = box.getBoundingClientRect();
-        tip.style.left = (p.clientX - boxRect.left) + 'px';
-        tip.style.top  = (p.clientY - boxRect.top) + 'px';
+        var lx = p.clientX - boxRect.left;
+        var ty = p.clientY - boxRect.top;
+        // Флип «вниз», если над курсором мало места: иначе tooltip уходит за
+        // верхнюю кромку и режется overflow:hidden у .ww-map-canvas-box. Бьёт по
+        // маркерам у верха карты (ADR-101 руины на глубоком севере, Y<~160).
+        // + лёгкий горизонтальный кламп (tooltip центрирован через -50%), чтобы
+        // не срезало у левой/правой кромки.
+        var tipH = tip.offsetHeight, tipW = tip.offsetWidth;
+        tip.classList.toggle('is-below', ty < (tipH + 16));
+        lx = Math.max(tipW / 2 + 4, Math.min(lx, boxRect.width - tipW / 2 - 4));
+        tip.style.left = lx + 'px';
+        tip.style.top  = ty + 'px';
     });
     window.addEventListener('mouseup', function(){
         if (state.drag){
