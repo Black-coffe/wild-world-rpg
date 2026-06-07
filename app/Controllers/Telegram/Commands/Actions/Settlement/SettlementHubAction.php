@@ -150,6 +150,10 @@ final class SettlementHubAction extends BaseAction
         if ((new NpcInteractionService())->enabled()) {
             $rows[] = [['text' => '💬 Поговорить с жителями', 'callback_data' => 'npcEncounter']];
         }
+        // ADR-101 Фаза 5 — быстрое перемещение между открытыми поселениями (gated killswitch).
+        if ((new \App\Services\Settlement\SettlementTeleportService())->enabled()) {
+            $rows[] = [['text' => '🛰 Быстрое перемещение', 'callback_data' => 'settleTeleport']];
+        }
         $rows[] = [['text' => '🚶 Уйти', 'callback_data' => 'move']];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
