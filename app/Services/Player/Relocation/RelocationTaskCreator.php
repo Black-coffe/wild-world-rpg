@@ -42,14 +42,18 @@ class RelocationTaskCreator
         int $frTaskId,
         int $mapCellId,
         int $targetX,
-        int $targetY
+        int $targetY,
+        int $sourceMapCellId = 0
     ): void {
         $now = Time::now();
         $end = $now->addHours(24);
 
         $settings = [
-            'new_map_cell_id' => $mapCellId,
-            'note'            => "Переезд в X={$targetX},Y={$targetY} (map_id={$mapCellId})",
+            'new_map_cell_id'     => $mapCellId,
+            // ADR-102: исходная база, которую переносим (мультибэйс) — completion-handler
+            // двигает ТОЛЬКО её постройки. 0 = legacy fallback (перенос всех баз).
+            'source_map_cell_id'  => $sourceMapCellId,
+            'note'                => "Переезд в X={$targetX},Y={$targetY} (map_id={$mapCellId})",
         ];
 
         $this->characterTaskModel->insert([

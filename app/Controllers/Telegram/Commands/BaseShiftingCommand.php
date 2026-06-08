@@ -252,14 +252,31 @@ class BaseShiftingCommand extends UserCommand
                 return $this->send($chatId, $this->formatter()->confirmNotExplored());
             }
 
+            // ADR-102: исходная база, которую переносим (мультибэйс) — та, на которой
+            // стоит игрок (fallback — единственная база). null → просим встать на базу.
+            $charArr = $character instanceof \App\Entities\CharacterEntity
+                ? $character->toArray()
+                : (is_array($character) ? $character : []);
+            $charId     = is_numeric($charArr['id'] ?? null) ? (int) $charArr['id'] : 0;
+            $curCell    = is_numeric($charArr['cell_number'] ?? null) ? (int) $charArr['cell_number'] : 0;
+            $sourceCell = (new \App\Models\ClaimedCellModel())->resolveTargetBaseCell($charId, $curCell);
+            if ($sourceCell === null) {
+                return Request::sendMessage([
+                    'chat_id'    => $chatId,
+                    'text'       => "У тебя несколько баз. Встань на ту, которую хочешь перенести, затем повтори переезд.",
+                    'parse_mode' => 'Markdown',
+                ]);
+            }
+
             // Всё нормально => создаём задачу (v0.51.49 — RelocationTaskCreator)
             $this->taskCreator()->createTask(
-                (int) $character['id'],
+                $charId,
                 (int) $user['id'],
                 $frTaskId,
                 $mapCellId,
                 $x,
-                $y
+                $y,
+                $sourceCell
             );
 
             return $this->send($chatId, $this->formatter()->taskStarted($x, $y));

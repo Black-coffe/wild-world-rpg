@@ -99,6 +99,44 @@ class ClaimedCellModel extends Model
     }
 
     /**
+     * ADR-102 — целевая база для операций сноса/переезда/постройки в мультибэйс-мире.
+     * Возвращает map_cell_id базы:
+     *  - игрок СТОИТ на своей активной базе (cell_number) → эта база;
+     *  - иначе, если у игрока РОВНО ОДНА активная база → она (сохраняет одно-базовое
+     *    поведение: снос/переезд работают, даже если игрок не на базе);
+     *  - иначе (0 баз; либо ≥2 баз и игрок не на базе) → null (неоднозначно — caller
+     *    должен попросить встать на нужную базу).
+     */
+    public function resolveTargetBaseCell(int $characterId, int $currentCell): ?int
+    {
+        $active = $this->findActiveCell($characterId, $currentCell);
+        if ($active !== null) {
+            $mc = $active['map_cell_id'] ?? null;
+            return is_numeric($mc) ? (int) $mc : null;
+        }
+        // Не на базе → если ровно одна активная база, берём её.
+        if ($this->countActiveBases($characterId) === 1) {
+            $first = $this->findFirstActiveCell($characterId);
+            if ($first !== null) {
+                $mc = $first['map_cell_id'] ?? null;
+                return is_numeric($mc) ? (int) $mc : null;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * ADR-095/102 — число активных баз игрока.
+     */
+    public function countActiveBases(int $characterId): int
+    {
+        $n = $this->where('character_id', $characterId)
+            ->where('status', 'active')
+            ->countAllResults();
+        return is_numeric($n) ? (int) $n : 0;
+    }
+
+    /**
      * @param array<int|string,mixed> $row
      * @return array<string,mixed>
      */

@@ -9,6 +9,7 @@ use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CharacterTaskModel;
 use App\Models\TaskModel;
+use App\Models\TeleportBeaconModel;
 
 use App\Services\Tasks\ActiveTasksService;
 
@@ -143,6 +144,16 @@ class DeleteBaseAction extends BaseAction
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
+        // --- ADR-102: определяем КОНКРЕТНУЮ базу для сноса (мультибэйс) ---
+        $targetCell = $this->resolveTargetBaseCell($character);
+        if ($targetCell === null) {
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => $this->noTargetBaseMessage($character),
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
         // --- A) Прерываем, если уже идёт переезд ---
         $activeTasksService = new ActiveTasksService();
         $activeTasks        = $activeTasksService->getActiveTasksWithDetails($character['id']);
@@ -196,13 +207,22 @@ class DeleteBaseAction extends BaseAction
             }
         }
 
-        // --- D) Удаляем здания ---
+        // --- D) Удаляем здания ТОЛЬКО этой базы (ADR-102: не трогаем другие базы) ---
         $charBuildingModel = new CharacterBuildingModel();
-        $charBuildingModel->where('character_id', $character['id'])->delete();
+        $charBuildingModel
+            ->where('character_id', $character['id'])
+            ->where('map_cell_id', $targetCell)
+            ->delete();
 
-        // --- E) Удаляем лагерь ---
+        // --- E) Удаляем ТОЛЬКО этот лагерь ---
         $claimedCellModel = new ClaimedCellModel();
-        $claimedCellModel->where('character_id', $character['id'])->delete();
+        $claimedCellModel
+            ->where('character_id', $character['id'])
+            ->where('map_cell_id', $targetCell)
+            ->delete();
+
+        // --- E2) Чистим сирот этой базы (маяки телепорта на снесённой клетке) ---
+        $this->cleanupBaseOrphans((int) $character['id'], $targetCell);
 
         // --- F) Сообщаем результат ---
         $text = "Ты произвёл *Моментальный снос* базы!\n\n"
@@ -253,9 +273,22 @@ class DeleteBaseAction extends BaseAction
             ]);
         }
 
-        // 2) Собираем данные о зданиях
+        // ADR-102: какую базу сносим (мультибэйс)
+        $targetCell = $this->resolveTargetBaseCell($character);
+        if ($targetCell === null) {
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => $this->noTargetBaseMessage($character),
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
+        // 2) Собираем данные о зданиях ТОЛЬКО этой базы
         $charBuildingModel = new CharacterBuildingModel();
-        $allBuildings = $charBuildingModel->where('character_id', $character['id'])->findAll();
+        $allBuildings = $charBuildingModel
+            ->where('character_id', $character['id'])
+            ->where('map_cell_id', $targetCell)
+            ->findAll();
 
         $bArr = [];
         foreach ($allBuildings as $b) {
@@ -265,6 +298,7 @@ class DeleteBaseAction extends BaseAction
 
         $taskSettings = [
             'character_buildings' => $bArr,
+            'base_cell' => $targetCell, // ADR-102: completion-handler снесёт ТОЛЬКО эту базу
             'note' => 'Инфа о постройках на момент запуска планового сноса',
         ];
         $settingsJson = json_encode($taskSettings, JSON_UNESCAPED_UNICODE);
@@ -318,5 +352,48 @@ class DeleteBaseAction extends BaseAction
             'caption'    => $text,
             'parse_mode' => 'Markdown',
         ]);
+    }
+
+    /**
+     * ADR-102: map_cell_id базы, которую снесём (активная база, где стоит игрок;
+     * fallback — единственная база). null — игрок не на базе и баз ≠ 1 (неоднозначно).
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     */
+    private function resolveTargetBaseCell(array|\App\Entities\CharacterEntity $character): ?int
+    {
+        $charId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $cell   = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
+        return (new ClaimedCellModel())->resolveTargetBaseCell($charId, $cell);
+    }
+
+    /**
+     * ADR-102: сообщение, когда базу-цель не удалось определить однозначно.
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     */
+    private function noTargetBaseMessage(array|\App\Entities\CharacterEntity $character): string
+    {
+        $charId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $bases  = (new ClaimedCellModel())->countActiveBases($charId);
+        if ($bases === 0) {
+            return "У тебя нет базы для сноса.";
+        }
+        return "У тебя несколько баз. Чтобы снести нужную, *встань на неё* (телепортируйся или дойди), затем повтори снос.";
+    }
+
+    /**
+     * ADR-102: чистим сирот, оставшихся от снесённой базы (маяки телепорта на её клетке).
+     * Иначе остаются записи с невалидным map_cell_id.
+     */
+    private function cleanupBaseOrphans(int $charId, int $cell): void
+    {
+        if ($charId <= 0 || $cell <= 0) {
+            return;
+        }
+        (new TeleportBeaconModel())
+            ->where('character_id', $charId)
+            ->where('map_cell_id', $cell)
+            ->delete();
     }
 }

@@ -173,6 +173,11 @@ class GenericBuildingAction extends BaseAction
         $startTime = new DateTime();
         $endTime   = (clone $startTime)->add(new DateInterval("PT{$duration}M"));
 
+        // ADR-102: фиксируем базу-цель постройки (активная база, на которой стоим —
+        // гейт выше это гарантировал). Completion-handler привяжет здание к ней,
+        // а не к клетке, где игрок окажется на момент завершения задачи.
+        $taskSettings = array_merge($recipe['task_settings'], ['base_cell' => $currentCell]);
+
         $this->characterTaskModel->insert([
             'character_id'     => $character['id'],
             'telegram_user_id' => $user['id'],
@@ -180,7 +185,7 @@ class GenericBuildingAction extends BaseAction
             'start_time'       => $startTime->format('Y-m-d H:i:s'),
             'end_time'         => $endTime->format('Y-m-d H:i:s'),
             'status'           => 'in_work',
-            'task_settings'    => json_encode($recipe['task_settings']),
+            'task_settings'    => json_encode($taskSettings),
         ]);
 
         $db->transComplete();

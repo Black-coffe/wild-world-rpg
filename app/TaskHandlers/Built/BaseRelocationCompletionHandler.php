@@ -88,18 +88,56 @@ class BaseRelocationCompletionHandler extends BaseTaskHandler
             'status' => 'completed'
         ]);
 
-        // 5) Удаляем ВСЕ строения игрока
-        $this->characterBuildingModel
-            ->where('character_id', $characterId)
-            ->delete();
+        // ADR-102: сносим ТОЛЬКО ту базу, для которой запускали снос (base_cell
+        // зафиксирован в task_settings). Legacy in-flight задачи без base_cell →
+        // старое поведение (снос всех баз персонажа) с предупреждением в лог.
+        $baseCell = $this->resolveBaseCell($taskRow);
 
-        // 6) Удаляем запись из claimed_cells
-        $this->claimedCellModel
-            ->where('character_id', $characterId)
-            ->delete();
+        $buildingsQuery = $this->characterBuildingModel->where('character_id', $characterId);
+        $cellsQuery     = $this->claimedCellModel->where('character_id', $characterId);
+        if ($baseCell !== null) {
+            $buildingsQuery->where('map_cell_id', $baseCell);
+            $cellsQuery->where('map_cell_id', $baseCell);
+        } else {
+            $cidLog = is_numeric($characterId) ? (int) $characterId : 0;
+            $tidLog = is_numeric($taskRow['id'] ?? null) ? (int) $taskRow['id'] : 0;
+            log_message('warning', "BaseRelocationCompletionHandler: task {$tidLog} без base_cell — снос всех баз персонажа {$cidLog} (legacy fallback).");
+        }
+
+        // 5) Удаляем строения этой базы
+        $buildingsQuery->delete();
+
+        // 6) Удаляем запись базы из claimed_cells
+        $cellsQuery->delete();
+
+        // 6b) Чистим сирот (маяки телепорта снесённой базы)
+        if ($baseCell !== null) {
+            (new \App\Models\TeleportBeaconModel())
+                ->where('character_id', $characterId)
+                ->where('map_cell_id', $baseCell)
+                ->delete();
+        }
 
         // 7) Уведомляем игрока
         $this->notifyUser($character);
+    }
+
+    /**
+     * ADR-102: клетка базы, для которой запускался плановый снос (из task_settings.base_cell).
+     * null — legacy-задача без base_cell.
+     *
+     * @param array<string,mixed> $taskRow
+     */
+    private function resolveBaseCell(array $taskRow): ?int
+    {
+        $raw = $taskRow['task_settings'] ?? null;
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded) && isset($decoded['base_cell']) && is_numeric($decoded['base_cell'])) {
+                return (int) $decoded['base_cell'];
+            }
+        }
+        return null;
     }
 
     /**

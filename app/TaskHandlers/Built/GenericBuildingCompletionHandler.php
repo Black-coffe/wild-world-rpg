@@ -128,30 +128,38 @@ class GenericBuildingCompletionHandler extends BaseTaskHandler
 
     private function updateCharacterBuildings(array $task, array $buildingRow, array $recipe): void
     {
+        $charRow = $this->characterModel->find($task['character_id']);
+        if (!$charRow) {
+            log_message('error', "[GenericBuildingCompletion] character not found: " . $task['character_id']);
+            return;
+        }
+
+        // ADR-102: постройка привязывается к КОНКРЕТНОЙ базе (map_cell_id), а не
+        // схлопывается в единственную строку на тип. base_cell зафиксирован при
+        // старте (GenericBuildingAction). Fallback для legacy in-flight задач без
+        // base_cell — текущая клетка персонажа.
+        $fallbackCell = is_numeric($charRow['cell_number'] ?? null) ? (int) $charRow['cell_number'] : 0;
+        $targetCell   = $this->resolveBuildCell($task, $fallbackCell);
+
         $existing = $this->characterBuildingModel
             ->where('character_id', $task['character_id'])
             ->where('building_id', $buildingRow['id'])
+            ->where('map_cell_id', $targetCell)
             ->first();
 
         if ($existing) {
-            // Уже есть — увеличиваем amount (1:1 с legacy)
+            // Та же постройка на ТОЙ ЖЕ базе — увеличиваем amount (стак на базе).
             $this->characterBuildingModel->update($existing['id'], [
                 'amount' => $existing['amount'] + 1,
             ]);
             return;
         }
 
-        // Создаём новую запись
+        // Новое здание этого типа на этой базе → отдельная строка.
         $factionRow = $this->characterFactionModel
             ->where('character_id', $task['character_id'])
             ->first();
         $factionId = $factionRow ? $factionRow['faction_id'] : null;
-
-        $charRow = $this->characterModel->find($task['character_id']);
-        if (!$charRow) {
-            log_message('error', "[GenericBuildingCompletion] character not found: " . $task['character_id']);
-            return;
-        }
 
         // building_type: либо override из recipe (legacy hardcoded 'farming'/'engineering'),
         // либо значение из buildings table.
@@ -161,7 +169,7 @@ class GenericBuildingCompletionHandler extends BaseTaskHandler
             'character_id'                       => $task['character_id'],
             'building_id'                        => $buildingRow['id'],
             'faction_id'                         => $factionId,
-            'map_cell_id'                        => $charRow['cell_number'],
+            'map_cell_id'                        => $targetCell,
             'amount'                             => 1,
             'character_level_during_construction'=> $charRow['level'],
             'hp'                                 => $buildingRow['hp'],
@@ -171,6 +179,25 @@ class GenericBuildingCompletionHandler extends BaseTaskHandler
             'tax'                                => $buildingRow['tax'],
             'usage'                              => $buildingRow['usage'],
         ]);
+    }
+
+    /**
+     * ADR-102: клетка базы, к которой привязывается завершённая постройка.
+     * Берём из task_settings.base_cell (зафиксировано при старте). Fallback —
+     * текущая клетка персонажа (legacy in-flight задачи без base_cell).
+     *
+     * @param array<string,mixed> $task
+     */
+    private function resolveBuildCell(array $task, int $fallbackCell): int
+    {
+        $raw = $task['task_settings'] ?? null;
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded) && isset($decoded['base_cell']) && is_numeric($decoded['base_cell'])) {
+                return (int) $decoded['base_cell'];
+            }
+        }
+        return $fallbackCell;
     }
 
     private function notifyUser(int $telegramUserId, string $caption, string $imageRelPath): void

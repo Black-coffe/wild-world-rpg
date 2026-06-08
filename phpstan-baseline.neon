@@ -8745,7 +8745,7 @@ parameters:
 		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<string, mixed\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 8
+			count: 7
 			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
 
 		-

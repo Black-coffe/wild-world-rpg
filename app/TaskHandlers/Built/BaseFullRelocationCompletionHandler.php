@@ -92,6 +92,10 @@ class BaseFullRelocationCompletionHandler extends BaseTaskHandler
         // 4) Читаем task_settings: там должен лежать "new_map_cell_id"
         $settings = json_decode($rowInDb['task_settings'] ?? '{}', true);
         $newMapCellId = $settings['new_map_cell_id'] ?? null;
+        // ADR-102: исходная база, которую переносим. >0 → двигаем ТОЛЬКО её;
+        // 0/отсутствует → legacy fallback (перенос всех баз персонажа).
+        $sourceRaw  = is_array($settings) ? ($settings['source_map_cell_id'] ?? 0) : 0;
+        $sourceCell = is_numeric($sourceRaw) ? (int) $sourceRaw : 0;
         if (!$newMapCellId) {
             log_message('error', "BaseFullRelocationCompletionHandler: нет new_map_cell_id в task_settings задачи ID {$taskRow['id']}.");
             // Завершаем задачу, но без переноса
@@ -107,10 +111,17 @@ class BaseFullRelocationCompletionHandler extends BaseTaskHandler
         $this->characterModel->update($characterId, ['cell_number' => $newMapCellId]);
         // ----------------------------------------------
 
-        // 6) Ищем (и меняем) запись claimed_cells
-        $oldClaimed = $this->claimedCellModel
-            ->where('character_id', $characterId)
-            ->first();
+        // 6) Ищем (и меняем) запись claimed_cells ИСХОДНОЙ базы (ADR-102: не трогаем
+        //    другие базы игрока). Legacy fallback (sourceCell=0) — первая база.
+        $claimedQuery = $this->claimedCellModel->where('character_id', $characterId);
+        if ($sourceCell > 0) {
+            $claimedQuery->where('map_cell_id', $sourceCell);
+        } else {
+            $cidLog = is_numeric($characterId) ? (int) $characterId : 0;
+            $tidLog = is_numeric($taskRow['id'] ?? null) ? (int) $taskRow['id'] : 0;
+            log_message('warning', "BaseFullRelocationCompletionHandler: task {$tidLog} без source_map_cell_id — перенос всех баз персонажа {$cidLog} (legacy fallback).");
+        }
+        $oldClaimed = $claimedQuery->first();
 
         if ($oldClaimed) {
             // Меняем map_cell_id
@@ -129,11 +140,12 @@ class BaseFullRelocationCompletionHandler extends BaseTaskHandler
             ]);
         }
 
-        // 7) Обновляем character_buildings: переносим на new_map_cell_id
-        $this->characterBuildingModel
-            ->where('character_id', $characterId)
-            ->set(['map_cell_id' => $newMapCellId])
-            ->update();
+        // 7) Переносим постройки ИСХОДНОЙ базы на new_map_cell_id (ADR-102).
+        $buildingsQuery = $this->characterBuildingModel->where('character_id', $characterId);
+        if ($sourceCell > 0) {
+            $buildingsQuery->where('map_cell_id', $sourceCell);
+        }
+        $buildingsQuery->set(['map_cell_id' => $newMapCellId])->update();
 
         // 8) Получаем подробности о новой ячейке (для вывода игроку):
         //    - ищем в таблице map, затем biome
