@@ -174,9 +174,10 @@ class DetailedBaseInfoAction extends BaseAction
         ?array $coverageResult = null
     ): ServerResponse
     {
-        // Получаем список построек
+        // Получаем список построек ТОЛЬКО просматриваемой базы (ADR-102: per-base).
         $buildings = $characterBuildingModel
             ->where('character_id', $character['id'])
+            ->where('map_cell_id', $claimedCell['map_cell_id'])
             ->findAll();
 
         if (empty($buildings)) {

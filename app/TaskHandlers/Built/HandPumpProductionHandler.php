@@ -116,26 +116,14 @@ class HandPumpProductionHandler extends BaseTaskHandler
             // Базовое кол-во воды
             $baseWater = $this->cfg->handPumpLevels[$level];
 
-            // 4. Определяем множитель на основе биома персонажа
-            //    Для этого смотрим, где у него "active" лагерь (или просто берем первую запись).
+            // 4. Множитель по биому КЛЕТКИ, где стоит скважина (ADR-102: per-base —
+            //    биом из map_cell_id строки скважины, а НЕ из активной базы игрока;
+            //    для одно-базовых это та же клетка → byte-identical).
             $characterId = $build['character_id'];
-            $character   = $this->characterModel->find($characterId);
-            if (!$character) {
-                log_message('error', "[HandPumpProductionHandler] Character {$characterId} not found.");
+            $mapCellId   = is_numeric($build['map_cell_id'] ?? null) ? (int) $build['map_cell_id'] : 0;
+            if ($mapCellId <= 0) {
                 continue;
             }
-
-            // Получаем текущую ячейку (активная) из claimed_cells
-            $claimedCell = $this->claimedCellModel
-                ->where('character_id', $characterId)
-                ->where('status', 'active')
-                ->first();
-            if (!$claimedCell) {
-                // У персонажа нет активного лагеря, пропускаем
-                continue;
-            }
-
-            $mapCellId = $claimedCell['map_cell_id'];
             // Смотрим в таблицу map
             $mapRow = $this->mapModel->find($mapCellId);
             if (!$mapRow) {
