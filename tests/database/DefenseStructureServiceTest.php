@@ -50,7 +50,8 @@ final class DefenseStructureServiceTest extends CIUnitTestCase
                 map_cell_id INT NULL,
                 building_type VARCHAR(32) NULL,
                 hp INT NULL,
-                level INT NULL DEFAULT 1
+                level INT NULL DEFAULT 1,
+                amount INT NULL DEFAULT 1
             )
         ');
         $db->query('
@@ -130,14 +131,35 @@ final class DefenseStructureServiceTest extends CIUnitTestCase
         }
     }
 
-    private function buildStructure(int $charId, int $buildingId, int $cell, int $hp, int $level = 1): int
+    private function buildStructure(int $charId, int $buildingId, int $cell, int $hp, int $level = 1, int $amount = 1): int
     {
         $db = Database::connect('tests');
         $db->table('character_buildings')->insert([
             'character_id' => $charId, 'building_id' => $buildingId,
-            'map_cell_id' => $cell, 'building_type' => 'defensive', 'hp' => $hp, 'level' => $level,
+            'map_cell_id' => $cell, 'building_type' => 'defensive', 'hp' => $hp, 'level' => $level, 'amount' => $amount,
         ]);
         return (int) $db->insertID();
+    }
+
+    /**
+     * ADR-102 Ф3: включить стак обороны (killswitch + параметры) в game_settings.
+     */
+    private function enableStack(float $ratio = 0.6, float $max = 2.5): void
+    {
+        $db = Database::connect('tests');
+        $db->table('game_settings')->insert([
+            'setting_key' => 'defense.stack.enabled', 'category' => 'combat',
+            'value_type' => 'bool', 'value_bool' => 1,
+        ]);
+        $db->table('game_settings')->insert([
+            'setting_key' => 'defense.stack.diminish_ratio', 'category' => 'combat',
+            'value_type' => 'float', 'value_float' => $ratio,
+        ]);
+        $db->table('game_settings')->insert([
+            'setting_key' => 'defense.stack.max_factor', 'category' => 'combat',
+            'value_type' => 'float', 'value_float' => $max,
+        ]);
+        $this->cleanCache();
     }
 
     public function testProfileWallAndFenceAtBase(): void
@@ -367,6 +389,93 @@ final class DefenseStructureServiceTest extends CIUnitTestCase
         $this->assertNotNull($profile);
         // Cap default = 25 → 0.25.
         $this->assertEqualsWithDelta(0.25, $profile['initiative_bonus'], 0.0001);
+    }
+
+    // ---- ADR-102 Ф3: стак обороны по amount ----
+
+    public function testDefenseStackFactorDormantByDefault(): void
+    {
+        // killswitch не засеян (OFF) → amount>1 всё равно ×1.0 (byte-identical).
+        $svc = new DefenseStructureService();
+        $this->assertEqualsWithDelta(1.0, $svc->defenseStackFactor(1), 0.0001);
+        $this->assertEqualsWithDelta(1.0, $svc->defenseStackFactor(5), 0.0001);
+    }
+
+    public function testDefenseStackFactorGeometricWhenEnabled(): void
+    {
+        $this->enableStack(0.6, 2.5);
+        $svc = new DefenseStructureService();
+        $this->assertEqualsWithDelta(1.0, $svc->defenseStackFactor(1), 0.0001);  // amount=1 всегда 1.0
+        $this->assertEqualsWithDelta(1.6, $svc->defenseStackFactor(2), 0.0001);
+        $this->assertEqualsWithDelta(1.96, $svc->defenseStackFactor(3), 0.0001);
+        $this->assertEqualsWithDelta(2.176, $svc->defenseStackFactor(4), 0.0001);
+    }
+
+    public function testDefenseStackFactorCappedByMax(): void
+    {
+        $this->enableStack(0.6, 2.0); // max=2.0
+        $svc = new DefenseStructureService();
+        $this->assertEqualsWithDelta(2.0, $svc->defenseStackFactor(50), 0.0001);
+    }
+
+    public function testStackWallReductionWithAmount(): void
+    {
+        // 1 строка стены amount=3, stack ON → 15% × factor(3)=1.96 = round(29.4)=29 → 0.29.
+        $this->enableStack(0.6, 2.5);
+        $this->buildStructure(1, $this->wallId, 100, 200, 1, 3);
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+        $this->assertNotNull($profile);
+        $this->assertEqualsWithDelta(0.29, $profile['damage_reduction'], 0.0001);
+    }
+
+    public function testStackByteIdenticalWhenStackOff(): void
+    {
+        // amount=3, но killswitch OFF → 15% (amount игнорируется) — byte-identical.
+        $this->buildStructure(1, $this->wallId, 100, 200, 1, 3);
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+        $this->assertNotNull($profile);
+        $this->assertEqualsWithDelta(0.15, $profile['damage_reduction'], 0.0001);
+    }
+
+    public function testStackAmountOneIsNoOpWhenEnabled(): void
+    {
+        // stack ON, но amount=1 → factor 1.0 → 15% (byte-identical для одиночных).
+        $this->enableStack(0.6, 2.5);
+        $this->buildStructure(1, $this->wallId, 100, 200, 1, 1);
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+        $this->assertNotNull($profile);
+        $this->assertEqualsWithDelta(0.15, $profile['damage_reduction'], 0.0001);
+    }
+
+    public function testStackFenceWithAmount(): void
+    {
+        // ограда amount=2 → 3 × factor(2)=1.6 = round(4.8)=5.
+        $this->enableStack(0.6, 2.5);
+        $this->buildStructure(1, $this->fenceId, 100, 80, 1, 2);
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+        $this->assertNotNull($profile);
+        $this->assertSame(5, $profile['fence_damage']);
+    }
+
+    public function testStackTowerNotStackedByAmount(): void
+    {
+        // вышка amount=3, stack ON → инициатива всё равно 8% (presence, анти-эксплойт).
+        $this->enableStack(0.6, 2.5);
+        $this->buildStructure(1, $this->towerId, 100, 300, 1, 3);
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+        $this->assertNotNull($profile);
+        $this->assertEqualsWithDelta(0.08, $profile['initiative_bonus'], 0.0001);
+    }
+
+    public function testStackWallStillCappedAtGlobalMax(): void
+    {
+        // amount=20 L1: factor→~2.5 → 15×2.5=37.5; + плюс ещё стен пушим за cap.
+        $this->enableStack(0.6, 2.5);
+        $this->buildStructure(1, $this->wallId, 100, 200, 1, 20);
+        $this->buildStructure(1, $this->wallId, 100, 200, 1, 20); // 2 ряда → >40 → клампится
+        $profile = (new DefenseStructureService())->getDefenseProfile(1, 100);
+        $this->assertNotNull($profile);
+        $this->assertEqualsWithDelta(0.40, $profile['damage_reduction'], 0.0001);
     }
 
     public function testCombatDroneKillswitchOffSkipsDrone(): void

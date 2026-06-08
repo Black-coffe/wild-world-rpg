@@ -89,10 +89,16 @@ final class DefenseStructureService
             $lvlRaw = $r['level'] ?? 1;
             $level  = is_numeric($lvlRaw) ? max(1, (int) $lvlRaw) : 1;
             $mult   = $this->levelMult($level);
+            // ADR-102 Ф3: стак обороны по количеству на базе (amount) с diminishing
+            // returns. killswitch OFF / amount≤1 → ×1.0 (byte-identical). Вышка НЕ
+            // стакает (presence, анти-эксплойт «настрой N вышек»).
+            $amtRaw = $r['amount'] ?? 1;
+            $amount = is_numeric($amtRaw) ? max(1, (int) $amtRaw) : 1;
+            $stack  = $this->defenseStackFactor($amount);
             if ($nameEn === 'WoodenWall') {
-                $sumWallPercent += (int) round($wallPercent * $mult);
+                $sumWallPercent += (int) round($wallPercent * $mult * $stack);
             } elseif ($nameEn === 'BarbedFence') {
-                $sumFence += (int) round($fencePerRnd * $mult);
+                $sumFence += (int) round($fencePerRnd * $mult * $stack);
             } elseif ($nameEn === 'WatchTower') {
                 $hasTower      = true;
                 $maxTowerLevel = max($maxTowerLevel, $level);
@@ -186,7 +192,7 @@ final class DefenseStructureService
         try {
             $db    = Database::connect();
             $query = $db->table('character_buildings cb')
-                ->select('cb.id, cb.hp, cb.level, b.name_en')
+                ->select('cb.id, cb.hp, cb.level, cb.amount, b.name_en')
                 ->join('buildings b', 'b.id = cb.building_id')
                 ->where('cb.character_id', $defenderId)
                 ->where('cb.map_cell_id', $cellNumber)
@@ -215,6 +221,50 @@ final class DefenseStructureService
         $level    = max(1, $level);
         $perLevel = $this->intSetting('defense.scaling.per_level_percent', 20);
         return 1.0 + ($perLevel / 100.0) * ($level - 1);
+    }
+
+    /**
+     * ADR-102 Ф3: множитель стака обороны по количеству структур на базе (amount).
+     * Diminishing returns (геометрический ряд): factor = (1 − r^amount)/(1 − r),
+     * клампится defense.stack.max_factor. killswitch defense.stack.enabled=OFF или
+     * amount≤1 → ×1.0 (byte-identical). r = defense.stack.diminish_ratio (0.6):
+     * amount 1→1.0, 2→1.6, 3→1.96, 4→2.18, ∞→1/(1−r)=2.5. Глобальный cap снижения
+     * урона (40%) применяется ПОСЛЕ — реальный потолок обороны. Вышка сюда не
+     * попадает (presence). Детерминированно (RNG-fence safe).
+     */
+    public function defenseStackFactor(int $amount): float
+    {
+        if ($amount <= 1) {
+            return 1.0;
+        }
+        if (! $this->boolSetting('defense.stack.enabled', false)) {
+            return 1.0;
+        }
+        $rRaw = $this->settings->get('defense.stack.diminish_ratio', 0.6);
+        $r    = is_numeric($rRaw) ? (float) $rRaw : 0.6;
+        $r    = max(0.0, min(0.99, $r));
+        $maxRaw = $this->settings->get('defense.stack.max_factor', 2.5);
+        $max    = is_numeric($maxRaw) ? (float) $maxRaw : 2.5;
+
+        $sum  = 1.0;
+        $term = 1.0;
+        for ($k = 1; $k < $amount; $k++) {
+            $term *= $r;
+            $sum  += $term;
+        }
+        return $sum > $max ? $max : $sum;
+    }
+
+    private function boolSetting(string $key, bool $default): bool
+    {
+        $v = $this->settings->get($key, $default);
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+        return $v === 'true' || $v === '1';
     }
 
     /**
