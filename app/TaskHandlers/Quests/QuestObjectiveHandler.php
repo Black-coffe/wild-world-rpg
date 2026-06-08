@@ -73,6 +73,24 @@ class QuestObjectiveHandler extends BaseTaskHandler
     }
 
     /**
+     * ADR-103 Слой 2 killswitch: онбординг-цепочка «Первые шаги выжившего». При ON
+     * её шаги (title_en LIKE OnbStep%) добавляются в обработку независимо от
+     * extended_enabled, и засчитываются онбординг-типы (claim_base/open_base_screen/
+     * craft_any/any_building). Default false → dormant.
+     */
+    private function onboardingChainEnabled(): bool
+    {
+        $v = $this->settings->get('onboarding.quest_chain.enabled', false);
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+        return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /**
      * @param array<string,mixed> $task
      */
     public function handle(array $task = []): void
@@ -88,13 +106,22 @@ class QuestObjectiveHandler extends BaseTaskHandler
             $types[] = 'npc_kills';
         }
 
-        $rows = $db->table('quest_steps qs')
+        // ADR-103 Слой 2: онбординг-шаги (title_en LIKE OnbStep%) обрабатываются при
+        // своём killswitch'е, независимо от extended_enabled (онбординг-типы claim_base/
+        // open_base_screen/craft_any/any_building засчитываются в objectiveMet).
+        $onboardingOn = $this->onboardingChainEnabled();
+
+        $builder = $db->table('quest_steps qs')
             ->select('qs.id AS step_id, qs.character_id, q.id AS quest_id, q.title_en, q.title_ru, q.reward, q.objective_type, q.objective_target, q.objective_qty, q.faction_id')
             ->join('quests q', 'q.id = qs.quest_id')
             ->where('qs.is_completed', 0)
-            ->whereIn('q.objective_type', $types)
             ->where('q.status', 'active')
-            ->get();
+            ->groupStart()
+                ->whereIn('q.objective_type', $types);
+        if ($onboardingOn) {
+            $builder->orLike('q.title_en', \App\Services\Onboarding\OnboardingChainCatalog::PREFIX, 'after');
+        }
+        $rows = $builder->groupEnd()->get();
         if ($rows === false) {
             return;
         }
@@ -147,7 +174,12 @@ class QuestObjectiveHandler extends BaseTaskHandler
             $advanced = $this->chainService->advanceChain($charId, $titleEn);
             // W11 (ADR-067): если завершён branch-point — предлагаем выбор пути (вместо «след. этап»).
             $branchOptions = $this->chainService->pendingBranchOptions($charId, $titleEn);
-            $this->notify($character, $titleRu, $reward, $advanced, $branchOptions);
+            // ADR-103 Слой 2: онбординг-шаг → персональная just-in-time подсказка «что дальше».
+            if (\App\Services\Onboarding\OnboardingChainCatalog::isChainQuest($titleEn)) {
+                $this->notifyOnboarding($character, $titleEn, $reward);
+            } else {
+                $this->notify($character, $titleRu, $reward, $advanced, $branchOptions);
+            }
 
             log_message('info', "[QuestObjective] completed {$titleEn} char_id={$charId} (+{$reward} gold)");
         }
@@ -200,6 +232,35 @@ class QuestObjectiveHandler extends BaseTaskHandler
                     return false;
                 }
                 return $this->maxBuildingLevel($db, $cid, $target) >= $qty;
+
+            // ── ADR-103 Слой 2: онбординг-типы (target не нужен, всегда qty=1) ──────
+
+            case 'claim_base':
+                // Есть активная база (разбит лагерь).
+                return $db->table('claimed_cells')
+                    ->where('character_id', $cid)
+                    ->where('status', 'active')
+                    ->countAllResults() >= $qty;
+
+            case 'open_base_screen':
+                // Открывал экран своей базы (event-флаг в action_log).
+                return $db->table('action_log')
+                    ->where('character_id', $cid)
+                    ->where('action_name', \App\Services\Onboarding\OnboardingChainService::BASE_OPENED_EVENT)
+                    ->countAllResults() >= $qty;
+
+            case 'craft_any':
+                // Скрафтил хоть что-нибудь (любая запись в crafted_items_log).
+                return $db->table('crafted_items_log')
+                    ->where('character_id', $cid)
+                    ->countAllResults() >= $qty;
+
+            case 'any_building':
+                // Построил хоть одну постройку (любое здание ур.≥1).
+                return $db->table('character_buildings')
+                    ->where('character_id', $cid)
+                    ->where('level >=', 1)
+                    ->countAllResults() >= $qty;
 
             default:
                 return false;
@@ -313,21 +374,61 @@ class QuestObjectiveHandler extends BaseTaskHandler
     }
 
     /**
+     * ADR-103 Слой 2 — завершение онбординг-шага: вместо generic-уведомления шлём
+     * персональную just-in-time подсказку «что делать дальше» из OnboardingChainCatalog
+     * (ведёт к следующему конкретному действию). Самодостаточна в тексте (media-off).
+     *
+     * @param array<string,mixed> $character
+     */
+    private function notifyOnboarding(array $character, string $titleEn, int $reward): void
+    {
+        $chatId = $this->resolveChatId($character);
+        if ($chatId === 0) {
+            return;
+        }
+
+        $completion = \App\Services\Onboarding\OnboardingChainCatalog::completion($titleEn);
+        if ($completion === null) {
+            return;
+        }
+
+        $text = $completion['text'];
+        if ($reward > 0) {
+            $text .= "\n\n🏆 +{$reward} золота за шаг.";
+        }
+
+        $this->safeSendMessage($chatId, $text, [
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => $completion['reply_markup'],
+        ]);
+    }
+
+    /**
+     * chat_id персонажа (telegram_users.telegram_id) или 0, если не найден.
+     *
+     * @param array<string,mixed> $character
+     */
+    private function resolveChatId(array $character): int
+    {
+        $tgUserId = is_numeric($character['telegram_user_id'] ?? null) ? (int) $character['telegram_user_id'] : 0;
+        if ($tgUserId <= 0) {
+            return 0;
+        }
+        $tg = $this->telegramUserModel->find($tgUserId);
+        if (!is_array($tg) || empty($tg['telegram_id'])) {
+            return 0;
+        }
+        return is_numeric($tg['telegram_id']) ? (int) $tg['telegram_id'] : 0;
+    }
+
+    /**
      * @param array<string,mixed> $character
      * @param list<string> $advanced
      * @param list<array{quest_id:int,title_en:string,title_ru:string,label:string}> $branchOptions
      */
     private function notify(array $character, string $titleRu, int $reward, array $advanced, array $branchOptions = []): void
     {
-        $tgUserId = is_numeric($character['telegram_user_id'] ?? null) ? (int) $character['telegram_user_id'] : 0;
-        if ($tgUserId <= 0) {
-            return;
-        }
-        $tg = $this->telegramUserModel->find($tgUserId);
-        if (!is_array($tg) || empty($tg['telegram_id'])) {
-            return;
-        }
-        $chatId = is_numeric($tg['telegram_id']) ? (int) $tg['telegram_id'] : 0;
+        $chatId = $this->resolveChatId($character);
         if ($chatId === 0) {
             return;
         }

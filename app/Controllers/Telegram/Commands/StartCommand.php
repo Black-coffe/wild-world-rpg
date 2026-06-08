@@ -92,6 +92,11 @@ class StartCommand extends UserCommand
                 // Обновляем персонажу cell_number
                 $characterModel->update($createdCharacterId, ['cell_number' => $cellNumber]);
 
+                // ADR-103 Слой 2: назначаем новичку обучающую цепочку «Первые шаги
+                // выжившего» (dormant под onboarding.quest_chain.enabled). Идемпотентно.
+                (new \App\Services\Onboarding\OnboardingChainService())
+                    ->ensureChainAssigned(['id' => (int) $createdCharacterId, 'level' => 1]);
+
                 // Формируем приветственное сообщение
                 $text = "🤖 *Wild World — выживание на острове после глобальной катастрофы.* 🌍\n\n"
                     . "Меня зовут *Роби*, я — твой проводник. Мы оказались на остатке земли, где всё рухнуло: цивилизация ушла, выжившие сами разбираются, как жить дальше.\n\n"
@@ -149,6 +154,14 @@ class StartCommand extends UserCommand
                 'text'         => '🧭 Меню ниже.',
                 'reply_markup' => $replyKeyboard,
             ]);
+
+            // ADR-103 Слой 2: добираем обучающую цепочку существующим новичкам (level ≤
+            // max). Идемпотентно — повторный /start не дублирует и не трогает ветеранов.
+            // returnType модели = CharacterEntity; instanceof сужает union для PHPStan.
+            if ($existingCharacter instanceof \App\Entities\CharacterEntity) {
+                (new \App\Services\Onboarding\OnboardingChainService())
+                    ->ensureChainAssigned($existingCharacter);
+            }
 
             $charService = new CharacterService();
             return $charService->showCharacterInfo($chatId, $existingCharacter);

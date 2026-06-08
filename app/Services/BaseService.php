@@ -68,6 +68,9 @@ class BaseService
             // у активных игроков и их базы не снеслись разом. Безвредно: просто timestamp.
             $this->touchVisit($activeCell);
             $activeCell['last_visited_at'] = date('Y-m-d H:i:s'); // отразить визит для TTL-дисплея (база свежа)
+            // ADR-103 Слой 2: игрок открыл экран своей базы — event для онбординг-цели
+            // open_base_screen (gated killswitch'ем + уровнем, idempotent).
+            $this->recordBaseOpened($characterRow, $chatId);
             return $this->showBaseBuildings($chatId, $characterRow, $activeCell, null, $editMessageId);
         }
 
@@ -79,6 +82,9 @@ class BaseService
 
         $coverage = $this->towerCoverageService->checkCoverage($characterRow['id']);
         if ($coverage['isCovered']) {
+            // ADR-103 Слой 2: дистанционный просмотр базы под покрытием вышки — тоже
+            // «открыл экран базы» (видит постройки/оборону) → засчитываем event.
+            $this->recordBaseOpened($characterRow, $chatId);
             return $this->showBaseBuildings($chatId, $characterRow, $claimedCell, $coverage, $editMessageId);
         }
 
@@ -128,6 +134,19 @@ class BaseService
             $mapRow['coordinate_y'],
             (string) ($biomeRow['name'] ?? '???'),
         ));
+    }
+
+    /**
+     * ADR-103 Слой 2: отметить, что игрок открыл экран своей базы (event-флаг для
+     * онбординг-цели open_base_screen). Сервис сам гейтит по killswitch'у и уровню и
+     * пишет idempotent — безопасно вызывать на каждом открытии базы.
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $characterRow
+     */
+    private function recordBaseOpened(array|\App\Entities\CharacterEntity $characterRow, int $chatId): void
+    {
+        (new \App\Services\Onboarding\OnboardingChainService())
+            ->recordBaseOpened($characterRow, $chatId);
     }
 
     /**
