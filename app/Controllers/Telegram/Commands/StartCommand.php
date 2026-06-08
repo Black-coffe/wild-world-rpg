@@ -8,7 +8,6 @@ use App\Models\MapModel;
 use App\Models\TelegramUserModel;
 use App\Services\Player\CharacterService;
 use Longman\TelegramBot\Commands\UserCommand;
-use Longman\TelegramBot\Entities\Keyboard;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -33,17 +32,10 @@ class StartCommand extends UserCommand
         $firstName  = $from->getFirstName();
         $lastName   = $from->getLastName();
 
-        // 1. Закрепляем постоянную клавиатуру
-        $replyKeyboard = new Keyboard([
-            'keyboard' => [
-                // Каждая вложенная строка массива - это одна горизонтальная строка кнопок
-                ['Перс', 'База', 'Крафт', 'Карта'],
-                ['Настройки'], // идея #14 — экран «⚙️ Настройки» (тумблер картинок)
-            ],
-            'resize_keyboard'   => true,  // сжимаем клавиатуру под кнопки
-            'one_time_keyboard' => false, // не скрывать после нажатия
-            'selective'         => false, // показывать всем
-        ]);
+        // 1. Закрепляем постоянную клавиатуру.
+        // ADR-103 Часть A: единый источник истины — BotMenuService::mainReplyKeyboard()
+        // (раньше определение жило только здесь).
+        $replyKeyboard = \App\Services\Telegram\BotMenuService::mainReplyKeyboard();
 
         // 2. Проверяем/создаём пользователя
         $telegramUserModel = new TelegramUserModel();
