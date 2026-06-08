@@ -366,6 +366,8 @@ class MoveCharacterToDirectionAction
                     $this->telegramUserModel->update($user['id'], ['last_map_message_id' => $targetMsgId]);
                 }
                 $this->playerDetectionService->detectNearbyPlayers($character['id']);
+                // ADR-103 Часть B Слой 1 — one-shot подсказка «первая база» новичку без базы.
+                (new \App\Services\Onboarding\OnboardingHintService())->maybeSendFirstBaseTip($character, $chatId);
                 return $editResponse;
             }
         }
@@ -391,6 +393,8 @@ class MoveCharacterToDirectionAction
         }
 
         $this->playerDetectionService->detectNearbyPlayers($character['id']);
+        // ADR-103 Часть B Слой 1 — one-shot подсказка «первая база» новичку без базы.
+        (new \App\Services\Onboarding\OnboardingHintService())->maybeSendFirstBaseTip($character, $chatId);
         return $newMsgResponse;
     }
 
