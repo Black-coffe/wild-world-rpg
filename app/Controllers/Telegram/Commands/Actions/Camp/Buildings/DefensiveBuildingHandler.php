@@ -87,6 +87,7 @@ class DefensiveBuildingHandler extends BaseAction
 
         $cbId       = $this->asInt($cb['id'] ?? null);
         $level      = max(1, $this->asInt($cb['level'] ?? null, 1));
+        $amount     = max(1, $this->asInt($cb['amount'] ?? null, 1));
         $templateHp = $this->asInt($buildingInfo['hp'] ?? null);
         $maxHp      = $this->defenseService->maxHpFor($templateHp, $level);
         $curHp      = max(0, $this->asInt($cb['hp'] ?? null));
@@ -94,14 +95,28 @@ class DefensiveBuildingHandler extends BaseAction
         $tax        = $this->asInt($cb['tax'] ?? null);
         $emoji      = self::DEF[$nameEng]['emoji'];
 
+        // ADR-102 Ф3: стак по количеству на базе (только при включённом killswitch).
+        $stackOn  = $this->defenseService->isStackEnabled();
+        $stackable = $nameEng === 'WoodenWall' || $nameEng === 'BarbedFence'; // вышка не стакает
+
+        $countLine = ($stackOn && $amount > 1)
+            ? "🏗 Построено на базе: *×{$amount}*\n"
+            : '';
+
         $text = "{$emoji} *{$nameRu}*\n\n"
             . "🆙 Уровень: *{$level}*\n"
+            . $countLine
             . "❤️ Прочность: *{$curHp} / {$maxHp}* hp\n"
-            . "⚔️ Эффект: {$this->effectLine($nameEng, $level)}\n"
+            . "⚔️ Эффект: {$this->effectLine($nameEng, $level, $amount, $stackOn)}\n"
             . "💰 Налог: {$tax}/день\n\n"
             . ($curHp < $maxHp
-                ? "_Структура повреждена. Почини её — иначе сломается в бою и перестанет защищать._"
-                : "_Структура в полном порядке._");
+                ? "_Структура повреждена. Почини её — иначе сломается в бою и перестанет защищать._\n\n"
+                : "_Структура в полном порядке._\n\n")
+            . ($stackOn
+                ? ($stackable
+                    ? "_💡 Построй ещё такую же на этой базе — защита усилится (каждая следующая слабее, до общего потолка)._"
+                    : "_💡 Вторая вышка не усилит — она работает от наличия._")
+                : '');
 
         $topRow = [
             ['text' => '🆙 Поднять уровень', 'callback_data' => 'upgrade_building_' . $buildingId],
@@ -126,16 +141,27 @@ class DefensiveBuildingHandler extends BaseAction
     }
 
     /**
-     * Человекочитаемый текущий боевой эффект структуры с учётом уровня (ADR-041 scaling).
+     * Человекочитаемый текущий боевой эффект структуры с учётом уровня (ADR-041 scaling)
+     * и стака по количеству (ADR-102 Ф3, только при включённом killswitch; вышка не стакает).
      */
-    private function effectLine(string $nameEng, int $level): string
+    private function effectLine(string $nameEng, int $level, int $amount = 1, bool $stackOn = false): string
     {
+        $factor = ($stackOn && $amount > 1) ? $this->defenseService->defenseStackFactor($amount) : 1.0;
         switch ($nameEng) {
             case 'WoodenWall':
                 $p = $this->defenseService->scaledInt('defense.wall.damage_reduction_percent', 15, $level);
+                if ($factor > 1.0) {
+                    $cap     = $this->defenseService->totalReductionCapPercent();
+                    $stacked = min((int) round($p * $factor), $cap);
+                    return "−{$stacked}% получаемого урона у базы (×{$amount}, до cap {$cap}%)";
+                }
                 return "−{$p}% получаемого урона в PvP у базы (суммарно до cap)";
             case 'BarbedFence':
                 $d = $this->defenseService->scaledInt('defense.fence.attacker_damage_per_round', 3, $level);
+                if ($factor > 1.0) {
+                    $stacked = (int) round($d * $factor);
+                    return "контрурон атакующему {$stacked} hp/раунд (×{$amount})";
+                }
                 return "контрурон атакующему {$d} hp/раунд";
             case 'WatchTower':
                 $i = $this->defenseService->scaledInt('defense.tower.defender_initiative_bonus_percent', 8, $level);

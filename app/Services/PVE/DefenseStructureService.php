@@ -255,6 +255,22 @@ final class DefenseStructureService
         return $sum > $max ? $max : $sum;
     }
 
+    /**
+     * ADR-102 Ф3: включён ли стак обороны (для UI-превью на экране оборонного здания).
+     */
+    public function isStackEnabled(): bool
+    {
+        return $this->boolSetting('defense.stack.enabled', false);
+    }
+
+    /**
+     * Глобальный потолок снижения урона в % (для UI-превью). Default 40.
+     */
+    public function totalReductionCapPercent(): int
+    {
+        return $this->intSetting('defense.total_damage_reduction_max_percent', 40);
+    }
+
     private function boolSetting(string $key, bool $default): bool
     {
         $v = $this->settings->get($key, $default);
