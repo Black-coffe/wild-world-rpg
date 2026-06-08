@@ -65,6 +65,7 @@ class WipeManifest extends BaseConfig
         'npcs'                 => ['strategy' => self::KEEP, 'note' => 'Определения NPC (не спавны)'],
         'settlements'          => ['strategy' => self::KEEP, 'note' => 'Статические NPC-поселения (ADR-101) — мировой контент, курируемые координаты'],
         'settlement_npcs'      => ['strategy' => self::KEEP, 'note' => 'Ростер жителей поселений (ADR-101) — контент-определение (спавны жителей в npc_spawns=TRANSIENT)'],
+        'settlement_shop_items' => ['strategy' => self::KEEP, 'note' => 'Ассортимент фракционных лавок оплотов (ADR-101 рефайн) — курируемый контент-список существующих предметов'],
 
         // ─────────────────────────────────────────────────────────────
         // 🟢 KEEP — Контент и правила игры (определения, не данные игроков)

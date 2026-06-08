@@ -163,6 +163,21 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
             $this->cbRoutes->resolve('ruinLoot'),
             'callback_data «ruinLoot» обязан резолвиться в RuinLootAction (услуга «Обыскать руины», Ф4).'
         );
+
+        // ADR-101 Ф3 рефайн — фракционная лавка: список 'settleShop' + покупка 'settleShopBuy_id={id}'
+        // (хвост `_id=`/`_go` → тот же первый сегмент). Class-of-bug npcAct_ — фиксируем, что роуты живы.
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\Settlement\SettlementShopAction::class,
+            $this->cbRoutes->resolve('settleShop'),
+            'callback_data «settleShop» обязан резолвиться в SettlementShopAction (список лавки оплота).'
+        );
+        foreach (['settleShopBuy_id=5', 'settleShopBuy_id=5_go'] as $callbackData) {
+            $this->assertSame(
+                \App\Controllers\Telegram\Commands\Actions\Settlement\SettlementShopBuyAction::class,
+                $this->cbRoutes->resolve(explode('_', $callbackData)[0]),
+                "callback_data «{$callbackData}» обязан резолвиться в SettlementShopBuyAction (покупка)."
+            );
+        }
     }
 
     /**

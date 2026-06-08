@@ -304,6 +304,10 @@ class CallbackRoutes extends BaseConfig
         // и подтверждение+переход (`settleTeleportGo_id={id}` / `..._go`); хвост разбирает сам action.
         'settleTeleport'                  => \App\Controllers\Telegram\Commands\Actions\Settlement\SettlementTeleportAction::class,
         'settleTeleportGo'                => \App\Controllers\Telegram\Commands\Actions\Settlement\SettlementTeleportGoAction::class,
+        // ADR-101 Фаза 3 (рефайн) — фракционная лавка оплота. Список (`settleShop`) и
+        // подтверждение+покупка (`settleShopBuy_id={id}` / `..._go`); хвост разбирает сам action.
+        'settleShop'                      => \App\Controllers\Telegram\Commands\Actions\Settlement\SettlementShopAction::class,
+        'settleShopBuy'                   => \App\Controllers\Telegram\Commands\Actions\Settlement\SettlementShopBuyAction::class,
 
         // W2 (ADR-058) — Drone-recon. Список дрон-инстансов чара с charge-bar.
         // - droneScoutList: показать все DroneScout с qty>0 + кнопки запуска

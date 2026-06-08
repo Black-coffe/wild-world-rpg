@@ -147,6 +147,10 @@ final class SettlementHubAction extends BaseAction
         for ($i = 0, $n = count($serviceButtons); $i < $n; $i += 2) {
             $rows[] = array_slice($serviceButtons, $i, 2);
         }
+        // ADR-101 Фаза 3 (рефайн) — фракционная лавка (unique-stock): только в оплоте, gated killswitch.
+        if ($type === 'faction' && (new \App\Services\Settlement\SettlementShopService())->enabled()) {
+            $rows[] = [['text' => '🛍 Лавка фракции', 'callback_data' => 'settleShop']];
+        }
         if ((new NpcInteractionService())->enabled()) {
             $rows[] = [['text' => '💬 Поговорить с жителями', 'callback_data' => 'npcEncounter']];
         }
