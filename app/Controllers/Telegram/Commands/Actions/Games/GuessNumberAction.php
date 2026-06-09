@@ -171,13 +171,16 @@ class GuessNumberAction extends BaseAction {
         // Честный 1-из-N: секрет равновероятен среди N показанных позиций.
         $secret = rand(1, max(1, $count));
 
+        $charId = is_numeric($this->character['id'] ?? null) ? (int) $this->character['id'] : null;
         if ($chosenNumber === $secret) {
             $winGold = (int) round($betAmount * $mult);
             $this->applyGold($this->character['id'], $winGold);
             $text = "Поздравляем! Вы угадали число. Ваш выигрыш: {$winGold} золота.";
+            $this->logActivity($charId, 'GAMBLE_GUESS', "WIN bet={$betAmount} gold=+{$winGold}");
         } else {
             $this->applyGold($this->character['id'], -$betAmount);
             $text = "К сожалению, вы не угадали. Вы потеряли: {$betAmount} золота.";
+            $this->logActivity($charId, 'GAMBLE_GUESS', "LOSE bet={$betAmount} gold=-{$betAmount}");
         }
 
         $keyboard = new InlineKeyboard([

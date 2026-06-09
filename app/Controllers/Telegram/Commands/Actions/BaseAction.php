@@ -264,6 +264,32 @@ abstract class BaseAction
         }
     }
 
+    /**
+     * Логирует СОВЕРШЁННОЕ игроком экономическое действие, ТРАТЯЩЕЕ ресурсы/золото
+     * (продажа сырья, оптовая продажа, «Перемешать ресурсы», азартная ставка) — чтобы
+     * расход был виден по `action_log`. Раньше эти действия не логировались нигде, и
+     * жалобы «куда делись ресурсы?» приходилось разбирать вручную по БД (инцидент
+     * Ivan_Dergunov 2026-06-09: добыча прибавляет, но игрок параллельно перемешивал/
+     * продавал — в логах пусто).
+     *
+     * action_status='Completed' (валидное значение enum action_log).
+     * Defensive: никогда не выбрасывает наружу, не валит само действие игрока.
+     */
+    protected function logActivity(?int $characterId, string $actionName, string $description): void
+    {
+        try {
+            (new ActionLogModel())->save([
+                'character_id'  => $characterId,
+                'chat_id'       => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'action_name'   => $actionName,
+                'action_status' => 'Completed',
+                'description'   => mb_substr($description, 0, 500),
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[logActivity] insert failed: ' . $e->getMessage());
+        }
+    }
+
 
     abstract public function handle();
 }

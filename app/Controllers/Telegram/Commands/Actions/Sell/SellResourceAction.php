@@ -279,6 +279,13 @@ class SellResourceAction extends BaseAction
             return Request::sendMessage(['chat_id' => $chatId, 'text' => $result['message']]);
         }
 
+        // Логируем расход сырья в action_log (форензика «куда делись ресурсы?»).
+        $this->logActivity(
+            is_numeric($charArr['id'] ?? null) ? (int) $charArr['id'] : null,
+            'SELL_RESOURCE',
+            "res={$resourceId} qty=" . ($result['qty'] ?? '?') . ' gold=+' . ($result['amount'] ?? '?')
+        );
+
         $keyboard = [
             'inline_keyboard' => [
                 [

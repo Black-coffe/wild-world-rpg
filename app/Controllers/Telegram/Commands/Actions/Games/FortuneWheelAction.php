@@ -172,11 +172,21 @@ class FortuneWheelAction extends BaseAction
             $quantity = $this->quantity($bet);
 
             $this->addOrUpdateCharacterResource($character, $randomResource['id'], $quantity);
+            $this->logActivity(
+                is_numeric($character['id'] ?? null) ? (int) $character['id'] : null,
+                'GAMBLE_WHEEL',
+                "WIN bet={$bet} +{$quantity} {$randomResource['name']}"
+            );
             return ['message' => "Поздравляем! Вы выиграли {$quantity} шт. ресурса «{$randomResource['name']}»!"];
         }
 
         // Проигрыш: списываем ставку (без изменения навыков).
         $this->subtractGoldFromCharacter($character['id'], $bet);
+        $this->logActivity(
+            is_numeric($character['id'] ?? null) ? (int) $character['id'] : null,
+            'GAMBLE_WHEEL',
+            "LOSE bet={$bet} gold=-{$bet}"
+        );
         return ['message' => "К сожалению, вы проиграли. С вашего счёта снято {$bet} монет."];
     }
 

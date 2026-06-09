@@ -140,11 +140,21 @@ class BulkSellAction extends BaseAction
             return $this->backToScope($rarity);
         }
 
-        $result = (new ResourceTradeService())->bulkSellResources($this->charArray($character), $percent, $rarity);
+        $charArr = $this->charArray($character);
+        $result  = (new ResourceTradeService())->bulkSellResources($charArr, $percent, $rarity);
 
         if (! $result['success']) {
             return $this->screen("🧺 {$result['message']}", [$this->backRow($rarity)]);
         }
+
+        // Логируем оптовый расход сырья в action_log (форензика «куда делись ресурсы?»).
+        $this->logActivity(
+            is_numeric($charArr['id'] ?? null) ? (int) $charArr['id'] : null,
+            'BULK_SELL',
+            'pct=' . $percent . ' scope=' . ($rarity === null ? 'all' : "r{$rarity}")
+                . ' types=' . $result['typesSold'] . ' qty=' . $result['totalQty']
+                . ' gold=+' . $result['totalGold']
+        );
 
         $scopeTitle = $rarity === null ? 'всех ресурсов' : "редкости {$rarity}";
         $text = "✅ *Оптовая продажа выполнена*\n\n"

@@ -68,11 +68,15 @@ class ShuffleResourcesAction extends BaseAction
         $params      = explode('_', (string) $this->callbackQuery->getData());
 
         // ShuffleResources
-        //  └── rarity_{r}      → выбор количества
-        //  └── go_{r}_{count}  → выполнить перемешивание
-        //  └── restart         → назад на выбор редкости
+        //  └── rarity_{r}          → выбор количества
+        //  └── confirm_{r}_{count} → экран подтверждения (честное предупреждение о потере)
+        //  └── go_{r}_{count}      → выполнить перемешивание
+        //  └── restart             → назад на выбор редкости
         if (count($params) === 3 && $params[1] === 'rarity') {
             return $this->showCountMenu($characterId, (int) $params[2]);
+        }
+        if (count($params) === 4 && $params[1] === 'confirm') {
+            return $this->showConfirm($characterId, (int) $params[2], (int) $params[3]);
         }
         if (count($params) === 4 && $params[1] === 'go') {
             return $this->doShuffle($characterId, (int) $params[2], (int) $params[3]);
@@ -167,7 +171,7 @@ class ShuffleResourcesAction extends BaseAction
             $received = $this->received($c);
             $rowBuf[] = [
                 'text'          => "{$c} → ~{$received}",
-                'callback_data' => "ShuffleResources_go_{$rarity}_{$c}",
+                'callback_data' => "ShuffleResources_confirm_{$rarity}_{$c}",
             ];
             if (count($rowBuf) === 2) {
                 $rows[] = $rowBuf;
@@ -180,6 +184,37 @@ class ShuffleResourcesAction extends BaseAction
         $rows[] = [['text' => '⬅️ Назад', 'callback_data' => 'ShuffleResources_restart']];
 
         return $this->screen($text, $rows);
+    }
+
+    /**
+     * Шаг подтверждения — ЧЕСТНОЕ предупреждение, что это не добыча, а обмен с
+     * безвозвратной потерей (инцидент 2026-06-09: новичок принимал «Перемешать» за
+     * полезную функцию и сжигал ресурсы, думая, что «добывает»).
+     */
+    protected function showConfirm(int $characterId, int $rarity, int $count): ServerResponse
+    {
+        if ($rarity < 1 || $rarity > 10 || ! in_array($count, $this->countOptions(), true)) {
+            return $this->showRarityMenu($characterId);
+        }
+        // Источник всё ещё есть в нужном объёме?
+        if (($this->ownedMaxQtyByRarity($characterId)[$rarity] ?? 0) < $count) {
+            return $this->showCountMenu($characterId, $rarity);
+        }
+
+        $received = $this->received($count);
+        $lost     = $count - $received;
+
+        $text = "⚠️ *Подтверди перемешивание* — {$this->rarityLabel($rarity)}\n\n"
+            . "Это *НЕ добыча*. Ты *безвозвратно отдаёшь* *{$count}* ед. случайного своего ресурса этой "
+            . "редкости, а взамен случайный *другой* ресурс той же редкости получит лишь *{$received}* ед.\n\n"
+            . "🔥 *Сгорит насовсем: {$lost} ед.* (потеря *{$this->lossPct()}%* при пересыпке).\n"
+            . "_Что именно уйдёт и что выпадет — решает случай._\n\n"
+            . "Точно перемешать?";
+
+        return $this->screen($text, [
+            [['text' => "✅ Да, перемешать ({$count} → ~{$received})", 'callback_data' => "ShuffleResources_go_{$rarity}_{$count}"]],
+            [['text' => '⬅️ Назад', 'callback_data' => "ShuffleResources_rarity_{$rarity}"]],
+        ]);
     }
 
     /** Резолв перемешивания: случайный источник → списать, случайный получатель → зачислить. */
@@ -231,6 +266,13 @@ class ShuffleResourcesAction extends BaseAction
         }
 
         $lost = $count - $received;
+
+        // Логируем расход сырья в action_log (форензика «куда делись ресурсы?»).
+        $this->logActivity(
+            $characterId,
+            'SHUFFLE_RESOURCES',
+            "rarity={$rarity} -{$count} {$source['name']} +{$received} {$target['name']} burned={$lost}"
+        );
         $text = "🔀 *Перемешано!*\n\n"
             . "Ушло из кучи: *−{$count}* " . $this->label($source) . "\n"
             . "Выпало на выходе: *+{$received}* " . $this->label($target) . "\n"
