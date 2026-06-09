@@ -186,6 +186,28 @@ class GenericmessageCommand extends SystemCommand
             ? $svc->sellResource($character, $resourceId, $qty)
             : $svc->buyResource($character, $resourceId, $qty);
 
+        // Логируем продажу сырья через ForceReply («своё число») в action_log — кнопочный
+        // путь логируется в SellResourceAction, а этот (GenericmessageCommand) — здесь, иначе
+        // продажи «своим числом» оставались невидимы в форензике расхода ресурсов.
+        if ($direction === 'SELL' && $result['success'] === true) {
+            try {
+                (new \App\Models\ActionLogModel())->save([
+                    'character_id'  => is_numeric($character['id'] ?? null) ? (int) $character['id'] : null,
+                    'chat_id'       => $chatId,
+                    'action_name'   => 'SELL_RESOURCE',
+                    'action_status' => 'Completed',
+                    'description'   => mb_substr(
+                        "res={$resourceId} qty=" . ($result['qty'] ?? '?')
+                            . ' gold=+' . ($result['amount'] ?? '?') . ' (forcereply)',
+                        0,
+                        500
+                    ),
+                ]);
+            } catch (\Throwable $e) {
+                log_message('error', '[handleTradeReply] SELL log insert failed: ' . $e->getMessage());
+            }
+        }
+
         return Request::sendMessage([
             'chat_id'    => $chatId,
             'text'       => $result['message'],
