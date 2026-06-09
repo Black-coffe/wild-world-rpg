@@ -134,6 +134,9 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->get('crafting-economy/data', 'Admin\CraftingEconomyController::data');
     $routes->get('crafting-economy/export', 'Admin\CraftingEconomyController::export');
 
+    // E1 (ROADMAP-100) — воронка игроков: read-only KPI-дашборд онбординга/retention
+    $routes->get('funnel', 'Admin\FunnelController::index');
+
     // Navigation tree visualisation (read-only) — дерево кнопок/экранов/переходов игры
     $routes->get('navigation', 'Admin\NavigationMapController::index');
     $routes->get('navigation/data', 'Admin\NavigationMapController::data');

@@ -18457,6 +18457,12 @@ parameters:
 			path: app/Views/admin/event_index.php
 
 		-
+			message: '#^Variable \$this might not be defined\.$#'
+			identifier: variable.undefined
+			count: 3
+			path: app/Views/admin/funnel.php
+
+		-
 			message: '#^Parameter \#1 \$data of function esc expects array\<int\|string, array\<int\|string, mixed\>\|string\>\|string, mixed given\.$#'
 			identifier: argument.type
 			count: 1
