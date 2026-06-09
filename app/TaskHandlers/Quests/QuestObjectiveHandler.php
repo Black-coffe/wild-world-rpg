@@ -262,6 +262,14 @@ class QuestObjectiveHandler extends BaseTaskHandler
                     ->where('level >=', 1)
                     ->countAllResults() >= $qty;
 
+            case 'sell_any':
+                // E3 (ROADMAP-100): продал хоть что-нибудь — опирается на форензик-лог
+                // продаж v0.51.389 (SELL_RESOURCE поштучно/forcereply, BULK_SELL оптом).
+                return $db->table('action_log')
+                    ->where('character_id', $cid)
+                    ->whereIn('action_name', ['SELL_RESOURCE', 'BULK_SELL'])
+                    ->countAllResults() >= $qty;
+
             default:
                 return false;
         }

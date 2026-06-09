@@ -13,7 +13,8 @@ namespace App\Services\Onboarding;
  * → нет дрейфа между БД и кодом.
  *
  * Этапы (по росту новичка, ADR-103): двигаться → собрать ресурс → скрафтить →
- * захватить базу → ОТКРЫТЬ базу → построить первую постройку. Шаги связаны линейно
+ * захватить базу → ОТКРЫТЬ базу → построить первую постройку → продать излишки →
+ * достичь 5 уровня (E3 ROADMAP-100: +2 шага поверх исходных шести). Шаги связаны линейно
  * (prerequisite = title_en предыдущего); первый назначается явно, остальные —
  * авто-advance движком цепочек (QuestChainService::advanceChain).
  *
@@ -22,9 +23,12 @@ namespace App\Services\Onboarding;
  * ONBOARDING-COVERAGE). Самодостаточна в тексте (media-off инвариант).
  *
  * Объектив-типы шагов (все onboarding-only, гейтятся onboarding.quest_chain.enabled):
- *   explore_cells (always-on) / collect_resource / craft_any / claim_base /
- *   open_base_screen / any_building. Четыре последних добавлены в
- *   {@see \App\TaskHandlers\Quests\QuestObjectiveHandler::objectiveMet()}.
+ *   explore_cells (always-on) / collect_resource / level_milestone (ADR-088) /
+ *   craft_any / claim_base / open_base_screen / any_building / sell_any —
+ *   onboarding-специфичные добавлены в
+ *   {@see \App\TaskHandlers\Quests\QuestObjectiveHandler::objectiveMet()};
+ *   sell_any опирается на форензик-лог продаж v0.51.389 (SELL_RESOURCE/BULK_SELL
+ *   в action_log).
  */
 class OnboardingChainCatalog
 {
@@ -37,6 +41,8 @@ class OnboardingChainCatalog
     public const STEP_CLAIM_BASE = 'OnbStepClaimBase';
     public const STEP_OPEN_BASE  = 'OnbStepOpenBase';
     public const STEP_BUILD      = 'OnbStepBuild';
+    public const STEP_SELL       = 'OnbStepSell';
+    public const STEP_LEVEL5     = 'OnbStepLevel5';
 
     /** title_en первого шага цепочки (его назначает OnboardingChainService). */
     public const ROOT = self::STEP_MOVE;
@@ -121,9 +127,33 @@ class OnboardingChainCatalog
                 'objective_qty'    => 1,
                 'reward'           => 300,
                 'description'      => 'База без построек — просто клочок земли. Построй первую постройку: на экране базы нажми «🏗 Строить» и выбери здание.',
-                'done_text'        => "🏁 *Поздравляю — ты прошёл «Первые шаги выжившего»!*\n\n"
-                    . "Ты умеешь двигаться, добывать, крафтить, строить базу и постройки. Дальше пустошь откроет: *еду и ферму*, *бой с тварями*, на 10 уровне — *фракции*.\n\n"
-                    . "_Загляни в «Квесты» — там ждут новые цели. Удачи на пустоши, выживший._",
+                'done_text'        => "🏗 *Первая постройка стоит!*\n\n"
+                    . "Теперь — *экономика*. Излишки ресурсов превращаются в золото: открой *«Перс» → «🛒 Магазин» → «💰 Продать ресы»* и продай что-нибудь.\n\n"
+                    . "_Золото уходит на постройки, ремонт и налоги — лишним не будет._",
+            ],
+            [
+                'title_en'         => self::STEP_SELL,
+                'title_ru'         => 'Первая сделка',
+                'objective_type'   => 'sell_any',
+                'objective_target' => null,
+                'objective_qty'    => 1,
+                'reward'           => 200,
+                'description'      => 'Излишки — это золото. Продай любые ресурсы: «Перс» → «🛒 Магазин» → «💰 Продать ресы». Золото пригодится на постройки, ремонт и налоги.',
+                'done_text'        => "💰 *Первое золото заработано!*\n\n"
+                    . "Остался последний рывок: *дорасти до 5 уровня*. Уровень растёт сам — от разведки, добычи, крафта и заданий.\n\n"
+                    . "_Продолжай выживать — следующий шаг уже в «Активных квестах»._",
+            ],
+            [
+                'title_en'         => self::STEP_LEVEL5,
+                'title_ru'         => 'Закалённый новичок',
+                'objective_type'   => 'level_milestone',
+                'objective_target' => null,
+                'objective_qty'    => 5,
+                'reward'           => 500,
+                'description'      => 'Покажи пустоши, что ты не случайный гость: достигни 5 уровня. Опыт капает за разведку, добычу, крафт и выполнение заданий.',
+                'done_text'        => "🏁 *Поздравляю — «Первые шаги выжившего» пройдены полностью!*\n\n"
+                    . "Ты умеешь двигаться, добывать, крафтить, строить и торговать. Дальше пустошь откроет: *еду и ферму*, *бой с тварями*, поселения NPC, а на 10 уровне — *выбор фракции*.\n\n"
+                    . "_В «Квестах» уже ждут новые цели. Удачи на пустоши, выживший._",
             ],
         ];
     }

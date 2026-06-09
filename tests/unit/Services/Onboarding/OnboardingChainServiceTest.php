@@ -21,12 +21,14 @@ final class OnboardingChainServiceTest extends CIUnitTestCase
 {
     // ── Каталог ───────────────────────────────────────────────────────────────
 
-    public function testCatalogHasSixOrderedSteps(): void
+    public function testCatalogHasEightOrderedSteps(): void
     {
         $steps = OnboardingChainCatalog::steps();
-        $this->assertCount(6, $steps);
+        $this->assertCount(8, $steps);
         $this->assertSame(OnboardingChainCatalog::STEP_MOVE, $steps[0]['title_en']);
         $this->assertSame(OnboardingChainCatalog::STEP_BUILD, $steps[5]['title_en']);
+        $this->assertSame(OnboardingChainCatalog::STEP_SELL, $steps[6]['title_en']);
+        $this->assertSame(OnboardingChainCatalog::STEP_LEVEL5, $steps[7]['title_en']);
         $this->assertSame(OnboardingChainCatalog::ROOT, $steps[0]['title_en']);
     }
 
@@ -54,7 +56,7 @@ final class OnboardingChainServiceTest extends CIUnitTestCase
     public function testChainUsesOnboardingObjectiveTypes(): void
     {
         $types = array_column(OnboardingChainCatalog::steps(), 'objective_type');
-        foreach (['explore_cells', 'collect_resource', 'craft_any', 'claim_base', 'open_base_screen', 'any_building'] as $t) {
+        foreach (['explore_cells', 'collect_resource', 'craft_any', 'claim_base', 'open_base_screen', 'any_building', 'sell_any', 'level_milestone'] as $t) {
             $this->assertContains($t, $types, "Цепочка не содержит шаг типа {$t}.");
         }
     }

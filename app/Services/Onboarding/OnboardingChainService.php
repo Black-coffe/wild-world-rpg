@@ -161,11 +161,13 @@ class OnboardingChainService
 
     protected function writeBaseOpenedEvent(int $charId, int $chatId): void
     {
+        // action_status строго из enum('Pending','Completed','Skipped','REJECTED') —
+        // STRICT_TRANS_TABLES на проде валит INSERT с любым другим значением.
         $this->logModel()->insert([
             'character_id'  => $charId,
             'chat_id'       => $chatId,
             'action_name'   => self::BASE_OPENED_EVENT,
-            'action_status' => 'done',
+            'action_status' => 'Completed',
             'description'   => 'ADR-103 onboarding: открыл экран базы',
         ]);
     }
