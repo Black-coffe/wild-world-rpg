@@ -41,24 +41,97 @@ final class SilentNotificationPolicy
 
     private static ?bool $enabledCache = null;
 
+    /** @var array{enabled:bool,start:int,end:int}|null кэш настроек тихих часов (E6 Ф4) */
+    private static ?array $quietCache = null;
+
     /**
      * Должно ли рутинное уведомление для этого чата прийти тихо.
+     *
+     * Precedence (E6 Ф4 — ADR-108):
+     *   1. Игрок явно вернул себе звук (notify_sound=1) → НИКОГДА не тихо (выбор игрока главнее).
+     *   2. Тихие часы активны (ночь) → тихо (независимый killswitch quiet_hours).
+     *   3. Тихий порог включён (silent_threshold) → тихо для дефолтного игрока.
+     *   4. Иначе → со звуком.
      */
     public static function routineSilentFor(int $telegramChatId): bool
     {
         if ($telegramChatId <= 0) {
             return false;
         }
-        // Killswitch OFF → всегда со звуком (dormant, 0 player-эффекта).
-        if (! self::enabled()) {
+        // Игрок явно вернул себе звук → не тихо (даже ночью).
+        if (self::charWantsSound($telegramChatId)) {
             return false;
         }
-        // Игрок явно вернул себе звук → не тихо.
-        if (self::charWantsSound($telegramChatId)) {
+        // E6 Ф4 — тихие часы (ночь): рутинные уведомления беззвучны.
+        if (self::inQuietHours()) {
+            return true;
+        }
+        // Тихий порог (W28): при OFF (dormant) → со звуком.
+        if (! self::enabled()) {
             return false;
         }
 
         return true;
+    }
+
+    /**
+     * E6 Ф4 — активны ли «тихие часы» сейчас (killswitch quiet_hours.enabled +
+     * текущий час в окне [start_hour, end_hour), с переходом через полночь).
+     * `$hour` инжектируется в тестах; иначе текущий серверный час 0-23.
+     */
+    public static function inQuietHours(?int $hour = null): bool
+    {
+        $cfg = self::quietConfig();
+        if (! $cfg['enabled']) {
+            return false;
+        }
+        $h = $hour ?? (int) date('G');
+
+        return self::isHourInWindow($h, $cfg['start'], $cfg['end']);
+    }
+
+    /**
+     * Чистая проверка: попадает ли час в окно [start, end). start==end → пустое окно
+     * (false). start<end → обычный интервал. start>end → окно через полночь.
+     */
+    public static function isHourInWindow(int $hour, int $start, int $end): bool
+    {
+        $hour  = ($hour % 24 + 24) % 24;
+        $start = ($start % 24 + 24) % 24;
+        $end   = ($end % 24 + 24) % 24;
+        if ($start === $end) {
+            return false;
+        }
+        if ($start < $end) {
+            return $hour >= $start && $hour < $end;
+        }
+        // через полночь (напр. 23..8)
+        return $hour >= $start || $hour < $end;
+    }
+
+    /**
+     * Настройки тихих часов (кэш per-process). Любая ошибка → выключено.
+     *
+     * @return array{enabled:bool,start:int,end:int}
+     */
+    private static function quietConfig(): array
+    {
+        if (self::$quietCache !== null) {
+            return self::$quietCache;
+        }
+        try {
+            $gs      = new GameSettingsService();
+            $rawEn   = $gs->get('notifications.quiet_hours.enabled', false);
+            $enabled = is_bool($rawEn) ? $rawEn : (is_numeric($rawEn) && (int) $rawEn === 1);
+            $rawS    = $gs->get('notifications.quiet_hours.start_hour', 23);
+            $rawE    = $gs->get('notifications.quiet_hours.end_hour', 8);
+            $start   = is_numeric($rawS) ? (int) $rawS : 23;
+            $end     = is_numeric($rawE) ? (int) $rawE : 8;
+        } catch (Throwable) {
+            return self::$quietCache = ['enabled' => false, 'start' => 23, 'end' => 8];
+        }
+
+        return self::$quietCache = ['enabled' => $enabled, 'start' => $start, 'end' => $end];
     }
 
     /**
@@ -86,6 +159,7 @@ final class SilentNotificationPolicy
     {
         self::$wantsSoundCache = [];
         self::$enabledCache    = null;
+        self::$quietCache      = null;
     }
 
     /**

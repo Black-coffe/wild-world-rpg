@@ -103,6 +103,11 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
     {
         // Гарантируем что Telegram инициализирован.
         $this->telegram();
+        // E6 Ф4 (ADR-108) — дедуп идентичных рутинных уведомлений в окне (dormant).
+        if ($this->isRoutineNotification()
+            && \App\Services\Notifications\NotificationDedupService::shouldSuppress((int) $chatId, $text)) {
+            return;
+        }
         $extra = $this->applySilentThreshold($chatId, $extra);
         try {
             $payload = array_merge([
@@ -130,6 +135,11 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
     protected function safeSendPhoto($chatId, string $photoPath, string $caption = '', array $extra = []): void
     {
         $this->telegram();
+        // E6 Ф4 (ADR-108) — дедуп идентичных рутинных уведомлений в окне (dormant).
+        if ($this->isRoutineNotification()
+            && \App\Services\Notifications\NotificationDedupService::shouldSuppress((int) $chatId, $caption)) {
+            return;
+        }
         $extra = $this->applySilentThreshold($chatId, $extra);
         try {
             $payload = array_merge([

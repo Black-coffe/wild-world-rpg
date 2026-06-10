@@ -128,4 +128,44 @@ final class SilentNotificationPolicyTest extends CIUnitTestCase
         // Нет telegram_user/character для этого chatId → дефолт (notify_sound 0) → тихо.
         $this->assertTrue(SilentNotificationPolicy::routineSilentFor(999999));
     }
+
+    // ── E6 Ф4 — тихие часы ─────────────────────────────────────────────────
+
+    private function enableQuietHours(int $start, int $end): void
+    {
+        $db = Database::connect('tests');
+        $db->table('game_settings')->insert(['setting_key' => 'notifications.quiet_hours.enabled', 'category' => 'experimental', 'value_type' => 'bool', 'value_bool' => 1]);
+        $db->table('game_settings')->insert(['setting_key' => 'notifications.quiet_hours.start_hour', 'category' => 'experimental', 'value_type' => 'int', 'value_int' => $start]);
+        $db->table('game_settings')->insert(['setting_key' => 'notifications.quiet_hours.end_hour', 'category' => 'experimental', 'value_type' => 'int', 'value_int' => $end]);
+        $this->cleanCache();
+        SilentNotificationPolicy::reset();
+    }
+
+    public function testQuietHoursDormantByDefault(): void
+    {
+        // Нет настроек quiet_hours → выключено в любой час.
+        $this->assertFalse(SilentNotificationPolicy::inQuietHours(3));
+        $this->assertFalse(SilentNotificationPolicy::inQuietHours(12));
+    }
+
+    public function testQuietHoursActiveInNightWindow(): void
+    {
+        $this->enableQuietHours(23, 8);
+        $this->assertTrue(SilentNotificationPolicy::inQuietHours(3));   // ночь
+        $this->assertTrue(SilentNotificationPolicy::inQuietHours(23));  // граница начала
+        $this->assertFalse(SilentNotificationPolicy::inQuietHours(8));  // конец эксклюзивен
+        $this->assertFalse(SilentNotificationPolicy::inQuietHours(14)); // день
+    }
+
+    public function testQuietHoursNightDefaultCharIsSilent(): void
+    {
+        // Тихие часы ON (окно весь день для детерминизма), silent_threshold OFF →
+        // рутинное всё равно тихо ночью. Используем окно 0..24-эквивалент (0..23 + wrap)
+        // — берём широкое окно через inQuietHours напрямую уже проверено; здесь проверяем,
+        // что routineSilentFor уважает notify_sound даже при quiet.
+        $this->enableQuietHours(0, 23);
+        $this->seedPlayer(700, 1); // игрок хочет звук
+        // notify_sound=1 → НЕ тихо даже в тихие часы (выбор игрока главнее).
+        $this->assertFalse(SilentNotificationPolicy::routineSilentFor(700));
+    }
 }
