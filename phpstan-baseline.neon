@@ -17143,24 +17143,6 @@ parameters:
 			path: app/TaskHandlers/LowHealthWarningHandler.php
 
 		-
-			message: '#^Access to an undefined property object\:\:\$name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/TaskHandlers/NPC/AutoPveHandler.php
-
-		-
-			message: '#^Binary operation "\." between ''experience \+ '' and mixed results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 1
-			path: app/TaskHandlers/NPC/AutoPveHandler.php
-
-		-
-			message: '#^Binary operation "\." between ''gold \+ '' and mixed results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 1
-			path: app/TaskHandlers/NPC/AutoPveHandler.php
-
-		-
 			message: '#^Cannot access offset ''cell_number'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -17173,18 +17155,6 @@ parameters:
 			path: app/TaskHandlers/NPC/AutoPveHandler.php
 
 		-
-			message: '#^Cannot access offset ''exp'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/TaskHandlers/NPC/AutoPveHandler.php
-
-		-
-			message: '#^Cannot access offset ''gold'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/TaskHandlers/NPC/AutoPveHandler.php
-
-		-
 			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 2
@@ -17193,7 +17163,7 @@ parameters:
 		-
 			message: '#^Cannot access offset ''name'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
+			count: 1
 			path: app/TaskHandlers/NPC/AutoPveHandler.php
 
 		-
@@ -17215,12 +17185,6 @@ parameters:
 			path: app/TaskHandlers/NPC/AutoPveHandler.php
 
 		-
-			message: '#^Parameter \#1 \$num of function floor expects float\|int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/NPC/AutoPveHandler.php
-
-		-
 			message: '#^Parameter \#1 \$playerData of method App\\Services\\Player\\PvEService\:\:attack\(\) expects App\\Entities\\CharacterEntity\|array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
 			identifier: argument.type
 			count: 1
@@ -17228,12 +17192,6 @@ parameters:
 
 		-
 			message: '#^Parameter \#2 \$npcData of method App\\Services\\Player\\PvEService\:\:attack\(\) expects array\<string, mixed\>, array\|ArrayAccess given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/NPC/AutoPveHandler.php
-
-		-
-			message: '#^Parameter \#2 \$value of method CodeIgniter\\Model\:\:set\(\) expects bool\|float\|int\|object\|string\|null, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/TaskHandlers/NPC/AutoPveHandler.php

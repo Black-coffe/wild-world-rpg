@@ -228,39 +228,23 @@ class AutoPveHandler
         $biome = "Grasslands";
         $fightResult = $this->pveService->attack($playerData, $npcData, $biome);
 
-        // Проверяем корректность результата
-        if (!isset($fightResult['player']) || !is_array($fightResult['player'])) {
-            return;
-        }
+        // 🐛 Фикс 2026-06-10 (Tier-3 ADR-106 catch): прежний гейт
+        // `!is_array($fightResult['player'])` с Entity-миграции валил ветку ВСЕГДА
+        // (PvEService возвращает 'player' => CharacterEntity) → победа игрока НЕ
+        // удаляла спавн (тот жил вечно и был бы фарм-эксплойтом на боссах), а
+        // мёртвый трейлинг-update (который до Entity дублировал exp/gold поверх
+        // PvEService) удалён: статы/health/награды персистит сам PvEService::attack.
         if (!isset($fightResult['winner']) || !is_object($fightResult['winner'])) {
             return;
         }
 
-        $updatedPlayer = $fightResult['player'];
-        $winner = $fightResult['winner'];
-
-        // Если победил игрок — удаляем NPC
-        if ($winner->name === $playerData['name']) {
-            // 2. Обновляем статус в базе (необязательно)
+        // Если победил игрок — удаляем NPC (id-сравнение, не по имени).
+        if (\App\Services\Player\PvEService::playerIsWinner($fightResult['winner'], $playerId)) {
             $this->npcSpawnModel->update($npcSpawnId, ['status' => 'dead']);
-
-            // 3. Пытаемся удалить через метод delete() модели
-            // Если soft delete включен, используйте delete($npcSpawnId, true)
-            $deleteResult = $this->npcSpawnModel->delete($npcSpawnId);
-
-            // 4. Дополнительное удаление через сырой SQL (на случай soft delete)
+            $this->npcSpawnModel->delete($npcSpawnId);
+            // Дополнительное удаление сырым SQL (на случай soft delete).
             $this->npcSpawnModel->db->query("DELETE FROM npc_spawns WHERE id = ?", [$npcSpawnId]);
         }
-
-        // Обновляем характеристики игрока
-        $newTired = max(1, rand(1, (int) floor($updatedPlayer['health'])));
-        $this->characterModel
-            ->set('health', max(1, $updatedPlayer['health']))
-            ->set('tired', $newTired)
-            ->set('experience', 'experience + ' . ($fightResult['rewards']['exp'] ?? 0), false)
-            ->set('gold', 'gold + ' . ($fightResult['rewards']['gold'] ?? 0), false)
-            ->where('id', $playerId)
-            ->update();
     }
 
 }
