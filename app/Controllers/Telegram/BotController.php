@@ -63,6 +63,18 @@ class BotController extends Controller
             ? \App\Services\Player\LastSeenService::extractTelegramId($update)
             : null;
 
+        // E6 (ADR-108) Ф2 — оффлайн-digest «пока тебя не было». ДО handle() (last_seen
+        // ещё ПРЕДЫДУЩИЙ; стамп в finally ПОСЛЕ → следующее взаимодействие свежее =
+        // естественный one-shot per возврат). Dormant под killswitch; defensive.
+        if ($telegramUserId !== null && is_array($update)) {
+            $chatId = \App\Services\Player\LastSeenService::extractChatId($update) ?? $telegramUserId;
+            try {
+                (new \App\Services\Player\ReturnDigestService())->maybeSendDigest($telegramUserId, $chatId);
+            } catch (\Throwable $e) {
+                log_message('error', '[Bot.webhook] returnDigest: ' . $e->getMessage());
+            }
+        }
+
         try {
             $this->telegram->handle();
         } catch (TelegramException $e) {

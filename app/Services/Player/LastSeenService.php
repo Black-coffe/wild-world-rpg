@@ -51,6 +51,50 @@ class LastSeenService
     }
 
     /**
+     * Достать chat_id из входящего update-массива (для адресации сообщений —
+     * напр. возврат-digest E6 Ф2). Чистая функция. Для приватного бота обычно
+     * совпадает с telegram user id, но извлекаем явно (callback несёт chat в
+     * `callback_query.message.chat.id`).
+     *
+     * @param array<array-key, mixed> $update
+     */
+    public static function extractChatId(array $update): ?int
+    {
+        // Прямые wrapper'ы с chat.
+        foreach (['message', 'edited_message', 'channel_post', 'edited_channel_post'] as $key) {
+            $chatId = self::chatIdFrom($update[$key] ?? null);
+            if ($chatId !== null) {
+                return $chatId;
+            }
+        }
+        // callback_query несёт chat внутри message.
+        $cq = $update['callback_query'] ?? null;
+        if (is_array($cq)) {
+            $chatId = self::chatIdFrom($cq['message'] ?? null);
+            if ($chatId !== null) {
+                return $chatId;
+            }
+        }
+        return null;
+    }
+
+    /** @param mixed $wrapper */
+    private static function chatIdFrom($wrapper): ?int
+    {
+        if (! is_array($wrapper)) {
+            return null;
+        }
+        $chat = $wrapper['chat'] ?? null;
+        if (is_array($chat) && isset($chat['id']) && is_numeric($chat['id'])) {
+            $id = (int) $chat['id'];
+            if ($id !== 0) {
+                return $id;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Сколько ПОЛНЫХ часов прошло с момента `$lastSeen` (datetime-строка) до `$nowTs`.
      * `null`, если `$lastSeen` пуст/непарсится. Отрицательную дельту клампим к 0.
      * Чистая функция (now инжектируется для time-stable тестов).
