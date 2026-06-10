@@ -84,6 +84,7 @@ class StartCommand extends UserCommand
             // Сообщение по умолчанию на случай ошибки
             $text          = "Извините, произошла ошибка при попытке определить локацию для спавна. Пожалуйста, попробуйте ещё раз.";
             $encodedKeyboard = json_encode([]);
+            $starterKitText = null; // ADR-104: текст набора Роби (если выдан)
 
             if (!empty($spawnCells)) {
                 $randomCell = $spawnCells[array_rand($spawnCells)];
@@ -96,6 +97,12 @@ class StartCommand extends UserCommand
                 // выжившего» (dormant под onboarding.quest_chain.enabled). Идемпотентно.
                 (new \App\Services\Onboarding\OnboardingChainService())
                     ->ensureChainAssigned(['id' => (int) $createdCharacterId, 'level' => 1]);
+
+                // ADR-104 Фаза 1: стартовый набор выжившего (dormant под
+                // onboarding.starter_kit.enabled). grant() видаёт паёк + idempotency-флаг
+                // и возвращает текст Роби (или null, если набор выключен/уже выдан).
+                $starterKitText = (new \App\Services\Onboarding\StarterKitService())
+                    ->grant((int) $createdCharacterId, (int) $createdUserId, (int) $chatId);
 
                 // Формируем приветственное сообщение
                 $text = "🤖 *Wild World — выживание на острове после глобальной катастрофы.* 🌍\n\n"
@@ -128,6 +135,18 @@ class StartCommand extends UserCommand
                 'text'         => 'Добро пожаловать! Используйте меню ниже для выбора действия.',
                 'reply_markup' => $replyKeyboard,
             ]);
+
+            // ADR-104 Фаза 1: если стартовый набор выдан — шлём сообщение Роби о пайке
+            // ПЕРЕД финальным welcome'ом, чтобы CTA «Задать имя» остался последним
+            // (самым заметным). MEDIA-OFF: текстовое, весь смысл в тексте.
+            if ($starterKitText !== null) {
+                Request::sendMessage([
+                    'chat_id'                  => $chatId,
+                    'text'                     => $starterKitText,
+                    'parse_mode'               => 'Markdown',
+                    'disable_web_page_preview' => true,
+                ]);
+            }
 
             // Возвращаем результат
             return Request::sendMessage([
