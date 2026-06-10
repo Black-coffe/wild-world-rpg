@@ -30,6 +30,13 @@ use App\Models\NpcSpawnModel;
  * aggressive/hostile, но размещаются SettlementPlacementHandler на фикс-клетках —
  * динамический пул по ai_behavior зацепил бы их. npc_spawns = TRANSIENT (WipeManifest).
  *
+ * ADR-106 — уникальные L30+ боссы глубокого севера: тот же механизм поддержки
+ * популяции, но ОТДЕЛЬНЫЙ killswitch `world.bosses.enabled` (dormant-first) и
+ * резолв npc_id по npc_name_en (BOSS_KEYS — id боссов auto_increment, в коде
+ * их фиксировать нельзя). По 1 живому экземпляру (population_each) в Y <
+ * world.bosses.y_max (150): убитый возрождается следующим тиком в НОВОЙ случайной
+ * клетке зоны — искать заново (анти-фарм).
+ *
  * Анти-grind прикрытие: AutoPveHandler (v0.51.396) гейтит кулдауном пары и HP-полом,
  * так что уплотнение севера не возвращает minute-молот.
  */
@@ -51,9 +58,19 @@ class RaiderGradientHandler
         3 => ['population_key' => 'world.raiders.population_l25', 'population_default' => 600, 'ymax_key' => 'world.raiders.l25_y_max', 'ymax_default' => 300],
     ];
 
+    /** ADR-106 — npc_name_en уникальных боссов (id auto_increment → резолв в рантайме). */
+    private const BOSS_KEYS = ['boss_scar_butcher', 'boss_cerberus_prototype', 'boss_pack_patriarch'];
+
     private NpcModel $npcs;
     private NpcSpawnModel $spawns;
     private MapModel $map;
+
+    /**
+     * Memo на один run() — резолв id боссов одним запросом.
+     *
+     * @var list<int>|null
+     */
+    protected ?array $bossIds = null;
 
     public function __construct()
     {
@@ -74,8 +91,10 @@ class RaiderGradientHandler
             return;
         }
 
-        // 1) Перманентная новичковая гарантия: рейдеры на Y >= cutoff удаляются всегда.
-        $budget -= $this->purgeBeyondCutoff(array_keys(self::TIERS), $cutoff, $budget);
+        $bossIds = $this->bossesEnabled() ? $this->bossIds() : [];
+
+        // 1) Перманентная новичковая гарантия: рейдеры (и боссы) на Y >= cutoff удаляются всегда.
+        $budget -= $this->purgeBeyondCutoff(array_merge(array_keys(self::TIERS), $bossIds), $cutoff, $budget);
 
         // 2) Поддержка градиента по тирам.
         foreach (self::TIERS as $npcId => $tier) {
@@ -86,20 +105,51 @@ class RaiderGradientHandler
             $yMaxRaw    = $tier['ymax_key'] === null ? $cutoff : $this->tierYMax($tier['ymax_key'], (int) $tier['ymax_default']);
             $yMax       = min($yMaxRaw, $cutoff);
 
-            $targets = self::bandTargets($population, $yMax);
-            $counts  = $this->aliveCountsPerBand($npcId, $yMax);
-            $plan    = self::planAdjustments($counts, $targets, $budget);
+            $budget = $this->maintainPopulation($npcId, $population, $yMax, $cutoff, $budget);
+        }
 
-            foreach ($plan as $step) {
-                $done = $step['action'] === 'fill'
-                    ? $this->fillBand($npcId, $step['band'], min($step['band'] + self::BAND_SIZE, $yMax), $step['count'])
-                    : $this->trimBand($npcId, $step['band'], min($step['band'] + self::BAND_SIZE, $yMax), $step['count']);
-                $budget -= $done;
+        // 3) ADR-106 — уникальные боссы глубокого севера (отдельный killswitch).
+        if ($bossIds !== []) {
+            $each = $this->bossPopulationEach();
+            $yMax = min($this->bossYMax(), $cutoff);
+            foreach ($bossIds as $bossId) {
                 if ($budget <= 0) {
                     return;
                 }
+                $budget = $this->maintainPopulation($bossId, $each, $yMax, $cutoff, $budget);
             }
         }
+    }
+
+    /**
+     * Поддержать популяцию одного npc в зоне [0, yMax): zone-purge залётных южнее
+     * зоны (self-heal при сужении y_max) → план fill/trim по бэндам. Вернуть остаток бюджета.
+     */
+    protected function maintainPopulation(int $npcId, int $population, int $yMax, int $cutoff, int $budget): int
+    {
+        // Залётные между yMax и cutoff (cutoff-purge уже покрыл Y >= cutoff).
+        if ($yMax < $cutoff) {
+            $budget -= $this->purgeZone($npcId, $yMax, $cutoff, $budget);
+            if ($budget <= 0) {
+                return 0;
+            }
+        }
+
+        $targets = self::bandTargets($population, $yMax);
+        $counts  = $this->aliveCountsPerBand($npcId, $yMax);
+        $plan    = self::planAdjustments($counts, $targets, $budget);
+
+        foreach ($plan as $step) {
+            $done = $step['action'] === 'fill'
+                ? $this->fillBand($npcId, $step['band'], min($step['band'] + self::BAND_SIZE, $yMax), $step['count'])
+                : $this->trimBand($npcId, $step['band'], min($step['band'] + self::BAND_SIZE, $yMax), $step['count']);
+            $budget -= $done;
+            if ($budget <= 0) {
+                return 0;
+            }
+        }
+
+        return $budget;
     }
 
     // ===================== Чистые планировщики (unit-тесты) =====================
@@ -337,7 +387,59 @@ class RaiderGradientHandler
         return count($ids);
     }
 
+    /** Удалить живых спавнов npc в [$yFrom, $yTo) — залётные южнее зоны тира. Вернуть число операций. */
+    protected function purgeZone(int $npcId, int $yFrom, int $yTo, int $budget): int
+    {
+        return $this->trimBand($npcId, $yFrom, $yTo, $budget);
+    }
+
+    /**
+     * ADR-106 — npc_id боссов по npc_name_en (id auto_increment, в коде не фиксируемы).
+     * Overridable seam (тесты). Memo на один run().
+     *
+     * @return list<int>
+     */
+    protected function bossIds(): array
+    {
+        if ($this->bossIds !== null) {
+            return $this->bossIds;
+        }
+        $ids = [];
+        foreach ($this->npcs->whereIn('npc_name_en', self::BOSS_KEYS)->findAll() as $n) {
+            $idRaw = is_array($n) ? ($n['id'] ?? null) : null;
+            if (is_numeric($idRaw)) {
+                $ids[] = (int) $idRaw;
+            }
+        }
+
+        return $this->bossIds = $ids;
+    }
+
     // ===================== GameSettings (overridable seams) =====================
+
+    /** ADR-106 killswitch world.bosses.enabled (default false → боссы dormant). */
+    protected function bossesEnabled(): bool
+    {
+        $v = (new \App\Services\GameSettings\GameSettingsService())->get('world.bosses.enabled', false);
+
+        return (bool) $v;
+    }
+
+    /** world.bosses.population_each — живых экземпляров КАЖДОГО босса (default 1 = уникальность). */
+    protected function bossPopulationEach(): int
+    {
+        $v = (new \App\Services\GameSettings\GameSettingsService())->get('world.bosses.population_each', 1);
+
+        return is_numeric($v) ? max(0, (int) $v) : 1;
+    }
+
+    /** world.bosses.y_max — южная граница зоны боссов (default 150, кромка мира у руин). */
+    protected function bossYMax(): int
+    {
+        $v = (new \App\Services\GameSettings\GameSettingsService())->get('world.bosses.y_max', 150);
+
+        return is_numeric($v) ? max(1, (int) $v) : 150;
+    }
 
     /** Killswitch world.raiders.gradient_enabled (default false → dormant). */
     protected function enabled(): bool

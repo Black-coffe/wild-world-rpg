@@ -108,4 +108,26 @@ final class RaiderGradientPlannerTest extends CIUnitTestCase
 
         $this->assertSame([['band' => 0, 'action' => 'fill', 'count' => 5]], $plan);
     }
+
+    public function testBossSingletonTargetsDeepestNorthBand(): void
+    {
+        // ADR-106: population_each=1, y_max=150 → единственный экземпляр всегда в Y0-99
+        // (остаток от округления раздаётся с севера).
+        $targets = RaiderGradientHandler::bandTargets(1, 150);
+
+        $this->assertSame([0 => 1, 100 => 0], $targets);
+    }
+
+    public function testBossKilledTriggersSingleFill(): void
+    {
+        // Босс убит (0 живых) → план = один налив в северный бэнд (возрождение в новой клетке).
+        $plan = RaiderGradientHandler::planAdjustments([0 => 0, 100 => 0], [0 => 1, 100 => 0], 200);
+
+        $this->assertSame([['band' => 0, 'action' => 'fill', 'count' => 1]], $plan);
+    }
+
+    public function testBossAliveIsSteadyState(): void
+    {
+        $this->assertSame([], RaiderGradientHandler::planAdjustments([0 => 1, 100 => 0], [0 => 1, 100 => 0], 200));
+    }
 }
