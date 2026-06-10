@@ -397,6 +397,8 @@ class MoveCharacterToDirectionAction
         $this->playerDetectionService->detectNearbyPlayers($character['id']);
         // ADR-103 Часть B Слой 1 — one-shot подсказка «первая база» новичку без базы.
         (new \App\Services\Onboarding\OnboardingHintService())->maybeSendFirstBaseTip($character, $chatId);
+        // ADR-104 Ф3b — гарантированный «момент удачи» на первый ход новичка (one-shot).
+        (new \App\Services\Onboarding\LuckyFindService())->maybeGrantFirstMove($character, $chatId);
         return $newMsgResponse;
     }
 
