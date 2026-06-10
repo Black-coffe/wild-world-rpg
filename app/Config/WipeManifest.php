@@ -73,6 +73,7 @@ class WipeManifest extends BaseConfig
         'achievements'         => ['strategy' => self::KEEP, 'note' => 'Определения достижений'],
         'buildings'            => ['strategy' => self::KEEP, 'note' => 'Определения построек'],
         'crafted_items'        => ['strategy' => self::KEEP, 'note' => 'Рецепты/определения предметов'],
+        'loot_table_items'     => ['strategy' => self::KEEP, 'note' => 'Лут-таблицы NPC (ADR-107) — контент-определения дропа (npcs.loot_table_id), нет player-связи'],
         'events'               => ['strategy' => self::KEEP, 'note' => 'Определения мировых событий'],
         'factions'             => ['strategy' => self::KEEP, 'note' => 'Определения фракций'],
         'game_tips'            => ['strategy' => self::KEEP, 'note' => 'Контент советов /tips'],

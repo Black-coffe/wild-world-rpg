@@ -5,6 +5,7 @@ namespace App\Services\Player;
 use App\Services\PVE\BattleService;
 use App\Services\PVE\RewardService;
 use App\Services\PVE\EquipmentService;
+use App\Services\PVE\LootTableService;
 use App\Services\PVE\PveMessageFormatter;
 use App\Services\PVE\PveCombatValidator;
 use App\Services\PVE\PveBattleLogWriter;
@@ -24,6 +25,7 @@ class PvEService
     private PveCombatValidator $combatValidator;
     private PveBattleLogWriter $battleLogWriter;
     private PveNotificationSender $notificationSender;
+    private LootTableService $lootTableService;
 
     public function __construct(
         BattleService $battleService,
@@ -35,7 +37,8 @@ class PvEService
         ?PveMessageFormatter $messageFormatter = null,
         ?PveCombatValidator $combatValidator = null,
         ?PveBattleLogWriter $battleLogWriter = null,
-        ?PveNotificationSender $notificationSender = null
+        ?PveNotificationSender $notificationSender = null,
+        ?LootTableService $lootTableService = null
     ) {
         $this->battleService      = $battleService;
         $this->rewardService      = $rewardService;
@@ -45,6 +48,7 @@ class PvEService
         $this->combatValidator    = $combatValidator ?? new PveCombatValidator($npcSpawnModel, $npcModel);
         $this->battleLogWriter    = $battleLogWriter ?? new PveBattleLogWriter();
         $this->notificationSender = $notificationSender ?? new PveNotificationSender();
+        $this->lootTableService   = $lootTableService ?? new LootTableService();
     }
 
     /**
@@ -118,6 +122,17 @@ class PvEService
             $this->characterModel->incrementNpcKills((int) $player->id);
             // ADR-106: победа над уникальным боссом → маркер в action_log (боссо-достижения).
             $this->logBossKill($playerData, $npcData);
+
+            // ADR-107: лут-таблица побеждённого NPC (npcs.loot_table_id; killswitch внутри).
+            // Defensive: трофеи не роняют уже засчитанный бой.
+            $lootRaw = $npcData['loot_table_id'] ?? null;
+            if (is_numeric($lootRaw)) {
+                try {
+                    $rewards['trophies'] = $this->lootTableService->rollAndGrant((int) $lootRaw, (int) $player->id);
+                } catch (\Throwable $e) {
+                    log_message('warning', 'LootTable roll failed (бой уже засчитан): ' . $e->getMessage());
+                }
+            }
         }
 
         // Обновляем данные игрока

@@ -72,6 +72,14 @@ final class PveMessageFormatter
         if (!empty($rewards['craftedItem'])) {
             $rewardLines[] = "• 🛠 Крафт-предмет: <b>{$rewards['craftedItem']}</b>";
         }
+        // ADR-107: трофеи лут-таблицы (уникальный дроп боссов). MEDIA-OFF: весь смысл в тексте.
+        if (!empty($rewards['trophies']) && is_array($rewards['trophies'])) {
+            foreach ($rewards['trophies'] as $trophy) {
+                if (is_string($trophy) && $trophy !== '') {
+                    $rewardLines[] = "• 🏆 Трофей: <b>{$trophy}</b>";
+                }
+            }
+        }
         $extraComment = ($npcMuchWeaker) ? "Противник был в разы слабее, поэтому ты получил не так уж много наград.\n\n" : "";
         $rewardText = !empty($rewardLines)
             ? "🎖 <b>Награды за победу:</b>\n" . implode("\n", $rewardLines) . "\n\n"
