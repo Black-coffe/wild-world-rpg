@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\PVE;
 
 use App\Models\TelegramUserModel;
+use App\Services\Notifications\BroadcastDeliveryClassifier;
 use Longman\TelegramBot\Request;
 
 /**
@@ -14,6 +15,11 @@ use Longman\TelegramBot\Request;
  *
  * Mirrors EventNotificationSender (NotificationPolicy decomp v0.51.71) як
  * "Telegram I/O єдина точка" pattern.
+ *
+ * Гигиена blocked_at (2026-06-10): заблокировавшим бота НЕ шлём (авто-PvE крон
+ * слал уведомление за каждый бой → 240 ERROR/день «bot was blocked» от одного
+ * застрявшего чара); 403 при отправке → markBlocked, успех → clearBlocked
+ * (self-heal, как BroadcastService).
  */
 final class PveNotificationSender
 {
@@ -50,7 +56,15 @@ final class PveNotificationSender
             return;
         }
 
-        log_message('debug', "Отправка сообщения в Telegram: chat_id={$tgUser['telegram_id']}");
+        $tgIdRaw = $tgUser['telegram_id'];
+        $tgId    = is_scalar($tgIdRaw) ? (string) $tgIdRaw : '';
+
+        if (self::isRecipientBlocked($tgUser['blocked_at'] ?? null)) {
+            log_message('debug', "PvE notify skip: пользователь {$tgId} заблокировал бота (blocked_at).");
+            return;
+        }
+
+        log_message('debug', "Отправка сообщения в Telegram: chat_id={$tgId}");
 
         if (strlen($finalText) > self::MAX_TEXT_LENGTH) {
             log_message('warning', "Сообщение слишком длинное для Telegram! Обрезаем до " . self::MAX_TEXT_LENGTH . " символов.");
@@ -58,15 +72,35 @@ final class PveNotificationSender
         }
 
         $result = Request::sendMessage([
-            'chat_id'    => $tgUser['telegram_id'],
+            'chat_id'    => $tgId,
             'text'       => $finalText,
             'parse_mode' => 'HTML',
         ]);
 
         if (!$result->isOk()) {
-            log_message('error', "Ошибка отправки сообщения в Telegram: " . $result->getDescription());
+            $desc = $result->getDescription();
+            if (BroadcastDeliveryClassifier::isBlocked($desc)) {
+                // Недостижим навсегда (403 blocked / deactivated) — отмечаем и больше
+                // не шлём (гейт выше); warning, не error: ситуация штатно обработана.
+                $tgUserModel->markBlocked($tgId);
+                log_message('warning', "PvE notify: получатель {$tgId} недостижим, отмечен blocked_at: {$desc}");
+            } else {
+                log_message('error', "Ошибка отправки сообщения в Telegram: " . $desc);
+            }
         } else {
-            log_message('info', "Сообщение успешно отправлено в Telegram пользователю ID={$tgUser['telegram_id']}");
+            // Self-heal: пользователь вернулся — снимаем отметку (условный UPDATE, no-op если не отмечен).
+            $tgUserModel->clearBlocked($tgId);
+            log_message('info', "Сообщение успешно отправлено в Telegram пользователю ID={$tgId}");
         }
+    }
+
+    /**
+     * Получатель отмечен как заблокировавший бота? Pure — тестируется юнитом.
+     *
+     * @param mixed $blockedAt значение telegram_users.blocked_at (timestamp|null)
+     */
+    public static function isRecipientBlocked(mixed $blockedAt): bool
+    {
+        return ! empty($blockedAt);
     }
 }

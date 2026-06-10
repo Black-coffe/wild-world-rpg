@@ -23,6 +23,12 @@ use Psr\Log\NullLogger;
  *  2) Ищем "живых" NPC в той же клетке
  *  3) Запускаем бой (PVE)
  *  4) Если игрок победил, пытаемся удалить запись из npc_spawns
+ *
+ * Анти-grind гейты (лог-ревью 2026-06-10, чар 994: 926 боёв/день от легаси
+ * L15-агрессора, HP floor 1 → вечный цикл + спам уведомлений):
+ *  • skip_below_health — игрок на полу HP (уже побеждён) не атакуется повторно;
+ *  • pair_cooldown — та же пара (игрок, спавн) не дерётся чаще раза в N минут.
+ * Оба tunable в админке (combat.auto_pve.*); 0 = соответствующий гейт выключен.
  */
 class AutoPveHandler
 {
@@ -30,6 +36,9 @@ class AutoPveHandler
     protected NpcSpawnModel $npcSpawnModel;
     protected MapModel $mapModel;
     protected PvEService $pveService;
+
+    /** Memo на один run() — не дёргать game_settings на каждую пару. */
+    protected ?int $pairCooldownMinutes = null;
 
     public function __construct()
     {
@@ -62,11 +71,21 @@ class AutoPveHandler
         $players = $this->characterModel->findAll();
         $handledCount = 0;
 
+        $skipBelowHealth = $this->skipBelowHealth();
+
         foreach ($players as $player) {
             if (!isset($player['id'], $player['cell_number']) || !is_numeric($player['id'])) {
                 continue;
             }
             $playerId = (int) $player['id'];
+
+            // Анти-grind гейт №1: игрок на полу HP уже проиграл (бой floor'ит health
+            // в 1) — повторный авто-бой каждую минуту = вечный цикл без выхода.
+            $healthRaw = $player['health'] ?? null;
+            $health    = is_numeric($healthRaw) ? (float) $healthRaw : 0.0;
+            if (self::shouldSkipByHealth($health, $skipBelowHealth)) {
+                continue;
+            }
 
             // Ищем NPC со статусом alive в той же клетке
             $npcsInCell = $this->npcSpawnModel
@@ -85,10 +104,71 @@ class AutoPveHandler
                 }
                 $npcSpawnId = (int) $npcSpawn['id'];
 
+                // Анти-grind гейт №2: та же пара (игрок, спавн) — не чаще раза в N минут.
+                if ($this->isPairOnCooldown($playerId, $npcSpawnId)) {
+                    continue;
+                }
+
                 $this->startNpcCombat($playerId, $npcSpawnId);
                 $handledCount++;
             }
         }
+    }
+
+    /**
+     * Анти-grind: пропустить игрока, если его health ≤ порога (игрок уже на полу
+     * после проигрыша — добивать бессмысленно). Порог 0 = гейт выключен.
+     */
+    public static function shouldSkipByHealth(float $health, float $threshold): bool
+    {
+        return $threshold > 0 && $health <= $threshold;
+    }
+
+    /** Cache-ключ кулдауна пары (игрок, спавн). */
+    public static function pairCooldownKey(int $playerId, int $npcSpawnId): string
+    {
+        return "autopve_pair_{$playerId}_{$npcSpawnId}";
+    }
+
+    /** Пара недавно дралась (cache-ключ жив)? При cooldown=0 гейт выключен. */
+    protected function isPairOnCooldown(int $playerId, int $npcSpawnId): bool
+    {
+        if ($this->pairCooldownMinutes() <= 0) {
+            return false;
+        }
+
+        return cache()->get(self::pairCooldownKey($playerId, $npcSpawnId)) !== null;
+    }
+
+    /** Запомнить бой пары (TTL = кулдаун). Ставится ПЕРЕД боем — см. startNpcCombat. */
+    protected function rememberPairFight(int $playerId, int $npcSpawnId): void
+    {
+        $minutes = $this->pairCooldownMinutes();
+        if ($minutes <= 0) {
+            return;
+        }
+        cache()->save(self::pairCooldownKey($playerId, $npcSpawnId), 1, $minutes * 60);
+    }
+
+    /** combat.auto_pve.pair_cooldown_minutes (default 15; 0 = гейт выключен). */
+    protected function pairCooldownMinutes(): int
+    {
+        if ($this->pairCooldownMinutes === null) {
+            $v = (new \App\Services\GameSettings\GameSettingsService())
+                ->get('combat.auto_pve.pair_cooldown_minutes', 15);
+            $this->pairCooldownMinutes = is_numeric($v) ? max(0, (int) $v) : 15;
+        }
+
+        return $this->pairCooldownMinutes;
+    }
+
+    /** combat.auto_pve.skip_below_health (default 1; 0 = гейт выключен). */
+    protected function skipBelowHealth(): float
+    {
+        $v = (new \App\Services\GameSettings\GameSettingsService())
+            ->get('combat.auto_pve.skip_below_health', 1);
+
+        return is_numeric($v) ? max(0.0, (float) $v) : 1.0;
     }
 
     protected function startNpcCombat(int $playerId, int $npcSpawnId): void
@@ -135,6 +215,10 @@ class AutoPveHandler
         }
 
         $npcData['name'] = $npcInfo['npc_name_ru'] ?? 'Неизвестный враг';
+
+        // Анти-grind: кулдаун ставим ПЕРЕД боем (после всех валидаций) — даже если
+        // бой/уведомление упадёт, пара не будет молотиться каждую минуту крона.
+        $this->rememberPairFight($playerId, $npcSpawnId);
 
         // Запускаем бой
         $biome = "Grasslands";
