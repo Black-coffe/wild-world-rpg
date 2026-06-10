@@ -156,6 +156,12 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\NPC\AutoPveHandler())->run())
             ->everyMinute()->singleInstance()->named('npc.auto-pve');
 
+        // ADR-105 — градиент опасности рейдеров «север=опаснее» (killswitch
+        // world.raiders.gradient_enabled → dormant = no-op; покой новичкового
+        // пояса Y>=y_cutoff поддерживается перманентно).
+        $schedule->call(static fn() => (new \App\TaskHandlers\NPC\RaiderGradientHandler())->run())
+            ->everyMinute()->singleInstance()->named('npc.raider-gradient');
+
         // ============================================================
         // QUESTS — handler сам проверяет прогресс игроков
         // ============================================================
