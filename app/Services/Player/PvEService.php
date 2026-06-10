@@ -122,9 +122,22 @@ class PvEService
             $this->characterModel->incrementNpcKills((int) $player->id);
             // ADR-106: победа над уникальным боссом → маркер в action_log (боссо-достижения).
             $this->logBossKill($playerData, $npcData);
+        }
 
-            // ADR-107: лут-таблица побеждённого NPC (npcs.loot_table_id; killswitch внутри).
-            // Defensive: трофеи не роняют уже засчитанный бой.
+        // Обновляем данные игрока
+        $this->characterModel->update($player->id, [
+            'health'     => max(1, $player->health),
+            'tired'      => max(1, rand(1, (int)floor($player->health))),
+            'experience' => $player->experience + ($rewards['exp'] ?? 0),
+            'gold'       => $player->gold + ($rewards['gold'] ?? 0),
+        ]);
+
+        // ADR-107: лут-таблица побеждённого NPC (npcs.loot_table_id; killswitch внутри).
+        // 🔴 СТРОГО ПОСЛЕ update выше: тот пишет gold АБСОЛЮТНЫМ значением (снапшот
+        // до боя + стандартное золото) и затёр бы атомарный adjustGold трофея
+        // (Tier-3 catch 2026-06-10: дельта золота < минимума трофея). Defensive:
+        // трофеи не роняют уже засчитанный бой.
+        if ($playerWon) {
             $lootRaw = $npcData['loot_table_id'] ?? null;
             if (is_numeric($lootRaw)) {
                 try {
@@ -135,13 +148,6 @@ class PvEService
             }
         }
 
-        // Обновляем данные игрока
-        $this->characterModel->update($player->id, [
-            'health'     => max(1, $player->health),
-            'tired'      => max(1, rand(1, (int)floor($player->health))),
-            'experience' => $player->experience + ($rewards['exp'] ?? 0),
-            'gold'       => $player->gold + ($rewards['gold'] ?? 0),
-        ]);
         $updatedPlayerData = $this->characterModel->find($player->id);
 
         // Формируем итоговое сообщение для Telegram
