@@ -162,13 +162,17 @@ class AutoPveHandler
         return $this->pairCooldownMinutes;
     }
 
-    /** combat.auto_pve.skip_below_health (default 1; 0 = гейт выключен). */
+    /**
+     * combat.auto_pve.skip_below_health (default 5; 0 = гейт выключен).
+     * Default 5, НЕ 1: HealthRegenerationHandler регенит +0.05/мин (level<20) —
+     * при пороге 1 лежачий (HP floor = 1) уже через минуту выше порога и снова в бою.
+     */
     protected function skipBelowHealth(): float
     {
         $v = (new \App\Services\GameSettings\GameSettingsService())
-            ->get('combat.auto_pve.skip_below_health', 1);
+            ->get('combat.auto_pve.skip_below_health', 5);
 
-        return is_numeric($v) ? max(0.0, (float) $v) : 1.0;
+        return is_numeric($v) ? max(0.0, (float) $v) : 5.0;
     }
 
     protected function startNpcCombat(int $playerId, int $npcSpawnId): void
