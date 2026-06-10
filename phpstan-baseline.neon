@@ -6972,11 +6972,6 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/MoveCharacterToDirectionAction.php
 
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterToDirectionAction\:\:\$directions has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/MoveCharacterToDirectionAction.php
 
 		-
 			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterToDirectionAction\:\:\$directionsTranslation has no type specified\.$#'

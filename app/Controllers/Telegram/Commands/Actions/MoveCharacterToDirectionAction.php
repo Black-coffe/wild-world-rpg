@@ -40,8 +40,15 @@ class MoveCharacterToDirectionAction
 
     protected $playerDetectionService;
 
-    // Словарь направлений
-    protected $directions = [
+    /**
+     * Границы карты — плотная сетка координат 0..999 × 0..999 (1 000 000 клеток).
+     * E2 (ROADMAP-100): шаг за эти пределы = край острова, не немой отказ.
+     */
+    private const MAP_MIN = 0;
+    private const MAP_MAX = 999;
+
+    /** @var array<string, array{int,int}> dx,dy по 8 направлениям (y растёт на юг). */
+    private const DIRECTIONS = [
         'north'      => [ 0, -1 ],
         'south'      => [ 0,  1 ],
         'west'       => [-1,  0 ],
@@ -75,16 +82,16 @@ class MoveCharacterToDirectionAction
         $chatId         = $this->callbackQuery->getMessage()->getChat()->getId();
         $telegramUserId = $this->callbackQuery->getFrom()->getId();
 
-        // Снимаем "часики"
-        Request::answerCallbackQuery([
-            'callback_query_id' => $this->callbackQuery->getId()
-        ]);
+        // E2: "часики" снимаем осмысленно ниже — пустым ответом на успешном/ресурсном
+        // пути, либо alert'ом на краю мира. Ранний безусловный answer мешал бы показать
+        // alert (Telegram позволяет ответить на callback_query лишь один раз).
 
         $callbackData = $this->callbackQuery->getData(); // "move_dir_north" etc
         $direction    = str_replace('move_dir_', '', $callbackData);
 
         // Валидируем направление
-        if (!isset($this->directions[$direction])) {
+        if (!isset(self::DIRECTIONS[$direction])) {
+            $this->dismissSpinner();
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text'    => "Неизвестное направление: {$direction}."
@@ -94,6 +101,7 @@ class MoveCharacterToDirectionAction
         // Ищем telegram-пользователя
         $user = $this->telegramUserModel->where('telegram_id', $telegramUserId)->first();
         if (!$user) {
+            $this->dismissSpinner();
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text'    => 'Пользователь не найден.'
@@ -103,6 +111,7 @@ class MoveCharacterToDirectionAction
         // Ищем персонажа
         $character = $this->characterModel->where('telegram_user_id', $user['id'])->first();
         if (!$character || !$character['cell_number']) {
+            $this->dismissSpinner();
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text'    => 'Персонаж не найден или нет cell_number.'
@@ -132,6 +141,7 @@ class MoveCharacterToDirectionAction
                 $text = "🚫 Невозможно переместиться!\n"
                     . "У вас идёт задача: {$taskName}\n"
                     . "Сначала дождитесь окончания.";
+                $this->dismissSpinner();
                 return Request::sendMessage([
                     'chat_id'    => $chatId,
                     'text'       => $text,
@@ -145,6 +155,7 @@ class MoveCharacterToDirectionAction
             ->where('cell_number', $character['cell_number'])
             ->first();
         if (!$currentCell) {
+            $this->dismissSpinner();
             return Request::sendMessage([
                 'chat_id' => $chatId,
                 'text'    => "Текущая локация не найдена!"
@@ -152,21 +163,38 @@ class MoveCharacterToDirectionAction
         }
 
         // Координаты новой ячейки
-        [$dx, $dy] = $this->directions[$direction];
-        $newX = $currentCell['coordinate_x'] + $dx;
-        $newY = $currentCell['coordinate_y'] + $dy;
+        [$dx, $dy] = self::DIRECTIONS[$direction];
+        $curX = (int) $currentCell['coordinate_x'];
+        $curY = (int) $currentCell['coordinate_y'];
+        $newX = $curX + $dx;
+        $newY = $curY + $dy;
 
-        // Целевая ячейка
+        // — Край мира (E2, ROADMAP-100) —
+        // Шаг за пределы сетки 0..999 = край острова. Раньше это давало немой сухой
+        // отказ «Нет ячейки по направлению» (новички у южной кромки Y≥900 регулярно
+        // в него упирались). Теперь — заметный alert с подсказкой, куда МОЖНО пойти.
+        // Экран не дёргаем: персонаж остаётся на месте, ход не тратится, кнопки те же.
         $targetCell = $this->mapModel
             ->where('coordinate_x', $newX)
             ->where('coordinate_y', $newY)
             ->first();
-        if (!$targetCell) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => "Нет ячейки по направлению {$direction}."
+        $outOfBounds = $newX < self::MAP_MIN || $newX > self::MAP_MAX
+            || $newY < self::MAP_MIN || $newY > self::MAP_MAX;
+        if ($outOfBounds || !$targetCell) {
+            $dirRu     = $this->directionsTranslation[$direction] ?? $direction;
+            $available = $this->describeAvailableDirections($curX, $curY);
+            $alert     = "🧭 Там край острова — дальше на {$dirRu} пути нет.\n"
+                . ($available !== '' ? "Можно пойти: {$available}" : 'Двигайся вглубь острова.');
+            Request::answerCallbackQuery([
+                'callback_query_id' => $this->callbackQuery->getId(),
+                'text'              => mb_substr($alert, 0, 200),
+                'show_alert'        => true,
             ]);
+            return Request::emptyResponse();
         }
+
+        // Не край — снимаем «часики»; дальше либо отказ по ресурсам, либо успешный шаг.
+        $this->dismissSpinner();
 
         // ADR-019 §2 (Step 1): гейт «клетка должна быть заранее исследована» снят —
         // движение И есть разведка. В любую in-bounds клетку шагнуть можно; факт
@@ -412,6 +440,45 @@ class MoveCharacterToDirectionAction
         'southwest'  => 'юго-запад',
         'southeast'  => 'юго-восток',
     ];
+
+    /** Снять «часики» с нажатой кнопки (пустой ответ на callback_query). */
+    private function dismissSpinner(): void
+    {
+        Request::answerCallbackQuery([
+            'callback_query_id' => $this->callbackQuery->getId(),
+        ]);
+    }
+
+    /**
+     * E2 — направления (из 8), по которым из клетки (curX,curY) есть ход в пределах
+     * карты. Чистая функция: только проверка границ сетки, без обращения к БД.
+     * Карта плотная (1M клеток без дыр) → in-bounds эквивалентно «клетка существует».
+     *
+     * @return list<string> ключи направлений в каноничном порядке self::DIRECTIONS
+     */
+    public static function availableDirections(int $curX, int $curY): array
+    {
+        $out = [];
+        foreach (self::DIRECTIONS as $dir => [$dx, $dy]) {
+            $nx = $curX + $dx;
+            $ny = $curY + $dy;
+            if ($nx >= self::MAP_MIN && $nx <= self::MAP_MAX
+                && $ny >= self::MAP_MIN && $ny <= self::MAP_MAX) {
+                $out[] = $dir;
+            }
+        }
+        return $out;
+    }
+
+    /** E2 — человекочитаемый список доступных направлений (для alert'а у края). */
+    private function describeAvailableDirections(int $curX, int $curY): string
+    {
+        $labels = [];
+        foreach (self::availableDirections($curX, $curY) as $dir) {
+            $labels[] = $this->directionsTranslation[$dir] ?? $dir;
+        }
+        return implode(', ', $labels);
+    }
 
     /**
      * Собираем заново 12×12 карту, легенду и т.д. для уже ОБНОВЛЁННОГО персонажа.

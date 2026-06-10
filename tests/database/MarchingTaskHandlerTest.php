@@ -255,7 +255,12 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
 
     public function testEdgeOfWorldStopsWithoutMoving(): void
     {
-        $char = $this->makeCharacter(1, 5);          // x=1 → west = x=0 < 1
+        // E2: реальная карта 0..999. Toy-сетка фикстуры 1..10 живёт глубоко внутри
+        // bounds-гейта, поэтому шаг на x=0 (нет клетки в сетке) ловит вторичный
+        // null-cell гейт. Оба стоп-гейта — валидный край известной карты; на реальных
+        // кромках (0/999) шаг наружу даёт консистентное «край мира». Инвариант теста:
+        // поход останавливается БЕЗ движения и без списания cost.
+        $char = $this->makeCharacter(1, 5);          // x=1 → west = x=0 (за toy-сеткой)
         $task = $this->makeMarchTask((int) $char['id'], 'west', 5, 0);
 
         $this->handler->handle($task);
@@ -264,7 +269,12 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
         $this->assertSame((int) $char['cell_number'], (int) $after['cell_number']); // не сдвинулся
         $this->assertEqualsWithDelta(100.0, (float) $after['health'], 0.001);        // cost не списан
         $this->assertSame([], $this->newTasks((int) $char['id'], (int) $task['id'], 'in_work'));
-        $this->assertStringContainsString('край мира', mb_strtolower($this->handler->lastText));
+        $txt = mb_strtolower($this->handler->lastText);
+        $this->assertStringContainsString('окончен', $txt);                          // поход завершён
+        $this->assertTrue(
+            str_contains($txt, 'край мира') || str_contains($txt, 'дальше нет клетки'),
+            'ожидали стоп на краю известного мира (bounds-гейт или null-cell гейт)'
+        );
     }
 
     public function testWaterAheadStopsWithoutMoving(): void

@@ -133,8 +133,8 @@ class MarchingTaskHandler extends BaseTaskHandler
         $newX = $curX + $dx;
         $newY = $curY + $dy;
 
-        // — Край мира —
-        if ($newX < 1 || $newX > 1000 || $newY < 1 || $newY > 1000) {
+        // — Край мира (E2: реальная сетка карты 0..999, не 1..1000) —
+        if ($newX < 0 || $newX > 999 || $newY < 0 || $newY > 999) {
             $this->finishMarch($telegramUserId, $s, $character, "уперся в край мира у (X={$curX}, Y={$curY})");
             return;
         }
