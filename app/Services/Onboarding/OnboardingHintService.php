@@ -120,7 +120,10 @@ class OnboardingHintService
             'character_id'  => $charId,
             'chat_id'       => $chatId,
             'action_name'   => self::LOG_PREFIX . $hintKey,
-            'action_status' => 'shown',
+            // action_status строго из enum('Pending','Completed','Skipped','REJECTED') —
+            // 'shown' было вне enum → STRICT_TRANS_TABLES коэрсил в '' (37 строк на проде),
+            // а в полном strict-режиме валил бы INSERT → подсказка спамила бы (фикс ADR-104).
+            'action_status' => 'Completed',
             'description'   => 'ADR-103 contextual onboarding hint',
         ]);
     }

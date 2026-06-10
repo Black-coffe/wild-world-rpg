@@ -58,4 +58,94 @@ final class WandererSpawnHandlerTest extends CIUnitTestCase
         $this->assertFalse(WandererSpawnHandler::pickFaction(0, -20, true, true));
         $this->assertTrue(WandererSpawnHandler::pickFaction(99, 200, true, true));
     }
+
+    // ── ADR-104 Ф3a — диспетчеризация зон (основная + новичковая) ───────────────
+
+    public function testDormantNewbieZoneFillsOnlyMain(): void
+    {
+        // npc.newbie_zone.population=0 → только основная зона Y401-900 (поведение ADR-089).
+        $h = new FakeWandererSpawnHandler();
+        $h->newbiePop = 0;
+        $h->run();
+        $this->assertSame([[401, 900, 25]], $h->zoneCalls);
+    }
+
+    public function testNewbieZonePopulationAddsSecondPass(): void
+    {
+        // population>0 → второй проход для новичковой зоны (Y≥y_min, без верхней границы).
+        $h = new FakeWandererSpawnHandler();
+        $h->newbiePop = 8;
+        $h->newbieYMin = 900;
+        $h->run();
+        $this->assertSame([[401, 900, 25], [900, null, 8]], $h->zoneCalls);
+    }
+
+    public function testKillswitchOffSpawnsNothing(): void
+    {
+        $h = new FakeWandererSpawnHandler();
+        $h->interaction = false;
+        $h->newbiePop   = 8;
+        $h->run();
+        $this->assertSame([], $h->zoneCalls);
+    }
+
+    public function testEmptyPoolSpawnsNothing(): void
+    {
+        $h = new FakeWandererSpawnHandler();
+        $h->pools = ['neutral' => [], 'faction' => []];
+        $h->run();
+        $this->assertSame([], $h->zoneCalls);
+    }
+}
+
+/**
+ * Test-double: подменяет DB/GameSettings-seam'ы, записывает вызовы fillZone как [yMin,yMax,target].
+ *
+ * @internal
+ */
+final class FakeWandererSpawnHandler extends WandererSpawnHandler
+{
+    public bool $interaction = true;
+    /** @var array{neutral: list<int>, faction: list<int>} */
+    public array $pools = ['neutral' => [1], 'faction' => []];
+    public int $mainPop = 25;
+    public int $newbiePop = 0;
+    public int $newbieYMin = 900;
+    /** @var list<array{0:int,1:int|null,2:int}> */
+    public array $zoneCalls = [];
+
+    protected function interactionEnabled(): bool
+    {
+        return $this->interaction;
+    }
+
+    protected function loadPools(): array
+    {
+        return $this->pools;
+    }
+
+    protected function targetPopulation(): int
+    {
+        return $this->mainPop;
+    }
+
+    protected function factionRatio(): int
+    {
+        return 0;
+    }
+
+    protected function newbieZonePopulation(): int
+    {
+        return $this->newbiePop;
+    }
+
+    protected function newbieZoneYMin(): int
+    {
+        return $this->newbieYMin;
+    }
+
+    protected function fillZone(array $poolAll, array $neutralIds, array $factionIds, int $ratio, int $target, int $yMin, ?int $yMax): void
+    {
+        $this->zoneCalls[] = [$yMin, $yMax, $target];
+    }
 }
