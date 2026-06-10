@@ -203,6 +203,44 @@ final class GameSettingsServiceTest extends CIUnitTestCase
         $this->assertSame(0.50, $model->lastUpdate['value_float'] ?? null);
     }
 
+    public function testSetBoolCoercesStringValues(): void
+    {
+        // Регресс на баг: admin POST шлёт строку «true»/«false». (bool)"false"=true
+        // (непустая строка) ставило бы 1 → отключение killswitch через admin UI не работало.
+        $model = new class extends GameSettingsModel {
+            public array $lastUpdate = [];
+            public function __construct() { }
+            public function findByKey(string $key): ?array
+            {
+                return ['id' => 1, 'value_type' => 'bool', 'hard_min' => null, 'hard_max' => null];
+            }
+            public function update($id = null, $data = null): bool
+            {
+                if (is_array($data)) {
+                    $this->lastUpdate = $data;
+                }
+                return true;
+            }
+        };
+
+        $svc = new GameSettingsService($model);
+
+        $svc->set('k', 'true');
+        $this->assertSame(1, $model->lastUpdate['value_bool'] ?? null);
+        $svc->set('k', 'false'); // ← главный кейс фикса
+        $this->assertSame(0, $model->lastUpdate['value_bool'] ?? null);
+        $svc->set('k', '1');
+        $this->assertSame(1, $model->lastUpdate['value_bool'] ?? null);
+        $svc->set('k', '0');
+        $this->assertSame(0, $model->lastUpdate['value_bool'] ?? null);
+        $svc->set('k', true);
+        $this->assertSame(1, $model->lastUpdate['value_bool'] ?? null);
+        $svc->set('k', false);
+        $this->assertSame(0, $model->lastUpdate['value_bool'] ?? null);
+        $svc->set('k', ''); // пустая строка → false
+        $this->assertSame(0, $model->lastUpdate['value_bool'] ?? null);
+    }
+
     public function testStringTypeBypassesBoundsCheck(): void
     {
         $model = new class extends GameSettingsModel {

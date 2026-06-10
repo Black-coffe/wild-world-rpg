@@ -116,7 +116,11 @@ final class GameSettingsService
                 $update['value_float'] = (float) $value;
                 break;
             case 'bool':
-                $update['value_bool'] = ((bool) $value) ? 1 : 0;
+                // ВАЖНО: admin POST шлёт строку «true»/«false». `(bool)"false"` = true
+                // (непустая строка ≠ "0"/"") → отключение через select ставило бы 1 (баг,
+                // ломал откат killswitch через admin UI). filter_var верно мапит
+                // true/1/"1"/"true"/"on"/"yes" → true; false/0/"0"/"false"/"off"/"" → false.
+                $update['value_bool'] = filter_var($value, FILTER_VALIDATE_BOOLEAN) ? 1 : 0;
                 break;
             case 'string':
             default:
