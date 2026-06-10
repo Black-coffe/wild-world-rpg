@@ -194,15 +194,19 @@ class GatherAction extends BaseAction
      * ADR-104 Ф2 — длительность быстрой опции добычи для новичка (или null, если
      * не положено). Читает GameSettings и делегирует чистой decideFastGatherMinutes.
      *
-     * @param array<string, mixed> $character
+     * $character приходит из getUserAndCharacter() как CharacterEntity (ArrayAccess),
+     * НЕ обязательно array — поэтому union-тип (урок feedback_entity_migration_grep_synonyms).
+     *
+     * @param array<string, mixed>|\App\Entities\CharacterEntity $character
      */
-    protected function fastStartGatherMinutes(array $character): ?int
+    protected function fastStartGatherMinutes(array|\App\Entities\CharacterEntity $character): ?int
     {
-        $gs = new \App\Services\GameSettings\GameSettingsService();
+        $gs       = new \App\Services\GameSettings\GameSettingsService();
+        $levelRaw = $character['level'] ?? null;
 
         return self::decideFastGatherMinutes(
             (bool) $gs->get('onboarding.fast_start.enabled', false),
-            is_numeric($character['level'] ?? null) ? (int) $character['level'] : 999,
+            is_numeric($levelRaw) ? (int) $levelRaw : 999,
             (int) $gs->get('onboarding.fast_start.max_level', 3),
             (int) $gs->get('onboarding.fast_start.gather_minutes', 2),
         );
