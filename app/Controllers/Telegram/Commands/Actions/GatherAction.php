@@ -91,6 +91,18 @@ class GatherAction extends BaseAction
                 ]
             ];
 
+            // ADR-104 Ф2 — быстрый первый цикл: новичку (level ≤ max) добавляем быструю
+            // опцию добычи поверх стандартных, чтобы первый ресурс пришёл за минуты,
+            // а не за 10 мин. dormant под onboarding.fast_start.enabled.
+            $fastMinutes = $this->fastStartGatherMinutes($character);
+            if ($fastMinutes !== null) {
+                array_unshift($keyboard['inline_keyboard'], [
+                    ['text' => "⚡ {$fastMinutes} мин (быстрый старт)", 'callback_data' => "gather_{$fastMinutes}"],
+                ]);
+                $text .= "\n\n⚡ *Быстрый старт:* для первых шагов доступна короткая добыча — "
+                    . "лута меньше, зато результат сразу.";
+            }
+
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
@@ -176,6 +188,37 @@ class GatherAction extends BaseAction
             // И отправляем ответ
             return $this->sendGatherResponse($character, $biome, $gatherTask, $taskID);
         }
+    }
+
+    /**
+     * ADR-104 Ф2 — длительность быстрой опции добычи для новичка (или null, если
+     * не положено). Читает GameSettings и делегирует чистой decideFastGatherMinutes.
+     *
+     * @param array<string, mixed> $character
+     */
+    protected function fastStartGatherMinutes(array $character): ?int
+    {
+        $gs = new \App\Services\GameSettings\GameSettingsService();
+
+        return self::decideFastGatherMinutes(
+            (bool) $gs->get('onboarding.fast_start.enabled', false),
+            is_numeric($character['level'] ?? null) ? (int) $character['level'] : 999,
+            (int) $gs->get('onboarding.fast_start.max_level', 3),
+            (int) $gs->get('onboarding.fast_start.gather_minutes', 2),
+        );
+    }
+
+    /**
+     * ADR-104 Ф2 — чистое решение: показать ли быструю опцию и на сколько минут.
+     * dormant (enabled=false) / ветеран (level > max) / minutes < 1 → null.
+     */
+    public static function decideFastGatherMinutes(bool $enabled, int $level, int $maxLevel, int $minutes): ?int
+    {
+        if (! $enabled || $level > $maxLevel || $minutes < 1) {
+            return null;
+        }
+
+        return $minutes;
     }
 
     protected function createGatherTask($character, $user, $gatherTask)
