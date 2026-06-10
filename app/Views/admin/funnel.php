@@ -18,6 +18,7 @@ $levels = $arr($d['levels'] ?? null);
 $weekly = $arr($d['weekly'] ?? null);
 $anom   = $arr($d['anomalies'] ?? null);
 $quests = $arr($d['quests'] ?? null);
+$e5     = $arr($d['e5'] ?? null);
 $pctCls = static fn (float $p): string => $p >= 50 ? 'text-success' : ($p >= 10 ? 'text-warning' : 'text-danger');
 ?>
 
@@ -156,6 +157,61 @@ $pctCls = static fn (float $p): string => $p >= 50 ? 'text-success' : ($p >= 10 
                             <?php endforeach; ?>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- E5 Ф4 — хронометраж первых 30 минут (ADR-104) -->
+        <div class="row">
+            <div class="col-xl-8">
+                <div class="card">
+                    <div class="card-header py-2"><b>E5 — Первые 30 минут (ADR-104): до vs после активации <?= esc($str($e5['activation'] ?? '')) ?></b></div>
+                    <div class="card-body p-2">
+                        <?php
+                        $before = $arr($e5['before'] ?? null);
+                        $after  = $arr($e5['after'] ?? null);
+                        $mFmt   = static fn (array $c, string $k): string => is_numeric($c[$k] ?? null) ? (string) $c[$k] : '—';
+                        $e5Rows = [
+                            ['Регистраций', 'regs', null],
+                            ['Сделали хотя бы один шаг', 'moved', 'moved_pct'],
+                            ['Шаг в первые 30 минут', 'moved_30m', 'moved_30m_pct'],
+                            ['Медиана минут до первого шага', 'median_first_move_min', null],
+                            ['Стартовый набор выдан (Ф1)', 'kit', null],
+                            ['Момент удачи выдан (Ф3b)', 'lucky', null],
+                            ['Продавали ресурсы (форензик-лог)', 'sellers', null],
+                            ['Достигли L2+', 'l2plus', null],
+                        ];
+                        ?>
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr><th>Метрика</th>
+                                <th class="text-end">До (14 дн)</th><th class="text-end">После</th></tr></thead>
+                            <tbody>
+                            <?php foreach ($e5Rows as [$label, $key, $pctKey]): ?>
+                                <tr>
+                                    <td><?= esc($label) ?></td>
+                                    <td class="text-end"><?= esc($mFmt($before, $key)) ?><?php if ($pctKey !== null): ?>
+                                        <span class="text-muted">(<?= esc($mFmt($before, $pctKey)) ?>%)</span><?php endif; ?></td>
+                                    <td class="text-end"><b><?= esc($mFmt($after, $key)) ?></b><?php if ($pctKey !== null): ?>
+                                        <span class="text-muted">(<?= esc($mFmt($after, $pctKey)) ?>%)</span><?php endif; ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                                <tr>
+                                    <td>Вернулись D1+ (среди созревших)</td>
+                                    <td class="text-end"><?= esc($mFmt($before, 'back_d1')) ?> / <?= esc($mFmt($before, 'd1_eligible')) ?></td>
+                                    <td class="text-end"><b><?= esc($mFmt($after, 'back_d1')) ?> / <?= esc($mFmt($after, 'd1_eligible')) ?></b></td>
+                                </tr>
+                                <tr>
+                                    <td>Вернулись D7+ (среди созревших)</td>
+                                    <td class="text-end"><?= esc($mFmt($before, 'back_d7')) ?> / <?= esc($mFmt($before, 'd7_eligible')) ?></td>
+                                    <td class="text-end"><b><?= esc($mFmt($after, 'back_d7')) ?> / <?= esc($mFmt($after, 'd7_eligible')) ?></b></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <p class="text-muted small mb-0 mt-1">
+                            «До» — когорта 14 дней перед активацией E5; набор/удача там 0 по построению (механик не было).
+                            D1/D7 — только среди чаров, созревших до порога (созданы ≥1/≥7 дн назад); свежая когорта дозревает.
+                        </p>
                     </div>
                 </div>
             </div>

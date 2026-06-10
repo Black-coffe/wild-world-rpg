@@ -23,7 +23,7 @@ final class FunnelAnalyticsServiceTest extends CIUnitTestCase
 
     private const TABLES = [
         'characters', 'telegram_users', 'claimed_cells', 'character_factions',
-        'explored_cells', 'quests', 'quest_steps',
+        'explored_cells', 'quests', 'quest_steps', 'action_log',
     ];
 
     protected function setUp(): void
@@ -43,6 +43,8 @@ final class FunnelAnalyticsServiceTest extends CIUnitTestCase
         $db->query('CREATE TABLE quests (id INT PRIMARY KEY, objective_type VARCHAR(50) NULL)');
         $db->query('CREATE TABLE quest_steps (id INT AUTO_INCREMENT PRIMARY KEY, quest_id INT, character_id INT,
                     is_completed TINYINT DEFAULT 0, created_at DATETIME)');
+        $db->query('CREATE TABLE action_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT,
+                    action_name VARCHAR(255), action_status VARCHAR(20), created_at DATETIME NULL)');
 
         $now       = date('Y-m-d H:i:s');
         $daysAgo   = static fn (int $d): string => date('Y-m-d H:i:s', strtotime("-{$d} days"));
@@ -178,8 +180,72 @@ final class FunnelAnalyticsServiceTest extends CIUnitTestCase
     {
         $d = (new FunnelAnalyticsService())->dashboard();
 
-        foreach (['summary', 'funnel_all', 'funnel_30d', 'levels', 'weekly', 'anomalies', 'quests', 'generated_at'] as $key) {
+        foreach (['summary', 'funnel_all', 'funnel_30d', 'levels', 'weekly', 'anomalies', 'quests', 'e5', 'generated_at'] as $key) {
             $this->assertArrayHasKey($key, $d);
         }
+    }
+
+    /**
+     * E5 Ф4 — срез до/после. Активация инжектируется относительно NOW (4 дня назад),
+     * сиды относительны ей → asserts time-stable (не дрейфуют по календарю).
+     */
+    public function testE5SliceCohorts(): void
+    {
+        $db  = Database::connect('tests');
+        $act = date('Y-m-d H:i:s', strtotime('-4 days'));
+        $at  = static fn (string $rel): string => date('Y-m-d H:i:s', strtotime($rel, strtotime($act)));
+
+        // ДО: c10 (за 2 дня до активации, шаг через 10 мин); c11 (за 1 день до, без шага).
+        // ПОСЛЕ: c12 (через 1 час после, набор+удача, шаг через 5 мин, продал);
+        //        c13 (через 2 часа, набор, шаг через 90 мин — вне окна 30 мин).
+        $db->table('characters')->insertBatch([
+            ['id' => 10, 'telegram_user_id' => 1, 'level' => 1, 'cell_number' => 700001, 'created_at' => $at('-2 days')],
+            ['id' => 11, 'telegram_user_id' => 1, 'level' => 1, 'cell_number' => 700002, 'created_at' => $at('-1 day')],
+            ['id' => 12, 'telegram_user_id' => 1, 'level' => 2, 'cell_number' => 700003, 'created_at' => $at('+1 hour')],
+            ['id' => 13, 'telegram_user_id' => 1, 'level' => 1, 'cell_number' => 700004, 'created_at' => $at('+2 hours')],
+        ]);
+        $db->table('explored_cells')->insertBatch([
+            ['character_id' => 10, 'created_at' => $at('-2 days +10 minutes')],
+            ['character_id' => 12, 'created_at' => $at('+1 hour +5 minutes')],
+            ['character_id' => 12, 'created_at' => $at('+1 hour +20 minutes')], // не первый шаг — медиану не двигает
+            ['character_id' => 13, 'created_at' => $at('+2 hours +90 minutes')],
+        ]);
+        $db->table('action_log')->insertBatch([
+            ['character_id' => 12, 'action_name' => 'STARTER_KIT_GRANTED', 'action_status' => 'Completed', 'created_at' => $at('+1 hour')],
+            ['character_id' => 12, 'action_name' => 'LUCKY_FIND_FIRST', 'action_status' => 'Completed', 'created_at' => $at('+65 minutes')],
+            ['character_id' => 12, 'action_name' => 'SELL_RESOURCE', 'action_status' => 'Completed', 'created_at' => $at('+70 minutes')],
+            ['character_id' => 13, 'action_name' => 'STARTER_KIT_GRANTED', 'action_status' => 'Completed', 'created_at' => $at('+2 hours')],
+        ]);
+
+        $e5 = (new FunnelAnalyticsService($act))->e5Slice();
+        $b  = $e5['before'];
+        $a  = $e5['after'];
+
+        // ДО: c10, c11 + c3, c4 из общего сида (создані 5 дн назад = внутри окна 14 дн до активации-4дн... нет:
+        // окно [акт-14д, акт) = [-18д, -4д); c3/c4 (созданы -5 дн) попадают в него. Итого regs=4.
+        $this->assertSame(4, $b['regs']);
+        $this->assertSame(2, $b['moved']);        // c10 + c3 (его первый шаг в день создания)
+        $this->assertSame(0, $b['kit']);          // механики не существовали
+        $this->assertSame(0, $b['lucky']);
+
+        // ПОСЛЕ: ровно c12, c13.
+        $this->assertSame(2, $a['regs']);
+        $this->assertSame(2, $a['moved']);
+        $this->assertSame(100.0, $a['moved_pct']);
+        $this->assertSame(1, $a['moved_30m']);    // только c12 (5 мин); c13 — 90 мин
+        $this->assertSame(50.0, $a['moved_30m_pct']);
+        $this->assertSame(47.5, $a['median_first_move_min']); // медиана из [5, 90]
+        $this->assertSame(2, $a['kit']);
+        $this->assertSame(1, $a['lucky']);
+        $this->assertSame(1, $a['sellers']);
+        $this->assertSame(1, $a['l2plus']);
+    }
+
+    public function testMedianEdgeCases(): void
+    {
+        $this->assertNull(FunnelAnalyticsService::median([]));
+        $this->assertSame(7.0, FunnelAnalyticsService::median([7.0]));
+        $this->assertSame(10.0, FunnelAnalyticsService::median([30.0, 5.0, 10.0]));
+        $this->assertSame(7.5, FunnelAnalyticsService::median([10.0, 5.0]));
     }
 }

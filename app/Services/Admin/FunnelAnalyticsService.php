@@ -27,6 +27,21 @@ final class FunnelAnalyticsService
     /** objective_type расширенных квестов ADR-088 (NEW-бакет). */
     private const EXTENDED_TYPES = "('collect_resource','building_level','level_milestone','npc_kills')";
 
+    /**
+     * E5 Ф4 (ADR-104) — активация E5 на проде: Ф1 стартовый набор 13:04
+     * (Ф3b момент удачи 13:52, Ф2 быстрый цикл 15:20 — тот же день).
+     * Когорта «после» меряется от первой активации.
+     */
+    private const E5_ACTIVATION = '2026-06-10 13:04:00';
+
+    /** Глубина когорты «до» (дней до активации) для сравнения E5. */
+    private const E5_BEFORE_DAYS = 14;
+
+    /** Дата активации инжектируема для тестов (relative-to-NOW сиды → time-stable asserts). */
+    public function __construct(private string $e5Activation = self::E5_ACTIVATION)
+    {
+    }
+
     /** @return array<string,mixed> */
     public function dashboard(): array
     {
@@ -38,6 +53,7 @@ final class FunnelAnalyticsService
             'weekly'     => $this->weeklyCohorts(8),
             'anomalies'  => $this->anomalies(),
             'quests'     => $this->questSlice(),
+            'e5'         => $this->e5Slice(),
             'generated_at' => date('Y-m-d H:i:s'),
         ];
     }
@@ -227,6 +243,108 @@ final class FunnelAnalyticsService
             ];
         }
         return $out;
+    }
+
+    /**
+     * E5 Ф4 (ADR-104) — хронометраж-срез «первые 30 минут»: когорта ДО активации E5
+     * (E5_BEFORE_DAYS дней) vs ПОСЛЕ. Меряет первый шаг (время до него — единственный
+     * полный таймлайн = explored_cells), adoption-механики E5 (набор/удача — флаги
+     * action_log), раннюю экономику (продажи — форензик-лог v0.51.389) и возвраты D1/D7.
+     *
+     * @return array{activation: string, before: array<string,int|float|null>, after: array<string,int|float|null>}
+     */
+    public function e5Slice(): array
+    {
+        return [
+            'activation' => $this->e5Activation,
+            'before'     => $this->e5Cohort(false),
+            'after'      => $this->e5Cohort(true),
+        ];
+    }
+
+    /**
+     * Метрики одной когорты E5-среза.
+     *
+     * @return array<string,int|float|null>
+     */
+    private function e5Cohort(bool $after): array
+    {
+        $act   = Database::connect()->escape($this->e5Activation);
+        $where = $after
+            ? "c.created_at >= {$act}"
+            : 'c.created_at >= ' . $act . ' - INTERVAL ' . self::E5_BEFORE_DAYS . ' DAY AND c.created_at < ' . $act;
+
+        $r = $this->row(
+            "SELECT COUNT(*) regs,
+                    SUM(EXISTS(SELECT 1 FROM explored_cells e WHERE e.character_id = c.id)) moved,
+                    SUM(EXISTS(SELECT 1 FROM explored_cells e WHERE e.character_id = c.id
+                               AND e.created_at <= c.created_at + INTERVAL 30 MINUTE)) moved_30m,
+                    SUM(EXISTS(SELECT 1 FROM action_log a WHERE a.character_id = c.id
+                               AND a.action_name = 'STARTER_KIT_GRANTED')) kit,
+                    SUM(EXISTS(SELECT 1 FROM action_log a WHERE a.character_id = c.id
+                               AND a.action_name = 'LUCKY_FIND_FIRST')) lucky,
+                    SUM(EXISTS(SELECT 1 FROM action_log a WHERE a.character_id = c.id
+                               AND a.action_name IN ('SELL_RESOURCE','BULK_SELL'))) sellers,
+                    SUM(c.level >= 2) l2plus,
+                    SUM(c.created_at <= NOW() - INTERVAL 1 DAY) d1_eligible,
+                    SUM(EXISTS(SELECT 1 FROM explored_cells e WHERE e.character_id = c.id
+                               AND e.created_at >= c.created_at + INTERVAL 1 DAY)) back_d1,
+                    SUM(c.created_at <= NOW() - INTERVAL 7 DAY) d7_eligible,
+                    SUM(EXISTS(SELECT 1 FROM explored_cells e WHERE e.character_id = c.id
+                               AND e.created_at >= c.created_at + INTERVAL 7 DAY)) back_d7
+             FROM characters c WHERE {$where}"
+        );
+
+        // Хронометраж: минуты от регистрации до ПЕРВОГО шага (per-char) → медиана в PHP.
+        $delays = [];
+        foreach ($this->rows(
+            "SELECT TIMESTAMPDIFF(MINUTE, c.created_at, MIN(e.created_at)) m
+             FROM characters c JOIN explored_cells e ON e.character_id = c.id
+             WHERE {$where} GROUP BY c.id, c.created_at"
+        ) as $row) {
+            $m = $row['m'] ?? null;
+            if (is_numeric($m)) {
+                $delays[] = (float) max(0, (int) $m);
+            }
+        }
+
+        $regs     = $this->n($r['regs'] ?? 0);
+        $moved    = $this->n($r['moved'] ?? 0);
+        $moved30m = $this->n($r['moved_30m'] ?? 0);
+
+        return [
+            'regs'                  => $regs,
+            'moved'                 => $moved,
+            'moved_pct'             => $regs > 0 ? round(100 * $moved / $regs, 1) : 0.0,
+            'moved_30m'             => $moved30m,
+            'moved_30m_pct'         => $regs > 0 ? round(100 * $moved30m / $regs, 1) : 0.0,
+            'median_first_move_min' => self::median($delays),
+            'kit'                   => $this->n($r['kit'] ?? 0),
+            'lucky'                 => $this->n($r['lucky'] ?? 0),
+            'sellers'               => $this->n($r['sellers'] ?? 0),
+            'l2plus'                => $this->n($r['l2plus'] ?? 0),
+            'd1_eligible'           => $this->n($r['d1_eligible'] ?? 0),
+            'back_d1'               => $this->n($r['back_d1'] ?? 0),
+            'd7_eligible'           => $this->n($r['d7_eligible'] ?? 0),
+            'back_d7'               => $this->n($r['back_d7'] ?? 0),
+        ];
+    }
+
+    /**
+     * Медиана списка значений; null для пустого. Чистая (unit-тестируется).
+     *
+     * @param list<float> $values
+     */
+    public static function median(array $values): ?float
+    {
+        if ($values === []) {
+            return null;
+        }
+        sort($values);
+        $n   = count($values);
+        $mid = intdiv($n, 2);
+
+        return $n % 2 === 1 ? $values[$mid] : round(($values[$mid - 1] + $values[$mid]) / 2, 1);
     }
 
     // ── db helpers (паттерн CraftingEconomyService) ───────────────────────────
