@@ -116,6 +116,8 @@ class PvEService
         // ADR-088 Фаза 2: победа игрока над NPC → +1 к счётчику (квесты objective_type=npc_kills).
         if ($playerWon) {
             $this->characterModel->incrementNpcKills((int) $player->id);
+            // ADR-106: победа над уникальным боссом → маркер в action_log (боссо-достижения).
+            $this->logBossKill($playerData, $npcData);
         }
 
         // Обновляем данные игрока
@@ -166,6 +168,51 @@ class PvEService
     public static function playerIsWinner(mixed $winner, int $playerId): bool
     {
         return $winner instanceof BattleCharacter && (int) $winner->id === $playerId;
+    }
+
+    /**
+     * ADR-106: имя action_log-маркера победы над боссом, или null если NPC не босс.
+     * npcData — merged выход PveCombatValidator (npcs + npc_spawns), is_boss/npc_name_en там.
+     * Чистый предикат (unit-тестируется).
+     *
+     * @param array<string,mixed> $npcData
+     */
+    public static function bossKillFlagName(array $npcData): ?string
+    {
+        if (empty($npcData['is_boss'])) {
+            return null;
+        }
+        $en = $npcData['npc_name_en'] ?? null;
+
+        return is_string($en) && $en !== '' ? 'BOSS_KILL_' . $en : null;
+    }
+
+    /**
+     * ADR-106: записать маркер победы над боссом (каждое убийство = строка — заодно история).
+     * Defensive: ошибка лога НЕ роняет уже завершённый бой (награды применены выше).
+     *
+     * @param array<string,mixed> $playerData
+     * @param array<string,mixed> $npcData
+     */
+    protected function logBossKill(array $playerData, array $npcData): void
+    {
+        $flag = self::bossKillFlagName($npcData);
+        if ($flag === null) {
+            return;
+        }
+        try {
+            $charRaw = $playerData['id'] ?? null;
+            $chatRaw = $playerData['telegram_chat_id'] ?? null; // путь авто-PvE даёт JOIN'ом; встреча — нет
+            (new \App\Models\ActionLogModel())->insert([
+                'character_id'  => is_numeric($charRaw) ? (int) $charRaw : 0,
+                'chat_id'       => is_numeric($chatRaw) ? (int) $chatRaw : 0, // NOT NULL без default — 0 если неизвестен
+                'action_name'   => $flag,
+                'action_status' => 'Completed', // строго из enum (урок E3/m8k2b)
+                'description'   => 'ADR-106: победа над боссом ' . (is_scalar($npcData['npc_name_ru'] ?? null) ? (string) $npcData['npc_name_ru'] : '?'),
+            ]);
+        } catch (\Throwable $e) {
+            log_message('warning', 'BOSS_KILL лог не записан (бой уже засчитан): ' . $e->getMessage());
+        }
     }
 
 }

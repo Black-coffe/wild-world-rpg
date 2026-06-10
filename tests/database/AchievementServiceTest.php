@@ -22,7 +22,7 @@ final class AchievementServiceTest extends CIUnitTestCase
 
     protected $migrate = false;
 
-    private const TABLES = ['game_settings', 'achievements', 'character_achievements', 'characters', 'claimed_cells'];
+    private const TABLES = ['game_settings', 'achievements', 'character_achievements', 'characters', 'claimed_cells', 'action_log'];
 
     protected function setUp(): void
     {
@@ -37,6 +37,7 @@ final class AchievementServiceTest extends CIUnitTestCase
         $db->query('CREATE TABLE character_achievements (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, achievement_id INT, unlocked_at DATETIME NULL, UNIQUE KEY uniq_char_ach (character_id, achievement_id))');
         $db->query('CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, level INT DEFAULT 1, gold INT DEFAULT 0, telegram_user_id INT NULL)');
         $db->query('CREATE TABLE claimed_cells (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, status VARCHAR(16) DEFAULT \'active\')');
+        $db->query('CREATE TABLE action_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, chat_id BIGINT DEFAULT 0, action_name VARCHAR(255), action_status VARCHAR(20), description TEXT NULL, created_at DATETIME NULL)');
     }
 
     protected function tearDown(): void
@@ -214,5 +215,56 @@ final class AchievementServiceTest extends CIUnitTestCase
     {
         $cid = $this->seedChar(99);
         $this->assertSame(0, $this->svc()->currentValue($cid, 'nonsense_type'));
+    }
+
+    // ── ADR-106 — боссо-достижения (маркеры BOSS_KILL_* в action_log) ─────────
+
+    private function seedBossKill(int $cid, string $bossEn): void
+    {
+        Database::connect('tests')->table('action_log')->insert([
+            'character_id' => $cid, 'chat_id' => 0,
+            'action_name'  => 'BOSS_KILL_' . $bossEn, 'action_status' => 'Completed',
+        ]);
+    }
+
+    public function testQualifyingBossKillSingle(): void
+    {
+        $achId  = $this->seedAchievement('boss_scar', 'boss_kill_scar', 1);
+        $killer = $this->seedChar(30);
+        $other  = $this->seedChar(30);
+        $this->seedBossKill($killer, 'boss_scar_butcher');
+        $this->seedBossKill($other, 'boss_pack_patriarch'); // другой босс — не считается
+
+        $ids = $this->svc()->qualifyingCharacterIds((new AchievementModel())->find($achId));
+        $this->assertSame([$killer], $ids);
+    }
+
+    public function testQualifyingBossKillsDistinctNeedsAllThree(): void
+    {
+        $achId = $this->seedAchievement('boss_all', 'boss_kills_distinct', 3);
+        $two   = $this->seedChar(35);
+        $all   = $this->seedChar(35);
+        $this->seedBossKill($two, 'boss_scar_butcher');
+        $this->seedBossKill($two, 'boss_scar_butcher'); // повтор того же — не дистинкт
+        $this->seedBossKill($two, 'boss_cerberus_prototype');
+        $this->seedBossKill($all, 'boss_scar_butcher');
+        $this->seedBossKill($all, 'boss_cerberus_prototype');
+        $this->seedBossKill($all, 'boss_pack_patriarch');
+
+        $ids = $this->svc()->qualifyingCharacterIds((new AchievementModel())->find($achId));
+        $this->assertSame([$all], $ids);
+    }
+
+    public function testCurrentValueBossCriteria(): void
+    {
+        $cid = $this->seedChar(30);
+        $this->seedBossKill($cid, 'boss_scar_butcher');
+        $this->seedBossKill($cid, 'boss_pack_patriarch');
+
+        $svc = $this->svc();
+        $this->assertSame(1, $svc->currentValue($cid, 'boss_kill_scar'));
+        $this->assertSame(0, $svc->currentValue($cid, 'boss_kill_cerberus'));
+        $this->assertSame(1, $svc->currentValue($cid, 'boss_kill_patriarch'));
+        $this->assertSame(2, $svc->currentValue($cid, 'boss_kills_distinct'));
     }
 }

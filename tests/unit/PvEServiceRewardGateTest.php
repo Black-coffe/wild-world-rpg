@@ -52,4 +52,28 @@ final class PvEServiceRewardGateTest extends CIUnitTestCase
         $this->assertTrue(PvEService::playerIsWinner($player, 7));
         $this->assertFalse(PvEService::playerIsWinner($player, 8));
     }
+
+    // ── ADR-106 — маркер победы над боссом (BOSS_KILL_<npc_name_en>) ──────────
+
+    public function testBossKillFlagNameForBoss(): void
+    {
+        // npcData = merged выход PveCombatValidator (npcs + npc_spawns).
+        $this->assertSame(
+            'BOSS_KILL_boss_scar_butcher',
+            PvEService::bossKillFlagName(['is_boss' => 1, 'npc_name_en' => 'boss_scar_butcher'])
+        );
+    }
+
+    public function testBossKillFlagNameNullForRegularNpc(): void
+    {
+        $this->assertNull(PvEService::bossKillFlagName(['is_boss' => 0, 'npc_name_en' => 'sand_wolf_raider']));
+        $this->assertNull(PvEService::bossKillFlagName(['npc_name_en' => 'sand_wolf_raider'])); // is_boss отсутствует
+        $this->assertNull(PvEService::bossKillFlagName(['is_boss' => '0', 'npc_name_en' => 'x'])); // строковый '0'
+    }
+
+    public function testBossKillFlagNameNullWithoutEnName(): void
+    {
+        $this->assertNull(PvEService::bossKillFlagName(['is_boss' => 1]));
+        $this->assertNull(PvEService::bossKillFlagName(['is_boss' => 1, 'npc_name_en' => '']));
+    }
 }

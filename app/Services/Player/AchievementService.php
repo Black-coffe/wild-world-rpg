@@ -24,6 +24,9 @@ use Throwable;
  *  - has_base                     → EXISTS claimed_cells (status=active)
  *  - has_faction                  → EXISTS character_factions (joined_at, faction_id<>5)
  *  - quests_completed             → COUNT quest_steps (is_completed=1)
+ *  - boss_kill_scar/cerberus/patriarch → EXISTS action_log BOSS_KILL_<npc_name_en> (ADR-106;
+ *    маркер пишет PvEService::logBossKill при победе игрока над is_boss-NPC)
+ *  - boss_kills_distinct          → COUNT(DISTINCT action_name) LIKE 'BOSS_KILL_%' (все боссы)
  */
 final class AchievementService
 {
@@ -214,6 +217,11 @@ final class AchievementService
             'gold_bought'      => "SELECT COALESCE(SUM(price), 0) AS v FROM transactions WHERE character_id = ? AND type = 'buy'",
             // Бой (монотонный счётчик побед над NPC; путь боя починен v0.51.370):
             'npc_kills'        => 'SELECT COALESCE(npc_kills, 0) AS v FROM characters WHERE id = ?',
+            // ADR-106 — уникальные боссы севера (маркеры BOSS_KILL_* пишет PvEService::logBossKill):
+            'boss_kill_scar'      => "SELECT EXISTS(SELECT 1 FROM action_log WHERE character_id = ? AND action_name = 'BOSS_KILL_boss_scar_butcher') AS v",
+            'boss_kill_cerberus'  => "SELECT EXISTS(SELECT 1 FROM action_log WHERE character_id = ? AND action_name = 'BOSS_KILL_boss_cerberus_prototype') AS v",
+            'boss_kill_patriarch' => "SELECT EXISTS(SELECT 1 FROM action_log WHERE character_id = ? AND action_name = 'BOSS_KILL_boss_pack_patriarch') AS v",
+            'boss_kills_distinct' => "SELECT COUNT(DISTINCT action_name) AS v FROM action_log WHERE character_id = ? AND action_name LIKE 'BOSS_KILL_%'",
             default            => null,
         };
         if ($sql === null) {
@@ -325,6 +333,20 @@ final class AchievementService
             // Бой: монотонный счётчик побед над NPC (characters.npc_kills; путь боя починен v0.51.370).
             case 'npc_kills':
                 return ['COALESCE(c.npc_kills, 0) >= ?', [$target]];
+
+            // ADR-106 — уникальные боссы севера: маркеры BOSS_KILL_<npc_name_en> в action_log
+            // (пишет PvEService::logBossKill при победе игрока над is_boss-NPC). Монотонны.
+            case 'boss_kill_scar':
+                return ['EXISTS (SELECT 1 FROM action_log al WHERE al.character_id = c.id AND al.action_name = ?)', ['BOSS_KILL_boss_scar_butcher']];
+
+            case 'boss_kill_cerberus':
+                return ['EXISTS (SELECT 1 FROM action_log al WHERE al.character_id = c.id AND al.action_name = ?)', ['BOSS_KILL_boss_cerberus_prototype']];
+
+            case 'boss_kill_patriarch':
+                return ['EXISTS (SELECT 1 FROM action_log al WHERE al.character_id = c.id AND al.action_name = ?)', ['BOSS_KILL_boss_pack_patriarch']];
+
+            case 'boss_kills_distinct':
+                return ["(SELECT COUNT(DISTINCT al.action_name) FROM action_log al WHERE al.character_id = c.id AND al.action_name LIKE 'BOSS_KILL_%') >= ?", [$target]];
 
             default:
                 return null;
