@@ -53,10 +53,24 @@ class BotController extends Controller
             }
         }
 
+        // E6 (ADR-108) Фаза 1 — достаём telegram_id ДО обработки, проставляем last_seen
+        // ПОСЛЕ (в finally). Порядок важен: во время handle() код видит ПРЕДЫДУЩЕЕ
+        // значение last_seen (основа digest «пока тебя не было», Ф2). Defensive — stamp
+        // не должен влиять на обработку апдейта.
+        $rawBody        = $this->request->getBody();
+        $update         = is_string($rawBody) ? json_decode($rawBody, true) : null;
+        $telegramUserId = is_array($update)
+            ? \App\Services\Player\LastSeenService::extractTelegramId($update)
+            : null;
+
         try {
             $this->telegram->handle();
         } catch (TelegramException $e) {
             log_message('error', $e->getMessage());
+        } finally {
+            if ($telegramUserId !== null) {
+                (new \App\Services\Player\LastSeenService())->stampByTelegramId($telegramUserId);
+            }
         }
     }
 

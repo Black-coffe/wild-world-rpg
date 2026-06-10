@@ -288,13 +288,21 @@ final class EventDispatcher
             $hasProtection = $row !== null && (int)($row['quantity'] ?? 0) > 0;
         }
 
+        // E6 (ADR-108) Ф1 — реальный last_seen_hours_ago (был всегда null = мёртвый
+        // NightAttacks sleeping_player_skip). Нарроим telegram_user_id через переменную
+        // (urok feedback_phpstan_no_mixed_to_int_cast — не inline-cast mixed offset).
+        $rawTgUserId   = $char['telegram_user_id'] ?? null;
+        $tgUserId      = is_numeric($rawTgUserId) ? (int) $rawTgUserId : 0;
+        $lastSeenSvc   = new \App\Services\Player\LastSeenService();
+        $lastSeenHours = \App\Services\Player\LastSeenService::hoursAgo($lastSeenSvc->getById($tgUserId));
+
         return [
             'on_base'              => $onBase,
             'is_gathering'         => $isGather,
             'is_exploring'         => $isExplore,
             'biome'                => $biome,
             'now_time'             => date('H:i'),
-            'last_seen_hours_ago'  => null,  // F7.6: додати telegram_users.last_seen
+            'last_seen_hours_ago'  => $lastSeenHours,
             'has_protection_item'  => $hasProtection,
         ];
     }
