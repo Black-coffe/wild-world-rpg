@@ -73,6 +73,13 @@ class BotController extends Controller
             } catch (\Throwable $e) {
                 log_message('error', '[Bot.webhook] returnDigest: ' . $e->getMessage());
             }
+            // E6 (ADR-108) Ф3 — стрик входа: награда на ПЕРВОМ взаимодействии нового дня.
+            // ДО handle() → карточка Перса (если это первое действие) покажет обновлённую серию.
+            try {
+                (new \App\Services\Player\LoginStreakService())->maybeReward($telegramUserId, $chatId);
+            } catch (\Throwable $e) {
+                log_message('error', '[Bot.webhook] loginStreak: ' . $e->getMessage());
+            }
         }
 
         try {

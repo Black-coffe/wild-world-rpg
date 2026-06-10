@@ -58,6 +58,8 @@ class CharacterModel extends Model
         'notify_sound',        // W28 (ADR-083) — override «звук о завершении задач» (default 0 = тихо при killswitch ON)
         'npc_kills',           // ADR-088 Фаза 2 — монотонный счётчик побед над NPC (квесты npc_kills)
         'tax_unpaid_streak',   // ADR-095 Фаза 2 (dormant) — подряд дней неуплаты налога (налог-каскад)
+        'login_streak',           // E6 (ADR-108) Ф3 — серия входов подряд (дней)
+        'login_streak_last_day',  // E6 (ADR-108) Ф3 — дата последнего засчитанного входа
     ];
 
     protected $useTimestamps = true;

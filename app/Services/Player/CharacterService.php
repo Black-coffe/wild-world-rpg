@@ -119,7 +119,11 @@ class CharacterService
             . "💖 *Здоровье:* {$characterRow['health']}\n"
             . "🥱 *Выносливость:* {$characterRow['tired']}\n\n"
             . "💹 *Карма торговли:* {$characterRow['trading_karma']}\n"
-            . $goldText . "\n\n";
+            . $goldText . "\n";
+
+        // E6 (ADR-108) Ф3 — серия входов (discoverability: видна всем при killswitch ON).
+        $streakLine = (new \App\Services\Player\LoginStreakService())->streakLine($characterRow);
+        $text .= ($streakLine !== null ? $streakLine . "\n" : '') . "\n";
 
         // Добавляем броню и оружие
         $text .= "🛡 *Броня:* " . ($equippedArmor ?: "❌ Нет") . "\n";

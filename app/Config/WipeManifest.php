@@ -232,6 +232,8 @@ class WipeManifest extends BaseConfig
         'specialization_changed_at' => null,
         'whats_new_seen'            => null,
         'npc_kills'                 => 0, // ADR-088 Фаза 2 — счётчик побед над NPC (прогресс).
+        'login_streak'              => 0,    // E6 (ADR-108) Ф3 — серия входов (прогресс) → 0 после вайпа.
+        'login_streak_last_day'     => null, // E6 (ADR-108) Ф3 — дата последнего входа → null после вайпа.
     ];
 
     /**
