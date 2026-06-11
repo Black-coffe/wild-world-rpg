@@ -249,5 +249,12 @@ class Tasks extends BaseTasks
         // + pvp.ladder.broadcast_enabled (оба OFF dormant). singleInstance против overlap.
         $schedule->call(static fn() => (new \App\TaskHandlers\PVP\PvpLadderWeeklyBroadcastHandler())->handle())
             ->everyMinute()->singleInstance()->named('pvp-ladder.weekly-broadcast');
+
+        // E4 (ROADMAP-100) — авто-эскалация онбординга «застрял»: новичку с висящим
+        // онбординг-шагом (> stuck_minutes) и активному сейчас (last_seen) шлёт ОДНУ
+        // контекстную подсказку. everyMinute + killswitch onboarding.auto_escalation.enabled
+        // (default OFF dormant). One-shot per шаг (OnbNudge_*). singleInstance против overlap.
+        $schedule->call(static fn() => (new \App\TaskHandlers\Onboarding\OnboardingNudgeHandler())->handle())
+            ->everyMinute()->singleInstance()->named('onboarding.auto-escalation');
     }
 }

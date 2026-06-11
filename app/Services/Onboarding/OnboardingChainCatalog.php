@@ -188,4 +188,25 @@ class OnboardingChainCatalog
     {
         return str_starts_with($titleEn, self::PREFIX);
     }
+
+    /**
+     * Шаг цепочки по его title_en (или null). Нужен авто-эскалации (E4): по застрявшему
+     * шагу достаём `description` текущей задачи, чтобы пере-подсказать «что делать сейчас».
+     *
+     * @return array{
+     *   title_en:string, title_ru:string, objective_type:string,
+     *   objective_target:?string, objective_qty:int, reward:int,
+     *   description:string, done_text:string
+     * }|null
+     */
+    public static function find(string $titleEn): ?array
+    {
+        foreach (self::steps() as $step) {
+            if ($step['title_en'] === $titleEn) {
+                return $step;
+            }
+        }
+
+        return null;
+    }
 }
