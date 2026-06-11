@@ -137,6 +137,7 @@ class WipeManifest extends BaseConfig
         'battle_logs'            => ['strategy' => self::PLAYER_DATA, 'link' => ['player1_id', 'player2_id'], 'by' => 'character', 'note' => 'Логи боёв PvP'],
         'character_achievements' => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Разблокированные достижения'],
         'character_buildings'    => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Постройки игрока'],
+        'character_daily_tasks'  => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Ежедневные задания (ADR-109)'],
         'character_data'         => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Координаты/статы/состояние персонажа'],
         'character_factions'     => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Членство во фракции'],
         'character_game_tips'    => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Просмотренные советы'],

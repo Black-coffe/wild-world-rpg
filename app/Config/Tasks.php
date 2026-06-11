@@ -256,5 +256,10 @@ class Tasks extends BaseTasks
         // (default OFF dormant). One-shot per шаг (OnbNudge_*). singleInstance против overlap.
         $schedule->call(static fn() => (new \App\TaskHandlers\Onboarding\OnboardingNudgeHandler())->handle())
             ->everyMinute()->singleInstance()->named('onboarding.auto-escalation');
+
+        // E8 (ROADMAP-100, ADR-109) — ежедневные задания: прогресс по baseline-дельте + награды.
+        // everyMinute + killswitch quests.daily.enabled (default OFF dormant). singleInstance.
+        $schedule->call(static fn() => (new \App\TaskHandlers\Quests\DailyTaskProgressHandler())->handle())
+            ->everyMinute()->singleInstance()->named('quests.daily-progress');
     }
 }
