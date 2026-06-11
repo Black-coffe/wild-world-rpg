@@ -127,6 +127,27 @@ final class TitleServiceTest extends CIUnitTestCase
         $this->assertSame($t1, $svc->activeTitleId($cid)); // активным остаётся первый
     }
 
+    /**
+     * E11 Ф2 (фикс-лист среза E12): backfill через cron авто-экипирует ВЫСШИЙ титул
+     * (обратный порядок sort_order), а не L1 «Выживший» — ветеран с пачкой титулов
+     * за один тик получает активным самый престижный.
+     */
+    public function testCronBackfillAutoEquipsHighest(): void
+    {
+        $this->enable();
+        $tLow  = $this->seedTitle('survivor', 'level', '1', 10);
+        $tMid  = $this->seedTitle('wanderer', 'level', '5', 20);
+        $tHigh = $this->seedTitle('veteran', 'level', '10', 30);
+        $cid   = $this->seedChar(10); // квалифицируется на все три разом (backfill)
+
+        $cron = new SilentTitleCheckCron(new TitleService());
+        $cron->handle();
+
+        $svc = new TitleService();
+        $this->assertEqualsCanonicalizing([$tLow, $tMid, $tHigh], $svc->unlockedTitleIds($cid));
+        $this->assertSame($tHigh, $svc->activeTitleId($cid)); // экипирован высший, не «Выживший»
+    }
+
     public function testQualifyingLevelSource(): void
     {
         $svc = new TitleService();
@@ -212,5 +233,19 @@ final class TitleServiceTest extends CIUnitTestCase
         $map = $svc->rarityPercentMap();
         $this->assertEqualsWithDelta(25.0, $map[$t1], 0.01);
         $this->assertEqualsWithDelta(0.0, $map[$t2], 0.01);
+    }
+}
+
+/**
+ * Test-double: notify() -> no-op (в тест-схеме нет telegram_users/telegram_user_id;
+ * урок feedback_taskhandler_telegram_init_in_tests - не дёргать Telegram на CI).
+ *
+ * @internal
+ */
+final class SilentTitleCheckCron extends \App\TaskHandlers\Titles\TitleCheckCron
+{
+    protected function notify(int $characterId, array $titleList): void
+    {
+        // no-op
     }
 }

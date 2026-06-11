@@ -51,7 +51,11 @@ class TitleCheckCron extends BaseTaskHandler
         /** @var array<int, list<array<int|string,mixed>>> $perPlayer charId => list of title rows */
         $perPlayer = [];
 
-        foreach ($this->service->definitions() as $title) {
+        // E11 Ф2 (фикс-лист среза E12): обход в ОБРАТНОМ порядке sort_order — при backfill
+        // (ветеран проходит сразу несколько титулов) первым выдаётся и АВТО-ЭКИПИРУЕТСЯ
+        // высший/престижный, а не L1 «Выживший». Инкрементальные выдачи (один титул за
+        // levelup) не затронуты — порядок важен только внутри батча одного персонажа.
+        foreach (array_reverse($this->service->definitions()) as $title) {
             if ($awarded >= $cap) {
                 break;
             }
