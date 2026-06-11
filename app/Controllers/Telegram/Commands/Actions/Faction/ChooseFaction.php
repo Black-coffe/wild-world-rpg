@@ -24,6 +24,11 @@ class ChooseFaction extends BaseAction
             return $this->sendFactionInfo($chatId);
         }
 
+        // E7 (ROADMAP-100) — витрина выгод: сравнительный экран 4 фракций в момент выбора.
+        if (($callbackParts[1] ?? null) === 'compare') {
+            return $this->sendFactionComparison($chatId);
+        }
+
         $faction = $callbackParts[1];
         $characterModel = new CharacterModel();
         $characterId = $characterModel->getCharacterIdByTelegramId($chatId);
@@ -92,7 +97,58 @@ class ChooseFaction extends BaseAction
                     ['text' => '🛠️ Инженеры', 'callback_data' => 'chooseFaction_Engineers'],
                     ['text' => '🌾 Фермеры', 'callback_data' => 'chooseFaction_Farmers'],
                 ],
+                [
+                    ['text' => '📊 Сравнить фракции', 'callback_data' => 'chooseFaction_compare'],
+                ],
             ]
+        ];
+        Request::answerCallbackQuery(['callback_query_id' => $chatId]);
+        return Request::sendMessage([
+            'chat_id' => $chatId,
+            'text' => $message,
+            'parse_mode' => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
+        ]);
+    }
+
+    /**
+     * E7 (ROADMAP-100) — витрина выгод: 4 фракции рядом, чтобы сравнить ДО клика в каждую.
+     * Срез E7: момент выбора — место для конверсии; сравнительная подача снимает «паралич
+     * выбора». Самодостаточно текстом (MEDIA-OFF неактуален — диалог чисто текстовый).
+     */
+    protected function sendFactionComparison(int|string $chatId): ServerResponse
+    {
+        $message = "*📊 Сравнение фракций*\n\n"
+            . "🛡️ *Милитари* — прямой бой и захват точек.\n"
+            . "   _Сила:_ мощное вооружение, укреплённая оборона.\n"
+            . "   _Цена:_ высокий расход ресурсов и логистики.\n\n"
+            . "🌲 *Партизаны* — скрытность, засады, мобильность.\n"
+            . "   _Сила:_ внезапные удары, лёгкий уход от погони.\n"
+            . "   _Цена:_ слабее в тяжёлом вооружении.\n\n"
+            . "🛠️ *Инженеры* — роботы, электроника, технологии.\n"
+            . "   _Сила:_ уникальный крафт, влияние через техпроекты.\n"
+            . "   _Цена:_ требовательны к редким ресурсам и энергии.\n\n"
+            . "🌾 *Фермеры* — производство еды и ресурсов, экономика.\n"
+            . "   _Сила:_ снабжение союзников, сильная экономбаза.\n"
+            . "   _Цена:_ слабее в чистом бою.\n\n"
+            . "*Общее для всех:* легендарное оружие и броня своей стороны, "
+            . "общий крафт-проект (−10% к крафту всем своим) и скидки у караванов-союзников.\n\n"
+            . "_Выбор необратим до вайпа персонажа — выбирай по своему стилю игры._";
+
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => '🛡️ Милитари', 'callback_data' => 'chooseFaction_Military'],
+                    ['text' => '🌲 Партизаны', 'callback_data' => 'chooseFaction_Partisans'],
+                ],
+                [
+                    ['text' => '🛠️ Инженеры', 'callback_data' => 'chooseFaction_Engineers'],
+                    ['text' => '🌾 Фермеры', 'callback_data' => 'chooseFaction_Farmers'],
+                ],
+                [
+                    ['text' => '⬅️ Назад', 'callback_data' => 'chooseFaction_info'],
+                ],
+            ],
         ];
         Request::answerCallbackQuery(['callback_query_id' => $chatId]);
         return Request::sendMessage([

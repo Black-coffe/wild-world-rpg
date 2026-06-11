@@ -20,6 +20,7 @@ $anom   = $arr($d['anomalies'] ?? null);
 $quests = $arr($d['quests'] ?? null);
 $e5     = $arr($d['e5'] ?? null);
 $onb    = $arr($d['onboarding'] ?? null);
+$fac    = $arr($d['faction'] ?? null);
 $pctCls = static fn (float $p): string => $p >= 50 ? 'text-success' : ($p >= 10 ? 'text-warning' : 'text-danger');
 ?>
 
@@ -215,6 +216,52 @@ $pctCls = static fn (float $p): string => $p >= 50 ? 'text-success' : ($p >= 10 
                                     <td class="small"><code><?= esc($str($h['action_name'] ?? '')) ?></code></td>
                                     <td class="text-end"><?= esc($num($h['chars'] ?? 0)) ?></td>
                                 </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- E7 — конверсия в фракцию (ADR-097 срез) -->
+        <div class="row">
+            <div class="col-xl-8">
+                <div class="card">
+                    <div class="card-header py-2"><b>E7 — Конверсия в фракцию (срез ADR-097, цель 3.4%→30%)</b></div>
+                    <div class="card-body p-2">
+                        <?php
+                        $facAllPct = $pf($fac['conversion_all_pct'] ?? null);
+                        $facEligPct = $pf($fac['conversion_eligible_pct'] ?? null);
+                        ?>
+                        <div class="row text-center mb-2">
+                            <div class="col"><h4 class="mb-0"><?= esc($num($fac['chosen'] ?? 0)) ?></h4><small class="text-muted">Выбрали фракцию</small></div>
+                            <div class="col"><h4 class="mb-0 <?= $pctCls($facEligPct) ?>"><?= esc((string) $facEligPct) ?>%</h4><small class="text-muted">от достигших L10 (<?= esc($num($fac['l10_eligible'] ?? 0)) ?>) — здоровье диалога</small></div>
+                            <div class="col"><h4 class="mb-0 <?= $pctCls($facAllPct) ?>"><?= esc((string) $facAllPct) ?>%</h4><small class="text-muted">от всех чаров (<?= esc($num($fac['total'] ?? 0)) ?>) — цель роадмапа</small></div>
+                            <div class="col"><h4 class="mb-0"><?= esc($num($fac['unchosen_at_l10'] ?? 0)) ?></h4><small class="text-muted">L10+ без фракции</small></div>
+                        </div>
+                        <p class="text-muted small mb-0">
+                            Выбрали с активации ADR-097 (<?= esc($str($fac['nudge_activation'] ?? '')) ?>):
+                            <b><?= esc($num($fac['chosen_since_nudge'] ?? 0)) ?></b>.
+                            Узкое место — НЕ диалог выбора (eligible-конверсия высокая), а доведение до L10 + ранняя мотивация.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-4">
+                <div class="card">
+                    <div class="card-header py-2"><b>Распределение по фракциям</b></div>
+                    <div class="card-body p-2">
+                        <?php $byFac = $arr($fac['by_faction'] ?? null); ?>
+                        <?php if ($byFac === []): ?>
+                            <p class="text-muted small mb-0">Никто ещё не выбрал фракцию.</p>
+                        <?php else: ?>
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr><th>Фракция</th><th class="text-end">Игроков</th></tr></thead>
+                            <tbody>
+                            <?php foreach ($byFac as $bf): $bf = $arr($bf); ?>
+                                <tr><td><?= esc($str($bf['name'] ?? '')) ?></td><td class="text-end"><?= esc($num($bf['chars'] ?? 0)) ?></td></tr>
                             <?php endforeach; ?>
                             </tbody>
                         </table>

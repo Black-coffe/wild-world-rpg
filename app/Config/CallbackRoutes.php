@@ -234,6 +234,8 @@ class CallbackRoutes extends BaseConfig
 
         // === Faction ===
         'chooseFaction'                   => \App\Controllers\Telegram\Commands\Actions\Faction\ChooseFaction::class,
+        // E7 (ROADMAP-100) — lock-кнопка «⚑ Фракция (с lvl 10)» для <L10: ранняя посадка цели.
+        'chooseFactionLocked'             => \App\Controllers\Telegram\Commands\Actions\Faction\ChooseFactionLockedAction::class,
         // V20 (ADR-051) — фракц-проект (общий вклад → фракц-buff).
         'factionProject'                  => \App\Controllers\Telegram\Commands\Actions\Faction\FactionProjectAction::class,
         'factionProjectLocked'            => \App\Controllers\Telegram\Commands\Actions\Faction\FactionProjectLockedAction::class,

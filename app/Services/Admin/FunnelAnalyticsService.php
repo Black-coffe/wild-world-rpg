@@ -28,6 +28,14 @@ final class FunnelAnalyticsService
     /** objective_type расширенных квестов ADR-088 (NEW-бакет). */
     private const EXTENDED_TYPES = "('collect_resource','building_level','level_milestone','npc_kills')";
 
+    /** Активация ADR-097 (faction-choice nudge: value-prop + 1000💰 + анти-спам) на проде. */
+    private const FACTION_NUDGE_ACTIVATION = '2026-06-04 00:00:00';
+
+    /** faction_id → имя (как в ChooseFaction); 5 = плейсхолдер «не выбрана». */
+    private const FACTION_NAMES = [
+        1 => '🛡️ Милитари', 2 => '🌲 Партизаны', 3 => '🛠️ Инженеры', 4 => '🌾 Фермеры',
+    ];
+
     /**
      * E5 Ф4 (ADR-104) — активация E5 на проде: Ф1 стартовый набор 13:04
      * (Ф3b момент удачи 13:52, Ф2 быстрый цикл 15:20 — тот же день).
@@ -56,6 +64,7 @@ final class FunnelAnalyticsService
             'quests'     => $this->questSlice(),
             'e5'         => $this->e5Slice(),
             'onboarding' => $this->onboardingChainSlice(),
+            'faction'    => $this->factionConversionSlice(),
             'generated_at' => date('Y-m-d H:i:s'),
         ];
     }
@@ -431,6 +440,68 @@ final class FunnelAnalyticsService
             'graduated' => $graduated,
             'steps'     => $steps,
             'hints'     => $hints,
+        ];
+    }
+
+    /**
+     * E7 (ROADMAP-100-SESSIONS) — срез конверсии в фракцию (цель E7: 3.4% → ≥30%).
+     *
+     * Ключевой методологический акцент: конверсию мерим ДВУМЯ знаменателями —
+     *   • от ВСЕХ чаров (`conversion_all_pct`) = цель роадмапа 3.4%→30%;
+     *   • от ДОСТИГШИХ L10 (`conversion_eligible_pct`) = здоровье самого диалога выбора.
+     * Срез 2026-06-11 вскрыл: eligible-конверсия ~62% (диалог работает), а узкое место —
+     * доведение до L10 (анлок фракций) + ранняя мотивация. `chosen_since_nudge` мерит эффект
+     * ADR-097 (стимул 1000💰 + value-prop) с активации.
+     *
+     * faction_id 1-4 = реальные фракции; 5 = плейсхолдер «не выбрана» (крон создал, выбора нет).
+     *
+     * @return array{
+     *   total:int, l10_eligible:int, chosen:int, unchosen_at_l10:int,
+     *   conversion_all_pct:float, conversion_eligible_pct:float,
+     *   chosen_since_nudge:int, nudge_activation:string,
+     *   by_faction: list<array{faction_id:int,name:string,chars:int}>
+     * }
+     */
+    public function factionConversionSlice(): array
+    {
+        $r = $this->row(
+            "SELECT (SELECT COUNT(*) FROM characters) total,
+                    (SELECT COUNT(*) FROM characters WHERE level >= 10) l10,
+                    (SELECT COUNT(*) FROM character_factions WHERE faction_id BETWEEN 1 AND 4) chosen,
+                    (SELECT COUNT(*) FROM characters c WHERE c.level >= 10
+                        AND NOT EXISTS(SELECT 1 FROM character_factions cf
+                            WHERE cf.character_id = c.id AND cf.faction_id BETWEEN 1 AND 4)) unchosen_l10,
+                    (SELECT COUNT(*) FROM character_factions WHERE faction_id BETWEEN 1 AND 4
+                        AND joined_at >= '" . self::FACTION_NUDGE_ACTIVATION . "') chosen_since"
+        );
+
+        $total    = $this->n($r['total'] ?? 0);
+        $l10      = $this->n($r['l10'] ?? 0);
+        $chosen   = $this->n($r['chosen'] ?? 0);
+
+        $byFaction = [];
+        foreach ($this->rows(
+            'SELECT faction_id, COUNT(*) chars FROM character_factions
+             WHERE faction_id BETWEEN 1 AND 4 GROUP BY faction_id ORDER BY faction_id'
+        ) as $row) {
+            $fid = $this->n($row['faction_id'] ?? 0);
+            $byFaction[] = [
+                'faction_id' => $fid,
+                'name'       => self::FACTION_NAMES[$fid] ?? ('#' . $fid),
+                'chars'      => $this->n($row['chars'] ?? 0),
+            ];
+        }
+
+        return [
+            'total'                   => $total,
+            'l10_eligible'            => $l10,
+            'chosen'                  => $chosen,
+            'unchosen_at_l10'         => $this->n($r['unchosen_l10'] ?? 0),
+            'conversion_all_pct'      => $total > 0 ? round(100 * $chosen / $total, 1) : 0.0,
+            'conversion_eligible_pct' => $l10 > 0 ? round(100 * $chosen / $l10, 1) : 0.0,
+            'chosen_since_nudge'      => $this->n($r['chosen_since'] ?? 0),
+            'nudge_activation'        => self::FACTION_NUDGE_ACTIVATION,
+            'by_faction'              => $byFaction,
         ];
     }
 

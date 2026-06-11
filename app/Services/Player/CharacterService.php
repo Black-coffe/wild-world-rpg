@@ -177,6 +177,11 @@ class CharacterService
             && !empty($charFaction['joined_at']);
         if ($level >= 10 && !$hasChosenFaction) {
             $inlineRows[] = [['text' => '⚑ Выбрать фракцию', 'callback_data' => 'chooseFaction_info']];
+        } elseif ($level < 10 && !$hasChosenFaction) {
+            // E7 (ROADMAP-100): lock-кнопка для <L10 — ранняя посадка цели. Срез показал:
+            // 62% доросших до L10 выбирают фракцию, но до L10 цель была НЕВИДИМА. Клик →
+            // alert с prerequisite + value-prop teaser (UX-DISCOVERABILITY, не скрываем молча).
+            $inlineRows[] = [['text' => '🔒 ⚑ Фракция (с lvl 10)', 'callback_data' => 'chooseFactionLocked']];
         }
 
         // V16 (ADR-047) Специализация + V20 (ADR-051) Проект фракции + W5 (ADR-064) Combat drone —

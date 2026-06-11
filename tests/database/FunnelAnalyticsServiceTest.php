@@ -38,7 +38,7 @@ final class FunnelAnalyticsServiceTest extends CIUnitTestCase
         $db->query('CREATE TABLE characters (id INT PRIMARY KEY, telegram_user_id INT NULL, level INT NOT NULL DEFAULT 1,
                     cell_number INT NULL, created_at DATETIME NULL)');
         $db->query("CREATE TABLE claimed_cells (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, status VARCHAR(20) DEFAULT 'active')");
-        $db->query('CREATE TABLE character_factions (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, faction_id INT)');
+        $db->query('CREATE TABLE character_factions (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, faction_id INT, joined_at DATETIME NULL)');
         $db->query('CREATE TABLE explored_cells (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, created_at DATETIME)');
         $db->query('CREATE TABLE quests (id INT PRIMARY KEY, objective_type VARCHAR(50) NULL, title_en VARCHAR(255) NULL)');
         $db->query("CREATE TABLE game_settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(190),
@@ -69,7 +69,7 @@ final class FunnelAnalyticsServiceTest extends CIUnitTestCase
             ['character_id' => 1, 'status' => 'active'],
         ]);
         $db->table('character_factions')->insertBatch([
-            ['character_id' => 1, 'faction_id' => 2],
+            ['character_id' => 1, 'faction_id' => 2, 'joined_at' => '2026-06-09 00:00:00'], // после активации ADR-097
         ]);
         $db->table('explored_cells')->insertBatch([
             ['character_id' => 1, 'created_at' => $daysAgo(59)],
@@ -209,9 +209,26 @@ final class FunnelAnalyticsServiceTest extends CIUnitTestCase
     {
         $d = (new FunnelAnalyticsService())->dashboard();
 
-        foreach (['summary', 'funnel_all', 'funnel_30d', 'levels', 'weekly', 'anomalies', 'quests', 'e5', 'onboarding', 'generated_at'] as $key) {
+        foreach (['summary', 'funnel_all', 'funnel_30d', 'levels', 'weekly', 'anomalies', 'quests', 'e5', 'onboarding', 'faction', 'generated_at'] as $key) {
             $this->assertArrayHasKey($key, $d);
         }
+    }
+
+    /** E7 — срез конверсии в фракцию: chosen/eligible/all + since-nudge + by-faction. */
+    public function testFactionConversionSlice(): void
+    {
+        $f = (new FunnelAnalyticsService())->factionConversionSlice();
+
+        $this->assertSame(4, $f['total']);            // c1-c4
+        $this->assertSame(1, $f['l10_eligible']);      // только c1 (L10)
+        $this->assertSame(1, $f['chosen']);            // c1 в фракции 2
+        $this->assertSame(0, $f['unchosen_at_l10']);   // c1 (L10) уже в фракции
+        $this->assertSame(100.0, $f['conversion_eligible_pct']); // 1/1
+        $this->assertSame(25.0, $f['conversion_all_pct']);        // 1/4
+        $this->assertSame(1, $f['chosen_since_nudge']);           // joined_at 2026-06-09 ≥ активации
+        $this->assertCount(1, $f['by_faction']);
+        $this->assertSame(2, $f['by_faction'][0]['faction_id']);
+        $this->assertSame(1, $f['by_faction'][0]['chars']);
     }
 
     /** E4 — срез онбординг-цепочки: per-step reached/completed, started/graduated, killswitch, hints. */
