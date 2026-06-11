@@ -36,11 +36,15 @@ final class GatherCellResourceQueryTest extends CIUnitTestCase
         $db->query('DROP TABLE IF EXISTS map');
         $db->query('DROP TABLE IF EXISTS biomes');
         $db->query('DROP TABLE IF EXISTS resources');
+        $db->query('DROP TABLE IF EXISTS game_settings');
 
+        $db->query('CREATE TABLE game_settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(191), value_type VARCHAR(16) NULL, value_int INT NULL, value_bool TINYINT NULL, value_string TEXT NULL)');
         $db->query('
             CREATE TABLE map (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 cell_number INT NOT NULL UNIQUE,
+                coordinate_x INT NULL,
+                coordinate_y INT NULL,
                 biome_id INT NULL,
                 created_at DATETIME NULL,
                 updated_at DATETIME NULL
@@ -73,6 +77,8 @@ final class GatherCellResourceQueryTest extends CIUnitTestCase
                 sell_price DECIMAL(10,2) NULL,
                 rarity INT NULL,
                 level_required INT NOT NULL DEFAULT 1,
+                min_y INT NULL,
+                max_y INT NULL,
                 initial_quantity INT NOT NULL DEFAULT 100,
                 keyword VARCHAR(100) NULL,
                 icon_text VARCHAR(255) NULL,
@@ -115,6 +121,7 @@ final class GatherCellResourceQueryTest extends CIUnitTestCase
         $db->query('DROP TABLE IF EXISTS map');
         $db->query('DROP TABLE IF EXISTS biomes');
         $db->query('DROP TABLE IF EXISTS resources');
+        $db->query('DROP TABLE IF EXISTS game_settings');
         parent::tearDown();
     }
 
