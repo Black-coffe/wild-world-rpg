@@ -64,6 +64,12 @@ final class ItemModifierServiceTest extends CIUnitTestCase
         $this->cleanCache();
     }
 
+    private function seedFloat(string $key, float $val): void
+    {
+        Database::connect('tests')->table('game_settings')->insert(['setting_key' => $key, 'category' => 'craft', 'value_type' => 'float', 'value_float' => $val]);
+        $this->cleanCache();
+    }
+
     private function cleanCache(): void
     {
         if (function_exists('cache')) {
@@ -233,5 +239,100 @@ final class ItemModifierServiceTest extends CIUnitTestCase
         $res = (new ItemModifierService())->enchant(1, 'weapon', 50);
         $this->assertFalse($res['ok']);
         $this->assertSame('disabled', $res['error']);
+    }
+
+    // ── E14 (ADR-114) — грандмастер-band ──────────────────────────────────────
+
+    public function testEffectiveCapLevelAware(): void
+    {
+        $this->seedBool('craft.modifier.enabled', 1);
+        $this->seedInt('craft.modifier.max_bonus_pct', 25);
+        $svc = new ItemModifierService();
+        // Грандмастер dormant → стандартный cap для любого уровня (byte-identical).
+        $this->assertSame(25, $svc->effectiveCap(99));
+
+        $this->seedBool('craft.modifier.grandmaster_enabled', 1);
+        $this->seedInt('craft.modifier.grandmaster_level', 40);
+        $this->seedInt('craft.modifier.grandmaster_max_bonus_pct', 50);
+        $svc2 = new ItemModifierService();
+        $this->assertSame(50, $svc2->effectiveCap(40)); // L40+ → грандмастер cap
+        $this->assertSame(50, $svc2->effectiveCap(99));
+        $this->assertSame(25, $svc2->effectiveCap(39)); // <L40 → стандарт
+    }
+
+    public function testGrandmasterEnchantPast25UsesRareComponentAndGoldMult(): void
+    {
+        $db = Database::connect('tests');
+        $this->seedBool('craft.modifier.enabled', 1);
+        $this->seedInt('craft.modifier.gold_cost', 1000);
+        $this->seedInt('craft.modifier.bonus_pct', 5);
+        $this->seedInt('craft.modifier.max_bonus_pct', 25);
+        $this->seedBool('craft.modifier.grandmaster_enabled', 1);
+        $this->seedInt('craft.modifier.grandmaster_level', 40);
+        $this->seedInt('craft.modifier.grandmaster_max_bonus_pct', 50);
+        $this->seedString('craft.modifier.grandmaster_resource_name', 'Реликвии');
+        $this->seedInt('craft.modifier.grandmaster_resource_qty', 2);
+        $this->seedFloat('craft.modifier.grandmaster_gold_mult', 2.0);
+
+        $db->table('characters')->insert(['id' => 1, 'name' => 'Vet', 'gold' => 100000]);
+        $db->table('resources')->insert(['id' => 30, 'name' => 'Реликвии', 'rarity' => 1]);
+        $db->table('character_resources')->insert(['id_characters' => 1, 'id_resources' => 30, 'quantity' => 50]);
+        $db->table('characters_weapons')->insert(['id' => 50, 'character_id' => 1, 'weapon_id' => 7, 'equipped' => 1]);
+        // Уже на стандартном потолке 25%.
+        $db->table('item_modifiers')->insert(['character_id' => 1, 'item_type' => 'weapon', 'item_instance_id' => 50, 'stat' => 'damage', 'bonus_pct' => 25]);
+
+        $svc = new ItemModifierService();
+        $res = $svc->enchant(1, 'weapon', 50, 40); // L40 → грандмастер-тир 6
+
+        $this->assertTrue($res['ok']);
+        $this->assertSame(30, $res['bonus_pct']);
+        $this->assertSame(6, $res['tier']);
+        $this->assertTrue($res['grandmaster']);
+        // Золото: 1000 × тир6 × mult2.0 = 12000 → 88000.
+        $gold = (int) $db->table('characters')->select('gold')->where('id', 1)->get()->getRowArray()['gold'];
+        $this->assertSame(88000, $gold);
+        // Редкий компонент: 2 × тир6 = 12 → 50-12=38.
+        $qty = (int) $db->table('character_resources')->select('quantity')->where('id_characters', 1)->get()->getRowArray()['quantity'];
+        $this->assertSame(38, $qty);
+    }
+
+    public function testGrandmasterGatedByLevel(): void
+    {
+        $db = Database::connect('tests');
+        $this->seedBool('craft.modifier.enabled', 1);
+        $this->seedInt('craft.modifier.gold_cost', 1000);
+        $this->seedInt('craft.modifier.bonus_pct', 5);
+        $this->seedInt('craft.modifier.max_bonus_pct', 25);
+        $this->seedBool('craft.modifier.grandmaster_enabled', 1);
+        $this->seedInt('craft.modifier.grandmaster_level', 40);
+        $this->seedInt('craft.modifier.grandmaster_max_bonus_pct', 50);
+
+        $db->table('characters')->insert(['id' => 1, 'name' => 'Mid', 'gold' => 100000]);
+        $db->table('characters_weapons')->insert(['id' => 50, 'character_id' => 1, 'weapon_id' => 7, 'equipped' => 1]);
+        $db->table('item_modifiers')->insert(['character_id' => 1, 'item_type' => 'weapon', 'item_instance_id' => 50, 'stat' => 'damage', 'bonus_pct' => 25]);
+
+        // L30 < грандмастер-гейт 40 → cap остаётся 25 → max_tier.
+        $res = (new ItemModifierService())->enchant(1, 'weapon', 50, 30);
+        $this->assertFalse($res['ok']);
+        $this->assertSame('max_tier', $res['error']);
+    }
+
+    public function testGrandmasterDormantKeepsStandardCap(): void
+    {
+        $db = Database::connect('tests');
+        $this->seedBool('craft.modifier.enabled', 1);
+        $this->seedInt('craft.modifier.gold_cost', 1000);
+        $this->seedInt('craft.modifier.bonus_pct', 5);
+        $this->seedInt('craft.modifier.max_bonus_pct', 25);
+        // грандмастер НЕ включён.
+
+        $db->table('characters')->insert(['id' => 1, 'name' => 'Vet', 'gold' => 100000]);
+        $db->table('characters_weapons')->insert(['id' => 50, 'character_id' => 1, 'weapon_id' => 7, 'equipped' => 1]);
+        $db->table('item_modifiers')->insert(['character_id' => 1, 'item_type' => 'weapon', 'item_instance_id' => 50, 'stat' => 'damage', 'bonus_pct' => 25]);
+
+        // Даже L40 не может выше 25, пока грандмастер dormant.
+        $res = (new ItemModifierService())->enchant(1, 'weapon', 50, 40);
+        $this->assertFalse($res['ok']);
+        $this->assertSame('max_tier', $res['error']);
     }
 }

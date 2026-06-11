@@ -52,6 +52,7 @@ final class EnchantAction extends BaseAction
         }
 
         $characterId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $level       = is_numeric($character['level'] ?? null) ? (int) $character['level'] : 0;
         $data        = (string) $this->callbackQuery->getData();
 
         // enchantSel_<type>_<id> / enchantApply_<type>_<id>
@@ -59,16 +60,16 @@ final class EnchantAction extends BaseAction
             $type = $m[2];
             $id   = (int) $m[3];
             if ($m[1] === 'enchantApply') {
-                $result = $this->modifiers->enchant($characterId, $type, $id);
+                $result = $this->modifiers->enchant($characterId, $type, $id, $level);
                 return $this->renderResult($chatId, $characterId, $type, $id, $result);
             }
-            return $this->renderPreview($chatId, $characterId, $type, $id);
+            return $this->renderPreview($chatId, $characterId, $type, $id, $level);
         }
 
-        return $this->renderList($chatId, $characterId);
+        return $this->renderList($chatId, $characterId, $level);
     }
 
-    private function renderList(int $chatId, int $characterId): ServerResponse
+    private function renderList(int $chatId, int $characterId, int $level): ServerResponse
     {
         $items = $this->modernizableItems($characterId);
         $text  = "🔧 *Модернизация снаряжения*\n\n";
@@ -78,8 +79,13 @@ final class EnchantAction extends BaseAction
             return $this->editText($chatId, $text, [[['text' => '◀️ Перс', 'callback_data' => 'character']]]);
         }
 
+        $cap = $this->modifiers->effectiveCap($level);
         $text .= "Выбери предмет для усиления (оружие → +урон, броня → +защита).\nКаждая модернизация добавляет +"
-            . $this->modifiers->bonusStep() . "% (до +" . $this->modifiers->maxBonusPct() . "%), цена растёт с тиром.\n";
+            . $this->modifiers->bonusStep() . "% (до +{$cap}%), цена растёт с тиром.\n";
+        if ($cap > $this->modifiers->maxBonusPct()) {
+            $text .= "🏆 *Грандмастер* (L" . $this->modifiers->grandmasterLevel() . "+): тиры выше +" . $this->modifiers->maxBonusPct()
+                . "% требуют *" . $this->modifiers->grandmasterResourceName() . "*.\n";
+        }
 
         $rows = [];
         foreach ($items as $it) {
@@ -92,13 +98,13 @@ final class EnchantAction extends BaseAction
         return $this->editText($chatId, $text, $rows);
     }
 
-    private function renderPreview(int $chatId, int $characterId, string $type, int $id): ServerResponse
+    private function renderPreview(int $chatId, int $characterId, string $type, int $id, int $level): ServerResponse
     {
         $info = $this->itemInfo($type, $id, $characterId);
         if ($info === null) {
-            return $this->renderList($chatId, $characterId);
+            return $this->renderList($chatId, $characterId, $level);
         }
-        $p        = $this->modifiers->previewFor($type, $id);
+        $p        = $this->modifiers->previewFor($type, $id, $level);
         $statWord = $type === 'weapon' ? 'урон' : 'защита';   // именительный (для «защита X»)
         $statAcc  = $type === 'weapon' ? 'урон' : 'защиту';   // винительный (для «усилить X»)
         $base     = $info['base'];
@@ -121,9 +127,13 @@ final class EnchantAction extends BaseAction
         }
 
         $newEff = $base * (1 + $p['next'] / 100.0);
-        $text .= "\nТир {$p['tier']}: усилить {$statAcc} до *+{$p['next']}%* → станет " . $this->fmt($newEff) . ".\n";
+        $gmMark = $p['grandmaster'] ? ' 🏆' : '';
+        $text .= "\nТир {$p['tier']}{$gmMark}: усилить {$statAcc} до *+{$p['next']}%* → станет " . $this->fmt($newEff) . ".\n";
+        if ($p['grandmaster']) {
+            $text .= "_Грандмастер-тир — за пределом обычного потолка._\n";
+        }
         $text .= "\n💰 Стоимость: *{$p['gold']}* золота";
-        $resName = $this->modifiers->resourceName();
+        $resName = $p['resourceName'];
         if ($resName !== '' && $p['resourceQty'] > 0) {
             $have = $this->resourceHave($resName, $characterId);
             $text .= " + *{$p['resourceQty']}× {$resName}* (есть: {$have})";

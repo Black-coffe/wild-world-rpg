@@ -92,6 +92,92 @@ final class ItemModifierService
         return $this->intSetting('craft.modifier.max_bonus_pct', 25);
     }
 
+    // ── E14 (ADR-114) — грандмастер-band (L40+, расширенный cap + редкий компонент-синк) ──
+
+    /** Killswitch грандмастер-band. fence-safe (try/catch → false). default OFF. */
+    public function grandmasterEnabled(): bool
+    {
+        try {
+            $v = $this->settings->get('craft.modifier.grandmaster_enabled', false);
+        } catch (\Throwable $e) {
+            return false;
+        }
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+        return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /** Минимальный уровень для грандмастер-тиров (гейт L40). */
+    public function grandmasterLevel(): int
+    {
+        return $this->intSetting('craft.modifier.grandmaster_level', 40);
+    }
+
+    /** Расширенный потолок для L40+ (грандмастер). */
+    public function grandmasterMaxBonusPct(): int
+    {
+        return $this->intSetting('craft.modifier.grandmaster_max_bonus_pct', 50);
+    }
+
+    /** Редкий компонент-синк для грандмастер-тиров. */
+    public function grandmasterResourceName(): string
+    {
+        $v = $this->settings->get('craft.modifier.grandmaster_resource_name', 'Древние реликвии');
+        return is_string($v) ? trim($v) : 'Древние реликвии';
+    }
+
+    /** Базовое кол-во редкого компонента за грандмастер-тир (×тир). */
+    public function grandmasterResourceQty(): int
+    {
+        return $this->intSetting('craft.modifier.grandmaster_resource_qty', 2);
+    }
+
+    /** Множитель золото-цены грандмастер-тиров. */
+    public function grandmasterGoldMult(): float
+    {
+        return $this->floatSetting('craft.modifier.grandmaster_gold_mult', 2.0);
+    }
+
+    /**
+     * Эффективный потолок модернизации с учётом уровня: L40+ при killswitch ON → grandmaster cap,
+     * иначе стандартный. При dormant возвращает стандартный для любого level → byte-identical.
+     */
+    public function effectiveCap(int $level): int
+    {
+        if ($this->grandmasterEnabled() && $level >= $this->grandmasterLevel()) {
+            return max($this->maxBonusPct(), $this->grandmasterMaxBonusPct());
+        }
+        return $this->maxBonusPct();
+    }
+
+    /**
+     * Стоимость одного тира: грандмастер-тир (новый bonus > стандартного cap) платит редким
+     * компонентом + золото×grandmaster_gold_mult; обычный тир — Минералы + золото×тир.
+     *
+     * @return array{gold:int, resourceName:string, resourceQty:int, grandmaster:bool}
+     */
+    public function tierCost(int $newBonus, int $tier): array
+    {
+        if ($newBonus > $this->maxBonusPct()) {
+            return [
+                'gold'         => (int) round($this->goldCost() * $tier * $this->grandmasterGoldMult()),
+                'resourceName' => $this->grandmasterResourceName(),
+                'resourceQty'  => $this->grandmasterResourceQty() * $tier,
+                'grandmaster'  => true,
+            ];
+        }
+        return [
+            'gold'         => $this->goldCost() * $tier,
+            'resourceName' => $this->resourceName(),
+            'resourceQty'  => $this->resourceQty() * $tier,
+            'grandmaster'  => false,
+        ];
+    }
+
     /**
      * Боевой множитель урона оружия по экземпляру (characters_weapons.id).
      * 1.0 если cwId≤0 ИЛИ killswitch off (БЕЗ запроса item_modifiers) → fence-safe.
@@ -119,26 +205,31 @@ final class ItemModifierService
     }
 
     /**
-     * W20: превью следующего тира для UI. Возвращает текущий/следующий bonus, тир, цену (×тир), atMax.
+     * W20/E14: превью следующего тира для UI. $level — уровень персонажа (для грандмастер-cap).
+     * Стоимость и компонент берутся из tierCost (грандмастер-тир → редкий компонент + золото×mult).
      *
-     * @return array{current:int, next:int, tier:int, gold:int, resourceQty:int, atMax:bool}
+     * @return array{current:int, next:int, tier:int, gold:int, resourceName:string, resourceQty:int, grandmaster:bool, atMax:bool, cap:int}
      */
-    public function previewFor(string $itemType, int $instanceId): array
+    public function previewFor(string $itemType, int $instanceId, int $level = 0): array
     {
         $stat    = $itemType === 'weapon' ? 'damage' : 'armor';
         $current = $this->modifierBonusPct($itemType, $instanceId, $stat);
         $step    = $this->bonusStep();
-        $cap     = $this->maxBonusPct();
+        $cap     = $this->effectiveCap($level);
         $atMax   = $current >= $cap;
         $next    = $atMax ? $current : min($cap, $current + $step);
         $tier    = (int) ($next / $step);
+        $cost    = $this->tierCost($next, max(1, $tier));
         return [
-            'current'     => $current,
-            'next'        => $next,
-            'tier'        => $tier,
-            'gold'        => $this->goldCost() * max(1, $tier),
-            'resourceQty' => $this->resourceQty() * max(1, $tier),
-            'atMax'       => $atMax,
+            'current'      => $current,
+            'next'         => $next,
+            'tier'         => $tier,
+            'gold'         => $cost['gold'],
+            'resourceName' => $cost['resourceName'],
+            'resourceQty'  => $cost['resourceQty'],
+            'grandmaster'  => $cost['grandmaster'],
+            'atMax'        => $atMax,
+            'cap'          => $cap,
         ];
     }
 
@@ -178,9 +269,11 @@ final class ItemModifierService
      * W20: модернизировать экземпляр на 1 тир (+step, cap). Оружие или броня. Цена ×тир.
      * Списывает gold + ресурс атомарно, инкрементит bonus_pct (не перезапись — накопление до cap).
      *
-     * @return array{ok:bool, error:?string, bonus_pct:int, tier:int}
+     * $level — уровень персонажа (E14: для грандмастер-cap; 0 = стандартный band).
+     *
+     * @return array{ok:bool, error:?string, bonus_pct:int, tier:int, grandmaster?:bool}
      */
-    public function enchant(int $characterId, string $itemType, int $instanceId): array
+    public function enchant(int $characterId, string $itemType, int $instanceId, int $level = 0): array
     {
         if (! $this->enabled()) {
             return ['ok' => false, 'error' => 'disabled', 'bonus_pct' => 0, 'tier' => 0];
@@ -203,19 +296,21 @@ final class ItemModifierService
             return ['ok' => false, 'error' => 'not_equipped', 'bonus_pct' => 0, 'tier' => 0];
         }
 
-        // Тир-расчёт: накопление до cap.
+        // Тир-расчёт: накопление до cap (E14: cap зависит от уровня — грандмастер для L40+).
         $current = $this->modifierBonusPct($itemType, $instanceId, $stat);
         $step    = $this->bonusStep();
-        $cap     = $this->maxBonusPct();
+        $cap     = $this->effectiveCap($level);
         if ($current >= $cap) {
             return ['ok' => false, 'error' => 'max_tier', 'bonus_pct' => $current, 'tier' => (int) ($current / $step)];
         }
         $newBonus = min($cap, $current + $step);
         $tier     = (int) ($newBonus / $step);
 
-        $goldCost = $this->goldCost() * $tier;       // цена ×тир
-        $resName  = $this->resourceName();
-        $resQty   = $this->resourceQty() * $tier;
+        // E14: грандмастер-тир (>стандартный cap) → редкий компонент + золото×mult.
+        $cost     = $this->tierCost($newBonus, $tier);
+        $goldCost = $cost['gold'];
+        $resName  = $cost['resourceName'];
+        $resQty   = $cost['resourceQty'];
 
         // Проверка золота.
         $charQ   = $db->table('characters')->select('gold')->where('id', $characterId)->get();
@@ -267,7 +362,7 @@ final class ItemModifierService
             return ['ok' => false, 'error' => 'tx_failed', 'bonus_pct' => $current, 'tier' => $tier];
         }
 
-        return ['ok' => true, 'error' => null, 'bonus_pct' => $newBonus, 'tier' => $tier];
+        return ['ok' => true, 'error' => null, 'bonus_pct' => $newBonus, 'tier' => $tier, 'grandmaster' => $cost['grandmaster']];
     }
 
     private function intSetting(string $key, int $default): int
@@ -278,5 +373,15 @@ final class ItemModifierService
             return $default;
         }
         return is_numeric($v) ? (int) $v : $default;
+    }
+
+    private function floatSetting(string $key, float $default): float
+    {
+        try {
+            $v = $this->settings->get($key, $default);
+        } catch (\Throwable $e) {
+            return $default;
+        }
+        return is_numeric($v) ? (float) $v : $default;
     }
 }
