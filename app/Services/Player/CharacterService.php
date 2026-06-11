@@ -194,63 +194,30 @@ class CharacterService
             $inlineRows[] = [['text' => '🔒 ⚑ Фракция (с lvl 10)', 'callback_data' => 'chooseFactionLocked']];
         }
 
-        // V16 (ADR-047) Специализация + V20 (ADR-051) Проект фракции + W5 (ADR-064) Combat drone —
-        // endgame-фичи. Пакуем accumulator-pattern по 2 кнопки в строку (memory
-        // feedback_inline_keyboard_pack_sibling_buttons).
-        // UX-DISCOVERABILITY (CLAUDE.md §🎮): Проект фракции и Боевой дрон обязаны быть видны
-        // всегда — lock-кнопка с prerequisite подсказкой, не скрываем молча.
-        $endgameButtons = [];
-        if ($specSvc->isEnabled()) {
-            $endgameButtons[] = ['text' => '🎓 Специализация', 'callback_data' => 'specialization'];
-        }
-        if ((new \App\Services\Player\FactionProjectService())->enabled()) {
-            if ($hasChosenFaction) {
-                $endgameButtons[] = ['text' => '🤝 Проект фракции', 'callback_data' => 'factionProject'];
-            } else {
-                $lockHint         = $level >= 10 ? 'выбери фракцию' : 'с lvl 10';
-                $endgameButtons[] = ['text' => "🔒 Проект фракции ({$lockHint})", 'callback_data' => 'factionProjectLocked'];
-            }
-        }
-        if ($droneSvc->combatIsEnabled()) {
-            $endgameButtons[] = ['text' => '🛡 Боевой дрон', 'callback_data' => 'combatDroneList'];
-        }
-        // Накладываем по 2 на строку через accumulator-pattern.
-        for ($i = 0; $i < count($endgameButtons); $i += 2) {
-            $inlineRows[] = array_slice($endgameButtons, $i, 2);
+        // N-навигация (2026-06-11) — АНТИ button-soup (memory feedback_character_card_button_soup):
+        // карточка Перса разрослась до ~19 кнопок. Свернули read-only виды и прогресс-фичи в ДВА
+        // подменю-хаба (единый источник кнопок — ProfileHubService). Discoverability сохранена:
+        // фичи находимы через хаб, а сам хаб виден только если внутри есть ≥1 включённая фича.
+        //
+        // E8 (ADR-109) «🗓 Задания дня» — daily-engagement, остаётся НА карточке (важна видимость).
+        $charId       = (int) ($characterRow['id'] ?? 0);
+        $dailyEnabled = (new \App\Services\Quest\DailyTaskService())->enabled();
+        if ($dailyEnabled) {
+            $inlineRows[] = [['text' => '🗓 Задания дня', 'callback_data' => 'dailyTasks']];
         }
 
-        // W7b «📚 Что нового» + W10 «🏅 Достижения» — info-разделы карточки перса.
-        // Каждый под своим killswitch (= админ-тумблер, не player-условие). Пакуем
-        // по 2 в строку (memory feedback_inline_keyboard_pack_sibling_buttons). Это
-        // контекстные кнопки, НЕ дубль постоянной reply-клавиатуры (feedback_no_duplicate_persistent_keyboard_buttons).
-        $infoButtons = [];
-        // E8 (ADR-109): «🗓 Задания дня» — вход в ежедневные задания (killswitch
-        // quests.daily.enabled). Доступны с L1 (разведка/крафт/торговля) — prerequisite нет,
-        // lock-кнопка не нужна; показываем как только фича включена (UX-DISCOVERABILITY).
-        if ((new \App\Services\Quest\DailyTaskService())->enabled()) {
-            $infoButtons[] = ['text' => '🗓 Задания дня', 'callback_data' => 'dailyTasks'];
+        // ДВА хаба: «📊 Прогресс» (достижения/титулы/рейтинг/экономика/что нового) +
+        // «⚙️ Развитие» (специализация/проект фракции/дрон/модернизация). Каждый — только если
+        // в группе есть включённые фичи. Пакуем по 2 в строку.
+        $hubButtons = [];
+        if (\App\Services\Player\ProfileHubService::progressButtons() !== []) {
+            $hubButtons[] = ['text' => '📊 Прогресс', 'callback_data' => 'progressHub'];
         }
-        if ((new \App\Services\Player\WhatsNewService())->isEnabled()) {
-            $infoButtons[] = ['text' => '📚 Что нового', 'callback_data' => 'whatsNewCatalog'];
+        if (\App\Services\Player\ProfileHubService::developmentButtons($charId, $level) !== []) {
+            $hubButtons[] = ['text' => '⚙️ Развитие', 'callback_data' => 'developmentHub'];
         }
-        if ((new \App\Services\Player\AchievementService())->isEnabled()) {
-            $infoButtons[] = ['text' => '🏅 Достижения', 'callback_data' => 'achievements'];
-        }
-        // E11 (ADR-112) — «🎖 Титулы» под killswitch titles.enabled (UX-DISCOVERABILITY: виден всем
-        // при активной системе; экран сам объясняет, как получить первый, если титулов ещё нет).
-        if ($titleSvc->enabled()) {
-            $infoButtons[] = ['text' => '🎖 Титулы', 'callback_data' => 'titles'];
-        }
-        // W18 (ADR-072) — «🏆 Рейтинг PvP» под своим killswitch (pvp.ladder.enabled).
-        if ((new \App\Services\PVE\PvpLadderService())->enabled()) {
-            $infoButtons[] = ['text' => '🏆 Рейтинг PvP', 'callback_data' => 'pvpLadder'];
-        }
-        // W24 (ADR-079) — «💰 Моя экономика» под killswitch (economy.player_report.enabled).
-        if ((new \App\Services\Economy\PlayerEconomyService())->enabled()) {
-            $infoButtons[] = ['text' => '💰 Моя экономика', 'callback_data' => 'myEconomy'];
-        }
-        for ($i = 0; $i < count($infoButtons); $i += 2) {
-            $inlineRows[] = array_slice($infoButtons, $i, 2);
+        if ($hubButtons !== []) {
+            $inlineRows[] = $hubButtons;
         }
 
         $inlineKeyboard = ['inline_keyboard' => $inlineRows];
