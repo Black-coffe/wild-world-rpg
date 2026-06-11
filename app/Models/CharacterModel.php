@@ -60,6 +60,7 @@ class CharacterModel extends Model
         'tax_unpaid_streak',   // ADR-095 Фаза 2 (dormant) — подряд дней неуплаты налога (налог-каскад)
         'login_streak',           // E6 (ADR-108) Ф3 — серия входов подряд (дней)
         'login_streak_last_day',  // E6 (ADR-108) Ф3 — дата последнего засчитанного входа
+        'active_title_id',        // E11 (ADR-112) — экипированный титул
     ];
 
     protected $useTimestamps = true;

@@ -123,7 +123,17 @@ class CharacterService
 
         // E6 (ADR-108) Ф3 — серия входов (discoverability: видна всем при killswitch ON).
         $streakLine = (new \App\Services\Player\LoginStreakService())->streakLine($characterRow);
-        $text .= ($streakLine !== null ? $streakLine . "\n" : '') . "\n";
+        $text .= ($streakLine !== null ? $streakLine . "\n" : '');
+
+        // E11 (ADR-112) — активный титул (видимая идентичность; строка есть при killswitch ON И наличии титула).
+        $titleSvc = new \App\Services\Player\TitleService();
+        if ($titleSvc->enabled()) {
+            $titleLabel = $titleSvc->activeTitleLabel((int) $characterRow['id']);
+            if ($titleLabel !== null) {
+                $text .= "🎖 *Титул:* {$titleLabel}\n";
+            }
+        }
+        $text .= "\n";
 
         // Добавляем броню и оружие
         $text .= "🛡 *Броня:* " . ($equippedArmor ?: "❌ Нет") . "\n";
@@ -225,6 +235,11 @@ class CharacterService
         }
         if ((new \App\Services\Player\AchievementService())->isEnabled()) {
             $infoButtons[] = ['text' => '🏅 Достижения', 'callback_data' => 'achievements'];
+        }
+        // E11 (ADR-112) — «🎖 Титулы» под killswitch titles.enabled (UX-DISCOVERABILITY: виден всем
+        // при активной системе; экран сам объясняет, как получить первый, если титулов ещё нет).
+        if ($titleSvc->enabled()) {
+            $infoButtons[] = ['text' => '🎖 Титулы', 'callback_data' => 'titles'];
         }
         // W18 (ADR-072) — «🏆 Рейтинг PvP» под своим killswitch (pvp.ladder.enabled).
         if ((new \App\Services\PVE\PvpLadderService())->enabled()) {

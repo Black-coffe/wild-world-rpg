@@ -71,6 +71,7 @@ class WipeManifest extends BaseConfig
         // 🟢 KEEP — Контент и правила игры (определения, не данные игроков)
         // ─────────────────────────────────────────────────────────────
         'achievements'         => ['strategy' => self::KEEP, 'note' => 'Определения достижений'],
+        'titles'               => ['strategy' => self::KEEP, 'note' => 'Определения титулов (ADR-112, E11) — контент, как achievements'],
         'buildings'            => ['strategy' => self::KEEP, 'note' => 'Определения построек'],
         'crafted_items'        => ['strategy' => self::KEEP, 'note' => 'Рецепты/определения предметов'],
         'loot_table_items'     => ['strategy' => self::KEEP, 'note' => 'Лут-таблицы NPC (ADR-107) — контент-определения дропа (npcs.loot_table_id), нет player-связи'],
@@ -136,6 +137,7 @@ class WipeManifest extends BaseConfig
         'base_storage'           => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Хранилище базы'],
         'battle_logs'            => ['strategy' => self::PLAYER_DATA, 'link' => ['player1_id', 'player2_id'], 'by' => 'character', 'note' => 'Логи боёв PvP'],
         'character_achievements' => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Разблокированные достижения'],
+        'character_titles'       => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Разблокированные титулы (ADR-112, E11)'],
         'character_buildings'    => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Постройки игрока'],
         'character_daily_tasks'  => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Ежедневные задания (ADR-109)'],
         'character_data'         => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Координаты/статы/состояние персонажа'],
@@ -235,6 +237,7 @@ class WipeManifest extends BaseConfig
         'npc_kills'                 => 0, // ADR-088 Фаза 2 — счётчик побед над NPC (прогресс).
         'login_streak'              => 0,    // E6 (ADR-108) Ф3 — серия входов (прогресс) → 0 после вайпа.
         'login_streak_last_day'     => null, // E6 (ADR-108) Ф3 — дата последнего входа → null после вайпа.
+        'active_title_id'           => null, // E11 (ADR-112) — экипированный титул → null после вайпа.
     ];
 
     /**

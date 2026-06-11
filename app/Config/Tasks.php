@@ -200,6 +200,13 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\Achievements\AchievementCheckCron())->handle())
             ->everyMinute()->singleInstance()->named('achievement.check');
 
+        // E11 (ADR-112) — выдача титулов (зеркало achievement.check). everyMinute: для каждого
+        // enabled-титула set-based SQL находит выполнивших условие (level≥ref / наличие
+        // достижения) и ещё не получивших → выдаёт (первый авто-экип) + батч-уведомление.
+        // Killswitch titles.enabled (default OFF → no-op до активации). Cap titles.max_awards_per_tick.
+        $schedule->call(static fn() => (new \App\TaskHandlers\Titles\TitleCheckCron())->handle())
+            ->everyMinute()->singleInstance()->named('title.check');
+
         // ============================================================
         // CHARACTER TASKS DISPATCHER (главный Worker loop)
         // ============================================================

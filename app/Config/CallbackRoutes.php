@@ -43,6 +43,7 @@ class CallbackRoutes extends BaseConfig
         'whatsNewCatalog'                 => \App\Controllers\Telegram\Commands\Actions\WhatsNew\WhatsNewCatalogAction::class,
         // W10 (ADR-066) — экран «🏅 Достижения» (вход с карточки Перс при killswitch on).
         'achievements'                    => \App\Controllers\Telegram\Commands\Actions\Achievements\AchievementsAction::class,
+        'titles'                          => \App\Controllers\Telegram\Commands\Actions\Titles\TitlesAction::class,
         // W24 (ADR-079) — экран «💰 Моя экономика» (вход с карточки Перс при killswitch on).
         'myEconomy'                       => \App\Controllers\Telegram\Commands\Actions\Economy\PlayerEconomyAction::class,
         'exploreAreaTips'                 => \App\Controllers\Telegram\Commands\Actions\StartGame\ExploreAreaTipsAction::class,
@@ -392,6 +393,8 @@ class CallbackRoutes extends BaseConfig
      */
     public array $prefixRoutes = [
         'sellResource' => \App\Controllers\Telegram\Commands\Actions\Sell\SellResourceAction::class,
+        // E11 (ADR-112) — экипировка титула. Callback `titleSet_<id>` (резолв по первому сегменту 'titleSet').
+        'titleSet' => \App\Controllers\Telegram\Commands\Actions\Titles\TitleSetAction::class,
         // V16 (ADR-047) — выбор/смена крафт-специализации. Callback: `specChoose_<branch>`.
         'specChoose' => \App\Controllers\Telegram\Commands\Actions\Specialization\SpecializationChooseAction::class,
         // v0.51.129 (community idea #1) — cancel queued craft з refund ресурсів
