@@ -44,15 +44,17 @@ final class OnboardingNudgeHandlerTest extends CIUnitTestCase
         // killswitch ON для happy-path.
         $this->seedSetting('onboarding.auto_escalation.enabled', 'bool', ['value_bool' => 1]);
 
-        $minAgo = static fn (int $m): string => date('Y-m-d H:i:s', strtotime("-{$m} minutes"));
-
         // Квест-шаг цепочки (реальный title_en из каталога — иначе nudgeText вернёт null).
         $db->table('quests')->insert(['id' => 100, 'title_en' => 'OnbStepGather', 'status' => 'active']);
 
         // Игрок A (happy-path): новичок, opt-in, активен 5 мин назад, шаг висит 60 мин.
-        $db->table('telegram_users')->insert(['id' => 10, 'telegram_id' => 1010, 'blocked_at' => null, 'last_seen' => $minAgo(5)]);
+        // Время сеется DB-часами (NOW() - INTERVAL), а не PHP date() — иначе при расхождении
+        // таймзон PHP↔DB на CI окна last_seen/created_at смещаются и выборка пустеет.
+        $db->table('telegram_users')->insert(['id' => 10, 'telegram_id' => 1010, 'blocked_at' => null]);
+        $this->setMinutesAgo('telegram_users', 'last_seen', 'id = 10', 5);
         $db->table('characters')->insert(['id' => 1, 'telegram_user_id' => 10, 'level' => 2, 'daily_tips_enabled' => 1]);
-        $db->table('quest_steps')->insert(['quest_id' => 100, 'character_id' => 1, 'is_completed' => 0, 'created_at' => $minAgo(60)]);
+        $db->table('quest_steps')->insert(['quest_id' => 100, 'character_id' => 1, 'is_completed' => 0]);
+        $this->setMinutesAgo('quest_steps', 'created_at', 'character_id = 1', 60);
     }
 
     protected function tearDown(): void
@@ -73,6 +75,14 @@ final class OnboardingNudgeHandlerTest extends CIUnitTestCase
                 $c->clean();
             }
         }
+    }
+
+    /** Ставит колонку в «N минут назад» по DB-часам (NOW()-INTERVAL) — без PHP-clock skew. */
+    private function setMinutesAgo(string $table, string $col, string $where, int $minutes): void
+    {
+        Database::connect('tests')->query(
+            "UPDATE {$table} SET {$col} = NOW() - INTERVAL {$minutes} MINUTE WHERE {$where}"
+        );
     }
 
     /**
@@ -153,8 +163,7 @@ final class OnboardingNudgeHandlerTest extends CIUnitTestCase
     public function testOfflineGhostSendsNothing(): void
     {
         // last_seen 2 часа назад — вне окна active_window (30 мин).
-        Database::connect('tests')->table('telegram_users')->where('id', 10)
-            ->update(['last_seen' => date('Y-m-d H:i:s', strtotime('-120 minutes'))]);
+        $this->setMinutesAgo('telegram_users', 'last_seen', 'id = 10', 120);
 
         $h = $this->makeHandler();
         $h->handle();
@@ -165,8 +174,7 @@ final class OnboardingNudgeHandlerTest extends CIUnitTestCase
     public function testFreshStepNotYetStuckSendsNothing(): void
     {
         // Шаг назначен 5 мин назад — младше stuck_minutes (45).
-        Database::connect('tests')->table('quest_steps')->where('character_id', 1)
-            ->update(['created_at' => date('Y-m-d H:i:s', strtotime('-5 minutes'))]);
+        $this->setMinutesAgo('quest_steps', 'created_at', 'character_id = 1', 5);
 
         $h = $this->makeHandler();
         $h->handle();
