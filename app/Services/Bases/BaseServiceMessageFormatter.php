@@ -208,9 +208,13 @@ final class BaseServiceMessageFormatter
                 ['text' => '📡 Маяки',     'callback_data' => 'teleportBeacon'],
             ],
         ];
+        // E20 (ADR-120): «🤖 Ангар» — хаб автоматизации; всегда виден
+        // (UX-discoverability), lock-state рендерит сам HangarAction.
+        $hangarRow = [['text' => '🤖 Ангар', 'callback_data' => 'hangar']];
         if ($decorEnabled) {
-            $kbRows[] = [['text' => '🎨 Декор', 'callback_data' => 'campDecor']];
+            $hangarRow[] = ['text' => '🎨 Декор', 'callback_data' => 'campDecor'];
         }
+        $kbRows[] = $hangarRow;
         $kbRows[] = [
             ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
             ['text' => '🚜 Переехать', 'callback_data' => 'move'],

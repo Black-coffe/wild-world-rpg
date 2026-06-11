@@ -224,6 +224,9 @@ class StartRobotGatheringAction extends BaseAction
             'task_settings'    => json_encode(['crafted_item_id' => (int) $robotId]),
         ]);
 
+        // E20 (ADR-120) — инструментация адопшена (успешные запуски раньше не логировались).
+        $this->logActivity((int) $characterId, 'START_ROBOT_GATHERER', "robot={$robotId} hours={$hoursUntilBreakdown}");
+
         // 8) Считаем, сколько роботов и «общей прочности» осталось
         $allRobotRows = $this->craftedItemsLogModel
             ->where('character_id', $characterId)

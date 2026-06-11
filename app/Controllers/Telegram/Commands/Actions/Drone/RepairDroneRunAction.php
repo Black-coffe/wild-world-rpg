@@ -79,6 +79,9 @@ class RepairDroneRunAction extends RepairDroneBaseAction
             return $this->errReply($chatId, 'Ошибка при batch-ремонте. Попробуй ещё раз.');
         }
 
+        // E20 (ADR-120) — инструментация адопшена дронов (раньше use-path был немеряем).
+        $this->logActivity($characterId, 'DRONE_REPAIR_RUN', 'robots=' . count($robots) . " gold={$cumulative}");
+
         $batteryMax = $ctx['droneBatteryMax'];
         $chargePct  = $batteryMax > 0 ? (int) round($newCharge * 100 / $batteryMax) : 0;
         $bar        = $this->renderChargeBar($chargePct);

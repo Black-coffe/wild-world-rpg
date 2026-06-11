@@ -209,6 +209,19 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
     }
 
     /**
+     * E20 (ADR-120) «Ангар» — exact-роут 'hangar' (хаб автоматизации на экране базы).
+     * Урок control-tap: новый callback-ключ фиксируем resolve-гейтом на unit-уровне.
+     */
+    public function testHangarCallbackRouteResolves(): void
+    {
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\Camp\HangarAction::class,
+            $this->cbRoutes->resolve('hangar'),
+            'callback_data «hangar» обязан резолвиться в HangarAction (хаб автоматизации).'
+        );
+    }
+
+    /**
      * ADR-096 «Оптовая продажа» — exact-роут 'bulkSell'; все хвосты (all_/rarity_/go_)
      * дают тот же первый сегмент → один обработчик. Тот же class-of-bug, что npcAct_
      * (мёртвый prefix с `_`): фиксируем, что роут жив для предпросмотра и выполнения.

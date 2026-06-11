@@ -218,6 +218,9 @@ class StartRobotExplorationAction extends BaseAction
             'task_settings'    => json_encode(['crafted_item_id' => (int) $robotId]),
         ]);
 
+        // E20 (ADR-120) — инструментация адопшена (успешные запуски раньше не логировались).
+        $this->logActivity((int) $characterId, 'START_ROBOT_EXPLORER', "robot={$robotId} hours={$hoursUntilBreakdown}");
+
         // 11. Считаем, сколько роботов и суммарной прочности осталось
         $allRobotRows = $this->craftedItemsLogModel
             ->where('character_id', $characterId)

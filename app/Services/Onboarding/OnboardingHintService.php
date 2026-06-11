@@ -79,6 +79,35 @@ class OnboardingHintService
     }
 
     /**
+     * E20 (ADR-120) — хинт «Автоматизация» при открытии экрана базы.
+     * Гейты: окно уровня [automation_hint.min_level .. max_level] (ветеранов не пингуем,
+     * анти soft-broadcast — они находят всегда видимую кнопку «🤖 Ангар» сами) +
+     * Мастерская робототехники ещё НЕ построена + общие killswitch/opt-out/one-shot.
+     *
+     * @param array<string, mixed>|CharacterEntity $character
+     */
+    public function maybeSendAutomationHint(array|CharacterEntity $character, int $chatId): bool
+    {
+        $level = self::intField($character, 'level');
+        if ($level < $this->gsInt('onboarding.automation_hint.min_level', 12)
+            || $level > $this->gsInt('onboarding.automation_hint.max_level', 25)
+        ) {
+            return false;
+        }
+
+        $charId = self::intField($character, 'id');
+        if ($charId <= 0 || $this->alreadyShown($charId, OnboardingHintCatalog::AUTOMATION)) {
+            return false;
+        }
+
+        if ($this->ownsRoboticsWorkshop($charId)) {
+            return false;
+        }
+
+        return $this->maybeSend($character, $chatId, OnboardingHintCatalog::AUTOMATION);
+    }
+
+    /**
      * Базовый one-shot отправитель: killswitch + opt-out + дедуп + отправка + запись.
      *
      * @param array<string, mixed>|CharacterEntity $character
@@ -150,6 +179,24 @@ class OnboardingHintService
         return (new ClaimedCellModel())
             ->where('character_id', $charId)
             ->where('status', 'active')
+            ->countAllResults() > 0;
+    }
+
+    /**
+     * E20: есть ли у персонажа Мастерская робототехники (любого уровня, любая база).
+     * Overridable seam для тестов (без DB).
+     */
+    protected function ownsRoboticsWorkshop(int $charId): bool
+    {
+        $building = (new \App\Models\BuildingModel())->where('name_en', 'RoboticsWorkshop')->first();
+        $idRaw    = is_array($building) ? ($building['id'] ?? null) : null;
+        if (! is_numeric($idRaw) || (int) $idRaw <= 0) {
+            return false;
+        }
+
+        return (new \App\Models\CharacterBuildingModel())
+            ->where('character_id', $charId)
+            ->where('building_id', (int) $idRaw)
             ->countAllResults() > 0;
     }
 

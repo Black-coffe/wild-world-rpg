@@ -96,6 +96,61 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
         $this->assertFalse($svc->maybeSendFirstBaseTip(['id' => 1, 'level' => 1, 'daily_tips_enabled' => 1], 100));
         $this->assertCount(0, $svc->sent);
     }
+
+    // ── E20 (ADR-120): хинт «Автоматизация» ──────────────────────────────────
+
+    /** @return FakeHintService с окном automation-хинта 12-25 */
+    private function automationSvc(): FakeHintService
+    {
+        $svc = new FakeHintService();
+        $svc->gsIntMap = [
+            'onboarding.automation_hint.min_level' => 12,
+            'onboarding.automation_hint.max_level' => 25,
+        ];
+
+        return $svc;
+    }
+
+    public function testAutomationHintHappyPathSendsOnce(): void
+    {
+        $svc  = $this->automationSvc();
+        $mid  = ['id' => 7, 'level' => 15, 'daily_tips_enabled' => 1];
+
+        $this->assertTrue($svc->maybeSendAutomationHint($mid, 100));
+        $this->assertCount(1, $svc->sent);
+        $this->assertSame([OnboardingHintCatalog::AUTOMATION], $svc->recorded);
+
+        // one-shot: повторно не шлём.
+        $this->assertFalse($svc->maybeSendAutomationHint($mid, 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    public function testAutomationHintLevelWindowSuppresses(): void
+    {
+        $svc = $this->automationSvc();
+        // Ниже окна — новичку рано.
+        $this->assertFalse($svc->maybeSendAutomationHint(['id' => 7, 'level' => 8, 'daily_tips_enabled' => 1], 100));
+        // Выше окна — ветерана не пингуем (анти soft-broadcast).
+        $this->assertFalse($svc->maybeSendAutomationHint(['id' => 7, 'level' => 30, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testAutomationHintSuppressedWhenWorkshopOwned(): void
+    {
+        $svc = $this->automationSvc();
+        $svc->workshopOwned = true;
+        $this->assertFalse($svc->maybeSendAutomationHint(['id' => 7, 'level' => 15, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    /** Анти-дрифт: текст хинта учит пути и упоминает Ангар (media-off самодостаточность). */
+    public function testAutomationHintTeachesCoreFacts(): void
+    {
+        $text = OnboardingHintCatalog::get(OnboardingHintCatalog::AUTOMATION)['text'] ?? '';
+        foreach (['Мастерскую робототехники', 'Строить', 'Ангар'] as $needle) {
+            $this->assertStringContainsString($needle, $text, "Хинт не упоминает «{$needle}».");
+        }
+    }
 }
 
 /**
@@ -112,6 +167,9 @@ final class FakeHintService extends OnboardingHintService
     public bool $killswitch = true;
     public int $maxLvl = 6;
     public bool $baseExists = false;
+    public bool $workshopOwned = false;
+    /** @var array<string, int> per-key значения gsInt (E20: окно automation-хинта) */
+    public array $gsIntMap = [];
     /** @var list<string> */
     public array $shownKeys = [];
 
@@ -122,7 +180,7 @@ final class FakeHintService extends OnboardingHintService
 
     protected function gsInt(string $key, int $default): int
     {
-        return $this->maxLvl;
+        return $this->gsIntMap[$key] ?? $this->maxLvl;
     }
 
     public function alreadyShown(int $charId, string $hintKey): bool
@@ -133,6 +191,11 @@ final class FakeHintService extends OnboardingHintService
     protected function hasActiveBase(int $charId): bool
     {
         return $this->baseExists;
+    }
+
+    protected function ownsRoboticsWorkshop(int $charId): bool
+    {
+        return $this->workshopOwned;
     }
 
     protected function send(array $payload): void

@@ -262,6 +262,9 @@ class CallbackRoutes extends BaseConfig
         'CancelCamp'                      => \App\Controllers\Telegram\Commands\Actions\Camp\CampCancelAction::class,
         'construction'                    => \App\Controllers\Telegram\Commands\Actions\Camp\DetailedBaseInfoAction::class,
         'baseDevelopment'                 => \App\Controllers\Telegram\Commands\Actions\Camp\BaseDevelopmentAction::class,
+        // E20 (ADR-120) — «🤖 Ангар»: единый хаб автоматизации (роботы + дроны),
+        // кнопка на главном экране базы, lock-state без Мастерской робототехники.
+        'hangar'                          => \App\Controllers\Telegram\Commands\Actions\Camp\HangarAction::class,
         'TeleportToCamp'                  => \App\Controllers\Telegram\Commands\Actions\Camp\TeleportAction::class,
         'TeleportUse'                     => \App\Controllers\Telegram\Commands\Actions\Camp\TeleportUseAction::class,
         'DeleteBase'                     => \App\Controllers\Telegram\Commands\Actions\Camp\DeleteBaseAction::class,

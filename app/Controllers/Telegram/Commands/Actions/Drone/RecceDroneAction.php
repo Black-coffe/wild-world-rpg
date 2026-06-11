@@ -135,6 +135,9 @@ class RecceDroneAction extends BaseAction
         $newCharge = max(0, $charge - $drain);
         $this->logModel->update($logId, ['durability_count' => $newCharge]);
 
+        // E20 (ADR-120) — инструментация адопшена дронов (раньше use-path был немеряем).
+        $this->logActivity($charId, 'DRONE_SCOUT_LAUNCH', "radius={$radius} new_cells={$newCellsCount}");
+
         // Сбор уникальных биомов в зоне (для информативного caption'а).
         $biomeNames = $this->collectBiomeNamesInRadius($cellX, $cellY, $radius);
 

@@ -131,6 +131,9 @@ class CargoDroneSendAction extends BaseAction
         $this->logModel->update($logId, ['durability_count' => $newCharge]);
         $db->transComplete();
 
+        // E20 (ADR-120) — инструментация адопшена дронов (раньше use-path был немеряем).
+        $this->logActivity($charId, 'DRONE_CARGO_SEND', "res={$resName} qty={$sendQty}");
+
         $sendKg     = (float) round($sendQty * $unitWeight, 1);
         $batteryMax = $this->service->cargoBatteryMax();
         $chargePct  = $batteryMax > 0 ? (int) round($newCharge * 100 / $batteryMax) : 0;

@@ -111,6 +111,9 @@ final class CombatDroneActivateAction extends BaseAction
             return $this->errReply($chatId, 'Ошибка активации. Попробуй ещё раз.');
         }
 
+        // E20 (ADR-120) — инструментация адопшена дронов (раньше use-path был немеряем).
+        $this->logActivity($characterId, 'DRONE_COMBAT_ACTIVATE', "minutes={$activationMinutes} bonus={$bonusPercent}%");
+
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId(),
             'text'              => 'Боевой дрон активирован!',

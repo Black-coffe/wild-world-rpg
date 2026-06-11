@@ -20,6 +20,12 @@ class OnboardingHintCatalog
     public const DAILY_TASKS = 'daily_tasks';
 
     /**
+     * Автоматизация (E20, ADR-120): триггер — открытие экрана базы игроком L12-25
+     * без Мастерской робототехники (окно — GameSettings onboarding.automation_hint.*).
+     */
+    public const AUTOMATION = 'automation';
+
+    /**
      * @return array{text: string, reply_markup?: string}|null
      */
     public static function get(string $key): ?array
@@ -51,6 +57,19 @@ class OnboardingHintCatalog
                 'reply_markup' => json_encode([
                     'inline_keyboard' => [[
                         ['text' => '🗓 Задания дня', 'callback_data' => 'dailyTasks'],
+                    ]],
+                ], JSON_THROW_ON_ERROR),
+            ],
+            self::AUTOMATION => [
+                'text' => "🤖 *Пустошь может работать на тебя*\n\n"
+                    . "Построй *Мастерскую робототехники* — она открывает автоматизацию:\n"
+                    . "  🤖 роботы исследуют карту и добывают ресурсы часами, пока ты офлайн;\n"
+                    . "  🚁 дроны разведывают зону 21×21, доставляют груз на базу, чинят роботов и защищают базу.\n\n"
+                    . "Путь: 🏠 База → 🏗 Строить → 🤖 Мастерская робототехники. "
+                    . "Весь парк потом — в «🤖 Ангаре» на экране базы.",
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [[
+                        ['text' => '🤖 Ангар', 'callback_data' => 'hangar'],
                     ]],
                 ], JSON_THROW_ON_ERROR),
             ],

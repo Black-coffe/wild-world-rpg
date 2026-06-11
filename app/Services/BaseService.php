@@ -147,6 +147,11 @@ class BaseService
     {
         (new \App\Services\Onboarding\OnboardingChainService())
             ->recordBaseOpened($characterRow, $chatId);
+
+        // E20 (ADR-120): one-shot хинт «Автоматизация» игрокам L12-25 без Мастерской
+        // робототехники (окно/killswitch/opt-out — внутри сервиса, дёшево гейтится по level).
+        (new \App\Services\Onboarding\OnboardingHintService())
+            ->maybeSendAutomationHint($characterRow, $chatId);
     }
 
     /**
