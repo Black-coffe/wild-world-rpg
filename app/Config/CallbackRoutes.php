@@ -227,6 +227,7 @@ class CallbackRoutes extends BaseConfig
         'availableQuests'                 => \App\Controllers\Telegram\Commands\Actions\Quest\AvailableQuests::class,
         'completedQuests'                 => \App\Controllers\Telegram\Commands\Actions\Quest\CompletedQuests::class,
         'activeQuests'                    => \App\Controllers\Telegram\Commands\Actions\Quest\ActiveQuests::class,
+        'dailyTasks'                      => \App\Controllers\Telegram\Commands\Actions\Quest\DailyTasksAction::class,
         'questStartExplore30Cells'        => \App\Controllers\Telegram\Commands\Actions\Quest\QuestStartExplore30Cells::class,
         'questStartExplore300Cells'       => \App\Controllers\Telegram\Commands\Actions\Quest\QuestStartExplore300Cells::class,
         'questStartExploreAllBiomes'      => \App\Controllers\Telegram\Commands\Actions\Quest\QuestStartExploreAllBiomes::class,

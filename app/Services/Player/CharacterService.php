@@ -214,6 +214,12 @@ class CharacterService
         // по 2 в строку (memory feedback_inline_keyboard_pack_sibling_buttons). Это
         // контекстные кнопки, НЕ дубль постоянной reply-клавиатуры (feedback_no_duplicate_persistent_keyboard_buttons).
         $infoButtons = [];
+        // E8 (ADR-109): «🗓 Задания дня» — вход в ежедневные задания (killswitch
+        // quests.daily.enabled). Доступны с L1 (разведка/крафт/торговля) — prerequisite нет,
+        // lock-кнопка не нужна; показываем как только фича включена (UX-DISCOVERABILITY).
+        if ((new \App\Services\Quest\DailyTaskService())->enabled()) {
+            $infoButtons[] = ['text' => '🗓 Задания дня', 'callback_data' => 'dailyTasks'];
+        }
         if ((new \App\Services\Player\WhatsNewService())->isEnabled()) {
             $infoButtons[] = ['text' => '📚 Что нового', 'callback_data' => 'whatsNewCatalog'];
         }

@@ -30,6 +30,47 @@ class DailyTaskService
         return $this->gsBool('quests.daily.enabled', false);
     }
 
+    /** Разовый бонус золота за весь набор (для витрины экрана; источник истины — handler). */
+    public function allDoneBonusGold(): int
+    {
+        return $this->gsInt('quests.daily.all_done_bonus_gold', 500);
+    }
+
+    /**
+     * ADR-109 Ф2 — webhook-хук: ленивое назначение набора за день по Telegram-id игрока +
+     * one-shot интро-подсказка новичку (just-in-time, ONBOARDING-COVERAGE). Гейт killswitch
+     * внутри ensureAssigned/maybeSend; defensive — вызывается из BotController::webhook.
+     *
+     * $telegramId — Telegram-сторона (`telegram_users.telegram_id`), НЕ внутренний PK; резолвим
+     * персонажа join'ом (как LoginStreakService::resolveContext). Тянем ровно нужные поля
+     * (id/level/daily_tips_enabled) — плоский array<string,mixed> для ensureAssigned/maybeSend.
+     */
+    public function ensureForTelegramUser(int $telegramId, int $chatId): void
+    {
+        if (! $this->enabled() || $telegramId <= 0) {
+            return;
+        }
+
+        $res = Database::connect()
+            ->table('characters c')
+            ->select('c.id, c.level, c.daily_tips_enabled')
+            ->join('telegram_users tu', 'tu.id = c.telegram_user_id', 'inner')
+            ->where('tu.telegram_id', $telegramId)
+            ->get();
+        $row = $res === false ? null : $res->getRowArray();
+        if (! is_array($row) || ! is_numeric($row['id'] ?? null)) {
+            return;
+        }
+
+        $this->ensureAssigned($row);
+
+        // Интро-подсказка про дейлики: one-shot, level-gated (≤max_level), opt-out — фича
+        // обучаема и находима БЕЗ предзнаний (ONBOARDING-COVERAGE). Ветераны (>max_level)
+        // находят через кнопку «🗓 Задания дня» на карточке Перса (UX-DISCOVERABILITY).
+        (new \App\Services\Onboarding\OnboardingHintService())
+            ->maybeSend($row, $chatId, \App\Services\Onboarding\OnboardingHintCatalog::DAILY_TASKS);
+    }
+
     /**
      * Текущее значение МОНОТОННОГО счётчика для дейлик-типа (никогда не убывает).
      *

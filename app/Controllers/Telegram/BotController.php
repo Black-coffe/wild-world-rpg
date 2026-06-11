@@ -80,6 +80,14 @@ class BotController extends Controller
             } catch (\Throwable $e) {
                 log_message('error', '[Bot.webhook] loginStreak: ' . $e->getMessage());
             }
+            // E8 (ADR-109) Ф2 — ежедневные задания: ленивое назначение набора за день при
+            // первом контакте + one-shot интро-подсказка новичку (just-in-time). Dormant под
+            // killswitch quests.daily.enabled; defensive — фон не должен ломать обработку апдейта.
+            try {
+                (new \App\Services\Quest\DailyTaskService())->ensureForTelegramUser($telegramUserId, $chatId);
+            } catch (\Throwable $e) {
+                log_message('error', '[Bot.webhook] dailyTasks: ' . $e->getMessage());
+            }
         }
 
         try {

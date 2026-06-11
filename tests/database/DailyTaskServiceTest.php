@@ -41,7 +41,7 @@ final class DailyTaskServiceTest extends CIUnitTestCase
         $db->query('CREATE TABLE crafted_items_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, crafted_item_id INT NULL, quantity INT DEFAULT 1)');
         $db->query('CREATE TABLE action_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, chat_id BIGINT NULL, action_name VARCHAR(255), action_status VARCHAR(20), description TEXT NULL, created_at DATETIME NULL)');
         $db->query('CREATE TABLE battle_logs (id INT AUTO_INCREMENT PRIMARY KEY, winner_id INT NULL, created_at DATETIME NULL)');
-        $db->query('CREATE TABLE characters (id INT PRIMARY KEY, telegram_user_id INT NULL, level INT DEFAULT 1, npc_kills INT DEFAULT 0, gold DECIMAL(14,2) DEFAULT 0, created_at DATETIME NULL, updated_at DATETIME NULL)');
+        $db->query('CREATE TABLE characters (id INT PRIMARY KEY, telegram_user_id INT NULL, level INT DEFAULT 1, npc_kills INT DEFAULT 0, gold DECIMAL(14,2) DEFAULT 0, daily_tips_enabled TINYINT DEFAULT 1, created_at DATETIME NULL, updated_at DATETIME NULL)');
         $db->query('CREATE TABLE telegram_users (id INT PRIMARY KEY, telegram_id BIGINT NULL)');
         $db->query('CREATE TABLE game_settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(191), category VARCHAR(64) NULL, value_type VARCHAR(16) NULL, value_int INT NULL, value_float DECIMAL(15,5) NULL, value_bool TINYINT NULL, value_string TEXT NULL, hard_min VARCHAR(32) NULL, hard_max VARCHAR(32) NULL)');
 
@@ -152,6 +152,47 @@ final class DailyTaskServiceTest extends CIUnitTestCase
         $this->cleanCache();
 
         $this->assertFalse($this->svc()->ensureAssigned(['id' => 1, 'level' => 5]));
+        $this->assertSame(0, Database::connect('tests')->table('character_daily_tasks')->countAllResults());
+    }
+
+    /**
+     * Ф2 регресс: ensureForTelegramUser резолвит персонажа по Telegram-id (telegram_users.telegram_id),
+     * НЕ по внутреннему PK. tg=999 → tu.id=10 → char 1. Контекст-подсказку глушим (enabled=0),
+     * чтобы тест не дёргал Telegram.
+     */
+    public function testEnsureForTelegramUserResolvesByTelegramIdAndAssigns(): void
+    {
+        $this->seedBool('onboarding.contextual_hints.enabled', 0);
+        $this->cleanCache();
+
+        $this->svc()->ensureForTelegramUser(999, 555);
+
+        $n = Database::connect('tests')->table('character_daily_tasks')
+            ->where('character_id', 1)->where('task_date', self::DATE)->countAllResults();
+        $this->assertSame(3, $n);
+    }
+
+    public function testEnsureForTelegramUserUnknownTelegramIdNoAssign(): void
+    {
+        $this->seedBool('onboarding.contextual_hints.enabled', 0);
+        $this->cleanCache();
+
+        // 10 — это внутренний telegram_users.id, а НЕ telegram_id (=999). Старый баг
+        // искал по нему как по telegram_user_id → нашёл бы. Join по telegram_id → пусто.
+        $this->svc()->ensureForTelegramUser(10, 555);
+        $this->svc()->ensureForTelegramUser(424242, 555);
+
+        $this->assertSame(0, Database::connect('tests')->table('character_daily_tasks')->countAllResults());
+    }
+
+    public function testEnsureForTelegramUserKillswitchOffNoAssign(): void
+    {
+        Database::connect('tests')->table('game_settings')
+            ->where('setting_key', 'quests.daily.enabled')->update(['value_bool' => 0]);
+        $this->cleanCache();
+
+        $this->svc()->ensureForTelegramUser(999, 555);
+
         $this->assertSame(0, Database::connect('tests')->table('character_daily_tasks')->countAllResults());
     }
 
