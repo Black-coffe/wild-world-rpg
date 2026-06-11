@@ -181,6 +181,34 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
     }
 
     /**
+     * E19 (ADR-119) музей — exact 'museum'/'museumLocked' + prefix 'collOpen_<id>'/'collDonate_<slotId>'.
+     * Class-of-bug npcAct_ (мёртвый prefix с `_`): фиксируем, что хвосты резолвятся по первому сегменту.
+     */
+    public function testCollectionCallbackRoutesResolve(): void
+    {
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\Collections\CollectionsAction::class,
+            $this->cbRoutes->resolve('museum'),
+            'callback_data «museum» обязан резолвиться в CollectionsAction (вход в музей).'
+        );
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\Collections\CollectionsAction::class,
+            $this->cbRoutes->resolve('museumLocked'),
+            'callback_data «museumLocked» (lock < L50) обязан резолвиться в CollectionsAction.'
+        );
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\Collections\CollectionOpenAction::class,
+            $this->cbRoutes->resolve(explode('_', 'collOpen_1')[0]),
+            'callback_data «collOpen_<id>» обязан резолвиться в CollectionOpenAction.'
+        );
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\Collections\CollectionDonateAction::class,
+            $this->cbRoutes->resolve(explode('_', 'collDonate_5')[0]),
+            'callback_data «collDonate_<slotId>» обязан резолвиться в CollectionDonateAction.'
+        );
+    }
+
+    /**
      * ADR-096 «Оптовая продажа» — exact-роут 'bulkSell'; все хвосты (all_/rarity_/go_)
      * дают тот же первый сегмент → один обработчик. Тот же class-of-bug, что npcAct_
      * (мёртвый prefix с `_`): фиксируем, что роут жив для предпросмотра и выполнения.
