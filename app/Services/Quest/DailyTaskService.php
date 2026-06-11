@@ -66,9 +66,9 @@ class DailyTaskService
 
         // Интро-подсказка про дейлики: one-shot, level-gated (≤max_level), opt-out — фича
         // обучаема и находима БЕЗ предзнаний (ONBOARDING-COVERAGE). Ветераны (>max_level)
-        // находят через кнопку «🗓 Задания дня» на карточке Перса (UX-DISCOVERABILITY).
-        (new \App\Services\Onboarding\OnboardingHintService())
-            ->maybeSend($row, $chatId, \App\Services\Onboarding\OnboardingHintCatalog::DAILY_TASKS);
+        // находят через кнопку «🗓 Задания дня» на карточке Перса (UX-DISCOVERABILITY),
+        // без масс-пинга всей популяции при активации.
+        (new \App\Services\Onboarding\OnboardingHintService())->maybeSendDailyTasksTip($row, $chatId);
     }
 
     /**

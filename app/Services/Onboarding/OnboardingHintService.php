@@ -62,6 +62,23 @@ class OnboardingHintService
     }
 
     /**
+     * E8 (ADR-109) Ф2 — интро-подсказка про ежедневные задания (just-in-time).
+     * Гейты: level ≤ max (только новички — ветераны находят фичу кнопкой «🗓 Задания дня»
+     * на карточке Перса, без масс-пинга всей популяции) + killswitch + opt-out + не показано.
+     *
+     * @param array<string, mixed>|CharacterEntity $character
+     */
+    public function maybeSendDailyTasksTip(array|CharacterEntity $character, int $chatId): bool
+    {
+        $level = self::intField($character, 'level');
+        if ($level > $this->gsInt('onboarding.contextual_hints.max_level', 6)) {
+            return false;
+        }
+
+        return $this->maybeSend($character, $chatId, OnboardingHintCatalog::DAILY_TASKS);
+    }
+
+    /**
      * Базовый one-shot отправитель: killswitch + opt-out + дедуп + отправка + запись.
      *
      * @param array<string, mixed>|CharacterEntity $character
