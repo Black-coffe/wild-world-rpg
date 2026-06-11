@@ -47,7 +47,10 @@ final class GatherDebuffEffect implements EventEffectInterface
             }
         }
 
-        $modifier = (float)($params['gather_rate_modifier'] ?? 0.0);
+        // E17 (ADR-117) — уровневый tier: дебафф добычи мягче новичкам, жёстче ветеранам
+        // (dormant → ×1.0 byte-identical). modifier — отрицательная доля (напр. -0.5).
+        $tier     = (new \App\Services\Events\EventLevelTierService())->harmFactorFor($character);
+        $modifier = (float)($params['gather_rate_modifier'] ?? 0.0) * $tier;
 
         // Це не tick-effect, це state — гравець має бути в курсі через start-нотіфікацію,
         // а реальне застосування — у GatherTaskHandler. compute() повертає intent.

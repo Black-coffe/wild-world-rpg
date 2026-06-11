@@ -170,6 +170,10 @@ final class DamageHealthEffect implements EventEffectInterface
             $base *= $levelFactor;
         }
 
+        // E17 (ADR-117) — уровневый tier-модификатор: новичков щадит, ветеранов испытывает.
+        // Dormant (killswitch off) → 1.0 = byte-identical (fixture-fence-safe).
+        $base *= (new \App\Services\Events\EventLevelTierService())->harmFactorFor($character);
+
         // biome_factor (важче в небезпечних біомах)
         if (!empty($params['biome_factor'])) {
             $biome      = $context['biome'] ?? null;

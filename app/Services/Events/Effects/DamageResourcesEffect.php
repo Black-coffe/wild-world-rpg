@@ -45,7 +45,9 @@ final class DamageResourcesEffect implements EventEffectInterface
             return EffectResultFactory::skipped('Захищений (state_coef=0)');
         }
 
-        $percent = (float)($params['percent_per_event'] ?? 15) * $stateCoef;
+        // E17 (ADR-117) — уровневый tier-модификатор потери ресурсов (dormant → ×1.0 byte-identical).
+        $tier    = (new \App\Services\Events\EventLevelTierService())->harmFactorFor($character);
+        $percent = (float)($params['percent_per_event'] ?? 15) * $stateCoef * $tier;
 
         // Protection item — -50% втрати
         if (!empty($context['has_protection_item'])) {
