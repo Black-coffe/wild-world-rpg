@@ -50,6 +50,8 @@ class AchievementCheckCron extends BaseTaskHandler
 
         /** @var array<int, list<array<int|string,mixed>>> $perPlayer charId => list of achievement rows */
         $perPlayer = [];
+        /** @var array<int, int> $perPlayerGold charId => суммарное золото-награда за тик (E9, ADR-110) */
+        $perPlayerGold = [];
 
         foreach ($this->service->definitions() as $ach) {
             if ($awarded >= $cap) {
@@ -70,12 +72,14 @@ class AchievementCheckCron extends BaseTaskHandler
                 if ($this->service->award($charId, $achId)) {
                     $awarded++;
                     $perPlayer[$charId][] = $ach;
+                    // E9 (ADR-110): золото-награда за новую разблокировку (0 если dormant).
+                    $perPlayerGold[$charId] = ($perPlayerGold[$charId] ?? 0) + $this->service->grantReward($charId, $ach);
                 }
             }
         }
 
         foreach ($perPlayer as $charId => $achList) {
-            $this->notify($charId, $achList);
+            $this->notify($charId, $achList, $perPlayerGold[$charId] ?? 0);
         }
 
         if ($awarded > 0) {
@@ -87,8 +91,9 @@ class AchievementCheckCron extends BaseTaskHandler
      * Батч-уведомление одному персонажу обо всех его новых достижениях за тик.
      *
      * @param list<array<int|string,mixed>> $achList
+     * @param int                           $rewardGold суммарное золото-награда за тик (E9; 0 если dormant)
      */
-    private function notify(int $characterId, array $achList): void
+    private function notify(int $characterId, array $achList, int $rewardGold = 0): void
     {
         if (empty($achList)) {
             return;
@@ -120,6 +125,9 @@ class AchievementCheckCron extends BaseTaskHandler
             $title = is_string($ach['title'] ?? null) ? $ach['title'] : '';
             $desc  = is_string($ach['description'] ?? null) ? $ach['description'] : '';
             $msg  .= "{$icon} *{$title}*\n{$desc}\n\n";
+        }
+        if ($rewardGold > 0) {
+            $msg .= "🏆 Награда: *+{$rewardGold}* золота\n\n";
         }
         $msg .= '_Так держать, выживший._';
 

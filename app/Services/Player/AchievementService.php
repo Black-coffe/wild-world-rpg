@@ -64,6 +64,81 @@ final class AchievementService
         return is_numeric($v) && (int) $v >= 1 ? (int) $v : 25;
     }
 
+    /** E9 (ADR-110) — killswitch золото-наград за достижения. default false → dormant. */
+    public function rewardsEnabled(): bool
+    {
+        $v = $this->settings->get('achievement.rewards_enabled', false);
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+        return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /** E9 (ADR-110) — золото за одно очко достижения (tunable). */
+    public function rewardGoldPerPoint(): int
+    {
+        $v = $this->settings->get('achievement.reward_gold_per_point', 25);
+        return is_numeric($v) && (int) $v >= 0 ? (int) $v : 25;
+    }
+
+    /**
+     * E9 (ADR-110) — золото-награда за достижение = points × reward_gold_per_point.
+     * 0, если награды выключены. Чистый расчёт (без записи).
+     *
+     * @param array<int|string,mixed> $achievement
+     */
+    public function rewardGoldFor(array $achievement): int
+    {
+        if (! $this->rewardsEnabled()) {
+            return 0;
+        }
+        $points = is_numeric($achievement['points'] ?? null) ? (int) $achievement['points'] : 0;
+        return max(0, $points) * $this->rewardGoldPerPoint();
+    }
+
+    /**
+     * E9 (ADR-110) — начислить золото-награду за РАЗБЛОКИРОВАННОЕ достижение и вернуть сумму.
+     * Вызывается cron'ом ПОСЛЕ успешного award() (idempotency обеспечивает award, не этот метод).
+     * 0 — если награды выключены / points=0. Overridable seam (тесты подменяют грант).
+     *
+     * @param array<int|string,mixed> $achievement
+     */
+    public function grantReward(int $characterId, array $achievement): int
+    {
+        $gold = $this->rewardGoldFor($achievement);
+        if ($gold > 0 && $characterId > 0) {
+            $this->increaseGold($characterId, $gold);
+        }
+        return $gold;
+    }
+
+    /** Overridable seam грантинга золота (тесты подменяют — без CharacterModel/БД). */
+    protected function increaseGold(int $characterId, int $gold): void
+    {
+        (new \App\Models\CharacterModel())->increaseGold($characterId, $gold);
+    }
+
+    /**
+     * E9 (ADR-110) — карта достижение_id → процент игроков, открывших его (редкость для UI).
+     * Реюз statsWithPercent (единый источник с веб-страницей ADR-100).
+     *
+     * @return array<int,float>
+     */
+    public function rarityPercentMap(): array
+    {
+        $map = [];
+        foreach ($this->statsWithPercent()['achievements'] as $a) {
+            $id = is_numeric($a['id'] ?? null) ? (int) $a['id'] : 0;
+            if ($id > 0) {
+                $map[$id] = is_numeric($a['percent'] ?? null) ? (float) $a['percent'] : 0.0;
+            }
+        }
+        return $map;
+    }
+
     /**
      * Включённые достижения по возрастанию sort_order.
      *
