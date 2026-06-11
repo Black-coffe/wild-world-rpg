@@ -162,6 +162,12 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\NPC\RaiderGradientHandler())->run())
             ->everyMinute()->singleInstance()->named('npc.raider-gradient');
 
+        // E15 (ADR-115) — спавн элитных NPC (L30/40/50) в средней полосе Y300-600 (killswitch
+        // world.elites.enabled → dormant = no-op). Поддерживает population_each на тир, респавн
+        // убитой элиты в новой клетке (анти-фарм). Трофеи = «Древние реликвии» (компонент E14).
+        $schedule->call(static fn() => (new \App\TaskHandlers\NPC\EliteSpawnHandler())->run())
+            ->everyMinute()->singleInstance()->named('npc.elite-spawn');
+
         // ============================================================
         // QUESTS — handler сам проверяет прогресс игроков
         // ============================================================
