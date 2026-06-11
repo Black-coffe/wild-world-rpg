@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Admin;
 
+use App\Services\Onboarding\OnboardingChainCatalog;
 use CodeIgniter\Database\BaseResult;
 use Config\Database;
 
@@ -54,6 +55,7 @@ final class FunnelAnalyticsService
             'anomalies'  => $this->anomalies(),
             'quests'     => $this->questSlice(),
             'e5'         => $this->e5Slice(),
+            'onboarding' => $this->onboardingChainSlice(),
             'generated_at' => date('Y-m-d H:i:s'),
         ];
     }
@@ -345,6 +347,101 @@ final class FunnelAnalyticsService
         $mid = intdiv($n, 2);
 
         return $n % 2 === 1 ? $values[$mid] : round(($values[$mid - 1] + $values[$mid]) / 2, 1);
+    }
+
+    /**
+     * E4 (ROADMAP-100-SESSIONS) — срез обучающей цепочки «Первые шаги выжившего» (ADR-103 Слой 2).
+     *
+     * Per-step воронка: сколько чаров ДОШЛО до шага (есть строка quest_steps) vs ПРОШЛО его
+     * (is_completed=1). Шаги цепочки = quests с title_en LIKE 'OnbStep%'; advanceChain назначает
+     * следующий шаг только при завершении текущего → reached каскадно убывает, drop-off виден между
+     * reached и completed внутри шага. Порядок шагов берётся из каталога (анти-дрейф БД↔код).
+     *
+     * Плюс adoption Слоя 1 (контекстные one-shot подсказки): сколько чаров получило каждую
+     * подсказку (action_log action_name LIKE 'OnbHint%' / событие открытия базы 'OnbEvent%').
+     *
+     * @return array{
+     *   enabled: bool,
+     *   started: int,
+     *   graduated: int,
+     *   steps: list<array{title_en:string,label:string,reached:int,completed:int,pct:float}>,
+     *   hints: list<array{action_name:string,chars:int}>
+     * }
+     */
+    public function onboardingChainSlice(): array
+    {
+        $titles = array_map(static fn (array $s): string => $s['title_en'], OnboardingChainCatalog::steps());
+        $ruByEn = [];
+        foreach (OnboardingChainCatalog::steps() as $s) {
+            $ruByEn[$s['title_en']] = $s['title_ru'];
+        }
+        $order = "FIELD(q.title_en, " . implode(',', array_map(
+            static fn (string $t): string => "'" . $t . "'",
+            $titles
+        )) . ')';
+
+        $rows = $this->rows(
+            "SELECT q.title_en,
+                    COUNT(DISTINCT qs.character_id) reached,
+                    COUNT(DISTINCT CASE WHEN qs.is_completed = 1 THEN qs.character_id END) completed
+             FROM quest_steps qs JOIN quests q ON q.id = qs.quest_id
+             WHERE q.title_en LIKE '" . OnboardingChainCatalog::PREFIX . "%'
+             GROUP BY q.title_en
+             ORDER BY {$order}"
+        );
+
+        $steps     = [];
+        $started   = 0;
+        $graduated = 0;
+        foreach ($rows as $r) {
+            $titleEn = $this->s($r['title_en'] ?? '');
+            $reached   = $this->n($r['reached'] ?? 0);
+            $completed = $this->n($r['completed'] ?? 0);
+            if ($titleEn === OnboardingChainCatalog::ROOT) {
+                $started = $reached;
+            }
+            if ($titleEn === OnboardingChainCatalog::STEP_LEVEL5) {
+                $graduated = $completed;
+            }
+            $steps[] = [
+                'title_en'  => $titleEn,
+                'label'     => $ruByEn[$titleEn] ?? $titleEn,
+                'reached'   => $reached,
+                'completed' => $completed,
+                'pct'       => $reached > 0 ? round(100 * $completed / $reached, 1) : 0.0,
+            ];
+        }
+
+        $hints = [];
+        foreach ($this->rows(
+            "SELECT action_name, COUNT(DISTINCT character_id) chars
+             FROM action_log
+             WHERE action_name LIKE 'OnbHint%' OR action_name LIKE 'OnbEvent%'
+             GROUP BY action_name ORDER BY chars DESC"
+        ) as $r) {
+            $hints[] = [
+                'action_name' => $this->s($r['action_name'] ?? ''),
+                'chars'       => $this->n($r['chars'] ?? 0),
+            ];
+        }
+
+        return [
+            'enabled'   => $this->settingBool('onboarding.quest_chain.enabled'),
+            'started'   => $started,
+            'graduated' => $graduated,
+            'steps'     => $steps,
+            'hints'     => $hints,
+        ];
+    }
+
+    /** Чтение bool-флага из game_settings (read-only, для контекста killswitch в дашборде). */
+    private function settingBool(string $key): bool
+    {
+        $r = $this->row(
+            "SELECT value_bool FROM game_settings WHERE setting_key = " . Database::connect()->escape($key) . " LIMIT 1"
+        );
+
+        return $this->n($r['value_bool'] ?? 0) === 1;
     }
 
     // ── db helpers (паттерн CraftingEconomyService) ───────────────────────────

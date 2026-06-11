@@ -23,7 +23,7 @@ final class FunnelAnalyticsServiceTest extends CIUnitTestCase
 
     private const TABLES = [
         'characters', 'telegram_users', 'claimed_cells', 'character_factions',
-        'explored_cells', 'quests', 'quest_steps', 'action_log',
+        'explored_cells', 'quests', 'quest_steps', 'action_log', 'game_settings',
     ];
 
     protected function setUp(): void
@@ -40,7 +40,9 @@ final class FunnelAnalyticsServiceTest extends CIUnitTestCase
         $db->query("CREATE TABLE claimed_cells (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, status VARCHAR(20) DEFAULT 'active')");
         $db->query('CREATE TABLE character_factions (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, faction_id INT)');
         $db->query('CREATE TABLE explored_cells (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, created_at DATETIME)');
-        $db->query('CREATE TABLE quests (id INT PRIMARY KEY, objective_type VARCHAR(50) NULL)');
+        $db->query('CREATE TABLE quests (id INT PRIMARY KEY, objective_type VARCHAR(50) NULL, title_en VARCHAR(255) NULL)');
+        $db->query("CREATE TABLE game_settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(190),
+                    value_bool TINYINT NULL)");
         $db->query('CREATE TABLE quest_steps (id INT AUTO_INCREMENT PRIMARY KEY, quest_id INT, character_id INT,
                     is_completed TINYINT DEFAULT 0, created_at DATETIME)');
         $db->query('CREATE TABLE action_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT,
@@ -85,6 +87,33 @@ final class FunnelAnalyticsServiceTest extends CIUnitTestCase
             ['quest_id' => 1, 'character_id' => 3, 'is_completed' => 0, 'created_at' => $now],
             ['quest_id' => 2, 'character_id' => 1, 'is_completed' => 0, 'created_at' => $now],
             ['quest_id' => 2, 'character_id' => 1, 'is_completed' => 0, 'created_at' => '2026-05-01 00:00:00'], // до активации — не в срезе
+        ]);
+
+        // E4 — онбординг-цепочка: 3 квеста-шага (Move→Gather→Craft) + прогресс 3 чаров.
+        // A(1): Move✓ Gather✓ Craft✗ (застрял на крафте); B(3): Move✓ Gather✗; C(4): Move✗.
+        $db->table('quests')->insertBatch([
+            ['id' => 100, 'objective_type' => 'explore_cells',   'title_en' => 'OnbStepMove'],
+            ['id' => 101, 'objective_type' => 'collect_resource', 'title_en' => 'OnbStepGather'],
+            ['id' => 102, 'objective_type' => 'craft_any',        'title_en' => 'OnbStepCraft'],
+        ]);
+        // created_at ДО активации квестов (2026-06-02) → не засоряют questSlice-срез;
+        // onboardingChainSlice датой не фильтрует, поэтому считает их полностью.
+        $onbAt = '2026-05-10 00:00:00';
+        $db->table('quest_steps')->insertBatch([
+            ['quest_id' => 100, 'character_id' => 1, 'is_completed' => 1, 'created_at' => $onbAt],
+            ['quest_id' => 100, 'character_id' => 3, 'is_completed' => 1, 'created_at' => $onbAt],
+            ['quest_id' => 100, 'character_id' => 4, 'is_completed' => 0, 'created_at' => $onbAt],
+            ['quest_id' => 101, 'character_id' => 1, 'is_completed' => 1, 'created_at' => $onbAt],
+            ['quest_id' => 101, 'character_id' => 3, 'is_completed' => 0, 'created_at' => $onbAt],
+            ['quest_id' => 102, 'character_id' => 1, 'is_completed' => 0, 'created_at' => $onbAt],
+        ]);
+        $db->table('action_log')->insertBatch([
+            ['character_id' => 1, 'action_name' => 'OnbHint_first_base', 'action_status' => 'Completed', 'created_at' => $now],
+            ['character_id' => 3, 'action_name' => 'OnbHint_first_base', 'action_status' => 'Completed', 'created_at' => $now],
+            ['character_id' => 1, 'action_name' => 'OnbEvent_open_base_screen', 'action_status' => 'Completed', 'created_at' => $now],
+        ]);
+        $db->table('game_settings')->insertBatch([
+            ['setting_key' => 'onboarding.quest_chain.enabled', 'value_bool' => 1],
         ]);
     }
 
@@ -180,9 +209,36 @@ final class FunnelAnalyticsServiceTest extends CIUnitTestCase
     {
         $d = (new FunnelAnalyticsService())->dashboard();
 
-        foreach (['summary', 'funnel_all', 'funnel_30d', 'levels', 'weekly', 'anomalies', 'quests', 'e5', 'generated_at'] as $key) {
+        foreach (['summary', 'funnel_all', 'funnel_30d', 'levels', 'weekly', 'anomalies', 'quests', 'e5', 'onboarding', 'generated_at'] as $key) {
             $this->assertArrayHasKey($key, $d);
         }
+    }
+
+    /** E4 — срез онбординг-цепочки: per-step reached/completed, started/graduated, killswitch, hints. */
+    public function testOnboardingChainSlice(): void
+    {
+        $o = (new FunnelAnalyticsService())->onboardingChainSlice();
+
+        $this->assertTrue($o['enabled']);
+        $this->assertSame(3, $o['started']);    // Move reached: c1,c3,c4
+        $this->assertSame(0, $o['graduated']);  // Level5 ни у кого
+
+        $byEn = array_column($o['steps'], null, 'title_en');
+        $this->assertSame(3, $byEn['OnbStepMove']['reached']);
+        $this->assertSame(2, $byEn['OnbStepMove']['completed']);   // c1,c3
+        $this->assertSame(2, $byEn['OnbStepGather']['reached']);    // c1,c3
+        $this->assertSame(1, $byEn['OnbStepGather']['completed']);  // c1
+        $this->assertSame(1, $byEn['OnbStepCraft']['reached']);     // c1
+        $this->assertSame(0, $byEn['OnbStepCraft']['completed']);
+        $this->assertSame(50.0, $byEn['OnbStepGather']['pct']);
+
+        // Порядок шагов — каталожный (Move первым).
+        $this->assertSame('OnbStepMove', $o['steps'][0]['title_en']);
+
+        // Слой 1: подсказка показана 2 чарам, событие базы — 1.
+        $hints = array_column($o['hints'], 'chars', 'action_name');
+        $this->assertSame(2, $hints['OnbHint_first_base']);
+        $this->assertSame(1, $hints['OnbEvent_open_base_screen']);
     }
 
     /**

@@ -19,6 +19,7 @@ $weekly = $arr($d['weekly'] ?? null);
 $anom   = $arr($d['anomalies'] ?? null);
 $quests = $arr($d['quests'] ?? null);
 $e5     = $arr($d['e5'] ?? null);
+$onb    = $arr($d['onboarding'] ?? null);
 $pctCls = static fn (float $p): string => $p >= 50 ? 'text-success' : ($p >= 10 ? 'text-warning' : 'text-danger');
 ?>
 
@@ -157,6 +158,67 @@ $pctCls = static fn (float $p): string => $p >= 50 ? 'text-success' : ($p >= 10 
                             <?php endforeach; ?>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- E4 — онбординг-цепочка «Первые шаги выжившего» (ADR-103 Слой 2) -->
+        <div class="row">
+            <div class="col-xl-8">
+                <div class="card">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                        <b>E4 — Онбординг-цепочка «Первые шаги выжившего» (ADR-103)</b>
+                        <?php $onbOn = (bool) ($onb['enabled'] ?? false); ?>
+                        <span class="badge <?= $onbOn ? 'bg-success' : 'bg-secondary' ?>">
+                            killswitch: <?= $onbOn ? 'ON' : 'OFF (dormant)' ?></span>
+                    </div>
+                    <div class="card-body p-2">
+                        <p class="text-muted small mb-2">
+                            Начали цепочку: <b><?= esc($num($onb['started'] ?? 0)) ?></b> ·
+                            выпустились (L5): <b><?= esc($num($onb['graduated'] ?? 0)) ?></b>.
+                            «Дошёл» = шаг назначен; «прошёл» = выполнен. Следующий шаг назначается только после
+                            завершения текущего, поэтому «дошёл» убывает каскадно — обрыв виден между «дошёл» и «прошёл».
+                        </p>
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr><th>#</th><th>Шаг</th><th class="text-end">Дошёл</th>
+                                <th class="text-end">Прошёл</th><th class="text-end">% прохождения</th></tr></thead>
+                            <tbody>
+                            <?php foreach ($arr($onb['steps'] ?? null) as $i => $st): $st = $arr($st); $p = $pf($st['pct'] ?? null); ?>
+                                <tr>
+                                    <td class="text-muted"><?= (int) $i + 1 ?></td>
+                                    <td><?= esc($str($st['label'] ?? '')) ?></td>
+                                    <td class="text-end"><?= esc($num($st['reached'] ?? 0)) ?></td>
+                                    <td class="text-end"><?= esc($num($st['completed'] ?? 0)) ?></td>
+                                    <td class="text-end <?= $pctCls($p) ?>"><?= esc((string) $p) ?>%</td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-4">
+                <div class="card">
+                    <div class="card-header py-2"><b>Слой 1 — контекстные подсказки (adoption)</b></div>
+                    <div class="card-body p-2">
+                        <?php $hints = $arr($onb['hints'] ?? null); ?>
+                        <?php if ($hints === []): ?>
+                            <p class="text-muted small mb-0">Подсказок ещё не показано.</p>
+                        <?php else: ?>
+                        <table class="table table-sm table-striped mb-0">
+                            <thead><tr><th>Подсказка / событие</th><th class="text-end">Чаров</th></tr></thead>
+                            <tbody>
+                            <?php foreach ($hints as $h): $h = $arr($h); ?>
+                                <tr>
+                                    <td class="small"><code><?= esc($str($h['action_name'] ?? '')) ?></code></td>
+                                    <td class="text-end"><?= esc($num($h['chars'] ?? 0)) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
