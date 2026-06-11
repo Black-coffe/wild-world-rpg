@@ -258,6 +258,7 @@ class CallbackRoutes extends BaseConfig
         'CampCreateConfirm'               => \App\Controllers\Telegram\Commands\Actions\Camp\CampCreateConfirmAction::class,
         'CancelCamp'                      => \App\Controllers\Telegram\Commands\Actions\Camp\CampCancelAction::class,
         'construction'                    => \App\Controllers\Telegram\Commands\Actions\Camp\DetailedBaseInfoAction::class,
+        'baseDevelopment'                 => \App\Controllers\Telegram\Commands\Actions\Camp\BaseDevelopmentAction::class,
         'TeleportToCamp'                  => \App\Controllers\Telegram\Commands\Actions\Camp\TeleportAction::class,
         'TeleportUse'                     => \App\Controllers\Telegram\Commands\Actions\Camp\TeleportUseAction::class,
         'DeleteBase'                     => \App\Controllers\Telegram\Commands\Actions\Camp\DeleteBaseAction::class,

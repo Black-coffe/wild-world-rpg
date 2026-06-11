@@ -217,6 +217,16 @@ final class BuildingEffectsService
     }
 
     /**
+     * E18 (ADR-118) — публичный резолв множителя эффекта здания на КОНКРЕТНОМ уровне (для витрины
+     * «🏗 Развитие базы»: показать текущий и следующий эффект). Обёртка resolveLevelMultiplier
+     * (level-aware, интерполяция L4-L9 ADR-042). Level<2 → 1.0 (нет уровневого бонуса).
+     */
+    public function effectAtLevel(string $buildingKey, int $level, string $paramName): float
+    {
+        return $level < 2 ? 1.0 : $this->resolveLevelMultiplier($buildingKey, $level, $paramName);
+    }
+
+    /**
      * Знайти найвищий level building'а певного типу у character_buildings.
      * Гравець може мати кілька instances одного building (на різних cells);
      * беремо max(level) — найвищий апгрейд є «активним» для game-effects.

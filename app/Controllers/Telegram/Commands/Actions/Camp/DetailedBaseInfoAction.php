@@ -244,6 +244,9 @@ class DetailedBaseInfoAction extends BaseAction
         // Организуем кнопки по 2 в ряд
         $keyboard = array_chunk($keyboardButtons, 2);
 
+        // E18 (ADR-118) — вход в витрину «🏗 Развитие базы» (легибельность эффектов уровней построек).
+        $keyboard[] = [['text' => '🏗 Развитие базы', 'callback_data' => 'baseDevelopment']];
+
         $imagePath = base_url('uploads/telegram/camp/base_with_its_buildings.jpg');
 
         return \App\Services\Notifications\MediaSender::sendPhotoOrText([
