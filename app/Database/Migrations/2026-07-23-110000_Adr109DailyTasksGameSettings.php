@@ -9,7 +9,7 @@ use CodeIgniter\Database\Migration;
 /**
  * ADR-109 (E8) — настройки ежедневных заданий (daily-цикл).
  *
- * 4 ключа категории endgame (как faction.*/quests.*). killswitch default OFF → DORMANT.
+ * 4 ключа категории endgame (как faction-/quests-настройки). killswitch default OFF → DORMANT.
  * Constitutional rule ADR-024: rationale/effect/above/below NOT NULL. Seed game_settings
  * (KEEP) → WipeManifest не затрагивается. Idempotent по setting_key.
  */
