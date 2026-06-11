@@ -185,13 +185,18 @@ class CharacterService
         $hasChosenFaction = $charFaction
             && (int) ($charFaction['faction_id'] ?? 0) !== 5
             && !empty($charFaction['joined_at']);
+
+        // Фракция + «Задания дня» — В ОДНОМ ряду (фидбэк владельца 2026-06-11: две
+        // полноширинные кнопки подряд раздували карточку). Каждая может отсутствовать
+        // (фракция выбрана / killswitch дейликов) — тогда оставшаяся занимает ряд одна.
+        $midRow = [];
         if ($level >= 10 && !$hasChosenFaction) {
-            $inlineRows[] = [['text' => '⚑ Выбрать фракцию', 'callback_data' => 'chooseFaction_info']];
+            $midRow[] = ['text' => '⚑ Выбрать фракцию', 'callback_data' => 'chooseFaction_info'];
         } elseif ($level < 10 && !$hasChosenFaction) {
             // E7 (ROADMAP-100): lock-кнопка для <L10 — ранняя посадка цели. Срез показал:
             // 62% доросших до L10 выбирают фракцию, но до L10 цель была НЕВИДИМА. Клик →
             // alert с prerequisite + value-prop teaser (UX-DISCOVERABILITY, не скрываем молча).
-            $inlineRows[] = [['text' => '🔒 ⚑ Фракция (с lvl 10)', 'callback_data' => 'chooseFactionLocked']];
+            $midRow[] = ['text' => '🔒 ⚑ Фракция (с lvl 10)', 'callback_data' => 'chooseFactionLocked'];
         }
 
         // N-навигация (2026-06-11) — АНТИ button-soup (memory feedback_character_card_button_soup):
@@ -203,7 +208,10 @@ class CharacterService
         $charId       = (int) ($characterRow['id'] ?? 0);
         $dailyEnabled = (new \App\Services\Quest\DailyTaskService())->enabled();
         if ($dailyEnabled) {
-            $inlineRows[] = [['text' => '🗓 Задания дня', 'callback_data' => 'dailyTasks']];
+            $midRow[] = ['text' => '🗓 Задания дня', 'callback_data' => 'dailyTasks'];
+        }
+        if ($midRow !== []) {
+            $inlineRows[] = $midRow;
         }
 
         // ДВА хаба: «📊 Прогресс» (достижения/титулы/рейтинг/экономика/что нового) +
