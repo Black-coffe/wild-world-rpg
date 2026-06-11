@@ -34,7 +34,8 @@ final class ProgressHubAction extends BaseAction
             return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Персонаж не найден.']);
         }
 
-        $buttons = ProfileHubService::progressButtons();
+        $level   = is_numeric($character['level'] ?? null) ? (int) $character['level'] : 0;
+        $buttons = ProfileHubService::progressButtons($level);
         $text    = "📊 *Прогресс*\n\n";
         $rows    = [];
         if ($buttons === []) {

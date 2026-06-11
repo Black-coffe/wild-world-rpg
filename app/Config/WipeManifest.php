@@ -72,6 +72,8 @@ class WipeManifest extends BaseConfig
         // ─────────────────────────────────────────────────────────────
         'achievements'         => ['strategy' => self::KEEP, 'note' => 'Определения достижений'],
         'titles'               => ['strategy' => self::KEEP, 'note' => 'Определения титулов (ADR-112, E11) — контент, как achievements'],
+        'collections'          => ['strategy' => self::KEEP, 'note' => 'Определения коллекций (ADR-119, E19) — контент-сеты для собирательства'],
+        'collection_slots'     => ['strategy' => self::KEEP, 'note' => 'Слоты коллекций (ADR-119, E19) — какой ресурс/сколько сдать (контент-определение)'],
         'buildings'            => ['strategy' => self::KEEP, 'note' => 'Определения построек'],
         'crafted_items'        => ['strategy' => self::KEEP, 'note' => 'Рецепты/определения предметов'],
         'loot_table_items'     => ['strategy' => self::KEEP, 'note' => 'Лут-таблицы NPC (ADR-107) — контент-определения дропа (npcs.loot_table_id), нет player-связи'],
@@ -138,6 +140,7 @@ class WipeManifest extends BaseConfig
         'battle_logs'            => ['strategy' => self::PLAYER_DATA, 'link' => ['player1_id', 'player2_id'], 'by' => 'character', 'note' => 'Логи боёв PvP'],
         'character_achievements' => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Разблокированные достижения'],
         'character_titles'       => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Разблокированные титулы (ADR-112, E11)'],
+        'character_collection_slots' => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Заполненные слоты коллекций (ADR-119, E19) — сдача-синк прогресса'],
         'character_buildings'    => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Постройки игрока'],
         'character_daily_tasks'  => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Ежедневные задания (ADR-109)'],
         'character_data'         => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Координаты/статы/состояние персонажа'],

@@ -22,9 +22,12 @@ final class ProfileHubService
     /**
      * Кнопки хаба «📊 Прогресс» (включённые read-only виды).
      *
+     * $level (если передан) резолвит L50-lock музея (E19): ≥ min → «🏛 Музей», иначе lock-кнопка.
+     * null (проверка видимости хаба из CharacterService) → lock-кнопка (вход не скрыт, хаб появится).
+     *
      * @return list<array{text:string, callback_data:string}>
      */
-    public static function progressButtons(): array
+    public static function progressButtons(?int $level = null): array
     {
         $b = [];
         if ((new AchievementService())->isEnabled()) {
@@ -32,6 +35,15 @@ final class ProfileHubService
         }
         if ((new TitleService())->enabled()) {
             $b[] = ['text' => '🎖 Титулы', 'callback_data' => 'titles'];
+        }
+        $collections = new CollectionService();
+        if ($collections->isEnabled()) {
+            $min = $collections->minLevel();
+            if ($level !== null && $level >= $min) {
+                $b[] = ['text' => '🏛 Музей', 'callback_data' => 'museum'];
+            } else {
+                $b[] = ['text' => "🔒 Музей (с lvl {$min})", 'callback_data' => 'museumLocked'];
+            }
         }
         if ((new \App\Services\PVE\PvpLadderService())->enabled()) {
             $b[] = ['text' => '🏆 Рейтинг PvP', 'callback_data' => 'pvpLadder'];

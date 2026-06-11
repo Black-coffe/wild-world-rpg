@@ -44,6 +44,9 @@ class CallbackRoutes extends BaseConfig
         // W10 (ADR-066) — экран «🏅 Достижения» (вход с карточки Перс при killswitch on).
         'achievements'                    => \App\Controllers\Telegram\Commands\Actions\Achievements\AchievementsAction::class,
         'titles'                          => \App\Controllers\Telegram\Commands\Actions\Titles\TitlesAction::class,
+        // E19 (ADR-119) — музей базы / коллекции. `museum` (обзор) + `museumLocked` (lock-вход < L50).
+        'museum'                          => \App\Controllers\Telegram\Commands\Actions\Collections\CollectionsAction::class,
+        'museumLocked'                    => \App\Controllers\Telegram\Commands\Actions\Collections\CollectionsAction::class,
         'progressHub'                     => \App\Controllers\Telegram\Commands\Actions\Profile\ProgressHubAction::class,
         'developmentHub'                  => \App\Controllers\Telegram\Commands\Actions\Profile\DevelopmentHubAction::class,
         // W24 (ADR-079) — экран «💰 Моя экономика» (вход с карточки Перс при killswitch on).
@@ -398,6 +401,11 @@ class CallbackRoutes extends BaseConfig
         'sellResource' => \App\Controllers\Telegram\Commands\Actions\Sell\SellResourceAction::class,
         // E11 (ADR-112) — экипировка титула. Callback `titleSet_<id>` (резолв по первому сегменту 'titleSet').
         'titleSet' => \App\Controllers\Telegram\Commands\Actions\Titles\TitleSetAction::class,
+        // E19 (ADR-119) — музей: открыть коллекцию `collOpen_<id>` / сдать предмет `collDonate_<slotId>`.
+        // Ключи БЕЗ хвостового `_` (резолв по первому сегменту explode('_')[0]); 'collOpen'/'collDonate'
+        // не префиксы друг друга → коллизии нет.
+        'collOpen'   => \App\Controllers\Telegram\Commands\Actions\Collections\CollectionOpenAction::class,
+        'collDonate' => \App\Controllers\Telegram\Commands\Actions\Collections\CollectionDonateAction::class,
         // V16 (ADR-047) — выбор/смена крафт-специализации. Callback: `specChoose_<branch>`.
         'specChoose' => \App\Controllers\Telegram\Commands\Actions\Specialization\SpecializationChooseAction::class,
         // v0.51.129 (community idea #1) — cancel queued craft з refund ресурсів
