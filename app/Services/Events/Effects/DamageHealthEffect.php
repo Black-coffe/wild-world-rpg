@@ -116,7 +116,12 @@ final class DamageHealthEffect implements EventEffectInterface
         // ====================================================
         $p = is_array($params) ? $params : [];
         if (isset($p['health_loss_range']) || isset($p['tired_loss_range'])) {
-            $mul   = $stateCoef * (!empty($context['has_protection_item']) ? 0.5 : 1.0);
+            // E17 (ADR-117) — уровневый harm-tier ОБЯЗАН применяться и на range-пути: после batch-5
+            // ВСЕ damage_health-события используют health_loss_range и возвращались здесь ДО инъекции
+            // ниже (строка ~175) → tier был мёртв для реальных событий (поймано Tier-3 RadioactiveFog
+            // 2026-06-12). Dormant (killswitch off) → harmFactor=1.0 = byte-identical (fixture-fence-safe).
+            $harm  = (new \App\Services\Events\EventLevelTierService())->harmFactorFor($character);
+            $mul   = $stateCoef * (!empty($context['has_protection_item']) ? 0.5 : 1.0) * $harm;
             $hLoss = isset($p['health_loss_range']) ? self::lossFromRange($p['health_loss_range'], $mul) : 0.0;
             $tLoss = isset($p['tired_loss_range'])  ? self::lossFromRange($p['tired_loss_range'],  $mul) : 0.0;
             if ($hLoss <= 0.0 && $tLoss <= 0.0) {

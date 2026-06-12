@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Database;
 
+use App\Services\Events\Effects\DamageHealthEffect;
 use App\Services\Events\EventLevelTierService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -145,5 +146,47 @@ final class EventLevelTierServiceTest extends CIUnitTestCase
         $this->assertFalse($svc->enabled()); // harm killswitch не сидился
         $this->assertEqualsWithDelta(1.3, $svc->boonFactor(5), 0.001);
         $this->assertSame(1.0, $svc->harmFactor(5));
+    }
+
+    // ── E17 Ф2 regression: harm-tier ОБЯЗАН доходить до health_loss_range-пути ──
+    // Поймано Tier-3 2026-06-12 (RadioactiveFog): harmFactor применялся ТОЛЬКО на legacy
+    // effect_value-пути, а ВСЕ damage_health-события после batch-5 используют health_loss_range
+    // и возвращались раньше инъекции → tier был мёртв на проде с 06-11. Этот тест валит, если
+    // harm снова перестанет применяться на range-пути.
+
+    /**
+     * Фиксированный диапазон [4,4] = детерминированный урон 4 до множителей.
+     *
+     * @return array{effect_params: array<string, mixed>}
+     */
+    private function fogParams(): array
+    {
+        return ['effect_params' => [
+            'damage_target'     => 'health',
+            'state_modifier'    => ['base_idle' => 0.0, 'biome_idle' => 0.7, 'biome_active' => 1.0],
+            'health_loss_range' => [4, 4],
+        ]];
+    }
+
+    public function testHarmTierAppliesToHealthLossRangePath(): void
+    {
+        $this->enableDefaults(); // harm on: новичок 0.5, ветеран 1.3
+        $eff = new DamageHealthEffect();
+        $ctx = ['is_gathering' => true]; // biome_active → state_coef 1.0
+
+        $newbie  = $eff->compute(['health' => 100, 'tired' => 100, 'level' => 5], $this->fogParams(), ['id' => 1], $ctx);
+        $veteran = $eff->compute(['health' => 100, 'tired' => 100, 'level' => 40], $this->fogParams(), ['id' => 1], $ctx);
+
+        // 4 × 1.0 (state) × 0.5 (newbie) = 2.0; 4 × 1.0 × 1.3 (veteran) = 5.2
+        $this->assertEqualsWithDelta(-2.0, $newbie['health_delta'], 0.01, 'новичок: 0.5× урона на range-пути');
+        $this->assertEqualsWithDelta(-5.2, $veteran['health_delta'], 0.01, 'ветеран: 1.3× урона на range-пути');
+    }
+
+    public function testHarmTierDormantKeepsRangePathByteIdentical(): void
+    {
+        // killswitch не сидится → harmFactor=1.0 → урон = 4 (byte-identical).
+        $eff = new DamageHealthEffect();
+        $r   = $eff->compute(['health' => 100, 'tired' => 100, 'level' => 5], $this->fogParams(), ['id' => 1], ['is_gathering' => true]);
+        $this->assertEqualsWithDelta(-4.0, $r['health_delta'], 0.01);
     }
 }
