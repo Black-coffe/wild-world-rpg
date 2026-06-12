@@ -65,6 +65,7 @@ class CallbackRoutes extends BaseConfig
         'move'                            => \App\Controllers\Telegram\Commands\Actions\MoveCharacterAction::class,
         'march'                           => \App\Controllers\Telegram\Commands\Actions\MarchAction::class,          // ADR-019 — «Поход»
         'cancelMarch'                     => \App\Controllers\Telegram\Commands\Actions\CancelMarchAction::class,    // ADR-019 — остановить поход
+        'marchMini'                       => \App\Controllers\Telegram\Commands\Actions\MarchMiniInvestigateAction::class, // E17 Ф2 — осмотреть мини-событие в Походе
         'gather'                          => \App\Controllers\Telegram\Commands\Actions\GatherAction::class,
         'cancelGather'                    => \App\Controllers\Telegram\Commands\Actions\CancelGatherAction::class,
         'inventory'                       => \App\Controllers\Telegram\Commands\Actions\InventoryAction::class,

@@ -57,6 +57,7 @@ class MarchingTaskHandler extends BaseTaskHandler
     private PlayerDetectionService $detector;
     private TowerAlertService $towerAlerts;
     private ObjectSignalService $objectSignal;
+    private \App\Services\World\MarchMiniEventService $miniEvents;
 
     /** @var array<string, array{int,int}> dx,dy по направлениям (y растёт на юг). */
     private const DIRECTIONS = [
@@ -82,12 +83,13 @@ class MarchingTaskHandler extends BaseTaskHandler
         'southeast' => '↘️ юго-восток',
     ];
 
-    public function __construct(?GameBalance $cfg = null, ?PlayerDetectionService $detector = null, ?TowerAlertService $towerAlerts = null, ?ObjectSignalService $objectSignal = null)
+    public function __construct(?GameBalance $cfg = null, ?PlayerDetectionService $detector = null, ?TowerAlertService $towerAlerts = null, ?ObjectSignalService $objectSignal = null, ?\App\Services\World\MarchMiniEventService $miniEvents = null)
     {
         $this->cfg          = $cfg ?? new GameBalance();
         $this->detector     = $detector ?? new PlayerDetectionService();
         $this->towerAlerts  = $towerAlerts ?? new TowerAlertService();
         $this->objectSignal = $objectSignal ?? new ObjectSignalService();
+        $this->miniEvents   = $miniEvents ?? new \App\Services\World\MarchMiniEventService();
     }
 
     /**
@@ -238,6 +240,11 @@ class MarchingTaskHandler extends BaseTaskHandler
 
         // — ADR-089 Фаза 3: случайная встреча с нейтральным NPC в пути → пауза похода —
         if ($this->tryRandomNpcEncounter($characterId, $telegramUserId, $targetCellNumber, $s, $character, $stepsPlanned - $stepsDone)) {
+            return;
+        }
+
+        // — E17 Ф2 (ADR-117): персональное мини-событие в пути для L25+ → пауза похода —
+        if ($this->tryRandomMiniEvent($characterId, $telegramUserId, $s, $character, $stepsPlanned - $stepsDone)) {
             return;
         }
 
@@ -435,6 +442,51 @@ class MarchingTaskHandler extends BaseTaskHandler
     }
 
     /**
+     * E17 Ф2 (ADR-117) — персональное мини-событие в пути для L25+.
+     * Тройной гейт: killswitch `world.march_events.enabled` + level ≥ `min_level`(25) +
+     * RNG < `chance_per_cell`(0 dormant). При chance 0 → мгновенный false (0 регрессии похода,
+     * fixture-fence). При успехе → выбирается мини-событие, ключ в settings → pauseMarch(mini_event).
+     *
+     * @param array<int|string, mixed> $s
+     * @param array<int|string, mixed> $character
+     * @return bool true → поход прерван (мини-событие)
+     */
+    private function tryRandomMiniEvent(int $characterId, int $telegramUserId, array $s, array $character, int $stepsRemaining): bool
+    {
+        $level = isset($character['level']) ? $this->asInt($character['level']) : 0;
+        if (! $this->miniEvents->eligible($level)) {
+            return false;
+        }
+        if (! $this->miniEvents->roll()) {
+            return false;
+        }
+
+        $s['mini_event_key'] = $this->miniEvents->pickKey();
+        $this->pauseMarch($characterId, $telegramUserId, $s, $character, 'mini_event', $stepsRemaining);
+
+        return true;
+    }
+
+    /**
+     * Текст-промпт мини-события (по `mini_event_key` из settings) для pauseMarch.
+     *
+     * @param array<int|string, mixed> $s
+     */
+    private function miniEventPrompt(array $s, int $stepsRemaining): string
+    {
+        $key  = isset($s['mini_event_key']) && is_string($s['mini_event_key']) ? $s['mini_event_key'] : '';
+        $card = $key !== '' ? $this->miniEvents->card($key) : null;
+        if ($card === null) {
+            return "🔍 *Что-то в пути.* Поход на паузе (осталось `{$stepsRemaining}` " . $this->plural($stepsRemaining, 'клетку', 'клетки', 'клеток') . ').';
+        }
+        $left = $this->plural($stepsRemaining, 'клетку', 'клетки', 'клеток');
+
+        return "{$card['icon']} *{$card['title']}.* {$card['lore']}\n"
+            . "Поход на паузе (осталось `{$stepsRemaining}` {$left}).\n"
+            . "_{$card['prompt']} Осмотреть — взять, что найдётся. Или пройти мимо и продолжить путь._";
+    }
+
+    /**
      * Пауза: новый character_tasks row со status='paused' (steps_remaining +
      * paused_reason) + сообщение с промптом. Текущая задача уже 'completed'.
      *
@@ -469,20 +521,26 @@ class MarchingTaskHandler extends BaseTaskHandler
                 . '_Промпт «атаковать / бежать» придёт отдельным сообщением. Или продолжай поход — пройдёшь мимо._',
             'npc_encounter' => "👤 *Встреча в пути.* На клетке кто-то живой — настороженно смотрит на тебя. Поход на паузе (осталось `{$stepsRemaining}` " . $this->plural($stepsRemaining, 'клетку', 'клетки', 'клеток') . ").\n"
                 . '_Подойти — поговорить, торговать, напасть. Или пройти мимо и продолжить путь._',
+            'mini_event' => $this->miniEventPrompt($s, $stepsRemaining),
             default => "⏸ *Поход на паузе* (осталось `{$stepsRemaining}` " . $this->plural($stepsRemaining, 'клетку', 'клетки', 'клеток') . ').',
         };
         $text .= "\n\n" . $this->renderMap($character);
 
-        // ADR-089 Фаза 3: для встречи с NPC — «подойти» (encounter) / «пройти мимо» (resume).
-        $keyboardRows = $reason === 'npc_encounter'
-            ? [[
+        // ADR-089 Фаза 3: NPC → подойти/мимо; E17 Ф2: мини-событие → осмотреть/мимо; иначе продолжить/действия.
+        $keyboardRows = match ($reason) {
+            'npc_encounter' => [[
                 ['text' => '👤 Подойти', 'callback_data' => 'npcEncounter'],
                 ['text' => '🚶 Пройти мимо', 'callback_data' => 'march_resume'],
-            ]]
-            : [[
+            ]],
+            'mini_event' => [[
+                ['text' => '🔍 Осмотреть', 'callback_data' => 'marchMini'],
+                ['text' => '🚶 Пройти мимо', 'callback_data' => 'march_resume'],
+            ]],
+            default => [[
                 ['text' => '🚜 Продолжить поход', 'callback_data' => 'march_resume'],
                 ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-            ]];
+            ]],
+        };
 
         $this->deliverMarchMessage($telegramUserId, $s, $text, $keyboardRows);
     }
