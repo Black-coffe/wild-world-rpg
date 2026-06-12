@@ -89,4 +89,61 @@ final class EventLevelTierServiceTest extends CIUnitTestCase
         // Без уровня → 1 (=новичок-фактор при enabled).
         $this->assertEqualsWithDelta(0.5, $svc->harmFactorFor([]), 0.001);
     }
+
+    // ── E17 Ф2: boonFactor (tier пользы) ───────────────────────────────────
+
+    private function enableBoonDefaults(): void
+    {
+        $db = Database::connect('tests');
+        $db->table('game_settings')->insert(['setting_key' => 'world.events.boon_tier_enabled', 'value_type' => 'bool', 'value_bool' => 1]);
+        $db->table('game_settings')->insert(['setting_key' => 'world.events.tier_newbie_max_level', 'value_type' => 'int', 'value_int' => 9]);
+        $db->table('game_settings')->insert(['setting_key' => 'world.events.tier_veteran_min_level', 'value_type' => 'int', 'value_int' => 25]);
+        $db->table('game_settings')->insert(['setting_key' => 'world.events.tier_boon_newbie_factor', 'value_type' => 'float', 'value_float' => 1.3]);
+        $db->table('game_settings')->insert(['setting_key' => 'world.events.tier_boon_veteran_factor', 'value_type' => 'float', 'value_float' => 1.0]);
+        $this->cleanCache();
+    }
+
+    public function testBoonDormantAlwaysOne(): void
+    {
+        // boon_tier_enabled не сидится → default false → boonFactor=1.0 (byte-identical),
+        // даже если harm-tier включён.
+        $this->enableDefaults();
+        $svc = new EventLevelTierService();
+        $this->assertFalse($svc->boonEnabled());
+        $this->assertSame(1.0, $svc->boonFactor(3));
+        $this->assertSame(1.0, $svc->boonFactor(40));
+    }
+
+    public function testBoonBandsWhenEnabled(): void
+    {
+        $this->enableBoonDefaults();
+        $svc = new EventLevelTierService();
+        $this->assertTrue($svc->boonEnabled());
+        $this->assertEqualsWithDelta(1.3, $svc->boonFactor(5), 0.001);   // новичок — щедрее
+        $this->assertEqualsWithDelta(1.3, $svc->boonFactor(9), 0.001);   // граница новичка
+        $this->assertSame(1.0, $svc->boonFactor(10));                    // середина
+        $this->assertSame(1.0, $svc->boonFactor(24));                    // середина
+        $this->assertEqualsWithDelta(1.0, $svc->boonFactor(25), 0.001);  // ветеран — без faucet
+        $this->assertEqualsWithDelta(1.0, $svc->boonFactor(60), 0.001);  // ветеран
+    }
+
+    public function testBoonFactorForCharacter(): void
+    {
+        $this->enableBoonDefaults();
+        $svc = new EventLevelTierService();
+        $this->assertEqualsWithDelta(1.3, $svc->boonFactorFor(['level' => 3]), 0.001);
+        $this->assertSame(1.0, $svc->boonFactorFor(['level' => 40]));
+        $this->assertSame(1.0, $svc->boonFactorFor(['level' => 15]));
+    }
+
+    public function testBoonIndependentOfHarmKillswitch(): void
+    {
+        // Только boon включён (harm off) — boonFactor работает, harmFactor=1.0.
+        $this->enableBoonDefaults();
+        $svc = new EventLevelTierService();
+        $this->assertTrue($svc->boonEnabled());
+        $this->assertFalse($svc->enabled()); // harm killswitch не сидился
+        $this->assertEqualsWithDelta(1.3, $svc->boonFactor(5), 0.001);
+        $this->assertSame(1.0, $svc->harmFactor(5));
+    }
 }

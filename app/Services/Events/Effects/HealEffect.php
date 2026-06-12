@@ -37,6 +37,9 @@ final class HealEffect implements EventEffectInterface
 
         $range  = $params['amount_range'] ?? [1, 10];
         $amount = (float)mt_rand((int)$range[0], (int)$range[1]);
+        // E17 Ф2 (ADR-117): tier ПОЛЬЗЫ по уровню — новичку щедрее лечение (boon_tier_enabled).
+        // default 1.0 (killswitch off) → byte-identical. Симметрия harmFactor.
+        $amount *= (new \App\Services\Events\EventLevelTierService())->boonFactorFor($character);
         $cap    = (float)($params['cap'] ?? 100);
 
         $target  = $params['heal_target'] ?? 'random_h_or_t';

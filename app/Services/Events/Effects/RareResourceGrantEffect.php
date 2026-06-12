@@ -92,6 +92,9 @@ final class RareResourceGrantEffect implements EventEffectInterface
             $amountMax = $amountMin;
         }
         $amount = mt_rand($amountMin, $amountMax);
+        // E17 Ф2 (ADR-117): tier ПОЛЬЗЫ — новичку щедрее редкий ресурс (boon_tier_enabled).
+        // default 1.0 (killswitch off) → byte-identical. min 1, чтобы boon никогда не обнулил выдачу.
+        $amount = max(1, (int) round($amount * (new \App\Services\Events\EventLevelTierService())->boonFactorFor($character)));
 
         $intent = [
             'keyword'  => $params['resource_keyword'] ?? null,
