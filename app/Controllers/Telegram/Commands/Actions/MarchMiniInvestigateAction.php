@@ -146,11 +146,13 @@ final class MarchMiniInvestigateAction extends BaseAction
     {
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
+        // После осмотра поход продолжается → возвращаем в контекст карты/Похода (move), НЕ в
+        // generic «Действия» (фидбэк владельца 2026-06-12: логичнее остаться в movement-контексте).
         return MediaSender::editTextOrSend($this->navTarget() + [
             'text'         => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => [
-                [['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']],
+                [['text' => '🗺 К карте', 'callback_data' => 'move']],
             ]]),
         ]);
     }
