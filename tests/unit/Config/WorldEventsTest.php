@@ -98,13 +98,14 @@ final class WorldEventsTest extends CIUnitTestCase
         }
     }
 
-    public function testConfigHasExactly29Events(): void
+    public function testConfigHasExactly31Events(): void
     {
         // 2026-05-09: 25 подій (24 historical + MeteorImpact community idea #2 v0.51.127).
         // 2026-05-19: +4 S10 rare-drop events (VolcanicFuelCache / PreCollapseVaultOpening /
         // IndustrialDumpFind / MountainArmyDepot) → 29.
+        // 2026-06-12: +2 E17 Ф2 (ADR-117) — RadioactiveFog (harm-tier) + CleanSpring (boon-tier) → 31.
         // Якщо число змінюється, оновити тут і в hot.md/Events-actual.md.
-        $this->assertCount(29, $this->cfg->keys(), 'Очікується 29 подій у конфігу');
+        $this->assertCount(31, $this->cfg->keys(), 'Очікується 31 подія у конфігу');
     }
 
     // ============================================================

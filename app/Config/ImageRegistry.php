@@ -203,6 +203,9 @@ class ImageRegistry extends BaseConfig
         'event.death-roulette'    => 'a stark ominous moment — a guttering candle, a long shadow, a scorched circle on the ground, fate hanging; abstract dread, NO violence, NO body. If respawn is shown instead: an empty camp at dawn, a cooled campfire, gear neatly stacked at the entrance — quietly saying someone left and someone will return, no maimed character.',
         'event.generic'           => 'a tense moment somewhere in the ruined wild — weather closing in or something disturbed in the distance; ominous, ordinary, postapocalyptic.',
         'event.collage'           => "a montage of the island's events seen as one weathered photo-spread — a dust wall, a wildfire, an aurora, a quarantined doorway, a meteor streak — varied dangers and wonders of one world.",
+        // — E17 Ф2 (ADR-117) tier-showcase events —
+        'event.radioactive-fog'   => 'a low toxic haze creeping over scorched northern badlands — a dull grimy fog blotting out a rusted ridge, a lone survivor hurrying through with a cloth pressed over the mouth, fine particles hanging in the dead air; oppressive and sickly, NO body, NO glowing green sci-fi, just grim drifting murk on weathered film.',
+        'event.clean-spring'      => 'a rare clear spring welling up from the ground among grey rocks and a little green grass — clean cold water catching the pale light, a survivor kneeling to cup a drink, the only unspoiled water for miles; a quiet moment of relief in a ruined land.',
         // — Мини-игры —
         'minigame.wheel'          => 'a crooked wooden wheel of fortune knocked together by survivors from a cart rim, spokes and tin-can lids, a bent-nail pointer, peeling paint, set up by a fire — a fairground/yard toy, NOT a casino slot, no neon, no jackpot glow, no falling coins.',
         'minigame.guess-number'   => 'rough chalk scratch-marks and a row of pebble counters laid out on a sheet of rusty metal by a fire — a survivors\' guessing game, no writing.',
@@ -495,6 +498,9 @@ class ImageRegistry extends BaseConfig
         ['key' => 'shooting_star', 'file' => 'uploads/telegram/shooting_star.png', 'lexicon' => 'event.starfall', 'scene' => '', 'mode' => 'V1', 'status' => 'generated', 'used_in' => 'event Starfall (events.img_path)', 'notes' => 'orphan hundreds_of_shooting_stars.png НЕ регенерим'],
         ['key' => 'aftershock', 'file' => 'uploads/telegram/aftershock.png', 'lexicon' => 'event.tremor', 'scene' => '', 'mode' => 'V2', 'status' => 'generated', 'used_in' => 'event Tremor (events.img_path)', 'notes' => 'orphan earthquake.png НЕ регенерим'],
         ['key' => 'volcanic_eruption', 'file' => 'uploads/telegram/volcanic_eruption.png', 'lexicon' => 'event.volcanic-eruption', 'scene' => '', 'mode' => 'V3', 'status' => 'generated', 'used_in' => 'event volcanic_eruption (events.img_path)', 'notes' => 'orphan-дубль volcanic_eruption_image.png + orphan huge_forest_fires.png НЕ регенерим'],
+        // E17 Ф2 (ADR-117) — tier-showcase events.
+        ['key' => 'radioactive_fog', 'file' => 'uploads/telegram/radioactive_fog.png', 'lexicon' => 'event.radioactive-fog', 'scene' => '', 'mode' => 'V2', 'status' => 'approved', 'used_in' => 'event RadioactiveFog (events.img_path), E17 Ф2 harm-tier', 'notes' => 'gpt-image-2 2026-06-12, no-text проверка чисто'],
+        ['key' => 'clean_spring', 'file' => 'uploads/telegram/clean_spring.png', 'lexicon' => 'event.clean-spring', 'scene' => '', 'mode' => 'V1', 'status' => 'approved', 'used_in' => 'event CleanSpring (events.img_path), E17 Ф2 boon-tier', 'notes' => 'gpt-image-2 2026-06-12, no-text проверка чисто'],
         ['key' => 'default_event_image', 'file' => 'uploads/telegram/default_event_image.png', 'lexicon' => 'event.generic', 'scene' => '', 'mode' => 'V1', 'status' => 'generated', 'used_in' => 'fallback for events without an image'],
 
         // ─────────────── МИНИ-ИГРЫ ───────────────

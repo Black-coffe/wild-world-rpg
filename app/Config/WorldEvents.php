@@ -127,6 +127,22 @@ class WorldEvents extends BaseConfig
             'notification_kind' => 'lifecycle',
         ],
 
+        // E17 Ф2 (ADR-117) — северный/поясной вред, витрина live harm-tier (новичок ×0.5 / ветеран ×1.3).
+        // Фонящий туман выжженного севера: урон HP в открытом поле. Bounds ≤10% (health_loss_range max 7).
+        'RadioactiveFog' => [
+            'effect_kind'   => 'damage_health',
+            'effect_params' => [
+                'damage_target'     => 'health',
+                'state_modifier'    => self::DEFAULT_DAMAGE_STATE_MODIFIER,
+                'health_loss_range' => [2, 7],  // harm-tier множит поверх: ветеран ×1.3 → ≤9.1, новичок ×0.5 → ≤3.5
+            ],
+            'duration_minutes'  => 60,
+            'frequency_weight'  => 1,
+            'tick_chance'       => 0.30,
+            'protection_item'   => 'Bandage',
+            'notification_kind' => 'lifecycle',
+        ],
+
         'NightAttacks' => [
             'effect_kind'   => 'damage_health',
             'effect_params' => [
@@ -433,6 +449,23 @@ class WorldEvents extends BaseConfig
             'duration_minutes'  => 90,
             'frequency_weight'  => 2,
             'tick_chance'       => 0.15,  // legacy GeothermalSpringsHandler 15% gate
+            'protection_item'   => null,
+            'notification_kind' => 'lifecycle',
+        ],
+
+        // E17 Ф2 (ADR-117) — польза в обжитых биомах, витрина boon-tier (новичок ×1.3 / ветеран ×1.0).
+        // Чистый родник: незаражённая вода восстанавливает HP/выносливость. Новичку щедрее → удар по стене L1→L2.
+        'CleanSpring' => [
+            'effect_kind'   => 'heal',
+            'effect_params' => [
+                'heal_target'       => 'random_h_or_t',
+                'amount_range'      => [3, 10],  // boon-tier множит: новичок ×1.3 → до ~13
+                'cap'               => 100,
+                'one_shot_at_start' => true,
+            ],
+            'duration_minutes'  => 60,
+            'frequency_weight'  => 2,
+            'tick_chance'       => 0.15,
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
