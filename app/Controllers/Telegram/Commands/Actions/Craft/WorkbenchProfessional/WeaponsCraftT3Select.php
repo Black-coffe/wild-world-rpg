@@ -38,7 +38,10 @@ class WeaponsCraftT3Select extends BaseAction
             . "2) 🎯 *Рельсотрон «Вихрь»* — L18 Epic, 30 dmg\n"
             . "3) ⚡ *Ион-дестабилизатор* — L20 Legendary, 35 dmg\n"
             . "4) 🔥 *Огнемёт «Помощь»* — L20 Legendary, 28 dmg\n"
-            . "5) 🚀 *Экзо-рельсотрон «Бегемот»* — L24 Legendary, 40 dmg\n";
+            . "5) 🚀 *Экзо-рельсотрон «Бегемот»* — L24 Legendary, 40 dmg\n\n"
+            . "🐍 *Грандмастер (L40):*\n"
+            . "6) 🐍 *«Гидра» Плазмопушка* — Legendary; нужны северные трофеи "
+            . "(Пепел Предтеч, Кристалл Разлома, Древние реликвии)\n";
 
         $keyboard = [
             'inline_keyboard' => [
@@ -52,6 +55,9 @@ class WeaponsCraftT3Select extends BaseAction
                 ],
                 [
                     ['text' => '🚀 «Бегемот»', 'callback_data' => 'craftPreviewT3_ExoRailgunBehemoth'],
+                ],
+                [
+                    ['text' => '🐍 «Гидра» Плазмопушка (Грандмастер)', 'callback_data' => 'craftPreviewT3_HydraPlasmaCannon'],
                 ],
                 [
                     ['text' => '🛠️ Назад к верстаку', 'callback_data' => 'workbenchProfessional'],

@@ -36,7 +36,10 @@ class ArmorCraftT3Select extends BaseAction
             . "1) 🛡 *Тактический бронекостюм* — L16 Epic, 22 armor\n"
             . "2) 🦋 *Экзоскелет «Стрекоза»* — L16 Epic, 10 armor (лёгкий)\n"
             . "3) ⚙️ *Силовая броня «Титан»* — L20 Legendary, 30 armor (тяжёлый)\n"
-            . "4) ⚡ *Осколочный доспех «Тесла»* — L25 Legendary, 27 armor\n";
+            . "4) ⚡ *Осколочный доспех «Тесла»* — L25 Legendary, 27 armor\n\n"
+            . "🛡 *Грандмастер (L40):*\n"
+            . "5) 🛡 *Боевая броня «Джаггернаут»* — Legendary; нужны северные трофеи "
+            . "(Пепел Предтеч, Кристалл Разлома, Древние реликвии)\n";
 
         $keyboard = [
             'inline_keyboard' => [
@@ -47,6 +50,9 @@ class ArmorCraftT3Select extends BaseAction
                 [
                     ['text' => '⚙️ «Титан»',      'callback_data' => 'craftPreviewT3Armor_TitanPowerArmor'],
                     ['text' => '⚡ «Тесла»',       'callback_data' => 'craftPreviewT3Armor_TeslaShardArmor'],
+                ],
+                [
+                    ['text' => '🛡 «Джаггернаут» (Грандмастер)', 'callback_data' => 'craftPreviewT3Armor_JuggernautBattleArmor'],
                 ],
                 [
                     ['text' => '🛠️ Назад к верстаку', 'callback_data' => 'workbenchProfessional'],

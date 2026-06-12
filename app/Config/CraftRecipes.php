@@ -1541,6 +1541,55 @@ class CraftRecipes extends BaseConfig
         ],
 
         // ============================================================
+        // E16 Ф2 (ROADMAP-100, ADR-116/121) — ГРАНДМАСТЕР-РЕЦЕПТЫ (гейт L40, синк севера).
+        //
+        // Замыкают сквозную нить: охота на элиток (E15 → Древние реликвии) + добыча пояса
+        // Y300-600 (E16 → Пепел Предтеч / Кристалл Разлома) → грандмастер-крафт двух
+        // ЛЕГЕНДАРОК, у которых раньше НЕ было рецепта (audit: HydraPlasmaCannon L26 +
+        // JuggernautBattleArmor L22 — lootable-only). Реюз существующих weapon/outfit-строк
+        // (как S17/S18) → новых предметов нет, completion-путь идентичен.
+        //
+        // Контент, НЕ механика → без killswitch (как E10 квесты): натурально-dormant by
+        // prerequisite — крафт требует L40 + ProfessionalWorkbench + дорогие СЕВЕРНЫЕ
+        // ингредиенты (Пепел/Кристалл/реликвии), которых у новичков нет. Эконом-инвариант П8:
+        // не faucet — это СИНК поясных ресурсов и реликвий (у L40+ копятся «на вырост»).
+        // ============================================================
+
+        'HydraPlasmaCannon' => [
+            'task_name'                     => 'craftHydraPlasmaCannon',
+            'output_type'                   => 'weapon',
+            'weapon_name_en'                => 'HydraPlasmaCannon',
+            'weapon_slot'                   => 'twohand',
+            'required_strength'             => 18,
+            'required_level'                => 40,
+            'gold_required'                 => 60000,
+            'resources'                     => [
+                'Пепел Предтеч'    => 15,
+                'Кристалл Разлома' => 8,
+                'Древние реликвии' => 5,
+                'Редкие металлы'   => 30,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 16,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.weapons.hydra_plasma_cannon.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/hydra_plasma_cannon.jpg',
+            'start_caption_name'            => '🐍 *«Гидра» Плазмопушка (Грандмастер)*',
+            'info_callback'                 => 'craftPreviewT3_HydraPlasmaCannon',
+            'item_name_eng'                 => 'HydraPlasmaCannon',
+            'item_name_rus'                 => '«Гидра» Плазмопушка',
+            'icon_emoji'                    => '🐍',
+            'zone_emoji'                    => '🏚️',
+            'zone_name'                     => 'база',
+            'strength_bonus'                => 0.07,
+            'agility_bonus'                 => 0.03,
+            'image_completed'               => 'uploads/telegram/craft/professional/hydra_plasma_cannon.jpg',
+            'craft_again_callback'          => 'genericCraft_HydraPlasmaCannon_1',
+        ],
+
+        // ============================================================
         // S25 (v0.51.205) — Faction-unique weapons (ADR-029, ROADMAP-CRAFT Фаза 5 — ЗАКРЫВАЕТ ФАЗУ).
         //
         // 4 net-new Legendary weapons, по одному на фракцию. True faction-exclusive:
@@ -1976,6 +2025,41 @@ class CraftRecipes extends BaseConfig
             'intellect_bonus'               => 0.04,
             'image_completed'               => 'uploads/telegram/craft/professional/tesla_shard_armor.jpg',
             'craft_again_callback'          => 'genericCraft_TeslaShardArmor_1',
+        ],
+
+        // E16 Ф2 (ADR-116/121) — грандмастер-броня (гейт L40, синк севера; см. блок выше у HydraPlasmaCannon).
+        'JuggernautBattleArmor' => [
+            'task_name'                     => 'craftJuggernautBattleArmor',
+            'output_type'                   => 'outfit',
+            'outfit_name_en'                => 'JuggernautBattleArmor',
+            'outfit_slot'                   => 'body',
+            'required_strength'             => 16,
+            'required_level'                => 40,
+            'gold_required'                 => 55000,
+            'resources'                     => [
+                'Пепел Предтеч'    => 12,
+                'Кристалл Разлома' => 6,
+                'Древние реликвии' => 4,
+                'Редкие металлы'   => 28,
+            ],
+            'crafted_items'                 => [
+                'wiring' => 14,
+            ],
+            'requires_base'                 => true,
+            'required_crafted_items'        => ['ProfessionalWorkbench' => 1],
+            'duration_override_setting_key' => 'tier3.armor.juggernaut_battle_armor.craft_duration_hours',
+            'image_in_progress'             => 'uploads/telegram/craft/professional/juggernaut_battle_armor.jpg',
+            'start_caption_name'            => '🛡 *Боевая броня «Джаггернаут» (Грандмастер)*',
+            'info_callback'                 => 'craftPreviewT3Armor_JuggernautBattleArmor',
+            'item_name_eng'                 => 'JuggernautBattleArmor',
+            'item_name_rus'                 => 'Боевая броня «Джаггернаут»',
+            'icon_emoji'                    => '🛡',
+            'zone_emoji'                    => '🏚️',
+            'zone_name'                     => 'база',
+            'strength_bonus'                => 0.05,
+            'intellect_bonus'               => 0.03,
+            'image_completed'               => 'uploads/telegram/craft/professional/juggernaut_battle_armor.jpg',
+            'craft_again_callback'          => 'genericCraft_JuggernautBattleArmor_1',
         ],
 
         // ============================================================
