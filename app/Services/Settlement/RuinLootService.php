@@ -18,6 +18,11 @@ use App\Services\GameSettings\GameSettingsService;
  *
  * Стража (опасность) — ОТДЕЛЬНЫЙ слой (AutoPveHandler по hostile-спавнам), лут ею НЕ гейтится:
  * «повторяемый, но дорогой (cooldown/риск)» — риск = страж бьёт, пока ты в руинах.
+ *
+ * E16 Ф2 (ADR-116): сервис обобщён под ЛЮБОЙ лутабельный type-поселения через $keyPrefix.
+ * Дефолт `settlements.ruins` → байт-идентично для руин (Ф4). Поясные аномалии (type=anomaly)
+ * передают `world.anomalies` → читают свой killswitch/кулдаун/множитель, делят таблицу кулдауна
+ * character_ruin_loot (ключ char×settlement — generic). Лог-таблица не переименовывается (churn).
  */
 final class RuinLootService
 {
@@ -25,19 +30,24 @@ final class RuinLootService
     private CharacterRuinLootModel $log;
     private ResourceModel $resources;
 
+    /** Префикс ключей GameSettings (enabled/loot_cooldown_hours/loot_amount_mult). */
+    private string $keyPrefix;
+
     public function __construct(
         ?GameSettingsService $settings = null,
         ?CharacterRuinLootModel $log = null,
-        ?ResourceModel $resources = null
+        ?ResourceModel $resources = null,
+        string $keyPrefix = 'settlements.ruins'
     ) {
         $this->settings  = $settings ?? new GameSettingsService();
         $this->log       = $log ?? new CharacterRuinLootModel();
         $this->resources = $resources ?? new ResourceModel();
+        $this->keyPrefix = $keyPrefix;
     }
 
     public function enabled(): bool
     {
-        $v = $this->settings->get('settlements.ruins.enabled', false);
+        $v = $this->settings->get($this->keyPrefix . '.enabled', false);
         if (is_bool($v)) {
             return $v;
         }
@@ -50,14 +60,14 @@ final class RuinLootService
 
     public function cooldownHours(): int
     {
-        $v = $this->settings->get('settlements.ruins.loot_cooldown_hours', 12);
+        $v = $this->settings->get($this->keyPrefix . '.loot_cooldown_hours', 12);
 
         return is_numeric($v) ? max(0, (int) $v) : 12;
     }
 
     public function amountMult(): float
     {
-        $v = $this->settings->get('settlements.ruins.loot_amount_mult', 1.0);
+        $v = $this->settings->get($this->keyPrefix . '.loot_amount_mult', 1.0);
 
         return is_numeric($v) && (float) $v > 0 ? (float) $v : 1.0;
     }

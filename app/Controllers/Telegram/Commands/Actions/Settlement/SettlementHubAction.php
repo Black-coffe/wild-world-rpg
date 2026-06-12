@@ -29,6 +29,7 @@ final class SettlementHubAction extends BaseAction
         'bandit'  => '🔥 Логово — опасное место',
         'faction' => '🛡 Оплот фракции',
         'ruins'   => '🏛 Руины',
+        'anomaly' => '🔬 Аномалия пояса',
     ];
 
     /**
@@ -42,12 +43,14 @@ final class SettlementHubAction extends BaseAction
         'casino'      => ['🎰 Казино', 'entertainment'],       // Фаза 2 — Логово (азартные игры)
         'project'     => ['💎 Проект фракции', 'factionProject'], // Фаза 3 — оплот (factionProject сам гейтит)
         'ruinloot'    => ['💀 Обыскать руины', 'ruinLoot'],     // Фаза 4 — руины (повторяемый лут по кулдауну)
+        'anomalyloot' => ['🔬 Исследовать аномалию', 'anomalyLoot'], // E16 Ф2 — поясная аномалия (лут по кулдауну)
     ];
 
-    /** Услуги по ТИПУ поселения (в дополнение к резидентским service_key). Ф3: оплоты дают лавку+проект; Ф4: руины — обыск. */
+    /** Услуги по ТИПУ поселения (в дополнение к резидентским service_key). Ф3: оплоты дают лавку+проект; Ф4: руины — обыск; E16 Ф2: аномалии — исследование. */
     private const TYPE_SERVICES = [
         'faction' => ['trade', 'project'],
         'ruins'   => ['ruinloot'],
+        'anomaly' => ['anomalyloot'],
     ];
 
     /** Метка фракции для caption оплота. */
@@ -126,7 +129,9 @@ final class SettlementHubAction extends BaseAction
         $typeLabel = self::TYPE_LABELS[$type] ?? '🏚 Поселение';
         $zoneLine  = $policy['policy'] === 'safe'
             ? '🕊 *Безопасная зона.* Здесь не нападают — таков уговор.'
-            : ($policy['policy'] === 'hostile' ? '☠️ *Опасная зона.* Держи ухо востро.' : '');
+            : ($policy['policy'] === 'hostile'
+                ? '☠️ *Опасная зона.* Держи ухо востро.'
+                : ($type === 'anomaly' ? '⚠️ *Аномальная зона.* Воздух дрожит, материя ведёт себя странно.' : ''));
 
         $head  = "{$icon} *{$name}*\n";
         $head .= "_{$typeLabel}_\n\n";

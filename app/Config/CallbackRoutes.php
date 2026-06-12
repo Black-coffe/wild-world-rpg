@@ -313,6 +313,8 @@ class CallbackRoutes extends BaseConfig
         'settleHub'                       => \App\Controllers\Telegram\Commands\Actions\Settlement\SettlementHubAction::class,
         // ADR-101 Фаза 4 — обыск охраняемых руин (повторяемый лут по кулдауну). Callback `ruinLoot`.
         'ruinLoot'                        => \App\Controllers\Telegram\Commands\Actions\Settlement\RuinLootAction::class,
+        // E16 Ф2 (ADR-116) — исследование поясной аномалии (повторяемый лут по кулдауну). Callback `anomalyLoot`.
+        'anomalyLoot'                     => \App\Controllers\Telegram\Commands\Actions\Settlement\AnomalyLootAction::class,
         // ADR-101 Фаза 5 — быстрое перемещение между открытыми поселениями. Список (`settleTeleport`)
         // и подтверждение+переход (`settleTeleportGo_id={id}` / `..._go`); хвост разбирает сам action.
         'settleTeleport'                  => \App\Controllers\Telegram\Commands\Actions\Settlement\SettlementTeleportAction::class,
