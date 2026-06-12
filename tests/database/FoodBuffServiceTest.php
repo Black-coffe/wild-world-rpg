@@ -160,6 +160,54 @@ final class FoodBuffServiceTest extends CIUnitTestCase
         $this->assertSame(1.0, $svc->gatherYieldMultiplierFor(null));
     }
 
+    // ── E21 Ф1: боевое измерение (ADR-121) ────────────────────────────────
+
+    public function testCombatDisabledByDefault(): void
+    {
+        // combat_enabled не сидится → default false → бой byte-identical (множители 1.0),
+        // даже если игрок сыт.
+        $svc = new FoodBuffService();
+        $this->assertFalse($svc->combatEnabled());
+        $this->assertSame(1.0, $svc->combatDamageMultiplierFor($this->future(10)));
+        $this->assertSame(1.0, $svc->incomingDamageMultiplierFor($this->future(10)));
+    }
+
+    public function testCombatBuffWhenEnabledAndWellFed(): void
+    {
+        $this->seedBool('food.well_fed.combat_enabled', 1);
+        $svc = new FoodBuffService();
+        $this->assertTrue($svc->combatEnabled());
+        // defaults: +10% урон / −8% входящий, пока сыт.
+        $this->assertSame(1.10, $svc->combatDamageMultiplierFor($this->future(5)));
+        $this->assertSame(0.92, $svc->incomingDamageMultiplierFor($this->future(5)));
+        // не сыт → ×1.0 (no-op).
+        $this->assertSame(1.0, $svc->combatDamageMultiplierFor($this->past(5)));
+        $this->assertSame(1.0, $svc->incomingDamageMultiplierFor(null));
+    }
+
+    public function testCombatTunedMultipliers(): void
+    {
+        $this->seedBool('food.well_fed.combat_enabled', 1);
+        $this->seedFloat('food.well_fed.combat_damage_multiplier', 1.20);
+        $this->seedFloat('food.well_fed.incoming_damage_multiplier', 0.85);
+        $svc = new FoodBuffService();
+        $this->assertSame(1.20, $svc->combatDamageMultiplierFor($this->future(5)));
+        $this->assertSame(0.85, $svc->incomingDamageMultiplierFor($this->future(5)));
+    }
+
+    public function testCombatRespectsMasterKillswitch(): void
+    {
+        // food.buffs.enabled=0 (мастер-killswitch) → не сыт → боевой баф тоже no-op,
+        // даже при combat_enabled=1.
+        Database::connect('tests')->table('game_settings')
+            ->where('setting_key', 'food.buffs.enabled')->update(['value_bool' => 0]);
+        $this->seedBool('food.well_fed.combat_enabled', 1);
+        $this->cleanCache();
+        $svc = new FoodBuffService();
+        $this->assertSame(1.0, $svc->combatDamageMultiplierFor($this->future(10)));
+        $this->assertSame(1.0, $svc->incomingDamageMultiplierFor($this->future(10)));
+    }
+
     // ── V10: свежесть (ADR-035) ───────────────────────────────────────────
 
     public function testFreshnessDefaults(): void

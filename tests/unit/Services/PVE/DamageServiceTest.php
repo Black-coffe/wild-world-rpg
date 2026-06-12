@@ -187,6 +187,46 @@ final class DamageServiceTest extends CIUnitTestCase
     }
 
     // -----------------------------------------------------------------
+    // E21 Ф1 (ADR-121) — боевой food-баф (множители default 1.0)
+    // -----------------------------------------------------------------
+
+    public function testFoodBuffOutgoingMultiplierBoostsDamage(): void
+    {
+        $attacker = $this->makeCharacter([
+            'level' => 10, 'strength' => 100.0, 'agility' => 100.0, 'damage_value' => 50.0,
+        ]);
+        $attacker->outgoingDamageMultiplier = 1.10; // сытый игрок-атакующий
+        $defender = $this->makeCharacter(['level' => 10, 'strength' => 0.0, 'agility' => 0.0, 'armor' => 0]);
+
+        // База 70.0 (см. testCalculateDamageBasicSameLevel) × 1.10 = 77.0
+        $this->assertEqualsWithDelta(77.0, $this->service->calculateDamage($attacker, $defender, 'forest'), 0.01);
+    }
+
+    public function testFoodBuffIncomingMultiplierReducesDamage(): void
+    {
+        $attacker = $this->makeCharacter([
+            'level' => 10, 'strength' => 100.0, 'agility' => 100.0, 'damage_value' => 50.0,
+        ]);
+        $defender = $this->makeCharacter(['level' => 10, 'strength' => 0.0, 'agility' => 0.0, 'armor' => 0]);
+        $defender->incomingDamageMultiplier = 0.92; // сытый игрок-защитник
+
+        // База 70.0 × 0.92 = 64.4
+        $this->assertEqualsWithDelta(64.4, $this->service->calculateDamage($attacker, $defender, 'forest'), 0.01);
+    }
+
+    public function testFoodBuffDefaultMultipliersAreNeutral(): void
+    {
+        // default 1.0/1.0 → урон byte-identical (как без бафа).
+        $attacker = $this->makeCharacter([
+            'level' => 10, 'strength' => 100.0, 'agility' => 100.0, 'damage_value' => 50.0,
+        ]);
+        $defender = $this->makeCharacter(['level' => 10, 'strength' => 0.0, 'agility' => 0.0, 'armor' => 0]);
+        $this->assertSame(1.0, $attacker->outgoingDamageMultiplier);
+        $this->assertSame(1.0, $defender->incomingDamageMultiplier);
+        $this->assertEqualsWithDelta(70.0, $this->service->calculateDamage($attacker, $defender, 'forest'), 0.01);
+    }
+
+    // -----------------------------------------------------------------
     // computeDamageRatio
     // -----------------------------------------------------------------
 

@@ -47,6 +47,13 @@ class DamageService
         }
 
         $finalDamage = $baseDamage * (1 + $levelDifference + $strengthBonus + $agilityBonus) * (1 - $armorEffect);
+
+        // E21 Ф1 (ADR-121) — боевой food-баф «Сытость». Множители default 1.0 (нейтрально):
+        // сытый игрок-атакующий бьёт сильнее (outgoing), сытый защищающийся получает меньше
+        // (incoming). Выставляются только игроку в PvEService::attack; NPC = 1.0 → byte-identical.
+        $finalDamage *= $attacker->outgoingDamageMultiplier;
+        $finalDamage *= $defender->incomingDamageMultiplier;
+
         $finalDamage = max($baseDamage * 0.5, round($finalDamage, 2));
 
         $this->logger->info("Урон, нанесённый {$attacker->name}: {$finalDamage}");

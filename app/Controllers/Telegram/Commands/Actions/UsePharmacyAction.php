@@ -369,7 +369,11 @@ class UsePharmacyAction extends BaseAction
         if ($fb->isWellFed($wfu)) {
             $tsEnd    = is_string($wfu) ? strtotime($wfu) : false;
             $minsLeft = $tsEnd !== false ? max(1, (int) ceil(($tsEnd - time()) / 60)) : 0;
-            $message .= "\n🍖 *Сытость активна* — крафт быстрее, добыча щедрее (ещё ~{$minsLeft} мин).\n";
+            // E21 Ф1 (ADR-121): пока активно боевое измерение — сытость помогает и в бою.
+            $combat   = $fb->combatEnabled()
+                ? ', в бою сильнее и крепче'
+                : '';
+            $message .= "\n🍖 *Сытость активна* — крафт быстрее, добыча щедрее{$combat} (ещё ~{$minsLeft} мин).\n";
         }
 
         $message .= "\n_В этом жестоком пустоши каждый баф может спасти твою шкуру. Береги себя!_\n";

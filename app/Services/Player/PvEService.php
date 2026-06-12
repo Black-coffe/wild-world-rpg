@@ -14,6 +14,7 @@ use App\Models\CharacterModel;
 use App\Models\NpcSpawnModel;
 use App\Models\NpcModel;
 use App\Entities\BattleCharacter;
+use App\Services\Food\FoodBuffService;
 
 class PvEService
 {
@@ -26,6 +27,7 @@ class PvEService
     private PveBattleLogWriter $battleLogWriter;
     private PveNotificationSender $notificationSender;
     private LootTableService $lootTableService;
+    private FoodBuffService $foodBuffService;
 
     public function __construct(
         BattleService $battleService,
@@ -38,7 +40,8 @@ class PvEService
         ?PveCombatValidator $combatValidator = null,
         ?PveBattleLogWriter $battleLogWriter = null,
         ?PveNotificationSender $notificationSender = null,
-        ?LootTableService $lootTableService = null
+        ?LootTableService $lootTableService = null,
+        ?FoodBuffService $foodBuffService = null
     ) {
         $this->battleService      = $battleService;
         $this->rewardService      = $rewardService;
@@ -49,6 +52,7 @@ class PvEService
         $this->battleLogWriter    = $battleLogWriter ?? new PveBattleLogWriter();
         $this->notificationSender = $notificationSender ?? new PveNotificationSender();
         $this->lootTableService   = $lootTableService ?? new LootTableService();
+        $this->foodBuffService    = $foodBuffService ?? new FoodBuffService();
     }
 
     /**
@@ -90,6 +94,14 @@ class PvEService
 
         // Применяем бонусы от экипировки к игроку
         $this->equipmentService->applyEquipmentBonuses($player);
+
+        // E21 Ф1 (ADR-121): боевой food-баф «Сытость». Пока сыт (characters.well_fed_until),
+        // игрок в PvE бьёт сильнее и получает меньше урона → блюда (V8/W23) становятся
+        // охотничьим ресурсом, дом-цикл кормит охоту (E15)/север (E16). Множители default 1.0
+        // (killswitch OFF или не сыт) → бой byte-identical. NPC баф не получает (PvE-only).
+        $wellFedUntil = $playerData['well_fed_until'] ?? null;
+        $player->outgoingDamageMultiplier = $this->foodBuffService->combatDamageMultiplierFor($wellFedUntil);
+        $player->incomingDamageMultiplier = $this->foodBuffService->incomingDamageMultiplierFor($wellFedUntil);
 
         // Запускаем бой через BattleService
         $fightResult = $this->battleService->startFight($player, $npc, $biome);

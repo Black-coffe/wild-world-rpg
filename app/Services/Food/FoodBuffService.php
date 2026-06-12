@@ -99,6 +99,61 @@ final class FoodBuffService
         return $this->isWellFed($wellFedUntil, $nowTs) ? $this->gatherYieldMultiplier() : 1.0;
     }
 
+    // ── E21 Ф1: боевое измерение (ADR-121) ────────────────────────────────
+
+    /**
+     * Killswitch боевого food-бафа. false (default) → бой byte-identical (множители 1.0),
+     * сытость влияет только на крафт/добычу (как до E21).
+     */
+    public function combatEnabled(): bool
+    {
+        $v = $this->settings->get('food.well_fed.combat_enabled', false);
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+        return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /** Множитель ИСХОДЯЩЕГО урона игрока, пока сыт (>1.0 = бьёт сильнее). */
+    public function combatDamageMultiplier(): float
+    {
+        $v = $this->floatSetting('food.well_fed.combat_damage_multiplier', 1.10);
+        return $v > 0 ? $v : 1.0;
+    }
+
+    /** Множитель ВХОДЯЩЕГО урона по игроку, пока сыт (<1.0 = получает меньше). */
+    public function incomingDamageMultiplier(): float
+    {
+        $v = $this->floatSetting('food.well_fed.incoming_damage_multiplier', 0.92);
+        return $v > 0 ? $v : 1.0;
+    }
+
+    /**
+     * Боевой множитель исходящего урона с учётом сытости (1.0 если не сыт / выключено
+     * food-buff слоем или боевым killswitch'ем).
+     */
+    public function combatDamageMultiplierFor(mixed $wellFedUntil, ?int $nowTs = null): float
+    {
+        if (! $this->combatEnabled()) {
+            return 1.0;
+        }
+        return $this->isWellFed($wellFedUntil, $nowTs) ? $this->combatDamageMultiplier() : 1.0;
+    }
+
+    /**
+     * Боевой множитель входящего урона с учётом сытости (1.0 если не сыт / выключено).
+     */
+    public function incomingDamageMultiplierFor(mixed $wellFedUntil, ?int $nowTs = null): float
+    {
+        if (! $this->combatEnabled()) {
+            return 1.0;
+        }
+        return $this->isWellFed($wellFedUntil, $nowTs) ? $this->incomingDamageMultiplier() : 1.0;
+    }
+
     // ── V10: свежесть (ADR-035) ───────────────────────────────────────────
 
     /** Killswitch механики свежести. false → блюда не черствеют (всегда полная сытость). */

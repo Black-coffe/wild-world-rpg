@@ -68,7 +68,13 @@ class CampfireCookingSelect extends BaseAction
         if ($fb->isWellFed($wfu)) {
             $tsEnd    = is_string($wfu) ? strtotime($wfu) : false;
             $minsLeft = $tsEnd !== false ? max(1, (int) ceil(($tsEnd - time()) / 60)) : 0;
-            $text .= "🍖 _Сытость активна (ещё ~{$minsLeft} мин): крафт быстрее, добыча щедрее._\n";
+            // E21 Ф1 (ADR-121): боевое измерение — сытость даёт бонус в PvE (охота/север).
+            $combatNote = $fb->combatEnabled() ? ', в бою сильнее' : '';
+            $text .= "🍖 _Сытость активна (ещё ~{$minsLeft} мин): крафт быстрее, добыча щедрее{$combatNote}._\n";
+        }
+        // E21 Ф1: подсказка-мотивация перед готовкой — еда помогает на охоте (когда баф активен).
+        if ($fb->combatEnabled()) {
+            $text .= "_⚔️ Сытость держит и в бою: поешь перед охотой на элиток и походом на север._\n";
         }
         $text .= "\n";
 

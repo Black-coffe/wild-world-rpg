@@ -28,6 +28,14 @@ class BattleCharacter
     public bool $isBoss = false;
     public array $equipment = [];
 
+    /**
+     * E21 Ф1 (ADR-121) — боевой food-баф «Сытость». Множители исходящего/входящего
+     * урона; default 1.0 = нейтрально (бой byte-identical, пока баф не применён).
+     * PvEService::attack выставляет их игроку из characters.well_fed_until.
+     */
+    public float $outgoingDamageMultiplier = 1.0;
+    public float $incomingDamageMultiplier = 1.0;
+
     public function __construct(array $data)
     {
         $this->id         = $data['id']         ?? 0;
