@@ -55,8 +55,10 @@ class ToolManager
         $selectedTool = null;
 
         // Находим инструмент с наивысшим показателем КПД
+        $rawCharId = $character['id'] ?? null;
+        $charId    = is_numeric($rawCharId) ? (int) $rawCharId : 0;
         foreach ($tools as $toolName => $increasePercent) {
-            $toolData = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($toolName, $character['id']);
+            $toolData = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($toolName, $charId);
 
             if ($toolData && $increasePercent > $maxMultiplier) {
                 $maxMultiplier = $increasePercent;

@@ -152,8 +152,10 @@ class ObjectCloseWarehouseAction extends BaseAction
         // 4) Проверяем инструменты. Если не хватает → сообщение и return.
         $requiredTools = json_decode($worldObject['discovery_tools'], true);
         if (!empty($requiredTools[0])) {
+            $rawCharId = $character['id'] ?? null;
+            $charId    = is_numeric($rawCharId) ? (int) $rawCharId : 0;
             foreach ($requiredTools[0] as $itemName => $quantity) {
-                $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemName, $character['id']);
+                $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemName, $charId);
                 if (!$item || $item['quantity'] < $quantity) {
                     // Нет инструмента -> сообщение + return
                     $this->sendInsufficientToolsMessage($character, $requiredTools[0], $cbId);

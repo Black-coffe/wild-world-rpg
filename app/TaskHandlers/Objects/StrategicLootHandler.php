@@ -66,8 +66,10 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
 
         // Tool check (якщо потребно)
         if (!empty($requiredTools[0])) {
+            $rawCharId = $character['id'] ?? null;
+            $charId    = is_numeric($rawCharId) ? (int) $rawCharId : 0;
             foreach ($requiredTools[0] as $itemName => $quantity) {
-                $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemName, $character['id']);
+                $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemName, $charId);
                 if (!$item || $item['quantity'] < $quantity) {
                     $this->sendInsufficientToolsMessage($object, $character, $requiredTools[0]);
                     return;
