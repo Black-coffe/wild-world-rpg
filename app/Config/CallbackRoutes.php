@@ -359,6 +359,10 @@ class CallbackRoutes extends BaseConfig
         'attackPlayer'                    => \App\Controllers\Telegram\Commands\Actions\PVP\AttackPlayerAction::class,
         // W17 (ADR-071) — PvP-дуэль (opt-in честный бой). Callback `duel_<defenderId>` (первый сегмент `duel`).
         'duel'                            => \App\Controllers\Telegram\Commands\Actions\PVP\DuelAction::class,
+        // E25 (ADR-124) — «🏟 Арена»: ростер opt-in бойцов (`arena`) + вызов с арены
+        // (`arenaDuel_<id>` → DuelAction, без adjacency-гейта). Первые сегменты `arena`/`arenaDuel`.
+        'arena'                           => \App\Controllers\Telegram\Commands\Actions\PVP\ArenaAction::class,
+        'arenaDuel'                       => \App\Controllers\Telegram\Commands\Actions\PVP\DuelAction::class,
         // W18 (ADR-072) — PvP-ладдер. Callback `pvpLadder` / `pvpLadder_global` / `pvpLadder_faction_<id>`
         // (первый сегмент `pvpLadder` → этот handler; вкладка парсится из полного callback_data).
         'pvpLadder'                       => \App\Controllers\Telegram\Commands\Actions\PVP\PvpLadderAction::class,

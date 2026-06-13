@@ -163,6 +163,11 @@ final class SettlementHubAction extends BaseAction
         if ((new \App\Services\Settlement\SettlementTeleportService())->enabled()) {
             $rows[] = [['text' => '🛰 Быстрое перемещение', 'callback_data' => 'settleTeleport']];
         }
+        // E25 (ADR-124) — «🏟 Арена» дуэлей в безопасной зоне (тематично: бойцы сходятся в поселении).
+        // Гейт killswitch pvp.duel.enabled. Делает opt-in дуэли (ADR-071) достижимыми.
+        if ($policy['policy'] === 'safe' && (new \App\Services\PVE\DuelService())->enabled()) {
+            $rows[] = [['text' => '🏟 Арена (дуэли)', 'callback_data' => 'arena']];
+        }
         $rows[] = [['text' => '🚶 Уйти', 'callback_data' => 'move']];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);

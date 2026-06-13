@@ -77,6 +77,9 @@ final class DuelAction extends BaseAction
 
         $parts      = explode('_', (string) $this->callbackQuery->getData());
         $defenderId = isset($parts[1]) && is_numeric($parts[1]) ? (int) $parts[1] : 0;
+        // E25 (ADR-124): арена-вызов (`arenaDuel_<id>`) — спорт без ставок, локация не важна →
+        // adjacency-гейт снимается. Поле-детект (`duel_<id>`) остаётся cell-adjacent (как PvP).
+        $isArena = $parts[0] === 'arenaDuel';
 
         [$user, $attacker] = $this->getUserAndCharacter();
         if (! $user || ! $attacker) {
@@ -96,7 +99,7 @@ final class DuelAction extends BaseAction
         if ((int) ($defender['duels_open'] ?? 0) !== 1) {
             return $this->alert('Этот игрок не открыт для дуэлей. Открыться можно в ⚙️ Настройках.');
         }
-        if (! $this->isCellsCloseEnough($attacker, $defender)) {
+        if (! $isArena && ! $this->isCellsCloseEnough($attacker, $defender)) {
             return $this->alert('Соперник слишком далеко — дуэль только в одной/соседней клетке.');
         }
 
