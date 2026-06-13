@@ -104,6 +104,17 @@ final class BaseLifecycleService
         return max(1, $this->intSetting('buildings.lifecycle.tax_cascade_grace_days', 3));
     }
 
+    /**
+     * E23/ADR-122 — killswitch per-base налога. false → налог агрегируется по character_id
+     * и статус ставится на ВСЕ постройки разом (текущее, byte-identical). true → налог
+     * считается/списывается/статусится per-base (по map_cell_id) — одна недофинансированная
+     * база не морозит производство на других. Для одно-базовых игроков ON ≡ OFF (byte-identical).
+     */
+    public function taxPerBaseEnabled(): bool
+    {
+        return $this->boolSetting('buildings.tax.per_base_enabled', false);
+    }
+
     // ── helpers ────────────────────────────────────────────────────────────
 
     private function parseTs(mixed $v): ?int
