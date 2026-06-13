@@ -309,21 +309,18 @@ class AttackPlayerAction extends BaseAction
         $attackerFinalText .= "\n\n<a href=\"{$battleUrl}\">[Посмотреть детали боя]</a>";
         $defenderFinalText .= "\n\n<a href=\"{$battleUrl}\">[Посмотреть детали боя]</a>";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🎒 Инвентарь',          'callback_data' => 'inventory'],
-                    ['text' => '🗺️ Поход', 'callback_data' => 'march'],
-                ],
-            ],
-        ];
+        // 4) Уведомления обоим бойцам. E24 (N6): каждому — клавиатура с продолжением.
+        // Если у бойца остался ПРИОСТАНОВЛЕННЫЙ поход (атакующий пришёл из паузы
+        // 'player_detected') — предлагаем «▶️ Продолжить поход» (march_resume), иначе
+        // обычный вход в Поход. Защитник раньше получал сообщение БЕЗ кнопок (тупик).
+        $attackerId = is_numeric($attacker['id'] ?? null) ? (int) $attacker['id'] : 0;
+        $defenderId = is_numeric($defender['id'] ?? null) ? (int) $defender['id'] : 0;
 
-        // 4) Уведомления обоим бойцам.
         Request::sendMessage([
             'chat_id'                  => $this->callbackQuery->getMessage()->getChat()->getId(),
             'text'                     => $attackerFinalText,
             'parse_mode'               => 'HTML',
-            'reply_markup'             => json_encode($keyboard),
+            'reply_markup'             => json_encode($this->postBattleKeyboard($attackerId)),
             'disable_web_page_preview' => true,
         ]);
 
@@ -334,6 +331,7 @@ class AttackPlayerAction extends BaseAction
                     'chat_id'                  => $defUser['telegram_id'],
                     'text'                     => $defenderFinalText,
                     'parse_mode'               => 'HTML',
+                    'reply_markup'             => json_encode($this->postBattleKeyboard($defenderId)),
                     'disable_web_page_preview' => true,
                 ]);
             }
@@ -390,6 +388,51 @@ class AttackPlayerAction extends BaseAction
             . "🔁 <b>Всего обменов ударами:</b> {$rounds}\n"
             . "❌ <b>Проиграл:</b> {$l['name']}\n"
             . "🏆 <b>Победил:</b> {$w['name']}";
+    }
+
+    /**
+     * E24 (N6) — клавиатура «после боя». Если у бойца остался ПРИОСТАНОВЛЕННЫЙ поход
+     * (атакующий пришёл из паузы 'player_detected') — кнопка «▶️ Продолжить поход»
+     * (march_resume) вместо нового похода. Иначе обычный вход в Поход. Чистая
+     * presentation — без RNG (fixture-fence не затрагивается).
+     *
+     * @return array{inline_keyboard: array<int, array<int, array<string,string>>>}
+     */
+    private function postBattleKeyboard(int $characterId): array
+    {
+        $marchBtn = $this->hasPausedMarch($characterId)
+            ? ['text' => '▶️ Продолжить поход', 'callback_data' => 'march_resume']
+            : ['text' => '🗺️ Поход',            'callback_data' => 'march'];
+
+        return [
+            'inline_keyboard' => [
+                [
+                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                    $marchBtn,
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * E24 (N6) — есть ли у персонажа приостановленный поход (task 'Marching', status='paused').
+     */
+    private function hasPausedMarch(int $characterId): bool
+    {
+        if ($characterId <= 0) {
+            return false;
+        }
+        $res = \Config\Database::connect()->query(
+            "SELECT ct.id FROM character_tasks ct
+             JOIN tasks t ON t.id = ct.task_id
+             WHERE ct.character_id = ? AND t.name = 'Marching' AND ct.status = 'paused'
+             LIMIT 1",
+            [$characterId]
+        );
+        if (! $res instanceof \CodeIgniter\Database\BaseResult) {
+            return false;
+        }
+        return $res->getRowArray() !== null;
     }
 
     /**
