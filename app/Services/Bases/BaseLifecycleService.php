@@ -16,6 +16,11 @@ use App\Services\GameSettings\GameSettingsService;
  * base-TTL: база живёт ttlDaysFor(level) дней с последнего визита (claimed_cells.last_visited_at).
  * Истекла → крон сносит базу со всеми постройками. Мягкий пол ttl_min_days защищает казуалов.
  *
+ * ADR-125 (E26) — warn-слой «мягкого режима»: ОТДЕЛЬНЫЙ killswitch `warn_enabled` для двухфазной
+ * активации (сначала только предупреждения за warn_days дней до сноса с CTA «зайди — таймер
+ * сбросится», потом `ttl_enabled` для самого сноса). Математика истечения (expiryTs) вынесена
+ * из-под killswitch'ей, чтобы предупреждения считались при warn_enabled ON / ttl_enabled OFF.
+ *
  * Налог-каскад: при cascade ON после tax_cascade_grace_days дней неуплаты подряд уничтожается
  * наименьшая база (логика — в TaxCollectionHandler; здесь только конфиг).
  */
@@ -56,38 +61,99 @@ final class BaseLifecycleService
     }
 
     /**
-     * Просрочена ли база (TTL включён И now > last_visited_at + ttlDaysFor(level)).
-     * Выключено / пустой visit → false (база не сносится).
+     * Момент истечения базы (unix ts) = last_visited_at + ttlDaysFor(level) дней.
+     * НЕ зависит от killswitch'ей (чистая математика) — нужен и для warn-слоя. null — нет визита.
+     */
+    private function expiryTs(mixed $lastVisitedAt, int $level): ?int
+    {
+        $ts = $this->parseTs($lastVisitedAt);
+        if ($ts === null) {
+            return null;
+        }
+        return $ts + $this->ttlDaysFor($level) * 86400;
+    }
+
+    /**
+     * Просрочена ли база (TTL включён И now > истечение).
+     * ttl_enabled OFF / пустой visit → false (база не сносится).
      */
     public function isExpired(mixed $lastVisitedAt, int $level, ?int $nowTs = null): bool
     {
         if (! $this->ttlEnabled()) {
             return false;
         }
-        $ts = $this->parseTs($lastVisitedAt);
-        if ($ts === null) {
+        $expiry = $this->expiryTs($lastVisitedAt, $level);
+        if ($expiry === null) {
             return false;
         }
-        $expiry = $ts + $this->ttlDaysFor($level) * 86400;
         return ($nowTs ?? time()) > $expiry;
     }
 
     /**
-     * Сколько дней осталось до сноса базы (для UI). null — TTL выключен / нет визита.
-     * 0 — истекает сегодня/просрочена.
+     * Сколько дней осталось до сноса базы (для UI). null — оба killswitch'а выключены / нет визита.
+     * Показываем остаток когда включён ttl_enabled ЛИБО warn_enabled (в warn-фазе игрок видит
+     * обратный отсчёт). 0 — истекает сегодня/просрочена.
      */
     public function daysRemaining(mixed $lastVisitedAt, int $level, ?int $nowTs = null): ?int
     {
-        if (! $this->ttlEnabled()) {
+        if (! $this->ttlEnabled() && ! $this->warnEnabled()) {
             return null;
         }
-        $ts = $this->parseTs($lastVisitedAt);
-        if ($ts === null) {
+        $expiry = $this->expiryTs($lastVisitedAt, $level);
+        if ($expiry === null) {
             return null;
         }
-        $expiry = $ts + $this->ttlDaysFor($level) * 86400;
-        $left   = $expiry - ($nowTs ?? time());
+        $left = $expiry - ($nowTs ?? time());
         return $left <= 0 ? 0 : (int) ceil($left / 86400);
+    }
+
+    // ── warn-слой (ADR-125 / E26) ───────────────────────────────────────────
+
+    /** Killswitch фазы предупреждений (отдельно от сноса). false → предупреждения не шлются. */
+    public function warnEnabled(): bool
+    {
+        return $this->boolSetting('buildings.lifecycle.warn_enabled', false);
+    }
+
+    /** За сколько дней до истечения начинать предупреждать (окно предупреждения). */
+    public function warnDays(): int
+    {
+        return max(0, $this->intSetting('buildings.lifecycle.warn_days', 7));
+    }
+
+    /** Минимум дней между предупреждениями одной базе (анти-спам / эскалация). */
+    public function warnCooldownDays(): int
+    {
+        return max(1, $this->intSetting('buildings.lifecycle.warn_cooldown_days', 3));
+    }
+
+    /**
+     * Слать ли предупреждение этой базе сейчас:
+     *  - warn_enabled ON,
+     *  - до истечения осталось ≤ warn_days (включая уже просроченные),
+     *  - с прошлого предупреждения прошло ≥ warn_cooldown_days (троттлинг).
+     * Визит сбрасывает last_warned_at (BaseService::touchVisit) → следующий простой предупреждает заново.
+     */
+    public function shouldWarn(mixed $lastVisitedAt, int $level, mixed $lastWarnedAt, ?int $nowTs = null): bool
+    {
+        if (! $this->warnEnabled()) {
+            return false;
+        }
+        $expiry = $this->expiryTs($lastVisitedAt, $level);
+        if ($expiry === null) {
+            return false;
+        }
+        $now = $nowTs ?? time();
+        // ещё не в окне предупреждения (до истечения больше warn_days дней).
+        if ($expiry - $now > $this->warnDays() * 86400) {
+            return false;
+        }
+        // троттлинг: не чаще раза в warn_cooldown_days.
+        $lastWarn = $this->parseTs($lastWarnedAt);
+        if ($lastWarn !== null && ($now - $lastWarn) < $this->warnCooldownDays() * 86400) {
+            return false;
+        }
+        return true;
     }
 
     // ── налог-каскад (конфиг) ──────────────────────────────────────────────

@@ -157,6 +157,8 @@ class BaseService
     /**
      * ADR-095 Фаза 2: отметить визит на базу (last_visited_at = now) — сбрасывает TTL.
      * Делается всегда (даже при dormant), чтобы last_visited «прогрелся» к активации.
+     * ADR-125 / E26: визит также сбрасывает last_warned_at = null — следующий простой
+     * предупреждает заново (эскалация начинается с чистого листа).
      *
      * @param array<string,mixed> $claimedCell
      */
@@ -166,7 +168,10 @@ class BaseService
         if (! is_numeric($id)) {
             return;
         }
-        $this->claimedCellModel->update((int) $id, ['last_visited_at' => date('Y-m-d H:i:s')]);
+        $this->claimedCellModel->update((int) $id, [
+            'last_visited_at' => date('Y-m-d H:i:s'),
+            'last_warned_at'  => null,
+        ]);
     }
 
     /**
