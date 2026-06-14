@@ -42,6 +42,40 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
         $this->assertNull(OnboardingHintCatalog::get('no_such_hint'));
     }
 
+    /**
+     * E27 Часть 5 (ADR-126): хинт дейликов ведёт И на список дня, И на единый
+     * экран «📜 Задания» — discoverability хаба в just-in-time момент.
+     */
+    public function testDailyTasksHintLinksToDailyListAndUnifiedScreen(): void
+    {
+        $hint = OnboardingHintCatalog::get(OnboardingHintCatalog::DAILY_TASKS);
+        $this->assertNotNull($hint);
+
+        $markupRaw = $hint['reply_markup'] ?? null;
+        $this->assertIsString($markupRaw, 'У хинта дейликов нет кнопок.');
+        $markup = json_decode($markupRaw, true);
+        $this->assertIsArray($markup);
+
+        $callbacks = [];
+        array_walk_recursive($markup, static function ($value, $key) use (&$callbacks): void {
+            if ($key === 'callback_data') {
+                $callbacks[] = $value;
+            }
+        });
+
+        $this->assertContains('dailyTasks', $callbacks, 'Нет кнопки на список заданий дня.');
+        $this->assertContains('questAndTask', $callbacks, 'Нет кнопки на единый экран «Задания» — хаб не находим.');
+    }
+
+    /** Анти-дрифт: текст хинта дейликов упоминает единый экран (media-off самодостаточность). */
+    public function testDailyTasksHintMentionsUnifiedScreen(): void
+    {
+        $text = OnboardingHintCatalog::get(OnboardingHintCatalog::DAILY_TASKS)['text'] ?? '';
+        foreach (['задания дня', 'едином экране'] as $needle) {
+            $this->assertStringContainsString($needle, $text, "Хинт дейликов не упоминает «{$needle}».");
+        }
+    }
+
     public function testEveryCatalogEntryHasNonEmptyText(): void
     {
         foreach (OnboardingHintCatalog::all() as $key => $hint) {
