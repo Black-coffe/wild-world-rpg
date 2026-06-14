@@ -71,26 +71,27 @@ class BaseFullRelocationCompletionHandler extends BaseTaskHandler
             return;
         }
 
-        // 2) Проверяем, что задача действительно 'in_work'
-        $rowInDb = $this->characterTaskModel
-            ->where('id', $taskRow['id'])
-            ->where('status', 'in_work')
-            ->first();
-        if (!$rowInDb) {
-            log_message('debug', "BaseFullRelocationCompletionHandler: Задача ID {$taskRow['id']} не найдена или не 'in_work'. Пропускаем.");
-            return;
-        }
+        // 2) F0.3 atomic-claim: Worker ПЕРЕД вызовом handler'а уже атомарно
+        //    перевёл задачу в 'completed' (Worker::handleTask). Поэтому НЕ
+        //    перезапрашиваем строку со status='in_work' — иначе она никогда не
+        //    находится, handler выходит раньше, и перенос молча пропускается
+        //    (база остаётся на месте, а кулдаун 10 дней всё равно встаёт).
+        //    Регресс с 2026-05-04 (F0.3 atomic-claim). Берём строку, которую
+        //    передал воркер (она содержит end_time + task_settings).
+        $rowInDb = $taskRow;
 
-        // 3) Проверяем, наступило ли end_time
+        // 3) Защитная проверка end_time (Worker уже фильтрует end_time < now).
         $now     = Time::now();
-        $endTime = new Time($rowInDb['end_time'] ?? 'now');
+        $endRaw  = $rowInDb['end_time'] ?? 'now';
+        $endTime = new Time(is_string($endRaw) ? $endRaw : 'now');
         if ($endTime->isAfter($now)) {
             // Ещё не время
             return;
         }
 
         // 4) Читаем task_settings: там должен лежать "new_map_cell_id"
-        $settings = json_decode($rowInDb['task_settings'] ?? '{}', true);
+        $settingsRaw = $rowInDb['task_settings'] ?? '{}';
+        $settings    = json_decode(is_string($settingsRaw) ? $settingsRaw : '{}', true);
         $newMapCellId = $settings['new_map_cell_id'] ?? null;
         // ADR-102: исходная база, которую переносим. >0 → двигаем ТОЛЬКО её;
         // 0/отсутствует → legacy fallback (перенос всех баз персонажа).
@@ -194,7 +195,7 @@ class BaseFullRelocationCompletionHandler extends BaseTaskHandler
      * @param string $msg       Текст сообщения
      * @param string|null $photoPath Путь к картинке (если нужно отправить фото)
      */
-    private function notifyUser(array|\App\Entities\CharacterEntity $character, string $msg, ?string $photoPath = null): void
+    protected function notifyUser(array|\App\Entities\CharacterEntity $character, string $msg, ?string $photoPath = null): void
     {
         $telegramUser = $this->telegramUserModel->find($character['telegram_user_id']);
         if (!$telegramUser || empty($telegramUser['telegram_id'])) {

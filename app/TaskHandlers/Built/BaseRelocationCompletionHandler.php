@@ -62,20 +62,18 @@ class BaseRelocationCompletionHandler extends BaseTaskHandler
             return;
         }
 
-        // 2) Ищем ту же задачу в character_tasks: статус должен быть 'in_work', end_time <= now()
-        $taskRow = $this->characterTaskModel
-            ->where('id', $task['id'])
-            ->where('status', 'in_work')
-            ->first();
+        // 2) F0.3 atomic-claim: Worker ПЕРЕД вызовом handler'а уже атомарно
+        //    перевёл задачу в 'completed' (Worker::handleTask). Поэтому НЕ
+        //    фильтруем по status='in_work' — иначе строка не находится, handler
+        //    выходит раньше, и снос молча пропускается (база остаётся, хотя
+        //    игроку сообщено «снесена»). Регресс с 2026-05-04 (F0.3).
+        //    Берём строку, которую передал воркер.
+        $taskRow = $task;
 
-        if (!$taskRow) {
-            log_message('debug', "BaseRelocationCompletionHandler: Задача ID {$task['id']} не найдена или не 'in_work'. Прерываем.");
-            return;
-        }
-
-        // 3) Сравниваем end_time с текущим временем
+        // 3) Защитная проверка end_time (Worker уже фильтрует end_time < now).
         $now     = Time::now();
-        $endTime = new Time($taskRow['end_time'] ?? 'now');
+        $endRaw  = $taskRow['end_time'] ?? 'now';
+        $endTime = new Time(is_string($endRaw) ? $endRaw : 'now');
 
         if ($endTime->isAfter($now)) {
             // Значит, время ещё не наступило, рано завершать
@@ -143,7 +141,7 @@ class BaseRelocationCompletionHandler extends BaseTaskHandler
     /**
      * Шлёт сообщение: "Переезд завершён, базу можно разбить заново" и т.д.
      */
-    private function notifyUser(array|\App\Entities\CharacterEntity $character): void
+    protected function notifyUser(array|\App\Entities\CharacterEntity $character): void
     {
         $telegramUser = $this->telegramUserModel->find($character['telegram_user_id']);
         if (!$telegramUser || empty($telegramUser['telegram_id'])) {

@@ -15172,7 +15172,7 @@ parameters:
 		-
 			message: '#^Part \$taskRow\[''id''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
 			identifier: encapsedStringPart.nonString
-			count: 3
+			count: 2
 			path: app/TaskHandlers/Built/BaseFullRelocationCompletionHandler.php
 
 		-
@@ -15232,7 +15232,7 @@ parameters:
 		-
 			message: '#^Part \$task\[''id''\] \(mixed\) of encapsed string cannot be cast to string\.$#'
 			identifier: encapsedStringPart.nonString
-			count: 3
+			count: 2
 			path: app/TaskHandlers/Built/BaseRelocationCompletionHandler.php
 
 		-
