@@ -66,6 +66,26 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
     }
 
     /**
+     * E28 Ф2 — переключатель сортировки складов: callback `resourcesGathered_sort_<mode>` и
+     * `resourcesCrafting_sort_<mode>` резолвятся по ПЕРВОМУ сегменту (`explode('_')[0]`) в
+     * exact-роут, а хвост `_sort_<mode>` разбирает сам action. Гейтит, что оба экрана
+     * остаются достижимы при добавлении/смене сорт-режимов.
+     */
+    public function testInventorySortCallbacksResolveByFirstSegment(): void
+    {
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\ResourcesGatheredAction::class,
+            $this->cbRoutes->resolve(explode('_', 'resourcesGathered_sort_rarity')[0]),
+            'resourcesGathered_sort_* обязан резолвиться в ResourcesGatheredAction.'
+        );
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\CraftedResourcesAction::class,
+            $this->cbRoutes->resolve(explode('_', 'resourcesCrafting_sort_value')[0]),
+            'resourcesCrafting_sort_* обязан резолвиться в CraftedResourcesAction.'
+        );
+    }
+
+    /**
      * 🔴 Анти-дрифт source-scan: мёртвый литерал `inlineMap` не должен вернуться в код
      * Actions. Class-of-bug «unrouted callback» уже бил дважды (npcAct_ + inlineMap);
      * урок feedback_control_tap_not_throwaway — гейтить на resolve, а не на throwaway-тап.

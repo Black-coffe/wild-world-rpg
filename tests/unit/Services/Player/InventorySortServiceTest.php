@@ -91,4 +91,34 @@ final class InventorySortServiceTest extends CIUnitTestCase
         // value не входит в STORAGE_MODES → fallback
         $this->assertSame(S::MODE_RECENT, S::normalizeMode('value', S::STORAGE_MODES, S::MODE_RECENT));
     }
+
+    /**
+     * E28 Ф2 — экран «Крафтовые ресурсы»: allowlist [type, name, qty, value], дефолт `type`
+     * (псевдо-режим группировки в самом action; rarity у крафта нет → не в allowlist).
+     */
+    public function testNormalizeModeCraftedAllowlist(): void
+    {
+        $crafted = ['type', S::MODE_NAME, S::MODE_QTY, S::MODE_VALUE];
+        $this->assertSame('type', S::normalizeMode(null, $crafted, 'type'));
+        $this->assertSame('type', S::normalizeMode('rarity', $crafted, 'type')); // rarity не для крафта → fallback
+        $this->assertSame(S::MODE_VALUE, S::normalizeMode('value', $crafted, 'type'));
+        $this->assertSame(S::MODE_NAME, S::normalizeMode('name', $crafted, 'type'));
+    }
+
+    /**
+     * E28 Ф2 — крафт-строки (name = name_rus, quantity, price, без rarity) корректно
+     * сортируются «по стоимости» (price × quantity) через общий сортировщик.
+     */
+    public function testCraftedShapeSortsByValue(): void
+    {
+        $rows = [
+            ['name' => 'Болт', 'quantity' => 100, 'price' => 1.0],   // value 100
+            ['name' => 'Меч',  'quantity' => 1,   'price' => 500.0], // value 500
+        ];
+        $out = S::sortRows($rows, S::MODE_VALUE);
+        $this->assertSame('Меч', $out[0]['name']);
+
+        $byName = S::sortRows($rows, S::MODE_NAME);
+        $this->assertSame(['Болт', 'Меч'], $this->names($byName));
+    }
 }
