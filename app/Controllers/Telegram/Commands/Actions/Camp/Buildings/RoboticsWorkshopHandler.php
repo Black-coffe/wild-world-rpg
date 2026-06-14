@@ -42,7 +42,8 @@ class RoboticsWorkshopHandler extends BaseAction
         }
 
         // Получаем информацию о постройке
-        $buildingId = 9; // ID для Robotics Workshop (нужно заменить на правильный ID)
+        // E28: динамический ID по name_en (см. BuildingModel::idByNameEn, NAVIGATION_MAP #25)
+        $buildingId = $this->buildingModel->idByNameEn('RoboticsWorkshop');
         $characterBuilding = $this->characterBuildingModel
             ->where('character_id', $character['id'])
             ->where('building_id', $buildingId)

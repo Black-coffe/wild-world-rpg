@@ -41,7 +41,8 @@ class TeleportationCenterHandler extends BaseAction
             return Request::emptyResponse(); // Переезд есть, сервис уже отписался
         }
 
-        $buildingId = 10;  // ID для TeleportationCenter
+        // E28: динамический ID по name_en (см. BuildingModel::idByNameEn, NAVIGATION_MAP #25)
+        $buildingId = $this->buildingModel->idByNameEn('TeleportationCenter');
 
         // Ищем, построил ли пользователь такую постройку
         $characterBuilding = $this->characterBuildingModel

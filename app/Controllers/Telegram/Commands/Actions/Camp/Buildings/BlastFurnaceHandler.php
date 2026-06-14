@@ -41,8 +41,8 @@ class BlastFurnaceHandler extends BaseAction
             return Request::emptyResponse(); // Переезд есть, сервис уже отписался
         }
 
-        // Допустим, в таблице `buildings` у Доменной печи (BlastFurnace) — id=2
-        $buildingId = 2;  // ID для BlastFurnace
+        // E28: динамический ID по name_en (см. BuildingModel::idByNameEn, NAVIGATION_MAP #25)
+        $buildingId = $this->buildingModel->idByNameEn('BlastFurnace');
 
         // Ищем, построил ли пользователь такую постройку
         $characterBuilding = $this->characterBuildingModel

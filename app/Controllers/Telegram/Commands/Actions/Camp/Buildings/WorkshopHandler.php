@@ -41,8 +41,8 @@ class WorkshopHandler extends BaseAction
             return Request::emptyResponse(); // Переезд есть, сервис уже отписался
         }
 
-        // Допустим в таблице `buildings` у Мастерской (Workshop) — id=4
-        $buildingId = 4;
+        // E28: динамический ID по name_en (см. BuildingModel::idByNameEn, NAVIGATION_MAP #25)
+        $buildingId = $this->buildingModel->idByNameEn('Workshop');
 
         // Проверяем, построил ли персонаж Мастерскую
         $characterBuilding = $this->characterBuildingModel

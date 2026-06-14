@@ -100,4 +100,55 @@ class BuildingModel extends Model
     ];
 
     protected $skipValidation = false;
+
+    /**
+     * Кэш на процесс: name_en → строка таблицы buildings (или null, если нет).
+     *
+     * @var array<string, array<array-key, mixed>|null>
+     */
+    private static array $byNameEnCache = [];
+
+    /**
+     * Находит здание по СТАБИЛЬНОМУ `name_en` (источник правды — таблица buildings).
+     *
+     * Заменяет хрупкий хардкод `$buildingId = N` в *Handler'ах (E28, NAVIGATION_MAP #25):
+     * позиционные id дрейфят при реседе/реордере миграций — например ArsenalHandler
+     * когда-то держал `$buildingId = 15`, а реальный id «Арсенала» = 11 (id 15 сейчас
+     * у «Дозорной вышки»), т.е. хардкод грузил бы чужое здание. `name_en` стабилен.
+     *
+     * Кэш на процесс безопасен: buildings — статичные seed-данные определений
+     * (вайп их KEEP'ит, см. Config\WipeManifest). Негативный результат тоже кэшируется.
+     *
+     * @return array<array-key, mixed>|null
+     */
+    public function findByNameEn(string $nameEn): ?array
+    {
+        if (array_key_exists($nameEn, self::$byNameEnCache)) {
+            return self::$byNameEnCache[$nameEn];
+        }
+
+        $row = $this->where('name_en', $nameEn)->first();
+
+        return self::$byNameEnCache[$nameEn] = is_array($row) ? $row : null;
+    }
+
+    /**
+     * Резолвит id здания по `name_en` (0 — если здания нет). Возвращает чистый int,
+     * чтобы на местах вызова не было `(int)$mixed` (строгий phpstan, cast.int).
+     */
+    public function idByNameEn(string $nameEn): int
+    {
+        $row = $this->findByNameEn($nameEn);
+        $id  = $row['id'] ?? null;
+
+        return is_numeric($id) ? (int) $id : 0;
+    }
+
+    /**
+     * Сброс кэша name_en (для тестов и админ-правок справочника buildings).
+     */
+    public static function clearNameEnCache(): void
+    {
+        self::$byNameEnCache = [];
+    }
 }

@@ -41,8 +41,8 @@ class HandPumpHandler extends BaseAction
             return Request::emptyResponse(); // Переезд есть, сервис уже отписался
         }
 
-        // Получаем информацию о постройке
-        $buildingId = 1; // ID для HandPump
+        // E28: динамический ID по name_en (см. BuildingModel::idByNameEn, NAVIGATION_MAP #25)
+        $buildingId = $this->buildingModel->idByNameEn('HandPump');
         $characterBuilding = $this->characterBuildingModel
             ->where('character_id', $character['id'])
             ->where('building_id', $buildingId)

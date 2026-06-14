@@ -235,10 +235,13 @@ flowchart TD
 
 ### 7.1 🔴 / баги (наивысший приоритет)
 
-1. **24 мёртвые кнопки `renew_building_`/`delete_building_`** — реализовать (продление/снос
-   с подтверждением) ЛИБО убрать из всех 12 зданий. Самый частый dead-click.
-2. **`endTraining` → `withoutTrainingStart`** (1 символ) — финал онбординга у 100% дошедших.
-3. **`noAction` в GearWeaponDetail** — toast вместо мёртвой кнопки или не показывать.
+> ✅ **E28-аудит 2026-06-14:** пункты 1–3 проверены в текущем коде и устранены ранее
+> (нигде не emit'ятся и не routed): `renew_building_`/`delete_building_`, `endTraining`,
+> `noAction`. Помечены ✅. Доказательство: grep по callback_data + `Config\CallbackRoutes`.
+
+1. ✅ **24 мёртвые кнопки `renew_building_`/`delete_building_`** — устранены (не emit'ятся, не routed).
+2. ✅ **`endTraining` → `withoutTrainingStart`** — устранено (emit'ится только `withoutTrainingStart`).
+3. ✅ **`noAction` в GearWeaponDetail** — устранено (не emit'ится, не routed).
 4. **`RobotsCraft2Select`: 4 нерабочие кнопки** — не показывать до реализации.
 5. ✅ **(N5)** `sleep(2)` в FortuneWheelAction убран — больше не блокирует PHP-воркер.
 6. ✅ **(N5)** `RockPaperScissors` 40%-cap снят (честные 33/33/33) + GuessNumber честный 1-из-N + Колесо честные шансы/количества — обман устранён, баланс в GameSettings.
@@ -269,7 +272,7 @@ flowchart TD
 
 23. ✅ **(N5, ADR-040)** Хардкод-пороги золота + весь баланс мини-игр → GameSettings (категория `economy`, 20 ключей): `BuyCraftAction` (1000), `BuyResourceAction` (10), шансы/выплаты/количества Угадай+Колесо+КНБ.
 24. ✅ **(N6/E24, ADR-123)** PvP-поток dead-end'ы закрыты: защитник теперь получает клавиатуру (`postBattleKeyboard`) — не тупик; «▶️ Продолжить поход» (`march_resume`) после боя при приостановленном походе для обеих сторон. Audit вскрыл premise стейл (уведомление защитнику + battle-log v2 + pause/resume УЖЕ были). Gap «уведомление об обнаружении» сознательно не взят (мгновенный бой → шум). Чистая presentation, RNG-fence не тронут.
-25. **Динамический `buildingId`** для 11/12 зданий (хардкод ID; RoboticsWorkshop помечен `// нужно заменить`).
+25. ✅ **(E28, v0.51.442)** Динамический `buildingId`: 10 хендлеров зданий + 2 активатора роботов резолвят id по стабильному `name_en` через `BuildingModel::idByNameEn()` (хардкод-ID убран; Arsenal уже был динамическим). Корень — позиционные ID дрейфят при реседе/реордере миграций (ArsenalHandler когда-то держал «15», реально id=11; 15 = «Дозорная вышка»). Анти-дрифт гейт `tests/unit/BuildingHandlerNoHardcodedIdTest` + DB-тест `BuildingModelFindByNameEnTest`.
 
 ### 7.5 Технический долг (выявлено попутно)
 

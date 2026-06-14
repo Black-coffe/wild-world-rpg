@@ -45,8 +45,8 @@ class GreenhouseHandler extends BaseAction
             return Request::emptyResponse(); // Переезд есть, сервис уже отписался
         }
 
-        // Предположим, что в таблице `buildings` у Теплицы (Greenhouse) id=5
-        $buildingId = 5;
+        // E28: динамический ID по name_en (см. BuildingModel::idByNameEn, NAVIGATION_MAP #25)
+        $buildingId = $this->buildingModel->idByNameEn('Greenhouse');
 
         // Проверяем, есть ли у игрока постройка "Теплица"
         $characterBuilding = $this->characterBuildingModel

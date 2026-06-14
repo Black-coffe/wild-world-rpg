@@ -41,8 +41,8 @@ class LaboratoryHandler extends BaseAction
             return Request::emptyResponse(); // Переезд есть, сервис уже отписался
         }
 
-        // Предположим, что у Лаборатории (Laboratory) в таблице `buildings` id=8
-        $buildingId = 8;
+        // E28: динамический ID по name_en (см. BuildingModel::idByNameEn, NAVIGATION_MAP #25)
+        $buildingId = $this->buildingModel->idByNameEn('Laboratory');
 
         // Проверяем, есть ли у персонажа постройка "Лаборатория"
         $characterBuilding = $this->characterBuildingModel

@@ -41,8 +41,8 @@ class GymHandler extends BaseAction
             return Request::emptyResponse(); // Переезд есть, сервис уже отписался
         }
 
-        // Допустим, в таблице `buildings` Спортзал (Gym) имеет ID = 7:
-        $buildingId = 7;
+        // E28: динамический ID по name_en (см. BuildingModel::idByNameEn, NAVIGATION_MAP #25)
+        $buildingId = $this->buildingModel->idByNameEn('Gym');
 
         // Проверяем, есть ли у игрока постройка "Спортзал"
         $characterBuilding = $this->characterBuildingModel

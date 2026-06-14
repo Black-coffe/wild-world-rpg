@@ -41,8 +41,8 @@ class SolarStationHandler extends BaseAction
             return Request::emptyResponse(); // Переезд есть, сервис уже отписался
         }
 
-        // Допустим, в таблице `buildings` у Солнечной станции (SolarStation) — id=6
-        $buildingId = 6;
+        // E28: динамический ID по name_en (см. BuildingModel::idByNameEn, NAVIGATION_MAP #25)
+        $buildingId = $this->buildingModel->idByNameEn('SolarStation');
 
         // Проверяем, построил ли персонаж Солнечную станцию
         $characterBuilding = $this->characterBuildingModel

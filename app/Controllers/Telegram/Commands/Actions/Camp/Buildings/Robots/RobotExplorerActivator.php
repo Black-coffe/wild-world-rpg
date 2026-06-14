@@ -5,6 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\CharacterBuildingModel;
+use App\Models\BuildingModel;
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 
@@ -117,10 +118,11 @@ class RobotExplorerActivator implements RobotActivatorInterface
             $totalDurability += $rowLeftover;
         }
 
-        // 3) Узнаём уровень мастерской (building_id=9 => "RoboticsWorkshop")
+        // 3) Уровень мастерской робототехники — id по стабильному name_en (E28, не хардкод 9)
+        $roboticsId       = (new BuildingModel())->idByNameEn('RoboticsWorkshop');
         $roboticsWorkshop = $this->characterBuildingModel
             ->where('character_id', $characterId)
-            ->where('building_id', 9)
+            ->where('building_id', $roboticsId)
             ->first();
 
         $workshopLevel = $roboticsWorkshop['level'] ?? 1;

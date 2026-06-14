@@ -41,8 +41,8 @@ class WarehouseHandler extends BaseAction
             return Request::emptyResponse(); // Переезд есть, сервис уже отписался
         }
 
-        // Допустим, в таблице `buildings` у Склада (Warehouse) — id=3
-        $buildingId = 3;
+        // E28: динамический ID по name_en (см. BuildingModel::idByNameEn, NAVIGATION_MAP #25)
+        $buildingId = $this->buildingModel->idByNameEn('Warehouse');
 
         // Проверяем, построил ли персонаж Склад
         $characterBuilding = $this->characterBuildingModel
