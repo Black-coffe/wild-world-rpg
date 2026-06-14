@@ -10,6 +10,7 @@ use App\Models\CharacterBuildingModel;
 use App\Models\CharacterFactionModel;
 use App\Models\CharacterModel;
 use App\Models\CharacterTaskModel;
+use App\Models\ClaimedCellModel;
 use App\Models\TelegramUserModel;
 use App\TaskHandlers\BaseTaskHandler;
 use Config\Buildings;
@@ -186,18 +187,81 @@ class GenericBuildingCompletionHandler extends BaseTaskHandler
      * Берём из task_settings.base_cell (зафиксировано при старте). Fallback —
      * текущая клетка персонажа (legacy in-flight задачи без base_cell).
      *
+     * 🛡 Анти-орфан (релокейшн-гонка, аудит 2026-06-14): `base_cell` фиксируется
+     * при СТАРТЕ стройки и НЕ обновляется, если база переехала/снесена, пока стройка
+     * шла (релокейшн-хендлер не трогает in-flight build-задачи). Без защиты постройка
+     * лендила бы на брошенную клетку = потерянная постройка + orphan-ряд в
+     * `character_buildings` (клетка без active claim). Поэтому: если зафиксированной
+     * базы больше нет — перенаправляем постройку на актуальную активную базу игрока,
+     * чтобы она «догнала» переехавшую базу. Нормальный поток (база на месте) —
+     * byte-identical (редирект не срабатывает).
+     *
      * @param array<string,mixed> $task
      */
-    private function resolveBuildCell(array $task, int $fallbackCell): int
+    protected function resolveBuildCell(array $task, int $fallbackCell): int
     {
-        $raw = $task['task_settings'] ?? null;
+        $cell = $fallbackCell;
+        $raw  = $task['task_settings'] ?? null;
         if (is_string($raw) && $raw !== '') {
             $decoded = json_decode($raw, true);
             if (is_array($decoded) && isset($decoded['base_cell']) && is_numeric($decoded['base_cell'])) {
-                return (int) $decoded['base_cell'];
+                $cell = (int) $decoded['base_cell'];
             }
         }
-        return $fallbackCell;
+
+        $charId = is_numeric($task['character_id'] ?? null) ? (int) $task['character_id'] : 0;
+        if ($charId > 0 && ! $this->cellHasActiveBase($charId, $cell)) {
+            $redirect = $this->resolveActiveBaseCell($charId, $fallbackCell);
+            if ($redirect > 0 && $redirect !== $cell) {
+                log_message('warning', "[GenericBuildingCompletion] base_cell {$cell} больше не активна у char {$charId} — постройка перенаправлена на активную базу {$redirect} (анти-орфан релокейшн-гонки).");
+                return $redirect;
+            }
+        }
+
+        return $cell;
+    }
+
+    /**
+     * Есть ли у персонажа активная база (claimed_cell) на этой клетке.
+     * Свежий ClaimedCellModel на вызов — анти builder-state quirk (memory
+     * feedback_ci4_model_builder_state_quirk).
+     */
+    protected function cellHasActiveBase(int $charId, int $cell): bool
+    {
+        if ($charId <= 0 || $cell <= 0) {
+            return false;
+        }
+
+        return (new ClaimedCellModel())
+            ->where('character_id', $charId)
+            ->where('map_cell_id', $cell)
+            ->where('status', 'active')
+            ->countAllResults() > 0;
+    }
+
+    /**
+     * Куда перенаправить постройку, если зафиксированной базы больше нет:
+     *  - игрок стоит на своей активной базе (cell_number) → сюда;
+     *  - иначе активная база игрока (ровно одна → она; несколько → первая, детерминированно по id);
+     *  - нет активных баз → 0 (перенаправлять некуда — оставляем как есть).
+     */
+    protected function resolveActiveBaseCell(int $charId, int $fallbackCell): int
+    {
+        if ($this->cellHasActiveBase($charId, $fallbackCell)) {
+            return $fallbackCell;
+        }
+
+        $bases = (new ClaimedCellModel())
+            ->where('character_id', $charId)
+            ->where('status', 'active')
+            ->orderBy('id', 'ASC')
+            ->findColumn('map_cell_id');
+
+        if (is_array($bases) && isset($bases[0]) && is_numeric($bases[0])) {
+            return (int) $bases[0];
+        }
+
+        return 0;
     }
 
     private function notifyUser(int $telegramUserId, string $caption, string $imageRelPath): void
