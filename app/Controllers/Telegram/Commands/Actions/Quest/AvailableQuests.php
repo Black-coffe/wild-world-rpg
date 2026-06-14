@@ -7,7 +7,6 @@ use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 use App\Models\QuestModel;
-use App\Models\QuestStepsModel;
 use App\Models\CharacterModel;
 use App\Models\CharacterFactionModel;
 
@@ -18,7 +17,6 @@ class AvailableQuests extends BaseAction
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
         $questModel = new QuestModel();
-        $questStepModel = new QuestStepsModel();
         $characterModel = new CharacterModel();
 
         $characterId = $characterModel->getCharacterIdByTelegramId($chatId);
@@ -33,54 +31,19 @@ class AvailableQuests extends BaseAction
             ]);
         }
 
-        $quests = $questModel->getAvailableQuests($character['level'], $characterId); // Передача characterId
-        // Используем:
-        $activeQuestSteps = $questStepModel->getActiveQuestStepsForCharacter($characterId, $quests);
-
-        // V11 (ADR-036): цепочки квестов — квест с prerequisite_quest доступен только
-        // после завершения предусловия. Собираем завершённые квесты персонажа один раз.
-        $chain           = new \App\Services\Quest\QuestChainService();
-        $completedTitles = $questModel->getCompletedQuestTitles((int) $characterId);
+        // E27 (ADR-126): классификация доступно/заблокировано вынесена в QuestOverviewService —
+        // единый источник для этого экрана и дашборда «📜 Задания» (без дрейфа двух копий
+        // фильтрации + без per-quest builder-state-quirk: шаги префетчатся одним запросом).
+        $chain         = new \App\Services\Quest\QuestChainService();
         // ADR-088 Фаза 3: фракция персонажа для гейтинга фракционных квестов (0/5 = нет).
-        $charFactionId   = (new CharacterFactionModel())->getFactionId((int) $characterId);
+        $charFactionId = (new CharacterFactionModel())->getFactionId((int) $characterId);
 
-        $availableQuests = [];
-        $lockedQuests    = [];
-        foreach ($quests as $quest) {
-            // Проверяем наличие соответствующей записи в таблице quest_steps
-            $questStep = $questStepModel->where('quest_id', $quest['id'])
-                ->where('character_id', $characterId)
-                ->first();
-            // Если запись найдена, то пропускаем текущий квест
-            if ($questStep) {
-                continue;
-            }
-            if (in_array($quest['id'], $activeQuestSteps)) {
-                continue;
-            }
-
-            // V12 (ADR-037): objective-квесты (strategic capture + этапы цепочек) —
-            // авто-управляемые (стартуют/завершаются через handler'ы, не вручную).
-            // ADR-088: ИСКЛЮЧЕНИЕ — расширенные STANDALONE «корни» (collect_resource /
-            // building_level / npc_kills / char_level / craft_item без prerequisite,
-            // killswitch quests.extended_enabled ON) показываем как startable.
-            if (!empty($quest['objective_type'])) {
-                // ADR-088: расширенный «корень» + (Фаза 3) фракционный гейт по фракции игрока.
-                if ($chain->isExtendedStartableRoot($quest) && $chain->factionGateOk($quest, $charFactionId)) {
-                    $availableQuests[] = $quest;
-                }
-                continue;
-            }
-
-            // V11: предусловие не выполнено → квест заблокирован (показываем тизер цепочки).
-            $prereq = $chain->prerequisiteOf($quest);
-            if (! $chain->prerequisiteMet($prereq, $completedTitles)) {
-                $lockedQuests[] = ['quest' => $quest, 'prereq' => $prereq];
-                continue;
-            }
-
-            $availableQuests[] = $quest;
-        }
+        $levelRaw        = $character['level'] ?? null;
+        $level           = is_numeric($levelRaw) ? (int) $levelRaw : 1;
+        $classified      = (new \App\Services\Quest\QuestOverviewService())
+            ->classifyQuests($level, (int) $characterId, $charFactionId);
+        $availableQuests = $classified['available'];
+        $lockedQuests    = $classified['locked'];
 
         // W11 (ADR-067): pending-развилки (branching включён) — выбор пути приоритетно сверху.
         $pendingBranches = $chain->pendingBranchesForCharacter((int) $characterId);
@@ -108,14 +71,17 @@ class AvailableQuests extends BaseAction
             }
             foreach ($availableQuests as $quest) {
                 $rewardType = $this->translateRewardType($quest['reward_type']);
-                $text .= "🔹 *{$quest['title_ru']}* || Награда: *{$quest['reward']}* (_{$rewardType}_)\n";
+                $titleRu    = is_string($quest['title_ru'] ?? null) ? $quest['title_ru'] : '';
+                $reward     = is_numeric($quest['reward'] ?? null) ? (string) $quest['reward'] : '0';
+                $text .= "🔹 *{$titleRu}* || Награда: *{$reward}* (_{$rewardType}_)\n";
             }
             // V11: заблокированные звенья цепочки — видно цель, но без кнопки.
             if (! empty($lockedQuests)) {
                 $text .= "\n*🔒 Откроются позже (цепочка):*\n";
                 foreach ($lockedQuests as $lq) {
                     $prereqTitle = $this->prerequisiteTitleRu($questModel, $lq['prereq']);
-                    $text .= "🔒 *{$lq['quest']['title_ru']}* — после квеста «{$prereqTitle}»\n";
+                    $lqTitle     = is_string($lq['quest']['title_ru'] ?? null) ? $lq['quest']['title_ru'] : '';
+                    $text .= "🔒 *{$lqTitle}* — после квеста «{$prereqTitle}»\n";
                 }
             }
             if (! empty($availableQuests)) {

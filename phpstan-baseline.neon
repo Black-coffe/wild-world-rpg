@@ -7412,12 +7412,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Quest/AvailableQuests.php
 
 		-
-			message: '#^Method App\\Models\\QuestModel\:\:getAvailableQuests\(\) invoked with 2 parameters, 1 required\.$#'
-			identifier: arguments.count
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Quest/AvailableQuests.php
-
-		-
 			message: '#^Cannot access offset ''reward'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
