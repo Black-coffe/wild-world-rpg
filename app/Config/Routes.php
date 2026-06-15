@@ -183,6 +183,7 @@ $routes->get('password/reset-success', 'Password::resetSuccess');
 
 
 $routes->get('dashboard', 'AdminController::index', ['filter' => 'login']);
+$routes->get('dashboard/export', 'AdminController::exportCsv', ['filter' => 'login']);
 
 // TELEGRAM
 $routes->post('telegram/webhook', 'Telegram\BotController::webhook');

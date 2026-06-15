@@ -139,6 +139,8 @@ $worldStats = [
                 </div>
                 <a href="<?= base_url('admin/funnel') ?>" class="btn btn-sm btn-outline-primary">
                     <i class="ri-filter-2-line me-1"></i> Воронка новичка</a>
+                <a href="<?= base_url('dashboard/export') ?>?period=<?= (int) $days ?>" class="btn btn-sm btn-success">
+                    <i class="ri-file-excel-2-line me-1"></i> Экспорт CSV</a>
                 <a href="<?= base_url('dashboard') ?>?period=<?= (int) $days ?>" class="btn btn-sm btn-light">
                     <i class="ri-refresh-line me-1"></i> Обновить</a>
             </div>
