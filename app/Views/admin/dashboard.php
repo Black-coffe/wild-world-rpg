@@ -129,10 +129,17 @@ $worldStats = [
                     </p>
                 </div>
             </div>
-            <div class="col-auto">
+            <div class="col-auto d-flex align-items-center gap-2 flex-wrap">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Период тренда">
+                    <span class="btn btn-sm btn-light disabled border-0 text-muted px-1"><i class="ri-calendar-line"></i></span>
+                    <?php foreach (\App\Services\Admin\DashboardAnalyticsService::ALLOWED_TRENDS as $p): ?>
+                        <a href="<?= base_url('dashboard') ?>?period=<?= (int) $p ?>"
+                           class="btn btn-sm <?= $p === $days ? 'btn-primary' : 'btn-outline-secondary' ?>"><?= (int) $p ?> дн</a>
+                    <?php endforeach; ?>
+                </div>
                 <a href="<?= base_url('admin/funnel') ?>" class="btn btn-sm btn-outline-primary">
                     <i class="ri-filter-2-line me-1"></i> Воронка новичка</a>
-                <a href="<?= base_url('dashboard') ?>" class="btn btn-sm btn-light">
+                <a href="<?= base_url('dashboard') ?>?period=<?= (int) $days ?>" class="btn btn-sm btn-light">
                     <i class="ri-refresh-line me-1"></i> Обновить</a>
             </div>
         </div>

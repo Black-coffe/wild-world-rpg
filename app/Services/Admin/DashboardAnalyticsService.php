@@ -26,25 +26,34 @@ use Throwable;
  */
 final class DashboardAnalyticsService
 {
-    /** Глубина окна тренда (дней) для time-series графиков. */
+    /** Глубина окна тренда (дней) по умолчанию для time-series графиков. */
     private const TREND_DAYS = 30;
+
+    /** Допустимые окна тренда (переключатель периода в дашборде). */
+    public const ALLOWED_TRENDS = [7, 30, 90];
 
     /** faction_id 1-4 — реальные фракции (5 = плейсхолдер «не выбрана»). */
     private const FACTION_RANGE = 'BETWEEN 1 AND 4';
 
-    /** @return array<string,mixed> */
-    public function dashboard(): array
+    /**
+     * @param int $trendDays окно time-series (7/30/90); невалидное → дефолт 30.
+     *                       Влияет только на тренды (рост/бои/рынок), не на KPI/срезы.
+     * @return array<string,mixed>
+     */
+    public function dashboard(int $trendDays = self::TREND_DAYS): array
     {
+        $trendDays = in_array($trendDays, self::ALLOWED_TRENDS, true) ? $trendDays : self::TREND_DAYS;
+
         return [
             'kpi'              => $this->kpi(),
-            'growth'          => $this->growthTrend(self::TREND_DAYS),
+            'growth'          => $this->growthTrend($trendDays),
             'levels'          => $this->levelBuckets(),
             'biomes'          => $this->biomeDistribution(),
             'factions'        => $this->factionDistribution(),
             'gold_buckets'    => $this->goldBuckets(),
-            'battles'         => $this->battlesSlice(self::TREND_DAYS),
+            'battles'         => $this->battlesSlice($trendDays),
             'pvp_ladder'      => $this->pvpLadderTop(),
-            'economy'         => $this->economyTrend(self::TREND_DAYS),
+            'economy'         => $this->economyTrend($trendDays),
             'top_crafted'     => $this->topCrafted(),
             'top_resources'   => $this->topResources(),
             'buildings'       => $this->buildingsByType(),
@@ -52,7 +61,7 @@ final class DashboardAnalyticsService
             'world'           => $this->worldSnapshot(),
             'top_players'     => $this->topPlayers(),
             'top_rich'        => $this->topRich(),
-            'trend_days'      => self::TREND_DAYS,
+            'trend_days'      => $trendDays,
             'generated_at'    => date('Y-m-d H:i:s'),
         ];
     }

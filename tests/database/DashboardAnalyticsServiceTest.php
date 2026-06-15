@@ -210,4 +210,24 @@ final class DashboardAnalyticsServiceTest extends CIUnitTestCase
             $this->assertArrayHasKey($key, $d);
         }
     }
+
+    /** Переключатель периода: валидные окна 7/30/90 → тренды масштабируются. */
+    public function testDashboardRespectsValidPeriod(): void
+    {
+        foreach ([7, 30, 90] as $days) {
+            $d = (new DashboardAnalyticsService())->dashboard($days);
+            $this->assertSame($days, $d['trend_days']);
+            $this->assertCount($days, $d['growth']['labels']);
+            $this->assertCount($days, $d['battles']['labels']);
+            $this->assertCount($days, $d['economy']['labels']);
+        }
+    }
+
+    /** Невалидный период (вне 7/30/90) → клампится к дефолту 30. */
+    public function testDashboardClampsInvalidPeriod(): void
+    {
+        foreach ([0, 1, 14, 365, -5] as $bad) {
+            $this->assertSame(30, (new DashboardAnalyticsService())->dashboard($bad)['trend_days']);
+        }
+    }
 }
