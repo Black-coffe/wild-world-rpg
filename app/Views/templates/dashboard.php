@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=default"></script>
-
     <?= $this->include('admin/partials/_head_common') ?>
 
     <!-- Datatables css (layout-specific: full set с fixed* и select) -->

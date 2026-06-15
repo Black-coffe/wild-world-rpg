@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Services\Admin\DashboardAnalyticsService;
 
 class AdminController extends BaseController
 {
@@ -12,6 +13,7 @@ class AdminController extends BaseController
             'admin/dashboard',
             [
                 'title' => 'Панель управления',
+                'd'     => (new DashboardAnalyticsService())->dashboard(),
             ]
         );
     }
