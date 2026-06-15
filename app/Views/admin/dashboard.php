@@ -38,7 +38,16 @@ $tasks    = $arr($d['tasks'] ?? null);
 $world    = $arr($d['world'] ?? null);
 $topP     = $arr($d['top_players'] ?? null);
 $topR     = $arr($d['top_rich'] ?? null);
-$days     = $num($d['trend_days'] ?? 30);
+$days        = $num($d['trend_days'] ?? 30);
+$trendStart  = $str($d['trend_start'] ?? '');
+$trendEnd    = $str($d['trend_end'] ?? '');
+$trendCustom = (bool) ($d['trend_custom'] ?? false);
+$trendLabel  = $str($d['trend_label'] ?? ('за ' . $days . ' дн.'));
+$today       = date('Y-m-d');
+// query-строка активного окна — чтобы экспорт/обновление сохраняли выбор
+$winQs = $trendCustom
+    ? ('from=' . rawurlencode($trendStart) . '&to=' . rawurlencode($trendEnd))
+    : ('period=' . $days);
 
 $col = static fn (array $rows, string $key): array => array_map(
     static fn ($r) => is_array($r) ? ($r[$key] ?? null) : null,
@@ -125,7 +134,7 @@ $worldStats = [
                     <h4 class="page-title mb-1"><i class="ri-dashboard-3-line me-1"></i> Пульс игры</h4>
                     <p class="text-muted small mb-0">
                         Живой обзор: игроки · активность · бои · экономика · мир.
-                        Тренды — за <?= esc((string) $days) ?> дней. Снимок: <?= esc($str($d['generated_at'] ?? '')) ?>.
+                        Тренды — <?= esc($trendLabel) ?>. Снимок: <?= esc($str($d['generated_at'] ?? '')) ?>.
                     </p>
                 </div>
             </div>
@@ -134,14 +143,23 @@ $worldStats = [
                     <span class="btn btn-sm btn-light disabled border-0 text-muted px-1"><i class="ri-calendar-line"></i></span>
                     <?php foreach (\App\Services\Admin\DashboardAnalyticsService::ALLOWED_TRENDS as $p): ?>
                         <a href="<?= base_url('dashboard') ?>?period=<?= (int) $p ?>"
-                           class="btn btn-sm <?= $p === $days ? 'btn-primary' : 'btn-outline-secondary' ?>"><?= (int) $p ?> дн</a>
+                           class="btn btn-sm <?= (! $trendCustom && $p === $days) ? 'btn-primary' : 'btn-outline-secondary' ?>"><?= (int) $p ?> дн</a>
                     <?php endforeach; ?>
                 </div>
+                <form method="get" action="<?= base_url('dashboard') ?>" class="d-flex align-items-center gap-1" role="search" aria-label="Произвольный диапазон">
+                    <input type="date" name="from" value="<?= esc($trendStart) ?>" max="<?= esc($today) ?>"
+                           class="form-control form-control-sm" style="width:auto" aria-label="С даты">
+                    <span class="text-muted">–</span>
+                    <input type="date" name="to" value="<?= esc($trendEnd) ?>" max="<?= esc($today) ?>"
+                           class="form-control form-control-sm" style="width:auto" aria-label="По дату">
+                    <button type="submit" class="btn btn-sm <?= $trendCustom ? 'btn-primary' : 'btn-outline-primary' ?>" title="Применить диапазон">
+                        <i class="ri-calendar-check-line"></i></button>
+                </form>
                 <a href="<?= base_url('admin/funnel') ?>" class="btn btn-sm btn-outline-primary">
                     <i class="ri-filter-2-line me-1"></i> Воронка новичка</a>
-                <a href="<?= base_url('dashboard/export') ?>?period=<?= (int) $days ?>" class="btn btn-sm btn-success">
+                <a href="<?= base_url('dashboard/export') ?>?<?= esc($winQs) ?>" class="btn btn-sm btn-success">
                     <i class="ri-file-excel-2-line me-1"></i> Экспорт CSV</a>
-                <a href="<?= base_url('dashboard') ?>?period=<?= (int) $days ?>" class="btn btn-sm btn-light">
+                <a href="<?= base_url('dashboard') ?>?<?= esc($winQs) ?>" class="btn btn-sm btn-light">
                     <i class="ri-refresh-line me-1"></i> Обновить</a>
             </div>
         </div>

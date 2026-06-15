@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Database;
 
 use App\Services\Admin\DashboardAnalyticsService;
+use App\Services\Admin\TrendRange;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -172,7 +173,7 @@ final class DashboardAnalyticsServiceTest extends CIUnitTestCase
     {
         $svc = new DashboardAnalyticsService();
 
-        $battles = $svc->battlesSlice(30);
+        $battles = $svc->battlesSlice(TrendRange::preset(30));
         $this->assertSame(0, $battles['total']);
         $this->assertSame([], $battles['by_type']);
         $this->assertCount(30, $battles['labels']);          // ось всё равно zero-filled
@@ -181,7 +182,7 @@ final class DashboardAnalyticsServiceTest extends CIUnitTestCase
 
     public function testGrowthTrendZeroFilledLength(): void
     {
-        $g = (new DashboardAnalyticsService())->growthTrend(30);
+        $g = (new DashboardAnalyticsService())->growthTrend(TrendRange::preset(30));
 
         $this->assertCount(30, $g['labels']);
         $this->assertCount(30, $g['regs']);
@@ -211,23 +212,31 @@ final class DashboardAnalyticsServiceTest extends CIUnitTestCase
         }
     }
 
-    /** Переключатель периода: валидные окна 7/30/90 → тренды масштабируются. */
-    public function testDashboardRespectsValidPeriod(): void
+    /** Пресет-окна 7/30/90 → тренды масштабируются на нужное число дней. */
+    public function testDashboardRespectsPresetWindow(): void
     {
         foreach ([7, 30, 90] as $days) {
-            $d = (new DashboardAnalyticsService())->dashboard($days);
+            $d = (new DashboardAnalyticsService())->dashboard(TrendRange::preset($days));
             $this->assertSame($days, $d['trend_days']);
+            $this->assertFalse($d['trend_custom']);
             $this->assertCount($days, $d['growth']['labels']);
             $this->assertCount($days, $d['battles']['labels']);
             $this->assertCount($days, $d['economy']['labels']);
         }
     }
 
-    /** Невалидный период (вне 7/30/90) → клампится к дефолту 30. */
-    public function testDashboardClampsInvalidPeriod(): void
+    /** Произвольный диапазон дат → тренды покрывают ровно [from, to] включительно. */
+    public function testDashboardRespectsCustomRange(): void
     {
-        foreach ([0, 1, 14, 365, -5] as $bad) {
-            $this->assertSame(30, (new DashboardAnalyticsService())->dashboard($bad)['trend_days']);
-        }
+        $range = TrendRange::fromDates('2000-06-01', '2000-06-10');
+        $this->assertNotNull($range);
+
+        $d = (new DashboardAnalyticsService())->dashboard($range);
+        $this->assertSame(10, $d['trend_days']);
+        $this->assertTrue($d['trend_custom']);
+        $this->assertSame('2000-06-01', $d['trend_start']);
+        $this->assertSame('2000-06-10', $d['trend_end']);
+        $this->assertCount(10, $d['growth']['labels']);
+        $this->assertCount(10, $d['economy']['labels']);
     }
 }

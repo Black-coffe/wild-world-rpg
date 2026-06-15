@@ -36,24 +36,25 @@ final class DashboardAnalyticsService
     private const FACTION_RANGE = 'BETWEEN 1 AND 4';
 
     /**
-     * @param int $trendDays окно time-series (7/30/90); невалидное → дефолт 30.
-     *                       Влияет только на тренды (рост/бои/рынок), не на KPI/срезы.
+     * @param TrendRange|null $range окно time-series (пресет или произвольный диапазон);
+     *                               null → пресет 30 дней. Влияет ТОЛЬКО на тренды
+     *                               (рост/бои/рынок), не на KPI/срезы/лидерборды.
      * @return array<string,mixed>
      */
-    public function dashboard(int $trendDays = self::TREND_DAYS): array
+    public function dashboard(?TrendRange $range = null): array
     {
-        $trendDays = in_array($trendDays, self::ALLOWED_TRENDS, true) ? $trendDays : self::TREND_DAYS;
+        $range ??= TrendRange::preset(self::TREND_DAYS);
 
         return [
             'kpi'              => $this->kpi(),
-            'growth'          => $this->growthTrend($trendDays),
+            'growth'          => $this->growthTrend($range),
             'levels'          => $this->levelBuckets(),
             'biomes'          => $this->biomeDistribution(),
             'factions'        => $this->factionDistribution(),
             'gold_buckets'    => $this->goldBuckets(),
-            'battles'         => $this->battlesSlice($trendDays),
+            'battles'         => $this->battlesSlice($range),
             'pvp_ladder'      => $this->pvpLadderTop(),
-            'economy'         => $this->economyTrend($trendDays),
+            'economy'         => $this->economyTrend($range),
             'top_crafted'     => $this->topCrafted(),
             'top_resources'   => $this->topResources(),
             'buildings'       => $this->buildingsByType(),
@@ -61,7 +62,11 @@ final class DashboardAnalyticsService
             'world'           => $this->worldSnapshot(),
             'top_players'     => $this->topPlayers(),
             'top_rich'        => $this->topRich(),
-            'trend_days'      => $trendDays,
+            'trend_days'      => $range->days,
+            'trend_start'     => $range->start,
+            'trend_end'       => $range->end,
+            'trend_custom'    => $range->custom,
+            'trend_label'     => $range->label(),
             'generated_at'    => date('Y-m-d H:i:s'),
         ];
     }
@@ -126,24 +131,27 @@ final class DashboardAnalyticsService
     // ── Рост и активность (time-series) ───────────────────────────────────────
 
     /**
-     * Тренд за N дней: новые персонажи vs активные (по движению). Zero-filled —
-     * непрерывная ось дат для линейного графика.
+     * Тренд за окно $range: новые персонажи vs активные (по движению). Zero-filled —
+     * непрерывная ось дат для линейного графика. Границы дат — канонические Y-m-d
+     * (TrendRange), безопасны для интерполяции.
      *
      * @return array{labels:list<string>,regs:list<int>,active:list<int>}
      */
-    public function growthTrend(int $days): array
+    public function growthTrend(TrendRange $range): array
     {
+        $start = $range->startSql();
+        $end   = $range->endExclusiveSql();
         $regsMap = $this->mapByDay(
             "SELECT DATE(created_at) d, COUNT(*) c FROM characters
-             WHERE created_at >= NOW() - INTERVAL {$days} DAY GROUP BY d"
+             WHERE created_at >= '{$start}' AND created_at < '{$end}' GROUP BY d"
         );
         $actMap = $this->mapByDay(
             "SELECT DATE(created_at) d, COUNT(DISTINCT character_id) c FROM explored_cells
-             WHERE created_at >= NOW() - INTERVAL {$days} DAY GROUP BY d"
+             WHERE created_at >= '{$start}' AND created_at < '{$end}' GROUP BY d"
         );
 
         $labels = $regs = $active = [];
-        foreach ($this->dayKeys($days) as $day) {
+        foreach ($range->dayKeys() as $day) {
             $labels[] = $this->shortDay($day);
             $regs[]   = $regsMap[$day] ?? 0;
             $active[] = $actMap[$day] ?? 0;
@@ -228,19 +236,21 @@ final class DashboardAnalyticsService
      *
      * @return array{total:int,by_type:list<array{type:string,count:int}>,labels:list<string>,daily:list<int>}
      */
-    public function battlesSlice(int $days): array
+    public function battlesSlice(TrendRange $range): array
     {
         $byType = array_map(fn (array $r): array => [
             'type'  => strtoupper($this->s($r['t'] ?? '?')),
             'count' => $this->n($r['c'] ?? 0),
         ], $this->rows('SELECT battle_type t, COUNT(*) c FROM battle_logs GROUP BY battle_type ORDER BY c DESC'));
 
+        $start = $range->startSql();
+        $end   = $range->endExclusiveSql();
         $dailyMap = $this->mapByDay(
             "SELECT DATE(created_at) d, COUNT(*) c FROM battle_logs
-             WHERE created_at >= NOW() - INTERVAL {$days} DAY GROUP BY d"
+             WHERE created_at >= '{$start}' AND created_at < '{$end}' GROUP BY d"
         );
         $labels = $daily = [];
-        foreach ($this->dayKeys($days) as $day) {
+        foreach ($range->dayKeys() as $day) {
             $labels[] = $this->shortDay($day);
             $daily[]  = $dailyMap[$day] ?? 0;
         }
@@ -278,12 +288,14 @@ final class DashboardAnalyticsService
      *
      * @return array{labels:list<string>,buy:list<int>,sell:list<int>}
      */
-    public function economyTrend(int $days): array
+    public function economyTrend(TrendRange $range): array
     {
-        $rows = $this->rows(
+        $start = $range->startSql();
+        $end   = $range->endExclusiveSql();
+        $rows  = $this->rows(
             "SELECT DATE(transaction_date) d, type, ROUND(SUM(price * quantity)) v
              FROM transactions
-             WHERE transaction_date >= NOW() - INTERVAL {$days} DAY
+             WHERE transaction_date >= '{$start}' AND transaction_date < '{$end}'
              GROUP BY d, type"
         );
         $buyMap = $sellMap = [];
@@ -298,7 +310,7 @@ final class DashboardAnalyticsService
         }
 
         $labels = $buy = $sell = [];
-        foreach ($this->dayKeys($days) as $day) {
+        foreach ($range->dayKeys() as $day) {
             $labels[] = $this->shortDay($day);
             $buy[]    = $buyMap[$day] ?? 0;
             $sell[]   = $sellMap[$day] ?? 0;
@@ -428,23 +440,6 @@ final class DashboardAnalyticsService
     {
         $ts = strtotime($ymd);
         return $ts === false ? $ymd : date('d.m', $ts);
-    }
-
-    /**
-     * Список последних N дат (Y-m-d) по возрастанию.
-     *
-     * @return list<string>
-     */
-    private function dayKeys(int $days): array
-    {
-        $out = [];
-        for ($i = max(1, $days) - 1; $i >= 0; $i--) {
-            $ts = strtotime("-{$i} days");
-            if ($ts !== false) {
-                $out[] = date('Y-m-d', $ts);
-            }
-        }
-        return $out;
     }
 
     /**

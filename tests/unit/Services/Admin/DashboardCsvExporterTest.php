@@ -34,7 +34,10 @@ final class DashboardCsvExporterTest extends CIUnitTestCase
             'world'        => ['explored_cells' => 2568, 'map_cells' => 1000000],
             'top_players'  => [['name' => 'Vet', 'level' => 10, 'gold' => 5000000.0, 'exp' => 999.5]],
             'top_rich'     => [['name' => 'Vet', 'gold' => 5000000.0, 'level' => 10]],
-            'trend_days'   => 30,
+            'trend_days'   => 7,
+            'trend_start'  => '2026-06-09',
+            'trend_end'    => '2026-06-15',
+            'trend_custom' => true,
             'generated_at' => '2026-06-15 15:00:00',
         ];
     }
@@ -82,6 +85,8 @@ final class DashboardCsvExporterTest extends CIUnitTestCase
         $this->assertStringContainsString('15.06;5;12', $csv);
         // KPI key-value.
         $this->assertStringContainsString('Персонажей;527', $csv);
+        // Диапазон дат в шапке.
+        $this->assertStringContainsString('Диапазон дат;2026-06-09 – 2026-06-15', $csv);
     }
 
     public function testEmptyPayloadStillProducesHeaderAndSections(): void

@@ -62,6 +62,7 @@ final class DashboardCsvExporter
         $this->row($fh, ['Дашборд «Пульс игры» — экспорт данных']);
         $this->row($fh, ['Сформировано', $this->s($d['generated_at'] ?? '')]);
         $this->row($fh, ['Период тренда (дней)', $this->num($d['trend_days'] ?? 0)]);
+        $this->row($fh, ['Диапазон дат', $this->s($d['trend_start'] ?? '') . ' – ' . $this->s($d['trend_end'] ?? '')]);
 
         // KPI.
         $kpi = $arr($d['kpi'] ?? null);
