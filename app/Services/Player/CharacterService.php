@@ -228,6 +228,12 @@ class CharacterService
             $inlineRows[] = $hubButtons;
         }
 
+        // ADR-127 — «📖 Путь новичка»: вход в справочник-онбординг (`/guide`). ВСЕГДА виден
+        // отдельной строкой — точка спасения для растерявшегося игрока (пропустил обучение /
+        // забыл механику). Read-only, без наград (можно жать сколько угодно). Не раздувает
+        // ряды действий (отдельная строка снизу).
+        $inlineRows[] = [['text' => '📖 Путь новичка', 'callback_data' => 'guide']];
+
         $inlineKeyboard = ['inline_keyboard' => $inlineRows];
 
         return Request::sendMessage([
