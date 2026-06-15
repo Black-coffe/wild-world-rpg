@@ -70,6 +70,8 @@ class BotMenuService
             ['command' => 'settings', 'description' => '⚙️ Настройки'],
             ['command' => 'tasks',    'description' => '📋 Активные задачи'],
             ['command' => 'tips',     'description' => '💡 Совет по игре'],
+            // ADR-127 — «📖 Путь новичка»: пройти обучение и справочник заново в любой момент.
+            ['command' => 'guide',    'description' => '📖 Путь новичка (обучение заново)'],
         ];
     }
 

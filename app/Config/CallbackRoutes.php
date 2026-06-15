@@ -41,6 +41,12 @@ class CallbackRoutes extends BaseConfig
         // W7b (ADR-065 Part 2) — каталог «📚 Что нового». Вход с экрана Перс + промо в Шаге 7/7.
         // Топики — через prefixRoute `whatsNew` (callback `whatsNew_<topic_key>`).
         'whatsNewCatalog'                 => \App\Controllers\Telegram\Commands\Actions\WhatsNew\WhatsNewCatalogAction::class,
+        // ADR-127 — «📖 Путь новичка»: команда-реплей онбординга (навигируемый текстовый
+        // справочник). Один exact-роут `guide` ловит и оглавление (`guide`), и разделы
+        // (`guide_<key>`): резолв по первому сегменту explode('_')[0] = 'guide', ключ
+        // разбирает сам GuideAction. Ключ БЕЗ хвостового `_` — урок мёртвых `npcAct_`.
+        // 🔴 read-only: никаких наград/телепортов/мутаций (анти-абьюз).
+        'guide'                           => \App\Controllers\Telegram\Commands\Actions\Guide\GuideAction::class,
         // W10 (ADR-066) — экран «🏅 Достижения» (вход с карточки Перс при killswitch on).
         'achievements'                    => \App\Controllers\Telegram\Commands\Actions\Achievements\AchievementsAction::class,
         'titles'                          => \App\Controllers\Telegram\Commands\Actions\Titles\TitlesAction::class,

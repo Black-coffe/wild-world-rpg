@@ -242,6 +242,30 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
     }
 
     /**
+     * ADR-127 «Путь новичка» — exact-роут 'guide'; и оглавление (`guide`), и разделы
+     * (`guide_<key>`) дают первый сегмент 'guide' → один обработчик GuideAction. Тот же
+     * class-of-bug, что npcAct_ (мёртвый prefix с `_`): фиксируем, что роут жив для
+     * оглавления и для каждого раздела.
+     */
+    public function testGuideCallbackRoutesResolve(): void
+    {
+        $expected = \App\Controllers\Telegram\Commands\Actions\Guide\GuideAction::class;
+
+        $callbacks = ['guide'];
+        foreach (\App\Services\Onboarding\GuideCatalog::sections() as $section) {
+            $callbacks[] = 'guide_' . $section['key'];
+        }
+
+        foreach ($callbacks as $callbackData) {
+            $this->assertSame(
+                $expected,
+                $this->cbRoutes->resolve(explode('_', $callbackData)[0]),
+                "callback_data «{$callbackData}» обязан резолвиться в GuideAction."
+            );
+        }
+    }
+
+    /**
      * ADR-096 «Оптовая продажа» — exact-роут 'bulkSell'; все хвосты (all_/rarity_/go_)
      * дают тот же первый сегмент → один обработчик. Тот же class-of-bug, что npcAct_
      * (мёртвый prefix с `_`): фиксируем, что роут жив для предпросмотра и выполнения.
