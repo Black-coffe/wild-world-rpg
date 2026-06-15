@@ -338,6 +338,10 @@ $worldStats = [
     </div>
 </div>
 
+<?php /* ApexCharts с CDN: локальный vendor/ в .gitignore и не деплоится (404 на проде). jsDelivr надёжен и версионно закреплён. */ ?>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js"
+        integrity="sha384-KNaFJ+EK516RuHsoycvreec5pD7BkTKJEkjMrVSQWu9KGTl7En4dhIDv7t1DFJ+g"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     if (typeof ApexCharts === 'undefined') { console.warn('ApexCharts не загружен'); return; }
