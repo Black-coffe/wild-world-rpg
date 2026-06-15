@@ -1,77 +1,97 @@
-<?= $this->extend('admin/layouts/default') ?>
-
+<?= $this->extend('admin/layouts/aui') ?>
+<?= $this->section('pageTitle') ?>Вайп сервера<?= $this->endSection() ?>
 <?= $this->section('content') ?>
 
-<h2>🔥 ВАЙП всех игроков</h2>
+<div class="aui-page-head">
+    <div class="aui-page-head__title">
+        <p class="aui-eyebrow">Опасная зона</p>
+        <h1 class="aui-display">🔥 Вайп всех игроков</h1>
+    </div>
+</div>
 
 <?php if (session()->getFlashdata('success')): ?>
-    <div class="alert alert-success"><?= esc(session()->getFlashdata('success')) ?></div>
+    <div class="aui-alert aui-alert--success" style="margin-bottom:var(--sp-4)"><i class="ri-checkbox-circle-line"></i><div><?= esc(session()->getFlashdata('success')) ?></div></div>
 <?php endif; ?>
 <?php if (session()->getFlashdata('errors')): ?>
-    <div class="alert alert-danger">
-        <?php foreach ((array) session()->getFlashdata('errors') as $error): ?>
-            <?= esc($error) ?><br>
-        <?php endforeach; ?>
-    </div>
+    <div class="aui-alert aui-alert--danger" style="margin-bottom:var(--sp-4)"><i class="ri-error-warning-line"></i><div>
+        <?php foreach ((array) session()->getFlashdata('errors') as $error): ?><?= esc($error) ?><br><?php endforeach; ?>
+    </div></div>
 <?php endif; ?>
 
-<div class="alert alert-danger">
-    <strong>⚠️ Необратимая операция.</strong> Полный вайп сбрасывает прогресс ВСЕХ игроков до нуля
-    (как вайп сезона). <strong>Остаётся:</strong> игровой мир и карта, имена игроков и их id,
-    контент-определения, баланс (game_settings), админ/сайт. <strong>Сбрасывается:</strong> весь
-    прогресс персонажей, инвентарь, постройки, фракции, исследования, рынок, эндгейм.
+<div class="aui-alert aui-alert--danger" style="margin-bottom:var(--sp-5)">
+    <i class="ri-alert-line"></i>
+    <div>
+        <div class="aui-alert__title">⚠️ Необратимая операция</div>
+        Полный вайп сбрасывает прогресс ВСЕХ игроков до нуля (как вайп сезона).
+        <strong>Остаётся:</strong> игровой мир и карта, имена игроков и их id, контент-определения,
+        баланс (game_settings), админ/сайт. <strong>Сбрасывается:</strong> весь прогресс персонажей,
+        инвентарь, постройки, фракции, исследования, рынок, эндгейм.
+    </div>
 </div>
 
 <?php $cov = $preview['coverage']; ?>
 <?php if ($cov['unclassified'] !== []): ?>
-    <div class="alert alert-danger">
-        🔴 <strong>Вайп заблокирован.</strong> Незаклассифицированные таблицы (нет в <code>Config\WipeManifest</code>):
-        <code><?= esc(implode(', ', $cov['unclassified'])) ?></code>.
-        Добавь их в манифест (ADR-087), иначе они будут упущены при вайпе.
+    <div class="aui-alert aui-alert--danger" style="margin-bottom:var(--sp-4)">
+        <i class="ri-shield-cross-line"></i>
+        <div>
+            <div class="aui-alert__title">🔴 Вайп заблокирован</div>
+            Незаклассифицированные таблицы (нет в <span class="aui-mono">Config\WipeManifest</span>):
+            <span class="aui-mono"><?= esc(implode(', ', $cov['unclassified'])) ?></span>.
+            Добавь их в манифест (ADR-087), иначе они будут упущены при вайпе.
+        </div>
     </div>
 <?php endif; ?>
 <?php if ($cov['stale'] !== []): ?>
-    <div class="alert alert-warning">
-        ⚠ Stale-записи манифеста (таблиц нет в БД): <code><?= esc(implode(', ', $cov['stale'])) ?></code>.
+    <div class="aui-alert aui-alert--warning" style="margin-bottom:var(--sp-4)">
+        <i class="ri-information-line"></i>
+        <div>Stale-записи манифеста (таблиц нет в БД): <span class="aui-mono"><?= esc(implode(', ', $cov['stale'])) ?></span>.</div>
     </div>
 <?php endif; ?>
 
-<div class="row mb-3">
-    <div class="col-md-3"><div class="card text-bg-light"><div class="card-body">
-        <div class="fs-4"><?= esc((string) $preview['players']) ?></div><div>аккаунтов (telegram_users)</div>
-    </div></div></div>
-    <div class="col-md-3"><div class="card text-bg-light"><div class="card-body">
-        <div class="fs-4"><?= esc((string) $preview['characters']) ?></div><div>персонажей (сброс)</div>
-    </div></div></div>
-    <div class="col-md-3"><div class="card text-bg-light"><div class="card-body">
-        <div class="fs-4 text-danger"><?= esc((string) $preview['totals']['rows_deleted']) ?></div><div>строк будет удалено</div>
-    </div></div></div>
-    <div class="col-md-3"><div class="card text-bg-light"><div class="card-body">
-        <div class="fs-4"><?= esc((string) $preview['totals']['tables_kept']) ?></div><div>таблиц сохраняется</div>
-    </div></div></div>
+<div class="aui-grid aui-grid--kpi" style="margin-bottom:var(--sp-5)">
+    <div class="aui-kpi aui-rise">
+        <div class="aui-kpi__top"><span class="aui-kpi__label">Аккаунтов</span><i class="aui-kpi__icon ri-telegram-line"></i></div>
+        <div class="aui-kpi__value"><?= esc((string) $preview['players']) ?></div>
+        <div class="aui-kpi__rule"></div><div class="aui-kpi__sub">telegram_users</div>
+    </div>
+    <div class="aui-kpi aui-rise">
+        <div class="aui-kpi__top"><span class="aui-kpi__label">Персонажей</span><i class="aui-kpi__icon ri-user-line"></i></div>
+        <div class="aui-kpi__value"><?= esc((string) $preview['characters']) ?></div>
+        <div class="aui-kpi__rule"></div><div class="aui-kpi__sub">будут сброшены</div>
+    </div>
+    <div class="aui-kpi aui-rise">
+        <div class="aui-kpi__top"><span class="aui-kpi__label">Строк к удалению</span><i class="aui-kpi__icon ri-delete-bin-line" style="color:var(--danger)"></i></div>
+        <div class="aui-kpi__value" style="color:var(--danger)"><?= esc((string) $preview['totals']['rows_deleted']) ?></div>
+        <div class="aui-kpi__rule" style="background:var(--danger)"></div><div class="aui-kpi__sub">необратимо</div>
+    </div>
+    <div class="aui-kpi aui-rise">
+        <div class="aui-kpi__top"><span class="aui-kpi__label">Таблиц сохранится</span><i class="aui-kpi__icon ri-shield-check-line" style="color:var(--success)"></i></div>
+        <div class="aui-kpi__value"><?= esc((string) $preview['totals']['tables_kept']) ?></div>
+        <div class="aui-kpi__rule" style="background:var(--success)"></div><div class="aui-kpi__sub">KEEP</div>
+    </div>
 </div>
 
-<div class="card mb-4">
-    <div class="card-header">Что произойдёт с каждой таблицей (KEEP скрыты — раскрой ниже)</div>
-    <div class="card-body">
-        <div class="table-responsive">
-        <table class="table table-sm table-striped">
-            <thead><tr><th>Таблица</th><th>Стратегия</th><th>Строк сейчас</th><th>Действие</th></tr></thead>
+<div class="aui-card" style="margin-bottom:var(--sp-5)">
+    <div class="aui-card__head"><i class="ri-table-line"></i><span class="aui-card__title">Что произойдёт с каждой таблицей</span></div>
+    <div class="aui-card__body">
+        <div class="aui-tablewrap">
+        <table class="aui-table">
+            <thead><tr><th>Таблица</th><th>Стратегия</th><th class="num">Строк сейчас</th><th>Действие</th></tr></thead>
             <tbody>
             <?php foreach ($preview['tables'] as $t): ?>
                 <?php if ($t['strategy'] === 'keep') { continue; } ?>
                 <?php
                     $badge = match ($t['strategy']) {
-                        'player_data', 'transient'      => 'bg-danger',
-                        'character_reset'               => 'bg-primary',
-                        'identity_reset', 'seed_reset'  => 'bg-warning text-dark',
-                        default                         => 'bg-secondary',
+                        'player_data', 'transient'      => 'aui-badge--danger',
+                        'character_reset'               => 'aui-badge--info',
+                        'identity_reset', 'seed_reset'  => 'aui-badge--warning',
+                        default                         => '',
                     };
                 ?>
                 <tr>
-                    <td><code><?= esc($t['table']) ?></code><br><small class="text-muted"><?= esc($t['note']) ?></small></td>
-                    <td><span class="badge <?= $badge ?>"><?= esc($t['strategy']) ?></span></td>
-                    <td><?= esc((string) $t['rows']) ?></td>
+                    <td class="strong"><span class="aui-mono"><?= esc($t['table']) ?></span><br><small><?= esc($t['note']) ?></small></td>
+                    <td><span class="aui-badge <?= $badge ?>"><?= esc($t['strategy']) ?></span></td>
+                    <td class="num"><?= esc((string) $t['rows']) ?></td>
                     <td><?= esc($t['detail']) ?></td>
                 </tr>
             <?php endforeach; ?>
@@ -79,17 +99,17 @@
         </table>
         </div>
 
-        <details>
-            <summary class="text-muted">🟢 Сохраняемые таблицы (KEEP) — <?= esc((string) $preview['totals']['tables_kept']) ?> шт.</summary>
-            <div class="table-responsive">
-            <table class="table table-sm mt-2">
+        <details style="margin-top:var(--sp-4)">
+            <summary class="aui-muted" style="cursor:pointer">🟢 Сохраняемые таблицы (KEEP) — <?= esc((string) $preview['totals']['tables_kept']) ?> шт.</summary>
+            <div class="aui-tablewrap" style="margin-top:var(--sp-3)">
+            <table class="aui-table">
                 <tbody>
                 <?php foreach ($preview['tables'] as $t): ?>
                     <?php if ($t['strategy'] !== 'keep') { continue; } ?>
                     <tr>
-                        <td><code><?= esc($t['table']) ?></code></td>
-                        <td><?= esc((string) $t['rows']) ?> строк</td>
-                        <td class="text-muted"><?= esc($t['note']) ?></td>
+                        <td><span class="aui-mono"><?= esc($t['table']) ?></span></td>
+                        <td class="num"><?= esc((string) $t['rows']) ?> строк</td>
+                        <td class="aui-muted"><?= esc($t['note']) ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -99,20 +119,20 @@
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header">Сообщение всем игрокам (отправится ПОСЛЕ вайпа) — можно отредактировать</div>
-    <div class="card-body">
+<div class="aui-card">
+    <div class="aui-card__head"><i class="ri-megaphone-line"></i><span class="aui-card__title">Сообщение всем игрокам (отправится ПОСЛЕ вайпа)</span></div>
+    <div class="aui-card__body">
         <form action="<?= site_url('admin/wipe/arm') ?>" method="post">
             <?= csrf_field() ?>
-            <div class="mb-3">
-                <label class="form-label">Заголовок</label>
-                <input type="text" class="form-control" name="broadcast_title" value="<?= esc($broadcastTitle) ?>">
+            <div class="aui-field">
+                <label class="aui-label">Заголовок</label>
+                <input type="text" class="aui-input" name="broadcast_title" value="<?= esc($broadcastTitle) ?>">
             </div>
-            <div class="mb-3">
-                <label class="form-label">Текст (Telegram-Markdown)</label>
-                <textarea class="form-control" name="broadcast_message" rows="8"><?= esc($broadcastMessage) ?></textarea>
+            <div class="aui-field">
+                <label class="aui-label">Текст (Telegram-Markdown)</label>
+                <textarea class="aui-textarea" name="broadcast_message" rows="8"><?= esc($broadcastMessage) ?></textarea>
             </div>
-            <button type="submit" class="btn btn-danger"
+            <button type="submit" class="aui-btn aui-btn--danger-solid aui-btn--lg<?= $cov['unclassified'] !== [] ? ' is-disabled' : '' ?>"
                 <?= $cov['unclassified'] !== [] ? 'disabled title="Сначала классифицируй таблицы в WipeManifest"' : '' ?>>
                 🔥 Делать вайп →
             </button>

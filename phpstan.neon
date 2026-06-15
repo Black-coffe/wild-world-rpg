@@ -23,7 +23,7 @@ parameters:
         - app/ThirdParty
         - app/Views/errors    # CI4 framework default templates
         - app/Views/site      # ADR-052 публичные view (presentation; $this->extend + view-model mixed)
-        - app/Views/admin/site # ADR-052 admin-CRUD view сайта (presentation)
+        - app/Views/admin     # вся admin-вёрстка = presentation ($this->extend/include + view-model mixed); логика в контроллерах/сервисах. Расширено с admin/site при рефакторе админки (ADR-128).
         - vendor
 
     # Оптимизация — параллельные процессы

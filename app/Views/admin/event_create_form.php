@@ -1,10 +1,15 @@
-<?= $this->extend('admin/layouts/default') ?>
-
+<?= $this->extend('admin/layouts/aui') ?>
+<?= $this->section('pageTitle') ?>Новое событие<?= $this->endSection() ?>
 <?= $this->section('content') ?>
 
-<h2>Создать новое событие</h2>
+<div class="aui-page-head">
+    <div class="aui-page-head__title">
+        <p class="aui-eyebrow">Настройки игры · контент · события</p>
+        <h1 class="aui-display">Новое событие</h1>
+    </div>
+    <a class="aui-btn aui-btn--ghost" href="<?= site_url('admin/events') ?>"><i class="ri-arrow-left-line"></i> К списку</a>
+</div>
 
-<?php /* Phase D (2026-05-13): unified _event_form partial вместо 140 LOC дубля */ ?>
 <?= view('admin/partials/_event_form', ['mode' => 'create', 'biomes' => $biomes, 'effectHandlers' => $effectHandlers ?? []]) ?>
 
 <?= $this->endSection() ?>

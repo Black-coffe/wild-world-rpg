@@ -9,6 +9,16 @@
     var charts = {};
     var state = { months: '12', from: null, to: null };
 
+    // Тема «Quiet Premium» (ADR-128) — цвета берём из admin-ui.css токенов, не хардкод Hyper.
+    var ROOT = document.documentElement;
+    function cssvar(n) { return getComputedStyle(ROOT).getPropertyValue(n).trim(); }
+    var THEME = {
+        viz: [1, 2, 3, 4, 5, 6, 7, 8].map(function (i) { return cssvar('--viz-' + i); }),
+        accent: cssvar('--accent'),
+        grid: cssvar('--viz-grid'),
+        ink3: cssvar('--ink-3')
+    };
+
     function fmt(n) {
         n = Number(n) || 0;
         var abs = Math.abs(n);
@@ -36,16 +46,16 @@
 
     function baseBar(categories, data, name, horizontal, color) {
         return {
-            chart: { type: 'bar', height: horizontal ? 340 : 300, toolbar: { show: false }, fontFamily: 'inherit' },
+            chart: { type: 'bar', height: horizontal ? 340 : 300, toolbar: { show: false }, fontFamily: 'inherit', foreColor: THEME.ink3 },
             series: [{ name: name, data: data }],
-            plotOptions: { bar: { horizontal: !!horizontal, borderRadius: 3, barHeight: '70%' } },
-            colors: [color || '#727cf5'],
+            plotOptions: { bar: { horizontal: !!horizontal, borderRadius: 3, barHeight: '70%', borderRadiusApplication: 'end' } },
+            colors: [color || THEME.viz[1]],
             dataLabels: { enabled: false },
             noData: { text: 'Нет данных за период' },
             xaxis: { categories: categories, labels: { formatter: horizontal ? fmt : undefined, rotate: horizontal ? 0 : -45, style: { fontSize: '11px' } } },
             yaxis: { labels: { formatter: horizontal ? undefined : fmt } },
             tooltip: { y: { formatter: full } },
-            grid: { borderColor: '#eef2f7' }
+            grid: { borderColor: THEME.grid, strokeDashArray: 3 }
         };
     }
 
@@ -69,45 +79,45 @@
 
         var cv = d.craft_volume || [];
         render('chart-craft-volume', {
-            chart: { type: 'area', height: 300, toolbar: { show: false }, fontFamily: 'inherit' },
+            chart: { type: 'area', height: 300, toolbar: { show: false }, fontFamily: 'inherit', foreColor: THEME.ink3 },
             series: [{ name: 'Кол-во', data: cv.map(function (r) { return Number(r.qty) || 0; }) }],
             xaxis: { categories: cv.map(function (r) { return r.month; }) },
             yaxis: { labels: { formatter: fmt } },
-            colors: ['#0acf97'],
+            colors: [THEME.accent],
             stroke: { curve: 'smooth', width: 2 },
-            fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05 } },
+            fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.22, opacityTo: 0.02, stops: [0, 95] } },
             dataLabels: { enabled: false },
             markers: { size: cv.length === 1 ? 5 : 0 },
             noData: { text: 'Нет данных за период' },
             tooltip: { y: { formatter: full } },
-            grid: { borderColor: '#eef2f7' }
+            grid: { borderColor: THEME.grid, strokeDashArray: 3 }
         });
 
         var gc = d.gold_concentration || {};
         var holders = gc.holders || [];
         setText('econ-gold-share', 'Топ-холдер: ' + (gc.top_share_pct || 0) + '% · топ-10: ' + (gc.topn_share_pct || 0) + '% всего золота (текущий снимок)');
-        render('chart-gold', baseBar(holders.map(function (h) { return h.name; }), holders.map(function (h) { return Number(h.gold) || 0; }), 'Золото', true, '#ffbc00'));
+        render('chart-gold', baseBar(holders.map(function (h) { return h.name; }), holders.map(function (h) { return Number(h.gold) || 0; }), 'Золото', true, THEME.accent));
 
         var tc = d.top_crafted || [];
-        render('chart-top-crafted', baseBar(tc.map(function (r) { return r.name; }), tc.map(function (r) { return Number(r.qty) || 0; }), 'Шт.', true, '#727cf5'));
+        render('chart-top-crafted', baseBar(tc.map(function (r) { return r.name; }), tc.map(function (r) { return Number(r.qty) || 0; }), 'Шт.', true, THEME.viz[1]));
 
         var tr = d.top_resources || [];
-        render('chart-top-resources', baseBar(tr.map(function (r) { return r.name; }), tr.map(function (r) { return Number(r.qty) || 0; }), 'Кол-во', true, '#39afd1'));
+        render('chart-top-resources', baseBar(tr.map(function (r) { return r.name; }), tr.map(function (r) { return Number(r.qty) || 0; }), 'Кол-во', true, THEME.viz[3]));
 
         var tx = d.transactions || [];
         render('chart-transactions', {
-            chart: { type: 'bar', height: 280, toolbar: { show: false }, fontFamily: 'inherit' },
+            chart: { type: 'bar', height: 280, toolbar: { show: false }, fontFamily: 'inherit', foreColor: THEME.ink3 },
             series: [
                 { name: 'Покупки', data: tx.map(function (r) { return Number(r.buy) || 0; }) },
                 { name: 'Продажи', data: tx.map(function (r) { return Number(r.sell) || 0; }) }
             ],
             xaxis: { categories: tx.map(function (r) { return r.month; }) },
-            colors: ['#0acf97', '#fa5c7c'],
-            plotOptions: { bar: { borderRadius: 3, columnWidth: '60%' } },
+            colors: [THEME.accent, THEME.viz[3]],
+            plotOptions: { bar: { borderRadius: 3, columnWidth: '60%', borderRadiusApplication: 'end' } },
             dataLabels: { enabled: false },
             legend: { position: 'top' },
             noData: { text: 'Нет транзакций за период' },
-            grid: { borderColor: '#eef2f7' }
+            grid: { borderColor: THEME.grid, strokeDashArray: 3 }
         });
     }
 
@@ -122,8 +132,8 @@
     function setActivePreset(btn) {
         var group = document.getElementById('econ-presets');
         if (!group) return;
-        Array.prototype.forEach.call(group.querySelectorAll('button'), function (b) { b.classList.remove('active'); });
-        if (btn) btn.classList.add('active');
+        Array.prototype.forEach.call(group.querySelectorAll('button'), function (b) { b.classList.remove('is-active'); });
+        if (btn) btn.classList.add('is-active');
     }
 
     document.addEventListener('DOMContentLoaded', function () {

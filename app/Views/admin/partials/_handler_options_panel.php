@@ -1,40 +1,29 @@
 <?php
 /**
- * Phase B5 (ADR-023, 2026-05-14) — info-панель «зарегистрированные handler'ы»
- * для admin-форм event/task/world_object.
- *
- * Источник опций — `App\Services\Handlers\HandlerRegistry::optionsFor($interface)`.
- * Контроллер передаёт уже compact-список (key/displayName/description).
+ * Phase B5 (ADR-023) — info-панель «зарегистрированные handler'ы» для admin-форм
+ * event/task/world_object. Презентация на admin-ui (ADR-128); логика без изменений.
  *
  * @var list<array{key: string, displayName: string, description: string}> $options
  * @var string $title
- * @var string $hint   Подсказка под заголовком (пустая — не рендерится).
- * @var string $emoji  Emoji для шапки (e.g. 🎲 / 🛠️ / 🌐). Пустой — fallback ℹ️.
+ * @var string $hint
+ * @var string $emoji
  */
 ?>
 
 <?php if ($options !== []): ?>
-<div class="alert alert-info" role="alert">
-    <strong><?= esc($emoji !== '' ? $emoji : 'ℹ️') ?> <?= esc($title) ?> (<?= count($options) ?>):</strong>
-    <?php if ($hint !== ''): ?>
-        <br><small class="text-muted"><?= esc($hint) ?></small>
-    <?php endif; ?>
-    <table class="table table-sm table-borderless mt-2 mb-0">
+<div class="aui-alert aui-alert--info" style="margin-bottom:var(--sp-4)"><i class="ri-information-line"></i><div style="width:100%">
+    <div class="aui-alert__title"><?= esc($emoji !== '' ? $emoji : 'ℹ️') ?> <?= esc($title) ?> (<?= count($options) ?>)</div>
+    <?php if ($hint !== ''): ?><div class="aui-hint" style="margin-bottom:var(--sp-2)"><?= esc($hint) ?></div><?php endif; ?>
+    <table class="aui-table">
         <tbody>
         <?php foreach ($options as $opt): ?>
             <tr>
-                <td class="ps-0 align-top admin-handler-col-key">
-                    <code><?= esc($opt['key']) ?></code>
-                </td>
-                <td class="align-top admin-handler-col-name">
-                    <strong><?= esc($opt['displayName']) ?></strong>
-                </td>
-                <td class="text-muted align-top">
-                    <?= esc($opt['description']) ?>
-                </td>
+                <td style="width:22%"><code class="aui-mono"><?= esc($opt['key']) ?></code></td>
+                <td class="strong" style="width:28%"><?= esc($opt['displayName']) ?></td>
+                <td class="aui-muted"><?= esc($opt['description']) ?></td>
             </tr>
         <?php endforeach; ?>
         </tbody>
     </table>
-</div>
+</div></div>
 <?php endif; ?>

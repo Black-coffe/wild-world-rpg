@@ -1,0 +1,578 @@
+/* ============================================================
+   WILD WORLD — ADMIN. Design system «Quiet Premium».
+   ============================================================
+   Версия:   v0.1-draft (2026-06-15) — НА РЕВЬЮ, ещё не конституция
+   Стиль:    Quiet Premium — Jony Ive / Apple + сдержанность топ-VC
+             (Sequoia · a16z · Lazard). Less but better (Rams).
+             Типографика — главный герой иерархии, не цвет.
+   Шрифты:   Fraunces (display/числа) · Hanken Grotesk (body/UI)
+             · JetBrains Mono (id/код/JSON)
+   Палитра:  тёплая бумага + чернила + ОДИН акцент (брендовый amber).
+             Семантика приглушена. Никаких градиентных KPI.
+
+   Источники истины (после утверждения):
+   - Living UI-kit:  /admin-ui-kit.html
+   - Брендбук:       docs/admin-design/ADMIN_UI_CONSTITUTION.md
+   - ADR-128 (proposed)
+   ============================================================ */
+
+/* ============================================================
+   1. TOKENS — светлая тема (default)
+   ============================================================ */
+:root {
+  /* — Чернила (текст) — */
+  --ink:        #1A1714;   /* основной текст, заголовки */
+  --ink-2:      #4A443C;   /* вторичный текст */
+  --ink-3:      #6B6358;   /* dim / подписи */
+  --ink-4:      #9C9486;   /* muted / плейсхолдеры */
+  --ink-inv:    #FBFAF8;   /* текст на тёмном/акценте */
+
+  /* — Поверхности (тёплая бумага) — */
+  --paper:      #FBFAF8;   /* фон приложения */
+  --surface:    #FFFFFF;   /* карточки */
+  --surface-2:  #F5F2EC;   /* инпуты / hover / elevated */
+  --surface-3:  #EEEAE1;   /* активные/нажатые */
+
+  /* — Линии (hairline) — */
+  --line:       #E7E2D9;
+  --line-2:     #D8D2C7;   /* сильнее */
+  --line-faint: #F0ECE4;
+
+  /* — Акцент: брендовый amber (ADR-062 «фонарь, газовый огонь») — */
+  --accent:      #E89B2E;
+  --accent-hi:   #F2B045;
+  --accent-lo:   #C57E1C;
+  --accent-ink:  #2A1B05;  /* текст НА акценте */
+  --accent-wash: rgba(232,155,46,.10);
+  --accent-wash2:rgba(232,155,46,.18);
+  --accent-line: rgba(232,155,46,.45);
+
+  /* — Семантика (приглушённая, не неон) — */
+  --success: #4F7A2E;  --success-wash: rgba(79,122,46,.12);
+  --warning: #BC8A1E;  --warning-wash: rgba(188,138,30,.15);
+  --danger:  #B23A2A;  --danger-wash:  rgba(178,58,42,.10);
+  --info:    #3E6E8E;  --info-wash:    rgba(62,110,142,.12);
+
+  /* — Тени: только микро (Quiet) — */
+  --shadow-1: 0 1px 2px rgba(26,23,20,.04), 0 1px 3px rgba(26,23,20,.05);
+  --shadow-2: 0 4px 12px rgba(26,23,20,.06), 0 2px 4px rgba(26,23,20,.04);
+  --shadow-pop: 0 16px 40px rgba(26,23,20,.14), 0 4px 12px rgba(26,23,20,.08);
+
+  /* — Палитра дата-виз (приглушённая, землистая, cohesive) — */
+  --viz-1: #E89B2E;  /* amber (primary) */
+  --viz-2: #3A352E;  /* ink */
+  --viz-3: #7E8B5C;  /* sage */
+  --viz-4: #5C7A8C;  /* slate */
+  --viz-5: #B07A4A;  /* clay */
+  --viz-6: #A89A82;  /* stone */
+  --viz-7: #8A6E8C;  /* plum */
+  --viz-8: #C9A23F;  /* gold */
+  --viz-grid: rgba(26,23,20,.07);
+
+  /* — Шрифты — */
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-body:    "Hanken Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, "Consolas", monospace;
+
+  /* — Радиусы — середина между флэт-0 (сайт) и мягким (2–6px, решение владельца) — */
+  --r-xs: 2px;
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 6px;
+  --r-pill: 999px;
+
+  /* — Шкала отступов (4-based) — */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 24px; --sp-6: 32px; --sp-7: 48px; --sp-8: 64px;
+
+  /* — Движение (сдержанное) — */
+  --ease: cubic-bezier(.2,.7,.2,1);
+  --ease-out: cubic-bezier(.16,1,.3,1);
+  --dur-1: 130ms; --dur-2: 220ms; --dur-3: 380ms;
+
+  /* — Геометрия шелла — */
+  --sidebar-w: 256px;
+  --topbar-h: 60px;
+}
+
+/* ============================================================
+   2. TOKENS — тёмная тема (token-flip, тумблер в топбаре)
+   ============================================================ */
+[data-theme="dark"] {
+  --ink:        #ECE6DA;
+  --ink-2:      #C9C1B2;
+  --ink-3:      #9C9486;
+  --ink-4:      #6B6358;
+  --ink-inv:    #16140F;
+
+  --paper:      #141210;
+  --surface:    #1C1915;
+  --surface-2:  #24201A;
+  --surface-3:  #2C271F;
+
+  --line:       #2E2A22;
+  --line-2:     #3C362C;
+  --line-faint: #24201A;
+
+  --accent-wash: rgba(232,155,46,.12);
+  --accent-wash2:rgba(232,155,46,.22);
+  --accent-line: rgba(232,155,46,.5);
+
+  --success-wash: rgba(122,158,63,.16);
+  --warning-wash: rgba(217,176,72,.16);
+  --danger-wash:  rgba(209,77,59,.16);
+  --info-wash:    rgba(92,138,174,.16);
+
+  --shadow-1: 0 1px 2px rgba(0,0,0,.3);
+  --shadow-2: 0 4px 14px rgba(0,0,0,.4);
+  --shadow-pop: 0 18px 44px rgba(0,0,0,.55);
+
+  --viz-2: #C9C1B2;
+  --viz-6: #6B6358;
+  --viz-grid: rgba(236,230,218,.08);
+}
+
+/* ============================================================
+   3. RESET / BASE
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.55 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-variant-numeric: tabular-nums;
+}
+img, svg, canvas { display: block; max-width: 100%; }
+a { color: var(--accent-lo); text-decoration: none; transition: color var(--dur-1) var(--ease); }
+a:hover { color: var(--accent); }
+::selection { background: var(--accent-wash2); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-xs); }
+hr { border: 0; border-top: 1px solid var(--line); margin: var(--sp-5) 0; }
+
+/* Тонкий, ненавязчивый scrollbar */
+* { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: var(--r-pill); border: 2px solid transparent; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--ink-4); }
+
+/* ============================================================
+   4. TYPOGRAPHY
+   ============================================================ */
+.aui-display {
+  font-family: var(--font-display);
+  font-weight: 400; font-optical-sizing: auto;
+  font-size: clamp(28px, 4vw, 40px); line-height: 1.08;
+  letter-spacing: -.015em; color: var(--ink); margin: 0;
+}
+.aui-h1 { font-family: var(--font-display); font-weight: 450; font-size: 26px; line-height: 1.15; letter-spacing: -.01em; margin: 0 0 .4em; }
+.aui-h2 { font-family: var(--font-display); font-weight: 450; font-size: 20px; line-height: 1.2; letter-spacing: -.005em; margin: 0 0 .4em; }
+.aui-h3 { font-family: var(--font-body); font-weight: 650; font-size: 15px; line-height: 1.3; margin: 0 0 .4em; }
+/* Eyebrow / section label — заглавные, трекинг, приглушённые */
+.aui-eyebrow {
+  font-family: var(--font-body); font-weight: 600;
+  font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ink-4); margin: 0;
+}
+.aui-lead { font-size: 16px; color: var(--ink-3); line-height: 1.55; max-width: 68ch; }
+.aui-muted { color: var(--ink-3); }
+.aui-faint { color: var(--ink-4); }
+.aui-mono  { font-family: var(--font-mono); font-feature-settings: "ss01"; }
+.aui-num   { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.aui-small { font-size: 12.5px; }
+small, .aui-caption { font-size: 11.5px; color: var(--ink-3); }
+
+/* ============================================================
+   5. APP SHELL — sidebar / topbar / main
+   ============================================================ */
+.aui-shell { min-height: 100vh; }
+
+.aui-sidebar {
+  position: fixed; inset: 0 auto 0 0; width: var(--sidebar-w);
+  background: var(--surface); border-right: 1px solid var(--line);
+  display: flex; flex-direction: column; z-index: 40;
+}
+.aui-sidebar__brand {
+  height: var(--topbar-h); display: flex; align-items: center; gap: var(--sp-3);
+  padding: 0 var(--sp-5); border-bottom: 1px solid var(--line); flex: none;
+}
+.aui-sidebar__mark {
+  width: 30px; height: 30px; border-radius: var(--r-sm); flex: none;
+  display: grid; place-items: center;
+  background: var(--ink); color: var(--accent);
+  font-family: var(--font-display); font-weight: 600; font-size: 17px;
+}
+.aui-sidebar__logo { width: 32px; height: 32px; border-radius: var(--r-sm); flex: none; display: block; }
+.aui-sidebar__name { font-family: var(--font-display); font-weight: 500; font-size: 16px; letter-spacing: -.01em; }
+.aui-sidebar__name b { color: var(--accent-lo); font-weight: 500; }
+.aui-sidebar__nav { flex: 1; overflow-y: auto; padding: var(--sp-4) var(--sp-3); }
+.aui-navgroup { margin-bottom: var(--sp-5); }
+.aui-navgroup__title {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .13em; text-transform: uppercase;
+  color: var(--ink-4); padding: 0 var(--sp-3) var(--sp-2);
+}
+.aui-navlink {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 8px var(--sp-3); border-radius: var(--r-sm); margin-bottom: 2px;
+  color: var(--ink-2); font-size: 13.5px; font-weight: 500;
+  transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+  position: relative;
+}
+.aui-navlink i { font-size: 17px; color: var(--ink-4); width: 20px; text-align: center; transition: color var(--dur-1) var(--ease); }
+.aui-navlink:hover { background: var(--surface-2); color: var(--ink); }
+.aui-navlink:hover i { color: var(--ink-2); }
+.aui-navlink.is-active { background: var(--accent-wash); color: var(--ink); font-weight: 600; }
+.aui-navlink.is-active i { color: var(--accent-lo); }
+.aui-navlink.is-active::before {
+  content: ""; position: absolute; left: -3px; top: 8px; bottom: 8px;
+  width: 3px; background: var(--accent); border-radius: var(--r-pill);
+}
+.aui-navlink__arrow { margin-left: auto; font-size: 14px; color: var(--ink-4); transition: transform var(--dur-2) var(--ease); }
+.aui-navlink[aria-expanded="true"] .aui-navlink__arrow { transform: rotate(90deg); }
+.aui-navsub { margin: 2px 0 var(--sp-2) 30px; border-left: 1px solid var(--line); padding-left: var(--sp-2); }
+.aui-navsub a {
+  display: block; padding: 6px var(--sp-3); border-radius: var(--r-xs);
+  color: var(--ink-3); font-size: 13px; font-weight: 500;
+  transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.aui-navsub a:hover { background: var(--surface-2); color: var(--ink); }
+.aui-navsub a.is-active { color: var(--accent-lo); background: var(--accent-wash); }
+
+.aui-topbar {
+  position: fixed; top: 0; right: 0; left: var(--sidebar-w); height: var(--topbar-h);
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 0 var(--sp-6); background: color-mix(in srgb, var(--paper) 82%, transparent);
+  backdrop-filter: saturate(140%) blur(8px); border-bottom: 1px solid var(--line); z-index: 30;
+}
+.aui-topbar__title { font-family: var(--font-display); font-weight: 450; font-size: 17px; letter-spacing: -.01em; }
+.aui-topbar__spacer { flex: 1; }
+.aui-iconbtn {
+  width: 36px; height: 36px; border-radius: var(--r-sm); display: grid; place-items: center;
+  color: var(--ink-3); border: 1px solid transparent; cursor: pointer;
+  transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+}
+.aui-iconbtn:hover { background: var(--surface-2); color: var(--ink); border-color: var(--line); }
+.aui-iconbtn i { font-size: 19px; }
+
+.aui-user { display: flex; align-items: center; gap: var(--sp-3); padding: 4px 6px 4px 4px; border-radius: var(--r-pill); cursor: pointer; transition: background var(--dur-1) var(--ease); }
+.aui-user:hover { background: var(--surface-2); }
+.aui-avatar { width: 32px; height: 32px; border-radius: var(--r-pill); background: var(--ink); color: var(--accent); display: grid; place-items: center; font-family: var(--font-display); font-weight: 600; font-size: 13px; }
+.aui-user__meta { line-height: 1.15; }
+.aui-user__name { font-size: 13px; font-weight: 600; }
+.aui-user__role { font-size: 11px; color: var(--ink-4); }
+
+.aui-main { margin-left: var(--sidebar-w); padding: calc(var(--topbar-h) + var(--sp-5)) var(--sp-6) var(--sp-7); }
+.aui-page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; margin-bottom: var(--sp-5); }
+.aui-page-head__title { display: flex; flex-direction: column; gap: 2px; }
+.aui-toolbar { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+
+/* ============================================================
+   6. CARD
+   ============================================================ */
+.aui-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+  box-shadow: var(--shadow-1);
+}
+.aui-card--flat { box-shadow: none; }
+.aui-card__head {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--line);
+}
+.aui-card__head i { color: var(--ink-4); font-size: 16px; }
+.aui-card__title { font-weight: 650; font-size: 13.5px; letter-spacing: -.005em; }
+.aui-card__title .aui-eyebrow { font-weight: 600; }
+.aui-card__tools { margin-left: auto; display: flex; gap: var(--sp-2); align-items: center; }
+.aui-card__body { padding: var(--sp-5); }
+.aui-card__body--tight { padding: var(--sp-3); }
+
+/* ============================================================
+   7. KPI — подпись «Quiet Premium» (Fraunces-числа + amber-rule)
+   ============================================================ */
+.aui-kpi {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md);
+  padding: var(--sp-4) var(--sp-5) var(--sp-5); position: relative; overflow: hidden;
+  box-shadow: var(--shadow-1);
+  transition: transform var(--dur-2) var(--ease-out), box-shadow var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease);
+}
+.aui-kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); border-color: var(--line-2); }
+.aui-kpi__top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.aui-kpi__label { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-4); }
+.aui-kpi__icon { color: var(--ink-4); font-size: 18px; opacity: .7; }
+.aui-kpi__value {
+  font-family: var(--font-display); font-weight: 400; font-optical-sizing: auto;
+  font-size: 2.35rem; line-height: 1; letter-spacing: -.02em;
+  color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.aui-kpi__rule { width: 28px; height: 2px; background: var(--accent); border-radius: var(--r-pill); margin: var(--sp-3) 0; }
+.aui-kpi__sub { font-size: 12px; color: var(--ink-3); }
+/* delta-чип */
+.aui-delta { display: inline-flex; align-items: center; gap: 3px; font-size: 11.5px; font-weight: 650; font-variant-numeric: tabular-nums; padding: 2px 7px; border-radius: var(--r-pill); }
+.aui-delta--up   { color: var(--success); background: var(--success-wash); }
+.aui-delta--down { color: var(--danger);  background: var(--danger-wash); }
+.aui-delta--flat { color: var(--ink-3);   background: var(--surface-2); }
+
+/* ============================================================
+   8. STAT STRIP (мировой снимок)
+   ============================================================ */
+.aui-strip { display: grid; grid-template-columns: repeat(8, 1fr); gap: 0; }
+.aui-strip__item { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-right: 1px solid var(--line); }
+.aui-strip__item:last-child { border-right: 0; }
+.aui-strip__item i { font-size: 19px; color: var(--accent-lo); flex: none; }
+.aui-strip__v { font-family: var(--font-display); font-weight: 450; font-size: 17px; line-height: 1; font-variant-numeric: tabular-nums; }
+.aui-strip__l { font-size: 10.5px; color: var(--ink-4); letter-spacing: .02em; }
+
+/* ============================================================
+   9. BUTTONS
+   ============================================================ */
+.aui-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  font-family: var(--font-body); font-size: 13px; font-weight: 600; line-height: 1;
+  padding: 9px 15px; border-radius: var(--r-sm); border: 1px solid transparent; cursor: pointer;
+  transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease), transform var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease);
+  white-space: nowrap; user-select: none;
+}
+.aui-btn i { font-size: 16px; margin: -1px 0; }
+.aui-btn:active { transform: translateY(1px); }
+.aui-btn--primary { background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow-1); }
+.aui-btn--primary:hover { background: var(--accent-hi); }
+.aui-btn--ink { background: var(--ink); color: var(--ink-inv); }
+.aui-btn--ink:hover { background: #322c25; }
+.aui-btn--ghost { background: var(--surface); color: var(--ink-2); border-color: var(--line-2); }
+.aui-btn--ghost:hover { background: var(--surface-2); color: var(--ink); border-color: var(--ink-4); }
+.aui-btn--subtle { background: var(--surface-2); color: var(--ink-2); }
+.aui-btn--subtle:hover { background: var(--surface-3); color: var(--ink); }
+.aui-btn--danger { background: var(--surface); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); }
+.aui-btn--danger:hover { background: var(--danger-wash); border-color: var(--danger); }
+.aui-btn--danger-solid { background: var(--danger); color: #fff; }
+.aui-btn--danger-solid:hover { filter: brightness(1.08); }
+.aui-btn--sm { padding: 6px 11px; font-size: 12px; }
+.aui-btn--lg { padding: 12px 20px; font-size: 14px; }
+.aui-btn--icon { padding: 8px; width: 34px; }
+.aui-btn[disabled], .aui-btn.is-disabled { opacity: .45; pointer-events: none; }
+
+.aui-btngroup { display: inline-flex; border: 1px solid var(--line-2); border-radius: var(--r-sm); overflow: hidden; background: var(--surface); }
+.aui-btngroup > button, .aui-btngroup > a {
+  padding: 7px 13px; font-size: 12.5px; font-weight: 600; color: var(--ink-3); cursor: pointer;
+  border: 0; border-right: 1px solid var(--line); background: transparent; transition: background var(--dur-1) var(--ease), color var(--dur-1) var(--ease);
+}
+.aui-btngroup > *:last-child { border-right: 0; }
+.aui-btngroup > *:hover { background: var(--surface-2); color: var(--ink); }
+.aui-btngroup > .is-active { background: var(--accent-wash); color: var(--accent-lo); }
+
+/* ============================================================
+   10. BADGES / STATUS PILLS
+   ============================================================ */
+.aui-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: var(--r-pill); background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); }
+.aui-badge--accent  { background: var(--accent-wash);  color: var(--accent-lo); border-color: var(--accent-line); }
+.aui-badge--success { background: var(--success-wash); color: var(--success);  border-color: color-mix(in srgb,var(--success) 30%, transparent); }
+.aui-badge--warning { background: var(--warning-wash); color: var(--warning);  border-color: color-mix(in srgb,var(--warning) 30%, transparent); }
+.aui-badge--danger  { background: var(--danger-wash);  color: var(--danger);   border-color: color-mix(in srgb,var(--danger) 30%, transparent); }
+.aui-badge--info    { background: var(--info-wash);    color: var(--info);     border-color: color-mix(in srgb,var(--info) 30%, transparent); }
+.aui-dot { width: 7px; height: 7px; border-radius: var(--r-pill); background: currentColor; }
+.aui-dot--pulse { box-shadow: 0 0 0 0 currentColor; animation: aui-pulse 2s var(--ease) infinite; }
+@keyframes aui-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 50%, transparent); } 70% { box-shadow: 0 0 0 6px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
+
+/* ============================================================
+   11. ALERTS / CALLOUTS
+   ============================================================ */
+.aui-alert { display: flex; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--surface-2); font-size: 13px; color: var(--ink-2); }
+.aui-alert i { font-size: 18px; flex: none; margin-top: 1px; }
+.aui-alert__title { font-weight: 650; color: var(--ink); margin-bottom: 2px; }
+.aui-alert--info    { background: var(--info-wash);    border-color: color-mix(in srgb,var(--info) 25%, transparent); }
+.aui-alert--info i  { color: var(--info); }
+.aui-alert--success { background: var(--success-wash); border-color: color-mix(in srgb,var(--success) 25%, transparent); }
+.aui-alert--success i { color: var(--success); }
+.aui-alert--warning { background: var(--warning-wash); border-color: color-mix(in srgb,var(--warning) 25%, transparent); }
+.aui-alert--warning i { color: var(--warning); }
+.aui-alert--danger  { background: var(--danger-wash);  border-color: color-mix(in srgb,var(--danger) 25%, transparent); }
+.aui-alert--danger i { color: var(--danger); }
+.aui-alert__close { margin-left: auto; color: var(--ink-4); cursor: pointer; background: none; border: 0; font-size: 16px; }
+.aui-alert__close:hover { color: var(--ink); }
+
+/* ============================================================
+   12. TABLE
+   ============================================================ */
+.aui-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.aui-table thead th {
+  text-align: left; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-4); padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--line-2); white-space: nowrap;
+}
+.aui-table tbody td { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--line); color: var(--ink-2); vertical-align: middle; }
+.aui-table tbody tr { transition: background var(--dur-1) var(--ease); }
+.aui-table tbody tr:hover { background: var(--surface-2); }
+.aui-table tbody tr:last-child td { border-bottom: 0; }
+.aui-table .num { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+.aui-table .strong { color: var(--ink); font-weight: 650; }
+.aui-table__empty { text-align: center; color: var(--ink-4); padding: var(--sp-6) !important; font-size: 13px; }
+
+/* rank-бейдж лидерборда (приглушённый, не золото-серебро-бронза-кич) */
+.aui-rank { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: var(--r-pill); font-family: var(--font-display); font-size: 12px; font-weight: 500; background: var(--surface-2); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.aui-rank.r1 { background: var(--accent); color: var(--accent-ink); }
+.aui-rank.r2 { background: var(--accent-wash2); color: var(--accent-lo); }
+.aui-rank.r3 { background: var(--accent-wash); color: var(--accent-lo); }
+
+/* ============================================================
+   13. FORMS
+   ============================================================ */
+.aui-field { margin-bottom: var(--sp-4); }
+.aui-label { display: block; font-size: 12px; font-weight: 650; color: var(--ink-2); margin-bottom: 6px; }
+.aui-label .req { color: var(--danger); }
+.aui-hint { font-size: 11.5px; color: var(--ink-4); margin-top: 5px; }
+.aui-input, .aui-select, .aui-textarea {
+  width: 100%; font: inherit; font-size: 13.5px; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-sm);
+  padding: 9px 12px; transition: border-color var(--dur-1) var(--ease), box-shadow var(--dur-1) var(--ease), background var(--dur-1) var(--ease);
+}
+.aui-input::placeholder, .aui-textarea::placeholder { color: var(--ink-4); }
+.aui-input:hover, .aui-select:hover, .aui-textarea:hover { border-color: var(--ink-4); }
+.aui-input:focus, .aui-select:focus, .aui-textarea:focus {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash); background: var(--surface);
+}
+.aui-textarea { resize: vertical; min-height: 92px; line-height: 1.5; }
+.aui-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239C9486' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 11px center; padding-right: 34px; }
+.aui-input--mono { font-family: var(--font-mono); font-size: 13px; }
+
+/* checkbox / radio */
+.aui-check { display: inline-flex; align-items: center; gap: var(--sp-2); cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.aui-check input { position: absolute; opacity: 0; }
+.aui-check__box { width: 18px; height: 18px; border-radius: var(--r-xs); border: 1.5px solid var(--line-2); background: var(--surface); display: grid; place-items: center; transition: all var(--dur-1) var(--ease); flex: none; }
+.aui-check input:focus-visible + .aui-check__box { outline: 2px solid var(--accent); outline-offset: 2px; }
+.aui-check__box::after { content: ""; width: 10px; height: 10px; background: var(--accent-ink); border-radius: 2px; transform: scale(0); transition: transform var(--dur-1) var(--ease); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E") center/contain no-repeat; }
+.aui-check input:checked + .aui-check__box { background: var(--accent); border-color: var(--accent); }
+.aui-check input:checked + .aui-check__box::after { transform: scale(1); }
+.aui-check--radio .aui-check__box, .aui-check--radio .aui-check__box::after { border-radius: var(--r-pill); }
+
+/* switch */
+.aui-switch { position: relative; display: inline-flex; align-items: center; gap: var(--sp-2); cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.aui-switch input { position: absolute; opacity: 0; }
+.aui-switch__track { width: 38px; height: 22px; border-radius: var(--r-pill); background: var(--line-2); position: relative; transition: background var(--dur-2) var(--ease); flex: none; }
+.aui-switch__track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: var(--r-pill); background: #fff; box-shadow: var(--shadow-1); transition: transform var(--dur-2) var(--ease-out); }
+.aui-switch input:checked + .aui-switch__track { background: var(--accent); }
+.aui-switch input:checked + .aui-switch__track::after { transform: translateX(16px); }
+.aui-switch input:focus-visible + .aui-switch__track { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* file drop */
+.aui-file { border: 1.5px dashed var(--line-2); border-radius: var(--r-sm); padding: var(--sp-5); text-align: center; color: var(--ink-3); background: var(--surface-2); cursor: pointer; transition: border-color var(--dur-1) var(--ease), background var(--dur-1) var(--ease); }
+.aui-file:hover { border-color: var(--accent); background: var(--accent-wash); color: var(--ink-2); }
+.aui-file i { font-size: 26px; color: var(--ink-4); }
+
+/* ============================================================
+   14. TABS / PILLS
+   ============================================================ */
+.aui-tabs { display: flex; gap: var(--sp-1); border-bottom: 1px solid var(--line); }
+.aui-tab { padding: 10px 14px; font-size: 13px; font-weight: 600; color: var(--ink-3); cursor: pointer; border: 0; background: none; position: relative; transition: color var(--dur-1) var(--ease); }
+.aui-tab:hover { color: var(--ink); }
+.aui-tab.is-active { color: var(--ink); }
+.aui-tab.is-active::after { content: ""; position: absolute; left: 8px; right: 8px; bottom: -1px; height: 2px; background: var(--accent); border-radius: var(--r-pill); }
+.aui-pills { display: inline-flex; gap: var(--sp-1); padding: 3px; background: var(--surface-2); border-radius: var(--r-pill); }
+.aui-pill { padding: 6px 14px; border-radius: var(--r-pill); font-size: 12.5px; font-weight: 600; color: var(--ink-3); cursor: pointer; border: 0; background: none; transition: all var(--dur-1) var(--ease); }
+.aui-pill.is-active { background: var(--surface); color: var(--ink); box-shadow: var(--shadow-1); }
+
+/* ============================================================
+   15. MISC — breadcrumb, progress, tooltip, dropdown, modal, empty
+   ============================================================ */
+.aui-crumbs { display: flex; align-items: center; gap: var(--sp-2); font-size: 12.5px; color: var(--ink-4); }
+.aui-crumbs a { color: var(--ink-3); } .aui-crumbs a:hover { color: var(--accent-lo); }
+.aui-crumbs i { font-size: 14px; }
+
+.aui-progress { height: 8px; background: var(--surface-3); border-radius: var(--r-pill); overflow: hidden; }
+.aui-progress__bar { height: 100%; background: var(--accent); border-radius: var(--r-pill); transition: width var(--dur-3) var(--ease-out); }
+.aui-progress__bar--success { background: var(--success); }
+.aui-progress__bar--danger { background: var(--danger); }
+
+.aui-tip { position: relative; }
+.aui-tip__bubble { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%) translateY(4px); background: var(--ink); color: var(--ink-inv); font-size: 11.5px; padding: 5px 9px; border-radius: var(--r-xs); white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity var(--dur-1) var(--ease), transform var(--dur-1) var(--ease); box-shadow: var(--shadow-2); }
+.aui-tip:hover .aui-tip__bubble { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+.aui-menu { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: var(--shadow-pop); padding: var(--sp-1); min-width: 180px; }
+.aui-menu__item { display: flex; align-items: center; gap: var(--sp-2); padding: 8px 10px; border-radius: var(--r-xs); font-size: 13px; color: var(--ink-2); cursor: pointer; transition: background var(--dur-1) var(--ease); }
+.aui-menu__item:hover { background: var(--surface-2); color: var(--ink); }
+.aui-menu__item i { font-size: 16px; color: var(--ink-4); }
+.aui-menu__sep { height: 1px; background: var(--line); margin: var(--sp-1) 0; }
+
+.aui-modal-scrim { position: fixed; inset: 0; background: rgba(26,23,20,.35); backdrop-filter: blur(2px); display: grid; place-items: center; z-index: 60; padding: var(--sp-4); }
+.aui-modal { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); width: 100%; max-width: 460px; overflow: hidden; }
+.aui-modal__head { padding: var(--sp-5) var(--sp-5) var(--sp-3); display: flex; align-items: center; gap: var(--sp-3); }
+.aui-modal__head .aui-h2 { margin: 0; }
+.aui-modal__body { padding: 0 var(--sp-5) var(--sp-4); color: var(--ink-3); font-size: 13.5px; }
+.aui-modal__foot { padding: var(--sp-4) var(--sp-5); border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: var(--sp-2); background: var(--surface-2); }
+
+.aui-empty { text-align: center; padding: var(--sp-7) var(--sp-4); color: var(--ink-4); }
+.aui-empty i { font-size: 34px; color: var(--line-2); }
+.aui-empty p { margin: var(--sp-2) 0 0; font-size: 13px; }
+
+/* code/json */
+.aui-code { font-family: var(--font-mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: var(--sp-3); color: var(--ink-2); overflow: auto; line-height: 1.5; }
+
+/* pager — стилизует CI4 default_full (Bootstrap-разметка) под Quiet Premium */
+.aui-pager nav { display: flex; }
+.aui-pager .pagination { display: inline-flex; flex-wrap: wrap; gap: var(--sp-1); list-style: none; margin: 0; padding: 0; }
+.aui-pager .page-item { display: inline-flex; }
+.aui-pager .page-link { display: inline-grid; place-items: center; min-width: 34px; height: 34px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--surface); color: var(--ink-2); font-size: 13px; font-weight: 600; transition: background var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease), color var(--dur-1) var(--ease); }
+.aui-pager .page-link:hover { background: var(--surface-2); color: var(--ink); border-color: var(--ink-4); }
+.aui-pager .page-item.active .page-link { background: var(--accent-wash); border-color: var(--accent-line); color: var(--accent-lo); }
+.aui-pager .page-item.disabled .page-link { opacity: .45; pointer-events: none; }
+
+/* ============================================================
+   16. GRID HELPERS (для дашборда)
+   ============================================================ */
+.aui-grid { display: grid; gap: var(--sp-4); }
+.aui-grid--kpi { grid-template-columns: repeat(4, 1fr); }
+.aui-grid--3 { grid-template-columns: repeat(3, 1fr); }
+.aui-grid--2-1 { grid-template-columns: 2fr 1fr; }
+.aui-stack { display: flex; flex-direction: column; gap: var(--sp-4); }
+.aui-row { display: flex; align-items: center; gap: var(--sp-3); }
+
+/* — list/table helpers — */
+.aui-tablewrap { overflow-x: auto; }
+.text-truncate { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.text-nowrap { white-space: nowrap; }
+.aui-actions { display: inline-flex; gap: 4px; align-items: center; }
+.aui-actions form { display: inline-flex; margin: 0; }
+.aui-emoji { font-family: "Noto Color Emoji", "Segoe UI Emoji", sans-serif; font-size: 18px; }
+.aui-input[type="search"] { max-width: 280px; }
+table[data-enhance] thead th[data-sort] { cursor: pointer; user-select: none; }
+table[data-enhance] thead th[data-sort]:hover { color: var(--ink-2); }
+table[data-enhance] thead th[data-sort]::after { content: "⇅"; opacity: .28; margin-left: 5px; font-size: 10px; }
+table[data-enhance] thead th.sort-asc::after { content: "↑"; opacity: .9; }
+table[data-enhance] thead th.sort-desc::after { content: "↓"; opacity: .9; }
+
+/* — form layout (создание/редактирование) — */
+.aui-formgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--sp-4); margin-bottom: var(--sp-4); }
+.aui-formgrid > .aui-field { margin-bottom: 0; }
+.aui-form-actions { display: flex; gap: var(--sp-2); align-items: center; margin-top: var(--sp-5); padding-top: var(--sp-4); border-top: 1px solid var(--line); }
+.aui-checkrow { display: flex; gap: var(--sp-4); flex-wrap: wrap; align-items: center; }
+.req { color: var(--danger); }
+select[multiple].aui-select { background-image: none; padding: 6px; min-height: 112px; }
+@media (max-width: 560px) { .aui-formgrid { grid-template-columns: 1fr; } }
+
+/* ============================================================
+   17. PAGE-LOAD ORCHESTRATION (одна аккуратная волна)
+   ============================================================ */
+@keyframes aui-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.aui-rise { animation: aui-rise var(--dur-3) var(--ease-out) both; }
+.aui-rise:nth-child(1){animation-delay:.02s} .aui-rise:nth-child(2){animation-delay:.06s}
+.aui-rise:nth-child(3){animation-delay:.10s} .aui-rise:nth-child(4){animation-delay:.14s}
+.aui-rise:nth-child(5){animation-delay:.18s} .aui-rise:nth-child(6){animation-delay:.22s}
+.aui-rise:nth-child(7){animation-delay:.26s} .aui-rise:nth-child(8){animation-delay:.30s}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}
+
+/* ============================================================
+   18. RESPONSIVE
+   ============================================================ */
+@media (max-width: 1200px) { .aui-grid--kpi { grid-template-columns: repeat(2, 1fr); } .aui-strip { grid-template-columns: repeat(4, 1fr); } .aui-strip__item:nth-child(4n){border-right:0} }
+@media (max-width: 1024px) { .aui-grid--3, .aui-grid--2-1 { grid-template-columns: 1fr; } }
+@media (max-width: 860px) {
+  :root { --sidebar-w: 0px; }
+  .aui-sidebar { transform: translateX(-100%); transition: transform var(--dur-2) var(--ease); width: 256px; box-shadow: var(--shadow-pop); }
+  .aui-sidebar.is-open { transform: none; }
+  .aui-topbar { left: 0; padding-inline: var(--sp-4); }
+  .aui-main { padding-inline: var(--sp-4); }
+}
+@media (max-width: 560px) { .aui-grid--kpi { grid-template-columns: 1fr; } .aui-strip { grid-template-columns: repeat(2, 1fr); } .aui-strip__item:nth-child(2n){border-right:0} }

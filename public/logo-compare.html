@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wild World — сравнение логотипов в контексте</title>
+<style>
+  body { margin:0; background:#101316; color:#e7e3da; font:14px/1.5 system-ui, sans-serif; }
+  .head { padding:18px 26px; border-bottom:1px solid #262b30; position:sticky; top:0; background:#101316; z-index:5; }
+  .head h1 { margin:0 0 4px; font-size:18px; font-weight:600; }
+  .head p { margin:0; color:#9aa0a6; font-size:12.5px; }
+  .row { border-bottom:1px solid #262b30; padding:22px 26px; }
+  .row__label { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+  .row__num { width:28px; height:28px; border-radius:50%; display:grid; place-items:center; background:#E89B2E; color:#1a1106; font-weight:700; font-size:13px; }
+  .row__name { font-size:15px; font-weight:600; }
+  .row__name b { color:#E89B2E; font-weight:600; }
+  .panes { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .pane { border:1px solid #2a2f34; border-radius:8px; overflow:hidden; background:#000; }
+  .pane__cap { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:#9aa0a6; padding:7px 12px; background:#181c20; border-bottom:1px solid #2a2f34; }
+  iframe { display:block; width:100%; height:500px; border:0; background:#fff; }
+  @media (max-width:1100px){ .panes{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>Логотипы в контексте — публичный сайт × админка</h1>
+  <p>Каждый из 5 логотипов вставлен в шапку публичного сайта (тёмная «фотоплёнка») и в шапку админки (Quiet Premium). Фон логотипов выбит в прозрачность. Оцени, какой держит оба контекста.</p>
+</div>
+<div id="rows"></div>
+
+<script>
+const LOGOS = [
+  { file: 'uploads/logo-concepts/logo-1-monogram.jpg',       name: 'Монограмма WW (гексагон)' },
+  { file: 'uploads/logo-concepts/logo-2-wasteland-sun.jpg',  name: 'Закат над руинами' },
+  { file: 'uploads/logo-concepts/logo-3-compass.jpg',        name: 'Компас' },
+  { file: 'uploads/logo-concepts/logo-4-shield-sprout.jpg',  name: 'Щит с ростком' },
+  { file: 'uploads/logo-concepts/logo-5-fractured-globe.jpg',name: 'Расколотый глобус' },
+];
+
+// выбивалка near-white фона в прозрачность (исполняется внутри каждого iframe)
+const KNOCKOUT = `
+function ko(img){
+  try{
+    var c=document.createElement('canvas'); c.width=img.naturalWidth; c.height=img.naturalHeight;
+    var x=c.getContext('2d'); x.drawImage(img,0,0);
+    var d=x.getImageData(0,0,c.width,c.height), a=d.data;
+    for(var i=0;i<a.length;i+=4){ if(a[i]>224 && a[i+1]>216 && a[i+2]>198){ a[i+3]=0; } }
+    x.putImageData(d,0,0); img.src=c.toDataURL();
+  }catch(e){}
+}
+window.addEventListener('load',function(){
+  document.querySelectorAll('img.ko').forEach(function(im){ if(im.complete && im.naturalWidth) ko(im); else im.addEventListener('load',function(){ko(im);}); });
+});
+`;
+
+function publicSrc(logo){ return `<!doctype html><html><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/wildworld-ui.css">
+<style>html,body{overflow:hidden}.brand img{height:32px;width:auto}</style></head>
+<body>
+<header class="topbar" role="banner"><div class="container topbar-inner">
+  <a class="brand" href="#" aria-label="Wild World"><img class="ko" src="${logo}" alt="">Wild&nbsp;World</a>
+  <nav class="topnav desktop-nav">
+    <a class="is-active">Главная</a><a>Девблог</a><a>Вики</a><a>Карта</a><a>🏅 Достижения</a>
+    <a class="btn primary sm" style="margin-left:8px">▶ Играть</a>
+  </nav>
+  <button class="burger"><span></span><span></span><span></span></button>
+</div></header>
+<section style="padding:46px 0"><div class="container">
+  <span class="stamp">Найденная фотоплёнка · 2087</span>
+  <h1 class="h-display" style="margin:.3em 0 .2em">WILD&nbsp;WORLD</h1>
+  <p class="lead">Постапокалипсис в Telegram. Разведка, крафт, базы, фракции. Мир, который не прощает.</p>
+</div></section>
+<script>${KNOCKOUT}<\/script></body></html>`; }
+
+function adminSrc(logo){ return `<!doctype html><html><head><meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,450;9..144,500&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/admin-ui.css">
+<style>
+  html,body{overflow:hidden;background:var(--paper)}
+  .aui-sidebar{position:static!important;transform:none!important;height:500px;width:240px;float:left}
+  .aui-topbar{position:static;left:0;height:58px}
+  .wrap{margin-left:240px}
+  .aui-sidebar__mark{background:transparent!important;padding:3px}
+  .aui-sidebar__mark img{width:100%;height:100%;object-fit:contain}
+</style></head>
+<body>
+<div class="aui-shell">
+  <aside class="aui-sidebar">
+    <div class="aui-sidebar__brand"><div class="aui-sidebar__mark"><img class="ko" src="${logo}" alt=""></div><div class="aui-sidebar__name">Wild<b>World</b></div></div>
+    <nav class="aui-sidebar__nav">
+      <div class="aui-navgroup"><div class="aui-navgroup__title">Обзор</div>
+        <a class="aui-navlink is-active"><i class="ri-dashboard-3-line"></i> Пульс игры</a>
+        <a class="aui-navlink"><i class="ri-filter-2-line"></i> Воронка игроков</a>
+        <a class="aui-navlink"><i class="ri-route-line"></i> Дерево навигации</a></div>
+    </nav>
+  </aside>
+  <div class="wrap">
+    <header class="aui-topbar"><div class="aui-topbar__title">Панель управления</div></header>
+    <main style="padding:22px">
+      <p class="aui-eyebrow">Обзор · живой снимок</p>
+      <h1 class="aui-display" style="margin:0 0 16px">Пульс игры</h1>
+      <div class="aui-grid aui-grid--kpi" style="grid-template-columns:1fr 1fr;gap:14px">
+        <div class="aui-kpi"><div class="aui-kpi__top"><span class="aui-kpi__label">Персонажей</span><i class="ri-team-line aui-kpi__icon"></i></div><div class="aui-kpi__value">1 053</div><div class="aui-kpi__rule"></div><div class="aui-kpi__sub">всего в мире</div></div>
+        <div class="aui-kpi"><div class="aui-kpi__top"><span class="aui-kpi__label">Золото</span><i class="ri-coins-line aui-kpi__icon"></i></div><div class="aui-kpi__value">7.2M</div><div class="aui-kpi__rule"></div><div class="aui-kpi__sub">на руках</div></div>
+      </div>
+    </main>
+  </div>
+</div>
+<script>${KNOCKOUT}<\/script></body></html>`; }
+
+const rows = document.getElementById('rows');
+LOGOS.forEach((l, i) => {
+  const row = document.createElement('div'); row.className = 'row';
+  row.innerHTML = `<div class="row__label"><span class="row__num">${i+1}</span><span class="row__name">${l.name}</span></div>
+    <div class="panes">
+      <div class="pane"><div class="pane__cap">Публичный сайт — шапка</div><iframe data-pub></iframe></div>
+      <div class="pane"><div class="pane__cap">Админка — дашборд</div><iframe data-adm></iframe></div>
+    </div>`;
+  rows.appendChild(row);
+  row.querySelector('[data-pub]').srcdoc = publicSrc(l.file);
+  row.querySelector('[data-adm]').srcdoc = adminSrc(l.file);
+});
+</script>
+</body>
+</html>

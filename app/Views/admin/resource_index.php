@@ -1,63 +1,52 @@
-<?= $this->extend('admin/layouts/default') ?>
-
+<?= $this->extend('admin/layouts/aui') ?>
+<?= $this->section('pageTitle') ?>Ресурсы<?= $this->endSection() ?>
 <?= $this->section('content') ?>
 
-<h2>Список ресурсов</h2>
-
-<!-- Отображение флеш-сообщения о успешных действиях -->
-<?php if (session()->getFlashdata('success')): ?>
-    <div class="alert alert-success" role="alert">
-        <?= session()->getFlashdata('success') ?>
+<div class="aui-page-head">
+    <div class="aui-page-head__title">
+        <p class="aui-eyebrow">Настройки игры · контент</p>
+        <h1 class="aui-display">Ресурсы</h1>
     </div>
-<?php endif; ?>
-<div class="row mb-2">
-    <div class="col-sm-4">
-        <a href="<?= site_url('admin/resources/create') ?>" class="btn btn-danger rounded-pill mb-3"><i class="mdi mdi-plus"></i> Create resources</a>
+    <div class="aui-toolbar">
+        <input class="aui-input" type="search" placeholder="Поиск ресурса…" data-table-search="#tbl-resources">
+        <a class="aui-btn aui-btn--primary" href="<?= site_url('admin/resources/create') ?>"><i class="ri-add-line"></i> Создать</a>
     </div>
-    <div class="col-sm-8">
-
-    </div><!-- end col-->
 </div>
-<table id="selection-datatable" class="table dt-responsive w-100 table-centered mb-0">
-    <thead>
-    <tr>
-        <th>Название</th>
-        <th>Название</th>
-        <th>Иконка</th>
-        <th>Тип</th>
-        <th>Биом id</th>
-        <th>Цена</th>
-        <th>Редкость</th>
-        <th>Для торговца</th>
-        <th>Мин. уровень</th>
-        <th>Личное/Публичное</th>
-        <th>Действия</th>
-    </tr>
-    </thead>
-    <tbody>
-    <?php foreach ($resources as $resource): ?>
-        <tr>
-            <td><?= esc($resource['name']) ?></td>
-            <td><?= esc($resource['name_en']) ?></td>
-            <td class="admin-resource-emoji"><?=$resource['icon_text'] ?></td>
-            <td><?= esc($resource['translated_types']) ?></td>
-            <td><?= esc($resource['biome_names']) ?></td>
-            <td><?= esc($resource['price']) ?></td>
-            <td><?= esc($resource['rarity']) ?></td>
-            <td><?= esc($resource['initial_quantity']) ?></td>
-            <td><?= esc($resource['level_required']) ?></td>
-            <td><?= $resource['is_tradeable'] ? 'Да' : 'Нет' ?></td>
-            <td>
-                <a href="<?= site_url('admin/resources/edit/' . $resource['id']) ?>" class="action-icon"> <i class="mdi mdi-pencil"></i></a>
-                <!-- Добавьте здесь ссылку для удаления ресурса -->
-                <form action="<?= site_url('admin/resources/delete/' . $resource['id']) ?>" method="post" class="d-inline">
-                    <?= csrf_field() ?>
-                    <button type="submit" class="action-icon" style="background:none;border:0;padding:0;cursor:pointer" onclick="return confirm('Вы уверены, что хотите удалить этот ресурс?');" title="Удалить"><i class="mdi mdi-delete"></i></button>
-                </form>
-            </td>
-        </tr>
-    <?php endforeach; ?>
-    </tbody>
-</table>
 
+<?php if (session()->getFlashdata('success')): ?>
+    <div class="aui-alert aui-alert--success" style="margin-bottom:var(--sp-4)"><i class="ri-checkbox-circle-line"></i><div><?= esc(session()->getFlashdata('success')) ?></div></div>
+<?php endif; ?>
+
+<div class="aui-card"><div class="aui-tablewrap">
+    <table class="aui-table" id="tbl-resources" data-enhance>
+        <thead><tr>
+            <th data-sort>Название</th><th data-sort>EN</th><th>Иконка</th><th data-sort>Тип</th>
+            <th data-sort>Биом</th><th class="num" data-sort>Цена</th><th data-sort>Редкость</th>
+            <th class="num" data-sort>Торговцу</th><th class="num" data-sort>Ур.</th><th>Видимость</th><th></th>
+        </tr></thead>
+        <tbody>
+        <?php foreach ($resources as $resource): ?>
+            <tr>
+                <td class="strong"><?= esc($resource['name']) ?></td>
+                <td class="aui-muted"><?= esc($resource['name_en']) ?></td>
+                <td class="aui-emoji"><?= $resource['icon_text'] ?></td>
+                <td><?= esc($resource['translated_types']) ?></td>
+                <td class="aui-muted"><?= esc($resource['biome_names']) ?></td>
+                <td class="num"><?= esc($resource['price']) ?></td>
+                <td><?= esc($resource['rarity']) ?></td>
+                <td class="num"><?= esc($resource['initial_quantity']) ?></td>
+                <td class="num"><?= esc($resource['level_required']) ?></td>
+                <td><?= $resource['is_tradeable'] ? '<span class="aui-badge aui-badge--success">Да</span>' : '<span class="aui-badge">Нет</span>' ?></td>
+                <td>
+                    <div class="aui-actions">
+                        <a class="aui-btn aui-btn--ghost aui-btn--icon" href="<?= site_url('admin/resources/edit/' . $resource['id']) ?>" title="Редактировать"><i class="ri-pencil-line"></i></a>
+                        <form action="<?= site_url('admin/resources/delete/' . $resource['id']) ?>" method="post" onsubmit="return confirm('Удалить ресурс?');"><?= csrf_field() ?><button class="aui-btn aui-btn--danger aui-btn--icon" title="Удалить"><i class="ri-delete-bin-line"></i></button></form>
+                    </div>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+        <?php if (empty($resources)): ?><tr><td colspan="11" class="aui-table__empty">Нет ресурсов</td></tr><?php endif; ?>
+        </tbody>
+    </table>
+</div></div>
 <?= $this->endSection() ?>

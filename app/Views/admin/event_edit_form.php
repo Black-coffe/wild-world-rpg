@@ -1,35 +1,40 @@
-<?= $this->extend('admin/layouts/default') ?>
-
+<?= $this->extend('admin/layouts/aui') ?>
+<?= $this->section('pageTitle') ?>Редактирование события<?= $this->endSection() ?>
 <?= $this->section('content') ?>
 
-<h2>Редактировать событие: <?= esc($event['name']) ?></h2>
+<div class="aui-page-head">
+    <div class="aui-page-head__title">
+        <p class="aui-eyebrow">Настройки игры · контент · события</p>
+        <h1 class="aui-display">Редактирование: <?= esc($event['name']) ?></h1>
+    </div>
+    <a class="aui-btn aui-btn--ghost" href="<?= site_url('admin/events') ?>"><i class="ri-arrow-left-line"></i> К списку</a>
+</div>
 
 <?php /* F7.11: WorldEvents config status banner (read-only вид на effect_kind) */ ?>
 <?php if ($worldConfig !== null): ?>
-    <div class="alert alert-success" role="alert">
-        <strong>✅ F7-config registered.</strong> Эта подія имеет запись в <code>app/Config/WorldEvents.php</code>.
-        Эффекты выполняются через <code>EventDispatcher</code> по правилам ниже.
-        <strong>name_english</strong> переименовывать БЕЗОПАСНО (это только лор-косметика);
-        логика ефектів привязана к ключу config'а — изменение требует синхронной правки PHP.
-        <hr>
-        <table class="table table-sm mb-0">
-            <tr><td><strong>effect_kind</strong></td><td><code><?= esc($worldConfig['effect_kind']) ?></code></td></tr>
-            <tr><td><strong>tick_chance</strong></td><td><?= esc($worldConfig['tick_chance']) ?> (<?= round($worldConfig['tick_chance'] * 100) ?>%/тик)</td></tr>
-            <tr><td><strong>duration_minutes</strong> (target)</td><td><?= esc($worldConfig['duration_minutes']) ?> мин (текущая в БД: <?= esc($event['duration']) ?> мин)</td></tr>
-            <tr><td><strong>frequency_weight</strong></td><td><?= esc($worldConfig['frequency_weight']) ?> (вес для weighted random в активаторе)</td></tr>
-            <tr><td><strong>protection_item</strong></td><td><?= $worldConfig['protection_item'] !== null ? '<code>' . esc((string) $worldConfig['protection_item']) . '</code> (-50% damage если в инвентаре)' : '<em>—</em>' ?></td></tr>
-            <tr><td><strong>notification_kind</strong></td><td><code><?= esc($worldConfig['notification_kind']) ?></code></td></tr>
+    <div class="aui-alert aui-alert--success" style="margin-bottom:var(--sp-4)"><i class="ri-checkbox-circle-line"></i><div>
+        <div class="aui-alert__title">F7-config зарегистрирован</div>
+        Событие имеет запись в <code>app/Config/WorldEvents.php</code>; эффекты выполняются через <code>EventDispatcher</code>.
+        <strong>name_english</strong> переименовывать безопасно (лор-косметика); логика эффектов привязана к ключу config'а.
+        <table class="aui-table" style="margin-top:var(--sp-3)">
+            <tbody>
+            <tr><td>effect_kind</td><td><code><?= esc($worldConfig['effect_kind']) ?></code></td></tr>
+            <tr><td>tick_chance</td><td><?= esc($worldConfig['tick_chance']) ?> (<?= round($worldConfig['tick_chance'] * 100) ?>%/тик)</td></tr>
+            <tr><td>duration_minutes (target)</td><td><?= esc($worldConfig['duration_minutes']) ?> мин (в БД: <?= esc($event['duration']) ?> мин)</td></tr>
+            <tr><td>frequency_weight</td><td><?= esc($worldConfig['frequency_weight']) ?></td></tr>
+            <tr><td>protection_item</td><td><?= $worldConfig['protection_item'] !== null ? '<code>' . esc((string) $worldConfig['protection_item']) . '</code> (−50% damage если в инвентаре)' : '<span class="aui-faint">—</span>' ?></td></tr>
+            <tr><td>notification_kind</td><td><code><?= esc($worldConfig['notification_kind']) ?></code></td></tr>
+            </tbody>
         </table>
-    </div>
+    </div></div>
 <?php else: ?>
-    <div class="alert alert-warning" role="alert">
-        <strong>⚠️ F7-config отсутствует.</strong> Эта подія не зарегистрирована в <code>app/Config/WorldEvents.php</code>
-        (по ключу <code><?= esc($event['name_english']) ?></code>). При активации NotificationPolicy упадёт в legacy-broadcast,
-        а EventDispatcher пропустит эффекты. Чтобы фикс — добавить запись в WorldEvents.php и задеплоить.
-    </div>
+    <div class="aui-alert aui-alert--warning" style="margin-bottom:var(--sp-4)"><i class="ri-alert-line"></i><div>
+        <div class="aui-alert__title">F7-config отсутствует</div>
+        Событие не зарегистрировано в <code>app/Config/WorldEvents.php</code> (ключ <code><?= esc($event['name_english']) ?></code>).
+        При активации NotificationPolicy упадёт в legacy-broadcast, а EventDispatcher пропустит эффекты — добавь запись в WorldEvents.php и задеплой.
+    </div></div>
 <?php endif; ?>
 
-<?php /* Phase D (2026-05-13): unified _event_form partial вместо 138 LOC дубля */ ?>
 <?= view('admin/partials/_event_form', ['mode' => 'edit', 'event' => $event, 'biomes' => $biomes, 'effectHandlers' => $effectHandlers ?? []]) ?>
 
 <?= $this->endSection() ?>

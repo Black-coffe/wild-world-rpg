@@ -1,45 +1,47 @@
-<?= $this->extend('admin/layouts/default') ?>
-
+<?= $this->extend('admin/layouts/aui') ?>
+<?= $this->section('pageTitle') ?>Контент сайта — страницы<?= $this->endSection() ?>
 <?= $this->section('content') ?>
 
-<div class="container-fluid mt-3">
-<h2>Контент сайта — страницы</h2>
-
-<?php if (session()->getFlashdata('success')): ?>
-    <div class="alert alert-success"><?= esc(session()->getFlashdata('success')) ?></div>
-<?php endif; ?>
-<?php if (session()->getFlashdata('error')): ?>
-    <div class="alert alert-danger"><?= esc(session()->getFlashdata('error')) ?></div>
-<?php endif; ?>
-
-<a href="<?= site_url('admin/site/pages/create') ?>" class="btn btn-primary rounded-pill mb-3"><i class="mdi mdi-plus"></i> Новая страница</a>
-
-<table id="selection-datatable" class="table dt-responsive nowrap w-100">
-    <thead><tr><th>Заголовок</th><th>Slug</th><th>Статус</th><th>Действия</th></tr></thead>
-    <tbody>
-    <?php foreach ($pages as $p): ?>
-        <tr>
-            <td><?= esc($p['title'] ?? '') ?></td>
-            <td><code><?= esc($p['slug'] ?? '') ?></code></td>
-            <td>
-                <?php if (($p['status'] ?? '') === 'published'): ?>
-                    <span class="badge bg-success">опубликована</span>
-                <?php else: ?>
-                    <span class="badge bg-secondary">черновик</span>
-                <?php endif; ?>
-            </td>
-            <td class="text-nowrap">
-                <a href="<?= site_url('admin/site/pages/edit/' . (int) ($p['id'] ?? 0)) ?>" class="action-icon"><i class="mdi mdi-pencil"></i></a>
-                <a href="<?= base_url(esc($p['slug'] ?? '', 'url')) ?>" target="_blank" class="action-icon"><i class="mdi mdi-open-in-new"></i></a>
-                <form action="<?= site_url('admin/site/pages/delete/' . (int) ($p['id'] ?? 0)) ?>" method="post" class="d-inline">
-                    <?= csrf_field() ?>
-                    <button type="submit" class="action-icon text-danger" style="background:none;border:0;padding:0;cursor:pointer" title="Удалить" onclick="return confirm('Удалить страницу?');"><i class="mdi mdi-delete"></i></button>
-                </form>
-            </td>
-        </tr>
-    <?php endforeach; ?>
-    </tbody>
-</table>
+<div class="aui-page-head">
+    <div class="aui-page-head__title">
+        <p class="aui-eyebrow">Контент сайта</p>
+        <h1 class="aui-display">Страницы</h1>
+    </div>
+    <div class="aui-toolbar">
+        <input class="aui-input" type="search" placeholder="Поиск страницы…" data-table-search="#tbl-pages">
+        <a class="aui-btn aui-btn--primary" href="<?= site_url('admin/site/pages/create') ?>"><i class="ri-add-line"></i> Создать</a>
+    </div>
 </div>
 
+<?php if (session()->getFlashdata('success')): ?>
+    <div class="aui-alert aui-alert--success" style="margin-bottom:var(--sp-4)"><i class="ri-checkbox-circle-line"></i><div><?= esc(session()->getFlashdata('success')) ?></div></div>
+<?php endif; ?>
+<?php if (session()->getFlashdata('error')): ?>
+    <div class="aui-alert aui-alert--danger" style="margin-bottom:var(--sp-4)"><i class="ri-error-warning-line"></i><div><?= esc(session()->getFlashdata('error')) ?></div></div>
+<?php endif; ?>
+
+<div class="aui-card"><div class="aui-tablewrap">
+    <table class="aui-table" id="tbl-pages" data-enhance>
+        <thead><tr>
+            <th data-sort>Заголовок</th><th data-sort>Slug</th><th data-sort>Статус</th><th></th>
+        </tr></thead>
+        <tbody>
+        <?php foreach ($pages as $p): ?>
+            <tr>
+                <td class="strong"><?= esc($p['title'] ?? '') ?></td>
+                <td><code class="aui-mono"><?= esc($p['slug'] ?? '') ?></code></td>
+                <td><?= ($p['status'] ?? '') === 'published' ? '<span class="aui-badge aui-badge--success">опубликована</span>' : '<span class="aui-badge">черновик</span>' ?></td>
+                <td>
+                    <div class="aui-actions">
+                        <a class="aui-btn aui-btn--ghost aui-btn--icon" href="<?= site_url('admin/site/pages/edit/' . (int) ($p['id'] ?? 0)) ?>" title="Редактировать"><i class="ri-pencil-line"></i></a>
+                        <a class="aui-btn aui-btn--ghost aui-btn--icon" href="<?= base_url(esc($p['slug'] ?? '', 'url')) ?>" target="_blank" rel="noopener" title="Открыть на сайте"><i class="ri-external-link-line"></i></a>
+                        <form action="<?= site_url('admin/site/pages/delete/' . (int) ($p['id'] ?? 0)) ?>" method="post" onsubmit="return confirm('Удалить страницу?');"><?= csrf_field() ?><button class="aui-btn aui-btn--danger aui-btn--icon" title="Удалить"><i class="ri-delete-bin-line"></i></button></form>
+                    </div>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+        <?php if (empty($pages)): ?><tr><td colspan="4" class="aui-table__empty">Страниц нет</td></tr><?php endif; ?>
+        </tbody>
+    </table>
+</div></div>
 <?= $this->endSection() ?>

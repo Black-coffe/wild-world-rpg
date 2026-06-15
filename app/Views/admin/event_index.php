@@ -1,52 +1,47 @@
-<?= $this->extend('admin/layouts/default') ?>
-
+<?= $this->extend('admin/layouts/aui') ?>
+<?= $this->section('pageTitle') ?>События<?= $this->endSection() ?>
 <?= $this->section('content') ?>
 
-<h2>Список событий</h2>
-
-<!-- Отображение флеш-сообщения о успешных действиях -->
-<?php if (session()->getFlashdata('success')): ?>
-    <div class="alert alert-success" role="alert">
-        <?= session()->getFlashdata('success') ?>
+<div class="aui-page-head">
+    <div class="aui-page-head__title">
+        <p class="aui-eyebrow">Настройки игры · контент</p>
+        <h1 class="aui-display">События</h1>
     </div>
-<?php endif; ?>
-<div class="row mb-2">
-    <div class="col-sm-4">
-        <a href="<?= site_url('admin/events/create') ?>" class="btn btn-primary rounded-pill mb-3"><i class="mdi mdi-plus"></i> Добавить событие</a>
+    <div class="aui-toolbar">
+        <input class="aui-input" type="search" placeholder="Поиск события…" data-table-search="#tbl-events">
+        <a class="aui-btn aui-btn--primary" href="<?= site_url('admin/events/create') ?>"><i class="ri-add-line"></i> Создать</a>
     </div>
-    <div class="col-sm-8">
-        <!-- Место для дополнительных элементов управления, если необходимо -->
-    </div><!-- end col-->
 </div>
-<table id="selection-datatable" class="table dt-responsive nowrap w-100">
-    <thead>
-    <tr>
-        <th>Название</th>
-        <th>English</th>
-        <th>Тип события</th>
-        <th>Биомы</th>
-        <th>Продолжительность</th>
-        <th>Тип эффекта</th>
-        <th>Значение эффекта</th>
-        <th>Действия</th>
-    </tr>
-    </thead>
-    <tbody>
-    <?php foreach ($events as $event): ?>
-        <tr>
-            <td><?= esc($event['name']) ?></td>
-            <td><?= esc($event['name_english']) ?></td>
-            <td><?= esc($event['event_type']) ?></td>
-            <td><?= esc($event['biome_ids']) // Возможно, потребуется обработка для вывода имен биомов ?></td>
-            <td><?= esc($event['duration']) ?> минут</td>
-            <td><?= esc($event['effect_type']) ?></td>
-            <td><?= esc($event['effect_value']) ?></td>
-            <td>
-                <a href="<?= site_url('admin/events/edit/' . $event['event_id']) ?>" class="action-icon"> <i class="mdi mdi-pencil"></i></a>
-            </td>
-        </tr>
-    <?php endforeach; ?>
-    </tbody>
-</table>
 
+<?php if (session()->getFlashdata('success')): ?>
+    <div class="aui-alert aui-alert--success" style="margin-bottom:var(--sp-4)"><i class="ri-checkbox-circle-line"></i><div><?= esc(session()->getFlashdata('success')) ?></div></div>
+<?php endif; ?>
+
+<div class="aui-card"><div class="aui-tablewrap">
+    <table class="aui-table" id="tbl-events" data-enhance>
+        <thead><tr>
+            <th data-sort>Название</th><th data-sort>EN</th><th data-sort>Тип</th><th>Биомы</th>
+            <th class="num" data-sort>Длит., мин</th><th data-sort>Эффект</th><th class="num" data-sort>Значение</th><th></th>
+        </tr></thead>
+        <tbody>
+        <?php foreach ($events as $event): ?>
+            <tr>
+                <td class="strong"><?= esc($event['name']) ?></td>
+                <td class="aui-muted"><?= esc($event['name_english']) ?></td>
+                <td><?= esc($event['event_type']) ?></td>
+                <td class="aui-muted"><?= esc($event['biome_ids']) ?></td>
+                <td class="num"><?= esc($event['duration']) ?></td>
+                <td><?= esc($event['effect_type']) ?></td>
+                <td class="num"><?= esc($event['effect_value']) ?></td>
+                <td>
+                    <div class="aui-actions">
+                        <a class="aui-btn aui-btn--ghost aui-btn--icon" href="<?= site_url('admin/events/edit/' . $event['event_id']) ?>" title="Редактировать"><i class="ri-pencil-line"></i></a>
+                    </div>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+        <?php if (empty($events)): ?><tr><td colspan="8" class="aui-table__empty">Нет событий</td></tr><?php endif; ?>
+        </tbody>
+    </table>
+</div></div>
 <?= $this->endSection() ?>

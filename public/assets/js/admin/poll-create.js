@@ -14,7 +14,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const newField = document.createElement('input');
             newField.type = 'text';
             newField.name = 'answers[]';
-            newField.classList.add('form-control', 'mb-2');
+            newField.classList.add('aui-input');
+            newField.style.marginBottom = 'var(--sp-2)';
             newField.placeholder = 'Новый вариант ответа';
             answersContainer.appendChild(newField);
         });

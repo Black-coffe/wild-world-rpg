@@ -1,57 +1,57 @@
-<?= $this->extend('templates/admin') ?>
-
+<?= $this->extend('admin/layouts/aui') ?>
+<?= $this->section('pageTitle') ?>Редактировать опрос<?= $this->endSection() ?>
 <?= $this->section('content') ?>
-<div class="container-fluid">
-    <h1 class="mt-4">Редактировать опрос</h1>
 
-    <?php if (session()->getFlashdata('error')): ?>
-        <div class="alert alert-danger"><?= session()->getFlashdata('error') ?></div>
-    <?php endif; ?>
+<div class="aui-page-head">
+    <div class="aui-page-head__title">
+        <p class="aui-eyebrow">Операции · опросы</p>
+        <h1 class="aui-display">Редактировать опрос</h1>
+    </div>
+</div>
 
+<?php if (session()->getFlashdata('error')): ?>
+    <div class="aui-alert aui-alert--danger" style="margin-bottom:var(--sp-4)"><i class="ri-error-warning-line"></i><div><?= esc(session()->getFlashdata('error')) ?></div></div>
+<?php endif; ?>
+
+<div class="aui-card">
+    <div class="aui-card__body">
     <form action="<?= site_url('admin/polls/update/' . $poll['id']) ?>" method="post">
         <?= csrf_field() ?>
 
-        <div class="mb-3">
-            <label for="question" class="form-label">Вопрос</label>
-            <textarea name="question" id="question" class="form-control" rows="4" required><?= esc($poll['question']) ?></textarea>
-            <div class="form-text">Редактирование поддерживает HTML-разметку и эмодзи.</div>
+        <div class="aui-field">
+            <label for="question" class="aui-label">Вопрос</label>
+            <textarea name="question" id="question" class="aui-textarea" rows="4" required><?= esc($poll['question']) ?></textarea>
+            <div class="aui-hint">Редактирование поддерживает HTML-разметку и эмодзи.</div>
         </div>
 
-        <div class="mb-3">
-            <label for="expires_at" class="form-label">Дата окончания голосования (необязательно)</label>
-            <input type="datetime-local" name="expires_at" id="expires_at"
-                   class="form-control"
-                   value="<?= esc($poll['expires_at']) ?>">
+        <div class="aui-field">
+            <label for="expires_at" class="aui-label">Дата окончания голосования (необязательно)</label>
+            <input type="datetime-local" name="expires_at" id="expires_at" class="aui-input" style="max-width:280px" value="<?= esc($poll['expires_at']) ?>">
         </div>
 
-        <div class="mb-3">
-            <label class="form-label">Варианты ответа</label>
+        <div class="aui-field" id="answers-container">
+            <label class="aui-label">Варианты ответа</label>
 
             <?php if (!empty($answers) && is_array($answers)): ?>
                 <?php foreach ($answers as $answer): ?>
-                    <div class="mb-2">
-                        <input type="text"
-                               name="existingAnswers[<?= $answer['id'] ?>]"
-                               class="form-control"
-                               value="<?= esc($answer['answer_text']) ?>"
-                               placeholder="Вариант ответа">
-                    </div>
+                    <input type="text" name="existingAnswers[<?= $answer['id'] ?>]" class="aui-input"
+                           style="margin-bottom:var(--sp-2)" value="<?= esc($answer['answer_text']) ?>" placeholder="Вариант ответа">
                 <?php endforeach; ?>
             <?php endif; ?>
 
-            <!-- Для добавления новых вариантов -->
-            <div class="mb-2">
-                <input type="text" name="newAnswers[]" class="form-control" placeholder="Новый вариант ответа">
-            </div>
+            <input type="text" name="newAnswers[]" class="aui-input" style="margin-bottom:var(--sp-2)" placeholder="Новый вариант ответа">
 
-            <!-- Кнопка для динамического добавления полей через JS, если нужно -->
-            <button type="button" class="btn btn-secondary" id="addNewAnswerBtn">+ Вариант ответа</button>
+            <button type="button" class="aui-btn aui-btn--ghost aui-btn--sm" id="addNewAnswerBtn"><i class="ri-add-line"></i> Вариант ответа</button>
         </div>
 
-        <button type="submit" class="btn btn-primary">Обновить опрос</button>
+        <div class="aui-form-actions">
+            <button type="submit" class="aui-btn aui-btn--primary">Обновить опрос</button>
+        </div>
     </form>
+    </div>
 </div>
 
+<?= $this->endSection() ?>
+<?= $this->section('scripts') ?>
 <script src="<?= base_url('assets/js/admin/poll-edit.js') ?>"></script>
-
 <?= $this->endSection() ?>

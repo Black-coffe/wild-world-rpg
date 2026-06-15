@@ -21,8 +21,10 @@
     <meta content="Система, помогающая в своевременном и регулируемом режиме проводить технические проверки (чекины) автомобилей с использованием онлайн-сервиса." name="description" />
     <meta content="Checking of cars" name="author" />
 
-    <!-- App favicon -->
-    <link rel="shortcut icon" href="<?= base_url('images/favicon.ico') ?>">
+    <!-- App favicon — Wild World compass -->
+    <link rel="icon" type="image/svg+xml" href="<?= base_url('favicon.svg') ?>">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= base_url('favicon-32.png') ?>">
+    <link rel="apple-touch-icon" href="<?= base_url('apple-touch-icon.png') ?>">
 
     <!-- Theme Config Js -->
     <script src="<?= base_url('js/hyper-config.js') ?>"></script>

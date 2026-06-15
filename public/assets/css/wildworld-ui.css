@@ -224,14 +224,13 @@ section.block:first-of-type { border-top: 0; }
   letter-spacing: .2em; text-transform: uppercase;
   color: var(--text);
 }
+/* Бренд-знак «компас» (общий для сайта/админки/фавикона). */
 .brand .mark {
-  width: 28px; height: 28px;
+  width: 30px; height: 30px;
   position: relative; display: inline-block;
-  background: var(--accent);
-  clip-path: polygon(50% 0, 100% 35%, 82% 100%, 18% 100%, 0 35%);
+  background: url('../img/wildworld-compass.svg') center / contain no-repeat;
 }
-.brand .mark::after { content:""; position: absolute; inset: 4px; background: var(--bg-base); clip-path: polygon(50% 0, 100% 35%, 82% 100%, 18% 100%, 0 35%); }
-.brand .mark::before { content:""; position: absolute; inset: 9px; background: var(--accent); clip-path: polygon(50% 0, 100% 35%, 82% 100%, 18% 100%, 0 35%); }
+.brand .mark::after, .brand .mark::before { content: none; }
 
 .topnav { display: flex; gap: 6px; align-items: center; }
 /* Только прямые ссылки nav-меню. Кнопки (.btn) НЕ должны попасть в этот селектор —

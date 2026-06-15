@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wild World Admin — Quiet Premium (превью брендбука)</title>
+
+<!-- Шрифты: Fraunces (display/числа) · Hanken Grotesk (body) · JetBrains Mono -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,450;9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Иконки: Remix Icon (как в текущей админке — ri-*) -->
+<link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+<!-- Дизайн-система -->
+<link rel="stylesheet" href="assets/css/admin-ui.css">
+<style>
+  /* только для самого превью-баннера, не часть системы */
+  .pv-banner { background: var(--ink); color: var(--ink-inv); font-size: 12.5px; padding: 7px var(--sp-6); display:flex; align-items:center; gap: var(--sp-3); position: sticky; top: 0; z-index: 50; }
+  .pv-banner b { color: var(--accent); }
+  .pv-banner .aui-badge { background: rgba(255,255,255,.08); color: var(--ink-inv); border-color: rgba(255,255,255,.16); }
+  .pv-section-label { margin: var(--sp-7) 0 var(--sp-3); }
+  .kit-block { margin-bottom: var(--sp-5); }
+  .kit-swatches { display:flex; gap: var(--sp-2); flex-wrap: wrap; }
+  .kit-swatch { width: 92px; }
+  .kit-swatch__chip { height: 52px; border-radius: var(--r-sm); border: 1px solid var(--line); }
+  .kit-swatch__name { font-size: 11px; color: var(--ink-3); margin-top: 5px; }
+  .kit-swatch__hex { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-4); }
+  .kit-demo-row { display:flex; gap: var(--sp-3); flex-wrap: wrap; align-items: center; }
+  .type-spec { color: var(--ink-4); font-family: var(--font-mono); font-size: 11px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="pv-banner">
+  <b>ПРЕВЬЮ</b> брендбука админки «Quiet Premium» — черновик на ревью.
+  <span class="aui-badge"><span class="aui-dot" style="background:var(--accent)"></span> Acцент: brand amber #E89B2E</span>
+  <span class="aui-badge">Fraunces · Hanken Grotesk · JetBrains Mono</span>
+  <span style="margin-left:auto; opacity:.7">это эталон — не финальная вёрстка страниц</span>
+</div>
+
+<div class="aui-shell">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="aui-sidebar" id="sidebar">
+    <div class="aui-sidebar__brand">
+      <div class="aui-sidebar__mark">W</div>
+      <div class="aui-sidebar__name">Wild<b>World</b></div>
+    </div>
+    <nav class="aui-sidebar__nav">
+      <div class="aui-navgroup">
+        <div class="aui-navgroup__title">Обзор</div>
+        <a class="aui-navlink is-active" href="#"><i class="ri-dashboard-3-line"></i> Пульс игры</a>
+        <a class="aui-navlink" href="#"><i class="ri-filter-2-line"></i> Воронка игроков</a>
+        <a class="aui-navlink" href="#"><i class="ri-route-line"></i> Дерево навигации</a>
+      </div>
+      <div class="aui-navgroup">
+        <div class="aui-navgroup__title">Настройки игры</div>
+        <a class="aui-navlink" href="#" aria-expanded="true"><i class="ri-store-2-line"></i> Контент <i class="ri-arrow-right-s-line aui-navlink__arrow"></i></a>
+        <div class="aui-navsub">
+          <a href="#">Биомы</a><a href="#">Ресурсы</a><a href="#">Задачи</a>
+          <a href="#">События</a><a href="#">Объекты</a><a href="#">Квесты</a>
+        </div>
+        <a class="aui-navlink" href="#"><i class="ri-node-tree"></i> Дерево крафта</a>
+        <a class="aui-navlink" href="#"><i class="ri-line-chart-line"></i> Экономика крафта</a>
+        <a class="aui-navlink" href="#"><i class="ri-settings-3-line"></i> Параметры баланса</a>
+      </div>
+      <div class="aui-navgroup">
+        <div class="aui-navgroup__title">Операции</div>
+        <a class="aui-navlink" href="#"><i class="ri-advertisement-line"></i> Советы в игре</a>
+        <a class="aui-navlink" href="#"><i class="ri-megaphone-line"></i> Сообщение всем</a>
+        <a class="aui-navlink" href="#"><i class="ri-bar-chart-box-line"></i> Опросы</a>
+        <a class="aui-navlink" href="#"><i class="ri-global-line"></i> Контент сайта</a>
+        <a class="aui-navlink" href="#"><i class="ri-file-list-3-line"></i> Журнал аудита</a>
+      </div>
+      <div class="aui-navgroup">
+        <div class="aui-navgroup__title">Опасная зона</div>
+        <a class="aui-navlink" href="#"><i class="ri-user-settings-line"></i> Сброс персонажа</a>
+        <a class="aui-navlink" href="#" style="color:var(--danger)"><i class="ri-fire-line" style="color:var(--danger)"></i> Вайп сервера</a>
+      </div>
+    </nav>
+  </aside>
+
+  <!-- ============ TOPBAR ============ -->
+  <header class="aui-topbar">
+    <button class="aui-iconbtn" id="burger" aria-label="Меню"><i class="ri-menu-line"></i></button>
+    <div class="aui-topbar__title">Панель управления</div>
+    <div class="aui-topbar__spacer"></div>
+    <button class="aui-iconbtn" id="themeToggle" aria-label="Тема"><i class="ri-moon-line"></i></button>
+    <button class="aui-iconbtn" aria-label="На весь экран"><i class="ri-fullscreen-line"></i></button>
+    <div class="aui-user">
+      <div class="aui-avatar">A</div>
+      <div class="aui-user__meta">
+        <div class="aui-user__name">Andrei</div>
+        <div class="aui-user__role">Администратор</div>
+      </div>
+      <i class="ri-arrow-down-s-line" style="color:var(--ink-4)"></i>
+    </div>
+  </header>
+
+  <!-- ============ MAIN ============ -->
+  <main class="aui-main">
+
+    <!-- nav between demo views -->
+    <div class="aui-tabs" style="margin-bottom: var(--sp-5)">
+      <button class="aui-tab is-active" data-view="dashboard">Дашборд «Пульс игры»</button>
+      <button class="aui-tab" data-view="kit">UI Kit — все компоненты</button>
+    </div>
+
+    <!-- ============================================================
+         VIEW: DASHBOARD
+         ============================================================ -->
+    <section id="view-dashboard">
+
+      <div class="aui-page-head">
+        <div class="aui-page-head__title">
+          <p class="aui-eyebrow">Обзор · живой снимок</p>
+          <h1 class="aui-display">Пульс игры</h1>
+          <p class="aui-muted aui-small" style="margin:6px 0 0">Игроки · активность · бои · экономика · мир &nbsp;·&nbsp; тренды за 30 дней &nbsp;·&nbsp; снимок 15.06.2026 14:20</p>
+        </div>
+        <div class="aui-toolbar">
+          <div class="aui-pills">
+            <button class="aui-pill">7 дн</button>
+            <button class="aui-pill is-active">30 дн</button>
+            <button class="aui-pill">90 дн</button>
+          </div>
+          <button class="aui-btn aui-btn--ghost aui-btn--sm"><i class="ri-calendar-line"></i> Диапазон</button>
+          <button class="aui-btn aui-btn--ghost aui-btn--sm"><i class="ri-file-excel-2-line"></i> Экспорт</button>
+          <button class="aui-btn aui-btn--subtle aui-btn--sm"><i class="ri-refresh-line"></i> Обновить</button>
+        </div>
+      </div>
+
+      <!-- KPI hero -->
+      <div class="aui-grid aui-grid--kpi" style="margin-bottom: var(--sp-4)">
+        <div class="aui-kpi aui-rise"><div class="aui-kpi__top"><span class="aui-kpi__label">Персонажей</span><i class="ri-team-line aui-kpi__icon"></i></div><div class="aui-kpi__value">1 053</div><div class="aui-kpi__rule"></div><div class="aui-kpi__sub">всего в мире &nbsp;<span class="aui-delta aui-delta--up"><i class="ri-arrow-up-line"></i>3.1%</span></div></div>
+        <div class="aui-kpi aui-rise"><div class="aui-kpi__top"><span class="aui-kpi__label">Достижимы</span><i class="ri-base-station-line aui-kpi__icon"></i></div><div class="aui-kpi__value">213</div><div class="aui-kpi__rule"></div><div class="aui-kpi__sub">20% не блокировали бота</div></div>
+        <div class="aui-kpi aui-rise"><div class="aui-kpi__top"><span class="aui-kpi__label">Активны 24ч</span><i class="ri-flashlight-line aui-kpi__icon"></i></div><div class="aui-kpi__value">38</div><div class="aui-kpi__rule"></div><div class="aui-kpi__sub">двигались по карте &nbsp;<span class="aui-delta aui-delta--down"><i class="ri-arrow-down-line"></i>8%</span></div></div>
+        <div class="aui-kpi aui-rise"><div class="aui-kpi__top"><span class="aui-kpi__label">Активны 7 дней</span><i class="ri-walk-line aui-kpi__icon"></i></div><div class="aui-kpi__value">147</div><div class="aui-kpi__rule"></div><div class="aui-kpi__sub">из них 312 за 30д</div></div>
+        <div class="aui-kpi aui-rise"><div class="aui-kpi__top"><span class="aui-kpi__label">Новых 7 дней</span><i class="ri-user-add-line aui-kpi__icon"></i></div><div class="aui-kpi__value">61</div><div class="aui-kpi__rule"></div><div class="aui-kpi__sub">204 за 30 дней &nbsp;<span class="aui-delta aui-delta--up"><i class="ri-arrow-up-line"></i>12%</span></div></div>
+        <div class="aui-kpi aui-rise"><div class="aui-kpi__top"><span class="aui-kpi__label">Боёв проведено</span><i class="ri-sword-line aui-kpi__icon"></i></div><div class="aui-kpi__value">48 902</div><div class="aui-kpi__rule"></div><div class="aui-kpi__sub">PvE + PvP суммарно</div></div>
+        <div class="aui-kpi aui-rise"><div class="aui-kpi__top"><span class="aui-kpi__label">Золото в экономике</span><i class="ri-coins-line aui-kpi__icon"></i></div><div class="aui-kpi__value">7.2M</div><div class="aui-kpi__rule"></div><div class="aui-kpi__sub">на руках у игроков</div></div>
+        <div class="aui-kpi aui-rise"><div class="aui-kpi__top"><span class="aui-kpi__label">Активных баз</span><i class="ri-home-4-line aui-kpi__icon"></i></div><div class="aui-kpi__value">61</div><div class="aui-kpi__rule"></div><div class="aui-kpi__sub">79 построек</div></div>
+      </div>
+
+      <!-- World strip -->
+      <div class="aui-card aui-card--flat" style="margin-bottom: var(--sp-4); overflow:hidden">
+        <div class="aui-strip">
+          <div class="aui-strip__item"><i class="ri-map-2-line"></i><div><div class="aui-strip__v">128 440</div><div class="aui-strip__l">Исследовано клеток</div></div></div>
+          <div class="aui-strip__item"><i class="ri-landscape-line"></i><div><div class="aui-strip__v">1.0M</div><div class="aui-strip__l">Клеток на карте</div></div></div>
+          <div class="aui-strip__item"><i class="ri-hammer-line"></i><div><div class="aui-strip__v">9 314</div><div class="aui-strip__l">Скрафчено</div></div></div>
+          <div class="aui-strip__item"><i class="ri-exchange-line"></i><div><div class="aui-strip__v">2 781</div><div class="aui-strip__l">Сделок</div></div></div>
+          <div class="aui-strip__item"><i class="ri-treasure-map-line"></i><div><div class="aui-strip__v">3 402</div><div class="aui-strip__l">Объектов</div></div></div>
+          <div class="aui-strip__item"><i class="ri-flag-line"></i><div><div class="aui-strip__v">486</div><div class="aui-strip__l">Квестов завершено</div></div></div>
+          <div class="aui-strip__item"><i class="ri-fire-line"></i><div><div class="aui-strip__v">7</div><div class="aui-strip__l">Активных событий</div></div></div>
+          <div class="aui-strip__item"><i class="ri-trophy-line"></i><div><div class="aui-strip__v">174</div><div class="aui-strip__l">Макс. уровень</div></div></div>
+        </div>
+      </div>
+
+      <!-- Рост + уровни -->
+      <div class="aui-grid aui-grid--2-1" style="margin-bottom: var(--sp-4)">
+        <div class="aui-card"><div class="aui-card__head"><i class="ri-line-chart-line"></i><span class="aui-card__title">Рост и активность</span><div class="aui-card__tools"><span class="aui-badge"><span class="aui-dot aui-dot--pulse" style="color:var(--success)"></span> live</span></div></div><div class="aui-card__body"><div id="chartGrowth" style="min-height:300px"></div></div></div>
+        <div class="aui-card"><div class="aui-card__head"><i class="ri-bar-chart-grouped-line"></i><span class="aui-card__title">Игроки по уровням</span></div><div class="aui-card__body"><div id="chartLevels" style="min-height:300px"></div></div></div>
+      </div>
+
+      <!-- Биомы / фракции / золото -->
+      <div class="aui-grid aui-grid--3" style="margin-bottom: var(--sp-4)">
+        <div class="aui-card"><div class="aui-card__head"><i class="ri-map-pin-line"></i><span class="aui-card__title">Игроки по биомам</span></div><div class="aui-card__body"><div id="chartBiomes" style="min-height:290px"></div></div></div>
+        <div class="aui-card"><div class="aui-card__head"><i class="ri-shield-star-line"></i><span class="aui-card__title">Фракции</span></div><div class="aui-card__body"><div id="chartFactions" style="min-height:290px"></div></div></div>
+        <div class="aui-card"><div class="aui-card__head"><i class="ri-coins-line"></i><span class="aui-card__title">Богатство (золото)</span></div><div class="aui-card__body"><div id="chartGold" style="min-height:290px"></div></div></div>
+      </div>
+
+      <!-- Бои -->
+      <div class="aui-grid aui-grid--2-1" style="margin-bottom: var(--sp-4)">
+        <div class="aui-card"><div class="aui-card__head"><i class="ri-sword-line"></i><span class="aui-card__title">Бои по дням</span></div><div class="aui-card__body"><div id="chartBattles" style="min-height:280px"></div></div></div>
+        <div class="aui-card"><div class="aui-card__head"><i class="ri-pie-chart-2-line"></i><span class="aui-card__title">Типы боёв</span></div><div class="aui-card__body"><div id="chartBattleTypes" style="min-height:280px"></div></div></div>
+      </div>
+
+      <!-- Экономика + крафт -->
+      <div class="aui-grid aui-grid--2-1" style="margin-bottom: var(--sp-4)">
+        <div class="aui-card"><div class="aui-card__head"><i class="ri-exchange-dollar-line"></i><span class="aui-card__title">Рынок: оборот золота</span></div><div class="aui-card__body"><div id="chartEconomy" style="min-height:280px"></div></div></div>
+        <div class="aui-card"><div class="aui-card__head"><i class="ri-hammer-line"></i><span class="aui-card__title">Топ скрафченного</span></div><div class="aui-card__body"><div id="chartCrafted" style="min-height:280px"></div></div></div>
+      </div>
+
+      <!-- Постройки / занятость / склад -->
+      <div class="aui-grid aui-grid--3" style="margin-bottom: var(--sp-4)">
+        <div class="aui-card"><div class="aui-card__head"><i class="ri-building-2-line"></i><span class="aui-card__title">Постройки по типам</span></div><div class="aui-card__body"><div id="chartBuildings" style="min-height:280px"></div></div></div>
+        <div class="aui-card"><div class="aui-card__head"><i class="ri-loader-2-line"></i><span class="aui-card__title">Чем заняты сейчас</span></div><div class="aui-card__body"><div id="chartTasks" style="min-height:280px"></div></div></div>
+        <div class="aui-card"><div class="aui-card__head"><i class="ri-archive-2-line"></i><span class="aui-card__title">Склад рынка</span></div><div class="aui-card__body"><div id="chartResources" style="min-height:280px"></div></div></div>
+      </div>
+
+      <!-- Лидерборды -->
+      <div class="aui-grid aui-grid--3">
+        <div class="aui-card"><div class="aui-card__head"><i class="ri-vip-crown-2-line"></i><span class="aui-card__title">Топ по уровню</span></div><div class="aui-card__body aui-card__body--tight">
+          <table class="aui-table"><thead><tr><th>#</th><th>Игрок</th><th class="num">Ур.</th><th class="num">Золото</th></tr></thead><tbody>
+          <tr><td><span class="aui-rank r1">1</span></td><td class="strong">aviad_echo</td><td class="num strong">174</td><td class="num">842 100</td></tr>
+          <tr><td><span class="aui-rank r2">2</span></td><td>Torch0010</td><td class="num strong">152</td><td class="num">611 540</td></tr>
+          <tr><td><span class="aui-rank r3">3</span></td><td>mishnya23</td><td class="num strong">141</td><td class="num">503 220</td></tr>
+          <tr><td><span class="aui-rank">4</span></td><td>zBaizel</td><td class="num strong">128</td><td class="num">444 980</td></tr>
+          <tr><td><span class="aui-rank">5</span></td><td>shadowdragon</td><td class="num strong">119</td><td class="num">390 010</td></tr>
+          </tbody></table>
+        </div></div>
+        <div class="aui-card"><div class="aui-card__head"><i class="ri-money-dollar-circle-line"></i><span class="aui-card__title">Богатейшие</span></div><div class="aui-card__body aui-card__body--tight">
+          <table class="aui-table"><thead><tr><th>#</th><th>Игрок</th><th class="num">Золото</th><th class="num">Ур.</th></tr></thead><tbody>
+          <tr><td><span class="aui-rank r1">1</span></td><td class="strong">aviad_echo</td><td class="num strong">842 100</td><td class="num">174</td></tr>
+          <tr><td><span class="aui-rank r2">2</span></td><td>Torch0010</td><td class="num strong">611 540</td><td class="num">152</td></tr>
+          <tr><td><span class="aui-rank r3">3</span></td><td>mishnya23</td><td class="num strong">503 220</td><td class="num">141</td></tr>
+          <tr><td><span class="aui-rank">4</span></td><td>Yupi</td><td class="num strong">470 300</td><td class="num">96</td></tr>
+          <tr><td><span class="aui-rank">5</span></td><td>zBaizel</td><td class="num strong">444 980</td><td class="num">128</td></tr>
+          </tbody></table>
+        </div></div>
+        <div class="aui-card"><div class="aui-card__head"><i class="ri-boxing-line"></i><span class="aui-card__title">PvP-ладдер</span></div><div class="aui-card__body aui-card__body--tight">
+          <table class="aui-table"><thead><tr><th>#</th><th>Боец</th><th class="num">Очки</th><th class="num">W/L</th></tr></thead><tbody>
+          <tr><td><span class="aui-rank r1">1</span></td><td class="strong">aviad_echo</td><td class="num strong">3</td><td class="num">1/0</td></tr>
+          <tr><td><span class="aui-rank r2">2</span></td><td>Корвин</td><td class="num strong">0</td><td class="num">0/1</td></tr>
+          <tr><td colspan="4" class="aui-table__empty">Дальше ладдер пуст — мало PvP-боёв</td></tr>
+          </tbody></table>
+        </div></div>
+      </div>
+
+    </section>
+
+    <!-- ============================================================
+         VIEW: UI KIT
+         ============================================================ -->
+    <section id="view-kit" hidden>
+
+      <div class="aui-page-head">
+        <div class="aui-page-head__title">
+          <p class="aui-eyebrow">Brandbook · living styleguide</p>
+          <h1 class="aui-display">UI Kit</h1>
+          <p class="aui-muted aui-small" style="margin:6px 0 0">Каждый компонент, который есть в админке — в новом языке. Источник истины для переписывания.</p>
+        </div>
+      </div>
+
+      <!-- ПАЛИТРА -->
+      <p class="aui-eyebrow pv-section-label">01 — Палитра</p>
+      <div class="aui-card"><div class="aui-card__body">
+        <div class="kit-swatches">
+          <div class="kit-swatch"><div class="kit-swatch__chip" style="background:var(--ink)"></div><div class="kit-swatch__name">Ink</div><div class="kit-swatch__hex">#1A1714</div></div>
+          <div class="kit-swatch"><div class="kit-swatch__chip" style="background:var(--ink-3)"></div><div class="kit-swatch__name">Ink dim</div><div class="kit-swatch__hex">#6B6358</div></div>
+          <div class="kit-swatch"><div class="kit-swatch__chip" style="background:var(--paper)"></div><div class="kit-swatch__name">Paper</div><div class="kit-swatch__hex">#FBFAF8</div></div>
+          <div class="kit-swatch"><div class="kit-swatch__chip" style="background:var(--surface-2)"></div><div class="kit-swatch__name">Surface 2</div><div class="kit-swatch__hex">#F5F2EC</div></div>
+          <div class="kit-swatch"><div class="kit-swatch__chip" style="background:var(--accent)"></div><div class="kit-swatch__name">Accent</div><div class="kit-swatch__hex">#E89B2E</div></div>
+          <div class="kit-swatch"><div class="kit-swatch__chip" style="background:var(--success)"></div><div class="kit-swatch__name">Success</div><div class="kit-swatch__hex">#4F7A2E</div></div>
+          <div class="kit-swatch"><div class="kit-swatch__chip" style="background:var(--warning)"></div><div class="kit-swatch__name">Warning</div><div class="kit-swatch__hex">#BC8A1E</div></div>
+          <div class="kit-swatch"><div class="kit-swatch__chip" style="background:var(--danger)"></div><div class="kit-swatch__name">Danger</div><div class="kit-swatch__hex">#B23A2A</div></div>
+          <div class="kit-swatch"><div class="kit-swatch__chip" style="background:var(--info)"></div><div class="kit-swatch__name">Info</div><div class="kit-swatch__hex">#3E6E8E</div></div>
+        </div>
+      </div></div>
+
+      <!-- ТИПОГРАФИКА -->
+      <p class="aui-eyebrow pv-section-label">02 — Типографика</p>
+      <div class="aui-card"><div class="aui-card__body aui-stack">
+        <div><span class="aui-display">Display 40 — Fraunces</span><div class="type-spec">Fraunces 400 · −0.015em · числа KPI и крупные заголовки</div></div>
+        <div><span class="aui-h1">Заголовок H1 — Fraunces 26</span><div class="type-spec">Fraunces 450</div></div>
+        <div><span class="aui-h2">Заголовок H2 — Fraunces 20</span><div class="type-spec">Fraunces 450</div></div>
+        <div><span class="aui-h3">Заголовок H3 — Hanken 15</span><div class="type-spec">Hanken Grotesk 650</div></div>
+        <div><span class="aui-eyebrow">EYEBROW / SECTION LABEL</span><div class="type-spec">Hanken 600 · 11px · .12em uppercase</div></div>
+        <div><span style="font-size:14px">Body 14 — Hanken Grotesk. Спокойный, плотный, отлично читается в таблицах и формах.</span></div>
+        <div><span class="aui-mono">JetBrains Mono — id, JSON, setting_key, код</span></div>
+      </div></div>
+
+      <!-- КНОПКИ -->
+      <p class="aui-eyebrow pv-section-label">03 — Кнопки</p>
+      <div class="aui-card"><div class="aui-card__body aui-stack">
+        <div class="kit-demo-row">
+          <button class="aui-btn aui-btn--primary"><i class="ri-add-line"></i> Primary</button>
+          <button class="aui-btn aui-btn--ink">Ink</button>
+          <button class="aui-btn aui-btn--ghost"><i class="ri-edit-line"></i> Ghost</button>
+          <button class="aui-btn aui-btn--subtle">Subtle</button>
+          <button class="aui-btn aui-btn--danger"><i class="ri-delete-bin-line"></i> Danger</button>
+          <button class="aui-btn aui-btn--danger-solid">Danger solid</button>
+          <button class="aui-btn aui-btn--primary" disabled>Disabled</button>
+        </div>
+        <div class="kit-demo-row">
+          <button class="aui-btn aui-btn--primary aui-btn--sm">Small</button>
+          <button class="aui-btn aui-btn--primary aui-btn--lg">Large</button>
+          <button class="aui-btn aui-btn--ghost aui-btn--icon"><i class="ri-more-2-fill"></i></button>
+          <div class="aui-btngroup"><button class="is-active">7 дн</button><button>30 дн</button><button>90 дн</button></div>
+        </div>
+      </div></div>
+
+      <!-- БЕЙДЖИ / СТАТУСЫ -->
+      <p class="aui-eyebrow pv-section-label">04 — Бейджи и статусы</p>
+      <div class="aui-card"><div class="aui-card__body kit-demo-row">
+        <span class="aui-badge">neutral</span>
+        <span class="aui-badge aui-badge--accent">accent</span>
+        <span class="aui-badge aui-badge--success"><span class="aui-dot"></span> live</span>
+        <span class="aui-badge aui-badge--warning">draft</span>
+        <span class="aui-badge aui-badge--danger">triggered</span>
+        <span class="aui-badge aui-badge--info">dormant</span>
+        <span class="aui-delta aui-delta--up"><i class="ri-arrow-up-line"></i> 12%</span>
+        <span class="aui-delta aui-delta--down"><i class="ri-arrow-down-line"></i> 8%</span>
+        <span class="aui-delta aui-delta--flat">0%</span>
+      </div></div>
+
+      <!-- ALERTS -->
+      <p class="aui-eyebrow pv-section-label">05 — Уведомления (flash / валидация / справка)</p>
+      <div class="aui-stack">
+        <div class="aui-alert aui-alert--success"><i class="ri-checkbox-circle-line"></i><div><div class="aui-alert__title">Сохранено</div>Ресурс «Сера» обновлён.</div><button class="aui-alert__close"><i class="ri-close-line"></i></button></div>
+        <div class="aui-alert aui-alert--danger"><i class="ri-error-warning-line"></i><div><div class="aui-alert__title">Ошибка валидации</div>Поле «Уровень» обязательно. Цена не может быть отрицательной.</div></div>
+        <div class="aui-alert aui-alert--info"><i class="ri-information-line"></i><div><div class="aui-alert__title">Зарегистрированные effect_kind</div>Доступные обработчики эффектов подставляются в форму события автоматически.</div></div>
+        <div class="aui-alert aui-alert--warning"><i class="ri-alert-line"></i><div>Редкость влияет на спавн. Значения выше 0.7 ломают экономику новичков.</div></div>
+      </div>
+
+      <!-- ФОРМЫ -->
+      <p class="aui-eyebrow pv-section-label">06 — Формы</p>
+      <div class="aui-grid" style="grid-template-columns:1fr 1fr">
+        <div class="aui-card"><div class="aui-card__head"><span class="aui-card__title">Поля ввода</span></div><div class="aui-card__body">
+          <div class="aui-field"><label class="aui-label">Название <span class="req">*</span></label><input class="aui-input" placeholder="Сера"></div>
+          <div class="aui-field"><label class="aui-label">Тип</label><select class="aui-select"><option>Ресурс</option><option>Оружие</option><option>Броня</option></select></div>
+          <div class="aui-field"><label class="aui-label">setting_key</label><input class="aui-input aui-input--mono" value="economy.shuffle.loss_pct"></div>
+          <div class="aui-field"><label class="aui-label">Описание</label><textarea class="aui-textarea" placeholder="Что игрок заметит…"></textarea><div class="aui-hint">Самодостаточно в тексте (media-off).</div></div>
+        </div></div>
+        <div class="aui-card"><div class="aui-card__head"><span class="aui-card__title">Контролы</span></div><div class="aui-card__body aui-stack">
+          <div class="aui-row" style="gap:var(--sp-5); flex-wrap:wrap">
+            <label class="aui-check"><input type="checkbox" checked><span class="aui-check__box"></span> Лес</label>
+            <label class="aui-check"><input type="checkbox"><span class="aui-check__box"></span> Пустошь</label>
+            <label class="aui-check aui-check--radio"><input type="radio" name="r" checked><span class="aui-check__box"></span> Активный</label>
+            <label class="aui-check aui-check--radio"><input type="radio" name="r"><span class="aui-check__box"></span> Скрытый</label>
+          </div>
+          <div class="aui-row" style="gap:var(--sp-5)">
+            <label class="aui-switch"><input type="checkbox" checked><span class="aui-switch__track"></span> killswitch включён</label>
+            <label class="aui-switch"><input type="checkbox"><span class="aui-switch__track"></span> parallel</label>
+          </div>
+          <label class="aui-file"><i class="ri-upload-cloud-2-line"></i><div>Перетащите картинку или нажмите</div><div class="aui-hint">JPG / PNG / WebP</div></label>
+        </div></div>
+      </div>
+
+      <!-- ТАБЛИЦА -->
+      <p class="aui-eyebrow pv-section-label">07 — Таблица данных</p>
+      <div class="aui-card"><div class="aui-card__head"><i class="ri-table-line"></i><span class="aui-card__title">Ресурсы</span><div class="aui-card__tools"><button class="aui-btn aui-btn--primary aui-btn--sm"><i class="ri-add-line"></i> Создать</button></div></div>
+        <table class="aui-table"><thead><tr><th>ID</th><th>Название</th><th>Тип</th><th class="num">Цена</th><th>Редкость</th><th>Статус</th><th></th></tr></thead><tbody>
+          <tr><td class="aui-mono">14</td><td class="strong">Сера</td><td>Минерал</td><td class="num">120</td><td><span class="aui-badge aui-badge--info">rare</span></td><td><span class="aui-badge aui-badge--success"><span class="aui-dot"></span> активен</span></td><td><button class="aui-btn aui-btn--ghost aui-btn--icon"><i class="ri-more-2-fill"></i></button></td></tr>
+          <tr><td class="aui-mono">15</td><td class="strong">Редкие металлы</td><td>Минерал</td><td class="num">340</td><td><span class="aui-badge aui-badge--accent">epic</span></td><td><span class="aui-badge aui-badge--success"><span class="aui-dot"></span> активен</span></td><td><button class="aui-btn aui-btn--ghost aui-btn--icon"><i class="ri-more-2-fill"></i></button></td></tr>
+          <tr><td class="aui-mono">16</td><td class="strong">Нефть</td><td>Жидкость</td><td class="num">90</td><td><span class="aui-badge">common</span></td><td><span class="aui-badge aui-badge--warning">скрыт</span></td><td><button class="aui-btn aui-btn--ghost aui-btn--icon"><i class="ri-more-2-fill"></i></button></td></tr>
+        </tbody></table>
+      </div>
+
+      <!-- ПРОГРЕСС / ТАБЫ / ПУСТО / МОДАЛ -->
+      <p class="aui-eyebrow pv-section-label">08 — Прочее</p>
+      <div class="aui-grid aui-grid--3">
+        <div class="aui-card"><div class="aui-card__head"><span class="aui-card__title">Прогресс (эндгейм)</span></div><div class="aui-card__body aui-stack">
+          <div><div class="aui-row" style="justify-content:space-between; margin-bottom:6px"><span class="aui-small">Север</span><span class="aui-small aui-mono">72%</span></div><div class="aui-progress"><div class="aui-progress__bar" style="width:72%"></div></div></div>
+          <div><div class="aui-row" style="justify-content:space-between; margin-bottom:6px"><span class="aui-small">Технократы</span><span class="aui-small aui-mono">41%</span></div><div class="aui-progress"><div class="aui-progress__bar aui-progress__bar--success" style="width:41%"></div></div></div>
+          <div class="aui-tabs"><button class="aui-tab is-active">Все</button><button class="aui-tab">7 дней</button><button class="aui-tab">Когорта</button></div>
+        </div></div>
+        <div class="aui-card"><div class="aui-card__head"><span class="aui-card__title">Пустое состояние</span></div><div class="aui-card__body"><div class="aui-empty"><i class="ri-inbox-line"></i><p>Ещё не было PvP-боёв</p></div></div></div>
+        <div class="aui-card"><div class="aui-card__head"><span class="aui-card__title">Меню / модал</span></div><div class="aui-card__body aui-stack">
+          <div class="aui-menu" style="box-shadow:var(--shadow-1)"><div class="aui-menu__item"><i class="ri-edit-line"></i> Редактировать</div><div class="aui-menu__item"><i class="ri-file-copy-line"></i> Дублировать</div><div class="aui-menu__sep"></div><div class="aui-menu__item" style="color:var(--danger)"><i class="ri-delete-bin-line"></i> Удалить</div></div>
+          <button class="aui-btn aui-btn--danger" id="openModal"><i class="ri-fire-line"></i> Открыть опасный модал</button>
+        </div></div>
+      </div>
+
+    </section>
+
+  </main>
+</div>
+
+<!-- модал (демо) -->
+<div class="aui-modal-scrim" id="modal" hidden>
+  <div class="aui-modal">
+    <div class="aui-modal__head"><i class="ri-fire-line" style="color:var(--danger); font-size:22px"></i><h2 class="aui-h2">Вайп сервера</h2></div>
+    <div class="aui-modal__body">Это сбросит прогресс всех игроков до нуля. Идентичность и мир останутся. Действие необратимо. Введите пароль и подтвердите дважды.</div>
+    <div class="aui-modal__foot"><button class="aui-btn aui-btn--subtle" id="closeModal">Отмена</button><button class="aui-btn aui-btn--danger-solid">Понимаю, продолжить</button></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js"
+        integrity="sha384-KNaFJ+EK516RuHsoycvreec5pD7BkTKJEkjMrVSQWu9KGTl7En4dhIDv7t1DFJ+g"
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+// ---------- интерактив превью ----------
+const root = document.documentElement;
+document.getElementById('themeToggle').addEventListener('click', () => {
+  root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.querySelector('#themeToggle i').className = root.dataset.theme === 'dark' ? 'ri-sun-line' : 'ri-moon-line';
+  renderCharts();
+});
+document.getElementById('burger').addEventListener('click', () => document.getElementById('sidebar').classList.toggle('is-open'));
+document.querySelectorAll('.aui-tabs [data-view]').forEach(t => t.addEventListener('click', e => {
+  document.querySelectorAll('.aui-tabs [data-view]').forEach(x => x.classList.remove('is-active'));
+  t.classList.add('is-active');
+  const v = t.dataset.view;
+  document.getElementById('view-dashboard').hidden = v !== 'dashboard';
+  document.getElementById('view-kit').hidden = v !== 'kit';
+  if (v === 'dashboard') renderCharts();
+}));
+document.getElementById('openModal').addEventListener('click', () => document.getElementById('modal').hidden = false);
+document.getElementById('closeModal').addEventListener('click', () => document.getElementById('modal').hidden = true);
+document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') e.target.hidden = true; });
+
+// ---------- ApexCharts re-theme (Quiet Premium) ----------
+let charts = [];
+function cssvar(n){ return getComputedStyle(root).getPropertyValue(n).trim(); }
+function viz(){ return [1,2,3,4,5,6,7,8].map(i => cssvar('--viz-'+i)); }
+function base(extra){
+  extra = extra || {};
+  const ink3 = cssvar('--ink-3'), grid = cssvar('--viz-grid');
+  const baseChart = { fontFamily:'Hanken Grotesk, sans-serif', foreColor: ink3, toolbar:{show:false}, zoom:{enabled:false}, animations:{enabled:true, speed:500}, parentHeightOffset:0 };
+  const merged = Object.assign({
+    grid:{ borderColor: grid, strokeDashArray:3, padding:{left:4,right:4} },
+    dataLabels:{ enabled:false },
+    tooltip:{ theme: root.dataset.theme },
+    legend:{ fontSize:'12px', markers:{width:8,height:8,radius:8}, itemMargin:{horizontal:8, vertical:0}, offsetY:2 },
+    noData:{ text:'Нет данных', style:{ color: cssvar('--ink-4'), fontSize:'13px' } }
+  }, extra);
+  merged.chart = Object.assign(baseChart, extra.chart || {}); // deep-merge chart, чтобы toolbar:false не терялся
+  return merged;
+}
+const D = {
+  days:['1','3','5','7','9','11','13','15','17','19','21','23','25','27','29'],
+  regs:[6,9,7,12,8,14,11,9,15,10,7,13,9,11,8],
+  active:[34,40,31,52,44,61,49,42,58,38,47,55,41,50,44],
+  levels:{l:['1','2–4','5–9','10–19','20–49','50+'], d:[944,41,28,19,14,7]},
+  biomes:{l:['Лес','Пустошь','Болото','Горы','Руины'], d:[420,260,180,120,73]},
+  factions:{l:['Технократы','Кочевники','Орден','Вольные'], d:[16,9,7,5]},
+  gold:{l:['0','<1k','1–10k','10–100k','100k–1M','1M+'], d:[210,340,260,140,80,23]},
+  battles:[120,180,90,260,210,340,280,190,420,150,230,310,200,290,240],
+  bTypes:{l:['PvE рейд','Авто-PvE','Дуэль','Осада'], d:[610,320,42,11]},
+  econ:{buy:[120,180,150,260,210,340,280,190,420,150,230,310,200,290,240], sell:[90,140,120,200,180,260,210,160,320,120,190,240,170,230,200]},
+  crafted:{l:['Бинт','Патроны','Нож','Сталь','Антидот'], d:[1240,980,610,420,260]},
+  builds:{l:['Мастерская','Помпа','Теплица','Арсенал','Склад'], d:[24,18,12,9,7]},
+  tasks:{l:['Поход','Добыча','Крафт','Стройка','Отдых'], d:[18,14,9,5,12]},
+  res:{l:['Вода','Дерево','Камень','Жел.руда','Сера'], d:[8400,6200,5100,3300,1800]}
+};
+function renderCharts(){
+  charts.forEach(c => { try{c.destroy()}catch(e){} }); charts = [];
+  if (document.getElementById('view-dashboard').hidden) return;
+  const V = viz(), accent = cssvar('--accent'), ink = cssvar('--viz-2');
+  const mk = (id,opts) => { const el=document.querySelector(id); if(!el) return; const c=new ApexCharts(el, base(opts)); c.render(); charts.push(c); };
+  const areaFill = { type:'gradient', gradient:{ shadeIntensity:1, opacityFrom:0.22, opacityTo:0.02, stops:[0,95] } };
+
+  mk('#chartGrowth',{ chart:{type:'area',height:300}, colors:[accent, ink],
+    series:[{name:'Новые',data:D.regs},{name:'Активны',data:D.active}],
+    stroke:{curve:'smooth',width:2}, fill:areaFill,
+    xaxis:{categories:D.days, axisBorder:{show:false}, axisTicks:{show:false}},
+    legend:{position:'top',horizontalAlign:'right'} });
+
+  mk('#chartLevels',{ chart:{type:'bar',height:300}, colors:[accent],
+    series:[{name:'Игроков',data:D.levels.d}],
+    plotOptions:{bar:{borderRadius:4, columnWidth:'52%', borderRadiusApplication:'end'}},
+    xaxis:{categories:D.levels.l, axisBorder:{show:false}, axisTicks:{show:false}}, legend:{show:false} });
+
+  const donut = (sz)=>({ plotOptions:{pie:{donut:{size:sz||'68%'}}}, stroke:{width:2, colors:[cssvar('--surface')]}, legend:{position:'bottom'} });
+  mk('#chartBiomes',  Object.assign({chart:{type:'donut',height:280}, colors:V, series:D.biomes.d, labels:D.biomes.l}, donut()));
+  mk('#chartFactions',Object.assign({chart:{type:'donut',height:280}, colors:V, series:D.factions.d, labels:D.factions.l}, donut()));
+
+  mk('#chartGold',{ chart:{type:'bar',height:280}, colors:[accent],
+    series:[{name:'Игроков',data:D.gold.d}],
+    plotOptions:{bar:{borderRadius:4, columnWidth:'52%', borderRadiusApplication:'end'}},
+    xaxis:{categories:D.gold.l, labels:{style:{fontSize:'10px'}}, axisBorder:{show:false}, axisTicks:{show:false}}, legend:{show:false} });
+
+  mk('#chartBattles',{ chart:{type:'area',height:280}, colors:[accent],
+    series:[{name:'Боёв',data:D.battles}], stroke:{curve:'smooth',width:2}, fill:areaFill,
+    xaxis:{categories:D.days, axisBorder:{show:false}, axisTicks:{show:false}} });
+
+  mk('#chartBattleTypes', Object.assign({chart:{type:'donut',height:280}, colors:V, series:D.bTypes.d, labels:D.bTypes.l}, donut('70%')));
+
+  mk('#chartEconomy',{ chart:{type:'line',height:280}, colors:[accent, V[3]],
+    series:[{name:'Покупки',data:D.econ.buy},{name:'Продажи',data:D.econ.sell}],
+    stroke:{curve:'smooth',width:2},
+    xaxis:{categories:D.days, axisBorder:{show:false}, axisTicks:{show:false}},
+    legend:{position:'top',horizontalAlign:'right'} });
+
+  const hbar = (color)=>({ chart:{type:'bar',height:280}, colors:[color],
+    plotOptions:{bar:{horizontal:true, borderRadius:4, barHeight:'62%', borderRadiusApplication:'end'}},
+    xaxis:{axisBorder:{show:false}, axisTicks:{show:false}} });
+  mk('#chartCrafted', Object.assign(hbar(ink),  {series:[{name:'Скрафчено',data:D.crafted.d}], xaxis:{categories:D.crafted.l, axisBorder:{show:false}, axisTicks:{show:false}}}));
+  mk('#chartResources', Object.assign(hbar(accent),{series:[{name:'На складе',data:D.res.d}],  xaxis:{categories:D.res.l, axisBorder:{show:false}, axisTicks:{show:false}}}));
+
+  mk('#chartBuildings', Object.assign({chart:{type:'donut',height:280}, colors:V, series:D.builds.d, labels:D.builds.l}, donut('66%')));
+  mk('#chartTasks',{ chart:{type:'bar',height:280}, colors:[accent],
+    series:[{name:'Заданий',data:D.tasks.d}],
+    plotOptions:{bar:{borderRadius:4, columnWidth:'52%', borderRadiusApplication:'end'}},
+    xaxis:{categories:D.tasks.l, axisBorder:{show:false}, axisTicks:{show:false}}, legend:{show:false} });
+}
+renderCharts();
+</script>
+</body>
+</html>

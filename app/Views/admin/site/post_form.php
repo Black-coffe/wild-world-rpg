@@ -12,80 +12,90 @@ $action = $isEdit ? site_url('admin/site/posts/update/' . $id) : site_url('admin
 $sel    = $selectedCats ?? [];
 $val    = static fn (string $k): string => esc((string) (old($k) ?? ($post[$k] ?? '')));
 ?>
-<?= $this->extend('admin/layouts/default') ?>
+<?= $this->extend('admin/layouts/aui') ?>
+<?= $this->section('pageTitle') ?>Контент сайта<?= $this->endSection() ?>
 <?= $this->section('content') ?>
 
-<div class="container-fluid mt-3">
-<h2><?= $isEdit ? 'Редактирование поста' : 'Новый пост' ?></h2>
+<div class="aui-page-head">
+    <div class="aui-page-head__title">
+        <p class="aui-eyebrow">Контент сайта</p>
+        <h1 class="aui-display"><?= $isEdit ? 'Редактирование поста' : 'Новый пост' ?></h1>
+    </div>
+    <a class="aui-btn aui-btn--ghost" href="<?= site_url('admin/site/posts') ?>"><i class="ri-arrow-left-line"></i> К списку</a>
+</div>
 
 <?php if (session()->getFlashdata('errors')): ?>
-    <div class="alert alert-danger"><?php foreach ((array) session()->getFlashdata('errors') as $e): ?><?= esc($e) ?><br><?php endforeach; ?></div>
+    <div class="aui-alert aui-alert--danger" style="margin-bottom:var(--sp-4)"><i class="ri-error-warning-line"></i><div>
+        <?php foreach ((array) session()->getFlashdata('errors') as $e): ?><?= esc($e) ?><br><?php endforeach; ?>
+    </div></div>
 <?php endif; ?>
 
 <form action="<?= $action ?>" method="post">
     <?= csrf_field() ?>
-    <div class="row">
-        <div class="col-lg-8">
-            <div class="card"><div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label">Заголовок</label>
-                    <input type="text" name="title" class="form-control" value="<?= $val('title') ?>" required>
+    <div class="aui-grid aui-grid--2-1">
+        <div class="aui-card"><div class="aui-card__body">
+            <div class="aui-field">
+                <label class="aui-label">Заголовок <span class="req">*</span></label>
+                <input type="text" name="title" class="aui-input" value="<?= $val('title') ?>" required>
+            </div>
+            <div class="aui-field">
+                <label class="aui-label">Slug</label>
+                <input type="text" name="slug" class="aui-input" value="<?= $val('slug') ?>">
+                <div class="aui-hint">(пусто = из заголовка; меняет URL — осторожно для SEO)</div>
+            </div>
+            <div class="aui-field">
+                <label class="aui-label">Краткое описание (excerpt)</label>
+                <textarea name="excerpt" class="aui-textarea" rows="2"><?= $val('excerpt') ?></textarea>
+            </div>
+            <div class="aui-field">
+                <label class="aui-label">Содержимое (HTML)</label>
+                <textarea name="content_html" class="aui-textarea aui-input--mono" rows="18"><?= esc((string) (old('content_html') ?? ($post['content_html'] ?? ''))) ?></textarea>
+            </div>
+            <div class="aui-field">
+                <label class="aui-label">Meta description (SEO, до 320)</label>
+                <textarea name="meta_description" class="aui-textarea" rows="2" maxlength="320"><?= $val('meta_description') ?></textarea>
+            </div>
+        </div></div>
+        <div class="aui-card"><div class="aui-card__body">
+            <div class="aui-field">
+                <label class="aui-label">Статус</label>
+                <select name="status" class="aui-select">
+                    <?php $st = (string) (old('status') ?? ($post['status'] ?? 'draft')); ?>
+                    <option value="draft" <?= $st === 'draft' ? 'selected' : '' ?>>Черновик</option>
+                    <option value="published" <?= $st === 'published' ? 'selected' : '' ?>>Опубликован</option>
+                </select>
+            </div>
+            <div class="aui-field">
+                <div class="aui-checkrow">
+                    <label class="aui-check">
+                        <input type="checkbox" id="canon" name="canon_reviewed" value="1" <?= (int) ($post['canon_reviewed'] ?? 0) === 1 ? 'checked' : '' ?>>
+                        <span class="aui-check__box"></span> Сверено с каноном (ADR-010)
+                    </label>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Slug <small class="text-muted">(пусто = из заголовка; меняет URL — осторожно для SEO)</small></label>
-                    <input type="text" name="slug" class="form-control" value="<?= $val('slug') ?>">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Краткое описание (excerpt)</label>
-                    <textarea name="excerpt" class="form-control" rows="2"><?= $val('excerpt') ?></textarea>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Содержимое (HTML)</label>
-                    <textarea name="content_html" class="form-control" rows="18" style="font-family:ui-monospace,monospace"><?= esc((string) (old('content_html') ?? ($post['content_html'] ?? ''))) ?></textarea>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Meta description (SEO, до 320)</label>
-                    <textarea name="meta_description" class="form-control" rows="2" maxlength="320"><?= $val('meta_description') ?></textarea>
-                </div>
-            </div></div>
-        </div>
-        <div class="col-lg-4">
-            <div class="card"><div class="card-body">
-                <div class="mb-3">
-                    <label class="form-label">Статус</label>
-                    <select name="status" class="form-select">
-                        <?php $st = (string) (old('status') ?? ($post['status'] ?? 'draft')); ?>
-                        <option value="draft" <?= $st === 'draft' ? 'selected' : '' ?>>Черновик</option>
-                        <option value="published" <?= $st === 'published' ? 'selected' : '' ?>>Опубликован</option>
-                    </select>
-                </div>
-                <div class="mb-3 form-check">
-                    <input type="checkbox" class="form-check-input" id="canon" name="canon_reviewed" value="1" <?= (int) ($post['canon_reviewed'] ?? 0) === 1 ? 'checked' : '' ?>>
-                    <label class="form-check-label" for="canon">Сверено с каноном (ADR-010)</label>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Дата публикации</label>
-                    <input type="text" name="published_at" class="form-control" placeholder="ГГГГ-ММ-ДД ЧЧ:ММ:СС" value="<?= esc((string) (old('published_at') ?? ($post['published_at'] ?? ''))) ?>">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Картинка (путь)</label>
-                    <input type="text" name="featured_image" class="form-control" value="<?= $val('featured_image') ?>" placeholder="uploads/site/...">
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Категории</label>
-                    <select name="categories[]" class="form-select" multiple size="8">
-                        <?php foreach ($allCategories as $c): ?>
-                            <?php $cid = (int) ($c['id'] ?? 0); ?>
-                            <option value="<?= $cid ?>" <?= in_array($cid, $sel, true) ? 'selected' : '' ?>><?= esc($c['name'] ?? '') ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary w-100"><?= $isEdit ? 'Сохранить' : 'Создать' ?></button>
-                <a href="<?= site_url('admin/site/posts') ?>" class="btn btn-link w-100">Отмена</a>
-            </div></div>
-        </div>
+            </div>
+            <div class="aui-field">
+                <label class="aui-label">Дата публикации</label>
+                <input type="text" name="published_at" class="aui-input" placeholder="ГГГГ-ММ-ДД ЧЧ:ММ:СС" value="<?= esc((string) (old('published_at') ?? ($post['published_at'] ?? ''))) ?>">
+            </div>
+            <div class="aui-field">
+                <label class="aui-label">Картинка (путь)</label>
+                <input type="text" name="featured_image" class="aui-input" value="<?= $val('featured_image') ?>" placeholder="uploads/site/...">
+            </div>
+            <div class="aui-field">
+                <label class="aui-label">Категории</label>
+                <select name="categories[]" class="aui-select" multiple size="8">
+                    <?php foreach ($allCategories as $c): ?>
+                        <?php $cid = (int) ($c['id'] ?? 0); ?>
+                        <option value="<?= $cid ?>" <?= in_array($cid, $sel, true) ? 'selected' : '' ?>><?= esc($c['name'] ?? '') ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="aui-form-actions">
+                <button type="submit" class="aui-btn aui-btn--primary"><i class="ri-save-line"></i> <?= $isEdit ? 'Сохранить' : 'Создать' ?></button>
+                <a href="<?= site_url('admin/site/posts') ?>" class="aui-btn aui-btn--ghost">Отмена</a>
+            </div>
+        </div></div>
     </div>
 </form>
-</div>
 
 <?= $this->endSection() ?>
