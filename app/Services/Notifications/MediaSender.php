@@ -32,6 +32,12 @@ final class MediaSender
     /** @var array<int,bool> telegram_chat_id → disable_media */
     private static array $cache = [];
 
+    /** Telegram-лимит подписи фото (символов ПОСЛЕ парсинга HTML-entity). */
+    private const PHOTO_CAPTION_LIMIT = 1024;
+
+    /** Telegram-лимит обычного текстового сообщения. */
+    private const TEXT_MESSAGE_LIMIT = 4096;
+
     /**
      * Drop-in для `Request::sendPhoto([...])`. Принимает тот же массив
      * параметров (chat_id, photo, caption, parse_mode, reply_markup).
@@ -45,27 +51,55 @@ final class MediaSender
             return Request::sendPhoto($params);
         }
 
+        // #14: игрок отключил картинки → тот же caption уходит текстом (лимит 4096).
         if (self::isMediaDisabled((int) $chatId)) {
-            $textParams = [
-                'chat_id' => $chatId,
-                'text'    => (string) ($params['caption'] ?? ''),
-            ];
-            // W28 (ADR-083): несём disable_notification в text-ветку, иначе при
-            // disable_media тихие рутинные уведомления зазвучали бы.
-            foreach (['parse_mode', 'reply_markup', 'disable_web_page_preview', 'disable_notification'] as $key) {
-                if (isset($params[$key])) {
-                    $textParams[$key] = $params[$key];
-                }
-            }
-            // Edge case: caption пустой — fallback на placeholder, чтобы
-            // sendMessage не упал на пустом text.
-            if ($textParams['text'] === '') {
-                $textParams['text'] = '📭 (без описания)';
-            }
-            return Request::sendMessage($textParams);
+            return self::sendCaptionAsText($params);
+        }
+
+        // Прод-инцидент 2026-06-16 (Ярик/SarCasM, биом «Пещеры»): подпись фото в
+        // Telegram ограничена 1024 символами (после парсинга entity). Длинный лут
+        // high-level игрока в богатом биоме (до 24 ресурсов) даёт caption >1024 →
+        // sendPhoto возвращал ok=false, а safeSendPhoto писал лишь warning (ниже
+        // log-threshold прода) → уведомление «ресурсы собраны» ТИХО терялось (ресурсы
+        // при этом уже сохранены). Картинка — enhancement (MEDIA-OFF канон, ADR-020):
+        // деградируем к тексту, весь смысл (лут/числа) доходит. Защищает все callsite'ы.
+        if (self::captionExceedsPhotoLimit(self::captionOf($params))) {
+            return self::sendCaptionAsText($params);
         }
 
         return Request::sendPhoto($params);
+    }
+
+    /**
+     * Отправляет caption фото как обычное текстовое сообщение. Используется в ветке
+     * media-off (#14) И при подписи длиннее лимита фото (деградация). Переносит
+     * parse_mode/reply_markup/preview/disable_notification, пустой caption → placeholder,
+     * защита от 4096-overflow.
+     *
+     * @param array<string,mixed> $params исходные sendPhoto-параметры
+     */
+    private static function sendCaptionAsText(array $params): ServerResponse
+    {
+        $text = self::captionOf($params);
+        // Edge case: caption пустой — placeholder, чтобы sendMessage не упал на 0-длине.
+        if ($text === '') {
+            $text = '📭 (без описания)';
+        }
+        $text = self::clampToTextLimit($text);
+
+        $textParams = [
+            'chat_id' => $params['chat_id'] ?? null,
+            'text'    => $text,
+        ];
+        // W28 (ADR-083): несём disable_notification в text-ветку, иначе при
+        // disable_media/деградации тихие рутинные уведомления зазвучали бы.
+        foreach (['parse_mode', 'reply_markup', 'disable_web_page_preview', 'disable_notification'] as $key) {
+            if (isset($params[$key])) {
+                $textParams[$key] = $params[$key];
+            }
+        }
+
+        return Request::sendMessage($textParams);
     }
 
     /**
@@ -285,6 +319,49 @@ final class MediaSender
         $raw = $params['caption'] ?? '';
 
         return is_scalar($raw) ? (string) $raw : '';
+    }
+
+    /**
+     * Подпись фото длиннее Telegram-лимита (1024 символа ПОСЛЕ парсинга HTML-entity)?
+     * Pure — тестируется без сети. При true вызывающий код деградирует к тексту.
+     */
+    public static function captionExceedsPhotoLimit(string $captionHtml): bool
+    {
+        return self::visibleTgLength($captionHtml) > self::PHOTO_CAPTION_LIMIT;
+    }
+
+    /**
+     * Длина текста в UTF-16 code units ПОСЛЕ удаления HTML-тегов и декода entity —
+     * ровно метрика Telegram для лимитов caption/text ("after entities parsing").
+     * Эмодзи (суррогатная пара) считается за 2 unit, как у Telegram.
+     */
+    private static function visibleTgLength(string $html): int
+    {
+        $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        // mb_convert_encoding со string-входом всегда возвращает string (имена кодировок валидны).
+        $u16 = mb_convert_encoding($text, 'UTF-16LE', 'UTF-8');
+
+        return intdiv(strlen($u16), 2);
+    }
+
+    /**
+     * Подрезает текст до Telegram-лимита сообщения (4096) по границе строки, чтобы
+     * не разорвать HTML-тег. Для реального лута (≤~1500 симв.) — no-op; страхует
+     * экстремальный edge, чтобы деградация не упёрлась в новый тихий ok=false.
+     */
+    private static function clampToTextLimit(string $text): string
+    {
+        if (self::visibleTgLength($text) <= self::TEXT_MESSAGE_LIMIT) {
+            return $text;
+        }
+        // Бюджет по сырым символам (с тегами) заведомо < лимита видимой длины → безопасно.
+        $cut = mb_substr($text, 0, self::TEXT_MESSAGE_LIMIT - 32);
+        $nl  = mb_strrpos($cut, "\n");
+        if (is_int($nl) && $nl > 0) {
+            $cut = mb_substr($cut, 0, $nl);
+        }
+
+        return $cut . "\n…";
     }
 
     private static function isMediaDisabled(int $telegramChatId): bool

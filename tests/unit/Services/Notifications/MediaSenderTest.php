@@ -231,4 +231,53 @@ final class MediaSenderTest extends CIUnitTestCase
         ]);
         $this->assertSame('📭 (без описания)', $out2['text']);
     }
+
+    // ---------------------------------------------------------------------
+    // captionExceedsPhotoLimit() — гард длины подписи фото.
+    // Прод-инцидент 2026-06-16: gather-завершение high-level в богатом биоме
+    // (24 ресурса в «Пещерах») → caption >1024 → sendPhoto ok=false → уведомление
+    // тихо терялось. Гард деградирует к тексту (картинка = enhancement, MEDIA-OFF).
+    // ---------------------------------------------------------------------
+
+    public function testCaptionExceedsPhotoLimitFalseForShortCaption(): void
+    {
+        $this->assertFalse(MediaSender::captionExceedsPhotoLimit('Короткая подпись'));
+        $this->assertFalse(MediaSender::captionExceedsPhotoLimit(''));
+    }
+
+    public function testCaptionExceedsPhotoLimitBoundaryAt1024(): void
+    {
+        // Telegram allows up to 1024 inclusive → ровно 1024 НЕ деградирует, 1025 — да.
+        $this->assertFalse(MediaSender::captionExceedsPhotoLimit(str_repeat('a', 1024)));
+        $this->assertTrue(MediaSender::captionExceedsPhotoLimit(str_repeat('a', 1025)));
+    }
+
+    public function testCaptionExceedsPhotoLimitCountsVisibleTextNotRawHtml(): void
+    {
+        // 400 видимых символов, обёрнутых в множество <b></b> → сырая длина ~1800,
+        // но Telegram меряет ПОСЛЕ парсинга entity (видимые 400) → НЕ деградируем.
+        $caption = str_repeat('<b>ab</b>', 200);
+        $this->assertGreaterThan(1024, mb_strlen($caption));               // сырая >1024
+        $this->assertLessThanOrEqual(1024, mb_strlen(strip_tags($caption))); // видимая ≤1024
+        $this->assertFalse(MediaSender::captionExceedsPhotoLimit($caption));
+    }
+
+    public function testCaptionExceedsPhotoLimitCountsEmojiAsTwoUtf16Units(): void
+    {
+        // 520 эмодзи = 520 кодпоинтов, но 1040 UTF-16 units (>1024) — как считает Telegram.
+        $caption = str_repeat('🪨', 520);
+        $this->assertSame(520, mb_strlen($caption));
+        $this->assertTrue(MediaSender::captionExceedsPhotoLimit($caption));
+    }
+
+    public function testCaptionExceedsPhotoLimitTrueForRealisticLootList(): void
+    {
+        // Реконструкция подписи завершения добычи: 24 ресурса с заголовками редкости.
+        $caption = "<b>Успешная добыча ресурсов!</b>\nВремя: <b>720</b> мин.\n"
+            . "Биом: <b>Пещеры и подземелья</b>\n\n<b>Найдены следующие ресурсы:</b>\n";
+        for ($i = 0; $i < 24; $i++) {
+            $caption .= "\n<b>Редкость...</b>\n— <b>Сталактиты и сталагмиты {$i}</b>: 1234 шт.\n";
+        }
+        $this->assertTrue(MediaSender::captionExceedsPhotoLimit($caption));
+    }
 }
