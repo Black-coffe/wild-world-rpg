@@ -176,6 +176,133 @@ class StreakMilestoneService
         ];
     }
 
+    // ── Ф2: discoverability (карточка Перса + экран «🔥 Серия выживания») ─────
+
+    /**
+     * ID вех, уже забранных персонажем.
+     *
+     * @return list<int>
+     */
+    public function claimedMilestoneIds(int $charId): array
+    {
+        if ($charId <= 0) {
+            return [];
+        }
+        $db   = Database::connect();
+        $rows = $db->table(self::CHAR_TABLE)->select('streak_milestone_id')->where('character_id', $charId)->get();
+        if ($rows === false) {
+            return [];
+        }
+        $ids = [];
+        foreach ($rows->getResultArray() as $r) {
+            $raw = $r['streak_milestone_id'] ?? null;
+            if (is_numeric($raw)) {
+                $ids[] = (int) $raw;
+            }
+        }
+        return $ids;
+    }
+
+    /**
+     * Карта title_key → name для титулов-наград серии (source_type='streak'), один запрос.
+     *
+     * @return array<string,string>
+     */
+    public function titleNameMap(): array
+    {
+        $db   = Database::connect();
+        $rows = $db->table('titles')->select('title_key, name')->where('source_type', 'streak')->get();
+        if ($rows === false) {
+            return [];
+        }
+        $map = [];
+        foreach ($rows->getResultArray() as $r) {
+            $k = $r['title_key'] ?? null;
+            $n = $r['name'] ?? null;
+            if (is_string($k) && $k !== '' && is_string($n)) {
+                $map[$k] = $n;
+            }
+        }
+        return $map;
+    }
+
+    /**
+     * Краткое превью награды вехи для строки списка: «💰100 · 📦Вода×5 · 🎖 «Упорный»».
+     *
+     * @param array<int|string,mixed> $milestone
+     * @param array<string,string>    $titleNames title_key → name
+     */
+    public function rewardPreview(array $milestone, array $titleNames): string
+    {
+        $parts = [];
+        $gold  = is_numeric($milestone['reward_gold'] ?? null) ? (int) $milestone['reward_gold'] : 0;
+        if ($gold > 0) {
+            $parts[] = "💰{$gold}";
+        }
+        $resQty = is_numeric($milestone['reward_resource_qty'] ?? null) ? (int) $milestone['reward_resource_qty'] : 0;
+        $res    = $milestone['reward_resource'] ?? null;
+        if (is_string($res) && $res !== '' && $resQty > 0) {
+            $parts[] = "📦{$res}×{$resQty}";
+        }
+        $tkey = $milestone['title_key'] ?? null;
+        if (is_string($tkey) && $tkey !== '') {
+            $tname = $titleNames[$tkey] ?? null;
+            if (is_string($tname) && $tname !== '') {
+                $parts[] = "🎖 «{$tname}»";
+            }
+        }
+        return implode(' · ', $parts);
+    }
+
+    /**
+     * Строка следующей вехи для карточки Перса (discoverability лестницы). null — если выключено,
+     * серии ещё нет (<1), или все вехи уже пройдены.
+     */
+    public function cardProgressLine(int $charId, int $currentStreak): ?string
+    {
+        if (! $this->enabled() || $currentStreak < 1) {
+            return null;
+        }
+        $next = null;
+        foreach ($this->definitions() as $m) { // definitions упорядочены по threshold ASC
+            $th = is_numeric($m['threshold_days'] ?? null) ? (int) $m['threshold_days'] : 0;
+            if ($th > $currentStreak) {
+                $next = $m;
+                break;
+            }
+        }
+        if ($next === null) {
+            return null; // все вехи взяты
+        }
+        $th      = is_numeric($next['threshold_days'] ?? null) ? (int) $next['threshold_days'] : 0;
+        $left    = max(1, $th - $currentStreak);
+        $name    = is_string($next['name'] ?? null) ? $next['name'] : '';
+        $icon    = is_string($next['icon'] ?? null) && $next['icon'] !== '' ? $next['icon'] : '🔥';
+        $preview = $this->rewardPreview($next, $this->titleNameMap());
+
+        $line = "    → {$icon} До вехи «{$name}» ({$th} дн.): ещё {$left} " . self::plural($left, 'день', 'дня', 'дней');
+        if ($preview !== '') {
+            $line .= ' · ' . $preview;
+        }
+        return $line;
+    }
+
+    private static function plural(int $n, string $one, string $few, string $many): string
+    {
+        $mod100 = $n % 100;
+        $mod10  = $n % 10;
+        if ($mod100 > 10 && $mod100 < 20) {
+            return $many;
+        }
+        if ($mod10 === 1) {
+            return $one;
+        }
+        if ($mod10 > 1 && $mod10 < 5) {
+            return $few;
+        }
+        return $many;
+    }
+
     // ── Overridable grant-seam'ы ─────────────────────────────────────────────
 
     protected function grantGold(int $characterId, int $gold): void

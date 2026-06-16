@@ -50,6 +50,8 @@ class CallbackRoutes extends BaseConfig
         // W10 (ADR-066) — экран «🏅 Достижения» (вход с карточки Перс при killswitch on).
         'achievements'                    => \App\Controllers\Telegram\Commands\Actions\Achievements\AchievementsAction::class,
         'titles'                          => \App\Controllers\Telegram\Commands\Actions\Titles\TitlesAction::class,
+        // ADR-132 Ф2 — экран «🔥 Серия выживания» (лестница вех login-стрика; вход с хаба «📊 Прогресс»).
+        'streakScreen'                    => \App\Controllers\Telegram\Commands\Actions\Streak\StreakScreenAction::class,
         // E19 (ADR-119) — музей базы / коллекции. `museum` (обзор) + `museumLocked` (lock-вход < L50).
         'museum'                          => \App\Controllers\Telegram\Commands\Actions\Collections\CollectionsAction::class,
         'museumLocked'                    => \App\Controllers\Telegram\Commands\Actions\Collections\CollectionsAction::class,

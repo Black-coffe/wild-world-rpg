@@ -125,6 +125,12 @@ class CharacterService
         $streakLine = (new \App\Services\Player\LoginStreakService())->streakLine($characterRow);
         $text .= ($streakLine !== null ? $streakLine . "\n" : '');
 
+        // ADR-132 Ф2 — следующая веха серии (discoverability лестницы; gated milestones_enabled).
+        $streakRaw = $characterRow['login_streak'] ?? 0;
+        $curStreak = is_numeric($streakRaw) ? (int) $streakRaw : 0;
+        $msLine    = (new \App\Services\Player\StreakMilestoneService())->cardProgressLine((int) $characterRow['id'], $curStreak);
+        $text .= ($msLine !== null ? $msLine . "\n" : '');
+
         // E11 (ADR-112) — активный титул (видимая идентичность; строка есть при killswitch ON И наличии титула).
         $titleSvc = new \App\Services\Player\TitleService();
         if ($titleSvc->enabled()) {

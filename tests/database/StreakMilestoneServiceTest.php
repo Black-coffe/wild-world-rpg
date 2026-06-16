@@ -237,4 +237,84 @@ final class StreakMilestoneServiceTest extends CIUnitTestCase
         $rows = Database::connect('tests')->table('character_resources')->where('id_characters', $cid)->countAllResults();
         $this->assertSame(0, $rows); // ресурс не начислен — нет строки
     }
+
+    // ── Ф2: discoverability (карточка + экран) ────────────────────────────────
+
+    public function testClaimedMilestoneIds(): void
+    {
+        $svc = $this->svc();
+        $m3  = $this->seedMilestone(3);
+        $m7  = $this->seedMilestone(7);
+        $cid = $this->seedChar(7);
+        $svc->claim($cid, $m3);
+
+        $this->assertSame([$m3], $svc->claimedMilestoneIds($cid));
+        $this->assertNotContains($m7, $svc->claimedMilestoneIds($cid));
+        $this->assertSame([], $svc->claimedMilestoneIds(0));
+    }
+
+    public function testTitleNameMap(): void
+    {
+        $this->seedTitle('streak_week', 'Недельный');
+        $this->seedTitle('streak_persistent', 'Упорный');
+        $map = $this->svc()->titleNameMap();
+        $this->assertSame('Недельный', $map['streak_week'] ?? null);
+        $this->assertSame('Упорный', $map['streak_persistent'] ?? null);
+    }
+
+    public function testRewardPreviewCombinesGoldResourceTitle(): void
+    {
+        $preview = $this->svc()->rewardPreview(
+            ['reward_gold' => 200, 'reward_resource' => 'Древесина', 'reward_resource_qty' => 10, 'title_key' => 'streak_week'],
+            ['streak_week' => 'Недельный'],
+        );
+        $this->assertStringContainsString('💰200', $preview);
+        $this->assertStringContainsString('📦Древесина×10', $preview);
+        $this->assertStringContainsString('«Недельный»', $preview);
+    }
+
+    public function testRewardPreviewPrestigeOnly(): void
+    {
+        // 30/50/100 = чистый престиж: 0 золота, только титул.
+        $preview = $this->svc()->rewardPreview(
+            ['reward_gold' => 0, 'reward_resource' => null, 'reward_resource_qty' => 0, 'title_key' => 'streak_century'],
+            ['streak_century' => 'Столетник пустоши'],
+        );
+        $this->assertStringNotContainsString('💰', $preview);
+        $this->assertStringContainsString('«Столетник пустоши»', $preview);
+    }
+
+    public function testCardProgressLinePicksNextMilestone(): void
+    {
+        $this->enableMilestones();
+        $this->seedMilestone(3, ['name' => 'Втянулся']);
+        $this->seedMilestone(7, ['name' => 'Неделя', 'reward_gold' => 200]);
+        // streak=4 → следующая веха = 7 (ещё 3).
+        $line = $this->svc()->cardProgressLine($this->seedChar(4), 4);
+        $this->assertNotNull($line);
+        $this->assertStringContainsString('Неделя', (string) $line);
+        $this->assertStringContainsString('ещё 3', (string) $line);
+        $this->assertStringContainsString('💰200', (string) $line);
+    }
+
+    public function testCardProgressLineNullWhenDisabled(): void
+    {
+        $this->seedMilestone(3);
+        $this->assertNull($this->svc()->cardProgressLine($this->seedChar(1), 1)); // killswitch off
+    }
+
+    public function testCardProgressLineNullWhenNoStreak(): void
+    {
+        $this->enableMilestones();
+        $this->seedMilestone(3);
+        $this->assertNull($this->svc()->cardProgressLine($this->seedChar(0), 0)); // серии нет
+    }
+
+    public function testCardProgressLineNullWhenAllPassed(): void
+    {
+        $this->enableMilestones();
+        $this->seedMilestone(3);
+        // streak=5 > единственного порога 3 → следующей вехи нет.
+        $this->assertNull($this->svc()->cardProgressLine($this->seedChar(5), 5));
+    }
 }

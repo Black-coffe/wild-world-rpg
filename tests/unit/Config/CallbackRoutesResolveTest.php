@@ -86,6 +86,19 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
     }
 
     /**
+     * ADR-132 Ф2 — кнопка «🔥 Серия выживания» (хаб «📊 Прогресс») шлёт callback `streakScreen`.
+     * Гейтит, что он резолвится в StreakScreenAction (иначе мёртвая кнопка — урок npcAct_/inlineMap).
+     */
+    public function testStreakScreenCallbackRouteResolves(): void
+    {
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\Streak\StreakScreenAction::class,
+            $this->cbRoutes->resolve('streakScreen'),
+            'callback_data «streakScreen» обязан резолвиться в StreakScreenAction (кнопка «🔥 Серия выживания»).'
+        );
+    }
+
+    /**
      * 🔴 Анти-дрифт source-scan: мёртвый литерал `inlineMap` не должен вернуться в код
      * Actions. Class-of-bug «unrouted callback» уже бил дважды (npcAct_ + inlineMap);
      * урок feedback_control_tap_not_throwaway — гейтить на resolve, а не на throwaway-тап.

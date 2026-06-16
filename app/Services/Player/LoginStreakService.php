@@ -60,6 +60,14 @@ class LoginStreakService
             return; // уже засчитан сегодня
         }
 
+        // ADR-132 Ф2 — строгий триггер «день за действие»: при ON день засчитывается только если
+        // игрок реально что-то сделал сегодня (есть character_tasks за сегодня). default OFF →
+        // поведение ADR-108 (засчёт на первом взаимодействии). One-shot-guard выше защищает от
+        // двойного засчёта; засчёт произойдёт на следующем взаимодействии после первого действия дня.
+        if ($this->strictActionTrigger() && ! $this->hasActivityToday($charId)) {
+            return;
+        }
+
         $newStreak = self::computeStreak($lastDay, $today, $oldStreak, $this->graceDays());
         $reward    = self::computeReward($newStreak, $this->baseGold(), $this->bonusPerDay(), $this->maxGold());
 
@@ -157,6 +165,34 @@ class LoginStreakService
     protected function maxGold(): int
     {
         return max(0, $this->gsInt('returnability.streak.max_gold', 500));
+    }
+
+    /** ADR-132 Ф2 — строгий триггер «день за действие» (killswitch, default false = поведение ADR-108). */
+    protected function strictActionTrigger(): bool
+    {
+        return $this->gsBool('returnability.streak.strict_action_trigger', false);
+    }
+
+    /**
+     * Совершил ли игрок осмысленное действие сегодня — есть ли character_tasks со start_time за
+     * сегодня (разведка/добыча/крафт/стройка/марш = единый источник «активности»). Fail-open:
+     * ошибка запроса → true (не ломаем живую серию из-за технической проблемы).
+     */
+    protected function hasActivityToday(int $charId): bool
+    {
+        if ($charId <= 0) {
+            return false;
+        }
+        try {
+            $count = Database::connect()->table('character_tasks')
+                ->where('character_id', $charId)
+                ->where('start_time >=', $this->today() . ' 00:00:00')
+                ->countAllResults();
+        } catch (\Throwable $e) {
+            log_message('error', '[LoginStreakService] hasActivityToday: ' . $e->getMessage());
+            return true; // fail-open
+        }
+        return $count > 0;
     }
 
     /** Серверная дата 'Y-m-d' (seam — инжектируется в тестах). */

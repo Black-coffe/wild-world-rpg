@@ -36,6 +36,10 @@ final class ProfileHubService
         if ((new TitleService())->enabled()) {
             $b[] = ['text' => '🎖 Титулы', 'callback_data' => 'titles'];
         }
+        // ADR-132 — экран «🔥 Серия выживания» (лестница вех login-стрика; gated milestones_enabled).
+        if ((new StreakMilestoneService())->enabled()) {
+            $b[] = ['text' => '🔥 Серия выживания', 'callback_data' => 'streakScreen'];
+        }
         $collections = new CollectionService();
         if ($collections->isEnabled()) {
             $min = $collections->minLevel();
