@@ -313,6 +313,15 @@ class MoveCharacterToDirectionAction
             }
         }
 
+        // ADR-129 — если на клетке active strategic-объект (Бункер/Технопарк/Город-призрак/
+        // Старая ферма/Сердце острова), показать «🔍 Обыскать». Радиосигнал (ADR-098) ведёт
+        // сюда, но одиночный шаг (move_dir) НЕ запускает discovery (только марш) → без явной
+        // кнопки игрок упирался в «ничего не происходит» (прод-инцидент 2026-06-15).
+        $stratName = (new \App\Services\World\StrategicObjectService())->nameOnCell($settleCell);
+        if ($stratName !== null) {
+            $tail[] = ['text' => '🔍 Обыскать: ' . $stratName, 'callback_data' => 'strategicSearch'];
+        }
+
         // W2 (ADR-058) — кнопка «🚁 Дрон» если у чара есть DroneScout с qty>0.
         // W3b (ADR-060) + CLAUDE.md §🎮 UX-DISCOVERABILITY правило #4 —
         // Карго-дрон ВСЕГДА виден (active или lock-state), discoverability

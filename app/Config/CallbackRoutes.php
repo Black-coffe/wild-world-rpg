@@ -318,6 +318,10 @@ class CallbackRoutes extends BaseConfig
         // ADR-101 Фаза 1 — экран-хаб статического поселения (Перекрёсток). Callback `settleHub`
         // (поселение определяется по клетке персонажа через SettlementZoneService).
         'settleHub'                       => \App\Controllers\Telegram\Commands\Actions\Settlement\SettlementHubAction::class,
+        // ADR-129 — «🔍 Обыскать» strategic-объект на клетке игрока (Bunker/Technopark/
+        // GhostCity/IslandFarm/IslandHeart). Радиосигнал (ADR-098) ведёт сюда, но одиночный
+        // шаг не запускал discovery → opt-in кнопка + явный лут (StrategicLootHandler).
+        'strategicSearch'                 => \App\Controllers\Telegram\Commands\Actions\World\StrategicSearchAction::class,
         // ADR-101 Фаза 4 — обыск охраняемых руин (повторяемый лут по кулдауну). Callback `ruinLoot`.
         'ruinLoot'                        => \App\Controllers\Telegram\Commands\Actions\Settlement\RuinLootAction::class,
         // E16 Ф2 (ADR-116) — исследование поясной аномалии (повторяемый лут по кулдауну). Callback `anomalyLoot`.

@@ -288,4 +288,19 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
             );
         }
     }
+
+    /**
+     * ADR-129 «Обыскать стратег-объект» — exact-роут 'strategicSearch' (кнопка на экране
+     * движения, когда на клетке active strategic-объект; радиосигнал ADR-098 ведёт сюда).
+     * Урок control-tap: новый callback-ключ фиксируем resolve-гейтом на unit-уровне —
+     * баг регистрации роута пережил бы throwaway-вызов (как npcAct_).
+     */
+    public function testStrategicSearchCallbackRouteResolves(): void
+    {
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\World\StrategicSearchAction::class,
+            $this->cbRoutes->resolve('strategicSearch'),
+            'callback_data «strategicSearch» обязан резолвиться в StrategicSearchAction (кнопка «🔍 Обыскать»).'
+        );
+    }
 }
