@@ -5,6 +5,7 @@ namespace App\Services\Player;
 use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\GameSettings\GameSettingsService;
 use App\Services\Player\Death\DeathPenaltyCalculator;
 use App\Services\Player\Death\InsuranceCalculator;
 use App\Services\Player\Death\LootProcessor;
@@ -34,12 +35,14 @@ class DeathService
     private DeathPenaltyCalculator $penaltyCalculator;
     private LootProcessor          $lootProcessor;
     private PlayerRespawner        $respawner;
+    private GameSettingsService    $settings;
 
     public function __construct(
         ?InsuranceCalculator $insuranceCalculator = null,
         ?DeathPenaltyCalculator $penaltyCalculator = null,
         ?LootProcessor $lootProcessor = null,
-        ?PlayerRespawner $respawner = null
+        ?PlayerRespawner $respawner = null,
+        ?GameSettingsService $settings = null
     ) {
         $this->characterModel         = new CharacterModel();
         $this->characterResourceModel = new CharacterResourceModel();
@@ -49,6 +52,30 @@ class DeathService
         $this->penaltyCalculator   = $penaltyCalculator   ?? new DeathPenaltyCalculator();
         $this->lootProcessor       = $lootProcessor       ?? new LootProcessor();
         $this->respawner           = $respawner           ?? new PlayerRespawner();
+        $this->settings            = $settings            ?? new GameSettingsService();
+    }
+
+    /**
+     * E31 (ADR-131) — конфиг смягчения потерь новичкам из GameSettings (категория combat).
+     * Возвращает null, если выключено (newbie_level_max<=0) → dormant (легаси штраф).
+     *
+     * @return array{level_max:int,penalty_no_base:float,penalty_with_base:float}|null
+     */
+    private function newbieConfig(): ?array
+    {
+        $rawMax  = $this->settings->get('combat.death.newbie_level_max', 0);
+        $levelMax = is_numeric($rawMax) ? (int) $rawMax : 0;
+        if ($levelMax <= 0) {
+            return null;
+        }
+        $rawNoBase   = $this->settings->get('combat.death.newbie_penalty_no_base', 0.10);
+        $rawWithBase = $this->settings->get('combat.death.newbie_penalty_with_base', 0.0);
+
+        return [
+            'level_max'         => $levelMax,
+            'penalty_no_base'   => is_numeric($rawNoBase) ? (float) $rawNoBase : 0.10,
+            'penalty_with_base' => is_numeric($rawWithBase) ? (float) $rawWithBase : 0.0,
+        ];
     }
 
     /**
@@ -56,7 +83,7 @@ class DeathService
      * имущества → respawn.
      *
      * @return array{
-     *   hasBase:bool, penalty:float,
+     *   hasBase:bool, penalty:float, newbieProtected:bool,
      *   transferredResources:list<array{resourceId:int,amount:int}>,
      *   transferredCraftItems:list<array{craftedItemId:int,amount:int}>,
      *   transferredGold:int,
@@ -67,15 +94,29 @@ class DeathService
     {
         $loserRow = $this->characterModel->find($loserId);
         if (!$loserRow) {
-            return ['success' => false];
+            // Полная форма (E31): early-return совпадает с объявленным типом → без baseline.
+            return [
+                'hasBase'               => false,
+                'penalty'               => 0.0,
+                'newbieProtected'       => false,
+                'transferredResources'  => [],
+                'transferredCraftItems' => [],
+                'transferredGold'       => 0,
+                'success'               => false,
+            ];
         }
 
         // 1) Insurance check (если страховка активна и хватает золота — штраф 0%).
         $insuranceCovered = $this->tryUseInsurance($loserId, $loserRow);
 
-        // 2) Penalty rate.
+        // 2) Penalty rate (E31 ADR-131: level-scaled смягчение новичкам, dormant если выкл).
         $hasBase = $insuranceCovered ? false : $this->respawner->hasActiveBase($loserId);
-        $deathPenalty = $this->penaltyCalculator->decide($insuranceCovered, $hasBase);
+        $loserArr = $loserRow instanceof \App\Entities\CharacterEntity ? $loserRow->toArray() : (is_array($loserRow) ? $loserRow : []);
+        $rawLevel = $loserArr['level'] ?? null;
+        $level    = is_numeric($rawLevel) ? (int) $rawLevel : 0;
+        $newbie   = $insuranceCovered ? null : $this->newbieConfig();
+        $deathPenalty = $this->penaltyCalculator->decide($insuranceCovered, $hasBase, $level, $newbie);
+        $newbieProtected = $newbie !== null && $level > 0 && $level <= $newbie['level_max'];
 
         // 3) Сбор имущества проигравшего.
         $loserResources    = $this->characterResourceModel->where('id_characters', $loserId)->findAll();
@@ -112,6 +153,7 @@ class DeathService
         return [
             'hasBase'               => $hasBase,
             'penalty'               => $deathPenalty,
+            'newbieProtected'       => $newbieProtected,
             'transferredResources'  => $transferredResources,
             'transferredCraftItems' => $transferredCraft,
             'transferredGold'       => $transferredGold,

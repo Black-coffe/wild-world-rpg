@@ -48,6 +48,7 @@ final class DeathMessageBuilder
         $charId       = self::asInt($character['id'] ?? null, 0);
         $penalty      = self::asFloat($deathResult['penalty'] ?? null, 0.0);
         $hasBase      = isset($deathResult['hasBase']) ? (bool) $deathResult['hasBase'] : ($penalty > 0.0 && $penalty < 0.5);
+        $newbieProt   = isset($deathResult['newbieProtected']) && (bool) $deathResult['newbieProtected'];
 
         $recentEvent  = $this->activeDamageEvent($charId);
         $eventName     = $recentEvent !== null && $recentEvent['name'] !== '' ? $recentEvent['name'] : null;
@@ -62,9 +63,14 @@ final class DeathMessageBuilder
             $cause .= " Обычно это голод (кончились еда/вода) или урон от мирового события.";
         }
 
-        return $this->header($name, $penalty)
+        // E31 (ADR-131) — новичку показываем честный смягчающий текст (а не «страховка»,
+        // ведь потери снижены по уровню/базе, а не страховым списанием).
+        $header  = $newbieProt ? $this->newbieHeader($name) : $this->header($name, $penalty);
+        $lossStr = $newbieProt ? $this->newbieLossLine($penalty, $hasBase) : $this->lossLine($penalty);
+
+        return $header
             . "\n\n" . $cause
-            . "\n\n" . $this->lossLine($penalty)
+            . "\n\n" . $lossStr
             . "\n\n" . $this->adviceBlock($eventName !== null, $protectionItem);
     }
 
@@ -74,6 +80,26 @@ final class DeathMessageBuilder
         return $penalty <= 0.0
             ? "😵 *{$name}*, ты умер(ла), но *страховка* уберегла твоё имущество."
             : "😵 *{$name}*, увы, твой персонаж погиб.";
+    }
+
+    /** E31 — шапка для новичка (потери смягчены по уровню). */
+    public function newbieHeader(string $name): string
+    {
+        return "😵 *{$name}*, твой персонаж погиб — но ты ещё новичок, и мир смягчил последствия.";
+    }
+
+    /** E31 — строка потерь для новичка (честно: смягчение по уровню/базе, не страховка). */
+    public function newbieLossLine(float $penalty, bool $hasBase): string
+    {
+        if ($penalty <= 0.0) {
+            return $hasBase
+                ? "📦 *Потери:* *0%* — у тебя есть база, и как новичку тебе сохранили всё имущество. Стройка лагеря окупилась."
+                : "📦 *Потери:* *0%* — тебе как новичку дали полную фору на старте.";
+        }
+
+        return "📦 *Потери:* ~*" . (int) round($penalty * 100)
+            . "%* ресурсов, крафта и золота — тебе как новичку снизили штраф (обычно без базы теряют 50%). "
+            . "Построй и навещай базу, чтобы терять ещё меньше.";
     }
 
     /** Строка о потерях по penalty (0 страховка / 0<x<0.5 есть база / ≥0.5 нет базы). */

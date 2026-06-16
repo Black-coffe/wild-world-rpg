@@ -6972,7 +6972,6 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/MoveCharacterToDirectionAction.php
 
-
 		-
 			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterToDirectionAction\:\:\$directionsTranslation has no type specified\.$#'
 			identifier: missingType.property
@@ -14020,12 +14019,6 @@ parameters:
 		-
 			message: '#^Cannot access offset ''gold'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/DeathService.php
-
-		-
-			message: '#^Method App\\Services\\Player\\DeathService\:\:handlePlayerDeathAndReward\(\) should return array\{hasBase\: bool, penalty\: float, transferredResources\: list\<array\{resourceId\: int, amount\: int\}\>, transferredCraftItems\: list\<array\{craftedItemId\: int, amount\: int\}\>, transferredGold\: int, success\: bool\} but returns array\{success\: false\}\.$#'
-			identifier: return.type
 			count: 1
 			path: app/Services/Player/DeathService.php
 
