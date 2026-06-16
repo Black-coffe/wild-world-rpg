@@ -19,6 +19,11 @@ $routes->get('battles/view/(:num)', 'BattlesController::publicView/$1');
 // Asana «Визуальная таблица достижений на сайте» (Steam/Монобанк-стиль, flat ADR-062).
 // Публичная сетка достижений + глобальный % игроков; личный прогресс — за TG-входом (ADR-061).
 $routes->get('achievements', 'AchievementsController::publicIndex');
+
+// E30 (ROADMAP-100 §E-D): публичный веб-профиль персонажа (flat ADR-062, viral-петля).
+// Brag-данные (уровень/титул/фракция/достижения/PvP); БЕЗ локации (приватность own-only).
+// (:num) — целочисленный id, не коллизирует с catch-all /{slug} (slug'и нечисловые).
+$routes->get('profile/(:num)', 'ProfileController::view/$1');
 // v0.51.6 security cleanup: removed public unprotected routes
 // - /migrate -> MigrationController (CRITICAL: anyone could trigger migrations->latest() via GET)
 // - /pve-test, /pve-test-view -> PvETestController (dead test scaffolding, replaced by PHPUnit)
