@@ -213,6 +213,14 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\Titles\TitleCheckCron())->handle())
             ->everyMinute()->singleInstance()->named('title.check');
 
+        // ADR-132 (надстройка над E6/ADR-108 Ф3) — выдача наград за вехи серии (зеркало
+        // achievement.check). everyMinute: для каждой включённой вехи set-based SQL находит чаров,
+        // чей login_streak ≥ порога и веха ещё не забрана → выдаёт (золото/ресурс/титул) + батч-
+        // уведомление per-player. Killswitch returnability.streak.milestones_enabled (default OFF →
+        // no-op до активации). Cap returnability.streak.milestones_max_awards_per_tick.
+        $schedule->call(static fn() => (new \App\TaskHandlers\Streak\StreakMilestoneCron())->handle())
+            ->everyMinute()->singleInstance()->named('streak.milestone-check');
+
         // ============================================================
         // CHARACTER TASKS DISPATCHER (главный Worker loop)
         // ============================================================
