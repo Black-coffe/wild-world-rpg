@@ -1,6 +1,6 @@
 # Конституция UI/UX админки Wild World — «Quiet Premium»
 
-> **Статус:** 🟡 ЧЕРНОВИК НА РЕВЬЮ (2026-06-15). После «ок» владельца становится конституционным правилом в `CLAUDE.md` + ADR-128 в `mmorpg-vault/decisions/`.
+> **Статус:** ✅ РАТИФИЦИРОВАНА (2026-06-16). Конституционное правило в `CLAUDE.md` (раздел «🎨 ADMIN-UI "Quiet Premium"») + ADR-128 в `mmorpg-vault/decisions/ADR-128-Admin-UI-Quiet-Premium.md`. Прод — `v0.51.452`.
 > **Превью-эталон:** `public/admin-redesign-preview.html` (открыть `/admin-redesign-preview.html`) — дашборд + полный UI-kit.
 > **Дизайн-система (код):** `public/assets/css/admin-ui.css`.
 > **Скиллы-источники:** Readiness Fund Style (Jony Ive + топ-VC) · frontend-design (анти-AI-slop).
@@ -96,13 +96,13 @@
 - A11y: `:focus-visible`, `aria-label` на иконочных кнопках, контраст AA.
 - Tier-2 visual smoke через MCP Chrome (1440 / 768 / 375) после правок.
 
-## 8. План внедрения (после «ок»)
+## 8. План внедрения — ВЫПОЛНЕН (B1-B5, прод v0.51.452, 2026-06-16)
 
-1. Промоут этого документа: правило в `CLAUDE.md` + ADR-128 в vault + tech-writing нота.
-2. `admin-ui.css` → подключить в `_head_common.php`; создать `/admin-ui-kit.html` (living styleguide).
-3. Переписать общий шелл (`templates/sidebar.php`, `navbar_custome.php`, `admin/layouts/default.php`, `templates/dashboard.php`) на новый язык; убрать зависимость от Hyper там, где она только мешает.
-4. Постранично перевести вьюхи (дашборд → index-страницы → формы → спец-экраны) на `.aui-*`. По одной группе за раз, Tier-2 smoke на каждой.
-5. Удалить мёртвый AdminLTE из `public/dist/` и неиспользуемые vendor-CSS.
+1. ✅ Промоут: правило в `CLAUDE.md` («🎨 ADMIN-UI "Quiet Premium"») + ADR-128 в vault. *(Отдельная tech-writing нота не плодится — спек живёт в этом документе + `admin-ui.css` + UI-kit.)*
+2. ✅ `admin-ui.css` подключён; living styleguide = `public/admin-redesign-preview.html` *(отдельный `/admin-ui-kit.html` под этим именем — необязательный хвост)*.
+3. ✅ Шелл переписан (`admin/layouts/aui.php` + `_aui_sidebar.php`), legacy-Hyper-зависимость убрана из redesign-вьюх.
+4. ✅ 42/42 вьюхи переведены на `.aui-*` (0 на легаси-layout), Tier-2 smoke по группам.
+5. ✅ Мёртвый AdminLTE `public/dist/` удалён (был untracked → не деплоился; локальная гигиена). ⏳ Hyper-CSS (`app-saas`/`icons`) ПОКА остаётся — нужен legacy-layout'ам через `_head_common.php`; удаляется, когда они полностью съедут на `aui`.
 
 ## 9. Решения владельца (2026-06-15)
 
