@@ -28,7 +28,8 @@ final class AdminPartialsTest extends CIUnitTestCase
         $this->assertStringContainsString('icons.min.css', $html);
         $this->assertStringContainsString('my.css', $html);
         $this->assertStringContainsString('hyper-config.js', $html);
-        $this->assertStringContainsString('favicon.ico', $html);
+        // ADR-128: редизайн «Quiet Premium» заменил favicon.ico на компас-фавикон.
+        $this->assertStringContainsString('favicon.svg', $html);
     }
 
     public function testFooterRendersCopyrightBlock(): void
