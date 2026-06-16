@@ -7,7 +7,9 @@ namespace App\Controllers\Telegram\Commands\Actions\Camp;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\BuildingEffects\BuildingEffectsService;
 use App\Services\Notifications\MediaSender;
+use App\Services\PVE\DefenseStructureService;
 use Config\Database;
+use Config\GameBalance;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
@@ -35,18 +37,22 @@ final class BaseDevelopmentAction extends BaseAction
         'TeleportationCenter' => ['teleport_cost_multiplier','reduce',  'цена телепорта',      '🌀'],
     ];
 
-    /** Иконки прочих зданий (без уровневого множителя в витрине). */
+    /** Иконки прочих зданий (эффект-строки E18 Ф2 — не-множительные, см. nonMultiplierLine). */
     private const ICONS = [
         'HandPump' => '🚰', 'Gym' => '🥊', 'Warehouse' => '🏚️', 'Arsenal' => '⚔️',
         'CommunicationTower' => '📢', 'WoodenWall' => '🪵', 'BarbedFence' => '🌵', 'WatchTower' => '🗼',
     ];
 
     private BuildingEffectsService $effects;
+    private DefenseStructureService $defense;
+    private GameBalance $gb;
 
     public function __construct(CallbackQuery $callbackQuery)
     {
         parent::__construct($callbackQuery);
         $this->effects = new BuildingEffectsService();
+        $this->defense = new DefenseStructureService();
+        $this->gb      = config(GameBalance::class);
     }
 
     public function handle(): ServerResponse
@@ -118,6 +124,13 @@ final class BaseDevelopmentAction extends BaseAction
                     $text .= "  →  ур.{$lvl}+1: {$next}";
                 }
                 $text .= "\n";
+            } else {
+                // E18 Ф2 — эффект-строки не-множительных зданий (production / оборона / радиус /
+                // флэт-роль). Честно: только активные эффекты (ёмкость Склада dormant → не показываем).
+                $nm = $this->nonMultiplierLine($nameEn, $lvl);
+                if ($nm !== null) {
+                    $text .= "    {$nm}\n";
+                }
             }
         }
 
@@ -134,5 +147,79 @@ final class BaseDevelopmentAction extends BaseAction
         }
         $pct = (int) round(($mult - 1.0) * 100);
         return $pct > 0 ? "+{$pct}% {$label}" : "базовый эффект";
+    }
+
+    /**
+     * E18 Ф2 — честная эффект-строка не-множительного здания на уровне (+ след. уровень, если
+     * эффект растёт). Источники авторитетные: GameBalance (HandPump/Gym), DefenseStructureService
+     * (оборона, реюз scaledInt/cap — без дублирования формулы), level×100 (радиус роботов).
+     * Только АКТИВНЫЕ эффекты (ёмкость Склада за dormant weight-cap НЕ показываем).
+     */
+    private function nonMultiplierLine(string $nameEn, int $level): ?string
+    {
+        $lvl  = max(1, min(10, $level));
+        $next = $lvl < 10 ? $lvl + 1 : null;
+
+        switch ($nameEn) {
+            case 'HandPump':
+                $cur = $this->gb->handPumpLevels[$lvl] ?? 1;
+                $s   = "≈{$cur} воды/мин (зависит от биома)";
+                if ($next !== null) {
+                    $s .= "  →  ур.{$lvl}+1: ≈" . ($this->gb->handPumpLevels[$next] ?? $cur);
+                }
+                return $s;
+
+            case 'Gym':
+                $cur = $this->gb->gymStrengthByLevel[$lvl] ?? 0.01;
+                $s   = "+{$cur} силы / 30 мин";
+                if ($next !== null) {
+                    $s .= "  →  ур.{$lvl}+1: +" . ($this->gb->gymStrengthByLevel[$next] ?? $cur);
+                }
+                return $s;
+
+            case 'CommunicationTower':
+                $s = "радиус роботов: " . ($lvl * 100) . " клеток";
+                if ($next !== null) {
+                    $s .= "  →  ур.{$lvl}+1: " . ($next * 100) . " клеток";
+                }
+                return $s;
+
+            case 'WoodenWall':
+                $cap = $this->defense->totalReductionCapPercent();
+                $cur = min($this->defense->scaledInt('defense.wall.damage_reduction_percent', 15, $lvl), $cap);
+                $s   = "−{$cur}% урона по базе при рейде (макс {$cap}%)";
+                if ($next !== null) {
+                    $nx = min($this->defense->scaledInt('defense.wall.damage_reduction_percent', 15, $next), $cap);
+                    $s .= "  →  ур.{$lvl}+1: −{$nx}%";
+                }
+                return $s;
+
+            case 'BarbedFence':
+                $cur = $this->defense->scaledInt('defense.fence.attacker_damage_per_round', 3, $lvl);
+                $s   = "+{$cur} контрурона атакующему/раунд";
+                if ($next !== null) {
+                    $nx = $this->defense->scaledInt('defense.fence.attacker_damage_per_round', 3, $next);
+                    $s .= "  →  ур.{$lvl}+1: +{$nx}";
+                }
+                return $s;
+
+            case 'WatchTower':
+                $cur = $this->defense->scaledInt('defense.tower.defender_initiative_bonus_percent', 8, $lvl);
+                $s   = "+{$cur}% инициативы в обороне + алерт о подходе врага";
+                if ($next !== null) {
+                    $nx = $this->defense->scaledInt('defense.tower.defender_initiative_bonus_percent', 8, $next);
+                    $s .= "  →  ур.{$lvl}+1: +{$nx}%";
+                }
+                return $s;
+
+            case 'Warehouse':
+                return "закрытый рынок (покупка крафта) + бонус к продаже (флэт)";
+
+            case 'Arsenal':
+                return "хранение и экипировка оружия и брони (флэт)";
+
+            default:
+                return null;
+        }
     }
 }
