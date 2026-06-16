@@ -115,10 +115,10 @@ class WorkbenchProfessionalAction extends BaseAction
 
         $hasBase = (bool) $this->claimedCellModel->where('character_id', $characterId)->first();
 
-        $text = "*🛠️ Профессиональный верстак (Tier 3)*\n\n"
-            . "_Тяжёлый ручной верстак с парными тисками, маленьким горном и стеной для инструментов. "
-            . "Открывает крафт Tier 3 — продвинутое оружие, броню, медицину и утилиты._\n\n"
-            . "*Требования:*\n";
+        $text = "*🛠️ Профессиональный верстак (цех)*\n\n"
+            . "_Второй и высший верстак в игре — тяжёлый ручной цех с парными тисками, маленьким горном и стеной для инструментов. "
+            . "Открывает Профессиональный крафт: продвинутое оружие, броню, медицину, утилиты и фракционные вещи._\n\n"
+            . "*Требования для сборки:*\n";
 
         $hasAll = true;
 
@@ -223,6 +223,9 @@ class WorkbenchProfessionalAction extends BaseAction
                     ['text' => '💰 Продать', 'callback_data' => 'sell'],
                     ['text' => '🛍️ Купить',  'callback_data' => 'buy'],
                 ],
+                [
+                    ['text' => '🔬 Верстаки', 'callback_data' => 'WorkbenchChoice'],
+                ],
             ];
 
         $imagePath = base_url('uploads/telegram/craft/professional_workbench.jpg');
@@ -243,7 +246,7 @@ class WorkbenchProfessionalAction extends BaseAction
      */
     private function renderCraftMenu(int $chatId): ServerResponse
     {
-        $text = "*🛠️ Профессиональный верстак (T3) — Готов*\n\n"
+        $text = "*🛠️ Профессиональный верстак (цех) — Готов*\n\n"
             . "Тяжёлый верстак собран, тиски разведены, паяльник греется. "
             . "Выбирай раздел для крафта.\n\n"
             . "⚔️ *Оружие* — 5 рецептов T3 (S17)\n"

@@ -90,8 +90,8 @@ class WorkbenchOneAction extends BaseAction
 
         $goldQuantity = $goldAvailable ? $goldAvailable['gold'] : 0;
 
-        $text = "*🔬 Верстак 1!*\n\n"
-            . "*Описание:* Верстак предназначен для крафта различных предметов и компонентов.\n";
+        $text = "*🔬 Верстак 1*\n\n"
+            . "Базовый верстак — первый в игре. Открывает *Стандартный крафт*: роботы, телепорты, броня, оружие и дроны. Следующая ступень — Профессиональный верстак (цех).\n";
 
         // Идея #11 (Yupirex, 23.01.2025): показывать ВСЕ ресы с (есть / нужно),
         // не только недостающие — чтобы планировать заранее.
@@ -143,6 +143,9 @@ class WorkbenchOneAction extends BaseAction
                         ['text' => '💰 Продать', 'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить', 'callback_data' => 'buy']
                     ],
+                    [
+                        ['text' => '🔬 Верстаки', 'callback_data' => 'WorkbenchChoice'],
+                    ],
                 ]
             ];
         } else {
@@ -154,6 +157,9 @@ class WorkbenchOneAction extends BaseAction
                     [
                         ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                    ],
+                    [
+                        ['text' => '🔬 Верстаки', 'callback_data' => 'WorkbenchChoice'],
                     ],
                 ]
             ];

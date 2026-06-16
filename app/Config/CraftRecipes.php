@@ -845,7 +845,7 @@ class CraftRecipes extends BaseConfig
             'requires_base'        => true,
             'required_buildings'   => [],
             'image_in_progress'    => 'uploads/telegram/craft/huge_mechanical_workbench.jpg',
-            'start_caption_name'   => '🔬 *Верстак 1!*',
+            'start_caption_name'   => '🔬 *Верстак 1*',
             'info_callback'        => 'workbenchOne',
 
             'item_name_eng'        => 'WorkbenchOne',
@@ -1344,7 +1344,7 @@ class CraftRecipes extends BaseConfig
             // вместо tasks.min_duration/max_duration.
             'duration_override_setting_key'   => 'tier3.workbench.craft_duration_hours',
             'image_in_progress'               => 'uploads/telegram/craft/professional_workbench.jpg',
-            'start_caption_name'              => '🛠️ *Профессиональный верстак (T3)*',
+            'start_caption_name'              => '🛠️ *Профессиональный верстак (цех)*',
             'info_callback'                   => 'workbenchProfessional',
 
             'item_name_eng'                   => 'ProfessionalWorkbench',

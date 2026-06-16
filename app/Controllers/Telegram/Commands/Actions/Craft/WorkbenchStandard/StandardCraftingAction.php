@@ -13,9 +13,9 @@ class StandardCraftingAction extends BaseAction
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
         $text = "*Ты в разделе 🔧 Стандартный крафт* 🏭\n\n"
-            . "В этом разделе можно крафтить *продвинутые вещи*!\n"
-            . "Все, что внизу можно крафтить имея *1й верстак* и *построенную базу*!\n\n"
-            . "_Выбирай направление крафта и если у тебя достаточно ресурсов, ты получишь нужную вещь_ 👇\n";
+            . "Здесь крафтятся *продвинутые вещи*: роботы, телепорты, броня, оружие и дроны.\n"
+            . "Нужны *🔬 Верстак 1* и построенная база.\n\n"
+            . "_Выбирай направление крафта — если хватит ресурсов, получишь нужную вещь_ 👇\n";
 
         // Базовые категории.
         $rows = [
@@ -59,7 +59,11 @@ class StandardCraftingAction extends BaseAction
         }
 
         $rows[]    = [
-            ['text' => '📋 Очередь крафта', 'callback_data' => 'craftQueue'],
+            ['text' => '📋 Очередь крафта',  'callback_data' => 'craftQueue'],
+            ['text' => '🔬 Верстаки',         'callback_data' => 'WorkbenchChoice'],
+        ];
+        $rows[]    = [
+            ['text' => '🔨 К общему крафту', 'callback_data' => 'generalCraft'],
         ];
         $keyboard = ['inline_keyboard' => $rows];
 
