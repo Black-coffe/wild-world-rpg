@@ -184,8 +184,15 @@ class AttackPlayerAction extends BaseAction
             (int) ($defender['cell_number'] ?? 0),
         );
 
+        // F1.4 (Models→Entity): $attacker/$defender — CharacterEntity. simulateFight и
+        // processMutualExhaustion строго типизированы `array` → нормализуем к plain array
+        // (прод-инцидент 2026-06-14, 3× CRITICAL на поле-PvP «Атаковать»). RNG-fence цел:
+        // toRawArray() даёт те же данные (включая выставленный выше 'faction'), движок не тронут.
+        $attackerArr = self::toCharacterArray($attacker);
+        $defenderArr = self::toCharacterArray($defender);
+
         // 1) Симуляция боя (с учётом защиты базы, если есть).
-        $fightResult = $this->roundOrchestrator->simulateFight($attacker, $defender, $biome, $defenseProfile);
+        $fightResult = $this->roundOrchestrator->simulateFight($attackerArr, $defenderArr, $biome, $defenseProfile);
 
         // S26: износ структур за отбитую атаку (decay), если защита применялась.
         if ($defenseProfile !== null) {
@@ -216,7 +223,7 @@ class AttackPlayerAction extends BaseAction
         $defenderIntro = '';
 
         if ($fightResult['type'] === 'exhausted') {
-            $this->rewardOrchestrator->processMutualExhaustion($attacker, $defender);
+            $this->rewardOrchestrator->processMutualExhaustion($attackerArr, $defenderArr);
             $summaryText .= "\n\n<b>Оба бойца изнемогли</b> и решили прекратить схватку!\n"
                 . "❤️ Здоровье и выносливость сброшены до 10.\n"
                 . "🚶 <i>Они отступили, обдумывая ошибки...</i>";
@@ -340,6 +347,34 @@ class AttackPlayerAction extends BaseAction
         }
 
         return Request::emptyResponse();
+    }
+
+    /**
+     * Нормализует персонажа (CharacterEntity ИЛИ массив) в plain array.
+     *
+     * Нужно для строго-array-консьюмеров боевого пути (`simulateFight` $p1/$p2,
+     * `processMutualExhaustion`): с F1.4 `getUserAndCharacter()` / `CharacterModel::find()`
+     * возвращают CharacterEntity, и прямой проброс ронял `TypeError` (прод 2026-06-14).
+     * Pure + static → тестируется без инстанса контроллера (требует CallbackQuery).
+     *
+     * @param mixed $character CharacterEntity, массив или (защитно) что угодно
+     * @return array<string,mixed>
+     */
+    public static function toCharacterArray(mixed $character): array
+    {
+        $raw = [];
+        if (is_array($character)) {
+            $raw = $character;
+        } elseif ($character instanceof \CodeIgniter\Entity\Entity) {
+            $raw = $character->toRawArray();
+        }
+
+        $out = [];
+        foreach ($raw as $k => $v) {
+            $out[(string) $k] = $v;
+        }
+
+        return $out;
     }
 
     /**
