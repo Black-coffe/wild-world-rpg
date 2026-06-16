@@ -62,6 +62,15 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
 
     public function handle($object, $cell, $character): void
     {
+        // ADR-129 — callback-вход StrategicSearchAction передаёт CharacterEntity, тогда как
+        // march-путь (ObjectDiscoveryService) исторически передаёт массив. Внутренние методы
+        // (sendInsufficientToolsMessage / awardContents) строго типизированы `array $character`
+        // → Entity ронял TypeError (поймано живым Tier-3 тапом, ADR-129). Нормализуем Entity→array
+        // на входе: массив-вызовы не затронуты (is_object=false → ветка пропускается).
+        if (is_object($character) && method_exists($character, 'toArray')) {
+            $character = $character->toArray();
+        }
+
         $requiredTools = json_decode($object['discovery_tools'] ?? '[]', true) ?: [];
 
         // Tool check (якщо потребно)
