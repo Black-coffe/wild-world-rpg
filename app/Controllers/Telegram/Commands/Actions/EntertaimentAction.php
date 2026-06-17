@@ -4,9 +4,12 @@ namespace App\Controllers\Telegram\Commands\Actions;
 
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 
 class EntertaimentAction extends BaseAction
 {
+    use GameSettingsReaderTrait;
+
     public function handle(): ServerResponse
     {
         [$user, $character] = $this->getUserAndCharacter();
@@ -22,21 +25,31 @@ class EntertaimentAction extends BaseAction
             . "Перед вами мир азарта, везения и разочарования. \nВо что желаете поиграть сегодня❓\n\n"
             . "Выберите тип игры, чтобы развеяться и приятно провести время 👇\n";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🛞 Колесо фортуны', 'callback_data' => 'WheelOfFortune'],
-                    ['text' => '🎲 Угадай число', 'callback_data' => 'GuessNumber']
-                ],
-                [
-                    ['text' => '✂️ Камень-ножницы-бумага', 'callback_data' => 'RockPaperScissors'],
-                    ['text' => '🔀 Перемешать ресурсы', 'callback_data' => 'ShuffleResources'],
-                ],
-                [
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                ],
-            ]
+        $rows = [
+            [
+                ['text' => '🛞 Колесо фортуны', 'callback_data' => 'WheelOfFortune'],
+                ['text' => '🎲 Угадай число', 'callback_data' => 'GuessNumber']
+            ],
+            [
+                ['text' => '✂️ Камень-ножницы-бумага', 'callback_data' => 'RockPaperScissors'],
+                ['text' => '🔀 Перемешать ресурсы', 'callback_data' => 'ShuffleResources'],
+            ],
         ];
+
+        // ADR-133 — «🎲 Оракул острова»: кнопка видна ТОЛЬКО при killswitch oracle.enabled
+        // (dormant → скрыта, live-vs-dormant honesty). Для < min_level OracleAction отдаёт
+        // lock-экран с объяснением (UX-discoverability).
+        if ($this->gsBool('oracle.enabled', false)) {
+            $rows[] = [
+                ['text' => '🔮 Оракул острова', 'callback_data' => 'oracle'],
+            ];
+        }
+
+        $rows[] = [
+            ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+        ];
+
+        $keyboard = ['inline_keyboard' => $rows];
 
         $imagePath = base_url('uploads/telegram/fun_games.png'); // Укажите актуальный путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);

@@ -125,6 +125,11 @@ class CallbackRoutes extends BaseConfig
         // Exact-роут (первый сегмент 'ShuffleResources' без `_`); хвосты rarity_/go_/restart
         // разбирает сам action через explode('_'). НЕ prefix — иначе ловил бы лишнее.
         'ShuffleResources'                => \App\Controllers\Telegram\Commands\Actions\Games\ShuffleResourcesAction::class,
+        // ADR-133 — «🎲 Оракул острова»: золотой пари-мютюэль рынок предсказаний. Exact-роут
+        // (первый сегмент 'oracle' без `_`); хвосты m_/o_/bet_/my разбирает сам action через
+        // explode('_'). 'oracleLocked' (без `_`) — отдельный lock-вход для < min_level.
+        'oracle'                          => \App\Controllers\Telegram\Commands\Actions\Games\OracleAction::class,
+        'oracleLocked'                    => \App\Controllers\Telegram\Commands\Actions\Games\OracleAction::class,
         'events'                          => \App\Controllers\Telegram\Commands\Actions\EventAction::class,
         'finishAllTasks'                  => \App\Controllers\Telegram\Commands\Actions\FinishTaskAction::class,
 

@@ -82,6 +82,12 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\BaseLifecycleHandler())->handle())
             ->daily('04:00')->singleInstance()->named('base.lifecycle');
 
+        // ADR-133 (DORMANT) — «Оракул острова»: открытие/закрытие/расчёт рынков предсказаний.
+        // everyMinute + внутренние guard'ы по locks_at/resolves_at. Killswitch oracle.enabled
+        // (OFF) → handler выходит мгновенно (ensure/lock/settle — no-op).
+        $schedule->call(static fn() => (new \App\TaskHandlers\Oracle\OracleSettlementHandler())->handle())
+            ->everyMinute()->singleInstance()->named('oracle.settlement');
+
         // ============================================================
         // BUILDING PRODUCTION — каждую минуту
         // ============================================================

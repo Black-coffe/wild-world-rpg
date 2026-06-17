@@ -168,6 +168,7 @@ class WipeManifest extends BaseConfig
         'teleport_beacon_logs'   => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Логи телепортов'],
         'teleport_beacons'       => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Маяки телепортации игрока'],
         'transactions'           => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Торговые транзакции игрока'],
+        'oracle_bets'            => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Ставки игрока в «Оракуле острова» (ADR-133) — прогресс/история; новый сезон с нуля'],
 
         // ─────────────────────────────────────────────────────────────
         // 🟠 TRANSIENT — транзиентная населённость мира / очереди (полный вайп = DELETE всех)
@@ -176,6 +177,8 @@ class WipeManifest extends BaseConfig
         'npc_spawns'           => ['strategy' => self::TRANSIENT, 'note' => 'Спавны NPC на карте (крон респавнит)'],
         'caravans'             => ['strategy' => self::TRANSIENT, 'note' => 'Торговые караваны (крон спавнит)'],
         'faction_projects'     => ['strategy' => self::TRANSIENT, 'note' => 'Прогресс фракционных проектов (пересоздаются)'],
+        'oracle_markets'       => ['strategy' => self::TRANSIENT, 'note' => 'Экземпляры рынков «Оракул острова» (ADR-133) — крон пересоздаёт каждый цикл'],
+        'oracle_outcomes'      => ['strategy' => self::TRANSIENT, 'note' => 'Исходы рынков «Оракул острова» (ADR-133) — привязаны к oracle_markets, пересоздаются'],
         'queue_jobs'           => ['strategy' => self::TRANSIENT, 'note' => 'Очередь фоновых заданий'],
         'queue_jobs_failed'    => ['strategy' => self::TRANSIENT, 'note' => 'Проваленные фоновые задания'],
 
