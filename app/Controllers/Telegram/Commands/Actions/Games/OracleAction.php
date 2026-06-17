@@ -138,7 +138,7 @@ class OracleAction extends BaseAction
             . "Закрытие ставок: " . $this->fmtTime($market['locks_at']) . "\n\n"
             . "Банк: *{$market['bank']}🪙* · комиссия дома {$rakePctStr}% (−{$market['rake']}🪙, сгорает)\n"
             . "К дележу: *{$market['distributable']}🪙*\n\n"
-            . "*Исход · ставок · доля · котировка\\**\n";
+            . "*Исход · ставок · доля · котировка:*\n";
 
         $keyboard = [];
         foreach ($market['outcomes'] as $o) {
@@ -147,7 +147,7 @@ class OracleAction extends BaseAction
             $keyboard[] = [['text' => "Ставить на: {$o['label']} ({$oddsStr})", 'callback_data' => 'oracle_o_' . $marketId . '_' . $o['code']]];
         }
 
-        $text .= "\n_\\*котировка = (банк − комиссия) / ставки на исход; плавает по мере ставок, фиксируется на закрытии._\n";
+        $text .= "\n_Котировка = (банк − комиссия) / ставки на исход; плавает по мере ставок, фиксируется на закрытии._\n";
         if ($myStake > 0) {
             $text .= "\nТвои ставки на этом рынке: *{$myStake}🪙* (лимит {$this->oracle->maxStake()}🪙).\n";
         }
