@@ -2071,30 +2071,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/WorkshopHandler.php
 
 		-
-			message: '#^Access to an undefined property App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampCancelAction\:\:\$callbackQuery\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/CampCancelAction.php
-
-		-
-			message: '#^Call to static method answerCallbackQuery\(\) on an unknown class App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Request\.$#'
-			identifier: class.notFound
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/CampCancelAction.php
-
-		-
-			message: '#^Call to static method sendMessage\(\) on an unknown class App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Request\.$#'
-			identifier: class.notFound
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/CampCancelAction.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampCancelAction\:\:handle\(\) has invalid return type App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\ServerResponse\.$#'
-			identifier: class.notFound
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/CampCancelAction.php
-
-		-
 			message: '#^Cannot access offset ''amount'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
