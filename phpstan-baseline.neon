@@ -1003,24 +1003,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/BaseAction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildHandPumpAction\:\:handle\(\) should return Longman\\TelegramBot\\Entities\\ServerResponse but returns true\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildHandPumpAction.php
-
-		-
-			message: '#^Negated boolean expression is always false\.$#'
-			identifier: booleanNot.alwaysFalse
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildHandPumpAction.php
-
-		-
-			message: '#^Result of \|\| is always false\.$#'
-			identifier: booleanOr.alwaysFalse
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/BuildHandPumpAction.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\ArsenalHandler\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1

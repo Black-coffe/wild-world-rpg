@@ -81,6 +81,13 @@ class FortuneWheelAction extends BaseAction
             return $this->handleSpinWheel($character, $params);
         }
 
+        // Нераспознанный суб-экшен (устаревший/битый callback) — гасим «часики»
+        // и объясняем причину (no-silent-failures), а не молчим.
+        Request::answerCallbackQuery([
+            'callback_query_id' => $this->callbackQuery->getId(),
+            'text'              => '⚠️ Кнопка устарела. Открой «🛞 Колесо фортуны» заново.',
+            'show_alert'        => true,
+        ]);
         return Request::emptyResponse();
     }
 
@@ -127,6 +134,13 @@ class FortuneWheelAction extends BaseAction
     protected function handleSpinWheel($character, $params)
     {
         if (count($params) < 3) {
+            // Битый/устаревший callback без суммы ставки — гасим «часики»
+            // и объясняем причину (no-silent-failures), а не молчим.
+            Request::answerCallbackQuery([
+                'callback_query_id' => $this->callbackQuery->getId(),
+                'text'              => '⚠️ Не удалось определить ставку. Открой «🛞 Колесо фортуны» заново.',
+                'show_alert'        => true,
+            ]);
             return Request::emptyResponse();
         }
 

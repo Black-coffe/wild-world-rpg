@@ -58,6 +58,19 @@ class CallbackqueryCommand extends SystemCommand
             return $response;
         }
 
+        // Ни один из 4 слоёв роутинга не распознал callback_data — «мёртвая» /
+        // устаревшая кнопка. Раньше отдавали emptyResponse → игрок видел чистую
+        // тишину И висящие «часики» (исторические инциденты npcAct_/npcDlg_).
+        // Принцип no-silent-failures: гасим спиннер и объясняем причину.
+        // log_message('warning') — чтобы мёртвые кнопки всплывали в daily log review.
+        log_message('warning', 'Unrouted callback_data: ' . $callbackData);
+
+        Request::answerCallbackQuery([
+            'callback_query_id' => $callbackQuery->getId(),
+            'text'              => "⚠️ Эта кнопка устарела или больше не работает.\nОткрой меню заново: /start",
+            'show_alert'        => true,
+        ]);
+
         return Request::emptyResponse();
     }
 

@@ -77,6 +77,13 @@ class SellResourceAction extends BaseAction
             }
         }
 
+        // Нераспознанный формат callback (устаревшая кнопка) — гасим «часики»
+        // и объясняем причину (no-silent-failures), а не молчим.
+        Request::answerCallbackQuery([
+            'callback_query_id' => $this->callbackQuery->getId(),
+            'text'              => '⚠️ Кнопка устарела. Открой продажу ресурсов заново.',
+            'show_alert'        => true,
+        ]);
         return Request::emptyResponse();
     }
 
