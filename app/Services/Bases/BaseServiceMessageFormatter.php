@@ -236,14 +236,21 @@ final class BaseServiceMessageFormatter
     /** @return array{text: string, parse_mode: string, reply_markup: string} */
     public function campCreationConfirm(int|string $coordX, int|string $coordY, string $biomeName): array
     {
-        $text = "Ты собираешься разбить лагерь на клетке (X={$coordX}, Y={$coordY}), биом: *{$biomeName}*.\n\n"
-            . "Разбивка лагеря – серьёзный шаг. Если потом снести базу,\n"
-            . "все построенные сооружения будут утеряны!\n\n"
-            . "Подтверждаешь создание лагеря?";
+        // ADR-103 onboarding: «что такое лагерь» теперь прямо на экране подтверждения
+        // (раньше это был отдельный экран-интро EntrenchAction перед подтверждением —
+        // лишний шаг для новичка). Самодостаточный текст (media-off, ADR-020).
+        $text = "🏕 *Разбить лагерь здесь?*\n\n"
+            . "📍 Клетка X={$coordX}, Y={$coordY}, биом: *{$biomeName}*.\n\n"
+            . "Лагерь закрепит это место за тобой: дальнейшие постройки можно ставить "
+            . "только в этой ячейке. Добывать ресурсы и исследовать территорию ты "
+            . "сможешь как и прежде. Чтобы вернуться на базу — портативный телепорт "
+            . "или −1 опыта за возврат.\n\n"
+            . "⚠️ Если позже снесёшь базу, построенные сооружения будут утеряны.";
 
         $keyboard = [
             'inline_keyboard' => [
-                [['text' => '✅ Подтвердить', 'callback_data' => 'CampCreateConfirm']],
+                [['text' => '✅ Разбить лагерь здесь', 'callback_data' => 'CampCreateConfirm']],
+                [['text' => '↩️ Не сейчас', 'callback_data' => 'CancelCamp']],
             ],
         ];
 

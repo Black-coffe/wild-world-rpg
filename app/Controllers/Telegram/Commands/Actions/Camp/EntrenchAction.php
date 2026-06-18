@@ -54,8 +54,8 @@ class EntrenchAction extends BaseAction
             ],
         ];
 
+        // Лимит баз достигнут — объясняем игроку (UX-discoverability), дальше не идём.
         if ($campCount >= $maxBases) {
-            // Лимит баз для текущего уровня достигнут — объясняем игроку (UX-discoverability).
             $nextLevel = $baseLimit->nextBaseLevel($campCount);
             if ($nextLevel === null) {
                 $text = "🤖 Это снова я – *Роби*!\n\n"
@@ -66,37 +66,29 @@ class EntrenchAction extends BaseAction
                     . "🔒 Следующая база откроется на *{$nextLevel}-м уровне*. Каждые *{$baseLimit->levelsPerBase()}* уровней "
                     . "открывают ещё одну базу (всего до *{$baseLimit->hardCap()}*).";
             }
-            $keyboard = $manageKeyboard;
-        } else {
-            // Можно построить новую базу.
-            $text = "🏕 *Разбить лагерь*\n\n"
-                . "Сейчас ты стоишь на пороге выбора: оставаться здесь или продолжить свой путь путешественника! "
-                . "Как только ты поставишь палатку, это будет место закрепленное за тобой, и дальнейшие постройки ты можешь производить только в этой ячейке. "
-                . "Ты сможешь все так же _добывать ресурсы_ и _исследовать территорию_. Чтобы вернуться на базу, тебе нужно будет иметь портативный телепорт или же за каждый возврат терять 1 единицу опыта!\n\n"
-                . ($maxBases > 1
-                    ? "Тебе доступно баз: *{$maxBases}* (по уровню *{$level}*). Сейчас занято: *{$campCount}*. Каждые *{$baseLimit->levelsPerBase()}* уровней открывают ещё одну.\n\n"
-                    : "")
-                . "*P.S.* Обязательно прочти о [системе разбивки лагеря](https://t.me/wild_world_info/418) 🌎";
 
-            $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '🏕 Разбить лагерь', 'callback_data' => 'Camp'],
-                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ],
-                ],
-            ];
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+            return \App\Services\Notifications\MediaSender::sendPhotoOrText([
+                'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+                'photo'        => Request::encodeFile(base_url('uploads/telegram/camp/entrenchAction.jpg')),
+                'caption'      => $text,
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode($manageKeyboard),
+            ]);
         }
 
-        $imagePath = base_url('uploads/telegram/camp/entrenchAction.jpg');
+        // Строить можно — сразу ведём на экран подтверждения (showCampCreation),
+        // без промежуточного экрана-интро. Путь новичка сократился с 3 тапов
+        // (Окопаться → Разбить лагерь → Подтвердить) до 2 (Окопаться → Разбить
+        // лагерь здесь). «Что такое лагерь» теперь в самом экране подтверждения
+        // (BaseServiceMessageFormatter::campCreationConfirm). showCampCreation
+        // делает проверки (клетка занята / карта) и шлёт обогащённый confirm.
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
-            'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'photo'   => Request::encodeFile($imagePath),
-            'caption' => $text,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
+        return (new \App\Services\BaseService())->showCampCreation(
+            $this->callbackQuery->getMessage()->getChat()->getId(),
+            $character
+        );
     }
 }
