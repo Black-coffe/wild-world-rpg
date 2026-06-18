@@ -108,6 +108,33 @@ class OnboardingHintService
     }
 
     /**
+     * Теплица (2026-06-18) — хинт «выращивай свою еду» при открытии экрана базы.
+     * Гейты: новичок (level ≤ contextual_hints.max_level — ветеранов не пингуем,
+     * они находят Теплицу в «🏗 Строить» сами) + Теплица ещё НЕ построена + общие
+     * killswitch/opt-out/one-shot. Часть правила ONBOARDING-COVERAGE.
+     *
+     * @param array<string, mixed>|CharacterEntity $character
+     */
+    public function maybeSendGreenhouseTip(array|CharacterEntity $character, int $chatId): bool
+    {
+        $level = self::intField($character, 'level');
+        if ($level > $this->gsInt('onboarding.contextual_hints.max_level', 6)) {
+            return false;
+        }
+
+        $charId = self::intField($character, 'id');
+        if ($charId <= 0 || $this->alreadyShown($charId, OnboardingHintCatalog::GREENHOUSE)) {
+            return false;
+        }
+
+        if ($this->ownsGreenhouse($charId)) {
+            return false;
+        }
+
+        return $this->maybeSend($character, $chatId, OnboardingHintCatalog::GREENHOUSE);
+    }
+
+    /**
      * Базовый one-shot отправитель: killswitch + opt-out + дедуп + отправка + запись.
      *
      * @param array<string, mixed>|CharacterEntity $character
@@ -188,7 +215,23 @@ class OnboardingHintService
      */
     protected function ownsRoboticsWorkshop(int $charId): bool
     {
-        $building = (new \App\Models\BuildingModel())->where('name_en', 'RoboticsWorkshop')->first();
+        return $this->ownsBuilding($charId, 'RoboticsWorkshop');
+    }
+
+    /**
+     * Есть ли у персонажа Теплица (любого уровня, любая база). Overridable seam.
+     */
+    protected function ownsGreenhouse(int $charId): bool
+    {
+        return $this->ownsBuilding($charId, 'Greenhouse');
+    }
+
+    /**
+     * Построено ли у персонажа здание с данным name_en (любой уровень, любая база).
+     */
+    private function ownsBuilding(int $charId, string $nameEn): bool
+    {
+        $building = (new \App\Models\BuildingModel())->where('name_en', $nameEn)->first();
         $idRaw    = is_array($building) ? ($building['id'] ?? null) : null;
         if (! is_numeric($idRaw) || (int) $idRaw <= 0) {
             return false;

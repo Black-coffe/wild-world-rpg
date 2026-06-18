@@ -26,6 +26,13 @@ class OnboardingHintCatalog
     public const AUTOMATION = 'automation';
 
     /**
+     * Теплица (2026-06-18): триггер — открытие экрана базы новичком (level ≤
+     * onboarding.contextual_hints.max_level) без построенной Теплицы. Учит выращивать
+     * свою еду, чтобы не голодать на ранней игре.
+     */
+    public const GREENHOUSE = 'greenhouse';
+
+    /**
      * @return array{text: string, reply_markup?: string}|null
      */
     public static function get(string $key): ?array
@@ -59,6 +66,17 @@ class OnboardingHintCatalog
                     'inline_keyboard' => [[
                         ['text' => '🗓 Задания дня', 'callback_data' => 'dailyTasks'],
                         ['text' => '📜 Все задания', 'callback_data' => 'questAndTask'],
+                    ]],
+                ], JSON_THROW_ON_ERROR),
+            ],
+            self::GREENHOUSE => [
+                'text' => "🌱 *Своя еда — построй Теплицу*\n\n"
+                    . "Чтобы не зависеть от находок, *Теплица* растит еду прямо на базе: "
+                    . "сажаешь семена → через время собираешь урожай. Сытый герой не теряет силы.\n\n"
+                    . "Путь: 🏠 *База* → *🏗 Строить* → *🌱 Теплица*. Дальше сажай на грядках и собирай урожай.",
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [[
+                        ['text' => '🏗 Строить', 'callback_data' => 'Build'],
                     ]],
                 ], JSON_THROW_ON_ERROR),
             ],

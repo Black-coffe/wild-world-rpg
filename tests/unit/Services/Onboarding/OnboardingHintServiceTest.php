@@ -185,6 +185,69 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
             $this->assertStringContainsString($needle, $text, "Хинт не упоминает «{$needle}».");
         }
     }
+
+    // ── Теплица (2026-06-18): хинт «выращивай свою еду» ──────────────────────
+
+    /** Анти-дрифт: текст хинта учит пути к Теплице (media-off самодостаточность). */
+    public function testGreenhouseHintTeachesCoreFacts(): void
+    {
+        $text = OnboardingHintCatalog::get(OnboardingHintCatalog::GREENHOUSE)['text'] ?? '';
+        foreach (['Теплиц', 'Строить', 'еду'] as $needle) {
+            $this->assertStringContainsString($needle, $text, "Хинт теплицы не упоминает «{$needle}».");
+        }
+    }
+
+    /** Хинт ведёт на экран построек (discoverability в just-in-time момент). */
+    public function testGreenhouseHintLinksToBuild(): void
+    {
+        $markupRaw = OnboardingHintCatalog::get(OnboardingHintCatalog::GREENHOUSE)['reply_markup'] ?? null;
+        $this->assertIsString($markupRaw, 'У хинта теплицы нет кнопок.');
+        $markup = json_decode($markupRaw, true);
+        $this->assertIsArray($markup);
+        $callbacks = [];
+        array_walk_recursive($markup, static function ($value, $key) use (&$callbacks): void {
+            if ($key === 'callback_data') {
+                $callbacks[] = $value;
+            }
+        });
+        $this->assertContains('Build', $callbacks, 'Нет кнопки на экран построек.');
+    }
+
+    public function testGreenhouseTipHappyPathSendsOnce(): void
+    {
+        $svc    = new FakeHintService();
+        $newbie = ['id' => 3, 'level' => 2, 'daily_tips_enabled' => 1];
+
+        $this->assertTrue($svc->maybeSendGreenhouseTip($newbie, 100));
+        $this->assertCount(1, $svc->sent);
+        $this->assertSame([OnboardingHintCatalog::GREENHOUSE], $svc->recorded);
+
+        // one-shot: повторно не шлём.
+        $this->assertFalse($svc->maybeSendGreenhouseTip($newbie, 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    public function testGreenhouseTipLevelGateSuppresses(): void
+    {
+        $svc = new FakeHintService(); // maxLvl = 6
+        $this->assertFalse($svc->maybeSendGreenhouseTip(['id' => 3, 'level' => 7, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testGreenhouseTipSuppressedWhenOwned(): void
+    {
+        $svc = new FakeHintService();
+        $svc->greenhouseOwned = true;
+        $this->assertFalse($svc->maybeSendGreenhouseTip(['id' => 3, 'level' => 2, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testGreenhouseTipRespectsOptOut(): void
+    {
+        $svc = new FakeHintService();
+        $this->assertFalse($svc->maybeSendGreenhouseTip(['id' => 3, 'level' => 2, 'daily_tips_enabled' => 0], 100));
+        $this->assertCount(0, $svc->sent);
+    }
 }
 
 /**
@@ -202,6 +265,7 @@ final class FakeHintService extends OnboardingHintService
     public int $maxLvl = 6;
     public bool $baseExists = false;
     public bool $workshopOwned = false;
+    public bool $greenhouseOwned = false;
     /** @var array<string, int> per-key значения gsInt (E20: окно automation-хинта) */
     public array $gsIntMap = [];
     /** @var list<string> */
@@ -230,6 +294,11 @@ final class FakeHintService extends OnboardingHintService
     protected function ownsRoboticsWorkshop(int $charId): bool
     {
         return $this->workshopOwned;
+    }
+
+    protected function ownsGreenhouse(int $charId): bool
+    {
+        return $this->greenhouseOwned;
     }
 
     protected function send(array $payload): void

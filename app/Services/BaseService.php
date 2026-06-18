@@ -148,10 +148,13 @@ class BaseService
         (new \App\Services\Onboarding\OnboardingChainService())
             ->recordBaseOpened($characterRow, $chatId);
 
-        // E20 (ADR-120): one-shot хинт «Автоматизация» игрокам L12-25 без Мастерской
-        // робототехники (окно/killswitch/opt-out — внутри сервиса, дёшево гейтится по level).
-        (new \App\Services\Onboarding\OnboardingHintService())
-            ->maybeSendAutomationHint($characterRow, $chatId);
+        // One-shot контекстные хинты при открытии базы (killswitch/opt-out/one-shot —
+        // внутри сервиса, дёшево гейтятся по level; окна не пересекаются → шлётся max один):
+        //   • Теплица — новичку (level ≤ contextual_hints.max_level) без Теплицы.
+        //   • E20 (ADR-120) Автоматизация — игроку L12-25 без Мастерской робототехники.
+        $hints = new \App\Services\Onboarding\OnboardingHintService();
+        $hints->maybeSendGreenhouseTip($characterRow, $chatId);
+        $hints->maybeSendAutomationHint($characterRow, $chatId);
     }
 
     /**
@@ -199,9 +202,17 @@ class BaseService
             }
         }
 
-        return $this->sendMessage($chatId, $this->formatter->noBaseInfo(
+        $response = $this->sendMessage($chatId, $this->formatter->noBaseInfo(
             $coordX, $coordY, (string) $biomeName, (string) $biomeDesc, $dangerLevel, $survivalDiff
         ), $editMessageId);
+
+        // ADR-103 just-in-time: новичок смотрит на экран «у тебя нет базы» — самый
+        // on-point момент подсказать, как разбить первую базу. One-shot (action_log),
+        // не дублирует movement-триггер (MoveCharacterToDirectionAction).
+        (new \App\Services\Onboarding\OnboardingHintService())
+            ->maybeSendFirstBaseTip($characterRow, $chatId);
+
+        return $response;
     }
 
     /**
