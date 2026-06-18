@@ -103,6 +103,11 @@ class GatherAction extends BaseAction
                     . "лута меньше, зато результат сразу.";
             }
 
+            // UX-подсказка: сколько выносливости стоит заход и сколько есть сейчас.
+            // Закрывает дыру «нигде в игре не написано, сколько надо»
+            // (ONBOARDING-COVERAGE / UX-Discoverability).
+            $text .= $this->staminaHintForMenu($character);
+
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
@@ -130,9 +135,11 @@ class GatherAction extends BaseAction
             // не на показ меню вибору часу. Раніше — double-deduct (5 stamina × 2:
             // натиснення `gather` + натиснення `gather_30`). Reported у Bugs-info.
             if (!$this->deductTiredness($character)) {
+                Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
                 return Request::sendMessage([
                     'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                    'text' => "Твоя выносливость слишком низкая (текущий уровень: {$character['tired']}), нужно отдохнуть!",
+                    'text' => $this->lowStaminaText($character),
+                    'parse_mode' => 'Markdown',
                 ]);
             }
 
@@ -346,6 +353,20 @@ class GatherAction extends BaseAction
     }
 
     /**
+     * Стоимость одного захода в добычу в выносливости (поле characters.tired).
+     * Чем выше уровень — тем дешевле: L1 ≈ 5.0, L100 ≈ 4.5, L200 ≈ 4.0.
+     * Никогда не опускается ниже floor-а 0.01.
+     *
+     * ЕДИНЫЙ ИСТОЧНИК ПРАВДЫ: и подсказка на экране (staminaHintForMenu /
+     * lowStaminaText), и реальное списание (deductTiredness) зовут ЭТОТ метод —
+     * чтобы показанная игроку цифра не разъезжалась с фактической.
+     */
+    public static function gatherStaminaCost(int $level): float
+    {
+        return max(0.01, (1000 - $level) / 200);
+    }
+
+    /**
      * Списывает усталость в зависимости от уровня персонажа и проверяет достаточность для начала задания.
      *
      * @param array|\App\Entities\CharacterEntity $character Данные персонажа
@@ -353,9 +374,9 @@ class GatherAction extends BaseAction
      */
     protected function deductTiredness($character)
     {
-        $level = $character['level'];
-        $currentTiredness = $character['tired'];
-        $tirednessLoss = max(0.01, (1000 - $level) / 200);
+        $level = $this->readLevel($character);
+        $currentTiredness = $this->readTired($character);
+        $tirednessLoss = self::gatherStaminaCost($level);
 
         if ($currentTiredness < $tirednessLoss) {
             // Если текущая усталость меньше необходимой для списания, возвращаем false
@@ -366,6 +387,99 @@ class GatherAction extends BaseAction
         $newTiredness = round($newTiredness, 2);  // Округляем новое значение усталости до двух десятичных знаков
         $this->characterModel->update($character['id'], ['tired' => $newTiredness]);
         return true;
+    }
+
+    /**
+     * Строка-подсказка на экране выбора времени добычи: сколько выносливости
+     * стоит заход и сколько есть у игрока сейчас.
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     */
+    protected function staminaHintForMenu(array|\App\Entities\CharacterEntity $character): string
+    {
+        $cost    = self::gatherStaminaCost($this->readLevel($character));
+        $current = $this->readTired($character);
+
+        $line = "\n\n🥱 *Выносливость:* нужно ≈" . $this->fmtStamina($cost, 1)
+              . ", у тебя " . $this->fmtStamina($current, 2) . ".";
+
+        if ($current < $cost) {
+            $line .= " Сейчас не хватает — дай персонажу немного отдохнуть.";
+        }
+
+        return $line;
+    }
+
+    /**
+     * Понятное объяснение, почему добыча не началась: сколько надо, сколько есть,
+     * чего не хватает и через сколько восстановится. Пассивная регенерация работает
+     * только до regenLevelCap (по умолчанию L20, HealthRegenerationHandler) — выше
+     * подсказываем восстанавливаться едой/медициной.
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     */
+    protected function lowStaminaText(array|\App\Entities\CharacterEntity $character): string
+    {
+        $cfg     = config(\Config\GameBalance::class);
+        $level   = $this->readLevel($character);
+        $cost    = self::gatherStaminaCost($level);
+        $current = $this->readTired($character);
+        $missing = max(0.01, $cost - $current);
+
+        $text = "🥱 *Маловато выносливости для добычи.*\n\n"
+              . "Нужно ≈" . $this->fmtStamina($cost, 1)
+              . ", у тебя " . $this->fmtStamina($current, 2)
+              . " — не хватает ≈" . $this->fmtStamina($missing, 1) . ".\n\n";
+
+        // Тик регена = 1 минута (Config\Tasks: regen.health everyMinute),
+        // прибавка tiredRegenPerTick за тик. Реген только до regenLevelCap.
+        $regenPerMin = (float) $cfg->tiredRegenPerTick;
+        if ($level < $cfg->regenLevelCap && $regenPerMin > 0) {
+            $minutes = (int) ceil($missing / $regenPerMin);
+            $text .= "⏳ Восстановится сама примерно через *" . $minutes . " мин* отдыха "
+                   . "(или быстрее — едой и медициной с восстановлением выносливости).";
+        } else {
+            $text .= "На твоём уровне выносливость сама не восстанавливается — "
+                   . "подкрепись едой или используй медицину с восстановлением выносливости.";
+        }
+
+        return $text;
+    }
+
+    /**
+     * Аккуратный формат числа выносливости: фиксируем десятичные, срезаем хвостовые
+     * нули (5.0 → «5», 4.20 → «4.2»). Избегаем float-артефактов у границы (4.995).
+     */
+    private function fmtStamina(float $value, int $decimals = 2): string
+    {
+        $s = number_format($value, $decimals, '.', '');
+
+        return str_contains($s, '.') ? rtrim(rtrim($s, '0'), '.') : $s;
+    }
+
+    /**
+     * Безопасное чтение уровня (нарроуим mixed через is_numeric — strict-phpstan
+     * запрещает (int)$mixed напрямую; урок feedback_phpstan_no_mixed_to_int_cast).
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     */
+    private function readLevel(array|\App\Entities\CharacterEntity $character): int
+    {
+        $raw = $character['level'] ?? null;
+
+        return is_numeric($raw) ? (int) $raw : 1;
+    }
+
+    /**
+     * Безопасное чтение текущей выносливости (поле tired).
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     */
+    private function readTired(array|\App\Entities\CharacterEntity $character): float
+    {
+        $raw = $character['tired'] ?? null;
+
+        return is_numeric($raw) ? (float) $raw : 0.0;
     }
 
 }
