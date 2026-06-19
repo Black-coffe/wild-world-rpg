@@ -106,6 +106,22 @@ final class TributeService
         return $this->intSetting('tribute.daily_cap_per_master', 200);
     }
 
+    public function ransomBase(): int
+    {
+        return $this->intSetting('tribute.ransom_base', 2000);
+    }
+
+    public function ransomPerCollectedK(): float
+    {
+        $v = $this->settings->get('tribute.ransom_per_collected_k', 0.5);
+        return is_numeric($v) ? (float) $v : 0.5;
+    }
+
+    public function ransomHardCap(): int
+    {
+        return $this->intSetting('tribute.ransom_hard_cap', 15000);
+    }
+
     // ── Чистое решение (тестируется без БД) ──────────────────────────────
 
     /**
@@ -397,6 +413,121 @@ final class TributeService
         return ['vassal' => $vassal, 'masterCredits' => $masterCredits, 'transferred' => $transferred];
     }
 
+    // ── Фаза 3: снятие / выход ───────────────────────────────────────────
+
+    /**
+     * Реванш: победитель (бывший данник) победил своего хозяина → подать снимается.
+     * winner = vassal, loser = master. Killswitch-gated. Batch-UPDATE (атомарно).
+     * Возвращает число снятых податей (0/1).
+     */
+    public function liftByRematch(int $winnerId, int $loserId): int
+    {
+        if (! $this->enabled() || $winnerId <= 0 || $loserId <= 0 || $winnerId === $loserId) {
+            return 0;
+        }
+        try {
+            $now = date('Y-m-d H:i:s');
+            Database::connect()->table('character_tributes')
+                ->where('master_id', $loserId)
+                ->where('vassal_id', $winnerId)
+                ->where('status', 'active')
+                ->update(['status' => 'rematch', 'lifted_by' => 'rematch', 'lifted_at' => $now, 'updated_at' => $now]);
+            $affected = Database::connect()->affectedRows();
+            return $affected > 0 ? $affected : 0;
+        } catch (\Throwable $e) {
+            log_message('error', 'TributeService::liftByRematch failed: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Идемпотентное авто-снятие истёкших податей (cron-таймер). НЕ killswitch-gated —
+     * чистка должна работать, даже если механику выключили (иначе данники зависнут навсегда).
+     * Batch-UPDATE (атомарно; повторный прогон → 0 затронутых). Возвращает число снятых.
+     */
+    public function expireOverdue(): int
+    {
+        try {
+            $now = date('Y-m-d H:i:s');
+            Database::connect()->table('character_tributes')
+                ->where('status', 'active')
+                ->where('expires_at <=', $now)
+                ->update(['status' => 'expired', 'lifted_by' => 'timer', 'lifted_at' => $now, 'updated_at' => $now]);
+            $affected = Database::connect()->affectedRows();
+            return $affected > 0 ? $affected : 0;
+        } catch (\Throwable $e) {
+            log_message('error', 'TributeService::expireOverdue failed: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Стоимость выкупа из-под подати (gold-burn). Растёт с собранного, clamp [base, hard_cap].
+     *
+     * @param array<string,mixed> $tribute
+     */
+    public function ransomCost(array $tribute): int
+    {
+        $collected = is_numeric($tribute['total_collected'] ?? null) ? (int) $tribute['total_collected'] : 0;
+        return self::computeRansom($collected, $this->ransomBase(), $this->ransomPerCollectedK(), $this->ransomHardCap());
+    }
+
+    /**
+     * Чистая формула выкупа: base + floor(collected*k), clamp [base, hardCap]. Без БД.
+     */
+    public static function computeRansom(int $collected, int $base, float $k, int $hardCap): int
+    {
+        $collected = max(0, $collected);
+        $cost      = $base + (int) floor($collected * $k);
+        if ($cost < $base) {
+            $cost = $base;
+        }
+        if ($hardCap > 0 && $cost > $hardCap) {
+            $cost = $hardCap;
+        }
+        return $cost;
+    }
+
+    /**
+     * Выкуп жертвы из-под подати: списывает золото (СГОРАЕТ, не хозяину) и снимает подать.
+     * Killswitch-gated. Backend Фазы 3 — кнопку вешает Фаза 4.
+     *
+     * @return array{ok:bool, reason:string, cost:int}
+     */
+    public function buyOut(int $vassalId): array
+    {
+        if (! $this->enabled()) {
+            return ['ok' => false, 'reason' => 'disabled', 'cost' => 0];
+        }
+        if ($vassalId <= 0) {
+            return ['ok' => false, 'reason' => 'invalid', 'cost' => 0];
+        }
+        try {
+            $tribute = $this->getActiveTribute($vassalId);
+            if ($tribute === null) {
+                return ['ok' => false, 'reason' => 'no_tribute', 'cost' => 0];
+            }
+            $cost   = $this->ransomCost($tribute);
+            $vassal = $this->characters->find($vassalId);
+            if ($vassal === null) {
+                return ['ok' => false, 'reason' => 'not_found', 'cost' => $cost];
+            }
+            $gold = $this->numField($vassal, 'gold');
+            if ($gold < $cost) {
+                return ['ok' => false, 'reason' => 'insufficient_gold', 'cost' => $cost];
+            }
+            $this->characters->update($vassalId, ['gold' => $gold - $cost]); // burn (золото уходит из экономики)
+            $id = is_numeric($tribute['id'] ?? null) ? (int) $tribute['id'] : 0;
+            if ($id > 0) {
+                $this->markLifted($id, 'bought_out', 'buyout');
+            }
+            return ['ok' => true, 'reason' => 'bought_out', 'cost' => $cost];
+        } catch (\Throwable $e) {
+            log_message('error', 'TributeService::buyOut failed: ' . $e->getMessage());
+            return ['ok' => false, 'reason' => 'error', 'cost' => 0];
+        }
+    }
+
     // ── internals ────────────────────────────────────────────────────────
 
     /**
@@ -582,6 +713,15 @@ final class TributeService
             'total_collected'      => $prevTotal + $transferred,
             'updated_at'           => date('Y-m-d H:i:s'),
         ]);
+    }
+
+    /** Снять подать (status/lifted_by/lifted_at) по id — общий помощник для buyout. */
+    private function markLifted(int $id, string $status, string $by): void
+    {
+        $now = date('Y-m-d H:i:s');
+        Database::connect()->table('character_tributes')
+            ->where('id', $id)
+            ->update(['status' => $status, 'lifted_by' => $by, 'lifted_at' => $now, 'updated_at' => $now]);
     }
 
     private function windowStart(): string

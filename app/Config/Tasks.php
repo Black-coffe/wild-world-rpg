@@ -277,6 +277,12 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\PVP\PvpLadderWeeklyBroadcastHandler())->handle())
             ->everyMinute()->singleInstance()->named('pvp-ladder.weekly-broadcast');
 
+        // ADR-135 Ф3 (DORMANT) — «Трофейная подать»: авто-снятие истёкших податей.
+        // hourly: идемпотентный batch active→expired по expires_at. НЕ killswitch-gated
+        // (чистка работает даже при выкл. tribute.enabled); dormant → 0 активных → no-op.
+        $schedule->call(static fn() => (new \App\TaskHandlers\PVP\TributeExpiryHandler())->handle())
+            ->hourly()->singleInstance()->named('tribute.expiry');
+
         // E4 (ROADMAP-100) — авто-эскалация онбординга «застрял»: новичку с висящим
         // онбординг-шагом (> stuck_minutes) и активному сейчас (last_seen) шлёт ОДНУ
         // контекстную подсказку. everyMinute + killswitch onboarding.auto_escalation.enabled

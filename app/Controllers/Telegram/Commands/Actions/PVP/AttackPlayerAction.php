@@ -311,11 +311,13 @@ class AttackPlayerAction extends BaseAction
             $ladderLoserId = $ladderWinnerId === $atkId ? $defId : $atkId;
             (new \App\Services\PVE\PvpLadderService())->recordPvpAttack($ladderWinnerId, $ladderLoserId);
 
-            // ADR-135 «Трофейная подать»: проверка доминирования победителя над проигравшим
-            // (создание подати при N побед/окно И 0 поражений). ПОСЛЕ battle_logs-insert (счёт
-            // побед читается из БД), killswitch `tribute.enabled` внутри (dormant=no-op),
-            // 0 нового mt_rand → PvP fixture-fence byte-equivalent сохраняется.
-            (new \App\Services\PVE\TributeService())->evaluateDomination($ladderWinnerId, $ladderLoserId);
+            // ADR-135 «Трофейная подать»: ПОСЛЕ battle_logs-insert (счёт побед из БД),
+            // killswitch `tribute.enabled` внутри (dormant=no-op), 0 нового mt_rand → fence цел.
+            $tributeSvc = new \App\Services\PVE\TributeService();
+            // (а) победитель доминирует проигравшего → создание подати (N побед/окно И 0 поражений).
+            $tributeSvc->evaluateDomination($ladderWinnerId, $ladderLoserId);
+            // (б) Ф3 реванш: победитель — бывший данник проигравшего → его подать снимается.
+            $tributeSvc->liftByRematch($ladderWinnerId, $ladderLoserId);
         }
 
         $battleUrl = base_url('battles/view/') . $battleId;
