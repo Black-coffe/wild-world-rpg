@@ -234,6 +234,14 @@ class CharacterService
             $inlineRows[] = $hubButtons;
         }
 
+        // ADR-135 — «⚖️ Трофейная подать»: вход виден ТОЛЬКО когда механика включена И у игрока
+        // есть активная подать (как вассал ИЛИ хозяин). При dormant killswitch enabled()=false →
+        // query не идёт, кнопка скрыта → не обещаем невидимую фичу (live-vs-dormant honesty, ADR-132).
+        $tributeSvc = new \App\Services\PVE\TributeService();
+        if ($tributeSvc->enabled() && $tributeSvc->hasAnyTributeRelation($charId)) {
+            $inlineRows[] = [['text' => '⚖️ Трофейная подать', 'callback_data' => 'tributeStatus']];
+        }
+
         // ADR-127 — «📖 Путь новичка»: вход в справочник-онбординг (`/guide`). ВСЕГДА виден
         // отдельной строкой — точка спасения для растерявшегося игрока (пропустил обучение /
         // забыл механику). Read-only, без наград (можно жать сколько угодно). Не раздувает

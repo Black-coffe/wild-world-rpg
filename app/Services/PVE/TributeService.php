@@ -319,6 +319,57 @@ final class TributeService
     }
 
     /**
+     * Есть ли у персонажа активная подать (как вассал ИЛИ как хозяин) — для показа
+     * кнопки входа на экране Персонажа (Ф4). Вызывается только при enabled() (dormant → не идёт).
+     */
+    public function hasAnyTributeRelation(int $charId): bool
+    {
+        if ($charId <= 0) {
+            return false;
+        }
+        try {
+            $cnt = Database::connect()->table('character_tributes')
+                ->where('status', 'active')
+                ->groupStart()
+                    ->where('vassal_id', $charId)
+                    ->orWhere('master_id', $charId)
+                ->groupEnd()
+                ->countAllResults();
+            return $cnt > 0;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Активные подати, где персонаж — хозяин (его данники). Для экрана статуса (Ф4).
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function activeAsMaster(int $masterId): array
+    {
+        if ($masterId <= 0) {
+            return [];
+        }
+        try {
+            $rows = $this->tributes
+                ->where('master_id', $masterId)
+                ->where('status', 'active')
+                ->orderBy('started_at', 'DESC')
+                ->findAll(50);
+            $out = [];
+            foreach ($rows as $r) {
+                if (is_array($r)) {
+                    $out[] = $this->stringKeys($r);
+                }
+            }
+            return $out;
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    /**
      * Фаза 2: сбор подати с добычи жертвы. Вызывается ДО зачисления `$foundResources`
      * жертве. Если жертва под активной податью — перетекает rate% КАЖДОГО ресурса хозяину
      * (zero-sum: жертва получает остаток), в пределах дневного cap хозяина. Возвращает
@@ -516,10 +567,16 @@ final class TributeService
             if ($gold < $cost) {
                 return ['ok' => false, 'reason' => 'insufficient_gold', 'cost' => $cost];
             }
-            $this->characters->update($vassalId, ['gold' => $gold - $cost]); // burn (золото уходит из экономики)
             $id = is_numeric($tribute['id'] ?? null) ? (int) $tribute['id'] : 0;
+            $db = Database::connect();
+            $db->transStart();
+            $this->characters->update($vassalId, ['gold' => $gold - $cost]); // burn (золото уходит из экономики)
             if ($id > 0) {
                 $this->markLifted($id, 'bought_out', 'buyout');
+            }
+            $db->transComplete();
+            if ($db->transStatus() === false) {
+                return ['ok' => false, 'reason' => 'tx_failed', 'cost' => $cost];
             }
             return ['ok' => true, 'reason' => 'bought_out', 'cost' => $cost];
         } catch (\Throwable $e) {

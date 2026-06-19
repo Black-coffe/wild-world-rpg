@@ -315,9 +315,31 @@ class AttackPlayerAction extends BaseAction
             // killswitch `tribute.enabled` внутри (dormant=no-op), 0 нового mt_rand → fence цел.
             $tributeSvc = new \App\Services\PVE\TributeService();
             // (а) победитель доминирует проигравшего → создание подати (N побед/окно И 0 поражений).
-            $tributeSvc->evaluateDomination($ladderWinnerId, $ladderLoserId);
+            $tributeCreatedId = $tributeSvc->evaluateDomination($ladderWinnerId, $ladderLoserId);
             // (б) Ф3 реванш: победитель — бывший данник проигравшего → его подать снимается.
-            $tributeSvc->liftByRematch($ladderWinnerId, $ladderLoserId);
+            $tributeLifted = $tributeSvc->liftByRematch($ladderWinnerId, $ladderLoserId);
+
+            // Ф4 уведомления — приклеиваем к сообщениям бойцов (HTML). При dormant обе ветки
+            // пусты (id=null, lifted=0) → текст byte-identical прежнему.
+            if ($tributeCreatedId !== null && $winner && $loser) {
+                $masterLine = "\n\n⚖️ <b>Трофейная подать!</b> {$loser['name']} теперь отдаёт тебе долю с добычи — 👤 Перс → ⚖️ Трофейная подать.";
+                $vassalLine = "\n\n⚖️ <b>Ты под трофейной податью</b> у {$winner['name']}: часть добычи уходит ему. Сбрось реваншем в бою или выкупись — 👤 Перс → ⚖️ Трофейная подать.";
+                if ((int) $winner['id'] === (int) $attacker['id']) {
+                    $attackerFinalText .= $masterLine;
+                    $defenderFinalText .= $vassalLine;
+                } else {
+                    $defenderFinalText .= $masterLine;
+                    $attackerFinalText .= $vassalLine;
+                }
+            }
+            if ($tributeLifted > 0 && $winner) {
+                $freedLine = "\n\n🔓 <b>Реванш!</b> Ты сбросил трофейную подать — больше не платишь долю.";
+                if ((int) $winner['id'] === (int) $attacker['id']) {
+                    $attackerFinalText .= $freedLine;
+                } else {
+                    $defenderFinalText .= $freedLine;
+                }
+            }
         }
 
         $battleUrl = base_url('battles/view/') . $battleId;

@@ -52,6 +52,10 @@ class CallbackRoutes extends BaseConfig
         'titles'                          => \App\Controllers\Telegram\Commands\Actions\Titles\TitlesAction::class,
         // ADR-132 Ф2 — экран «🔥 Серия выживания» (лестница вех login-стрика; вход с хаба «📊 Прогресс»).
         'streakScreen'                    => \App\Controllers\Telegram\Commands\Actions\Streak\StreakScreenAction::class,
+        // ADR-135 Ф4 «Трофейная подать» (dormant за tribute.enabled). Ключи без хвостового `_`
+        // (урок ADR-089): `tributeBuyout` ловит и `tributeBuyout`, и `tributeBuyout_ok` (ветвление внутри).
+        'tributeStatus'                   => \App\Controllers\Telegram\Commands\Actions\Tribute\TributeStatusAction::class,
+        'tributeBuyout'                   => \App\Controllers\Telegram\Commands\Actions\Tribute\TributeBuyoutAction::class,
         // E19 (ADR-119) — музей базы / коллекции. `museum` (обзор) + `museumLocked` (lock-вход < L50).
         'museum'                          => \App\Controllers\Telegram\Commands\Actions\Collections\CollectionsAction::class,
         'museumLocked'                    => \App\Controllers\Telegram\Commands\Actions\Collections\CollectionsAction::class,
