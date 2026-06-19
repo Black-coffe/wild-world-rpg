@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\PVE;
 
 use App\Models\CharacterModel;
+use App\Models\CharacterResourceModel;
 use App\Models\CharacterTributeModel;
 use App\Services\GameSettings\GameSettingsService;
 use CodeIgniter\I18n\Time;
@@ -32,15 +33,18 @@ final class TributeService
     private GameSettingsService $settings;
     private CharacterModel $characters;
     private CharacterTributeModel $tributes;
+    private CharacterResourceModel $resources;
 
     public function __construct(
         ?GameSettingsService $settings = null,
         ?CharacterModel $characters = null,
-        ?CharacterTributeModel $tributes = null
+        ?CharacterTributeModel $tributes = null,
+        ?CharacterResourceModel $resources = null
     ) {
         $this->settings   = $settings ?? new GameSettingsService();
         $this->characters = $characters ?? new CharacterModel();
         $this->tributes   = $tributes ?? new CharacterTributeModel();
+        $this->resources  = $resources ?? new CharacterResourceModel();
     }
 
     // ── Killswitch + настройки (ADR-024) ─────────────────────────────────
@@ -95,6 +99,11 @@ final class TributeService
     public function respawnImmunityHours(): int
     {
         return $this->intSetting('tribute.respawn_immunity_hours', 24);
+    }
+
+    public function dailyCapPerMaster(): int
+    {
+        return $this->intSetting('tribute.daily_cap_per_master', 200);
     }
 
     // ── Чистое решение (тестируется без БД) ──────────────────────────────
@@ -293,6 +302,101 @@ final class TributeService
         }
     }
 
+    /**
+     * Фаза 2: сбор подати с добычи жертвы. Вызывается ДО зачисления `$foundResources`
+     * жертве. Если жертва под активной податью — перетекает rate% КАЖДОГО ресурса хозяину
+     * (zero-sum: жертва получает остаток), в пределах дневного cap хозяина. Возвращает
+     * УМЕНЬШЕННЫЙ список для зачисления жертве. Killswitch/нет-подати/ошибка → identity.
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity                $vassal
+     * @param array<int, array{resource_id:int, amount:int, type?:string}>     $foundResources
+     * @return array<int, array{resource_id:int, amount:int, type?:string}>
+     */
+    public function collectOnGather(array|\App\Entities\CharacterEntity $vassal, array $foundResources): array
+    {
+        if (! $this->enabled() || $foundResources === []) {
+            return $foundResources;
+        }
+        try {
+            $vassalId = $this->numField($vassal, 'id');
+            if ($vassalId <= 0) {
+                return $foundResources;
+            }
+            $tribute = $this->getActiveTribute($vassalId);
+            if ($tribute === null) {
+                return $foundResources;
+            }
+            // Истёкшую подать не доим (авто-снятие — Фаза 3).
+            $expiresAt = $tribute['expires_at'] ?? null;
+            if (is_string($expiresAt) && $expiresAt !== '') {
+                $ts = strtotime($expiresAt);
+                if ($ts !== false && $ts <= time()) {
+                    return $foundResources;
+                }
+            }
+            $masterId = is_numeric($tribute['master_id'] ?? null) ? (int) $tribute['master_id'] : 0;
+            if ($masterId <= 0 || $masterId === $vassalId) {
+                return $foundResources;
+            }
+            $rate      = is_numeric($tribute['rate'] ?? null) ? (float) $tribute['rate'] : $this->rate();
+            $remaining = $this->masterDailyRemaining($masterId);
+            if ($remaining <= 0 || $rate <= 0.0) {
+                return $foundResources;
+            }
+
+            $split = self::splitGather($foundResources, $rate, $remaining);
+            if ($split['transferred'] <= 0) {
+                return $foundResources;
+            }
+
+            $this->creditResources($masterId, $split['masterCredits']);
+            $this->recordCollection($tribute, $split['transferred']);
+
+            return $split['vassal'];
+        } catch (\Throwable $e) {
+            log_message('error', 'TributeService::collectOnGather failed: ' . $e->getMessage());
+            return $foundResources;
+        }
+    }
+
+    /**
+     * Чистый zero-sum раздел добычи: с каждого ресурса хозяину уходит floor(amount*rate)
+     * (в пределах общего remainingCap), жертве остаётся остаток. Инвариант для каждого
+     * ресурса: vassal_amount + masterShare == original. Без БД → unit-тестируемо.
+     *
+     * @param array<int, array{resource_id:int, amount:int, type?:string}> $foundResources
+     * @return array{vassal: array<int, array{resource_id:int, amount:int, type?:string}>, masterCredits: array<int,int>, transferred:int}
+     */
+    public static function splitGather(array $foundResources, float $rate, int $remainingCap): array
+    {
+        $vassal        = [];
+        $masterCredits = [];
+        $transferred   = 0;
+        $remaining     = $remainingCap > 0 ? $remainingCap : 0;
+
+        foreach ($foundResources as $res) {
+            $rid     = (int) $res['resource_id'];
+            $amount  = (int) $res['amount'];
+            $tribute = 0;
+            if ($amount >= 1 && $rate > 0.0 && $remaining > 0) {
+                $tribute = (int) floor($amount * $rate);
+                if ($tribute > $remaining) {
+                    $tribute = $remaining;
+                }
+                if ($tribute > 0) {
+                    $remaining   -= $tribute;
+                    $transferred += $tribute;
+                    $masterCredits[$rid] = ($masterCredits[$rid] ?? 0) + $tribute;
+                }
+            }
+            $newRes           = $res;
+            $newRes['amount'] = $amount - $tribute;
+            $vassal[]         = $newRes;
+        }
+
+        return ['vassal' => $vassal, 'masterCredits' => $masterCredits, 'transferred' => $transferred];
+    }
+
     // ── internals ────────────────────────────────────────────────────────
 
     /**
@@ -371,6 +475,113 @@ final class TributeService
         ]);
 
         return is_numeric($id) ? (int) $id : null;
+    }
+
+    /**
+     * Остаток дневного cap хозяина (по ВСЕМ его активным податям за сегодня). Анти-снежок:
+     * суммарный переток одному хозяину за сутки ограничен `tribute.daily_cap_per_master`.
+     */
+    private function masterDailyRemaining(int $masterId): int
+    {
+        $cap = $this->dailyCapPerMaster();
+        if ($cap <= 0) {
+            return 0;
+        }
+        $today = date('Y-m-d');
+        $row   = Database::connect()->table('character_tributes')
+            ->selectSum('collected_today', 'sum_today')
+            ->where('master_id', $masterId)
+            ->where('status', 'active')
+            ->where('collected_today_date', $today)
+            ->get();
+        $arr = $row === false ? null : $row->getRowArray();
+        $sum = (is_array($arr) && is_numeric($arr['sum_today'] ?? null)) ? (int) $arr['sum_today'] : 0;
+        return max(0, $cap - $sum);
+    }
+
+    /**
+     * Зачислить хозяину ресурсы (карта resource_id→qty). Один whereIn + цикл insert/update
+     * (паттерн GatherResultPersister; без `where()->first()` в цикле — урок builder-quirk).
+     *
+     * @param array<int,int> $credits
+     */
+    private function creditResources(int $masterId, array $credits): void
+    {
+        if ($credits === []) {
+            return;
+        }
+        $master = $this->characters->find($masterId);
+        if ($master === null) {
+            return;
+        }
+        $tuid = $this->numField($master, 'telegram_user_id');
+        $rids = array_map('intval', array_keys($credits));
+
+        $existing = $this->resources
+            ->where('id_characters', $masterId)
+            ->whereIn('id_resources', $rids)
+            ->findAll();
+        $byRid = [];
+        foreach ($existing as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $ridRaw = $row['id_resources'] ?? null;
+            if (is_numeric($ridRaw)) {
+                $byRid[(int) $ridRaw] = $row;
+            }
+        }
+
+        foreach ($credits as $rid => $qty) {
+            $rid = (int) $rid;
+            $qty = (int) $qty;
+            if ($qty < 1) {
+                continue;
+            }
+            $ex = $byRid[$rid] ?? null;
+            if (is_array($ex)) {
+                $curRaw  = $ex['quantity'] ?? null;
+                $cur     = is_numeric($curRaw) ? (int) $curRaw : 0;
+                $exIdRaw = $ex['id'] ?? null;
+                $exId    = is_numeric($exIdRaw) ? (int) $exIdRaw : 0;
+                if ($exId > 0) {
+                    $this->resources->update($exId, ['quantity' => $cur + $qty]);
+                }
+            } else {
+                $this->resources->insert([
+                    'id_characters'     => $masterId,
+                    'id_resources'      => $rid,
+                    'id_telegram_users' => $tuid,
+                    'quantity'          => $qty,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Учесть собранное в строке подати: дневной аккумулятор (сброс при смене суток) + total.
+     *
+     * @param array<string,mixed> $tribute
+     */
+    private function recordCollection(array $tribute, int $transferred): void
+    {
+        $id = is_numeric($tribute['id'] ?? null) ? (int) $tribute['id'] : 0;
+        if ($id <= 0 || $transferred <= 0) {
+            return;
+        }
+        $today     = date('Y-m-d');
+        $wasDate   = is_string($tribute['collected_today_date'] ?? null) ? $tribute['collected_today_date'] : null;
+        $prevToday = is_numeric($tribute['collected_today'] ?? null) ? (int) $tribute['collected_today'] : 0;
+        $prevTotal = is_numeric($tribute['total_collected'] ?? null) ? (int) $tribute['total_collected'] : 0;
+
+        $collectedToday = ($wasDate === $today) ? $prevToday + $transferred : $transferred;
+
+        $this->tributes->update($id, [
+            'collected_today'      => $collectedToday,
+            'collected_today_date' => $today,
+            'total_collected'      => $prevTotal + $transferred,
+            'updated_at'           => date('Y-m-d H:i:s'),
+        ]);
     }
 
     private function windowStart(): string

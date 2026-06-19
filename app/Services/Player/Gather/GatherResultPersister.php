@@ -34,6 +34,10 @@ final class GatherResultPersister
     public function persist(array $foundResources, array|\App\Entities\CharacterEntity $character, array $task): void
     {
         if (!empty($foundResources)) {
+            // ADR-135 Ф2 «Трофейная подать»: zero-sum переток rate% хозяину ДО зачисления
+            // добычи жертве (Σ сохраняется, жертва получает остаток). Killswitch tribute.enabled
+            // внутри → dormant = identity (byte-equivalent). Stat-gain per-entry → не меняется.
+            $foundResources = (new \App\Services\PVE\TributeService())->collectOnGather($character, $foundResources);
             $this->writeCharacterResources($foundResources, $character);
         }
         $this->bumpCharacterStats($character, $foundResources);
