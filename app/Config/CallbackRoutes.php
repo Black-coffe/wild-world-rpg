@@ -56,6 +56,9 @@ class CallbackRoutes extends BaseConfig
         // (урок ADR-089): `tributeBuyout` ловит и `tributeBuyout`, и `tributeBuyout_ok` (ветвление внутри).
         'tributeStatus'                   => \App\Controllers\Telegram\Commands\Actions\Tribute\TributeStatusAction::class,
         'tributeBuyout'                   => \App\Controllers\Telegram\Commands\Actions\Tribute\TributeBuyoutAction::class,
+        // ADR-135 Ф3b — «🎯 Доска розыска» (bounty на доминаторов). Read-only экран; вход — кнопка
+        // в Развлечениях (gated tribute.enabled+bounty_enabled). Ключ без хвостового `_` (урок ADR-089).
+        'bountyBoard'                     => \App\Controllers\Telegram\Commands\Actions\PVP\BountyBoardAction::class,
         // E19 (ADR-119) — музей базы / коллекции. `museum` (обзор) + `museumLocked` (lock-вход < L50).
         'museum'                          => \App\Controllers\Telegram\Commands\Actions\Collections\CollectionsAction::class,
         'museumLocked'                    => \App\Controllers\Telegram\Commands\Actions\Collections\CollectionsAction::class,

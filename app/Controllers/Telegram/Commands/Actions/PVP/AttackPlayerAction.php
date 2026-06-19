@@ -311,6 +311,11 @@ class AttackPlayerAction extends BaseAction
             $ladderLoserId = $ladderWinnerId === $atkId ? $defId : $atkId;
             (new \App\Services\PVE\PvpLadderService())->recordPvpAttack($ladderWinnerId, $ladderLoserId);
 
+            // ADR-135 Ф3b «Доска розыска» (bounty): winner сразил доминатора (loser держал активную
+            // подать над другими) → охотничий трофей (престиж). Пишем ДО liftByRematch — иначе реванш
+            // единственного данника снял бы розыск раньше проверки. Killswitch внутри (dormant=no-op).
+            $bountyResult = (new \App\Services\PVE\BountyService())->recordClaim($ladderWinnerId, $ladderLoserId);
+
             // ADR-135 «Трофейная подать»: ПОСЛЕ battle_logs-insert (счёт побед из БД),
             // killswitch `tribute.enabled` внутри (dormant=no-op), 0 нового mt_rand → fence цел.
             $tributeSvc = new \App\Services\PVE\TributeService();
@@ -338,6 +343,18 @@ class AttackPlayerAction extends BaseAction
                     $attackerFinalText .= $freedLine;
                 } else {
                     $defenderFinalText .= $freedLine;
+                }
+            }
+
+            // Ф3b — уведомление охотника о засчитанном трофее. При dormant/не-в-розыске/кулдауне
+            // recorded=false → текст byte-identical прежнему.
+            if ($bountyResult['recorded'] && $winner && $loser) {
+                $bountyLine = "\n\n🎯 <b>Трофей охотника!</b> Ты сразил угнетателя {$loser['name']}, "
+                    . "державшего трофейную подать над другими (всего трофеев: {$bountyResult['claims']}). 🎮 Развлечения → 🎯 Доска розыска.";
+                if ((int) $winner['id'] === (int) $attacker['id']) {
+                    $attackerFinalText .= $bountyLine;
+                } else {
+                    $defenderFinalText .= $bountyLine;
                 }
             }
         }

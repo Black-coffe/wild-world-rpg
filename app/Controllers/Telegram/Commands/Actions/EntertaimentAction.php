@@ -45,6 +45,14 @@ class EntertaimentAction extends BaseAction
             ];
         }
 
+        // ADR-135 Ф3b — «🎯 Доска розыска»: кнопка видна ТОЛЬКО когда включены И подать,
+        // И bounty-слой (dormant → скрыта, live-vs-dormant honesty).
+        if ($this->gsBool('tribute.enabled', false) && $this->gsBool('tribute.bounty_enabled', false)) {
+            $rows[] = [
+                ['text' => '🎯 Доска розыска', 'callback_data' => 'bountyBoard'],
+            ];
+        }
+
         $rows[] = [
             ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
         ];
