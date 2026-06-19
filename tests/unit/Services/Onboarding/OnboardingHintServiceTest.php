@@ -28,11 +28,15 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
         $this->assertNotSame('', trim($hint['text']));
     }
 
-    /** Анти-дрифт: подсказка несёт ключевые факты (media-off самодостаточность). */
+    /**
+     * Анти-дрифт: подсказка несёт ключевые факты (media-off самодостаточность).
+     * Расширено 2026-06-19: лагерь ставится рядом (далеко идти не надо) + про «Поход»
+     * как дешёвую альтернативу шагам по одной клетке (прод-обращение новичка).
+     */
     public function testFirstBaseHintTeachesCoreFacts(): void
     {
         $text = OnboardingHintCatalog::get(OnboardingHintCatalog::FIRST_BASE)['text'] ?? '';
-        foreach (['База', 'Строить', 'магазин'] as $needle) {
+        foreach (['База', 'Строить', 'магазин', 'Далеко идти не надо', 'Поход'] as $needle) {
             $this->assertStringContainsString($needle, $text, "Подсказка не упоминает «{$needle}».");
         }
     }
