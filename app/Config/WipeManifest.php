@@ -139,6 +139,7 @@ class WipeManifest extends BaseConfig
         'action_log'             => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Лог действий игрока'],
         'base_storage'           => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Хранилище базы'],
         'battle_logs'            => ['strategy' => self::PLAYER_DATA, 'link' => ['player1_id', 'player2_id'], 'by' => 'character', 'note' => 'Логи боёв PvP'],
+        'character_tributes'     => ['strategy' => self::PLAYER_DATA, 'link' => ['master_id', 'vassal_id'], 'by' => 'character', 'note' => 'Трофейная подать PvP (ADR-135) — активные/исторические отношения дани между игроками'],
         'character_achievements' => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Разблокированные достижения'],
         'character_titles'       => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Разблокированные титулы (ADR-112, E11)'],
         'character_collection_slots' => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Заполненные слоты коллекций (ADR-119, E19) — сдача-синк прогресса'],
