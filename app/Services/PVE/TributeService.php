@@ -122,6 +122,26 @@ final class TributeService
         return $this->intSetting('tribute.ransom_hard_cap', 15000);
     }
 
+    // ── Анти-сговор (ADR-135 Ф2-hardening) ───────────────────────────────
+
+    /** Мин. разброс во времени (часов) квалифицирующих побед. 0 = берст-гейт выкл. */
+    public function minWinSpanHours(): int
+    {
+        return $this->intSetting('tribute.min_win_span_hours', 2);
+    }
+
+    /** Мин. выборка действий у КАЖДОГО аккаунта для корреляционного гейта. 0 = гейт выкл. */
+    public function collusionMinSamples(): int
+    {
+        return $this->intSetting('tribute.collusion_min_samples', 50);
+    }
+
+    /** Окно (сек) «одновременности» двух действий в корреляционном гейте. */
+    public function collusionConcurrencySeconds(): int
+    {
+        return $this->intSetting('tribute.collusion_concurrency_seconds', 120);
+    }
+
     // ── Чистое решение (тестируется без БД) ──────────────────────────────
 
     /**
@@ -185,7 +205,80 @@ final class TributeService
             return ['eligible' => false, 'reason' => 'insufficient_dominance'];
         }
 
+        // ── Анти-сговор: детерминированные структурные гейты (ADR-135 Ф2-hardening) ──
+        // Оцениваются ПОСЛЕ порога (только когда подать иначе создалась бы). Отсутствие
+        // сигнала → PASS: false-positive детекции сговора безопасен (подать не создаётся),
+        // false-negative — утечка ресурсов коллудеру, поэтому склоняемся к блокировке.
+
+        // Реципрокность/цикл A↔B: жертва уже держит хозяина под СВОЕЙ податью.
+        if (filter_var($ctx['reverseTributeActive'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            return ['eligible' => false, 'reason' => 'reverse_tribute_active'];
+        }
+
+        // Берст: квалифицирующие победы кучно во времени (альт «слил» серию за минуты).
+        $spanHours = $ctx['winsSpanHours'] ?? null;            // null = нет данных → не судим.
+        $minSpan   = self::ctxInt($ctx, 'minWinSpanHours', 0); // 0 = гейт выкл.
+        if ($minSpan > 0 && is_numeric($spanHours) && (float) $spanHours < (float) $minSpan) {
+            return ['eligible' => false, 'reason' => 'wins_too_bursty'];
+        }
+
         return ['eligible' => true, 'reason' => 'eligible'];
+    }
+
+    /**
+     * Чистая оценка сговора по корреляции активности (action_log двух аккаунтов). Срабатывает
+     * ТОЛЬКО при достаточной выборке у ОБОИХ И нулевой одновременной активности — сигнатура
+     * одного оператора (альт): один человек физически не действует двумя аккаунтами в одну минуту.
+     * Скудная выборка → НЕ судим (анти-false-positive). Без БД → unit-тестируема.
+     *
+     * Ключи $ctx: activitySamples (min действий обоих), concurrentActions, collusionMinSamples.
+     *
+     * @param array<string,mixed> $ctx
+     * @return array{colluding:bool, reason:string}
+     */
+    public static function assessCollusion(array $ctx): array
+    {
+        $samples    = self::ctxInt($ctx, 'activitySamples', 0);
+        $concurrent = self::ctxInt($ctx, 'concurrentActions', 0);
+        $minSamples = self::ctxInt($ctx, 'collusionMinSamples', 0);
+
+        if ($minSamples <= 0) {
+            return ['colluding' => false, 'reason' => 'disabled'];
+        }
+        if ($samples < $minSamples) {
+            return ['colluding' => false, 'reason' => 'insufficient_samples'];
+        }
+        if ($concurrent === 0) {
+            return ['colluding' => true, 'reason' => 'no_concurrent_activity'];
+        }
+
+        return ['colluding' => false, 'reason' => 'ok'];
+    }
+
+    /**
+     * Чистый подсчёт «одновременных» действий: сколько действий из $tsA имеют хотя бы одно
+     * действие из $tsB в пределах ±$windowSeconds. Оба массива — отсортированные по возрастанию
+     * UNIX-таймстампы. Двухуказательный проход O(n+m). Без БД → unit-тестируема.
+     *
+     * @param list<int> $tsA
+     * @param list<int> $tsB
+     */
+    public static function countConcurrent(array $tsA, array $tsB, int $windowSeconds): int
+    {
+        $count = 0;
+        $j     = 0;
+        $m     = count($tsB);
+        foreach ($tsA as $a) {
+            // Сдвигаем j мимо всех b, которые слишком рано даже для текущего (и всех будущих) a.
+            while ($j < $m && $tsB[$j] < $a - $windowSeconds) {
+                $j++;
+            }
+            if ($j < $m && $tsB[$j] <= $a + $windowSeconds) {
+                $count++;
+            }
+        }
+
+        return $count;
     }
 
     // ── Оркестрация (БД) ─────────────────────────────────────────────────
@@ -212,10 +305,18 @@ final class TributeService
                 return null;
             }
 
-            $since = $this->windowStart();
-            $ctx   = [
-                'winsByMaster'          => $this->countDirectionalWins($masterId, $vassalId, $since),
-                'winsByVassal'          => $this->countDirectionalWins($vassalId, $masterId, $since),
+            $since        = $this->windowStart();
+            $winsByMaster = $this->countDirectionalWins($masterId, $vassalId, $since);
+            $winsByVassal = $this->countDirectionalWins($vassalId, $masterId, $since);
+
+            // Берст-разброс считаем только когда порог иначе достигнут (избегаем лишнего
+            // aggregate-запроса на каждом бою). null → берст-гейт нейтрален.
+            $thresholdMet = $winsByVassal === 0 && $winsByMaster >= $this->winsRequired();
+            $spanHours    = $thresholdMet ? $this->directionalWinSpanHours($masterId, $vassalId, $since) : null;
+
+            $ctx = [
+                'winsByMaster'          => $winsByMaster,
+                'winsByVassal'          => $winsByVassal,
                 'winsRequired'          => $this->winsRequired(),
                 'masterLevel'           => $this->numField($master, 'level'),
                 'vassalLevel'           => $this->numField($vassal, 'level'),
@@ -228,10 +329,22 @@ final class TributeService
                 'hasActiveTribute'      => $this->hasActiveTribute($masterId, $vassalId),
                 'daysSinceLastLift'     => $this->daysSinceLastLift($masterId, $vassalId),
                 'recaptureCooldownDays' => $this->recaptureCooldownDays(),
+                // Анти-сговор (дешёвые сигналы): реципрокность + берст.
+                'reverseTributeActive'  => $this->hasActiveTribute($vassalId, $masterId),
+                'winsSpanHours'         => $spanHours,
+                'minWinSpanHours'       => $this->minWinSpanHours(),
             ];
 
             $decision = self::decideDomination($ctx);
             if (! $decision['eligible']) {
+                return null;
+            }
+
+            // Фаза 2 анти-сговора: дорогая корреляция активности (action_log) — только теперь,
+            // когда подать иначе создалась бы. FP безопасен (подать не создаём), FN = утечка.
+            $collusion = self::assessCollusion($this->assessActivityCorrelation($masterId, $vassalId));
+            if ($collusion['colluding']) {
+                log_message('warning', "TributeService: подать заблокирована анти-сговором master={$masterId} vassal={$vassalId} reason={$collusion['reason']}");
                 return null;
             }
 
@@ -280,6 +393,10 @@ final class TributeService
                 'hasActiveTribute'      => $this->hasActiveTribute($masterId, $vassalId),
                 'daysSinceLastLift'     => $this->daysSinceLastLift($masterId, $vassalId),
                 'recaptureCooldownDays' => $this->recaptureCooldownDays(),
+                // Реципрокность отражаем (дёшево); берст/корреляция — проверки момента создания.
+                'reverseTributeActive'  => $this->hasActiveTribute($vassalId, $masterId),
+                'winsSpanHours'         => null,
+                'minWinSpanHours'       => 0,
             ];
             $decision = self::decideDomination($ctx);
 
@@ -609,6 +726,102 @@ final class TributeService
             ->groupEnd();
         $cnt = $builder->countAllResults();
         return is_numeric($cnt) ? (int) $cnt : 0;
+    }
+
+    /**
+     * Разброс во времени (часов) между первой и последней летальной полевой PvP-победой
+     * winnerId над otherId с момента $since. null — если побед < 2 (нет данных для разброса).
+     */
+    private function directionalWinSpanHours(int $winnerId, int $otherId, string $since): ?float
+    {
+        $builder = Database::connect()->table('battle_logs');
+        $builder->select('MIN(created_at) AS min_at, MAX(created_at) AS max_at, COUNT(*) AS cnt')
+            ->where('battle_type', 'PVP')
+            ->where('winner_id', $winnerId)
+            ->where('created_at >=', $since)
+            ->groupStart()
+                ->groupStart()
+                    ->where('player1_id', $winnerId)
+                    ->where('player2_id', $otherId)
+                ->groupEnd()
+                ->orGroupStart()
+                    ->where('player1_id', $otherId)
+                    ->where('player2_id', $winnerId)
+                ->groupEnd()
+            ->groupEnd();
+        $res = $builder->get();
+        $arr = $res === false ? null : $res->getRowArray();
+        if (! is_array($arr)) {
+            return null;
+        }
+        $cnt = is_numeric($arr['cnt'] ?? null) ? (int) $arr['cnt'] : 0;
+        if ($cnt < 2) {
+            return null;
+        }
+        $min = isset($arr['min_at']) && is_string($arr['min_at']) ? strtotime($arr['min_at']) : false;
+        $max = isset($arr['max_at']) && is_string($arr['max_at']) ? strtotime($arr['max_at']) : false;
+        if ($min === false || $max === false || $max < $min) {
+            return null;
+        }
+        return ($max - $min) / 3600.0;
+    }
+
+    /**
+     * Собирает сигналы корреляции активности двух аккаунтов (action_log за окно доминирования)
+     * для чистой `assessCollusion`. Дорого (читает таймстампы обоих) → вызывать ТОЛЬКО когда
+     * подать иначе создалась бы. При collusionMinSamples=0 (гейт выкл.) — без запросов.
+     *
+     * @return array{activitySamples:int, concurrentActions:int, collusionMinSamples:int}
+     */
+    private function assessActivityCorrelation(int $aId, int $bId): array
+    {
+        $minSamples = $this->collusionMinSamples();
+        if ($minSamples <= 0 || $aId <= 0 || $bId <= 0) {
+            return ['activitySamples' => 0, 'concurrentActions' => 0, 'collusionMinSamples' => 0];
+        }
+        try {
+            $since = $this->windowStart();
+            $tsA   = $this->actionTimestamps($aId, $since);
+            $tsB   = $this->actionTimestamps($bId, $since);
+            $samples    = min(count($tsA), count($tsB));
+            $concurrent = $samples > 0 ? self::countConcurrent($tsA, $tsB, $this->collusionConcurrencySeconds()) : 0;
+
+            return [
+                'activitySamples'     => $samples,
+                'concurrentActions'   => $concurrent,
+                'collusionMinSamples' => $minSamples,
+            ];
+        } catch (\Throwable $e) {
+            // Сбой → не судим (нейтрально): samples 0 < minSamples → assessCollusion вернёт false.
+            return ['activitySamples' => 0, 'concurrentActions' => 0, 'collusionMinSamples' => $minSamples];
+        }
+    }
+
+    /**
+     * Отсортированные по возрастанию UNIX-таймстампы действий персонажа из action_log с $since.
+     *
+     * @return list<int>
+     */
+    private function actionTimestamps(int $charId, string $since): array
+    {
+        $res = Database::connect()->table('action_log')
+            ->select('created_at')
+            ->where('character_id', $charId)
+            ->where('created_at >=', $since)
+            ->orderBy('created_at', 'ASC')
+            ->get();
+        $out = [];
+        $rows = $res === false ? [] : $res->getResultArray();
+        foreach ($rows as $r) {
+            $raw = $r['created_at'] ?? null;
+            if (is_string($raw) && $raw !== '') {
+                $ts = strtotime($raw);
+                if ($ts !== false) {
+                    $out[] = $ts;
+                }
+            }
+        }
+        return $out;
     }
 
     private function hasActiveTribute(int $masterId, int $vassalId): bool
