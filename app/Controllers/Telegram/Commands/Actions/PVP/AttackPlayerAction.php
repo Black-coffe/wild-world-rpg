@@ -310,6 +310,12 @@ class AttackPlayerAction extends BaseAction
             $defId         = is_numeric($defender['id'] ?? null) ? (int) $defender['id'] : 0;
             $ladderLoserId = $ladderWinnerId === $atkId ? $defId : $atkId;
             (new \App\Services\PVE\PvpLadderService())->recordPvpAttack($ladderWinnerId, $ladderLoserId);
+
+            // ADR-135 «Трофейная подать»: проверка доминирования победителя над проигравшим
+            // (создание подати при N побед/окно И 0 поражений). ПОСЛЕ battle_logs-insert (счёт
+            // побед читается из БД), killswitch `tribute.enabled` внутри (dormant=no-op),
+            // 0 нового mt_rand → PvP fixture-fence byte-equivalent сохраняется.
+            (new \App\Services\PVE\TributeService())->evaluateDomination($ladderWinnerId, $ladderLoserId);
         }
 
         $battleUrl = base_url('battles/view/') . $battleId;
