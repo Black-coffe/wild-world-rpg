@@ -162,7 +162,13 @@ final class DeathMessageBuilder
      * Если char_id есть в `effect_log` одного из последних 20 — это релевантное событие
      * (rolling window закрывает race-условие закрытия event'а до death-tick'а).
      *
-     * @return array{name: string, name_english: string, protection_item: ?string}|null
+     * `is_active` различает «событие идёт прямо сейчас» (status='active') и «уже
+     * завершилось, но урон ещё сказывается» (status='completed'). Нужно, чтобы
+     * предупреждение не врало «сейчас на тебя действует», когда событие закончилось
+     * минуту назад (репорт 2026-06-20: игрок видел «действует», а меню «События»
+     * честно показывало «активных нет» — рассинхрон формулировки).
+     *
+     * @return array{name: string, name_english: string, protection_item: ?string, is_active: bool}|null
      */
     public function activeDamageEvent(int $charId): ?array
     {
@@ -185,6 +191,7 @@ final class DeathMessageBuilder
             }
             $info = $this->eventInfo(self::asInt($row['event_id'] ?? null, 0));
             if ($info !== null) {
+                $info['is_active'] = (self::asStr($row['status'] ?? null) === 'active');
                 return $info;
             }
         }

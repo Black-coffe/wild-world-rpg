@@ -6313,12 +6313,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/CraftedResourcesAction.php
 
 		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/EventAction.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\EventAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
