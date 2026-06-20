@@ -62,6 +62,37 @@ class OnboardingHintService
     }
 
     /**
+     * Первый шаг (2026-06-20) — хинт «сделай первый шаг» при открытии карты новичком,
+     * который ещё фактически не двигался (стоит на спавне). Гейты: level ≤
+     * contextual_hints.max_level + почти не двигался (`hasBarelyMoved` — мало
+     * explored_cells) + общие killswitch/opt-out/one-shot. Закрывает холодный старт
+     * OnbStepMove (находка пере-среза A+B 2026-06-20: 38/67 = 57%). Карта — статичное
+     * фото без кнопок ходьбы → подсказываем, где компас «🧭 Двигаться».
+     *
+     * @param array<string, mixed>|CharacterEntity $character
+     */
+    public function maybeSendFirstMoveHint(array|CharacterEntity $character, int $chatId): bool
+    {
+        $level = self::intField($character, 'level');
+        if ($level > $this->gsInt('onboarding.contextual_hints.max_level', 6)) {
+            return false;
+        }
+
+        $charId = self::intField($character, 'id');
+        if ($charId <= 0 || $this->alreadyShown($charId, OnboardingHintCatalog::FIRST_MOVE)) {
+            return false;
+        }
+
+        // Только тем, кто ещё фактически не двигался (стоит на спавне). Кто уже походил —
+        // знает «как», хинт не нужен.
+        if (! $this->hasBarelyMoved($charId)) {
+            return false;
+        }
+
+        return $this->maybeSend($character, $chatId, OnboardingHintCatalog::FIRST_MOVE);
+    }
+
+    /**
      * Первая постройка (2026-06-20) — хинт «построй первую постройку» при открытии
      * экрана базы новичком, у которого база ЕСТЬ, но НИ ОДНОЙ постройки.
      * Гейты: level ≤ contextual_hints.max_level + есть активная база + нет ни одной
@@ -264,6 +295,17 @@ class OnboardingHintService
         return (new \App\Models\CharacterBuildingModel())
             ->where('character_id', $charId)
             ->countAllResults() > 0;
+    }
+
+    /**
+     * «Почти не двигался» — у персонажа ≤ 1 исследованной клетки (стоит на спавне,
+     * ни разу не сходил). Overridable seam для тестов (без DB).
+     */
+    protected function hasBarelyMoved(int $charId): bool
+    {
+        return (new \App\Models\ExploredCellsModel())
+            ->where('character_id', $charId)
+            ->countAllResults() <= 1;
     }
 
     /**

@@ -128,16 +128,27 @@ class BotMenuService
             return self::noCharacter($chatId);
         }
 
-        return (new MapService())->showMapWithPlayer($chatId, $character);
+        $response = (new MapService())->showMapWithPlayer($chatId, $character);
+
+        // ADR-103 just-in-time: новичок открыл карту, но ещё не двигался — подсказываем,
+        // где компас «🧭 Двигаться» (карта мира = статичное фото без кнопок ходьбы).
+        // One-shot (action_log) + killswitch/opt-out внутри сервиса; гейтится по level
+        // дёшево (ветераны отсекаются без DB). Закрывает холодный старт OnbStepMove
+        // (пере-срез A+B 2026-06-20).
+        (new \App\Services\Onboarding\OnboardingHintService())
+            ->maybeSendFirstMoveHint($character, $chatId);
+
+        return $response;
     }
 
     /**
      * Резолв персонажа по telegram_id. null — если нет Telegram-юзера или персонажа.
-     * TelegramUserModel отдаёт array; CharacterModel — CharacterEntity.
+     * TelegramUserModel отдаёт array; CharacterModel типизирован `returnType=CharacterEntity`
+     * → `first()` даёт CharacterEntity (или null).
      *
-     * @return array<int|string, mixed>|CharacterEntity|null
+     * @return CharacterEntity|null
      */
-    private static function resolveCharacter(int $telegramId): array|CharacterEntity|null
+    private static function resolveCharacter(int $telegramId): ?CharacterEntity
     {
         $userRow = (new TelegramUserModel())->where('telegram_id', $telegramId)->first();
         if (! is_array($userRow)) {
@@ -147,11 +158,8 @@ class BotMenuService
         $userId = is_numeric($rawId) ? (int) $rawId : 0;
 
         $character = (new CharacterModel())->where('telegram_user_id', $userId)->first();
-        if (is_array($character) || $character instanceof CharacterEntity) {
-            return $character;
-        }
 
-        return null;
+        return $character instanceof CharacterEntity ? $character : null;
     }
 
     /** Единый ответ «нет персонажа» с подсказкой пути восстановления. */

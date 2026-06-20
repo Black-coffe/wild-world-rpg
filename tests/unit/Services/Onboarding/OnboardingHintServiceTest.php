@@ -339,6 +339,79 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
         $this->assertFalse($svc->maybeSendFirstBuildHint(['id' => 5, 'level' => 2, 'daily_tips_enabled' => 0], 100));
         $this->assertCount(0, $svc->sent);
     }
+
+    // ── Первый шаг (2026-06-20, пере-срез A+B): холодный старт OnbStepMove ────────
+
+    /** Анти-дрифт: текст учит, где компас движения + media-off самодостаточность. */
+    public function testFirstMoveHintTeachesCoreFacts(): void
+    {
+        $text = OnboardingHintCatalog::get(OnboardingHintCatalog::FIRST_MOVE)['text'] ?? '';
+        foreach (['Двигаться', 'Поход', 'шаг'] as $needle) {
+            $this->assertStringContainsString($needle, $text, "Хинт первого шага не упоминает «{$needle}».");
+        }
+    }
+
+    /** Хинт ведёт на экран компаса движения (callback `move`). */
+    public function testFirstMoveHintLinksToMove(): void
+    {
+        $markupRaw = OnboardingHintCatalog::get(OnboardingHintCatalog::FIRST_MOVE)['reply_markup'] ?? null;
+        $this->assertIsString($markupRaw, 'У хинта первого шага нет кнопок.');
+        $markup = json_decode($markupRaw, true);
+        $this->assertIsArray($markup);
+        $callbacks = [];
+        array_walk_recursive($markup, static function ($value, $key) use (&$callbacks): void {
+            if ($key === 'callback_data') {
+                $callbacks[] = $value;
+            }
+        });
+        $this->assertContains('move', $callbacks, 'Нет кнопки на экран движения.');
+    }
+
+    /** Happy path: новичок открыл карту, ещё не двигался → шлём один раз. */
+    public function testFirstMoveHintHappyPathSendsOnce(): void
+    {
+        $svc = new FakeHintService(); // barelyMoved = true по умолчанию
+        $newbie = ['id' => 9, 'level' => 1, 'daily_tips_enabled' => 1];
+
+        $this->assertTrue($svc->maybeSendFirstMoveHint($newbie, 100));
+        $this->assertCount(1, $svc->sent);
+        $this->assertSame([OnboardingHintCatalog::FIRST_MOVE], $svc->recorded);
+
+        // one-shot: повторно не шлём.
+        $this->assertFalse($svc->maybeSendFirstMoveHint($newbie, 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    /** Уже походил — знает «как», хинт молчит. */
+    public function testFirstMoveHintSuppressedWhenAlreadyMoved(): void
+    {
+        $svc = new FakeHintService();
+        $svc->barelyMoved = false;
+        $this->assertFalse($svc->maybeSendFirstMoveHint(['id' => 9, 'level' => 1, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testFirstMoveHintLevelGateSuppresses(): void
+    {
+        $svc = new FakeHintService(); // maxLvl = 6
+        $this->assertFalse($svc->maybeSendFirstMoveHint(['id' => 9, 'level' => 7, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testFirstMoveHintKillswitchOffSuppresses(): void
+    {
+        $svc = new FakeHintService();
+        $svc->killswitch = false;
+        $this->assertFalse($svc->maybeSendFirstMoveHint(['id' => 9, 'level' => 1, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testFirstMoveHintRespectsOptOut(): void
+    {
+        $svc = new FakeHintService();
+        $this->assertFalse($svc->maybeSendFirstMoveHint(['id' => 9, 'level' => 1, 'daily_tips_enabled' => 0], 100));
+        $this->assertCount(0, $svc->sent);
+    }
 }
 
 /**
@@ -356,6 +429,7 @@ final class FakeHintService extends OnboardingHintService
     public int $maxLvl = 6;
     public bool $baseExists = false;
     public bool $hasBuildings = false;
+    public bool $barelyMoved = true;
     public bool $workshopOwned = false;
     public bool $greenhouseOwned = false;
     /** @var array<string, int> per-key значения gsInt (E20: окно automation-хинта) */
@@ -396,6 +470,11 @@ final class FakeHintService extends OnboardingHintService
     protected function hasAnyBuilding(int $charId): bool
     {
         return $this->hasBuildings;
+    }
+
+    protected function hasBarelyMoved(int $charId): bool
+    {
+        return $this->barelyMoved;
     }
 
     protected function send(array $payload): void
