@@ -30,7 +30,7 @@
     <!-- Remix Icon (локально, ri-*) -->
     <link href="<?= base_url('css/icons.min.css') ?>" rel="stylesheet" type="text/css">
     <!-- Дизайн-система «Quiet Premium» -->
-    <link href="<?= base_url('assets/css/admin-ui.css') ?>?v=2" rel="stylesheet" type="text/css">
+    <link href="<?= base_url('assets/css/admin-ui.css') ?>?v=3" rel="stylesheet" type="text/css">
 
     <?= $this->renderSection('head') ?>
 </head>
