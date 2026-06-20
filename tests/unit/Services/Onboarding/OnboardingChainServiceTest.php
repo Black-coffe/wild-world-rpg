@@ -43,6 +43,24 @@ final class OnboardingChainServiceTest extends CIUnitTestCase
         }
     }
 
+    /**
+     * Анти-дрифт utf8mb3: `description` пишется в `quests.description` (utf8mb3-колонка) —
+     * НЕ должна содержать 4-байтных символов (emoji), иначе на проде хранится как «?»
+     * (урок feedback_emoji_content_needs_utf8mb4, фикс 2026-06-20). Эмодзи живут в
+     * `done_text` / кнопках (шлются в Telegram напрямую, не через БД).
+     */
+    public function testStepDescriptionsAreUtf8mb3Safe(): void
+    {
+        foreach (OnboardingChainCatalog::steps() as $step) {
+            $this->assertSame(
+                0,
+                preg_match('/[\x{10000}-\x{10FFFF}]/u', $step['description']),
+                "Описание шага {$step['title_en']} содержит 4-байтный символ (emoji) — "
+                . 'quests.description = utf8mb3, сохранится как «?». Назови кнопку словом без эмодзи.'
+            );
+        }
+    }
+
     /** Все title_en несут общий префикс — по нему handler опознаёт онбординг-шаги. */
     public function testAllStepsCarryChainPrefix(): void
     {
