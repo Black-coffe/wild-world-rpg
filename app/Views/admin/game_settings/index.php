@@ -43,7 +43,7 @@
     <div class="aui-card" style="margin-bottom:var(--sp-5)">
         <div class="aui-card__head"><i class="ri-settings-3-line"></i><span class="aui-card__title"><?= esc($catName) ?></span></div>
         <div class="aui-tablewrap">
-        <table class="aui-table">
+        <table class="aui-table aui-table--settings">
             <thead><tr>
                 <th style="width:26%">Ключ</th>
                 <th style="width:7%">Тип</th>
