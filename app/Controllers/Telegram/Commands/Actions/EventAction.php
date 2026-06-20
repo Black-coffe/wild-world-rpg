@@ -187,8 +187,10 @@ class EventAction extends BaseAction
 
         $names = [];
         foreach ($ids as $id) {
+            // BiomeModel отдаёт BiomeEntity (ArrayAccess), НЕ array — читаем через
+            // offset, не `is_array` (иначе биомы молча выпадают; урок Entity-миграции).
             $biome = $this->biomeModel->find($id);
-            if (is_array($biome) && isset($biome['name'])) {
+            if (($biome instanceof \ArrayAccess || is_array($biome)) && isset($biome['name'])) {
                 $names[] = self::asStr($biome['name']);
             }
         }
