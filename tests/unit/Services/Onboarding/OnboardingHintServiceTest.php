@@ -252,6 +252,93 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
         $this->assertFalse($svc->maybeSendGreenhouseTip(['id' => 3, 'level' => 2, 'daily_tips_enabled' => 0], 100));
         $this->assertCount(0, $svc->sent);
     }
+
+    // ── Первая постройка (2026-06-20, пере-срез A+B): горлышко OnbStepBuild ───────
+
+    /** Анти-дрифт: текст учит пути к стройке + media-off самодостаточность. */
+    public function testFirstBuildHintTeachesCoreFacts(): void
+    {
+        $text = OnboardingHintCatalog::get(OnboardingHintCatalog::FIRST_BUILD)['text'] ?? '';
+        foreach (['постройку', 'База', 'Строить'] as $needle) {
+            $this->assertStringContainsString($needle, $text, "Хинт первой постройки не упоминает «{$needle}».");
+        }
+    }
+
+    /** Хинт ведёт на экран построек (discoverability в just-in-time момент). */
+    public function testFirstBuildHintLinksToBuild(): void
+    {
+        $markupRaw = OnboardingHintCatalog::get(OnboardingHintCatalog::FIRST_BUILD)['reply_markup'] ?? null;
+        $this->assertIsString($markupRaw, 'У хинта первой постройки нет кнопок.');
+        $markup = json_decode($markupRaw, true);
+        $this->assertIsArray($markup);
+        $callbacks = [];
+        array_walk_recursive($markup, static function ($value, $key) use (&$callbacks): void {
+            if ($key === 'callback_data') {
+                $callbacks[] = $value;
+            }
+        });
+        $this->assertContains('Build', $callbacks, 'Нет кнопки на экран построек.');
+    }
+
+    /** Happy path: новичок с базой, но без построек → шлём один раз. */
+    public function testFirstBuildHintHappyPathSendsOnce(): void
+    {
+        $svc = new FakeHintService();
+        $svc->baseExists = true; // база есть
+        // hasBuildings = false по умолчанию — ни одной постройки
+        $newbie = ['id' => 5, 'level' => 2, 'daily_tips_enabled' => 1];
+
+        $this->assertTrue($svc->maybeSendFirstBuildHint($newbie, 100));
+        $this->assertCount(1, $svc->sent);
+        $this->assertSame([OnboardingHintCatalog::FIRST_BUILD], $svc->recorded);
+
+        // one-shot: повторно не шлём.
+        $this->assertFalse($svc->maybeSendFirstBuildHint($newbie, 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    /** Без базы — это сценарий FIRST_BASE, первая-постройка молчит. */
+    public function testFirstBuildHintSuppressedWithoutBase(): void
+    {
+        $svc = new FakeHintService(); // baseExists = false
+        $this->assertFalse($svc->maybeSendFirstBuildHint(['id' => 5, 'level' => 2, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    /** Уже есть постройка — горлышко пройдено, хинт молчит. */
+    public function testFirstBuildHintSuppressedWhenHasBuilding(): void
+    {
+        $svc = new FakeHintService();
+        $svc->baseExists   = true;
+        $svc->hasBuildings = true;
+        $this->assertFalse($svc->maybeSendFirstBuildHint(['id' => 5, 'level' => 2, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testFirstBuildHintLevelGateSuppresses(): void
+    {
+        $svc = new FakeHintService(); // maxLvl = 6
+        $svc->baseExists = true;
+        $this->assertFalse($svc->maybeSendFirstBuildHint(['id' => 5, 'level' => 7, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testFirstBuildHintKillswitchOffSuppresses(): void
+    {
+        $svc = new FakeHintService();
+        $svc->baseExists = true;
+        $svc->killswitch = false;
+        $this->assertFalse($svc->maybeSendFirstBuildHint(['id' => 5, 'level' => 2, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testFirstBuildHintRespectsOptOut(): void
+    {
+        $svc = new FakeHintService();
+        $svc->baseExists = true;
+        $this->assertFalse($svc->maybeSendFirstBuildHint(['id' => 5, 'level' => 2, 'daily_tips_enabled' => 0], 100));
+        $this->assertCount(0, $svc->sent);
+    }
 }
 
 /**
@@ -268,6 +355,7 @@ final class FakeHintService extends OnboardingHintService
     public bool $killswitch = true;
     public int $maxLvl = 6;
     public bool $baseExists = false;
+    public bool $hasBuildings = false;
     public bool $workshopOwned = false;
     public bool $greenhouseOwned = false;
     /** @var array<string, int> per-key значения gsInt (E20: окно automation-хинта) */
@@ -303,6 +391,11 @@ final class FakeHintService extends OnboardingHintService
     protected function ownsGreenhouse(int $charId): bool
     {
         return $this->greenhouseOwned;
+    }
+
+    protected function hasAnyBuilding(int $charId): bool
+    {
+        return $this->hasBuildings;
     }
 
     protected function send(array $payload): void

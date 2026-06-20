@@ -149,11 +149,17 @@ class BaseService
             ->recordBaseOpened($characterRow, $chatId);
 
         // One-shot контекстные хинты при открытии базы (killswitch/opt-out/one-shot —
-        // внутри сервиса, дёшево гейтятся по level; окна не пересекаются → шлётся max один):
+        // внутри сервиса, дёшево гейтятся по level; шлётся max один за открытие):
+        //   • Первая постройка — новичку с базой, но БЕЗ единой постройки (горлышко
+        //     OnbStepBuild, пере-срез 2026-06-20). Приоритетнее теплицы: сначала
+        //     «построй хоть что-то». Если ушёл — теплицу в этот раз не шлём.
         //   • Теплица — новичку (level ≤ contextual_hints.max_level) без Теплицы.
-        //   • E20 (ADR-120) Автоматизация — игроку L12-25 без Мастерской робототехники.
+        //   • E20 (ADR-120) Автоматизация — игроку L12-25 без Мастерской робототехники
+        //     (отдельное окно уровней, с newbie-хинтами не пересекается).
         $hints = new \App\Services\Onboarding\OnboardingHintService();
-        $hints->maybeSendGreenhouseTip($characterRow, $chatId);
+        if (! $hints->maybeSendFirstBuildHint($characterRow, $chatId)) {
+            $hints->maybeSendGreenhouseTip($characterRow, $chatId);
+        }
         $hints->maybeSendAutomationHint($characterRow, $chatId);
     }
 

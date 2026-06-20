@@ -62,6 +62,35 @@ class OnboardingHintService
     }
 
     /**
+     * Первая постройка (2026-06-20) — хинт «построй первую постройку» при открытии
+     * экрана базы новичком, у которого база ЕСТЬ, но НИ ОДНОЙ постройки.
+     * Гейты: level ≤ contextual_hints.max_level + есть активная база + нет ни одной
+     * постройки + общие killswitch/opt-out/one-shot. Закрывает горлышко OnbStepBuild
+     * (находка пере-среза A+B 2026-06-20: ClaimBase/OpenBase проходят, Build — 9%).
+     *
+     * @param array<string, mixed>|CharacterEntity $character
+     */
+    public function maybeSendFirstBuildHint(array|CharacterEntity $character, int $chatId): bool
+    {
+        $level = self::intField($character, 'level');
+        if ($level > $this->gsInt('onboarding.contextual_hints.max_level', 6)) {
+            return false;
+        }
+
+        $charId = self::intField($character, 'id');
+        if ($charId <= 0 || $this->alreadyShown($charId, OnboardingHintCatalog::FIRST_BUILD)) {
+            return false;
+        }
+
+        // База должна БЫТЬ (иначе это сценарий FIRST_BASE), но ещё НИ ОДНОЙ постройки.
+        if (! $this->hasActiveBase($charId) || $this->hasAnyBuilding($charId)) {
+            return false;
+        }
+
+        return $this->maybeSend($character, $chatId, OnboardingHintCatalog::FIRST_BUILD);
+    }
+
+    /**
      * E8 (ADR-109) Ф2 — интро-подсказка про ежедневные задания (just-in-time).
      * Гейты: level ≤ max (только новички — ветераны находят фичу кнопкой «🗓 Задания дня»
      * на карточке Перса, без масс-пинга всей популяции) + killswitch + opt-out + не показано.
@@ -224,6 +253,17 @@ class OnboardingHintService
     protected function ownsGreenhouse(int $charId): bool
     {
         return $this->ownsBuilding($charId, 'Greenhouse');
+    }
+
+    /**
+     * Построена ли у персонажа ХОТЬ ОДНА постройка (любого типа, любая база).
+     * Overridable seam для тестов (без DB).
+     */
+    protected function hasAnyBuilding(int $charId): bool
+    {
+        return (new \App\Models\CharacterBuildingModel())
+            ->where('character_id', $charId)
+            ->countAllResults() > 0;
     }
 
     /**
