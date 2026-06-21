@@ -412,6 +412,79 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
         $this->assertFalse($svc->maybeSendFirstMoveHint(['id' => 9, 'level' => 1, 'daily_tips_enabled' => 0], 100));
         $this->assertCount(0, $svc->sent);
     }
+
+    // ── Первый крафт (2026-06-21, пере-срез A+B): горлышко OnbStepCraft ──────────
+
+    /** Анти-дрифт: текст учит, с чего начать крафт + media-off самодостаточность. */
+    public function testFirstCraftHintTeachesCoreFacts(): void
+    {
+        $text = OnboardingHintCatalog::get(OnboardingHintCatalog::FIRST_CRAFT)['text'] ?? '';
+        foreach (['предмет', 'Общий крафт', 'Повязка'] as $needle) {
+            $this->assertStringContainsString($needle, $text, "Хинт первого крафта не упоминает «{$needle}».");
+        }
+    }
+
+    /** Хинт ведёт в раздел «Общий крафт» (callback `generalCraft`) — без верстака. */
+    public function testFirstCraftHintLinksToGeneralCraft(): void
+    {
+        $markupRaw = OnboardingHintCatalog::get(OnboardingHintCatalog::FIRST_CRAFT)['reply_markup'] ?? null;
+        $this->assertIsString($markupRaw, 'У хинта первого крафта нет кнопок.');
+        $markup = json_decode($markupRaw, true);
+        $this->assertIsArray($markup);
+        $callbacks = [];
+        array_walk_recursive($markup, static function ($value, $key) use (&$callbacks): void {
+            if ($key === 'callback_data') {
+                $callbacks[] = $value;
+            }
+        });
+        $this->assertContains('generalCraft', $callbacks, 'Нет кнопки на раздел общего крафта.');
+    }
+
+    /** Happy path: новичок открыл крафт-хаб, ещё ничего не крафтил → шлём один раз. */
+    public function testFirstCraftHintHappyPathSendsOnce(): void
+    {
+        $svc = new FakeHintService(); // hasCrafted = false по умолчанию
+        $newbie = ['id' => 11, 'level' => 1, 'daily_tips_enabled' => 1];
+
+        $this->assertTrue($svc->maybeSendFirstCraftHint($newbie, 100));
+        $this->assertCount(1, $svc->sent);
+        $this->assertSame([OnboardingHintCatalog::FIRST_CRAFT], $svc->recorded);
+
+        // one-shot: повторно не шлём.
+        $this->assertFalse($svc->maybeSendFirstCraftHint($newbie, 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    /** Уже что-то скрафтил — навык освоен, хинт молчит. */
+    public function testFirstCraftHintSuppressedWhenAlreadyCrafted(): void
+    {
+        $svc = new FakeHintService();
+        $svc->hasCrafted = true;
+        $this->assertFalse($svc->maybeSendFirstCraftHint(['id' => 11, 'level' => 1, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testFirstCraftHintLevelGateSuppresses(): void
+    {
+        $svc = new FakeHintService(); // maxLvl = 6
+        $this->assertFalse($svc->maybeSendFirstCraftHint(['id' => 11, 'level' => 7, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testFirstCraftHintKillswitchOffSuppresses(): void
+    {
+        $svc = new FakeHintService();
+        $svc->killswitch = false;
+        $this->assertFalse($svc->maybeSendFirstCraftHint(['id' => 11, 'level' => 1, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testFirstCraftHintRespectsOptOut(): void
+    {
+        $svc = new FakeHintService();
+        $this->assertFalse($svc->maybeSendFirstCraftHint(['id' => 11, 'level' => 1, 'daily_tips_enabled' => 0], 100));
+        $this->assertCount(0, $svc->sent);
+    }
 }
 
 /**
@@ -430,6 +503,7 @@ final class FakeHintService extends OnboardingHintService
     public bool $baseExists = false;
     public bool $hasBuildings = false;
     public bool $barelyMoved = true;
+    public bool $hasCrafted = false;
     public bool $workshopOwned = false;
     public bool $greenhouseOwned = false;
     /** @var array<string, int> per-key значения gsInt (E20: окно automation-хинта) */
@@ -475,6 +549,11 @@ final class FakeHintService extends OnboardingHintService
     protected function hasBarelyMoved(int $charId): bool
     {
         return $this->barelyMoved;
+    }
+
+    protected function hasCraftedAnything(int $charId): bool
+    {
+        return $this->hasCrafted;
     }
 
     protected function send(array $payload): void

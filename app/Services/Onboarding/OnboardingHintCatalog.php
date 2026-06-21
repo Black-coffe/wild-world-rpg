@@ -39,6 +39,17 @@ class OnboardingHintCatalog
      */
     public const FIRST_BUILD = 'first_build';
 
+    /**
+     * Первый крафт (2026-06-21, пере-срез A+B): триггер — открытие крафт-хаба
+     * новичком (level ≤ onboarding.contextual_hints.max_level), который ещё НИ РАЗУ
+     * ничего не скрафтил (пустой crafted_items_log — зеркало objective `craft_any`).
+     * Закрывает горлышко воронки OnbStepCraft (12/36 = 33%, −24 игрока — следующая по
+     * величине утечка после Build/Move, находка среза 2026-06-20): новичок доходит до
+     * крафт-хаба, видит 4 раздела и не знает, с чего начать. Ведём в «🔨 Общий крафт»
+     * (верстак не нужен) к простым предметам (Повязка/Факел).
+     */
+    public const FIRST_CRAFT = 'first_craft';
+
     /** Ежедневные задания (E8, ADR-109): триггер — дейлики впервые назначены игроку. */
     public const DAILY_TASKS = 'daily_tasks';
 
@@ -105,6 +116,21 @@ class OnboardingHintCatalog
                 'reply_markup' => json_encode([
                     'inline_keyboard' => [[
                         ['text' => '🏗 Строить', 'callback_data' => 'Build'],
+                    ]],
+                ], JSON_THROW_ON_ERROR),
+            ],
+            self::FIRST_CRAFT => [
+                'text' => "🛠 *Скрафти первый предмет*\n\n"
+                    . "Выживший делает вещи из хлама. Для первой вещи *верстак не нужен* — "
+                    . "жми *🔨 Общий крафт*. Там простое снаряжение:\n"
+                    . "• *Повязка* — лечит раны;\n"
+                    . "• *Факел* — свет в тёмных местах;\n"
+                    . "• инструменты и компоненты.\n\n"
+                    . "Выбери предмет, проверь, что хватает ресурсов, и запусти сборку. "
+                    . "Готовая вещь придёт через короткое время.",
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [[
+                        ['text' => '🔨 Общий крафт', 'callback_data' => 'generalCraft'],
                     ]],
                 ], JSON_THROW_ON_ERROR),
             ],

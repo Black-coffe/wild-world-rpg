@@ -118,7 +118,18 @@ class BotMenuService
             return self::noCharacter($chatId);
         }
 
-        return (new CraftService())->showCraftMenu($chatId);
+        $response = (new CraftService())->showCraftMenu($chatId);
+
+        // ADR-103 just-in-time: новичок открыл крафт-хаб, но ещё ничего не скрафтил —
+        // подсказываем, с чего начать («🔨 Общий крафт», верстак не нужен). One-shot +
+        // killswitch/opt-out внутри сервиса; level-гейт дёшево (ветераны без DB).
+        // Закрывает горлышко OnbStepCraft (пере-срез A+B 2026-06-20: 12/36 = 33%).
+        // Тот же хинт продублирован в GenericmessageCommand::handleCraft (нижняя кнопка
+        // «Крафт» / текст «крафт» идут туда напрямую, минуя этот метод).
+        (new \App\Services\Onboarding\OnboardingHintService())
+            ->maybeSendFirstCraftHint($character, $chatId);
+
+        return $response;
     }
 
     public static function openMap(int $chatId, int $telegramId): ServerResponse

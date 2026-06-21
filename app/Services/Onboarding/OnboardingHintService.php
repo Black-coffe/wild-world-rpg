@@ -122,6 +122,37 @@ class OnboardingHintService
     }
 
     /**
+     * Первый крафт (2026-06-21) — хинт «скрафти первый предмет» при открытии крафт-хаба
+     * новичком, который ещё НИ РАЗУ ничего не скрафтил. Гейты: level ≤
+     * contextual_hints.max_level + пустой crafted_items_log (`hasCraftedAnything` —
+     * зеркало objective `craft_any`) + общие killswitch/opt-out/one-shot. Закрывает
+     * горлышко OnbStepCraft (находка пере-среза A+B 2026-06-20: 12/36 = 33%, −24 игрока —
+     * следующая по величине утечка после Build/Move). Крафт-хаб даёт 4 раздела →
+     * новичок не знает, с чего начать → ведём в «🔨 Общий крафт» (верстак не нужен).
+     *
+     * @param array<string, mixed>|CharacterEntity $character
+     */
+    public function maybeSendFirstCraftHint(array|CharacterEntity $character, int $chatId): bool
+    {
+        $level = self::intField($character, 'level');
+        if ($level > $this->gsInt('onboarding.contextual_hints.max_level', 6)) {
+            return false;
+        }
+
+        $charId = self::intField($character, 'id');
+        if ($charId <= 0 || $this->alreadyShown($charId, OnboardingHintCatalog::FIRST_CRAFT)) {
+            return false;
+        }
+
+        // Уже что-то скрафтил — навык освоен, хинт не нужен.
+        if ($this->hasCraftedAnything($charId)) {
+            return false;
+        }
+
+        return $this->maybeSend($character, $chatId, OnboardingHintCatalog::FIRST_CRAFT);
+    }
+
+    /**
      * E8 (ADR-109) Ф2 — интро-подсказка про ежедневные задания (just-in-time).
      * Гейты: level ≤ max (только новички — ветераны находят фичу кнопкой «🗓 Задания дня»
      * на карточке Перса, без масс-пинга всей популяции) + killswitch + opt-out + не показано.
@@ -306,6 +337,18 @@ class OnboardingHintService
         return (new \App\Models\ExploredCellsModel())
             ->where('character_id', $charId)
             ->countAllResults() <= 1;
+    }
+
+    /**
+     * Скрафтил ли персонаж хоть что-нибудь (любая запись в crafted_items_log).
+     * Зеркало objective `craft_any` (QuestObjectiveHandler) → гейт хинта консистентен
+     * с завершением шага OnbStepCraft. Overridable seam для тестов (без DB).
+     */
+    protected function hasCraftedAnything(int $charId): bool
+    {
+        return (new \App\Models\CraftedItemsLogModel())
+            ->where('character_id', $charId)
+            ->countAllResults() > 0;
     }
 
     /**

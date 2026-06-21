@@ -377,7 +377,19 @@ class GenericmessageCommand extends SystemCommand
 
         // Вызываем сервис крафта
         $craftService = new CraftService();
-        return $craftService->showCraftMenu($chatId);
+        $response     = $craftService->showCraftMenu($chatId);
+
+        // ADR-103 just-in-time: новичок открыл крафт-хаб (нижняя кнопка «Крафт» / текст
+        // «крафт» — основной путь), но ещё ничего не скрафтил → подсказываем, с чего начать.
+        // One-shot + killswitch/opt-out/level-гейт внутри сервиса. Закрывает горлышко
+        // OnbStepCraft (пере-срез A+B 2026-06-20: 12/36 = 33%). Дубль — в BotMenuService::openCraft
+        // (slash /craft); one-shot дедуп не даёт двойной отправки.
+        if ($characterRow instanceof \App\Entities\CharacterEntity) {
+            (new \App\Services\Onboarding\OnboardingHintService())
+                ->maybeSendFirstCraftHint($characterRow, $chatId);
+        }
+
+        return $response;
     }
 
     private function handleMap(int $chatId): ServerResponse
@@ -407,7 +419,18 @@ class GenericmessageCommand extends SystemCommand
 
         // 3) Вызываем сервис карты
         $mapService = new MapService();
-        return $mapService->showMapWithPlayer($chatId, $characterRow);
+        $response   = $mapService->showMapWithPlayer($chatId, $characterRow);
+
+        // ADR-103 just-in-time (2026-06-21): нижняя кнопка «Карта» идёт сюда напрямую,
+        // минуя BotMenuService::openMap, где висит хинт первого шага — без этого вызова
+        // FIRST_MOVE срабатывал только на slash /map (а новички жмут кнопку). One-shot +
+        // killswitch/opt-out/level/barely-moved внутри сервиса; one-shot дедуп общий с openMap.
+        if ($characterRow instanceof \App\Entities\CharacterEntity) {
+            (new \App\Services\Onboarding\OnboardingHintService())
+                ->maybeSendFirstMoveHint($characterRow, $chatId);
+        }
+
+        return $response;
     }
 
 }
