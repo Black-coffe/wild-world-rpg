@@ -168,12 +168,15 @@ class OnboardingNudgeHandler extends BaseTaskHandler
     /** One-shot маркер: подсказка по этому шагу отправлена (enum-status строго 'Completed'). */
     protected function recordNudged(int $charId, int $tgId, string $titleEn): void
     {
+        // created_at ставим явно: raw query-builder обходит useTimestamps модели, иначе
+        // колонка остаётся NULL → нечем мерить тайминг/объём авто-эскалации в мониторинге.
         Database::connect()->table('action_log')->insert([
             'character_id' => $charId,
             'chat_id'      => $tgId,
             'action_name'  => self::LOG_PREFIX . $titleEn,
             'action_status' => 'Completed',
             'description'  => 'E4 onboarding auto-escalation nudge',
+            'created_at'   => date('Y-m-d H:i:s'),
         ]);
     }
 

@@ -126,6 +126,13 @@ final class OnboardingNudgeHandlerTest extends CIUnitTestCase
         $this->assertSame(1010, $h->sent[0][0]);
         $this->assertStringContainsString('Застрял', $h->sent[0][1]);
         $this->assertSame(1, $this->nudgeCount(1)); // one-shot маркер записан
+
+        // created_at проставлен явно (мониторинг тайминга/объёма авто-эскалации).
+        $marker = Database::connect('tests')->table('action_log')
+            ->where('character_id', 1)->like('action_name', 'OnbNudge_', 'after')
+            ->get()->getRowArray();
+        $this->assertNotNull($marker['created_at'] ?? null);
+        $this->assertNotSame('', (string) ($marker['created_at'] ?? ''));
     }
 
     public function testOneShotPreventsSecondNudge(): void
