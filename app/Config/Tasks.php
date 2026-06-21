@@ -290,6 +290,14 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\Onboarding\OnboardingNudgeHandler())->handle())
             ->everyMinute()->singleInstance()->named('onboarding.auto-escalation');
 
+        // ADR-136 (ROADMAP-100) — comeback-пинг УШЕДШИМ новичкам: новичку (level ≤ max),
+        // ушедшему в окно [min..max] часов и ещё достижимому, шлёт ОДИН проактивный пинг с
+        // CTA на незавершённый онбординг-шаг. everyMinute + hour-guard (send_hour) + once/day-claim
+        // + killswitch returnability.comeback.enabled (default OFF dormant). One-shot НАВСЕГДА per
+        // char (ComebackPing). singleInstance против overlap.
+        $schedule->call(static fn() => (new \App\TaskHandlers\Onboarding\ComebackNudgeHandler())->handle())
+            ->everyMinute()->singleInstance()->named('onboarding.comeback');
+
         // E8 (ROADMAP-100, ADR-109) — ежедневные задания: прогресс по baseline-дельте + награды.
         // everyMinute + killswitch quests.daily.enabled (default OFF dormant). singleInstance.
         $schedule->call(static fn() => (new \App\TaskHandlers\Quests\DailyTaskProgressHandler())->handle())
