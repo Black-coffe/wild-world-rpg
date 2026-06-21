@@ -34,7 +34,7 @@ final class FunnelAnalyticsServiceTest extends CIUnitTestCase
         foreach (self::TABLES as $t) {
             $db->query("DROP TABLE IF EXISTS {$t}");
         }
-        $db->query('CREATE TABLE telegram_users (id INT PRIMARY KEY, blocked_at DATETIME NULL)');
+        $db->query('CREATE TABLE telegram_users (id INT PRIMARY KEY, blocked_at DATETIME NULL, created_at DATETIME NULL, acquisition_source VARCHAR(191) NULL)');
         $db->query('CREATE TABLE characters (id INT PRIMARY KEY, telegram_user_id INT NULL, level INT NOT NULL DEFAULT 1,
                     cell_number INT NULL, created_at DATETIME NULL)');
         $db->query("CREATE TABLE claimed_cells (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, status VARCHAR(20) DEFAULT 'active')");
@@ -209,8 +209,33 @@ final class FunnelAnalyticsServiceTest extends CIUnitTestCase
     {
         $d = (new FunnelAnalyticsService())->dashboard();
 
-        foreach (['summary', 'funnel_all', 'funnel_30d', 'levels', 'weekly', 'anomalies', 'quests', 'e5', 'onboarding', 'faction', 'generated_at'] as $key) {
+        foreach (['summary', 'funnel_all', 'funnel_30d', 'levels', 'weekly', 'anomalies', 'quests', 'e5', 'onboarding', 'faction', 'acquisition', 'generated_at'] as $key) {
             $this->assertArrayHasKey($key, $d);
+        }
+    }
+
+    /** Атрибуция интейка: разбивка регистраций по acquisition_source (captured vs organic + топ). */
+    public function testAcquisitionSlice(): void
+    {
+        $db = \Config\Database::connect('tests');
+        // 4 tg-юзера: 2 захвачены (src_site_stalker ×1 свежий, src_habr_x ×1 свежий), 2 органика (NULL).
+        $db->table('telegram_users')->where('id', 1)->update(['acquisition_source' => 'src_site_stalker', 'created_at' => date('Y-m-d H:i:s')]);
+        $db->table('telegram_users')->where('id', 2)->update(['acquisition_source' => 'src_habr_42', 'created_at' => date('Y-m-d H:i:s')]);
+        // id 3,4 — без источника (органика).
+
+        $a = (new FunnelAnalyticsService())->acquisitionSlice();
+
+        $this->assertSame(4, $a['total']);
+        $this->assertSame(2, $a['captured']);
+        $this->assertSame(2, $a['organic']);
+        $this->assertCount(2, $a['sources']);
+        $srcNames = array_column($a['sources'], 'source');
+        $this->assertContains('src_site_stalker', $srcNames);
+        $this->assertContains('src_habr_42', $srcNames);
+        // оба свежие → попадают в окно 14д.
+        foreach ($a['sources'] as $s) {
+            $this->assertSame(1, $s['total']);
+            $this->assertSame(1, $s['last14d']);
         }
     }
 

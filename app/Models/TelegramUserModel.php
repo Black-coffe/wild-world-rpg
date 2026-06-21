@@ -25,6 +25,7 @@ class TelegramUserModel extends Model
         'event_pref',  // F7.5 — JSON для NotificationPolicy (throttle/mute prefs)
         'blocked_at',  // 2026-05-31 — отметка блокировки бота (broadcast-гигиена)
         'last_seen',   // E6 (ADR-108) — момент последнего входящего взаимодействия (digest/стрик/sleeping-skip)
+        'acquisition_source', // 2026-06-21 — источник первой регистрации из payload /start (src_*); first-touch, атрибуция интейка
     ];
 
     protected $useTimestamps = true;

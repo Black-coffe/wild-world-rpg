@@ -125,7 +125,7 @@ class WipeManifest extends BaseConfig
                 'last_map_message_created_at' => null,
                 'last_seen'                   => null, // E6 (ADR-108) — новый сезон = чистый last-seen
             ],
-            'note' => 'Аккаунты игроков (id/telegram_id/имена/префы/blocked_at остаются; чистим указатели на удалённые сообщения + last_seen)',
+            'note' => 'Аккаунты игроков (id/telegram_id/имена/префы/blocked_at/acquisition_source остаются — атрибуция интейка историческая, переживает вайп; чистим указатели на удалённые сообщения + last_seen)',
         ],
 
         // ─────────────────────────────────────────────────────────────

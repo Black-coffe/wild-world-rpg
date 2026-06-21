@@ -31,6 +31,9 @@ class StartCommand extends UserCommand
         $username   = $from->getUsername();
         $firstName  = $from->getFirstName();
         $lastName   = $from->getLastName();
+        // Атрибуция интейка: payload deep-link `/start <src_*>` (без команды через getText(true)).
+        // First-touch — пишется один раз при создании пользователя ниже.
+        $acquisitionSource = self::extractAcquisitionSource($message->getText(true));
 
         // 1. Закрепляем постоянную клавиатуру.
         // ADR-103 Часть A: единый источник истины — BotMenuService::mainReplyKeyboard()
@@ -42,10 +45,11 @@ class StartCommand extends UserCommand
         $existingUser      = $telegramUserModel->where('telegram_id', $telegramId)->first();
         if (!$existingUser) {
             $createdUserId = $telegramUserModel->insert([
-                'telegram_id' => $telegramId,
-                'username'    => $username,
-                'first_name'  => $firstName,
-                'last_name'   => $lastName,
+                'telegram_id'        => $telegramId,
+                'username'           => $username,
+                'first_name'         => $firstName,
+                'last_name'          => $lastName,
+                'acquisition_source' => $acquisitionSource,
             ], true);
         } else {
             $createdUserId = $existingUser['id'];
@@ -185,5 +189,24 @@ class StartCommand extends UserCommand
             $charService = new CharacterService();
             return $charService->showCharacterInfo($chatId, $existingCharacter);
         }
+    }
+
+    /**
+     * Нормализует payload deep-link `/start <src_*>` в источник регистрации.
+     * Оставляет только безопасные символы `[a-zA-Z0-9_-]` (Telegram и так ограничивает
+     * start-payload этим набором + 64 симв), обрезает до 191; пусто/мусор → null
+     * (органика/прямой вход). Pure — тестируется напрямую.
+     */
+    public static function extractAcquisitionSource(?string $payload): ?string
+    {
+        if ($payload === null) {
+            return null;
+        }
+        $clean = preg_replace('/[^a-zA-Z0-9_-]/', '', trim($payload));
+        if (! is_string($clean) || $clean === '') {
+            return null;
+        }
+
+        return mb_substr($clean, 0, 191);
     }
 }

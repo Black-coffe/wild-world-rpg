@@ -46,6 +46,9 @@ final class FunnelAnalyticsService
     /** Глубина когорты «до» (дней до активации) для сравнения E5. */
     private const E5_BEFORE_DAYS = 14;
 
+    /** Дата включения захвата источника регистрации (telegram_users.acquisition_source). */
+    private const ACQUISITION_TRACKED_SINCE = '2026-06-21';
+
     /** Дата активации инжектируема для тестов (relative-to-NOW сиды → time-stable asserts). */
     public function __construct(private string $e5Activation = self::E5_ACTIVATION)
     {
@@ -65,6 +68,7 @@ final class FunnelAnalyticsService
             'e5'         => $this->e5Slice(),
             'onboarding' => $this->onboardingChainSlice(),
             'faction'    => $this->factionConversionSlice(),
+            'acquisition' => $this->acquisitionSlice(),
             'generated_at' => date('Y-m-d H:i:s'),
         ];
     }
@@ -502,6 +506,69 @@ final class FunnelAnalyticsService
             'chosen_since_nudge'      => $this->n($r['chosen_since'] ?? 0),
             'nudge_activation'        => self::FACTION_NUDGE_ACTIVATION,
             'by_faction'              => $byFaction,
+        ];
+    }
+
+    /**
+     * Атрибуция интейка — регистрации по источнику (`telegram_users.acquisition_source`,
+     * first-touch из payload `/start src_*`). NULL/'' = органика/прямой/до-захвата. Захват
+     * включён 2026-06-21 → исторические NULL ожидаемы, разбивка наполняется свежими регистрациями.
+     *
+     * Drift-safe (try/catch → пустой срез): на стейл-дампе без колонки не роняет дашборд.
+     *
+     * @return array{tracked_since:string, total:int, captured:int, organic:int,
+     *   sources: list<array{source:string,total:int,last14d:int,last30d:int,last_reg:string}>}
+     */
+    public function acquisitionSlice(): array
+    {
+        $empty = [
+            'tracked_since' => self::ACQUISITION_TRACKED_SINCE,
+            'total'    => 0,
+            'captured' => 0,
+            'organic'  => 0,
+            'sources'  => [],
+        ];
+
+        try {
+            $head = $this->row(
+                "SELECT COUNT(*) total,
+                        SUM(acquisition_source IS NOT NULL AND acquisition_source <> '') captured,
+                        SUM(acquisition_source IS NULL OR acquisition_source = '') organic
+                 FROM telegram_users"
+            );
+            $rows = $this->rows(
+                "SELECT acquisition_source src, COUNT(*) total,
+                        SUM(created_at >= NOW() - INTERVAL 14 DAY) last14d,
+                        SUM(created_at >= NOW() - INTERVAL 30 DAY) last30d,
+                        MAX(created_at) last_reg
+                 FROM telegram_users
+                 WHERE acquisition_source IS NOT NULL AND acquisition_source <> ''
+                 GROUP BY acquisition_source
+                 ORDER BY total DESC, last_reg DESC
+                 LIMIT 50"
+            );
+        } catch (\Throwable $e) {
+            log_message('error', '[FunnelAnalytics] acquisitionSlice: ' . $e->getMessage());
+            return $empty;
+        }
+
+        $sources = [];
+        foreach ($rows as $r) {
+            $sources[] = [
+                'source'   => $this->s($r['src'] ?? ''),
+                'total'    => $this->n($r['total'] ?? 0),
+                'last14d'  => $this->n($r['last14d'] ?? 0),
+                'last30d'  => $this->n($r['last30d'] ?? 0),
+                'last_reg' => $this->s($r['last_reg'] ?? ''),
+            ];
+        }
+
+        return [
+            'tracked_since' => self::ACQUISITION_TRACKED_SINCE,
+            'total'    => $this->n($head['total'] ?? 0),
+            'captured' => $this->n($head['captured'] ?? 0),
+            'organic'  => $this->n($head['organic'] ?? 0),
+            'sources'  => $sources,
         ];
     }
 

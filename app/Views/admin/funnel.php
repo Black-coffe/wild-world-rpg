@@ -21,6 +21,7 @@ $quests = $arr($d['quests'] ?? null);
 $e5     = $arr($d['e5'] ?? null);
 $onb    = $arr($d['onboarding'] ?? null);
 $fac    = $arr($d['faction'] ?? null);
+$acq    = $arr($d['acquisition'] ?? null);
 $pctClr = static fn (float $p): string => $p >= 50 ? 'var(--success)' : ($p >= 10 ? 'var(--warning)' : 'var(--danger)');
 ?>
 
@@ -232,6 +233,42 @@ $cards = [
                 <tbody>
                 <?php foreach ($byFac as $bf): $bf = $arr($bf); ?>
                     <tr><td><?= esc($str($bf['name'] ?? '')) ?></td><td class="num"><?= esc($num($bf['chars'] ?? 0)) ?></td></tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+
+<!-- Атрибуция интейка (источники регистрации) -->
+<div class="aui-grid aui-grid--2-1" style="margin-bottom:var(--sp-4); align-items:start">
+    <div class="aui-card">
+        <div class="aui-card__head"><i class="ri-links-line"></i><span class="aui-card__title">Источники интейка (атрибуция <code>/start src_*</code>, с <?= esc($str($acq['tracked_since'] ?? '')) ?>)</span></div>
+        <div class="aui-card__body">
+            <div class="aui-grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); text-align:center; margin-bottom:var(--sp-3)">
+                <div><div class="aui-num" style="font-size:24px"><?= esc($num($acq['total'] ?? 0)) ?></div><small>Всего регистраций</small></div>
+                <div><div class="aui-num" style="font-size:24px; color:var(--success)"><?= esc($num($acq['captured'] ?? 0)) ?></div><small>С источником (захвачено)</small></div>
+                <div><div class="aui-num" style="font-size:24px"><?= esc($num($acq['organic'] ?? 0)) ?></div><small>Органика/прямой/до-захвата</small></div>
+            </div>
+            <p class="aui-faint aui-small" style="margin:0">
+                Источник = payload deep-link <code>/start src_*</code> (first-touch). До-захватные регистрации — NULL (органика).
+                Разбивка наполняется свежими переходами по статьям/конвейерам — чтобы атрибутировать Хабр/Пикабу, добавь им свои <code>src_*</code>-теги в bot-ссылки.
+            </p>
+        </div>
+    </div>
+    <div class="aui-card">
+        <div class="aui-card__head"><i class="ri-bar-chart-grouped-line"></i><span class="aui-card__title">Топ источников</span></div>
+        <?php $acqSrc = $arr($acq['sources'] ?? null); ?>
+        <?php if ($acqSrc === []): ?>
+            <div class="aui-card__body"><p class="aui-faint aui-small" style="margin:0">Захваченных источников ещё нет — копятся с новых регистраций по deep-link'ам.</p></div>
+        <?php else: ?>
+        <div class="aui-tablewrap">
+            <table class="aui-table">
+                <thead><tr><th>Источник</th><th class="num">Всего</th><th class="num">14д</th><th class="num">30д</th></tr></thead>
+                <tbody>
+                <?php foreach ($acqSrc as $as): $as = $arr($as); ?>
+                    <tr><td><?= esc($str($as['source'] ?? '')) ?></td><td class="num"><?= esc($num($as['total'] ?? 0)) ?></td><td class="num"><?= esc($num($as['last14d'] ?? 0)) ?></td><td class="num"><?= esc($num($as['last30d'] ?? 0)) ?></td></tr>
                 <?php endforeach; ?>
                 </tbody>
             </table>
