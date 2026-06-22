@@ -90,9 +90,18 @@ final class AntiCampDwellHandlerTest extends CIUnitTestCase
     {
         $db   = Database::connect('tests');
         $tgId ??= 500 + $cell;
+        // last_seen берём из ЧАСОВ MySQL (NOW()), потому что online-проверка хендлера
+        // (AntiCampDwellHandler: `tu.last_seen >= NOW() - INTERVAL N MINUTE`) сравнивает
+        // именно с MySQL NOW(). Если писать PHP date() при расхождении TZ приложения и
+        // MySQL-сессии (как в CI), оффлайн-чар (−90 мин) ложно попадает в окно → тест
+        // флапает («6≠5»). Привязка к NOW() делает тест TZ-агностичным.
+        $clock     = $db->query('SELECT NOW() AS n, (NOW() - INTERVAL 90 MINUTE) AS o')->getRowArray();
+        $lastSeen  = $online
+            ? (string) ($clock['n'] ?? date('Y-m-d H:i:s'))
+            : (string) ($clock['o'] ?? date('Y-m-d H:i:s', strtotime('-90 minutes')));
         $db->table('telegram_users')->insert([
             'telegram_id' => $tgId,
-            'last_seen'   => $online ? date('Y-m-d H:i:s') : date('Y-m-d H:i:s', strtotime('-90 minutes')),
+            'last_seen'   => $lastSeen,
             'blocked_at'  => null,
         ]);
         $tuId = (int) $db->insertID();
