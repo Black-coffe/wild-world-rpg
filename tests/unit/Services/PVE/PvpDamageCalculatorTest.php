@@ -2,7 +2,12 @@
 
 namespace Tests\Unit\Services\PVE;
 
+use App\Models\CharactersOutfitsModel;
+use App\Models\CharactersWeaponsModel;
+use App\Models\MapModel;
 use App\Services\PVE\PvpDamageCalculator;
+use App\Services\PVE\PvpEquipmentRepository;
+use App\Services\PVE\PvpFormulaService;
 use CodeIgniter\Test\CIUnitTestCase;
 use Config\GameBalance;
 
@@ -154,5 +159,96 @@ final class PvpDamageCalculatorTest extends CIUnitTestCase
     {
         // 1 + 9*0.1 = 1.9
         $this->assertEqualsWithDelta(1.9, $this->calc->computeBiomeCoefficient(10), 0.001);
+    }
+
+    // ---- WB1 (ADR-137 «Узлы») — отключение one-shot в бою с узлом ----
+
+    /**
+     * Узел-босс не должен мгновенно убивать игрока (ядро механики = многоходовый
+     * бой). Флаг $isBossEncounter гасит one-shot-эффект, НО mt_rand для oneShotRoll
+     * вызывается в любом случае → порядок RNG для PvP-пути сохранён (fixture-fence).
+     *
+     * seed=2: 4-й mt_rand(0,100)=1 < oneShotChance(16 при levelDiff 160) → one-shot
+     * срабатывает в PvP-режиме (regression-якорь) и подавляется в боссовом.
+     */
+    public function testBossEncounterSuppressesOneShotButKeepsRngOrder(): void
+    {
+        $calc = new PvpDamageCalculator(
+            new PvpFormulaService(new GameBalance()),
+            $this->makeFistsOnlyRepo(),
+            new GameBalance()
+        );
+
+        $attacker = ['id' => 1, 'level' => 200, 'cell_number' => 1, 'strength' => 0, 'agility' => 0];
+        $defender = ['id' => 2, 'level' => 40, 'cell_number' => 1, 'agility' => 0, 'health' => 500.0];
+        $biome    = ['danger_level' => 1];
+
+        // PvP-режим (isBossEncounter=false): one-shot срабатывает → урон = HP защитника.
+        mt_srand(2);
+        $pvp = $calc->computeDamage($attacker, $defender, $biome, false, false, false);
+        $this->assertSame(500.0, $pvp['finalDamage'], 'PvP: one-shot обязан сработать (regression-якорь)');
+
+        // Бой с узлом (isBossEncounter=true): тот же seed, но one-shot подавлен → чип-урон.
+        mt_srand(2);
+        $boss = $calc->computeDamage($attacker, $defender, $biome, false, false, true);
+        $this->assertLessThan(500.0, $boss['finalDamage'], 'Узел: one-shot обязан быть подавлен');
+        $this->assertGreaterThan(0.0, $boss['finalDamage']);
+
+        // mt_rand для oneShotRoll сделан в обоих режимах → порядок RNG идентичен.
+        $this->assertSame($pvp['oneShotRoll'], $boss['oneShotRoll'], 'порядок RNG сохранён (fixture-fence)');
+    }
+
+    /**
+     * Репозиторий экипировки без БД: нет оружия (кулаки), нет брони, нет клеток карты.
+     * PvpEquipmentRepository final, а Model::where() — магический __call (не мокается
+     * PHPUnit'ом) → подменяем 3 используемые модели анонимными наследниками с no-op
+     * конструктором (без подключения к БД) и переопределённой флюент-цепочкой.
+     * Неиспользуемые в computeDamage модели остаются реальными (запросов не делают).
+     */
+    private function makeFistsOnlyRepo(): PvpEquipmentRepository
+    {
+        $cw = new class extends CharactersWeaponsModel {
+            public function __construct() {}
+
+            public function where($key = null, $value = null, ?bool $escape = null): static
+            {
+                return $this;
+            }
+
+            public function first()
+            {
+                return null;
+            }
+        };
+
+        $co = new class extends CharactersOutfitsModel {
+            public function __construct() {}
+
+            public function where($key = null, $value = null, ?bool $escape = null): static
+            {
+                return $this;
+            }
+
+            public function findAll(?int $limit = null, int $offset = 0): array
+            {
+                return [];
+            }
+        };
+
+        $map = new class extends MapModel {
+            public function __construct() {}
+
+            public function where($key = null, $value = null, ?bool $escape = null): static
+            {
+                return $this;
+            }
+
+            public function first()
+            {
+                return null;
+            }
+        };
+
+        return new PvpEquipmentRepository($cw, null, $co, null, $map, null, null, null);
     }
 }

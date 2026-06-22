@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace App\Services\PVE;
 
 use App\Entities\BattleCharacter;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use Psr\Log\LoggerInterface;
 
 class DamageService
 {
+    use GameSettingsReaderTrait;
+
     private LoggerInterface $logger;
 
     public function __construct(LoggerInterface $logger)
@@ -27,7 +30,17 @@ class DamageService
     public function calculateDamage(BattleCharacter $attacker, BattleCharacter $defender, string $biome): float
     {
         $baseDamage = $attacker->damageValue;
-        $levelDifference = ($attacker->level - $defender->level) * 0.02;
+
+        // WB1 (ADR-137 «Узлы»): в бою с участием босса-узла клампим разницу уровней по
+        // combat.nodes.leveldiff_cap. Без капа узел L150+ уаншотает игрока в первом раунде
+        // и многоходовый бой с отступлением (ядро механики) невозможен. Гейт по isBoss →
+        // обычный PvE/PvP байт-идентичен (cap даже не читается из game_settings).
+        $levelDelta = $attacker->level - $defender->level;
+        if ($attacker->isBoss || $defender->isBoss) {
+            $cap        = $this->gsInt('combat.nodes.leveldiff_cap', 30);
+            $levelDelta = max(-$cap, min($cap, $levelDelta));
+        }
+        $levelDifference = $levelDelta * 0.02;
         $strengthBonus = $attacker->strength * 0.0025;
         $agilityBonus  = $attacker->agility * 0.0015;
         $totalArmor = $defender->armor + ($defender->armorBonus ?? 0);

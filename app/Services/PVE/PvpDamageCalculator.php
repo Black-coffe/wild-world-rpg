@@ -65,6 +65,10 @@ final class PvpDamageCalculator
      * @param array<string, mixed> $attacker
      * @param array<string, mixed> $defender
      * @param array<string, mixed>|\App\Entities\BiomeEntity $biome
+     * @param bool $isBossEncounter WB1 (ADR-137 «Узлы»): true в бою с узлом-боссом →
+     *        one-shot-ветка отключается (узел не уаншотает игрока — нужен многоходовый бой).
+     *        Default false → PvP-путь байт-идентичен; mt_rand для oneShotRoll вызывается
+     *        в любом случае, порядок RNG сохранён (fixture-fence цел).
      * @return array<string, mixed>
      */
     public function computeDamage(
@@ -72,7 +76,8 @@ final class PvpDamageCalculator
         array|\App\Entities\CharacterEntity $defender,
         array|\App\Entities\BiomeEntity $biome,
         bool  $luckyStrikeActive,  // see DEAD CODE NOTE in class docblock
-        bool  $isFirstHit
+        bool  $isFirstHit,
+        bool  $isBossEncounter = false
     ): array {
         // 1) Equipment (~75%)
         $D_equip = $this->computeEquipmentDamage($attacker, $defender);
@@ -139,9 +144,12 @@ final class PvpDamageCalculator
                 (float) $this->balance->oneshotMaxChance,
                 ($levelDiff / 1000) * 100
             );
-            $oneShotRoll = mt_rand(0, 100);
+            $oneShotRoll = mt_rand(0, 100); // WB1: вызывается ВСЕГДА → порядок RNG для PvP сохранён
 
-            if ($oneShotRoll < $oneShotChance) {
+            // WB1 (ADR-137 «Узлы»): в бою с узлом one-shot ОТКЛЮЧЁН. Узел не должен мгновенно
+            // убивать игрока — ядро механики это многоходовый бой с отступлением. Эффект гасим,
+            // но mt_rand выше уже вызван → PvP-путь ($isBossEncounter=false) байт-идентичен.
+            if (! $isBossEncounter && $oneShotRoll < $oneShotChance) {
                 $damageAfterBiome = $defender['health'];
             }
         }

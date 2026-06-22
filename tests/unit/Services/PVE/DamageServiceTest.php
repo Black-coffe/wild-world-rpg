@@ -187,6 +187,70 @@ final class DamageServiceTest extends CIUnitTestCase
     }
 
     // -----------------------------------------------------------------
+    // WB1 (ADR-137 «Узлы») — закап разницы уровней в бою с боссом-узлом.
+    // GameSettingsService в unit-тесте (нет ключа/БД) деградирует к default 30.
+    // -----------------------------------------------------------------
+
+    public function testBossEncounterClampsLevelDifferencePreventingOneShot(): void
+    {
+        // Босс-узел L200 бьёт игрока L40. Без капа множитель уровня = 160×0.02 = 3.2
+        // (×4.24 к урону = почти уаншот). С капом 30: 30×0.02 = 0.6.
+        $boss = $this->makeCharacter([
+            'is_boss'      => true,
+            'level'        => 200,
+            'strength'     => 10.0, // ≥5 → без bootstrap-множителя
+            'agility'      => 10.0,
+            'damage_value' => 50.0,
+        ]);
+        $player = $this->makeCharacter(['level' => 40, 'armor' => 0]);
+
+        $damage = $this->service->calculateDamage($boss, $player, 'forest');
+
+        // 50 × (1 + 0.6 + 10×0.0025 + 10×0.0015) = 50 × 1.64 = 82.0
+        $this->assertEqualsWithDelta(82.0, $damage, 0.01);
+        // Кап реально сработал: без него было бы 50 × 4.24 = 212.0.
+        $this->assertLessThan(212.0, $damage);
+    }
+
+    public function testNonBossLargeLevelDiffStaysUnclamped(): void
+    {
+        // Та же разница уровней, но НЕ босс → кап не применяется (байт-идентично легаси).
+        $attacker = $this->makeCharacter([
+            'is_boss'      => false,
+            'level'        => 200,
+            'strength'     => 10.0,
+            'agility'      => 10.0,
+            'damage_value' => 50.0,
+        ]);
+        $defender = $this->makeCharacter(['level' => 40, 'armor' => 0]);
+
+        $damage = $this->service->calculateDamage($attacker, $defender, 'forest');
+
+        // levelDiff = 160 × 0.02 = 3.2 → 50 × (1 + 3.2 + 0.025 + 0.015) = 50 × 4.24 = 212.0
+        $this->assertEqualsWithDelta(212.0, $damage, 0.01);
+    }
+
+    public function testPlayerAttackingBossAlsoClamped(): void
+    {
+        // Обратное направление: игрок L40 бьёт босса-узла L200 (defender->isBoss).
+        // Отрицательная разница тоже клампится (−30) → урон не обнуляется огромным
+        // штрафом, floor base×0.5 как нижняя граница.
+        $player = $this->makeCharacter([
+            'level'        => 40,
+            'strength'     => 10.0,
+            'agility'      => 10.0,
+            'damage_value' => 50.0,
+        ]);
+        $boss = $this->makeCharacter(['is_boss' => true, 'level' => 200, 'armor' => 0]);
+
+        $damage = $this->service->calculateDamage($player, $boss, 'forest');
+
+        // levelDiff clamp −30 → 50 × (1 − 0.6 + 0.025 + 0.015) = 50 × 0.44 = 22.0,
+        // но floor max(50×0.5, 22.0) = 25.0.
+        $this->assertEqualsWithDelta(25.0, $damage, 0.01);
+    }
+
+    // -----------------------------------------------------------------
     // E21 Ф1 (ADR-121) — боевой food-баф (множители default 1.0)
     // -----------------------------------------------------------------
 
