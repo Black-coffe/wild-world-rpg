@@ -28,7 +28,7 @@ final class BossEncounterServiceTest extends CIUnitTestCase
 
     protected $migrate = false;
 
-    private const TABLES = ['game_settings', 'boss_points', 'boss_encounters', 'boss_engagements', 'boss_camp_state', 'characters', 'npcs', 'npc_spawns', 'crafted_items', 'crafted_items_log', 'characters_weapons', 'characters_outfits'];
+    private const TABLES = ['game_settings', 'boss_points', 'boss_encounters', 'boss_engagements', 'boss_camp_state', 'boss_kill_announce_queue', 'titles', 'character_titles', 'characters', 'npcs', 'npc_spawns', 'crafted_items', 'crafted_items_log', 'characters_weapons', 'characters_outfits'];
 
     private int $npcId = 0;
 
@@ -47,11 +47,15 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $db->query("CREATE TABLE boss_encounters (id INT AUTO_INCREMENT PRIMARY KEY, boss_point_id INT, character_id INT, round_no INT DEFAULT 0, player_hp INT, status VARCHAR(16) DEFAULT 'active', damage_dealt INT DEFAULT 0, last_special_round_no INT DEFAULT 0, last_action_at DATETIME NULL, created_at DATETIME NULL)");
         $db->query('CREATE TABLE boss_engagements (id INT AUTO_INCREMENT PRIMARY KEY, boss_point_id INT, boss_level INT, character_id INT, damage_dealt INT DEFAULT 0, rounds_participated INT DEFAULT 0, first_hit_at DATETIME NULL, last_hit_at DATETIME NULL, UNIQUE KEY uniq_contrib (boss_point_id, boss_level, character_id))');
         $db->query('CREATE TABLE boss_camp_state (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, boss_point_id INT, first_seen_in_zone_at DATETIME NULL, dwell_minutes INT DEFAULT 0, loot_locked_until DATETIME NULL, last_warned_at DATETIME NULL, UNIQUE KEY uniq_cs (character_id, boss_point_id))');
-        $db->query("CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100), level INT DEFAULT 1, health INT DEFAULT 100, max_health INT DEFAULT 100, tired INT DEFAULT 100, strength INT DEFAULT 1, agility INT DEFAULT 1, intellect INT DEFAULT 1, armor INT DEFAULT 0, damage_value INT DEFAULT 5, gold INT DEFAULT 0, cell_number INT DEFAULT 0, created_at DATETIME NULL, updated_at DATETIME NULL)");
+        $db->query("CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100), level INT DEFAULT 1, health INT DEFAULT 100, max_health INT DEFAULT 100, tired INT DEFAULT 100, strength INT DEFAULT 1, agility INT DEFAULT 1, intellect INT DEFAULT 1, armor INT DEFAULT 0, damage_value INT DEFAULT 5, gold INT DEFAULT 0, cell_number INT DEFAULT 0, active_title_id INT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)");
         $db->query("CREATE TABLE crafted_items (id INT AUTO_INCREMENT PRIMARY KEY, name_eng VARCHAR(100), type VARCHAR(20))");
         $db->query("CREATE TABLE crafted_items_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, crafted_item_id INT, quantity INT, durability_time DATETIME NULL)");
         $db->query("CREATE TABLE characters_weapons (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, weapon_id INT, equipped TINYINT DEFAULT 0, is_soulbound TINYINT DEFAULT 0)");
         $db->query("CREATE TABLE characters_outfits (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, outfit_id INT, equipped TINYINT DEFAULT 0, is_soulbound TINYINT DEFAULT 0)");
+
+        $db->query("CREATE TABLE boss_kill_announce_queue (id INT AUTO_INCREMENT PRIMARY KEY, boss_point_id INT, boss_level INT, biome_id INT NULL, status VARCHAR(16) DEFAULT 'pending', created_at DATETIME NULL)");
+        $db->query('CREATE TABLE titles (id INT AUTO_INCREMENT PRIMARY KEY, title_key VARCHAR(64), name VARCHAR(64), description VARCHAR(255) NULL, source_type VARCHAR(16), source_ref VARCHAR(64), icon VARCHAR(16) NULL, sort_order INT DEFAULT 0, enabled TINYINT DEFAULT 1)');
+        $db->query('CREATE TABLE character_titles (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, title_id INT, unlocked_at DATETIME NULL, UNIQUE KEY uniq_ct (character_id, title_id))');
 
         $db->table('npcs')->insert(['npc_name_en' => 'boss_scar_butcher', 'npc_name_ru' => 'Шрам', 'strength' => 6, 'agility' => 4]);
         $this->npcId = (int) $db->insertID();
@@ -427,6 +431,79 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $this->assertNull($p['last_killer_character_id'], 'залоченный кемпер НЕ killer для анонса (кредит обнулён)');
         $this->assertStringContainsString('Гарь узла', (string) $screen['text'], 'кемперу объясняют, почему трофей прошёл мимо');
         $this->assertSame(500, (int) $db->table('characters')->where('id', $char['id'])->get()->getRowArray()['gold'], 'золото за вклад кемпер всё равно получает');
+    }
+
+    // ───────────────────────── WB11 анонс-очередь + титул ─────────────────────────
+
+    /** Включить анонс с порогом + титулы + сид-титул под архетип узла. */
+    private function enableAnnounceAndTitles(int $minLevel = 1): void
+    {
+        $db = Database::connect('tests');
+        $db->table('game_settings')->insert(['setting_key' => 'world.nodes.announce_enabled', 'value_type' => 'bool', 'value_bool' => 1]);
+        $db->table('game_settings')->insert(['setting_key' => 'world.nodes.announce_min_level', 'value_type' => 'int', 'value_int' => $minLevel]);
+        $db->table('game_settings')->insert(['setting_key' => 'titles.enabled', 'value_type' => 'bool', 'value_bool' => 1]);
+        // Гасим soulbound-лотерею (она бы дёрнула weapons/outfits, отсутствующие в этом тесте) — трофей покрыт BossLootServiceTest.
+        $db->table('game_settings')->insert(['setting_key' => 'combat.nodes.soulbound_min_level', 'value_type' => 'int', 'value_int' => 99999]);
+        $db->table('titles')->insert(['title_key' => 'boss_kill_scar', 'name' => 'Убийца Мясника', 'source_type' => 'boss_kill', 'source_ref' => 'boss_scar_butcher', 'icon' => '🔪', 'sort_order' => 190, 'enabled' => 1]);
+        $this->cleanCache();
+    }
+
+    private function winKill(): array
+    {
+        $db   = Database::connect('tests');
+        $pid  = $this->seedPoint(['current_health' => 5, 'current_level' => 120, 'max_health' => 1000, 'biome_id' => 1]);
+        $db->table('npc_spawns')->insert(['npc_id' => $this->npcId, 'cell_number' => 5000, 'coordinate_x' => 0, 'coordinate_y' => 850, 'current_health' => 5, 'status' => 'alive']);
+        $char = $this->seedChar(['gold' => 0]);
+        $svc  = $this->service();
+        $svc->start($char);
+        $svc->act($char, 'atk');
+
+        return ['pid' => $pid, 'char' => $char];
+    }
+
+    public function testKillEnqueuesAnnounceAndAwardsTitle(): void
+    {
+        $this->enable();
+        $this->enableAnnounceAndTitles(100); // L120 ≥ 100 → квалифицирует
+        $r  = $this->winKill();
+        $db = Database::connect('tests');
+
+        $q = $db->table('boss_kill_announce_queue')->where('status', 'pending')->get()->getResultArray();
+        $this->assertCount(1, $q, 'квалифицирующий килл попал в очередь анонса');
+        $this->assertSame(120, (int) $q[0]['boss_level']);
+        $this->assertSame(1, (int) $q[0]['biome_id']);
+
+        $titles = $db->table('character_titles')->where('character_id', $r['char']['id'])->countAllResults();
+        $this->assertSame(1, $titles, 'убийце выдан титул «Убийца Мясника»');
+    }
+
+    public function testKillBelowThresholdNotEnqueuedButTitleAwarded(): void
+    {
+        $this->enable();
+        $this->enableAnnounceAndTitles(200); // L120 < 200 → НЕ квалифицирует анонс
+        $r  = $this->winKill();
+        $db = Database::connect('tests');
+
+        $this->assertSame(0, $db->table('boss_kill_announce_queue')->countAllResults(), 'мелкий килл (ниже порога) не глобалят');
+        $this->assertSame(1, $db->table('character_titles')->where('character_id', $r['char']['id'])->countAllResults(), 'титул всё равно выдан (порог только для анонса)');
+    }
+
+    public function testLockedKillerNoTitleButStillAnnounced(): void
+    {
+        $this->enable();
+        $this->enableAnnounceAndTitles(100);
+        $db  = Database::connect('tests');
+        $pid = $this->seedPoint(['current_health' => 5, 'current_level' => 120, 'max_health' => 1000, 'biome_id' => 1]);
+        $db->table('npc_spawns')->insert(['npc_id' => $this->npcId, 'cell_number' => 5000, 'coordinate_x' => 0, 'coordinate_y' => 850, 'current_health' => 5, 'status' => 'alive']);
+        $char = $this->seedChar(['gold' => 0]);
+        $db->table('boss_camp_state')->insert(['character_id' => $char['id'], 'boss_point_id' => $pid, 'dwell_minutes' => 720, 'loot_locked_until' => date('Y-m-d H:i:s', time() + 3600)]);
+
+        $svc = $this->service();
+        $svc->start($char);
+        $svc->act($char, 'atk');
+
+        $this->assertSame(1, $db->table('boss_kill_announce_queue')->countAllResults(), 'узел пал → анонс enqueue (обезличен, не зависит от лока)');
+        $this->assertSame(0, $db->table('character_titles')->where('character_id', $char['id'])->countAllResults(), 'залоченный кемпер титул НЕ получает (нет кредита за килл)');
     }
 
     // ───────────────────────── WB9 raid-only бонус ─────────────────────────

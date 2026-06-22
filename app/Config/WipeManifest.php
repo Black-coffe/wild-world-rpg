@@ -184,6 +184,7 @@ class WipeManifest extends BaseConfig
         'faction_projects'     => ['strategy' => self::TRANSIENT, 'note' => 'Прогресс фракционных проектов (пересоздаются)'],
         'oracle_markets'       => ['strategy' => self::TRANSIENT, 'note' => 'Экземпляры рынков «Оракул острова» (ADR-133) — крон пересоздаёт каждый цикл'],
         'oracle_outcomes'      => ['strategy' => self::TRANSIENT, 'note' => 'Исходы рынков «Оракул острова» (ADR-133) — привязаны к oracle_markets, пересоздаются'],
+        'boss_kill_announce_queue' => ['strategy' => self::TRANSIENT, 'note' => 'Очередь анонсов о повергнутых узлах (ADR-137 WB11) — наполняется kill-путём, потребляется дайджест-кроном; без player-связи'],
         'queue_jobs'           => ['strategy' => self::TRANSIENT, 'note' => 'Очередь фоновых заданий'],
         'queue_jobs_failed'    => ['strategy' => self::TRANSIENT, 'note' => 'Проваленные фоновые задания'],
 

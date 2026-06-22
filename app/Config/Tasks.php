@@ -200,6 +200,12 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\NPC\AntiCampDwellHandler())->run())
             ->everyMinute()->singleInstance()->named('npc.anticamp-dwell');
 
+        // WB11 (ADR-137 «Узлы») — ежедневная «Сводка с пустоши»: раз в сутки (hour-guard +
+        // once/day-claim) шлёт opted-in игрокам обезличенный дайджест о повергнутых узлах из
+        // boss_kill_announce_queue и потребляет очередь. Killswitch world.nodes.announce_enabled.
+        $schedule->call(static fn() => (new \App\TaskHandlers\NPC\NodeAnnounceDigestHandler())->run())
+            ->everyMinute()->singleInstance()->named('npc.node-announce-digest');
+
         // ============================================================
         // QUESTS — handler сам проверяет прогресс игроков
         // ============================================================

@@ -61,6 +61,7 @@ class CharacterModel extends Model
         'login_streak',           // E6 (ADR-108) Ф3 — серия входов подряд (дней)
         'login_streak_last_day',  // E6 (ADR-108) Ф3 — дата последнего засчитанного входа
         'active_title_id',        // E11 (ADR-112) — экипированный титул
+        'node_announce_enabled',  // WB11 (ADR-137) — opt-out «Сводки с пустоши» (default 1)
     ];
 
     protected $useTimestamps = true;

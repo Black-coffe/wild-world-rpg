@@ -92,6 +92,33 @@ class TitleService
     }
 
     /**
+     * WB11 (ADR-137 «Узлы») — выдать титул «Убийца [босс]» по npc_name_en сломленного узла.
+     *
+     * Идемпотентно (через {@see award}). Гейтится общим killswitch `titles.enabled` (без него — нет
+     * выдачи: титул был бы невидим). Title-строка ищется по source_type='boss_kill' + source_ref=npc_name_en
+     * (cron такой source_type пропускает → выдаёт только этот kill-путь). true — если выдан впервые.
+     */
+    public function awardByBossKill(int $characterId, string $npcNameEn): bool
+    {
+        if (! $this->enabled() || $characterId <= 0 || $npcNameEn === '') {
+            return false;
+        }
+        $res = Database::connect()->table(self::TABLE)
+            ->select('id')
+            ->where('source_type', 'boss_kill')
+            ->where('source_ref', $npcNameEn)
+            ->where('enabled', 1)
+            ->get();
+        $row     = $res === false ? null : $res->getRowArray();
+        $titleId = is_array($row) && is_numeric($row['id'] ?? null) ? (int) $row['id'] : 0;
+        if ($titleId <= 0) {
+            return false;
+        }
+
+        return $this->award($characterId, $titleId);
+    }
+
+    /**
      * Идемпотентно выдать титул. true — если выдан впервые. Первый титул персонажа авто-экипируется.
      */
     public function award(int $characterId, int $titleId): bool

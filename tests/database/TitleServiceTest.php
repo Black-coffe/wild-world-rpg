@@ -127,6 +127,36 @@ final class TitleServiceTest extends CIUnitTestCase
         $this->assertSame($t1, $svc->activeTitleId($cid)); // активным остаётся первый
     }
 
+    // ───────────────────────── WB11 (ADR-137) awardByBossKill ─────────────────────────
+
+    public function testAwardByBossKillGrantsMatchingTitle(): void
+    {
+        $this->enable();
+        $tid = $this->seedTitle('boss_kill_cerberus', 'boss_kill', 'boss_cerberus_prototype', 200);
+        $cid = $this->seedChar();
+
+        $svc = new TitleService();
+        $this->assertTrue($svc->awardByBossKill($cid, 'boss_cerberus_prototype'));
+        $this->assertSame([$tid], $svc->unlockedTitleIds($cid));
+        $this->assertFalse($svc->awardByBossKill($cid, 'boss_cerberus_prototype'), 'идемпотентно');
+    }
+
+    public function testAwardByBossKillNoopWhenKillswitchOff(): void
+    {
+        $this->seedTitle('boss_kill_scar', 'boss_kill', 'boss_scar_butcher', 190);
+        $cid = $this->seedChar();
+        // titles.enabled НЕ выставлен (default off)
+        $this->assertFalse((new TitleService())->awardByBossKill($cid, 'boss_scar_butcher'));
+    }
+
+    public function testAwardByBossKillNoopForUnknownBoss(): void
+    {
+        $this->enable();
+        $this->seedTitle('boss_kill_scar', 'boss_kill', 'boss_scar_butcher', 190);
+        $cid = $this->seedChar();
+        $this->assertFalse((new TitleService())->awardByBossKill($cid, 'boss_unknown'), 'нет титула под этого босса');
+    }
+
     /**
      * E11 Ф2 (фикс-лист среза E12): backfill через cron авто-экипирует ВЫСШИЙ титул
      * (обратный порядок sort_order), а не L1 «Выживший» — ветеран с пачкой титулов

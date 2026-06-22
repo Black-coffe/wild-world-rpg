@@ -12,6 +12,7 @@ use App\Models\NpcModel;
 use App\Services\Food\FoodBuffService;
 use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\Services\Player\DeathService;
+use App\Services\Player\TitleService;
 use App\Services\World\NodeLevelCurve;
 use Config\Database;
 use Config\Services;
@@ -49,6 +50,7 @@ class BossEncounterService
     private DeathService $death;
     private BossLootService $loot;
     private AntiCampService $antiCamp;
+    private TitleService $titles;
 
     /** @var \CodeIgniter\Database\BaseConnection<object, object> */
     private $db;
@@ -58,7 +60,8 @@ class BossEncounterService
         ?EquipmentService $equipment = null,
         ?DeathService $death = null,
         ?BossLootService $loot = null,
-        ?AntiCampService $antiCamp = null
+        ?AntiCampService $antiCamp = null,
+        ?TitleService $titles = null
     ) {
         $this->points     = new BossPointModel();
         $this->encounters = new BossEncounterModel();
@@ -72,6 +75,7 @@ class BossEncounterService
         $this->death      = $death ?? new DeathService();
         $this->antiCamp   = $antiCamp ?? new AntiCampService();
         $this->loot       = $loot ?? new BossLootService($this->antiCamp);
+        $this->titles     = $titles ?? new TitleService();
         $this->db         = Database::connect();
     }
 
@@ -472,6 +476,46 @@ class BossEncounterService
                 ->where('status', 'alive')
                 ->delete();
         }
+
+        // WB11: личный титул «Убийца [босс]» легитимному убийце (не залоченному кемперу) +
+        //       enqueue анонса в очередь дайджеста. Анонс обезличен, титул — приватная награда.
+        $bossLevel = $this->ival($point['current_level'] ?? null);
+        if ($killerForAnnounce !== null) {
+            $this->titles->awardByBossKill($killerForAnnounce, $this->bossNpcNameEn($point));
+        }
+        $this->enqueueAnnounce($pointId, $bossLevel, $this->ival($point['biome_id'] ?? null));
+    }
+
+    /**
+     * WB11 — положить килл узла в очередь анонса, если анонс включён И уровень ≥ порога (анти-спам).
+     * Обезличенно: только point/level/biome — без ника/точных координат (анти-PvP-наводка).
+     */
+    private function enqueueAnnounce(int $pointId, int $bossLevel, int $biomeId): void
+    {
+        if ($pointId <= 0 || ! $this->gsBool('world.nodes.announce_enabled', false)) {
+            return;
+        }
+        $minLevel = max(1, $this->gsInt('world.nodes.announce_min_level', 100));
+        if ($bossLevel < $minLevel) {
+            return; // мелкие килы (L1-99) не глобалят
+        }
+        $this->db->table('boss_kill_announce_queue')->insert([
+            'boss_point_id' => $pointId,
+            'boss_level'    => $bossLevel,
+            'biome_id'      => $biomeId > 0 ? $biomeId : null,
+            'status'        => 'pending',
+            'created_at'    => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * @param array<array-key, mixed> $point
+     */
+    private function bossNpcNameEn(array $point): string
+    {
+        $tpl = $this->npcs->find($this->ival($point['current_npc_id'] ?? null));
+
+        return is_array($tpl) && is_string($tpl['npc_name_en'] ?? null) ? $tpl['npc_name_en'] : '';
     }
 
     // ───────────────────────── боевые профили ─────────────────────────

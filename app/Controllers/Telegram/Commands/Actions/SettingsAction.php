@@ -112,6 +112,19 @@ class SettingsAction extends BaseAction
             $toast = ($sound === 1)
                 ? '🔔 Звук завершения задач включён'
                 : '🔕 Завершения задач теперь тихие — без звука';
+        } elseif ($data === 'nodeAnnounceOn' || $data === 'nodeAnnounceOff') {
+            // WB11 (ADR-137) — тумблер «Сводка с пустоши» (opt-out ежедневного дайджеста узлов).
+            $enabled = ($data === 'nodeAnnounceOn') ? 1 : 0;
+            if (self::nodeAnnounceFlag($character) !== $enabled) {
+                $this->characterModel->update($character->id, ['node_announce_enabled' => $enabled]);
+                $reloaded = $this->characterModel->find($character->id);
+                if ($reloaded instanceof CharacterEntity) {
+                    $character = $reloaded;
+                }
+            }
+            $toast = ($enabled === 1)
+                ? '📻 Сводка с пустоши включена — раз в сутки придёт сводка о павших узлах'
+                : '🔕 Сводка с пустоши отключена';
         }
 
         Request::answerCallbackQuery(array_filter([
@@ -240,6 +253,34 @@ class SettingsAction extends BaseAction
     }
 
     /**
+     * WB11 (ADR-137) — извлекает `node_announce_enabled` (0/1). 1 — дефолт (opt-out).
+     *
+     * @param array<int|string,mixed>|object|null $character
+     */
+    public static function nodeAnnounceFlag($character): int
+    {
+        $raw = 1;
+        if ($character instanceof ArrayAccess) {
+            $raw = $character['node_announce_enabled'] ?? 1;
+        } elseif (is_array($character)) {
+            $raw = $character['node_announce_enabled'] ?? 1;
+        }
+
+        return is_numeric($raw) ? (int) $raw : 1;
+    }
+
+    /** WB11 — killswitch анонса узлов (тумблер показываем только при активном анонсе). */
+    private static function nodeAnnounceEnabled(): bool
+    {
+        try {
+            $v = (new \App\Services\GameSettings\GameSettingsService())->get('world.nodes.announce_enabled', false);
+        } catch (\Throwable) {
+            return false;
+        }
+        return is_bool($v) ? $v : (is_numeric($v) && (int) $v === 1);
+    }
+
+    /**
      * Собирает text + reply_markup экрана настроек по текущему состоянию персонажа.
      * Используется и callback-handler'ом, и `/settings`-командой, и текстом «настройки».
      *
@@ -314,6 +355,19 @@ class SettingsAction extends BaseAction
             $rows[] = [$soundOn
                 ? ['text' => '🔕 Сделать тихими', 'callback_data' => 'notifySoundOff']
                 : ['text' => '🔔 Включить звук',  'callback_data' => 'notifySoundOn']];
+        }
+
+        // WB11 (ADR-137) — тумблер «Сводка с пустоши» (показываем только при активном анонсе узлов).
+        if (self::nodeAnnounceEnabled()) {
+            $annOn    = self::nodeAnnounceFlag($character) === 1;
+            $annState = $annOn
+                ? '📻 *включена* — раз в сутки сводка о павших узлах'
+                : '🔕 *отключена*';
+            $text .= "\n\n📻 Сводка с пустоши: {$annState}\n\n"
+                . "_Раз в сутки радист Корвин шлёт обезличенную сводку о повергнутых узлах (без имён и координат). Не нужно — отключи._";
+            $rows[] = [$annOn
+                ? ['text' => '🔕 Отключить сводку',  'callback_data' => 'nodeAnnounceOff']
+                : ['text' => '📻 Включить сводку',   'callback_data' => 'nodeAnnounceOn']];
         }
 
         $rows[] = [['text' => '🔙 Назад', 'callback_data' => 'characterActions']];
