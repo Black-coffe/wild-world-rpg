@@ -157,6 +157,28 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
     }
 
     /**
+     * WB6 (ADR-137 «Узлы») — бой с узлом: callback `nodeAct_<verb>_<bossPointId>` → первый сегмент
+     * 'nodeAct' → BossEncounterAction. Тот же class-of-bug, что npcAct_ (мёртвый prefix с `_`):
+     * фиксируем, что ВСЕ боевые ветки резолвятся в правильный обработчик (живой роутинг до активации).
+     */
+    public function testNodeBossCallbackRoutesResolve(): void
+    {
+        $expected = \App\Controllers\Telegram\Commands\Actions\NPC\BossEncounterAction::class;
+        foreach (['look', 'start', 'atk', 'def', 'spec', 'item', 'flee'] as $verb) {
+            $this->assertSame(
+                $expected,
+                $this->cbRoutes->resolve(explode('_', "nodeAct_{$verb}_42")[0]),
+                "nodeAct_{$verb}_* должен резолвиться в BossEncounterAction"
+            );
+        }
+        // не коллизирует с npcAct (другой обработчик)
+        $this->assertNotSame(
+            $expected,
+            $this->cbRoutes->resolve(explode('_', 'npcAct_talk_1')[0])
+        );
+    }
+
+    /**
      * ADR-093 «Перемешать ресурсы» — exact-роут 'ShuffleResources'; все хвосты
      * (rarity_/go_/restart) дают тот же первый сегмент → один обработчик. Тот же
      * class-of-bug, что npcAct_ (мёртвый prefix с `_`): фиксируем, что роут жив.

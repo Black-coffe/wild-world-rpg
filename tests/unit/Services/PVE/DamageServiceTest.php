@@ -250,6 +250,43 @@ final class DamageServiceTest extends CIUnitTestCase
         $this->assertEqualsWithDelta(25.0, $damage, 0.01);
     }
 
+    public function testBossEncounterBootstrapNeverNegativeForStrongPlayerVsWeakNode(): void
+    {
+        // WB6 регресс: высокоуровневый игрок с НИЗКИМИ str/agi бьёт СЛАБЫЙ узел.
+        // Без isBoss-клампа бутстрап = 1 + (1 − 16/5)×0.5 = −0.1 → урон отрицательный → HP узла рос.
+        // С клампом (defender->isBoss) множитель = max(1.0, −0.1) = 1.0 → урон положительный.
+        $player = $this->makeCharacter([
+            'level'        => 16,
+            'strength'     => 0.3,  // <5 → бутстрап
+            'agility'      => 0.1,
+            'damage_value' => 10.0,
+        ]);
+        $boss = $this->makeCharacter(['is_boss' => true, 'level' => 5, 'armor' => 0]);
+
+        $damage = $this->service->calculateDamage($player, $boss, 'forest');
+
+        $this->assertGreaterThan(0.0, $damage, 'урон по узлу не может быть отрицательным/нулём');
+        // base 10 × множитель 1.0 × (1 + clamp(11)*0.02 + крошечные бонусы) ≈ 12.2; floor max(5, ..) = 12.2
+        $this->assertEqualsWithDelta(12.2, $damage, 0.3);
+    }
+
+    public function testNonBossBootstrapPenaltyStillAppliesBackcompat(): void
+    {
+        // Тот же расклад БЕЗ босса → бутстрап-штраф сохранён (обычный PvE байт-идентичен):
+        // 16/5 ratio → множитель −0.1 → база отрицательная → floor max(10×(−0.1)×0.5, …) ≤ 0.
+        $attacker = $this->makeCharacter([
+            'level'        => 16,
+            'strength'     => 0.3,
+            'agility'      => 0.1,
+            'damage_value' => 10.0,
+        ]);
+        $defender = $this->makeCharacter(['is_boss' => false, 'level' => 5, 'armor' => 0]);
+
+        $damage = $this->service->calculateDamage($attacker, $defender, 'forest');
+
+        $this->assertLessThanOrEqual(0.0, $damage, 'не-боссовый бутстрап-штраф сохранён (поведение не тронуто)');
+    }
+
     // -----------------------------------------------------------------
     // E21 Ф1 (ADR-121) — боевой food-баф (множители default 1.0)
     // -----------------------------------------------------------------

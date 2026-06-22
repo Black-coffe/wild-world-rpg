@@ -55,6 +55,14 @@ class DamageService
 
         if ($attacker->strength < 5 && $attacker->agility < 5) {
             $multiplier = 1 + (1 - ($attacker->level / max(1, $defender->level))) * 0.5;
+            // WB6 (ADR-137 «Узлы»): в бою с узлом-боссом этот «бутстрап слабого атакующего»
+            // НЕ должен ОСЛАБлять (множитель <1). Иначе высокоуровневый игрок с низкими str/agi
+            // против слабого (южного L1-5) узла получал множитель <0 → ОТРИЦАТЕЛЬНЫЙ урон → HP
+            // узла РОС, бой невыигрываем. Гейт по isBoss → обычный PvE байт-идентичен (бутстрап-
+            // штраф для не-боссов сохранён, см. DamageServiceTest::...BootstrapHighLevelAttacker).
+            if ($attacker->isBoss || $defender->isBoss) {
+                $multiplier = max(1.0, $multiplier);
+            }
             $baseDamage *= $multiplier;
             $this->logger->warning("{$attacker->name} слишком слаб, добавляем динамическое усиление: x{$multiplier}");
         }

@@ -263,8 +263,8 @@ class BossEncounterService
 
         for ($i = 0; $i < $perTap; $i++) {
             $round++;
-            // игрок → узел (множитель ВНЕ формулы)
-            $d            = round($this->damage->calculateDamage($player, $boss, '') * $playerOutMult, 2);
+            // игрок → узел (множитель ВНЕ формулы; max(0) — defense-in-depth: HP узла не растёт)
+            $d            = max(0.0, round($this->damage->calculateDamage($player, $boss, '') * $playerOutMult, 2));
             $boss->health = max(0.0, $boss->health - $d);
             $playerDmg   += $d;
             if ($boss->health <= 0) {
@@ -272,7 +272,7 @@ class BossEncounterService
                 break;
             }
             // узел → игрок (множитель ВНЕ формулы)
-            $b              = round($this->damage->calculateDamage($boss, $player, '') * $bossOutMult, 2);
+            $b              = max(0.0, round($this->damage->calculateDamage($boss, $player, '') * $bossOutMult, 2));
             $player->health = max(0.0, $player->health - $b);
             $bossDmg       += $b;
             if ($player->health <= 0) {
