@@ -506,6 +506,74 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $this->assertSame(0, $db->table('character_titles')->where('character_id', $char['id'])->countAllResults(), 'залоченный кемпер титул НЕ получает (нет кредита за килл)');
     }
 
+    // ───────────────────────── WB12 находимость: pointAtCell + карточка осмотра ─────────────────────────
+
+    public function testPointAtCellReturnsAliveAndCooldownButNotWhenDisabled(): void
+    {
+        $svc = $this->service();
+        $this->seedPoint(['cell_number' => 5000, 'status' => 'alive']);
+        $this->seedPoint(['cell_number' => 5001, 'status' => 'cooldown']);
+
+        // point_mode OFF → null даже при наличии точки.
+        $this->assertNull($svc->pointAtCell(5000), 'dormant → нет узла');
+
+        $this->enable();
+        $this->assertNotNull($svc->pointAtCell(5000), 'alive узел найден');
+        $this->assertNotNull($svc->pointAtCell(5001), 'cooldown узел тоже найден (для lock-state)');
+        $this->assertNull($svc->pointAtCell(5999), 'на пустой клетке узла нет');
+    }
+
+    public function testLookExamineAliveNodeShowsTierLootAndAttack(): void
+    {
+        $this->enable();
+        $this->seedPoint(['cell_number' => 5000, 'status' => 'alive', 'current_level' => 5, 'current_health' => 100, 'max_health' => 140]);
+        $char   = $this->seedChar(['level' => 10, 'cell_number' => 5000]);
+        $screen = $this->service()->look($char);
+
+        $this->assertArrayHasKey('text', $screen);
+        $this->assertStringContainsString('Осмотр узла', $screen['text']);
+        $this->assertStringContainsString('⚖️ Оценка', $screen['text']);
+        $this->assertStringContainsString('по силам', $screen['text'], 'узел L5 vs игрок L10 → 🟢 по силам');
+        $this->assertStringContainsString('золото', $screen['text'], 'превью лута');
+        $this->assertStringNotContainsString('Метка пустоши', $screen['text'], 'L5 < soulbound_min_level → трофей не обещаем');
+        // Кнопка «Напасть» присутствует.
+        $kb = json_encode($screen['keyboard']);
+        $this->assertStringContainsString('nodeAct_start_', (string) $kb);
+    }
+
+    public function testLookExamineHighNodeNeedsGroupAndPromisesTrophy(): void
+    {
+        $this->enable();
+        Database::connect('tests')->table('game_settings')->insert(['setting_key' => 'combat.nodes.soulbound_min_level', 'value_type' => 'int', 'value_int' => 50]);
+        $this->cleanCache();
+        $this->seedPoint(['cell_number' => 5000, 'status' => 'alive', 'current_level' => 120, 'current_health' => 4000, 'max_health' => 4500]);
+        $char   = $this->seedChar(['level' => 10, 'cell_number' => 5000]);
+        $screen = $this->service()->look($char);
+
+        $this->assertStringContainsString('нужна группа', $screen['text'], 'узел L120 vs игрок L10 → 🔴 нужна группа');
+        $this->assertStringContainsString('Метка пустоши', $screen['text'], 'L120 ≥ soulbound_min_level → трофей в превью');
+    }
+
+    public function testLookCooldownNodeShowsRespawnTimer(): void
+    {
+        $this->enable();
+        $this->seedPoint(['cell_number' => 5000, 'status' => 'cooldown', 'current_health' => 0, 'respawn_at' => date('Y-m-d H:i:s', time() + 7200)]);
+        $char   = $this->seedChar(['level' => 10, 'cell_number' => 5000]);
+        $screen = $this->service()->look($char);
+
+        $this->assertStringContainsString('Узел повержен', $screen['text']);
+        $this->assertStringContainsString('через', $screen['text'], 'lock-state: показан таймер респавна, не молчание');
+        $kb = json_encode($screen['keyboard']);
+        $this->assertStringNotContainsString('nodeAct_start_', (string) $kb, 'кулдаун → нельзя напасть');
+    }
+
+    public function testLookNoNodeAlert(): void
+    {
+        $this->enable();
+        $char = $this->seedChar(['cell_number' => 9999]);
+        $this->assertArrayHasKey('alert', $this->service()->look($char));
+    }
+
     // ───────────────────────── WB9 raid-only бонус ─────────────────────────
 
     public function testSoulboundTrophiesBoostNodeDamageOnly(): void

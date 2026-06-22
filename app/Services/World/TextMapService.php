@@ -174,6 +174,30 @@ class TextMapService
             }
         }
 
+        // WB12 (ADR-137 «Узлы») — узлы-боссы в видимой области приоритетным слоем (как поселения),
+        // для находимости. Gated killswitch world.nodes.point_mode_enabled (OFF → слоя нет). ☠ — живой
+        // узел (можно сразиться), ⏳ — в кулдауне (точку расчистили, скоро поднимется).
+        $nodeCells = [];
+        if ((new \App\Services\GameSettings\GameSettingsService())->get('world.nodes.point_mode_enabled', false) === true) {
+            $nodeRows = (new \App\Models\BossPointModel())
+                ->select('coordinate_x, coordinate_y, status')
+                ->where('coordinate_x >=', $xMin)->where('coordinate_x <=', $xMax)
+                ->where('coordinate_y >=', $yMin)->where('coordinate_y <=', $yMax)
+                ->whereIn('status', ['alive', 'cooldown'])
+                ->findAll();
+            foreach ($nodeRows as $nr) {
+                if (! is_array($nr)) {
+                    continue;
+                }
+                $nx = is_numeric($nr['coordinate_x'] ?? null) ? (int) $nr['coordinate_x'] : null;
+                $ny = is_numeric($nr['coordinate_y'] ?? null) ? (int) $nr['coordinate_y'] : null;
+                if ($nx === null || $ny === null) {
+                    continue;
+                }
+                $nodeCells["{$nx}_{$ny}"] = ($nr['status'] ?? '') === 'alive' ? '☠' : '⏳';
+            }
+        }
+
         // Получаем NPC вокруг игрока (в 12×12)
         $npcsInArea = $this->getNpcsInArea($pX, $pY);
 
@@ -212,6 +236,13 @@ class TextMapService
                 // ADR-101 — поселение-ландмарк приоритетнее иконки жителей-NPC.
                 if (isset($settlementCells[$cellKey])) {
                     $mapText .= $settlementCells[$cellKey];
+                    continue;
+                }
+
+                // WB12 (ADR-137) — узел-босс приоритетнее иконки NPC (материализованный босс = npc_spawn,
+                // иначе показался бы 🥷 вместо ☠).
+                if (isset($nodeCells[$cellKey])) {
+                    $mapText .= $nodeCells[$cellKey];
                     continue;
                 }
 
@@ -267,6 +298,8 @@ class TextMapService
             . "🏕 — ваша база\n"
             . "🚫 — чужая база\n"
             . "🏚 — поселение\n"
+            . "☠ — узел (босс)\n"
+            . "⏳ — узел в кулдауне\n"
             . "🥷 — NPC\n"
             . "⬛️ — не изучено\n"
             . "⬜ — за пределами мира\n\n"

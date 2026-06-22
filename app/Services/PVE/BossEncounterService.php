@@ -100,6 +100,22 @@ class BossEncounterService
     }
 
     /**
+     * WB12 — узел на клетке ЛЮБОГО статуса (alive ИЛИ cooldown) для находимости/осмотра.
+     * В отличие от {@see nodeAt} (alive-only), даёт карточку lock-state у поверженной точки.
+     *
+     * @return array<array-key, mixed>|null
+     */
+    public function pointAtCell(int $cell): ?array
+    {
+        if (! $this->enabled() || $cell <= 0) {
+            return null;
+        }
+        $row = $this->points->where('cell_number', $cell)->whereIn('status', ['alive', 'cooldown'])->first();
+
+        return is_array($row) ? $row : null;
+    }
+
+    /**
      * Интро-экран узла (имя/уровень/HP + «Напасть»/«Уйти»). Если бой уже идёт — сразу боевой экран.
      *
      * @param array<array-key, mixed> $character
@@ -127,6 +143,39 @@ class BossEncounterService
         }
 
         return $this->renderIntro($point, $character);
+    }
+
+    /**
+     * WB12 — карточка осмотра узла «☠ Осмотреть»: оценка силы СЛОВАМИ-тирами (по силам/тяжело/нужна
+     * группа — НЕ хрупкие числа), что упадёт, для cooldown-узла — таймер респавна (lock-state, не молчание).
+     *
+     * @param array<array-key, mixed> $character
+     * @return array<string,mixed>
+     */
+    public function look(array $character): array
+    {
+        if (! $this->enabled()) {
+            return ['alert' => 'Узлы сейчас неактивны.'];
+        }
+        $charId = $this->ival($character['id'] ?? null);
+
+        // Уже в бою на этой точке — показываем боевой экран (как open).
+        $active = $this->activeEncounter($charId);
+        if ($active !== null) {
+            $point = $this->points->find($this->ival($active['boss_point_id'] ?? null));
+            if (is_array($point) && ($point['status'] ?? '') === 'alive') {
+                return $this->renderFight($active, $point, $this->playerHpInt($active));
+            }
+        }
+
+        $point = $this->pointAtCell($this->ival($character['cell_number'] ?? null));
+        if ($point === null) {
+            return ['alert' => 'Здесь нет узла.'];
+        }
+
+        return ($point['status'] ?? '') === 'alive'
+            ? $this->renderExamine($point, $character)
+            : $this->renderCooldownCard($point);
     }
 
     /**
@@ -592,9 +641,114 @@ class BossEncounterService
             'text'     => $text,
             'keyboard' => [
                 [['text' => '⚔️ Напасть на узел', 'callback_data' => "nodeAct_start_{$pid}"]],
+                [['text' => '☠ Осмотреть', 'callback_data' => "nodeAct_look_{$pid}"]],
                 [['text' => '🚶 Уйти', 'callback_data' => 'move']],
             ],
         ];
+    }
+
+    /**
+     * WB12 — карточка осмотра ЖИВОГО узла: уровень + оценка силы СЛОВАМИ + что упадёт + «Напасть».
+     *
+     * @param array<array-key, mixed> $point
+     * @param array<array-key, mixed> $character
+     * @return array{text:string,keyboard:array<int,mixed>}
+     */
+    private function renderExamine(array $point, array $character): array
+    {
+        $pid    = $this->ival($point['id'] ?? null);
+        $name   = $this->bossName($point);
+        $level  = $this->ival($point['current_level'] ?? null);
+        $hp     = $this->ival($point['current_health'] ?? null);
+        $maxHp  = $this->ival($point['max_health'] ?? null);
+        $pLevel = $this->ival($character['level'] ?? null);
+
+        $text  = "☠ *Осмотр узла* — *{$name}*\n\n";
+        $text .= "🔱 Уровень узла: *{$level}*\n";
+        $text .= "❤️ Состояние: *{$hp}/{$maxHp}*\n\n";
+        $text .= '⚖️ Оценка: ' . $this->powerTier($pLevel, $level) . "\n\n";
+        $text .= "🎁 Что упадёт:\n";
+        $text .= "• 💰 золото «Облавы» — делится по вкладу между всеми бойцами\n";
+        if ($level >= max(1, $this->gsInt('combat.nodes.soulbound_min_level', 50))) {
+            $text .= "• 🔒 шанс на трофей «Метка пустоши» — усиливает ТОЛЬКО против узлов, не продаётся\n";
+        }
+        $text .= "\n_Раны на узле остаются между боями — можно ослабить и добить с группой._";
+
+        return [
+            'text'     => $text,
+            'keyboard' => [
+                [['text' => '⚔️ Напасть на узел', 'callback_data' => "nodeAct_start_{$pid}"]],
+                [['text' => '🚶 Уйти', 'callback_data' => 'move']],
+            ],
+        ];
+    }
+
+    /**
+     * WB12 — карточка поверженного узла (lock-state): таймер респавна, БЕЗ молчания.
+     *
+     * @param array<array-key, mixed> $point
+     * @return array{text:string,keyboard:array<int,mixed>}
+     */
+    private function renderCooldownCard(array $point): array
+    {
+        $name = $this->bossName($point);
+        $left = $this->respawnLeftLabel($point);
+
+        $text  = "⏳ *Узел повержен* — *{$name}*\n\n";
+        $text .= "Точку недавно расчистили. Природа не терпит пустоты — место займёт следующий носитель, злее прежнего.\n\n";
+        $text .= $left !== ''
+            ? "🕒 Новый придёт примерно через *{$left}*."
+            : '🕒 Новый носитель придёт в ближайшее время.';
+
+        return ['text' => $text, 'keyboard' => [[['text' => '🚶 Уйти', 'callback_data' => 'move']]]];
+    }
+
+    /**
+     * Оценка силы узла относительно уровня игрока — СЛОВАМИ-тирами (не хрупкие числа): по силам /
+     * тяжело / нужна группа. Пороги admin-tunable (`combat.nodes.tier_*`).
+     */
+    private function powerTier(int $playerLevel, int $nodeLevel): string
+    {
+        $solo = $this->gsInt('combat.nodes.tier_solo_diff', 0);   // node ≤ player+0 → соло
+        $hard = $this->gsInt('combat.nodes.tier_hard_diff', 15);  // node ≤ player+15 → тяжело
+        $diff = $nodeLevel - $playerLevel;
+
+        if ($diff <= $solo) {
+            return '🟢 *по силам* — можно в одиночку с правильным шмотом';
+        }
+        if ($diff <= $hard) {
+            return '🟡 *тяжело* — лучше с подмогой или хорошей экипировкой';
+        }
+
+        return '🔴 *очень опасно* — в одиночку не выстоять, нужна группа («Облава»)';
+    }
+
+    /**
+     * Человекочитаемый остаток до респавна по respawn_at («2ч 15м» / «40м» / '').
+     *
+     * @param array<array-key, mixed> $point
+     */
+    private function respawnLeftLabel(array $point): string
+    {
+        $raw = $point['respawn_at'] ?? null;
+        if (! is_string($raw) || $raw === '') {
+            return '';
+        }
+        $ts = strtotime($raw);
+        if ($ts === false) {
+            return '';
+        }
+        $sec = $ts - time();
+        if ($sec <= 0) {
+            return '';
+        }
+        $h = intdiv($sec, 3600);
+        $m = intdiv($sec % 3600, 60);
+        if ($h > 0) {
+            return "{$h}ч {$m}м";
+        }
+
+        return "{$m}м";
     }
 
     /**

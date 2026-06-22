@@ -304,12 +304,21 @@ class MoveCharacterToDirectionAction
             $sName = is_string($settlePolicy['settlement']['name_ru'] ?? null) ? $settlePolicy['settlement']['name_ru'] : 'Поселение';
             $tail[] = ['text' => '🏚 ' . $sName, 'callback_data' => 'settleHub'];
         } else {
-            // ADR-089 Фаза 1 — если на клетке стоит нейтральный (passive) NPC, показать
-            // кнопку «👤 Незнакомец» → экран встречи. Killswitch npc.interaction_enabled (dormant).
-            $npcInteraction = new \App\Services\NPC\NpcInteractionService();
-            if ($npcInteraction->enabled()
-                && $npcInteraction->passiveSpawnOnCell($settleCell) !== null) {
-                $tail[] = ['text' => '👤 Незнакомец', 'callback_data' => 'npcEncounter'];
+            // WB12 (ADR-137 «Узлы») — узел-босс на клетке (alive ИЛИ cooldown): явная кнопка «☠ Узел»
+            // → карточка осмотра (nodeAct_look). Приоритет над «👤 Незнакомец» (узел материализуется
+            // как npc_spawn → иначе выглядел бы нейтралом). Killswitch world.nodes.point_mode_enabled
+            // внутри pointAtCell → OFF = null = dormant (без лишнего запроса).
+            $nodeSvc = new \App\Services\PVE\BossEncounterService();
+            if ($nodeSvc->pointAtCell($settleCell) !== null) {
+                $tail[] = ['text' => '☠ Узел', 'callback_data' => 'nodeAct_look_0'];
+            } else {
+                // ADR-089 Фаза 1 — если на клетке стоит нейтральный (passive) NPC, показать
+                // кнопку «👤 Незнакомец» → экран встречи. Killswitch npc.interaction_enabled (dormant).
+                $npcInteraction = new \App\Services\NPC\NpcInteractionService();
+                if ($npcInteraction->enabled()
+                    && $npcInteraction->passiveSpawnOnCell($settleCell) !== null) {
+                    $tail[] = ['text' => '👤 Незнакомец', 'callback_data' => 'npcEncounter'];
+                }
             }
         }
 

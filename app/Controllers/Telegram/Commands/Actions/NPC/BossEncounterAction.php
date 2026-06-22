@@ -16,7 +16,8 @@ use Longman\TelegramBot\Request;
  * Callback `nodeAct_<verb>_<bossPointId>` (префикс-роут `nodeAct`, резолв по первому сегменту
  * explode('_')[0] = 'nodeAct'; ключ БЕЗ хвостового `_` — урок npcAct/мёртвых кнопок 2026-06-02).
  *
- * verbs: look (интро) · start (начать бой) · atk/def/spec/item (чанк действия) · flee (отступить).
+ * verbs: look (карточка осмотра WB12: сила-словами/лут/cooldown-таймер) · start (начать бой) ·
+ * atk/def/spec/item (чанк действия) · flee (отступить).
  * Вся логика — в {@see BossEncounterService}; здесь только парс callback + рендер экрана
  * (edit-in-place через MediaSender::editTextOrSend; media-off self-contained, HP в тексте) или
  * всплывашка (alert). Гейт killswitch — внутри сервиса (world.nodes.point_mode_enabled).
@@ -38,7 +39,7 @@ final class BossEncounterAction extends BaseAction
 
         switch ($verb) {
             case 'look':
-                $screen = $svc->open($character);
+                $screen = $svc->look($character);
                 break;
             case 'start':
                 $screen = $svc->start($character);
