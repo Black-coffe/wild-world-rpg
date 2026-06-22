@@ -159,7 +159,13 @@ class DroneRechargeCron
     }
 
     /**
-     * Игрок физически стоит на claimed-клетке своей базы.
+     * Игрок физически стоит на СВОЕЙ активной claimed-клетке (базе).
+     *
+     * 🔴 Фикс BUILT-BUT-DEAD (2026-06-22): раньше читали несуществующую колонку
+     * `claimed_cells.cell_number` (в таблице только `map_cell_id`) → результат
+     * всегда false → scout-дроны НЕ заряжались НИКОГДА с W2. Канонический способ
+     * (ADR-095): `claimed_cells.map_cell_id == characters.cell_number` (в `map`
+     * id == cell_number), status='active' — через `findActiveCell`. Multi-base-safe.
      */
     private function isCharacterOnBase(int $characterId): bool
     {
@@ -172,14 +178,7 @@ class DroneRechargeCron
             return false;
         }
 
-        // Multi-base корректность: персонаж «на базе», если ТЕКУЩАЯ клетка — одна
-        // из его claimed-клеток (раньше брали только первую → стоя на 2-й базе
-        // дроны не заряжались). Для одной базы поведение идентично.
-        $claim = $this->claimedCellModel
-            ->where('character_id', $characterId)
-            ->where('cell_number', $charCell)
-            ->first();
-        return is_array($claim) || is_object($claim);
+        return $this->claimedCellModel->findActiveCell($characterId, $charCell) !== null;
     }
 
     private function extractInt(mixed $row, string $key): int

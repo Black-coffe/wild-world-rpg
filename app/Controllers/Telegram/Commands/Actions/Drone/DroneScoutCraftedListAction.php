@@ -169,19 +169,16 @@ class DroneScoutCraftedListAction extends BaseAction
     }
 
     /**
-     * Игрок физически стоит на одной из захваченных клеток своей базы —
-     * именно там идёт зарядка дронов (зеркало DroneRechargeCron::isCharacterOnBase).
+     * Игрок стоит на СВОЕЙ активной claimed-клетке (базе) — именно там идёт
+     * зарядка дронов. Канонический способ ADR-095 (`claimed_cells.map_cell_id ==
+     * characters.cell_number`, status='active'), зеркало DroneRechargeCron.
      */
     private function isCharacterOnBase(int $characterId, int $currentCell): bool
     {
         if ($characterId <= 0 || $currentCell <= 0) {
             return false;
         }
-        $claim = $this->claimedCellModel
-            ->where('character_id', $characterId)
-            ->where('cell_number', $currentCell)
-            ->first();
-        return is_array($claim) || is_object($claim);
+        return $this->claimedCellModel->findActiveCell($characterId, $currentCell) !== null;
     }
 
     private function renderChargeBar(int $pct): string
