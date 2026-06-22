@@ -81,4 +81,40 @@ final class NodeLevelCurveTest extends CIUnitTestCase
         $this->assertSame(2, $this->curve->yBand(500)); // центр
         $this->assertSame(4, $this->curve->yBand(0));   // глубокий север
     }
+
+    // ---- escalatedLevel (WB5 гео-эскалация с per-точка cap) ----
+
+    public function testEscalationFromZeroKillsIsBase(): void
+    {
+        // Свежая/сброшенная точка (kill_count=0) поднимается ровно к base_level.
+        $this->assertSame(1, $this->curve->escalatedLevel(1, 0));   // юг
+        $this->assertSame(50, $this->curve->escalatedLevel(50, 0)); // север
+    }
+
+    public function testEscalationStepDefaultOnePerKill(): void
+    {
+        // level_step default 1 → current_level − base_level = число расчисток (лор-точно).
+        $this->assertSame(2, $this->curve->escalatedLevel(1, 1));
+        $this->assertSame(6, $this->curve->escalatedLevel(1, 5));
+        $this->assertSame(60, $this->curve->escalatedLevel(50, 10));
+    }
+
+    public function testPerPointCapHoldsSouthForNewbies(): void
+    {
+        // reincarnation_cap_per_band default 40 → южная L1-точка максимум L41, сколько ни бей.
+        $this->assertSame(41, $this->curve->escalatedLevel(1, 40));
+        $this->assertSame(41, $this->curve->escalatedLevel(1, 1000)); // не дорастает до неубиваемой
+    }
+
+    public function testGlobalMaxLevelCaps(): void
+    {
+        // base 150 + cap 40 = 190, но глобальный max_level default 180 связывает раньше.
+        $this->assertSame(180, $this->curve->escalatedLevel(150, 1000));
+    }
+
+    public function testEscalationNeverBelowOne(): void
+    {
+        $this->assertSame(1, $this->curve->escalatedLevel(0, 0));
+        $this->assertSame(1, $this->curve->escalatedLevel(-5, -5));
+    }
 }

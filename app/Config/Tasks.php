@@ -174,6 +174,13 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\NPC\EliteSpawnHandler())->run())
             ->everyMinute()->singleInstance()->named('npc.elite-spawn');
 
+        // WB5 (ADR-137 «Узлы») — респавн/гео-эскалация точек-узлов + материализация боссов
+        // (killswitch world.nodes.point_mode_enabled → dormant = no-op). При ON: поднимает точки
+        // из кулдауна с эскалацией ОТ kill_count (NodeLevelCurve, идемпотентно), переводит боссов
+        // ADR-106 в passive и синхронизирует npc_spawns с alive-точками.
+        $schedule->call(static fn() => (new \App\TaskHandlers\NPC\NodeRespawnHandler())->run())
+            ->everyMinute()->singleInstance()->named('npc.node-respawn');
+
         // ============================================================
         // QUESTS — handler сам проверяет прогресс игроков
         // ============================================================

@@ -61,6 +61,33 @@ class NodeLevelCurve
     }
 
     /**
+     * Уровень узла после `$killCount` расчисток (гео-эскалация с per-точка cap, WB5).
+     *
+     * `current_level = base_level + level_step × kill_count`, ограничен ДВУМЯ потолками:
+     *   - per-точка: `base_level + reincarnation_cap_per_band` (анти-мёртвый-хвост: точка не
+     *     дорастает до неубиваемой; юг остаётся для новичков навсегда — ROADMAP §2);
+     *   - глобальный: `max_level` (v1 потолок под ~147 reachable / 3-8 со-оп).
+     *
+     * Считается ОТ kill_count (а не инкрементом current_level) → идемпотентно: повторный
+     * прогон NodeRespawnHandler на той же точке даёт тот же уровень, дрейфа нет.
+     *
+     * Дефолт `level_step`=1 лор-точен: `current_level − base_level` = число расчисток точки.
+     */
+    public function escalatedLevel(int $baseLevel, int $killCount): int
+    {
+        $step       = $this->gsInt('world.nodes.level_step', 1);
+        $capPerBand = $this->gsInt('world.nodes.reincarnation_cap_per_band', 40);
+        $maxLevel   = $this->gsInt('world.nodes.max_level', 180);
+
+        $baseLevel  = max(1, $baseLevel);
+        $killCount  = max(0, $killCount);
+        $perPointCap = $baseLevel + max(0, $capPerBand);
+        $level       = $baseLevel + $step * $killCount;
+
+        return max(1, min($level, $perPointCap, $maxLevel));
+    }
+
+    /**
      * Широтная полоса 0 (юг) .. 4 (глубокий север) — для группировки/per-band cap.
      */
     public function yBand(int $y): int
