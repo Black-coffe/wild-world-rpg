@@ -53,6 +53,15 @@ final class ResourceTradeService
             return ['success' => false, 'message' => 'Ресурс не найден.'];
         }
 
+        // WB2 (ADR-137): одиночная продажа ОБЯЗАНА уважать is_tradeable, как оптовая
+        // planBulkSale (стр.159). Иначе связанный/неторговый ресурс сливается поштучно
+        // мимо опт-фильтра (блокер ADR-137 #5). Soulbound-трофеи живут на оружии/броне
+        // (их вообще нельзя продать — нет sell-пути для экипировки), но любой bound-РЕСУРС
+        // обязан резаться и здесь.
+        if (! self::resourceIsTradeable($resource)) {
+            return ['success' => false, 'message' => 'Этот ресурс связанный — его нельзя продать.'];
+        }
+
         $sellQuantity = $qtyAction === 'all'
             ? (int) $charRes['quantity']
             : min((int) $qtyAction, (int) $charRes['quantity']);
@@ -94,6 +103,24 @@ final class ResourceTradeService
             . "(Цена за штуку была *{$resource['sell_price']}*)";
 
         return ['success' => true, 'message' => $message, 'qty' => $sellQuantity, 'amount' => $saleAmount];
+    }
+
+    /**
+     * WB2 (ADR-137): единый предикат «ресурс можно продать». ResourceEntity кастует
+     * is_tradeable в bool (casts['is_tradeable']='boolean'), сырой ряд даёт 0/1,
+     * отсутствие колонки → считаем ходовым (true). Зеркалит normalizeResourceRow /
+     * planBulkSale, чтобы одиночная и оптовая продажа судили ресурс одинаково.
+     *
+     * @param array<string,mixed>|\App\Entities\ResourceEntity $resource
+     */
+    public static function resourceIsTradeable($resource): bool
+    {
+        $raw = $resource['is_tradeable'] ?? true;
+        if (is_bool($raw)) {
+            return $raw;
+        }
+
+        return is_numeric($raw) ? ((int) $raw === 1) : true;
     }
 
     /**

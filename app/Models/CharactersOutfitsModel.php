@@ -59,6 +59,7 @@ class CharactersOutfitsModel extends Model
         'current_durability',
         'equipped',
         'slot',
+        'is_soulbound', // WB2 (ADR-137): трофеи-узлы «не продаётся/не теряется»
         'created_at',
         'updated_at',
     ];

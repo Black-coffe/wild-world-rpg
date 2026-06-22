@@ -27,6 +27,7 @@ class CharactersWeaponsModel extends Model
         'current_durability',
         'equipped',
         'slot',
+        'is_soulbound', // WB2 (ADR-137): трофеи-узлы «не продаётся/не теряется»
         // если включали ammo_in_mag:
         // 'ammo_in_mag',
     ];
