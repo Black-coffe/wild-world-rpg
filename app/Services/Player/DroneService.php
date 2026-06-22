@@ -104,6 +104,50 @@ final class DroneService
     }
 
     /**
+     * Эффективный шаг заряда scout-дрона за минуту on-base — ровно то, что
+     * прибавляет DroneRechargeCron за один тик (round(rate), но не ниже 1).
+     * Floor=1 гарантирует, что дрон не застрянет навсегда при медленных
+     * настройках (rate<0.5 → round=0 → дрон не заряжался бы вовсе).
+     * Нужен для honest-ETA: расчёт «через сколько минут готов» совпадает с тем,
+     * как реально тикает крон.
+     */
+    public function chargeStepPerMinute(): int
+    {
+        $step = (int) round($this->chargeRatePerMinute());
+        return $step >= 1 ? $step : 1;
+    }
+
+    /**
+     * Сколько минут on-base нужно, чтобы заряд дорос с $current до $target.
+     * 0, если целевое значение уже достигнуто. Совпадает с реальным темпом крона
+     * (chargeStepPerMinute), поэтому ETA честный (без over/under-promise на дефолтах).
+     */
+    public function minutesToCharge(int $current, int $target): int
+    {
+        $need = $target - $current;
+        if ($need <= 0) {
+            return 0;
+        }
+        return (int) ceil($need / $this->chargeStepPerMinute());
+    }
+
+    /**
+     * Минут on-base до готовности к запуску (заряд достигнет battery_drain_per_launch).
+     */
+    public function minutesToReady(int $current): int
+    {
+        return $this->minutesToCharge($current, $this->batteryDrainPerLaunch());
+    }
+
+    /**
+     * Минут on-base до полного заряда (battery_max).
+     */
+    public function minutesToFull(int $current): int
+    {
+        return $this->minutesToCharge($current, $this->batteryMax());
+    }
+
+    /**
      * Шанс что NPC-караван (V25, ADR-057) выставит blueprint DroneScout в offer.
      * 0.02 = 2% per-spawn. W5 (Caravan integration) читает это значение.
      */

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers\Telegram\Commands\Actions\Drone;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Models\ClaimedCellModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Services\Player\DroneService;
@@ -26,13 +27,15 @@ class DroneScoutCraftedListAction extends BaseAction
     private CraftedItemsLogModel $logModel;
     private CraftedItemsModel $itemModel;
     private DroneService $service;
+    private ClaimedCellModel $claimedCellModel;
 
     public function __construct(\Longman\TelegramBot\Entities\CallbackQuery $callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->logModel  = new CraftedItemsLogModel();
-        $this->itemModel = new CraftedItemsModel();
-        $this->service   = new DroneService();
+        $this->logModel         = new CraftedItemsLogModel();
+        $this->itemModel        = new CraftedItemsModel();
+        $this->service          = new DroneService();
+        $this->claimedCellModel = new ClaimedCellModel();
     }
 
     public function handle(): ServerResponse
@@ -99,11 +102,16 @@ class DroneScoutCraftedListAction extends BaseAction
         $radius    = $this->service->radiusCells();
         $cellsScan = (2 * $radius + 1) * (2 * $radius + 1);
 
+        // Заряжается только на захваченной клетке базы — нужно знать, стоит ли
+        // игрок сейчас на ней, чтобы показать честный ETA вместо «возвращайся на базу».
+        $onBase = $this->isCharacterOnBase($characterId, $this->extractInt($character, 'cell_number'));
+
         $text  = "🚁 *Твои дроны-разведчики*\n\n";
-        $text .= "_Запуск открывает {$cellsScan} клеток ({$radius} радиусом) вокруг твоей текущей клетки. Тратит {$drain} заряда. Заряжается только когда ты на базе._\n\n";
+        $text .= "_Запуск открывает {$cellsScan} клеток ({$radius} радиусом) вокруг твоей текущей клетки. Тратит {$drain} заряда. Заряжается только когда ты стоишь на захваченной клетке базы (~1% в минуту)._\n\n";
 
         $rows = [];
         $instance = 1;
+        $nearestReadyEta = null; // минут до готовности ближайшего невзведённого дрона
         foreach ($logRows as $log) {
             $logId      = $this->extractInt($log, 'id');
             $qty        = $this->extractInt($log, 'quantity');
@@ -111,22 +119,40 @@ class DroneScoutCraftedListAction extends BaseAction
             $chargePct  = $batteryMax > 0 ? (int) round($charge * 100 / $batteryMax) : 0;
 
             $bar = $this->renderChargeBar($chargePct);
-            $statusEmoji = $this->service->canLaunch($charge) ? '✅' : '🪫';
+            $ready = $this->service->canLaunch($charge);
+            $statusEmoji = $ready ? '✅' : '🪫';
 
             $text .= "{$statusEmoji} *Дрон #{$instance}* (×{$qty})\n";
-            $text .= "Заряд: {$bar} `{$charge}/{$batteryMax}` ({$chargePct}%)\n\n";
+            $text .= "Заряд: {$bar} `{$charge}/{$batteryMax}` ({$chargePct}%)\n";
 
-            if ($this->service->canLaunch($charge)) {
+            if ($ready) {
+                $text .= "Готов к запуску ✅\n";
                 $rows[] = [
                     ['text' => "🚁 Запустить #{$instance}", 'callback_data' => "recceDrone_{$logId}"],
                 ];
+            } else {
+                $eta  = $this->service->minutesToReady($charge);
+                $need = max(0, $drain - $charge);
+                if ($nearestReadyEta === null || $eta < $nearestReadyEta) {
+                    $nearestReadyEta = $eta;
+                }
+                if ($onBase) {
+                    $text .= "🔋 Заряжается — до запуска ~{$eta} мин.\n";
+                } else {
+                    $text .= "🏠 Встань на клетку базы для зарядки (добрать {$need} ед., ~{$eta} мин на базе).\n";
+                }
             }
 
+            $text .= "\n";
             $instance++;
         }
 
         if (empty($rows)) {
-            $text .= "_Ни один дрон не готов к запуску. Возвращайся на базу для зарядки._";
+            if ($onBase && $nearestReadyEta !== null) {
+                $text .= "_Дроны заряжаются прямо сейчас — ближайший будет готов через ~{$nearestReadyEta} мин. Можешь подождать здесь и заглянуть позже._";
+            } else {
+                $text .= "_Ни один дрон не готов. Встань на захваченную клетку своей базы — зарядка пойдёт сама (~1% в минуту, полный заряд ~2 часа)._";
+            }
         }
 
         $rows[] = [
@@ -140,6 +166,22 @@ class DroneScoutCraftedListAction extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $rows]),
         ]);
+    }
+
+    /**
+     * Игрок физически стоит на одной из захваченных клеток своей базы —
+     * именно там идёт зарядка дронов (зеркало DroneRechargeCron::isCharacterOnBase).
+     */
+    private function isCharacterOnBase(int $characterId, int $currentCell): bool
+    {
+        if ($characterId <= 0 || $currentCell <= 0) {
+            return false;
+        }
+        $claim = $this->claimedCellModel
+            ->where('character_id', $characterId)
+            ->where('cell_number', $currentCell)
+            ->first();
+        return is_array($claim) || is_object($claim);
     }
 
     private function renderChargeBar(int $pct): string

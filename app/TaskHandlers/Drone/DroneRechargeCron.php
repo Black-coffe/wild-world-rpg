@@ -141,7 +141,15 @@ class DroneRechargeCron
                 if ($logId <= 0) {
                     continue;
                 }
-                $next = (int) min($batteryMax, $current + (int) round($rate * $intervalMinutes));
+                // Шаг заряда за тик. round() мог бы дать 0 при rate<0.5
+                // (base_charge_minutes_per_full>200) → дрон не заряжался бы НИКОГДА.
+                // Floor=1 страхует: дрон всегда прогрессирует (rate>0 гарантирован
+                // выше через `$cfg['rate'] <= 0.0 → continue`).
+                $step = (int) round($rate * $intervalMinutes);
+                if ($step < 1) {
+                    $step = 1;
+                }
+                $next = (int) min($batteryMax, $current + $step);
                 if ($next === $current) {
                     continue;
                 }
@@ -164,12 +172,14 @@ class DroneRechargeCron
             return false;
         }
 
-        $claim = $this->claimedCellModel->where('character_id', $characterId)->first();
-        if (! is_array($claim) && ! is_object($claim)) {
-            return false;
-        }
-        $claimCell = $this->extractInt($claim, 'cell_number');
-        return $claimCell > 0 && $claimCell === $charCell;
+        // Multi-base корректность: персонаж «на базе», если ТЕКУЩАЯ клетка — одна
+        // из его claimed-клеток (раньше брали только первую → стоя на 2-й базе
+        // дроны не заряжались). Для одной базы поведение идентично.
+        $claim = $this->claimedCellModel
+            ->where('character_id', $characterId)
+            ->where('cell_number', $charCell)
+            ->first();
+        return is_array($claim) || is_object($claim);
     }
 
     private function extractInt(mixed $row, string $key): int

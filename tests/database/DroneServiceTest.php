@@ -156,6 +156,53 @@ final class DroneServiceTest extends CIUnitTestCase
         $this->assertGreaterThan(0.0, $svc->chargeRatePerMinute());
     }
 
+    public function testChargeStepPerMinuteDefault(): void
+    {
+        // rate≈0.833 → round=1 → шаг 1/мин (дефолт).
+        $this->assertSame(1, (new DroneService())->chargeStepPerMinute());
+    }
+
+    public function testChargeStepPerMinuteFloorNeverZero(): void
+    {
+        // base_charge_minutes_per_full=300 → rate=0.333 → round()=0,
+        // но floor=1 страхует: дрон не должен застрять навсегда.
+        $this->seedInt('drone.scout.base_charge_minutes_per_full', 300);
+        $this->assertSame(1, (new DroneService())->chargeStepPerMinute());
+    }
+
+    public function testChargeStepPerMinuteFastTuned(): void
+    {
+        // battery_max=200, minutes=100 → rate=2.0 → шаг 2/мин.
+        $this->seedInt('drone.scout.battery_max', 200);
+        $this->seedInt('drone.scout.base_charge_minutes_per_full', 100);
+        $this->assertSame(2, (new DroneService())->chargeStepPerMinute());
+    }
+
+    public function testMinutesToReadyAndFullDefault(): void
+    {
+        $svc = new DroneService();
+        // drain=100, max=100, шаг 1/мин: с 0 → 100 мин и до запуска, и до полного.
+        $this->assertSame(100, $svc->minutesToReady(0));
+        $this->assertSame(100, $svc->minutesToFull(0));
+        // Частично заряжен.
+        $this->assertSame(70, $svc->minutesToReady(30));
+        // Уже готов / полон → 0.
+        $this->assertSame(0, $svc->minutesToReady(100));
+        $this->assertSame(0, $svc->minutesToFull(100));
+        $this->assertSame(0, $svc->minutesToReady(150));
+    }
+
+    public function testMinutesToChargeArbitraryTarget(): void
+    {
+        // Быстрый темп: max=200, minutes=100 → шаг 2/мин.
+        $this->seedInt('drone.scout.battery_max', 200);
+        $this->seedInt('drone.scout.base_charge_minutes_per_full', 100);
+        $svc = new DroneService();
+        $this->assertSame(25, $svc->minutesToCharge(0, 50));   // ceil(50/2)
+        $this->assertSame(0, $svc->minutesToCharge(60, 50));   // уже выше цели
+        $this->assertSame(50, $svc->minutesToFull(100));       // ceil(100/2) до max=200
+    }
+
     public function testCaravanOfferChanceClamped(): void
     {
         $this->seedFloat('drone.scout.caravan_offer_chance', 2.5);
