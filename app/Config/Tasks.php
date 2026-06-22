@@ -193,6 +193,13 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\NPC\NodeHealthRegenHandler())->run())
             ->everyMinute()->singleInstance()->named('npc.node-health-regen');
 
+        // WB10 (ADR-137 «Узлы») — анти-кемп LOOT-LOCK: копит online-dwell персов вплотную к узлу
+        // (world.nodes.anticamp.radius), warn-пинг от Роби до порога, при превышении anticamp.dwell_hours
+        // лочит лут (kill даёт 0 трофеев + не killer для анонса). Сброс при уходе из радиуса; оффлайн не
+        // копит (🔴 беззащитный оффлайн). Killswitch world.nodes.point_mode_enabled → dormant = no-op.
+        $schedule->call(static fn() => (new \App\TaskHandlers\NPC\AntiCampDwellHandler())->run())
+            ->everyMinute()->singleInstance()->named('npc.anticamp-dwell');
+
         // ============================================================
         // QUESTS — handler сам проверяет прогресс игроков
         // ============================================================

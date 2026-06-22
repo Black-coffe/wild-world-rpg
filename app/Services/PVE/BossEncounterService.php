@@ -48,6 +48,7 @@ class BossEncounterService
     private FoodBuffService $food;
     private DeathService $death;
     private BossLootService $loot;
+    private AntiCampService $antiCamp;
 
     /** @var \CodeIgniter\Database\BaseConnection<object, object> */
     private $db;
@@ -56,7 +57,8 @@ class BossEncounterService
         ?DamageService $damage = null,
         ?EquipmentService $equipment = null,
         ?DeathService $death = null,
-        ?BossLootService $loot = null
+        ?BossLootService $loot = null,
+        ?AntiCampService $antiCamp = null
     ) {
         $this->points     = new BossPointModel();
         $this->encounters = new BossEncounterModel();
@@ -68,7 +70,8 @@ class BossEncounterService
         $this->curve      = new NodeLevelCurve();
         $this->food       = new FoodBuffService();
         $this->death      = $death ?? new DeathService();
-        $this->loot       = $loot ?? new BossLootService();
+        $this->antiCamp   = $antiCamp ?? new AntiCampService();
+        $this->loot       = $loot ?? new BossLootService($this->antiCamp);
         $this->db         = Database::connect();
     }
 
@@ -444,13 +447,18 @@ class BossEncounterService
         $now     = date('Y-m-d H:i:s');
         $hours   = max(1, $this->gsInt('world.nodes.respawn_hours', 12));
         $respawn = date('Y-m-d H:i:s', time() + $hours * 3600);
+        $pointId = $this->ival($point['id'] ?? null);
 
-        $this->db->table('boss_points')->where('id', $this->ival($point['id'] ?? null))->update([
+        // WB10: залоченный кемпер НЕ засчитывается killer'ом для анонса (WB11). Записываем null →
+        //       его «расчистка» не даёт ему публичного кредита/титула. Золото/реген-логика не задеты.
+        $killerForAnnounce = $this->antiCamp->isLootLocked($charId, $pointId) ? null : $charId;
+
+        $this->db->table('boss_points')->where('id', $pointId)->update([
             'status'                   => 'cooldown',
             'current_health'           => 0,
             'respawn_at'               => $respawn,
             'kill_count'               => $this->ival($point['kill_count'] ?? null) + 1,
-            'last_killer_character_id' => $charId,
+            'last_killer_character_id' => $killerForAnnounce,
             'updated_at'               => $now,
         ]);
 
@@ -623,6 +631,11 @@ class BossEncounterService
             } else {
                 $text .= "\n🔒 *Метка пустоши* досталась другому бойцу Облавы — по жребию, взвешенному вкладом.\n";
             }
+        }
+
+        // WB10: залоченному кемперу объясняем, почему трофей прошёл мимо (media-off самодостаточен).
+        if ($viewerId > 0 && $this->antiCamp->isLootLocked($viewerId, $this->ival($point['id'] ?? null))) {
+            $text .= "\n☢️ *Гарь узла.* Ты слишком долго держал эту точку — трофей обошёл тебя стороной (золото за вклад осталось). Отойди и вернись позже.\n";
         }
 
         $text .= "\n_Свято место пусто не бывает._";

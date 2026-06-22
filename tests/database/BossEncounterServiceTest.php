@@ -28,7 +28,7 @@ final class BossEncounterServiceTest extends CIUnitTestCase
 
     protected $migrate = false;
 
-    private const TABLES = ['game_settings', 'boss_points', 'boss_encounters', 'boss_engagements', 'characters', 'npcs', 'npc_spawns', 'crafted_items', 'crafted_items_log', 'characters_weapons', 'characters_outfits'];
+    private const TABLES = ['game_settings', 'boss_points', 'boss_encounters', 'boss_engagements', 'boss_camp_state', 'characters', 'npcs', 'npc_spawns', 'crafted_items', 'crafted_items_log', 'characters_weapons', 'characters_outfits'];
 
     private int $npcId = 0;
 
@@ -46,6 +46,7 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $db->query("CREATE TABLE boss_points (id INT AUTO_INCREMENT PRIMARY KEY, cell_number INT, coordinate_x INT, coordinate_y INT, biome_id INT NULL, y_band TINYINT, base_level INT, current_level INT, current_health INT, max_health INT, status VARCHAR(16), respawn_at DATETIME NULL, last_killer_character_id INT NULL, kill_count INT DEFAULT 0, current_npc_id INT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)");
         $db->query("CREATE TABLE boss_encounters (id INT AUTO_INCREMENT PRIMARY KEY, boss_point_id INT, character_id INT, round_no INT DEFAULT 0, player_hp INT, status VARCHAR(16) DEFAULT 'active', damage_dealt INT DEFAULT 0, last_special_round_no INT DEFAULT 0, last_action_at DATETIME NULL, created_at DATETIME NULL)");
         $db->query('CREATE TABLE boss_engagements (id INT AUTO_INCREMENT PRIMARY KEY, boss_point_id INT, boss_level INT, character_id INT, damage_dealt INT DEFAULT 0, rounds_participated INT DEFAULT 0, first_hit_at DATETIME NULL, last_hit_at DATETIME NULL, UNIQUE KEY uniq_contrib (boss_point_id, boss_level, character_id))');
+        $db->query('CREATE TABLE boss_camp_state (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, boss_point_id INT, first_seen_in_zone_at DATETIME NULL, dwell_minutes INT DEFAULT 0, loot_locked_until DATETIME NULL, last_warned_at DATETIME NULL, UNIQUE KEY uniq_cs (character_id, boss_point_id))');
         $db->query("CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100), level INT DEFAULT 1, health INT DEFAULT 100, max_health INT DEFAULT 100, tired INT DEFAULT 100, strength INT DEFAULT 1, agility INT DEFAULT 1, intellect INT DEFAULT 1, armor INT DEFAULT 0, damage_value INT DEFAULT 5, gold INT DEFAULT 0, cell_number INT DEFAULT 0, created_at DATETIME NULL, updated_at DATETIME NULL)");
         $db->query("CREATE TABLE crafted_items (id INT AUTO_INCREMENT PRIMARY KEY, name_eng VARCHAR(100), type VARCHAR(20))");
         $db->query("CREATE TABLE crafted_items_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, crafted_item_id INT, quantity INT, durability_time DATETIME NULL)");
@@ -398,6 +399,34 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $this->assertSame(500, (int) $goldRow['gold'], 'солo-килл = весь пул (5*100) победителю');
         $leftover = $db->table('boss_engagements')->where('boss_point_id', $pid)->countAllResults();
         $this->assertSame(0, $leftover, 'ledger потреблён при килле');
+    }
+
+    // ───────────────────────── WB10 анти-кемп на kill-пути ─────────────────────────
+
+    public function testLockedKillerGetsNoCreditAndCampNotice(): void
+    {
+        $this->enable();
+        $db = Database::connect('tests');
+        $db->table('game_settings')->insert(['setting_key' => 'combat.nodes.gold_per_level', 'value_type' => 'int', 'value_int' => 100]);
+        $db->table('game_settings')->insert(['setting_key' => 'combat.nodes.gold_floor', 'value_type' => 'int', 'value_int' => 0]);
+        $db->table('game_settings')->insert(['setting_key' => 'combat.nodes.gold_hard_cap', 'value_type' => 'int', 'value_int' => 1000000]);
+        $db->table('game_settings')->insert(['setting_key' => 'combat.nodes.loot_min_contribution_pct', 'value_type' => 'float', 'value_float' => 0.0]);
+        $this->cleanCache();
+
+        $pid  = $this->seedPoint(['current_health' => 5, 'current_level' => 5, 'max_health' => 1000]);
+        $db->table('npc_spawns')->insert(['npc_id' => $this->npcId, 'cell_number' => 5000, 'coordinate_x' => 0, 'coordinate_y' => 850, 'current_health' => 5, 'status' => 'alive']);
+        $char = $this->seedChar(['gold' => 0]);
+        // Killer залочен у этой точки (накемпил).
+        $db->table('boss_camp_state')->insert(['character_id' => $char['id'], 'boss_point_id' => $pid, 'dwell_minutes' => 720, 'loot_locked_until' => date('Y-m-d H:i:s', time() + 3600)]);
+
+        $svc = $this->service();
+        $svc->start($char);
+        $screen = $svc->act($char, 'atk');
+
+        $p = $this->point($pid);
+        $this->assertNull($p['last_killer_character_id'], 'залоченный кемпер НЕ killer для анонса (кредит обнулён)');
+        $this->assertStringContainsString('Гарь узла', (string) $screen['text'], 'кемперу объясняют, почему трофей прошёл мимо');
+        $this->assertSame(500, (int) $db->table('characters')->where('id', $char['id'])->get()->getRowArray()['gold'], 'золото за вклад кемпер всё равно получает');
     }
 
     // ───────────────────────── WB9 raid-only бонус ─────────────────────────

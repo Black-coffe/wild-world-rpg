@@ -23,7 +23,7 @@ final class BossLootServiceTest extends CIUnitTestCase
 
     protected $migrate = false;
 
-    private const TABLES = ['game_settings', 'boss_engagements', 'characters', 'weapons', 'outfits', 'characters_weapons', 'characters_outfits'];
+    private const TABLES = ['game_settings', 'boss_engagements', 'boss_camp_state', 'characters', 'weapons', 'outfits', 'characters_weapons', 'characters_outfits'];
 
     protected function setUp(): void
     {
@@ -40,6 +40,7 @@ final class BossLootServiceTest extends CIUnitTestCase
         $db->query("CREATE TABLE outfits (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(150), rarity VARCHAR(50), required_level INT DEFAULT 0)");
         $db->query("CREATE TABLE characters_weapons (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, weapon_id INT, quantity INT DEFAULT 1, current_durability INT DEFAULT 0, equipped TINYINT DEFAULT 0, is_soulbound TINYINT DEFAULT 0, soulbound_source VARCHAR(100) NULL, soulbound_level INT NULL, soulbound_coords VARCHAR(20) NULL, created_at DATETIME NULL, updated_at DATETIME NULL)");
         $db->query("CREATE TABLE characters_outfits (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, outfit_id INT, quantity INT DEFAULT 1, current_durability INT DEFAULT 0, equipped TINYINT DEFAULT 0, is_soulbound TINYINT DEFAULT 0, soulbound_source VARCHAR(100) NULL, soulbound_level INT NULL, soulbound_coords VARCHAR(20) NULL, created_at DATETIME NULL, updated_at DATETIME NULL)");
+        $db->query('CREATE TABLE boss_camp_state (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, boss_point_id INT, first_seen_in_zone_at DATETIME NULL, dwell_minutes INT DEFAULT 0, loot_locked_until DATETIME NULL, last_warned_at DATETIME NULL, UNIQUE KEY uniq_cs (character_id, boss_point_id))');
         $db->table('weapons')->insert(['name' => 'Эхо-railgun «Бегемот»', 'rarity' => 'Legendary', 'required_level' => 24]);
         $db->table('outfits')->insert(['name' => 'Экзо-броня «Скол»', 'rarity' => 'Legendary', 'required_level' => 24]);
     }
@@ -340,5 +341,59 @@ final class BossLootServiceTest extends CIUnitTestCase
 
         $this->assertIsArray($res['soulbound']);
         $this->assertSame($b, $res['soulbound']['winnerId'], 'высокий ролл попал в хвост распределения → меньший вкладчик');
+    }
+
+    // ───────────────────────── WB10 анти-кемп: исключение из лотереи трофея ─────────────────────────
+
+    /** Залочить перса у точки 1 (loot_locked_until в будущем). */
+    private function lockCamper(int $charId): void
+    {
+        Database::connect('tests')->table('boss_camp_state')->insert([
+            'character_id'      => $charId,
+            'boss_point_id'     => 1,
+            'dwell_minutes'     => 720,
+            'loot_locked_until' => date('Y-m-d H:i:s', time() + 3600),
+        ]);
+    }
+
+    public function testLockedSoloCamperGetsNoTrophyButKeepsGold(): void
+    {
+        $this->enableSoulbound(50);
+        $this->setInt('combat.nodes.gold_per_level', 100);
+        $this->setInt('combat.nodes.gold_floor', 0);
+        $this->setInt('combat.nodes.gold_hard_cap', 1000000);
+
+        $a = $this->char();
+        $this->lockCamper($a);
+        // RNG щедрый: без лока трофей бы выпал — доказываем, что исключает именно лок.
+        $svc = $this->scripted([0.0, 0.0, 0.0, 0.0]);
+        $svc->recordContribution(1, 60, $a, 1000);
+        $res = $svc->distributeLoot($this->point(['current_level' => 60, 'max_health' => 1000]), 60, $a, 'Шрам');
+
+        $this->assertNull($res['soulbound'], 'залоченный кемпер исключён из лотереи трофея');
+        $this->assertSame(0, (int) Database::connect('tests')->table('characters_weapons')->countAllResults(), 'трофей не выдан');
+        $this->assertGreaterThan(0, $this->gold($a), 'но золото за вклад кемпер всё равно получает (мотив кемпа — трофей, не золото)');
+    }
+
+    public function testLockedCamperExcludedTrophyGoesToCleanContributor(): void
+    {
+        $this->enableSoulbound(50);
+        $this->setInt('combat.nodes.gold_per_level', 100);
+        $this->setInt('combat.nodes.gold_floor', 0);
+        $this->setInt('combat.nodes.gold_hard_cap', 1000000);
+
+        $camper = $this->char(); // больший вклад, но залочен
+        $clean  = $this->char(); // меньший вклад, чистый
+        $this->lockCamper($camper);
+        // seq: roll pass / winner pick 0.0 / kind weapon / item idx — среди {clean} победитель один.
+        $svc = $this->scripted([0.0, 0.0, 0.0, 0.0]);
+        $svc->recordContribution(1, 60, $camper, 900);
+        $svc->recordContribution(1, 60, $clean, 100);
+        $res = $svc->distributeLoot($this->point(['current_level' => 60, 'max_health' => 1000]), 60, $camper, 'Цербер');
+
+        $this->assertIsArray($res['soulbound']);
+        $this->assertSame($clean, $res['soulbound']['winnerId'], 'трофей ушёл чистому вкладчику, не залоченному кемперу');
+        $this->assertGreaterThan(0, $this->gold($camper), 'кемпер сохраняет долю золота');
+        $this->assertGreaterThan(0, $this->gold($clean));
     }
 }

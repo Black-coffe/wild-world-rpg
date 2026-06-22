@@ -173,6 +173,7 @@ class WipeManifest extends BaseConfig
         'oracle_bets'            => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Ставки игрока в «Оракуле острова» (ADR-133) — прогресс/история; новый сезон с нуля'],
         'boss_encounters'        => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Активные бои игрока с узлами-боссами (ADR-137 WB6) — состояние боя; новый сезон с нуля'],
         'boss_engagements'       => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Ledger вклада игрока в «Облаву» по узлу (ADR-137 WB8) — урон для дележа лута по вкладу; новый сезон с нуля'],
+        'boss_camp_state'        => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Анти-кемп dwell у узла (ADR-137 WB10) — счётчик «торчания» + loot-lock игрока; новый сезон с нуля'],
 
         // ─────────────────────────────────────────────────────────────
         // 🟠 TRANSIENT — транзиентная населённость мира / очереди (полный вайп = DELETE всех)

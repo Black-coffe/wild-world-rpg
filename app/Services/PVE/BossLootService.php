@@ -27,13 +27,15 @@ class BossLootService
     use GameSettingsReaderTrait;
 
     private BossEngagementModel $engagements;
+    private AntiCampService $antiCamp;
 
     /** @var \CodeIgniter\Database\BaseConnection<object, object> */
     private $db;
 
-    public function __construct()
+    public function __construct(?AntiCampService $antiCamp = null)
     {
         $this->engagements = new BossEngagementModel();
+        $this->antiCamp    = $antiCamp ?? new AntiCampService();
         $this->db          = Database::connect();
     }
 
@@ -127,8 +129,13 @@ class BossLootService
             }
         }
 
-        // ── WB9: взвешенная по вкладу лотерея soulbound-трофея среди $eligible (ДО purge) ──
-        $soulbound = $this->rollAndGrantTrophy($eligible, $bossLevel, $bossName, $point);
+        // ── WB10: анти-кемп — залоченные у этой точки кемперы ИСКЛЮЧАЮТСЯ из лотереи трофея
+        //    (мотив кемпа — трофей, не золото → золото по вкладу выше уже начислено всем eligible). ──
+        $locked         = $this->antiCamp->lockedSubset(array_keys($eligible), $pointId);
+        $trophyEligible = $locked === [] ? $eligible : array_diff_key($eligible, array_flip($locked));
+
+        // ── WB9: взвешенная по вкладу лотерея soulbound-трофея среди НЕзалоченных eligible (ДО purge) ──
+        $soulbound = $this->rollAndGrantTrophy($trophyEligible, $bossLevel, $bossName, $point);
 
         // Потребить ledger этой жизни узла.
         $this->engagements
