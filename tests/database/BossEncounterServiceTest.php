@@ -28,7 +28,7 @@ final class BossEncounterServiceTest extends CIUnitTestCase
 
     protected $migrate = false;
 
-    private const TABLES = ['game_settings', 'boss_points', 'boss_encounters', 'characters', 'npcs', 'npc_spawns', 'crafted_items', 'crafted_items_log'];
+    private const TABLES = ['game_settings', 'boss_points', 'boss_encounters', 'boss_engagements', 'characters', 'npcs', 'npc_spawns', 'crafted_items', 'crafted_items_log'];
 
     private int $npcId = 0;
 
@@ -45,7 +45,8 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $db->query("CREATE TABLE npc_spawns (id INT AUTO_INCREMENT PRIMARY KEY, npc_id INT, cell_number INT, coordinate_x INT, coordinate_y INT, current_health DECIMAL(7,2), spawned_at DATETIME NULL, status VARCHAR(20))");
         $db->query("CREATE TABLE boss_points (id INT AUTO_INCREMENT PRIMARY KEY, cell_number INT, coordinate_x INT, coordinate_y INT, biome_id INT NULL, y_band TINYINT, base_level INT, current_level INT, current_health INT, max_health INT, status VARCHAR(16), respawn_at DATETIME NULL, last_killer_character_id INT NULL, kill_count INT DEFAULT 0, current_npc_id INT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)");
         $db->query("CREATE TABLE boss_encounters (id INT AUTO_INCREMENT PRIMARY KEY, boss_point_id INT, character_id INT, round_no INT DEFAULT 0, player_hp INT, status VARCHAR(16) DEFAULT 'active', damage_dealt INT DEFAULT 0, last_special_round_no INT DEFAULT 0, last_action_at DATETIME NULL, created_at DATETIME NULL)");
-        $db->query("CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100), level INT DEFAULT 1, health INT DEFAULT 100, max_health INT DEFAULT 100, tired INT DEFAULT 100, strength INT DEFAULT 1, agility INT DEFAULT 1, intellect INT DEFAULT 1, armor INT DEFAULT 0, damage_value INT DEFAULT 5, cell_number INT DEFAULT 0, created_at DATETIME NULL, updated_at DATETIME NULL)");
+        $db->query('CREATE TABLE boss_engagements (id INT AUTO_INCREMENT PRIMARY KEY, boss_point_id INT, boss_level INT, character_id INT, damage_dealt INT DEFAULT 0, rounds_participated INT DEFAULT 0, first_hit_at DATETIME NULL, last_hit_at DATETIME NULL, UNIQUE KEY uniq_contrib (boss_point_id, boss_level, character_id))');
+        $db->query("CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100), level INT DEFAULT 1, health INT DEFAULT 100, max_health INT DEFAULT 100, tired INT DEFAULT 100, strength INT DEFAULT 1, agility INT DEFAULT 1, intellect INT DEFAULT 1, armor INT DEFAULT 0, damage_value INT DEFAULT 5, gold INT DEFAULT 0, cell_number INT DEFAULT 0, created_at DATETIME NULL, updated_at DATETIME NULL)");
         $db->query("CREATE TABLE crafted_items (id INT AUTO_INCREMENT PRIMARY KEY, name_eng VARCHAR(100), type VARCHAR(20))");
         $db->query("CREATE TABLE crafted_items_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, crafted_item_id INT, quantity INT, durability_time DATETIME NULL)");
 
@@ -352,5 +353,48 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $enc = $this->activeEnc((int) $char['id']);
         $this->assertSame('lost', $enc['status']);
         $this->assertSame(1, $spy->calls, 'летальный исход вызвал DeathService::handlePlayerDeathAndReward');
+    }
+
+    // ───────────────────────── WB8 «Облава» ─────────────────────────
+
+    public function testAttackRecordsEngagementContribution(): void
+    {
+        $this->enable();
+        $this->seedPoint(['current_health' => 1000, 'current_level' => 7]);
+        $char = $this->seedChar();
+        $svc  = $this->service();
+        $svc->start($char);
+        $svc->act($char, 'atk');
+
+        $db   = Database::connect('tests');
+        $rows = $db->table('boss_engagements')->where('character_id', $char['id'])->get()->getResultArray();
+        $this->assertCount(1, $rows, 'удар записал вклад в ledger «Облавы»');
+        $this->assertSame(7, (int) $rows[0]['boss_level'], 'boss_level = уровень узла на момент вклада');
+        $this->assertGreaterThan(0, (int) $rows[0]['damage_dealt'], 'урон чанка учтён');
+    }
+
+    public function testWinGrantsOblavaGoldAndPurgesLedger(): void
+    {
+        $this->enable();
+        // пул gold = level(5) * gold_per_level → задаём детерминированно
+        $db = Database::connect('tests');
+        $db->table('game_settings')->insert(['setting_key' => 'combat.nodes.gold_per_level', 'value_type' => 'int', 'value_int' => 100]);
+        $db->table('game_settings')->insert(['setting_key' => 'combat.nodes.gold_floor', 'value_type' => 'int', 'value_int' => 0]);
+        $db->table('game_settings')->insert(['setting_key' => 'combat.nodes.gold_hard_cap', 'value_type' => 'int', 'value_int' => 1000000]);
+        $db->table('game_settings')->insert(['setting_key' => 'combat.nodes.loot_min_contribution_pct', 'value_type' => 'float', 'value_float' => 0.0]);
+        $this->cleanCache();
+
+        $pid  = $this->seedPoint(['current_health' => 5, 'current_level' => 5, 'max_health' => 1000]);
+        $db->table('npc_spawns')->insert(['npc_id' => $this->npcId, 'cell_number' => 5000, 'coordinate_x' => 0, 'coordinate_y' => 850, 'current_health' => 5, 'status' => 'alive']);
+        $char = $this->seedChar(['gold' => 0]);
+        $svc  = $this->service();
+        $svc->start($char);
+        $screen = $svc->act($char, 'atk');
+
+        $this->assertArrayHasKey('text', $screen);
+        $goldRow = $db->table('characters')->where('id', $char['id'])->get()->getRowArray();
+        $this->assertSame(500, (int) $goldRow['gold'], 'солo-килл = весь пул (5*100) победителю');
+        $leftover = $db->table('boss_engagements')->where('boss_point_id', $pid)->countAllResults();
+        $this->assertSame(0, $leftover, 'ledger потреблён при килле');
     }
 }

@@ -47,6 +47,7 @@ class BossEncounterService
     private NodeLevelCurve $curve;
     private FoodBuffService $food;
     private DeathService $death;
+    private BossLootService $loot;
 
     /** @var \CodeIgniter\Database\BaseConnection<object, object> */
     private $db;
@@ -54,7 +55,8 @@ class BossEncounterService
     public function __construct(
         ?DamageService $damage = null,
         ?EquipmentService $equipment = null,
-        ?DeathService $death = null
+        ?DeathService $death = null,
+        ?BossLootService $loot = null
     ) {
         $this->points     = new BossPointModel();
         $this->encounters = new BossEncounterModel();
@@ -66,6 +68,7 @@ class BossEncounterService
         $this->curve      = new NodeLevelCurve();
         $this->food       = new FoodBuffService();
         $this->death      = $death ?? new DeathService();
+        $this->loot       = $loot ?? new BossLootService();
         $this->db         = Database::connect();
     }
 
@@ -329,6 +332,16 @@ class BossEncounterService
             'updated_at'     => $now,
         ]);
 
+        // WB8: вклад игрока в «Облаву» по этой жизни узла (атомарный апсёрт; ОБЩИЙ HP делает
+        // co-op: A ослабил → B добил → оба в дележе). boss_level = уровень узла (постоянен в
+        // пределах жизни). Пишем урон ИМЕННО этого чанка (дельта), не накопленный $dealt.
+        $this->loot->recordContribution(
+            $this->ival($point['id'] ?? null),
+            $this->ival($point['current_level'] ?? null),
+            $charId,
+            (int) round($chunk['playerDmg'])
+        );
+
         // Списание выносливости за спецприём.
         if ($tiredCost > 0) {
             $newTired = max(0, (int) round($this->fval($character['tired'] ?? null)) - $tiredCost);
@@ -350,8 +363,10 @@ class BossEncounterService
             $this->encounters->update($encId, $encUpdate);
             $this->markNodeKilled($point, $charId);
             $this->characters->update($charId, ['health' => max(1, $playerHp)]);
+            // WB8: дележ лута «Облавы» по вкладу (золото) + потребление ledger этой жизни.
+            $lootResult = $this->loot->distributeLoot($point, $this->ival($point['current_level'] ?? null), $charId);
 
-            return $this->renderWon($point);
+            return $this->renderWon($point, $lootResult);
         }
 
         if ($chunk['outcome'] === 'lost') {
@@ -570,10 +585,11 @@ class BossEncounterService
     }
 
     /**
-     * @param array<array-key, mixed> $point
+     * @param array<array-key, mixed>                                                                    $point
+     * @param array{participants:int,totalDamage:int,goldPool:int,goldByChar:array<int,int>,killerGold:int,eligible:array<int,int>}|null $loot
      * @return array{text:string,keyboard:array<int,mixed>}
      */
-    private function renderWon(array $point): array
+    private function renderWon(array $point, ?array $loot = null): array
     {
         $name  = $this->bossName($point);
         $level = $this->ival($point['current_level'] ?? null);
@@ -581,6 +597,19 @@ class BossEncounterService
 
         $text  = "🏆 *Узел повержен!*\n\n";
         $text .= "Ты сломил *{$name}* (L{$level}). Точка опустеет примерно на *{$hours}ч* — затем её займёт следующий носитель, злее прежнего.\n\n";
+
+        // WB8: добыча «Облавы» — доля золота по вкладу. Media-off самодостаточен (всё в тексте).
+        $killerGold   = $loot !== null ? max(0, $loot['killerGold']) : 0;
+        $participants = $loot !== null ? max(0, $loot['participants']) : 0;
+        if ($participants > 1) {
+            $text .= "🤝 *Облава*: добычу делили *{$participants}* — по вкладу в общий урон.\n";
+            $text .= $killerGold > 0
+                ? "💰 Твоя доля: *{$killerGold}* золота.\n\n"
+                : "_Большая часть добычи ушла тем, кто вложил больше урона._\n\n";
+        } elseif ($killerGold > 0) {
+            $text .= "💰 Добыча: *{$killerGold}* золота.\n\n";
+        }
+
         $text .= '_Свято место пусто не бывает._';
 
         return ['text' => $text, 'keyboard' => [[['text' => '🚶 Уйти', 'callback_data' => 'move']]]];

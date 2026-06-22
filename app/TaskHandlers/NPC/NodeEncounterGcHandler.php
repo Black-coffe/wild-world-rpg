@@ -6,27 +6,36 @@ namespace App\TaskHandlers\NPC;
 
 use App\Attributes\HandlerKey;
 use App\Services\GameSettings\GameSettingsReaderTrait;
+use App\Services\PVE\BossLootService;
 use App\TaskHandlers\BaseTaskHandler;
 use Config\Database;
 
 /**
- * WB6 (ADR-137 «Узлы») — GC зависших боёв с узлом.
+ * WB6/WB8 (ADR-137 «Узлы») — GC зависших боёв с узлом + протухшего ledger «Облавы».
  *
  * Игрок закрыл чат / ушёл, не завершив бой → active-encounter висит. Этот крон гасит active-бои,
  * не тронутые дольше `combat.nodes.encounter_ttl_minutes`, в `fled` (HP узла персистентен, остаётся
- * как есть — фундамент со-опа). НЕ killswitch-gated: чистит даже после выключения point-режима
- * (висящие бои не должны застревать). Идемпотентен (батч по last_action_at); dormant → 0 active → no-op.
- *
- * Класс НЕ final.
+ * как есть — фундамент со-опа). WB8: дополнительно чистит строки `boss_engagements` по НЕДОБИТЫМ
+ * узлам, не тронутые дольше `combat.nodes.engagement_ttl_min` (вклад потребляется при килле; этот GC
+ * убирает «висящий» вклад по узлам, которые ослабили, но не добили). НЕ killswitch-gated: чистит
+ * даже после выключения point-режима (висящие бои/вклад не должны застревать). Идемпотентен;
+ * dormant → 0 строк → no-op. Класс НЕ final.
  */
 #[HandlerKey(
     key: 'node_encounter_gc',
-    displayName: 'Узлы: GC зависших боёв (WB6)',
-    description: 'everyMinute: active-бои с узлом без действий дольше combat.nodes.encounter_ttl_minutes → fled (HP узла остаётся). НЕ killswitch-gated. ADR-137.',
+    displayName: 'Узлы: GC зависших боёв + ledger (WB6/WB8)',
+    description: 'everyMinute: active-бои с узлом без действий дольше combat.nodes.encounter_ttl_minutes → fled; протухший вклад «Облавы» (boss_engagements) старше combat.nodes.engagement_ttl_min → delete. НЕ killswitch-gated. ADR-137.',
 )]
 class NodeEncounterGcHandler extends BaseTaskHandler
 {
     use GameSettingsReaderTrait;
+
+    private ?BossLootService $loot;
+
+    public function __construct(?BossLootService $loot = null)
+    {
+        $this->loot = $loot;
+    }
 
     public function handle(array $task = []): void
     {
@@ -42,5 +51,8 @@ class NodeEncounterGcHandler extends BaseTaskHandler
             ->where('status', 'active')
             ->where('last_action_at <', $cutoff)
             ->update(['status' => 'fled']);
+
+        // WB8: протухший вклад «Облавы» по недобитым узлам.
+        ($this->loot ?? new BossLootService())->purgeStale();
     }
 }
