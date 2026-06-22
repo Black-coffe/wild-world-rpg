@@ -417,12 +417,22 @@ class RaiderGradientHandler
 
     // ===================== GameSettings (overridable seams) =====================
 
-    /** ADR-106 killswitch world.bosses.enabled (default false → боссы dormant). */
+    /**
+     * ADR-106 killswitch world.bosses.enabled (default false → боссы dormant).
+     *
+     * WB4 (ADR-137 «Узлы»): когда включён point-режим (`world.nodes.point_mode_enabled`),
+     * старый КОЧУЮЩИЙ спавнер боссов УСТУПАЕТ NodeRespawnHandler'у — иначе двойной спавн
+     * (трио в случайных Y<150 + точки-узлы). Одна правда. Откат = point_mode OFF → старое
+     * поведение возвращается.
+     */
     protected function bossesEnabled(): bool
     {
-        $v = (new \App\Services\GameSettings\GameSettingsService())->get('world.bosses.enabled', false);
+        $gs = new \App\Services\GameSettings\GameSettingsService();
+        if ((bool) $gs->get('world.nodes.point_mode_enabled', false)) {
+            return false; // point-режим узлов ведёт боссов сам (WB5)
+        }
 
-        return (bool) $v;
+        return (bool) $gs->get('world.bosses.enabled', false);
     }
 
     /** world.bosses.population_each — живых экземпляров КАЖДОГО босса (default 1 = уникальность). */

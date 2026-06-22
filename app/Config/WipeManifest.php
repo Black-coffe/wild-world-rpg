@@ -206,6 +206,16 @@ class WipeManifest extends BaseConfig
             ],
             'note' => 'Глобальный рыночный банк — сброс счётчиков к 0',
         ],
+        'boss_points'          => [
+            'strategy' => self::SEED_RESET,
+            'reset'    => [
+                'kill_count'               => 0,
+                'last_killer_character_id' => null,
+                'status'                   => 'cooldown',
+                'respawn_at'               => null,
+            ],
+            'note' => 'Узлы-боссы (ADR-137) — точки-строки остаются (мировой контент, курируемые координаты), прогресс сброшен: kill_count→0, помечены cooldown (respawn_at=null) → NodeRespawnHandler (WB5) воскрешает к base_level (юг снова L1 для новичков; гео-эскалация по y_band сохранена). current_level/current_health восстанавливает хэндлер.',
+        ],
     ];
 
     /**
