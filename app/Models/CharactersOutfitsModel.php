@@ -59,7 +59,10 @@ class CharactersOutfitsModel extends Model
         'current_durability',
         'equipped',
         'slot',
-        'is_soulbound', // WB2 (ADR-137): трофеи-узлы «не продаётся/не теряется»
+        'is_soulbound',     // WB2 (ADR-137): трофеи-узлы «не продаётся/не теряется»
+        'soulbound_source', // WB9 (ADR-137): провенанс badge «Метка пустоши» — имя узла
+        'soulbound_level',  // WB9: уровень узла на момент килла
+        'soulbound_coords', // WB9: координаты «X,Y»
         'created_at',
         'updated_at',
     ];

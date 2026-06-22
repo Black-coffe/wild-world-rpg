@@ -159,6 +159,18 @@ class GearArmorDetailAction extends BaseAction
         $text .= "Защита: *{$armorValue}*\n\n";
         $text .= "Описание: _{$description}_\n\n";
 
+        // WB9 (ADR-137): badge soulbound-трофея «Метка пустоши» с провенансом (media-off).
+        $or          = is_array($outfitRow) ? $outfitRow : [];
+        $isSoulbound = ! empty($or['is_soulbound']);
+        if ($isSoulbound) {
+            $src    = is_scalar($or['soulbound_source'] ?? null) ? (string) $or['soulbound_source'] : 'Узел';
+            $lvlRaw = $or['soulbound_level'] ?? 0;
+            $lvl    = is_numeric($lvlRaw) ? (int) $lvlRaw : 0;
+            $crd    = is_scalar($or['soulbound_coords'] ?? null) ? (string) $or['soulbound_coords'] : '';
+            $text .= "🔒 *Метка пустоши*: трофей с узла _{$src}_ (L{$lvl}" . ($crd !== '' ? ", {$crd}" : '') . ").\n";
+            $text .= "_Усиливает тебя ТОЛЬКО против узлов. Не надевается, не продаётся, не теряется._\n\n";
+        }
+
         // V15 (честный closer): показываем реальные ненулевые сопротивления/
         // модификаторы + честную сноску, что они работают в PvP-дуэлях
         // (PvE учитывает лишь armor_value). Раньше эти числа не показывались.
@@ -182,7 +194,9 @@ class GearArmorDetailAction extends BaseAction
         // Кнопка «Одеть/Снять» показывается только когда действие реально доступно.
         // Вне базы надеть нельзя — не рисуем мёртвую кнопку, причину поясняем в тексте.
         $rows = [];
-        if ($isEquipped) {
+        if ($isSoulbound) {
+            // WB9: трофей-узел не надевается (raid-only бонус действует пассивно) → нет кнопки «Одеть».
+        } elseif ($isEquipped) {
             $rows[] = [['text' => 'Снять', 'callback_data' => "toggleEquipArmor_{$charOutfitId}"]];
         } elseif ($isOnBase) {
             $rows[] = [['text' => 'Одеть', 'callback_data' => "toggleEquipArmor_{$charOutfitId}"]];

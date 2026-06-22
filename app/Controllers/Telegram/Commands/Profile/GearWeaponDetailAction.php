@@ -150,6 +150,18 @@ class GearWeaponDetailAction extends BaseAction
         $text .= "Требуется СИЛ: {$reqStr}, ЛОВ: {$reqAgi}, ИНТ: {$reqInt}\n\n";
         $text .= "Описание: _{$description}_\n\n";
 
+        // WB9 (ADR-137): badge soulbound-трофея «Метка пустоши» с провенансом (media-off: весь смысл в тексте).
+        $wr          = is_array($weaponRow) ? $weaponRow : [];
+        $isSoulbound = ! empty($wr['is_soulbound']);
+        if ($isSoulbound) {
+            $src    = is_scalar($wr['soulbound_source'] ?? null) ? (string) $wr['soulbound_source'] : 'Узел';
+            $lvlRaw = $wr['soulbound_level'] ?? 0;
+            $lvl    = is_numeric($lvlRaw) ? (int) $lvlRaw : 0;
+            $crd    = is_scalar($wr['soulbound_coords'] ?? null) ? (string) $wr['soulbound_coords'] : '';
+            $text .= "🔒 *Метка пустоши*: трофей с узла _{$src}_ (L{$lvl}" . ($crd !== '' ? ", {$crd}" : '') . ").\n";
+            $text .= "_Усиливает тебя ТОЛЬКО против узлов. Не надевается, не продаётся, не теряется._\n\n";
+        }
+
         // Определяем, находится ли игрок на базе
         $isOnBase = $this->isOnBase($character['id']);
 
@@ -160,7 +172,9 @@ class GearWeaponDetailAction extends BaseAction
         // Кнопка «Одеть/Снять» показывается только когда действие реально доступно.
         // Вне базы надеть нельзя — не рисуем мёртвую кнопку, причину поясняем в тексте.
         $rows = [];
-        if ($isEquipped) {
+        if ($isSoulbound) {
+            // WB9: трофей-узел не надевается (raid-only бонус действует пассивно) → нет кнопки «Одеть».
+        } elseif ($isEquipped) {
             $rows[] = [['text' => 'Снять', 'callback_data' => "toggleEquipWeapon_{$charWeaponId}"]];
         } elseif ($isOnBase) {
             $rows[] = [['text' => 'Одеть', 'callback_data' => "toggleEquipWeapon_{$charWeaponId}"]];

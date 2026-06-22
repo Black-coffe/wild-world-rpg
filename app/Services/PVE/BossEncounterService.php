@@ -249,8 +249,10 @@ class BossEncounterService
         }
 
         // Food-баф «Сытость» — ВНУТРИ формулы (через свойства BattleCharacter, как PvEService).
+        // WB9 RAID-ONLY: бонус soulbound-трофеев усиливает урон ТОЛЬКО здесь (бой с узлом) —
+        // в PvP/обычном PvE НЕ применяется (изолированный слой; портрет П4 «без PvP-power-creep»).
         $wellFed = $character['well_fed_until'] ?? null;
-        $player->outgoingDamageMultiplier = $this->food->combatDamageMultiplierFor($wellFed);
+        $player->outgoingDamageMultiplier = $this->food->combatDamageMultiplierFor($wellFed) * $this->raidBonusMultiplier($charId);
         $player->incomingDamageMultiplier = $this->food->incomingDamageMultiplierFor($wellFed);
 
         $chunk = $this->runChunk($player, $boss, $playerOutMult, $bossOutMult, $this->ival($enc['round_no'] ?? null));
@@ -363,10 +365,11 @@ class BossEncounterService
             $this->encounters->update($encId, $encUpdate);
             $this->markNodeKilled($point, $charId);
             $this->characters->update($charId, ['health' => max(1, $playerHp)]);
-            // WB8: дележ лута «Облавы» по вкладу (золото) + потребление ledger этой жизни.
-            $lootResult = $this->loot->distributeLoot($point, $this->ival($point['current_level'] ?? null), $charId);
+            // WB8: дележ лута «Облавы» по вкладу (золото). WB9: лотерея soulbound-трофея среди
+            // вкладчиков (взвешенная по вкладу). Затем потребление ledger этой жизни.
+            $lootResult = $this->loot->distributeLoot($point, $this->ival($point['current_level'] ?? null), $charId, $this->bossName($point));
 
-            return $this->renderWon($point, $lootResult);
+            return $this->renderWon($point, $lootResult, $charId);
         }
 
         if ($chunk['outcome'] === 'lost') {
@@ -586,10 +589,10 @@ class BossEncounterService
 
     /**
      * @param array<array-key, mixed>                                                                    $point
-     * @param array{participants:int,totalDamage:int,goldPool:int,goldByChar:array<int,int>,killerGold:int,eligible:array<int,int>}|null $loot
+     * @param array{participants:int,totalDamage:int,goldPool:int,goldByChar:array<int,int>,killerGold:int,eligible:array<int,int>,soulbound:array{winnerId:int,kind:string,itemName:string,rarity:string}|null}|null $loot
      * @return array{text:string,keyboard:array<int,mixed>}
      */
-    private function renderWon(array $point, ?array $loot = null): array
+    private function renderWon(array $point, ?array $loot = null, int $viewerId = 0): array
     {
         $name  = $this->bossName($point);
         $level = $this->ival($point['current_level'] ?? null);
@@ -604,13 +607,25 @@ class BossEncounterService
         if ($participants > 1) {
             $text .= "🤝 *Облава*: добычу делили *{$participants}* — по вкладу в общий урон.\n";
             $text .= $killerGold > 0
-                ? "💰 Твоя доля: *{$killerGold}* золота.\n\n"
-                : "_Большая часть добычи ушла тем, кто вложил больше урона._\n\n";
+                ? "💰 Твоя доля: *{$killerGold}* золота.\n"
+                : "_Большая часть добычи ушла тем, кто вложил больше урона._\n";
         } elseif ($killerGold > 0) {
-            $text .= "💰 Добыча: *{$killerGold}* золота.\n\n";
+            $text .= "💰 Добыча: *{$killerGold}* золота.\n";
         }
 
-        $text .= '_Свято место пусто не бывает._';
+        // WB9: soulbound-трофей «Метка пустоши» — взвешенная лотерея среди вкладчиков.
+        $sb = $loot['soulbound'] ?? null;
+        if (is_array($sb)) {
+            $itemName = (string) $sb['itemName'];
+            $kindRu   = $sb['kind'] === 'weapon' ? 'оружие' : 'броню';
+            if ($sb['winnerId'] === $viewerId) {
+                $text .= "\n🔒 *Метка пустоши!* С узла сорвал {$kindRu}: *{$itemName}*. Это трофей — он усиливает тебя ТОЛЬКО против узлов, его нельзя надеть или продать.\n";
+            } else {
+                $text .= "\n🔒 *Метка пустоши* досталась другому бойцу Облавы — по жребию, взвешенному вкладом.\n";
+            }
+        }
+
+        $text .= "\n_Свято место пусто не бывает._";
 
         return ['text' => $text, 'keyboard' => [[['text' => '🚶 Уйти', 'callback_data' => 'move']]]];
     }
@@ -763,6 +778,31 @@ class BossEncounterService
         }
 
         return max(1, $heal);
+    }
+
+    /**
+     * WB9 RAID-ONLY бонус: множитель урона ПО УЗЛАМ от числа soulbound-трофеев игрока.
+     * = 1 + min(`soulbound_raid_bonus_cap`, count × `soulbound_raid_bonus_pct`). Считается ТОЛЬКО
+     * здесь (бой с узлом) → в PvP/обычном PvE не влияет (трофеи не надеваются, equipped=0). 1.0 если
+     * трофеев нет / бонус выключен.
+     */
+    private function raidBonusMultiplier(int $charId): float
+    {
+        if ($charId <= 0) {
+            return 1.0;
+        }
+        $per = max(0.0, $this->gsFloat('combat.nodes.soulbound_raid_bonus_pct', 0.05));
+        $cap = max(0.0, $this->gsFloat('combat.nodes.soulbound_raid_bonus_cap', 0.5));
+        if ($per <= 0.0 || $cap <= 0.0) {
+            return 1.0;
+        }
+        $count = (int) $this->db->table('characters_weapons')->where('character_id', $charId)->where('is_soulbound', 1)->countAllResults()
+            + (int) $this->db->table('characters_outfits')->where('character_id', $charId)->where('is_soulbound', 1)->countAllResults();
+        if ($count <= 0) {
+            return 1.0;
+        }
+
+        return 1.0 + min($cap, $count * $per);
     }
 
     /**

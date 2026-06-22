@@ -23,7 +23,7 @@ final class BossLootServiceTest extends CIUnitTestCase
 
     protected $migrate = false;
 
-    private const TABLES = ['game_settings', 'boss_engagements', 'characters'];
+    private const TABLES = ['game_settings', 'boss_engagements', 'characters', 'weapons', 'outfits', 'characters_weapons', 'characters_outfits'];
 
     protected function setUp(): void
     {
@@ -36,6 +36,12 @@ final class BossLootServiceTest extends CIUnitTestCase
         $db->query('CREATE TABLE game_settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(191), value_type VARCHAR(16) NULL, value_int INT NULL, value_bool TINYINT NULL, value_float DOUBLE NULL, value_string TEXT NULL)');
         $db->query('CREATE TABLE boss_engagements (id INT AUTO_INCREMENT PRIMARY KEY, boss_point_id INT, boss_level INT, character_id INT, damage_dealt INT DEFAULT 0, rounds_participated INT DEFAULT 0, first_hit_at DATETIME NULL, last_hit_at DATETIME NULL, UNIQUE KEY uniq_contrib (boss_point_id, boss_level, character_id))');
         $db->query('CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100), gold INT DEFAULT 0)');
+        $db->query("CREATE TABLE weapons (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(150), rarity VARCHAR(50), required_level INT DEFAULT 0)");
+        $db->query("CREATE TABLE outfits (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(150), rarity VARCHAR(50), required_level INT DEFAULT 0)");
+        $db->query("CREATE TABLE characters_weapons (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, weapon_id INT, quantity INT DEFAULT 1, current_durability INT DEFAULT 0, equipped TINYINT DEFAULT 0, is_soulbound TINYINT DEFAULT 0, soulbound_source VARCHAR(100) NULL, soulbound_level INT NULL, soulbound_coords VARCHAR(20) NULL, created_at DATETIME NULL, updated_at DATETIME NULL)");
+        $db->query("CREATE TABLE characters_outfits (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, outfit_id INT, quantity INT DEFAULT 1, current_durability INT DEFAULT 0, equipped TINYINT DEFAULT 0, is_soulbound TINYINT DEFAULT 0, soulbound_source VARCHAR(100) NULL, soulbound_level INT NULL, soulbound_coords VARCHAR(20) NULL, created_at DATETIME NULL, updated_at DATETIME NULL)");
+        $db->table('weapons')->insert(['name' => 'Эхо-railgun «Бегемот»', 'rarity' => 'Legendary', 'required_level' => 24]);
+        $db->table('outfits')->insert(['name' => 'Экзо-броня «Скол»', 'rarity' => 'Legendary', 'required_level' => 24]);
     }
 
     protected function tearDown(): void
@@ -228,5 +234,111 @@ final class BossLootServiceTest extends CIUnitTestCase
         $res = (new BossLootService())->distributeLoot($this->point(), 10, 1);
         $this->assertSame(0, $res['participants']);
         $this->assertSame([], $res['goldByChar']);
+        $this->assertNull($res['soulbound']);
+    }
+
+    // ───────────────────────── WB9 soulbound-трофеи ─────────────────────────
+
+    /** Сервис со скриптованным RNG (детерминирует лотерею/выдачу). @param list<float> $seq */
+    private function scripted(array $seq): BossLootService
+    {
+        return new class($seq) extends BossLootService {
+            /** @var list<float> */
+            public array $seq;
+
+            /** @param list<float> $seq */
+            public function __construct(array $seq)
+            {
+                parent::__construct();
+                $this->seq = $seq;
+            }
+
+            protected function rand01(): float
+            {
+                return array_shift($this->seq) ?? 0.0;
+            }
+        };
+    }
+
+    private function enableSoulbound(int $min = 50): void
+    {
+        $this->setInt('combat.nodes.soulbound_min_level', $min);
+        $this->setFloat('combat.nodes.soulbound_base_chance', 0.05);
+        $this->setFloat('combat.nodes.soulbound_chance_per_level', 0.002);
+        $this->setFloat('combat.nodes.soulbound_chance_max', 0.35);
+        $this->setFloat('combat.nodes.loot_min_contribution_pct', 0.05);
+    }
+
+    public function testNoTrophyBelowMinLevel(): void
+    {
+        $this->enableSoulbound(50);
+        $a   = $this->char();
+        $svc = $this->scripted([0.0, 0.0, 0.0, 0.0]); // даже при «удачном» RNG
+        $svc->recordContribution(1, 40, $a, 1000);
+        $res = $svc->distributeLoot($this->point(['current_level' => 40, 'max_health' => 1000]), 40, $a);
+
+        $this->assertNull($res['soulbound'], 'узел L40 < soulbound_min_level=50 → трофея нет');
+        $this->assertSame(0, (int) Database::connect('tests')->table('characters_weapons')->countAllResults());
+    }
+
+    public function testTrophyRollCanFail(): void
+    {
+        $this->enableSoulbound(50);
+        $a   = $this->char();
+        // chance на L60 = 0.05 + 60*0.002 = 0.17; roll 0.99 ≥ 0.17 → не выпал
+        $svc = $this->scripted([0.99]);
+        $svc->recordContribution(1, 60, $a, 1000);
+        $res = $svc->distributeLoot($this->point(['current_level' => 60, 'max_health' => 1000]), 60, $a);
+
+        $this->assertNull($res['soulbound'], 'провал ролла → трофея нет');
+    }
+
+    public function testTrophyGrantedWeaponWithProvenance(): void
+    {
+        $this->enableSoulbound(50);
+        $a   = $this->char();
+        // seq: roll passes (0.0<0.17) / winner pick / kind<0.5 weapon / item idx
+        $svc = $this->scripted([0.0, 0.0, 0.0, 0.0]);
+        $svc->recordContribution(1, 60, $a, 1000);
+        $res = $svc->distributeLoot($this->point(['current_level' => 60, 'max_health' => 1000, 'coordinate_x' => 480, 'coordinate_y' => 100]), 60, $a, 'Шрам');
+
+        $this->assertIsArray($res['soulbound']);
+        $this->assertSame($a, $res['soulbound']['winnerId']);
+        $this->assertSame('weapon', $res['soulbound']['kind']);
+        $row = Database::connect('tests')->table('characters_weapons')->where('character_id', $a)->get()->getRowArray();
+        $this->assertNotNull($row, 'трофей-оружие добавлено в инвентарь');
+        $this->assertSame(1, (int) $row['is_soulbound'], 'помечено soulbound');
+        $this->assertSame(0, (int) $row['equipped'], 'НЕ надето (raid-only коллекционный знак)');
+        $this->assertSame('Шрам', $row['soulbound_source'], 'провенанс: имя узла');
+        $this->assertSame(60, (int) $row['soulbound_level']);
+        $this->assertSame('480,100', $row['soulbound_coords']);
+    }
+
+    public function testTrophyGrantedOutfitWhenKindRollHigh(): void
+    {
+        $this->enableSoulbound(50);
+        $a   = $this->char();
+        // kind ≥ 0.5 → outfit
+        $svc = $this->scripted([0.0, 0.0, 0.7, 0.0]);
+        $svc->recordContribution(1, 60, $a, 1000);
+        $res = $svc->distributeLoot($this->point(['current_level' => 60, 'max_health' => 1000]), 60, $a, 'Цербер');
+
+        $this->assertIsArray($res['soulbound']);
+        $this->assertSame('outfit', $res['soulbound']['kind']);
+        $this->assertSame(1, (int) Database::connect('tests')->table('characters_outfits')->where('character_id', $a)->where('is_soulbound', 1)->countAllResults());
+    }
+
+    public function testWeightedWinnerFavoursContribution(): void
+    {
+        $this->enableSoulbound(50);
+        $a = $this->char(); // 900
+        $b = $this->char(); // 100
+        $svc = $this->scripted([0.0, 0.95, 0.0, 0.0]); // roll pass; winner roll 0.95*1000=950 → B (acc 900..1000)
+        $svc->recordContribution(1, 60, $a, 900);
+        $svc->recordContribution(1, 60, $b, 100);
+        $res = $svc->distributeLoot($this->point(['current_level' => 60, 'max_health' => 1000]), 60, $a, 'Патриарх');
+
+        $this->assertIsArray($res['soulbound']);
+        $this->assertSame($b, $res['soulbound']['winnerId'], 'высокий ролл попал в хвост распределения → меньший вкладчик');
     }
 }

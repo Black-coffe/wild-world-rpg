@@ -126,6 +126,16 @@ class ToggleEquipArmorAction extends BaseAction
             $this->charactersOutfitsModel->update($charOutfitId, ['equipped' => 0]);
             $message = "Ты *снял* броню: `{$outfitName}`.\n\n";
         } else {
+            // WB9 (ADR-137): soulbound-трофей «Метка пустоши» нельзя надеть — коллекционный знак,
+            // не активная экипировка. Усиливает ТОЛЬКО против узлов (raid-only), PvP не трогает
+            // (портрет П4). Гейт против надевания = защита от PvP-power-creep.
+            if (!empty($outfitRow['is_soulbound'])) {
+                return Request::sendMessage([
+                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text'    => "🔒 «{$outfitName}» — это Метка пустоши, трофей с узла. Её нельзя надеть: она и так усиливает тебя в бою с узлами, но не носится и не продаётся.",
+                ]);
+            }
+
             // Если пытаемся надеть, то сначала проверяем, находится ли игрок физически на базе
             if (!$this->isOnBase($character['id'])) {
                 // Если НЕ на базе, выдаём запрет

@@ -87,13 +87,15 @@ class GearWeaponsAction extends BaseAction
 
             $name = $weapon['name'] ?? '???';
             $qty  = (int)$row['quantity'];
+            // WB9 (ADR-137): метка трофея-узла «Метка пустоши» (полный провенанс — в детали).
+            $sb   = !empty($row['is_soulbound']) ? ' 🔒' : '';
 
             // Собираем строку для списка
-            $lines[] = "{$i}) *{$name}* (x{$qty})";
+            $lines[] = "{$i}) *{$name}* (x{$qty}){$sb}";
 
             // Кнопка для подробного описания / экипировки
             $keyboardButtons[] = [
-                'text'          => "{$name}",
+                'text'          => "{$sb}{$name}",
                 'callback_data' => "gearWeaponDetail_{$row['id']}",
             ];
             $i++;

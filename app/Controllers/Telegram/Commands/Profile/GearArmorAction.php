@@ -95,12 +95,14 @@ class GearArmorAction extends BaseAction
             // Название + количество
             $name  = $outfit['name'] ?? '???';
             $qty   = (int)$row['quantity'];
-            $lines[] = "{$i}) *{$name}* (x{$qty})";
+            // WB9 (ADR-137): метка трофея-узла «Метка пустоши» (полный провенанс — в детали).
+            $sb    = !empty($row['is_soulbound']) ? ' 🔒' : '';
+            $lines[] = "{$i}) *{$name}* (x{$qty}){$sb}";
 
             // Готовим кнопку (при нажатии — переход к подробному описанию?)
             // Допустим, колбэк 'gearArmorDetail_{id_in_characters_outfits}'
             $keyboardButtons[] = [
-                'text'          => "{$name}",
+                'text'          => "{$sb}{$name}",
                 'callback_data' => "gearArmorDetail_{$row['id']}"
             ];
 

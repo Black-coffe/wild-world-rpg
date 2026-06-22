@@ -28,7 +28,7 @@ final class BossEncounterServiceTest extends CIUnitTestCase
 
     protected $migrate = false;
 
-    private const TABLES = ['game_settings', 'boss_points', 'boss_encounters', 'boss_engagements', 'characters', 'npcs', 'npc_spawns', 'crafted_items', 'crafted_items_log'];
+    private const TABLES = ['game_settings', 'boss_points', 'boss_encounters', 'boss_engagements', 'characters', 'npcs', 'npc_spawns', 'crafted_items', 'crafted_items_log', 'characters_weapons', 'characters_outfits'];
 
     private int $npcId = 0;
 
@@ -49,6 +49,8 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $db->query("CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100), level INT DEFAULT 1, health INT DEFAULT 100, max_health INT DEFAULT 100, tired INT DEFAULT 100, strength INT DEFAULT 1, agility INT DEFAULT 1, intellect INT DEFAULT 1, armor INT DEFAULT 0, damage_value INT DEFAULT 5, gold INT DEFAULT 0, cell_number INT DEFAULT 0, created_at DATETIME NULL, updated_at DATETIME NULL)");
         $db->query("CREATE TABLE crafted_items (id INT AUTO_INCREMENT PRIMARY KEY, name_eng VARCHAR(100), type VARCHAR(20))");
         $db->query("CREATE TABLE crafted_items_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, crafted_item_id INT, quantity INT, durability_time DATETIME NULL)");
+        $db->query("CREATE TABLE characters_weapons (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, weapon_id INT, equipped TINYINT DEFAULT 0, is_soulbound TINYINT DEFAULT 0)");
+        $db->query("CREATE TABLE characters_outfits (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, outfit_id INT, equipped TINYINT DEFAULT 0, is_soulbound TINYINT DEFAULT 0)");
 
         $db->table('npcs')->insert(['npc_name_en' => 'boss_scar_butcher', 'npc_name_ru' => 'Шрам', 'strength' => 6, 'agility' => 4]);
         $this->npcId = (int) $db->insertID();
@@ -396,5 +398,38 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $this->assertSame(500, (int) $goldRow['gold'], 'солo-килл = весь пул (5*100) победителю');
         $leftover = $db->table('boss_engagements')->where('boss_point_id', $pid)->countAllResults();
         $this->assertSame(0, $leftover, 'ledger потреблён при килле');
+    }
+
+    // ───────────────────────── WB9 raid-only бонус ─────────────────────────
+
+    public function testSoulboundTrophiesBoostNodeDamageOnly(): void
+    {
+        $this->enable();
+        $db = Database::connect('tests');
+        $db->table('game_settings')->insert(['setting_key' => 'combat.nodes.soulbound_raid_bonus_pct', 'value_type' => 'float', 'value_float' => 0.2]);
+        $db->table('game_settings')->insert(['setting_key' => 'combat.nodes.soulbound_raid_bonus_cap', 'value_type' => 'float', 'value_float' => 1.0]);
+        $this->cleanCache();
+
+        // Контрольный чар без трофеев.
+        $this->seedPoint(['current_health' => 100000, 'current_level' => 5, 'max_health' => 100000]);
+        $plain = $this->seedChar(['damage_value' => 100]);
+        $svc   = $this->service();
+        $svc->start($plain);
+        $svc->act($plain, 'atk');
+        $baseDmg = (int) $this->activeEnc((int) $plain['id'])['damage_dealt'];
+
+        // Чар с 2 soulbound-трофеями (оружие+броня) → бонус ×(1 + min(1.0, 2×0.2)) = ×1.4.
+        $this->seedPoint(['current_health' => 100000, 'current_level' => 5, 'max_health' => 100000, 'cell_number' => 5001]);
+        $hero = $this->seedChar(['damage_value' => 100, 'cell_number' => 5001]);
+        $db->table('characters_weapons')->insert(['character_id' => $hero['id'], 'weapon_id' => 1, 'equipped' => 0, 'is_soulbound' => 1]);
+        $db->table('characters_outfits')->insert(['character_id' => $hero['id'], 'outfit_id' => 1, 'equipped' => 0, 'is_soulbound' => 1]);
+        $svc2 = $this->service();
+        $svc2->start($hero);
+        $svc2->act($hero, 'atk');
+        $boostDmg = (int) $this->activeEnc((int) $hero['id'])['damage_dealt'];
+
+        $this->assertGreaterThan($baseDmg, $boostDmg, 'raid-only бонус трофеев усилил урон по узлу');
+        // sanity: ~×1.4 (2 трофея × 0.2), допускаем округление чанка.
+        $this->assertGreaterThan((int) ($baseDmg * 1.3), $boostDmg);
     }
 }

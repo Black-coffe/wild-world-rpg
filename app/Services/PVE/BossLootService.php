@@ -69,14 +69,14 @@ class BossLootService
      * AFK; killer НЕ привилегирован — чистый анти-ninja). Золото (пул = goldPool(level)) делится
      * пропорционально вкладу среди eligible (каждый ≥1). Строки (pointId, bossLevel) удаляются.
      *
-     * @param array<array-key, mixed> $point строка boss_points (нужны id, current_level, max_health)
-     * @return array{participants:int,totalDamage:int,goldPool:int,goldByChar:array<int,int>,killerGold:int,eligible:array<int,int>}
+     * @param array<array-key, mixed> $point строка boss_points (нужны id, current_level, max_health, coordinate_x/y)
+     * @return array{participants:int,totalDamage:int,goldPool:int,goldByChar:array<int,int>,killerGold:int,eligible:array<int,int>,soulbound:array{winnerId:int,kind:string,itemName:string,rarity:string}|null}
      */
-    public function distributeLoot(array $point, int $bossLevel, int $killerId): array
+    public function distributeLoot(array $point, int $bossLevel, int $killerId, string $bossName = ''): array
     {
         $pointId   = $this->ival($point['id'] ?? null);
         $maxHealth = max(1, $this->ival($point['max_health'] ?? null));
-        $empty     = ['participants' => 0, 'totalDamage' => 0, 'goldPool' => 0, 'goldByChar' => [], 'killerGold' => 0, 'eligible' => []];
+        $empty     = ['participants' => 0, 'totalDamage' => 0, 'goldPool' => 0, 'goldByChar' => [], 'killerGold' => 0, 'eligible' => [], 'soulbound' => null];
         if ($pointId <= 0 || $bossLevel <= 0) {
             return $empty;
         }
@@ -127,8 +127,8 @@ class BossLootService
             }
         }
 
-        // ── WB9 seam: взвешенная по вкладу лотерея soulbound-трофея среди $eligible ──
-        //    Должна выполняться ЗДЕСЬ (до purge) — eligible/totalEligible уже посчитаны.
+        // ── WB9: взвешенная по вкладу лотерея soulbound-трофея среди $eligible (ДО purge) ──
+        $soulbound = $this->rollAndGrantTrophy($eligible, $bossLevel, $bossName, $point);
 
         // Потребить ledger этой жизни узла.
         $this->engagements
@@ -143,7 +143,135 @@ class BossLootService
             'goldByChar'   => $goldByChar,
             'killerGold'   => $goldByChar[$killerId] ?? 0,
             'eligible'     => $eligible,
+            'soulbound'    => $soulbound,
         ];
+    }
+
+    /**
+     * WB9 — разыграть и выдать soulbound-трофей «Метка пустоши» одному вкладчику.
+     *
+     * Гейт по уровню узла (`soulbound_min_level`); шанс = min(`chance_max`, base + level×per);
+     * победитель — **взвешенная по вкладу лотерея** среди eligible (НЕ last-hit, НЕ AFK); трофей =
+     * level-appropriate Legendary/Epic оружие ИЛИ броня, помечается `is_soulbound=1`, `equipped=0`
+     * (НЕ надевается — это коллекционный знак, не активная экипировка; raid-only бонус считается ОТ
+     * количества трофеев в BossEncounterService). Возвращает инфо трофея для экрана или null.
+     *
+     * @param array<int,int>          $eligible charId => damage
+     * @param array<array-key, mixed> $point
+     * @return array{winnerId:int,kind:string,itemName:string,rarity:string}|null
+     */
+    private function rollAndGrantTrophy(array $eligible, int $bossLevel, string $bossName, array $point): ?array
+    {
+        if ($eligible === []) {
+            return null;
+        }
+        $minLevel = max(1, $this->gsInt('combat.nodes.soulbound_min_level', 50));
+        if ($bossLevel < $minLevel) {
+            return null;
+        }
+        $base   = max(0.0, $this->gsFloat('combat.nodes.soulbound_base_chance', 0.05));
+        $perLvl = max(0.0, $this->gsFloat('combat.nodes.soulbound_chance_per_level', 0.002));
+        $cap    = max(0.0, $this->gsFloat('combat.nodes.soulbound_chance_max', 0.35));
+        $chance = min($cap, $base + $bossLevel * $perLvl);
+        if ($this->rand01() >= $chance) {
+            return null; // не выпал в этот раз
+        }
+
+        $winnerId = $this->pickWeightedWinner($eligible);
+        if ($winnerId <= 0) {
+            return null;
+        }
+        $x = $this->ival($point['coordinate_x'] ?? null);
+        $y = $this->ival($point['coordinate_y'] ?? null);
+
+        return $this->grantTrophy($winnerId, $bossLevel, $bossName, $x, $y);
+    }
+
+    /**
+     * Взвешенная по вкладу лотерея: вероятность победы ∝ нанесённому урону.
+     *
+     * @param array<int,int> $eligible charId => damage (все > 0)
+     */
+    private function pickWeightedWinner(array $eligible): int
+    {
+        $total = array_sum($eligible);
+        if ($total <= 0) {
+            return 0;
+        }
+        $roll = $this->rand01() * $total;
+        $acc  = 0.0;
+        foreach ($eligible as $cid => $dmg) {
+            $acc += $dmg;
+            if ($roll < $acc) {
+                return $cid;
+            }
+        }
+
+        return (int) array_key_last($eligible); // защита от краевого округления
+    }
+
+    /**
+     * Выдать трофей: подобрать level-appropriate Legendary/Epic оружие или броню, апсёртом
+     * добавить в инвентарь как soulbound (equipped=0) с провенансом. kind weapon|outfit.
+     *
+     * @return array{winnerId:int,kind:string,itemName:string,rarity:string}|null
+     */
+    private function grantTrophy(int $charId, int $bossLevel, string $bossName, int $x, int $y): ?array
+    {
+        $kind   = $this->rand01() < 0.5 ? 'weapon' : 'outfit';
+        $table  = $kind === 'weapon' ? 'weapons' : 'outfits';
+        $linkF  = $kind === 'weapon' ? 'weapon_id' : 'outfit_id';
+        $charTb = $kind === 'weapon' ? 'characters_weapons' : 'characters_outfits';
+
+        $candidates = $this->db->table($table)
+            ->select('id, name, rarity')
+            ->whereIn('rarity', ['Legendary', 'Epic'])
+            ->where('required_level <=', $bossLevel)
+            ->orderBy('required_level', 'DESC')
+            ->get(8);
+        $rows = $candidates === false ? [] : $candidates->getResultArray();
+        // Фолбэк: если на этом уровне нет Legendary/Epic — берём лучший доступный любой редкости.
+        if ($rows === []) {
+            $any  = $this->db->table($table)->select('id, name, rarity')->where('required_level <=', $bossLevel)->orderBy('required_level', 'DESC')->get(8);
+            $rows = $any === false ? [] : $any->getResultArray();
+        }
+        if ($rows === []) {
+            return null;
+        }
+        $pick    = $rows[(int) floor($this->rand01() * count($rows)) % count($rows)];
+        $itemId  = $this->ival($pick['id'] ?? null);
+        $name    = is_scalar($pick['name'] ?? null) ? (string) $pick['name'] : ('#' . $itemId);
+        $rarity  = is_scalar($pick['rarity'] ?? null) ? (string) $pick['rarity'] : '';
+        if ($itemId <= 0) {
+            return null;
+        }
+
+        $now    = date('Y-m-d H:i:s');
+        $coords = $x . ',' . $y;
+        $this->db->table($charTb)->insert([
+            'character_id'     => $charId,
+            $linkF             => $itemId,
+            'quantity'         => 1,
+            'current_durability' => 0,
+            'equipped'         => 0,
+            'is_soulbound'     => 1,
+            'soulbound_source' => $bossName !== '' ? $bossName : 'Узел',
+            'soulbound_level'  => $bossLevel,
+            'soulbound_coords' => $coords,
+            'created_at'       => $now,
+            'updated_at'       => $now,
+        ]);
+
+        return ['winnerId' => $charId, 'kind' => $kind, 'itemName' => $name, 'rarity' => $rarity];
+    }
+
+    /**
+     * RNG-seam (overridable в тестах): float ∈ [0,1). По умолчанию mt_rand. Не в PvP-пути →
+     * fixture-fence не затрагивается, но детерминированный сабкласс делает лотерею тестируемой.
+     */
+    protected function rand01(): float
+    {
+        return mt_rand(0, mt_getrandmax() - 1) / mt_getrandmax();
     }
 
     /**

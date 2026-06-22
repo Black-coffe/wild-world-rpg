@@ -128,6 +128,16 @@ class ToggleEquipWeaponAction extends BaseAction
             $extraNote    = "Теперь оно лежит в твоём арсенале.";
             $newEquippedState = 0;
         } else {
+            // WB9 (ADR-137): soulbound-трофей «Метка пустоши» нельзя надеть — это коллекционный
+            // знак, а не активная экипировка. Он усиливает ТОЛЬКО против узлов (raid-only) и не
+            // даёт PvP-преимущества (портрет П4). Гейт против надевания = защита от PvP-power-creep.
+            if (!empty($weaponRow['is_soulbound'])) {
+                return Request::sendMessage([
+                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text'    => "🔒 «{$weaponName}» — это Метка пустоши, трофей с узла. Его нельзя надеть: он и так усиливает тебя в бою с узлами, но в руки не берётся и не продаётся.",
+                ]);
+            }
+
             // Надеть — только если игрок на базе
             if (!$this->isOnBase($character['id'])) {
                 return Request::sendMessage([
