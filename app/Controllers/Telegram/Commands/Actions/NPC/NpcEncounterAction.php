@@ -30,6 +30,24 @@ final class NpcEncounterAction extends BaseAction
             return $this->alert('Персонаж не найден.');
         }
 
+        // WB6 (ADR-137 «Узлы»): если на клетке игрока — живой узел-босс, экран боя с узлом имеет
+        // приоритет над нейтральной встречей (и не зависит от npc.interaction_enabled). Гейт —
+        // world.nodes.point_mode_enabled внутри сервиса; OFF → nodeAt вернёт null → обычная встреча.
+        $bossCell = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
+        $bossSvc  = new \App\Services\PVE\BossEncounterService();
+        if ($bossSvc->nodeAt($bossCell) !== null) {
+            $screen = $bossSvc->open($character);
+            if (! isset($screen['alert'])) {
+                Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+                return MediaSender::editTextOrSend($this->navTarget() + [
+                    'text'         => is_string($screen['text'] ?? null) ? $screen['text'] : '…',
+                    'parse_mode'   => 'Markdown',
+                    'reply_markup' => json_encode(['inline_keyboard' => is_array($screen['keyboard'] ?? null) ? $screen['keyboard'] : []]),
+                ]);
+            }
+        }
+
         $svc = new NpcInteractionService();
         if (! $svc->enabled()) {
             return $this->alert('Сейчас тут никого нет.');

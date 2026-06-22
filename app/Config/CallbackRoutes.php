@@ -468,6 +468,10 @@ class CallbackRoutes extends BaseConfig
         'npcAct' => \App\Controllers\Telegram\Commands\Actions\NPC\NpcActionChoiceAction::class,
         // ADR-089 Фаза 5+ — ветвящийся диалог именного NPC. Callback `npcDlg_<spawnId>_<nodeKey>_<rel>`.
         'npcDlg' => \App\Controllers\Telegram\Commands\Actions\NPC\NpcDialogueAction::class,
+        // WB6 (ADR-137 «Узлы») — экран боя с узлом-боссом. Callback `nodeAct_<verb>_<bossPointId>`
+        // (verb: look/start/atk/def/spec/item/flee). Ключ БЕЗ хвостового `_` (резолв по первому
+        // сегменту explode('_')[0]='nodeAct' через str_starts_with). Не префикс/не-подстрока npcAct.
+        'nodeAct' => \App\Controllers\Telegram\Commands\Actions\NPC\BossEncounterAction::class,
         // W20 (ADR-075) — модернизация: выбор/применение по предмету. `enchantSel_<type>_<id>` / `enchantApply_<type>_<id>`.
         'enchantSel' => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,
         'enchantApply' => \App\Controllers\Telegram\Commands\Actions\Craft\EnchantAction::class,

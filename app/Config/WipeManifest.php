@@ -171,6 +171,7 @@ class WipeManifest extends BaseConfig
         'teleport_beacons'       => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Маяки телепортации игрока'],
         'transactions'           => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Торговые транзакции игрока'],
         'oracle_bets'            => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Ставки игрока в «Оракуле острова» (ADR-133) — прогресс/история; новый сезон с нуля'],
+        'boss_encounters'        => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Активные бои игрока с узлами-боссами (ADR-137 WB6) — состояние боя; новый сезон с нуля'],
 
         // ─────────────────────────────────────────────────────────────
         // 🟠 TRANSIENT — транзиентная населённость мира / очереди (полный вайп = DELETE всех)

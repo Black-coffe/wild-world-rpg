@@ -181,6 +181,12 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\NPC\NodeRespawnHandler())->run())
             ->everyMinute()->singleInstance()->named('npc.node-respawn');
 
+        // WB6 (ADR-137 «Узлы») — GC зависших боёв с узлом: active-encounter без действий дольше
+        // combat.nodes.encounter_ttl_minutes → fled (HP узла остаётся). НЕ killswitch-gated
+        // (чистит даже после выключения point-режима); dormant → 0 active → no-op.
+        $schedule->call(static fn() => (new \App\TaskHandlers\NPC\NodeEncounterGcHandler())->run())
+            ->everyMinute()->singleInstance()->named('npc.node-encounter-gc');
+
         // ============================================================
         // QUESTS — handler сам проверяет прогресс игроков
         // ============================================================

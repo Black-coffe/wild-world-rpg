@@ -88,6 +88,37 @@ class NodeLevelCurve
     }
 
     /**
+     * Базовый урон узла по уровню (WB6) — `dmg_base + level * dmg_per_level`.
+     *
+     * Это `damageValue` боевого профиля босса (BattleCharacter); внутри DamageService он
+     * домножается на (1 + clamp(levelDiff)·0.02 + …) и режется бронёй игрока. Разница уровней
+     * клампится `combat.nodes.leveldiff_cap` (WB1) → даже L180-узел не уаншотает. Монотонна.
+     */
+    public function damageForLevel(int $level): int
+    {
+        $base = $this->gsInt('combat.nodes.dmg_base', 12);
+        $per  = $this->gsFloat('combat.nodes.dmg_per_level', 0.5);
+
+        return max(1, (int) round($base + max(1, $level) * $per));
+    }
+
+    /**
+     * Броня узла по уровню (WB6) — `armor_base + level * armor_per_level`, clamp [0, armor_cap].
+     *
+     * Идёт в `armor` боевого профиля босса; DamageService режет урон игрока на
+     * `armor/(100+armor)`. Cap 110 = максимум ~52% снижения (floor урона `baseDamage*0.5`
+     * перекрывает её → губку добивают терпением, реальный гейт «нужна группа» — реген WB7).
+     */
+    public function armorForLevel(int $level): int
+    {
+        $base = $this->gsInt('combat.nodes.armor_base', 4);
+        $per  = $this->gsFloat('combat.nodes.armor_per_level', 0.4);
+        $cap  = $this->gsInt('combat.nodes.armor_cap', 110);
+
+        return max(0, min($cap, (int) round($base + max(1, $level) * $per)));
+    }
+
+    /**
      * Широтная полоса 0 (юг) .. 4 (глубокий север) — для группировки/per-band cap.
      */
     public function yBand(int $y): int

@@ -117,4 +117,24 @@ final class NodeLevelCurveTest extends CIUnitTestCase
         $this->assertSame(1, $this->curve->escalatedLevel(0, 0));
         $this->assertSame(1, $this->curve->escalatedLevel(-5, -5));
     }
+
+    // ---- damageForLevel / armorForLevel (WB6 боевые статы узла) ----
+
+    public function testDamageMonotonicAndBase(): void
+    {
+        // dmg_base 12 + level*0.5: L1=13 (round(12.5)), L150=87.
+        $this->assertSame(13, $this->curve->damageForLevel(1));
+        $this->assertSame(87, $this->curve->damageForLevel(150));
+        $this->assertGreaterThan($this->curve->damageForLevel(1), $this->curve->damageForLevel(50));
+        $this->assertGreaterThanOrEqual(1, $this->curve->damageForLevel(0)); // floor 1
+    }
+
+    public function testArmorMonotonicAndCapped(): void
+    {
+        // armor_base 4 + level*0.4: L1=4, L150=64; cap 110 связывает на экстремальных уровнях.
+        $this->assertSame(4, $this->curve->armorForLevel(1));
+        $this->assertSame(64, $this->curve->armorForLevel(150));
+        $this->assertSame(110, $this->curve->armorForLevel(100000)); // armor_cap
+        $this->assertGreaterThanOrEqual(0, $this->curve->armorForLevel(0));
+    }
 }
