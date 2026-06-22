@@ -8,6 +8,7 @@ use App\Entities\BattleCharacter;
 use App\Services\PVE\BossEncounterService;
 use App\Services\PVE\DamageService;
 use App\Services\PVE\EquipmentService;
+use App\Services\Player\DeathService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -105,14 +106,30 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         return $base;
     }
 
-    private function service(): BossEncounterService
+    private function service(?DeathService $death = null): BossEncounterService
     {
         $logger = service('logger');
         $noopEquip = new class($logger) extends EquipmentService {
             public function applyEquipmentBonuses(BattleCharacter $character): void {}
         };
+        $death ??= $this->deathSpy();
 
-        return new BossEncounterService(new DamageService($logger), $noopEquip);
+        return new BossEncounterService(new DamageService($logger), $noopEquip, $death);
+    }
+
+    /** Спай DeathService — считает вызовы, без реальной смерти/respawn (нет таблиц respawn в тесте). */
+    private function deathSpy(): DeathService
+    {
+        return new class extends DeathService {
+            public int $calls = 0;
+
+            public function handlePlayerDeathAndReward(int $loserId, ?int $winnerId = null): array
+            {
+                $this->calls++;
+
+                return ['hasBase' => false, 'penalty' => 0.0, 'newbieProtected' => false, 'transferredResources' => [], 'transferredCraftItems' => [], 'transferredGold' => 0, 'success' => true];
+            }
+        };
     }
 
     private function point(int $id): array
@@ -253,5 +270,87 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $this->assertArrayHasKey('text', $screen, 'предмет применён → боевой экран, не алерт');
         $qty = (int) $db->table('crafted_items_log')->where('crafted_item_id', $itemId)->get()->getRowArray()['quantity'];
         $this->assertSame(1, $qty, 'медикамент потрачен (2→1)');
+    }
+
+    // ───────────────────────── WB7 ─────────────────────────
+
+    public function testFleeAppliesPartingBlowAndTiredCost(): void
+    {
+        $this->enable();
+        $this->seedPoint(['current_health' => 1000, 'current_level' => 5]);
+        $char = $this->seedChar(['health' => 200, 'tired' => 100]);
+        $svc  = $this->service();
+        $svc->start($char);
+        $svc->act($char, 'flee');
+
+        $row = Database::connect('tests')->table('characters')->where('id', $char['id'])->get()->getRowArray();
+        $this->assertLessThan(200, (int) $row['health'], 'парт-инг-удар снял HP при отступлении');
+        $this->assertGreaterThanOrEqual(1, (int) $row['health'], 'отступление не смертельно (floor 1)');
+        $this->assertSame(90, (int) $row['tired'], 'штраф выносливости flee_tired_cost=10 (100→90)');
+    }
+
+    public function testFleePartingBlowNeverKills(): void
+    {
+        $this->enable();
+        $this->seedPoint(['current_health' => 1000, 'current_level' => 40]); // сильный узел
+        $char = $this->seedChar(['health' => 1, 'tired' => 100]); // на грани
+        $svc  = $this->service();
+        $svc->start($char);
+        $svc->act($char, 'flee');
+
+        $row = Database::connect('tests')->table('characters')->where('id', $char['id'])->get()->getRowArray();
+        $this->assertSame(1, (int) $row['health'], 'отступление с 1 HP оставляет 1 (floor), не убивает');
+    }
+
+    public function testEngageCooldownBlocksReentry(): void
+    {
+        $this->enable();
+        $pid  = $this->seedPoint(['current_health' => 1000]);
+        $char = $this->seedChar();
+        $svc  = $this->service();
+        $svc->start($char);
+        $svc->act($char, 'flee');
+
+        // сразу пробуем зайти снова на тот же узел → откат
+        $screen = $svc->start($char);
+        $this->assertArrayHasKey('alert', $screen, 'повторный заход сразу после отхода заблокирован');
+        // нового active-боя не появилось
+        $active = Database::connect('tests')->table('boss_encounters')->where('character_id', $char['id'])->where('status', 'active')->countAllResults();
+        $this->assertSame(0, $active);
+    }
+
+    public function testEngageCooldownExpiresAllowsReentry(): void
+    {
+        $this->enable();
+        $pid  = $this->seedPoint(['current_health' => 1000]);
+        $char = $this->seedChar();
+        $svc  = $this->service();
+        $svc->start($char);
+        $svc->act($char, 'flee');
+
+        // отодвигаем last_action_at fled-боя за окно отката (5 мин default)
+        Database::connect('tests')->table('boss_encounters')
+            ->where('character_id', $char['id'])->where('status', 'fled')
+            ->update(['last_action_at' => date('Y-m-d H:i:s', strtotime('-10 minutes'))]);
+
+        $screen = $svc->start($char);
+        $this->assertArrayHasKey('text', $screen, 'после истечения отката заход снова возможен');
+        $active = Database::connect('tests')->table('boss_encounters')->where('character_id', $char['id'])->where('status', 'active')->countAllResults();
+        $this->assertSame(1, $active);
+    }
+
+    public function testLethalOutcomeInvokesDeathService(): void
+    {
+        $this->enable();
+        $this->seedPoint(['current_health' => 100000, 'current_level' => 40]); // не убиваем узел
+        $char  = $this->seedChar(['health' => 1]); // одного удара узла хватит
+        $spy   = $this->deathSpy();
+        $svc   = $this->service($spy);
+        $svc->start($char);
+        $svc->act($char, 'atk');
+
+        $enc = $this->activeEnc((int) $char['id']);
+        $this->assertSame('lost', $enc['status']);
+        $this->assertSame(1, $spy->calls, 'летальный исход вызвал DeathService::handlePlayerDeathAndReward');
     }
 }

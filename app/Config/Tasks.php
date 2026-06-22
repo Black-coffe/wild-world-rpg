@@ -187,6 +187,12 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\NPC\NodeEncounterGcHandler())->run())
             ->everyMinute()->singleInstance()->named('npc.node-encounter-gc');
 
+        // WB7 (ADR-137 «Узлы») — реген HP узлов между боями (реген-гейт кооператива): alive-узлы
+        // восстанавливают combat.nodes.hp_regen_per_minute к max_health вне активного боя. Killswitch
+        // world.nodes.point_mode_enabled → dormant = no-op (alive-точек нет).
+        $schedule->call(static fn() => (new \App\TaskHandlers\NPC\NodeHealthRegenHandler())->run())
+            ->everyMinute()->singleInstance()->named('npc.node-health-regen');
+
         // ============================================================
         // QUESTS — handler сам проверяет прогресс игроков
         // ============================================================

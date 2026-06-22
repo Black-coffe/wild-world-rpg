@@ -11,6 +11,7 @@ use App\Models\CharacterModel;
 use App\Models\NpcModel;
 use App\Services\Food\FoodBuffService;
 use App\Services\GameSettings\GameSettingsReaderTrait;
+use App\Services\Player\DeathService;
 use App\Services\World\NodeLevelCurve;
 use Config\Database;
 use Config\Services;
@@ -45,13 +46,15 @@ class BossEncounterService
     private EquipmentService $equipment;
     private NodeLevelCurve $curve;
     private FoodBuffService $food;
+    private DeathService $death;
 
     /** @var \CodeIgniter\Database\BaseConnection<object, object> */
     private $db;
 
     public function __construct(
         ?DamageService $damage = null,
-        ?EquipmentService $equipment = null
+        ?EquipmentService $equipment = null,
+        ?DeathService $death = null
     ) {
         $this->points     = new BossPointModel();
         $this->encounters = new BossEncounterModel();
@@ -62,6 +65,7 @@ class BossEncounterService
         $this->equipment  = $equipment ?? new EquipmentService($logger);
         $this->curve      = new NodeLevelCurve();
         $this->food       = new FoodBuffService();
+        $this->death      = $death ?? new DeathService();
         $this->db         = Database::connect();
     }
 
@@ -143,6 +147,12 @@ class BossEncounterService
             return ['alert' => 'Здесь нет узла.'];
         }
 
+        // WB7: per-(игрок,узел) откат повторного захода после недавнего отступления/гибели.
+        $cdLeft = $this->retreatCooldownRemaining($charId, $this->ival($point['id'] ?? null));
+        if ($cdLeft > 0) {
+            return ['alert' => "Ты недавно отступил от этого узла. Переведи дух (~{$cdLeft} мин)."];
+        }
+
         $playerHp = max(1, (int) round($this->fval($character['health'] ?? null)));
         $now      = date('Y-m-d H:i:s');
         $this->encounters->insert([
@@ -191,7 +201,7 @@ class BossEncounterService
         $playerHp = $this->playerHpInt($enc);
 
         if ($verb === 'flee') {
-            return $this->resolveFlee($enc, $point, $playerHp);
+            return $this->resolveFlee($enc, $point, $character, $playerHp);
         }
 
         $player = $this->buildPlayer($character, $playerHp);
@@ -346,9 +356,11 @@ class BossEncounterService
 
         if ($chunk['outcome'] === 'lost') {
             $encUpdate['status'] = 'lost';
+            $encUpdate['player_hp'] = 0;
             $this->encounters->update($encId, $encUpdate);
-            // WB7 подключит DeathService; пока пол здоровья = 1 (бой не смертелен «насовсем»).
-            $this->characters->update($charId, ['health' => 1]);
+            // WB7: летальный исход → существующий DeathService (страховка → штраф → списание
+            // имущества → respawn). winnerId=null — узел не игрок, лут не передаётся «боссу».
+            $this->death->handlePlayerDeathAndReward($charId, null);
 
             return $this->renderLost($point, $boss);
         }
@@ -369,22 +381,38 @@ class BossEncounterService
     }
 
     /**
-     * Отступление: бой закрыт, HP узла остаётся (раны персистентны — фундамент со-опа).
-     * Цена отступления (парт-инг-удар + штраф выносливости + кулдаун) — WB7.
+     * Отступление (WB7): бой закрыт БЕЗ потери опыта/статов (уважает П2-Казуала), но с ценой —
+     * парт-инг-удар узла (HP floor 1, отход не смертелен), штраф выносливости, engage-cooldown
+     * (через last_action_at fled-encounter'а). HP узла ОСТАЁТСЯ (раны персистентны — фундамент
+     * со-опа; реген затягивает их со временем через NodeHealthRegenHandler).
      *
      * @param array<array-key, mixed> $enc
      * @param array<array-key, mixed> $point
+     * @param array<array-key, mixed> $character
      * @return array<string,mixed>
      */
-    private function resolveFlee(array $enc, array $point, int $playerHp): array
+    private function resolveFlee(array $enc, array $point, array $character, int $playerHp): array
     {
-        $now = date('Y-m-d H:i:s');
-        $this->encounters->update($this->ival($enc['id'] ?? null), ['status' => 'fled', 'last_action_at' => $now]);
-        $this->characters->update($this->ival($enc['character_id'] ?? null), ['health' => max(1, $playerHp)]);
+        $now    = date('Y-m-d H:i:s');
+        $charId = $this->ival($enc['character_id'] ?? null);
 
-        $boss = $this->buildBoss($point);
+        // Парт-инг-удар узла вдогонку (детерминированный, floor 1 — отход не убивает).
+        $player      = $this->buildPlayer($character, $playerHp);
+        $boss        = $this->buildBoss($point);
+        $partingBlow = max(0.0, round($this->damage->calculateDamage($boss, $player, ''), 2));
+        $newHp       = max(1, (int) round($playerHp - $partingBlow));
 
-        return $this->renderTimeout($point, $boss, $playerHp, true);
+        $tiredCost = max(0, $this->gsInt('combat.nodes.flee_tired_cost', 10));
+        $newTired  = max(0, (int) round($this->fval($character['tired'] ?? null)) - $tiredCost);
+
+        $this->encounters->update($this->ival($enc['id'] ?? null), [
+            'status'         => 'fled',
+            'player_hp'      => $newHp,
+            'last_action_at' => $now, // маркер engage-cooldown
+        ]);
+        $this->characters->update($charId, ['health' => $newHp, 'tired' => $newTired]);
+
+        return $this->renderFlee($point, $boss, $newHp, (int) round($partingBlow));
     }
 
     /**
@@ -595,7 +623,61 @@ class BossEncounterService
         return ['text' => $text, 'keyboard' => [[['text' => '🚶 Уйти', 'callback_data' => 'move']]]];
     }
 
+    /**
+     * Экран отступления (WB7) — с парт-инг-ударом и предупреждением об откате.
+     *
+     * @param array<array-key, mixed> $point
+     * @return array{text:string,keyboard:array<int,mixed>}
+     */
+    private function renderFlee(array $point, BattleCharacter $boss, int $playerHp, int $partingBlow): array
+    {
+        $name  = $this->bossName($point);
+        $level = $this->ival($point['current_level'] ?? null);
+        $hp    = (int) round($boss->health);
+        $maxHp = $this->ival($point['max_health'] ?? null);
+        $cd    = max(0, $this->gsInt('combat.nodes.engage_cooldown_minutes', 5));
+
+        $text  = "🏃 *Ты отступил от узла.*\n\n";
+        if ($partingBlow > 0) {
+            $text .= "Уходя, поймал удар вдогонку: −*{$partingBlow}* HP.\n";
+        }
+        $text .= "*{$name}* (L{$level}) держит точку (❤️ {$hp}/{$maxHp}). Раны на узле остаются, но со временем затягиваются — добей быстрее или с группой.\n";
+        $text .= "🩸 Ты: *{$playerHp}*\n";
+        $text .= "_Перевести дух перед новым заходом: ~{$cd} мин._";
+
+        return ['text' => $text, 'keyboard' => [[['text' => '🚶 Уйти', 'callback_data' => 'move']]]];
+    }
+
     // ───────────────────────── вспомогательное ─────────────────────────
+
+    /**
+     * Остаток отката повторного захода на узел после недавнего отступления/гибели (минуты),
+     * 0 если можно заходить. По последнему fled/lost-encounter'у (char, point).
+     */
+    private function retreatCooldownRemaining(int $charId, int $pointId): int
+    {
+        $cdMin = max(0, $this->gsInt('combat.nodes.engage_cooldown_minutes', 5));
+        if ($cdMin <= 0 || $charId <= 0 || $pointId <= 0) {
+            return 0;
+        }
+        $row = $this->encounters
+            ->where('character_id', $charId)
+            ->where('boss_point_id', $pointId)
+            ->whereIn('status', ['fled', 'lost'])
+            ->orderBy('id', 'DESC')
+            ->first();
+        if (! is_array($row) || ! is_string($row['last_action_at'] ?? null)) {
+            return 0;
+        }
+        $last = strtotime($row['last_action_at']);
+        if ($last === false) {
+            return 0;
+        }
+        $elapsed = (time() - $last) / 60.0;
+        $left    = (int) ceil($cdMin - $elapsed);
+
+        return $left > 0 ? $left : 0;
+    }
 
     /**
      * @param array<array-key, mixed> $point
