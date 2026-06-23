@@ -485,6 +485,74 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
         $this->assertFalse($svc->maybeSendFirstCraftHint(['id' => 11, 'level' => 1, 'daily_tips_enabled' => 0], 100));
         $this->assertCount(0, $svc->sent);
     }
+
+    // ── Первое обнаружение узла (WB13, ADR-137 «Узлы») ───────────────────────────
+
+    /** Анти-дрифт: текст учит, что такое узел + ведёт к осмотру + media-off самодостаточность. */
+    public function testBossSightingHintTeachesCoreFacts(): void
+    {
+        $text = OnboardingHintCatalog::get(OnboardingHintCatalog::FIRST_BOSS_SIGHTING)['text'] ?? '';
+        foreach (['Узел', 'Осмотреть', 'север'] as $needle) {
+            $this->assertStringContainsString($needle, $text, "Хинт обнаружения узла не упоминает «{$needle}».");
+        }
+    }
+
+    /** Хинт ведёт на карточку осмотра узла (callback `nodeAct_look_0`) — discoverability оценки силы. */
+    public function testBossSightingHintLinksToLook(): void
+    {
+        $markupRaw = OnboardingHintCatalog::get(OnboardingHintCatalog::FIRST_BOSS_SIGHTING)['reply_markup'] ?? null;
+        $this->assertIsString($markupRaw, 'У хинта обнаружения узла нет кнопок.');
+        $markup = json_decode($markupRaw, true);
+        $this->assertIsArray($markup);
+        $callbacks = [];
+        array_walk_recursive($markup, static function ($value, $key) use (&$callbacks): void {
+            if ($key === 'callback_data') {
+                $callbacks[] = $value;
+            }
+        });
+        $this->assertContains('nodeAct_look_0', $callbacks, 'Нет кнопки на карточку осмотра узла.');
+    }
+
+    /** Happy path: первое обнаружение узла → шлём один раз. */
+    public function testBossSightingHintHappyPathSendsOnce(): void
+    {
+        $svc    = new FakeHintService();
+        $player = ['id' => 20, 'level' => 3, 'daily_tips_enabled' => 1];
+
+        $this->assertTrue($svc->maybeSendFirstBossSightingHint($player, 100));
+        $this->assertCount(1, $svc->sent);
+        $this->assertSame([OnboardingHintCatalog::FIRST_BOSS_SIGHTING], $svc->recorded);
+
+        // one-shot: повторно не шлём.
+        $this->assertFalse($svc->maybeSendFirstBossSightingHint($player, 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    /**
+     * Анти-BUILT-BUT-DEAD: в отличие от newbie-funnel хинтов, у обнаружения узла НЕТ level-ceiling —
+     * узлы встречаются на всех уровнях, ветеран на L30 при первом контакте тоже получает подсказку.
+     */
+    public function testBossSightingHintFiresForVeteranNoLevelCeiling(): void
+    {
+        $svc = new FakeHintService(); // maxLvl=6, но обнаружение узла его не учитывает
+        $this->assertTrue($svc->maybeSendFirstBossSightingHint(['id' => 21, 'level' => 30, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    public function testBossSightingHintKillswitchOffSuppresses(): void
+    {
+        $svc = new FakeHintService();
+        $svc->killswitch = false;
+        $this->assertFalse($svc->maybeSendFirstBossSightingHint(['id' => 20, 'level' => 3, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testBossSightingHintRespectsOptOut(): void
+    {
+        $svc = new FakeHintService();
+        $this->assertFalse($svc->maybeSendFirstBossSightingHint(['id' => 20, 'level' => 3, 'daily_tips_enabled' => 0], 100));
+        $this->assertCount(0, $svc->sent);
+    }
 }
 
 /**

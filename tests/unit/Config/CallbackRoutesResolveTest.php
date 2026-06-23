@@ -164,7 +164,7 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
     public function testNodeBossCallbackRoutesResolve(): void
     {
         $expected = \App\Controllers\Telegram\Commands\Actions\NPC\BossEncounterAction::class;
-        foreach (['look', 'start', 'atk', 'def', 'spec', 'item', 'flee'] as $verb) {
+        foreach (['look', 'start', 'force', 'atk', 'def', 'spec', 'item', 'flee'] as $verb) {
             $this->assertSame(
                 $expected,
                 $this->cbRoutes->resolve(explode('_', "nodeAct_{$verb}_42")[0]),

@@ -226,6 +226,24 @@ class OnboardingHintService
     }
 
     /**
+     * WB13 (ADR-137 «Узлы») — just-in-time подсказка при ПЕРВОМ обнаружении живого узла-босса
+     * на карте (кнопка «☠ Узел»). Объясняет, что такое Узел, как оценить силу ДО боя
+     * («☠ Осмотреть») и что раны узла персистентны.
+     *
+     * БЕЗ level-ceiling (в отличие от newbie-funnel хинтов): узлы встречаются на всех уровнях
+     * (юг L1 → север L180), level-гейт сделал бы хинт мёртвым — типичный игрок натыкается на
+     * первый узел уже за L6. Естественный лимитер — one-shot dedup + killswitch + opt-out
+     * (всё внутри {@see maybeSend}). Узлы спят за `world.nodes.point_mode_enabled` → пока фича
+     * dormant, кнопка «☠ Узел» не появляется и хинт не триггерится.
+     *
+     * @param array<string, mixed>|CharacterEntity $character
+     */
+    public function maybeSendFirstBossSightingHint(array|CharacterEntity $character, int $chatId): bool
+    {
+        return $this->maybeSend($character, $chatId, OnboardingHintCatalog::FIRST_BOSS_SIGHTING);
+    }
+
+    /**
      * Базовый one-shot отправитель: killswitch + opt-out + дедуп + отправка + запись.
      *
      * @param array<string, mixed>|CharacterEntity $character

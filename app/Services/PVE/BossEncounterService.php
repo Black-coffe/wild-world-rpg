@@ -181,10 +181,14 @@ class BossEncounterService
     /**
      * Начать бой (создать active-encounter) и показать боевой экран.
      *
+     * WB13: при смертельном разрыве уровня (узел сильно выше игрока) и `$force=false` сначала
+     * показываем предупреждение-подтверждение — ИНФОРМИРОВАНИЕ, не блок (игрок волен напасть
+     * через «⚔️ Всё равно напасть» → `nodeAct_force` → `$force=true`).
+     *
      * @param array<array-key, mixed> $character
      * @return array<string,mixed>
      */
-    public function start(array $character): array
+    public function start(array $character, bool $force = false): array
     {
         if (! $this->enabled()) {
             return ['alert' => 'Узлы сейчас неактивны.'];
@@ -210,6 +214,14 @@ class BossEncounterService
         $cdLeft = $this->retreatCooldownRemaining($charId, $this->ival($point['id'] ?? null));
         if ($cdLeft > 0) {
             return ['alert' => "Ты недавно отступил от этого узла. Переведи дух (~{$cdLeft} мин)."];
+        }
+
+        // WB13: предупреждение о смертельном разрыве уровня (информирование, не блок). Показываем
+        // ОДИН экран-подтверждение, если узел сильно выше И игрок ещё не подтвердил («Всё равно»).
+        $playerLevel = $this->ival($character['level'] ?? null);
+        $nodeLevel   = $this->ival($point['current_level'] ?? null);
+        if (! $force && $this->isLethalGap($playerLevel, $nodeLevel)) {
+            return $this->renderLevelGapWarning($point, $playerLevel, $nodeLevel);
         }
 
         $playerHp = max(1, (int) round($this->fval($character['health'] ?? null)));
@@ -684,6 +696,37 @@ class BossEncounterService
     }
 
     /**
+     * WB13 — экран-предупреждение перед боем при смертельном разрыве уровня. ИНФОРМИРОВАНИЕ,
+     * не блок: даём явный выбор «⚔️ Всё равно напасть» (→ nodeAct_force, минует предупреждение)
+     * либо «🚶 Отступить». media-off самодостаточно — весь смысл (уровни, разрыв, совет) в тексте.
+     *
+     * @param array<array-key, mixed> $point
+     * @return array{text:string,keyboard:array<int,mixed>}
+     */
+    private function renderLevelGapWarning(array $point, int $playerLevel, int $nodeLevel): array
+    {
+        $pid  = $this->ival($point['id'] ?? null);
+        $name = $this->bossName($point);
+        $diff = max(0, $nodeLevel - $playerLevel);
+
+        $text  = "⚠️ *Опасный разрыв уровня*\n\n";
+        $text .= "☠️ Узел *{$name}* — уровень *{$nodeLevel}*.\n";
+        $text .= "🩸 Ты — уровень *{$playerLevel}*.\n\n";
+        $text .= "Узел сильнее тебя на *{$diff}* ур. В одиночку это почти верная смерть. ";
+        $text .= "Лучше вернуться сильнее или собрать группу: раны на узле остаются между боями — ";
+        $text .= "его можно ослаблять заходами и добить вместе («Облава»).\n\n";
+        $text .= 'Всё равно нападёшь?';
+
+        return [
+            'text'     => $text,
+            'keyboard' => [
+                [['text' => '⚔️ Всё равно напасть', 'callback_data' => "nodeAct_force_{$pid}"]],
+                [['text' => '🚶 Отступить', 'callback_data' => 'move']],
+            ],
+        ];
+    }
+
+    /**
      * WB12 — карточка поверженного узла (lock-state): таймер респавна, БЕЗ молчания.
      *
      * @param array<array-key, mixed> $point
@@ -721,6 +764,17 @@ class BossEncounterService
         }
 
         return '🔴 *очень опасно* — в одиночку не выстоять, нужна группа («Облава»)';
+    }
+
+    /**
+     * WB13 — «смертельный» разрыв уровня: узел выше игрока больше, чем на
+     * `combat.nodes.tier_hard_diff` (та же граница, что 🔴 «очень опасно — нужна группа» в
+     * {@see powerTier}). Переиспользуем порог тира → предупреждение перед боем и оценка в
+     * карточке осмотра консистентны (нет второй правды): осмотр показал 🔴 ⟺ атака предупредит.
+     */
+    private function isLethalGap(int $playerLevel, int $nodeLevel): bool
+    {
+        return ($nodeLevel - $playerLevel) > $this->gsInt('combat.nodes.tier_hard_diff', 15);
     }
 
     /**

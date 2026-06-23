@@ -298,8 +298,9 @@ class MoveCharacterToDirectionAction
         // ADR-101 Фаза 1 — если на клетке активное поселение, показать «🏚 Войти» → экран-хаб.
         // Подавляем «👤 Незнакомец»: жители поселения доступны через хаб (safe-зона блокирует атаку).
         // Killswitch settlements.enabled → policyAt=null = dormant.
-        $settleCell   = (int) $targetCell['cell_number'];
-        $settlePolicy = (new \App\Services\Settlement\SettlementZoneService())->policyAt($settleCell);
+        $settleCell      = (int) $targetCell['cell_number'];
+        $nodeSightedHere = false; // WB13 — живой узел на новой клетке → one-shot подсказка ниже
+        $settlePolicy    = (new \App\Services\Settlement\SettlementZoneService())->policyAt($settleCell);
         if ($settlePolicy !== null) {
             $sName = is_string($settlePolicy['settlement']['name_ru'] ?? null) ? $settlePolicy['settlement']['name_ru'] : 'Поселение';
             $tail[] = ['text' => '🏚 ' . $sName, 'callback_data' => 'settleHub'];
@@ -308,9 +309,14 @@ class MoveCharacterToDirectionAction
             // → карточка осмотра (nodeAct_look). Приоритет над «👤 Незнакомец» (узел материализуется
             // как npc_spawn → иначе выглядел бы нейтралом). Killswitch world.nodes.point_mode_enabled
             // внутри pointAtCell → OFF = null = dormant (без лишнего запроса).
-            $nodeSvc = new \App\Services\PVE\BossEncounterService();
-            if ($nodeSvc->pointAtCell($settleCell) !== null) {
+            $nodeSvc   = new \App\Services\PVE\BossEncounterService();
+            $nodePoint = $nodeSvc->pointAtCell($settleCell);
+            if ($nodePoint !== null) {
                 $tail[] = ['text' => '☠ Узел', 'callback_data' => 'nodeAct_look_0'];
+                // WB13 (ADR-137) — first-sighting хинт только для ЖИВОГО узла (его можно осмотреть/
+                // атаковать). Cooldown-точку (lock-state) хинтом не сопровождаем — Осмотр там покажет
+                // лишь таймер респавна. One-shot/opt-out/killswitch — внутри сервиса хинтов.
+                $nodeSightedHere = ($nodePoint['status'] ?? '') === 'alive';
             } else {
                 // ADR-089 Фаза 1 — если на клетке стоит нейтральный (passive) NPC, показать
                 // кнопку «👤 Незнакомец» → экран встречи. Killswitch npc.interaction_enabled (dormant).
@@ -413,7 +419,12 @@ class MoveCharacterToDirectionAction
                 }
                 $this->playerDetectionService->detectNearbyPlayers($character['id']);
                 // ADR-103 Часть B Слой 1 — one-shot подсказка «первая база» новичку без базы.
-                (new \App\Services\Onboarding\OnboardingHintService())->maybeSendFirstBaseTip($character, $chatId);
+                $hintSvc = new \App\Services\Onboarding\OnboardingHintService();
+                $hintSvc->maybeSendFirstBaseTip($character, $chatId);
+                // WB13 (ADR-137 «Узлы») — one-shot подсказка при первом обнаружении живого узла.
+                if ($nodeSightedHere) {
+                    $hintSvc->maybeSendFirstBossSightingHint($character, $chatId);
+                }
                 // ADR-104 Ф3b — гарантированный «момент удачи» на первый ход новичка (one-shot).
                 (new \App\Services\Onboarding\LuckyFindService())->maybeGrantFirstMove($character, $chatId);
                 return $editResponse;
@@ -442,7 +453,12 @@ class MoveCharacterToDirectionAction
 
         $this->playerDetectionService->detectNearbyPlayers($character['id']);
         // ADR-103 Часть B Слой 1 — one-shot подсказка «первая база» новичку без базы.
-        (new \App\Services\Onboarding\OnboardingHintService())->maybeSendFirstBaseTip($character, $chatId);
+        $hintSvc = new \App\Services\Onboarding\OnboardingHintService();
+        $hintSvc->maybeSendFirstBaseTip($character, $chatId);
+        // WB13 (ADR-137 «Узлы») — one-shot подсказка при первом обнаружении живого узла.
+        if ($nodeSightedHere) {
+            $hintSvc->maybeSendFirstBossSightingHint($character, $chatId);
+        }
         // ADR-104 Ф3b — гарантированный «момент удачи» на первый ход новичка (one-shot).
         (new \App\Services\Onboarding\LuckyFindService())->maybeGrantFirstMove($character, $chatId);
         return $newMsgResponse;

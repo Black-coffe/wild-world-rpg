@@ -303,7 +303,7 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $this->seedPoint(['current_health' => 1000, 'current_level' => 40]); // сильный узел
         $char = $this->seedChar(['health' => 1, 'tired' => 100]); // на грани
         $svc  = $this->service();
-        $svc->start($char);
+        $svc->start($char, true); // WB13: разрыв L40 vs L10 → force минует предупреждение (тест про отступление)
         $svc->act($char, 'flee');
 
         $row = Database::connect('tests')->table('characters')->where('id', $char['id'])->get()->getRowArray();
@@ -354,7 +354,7 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $char  = $this->seedChar(['health' => 1]); // одного удара узла хватит
         $spy   = $this->deathSpy();
         $svc   = $this->service($spy);
-        $svc->start($char);
+        $svc->start($char, true); // WB13: L40 vs L10 → force минует предупреждение (тест про летальный исход)
         $svc->act($char, 'atk');
 
         $enc = $this->activeEnc((int) $char['id']);
@@ -455,7 +455,7 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $db->table('npc_spawns')->insert(['npc_id' => $this->npcId, 'cell_number' => 5000, 'coordinate_x' => 0, 'coordinate_y' => 850, 'current_health' => 5, 'status' => 'alive']);
         $char = $this->seedChar(['gold' => 0]);
         $svc  = $this->service();
-        $svc->start($char);
+        $svc->start($char, true); // WB13: узел L120 vs L10 → force минует предупреждение (тест про килл/анонс)
         $svc->act($char, 'atk');
 
         return ['pid' => $pid, 'char' => $char];
@@ -499,7 +499,7 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $db->table('boss_camp_state')->insert(['character_id' => $char['id'], 'boss_point_id' => $pid, 'dwell_minutes' => 720, 'loot_locked_until' => date('Y-m-d H:i:s', time() + 3600)]);
 
         $svc = $this->service();
-        $svc->start($char);
+        $svc->start($char, true); // WB13: узел L120 vs L10 → force минует предупреждение (тест про анонс/титул кемпера)
         $svc->act($char, 'atk');
 
         $this->assertSame(1, $db->table('boss_kill_announce_queue')->countAllResults(), 'узел пал → анонс enqueue (обезличен, не зависит от лока)');
@@ -572,6 +572,51 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $this->enable();
         $char = $this->seedChar(['cell_number' => 9999]);
         $this->assertArrayHasKey('alert', $this->service()->look($char));
+    }
+
+    // ───────────────────────── WB13 предупреждение о разрыве уровня ─────────────────────────
+
+    public function testStartWarnsOnLethalLevelGap(): void
+    {
+        $this->enable();
+        $this->seedPoint(['current_level' => 120, 'current_health' => 4000, 'max_health' => 4500]);
+        $char   = $this->seedChar(['level' => 10]);
+        $screen = $this->service()->start($char);
+
+        $this->assertArrayHasKey('text', $screen, 'разрыв L120 vs L10 → экран-предупреждение, не сразу бой');
+        $this->assertStringContainsString('разрыв уровня', $screen['text']);
+        $kb = json_encode($screen['keyboard']);
+        $this->assertStringContainsString('nodeAct_force_', (string) $kb, 'есть кнопка «Всё равно напасть» (force)');
+        // Информирование, не блок: active-бой ещё НЕ создан (игрок не подтвердил).
+        $active = Database::connect('tests')->table('boss_encounters')
+            ->where('character_id', $char['id'])->where('status', 'active')->countAllResults();
+        $this->assertSame(0, $active, 'предупреждение не создаёт бой');
+    }
+
+    public function testStartForceBypassesLevelGapWarning(): void
+    {
+        $this->enable();
+        $this->seedPoint(['current_level' => 120, 'current_health' => 4000, 'max_health' => 4500]);
+        $char   = $this->seedChar(['level' => 10, 'health' => 80]);
+        $screen = $this->service()->start($char, true);
+
+        $this->assertArrayHasKey('text', $screen);
+        $this->assertStringContainsString('Бой с узлом', $screen['text'], 'force → сразу боевой экран');
+        $enc = $this->activeEnc((int) $char['id']);
+        $this->assertNotNull($enc);
+        $this->assertSame('active', $enc['status'], 'force создал active-бой вопреки разрыву');
+    }
+
+    public function testStartNoWarningWhenGapWithinThreshold(): void
+    {
+        $this->enable();
+        // diff = 15 = порог combat.nodes.tier_hard_diff (строго >) → НЕ предупреждаем.
+        $this->seedPoint(['current_level' => 25]);
+        $char   = $this->seedChar(['level' => 10]);
+        $screen = $this->service()->start($char);
+
+        $this->assertStringContainsString('Бой с узлом', $screen['text'], 'разрыв ровно на пороге (15) → сразу бой');
+        $this->assertSame('active', $this->activeEnc((int) $char['id'])['status']);
     }
 
     // ───────────────────────── WB9 raid-only бонус ─────────────────────────
