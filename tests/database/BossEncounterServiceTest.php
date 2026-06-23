@@ -619,6 +619,39 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $this->assertSame('active', $this->activeEnc((int) $char['id'])['status']);
     }
 
+    // ───────────────────────── WB16 регресс: CharacterEntity (не array) ─────────────────────────
+
+    /**
+     * 🔴 Регресс WB16: реальный callback-слой (BossEncounterAction/NpcEncounterAction) передаёт
+     * `CharacterEntity` (ArrayAccess), а НЕ array. Юнит-тесты и throwaway-смоки гоняли array →
+     * НЕ ловили `TypeError: look()/start()/act() … must be of type array, CharacterEntity given`.
+     * Живой тап в Telegram (Tier-3) вскрыл прод-блокер. Гейтим, что все публичные методы
+     * принимают Entity (урок feedback_entity_strict_array_typehint_trap + control_tap_not_throwaway).
+     */
+    public function testPublicMethodsAcceptCharacterEntityNotArray(): void
+    {
+        $this->enable();
+        $this->seedPoint(['cell_number' => 5000, 'status' => 'alive', 'current_level' => 5, 'current_health' => 140, 'max_health' => 140]);
+        $charArr = $this->seedChar(['level' => 10, 'cell_number' => 5000, 'health' => 100]);
+        $entity  = new \App\Entities\CharacterEntity($charArr);
+        $svc     = $this->service();
+
+        $look = $svc->look($entity);
+        $this->assertArrayHasKey('text', $look, 'look() принимает CharacterEntity без TypeError');
+        $this->assertStringContainsString('Осмотр узла', $look['text']);
+
+        $start = $svc->start($entity, true);
+        $this->assertArrayHasKey('text', $start, 'start() принимает CharacterEntity');
+        $this->assertNotNull($this->activeEnc((int) $charArr['id']));
+
+        $act = $svc->act($entity, 'atk');
+        $this->assertArrayHasKey('text', $act, 'act() принимает CharacterEntity');
+
+        // open() (вход NpcEncounterAction) тоже принимает Entity.
+        $open = $svc->open(new \App\Entities\CharacterEntity($charArr));
+        $this->assertTrue(isset($open['text']) || isset($open['alert']), 'open() принимает CharacterEntity');
+    }
+
     // ───────────────────────── WB9 raid-only бонус ─────────────────────────
 
     public function testSoulboundTrophiesBoostNodeDamageOnly(): void

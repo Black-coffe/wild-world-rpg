@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\PVE;
 
 use App\Entities\BattleCharacter;
+use App\Entities\CharacterEntity;
 use App\Models\BossEncounterModel;
 use App\Models\BossPointModel;
 use App\Models\CharacterModel;
@@ -118,11 +119,12 @@ class BossEncounterService
     /**
      * Интро-экран узла (имя/уровень/HP + «Напасть»/«Уйти»). Если бой уже идёт — сразу боевой экран.
      *
-     * @param array<array-key, mixed> $character
+     * @param array<array-key, mixed>|CharacterEntity $character
      * @return array<string,mixed>
      */
-    public function open(array $character): array
+    public function open(array|CharacterEntity $character): array
     {
+        $character = $this->normalizeChar($character);
         if (! $this->enabled()) {
             return ['alert' => 'Узлы сейчас неактивны.'];
         }
@@ -149,11 +151,12 @@ class BossEncounterService
      * WB12 — карточка осмотра узла «☠ Осмотреть»: оценка силы СЛОВАМИ-тирами (по силам/тяжело/нужна
      * группа — НЕ хрупкие числа), что упадёт, для cooldown-узла — таймер респавна (lock-state, не молчание).
      *
-     * @param array<array-key, mixed> $character
+     * @param array<array-key, mixed>|CharacterEntity $character
      * @return array<string,mixed>
      */
-    public function look(array $character): array
+    public function look(array|CharacterEntity $character): array
     {
+        $character = $this->normalizeChar($character);
         if (! $this->enabled()) {
             return ['alert' => 'Узлы сейчас неактивны.'];
         }
@@ -185,11 +188,12 @@ class BossEncounterService
      * показываем предупреждение-подтверждение — ИНФОРМИРОВАНИЕ, не блок (игрок волен напасть
      * через «⚔️ Всё равно напасть» → `nodeAct_force` → `$force=true`).
      *
-     * @param array<array-key, mixed> $character
+     * @param array<array-key, mixed>|CharacterEntity $character
      * @return array<string,mixed>
      */
-    public function start(array $character, bool $force = false): array
+    public function start(array|CharacterEntity $character, bool $force = false): array
     {
+        $character = $this->normalizeChar($character);
         if (! $this->enabled()) {
             return ['alert' => 'Узлы сейчас неактивны.'];
         }
@@ -248,12 +252,13 @@ class BossEncounterService
     /**
      * Обработать боевое действие игрока (чанк раундов) и вернуть экран.
      *
-     * @param array<array-key, mixed> $character
+     * @param array<array-key, mixed>|CharacterEntity $character
      * @param string                  $verb atk|def|spec|item|flee
      * @return array<string,mixed>
      */
-    public function act(array $character, string $verb): array
+    public function act(array|CharacterEntity $character, string $verb): array
     {
+        $character = $this->normalizeChar($character);
         if (! $this->enabled()) {
             return ['alert' => 'Узлы сейчас неактивны.'];
         }
@@ -1089,6 +1094,23 @@ class BossEncounterService
     private function playerHpInt(array $enc): int
     {
         return max(0, $this->ival($enc['player_hp'] ?? null));
+    }
+
+    /**
+     * WB16: action-слой (BossEncounterAction/NpcEncounterAction) передаёт `CharacterEntity`
+     * (returnType CharacterModel после F1.4), а весь внутренний код узлов + `buildPlayer`→
+     * `new BattleCharacter(array)` работают с array. Нормализуем в array на входе каждого
+     * публичного метода. **Урок:** живой тап вскрыл `TypeError: look() … must be of type array,
+     * CharacterEntity given` — юнит-тесты и throwaway гоняли array, реальный callback — Entity
+     * (feedback_entity_strict_array_typehint_trap + control_tap_not_throwaway). НЕ `(array)`-каст
+     * (мангл ключей) — именно `toArray()`.
+     *
+     * @param array<array-key, mixed>|CharacterEntity $character
+     * @return array<array-key, mixed>
+     */
+    private function normalizeChar(array|CharacterEntity $character): array
+    {
+        return is_array($character) ? $character : $character->toArray();
     }
 
     private function ival(mixed $v): int
