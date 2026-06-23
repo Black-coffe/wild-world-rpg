@@ -101,6 +101,24 @@ final class GuideCatalogTest extends CIUnitTestCase
         $this->assertNull(GuideCatalog::find('no_such_key'));
     }
 
+    /**
+     * WB14 (ADR-137 «Узлы») — раздел «Узлы» в эндгейме: учит понятиям (что такое Узел,
+     * Осмотр, Облава, трофей), media-off самодостаточен, и 🔴 БЕЗ слова «клан»
+     * (клан/рейд-механика отрезана из v1 — упоминание ввело бы в заблуждение).
+     */
+    public function testBossesSectionTeachesNodesWithoutClan(): void
+    {
+        $section = GuideCatalog::find('bosses');
+        $this->assertNotNull($section, 'Раздел «Узлы» (bosses) обязан быть в /guide.');
+        $this->assertSame('end', $section['group'], 'Узлы — эндгейм-контент.');
+
+        $text = $section['title'] . $section['body'];
+        foreach (['Узл', 'Осмотр', 'Облав', 'Метка пустоши'] as $needle) {
+            $this->assertStringContainsString($needle, $text, "Раздел «Узлы» не упоминает «{$needle}» (media-off самодостаточность).");
+        }
+        $this->assertStringNotContainsStringIgnoringCase('клан', $text, 'Раздел «Узлы» НЕ должен упоминать клан (механика отрезана из v1).');
+    }
+
     // ── Сервис рендера ──────────────────────────────────────────────────────
 
     public function testIndexExposesButtonForEverySection(): void
