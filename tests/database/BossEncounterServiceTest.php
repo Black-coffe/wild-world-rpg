@@ -574,6 +574,26 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $this->assertArrayHasKey('alert', $this->service()->look($char));
     }
 
+    /**
+     * 🔴 WB15-находка / WB16-фикс: тир Осмотра обязан читать РЕАЛЬНУЮ боевую мощь (экип+статы),
+     * а НЕ разницу уровней. Высокоуровневый кулачник (damage_value=5) против узла СВОЕГО уровня:
+     * старая level-diff оценка дала бы ложный 🟢 «по силам» (diff=0), но его удары не пробивают
+     * узел-губку → реально 🔴. Регресс-гейт против over-promise.
+     */
+    public function testExamineTierReflectsCombatPowerNotLevel(): void
+    {
+        $this->enable();
+        $this->seedPoint(['cell_number' => 5000, 'status' => 'alive', 'current_level' => 60, 'current_health' => 2000, 'max_health' => 2000]);
+        $fist   = $this->seedChar(['level' => 60, 'damage_value' => 5, 'strength' => 1, 'agility' => 1, 'armor' => 0, 'cell_number' => 5000]);
+        $screen = $this->service()->look($fist);
+
+        $this->assertStringContainsString('не в одиночку', $screen['text'], 'кулачник L60 vs узел L60 → 🔴 (по силе, не по уровню — старый код дал бы ложный 🟢)');
+
+        // И предупреждение перед боем срабатывает на том же раскладе (осмотр 🔴 ⟺ атака предупредит).
+        $warn = $this->service()->start($fist);
+        $this->assertStringContainsString('Силы не равны', $warn['text'], 'смертельный расклад по силе → предупреждение, даже при равном уровне');
+    }
+
     // ───────────────────────── WB13 предупреждение о разрыве уровня ─────────────────────────
 
     public function testStartWarnsOnLethalLevelGap(): void
@@ -583,8 +603,8 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $char   = $this->seedChar(['level' => 10]);
         $screen = $this->service()->start($char);
 
-        $this->assertArrayHasKey('text', $screen, 'разрыв L120 vs L10 → экран-предупреждение, не сразу бой');
-        $this->assertStringContainsString('разрыв уровня', $screen['text']);
+        $this->assertArrayHasKey('text', $screen, 'смертельный расклад L120 vs L10 → экран-предупреждение, не сразу бой');
+        $this->assertStringContainsString('Силы не равны', $screen['text']);
         $kb = json_encode($screen['keyboard']);
         $this->assertStringContainsString('nodeAct_force_', (string) $kb, 'есть кнопка «Всё равно напасть» (force)');
         // Информирование, не блок: active-бой ещё НЕ создан (игрок не подтвердил).
@@ -607,15 +627,16 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $this->assertSame('active', $enc['status'], 'force создал active-бой вопреки разрыву');
     }
 
-    public function testStartNoWarningWhenGapWithinThreshold(): void
+    public function testStartNoWarningWhenPlayerStrongEnough(): void
     {
         $this->enable();
-        // diff = 15 = порог combat.nodes.tier_hard_diff (строго >) → НЕ предупреждаем.
-        $this->seedPoint(['current_level' => 25]);
-        $char   = $this->seedChar(['level' => 10]);
+        // WB16: расклад по РЕАЛЬНОЙ силе. Игрок с оружием (damage_value=100) валит слабый узел
+        // быстрее, чем тот его → не смертельно → сразу бой, без предупреждения.
+        $this->seedPoint(['current_level' => 12, 'current_health' => 150, 'max_health' => 150]);
+        $char   = $this->seedChar(['level' => 10, 'damage_value' => 100]);
         $screen = $this->service()->start($char);
 
-        $this->assertStringContainsString('Бой с узлом', $screen['text'], 'разрыв ровно на пороге (15) → сразу бой');
+        $this->assertStringContainsString('Бой с узлом', $screen['text'], 'игрок сильнее узла → сразу бой');
         $this->assertSame('active', $this->activeEnc((int) $char['id'])['status']);
     }
 
@@ -662,11 +683,12 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $db->table('game_settings')->insert(['setting_key' => 'combat.nodes.soulbound_raid_bonus_cap', 'value_type' => 'float', 'value_float' => 1.0]);
         $this->cleanCache();
 
-        // Контрольный чар без трофеев.
+        // Контрольный чар без трофеев. Узел-губка 100000 HP неубиваем за заход → start() без force
+        // показал бы предупреждение (WB16 killBoss>max_rounds); force минует его — тест про урон, не тир.
         $this->seedPoint(['current_health' => 100000, 'current_level' => 5, 'max_health' => 100000]);
         $plain = $this->seedChar(['damage_value' => 100]);
         $svc   = $this->service();
-        $svc->start($plain);
+        $svc->start($plain, true);
         $svc->act($plain, 'atk');
         $baseDmg = (int) $this->activeEnc((int) $plain['id'])['damage_dealt'];
 
@@ -676,7 +698,7 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         $db->table('characters_weapons')->insert(['character_id' => $hero['id'], 'weapon_id' => 1, 'equipped' => 0, 'is_soulbound' => 1]);
         $db->table('characters_outfits')->insert(['character_id' => $hero['id'], 'outfit_id' => 1, 'equipped' => 0, 'is_soulbound' => 1]);
         $svc2 = $this->service();
-        $svc2->start($hero);
+        $svc2->start($hero, true);
         $svc2->act($hero, 'atk');
         $boostDmg = (int) $this->activeEnc((int) $hero['id'])['damage_dealt'];
 

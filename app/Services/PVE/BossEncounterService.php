@@ -220,12 +220,11 @@ class BossEncounterService
             return ['alert' => "Ты недавно отступил от этого узла. Переведи дух (~{$cdLeft} мин)."];
         }
 
-        // WB13: предупреждение о смертельном разрыве уровня (информирование, не блок). Показываем
-        // ОДИН экран-подтверждение, если узел сильно выше И игрок ещё не подтвердил («Всё равно»).
-        $playerLevel = $this->ival($character['level'] ?? null);
-        $nodeLevel   = $this->ival($point['current_level'] ?? null);
-        if (! $force && $this->isLethalGap($playerLevel, $nodeLevel)) {
-            return $this->renderLevelGapWarning($point, $playerLevel, $nodeLevel);
+        // WB13/WB16: предупреждение о смертельном раскладе (информирование, не блок). Показываем
+        // ОДИН экран-подтверждение, если соло-бой по РЕАЛЬНОЙ силе почти наверняка проигран И игрок
+        // ещё не подтвердил («Всё равно»). По мощи (экип+статы), не по уровню — WB15-находка.
+        if (! $force && $this->isLethalGap($character, $point)) {
+            return $this->renderLevelGapWarning($point, $character);
         }
 
         $playerHp = max(1, (int) round($this->fval($character['health'] ?? null)));
@@ -673,17 +672,16 @@ class BossEncounterService
      */
     private function renderExamine(array $point, array $character): array
     {
-        $pid    = $this->ival($point['id'] ?? null);
-        $name   = $this->bossName($point);
-        $level  = $this->ival($point['current_level'] ?? null);
-        $hp     = $this->ival($point['current_health'] ?? null);
-        $maxHp  = $this->ival($point['max_health'] ?? null);
-        $pLevel = $this->ival($character['level'] ?? null);
+        $pid   = $this->ival($point['id'] ?? null);
+        $name  = $this->bossName($point);
+        $level = $this->ival($point['current_level'] ?? null);
+        $hp    = $this->ival($point['current_health'] ?? null);
+        $maxHp = $this->ival($point['max_health'] ?? null);
 
         $text  = "☠ *Осмотр узла* — *{$name}*\n\n";
         $text .= "🔱 Уровень узла: *{$level}*\n";
         $text .= "❤️ Состояние: *{$hp}/{$maxHp}*\n\n";
-        $text .= '⚖️ Оценка: ' . $this->powerTier($pLevel, $level) . "\n\n";
+        $text .= '⚖️ Оценка: ' . $this->powerTier($character, $point) . "\n\n";
         $text .= "🎁 Что упадёт:\n";
         $text .= "• 💰 золото «Облавы» — делится по вкладу между всеми бойцами\n";
         if ($level >= max(1, $this->gsInt('combat.nodes.soulbound_min_level', 50))) {
@@ -701,25 +699,27 @@ class BossEncounterService
     }
 
     /**
-     * WB13 — экран-предупреждение перед боем при смертельном разрыве уровня. ИНФОРМИРОВАНИЕ,
-     * не блок: даём явный выбор «⚔️ Всё равно напасть» (→ nodeAct_force, минует предупреждение)
-     * либо «🚶 Отступить». media-off самодостаточно — весь смысл (уровни, разрыв, совет) в тексте.
+     * WB13/WB16 — экран-предупреждение перед боем, когда соло-расклад почти наверняка проигрышный
+     * по РЕАЛЬНОЙ боевой мощи (не по уровню — WB15-находка: уровень ≠ сила, кулачник любого уровня
+     * слаб против узла). ИНФОРМИРОВАНИЕ, не блок: явный выбор «⚔️ Всё равно напасть» (→ nodeAct_force,
+     * минует предупреждение) либо «🚶 Отступить». media-off самодостаточно — весь смысл в тексте.
      *
      * @param array<array-key, mixed> $point
+     * @param array<array-key, mixed> $character
      * @return array{text:string,keyboard:array<int,mixed>}
      */
-    private function renderLevelGapWarning(array $point, int $playerLevel, int $nodeLevel): array
+    private function renderLevelGapWarning(array $point, array $character): array
     {
-        $pid  = $this->ival($point['id'] ?? null);
-        $name = $this->bossName($point);
-        $diff = max(0, $nodeLevel - $playerLevel);
+        $pid   = $this->ival($point['id'] ?? null);
+        $name  = $this->bossName($point);
+        $level = $this->ival($point['current_level'] ?? null);
 
-        $text  = "⚠️ *Опасный разрыв уровня*\n\n";
-        $text .= "☠️ Узел *{$name}* — уровень *{$nodeLevel}*.\n";
-        $text .= "🩸 Ты — уровень *{$playerLevel}*.\n\n";
-        $text .= "Узел сильнее тебя на *{$diff}* ур. В одиночку это почти верная смерть. ";
-        $text .= "Лучше вернуться сильнее или собрать группу: раны на узле остаются между боями — ";
-        $text .= "его можно ослаблять заходами и добить вместе («Облава»).\n\n";
+        $text  = "⚠️ *Силы не равны*\n\n";
+        $text .= "☠️ Узел *{$name}* (уровень *{$level}*) держит точку, и твоих ударов не хватит: ";
+        $text .= "он свалит тебя раньше, чем ты пробьёшь его насквозь.\n\n";
+        $text .= "Дело не в твоём уровне, а в реальной силе удара — *возьми оружие покрепче*, ";
+        $text .= "подлечись припасами в бою или собери группу. Раны на узле остаются между заходами: ";
+        $text .= "его можно ослаблять и добить вместе («Облава»).\n\n";
         $text .= 'Всё равно нападёшь?';
 
         return [
@@ -752,34 +752,81 @@ class BossEncounterService
     }
 
     /**
-     * Оценка силы узла относительно уровня игрока — СЛОВАМИ-тирами (не хрупкие числа): по силам /
-     * тяжело / нужна группа. Пороги admin-tunable (`combat.nodes.tier_*`).
+     * WB16-fix (WB15-находка): реальная боевая перспектива соло-боя игрока против узла — по
+     * ДЕТЕРМИНИРОВАННОЙ симуляции одного раунда (DamageService без RNG, тот же путь, что и
+     * {@see runChunk}), а НЕ по разнице уровней. Уровень — плохой прокси силы: на проде ~90%
+     * игроков бьются кулаками (damage_value≈5) независимо от уровня → высокоуровневый кулачник
+     * видел ложный 🟢 «по силам» против узла, который на деле его валит. Считаем урон/раунд в обе
+     * стороны по экипировке+статам и сравниваем «раундов мне свалить узел» vs «раундов узлу свалить
+     * меня». Без food/raid/спец-множителей — консервативная «голая» оценка по шмоту (не over-promise).
+     *
+     * @param array<array-key, mixed> $character
+     * @param array<array-key, mixed> $point
+     * @return array{killBoss:int,killPlayer:int,ratio:float}
      */
-    private function powerTier(int $playerLevel, int $nodeLevel): string
+    private function estimateSoloFight(array $character, array $point): array
     {
-        $solo = $this->gsInt('combat.nodes.tier_solo_diff', 0);   // node ≤ player+0 → соло
-        $hard = $this->gsInt('combat.nodes.tier_hard_diff', 15);  // node ≤ player+15 → тяжело
-        $diff = $nodeLevel - $playerLevel;
+        $maxHp  = (int) round($this->fval($character['max_health'] ?? ($character['health'] ?? 1)));
+        $player = $this->buildPlayer($character, max(1, $maxHp));
+        $boss   = $this->buildBoss($point);
 
-        if ($diff <= $solo) {
-            return '🟢 *по силам* — можно в одиночку с правильным шмотом';
-        }
-        if ($diff <= $hard) {
-            return '🟡 *тяжело* — лучше с подмогой или хорошей экипировкой';
-        }
+        $pd = max(0.01, round($this->damage->calculateDamage($player, $boss, ''), 2)); // мой урон/раунд по узлу
+        $bd = max(0.01, round($this->damage->calculateDamage($boss, $player, ''), 2)); // урон узла/раунд по мне
 
-        return '🔴 *очень опасно* — в одиночку не выстоять, нужна группа («Облава»)';
+        $bossHp   = max(1, $this->ival($point['current_health'] ?? null));
+        $playerHp = max(1, (int) round($player->maxHealth));
+
+        $killBoss   = (int) ceil($bossHp / $pd);
+        $killPlayer = (int) ceil($playerHp / $bd);
+
+        return [
+            'killBoss'   => $killBoss,
+            'killPlayer' => $killPlayer,
+            'ratio'      => $killBoss / max(1, $killPlayer),
+        ];
     }
 
     /**
-     * WB13 — «смертельный» разрыв уровня: узел выше игрока больше, чем на
-     * `combat.nodes.tier_hard_diff` (та же граница, что 🔴 «очень опасно — нужна группа» в
-     * {@see powerTier}). Переиспользуем порог тира → предупреждение перед боем и оценка в
-     * карточке осмотра консистентны (нет второй правды): осмотр показал 🔴 ⟺ атака предупредит.
+     * Оценка узла относительно РЕАЛЬНОЙ боевой мощи игрока (экип+статы, не уровень — WB15) —
+     * СЛОВАМИ-тирами (не хрупкие числа): по силам / тяжело / нужна группа. Порог — отношение
+     * «раундов свалить узел» / «раундов узлу свалить меня» (admin-tunable `combat.nodes.tier_*_ratio`).
+     * Узел-губку, которого не свалить за один заход (> max_rounds), сразу относим к «нужна группа».
+     *
+     * @param array<array-key, mixed> $character
+     * @param array<array-key, mixed> $point
      */
-    private function isLethalGap(int $playerLevel, int $nodeLevel): bool
+    private function powerTier(array $character, array $point): string
     {
-        return ($nodeLevel - $playerLevel) > $this->gsInt('combat.nodes.tier_hard_diff', 15);
+        $est       = $this->estimateSoloFight($character, $point);
+        $maxRounds = max(1, $this->gsInt('combat.nodes.max_rounds', 300));
+        $solo      = max(0.1, $this->gsFloat('combat.nodes.tier_solo_ratio', 1.0));
+        $hard      = max($solo, $this->gsFloat('combat.nodes.tier_hard_ratio', 2.0));
+
+        if ($est['killBoss'] > $maxRounds || $est['ratio'] > $hard) {
+            return '🔴 *не в одиночку* — твоих ударов не хватит, нужна группа («Облава») или оружие крепче';
+        }
+        if ($est['ratio'] <= $solo) {
+            return '🟢 *по силам* — твоей силы хватает, можно в одиночку';
+        }
+
+        return '🟡 *тяжело* — на грани: помогут припасы, броня покрепче или напарник';
+    }
+
+    /**
+     * WB13/WB16 — «смертельный» расклад: соло-бой почти наверняка проигран (та же граница, что
+     * 🔴 «нужна группа» в {@see powerTier} — нет второй правды: осмотр показал 🔴 ⟺ атака предупредит).
+     * По РЕАЛЬНОЙ боевой мощи (WB15-находка), а не по разнице уровней.
+     *
+     * @param array<array-key, mixed> $character
+     * @param array<array-key, mixed> $point
+     */
+    private function isLethalGap(array $character, array $point): bool
+    {
+        $est       = $this->estimateSoloFight($character, $point);
+        $maxRounds = max(1, $this->gsInt('combat.nodes.max_rounds', 300));
+        $hard      = max(0.1, $this->gsFloat('combat.nodes.tier_hard_ratio', 2.0));
+
+        return $est['killBoss'] > $maxRounds || $est['ratio'] > $hard;
     }
 
     /**
