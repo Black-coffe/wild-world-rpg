@@ -161,8 +161,7 @@ class CaravanLookAction extends BaseAction
             $keyboard = ['inline_keyboard' => $rows];
         }
 
-        return Request::sendMessage([
-            'chat_id'      => $chatId,
+        return \App\Services\Notifications\MediaSender::editTextOrSend($this->navTarget() + [
             'text'         => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
@@ -254,8 +253,7 @@ class CaravanLookAction extends BaseAction
             ];
         }
 
-        return Request::sendMessage([
-            'chat_id'      => $chatId,
+        return \App\Services\Notifications\MediaSender::editTextOrSend($this->navTarget() + [
             'text'         => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
@@ -335,8 +333,7 @@ class CaravanLookAction extends BaseAction
             ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
         ];
 
-        return Request::sendMessage([
-            'chat_id'      => $chatId,
+        return \App\Services\Notifications\MediaSender::editTextOrSend($this->navTarget() + [
             'text'         => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $buttons]),
