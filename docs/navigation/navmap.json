@@ -1,13 +1,13 @@
 {
-    "generated_at": "2026-06-14T19:32:26+03:00",
+    "generated_at": "2026-06-24T19:44:21+03:00",
     "stats": {
-        "nodes": 300,
-        "edges": 1167,
+        "nodes": 311,
+        "edges": 1219,
         "entrypoints": 9,
-        "unresolved": 44,
-        "dead_ends": 33,
-        "orphans": 70,
-        "unreachable": 98,
+        "unresolved": 33,
+        "dead_ends": 38,
+        "orphans": 65,
+        "unreachable": 95,
         "max_depth": 7
     },
     "entrypoints": [
@@ -243,10 +243,13 @@
             "short": "RepairBuildingAction",
             "group": "base",
             "file": "app/Controllers/Telegram/Commands/Actions/Camp/Buildings/RepairBuildingAction.php",
-            "routes": [],
-            "kind": "screen",
+            "routes": [
+                "confirmRepairBuilding_*",
+                "repairBuilding_*"
+            ],
+            "kind": "action",
             "out": 2,
-            "in": 0,
+            "in": 2,
             "depth": null
         },
         {
@@ -470,7 +473,7 @@
             ],
             "kind": "action",
             "out": 16,
-            "in": 2,
+            "in": 3,
             "depth": 2
         },
         {
@@ -535,7 +538,7 @@
                 "entrench"
             ],
             "kind": "action",
-            "out": 7,
+            "out": 6,
             "in": 3,
             "depth": 3
         },
@@ -615,8 +618,11 @@
             "short": "CaravanBuyAction",
             "group": "commands",
             "file": "app/Controllers/Telegram/Commands/Actions/Caravan/CaravanBuyAction.php",
-            "routes": [],
-            "kind": "screen",
+            "routes": [
+                "caravanBuyAll_*",
+                "caravanBuyBargain_*"
+            ],
+            "kind": "action",
             "out": 3,
             "in": 0,
             "depth": null
@@ -627,11 +633,13 @@
             "short": "CaravanBuyDroneAction",
             "group": "commands",
             "file": "app/Controllers/Telegram/Commands/Actions/Caravan/CaravanBuyDroneAction.php",
-            "routes": [],
-            "kind": "screen",
+            "routes": [
+                "caravanBuyDrone_*"
+            ],
+            "kind": "action",
             "out": 2,
-            "in": 0,
-            "depth": null
+            "in": 1,
+            "depth": 5
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Caravan.CaravanLookAction",
@@ -659,7 +667,7 @@
             ],
             "kind": "action",
             "out": 9,
-            "in": 40,
+            "in": 41,
             "depth": 2
         },
         {
@@ -746,8 +754,8 @@
             ],
             "kind": "action",
             "out": 2,
-            "in": 46,
-            "depth": 4
+            "in": 48,
+            "depth": 3
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.Insurance.CraftInsuranceListAction",
@@ -769,11 +777,14 @@
             "short": "CraftInsureItemAction",
             "group": "craft",
             "file": "app/Controllers/Telegram/Commands/Actions/Craft/Insurance/CraftInsureItemAction.php",
-            "routes": [],
-            "kind": "screen",
+            "routes": [
+                "confirm_craft_insure_*",
+                "craftInsure_*"
+            ],
+            "kind": "action",
             "out": 3,
-            "in": 0,
-            "depth": null
+            "in": 2,
+            "depth": 4
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.Repair.NpcRepairAction",
@@ -781,11 +792,14 @@
             "short": "NpcRepairAction",
             "group": "craft",
             "file": "app/Controllers/Telegram/Commands/Actions/Craft/Repair/NpcRepairAction.php",
-            "routes": [],
-            "kind": "screen",
+            "routes": [
+                "confirm_npc_repair_*",
+                "npc_repair_*"
+            ],
+            "kind": "action",
             "out": 6,
-            "in": 0,
-            "depth": null
+            "in": 4,
+            "depth": 5
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.Repair.RepairCraftedItemAction",
@@ -1023,7 +1037,7 @@
             ],
             "kind": "action",
             "out": 7,
-            "in": 3,
+            "in": 6,
             "depth": 2
         },
         {
@@ -1288,9 +1302,9 @@
                 "WorkbenchChoice"
             ],
             "kind": "action",
-            "out": 2,
-            "in": 1,
-            "depth": 3
+            "out": 3,
+            "in": 5,
+            "depth": 2
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Workbench.WorkbenchOneAction",
@@ -1302,9 +1316,9 @@
                 "workbenchOne"
             ],
             "kind": "action",
-            "out": 5,
+            "out": 6,
             "in": 1,
-            "depth": 4
+            "depth": 3
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Workbench.WorkbenchProfessionalAction",
@@ -1316,9 +1330,9 @@
                 "workbenchProfessional"
             ],
             "kind": "action",
-            "out": 12,
-            "in": 7,
-            "depth": 4
+            "out": 13,
+            "in": 8,
+            "depth": 2
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchProfessional.ArmorCraftT3Select",
@@ -1332,7 +1346,7 @@
             "kind": "action",
             "out": 7,
             "in": 1,
-            "depth": 5
+            "depth": 3
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchProfessional.ArmorRecipePreviewT3Action",
@@ -1346,7 +1360,7 @@
             "kind": "action",
             "out": 3,
             "in": 9,
-            "depth": 6
+            "depth": 4
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchProfessional.FactionArmorCraftSelect",
@@ -1360,7 +1374,7 @@
             "kind": "action",
             "out": 6,
             "in": 1,
-            "depth": 5
+            "depth": 3
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchProfessional.FactionWeaponsCraftSelect",
@@ -1374,7 +1388,7 @@
             "kind": "action",
             "out": 6,
             "in": 1,
-            "depth": 5
+            "depth": 3
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchProfessional.MedicalCraftT3Select",
@@ -1388,7 +1402,7 @@
             "kind": "action",
             "out": 5,
             "in": 2,
-            "depth": 5
+            "depth": 3
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchProfessional.MedicalRecipePreviewT3Action",
@@ -1402,7 +1416,7 @@
             "kind": "action",
             "out": 3,
             "in": 3,
-            "depth": 6
+            "depth": 4
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchProfessional.UtilityCraftT3Select",
@@ -1416,7 +1430,7 @@
             "kind": "action",
             "out": 5,
             "in": 2,
-            "depth": 5
+            "depth": 3
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchProfessional.UtilityRecipePreviewT3Action",
@@ -1430,7 +1444,7 @@
             "kind": "action",
             "out": 3,
             "in": 3,
-            "depth": 6
+            "depth": 4
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchProfessional.WeaponRecipePreviewT3Action",
@@ -1444,7 +1458,7 @@
             "kind": "action",
             "out": 3,
             "in": 10,
-            "depth": 6
+            "depth": 4
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchProfessional.WeaponsCraftT3Select",
@@ -1458,7 +1472,7 @@
             "kind": "action",
             "out": 8,
             "in": 1,
-            "depth": 5
+            "depth": 3
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.Armor.ArmorCraft2Select",
@@ -1594,7 +1608,7 @@
                 "standardCraft"
             ],
             "kind": "action",
-            "out": 9,
+            "out": 11,
             "in": 8,
             "depth": 2
         },
@@ -1734,8 +1748,8 @@
                 "resourcesCrafting"
             ],
             "kind": "action",
-            "out": 4,
-            "in": 2,
+            "out": 5,
+            "in": 3,
             "depth": 3
         },
         {
@@ -1758,11 +1772,13 @@
             "short": "CargoDroneSendAction",
             "group": "commands",
             "file": "app/Controllers/Telegram/Commands/Actions/Drone/CargoDroneSendAction.php",
-            "routes": [],
-            "kind": "screen",
+            "routes": [
+                "cargoDroneSend_*"
+            ],
+            "kind": "action",
             "out": 4,
-            "in": 0,
-            "depth": null
+            "in": 1,
+            "depth": 4
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Drone.CombatDroneActivateAction",
@@ -1770,11 +1786,13 @@
             "short": "CombatDroneActivateAction",
             "group": "commands",
             "file": "app/Controllers/Telegram/Commands/Actions/Drone/CombatDroneActivateAction.php",
-            "routes": [],
-            "kind": "screen",
+            "routes": [
+                "combatDroneActivate_*"
+            ],
+            "kind": "action",
             "out": 2,
-            "in": 0,
-            "depth": null
+            "in": 1,
+            "depth": 4
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Drone.CombatDroneListAction",
@@ -1866,11 +1884,13 @@
             "short": "RecceDroneAction",
             "group": "commands",
             "file": "app/Controllers/Telegram/Commands/Actions/Drone/RecceDroneAction.php",
-            "routes": [],
-            "kind": "screen",
+            "routes": [
+                "recceDrone_*"
+            ],
+            "kind": "action",
             "out": 2,
-            "in": 0,
-            "depth": null
+            "in": 1,
+            "depth": 4
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Drone.RepairDroneInfoAction",
@@ -1910,8 +1930,8 @@
                 "entertainment"
             ],
             "kind": "action",
-            "out": 5,
-            "in": 12,
+            "out": 7,
+            "in": 13,
             "depth": 2
         },
         {
@@ -1980,6 +2000,21 @@
             "kind": "action",
             "out": 4,
             "in": 4,
+            "depth": 3
+        },
+        {
+            "id": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "short": "OracleAction",
+            "group": "entertainment",
+            "file": "app/Controllers/Telegram/Commands/Actions/Games/OracleAction.php",
+            "routes": [
+                "oracle",
+                "oracleLocked"
+            ],
+            "kind": "action",
+            "out": 11,
+            "in": 10,
             "depth": 3
         },
         {
@@ -2078,7 +2113,7 @@
             ],
             "kind": "action",
             "out": 11,
-            "in": 30,
+            "in": 34,
             "depth": 2
         },
         {
@@ -2091,7 +2126,7 @@
                 "move_dir_*"
             ],
             "kind": "action",
-            "out": 18,
+            "out": 20,
             "in": 16,
             "depth": 3
         },
@@ -2275,7 +2310,7 @@
             ],
             "kind": "action",
             "out": 2,
-            "in": 7,
+            "in": 8,
             "depth": 3
         },
         {
@@ -2644,11 +2679,13 @@
                 "duelsOpenOn",
                 "duelsOpenOff",
                 "notifySoundOn",
-                "notifySoundOff"
+                "notifySoundOff",
+                "nodeAnnounceOn",
+                "nodeAnnounceOff"
             ],
             "kind": "action",
-            "out": 11,
-            "in": 13,
+            "out": 13,
+            "in": 15,
             "depth": 1
         },
         {
@@ -2983,7 +3020,7 @@
                 "withoutTrainingStart"
             ],
             "kind": "action",
-            "out": 6,
+            "out": 7,
             "in": 11,
             "depth": 4
         },
@@ -3015,6 +3052,34 @@
             "out": 2,
             "in": 1,
             "depth": null
+        },
+        {
+            "id": "Controllers.Telegram.Commands.Actions.Tribute.TributeBuyoutAction",
+            "class": "App\\Controllers\\Telegram\\Commands\\Actions\\Tribute\\TributeBuyoutAction",
+            "short": "TributeBuyoutAction",
+            "group": "commands",
+            "file": "app/Controllers/Telegram/Commands/Actions/Tribute/TributeBuyoutAction.php",
+            "routes": [
+                "tributeBuyout"
+            ],
+            "kind": "action",
+            "out": 2,
+            "in": 2,
+            "depth": 3
+        },
+        {
+            "id": "Controllers.Telegram.Commands.Actions.Tribute.TributeStatusAction",
+            "class": "App\\Controllers\\Telegram\\Commands\\Actions\\Tribute\\TributeStatusAction",
+            "short": "TributeStatusAction",
+            "group": "commands",
+            "file": "app/Controllers/Telegram/Commands/Actions/Tribute/TributeStatusAction.php",
+            "routes": [
+                "tributeStatus"
+            ],
+            "kind": "action",
+            "out": 1,
+            "in": 2,
+            "depth": 2
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.UsePharmacyAction",
@@ -3228,7 +3293,7 @@
             "file": "app/Services/Bases/BaseServiceMessageFormatter.php",
             "routes": [],
             "kind": "service-screen",
-            "out": 11,
+            "out": 12,
             "in": 1,
             "depth": 1
         },
@@ -3241,6 +3306,18 @@
             "routes": [],
             "kind": "service-screen",
             "out": 5,
+            "in": 0,
+            "depth": null
+        },
+        {
+            "id": "Services.Onboarding.GuideService",
+            "class": "App\\Services\\Onboarding\\GuideService",
+            "short": "GuideService",
+            "group": "services",
+            "file": "app/Services/Onboarding/GuideService.php",
+            "routes": [],
+            "kind": "service-screen",
+            "out": 3,
             "in": 0,
             "depth": null
         },
@@ -3264,7 +3341,7 @@
             "file": "app/Services/Onboarding/OnboardingHintCatalog.php",
             "routes": [],
             "kind": "service-screen",
-            "out": 3,
+            "out": 7,
             "in": 0,
             "depth": null
         },
@@ -3288,8 +3365,8 @@
             "file": "app/Services/Player/CharacterService.php",
             "routes": [],
             "kind": "service-screen",
-            "out": 14,
-            "in": 86,
+            "out": 16,
+            "in": 87,
             "depth": 1
         },
         {
@@ -3300,7 +3377,7 @@
             "file": "app/Services/Player/CraftService.php",
             "routes": [],
             "kind": "service-screen",
-            "out": 3,
+            "out": 5,
             "in": 1,
             "depth": 1
         },
@@ -3348,7 +3425,7 @@
             "file": "app/Services/Player/ProfileHubService.php",
             "routes": [],
             "kind": "service-screen",
-            "out": 12,
+            "out": 13,
             "in": 0,
             "depth": null
         },
@@ -3385,6 +3462,18 @@
             "routes": [],
             "kind": "service-screen",
             "out": 2,
+            "in": 0,
+            "depth": null
+        },
+        {
+            "id": "Services.PVE.BossEncounterService",
+            "class": "App\\Services\\PVE\\BossEncounterService",
+            "short": "BossEncounterService",
+            "group": "services",
+            "file": "app/Services/PVE/BossEncounterService.php",
+            "routes": [],
+            "kind": "service-screen",
+            "out": 11,
             "in": 0,
             "depth": null
         },
@@ -3617,6 +3706,18 @@
             "depth": null
         },
         {
+            "id": "TaskHandlers.Onboarding.ComebackNudgeHandler",
+            "class": "App\\TaskHandlers\\Onboarding\\ComebackNudgeHandler",
+            "short": "ComebackNudgeHandler",
+            "group": "task-results",
+            "file": "app/TaskHandlers/Onboarding/ComebackNudgeHandler.php",
+            "routes": [],
+            "kind": "task-result",
+            "out": 2,
+            "in": 0,
+            "depth": null
+        },
+        {
             "id": "TaskHandlers.Onboarding.OnboardingNudgeHandler",
             "class": "App\\TaskHandlers\\Onboarding\\OnboardingNudgeHandler",
             "short": "OnboardingNudgeHandler",
@@ -3715,6 +3816,20 @@
             "depth": 3
         },
         {
+            "id": "Controllers.Telegram.Commands.Actions.Guide.GuideAction",
+            "class": "App\\Controllers\\Telegram\\Commands\\Actions\\Guide\\GuideAction",
+            "short": "GuideAction",
+            "group": "commands",
+            "file": "app/Controllers/Telegram/Commands/Actions/Guide/GuideAction.php",
+            "routes": [
+                "guide"
+            ],
+            "kind": "action",
+            "out": 0,
+            "in": 2,
+            "depth": 2
+        },
+        {
             "id": "Controllers.Telegram.Commands.Actions.Achievements.AchievementsAction",
             "class": "App\\Controllers\\Telegram\\Commands\\Actions\\Achievements\\AchievementsAction",
             "short": "AchievementsAction",
@@ -3727,6 +3842,34 @@
             "out": 0,
             "in": 1,
             "depth": null
+        },
+        {
+            "id": "Controllers.Telegram.Commands.Actions.Streak.StreakScreenAction",
+            "class": "App\\Controllers\\Telegram\\Commands\\Actions\\Streak\\StreakScreenAction",
+            "short": "StreakScreenAction",
+            "group": "commands",
+            "file": "app/Controllers/Telegram/Commands/Actions/Streak/StreakScreenAction.php",
+            "routes": [
+                "streakScreen"
+            ],
+            "kind": "action",
+            "out": 0,
+            "in": 1,
+            "depth": null
+        },
+        {
+            "id": "Controllers.Telegram.Commands.Actions.PVP.BountyBoardAction",
+            "class": "App\\Controllers\\Telegram\\Commands\\Actions\\PVP\\BountyBoardAction",
+            "short": "BountyBoardAction",
+            "group": "combat",
+            "file": "app/Controllers/Telegram/Commands/Actions/PVP/BountyBoardAction.php",
+            "routes": [
+                "bountyBoard"
+            ],
+            "kind": "action",
+            "out": 0,
+            "in": 1,
+            "depth": 3
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Economy.PlayerEconomyAction",
@@ -3935,7 +4078,7 @@
             ],
             "kind": "action",
             "out": 0,
-            "in": 5,
+            "in": 4,
             "depth": 2
         },
         {
@@ -3977,8 +4120,8 @@
             ],
             "kind": "action",
             "out": 0,
-            "in": 0,
-            "depth": null
+            "in": 1,
+            "depth": 2
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Camp.TeleportUseAction",
@@ -4035,6 +4178,20 @@
             "out": 0,
             "in": 1,
             "depth": 3
+        },
+        {
+            "id": "Controllers.Telegram.Commands.Actions.World.StrategicSearchAction",
+            "class": "App\\Controllers\\Telegram\\Commands\\Actions\\World\\StrategicSearchAction",
+            "short": "StrategicSearchAction",
+            "group": "commands",
+            "file": "app/Controllers/Telegram/Commands/Actions/World/StrategicSearchAction.php",
+            "routes": [
+                "strategicSearch"
+            ],
+            "kind": "action",
+            "out": 0,
+            "in": 1,
+            "depth": 4
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Drone.CargoDroneLockedAction",
@@ -4105,6 +4262,20 @@
             "out": 0,
             "in": 1,
             "depth": null
+        },
+        {
+            "id": "Controllers.Telegram.Commands.Actions.NPC.BossEncounterAction",
+            "class": "App\\Controllers\\Telegram\\Commands\\Actions\\NPC\\BossEncounterAction",
+            "short": "BossEncounterAction",
+            "group": "commands",
+            "file": "app/Controllers/Telegram/Commands/Actions/NPC/BossEncounterAction.php",
+            "routes": [
+                "nodeAct*"
+            ],
+            "kind": "action",
+            "out": 0,
+            "in": 10,
+            "depth": 4
         },
         {
             "id": "Controllers.Telegram.Commands.Actions.Poll.PollVoteAction",
@@ -4268,12 +4439,12 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.DefensiveBuildingHandler",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\DefensiveBuildingHandler",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.RepairBuildingAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\RepairBuildingAction",
             "label": "🔧 Ремонт",
             "callback": "'repairBuilding_' . $cbId",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "matched_by": "prefix-dispatcher:repairBuilding_",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.DefensiveBuildingHandler",
@@ -4458,12 +4629,12 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.RepairBuildingAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\RepairBuildingAction",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.Camp.Buildings.RepairBuildingAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\RepairBuildingAction",
             "label": "✅ Починить",
             "callback": "'confirmRepairBuilding_' . $cbId",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "matched_by": "prefix-dispatcher:confirmRepairBuilding_",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Camp.Buildings.RepairBuildingAction",
@@ -5336,16 +5507,6 @@
             "unresolved": false
         },
         {
-            "from": "Controllers.Telegram.Commands.Actions.Camp.EntrenchAction",
-            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\EntrenchAction",
-            "to": "Controllers.Telegram.Commands.Actions.Camp.CampShowCreationAction",
-            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampShowCreationAction",
-            "label": "🏕 Разбить лагерь",
-            "callback": "'Camp'",
-            "matched_by": "exact:Camp",
-            "unresolved": false
-        },
-        {
             "from": "Controllers.Telegram.Commands.Actions.Camp.GenericBuildingInfoAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\GenericBuildingInfoAction",
             "to": "Controllers.Telegram.Commands.Actions.Camp.CampShowCreationAction",
@@ -5698,12 +5859,12 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Caravan.CaravanLookAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Caravan\\CaravanLookAction",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.Caravan.CaravanBuyDroneAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Caravan\\CaravanBuyDroneAction",
             "label": "🛍 Купить ({$goldPrice} 🪙)",
             "callback": "\"caravanBuyDrone_{$caravanId}\"",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "matched_by": "prefix-dispatcher:caravanBuyDrone_",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Caravan.CaravanLookAction",
@@ -5988,12 +6149,12 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.Insurance.CraftInsuranceListAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\Insurance\\CraftInsuranceListAction",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.Craft.Insurance.CraftInsureItemAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\Insurance\\CraftInsureItemAction",
             "label": "🛡 {$name} ×{$qty}",
             "callback": "\"craftInsure_{$logId}\"",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "matched_by": "prefix-dispatcher:craftInsure_",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.Insurance.CraftInsureItemAction",
@@ -6018,12 +6179,12 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.Insurance.CraftInsureItemAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\Insurance\\CraftInsureItemAction",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.Craft.Insurance.CraftInsureItemAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\Insurance\\CraftInsureItemAction",
             "label": "✅ Заплатить {$gold} 🪙",
             "callback": "\"confirm_craft_insure_{$logId}\"",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "matched_by": "prefix-dispatcher:confirm_craft_insure_",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.Repair.NpcRepairAction",
@@ -6058,12 +6219,12 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.Repair.NpcRepairAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\Repair\\NpcRepairAction",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.Craft.Repair.NpcRepairAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\Repair\\NpcRepairAction",
             "label": "✅ Заплатить {$gold} 🪙",
             "callback": "\"confirm_npc_repair_{$logId}\"",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "matched_by": "prefix-dispatcher:confirm_npc_repair_",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.Repair.NpcRepairAction",
@@ -6088,12 +6249,12 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.Repair.RepairCraftedItemAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\Repair\\RepairCraftedItemAction",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.Craft.Repair.NpcRepairAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\Repair\\NpcRepairAction",
             "label": "🛠 NPC-мастер (gold, мгновенно)",
             "callback": "\"npc_repair_{$logId}\"",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "matched_by": "prefix-dispatcher:npc_repair_",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.Repair.RepairCraftedItemAction",
@@ -6128,12 +6289,12 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.Repair.RepairCraftedItemAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\Repair\\RepairCraftedItemAction",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.Craft.Repair.NpcRepairAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\Repair\\NpcRepairAction",
             "label": "🛠 Или к NPC (gold, мгновенно)",
             "callback": "\"npc_repair_{$logId}\"",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "matched_by": "prefix-dispatcher:npc_repair_",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.Repair.RepairCraftedItemAction",
@@ -6178,12 +6339,12 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.Repair.RepairToolsListAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\Repair\\RepairToolsListAction",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.Craft.Repair.NpcRepairAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\Repair\\NpcRepairAction",
             "label": "🛠 NPC",
             "callback": "\"npc_repair_{$logId}\"",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "matched_by": "prefix-dispatcher:npc_repair_",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.Seasonal.SeasonalCraftSelect",
@@ -7068,22 +7229,22 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.AntisepticCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\AntisepticCraft1Action",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠 Крафт 1шт",
-            "callback": "'craftAntisepticCraft1_1'",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "callback": "'genericCraft_Antiseptic_1'",
+            "matched_by": "exact:genericCraft",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.AntisepticCraft1Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\AntisepticCraft1Action",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.Craft.GenericCraftActionStart",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\GenericCraftActionStart",
             "label": "🛠 Крафт 5шт",
-            "callback": "'craftAntisepticCraft1_5'",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "callback": "'genericCraft_Antiseptic_5'",
+            "matched_by": "exact:genericCraft",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Medical.AntisepticCraft1Action",
@@ -8110,7 +8271,7 @@
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Workbench\\WorkbenchCraft1Select",
             "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Workbench.WorkbenchOneAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Workbench\\WorkbenchOneAction",
-            "label": "🔬 Верстак 1 (T1)",
+            "label": "🔬 Верстак 1",
             "callback": "'workbenchOne'",
             "matched_by": "exact:workbenchOne",
             "unresolved": false
@@ -8120,9 +8281,19 @@
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Workbench\\WorkbenchCraft1Select",
             "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Workbench.WorkbenchProfessionalAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Workbench\\WorkbenchProfessionalAction",
-            "label": "🛠️ Верстак 3 (T3)",
+            "label": "🛠️ Профессиональный верстак",
             "callback": "'workbenchProfessional'",
             "matched_by": "exact:workbenchProfessional",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Workbench.WorkbenchCraft1Select",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Workbench\\WorkbenchCraft1Select",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.GeneralCraftingAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\GeneralCraftingAction",
+            "label": "🔨 К общему крафту",
+            "callback": "'generalCraft'",
+            "matched_by": "exact:generalCraft",
             "unresolved": false
         },
         {
@@ -8163,6 +8334,16 @@
             "label": "🛍️ Купить",
             "callback": "'buy'",
             "matched_by": "exact:buy",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Workbench.WorkbenchOneAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Workbench\\WorkbenchOneAction",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Workbench.WorkbenchCraft1Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Workbench\\WorkbenchCraft1Select",
+            "label": "🔬 Верстаки",
+            "callback": "'WorkbenchChoice'",
+            "matched_by": "exact:WorkbenchChoice",
             "unresolved": false
         },
         {
@@ -8223,6 +8404,16 @@
             "label": "🛍️ Купить",
             "callback": "'buy'",
             "matched_by": "exact:buy",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Workbench.WorkbenchProfessionalAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Workbench\\WorkbenchProfessionalAction",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Workbench.WorkbenchCraft1Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Workbench\\WorkbenchCraft1Select",
+            "label": "🔬 Верстаки",
+            "callback": "'WorkbenchChoice'",
+            "matched_by": "exact:WorkbenchChoice",
             "unresolved": false
         },
         {
@@ -9326,6 +9517,26 @@
             "unresolved": false
         },
         {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.StandardCraftingAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\StandardCraftingAction",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Workbench.WorkbenchCraft1Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Workbench\\WorkbenchCraft1Select",
+            "label": "🔬 Верстаки",
+            "callback": "'WorkbenchChoice'",
+            "matched_by": "exact:WorkbenchChoice",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.StandardCraftingAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\StandardCraftingAction",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.GeneralCraftingAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\GeneralCraftingAction",
+            "label": "🔨 К общему крафту",
+            "callback": "'generalCraft'",
+            "matched_by": "exact:generalCraft",
+            "unresolved": false
+        },
+        {
             "from": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.TeleportBeacon.StartCraftTeleportBeaconBasic2Action",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\TeleportBeacon\\StartCraftTeleportBeaconBasic2Action",
             "to": "Controllers.Telegram.Commands.Actions.InventoryAction",
@@ -9758,6 +9969,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.CraftedResourcesAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\CraftedResourcesAction",
+            "to": "Controllers.Telegram.Commands.Actions.CraftedResourcesAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\CraftedResourcesAction",
+            "label": "• …",
+            "callback": "\"resourcesCrafting_sort_{$m}\"",
+            "matched_by": "exact:resourcesCrafting",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.CraftedResourcesAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\CraftedResourcesAction",
             "to": "Controllers.Telegram.Commands.Actions.Craft.Repair.RepairToolsListAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\Repair\\RepairToolsListAction",
             "label": "🔧 Ремонт инструментов",
@@ -9818,12 +10039,12 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Drone.CargoDroneSelectAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Drone\\CargoDroneSelectAction",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.Drone.CargoDroneSendAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Drone\\CargoDroneSendAction",
             "label": "🚚 {$emoji} {$resName} × {$sendQty} ({$sendKg} кг)",
             "callback": "\"cargoDroneSend_{$logId}_{$resId}\"",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "matched_by": "prefix-dispatcher:cargoDroneSend_",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Drone.CargoDroneSelectAction",
@@ -9928,12 +10149,12 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Drone.CombatDroneListAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Drone\\CombatDroneListAction",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.Drone.CombatDroneActivateAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Drone\\CombatDroneActivateAction",
             "label": "🛡 Активировать #{$instance}",
             "callback": "\"combatDroneActivate_{$logId}\"",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "matched_by": "prefix-dispatcher:combatDroneActivate_",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Drone.DroneCargoCraftInfoAction",
@@ -10028,12 +10249,12 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.Drone.DroneScoutCraftedListAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Drone\\DroneScoutCraftedListAction",
-            "to": null,
-            "to_class": null,
+            "to": "Controllers.Telegram.Commands.Actions.Drone.RecceDroneAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Drone\\RecceDroneAction",
             "label": "🚁 Запустить #{$instance}",
             "callback": "\"recceDrone_{$logId}\"",
-            "matched_by": "unresolved",
-            "unresolved": true
+            "matched_by": "prefix-dispatcher:recceDrone_",
+            "unresolved": false
         },
         {
             "from": "Controllers.Telegram.Commands.Actions.Drone.DroneScoutCraftedListAction",
@@ -10203,6 +10424,26 @@
             "label": "🔀 Перемешать ресурсы",
             "callback": "'ShuffleResources'",
             "matched_by": "exact:ShuffleResources",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.EntertaimentAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\EntertaimentAction",
+            "to": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "label": "🔮 Оракул острова",
+            "callback": "'oracle'",
+            "matched_by": "exact:oracle",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.EntertaimentAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\EntertaimentAction",
+            "to": "Controllers.Telegram.Commands.Actions.PVP.BountyBoardAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\PVP\\BountyBoardAction",
+            "label": "🎯 Доска розыска",
+            "callback": "'bountyBoard'",
+            "matched_by": "exact:bountyBoard",
             "unresolved": false
         },
         {
@@ -10513,6 +10754,116 @@
             "label": "Персонаж",
             "callback": "'character_info'",
             "matched_by": "character-shortcut",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "to": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "label": "{$icon} Ставить — {$m['question']}",
+            "callback": "'oracle_m_' . $m['id'",
+            "matched_by": "exact:oracle",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "to": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "label": "📊 Мои ставки",
+            "callback": "'oracle_my'",
+            "matched_by": "exact:oracle",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "to": "Controllers.Telegram.Commands.Actions.EntertaimentAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\EntertaimentAction",
+            "label": "⬅️ Развлечения",
+            "callback": "'entertainment'",
+            "matched_by": "exact:entertainment",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "to": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "label": "Ставить на: {$o['label']} ({$oddsStr})",
+            "callback": "'oracle_o_' . $marketId . '_' . $o['code'",
+            "matched_by": "exact:oracle",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "to": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "label": "📊 Мои ставки",
+            "callback": "'oracle'",
+            "matched_by": "exact:oracle",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "to": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "label": "🪙",
+            "callback": "'oracle_bet_' . $marketId . '_' . $code . '_' . $bet",
+            "matched_by": "exact:oracle",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "to": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "label": "⬅️ Назад к рынку",
+            "callback": "'oracle_m_' . $marketId",
+            "matched_by": "exact:oracle",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "to": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "label": "🎲 К рынку",
+            "callback": "'oracle_m_' . $marketId",
+            "matched_by": "exact:oracle",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "to": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "label": "🎲 К рынку …",
+            "callback": "'oracle_my'",
+            "matched_by": "exact:oracle",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "to": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "label": "⬅️ Рынки",
+            "callback": "'oracle'",
+            "matched_by": "exact:oracle",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Games.OracleAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Games\\OracleAction",
+            "to": "Controllers.Telegram.Commands.Actions.CharacterGoActions",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\CharacterGoActions",
+            "label": "🧑‍🌾 Действия",
+            "callback": "'characterActions'",
+            "matched_by": "exact:characterActions",
             "unresolved": false
         },
         {
@@ -11148,11 +11499,31 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.MoveCharacterToDirectionAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterToDirectionAction",
+            "to": "Controllers.Telegram.Commands.Actions.NPC.BossEncounterAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\NPC\\BossEncounterAction",
+            "label": "☠ Узел",
+            "callback": "'nodeAct_look_0'",
+            "matched_by": "prefix:nodeAct",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.MoveCharacterToDirectionAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterToDirectionAction",
             "to": "Controllers.Telegram.Commands.Actions.NPC.NpcEncounterAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\NPC\\NpcEncounterAction",
             "label": "👤 Незнакомец",
             "callback": "'npcEncounter'",
             "matched_by": "exact:npcEncounter",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.MoveCharacterToDirectionAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterToDirectionAction",
+            "to": "Controllers.Telegram.Commands.Actions.World.StrategicSearchAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\World\\StrategicSearchAction",
+            "label": "🔍 Обыскать: …",
+            "callback": "'strategicSearch'",
+            "matched_by": "exact:strategicSearch",
             "unresolved": false
         },
         {
@@ -13078,6 +13449,26 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.SettingsAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\SettingsAction",
+            "to": "Controllers.Telegram.Commands.Actions.SettingsAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\SettingsAction",
+            "label": "🔕 Отключить сводку",
+            "callback": "'nodeAnnounceOff'",
+            "matched_by": "exact:nodeAnnounceOff",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.SettingsAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\SettingsAction",
+            "to": "Controllers.Telegram.Commands.Actions.SettingsAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\SettingsAction",
+            "label": "📻 Включить сводку",
+            "callback": "'nodeAnnounceOn'",
+            "matched_by": "exact:nodeAnnounceOn",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.SettingsAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\SettingsAction",
             "to": "Controllers.Telegram.Commands.Actions.CharacterGoActions",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\CharacterGoActions",
             "label": "🔙 Назад",
@@ -13738,6 +14129,16 @@
         {
             "from": "Controllers.Telegram.Commands.Actions.StartGame.WithoutTrainingStartAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\StartGame\\WithoutTrainingStartAction",
+            "to": "Controllers.Telegram.Commands.Actions.Guide.GuideAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Guide\\GuideAction",
+            "label": "📖 Путь новичка",
+            "callback": "'guide'",
+            "matched_by": "exact:guide",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.StartGame.WithoutTrainingStartAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\StartGame\\WithoutTrainingStartAction",
             "to": "Controllers.Telegram.Commands.Actions.EntertaimentAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\EntertaimentAction",
             "label": "🎮 Развлечения",
@@ -13886,6 +14287,36 @@
             "unresolved": false
         },
         {
+            "from": "Controllers.Telegram.Commands.Actions.Tribute.TributeBuyoutAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Tribute\\TributeBuyoutAction",
+            "to": "Controllers.Telegram.Commands.Actions.Tribute.TributeBuyoutAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Tribute\\TributeBuyoutAction",
+            "label": "✅ Выкупиться ({$cost} 🪙)",
+            "callback": "'tributeBuyout_ok'",
+            "matched_by": "exact:tributeBuyout",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Tribute.TributeBuyoutAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Tribute\\TributeBuyoutAction",
+            "to": "Controllers.Telegram.Commands.Actions.Tribute.TributeStatusAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Tribute\\TributeStatusAction",
+            "label": "↩ Назад",
+            "callback": "'tributeStatus'",
+            "matched_by": "exact:tributeStatus",
+            "unresolved": false
+        },
+        {
+            "from": "Controllers.Telegram.Commands.Actions.Tribute.TributeStatusAction",
+            "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Tribute\\TributeStatusAction",
+            "to": "Controllers.Telegram.Commands.Actions.Tribute.TributeBuyoutAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Tribute\\TributeBuyoutAction",
+            "label": "💰 Выкупиться ({$ransom} 🪙)",
+            "callback": "'tributeBuyout'",
+            "matched_by": "exact:tributeBuyout",
+            "unresolved": false
+        },
+        {
             "from": "Controllers.Telegram.Commands.Actions.UsePharmacyAction",
             "from_class": "App\\Controllers\\Telegram\\Commands\\Actions\\UsePharmacyAction",
             "to": "Controllers.Telegram.Commands.Actions.CharacterGoActions",
@@ -14000,7 +14431,7 @@
             "from_class": "App\\Controllers\\Telegram\\Commands\\Profile\\GearArmorAction",
             "to": "Controllers.Telegram.Commands.Profile.GearArmorDetailAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Profile\\GearArmorDetailAction",
-            "label": "{$name}",
+            "label": "{$sb}{$name}",
             "callback": "\"gearArmorDetail_{$row['id'",
             "matched_by": "exact:gearArmorDetail",
             "unresolved": false
@@ -14080,7 +14511,7 @@
             "from_class": "App\\Controllers\\Telegram\\Commands\\Profile\\GearWeaponsAction",
             "to": "Controllers.Telegram.Commands.Profile.GearWeaponDetailAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Profile\\GearWeaponDetailAction",
-            "label": "{$name}",
+            "label": "{$sb}{$name}",
             "callback": "\"gearWeaponDetail_{$row['id'",
             "matched_by": "exact:gearWeaponDetail",
             "unresolved": false
@@ -14310,9 +14741,19 @@
             "from_class": "App\\Services\\Bases\\BaseServiceMessageFormatter",
             "to": "Controllers.Telegram.Commands.Actions.Camp.CampCreateConfirmAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampCreateConfirmAction",
-            "label": "✅ Подтвердить",
+            "label": "✅ Разбить лагерь здесь",
             "callback": "'CampCreateConfirm'",
             "matched_by": "exact:CampCreateConfirm",
+            "unresolved": false
+        },
+        {
+            "from": "Services.Bases.BaseServiceMessageFormatter",
+            "from_class": "App\\Services\\Bases\\BaseServiceMessageFormatter",
+            "to": "Controllers.Telegram.Commands.Actions.Camp.CampCancelAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\CampCancelAction",
+            "label": "↩️ Не сейчас",
+            "callback": "'CancelCamp'",
+            "matched_by": "exact:CancelCamp",
             "unresolved": false
         },
         {
@@ -14366,6 +14807,36 @@
             "unresolved": false
         },
         {
+            "from": "Services.Onboarding.GuideService",
+            "from_class": "App\\Services\\Onboarding\\GuideService",
+            "to": null,
+            "to_class": null,
+            "label": "button",
+            "callback": "self::CALLBACK_PREFIX . $section['key'",
+            "matched_by": "dynamic",
+            "unresolved": true
+        },
+        {
+            "from": "Services.Onboarding.GuideService",
+            "from_class": "App\\Services\\Onboarding\\GuideService",
+            "to": null,
+            "to_class": null,
+            "label": "⬅️ К оглавлению",
+            "callback": "self::CALLBACK_INDEX",
+            "matched_by": "dynamic",
+            "unresolved": true
+        },
+        {
+            "from": "Services.Onboarding.GuideService",
+            "from_class": "App\\Services\\Onboarding\\GuideService",
+            "to": null,
+            "to_class": null,
+            "label": "Дальше: …",
+            "callback": "self::CALLBACK_PREFIX . $nextKey",
+            "matched_by": "dynamic",
+            "unresolved": true
+        },
+        {
             "from": "Services.Onboarding.OnboardingChainCatalog",
             "from_class": "App\\Services\\Onboarding\\OnboardingChainCatalog",
             "to": "Controllers.Telegram.Commands.Actions.Quest.ActiveQuests",
@@ -14383,6 +14854,36 @@
             "label": "👨‍🎤 Персонаж",
             "callback": "'character'",
             "matched_by": "character-shortcut",
+            "unresolved": false
+        },
+        {
+            "from": "Services.Onboarding.OnboardingHintCatalog",
+            "from_class": "App\\Services\\Onboarding\\OnboardingHintCatalog",
+            "to": "Controllers.Telegram.Commands.Actions.MoveCharacterAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterAction",
+            "label": "🧭 Двигаться",
+            "callback": "'move'",
+            "matched_by": "exact:move",
+            "unresolved": false
+        },
+        {
+            "from": "Services.Onboarding.OnboardingHintCatalog",
+            "from_class": "App\\Services\\Onboarding\\OnboardingHintCatalog",
+            "to": "Controllers.Telegram.Commands.Actions.Camp.BuildListAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\BuildListAction",
+            "label": "🏗 Строить",
+            "callback": "'Build'",
+            "matched_by": "exact:Build",
+            "unresolved": false
+        },
+        {
+            "from": "Services.Onboarding.OnboardingHintCatalog",
+            "from_class": "App\\Services\\Onboarding\\OnboardingHintCatalog",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.GeneralCraftingAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\GeneralCraftingAction",
+            "label": "🔨 Общий крафт",
+            "callback": "'generalCraft'",
+            "matched_by": "exact:generalCraft",
             "unresolved": false
         },
         {
@@ -14413,6 +14914,16 @@
             "label": "🤖 Ангар",
             "callback": "'hangar'",
             "matched_by": "exact:hangar",
+            "unresolved": false
+        },
+        {
+            "from": "Services.Onboarding.OnboardingHintCatalog",
+            "from_class": "App\\Services\\Onboarding\\OnboardingHintCatalog",
+            "to": "Controllers.Telegram.Commands.Actions.NPC.BossEncounterAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\NPC\\BossEncounterAction",
+            "label": "☠ Осмотреть",
+            "callback": "'nodeAct_look_0'",
+            "matched_by": "prefix:nodeAct",
             "unresolved": false
         },
         {
@@ -14576,6 +15087,26 @@
             "unresolved": false
         },
         {
+            "from": "Services.Player.CharacterService",
+            "from_class": "App\\Services\\Player\\CharacterService",
+            "to": "Controllers.Telegram.Commands.Actions.Tribute.TributeStatusAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Tribute\\TributeStatusAction",
+            "label": "⚖️ Трофейная подать",
+            "callback": "'tributeStatus'",
+            "matched_by": "exact:tributeStatus",
+            "unresolved": false
+        },
+        {
+            "from": "Services.Player.CharacterService",
+            "from_class": "App\\Services\\Player\\CharacterService",
+            "to": "Controllers.Telegram.Commands.Actions.Guide.GuideAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Guide\\GuideAction",
+            "label": "📖 Путь новичка",
+            "callback": "'guide'",
+            "matched_by": "exact:guide",
+            "unresolved": false
+        },
+        {
             "from": "Services.Player.CraftService",
             "from_class": "App\\Services\\Player\\CraftService",
             "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.GeneralCraftingAction",
@@ -14590,9 +15121,29 @@
             "from_class": "App\\Services\\Player\\CraftService",
             "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchStandard.StandardCraftingAction",
             "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchStandard\\StandardCraftingAction",
-            "label": "🔧 Стандарт крафт",
+            "label": "🔧 Стандартный крафт",
             "callback": "'standardCraft'",
             "matched_by": "exact:standardCraft",
+            "unresolved": false
+        },
+        {
+            "from": "Services.Player.CraftService",
+            "from_class": "App\\Services\\Player\\CraftService",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Workbench.WorkbenchProfessionalAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Workbench\\WorkbenchProfessionalAction",
+            "label": "🛠️ Профессиональный крафт",
+            "callback": "'workbenchProfessional'",
+            "matched_by": "exact:workbenchProfessional",
+            "unresolved": false
+        },
+        {
+            "from": "Services.Player.CraftService",
+            "from_class": "App\\Services\\Player\\CraftService",
+            "to": "Controllers.Telegram.Commands.Actions.Craft.WorkbenchGeneral.Workbench.WorkbenchCraft1Select",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Workbench\\WorkbenchCraft1Select",
+            "label": "🔬 Верстаки",
+            "callback": "'WorkbenchChoice'",
+            "matched_by": "exact:WorkbenchChoice",
             "unresolved": false
         },
         {
@@ -14713,6 +15264,16 @@
             "label": "🎖 Титулы",
             "callback": "'titles'",
             "matched_by": "exact:titles",
+            "unresolved": false
+        },
+        {
+            "from": "Services.Player.ProfileHubService",
+            "from_class": "App\\Services\\Player\\ProfileHubService",
+            "to": "Controllers.Telegram.Commands.Actions.Streak.StreakScreenAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Streak\\StreakScreenAction",
+            "label": "🔥 Серия выживания",
+            "callback": "'streakScreen'",
+            "matched_by": "exact:streakScreen",
             "unresolved": false
         },
         {
@@ -14883,6 +15444,116 @@
             "label": "🧑‍🌾 Действия 🛠️",
             "callback": "'characterActions'",
             "matched_by": "exact:characterActions",
+            "unresolved": false
+        },
+        {
+            "from": "Services.PVE.BossEncounterService",
+            "from_class": "App\\Services\\PVE\\BossEncounterService",
+            "to": "Controllers.Telegram.Commands.Actions.NPC.BossEncounterAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\NPC\\BossEncounterAction",
+            "label": "⚔️ Напасть на узел",
+            "callback": "\"nodeAct_start_{$pid}\"",
+            "matched_by": "prefix:nodeAct",
+            "unresolved": false
+        },
+        {
+            "from": "Services.PVE.BossEncounterService",
+            "from_class": "App\\Services\\PVE\\BossEncounterService",
+            "to": "Controllers.Telegram.Commands.Actions.NPC.BossEncounterAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\NPC\\BossEncounterAction",
+            "label": "☠ Осмотреть",
+            "callback": "\"nodeAct_look_{$pid}\"",
+            "matched_by": "prefix:nodeAct",
+            "unresolved": false
+        },
+        {
+            "from": "Services.PVE.BossEncounterService",
+            "from_class": "App\\Services\\PVE\\BossEncounterService",
+            "to": "Controllers.Telegram.Commands.Actions.MoveCharacterAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterAction",
+            "label": "🚶 Уйти",
+            "callback": "'move'",
+            "matched_by": "exact:move",
+            "unresolved": false
+        },
+        {
+            "from": "Services.PVE.BossEncounterService",
+            "from_class": "App\\Services\\PVE\\BossEncounterService",
+            "to": "Controllers.Telegram.Commands.Actions.NPC.BossEncounterAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\NPC\\BossEncounterAction",
+            "label": "⚔️ Всё равно напасть",
+            "callback": "\"nodeAct_force_{$pid}\"",
+            "matched_by": "prefix:nodeAct",
+            "unresolved": false
+        },
+        {
+            "from": "Services.PVE.BossEncounterService",
+            "from_class": "App\\Services\\PVE\\BossEncounterService",
+            "to": "Controllers.Telegram.Commands.Actions.MoveCharacterAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterAction",
+            "label": "🚶 Отступить",
+            "callback": "'move'",
+            "matched_by": "exact:move",
+            "unresolved": false
+        },
+        {
+            "from": "Services.PVE.BossEncounterService",
+            "from_class": "App\\Services\\PVE\\BossEncounterService",
+            "to": "Controllers.Telegram.Commands.Actions.MoveCharacterAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterAction",
+            "label": "keyboard",
+            "callback": "'move'",
+            "matched_by": "exact:move",
+            "unresolved": false
+        },
+        {
+            "from": "Services.PVE.BossEncounterService",
+            "from_class": "App\\Services\\PVE\\BossEncounterService",
+            "to": "Controllers.Telegram.Commands.Actions.NPC.BossEncounterAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\NPC\\BossEncounterAction",
+            "label": "⚔️ Удар",
+            "callback": "\"nodeAct_atk_{$pid}\"",
+            "matched_by": "prefix:nodeAct",
+            "unresolved": false
+        },
+        {
+            "from": "Services.PVE.BossEncounterService",
+            "from_class": "App\\Services\\PVE\\BossEncounterService",
+            "to": "Controllers.Telegram.Commands.Actions.NPC.BossEncounterAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\NPC\\BossEncounterAction",
+            "label": "🛡 Защита",
+            "callback": "\"nodeAct_def_{$pid}\"",
+            "matched_by": "prefix:nodeAct",
+            "unresolved": false
+        },
+        {
+            "from": "Services.PVE.BossEncounterService",
+            "from_class": "App\\Services\\PVE\\BossEncounterService",
+            "to": "Controllers.Telegram.Commands.Actions.NPC.BossEncounterAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\NPC\\BossEncounterAction",
+            "label": "🎯 Спецприём",
+            "callback": "\"nodeAct_spec_{$pid}\"",
+            "matched_by": "prefix:nodeAct",
+            "unresolved": false
+        },
+        {
+            "from": "Services.PVE.BossEncounterService",
+            "from_class": "App\\Services\\PVE\\BossEncounterService",
+            "to": "Controllers.Telegram.Commands.Actions.NPC.BossEncounterAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\NPC\\BossEncounterAction",
+            "label": "🍖 Предмет",
+            "callback": "\"nodeAct_item_{$pid}\"",
+            "matched_by": "prefix:nodeAct",
+            "unresolved": false
+        },
+        {
+            "from": "Services.PVE.BossEncounterService",
+            "from_class": "App\\Services\\PVE\\BossEncounterService",
+            "to": "Controllers.Telegram.Commands.Actions.NPC.BossEncounterAction",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\NPC\\BossEncounterAction",
+            "label": "🏃 Отступить",
+            "callback": "\"nodeAct_flee_{$pid}\"",
+            "matched_by": "prefix:nodeAct",
             "unresolved": false
         },
         {
@@ -15393,6 +16064,26 @@
             "label": "🗺️ Исследовать далее",
             "callback": "'march'",
             "matched_by": "exact:march",
+            "unresolved": false
+        },
+        {
+            "from": "TaskHandlers.Onboarding.ComebackNudgeHandler",
+            "from_class": "App\\TaskHandlers\\Onboarding\\ComebackNudgeHandler",
+            "to": "Controllers.Telegram.Commands.Actions.Quest.ActiveQuests",
+            "to_class": "App\\Controllers\\Telegram\\Commands\\Actions\\Quest\\ActiveQuests",
+            "label": "🚀 Активные квесты",
+            "callback": "'activeQuests'",
+            "matched_by": "exact:activeQuests",
+            "unresolved": false
+        },
+        {
+            "from": "TaskHandlers.Onboarding.ComebackNudgeHandler",
+            "from_class": "App\\TaskHandlers\\Onboarding\\ComebackNudgeHandler",
+            "to": "Services.Player.CharacterService",
+            "to_class": "App\\Services\\Player\\CharacterService",
+            "label": "👨‍🎤 Персонаж",
+            "callback": "'character'",
+            "matched_by": "character-shortcut",
             "unresolved": false
         },
         {

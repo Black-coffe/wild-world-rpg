@@ -212,8 +212,8 @@ class AntisepticCraft1Action extends BaseAction
     /**
      * Генерирует массив кнопок «Крафт {количество} шт», только для доступных чисел.
      * Пример результата: [
-     *   ['text' => '🛠 Крафт 1шт',   'callback_data' => 'craftAntisepticCraft1_1'],
-     *   ['text' => '🛠 Крафт 5шт',   'callback_data' => 'craftAntisepticCraft1_5'],
+     *   ['text' => '🛠 Крафт 1шт',   'callback_data' => 'genericCraft_Antiseptic_1'],
+     *   ['text' => '🛠 Крафт 5шт',   'callback_data' => 'genericCraft_Antiseptic_5'],
      *   ...
      * ]
      */

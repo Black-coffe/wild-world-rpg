@@ -56,6 +56,27 @@ final class NavigationMapService
         'upgrade_building_'         => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\UpgradeBuildingAction::class,
         'confirm_upgrade_building_' => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\UpgradeBuildingAction::class,
         'StartRelocationConfirm_'   => \App\Controllers\Telegram\Commands\BaseShiftingCommand::class,
+        // ADR-041: ремонт оборонных зданий (confirm ПЕРЕД ask — конвенция диспетчера).
+        'confirmRepairBuilding_'    => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\RepairBuildingAction::class,
+        'repairBuilding_'           => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\RepairBuildingAction::class,
+        // V25 (ADR-057) / W14b (ADR-068): NPC-караван — покупка offer'а / с торгом.
+        'caravanBuyAll_'            => \App\Controllers\Telegram\Commands\Actions\Caravan\CaravanBuyAction::class,
+        'caravanBuyBargain_'        => \App\Controllers\Telegram\Commands\Actions\Caravan\CaravanBuyAction::class,
+        // W5 (ADR-064): NPC-караван — покупка готового дрона.
+        'caravanBuyDrone_'          => \App\Controllers\Telegram\Commands\Actions\Caravan\CaravanBuyDroneAction::class,
+        // W2 (ADR-058): запуск дрона-разведчика.
+        'recceDrone_'               => \App\Controllers\Telegram\Commands\Actions\Drone\RecceDroneAction::class,
+        // W3b (ADR-060): отправка грузового дрона.
+        'cargoDroneSend_'           => \App\Controllers\Telegram\Commands\Actions\Drone\CargoDroneSendAction::class,
+        // W5 (ADR-064): активация боевого дрона.
+        'combatDroneActivate_'      => \App\Controllers\Telegram\Commands\Actions\Drone\CombatDroneActivateAction::class,
+        // V24 (ADR-056): NPC-страховой агент (confirm перед ask).
+        'confirm_craft_insure_'     => \App\Controllers\Telegram\Commands\Actions\Craft\Insurance\CraftInsureItemAction::class,
+        'craftInsure_'              => \App\Controllers\Telegram\Commands\Actions\Craft\Insurance\CraftInsureItemAction::class,
+        // V23 (ADR-055): NPC-мастер на базе (confirm перед ask).
+        'confirm_npc_repair_'       => \App\Controllers\Telegram\Commands\Actions\Craft\Repair\NpcRepairAction::class,
+        'npc_repair_'               => \App\Controllers\Telegram\Commands\Actions\Craft\Repair\NpcRepairAction::class,
+        // S5b: ремонт крафт-предметов у игрока (confirm перед ask).
         'confirm_repair_'           => \App\Controllers\Telegram\Commands\Actions\Craft\Repair\RepairCraftedItemAction::class,
         'repair_'                   => \App\Controllers\Telegram\Commands\Actions\Craft\Repair\RepairCraftedItemAction::class,
     ];

@@ -100,6 +100,20 @@
 > кодовой базы); метрика годна как trend-watch, не абсолют. Реально кликабельных мёртвых кнопок
 > не найдено (🔴-реестр §7.1 #1-3 закрыт). Апгрейд сканера до data-flow (резолв `$var='literal'`)
 > — отдельная задача NavigationMapService, вне E28.
+>
+> **E28 ревизия (2026-06-24): truly-unresolved сведён к настоящему 0.** Прошлый вывод смешивал
+> `matched_by:dynamic` (норма) с `matched_by:unresolved` (реальные нерезолвы). Аудит вскрыл, что
+> из 16 `unresolved` — **12 ложных**: зеркало `NavigationMapService::PREFIX_DISPATCHER` дрейфнуло
+> (знало 6 префиксов из 18 реального `CallbackPrefixDispatcher` — отсутствовали ремонт зданий
+> ADR-041, караван ADR-057/068, дроны ADR-058/060/064, страховка ADR-056, NPC-ремонт ADR-055).
+> Синхронизировано 1:1 + добавлен анти-дрифт тест `PrefixDispatcherMirrorSyncTest` (гейтит будущий
+> дрейф). Ещё **1 РЕАЛЬНЫЙ латентный мёртвый-баг**: тумблер «Сводка с пустоши» (`nodeAnnounceOn/Off`,
+> ADR-137) не был в `CallbackRoutes` → клик отдал бы «кнопка устарела»; deadness не вскрылась, т.к.
+> тумблер рендерится лишь при `world.nodes.announce_enabled` (dormant). Добавлен exact-роут →
+> SettingsAction (как соседние тумблеры) + тест на resolve. Остальные 2 (`craftAntisepticCraft1_*`) —
+> устаревший пример в docblock'е, поправлен на реальный `genericCraft_Antiseptic_*`. Итог:
+> `matched_by:unresolved` = **16 → 0**; стат `unresolved`-агрегат = **33** (= ровно 33 `dynamic`,
+> рантайм-норма). Цель §E28 «прогон NavigationMapService → 0» достигнута честно.
 
 ---
 

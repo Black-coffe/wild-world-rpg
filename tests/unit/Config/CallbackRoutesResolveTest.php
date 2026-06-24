@@ -99,6 +99,24 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
     }
 
     /**
+     * E28 / ADR-137 «Узлы» — тумблеры «Сводка с пустоши» (`nodeAnnounceOn`/`nodeAnnounceOff`,
+     * SettingsAction) обязаны резолвиться в SettingsAction, как соседние тумблеры
+     * (mediaOn/Off, notifySoundOn/Off). Латентный мёртвый-баг: тумблер рендерится только
+     * при `world.nodes.announce_enabled` (dormant), поэтому его deadness не вскрылась —
+     * без роута клик отдал бы «кнопка устарела». Гейтим на resolve (не throwaway-тап).
+     */
+    public function testNodeAnnounceToggleCallbackRoutesResolve(): void
+    {
+        foreach (['nodeAnnounceOn', 'nodeAnnounceOff'] as $cb) {
+            $this->assertSame(
+                \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
+                $this->cbRoutes->resolve($cb),
+                "callback_data «{$cb}» обязан резолвиться в SettingsAction (тумблер «Сводка с пустоши»)."
+            );
+        }
+    }
+
+    /**
      * 🔴 Анти-дрифт source-scan: мёртвый литерал `inlineMap` не должен вернуться в код
      * Actions. Class-of-bug «unrouted callback» уже бил дважды (npcAct_ + inlineMap);
      * урок feedback_control_tap_not_throwaway — гейтить на resolve, а не на throwaway-тап.
