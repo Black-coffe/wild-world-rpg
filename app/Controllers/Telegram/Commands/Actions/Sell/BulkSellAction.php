@@ -36,7 +36,7 @@ class BulkSellAction extends BaseAction
 
     public const KEY_ENABLED      = 'economy.bulk_sell.enabled';
     public const KEY_PERCENTS     = 'economy.bulk_sell.percent_options';
-    public const DEFAULT_PERCENTS = '10,25,50';
+    public const DEFAULT_PERCENTS = '10,25,50,100';
 
     public function __construct(CallbackQuery $callbackQuery)
     {
@@ -115,15 +115,21 @@ class BulkSellAction extends BaseAction
             );
         }
 
-        $goScope = $rarity === null ? "all_{$percent}" : "rarity_{$rarity}_{$percent}";
-        $text = "🧺 *Оптовая продажа — {$percent}% {$scopeTitle}*\n\n"
+        $goScope     = $rarity === null ? "all_{$percent}" : "rarity_{$rarity}_{$percent}";
+        $headLabel   = $percent >= 100 ? "ВСЁ — {$scopeTitle}" : "{$percent}% {$scopeTitle}";
+        $confirmText = $percent >= 100 ? '✅ Да, продать всё' : "✅ Да, продать {$percent}%";
+        $shareNote   = $percent >= 100
+            ? '_Будут проданы все ходовые ресурсы в этом объёме. Реальная цена может отличаться от спроса. Действие необратимо._'
+            : '_Доля берётся от каждого запаса. Реальная цена может отличаться от спроса. Действие необратимо._';
+
+        $text = "🧺 *Оптовая продажа — {$headLabel}*\n\n"
             . "Будет продано: *{$preview['typesCount']}* вид(ов), всего *" . number_format($preview['totalQty']) . "* ед.\n"
             . "Примерная выручка: *~" . number_format($preview['totalGold']) . "* 💰\n\n"
-            . "_Доля берётся от каждого запаса. Реальная цена может отличаться от спроса. Действие необратимо._\n\n"
+            . $shareNote . "\n\n"
             . "Продолжить?";
 
         return $this->screen($text, [
-            [['text' => "✅ Да, продать {$percent}%", 'callback_data' => "bulkSell_go_{$goScope}"]],
+            [['text' => $confirmText, 'callback_data' => "bulkSell_go_{$goScope}"]],
             $this->backRow($rarity),
         ]);
     }
@@ -246,7 +252,9 @@ class BulkSellAction extends BaseAction
     {
         $row = [];
         foreach ($percents as $p) {
-            $row[] = ['text' => "💰 {$p}%", 'callback_data' => "bulkSell_{$scope}_{$p}"];
+            // 100% = «продать всё» — отдельная метка (🧺 Всё), не «💰 100%», для ясности.
+            $label = $p >= 100 ? '🧺 Всё' : "💰 {$p}%";
+            $row[] = ['text' => $label, 'callback_data' => "bulkSell_{$scope}_{$p}"];
         }
 
         return $row;

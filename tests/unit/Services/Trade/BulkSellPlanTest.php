@@ -137,4 +137,26 @@ final class BulkSellPlanTest extends CIUnitTestCase
         // Первый сегмент — exact-роут 'bulkSell' (резолв по explode('_')[0]).
         $this->assertSame('bulkSell', explode('_', $row[0]['callback_data'])[0]);
     }
+
+    /**
+     * E28 «Продать всё»: 100% рендерится отдельной меткой «🧺 Всё» (не «💰 100%»),
+     * callback остаётся в bulkSell-сегменте (тот же confirm-flow). Частичные доли
+     * сохраняют метку «💰 N%».
+     */
+    public function testButtonsRowSellAllOptionUsesDistinctLabel(): void
+    {
+        $row = BulkSellAction::buttonsRow('all', [10, 50, 100]);
+
+        $this->assertCount(3, $row);
+        $this->assertSame('💰 10%', $row[0]['text']);
+        $this->assertSame('🧺 Всё', $row[2]['text']);
+        $this->assertSame('bulkSell_all_100', $row[2]['callback_data']);
+        $this->assertSame('bulkSell', explode('_', $row[2]['callback_data'])[0]);
+    }
+
+    /** Новый дефолт включает 100 (продать всё) — варианты парсятся как 10/25/50/100. */
+    public function testDefaultPercentsIncludeSellAll(): void
+    {
+        $this->assertSame([10, 25, 50, 100], BulkSellAction::parsePercents(BulkSellAction::DEFAULT_PERCENTS));
+    }
 }
