@@ -396,6 +396,16 @@ class EventActivationHandler extends BaseTaskHandler
     /**
      * Legacy broadcast — тільки якщо WorldEvents.php не містить config події
      * (наприклад для нової події, ще не зареєстрованої). Тимчасова compat-сітка.
+     *
+     * Interim-гигиена (ADR-091, 2026-06-24): шлём только достижимым
+     * (`blocked_at IS NULL`). Без фильтра legacy-путь бил по ВСЕМ ~1058
+     * telegram_users, включая ~848 заблокировавших бота (~80% block-rate —
+     * память feedback_broadcast_isok_real_reachable_audience) — мусорная
+     * нагрузка в минутном кроне + бесполезные 403. Это не полный
+     * chunked-билд (он отложен по триггеру ~1500 достижимых), а дешёвая
+     * страховка: перестаём долбить в пустоту. Self-heal (markBlocked на 403)
+     * legacy-путь пока не делает — вернувшиеся подхватятся через основной
+     * isOk-aware путь рассылок.
      */
     private function legacyBroadcast(array $event): void
     {
@@ -403,7 +413,10 @@ class EventActivationHandler extends BaseTaskHandler
         $message .= "_{$event['description']}_\n\n";
         $message .= "⌛️ Продлится: " . $this->formatDuration($event['duration']) . "\n";
 
-        $allTelegramUsers = $this->telegramUserModel->findAll();
+        // where('blocked_at', null) → CI4 генерирует `WHERE blocked_at IS NULL`.
+        $allTelegramUsers = $this->telegramUserModel
+            ->where('blocked_at', null)
+            ->findAll();
         $counter = 0;
         foreach ($allTelegramUsers as $tg) {
             if ($counter > 0) {
