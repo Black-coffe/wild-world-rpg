@@ -131,8 +131,7 @@ class DefensiveBuildingHandler extends BaseAction
 
         $imagePath = base_url(self::DEF[$nameEng]['image']);
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return MediaSender::sendPhotoOrText([
-            'chat_id'      => $chatId,
+        return MediaSender::editOrSend($this->navTarget() + [
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,
             'parse_mode'   => 'Markdown',

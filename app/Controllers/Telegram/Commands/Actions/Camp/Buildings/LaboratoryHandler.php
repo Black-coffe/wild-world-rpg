@@ -113,8 +113,7 @@ class LaboratoryHandler extends BaseAction
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         // Отправляем фото с описанием
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
-            'chat_id'    => $chatId,
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,
             'parse_mode' => 'Markdown',

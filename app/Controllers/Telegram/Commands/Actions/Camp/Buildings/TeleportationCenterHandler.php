@@ -114,8 +114,7 @@ class TeleportationCenterHandler extends BaseAction
         // Закрываем alert
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        return \App\Services\Notifications\MediaSender::sendPhotoOrText([
-            'chat_id' => $chatId,
+        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'photo' => Request::encodeFile($imagePath),
             'caption' => $text,
             'parse_mode' => 'Markdown',
