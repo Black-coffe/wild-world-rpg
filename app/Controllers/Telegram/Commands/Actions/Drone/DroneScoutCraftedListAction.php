@@ -160,8 +160,7 @@ class DroneScoutCraftedListAction extends BaseAction
             ['text' => '🏠 База', 'callback_data' => 'Base'],
         ];
 
-        return Request::sendMessage([
-            'chat_id'      => $chatId,
+        return \App\Services\Notifications\MediaSender::editTextOrSend($this->navTarget() + [
             'text'         => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $rows]),
