@@ -71,9 +71,15 @@
    (0/5)` (real-schema SQL activeStepTitle/progressCount + рендер точны; цепочка авто-advance Move→Gather
    вживую = end-to-end integration); OFF → null (byte-identical); `character` callback через РЕАЛЬНЫЙ
    роутер HTTP 200, 0 ошибок/TypeError.
-6. **➡️ Активация — решение владельца** (флип `onboarding.cold_open_v2.enabled=1` через admin UI +
-   cache:clear; откат=OFF); замер Move/L2-rate в S10. Отложенные слайсы спины: 1b (cold-open framing
-   /start, 🟠), 2 (прогрессивное раскрытие BuildList), 3 (нарратив-крючок), 4 (win-beat «глава 1»).
+6. **🟢 АКТИВИРОВАН НА ПРОДЕ 2026-06-25 13:48** (`onboarding.cold_open_v2.enabled=1` через admin UI =
+   audit-trail updated_at + cache:clear; решение владельца) — **полярная звезда живёт ~93 игрокам**,
+   откат=OFF. Замер Move 57%→70-80% / named-rate / L2-rate — в **S10**.
+7. **Слайс 1b — cold-open framing `/start` ПОСТРОЕН dormant:** короткое интригующее приветствие Роби
+   (~3 абзаца, < 80 слов) вместо легаси 121-слова → CTA «назвать героя» (S1: 58% не называют чара).
+   NEW `ColdOpenGreetingService`; гейт — **ОТДЕЛЬНЫЙ суб-killswitch** `onboarding.cold_open_v2.start_greeting`
+   (default OFF), НЕ мастер-флаг (копия первого впечатления субъективна → свой Tier-3 + одобрение копии
+   владельцем). Tier-1: 2021/2021 (+5), phpstan L9. **➡️ Tier-3 + активация суб-флага (с одобрением копии).**
+   Отложенные слайсы: 2 (прогрессивное раскрытие BuildList), 3 (нарратив-крючок), 4 (win-beat «глава 1»).
 
 ---
 
