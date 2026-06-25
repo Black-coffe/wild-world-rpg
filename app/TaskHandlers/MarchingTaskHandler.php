@@ -7,6 +7,7 @@ use App\Models\CharacterModel;
 use App\Models\CharacterTaskModel;
 use App\Models\ExploredCellsModel;
 use App\Services\Player\PlayerDetectionService;
+use App\Services\Player\Progression\EarlyProgressionService;
 use App\Services\PVE\TowerAlertService;
 use App\Services\World\ObjectDiscoveryService;
 use App\Services\World\ObjectSignalService;
@@ -178,15 +179,19 @@ class MarchingTaskHandler extends BaseTaskHandler
         $futureTired = round($futureTired, 2);
 
         // — Шаг —
-        $statKeys = ['strength', 'agility', 'intellect'];
-        $statKey  = $statKeys[$stepsDone % 3];
+        // ADR-138 (S3): ранние гейны марша (xp/stat) ×gain_multiplier для новичка (level<cap).
+        // Dormant/ветеран → marchMult=1.0 = byte-identical.
+        $marchMult = (new EarlyProgressionService())
+            ->gainMultiplier($this->asFloat($character['level'] ?? 1));
+        $statKeys  = ['strength', 'agility', 'intellect'];
+        $statKey   = $statKeys[$stepsDone % 3];
         (new CharacterModel())->update($characterId, [
             'cell_number' => $targetCellNumber,
             'biome_id'    => $targetBiomeId,
             'health'      => $futureHp,
             'tired'       => $futureTired,
-            'experience'  => $this->asFloat($character['experience'] ?? 0) + $this->cfg->marchXpPerCell,
-            $statKey      => $this->asFloat($character[$statKey] ?? 0) + $this->cfg->marchStatPerCell,
+            'experience'  => $this->asFloat($character['experience'] ?? 0) + $this->cfg->marchXpPerCell * $marchMult,
+            $statKey      => $this->asFloat($character[$statKey] ?? 0) + $this->cfg->marchStatPerCell * $marchMult,
         ]);
         // Освежаем in-memory копию для рендера.
         $character['cell_number'] = $targetCellNumber;
@@ -200,10 +205,10 @@ class MarchingTaskHandler extends BaseTaskHandler
 
         // — Накопленные дельты —
         $acc = is_array($s['acc'] ?? null) ? $s['acc'] : [];
-        $acc['xp']    = round($this->asFloat($acc['xp'] ?? 0) + $this->cfg->marchXpPerCell, 4);
+        $acc['xp']    = round($this->asFloat($acc['xp'] ?? 0) + $this->cfg->marchXpPerCell * $marchMult, 4);
         $acc['hp']    = round($this->asFloat($acc['hp'] ?? 0) + $hpCost, 4);
         $acc['tired'] = round($this->asFloat($acc['tired'] ?? 0) + $tiredCost, 4);
-        $acc['stat']  = round($this->asFloat($acc['stat'] ?? 0) + $this->cfg->marchStatPerCell, 4);
+        $acc['stat']  = round($this->asFloat($acc['stat'] ?? 0) + $this->cfg->marchStatPerCell * $marchMult, 4);
         $s['acc'] = $acc;
 
         $stepsDone++;

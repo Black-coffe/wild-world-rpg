@@ -14143,12 +14143,6 @@ parameters:
 			path: app/Services/Player/Gather/GatherMessageFormatter.php
 
 		-
-			message: '#^Binary operation "\+" between mixed and 0 results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 1
-			path: app/Services/Player/Gather/GatherResultPersister.php
-
-		-
 			message: '#^Binary operation "\+" between mixed and float results in an error\.$#'
 			identifier: binaryOp.invalid
 			count: 4

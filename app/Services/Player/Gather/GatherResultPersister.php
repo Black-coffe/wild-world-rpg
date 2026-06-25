@@ -6,6 +6,7 @@ namespace App\Services\Player\Gather;
 
 use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
+use App\Services\Player\Progression\EarlyProgressionService;
 
 /**
  * v0.51.105 (GatherTaskHandler decomp Step 2) — extract DB persistence
@@ -18,12 +19,17 @@ use App\Models\CharacterResourceModel;
  */
 final class GatherResultPersister
 {
+    private EarlyProgressionService $early;
+
     public function __construct(
         private ?CharacterModel $characterModel = null,
-        private ?CharacterResourceModel $characterResourceModel = null
+        private ?CharacterResourceModel $characterResourceModel = null,
+        ?EarlyProgressionService $early = null
     ) {
         $this->characterModel         = $characterModel ?? new CharacterModel();
         $this->characterResourceModel = $characterResourceModel ?? new CharacterResourceModel();
+        // ADR-138 (S3): XP за добычу новичку (level<cap). Dormant → gatherXpEarned()=0.0 = легаси.
+        $this->early                  = $early ?? new EarlyProgressionService();
     }
 
     /**
@@ -87,14 +93,18 @@ final class GatherResultPersister
 
     /**
      * Per-resource stat gain: +0.0006 str + 0.0001 agi/int + 0.0005 health (capped @ 100).
-     * expGain currently unused (stays at 0) — preserved для backward-compat.
+     * expGain: ADR-138 (S3) — loop-earned XP за ЗАВЕРШЕНИЕ добычи новичку (level<cap),
+     * иначе 0.0 (dormant = легаси). Стат-гейны не множим (теряются на DECIMAL(7,2) всё равно).
      *
      * @param array<string, mixed>|\App\Entities\CharacterEntity $character
      * @param array<int, mixed>                                  $foundResources
      */
     private function bumpCharacterStats(array|\App\Entities\CharacterEntity $character, array $foundResources): void
     {
-        $expGain     = 0;
+        $levelRaw    = $character['level'] ?? 1;
+        $level       = is_numeric($levelRaw) ? (float) $levelRaw : 1.0;
+        $expGain     = $this->early->gatherXpEarned($level);
+        $curExp      = is_numeric($character['experience'] ?? null) ? (float) $character['experience'] : 0.0;
         $healthGain  = 0.0;
         $strength    = 0.0;
         $agility     = 0.0;
@@ -110,7 +120,7 @@ final class GatherResultPersister
         $newHealth = min(100, $character['health'] + $healthGain);
 
         $updatedData = [
-            'experience' => $character['experience'] + $expGain,
+            'experience' => $curExp + $expGain,
             'health'     => $newHealth,
             'strength'   => $character['strength'] + $strength,
             'agility'    => $character['agility'] + $agility,

@@ -10,6 +10,7 @@ use App\Models\ExploredCellsModel;
 use App\Models\MapModel;
 use App\Models\TelegramUserModel;
 use App\Services\Player\PlayerDetectionService;
+use App\Services\Player\Progression\EarlyProgressionService;
 use App\Services\World\TextMapService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
@@ -201,9 +202,13 @@ class MoveCharacterToDirectionAction
         // прихода раскрывает её + 8 соседей (туман войны radius-1) ниже, после move.
         // (Блокировки воды / чужого лагеря для одиночного шага — отдельный батч марша.)
 
-        // Списываем здоровье/усталость
+        // Списываем здоровье/усталость.
+        // ADR-138 (S3): новичку (level<cap) цена усталости хода ×move_cost_factor + ранние
+        // гейны ×gain_multiplier. Dormant/ветеран → факторы 1.0 = byte-identical.
+        $early      = new EarlyProgressionService();
+        $charLevel  = (float) ($character['level'] ?? 1);
         $healthCost = $this->baseHealthCost;
-        $tiredCost  = $this->baseTiredCost;
+        $tiredCost  = $this->baseTiredCost * $early->moveCostFactor($charLevel);
 
         // Если биом опасный
         $biome = $this->biomeModel->find($targetCell['biome_id']);
@@ -223,9 +228,10 @@ class MoveCharacterToDirectionAction
             ]);
         }
 
-        // Обновляем персонажа
-        $addedStrength   = 0.02;
-        $addedExperience = 0.03;
+        // Обновляем персонажа (ADR-138: ранние гейны ×gain_multiplier для новичка)
+        $earlyMult       = $early->gainMultiplier($charLevel);
+        $addedStrength   = 0.02 * $earlyMult;
+        $addedExperience = 0.03 * $earlyMult;
         $this->characterModel->update($character['id'], [
             'cell_number' => $targetCell['cell_number'],
             'biome_id'    => $targetCell['biome_id'],
