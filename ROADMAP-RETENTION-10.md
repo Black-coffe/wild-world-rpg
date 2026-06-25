@@ -89,10 +89,22 @@
    Фракции L10). NEW `BuildLockService` + action `BuildLockedAction` (callback `buildLocked_<Key>`, exact-роут);
    гейт — **ОТДЕЛЬНЫЙ суб-killswitch** `onboarding.cold_open_v2.build_locks` (default OFF, byte-identical).
    Источник уровней — `Config\Buildings` (тот же, что preview-гейт → нет дрейфа). Tier-1: 2038/2038 (+8),
-   phpstan L9. Миграция `S4ColdOpenBuildLocksGameSettings` (idempotent). WipeManifest н/п. Tier-3 + активация
-   суб-флага — pending.
-9. **Отложенные слайсы спины:** 3 (нарратив радио-крючок + bait), 4 (win-beat «глава 1»). Замер
-   Move/named-rate/L2-rate — в **S10**.
+   phpstan L9. Миграция `S4ColdOpenBuildLocksGameSettings` (idempotent). WipeManifest н/п. **Tier-3 на
+   testbot PASS** (контент OFF=open/ON@L1 LOCKED; роутер Build+buildLocked_Arsenal HTTP 200) → **🟢
+   АКТИВИРОВАН на проде 15:11** (`build_locks=1`, тег `v0.51.495`).
+9. **Слайс 3 — нарратив радио-крючок + bait у спавна ПОСТРОЕН dormant:** направленный in-media-res крючок.
+   Audit-коррекция премиса: первый-ход payoff УЖЕ жив (lucky-find/starter-kit/fast-start=`1` на проде —
+   не dormant); genuine gap = направление «там что-то есть → иди», а не награда. ObjectSignalService
+   (ADR-098) переиспользовать нельзя (march-only + эндгейм L12-20). Спавн = случайная клетка Y≥900 → bait
+   кладётся reactive. NEW `ColdOpenSignalService` (placeBaitForNewChar reactive + markerCellsInViewport 🎯
+   на карте + tryReachBait авто-находка); хранилище — реюз `biome_world_object_map` + seed-anchor
+   `OnbSignalCache`; БЕЗ нового objective_type / без реструктуризации живой OnbStep-цепочки (прогрессию даёт
+   Move). Дискавери — свой arrival-check в одиночном ходе (ObjectDiscovery march-only). 3 хука: StartCommand
+   (place+нарратив) / TextMapService (🎯) / MoveCharacterToDirectionAction (reach). **ОТДЕЛЬНЫЙ суб-killswitch**
+   `onboarding.cold_open_v2.signal_hook` (default OFF, byte-identical) + tunable bait_gold/bait_resource_*/distance.
+   Tier-1: 2043/2043 (+13), phpstan L9. Миграции `S4ColdOpenSignalHookGameSettings` + `S4ColdOpenSeedSignalCacheObject`.
+   WipeManifest н/п. Без новых роутов. Tier-3 + активация — pending.
+10. **Отложенный слайс спины:** 4 (win-beat «глава 1»). Замер Move/named-rate/L2-rate — в **S10**.
 
 ---
 
