@@ -89,6 +89,7 @@ class StartCommand extends UserCommand
             $text          = "Извините, произошла ошибка при попытке определить локацию для спавна. Пожалуйста, попробуйте ещё раз.";
             $encodedKeyboard = json_encode([]);
             $starterKitText = null; // ADR-104: текст набора Роби (если выдан)
+            $signalText     = null; // S4 (ADR-139) слайс 3: радио-нарратив приманки (если размещена)
 
             if (!empty($spawnCells)) {
                 $randomCell = $spawnCells[array_rand($spawnCells)];
@@ -107,6 +108,14 @@ class StartCommand extends UserCommand
                 // и возвращает текст Роби (или null, если набор выключен/уже выдан).
                 $starterKitText = (new \App\Services\Onboarding\StarterKitService())
                     ->grant((int) $createdCharacterId, (int) $createdUserId, (int) $chatId);
+
+                // S4 (ADR-139) слайс 3: cold-open радио-крючок — кладём достижимую приманку рядом
+                // со спавном (reactive, по фактической клетке $randomCell) и возвращаем радио-нарратив
+                // Роби (или null). dormant под onboarding.cold_open_v2.signal_hook → null = byte-identical.
+                if (is_array($randomCell)) {
+                    $signalText = (new \App\Services\Onboarding\ColdOpenSignalService())
+                        ->placeBaitForNewChar((int) $createdCharacterId, $randomCell);
+                }
 
                 // Формируем приветственное сообщение.
                 // S4 (ADR-139) слайс 1b: cold-open framing — короткий интригующий вариант под
@@ -155,6 +164,17 @@ class StartCommand extends UserCommand
                 Request::sendMessage([
                     'chat_id'                  => $chatId,
                     'text'                     => $starterKitText,
+                    'parse_mode'               => 'Markdown',
+                    'disable_web_page_preview' => true,
+                ]);
+            }
+
+            // S4 (ADR-139) слайс 3: радио-нарратив приманки (если размещена) — ПОСЛЕ пайка,
+            // ПЕРЕД финальным welcome'ом, чтобы CTA «Задать имя» остался последним. MEDIA-OFF.
+            if ($signalText !== null) {
+                Request::sendMessage([
+                    'chat_id'                  => $chatId,
+                    'text'                     => $signalText,
                     'parse_mode'               => 'Markdown',
                     'disable_web_page_preview' => true,
                 ]);

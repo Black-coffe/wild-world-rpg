@@ -198,6 +198,14 @@ class TextMapService
             }
         }
 
+        // S4 (ADR-139 «Узлы»→cold-open) слайс 3 — 🎯-маркер cold-open приманки в видимой области
+        // (gated onboarding.cold_open_v2.signal_hook + level ≤ cap). OFF / ветеран → пусто = карта
+        // byte-identical. Показываем даже на неизученной клетке — это и есть направленный крючок.
+        $rawBaitLevel = $characterRow['level'] ?? 0;
+        $baitLevel    = is_numeric($rawBaitLevel) ? (int) $rawBaitLevel : 0;
+        $baitCells    = (new \App\Services\Onboarding\ColdOpenSignalService())
+            ->markerCellsInViewport($baitLevel, $xMin, $xMax, $yMin, $yMax);
+
         // Получаем NPC вокруг игрока (в 12×12)
         $npcsInArea = $this->getNpcsInArea($pX, $pY);
 
@@ -243,6 +251,13 @@ class TextMapService
                 // иначе показался бы 🥷 вместо ☠).
                 if (isset($nodeCells[$cellKey])) {
                     $mapText .= $nodeCells[$cellKey];
+                    continue;
+                }
+
+                // S4 (ADR-139) слайс 3 — 🎯 cold-open приманка: приоритетнее NPC/чужой базы/биома и
+                // перекрывает «неизученную» ⬛️ (показываем цель даже на не открытой клетке — крючок).
+                if (isset($baitCells[$cellKey])) {
+                    $mapText .= "🎯";
                     continue;
                 }
 

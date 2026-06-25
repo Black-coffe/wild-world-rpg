@@ -433,6 +433,9 @@ class MoveCharacterToDirectionAction
                 }
                 // ADR-104 Ф3b — гарантированный «момент удачи» на первый ход новичка (one-shot).
                 (new \App\Services\Onboarding\LuckyFindService())->maybeGrantFirstMove($character, $chatId);
+                // S4 (ADR-139) слайс 3 — cold-open приманка: если на НОВОЙ клетке ($targetCell) активная
+                // приманка по сигналу → авто-находка + cleared (одиночный ход discovery не запускает).
+                (new \App\Services\Onboarding\ColdOpenSignalService())->tryReachBait($character, $targetCell, $chatId);
                 return $editResponse;
             }
         }
