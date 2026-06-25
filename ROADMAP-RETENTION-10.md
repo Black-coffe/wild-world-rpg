@@ -65,9 +65,15 @@
    one-shot/markdown-баланс), **phpstan L9 — 0 errors**. tech-writing: NEW PolarStarService.md +
    OnboardingChainService.md синхр. ADR-139 + UX-прогон П10. Tip/guide-вердикт: «нет» (UI-видимость
    существующей механики, не новая концепция).
-5. **➡️ Дальше:** push develop → preprod testbot → Tier-3 cold-smoke (DB-seam'ы на реальной схеме) →
-   тег прод dormant → активация (решение владельца) → замер Move/L2-rate в S10. Отложенные слайсы
-   спины: 1b (cold-open framing /start, 🟠), 2 (прогрессивное раскрытие), 3 (нарратив-крючок), 4 (win-beat).
+5. **🚀 LIVE НА ПРОДЕ DORMANT — тег `v0.51.493`** (Deploy production + public site ✅; прод read-only:
+   `onboarding.cold_open_v2.enabled=0` категория world → byte-identical ~93 игрокам). **Tier-3 cold-smoke
+   на testbot PASS** (автономно, SQL+throwaway+webhook): ON → строка `🎯 *Сейчас:* собери 5 единиц воды
+   (0/5)` (real-schema SQL activeStepTitle/progressCount + рендер точны; цепочка авто-advance Move→Gather
+   вживую = end-to-end integration); OFF → null (byte-identical); `character` callback через РЕАЛЬНЫЙ
+   роутер HTTP 200, 0 ошибок/TypeError.
+6. **➡️ Активация — решение владельца** (флип `onboarding.cold_open_v2.enabled=1` через admin UI +
+   cache:clear; откат=OFF); замер Move/L2-rate в S10. Отложенные слайсы спины: 1b (cold-open framing
+   /start, 🟠), 2 (прогрессивное раскрытие BuildList), 3 (нарратив-крючок), 4 (win-beat «глава 1»).
 
 ---
 
