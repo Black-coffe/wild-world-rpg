@@ -108,6 +108,15 @@ class CharacterService
         if ($cell) {
             $text .= "🧭 *Координаты:* X={$cell['coordinate_x']} Y={$cell['coordinate_y']} | 🌄 {$biomeName}\n";
         }
+
+        // S4 (ROADMAP-RETENTION-10) — «полярная звезда»: текущая цель онбординг-цепочки
+        // (OnbStep*) видна ВВЕРХУ карточки, чтобы растерявшийся новичок всегда знал «что
+        // дальше». gated onboarding.cold_open_v2.enabled → null = строки нет (byte-identical).
+        $polarLine = (new \App\Services\Onboarding\PolarStarService())->line((int) ($characterRow['id'] ?? 0));
+        if ($polarLine !== null) {
+            $text .= $polarLine . "\n";
+        }
+
         $text .= "🎢 *Изучено ячеек:* {$exploredCount}\n"
             . "💼 *Всего видов ресурсов:* {$totalResources}\n"
             . "⏳ *В игре:* {$timeInGame}\n"

@@ -51,7 +51,7 @@ class OnboardingChainCatalog
      * Упорядоченные шаги цепочки. prerequisite выводится из порядка (предыдущий title_en).
      *
      * @return list<array{
-     *   title_en:string, title_ru:string, objective_type:string,
+     *   title_en:string, title_ru:string, goal:string, objective_type:string,
      *   objective_target:?string, objective_qty:int, reward:int,
      *   description:string, done_text:string
      * }>
@@ -62,6 +62,7 @@ class OnboardingChainCatalog
             [
                 'title_en'         => self::STEP_MOVE,
                 'title_ru'         => 'Первая вылазка',
+                'goal'             => 'выйди на разведку — пройди 3 новые клетки',
                 'objective_type'   => 'explore_cells',
                 'objective_target' => null,
                 'objective_qty'    => 3,
@@ -74,6 +75,7 @@ class OnboardingChainCatalog
             [
                 'title_en'         => self::STEP_GATHER,
                 'title_ru'         => 'Дары пустоши',
+                'goal'             => 'собери 5 единиц воды',
                 'objective_type'   => 'collect_resource',
                 'objective_target' => 'Water',
                 'objective_qty'    => 5,
@@ -86,6 +88,7 @@ class OnboardingChainCatalog
             [
                 'title_en'         => self::STEP_CRAFT,
                 'title_ru'         => 'Руки помнят',
+                'goal'             => 'скрафти любой предмет (нижнее меню «Крафт»)',
                 'objective_type'   => 'craft_any',
                 'objective_target' => null,
                 'objective_qty'    => 1,
@@ -98,6 +101,7 @@ class OnboardingChainCatalog
             [
                 'title_en'         => self::STEP_CLAIM_BASE,
                 'title_ru'         => 'Свой угол',
+                'goal'             => 'разбей лагерь (меню «База» → «🏕 Разбить лагерь»)',
                 'objective_type'   => 'claim_base',
                 'objective_target' => null,
                 'objective_qty'    => 1,
@@ -110,6 +114,7 @@ class OnboardingChainCatalog
             [
                 'title_en'         => self::STEP_OPEN_BASE,
                 'title_ru'         => 'Дом, милый дом',
+                'goal'             => 'открой экран базы (кнопка «База» в нижнем меню)',
                 'objective_type'   => 'open_base_screen',
                 'objective_target' => null,
                 'objective_qty'    => 1,
@@ -122,6 +127,7 @@ class OnboardingChainCatalog
             [
                 'title_en'         => self::STEP_BUILD,
                 'title_ru'         => 'Первый камень',
+                'goal'             => 'построй первую постройку (База → «🏗 Строить»)',
                 'objective_type'   => 'any_building',
                 'objective_target' => null,
                 'objective_qty'    => 1,
@@ -134,6 +140,7 @@ class OnboardingChainCatalog
             [
                 'title_en'         => self::STEP_SELL,
                 'title_ru'         => 'Первая сделка',
+                'goal'             => 'продай ресурсы (Перс → «🛒 Магазин» → «💰 Продать ресы»)',
                 'objective_type'   => 'sell_any',
                 'objective_target' => null,
                 'objective_qty'    => 1,
@@ -146,6 +153,7 @@ class OnboardingChainCatalog
             [
                 'title_en'         => self::STEP_LEVEL5,
                 'title_ru'         => 'Закалённый новичок',
+                'goal'             => 'дорасти до 5 уровня (опыт капает за всё)',
                 'objective_type'   => 'level_milestone',
                 'objective_target' => null,
                 'objective_qty'    => 5,
@@ -194,7 +202,7 @@ class OnboardingChainCatalog
      * шагу достаём `description` текущей задачи, чтобы пере-подсказать «что делать сейчас».
      *
      * @return array{
-     *   title_en:string, title_ru:string, objective_type:string,
+     *   title_en:string, title_ru:string, goal:string, objective_type:string,
      *   objective_target:?string, objective_qty:int, reward:int,
      *   description:string, done_text:string
      * }|null

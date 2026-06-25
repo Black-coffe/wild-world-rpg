@@ -43,6 +43,34 @@
 
 ---
 
+## §0.3. РЕЗУЛЬТАТ S4 (старт 2026-06-25, dormant develop, ADR-139) — спина «полярная звезда»
+
+> Полный дизайн: [[mmorpg-vault/decisions/ADR-139-Cold-open-polar-star]]. Кратко (5 аудит-агентов):
+
+1. **Premise скорректирован ×3:** (a) «полярная звезда» реально ОТСУТСТВУЕТ — цепочка `OnbStep*`
+   LIVE на проде, но игрок её не видит постоянно (плоский список, исчезающая подсказка);
+   (b) литеральный радио-сигнал крючок НЕ бесплатен — `ObjectSignalService` целит в эндгейм-объекты,
+   недостижимые L1 → отложен из спины; (c) прогрессивное раскрытие частичное (`BuildListAction` 15
+   зданий без lock) → отдельный слайс. A/B-инфры нет → простой killswitch; `value_string`=255 →
+   тексты в код-каталоге.
+2. **Owner-pick: «спина полярная звезда first»** (рекоменд.) — низкий риск, реюз живой цепочки,
+   прямо бьёт в Move/bounce (S1: 56% L1 не двигаются — не знают «что дальше»).
+3. **Слайс 1a ПОСТРОЕН dormant:** текущий шаг цепочки виден ВСЕГДА на карточке Перса (вверху) +
+   подписи Карты строкой `🎯 *Сейчас:* <цель> (X/Y)`. NEW `PolarStarService` (read-only ридер;
+   находит активный `OnbStep`, прогресс X/Y на лету теми же запросами, что `objectiveMet`); поле
+   `goal` в `OnboardingChainCatalog` (единый источник текста); инъекции в `CharacterService` +
+   `MapService`. Killswitch `onboarding.cold_open_v2.enabled` (категория `world`, default OFF =
+   byte-identical). Миграция `S4ColdOpenV2GameSettings` (idempotent). WipeManifest н/п.
+4. **Tier-1 GREEN:** `composer test` **2016/2016** (+14 unit: killswitch/countable-дробь/кап/
+   one-shot/markdown-баланс), **phpstan L9 — 0 errors**. tech-writing: NEW PolarStarService.md +
+   OnboardingChainService.md синхр. ADR-139 + UX-прогон П10. Tip/guide-вердикт: «нет» (UI-видимость
+   существующей механики, не новая концепция).
+5. **➡️ Дальше:** push develop → preprod testbot → Tier-3 cold-smoke (DB-seam'ы на реальной схеме) →
+   тег прод dormant → активация (решение владельца) → замер Move/L2-rate в S10. Отложенные слайсы
+   спины: 1b (cold-open framing /start, 🟠), 2 (прогрессивное раскрытие), 3 (нарратив-крючок), 4 (win-beat).
+
+---
+
 ## §1. Аналитика: насколько закрыты механики по этапам
 
 | Этап | Уровни | Полнота | Интерес | Вердикт |

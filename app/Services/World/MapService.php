@@ -140,6 +140,14 @@ class MapService
             . "Ячейка #{$cellNumber}\n"
             . "Вы используете карту: *{$mapType}* (масштаб 2px=1coord)";
 
+        // S4 (ROADMAP-RETENTION-10) — «полярная звезда»: текущая цель онбординг-цепочки в
+        // подписи карты (новичок принимает решение «куда идти» именно здесь). caption несёт
+        // весь смысл текстом → media-off безопасно (MediaSender подставит caption как text).
+        $polarLine = (new \App\Services\Onboarding\PolarStarService())->line((int) ($characterRow['id'] ?? 0));
+        if ($polarLine !== null) {
+            $caption .= "\n\n" . $polarLine;
+        }
+
         $response = \App\Services\Notifications\MediaSender::sendPhotoOrText([
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($tempFile),
