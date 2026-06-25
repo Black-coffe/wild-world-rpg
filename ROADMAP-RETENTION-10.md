@@ -38,7 +38,8 @@
 2. **ADR-131 (live) уже смягчил имущество смерти**, но XP/стат-хвост отложил → S3 подобрал, но как **interrupt-relief**, не death.
 3. **Дизайн — умеренный гибрид (owner-pick), 4 рычага за killswitch `progression.early.enabled` (default OFF=byte-identical), scoped `level<level_cap=5`:** A `gather_xp`=0.30 (XP за завершение добычи) · B `gain_multiplier`=2.0 (×ранние гейны = компрессия ВРЕМЕНИ не силы; L5=те же статы → post-L5 byte-identical, achievement back-fill **не нужен**) · C `move_cost_factor`=0.80 (мягче ход) · D `interrupt_penalty_factor`=0.0 (убрать обнуление статов новичка при прерывании). Все 6 ключей в GameSettings (категория `world`, rich rationale).
 4. **Tier-1 GREEN:** `composer test` **2002/2002** (+11 unit на OFF=byte-identical/множитель/cap/coercion), **phpstan L9 полный 0 errors** (почищена стейл baseline-запись). RNG-fence PvP не тронут. WipeManifest — н/п (нет таблиц).
-5. **Открыто (owner-gated):** Tier-3 cold-smoke (actions-to-L2 до/после — требует флипа killswitch на testbot) → активация на проде (решение владельца, как ADR-131/137) → **tip «добыча даёт опыт» + guide-раздел сидятся ПРИ АКТИВАЦИИ** (dormant-precedent WB14: не анонсируем невидимую фичу, иначе lying-tip). Замер эффекта — в S10.
+5. **🚀 LIVE НА ПРОДЕ DORMANT — `v0.51.491`** (коммит `673962ab`; PHPUnit/Deploy/site ✅; прод read-only: 6 ключей, enabled=0). **Tier-3 на testbot PASS** (автономный webhook+SQL, чар 491→L1): рычаг B exp/str ×2.0 + C tired ×0.80 + D прерывание (новичок 0 потерь vs легаси −0.5/−0.25) — точны вживую; OFF=byte-identical подтверждён; A (gather) юнит+интеграция-proven.
+6. **Открыто (owner-gated):** **активация killswitch `progression.early.enabled=1`** (admin `/admin/game-settings?category=world` + cache:clear, откат=0) → **tip «добыча даёт опыт» + guide-раздел сидятся ПРИ АКТИВАЦИИ** (dormant-precedent WB14: не lying-tip) → замер L2-rate (14%→цель 35-55%) в S10.
 
 ---
 
