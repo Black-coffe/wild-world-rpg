@@ -356,4 +356,25 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
             'callback_data «strategicSearch» обязан резолвиться в StrategicSearchAction (кнопка «🔍 Обыскать»).'
         );
     }
+
+    /**
+     * S4 (ADR-139, слайс 2) «Прогрессивное раскрытие» — lock-кнопка уровневой постройки:
+     * callback `buildLocked_<Key>` → первый сегмент 'buildLocked' → BuildLockedAction. Тот же
+     * class-of-bug, что npcAct_ (мёртвый prefix с `_`): фиксируем resolve, не коллизирует с
+     * соседними 'building'/'genericBuildInfo'. Кнопка рендерится при onboarding.cold_open_v2.build_locks.
+     */
+    public function testBuildLockedCallbackRouteResolves(): void
+    {
+        $expected = \App\Controllers\Telegram\Commands\Actions\Camp\BuildLockedAction::class;
+        foreach (['buildLocked_Arsenal', 'buildLocked_RoboticsWorkshop', 'buildLocked_Gym'] as $cb) {
+            $this->assertSame(
+                $expected,
+                $this->cbRoutes->resolve(explode('_', $cb)[0]),
+                "callback_data «{$cb}» обязан резолвиться в BuildLockedAction (lock-кнопка постройки)."
+            );
+        }
+        // не коллизирует с соседними build-роутами (другие обработчики)
+        $this->assertNotSame($expected, $this->cbRoutes->resolve('building'));
+        $this->assertNotSame($expected, $this->cbRoutes->resolve(explode('_', 'genericBuildInfo_Arsenal')[0]));
+    }
 }

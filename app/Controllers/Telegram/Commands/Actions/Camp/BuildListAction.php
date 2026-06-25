@@ -64,13 +64,29 @@ class BuildListAction extends BaseAction
         $buildingList = "";
         $keyboardButtons = [];
 
+        // S4 (ADR-139, слайс 2) — прогрессивное раскрытие: уровневые постройки (Арсенал L15 и т.п.)
+        // → lock-кнопка «🔒 … (с lvl X)» вместо кнопки-обманки (гейт уровня раньше был только внутри
+        // preview → UX-Discoverability нарушение). gated onboarding.cold_open_v2.build_locks → OFF
+        // = рендер как раньше (byte-identical). Источник уровней — Config\Buildings (тот же, что preview).
+        $lockSvc = new \App\Services\Onboarding\BuildLockService();
+        $level   = (int) ($character['level'] ?? 0);
+
         // Формируем список и кнопки
         foreach ($buildingsInfo as $b) {
-            $buildingList .= "*{$b['name']}* | *Налог: {$b['tax']}* 💰\n";
-            $keyboardButtons[] = [
-                'text' => $b['name'],
-                'callback_data' => $b['callback_data']
-            ];
+            $key = substr($b['callback_data'], strlen('genericBuildInfo_'));
+            if ($lockSvc->isLocked($key, $level)) {
+                $buildingList .= "🔒 *{$b['name']}* | _нужен lvl {$lockSvc->requiredLevel($key)}_\n";
+                $keyboardButtons[] = [
+                    'text'          => $lockSvc->lockLabel($key, $b['name']),
+                    'callback_data' => "buildLocked_{$key}",
+                ];
+            } else {
+                $buildingList .= "*{$b['name']}* | *Налог: {$b['tax']}* 💰\n";
+                $keyboardButtons[] = [
+                    'text'          => $b['name'],
+                    'callback_data' => $b['callback_data'],
+                ];
+            }
         }
 
         // Разбиваем на ряды по 2 кнопки

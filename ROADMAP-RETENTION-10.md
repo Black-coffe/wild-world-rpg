@@ -82,8 +82,17 @@
    `/start` свежего юзера через реальный роутер HTTP 200, 0 ошибок/400, чар создан). **🚀 LIVE прод —
    тег `v0.51.494`**; **🟢 АКТИВИРОВАН 2026-06-25 14:07** (`start_greeting=1` через admin UI, владелец
    одобрил копию). **Полная спина S4 (1a+1b) активна ~93 игрокам.** Откат=OFF.
-8. **Отложенные слайсы спины:** 2 (прогрессивное раскрытие BuildList lock-buttons), 3 (нарратив радио-крючок
-   + bait), 4 (win-beat «глава 1»). Замер Move/named-rate/L2-rate — в **S10**.
+8. **Слайс 2 — прогрессивное раскрытие BuildList ПОСТРОЕН dormant:** уровневые постройки (Арсенал L15,
+   Робомастерская/ограда L10, Телепорт/Вышка L12, стена L8, Лаб/Спортзал L5) в списке строительства →
+   lock-кнопка `🔒 <имя> (с lvl X)` вместо кнопки-обманки (раньше гейт уровня бил только ВНУТРИ preview →
+   UX-Discoverability нарушение + перегруз L1-новичка 15 зданиями). Клик → alert с prerequisite (зеркало
+   Фракции L10). NEW `BuildLockService` + action `BuildLockedAction` (callback `buildLocked_<Key>`, exact-роут);
+   гейт — **ОТДЕЛЬНЫЙ суб-killswitch** `onboarding.cold_open_v2.build_locks` (default OFF, byte-identical).
+   Источник уровней — `Config\Buildings` (тот же, что preview-гейт → нет дрейфа). Tier-1: 2038/2038 (+8),
+   phpstan L9. Миграция `S4ColdOpenBuildLocksGameSettings` (idempotent). WipeManifest н/п. Tier-3 + активация
+   суб-флага — pending.
+9. **Отложенные слайсы спины:** 3 (нарратив радио-крючок + bait), 4 (win-beat «глава 1»). Замер
+   Move/named-rate/L2-rate — в **S10**.
 
 ---
 

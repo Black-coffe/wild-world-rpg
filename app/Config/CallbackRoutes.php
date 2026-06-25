@@ -299,6 +299,10 @@ class CallbackRoutes extends BaseConfig
         // Final-action маршрут `genericStartBuild_<Key>` существует с F2.1.
         'genericBuildInfo'                => \App\Controllers\Telegram\Commands\Actions\Camp\GenericBuildingInfoAction::class,
         'genericStartBuild'               => \App\Controllers\Telegram\Commands\Actions\Camp\GenericBuildingAction::class,
+        // S4 (ADR-139, слайс 2) — lock-кнопка уровневой постройки в списке (callback `buildLocked_<Key>`,
+        // exact-роут по первому сегменту explode('_')[0]; Key разбирает сам action — урок мёртвых `npcAct_`).
+        // Кнопка появляется лишь при killswitch onboarding.cold_open_v2.build_locks.
+        'buildLocked'                     => \App\Controllers\Telegram\Commands\Actions\Camp\BuildLockedAction::class,
         'genericCraft'                    => \App\Controllers\Telegram\Commands\Actions\Craft\GenericCraftActionStart::class,
 
         // S5b (v0.51.188+): Ремонт изношенных инструментов через GameSettings (ADR-024).
