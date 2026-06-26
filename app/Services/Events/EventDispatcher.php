@@ -151,6 +151,20 @@ final class EventDispatcher
             return false;
         }
 
+        // ── ADR-141 hotfix: one-shot guard (инцидент 2026-06-26, чар Father) ──────────
+        // Эффекты с `one_shot_at_end: true` (MeteorRain damage_resources) ДОЛЖНЫ
+        // применяться ровно ОДИН раз за активацию события. Баг: tick_chance=1.0 +
+        // отсутствие guard'а → IntentApplier снимал −15% от КАЖДОГО ресурс-стака
+        // на КАЖДОМ поминутном тике → за ~42 мин события компаундинг 0.85^N ≈ −88%
+        // ВСЕГО склада у всех в задетом биоме. Колонка active_events.effect_applied
+        // существовала (ставилась false при активации), но никем не читалась/не
+        // выставлялась — подключаем как идемпотентный замок. Per-tick эффекты
+        // (damage_health Hurricane и т.п.) one_shot_at_end НЕ имеют → тикают как прежде.
+        $oneShot = self::isOneShotEffect($config);
+        if ($oneShot && self::oneShotAlreadyApplied($activeEvent)) {
+            return false; // уже применено за это событие → больше не трогаем (защита от re-tick/burst-крона)
+        }
+
         // Tick chance gate (legacy parity)
         $tickChance = (float)($config['tick_chance'] ?? 1.0);
         if ($tickChance < 1.0 && (mt_rand(1, 10000) / 10000.0) > $tickChance) {
@@ -188,6 +202,10 @@ final class EventDispatcher
 
         $protectionItem = $config['protection_item'] ?? null;
 
+        // ADR-141: счётчик применений ДО цикла — если one-shot реально лёг хотя бы на
+        // одного игрока, запираем событие (effect_applied=true) после цикла.
+        $appliedBefore = (int) $stats['effects_applied'];
+
         foreach ($players as $char) {
             $stats['players_evaluated']++;
 
@@ -217,7 +235,41 @@ final class EventDispatcher
             }
         }
 
+        // ADR-141: one-shot эффект лёг хотя бы на одного игрока в этом тике → запираем
+        // событие, чтобы следующие тики его не повторяли (анти-компаундинг). Если в этот
+        // тик никого не задело (пустой биом / все защищены) — флаг НЕ ставим, страйк
+        // «ждёт» появления цели и ляжет ровно один раз на следующем подходящем тике.
+        if ($oneShot && (int) $stats['effects_applied'] > $appliedBefore) {
+            $this->activeEventModel->update((int) $activeEvent['id'], ['effect_applied' => true]);
+        }
+
         return true;
+    }
+
+    /**
+     * ADR-141 — является ли эффект «одноразовым за событие» (применяется ровно один раз
+     * за активацию, а не на каждом тике). Источник истины — WorldEvents config-флаг
+     * `effect_params.one_shot_at_end`. Pure → тестируемо без БД.
+     *
+     * @param array<string, mixed> $config WorldEvents config события
+     */
+    public static function isOneShotEffect(array $config): bool
+    {
+        $params = $config['effect_params'] ?? [];
+
+        return is_array($params) && ! empty($params['one_shot_at_end']);
+    }
+
+    /**
+     * ADR-141 — был ли one-shot эффект уже применён за эту активацию (идемпотентный замок
+     * на колонке active_events.effect_applied). Pure → тестируемо без БД. Корректно для
+     * 0/'0'/null/false (ещё не применён) и 1/'1'/true (применён).
+     *
+     * @param array<string, mixed> $activeEvent строка active_events
+     */
+    public static function oneShotAlreadyApplied(array $activeEvent): bool
+    {
+        return ! empty($activeEvent['effect_applied']);
     }
 
     /**
