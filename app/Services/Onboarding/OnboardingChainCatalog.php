@@ -217,4 +217,25 @@ class OnboardingChainCatalog
 
         return null;
     }
+
+    /** Всего шагов в цепочке (для прогресс-индикатора «N из M», win-beat S4-слайс 4). */
+    public static function total(): int
+    {
+        return count(self::steps());
+    }
+
+    /**
+     * Порядковый номер шага в цепочке (1-based) или null, если title_en не онбординг-шаг.
+     * Источник истины для полосы прогресса win-beat (ADR-139 слайс 4).
+     */
+    public static function position(string $titleEn): ?int
+    {
+        foreach (self::steps() as $i => $step) {
+            if ($step['title_en'] === $titleEn) {
+                return $i + 1;
+            }
+        }
+
+        return null;
+    }
 }

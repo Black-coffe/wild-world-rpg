@@ -400,9 +400,17 @@ class QuestObjectiveHandler extends BaseTaskHandler
             return;
         }
 
-        $text = $completion['text'];
-        if ($reward > 0) {
-            $text .= "\n\n🏆 +{$reward} золота за шаг.";
+        // ADR-139 слайс 4 (win-beat): усиление завершения шага (полоса прогресса /
+        // капстон «глава 1 закрыта»). При killswitch OFF compose()→null → легаси-путь
+        // ниже шлёт текст байт-в-байт.
+        $winBeat = (new \App\Services\Onboarding\WinBeatService())->compose($titleEn, $completion['text'], $reward);
+        if ($winBeat !== null) {
+            $text = $winBeat;
+        } else {
+            $text = $completion['text'];
+            if ($reward > 0) {
+                $text .= "\n\n🏆 +{$reward} золота за шаг.";
+            }
         }
 
         $this->safeSendMessage($chatId, $text, [

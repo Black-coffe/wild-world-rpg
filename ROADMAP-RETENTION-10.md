@@ -104,7 +104,19 @@
    `onboarding.cold_open_v2.signal_hook` (default OFF, byte-identical) + tunable bait_gold/bait_resource_*/distance.
    Tier-1: 2043/2043 (+13), phpstan L9. Миграции `S4ColdOpenSignalHookGameSettings` + `S4ColdOpenSeedSignalCacheObject`.
    WipeManifest н/п. Без новых роутов. Tier-3 + активация — pending.
-10. **Отложенный слайс спины:** 4 (win-beat «глава 1»). Замер Move/named-rate/L2-rate — в **S10**.
+10. **Слайс 4 — win-beat «глава 1 закрыта» ПОСТРОЕН dormant (2026-06-26):** усиление момента завершения
+    шага онбординг-цепочки. Audit (прод-воронка): финал `OnbStepLevel5` слал рядовое уведомление БЕЗ
+    «цепочка пройдена»-беата, и до финала доходят **~2 игрока** (обрывы Craft 38%/Build 13%) → win-beat
+    только на финале почти невидим. Owner-pick «прогресс + капстон»: шаги 1-7 → к `done_text` добавляется
+    полоса прогресса `🟩…⬜ Глава 1 — N из 8` (эффект Зейгарник, бьёт по обрывам у всех 75 в воронке);
+    финал → капстон `🏁 ГЛАВА 1 ЗАКРЫТА` (recap + рамка главы 2 + CTA «Квесты»). NEW `WinBeatService`
+    (`compose(): ?string`, null при OFF/не-цепочке = byte-identical); правка `QuestObjectiveHandler::notifyOnboarding`;
+    число шагов из `OnboardingChainCatalog::total/position`. **ОТДЕЛЬНЫЙ суб-killswitch**
+    `onboarding.cold_open_v2.win_beat` (миграция `S4ColdOpenWinBeatGameSettings`, default OFF). **БЕЗ новых
+    наград** (чистый текст, balance не задет). Копия одобрена владельцем. Guide/Tip-вердикт: НЕТ обоим
+    (UI-усиление существующего онбординга, не новая механика). Tier-1: 2051/2051 (+8), phpstan L9.
+    WipeManifest н/п. Без новых роутов. Tier-3 + активация — pending. **🏁 Вся спина S4 (1a+1b+2+3+4) построена.**
+    Замер Move/named-rate/L2-rate — в **S10**.
 
 ---
 
