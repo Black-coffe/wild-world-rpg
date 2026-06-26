@@ -141,7 +141,11 @@ one-shot `Day2Ping`, max_level 6, opt-out, markBlocked, без награды). 
 `onboarding.day2` everyMinute. **Tier-1:** phpstan L9 0 errors + php -l 4/4; DB-тест `Day2NudgeHandlerTest`
 (11, зеркало comeback) — на CI (MySQL локально down). WipeManifest н/п (game_settings=KEEP, маркер в
 action_log). Onb/Guide/Tip-вердикт «НЕТ всем» (исходящий push, не in-game механика). ADR-140 + tech-writing
-`Day2NudgeHandler.md`. ➡️ CI → Tier-3 на testbot → активация (решение владельца). Замер D2-возврата — в **S10**.
+`Day2NudgeHandler.md`. **CI develop PHPUnit success** (DB-тест прошёл). **Tier-3 на testbot PASS** (реальный
+`handle()`: `Day2Ping` маркер + лог `послано 1` без warning = Telegram-send ok, нет 400). **🚀 LIVE прод тег
+`v0.51.498`** (миграция batch 254). **🟢 АКТИВИРОВАН 2026-06-26 13:29** (`returnability.day2.enabled=1` через
+admin UI = audit-trail + cache:clear; первая волна в send_hour=18; прод health 0 error; откат=OFF). Замер
+D2-возврата (маркеры `Day2Ping` в action_log) — в **S10**.
 
 ---
 
