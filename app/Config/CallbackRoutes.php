@@ -85,6 +85,9 @@ class CallbackRoutes extends BaseConfig
         'cancelGather'                    => \App\Controllers\Telegram\Commands\Actions\CancelGatherAction::class,
         'inventory'                       => \App\Controllers\Telegram\Commands\Actions\InventoryAction::class,
         'resourcesGathered'               => \App\Controllers\Telegram\Commands\Actions\ResourcesGatheredAction::class,
+        // Slice 1 (ресурс-грамотность) — экран «📊 Все мои ресурсы»: единый read-only срез
+        // всех мест хранения. Кнопка входа на хабе «Инвентарь» при killswitch inventory.overview.enabled.
+        'resourceOverview'                => \App\Controllers\Telegram\Commands\Actions\ResourceOverviewAction::class,
         // === Настройки (идея #14 — тумблер картинок) ===
         'settings'                        => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,
         'mediaOff'                        => \App\Controllers\Telegram\Commands\Actions\SettingsAction::class,

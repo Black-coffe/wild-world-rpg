@@ -117,6 +117,21 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
     }
 
     /**
+     * Slice 1 (ресурс-грамотность) — exact-роут 'resourceOverview' (экран «📊 Все мои
+     * ресурсы», кнопка на хабе «Инвентарь» при killswitch inventory.overview.enabled).
+     * Урок control-tap: новый callback-ключ фиксируем resolve-гейтом на unit-уровне —
+     * баг регистрации роута пережил бы throwaway-вызов (как npcAct_).
+     */
+    public function testResourceOverviewCallbackRouteResolves(): void
+    {
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\ResourceOverviewAction::class,
+            $this->cbRoutes->resolve('resourceOverview'),
+            'callback_data «resourceOverview» обязан резолвиться в ResourceOverviewAction (кнопка «📊 Все мои ресурсы»).'
+        );
+    }
+
+    /**
      * 🔴 Анти-дрифт source-scan: мёртвый литерал `inlineMap` не должен вернуться в код
      * Actions. Class-of-bug «unrouted callback» уже бил дважды (npcAct_ + inlineMap);
      * урок feedback_control_tap_not_throwaway — гейтить на resolve, а не на throwaway-тап.

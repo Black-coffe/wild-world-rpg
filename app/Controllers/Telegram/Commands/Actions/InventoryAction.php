@@ -19,24 +19,35 @@ class InventoryAction extends BaseAction
         }
 
         $text = "🎒 *Инвентарь*\n\n"
-            . "Вы находитесь у входа в свой огромный склад. \nКуда вы хотите отправиться❓\n\n"
-            . "Выберите раздел, чтобы увидеть ресурсы 👇\n";
+            . "Тут всё, что ты несёшь с собой. Вся добыча с вылазок копится в разделе "
+            . "*«Добытые ресурсы»* — это твой основной запас, он может быть огромным.\n\n"
+            . "📦 *«Склад базы»* — отдельное хранилище: туда ресурсы привозит только "
+            . "карго-дрон, добыча сама туда не попадает.\n\n"
+            . "Выбери раздел 👇\n";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🔄 Добытые ресурсы', 'callback_data' => 'resourcesGathered'],
-                    ['text' => '🔨 Крафтовые ресурсы', 'callback_data' => 'resourcesCrafting'],
-                ],
-                // W8: вход на склад базы (base_storage) прямо из хаба инвентаря —
-                // раньше достижим только из move-keyboard / после cargo-доставки
-                // (UX-discoverability, CLAUDE.md §🎮 правило #4). Пустой склад — graceful.
-                [
-                    ['text' => '📦 Склад базы', 'callback_data' => 'baseStorageList'],
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                ],
-            ]
+        $rows = [
+            [
+                ['text' => '🔄 Добытые ресурсы', 'callback_data' => 'resourcesGathered'],
+                ['text' => '🔨 Крафтовые ресурсы', 'callback_data' => 'resourcesCrafting'],
+            ],
+            // W8: вход на склад базы (base_storage) прямо из хаба инвентаря —
+            // раньше достижим только из move-keyboard / после cargo-доставки
+            // (UX-discoverability, CLAUDE.md §🎮 правило #4). Пустой склад — graceful.
+            [
+                ['text' => '📦 Склад базы', 'callback_data' => 'baseStorageList'],
+                ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+            ],
         ];
+
+        // Slice 1 (ресурс-грамотность) — единый экран «📊 Все мои ресурсы»: кнопка
+        // только при killswitch ON. OFF → ряд не добавляется → хаб byte-identical (dormant).
+        if ((new \App\Services\Player\ResourceOverviewService())->enabled()) {
+            array_unshift($rows, [
+                ['text' => '📊 Все мои ресурсы', 'callback_data' => 'resourceOverview'],
+            ]);
+        }
+
+        $keyboard = ['inline_keyboard' => $rows];
 
         $imagePath = base_url('uploads/telegram/warehouse_in_the_forest.png'); // Укажите актуальный путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
