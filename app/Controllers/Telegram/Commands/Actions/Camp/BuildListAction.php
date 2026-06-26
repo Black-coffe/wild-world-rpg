@@ -71,6 +71,15 @@ class BuildListAction extends BaseAction
         $lockSvc = new \App\Services\Onboarding\BuildLockService();
         $level   = (int) ($character['level'] ?? 0);
 
+        // S5 (ADR-142) — «первое укрытие»: новичку без единой постройки первой кнопкой
+        // предлагаем дешёвый one-shot Навес (25 дерева + 10 воды, ~3 мин, налог 0) — закрывает
+        // горлышко OnbStepBuild (Build-конверсия 9% = #1 утечка). Гейт FirstShelterService
+        // (killswitch onboarding.first_build.enabled → OFF = кнопка не добавляется, byte-identical).
+        $shelterSvc = new \App\Services\Onboarding\FirstShelterService();
+        if ($shelterSvc->shouldOffer((int) ($character['id'] ?? 0), $level)) {
+            array_unshift($buildingsInfo, $shelterSvc->buttonEntry());
+        }
+
         // Формируем список и кнопки
         foreach ($buildingsInfo as $b) {
             $key = substr($b['callback_data'], strlen('genericBuildInfo_'));

@@ -488,6 +488,39 @@ class Buildings extends BaseConfig
             'completion_bonus_intellect' => 0.02,
             'completion_building_type'   => 'defensive',
         ],
+
+        // S5 (ROADMAP-RETENTION-10, ADR-142) — «Навес»: дешёвое one-shot ПЕРВОЕ укрытие.
+        // Закрывает горлышко OnbStepBuild (Build-конверсия 9% — #1 утечка воронки): реальная
+        // стена первой постройки = ресурс-стоимость + crafted_items + 60-мин таймер обычных
+        // зданий, которые L1-новичок не потянет. «Навес» — ТОЛЬКО сырьё (25 дерева + 10 воды),
+        // БЕЗ крафт-компонентов и зависимостей, ~3 мин, налог 0. Видимость гейтится
+        // FirstShelterService (killswitch onboarding.first_build.enabled + новичок + 0 построек
+        // = one-shot, §5.4-исключение тайм-гейта). Засчитывается в OnbStepBuild через
+        // objective_type 'any_building' (как любое здание). seed buildings+tasks — миграция
+        // S5FirstShelterLeanTo (паттерн S26b). completion_text самодостаточен (media-off, ADR-020).
+        'LeanTo' => [
+            'name_rus'          => 'Навес',
+            'emoji'             => '⛺',
+            'info_text'         => 'Простое первое укрытие из жердей и шкур. Ставится быстро и почти даром — твой первый дом на пустоши и шаг к настоящему лагерю. Налогом не облагается.',
+            'level_required'    => 1,
+            'task_name'         => 'buildLeanTo',
+            'task_settings'     => ['building' => 'LeanTo'],
+            'resources'         => [
+                'Wood'  => 25,
+                'Water' => 10,
+            ],
+            'crafted_items'     => [],
+            'dependencies'      => [],
+            'image_in_progress' => 'uploads/telegram/camp/Construction-by-improvised.jpg',
+            'completion_image'           => 'uploads/telegram/camp/lean_to.jpg',
+            'completion_text'            => "🎉 *Первое укрытие готово!*\n\n"
+                                          . "⛺ *Навес* поставлен — теперь у тебя есть свой угол на пустоши.\n"
+                                          . "Это твоя первая постройка: база ожила, а ты стал на шаг ближе к настоящему лагерю.\n\n"
+                                          . "_Дальше — больше: Склад, Теплица и оборона ждут своей очереди._",
+            'completion_bonus_agility'   => 0.02,
+            'completion_bonus_intellect' => 0.02,
+            'completion_building_type'   => 'residential',
+        ],
     ];
 
     /**

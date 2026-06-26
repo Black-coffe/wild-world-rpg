@@ -147,6 +147,34 @@ action_log). Onb/Guide/Tip-вердикт «НЕТ всем» (исходящи�
 admin UI = audit-trail + cache:clear; первая волна в send_hour=18; прод health 0 error; откат=OFF). Замер
 D2-возврата (маркеры `Day2Ping` в action_log) — в **S10**.
 
+## §0.5. РЕЗУЛЬТАТ S5 (построен 2026-06-26, dormant develop, ADR-142) — «Навес», первое укрытие
+
+**Owner-pick** «Вернёмся к S5 «Навес»» после инцидента. **Audit-first (2 Explore по жизненному циклу
+стройки):** истинная стена OnbStepBuild (#1 утечка, Build-конверсия 9%) — НЕ уровень, а **ресурс-стоимость
++ crafted_items + 60-мин таймер** обычных зданий (даже дешёвый Workshop требует metalFragments/WoodMaterials,
+недоступных L1). Карта интеграции: BuildList = статич. `$buildingsInfo` (точка killswitch); длительность из
+`tasks.min/max_duration` (мин, новичок→max); completion резолвит `buildings.name_en`→building_id→character_buildings;
+**OnbStepBuild засчитывает ЛЮБОЕ здание** (`objective_type='any_building'`, `level>=1`) → Навес автоматом;
+Worker не трогать (WatchTower-прецедент: только seed buildings+tasks + рецепт + prefix-dispatch).
+
+**Дизайн «Навес» (LeanTo):** 25 дерева + 10 воды, **БЕЗ крафта/зависимостей**, L1, ~3 мин (`tasks` 2/3),
+**налог 0**, мини-празднование `completion_text` (самодостаточно, media-off), стат-бонус 0.02. Реюз generic-flow
+(Info/Action/Completion). **Видимость + one-shot — NEW `FirstShelterService`** (зеркало BuildLockService,
+read-only): `shouldOffer` = killswitch `onboarding.first_build.enabled` ON + `1≤level≤max_level(6)` + **0 построек**
+(готовых ИЛИ generic_building-таска в работе) → после первой стройки кнопка исчезает = one-shot (обоснование §5.4
+быстрого тайм-гейта). OFF → кнопка не добавляется = **byte-identical**. **Баланс:** стоимость/время — в рецепте/tasks
+(единый паттерн со ВСЕМИ 15 зданиями), в GS — только feature-gate (killswitch + max_level; обосновано в ADR).
+
+**Файлы:** рецепт `Config\Buildings['LeanTo']` + NEW `FirstShelterService` + правка `BuildListAction` + seed-миграция
+`S5FirstShelterLeanTo` (buildings+tasks, паттерн S26b idempotent) + GS-миграция `S5FirstShelterGameSettings`.
+**Tier-1:** `FirstShelterServiceTest` **9/9** + `Onboarding+Buildings` **161/161** + phpstan L9 0 errors + php -l 2/2
+(полный composer test — на CI, MySQL локально down). **Onb/Guide/Tips (консистентны с «не обещать dormant»):** Guide —
+builder-путь УЖЕ в разделе `base`, упоминание Навеса ПРИ активации; Tip — ДА, seed ПРИ активации; Onboarding —
+OnbStepBuild + хинт FIRST_BUILD уже в потоке. **WipeManifest** н/п (KEEP). **Картинка `lean_to.jpg`** — генерится
+ПЕРЕД активацией (graceful text-fallback пока). ADR-142 + tech-writing `FirstShelterService.md` + daily. **➡️ Дальше:**
+CI → preprod → тег прод DORMANT → Tier-3 на testbot (включить, построить Навес чистым чаром, проверить OnbStepBuild) →
+ПРИ активации: картинка + guide + tip. Метрика Build 9%→20-25% — замер S10.
+
 ---
 
 ## §1. Аналитика: насколько закрыты механики по этапам
