@@ -115,8 +115,12 @@
     `onboarding.cold_open_v2.win_beat` (миграция `S4ColdOpenWinBeatGameSettings`, default OFF). **БЕЗ новых
     наград** (чистый текст, balance не задет). Копия одобрена владельцем. Guide/Tip-вердикт: НЕТ обоим
     (UI-усиление существующего онбординга, не новая механика). Tier-1: 2051/2051 (+8), phpstan L9.
-    WipeManifest н/п. Без новых роутов. Tier-3 + активация — pending. **🏁 Вся спина S4 (1a+1b+2+3+4) построена.**
-    Замер Move/named-rate/L2-rate — в **S10**.
+    WipeManifest н/п. Без новых роутов. CI develop PHPUnit 2051 success. **Tier-3 cold-smoke на testbot PASS**
+    (content OFF→null/ON→рендер точно как одобрено + markdown в реальном Telegram оба `ok:true`). **🚀 LIVE прод
+    тег `v0.51.497`** (PHPUnit+Deploy production+site ✅, миграция batch 253). **🟢 АКТИВИРОВАН 2026-06-26 11:44**
+    (`win_beat=1` через admin UI = audit-trail + cache:clear; прод health 0 error/warning; откат=OFF).
+    **🏁🏁 ВСЯ СПИНА S4 (1a+1b+2+3+4) АКТИВНА на проде.** ➡️ консолид. broadcast-анонс спины S4 (после live-наблюдения);
+    замер Move/named-rate/L2-rate — в **S10**.
 
 ---
 
