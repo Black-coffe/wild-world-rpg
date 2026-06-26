@@ -172,8 +172,10 @@ read-only): `shouldOffer` = killswitch `onboarding.first_build.enabled` ON + `1�
 builder-путь УЖЕ в разделе `base`, упоминание Навеса ПРИ активации; Tip — ДА, seed ПРИ активации; Onboarding —
 OnbStepBuild + хинт FIRST_BUILD уже в потоке. **WipeManifest** н/п (KEEP). **Картинка `lean_to.jpg`** — генерится
 ПЕРЕД активацией (graceful text-fallback пока). ADR-142 + tech-writing `FirstShelterService.md` + daily. **➡️ Дальше:**
-CI → preprod → тег прод DORMANT → Tier-3 на testbot (включить, построить Навес чистым чаром, проверить OnbStepBuild) →
-ПРИ активации: картинка + guide + tip. Метрика Build 9%→20-25% — замер S10.
+прод DORMANT `v0.51.500` → **Tier-3 на testbot PASS** (живой webhook: список→старт 3 мин/Wood −25 Water −10→`tasks:run`→
+`character_buildings` LeanTo level=1, 0 ошибок) → картинка `lean_to.jpg` (gpt-image-2 V4) + guide-строка + tip `FirstShelter`
+(`v0.51.502`) → **🟢 АКТИВИРОВАН на проде 2026-06-27 00:21** (`onboarding.first_build.enabled=1` через admin UI, audit-trail +
+cache:clear; 0 error/warning; Навес живёт ~93 игрокам). Откат=OFF. **🏁 S5 закрыт.** Метрика Build 9%→20-25% — замер S10.
 
 ---
 
