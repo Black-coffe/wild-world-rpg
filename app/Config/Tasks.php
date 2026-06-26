@@ -330,6 +330,13 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\Onboarding\ComebackNudgeHandler())->handle())
             ->everyMinute()->singleInstance()->named('onboarding.comeback');
 
+        // S6 (ROADMAP-RETENTION-10, ADR-140) — day-2 пинг: проактивный возврат в окне D1→D2
+        // (16-44ч, НИЖЕ 48ч-пола comeback'а), новичку (level ≤ max) с конкретными live-поводами
+        // (серия входов / задания дня). everyMinute + hour-guard + once/day-claim + killswitch
+        // returnability.day2.enabled (default OFF dormant). One-shot НАВСЕГДА per char (Day2Ping).
+        $schedule->call(static fn() => (new \App\TaskHandlers\Onboarding\Day2NudgeHandler())->handle())
+            ->everyMinute()->singleInstance()->named('onboarding.day2');
+
         // E8 (ROADMAP-100, ADR-109) — ежедневные задания: прогресс по baseline-дельте + награды.
         // everyMinute + killswitch quests.daily.enabled (default OFF dormant). singleInstance.
         $schedule->call(static fn() => (new \App\TaskHandlers\Quests\DailyTaskProgressHandler())->handle())

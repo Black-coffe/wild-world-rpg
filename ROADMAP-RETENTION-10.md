@@ -122,6 +122,27 @@
     **🏁🏁 ВСЯ СПИНА S4 (1a+1b+2+3+4) АКТИВНА на проде.** ➡️ консолид. broadcast-анонс спины S4 (после live-наблюдения);
     замер Move/named-rate/L2-rate — в **S10**.
 
+## §0.4. РЕЗУЛЬТАТ S6 (построен 2026-06-26, dormant develop, ADR-140) — премиз скорректирован ×2
+
+**Owner-pick S6** (вердикт панели: единственная сессия, бьющая прямо в D7). **Audit-first (2 Explore +
+прод-SELECT) скорректировал премиз ×2:**
+1. **«Overnight-движок» по сути уже есть:** Поход капится 60мин, но **Gather 10–720мин** (до 12ч) =
+   естественная долгая задача новичка; стройка — часы. Явного exit-хука нет (только `last_seen`).
+2. **🔴 Инфра «поводов вернуться» ВСЯ LIVE на проде** (seed-default-trap: агенты прочитали дефолты кода
+   как dormant; прод-SELECT = ground truth): comeback (48-168ч), streak (+золото), daily (3/день, бонус
+   500), digest, notification-policy (тихие часы/dedup/silent) — всё `=1`. **Rider уведомлений S6 уже сделан.**
+
+**Genuine gap:** comeback бьёт только с **48ч** → окно **D1→D2 (16-44ч) НЕ покрыто** проактивным пингом;
+«поводы» есть и платят, но новичок о них не знает, пока сам не зайдёт. **Owner-pick scope: «только day-2
+пинг»** (без in-session pre-announce). **Решение:** NEW `Day2NudgeHandler` (зеркало comeback, окно 16-44ч
+НИЖЕ 48ч-пола, не пересекаются; называет КОНКРЕТНЫЕ live-поводы серия/дейлики честно по их killswitch;
+one-shot `Day2Ping`, max_level 6, opt-out, markBlocked, без награды). 6 ключей `returnability.day2.*`
+(категория world, миграция `Adr140Day2NudgeGameSettings`, default OFF=dormant). Регистрация Tasks.php
+`onboarding.day2` everyMinute. **Tier-1:** phpstan L9 0 errors + php -l 4/4; DB-тест `Day2NudgeHandlerTest`
+(11, зеркало comeback) — на CI (MySQL локально down). WipeManifest н/п (game_settings=KEEP, маркер в
+action_log). Onb/Guide/Tip-вердикт «НЕТ всем» (исходящий push, не in-game механика). ADR-140 + tech-writing
+`Day2NudgeHandler.md`. ➡️ CI → Tier-3 на testbot → активация (решение владельца). Замер D2-возврата — в **S10**.
+
 ---
 
 ## §1. Аналитика: насколько закрыты механики по этапам
