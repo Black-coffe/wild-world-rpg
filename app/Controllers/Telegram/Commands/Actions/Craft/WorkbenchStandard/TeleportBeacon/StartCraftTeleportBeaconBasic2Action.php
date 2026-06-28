@@ -154,7 +154,9 @@ class StartCraftTeleportBeaconBasic2Action extends BaseAction
             ->update();
 
         // 8) Отправляем сообщение об успехе
-        return $this->notifyCraftStarted($chatId, $durationMinutes);
+        $scope      = new \App\Services\Tasks\ActionScopeService();
+        $background = $scope->isBackground($taskRow['parallel_execution_allowed'] ?? 1);
+        return $this->notifyCraftStarted($chatId, $durationMinutes, $background);
     }
 
     // ---------------------------
@@ -189,9 +191,11 @@ class StartCraftTeleportBeaconBasic2Action extends BaseAction
         }
     }
 
-    private function notifyCraftStarted(int $chatId, int $minutes): ServerResponse
+    private function notifyCraftStarted(int $chatId, int $minutes, bool $background): ServerResponse
     {
+        $scope = new \App\Services\Tasks\ActionScopeService();
         $text = "*Процесс крафта запущен!*\n\n"
+            . $scope->startedBlock(\App\Services\Tasks\ActionScopeService::KIND_CRAFT, $background) . "\n\n"
             . "Ты создаёшь: *🌀 Базовый телепорт-маяк*.\n"
             . "__Время крафта__: ~{$minutes} минут.\n\n"
             . "По завершении ты получишь маяк в свой инвентарь.";

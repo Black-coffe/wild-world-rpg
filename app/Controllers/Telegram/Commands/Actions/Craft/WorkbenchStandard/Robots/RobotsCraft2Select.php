@@ -12,8 +12,11 @@ class RobotsCraft2Select extends BaseAction
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
+        $scope = new \App\Services\Tasks\ActionScopeService();
+
         $text = "*Ты в разделе 🤖 Роботы!* 🏭\n\n"
             . "Раздел крафта роботизированных вещей.\n\n"
+            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n"
             . "_Выбирай нужного робота и приступай к крафту_ 👇\n";
 
         $rows = [

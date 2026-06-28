@@ -213,7 +213,10 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
         ]);
 
         // 9) сообщаем успех
+        $scope      = new \App\Services\Tasks\ActionScopeService();
+        $background = $scope->isBackground($taskRow['parallel_execution_allowed'] ?? 1);
         $text = "*Начат крафт {$this->quantity} шт. «Рваной рубахи»*\n\n"
+            . $scope->startedBlock(\App\Services\Tasks\ActionScopeService::KIND_CRAFT, $background) . "\n\n"
             . "Общее время крафта: ~{$totalTime} мин.\n"
             . "После завершения получишь {$this->quantity} шт.\n";
 

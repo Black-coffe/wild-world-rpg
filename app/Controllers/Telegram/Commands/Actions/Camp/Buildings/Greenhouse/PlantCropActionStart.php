@@ -128,7 +128,11 @@ class PlantCropActionStart extends BaseAction
             : '';
         $endStr  = $endTime->format('H:i');
 
+        $scope      = new \App\Services\Tasks\ActionScopeService();
+        $background  = $scope->isBackground($plantTask['parallel_execution_allowed'] ?? 1);
+
         $text = "🌱 *Посажено: {$meta['icon']} {$meta['crop_ru']}*\n\n"
+            . $scope->startedBlock(\App\Services\Tasks\ActionScopeService::KIND_CRAFT, $background) . "\n\n"
             . "⏱ Поспеет через *{$grow} мин* (≈ {$endStr}).\n"
             . "🌾 Ожидаемый урожай: *{$meta['icon']} {$meta['crop_ru']} ×{$yield}*.{$rotLine}{$ghLine}\n\n"
             . "Слоты посадок: *" . ($used + 1) . "/{$maxSlots}*.\n"

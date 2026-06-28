@@ -30,9 +30,12 @@ class WeaponsCraftT3Select extends BaseAction
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
+        $scope = new \App\Services\Tasks\ActionScopeService();
+
         $text = "*⚔️ Оружие T3 — Профессиональный верстак*\n\n"
             . "_Пять рецептов высокого тира. Энергетика, рельсотроны, огнемёт. "
             . "Каждое требует ProfessionalWorkbench, ресурсы из доколлапсной эры и время._\n\n"
+            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n"
             . "Выбирай рецепт для деталей и крафта:\n\n"
             . "1) 🔫 *Гаусс-пистолет* — L16 Epic, 25 dmg\n"
             . "2) 🎯 *Рельсотрон «Вихрь»* — L18 Epic, 30 dmg\n"

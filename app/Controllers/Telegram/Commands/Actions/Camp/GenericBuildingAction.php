@@ -195,8 +195,14 @@ class GenericBuildingAction extends BaseAction
         }
 
         // 10. Уведомление
+        // ADR-143: легенда области действия — стройка всегда «🏠 Только на базе»
+        // (гейт findActiveCell выше), занятость берём из флага задачи (у зданий =1,
+        // фоновая → можно уходить, пока строится).
+        $scope      = new \App\Services\Tasks\ActionScopeService();
+        $background  = $scope->isBackground($taskRow['parallel_execution_allowed'] ?? 1);
         $minutes = $duration;
         $text = "*Строительство {$recipe['name_rus']} начато!*\n\n"
+            . $scope->startedBlock(\App\Services\Tasks\ActionScopeService::KIND_BUILD, $background) . "\n\n"
             . "Длительность: ~{$minutes} мин.\n"
             . "По завершении здание будет добавлено на базу.";
 

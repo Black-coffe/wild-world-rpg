@@ -246,7 +246,10 @@ class WorkbenchProfessionalAction extends BaseAction
      */
     private function renderCraftMenu(int $chatId): ServerResponse
     {
+        $scope = new \App\Services\Tasks\ActionScopeService();
+
         $text = "*🛠️ Профессиональный верстак (цех) — Готов*\n\n"
+            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n"
             . "Тяжёлый верстак собран, тиски разведены, паяльник греется. "
             . "Выбирай раздел для крафта.\n\n"
             . "⚔️ *Оружие* — 5 рецептов T3 (S17)\n"

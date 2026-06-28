@@ -60,9 +60,12 @@ class SeasonalCraftSelect extends BaseAction
             ]);
         }
 
+        $scope = new \App\Services\Tasks\ActionScopeService();
+
         $text = "🗓 *Сезонный крафт: {$label}*\n"
               . "Осталось дней в сезоне: *{$daysLeft}*\n"
-              . "_Рецепты доступны только в этот сезон. Не успеешь — вернутся в следующем году._\n\n";
+              . "_Рецепты доступны только в этот сезон. Не успеешь — вернутся в следующем году._\n\n"
+              . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n";
 
         $rows = [];
         foreach ($recipeKeys as $key) {

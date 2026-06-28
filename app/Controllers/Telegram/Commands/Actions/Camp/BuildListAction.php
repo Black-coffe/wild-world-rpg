@@ -101,7 +101,9 @@ class BuildListAction extends BaseAction
         // Разбиваем на ряды по 2 кнопки
         $keyboard = array_chunk($keyboardButtons, 2);
 
+        $scope = new \App\Services\Tasks\ActionScopeService();
         $text = "🤖 Это я – *Роби*!\n\n"
+            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_BUILD) . "\n\n"
             . "Вот список доступных построек с указанием суточного налога:\n\n"
             . "{$buildingList}"
             . "\n_Выбери желаемое здание для строительства._";

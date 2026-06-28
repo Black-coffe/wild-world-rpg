@@ -54,9 +54,12 @@ class CampfireCookingSelect extends BaseAction
         $cfg = config('CraftRecipes');
         $gs  = new GameSettingsService();
 
+        $scope = new \App\Services\Tasks\ActionScopeService();
+
         $text = "🔥 *Костёр — готовка*\n"
             . "_Преврати урожай теплицы и собранные дары в сытные блюда. Еда восстанавливает "
-            . "здоровье и особенно выносливость. Готовить можно где угодно._\n";
+            . "здоровье и особенно выносливость. Готовить можно где угодно._\n\n"
+            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n";
 
         // V9 (ADR-034): текущая «Сытость» (если активна) — крафт быстрее + добыча щедрее.
         $fb = new \App\Services\Food\FoodBuffService();

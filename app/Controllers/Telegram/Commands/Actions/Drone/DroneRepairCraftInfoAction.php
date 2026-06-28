@@ -56,8 +56,17 @@ final class DroneRepairCraftInfoAction extends BaseAction
         $icon = is_string($recipe['icon_emoji'] ?? null) ? $recipe['icon_emoji'] : '🚁';
         $name = is_string($recipe['item_name_rus'] ?? null) ? $recipe['item_name_rus'] : 'Дрон-ремонтник';
 
+        // ADR-143: реальная занятость задачи крафта (pre-commit предупреждение).
+        $scope       = new \App\Services\Tasks\ActionScopeService();
+        $taskModel   = new \App\Models\TaskModel();
+        $taskNameRaw = $recipe['task_name'] ?? '';
+        $taskNameStr = is_string($taskNameRaw) ? $taskNameRaw : '';
+        $taskRow     = $taskNameStr !== '' ? $taskModel->where('name', $taskNameStr)->first() : null;
+        $bg          = $scope->isBackground(is_array($taskRow) ? ($taskRow['parallel_execution_allowed'] ?? 0) : 0);
+
         $text = "*{$icon} {$name}*\n\n";
         $text .= "Полевой дрон с паяльной станцией и запчастями. Один взлёт чинит *всех* твоих роботов разом — только за чистое золото, никаких ресурсов. Заряжается на базе (~4 часа до полного заряда). V19 ручной ремонт не отменяется — это премиум-альтернатива для эндгейма.\n\n";
+        $text .= $scope->scopeLine(\App\Services\Tasks\ActionScopeService::KIND_CRAFT, $bg) . "\n\n";
         $text .= "*Для крафта потребуется:*\n\n";
 
         $hasAll = true;

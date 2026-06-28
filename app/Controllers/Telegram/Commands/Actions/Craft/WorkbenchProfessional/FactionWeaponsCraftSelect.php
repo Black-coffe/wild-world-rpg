@@ -26,9 +26,12 @@ class FactionWeaponsCraftSelect extends BaseAction
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
+        $scope = new \App\Services\Tasks\ActionScopeService();
+
         $text = "*🎖 Фракционное оружие — Профессиональный верстак*\n\n"
             . "_Сигнатурное Legendary-оружие. По одному на фракцию. Доступно "
             . "только члену фракции, захватившему её стратегический объект._\n\n"
+            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n"
             . "🪖 *Бункерная винтовка* — Военные (захват Бункера), L20, 38 dmg\n"
             . "🔱 *Технолучевой дробовик* — Инженеры (захват Технопарка), L22, 40 dmg\n"
             . "🗡 *Нож Города-призрака* — Партизаны (захват Города-призрака), L14, 32 dmg\n"

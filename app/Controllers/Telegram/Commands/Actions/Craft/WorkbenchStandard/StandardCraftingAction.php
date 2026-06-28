@@ -12,9 +12,11 @@ class StandardCraftingAction extends BaseAction
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
+        $scope = new \App\Services\Tasks\ActionScopeService();
         $text = "*Ты в разделе 🔧 Стандартный крафт* 🏭\n\n"
             . "Здесь крафтятся *продвинутые вещи*: роботы, телепорты, броня, оружие и дроны.\n"
-            . "Нужны *🔬 Верстак 1* и построенная база.\n\n"
+            . "Нужны *🔬 Верстак 1* и построенная база — но стоять на ней не нужно, запускать можно откуда угодно.\n\n"
+            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n"
             . "_Выбирай направление крафта — если хватит ресурсов, получишь нужную вещь_ 👇\n";
 
         // Базовые категории.

@@ -158,7 +158,9 @@ class StartCraftTeleportBackpack2Action extends BaseAction
             ->update();
 
         // 8) Уведомляем об успехе
-        return $this->notifyCraftStarted($chatId, $durationMinutes);
+        $scope      = new \App\Services\Tasks\ActionScopeService();
+        $background = $scope->isBackground($taskRow['parallel_execution_allowed'] ?? 1);
+        return $this->notifyCraftStarted($chatId, $durationMinutes, $background);
     }
 
     // ---------------------------
@@ -202,9 +204,11 @@ class StartCraftTeleportBackpack2Action extends BaseAction
     /**
      * Шаблон для вывода статуса запуска крафта
      */
-    private function notifyCraftStarted(int $chatId, int $minutes): ServerResponse
+    private function notifyCraftStarted(int $chatId, int $minutes, bool $background): ServerResponse
     {
+        $scope = new \App\Services\Tasks\ActionScopeService();
         $text = "*Процесс крафта запущен!*\n\n"
+            . $scope->startedBlock(\App\Services\Tasks\ActionScopeService::KIND_CRAFT, $background) . "\n\n"
             . "Ты создаёшь: *🎒 Рюкзак телепорт*.\n"
             . "__Время крафта__: ~{$minutes} минут.\n\n"
             . "По завершении рюкзак будет добавлен в твой инвентарь.";

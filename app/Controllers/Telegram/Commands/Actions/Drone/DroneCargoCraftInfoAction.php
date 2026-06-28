@@ -56,8 +56,17 @@ final class DroneCargoCraftInfoAction extends BaseAction
         $icon = is_string($recipe['icon_emoji'] ?? null) ? $recipe['icon_emoji'] : '🚚';
         $name = is_string($recipe['item_name_rus'] ?? null) ? $recipe['item_name_rus'] : 'Карго-дрон';
 
+        // ADR-143: реальная занятость задачи крафта (pre-commit предупреждение).
+        $scope       = new \App\Services\Tasks\ActionScopeService();
+        $taskModel   = new \App\Models\TaskModel();
+        $taskNameRaw = $recipe['task_name'] ?? '';
+        $taskNameStr = is_string($taskNameRaw) ? $taskNameRaw : '';
+        $taskRow     = $taskNameStr !== '' ? $taskModel->where('name', $taskNameStr)->first() : null;
+        $bg          = $scope->isBackground(is_array($taskRow) ? ($taskRow['parallel_execution_allowed'] ?? 0) : 0);
+
         $text = "*{$icon} {$name}*\n\n";
         $text .= "Грузовой квадрокоптер, переносит до 30 кг ресурсов с любой клетки прямо в твой склад на базе за один вылет. Заряжается на базе (~3 часа до полного заряда).\n\n";
+        $text .= $scope->scopeLine(\App\Services\Tasks\ActionScopeService::KIND_CRAFT, $bg) . "\n\n";
         $text .= "*Для крафта потребуется:*\n\n";
 
         $hasAll = true;

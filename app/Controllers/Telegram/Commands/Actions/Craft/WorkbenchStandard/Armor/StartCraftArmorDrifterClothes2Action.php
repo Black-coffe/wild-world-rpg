@@ -208,7 +208,10 @@ class StartCraftArmorDrifterClothes2Action extends BaseAction
             'callback_query_id' => $this->callbackQuery->getId()
         ]);
 
-        $text = "*Начат крафт {$this->quantity} шт. «Одежды бродяги»*\n"
+        $scope      = new \App\Services\Tasks\ActionScopeService();
+        $background = $scope->isBackground($taskRow['parallel_execution_allowed'] ?? 1);
+        $text = "*Начат крафт {$this->quantity} шт. «Одежды бродяги»*\n\n"
+            . $scope->startedBlock(\App\Services\Tasks\ActionScopeService::KIND_CRAFT, $background) . "\n\n"
             . "Общее время крафта: ~{$totalTime} минут.\n"
             . "По завершении вы получите {$this->quantity} шт.\n";
 

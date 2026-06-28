@@ -95,6 +95,14 @@ class SeasonalRecipePreviewAction extends BaseAction
         $healHealth = $this->intFromMixed($this->gameSettings->get("medical.{$snake}.heal_health", 0));
         $healTired  = $this->intFromMixed($this->gameSettings->get("medical.{$snake}.heal_tired", 0));
 
+        // ADR-143: реальная занятость задачи крафта (pre-commit предупреждение).
+        $scope       = new \App\Services\Tasks\ActionScopeService();
+        $taskModel   = new \App\Models\TaskModel();
+        $taskNameRaw = $recipe['task_name'] ?? '';
+        $taskNameStr = is_string($taskNameRaw) ? $taskNameRaw : '';
+        $taskRow     = $taskNameStr !== '' ? $taskModel->where('name', $taskNameStr)->first() : null;
+        $bg          = $scope->isBackground(is_array($taskRow) ? ($taskRow['parallel_execution_allowed'] ?? 0) : 0);
+
         $itemNameRusRaw = $recipe['item_name_rus'] ?? $recipeKey;
         $itemNameRus    = is_string($itemNameRusRaw) ? $itemNameRusRaw : $recipeKey;
         $iconRaw        = $recipe['icon_emoji'] ?? '🗓';
@@ -111,6 +119,7 @@ class SeasonalRecipePreviewAction extends BaseAction
         if (!empty($effectParts)) {
             $caption .= "_Эффект: " . implode(', ', $effectParts) . "_\n";
         }
+        $caption .= "\n" . $scope->scopeLine(\App\Services\Tasks\ActionScopeService::KIND_CRAFT, $bg) . "\n";
         $caption .= "\n*Уровень:* L{$needLevel} (у вас L{$charLevel})\n";
         if ($goldNeed > 0) {
             $caption .= "*Золото:* {$goldNeed} / {$goldHave}\n";

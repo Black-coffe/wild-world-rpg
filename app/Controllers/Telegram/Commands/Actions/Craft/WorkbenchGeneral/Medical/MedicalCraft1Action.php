@@ -24,9 +24,12 @@ class MedicalCraft1Action extends BaseAction
         [$user, $character] = $this->getUserAndCharacter();
         $characterId = $character['id'] ?? null;
 
+        $scope = new \App\Services\Tasks\ActionScopeService();
+
         // Основной текст шапки
         $text = "*Ты в разделе 💊 Лекарства!* 🏭\n\n"
             . "В этом разделе можно крафтить лекарственные препараты.\n\n"
+            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n"
             . "_Выбирай нужный предмет и приступай к крафту_ 👇\n";
 
         // Список предметов (как и раньше)

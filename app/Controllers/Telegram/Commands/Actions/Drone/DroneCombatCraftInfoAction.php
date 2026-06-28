@@ -56,8 +56,17 @@ final class DroneCombatCraftInfoAction extends BaseAction
         $icon = is_string($recipe['icon_emoji'] ?? null) ? $recipe['icon_emoji'] : '🛡';
         $name = is_string($recipe['item_name_rus'] ?? null) ? $recipe['item_name_rus'] : 'Боевой дрон';
 
+        // ADR-143: реальная занятость задачи крафта (pre-commit предупреждение).
+        $scope       = new \App\Services\Tasks\ActionScopeService();
+        $taskModel   = new \App\Models\TaskModel();
+        $taskNameRaw = $recipe['task_name'] ?? '';
+        $taskNameStr = is_string($taskNameRaw) ? $taskNameRaw : '';
+        $taskRow     = $taskNameStr !== '' ? $taskModel->where('name', $taskNameStr)->first() : null;
+        $bg          = $scope->isBackground(is_array($taskRow) ? ($taskRow['parallel_execution_allowed'] ?? 0) : 0);
+
         $text = "*{$icon} {$name}*\n\n";
         $text .= "Бронированный квадрокоптер с slung tear-gas canisters и вращающимся лезвием защиты. Активируется по запросу — даёт защитнику +12 процентов инициативы на 30 мин (cap 25 процентов с Дозорной вышкой). Не атакует. Заряжается на базе ~6 часов.\n\n";
+        $text .= $scope->scopeLine(\App\Services\Tasks\ActionScopeService::KIND_CRAFT, $bg) . "\n\n";
         $text .= "*Для крафта потребуется:*\n\n";
 
         $hasAll = true;

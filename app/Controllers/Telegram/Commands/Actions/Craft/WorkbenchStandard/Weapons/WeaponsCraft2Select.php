@@ -12,9 +12,12 @@ class WeaponsCraft2Select extends BaseAction
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
+        $scope = new \App\Services\Tasks\ActionScopeService();
+
         // Краткое описание раздела с эмоджи
         $text = "*Ты в разделе ⚔️ Оружие!* 🏭\n\n"
             . "Ниже — образцы (по возрастанию урона), которые можно скрафтить на стандартном верстаке.\n\n"
+            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n"
             . "Выбирай нужную модель и приступай к изготовлению:\n\n"
             . "1) 🗡️ *Металлическое копьё*\n"
             . "2) 🔫 *Трубчатый пистолет (Pipe Gun)*\n"

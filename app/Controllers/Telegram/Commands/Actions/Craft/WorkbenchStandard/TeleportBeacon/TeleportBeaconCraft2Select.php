@@ -20,10 +20,13 @@ class TeleportBeaconCraft2Select extends BaseAction
         // Получаем chat_id, чтобы отправить сообщение
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
+        $scope = new \App\Services\Tasks\ActionScopeService();
+
         // Текст, объясняющий, что мы в разделе крафта маяков
         $text = "*Ты в разделе 🌀 Телепортов!* 🏭\n\n"
             . "Здесь ты можешь создать специальный предмет — *маяк телепорта*. А также *рюкзак телепорт*\n"
             . "В будущем появятся другие типы маяков (для слежки, обнаружения и т.д.).\n\n"
+            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n"
             . "_Сейчас доступно только два варианта:_\n"
             . "• *Телепорт-маяк (базовый)*\n"
             . "• *Рюкзак-телепорт*\n\n"

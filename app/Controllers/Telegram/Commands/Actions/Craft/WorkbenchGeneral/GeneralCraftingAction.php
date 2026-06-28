@@ -12,8 +12,10 @@ class GeneralCraftingAction extends BaseAction
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
+        $scope = new \App\Services\Tasks\ActionScopeService();
         $text = "*Ты в разделе 🔨 Общий крафт!* 🏭\n\n"
             . "В этом разделе можно крафтить, где угодно и когда угодно.\n\n"
+            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n"
             . "_Выбирай направление крафта и если у тебя достаточно ресурсов, ты получишь нужную вещь_ 👇\n";
 
         $keyboard = [

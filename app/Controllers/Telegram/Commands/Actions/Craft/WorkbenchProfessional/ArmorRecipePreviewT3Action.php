@@ -198,6 +198,14 @@ class ArmorRecipePreviewT3Action extends BaseAction
             }
         }
 
+        // ADR-143: реальная занятость задачи крафта (pre-commit предупреждение).
+        $scope       = new \App\Services\Tasks\ActionScopeService();
+        $taskModel   = new \App\Models\TaskModel();
+        $taskNameRaw = $recipe['task_name'] ?? '';
+        $taskNameStr = is_string($taskNameRaw) ? $taskNameRaw : '';
+        $taskRow     = $taskNameStr !== '' ? $taskModel->where('name', $taskNameStr)->first() : null;
+        $bg          = $scope->isBackground(is_array($taskRow) ? ($taskRow['parallel_execution_allowed'] ?? 0) : 0);
+
         // Build caption.
         $itemNameRusRaw = $recipe['item_name_rus'] ?? $recipeKey;
         $itemNameRus    = is_string($itemNameRusRaw) ? $itemNameRusRaw : $recipeKey;
@@ -224,6 +232,7 @@ class ArmorRecipePreviewT3Action extends BaseAction
                 $caption .= \App\Services\Display\OutfitDisplayHelper::PVP_NOTE . "\n";
             }
         }
+        $caption .= "\n" . $scope->scopeLine(\App\Services\Tasks\ActionScopeService::KIND_CRAFT, $bg) . "\n";
         $caption .= "\n*Уровень:* L{$needLevel} (у вас L{$charLevel})\n";
         $caption .= "*Золото:* {$goldNeed} / {$goldHave}\n";
 

@@ -26,9 +26,12 @@ class FactionArmorCraftSelect extends BaseAction
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
+        $scope = new \App\Services\Tasks\ActionScopeService();
+
         $text = "*🛡 Фракционная броня — Профессиональный верстак*\n\n"
             . "_Сигнатурная Legendary-броня. По одной на фракцию. Доступна "
             . "только члену фракции, захватившему её стратегический объект._\n\n"
+            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n"
             . "🪖 *Бункерная бронеплита* — Военные (захват Бункера), L20, броня 32 (тяж.)\n"
             . "🔱 *Техно-щитовой костюм* — Инженеры (захват Технопарка), L22, броня 28 (+огнестойк.)\n"
             . "🥷 *Плащ Города-призрака* — Партизаны (захват Города-призрака), L14, броня 22 (+скрытность)\n"

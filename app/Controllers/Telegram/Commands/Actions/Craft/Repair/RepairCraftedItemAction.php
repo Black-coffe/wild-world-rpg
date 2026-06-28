@@ -240,7 +240,12 @@ class RepairCraftedItemAction extends BaseAction
         ]);
 
         $endStr = $endTime->format('H:i');
+
+        $scope      = new \App\Services\Tasks\ActionScopeService();
+        $background  = $scope->isBackground($repairTask['parallel_execution_allowed'] ?? 0);
+
         $text   = "🔧 *Ремонт начат*\n\n"
+            . $scope->startedBlock(\App\Services\Tasks\ActionScopeService::KIND_CRAFT, $background) . "\n\n"
             . "*{$ctx['name_rus']}* — будет готов в *{$endStr}* (через {$duration} мин.).\n\n"
             . "_Я пришлю уведомление, когда ремонт завершится._";
 

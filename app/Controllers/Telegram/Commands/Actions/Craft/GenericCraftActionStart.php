@@ -13,6 +13,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Services\BuildingEffects\BuildingEffectsService;
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Tasks\ActionScopeService;
 use Config\CraftRecipes;
 use Config\GameBalance;
 use DateInterval;
@@ -71,6 +72,7 @@ class GenericCraftActionStart extends BaseAction
     private GameBalance $cfg;
     private BuildingEffectsService $buildingEffects;
     private GameSettingsService $gameSettings;
+    private ActionScopeService $scope;
 
     public function __construct($callbackQuery)
     {
@@ -87,6 +89,7 @@ class GenericCraftActionStart extends BaseAction
             $this->buildingModel,
         );
         $this->gameSettings           = new GameSettingsService();
+        $this->scope                  = new ActionScopeService();
 
         // genericCraft_<RecipeKey>_<qty>
         $data  = $callbackQuery->getData();
@@ -372,10 +375,15 @@ class GenericCraftActionStart extends BaseAction
             return $this->sendError('Ошибка при создании задачи крафта. Попробуйте ещё раз.');
         }
 
+        // ADR-143: занятость берём из флага задачи — всегда совпадает с реальным
+        // блокированием движения/добычи (GenericCraftActionStart не зовёт guard сам,
+        // но MoveCharacterToDirectionAction/GatherAction/MarchAction читают этот флаг).
+        $background = $this->scope->isBackground($taskRow['parallel_execution_allowed'] ?? 1);
+
         if ($isQueued) {
-            return $this->notifyCraftQueued($recipe, $sameRecipeCount + 1, $this->quantity, $insertedId);
+            return $this->notifyCraftQueued($recipe, $sameRecipeCount + 1, $this->quantity, $insertedId, $background);
         }
-        return $this->notifyCraftStarted($recipe, $startTime, $endTime, $this->quantity);
+        return $this->notifyCraftStarted($recipe, $startTime, $endTime, $this->quantity, $background);
     }
 
     /**
@@ -627,9 +635,10 @@ class GenericCraftActionStart extends BaseAction
      * v0.51.129: notification для queued task. Показує queue position + qty +
      * cancel button з callback `cancelQueued_<task_id>` для refund.
      */
-    private function notifyCraftQueued(array $recipe, int $queuePosition, int $qty, int $charTaskId): ServerResponse
+    private function notifyCraftQueued(array $recipe, int $queuePosition, int $qty, int $charTaskId, bool $background): ServerResponse
     {
         $text = "*В очередь поставлено:* {$recipe['start_caption_name']} x{$qty} шт.\n\n"
+            . $this->scope->scopeLine(ActionScopeService::KIND_CRAFT, $background) . "\n\n"
             . "📋 Позиция в очереди: *#{$queuePosition}*\n"
             . "Начнётся автоматически после завершения активного крафта.\n\n"
             . "❗Ресурсы уже списаны. Отмена очереди вернёт их.";
@@ -652,7 +661,7 @@ class GenericCraftActionStart extends BaseAction
         ]);
     }
 
-    private function notifyCraftStarted(array $recipe, DateTime $startTime, DateTime $endTime, int $qty): ServerResponse
+    private function notifyCraftStarted(array $recipe, DateTime $startTime, DateTime $endTime, int $qty, bool $background): ServerResponse
     {
         $interval = $startTime->diff($endTime);
         $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
@@ -660,6 +669,7 @@ class GenericCraftActionStart extends BaseAction
 
         $text = "*Процесс крафта запущен*\n\n"
             . "Ты создаёшь: {$recipe['start_caption_name']} x{$qty} шт.\n\n"
+            . $this->scope->startedBlock(ActionScopeService::KIND_CRAFT, $background) . "\n\n"
             . "Время крафта: *{$timeStr}* ⏱️\n\n"
             . "После завершения будет добавлено *{$qty}* шт. в твой инвентарь.\n\n"
             . "❗Прерывание задачи = потеря ресурсов!\n\n"

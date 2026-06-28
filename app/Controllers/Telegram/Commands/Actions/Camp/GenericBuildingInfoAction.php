@@ -14,6 +14,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\ResourceModel;
 use App\Services\Notifications\MediaSender;
+use App\Services\Tasks\ActionScopeService;
 use App\Services\Tasks\ActiveTasksService;
 use Config\Buildings;
 use Longman\TelegramBot\Entities\CallbackQuery;
@@ -177,7 +178,13 @@ class GenericBuildingInfoAction extends BaseAction
         $duration = $this->estimateDuration($character, $recipe['task_name']);
 
         // 9. Build caption text
-        $caption = "*{$emoji} {$nameRus}!*\n\n"
+        // ADR-143: легенда области действия — стройка «🏠 Только на базе» + занятость
+        // (фоновая) из флага задачи, чтобы preview не врал, если админ поменяет флаг.
+        $scope        = new ActionScopeService();
+        $buildTaskRow = $this->rowToArr($this->taskModel->where('name', $recipe['task_name'])->first());
+        $bgBuild      = $scope->isBackground($buildTaskRow['parallel_execution_allowed'] ?? 1);
+        $caption = "*{$emoji} {$nameRus}!*\n"
+            . $scope->scopeLine(ActionScopeService::KIND_BUILD, $bgBuild) . "\n\n"
             . "Для строительства тебе нужны:\n\n"
             . $this->formatResourcesText($character['id'], $requiredRes)
             . $this->formatCraftedItemsText($character['id'], $requiredItems)

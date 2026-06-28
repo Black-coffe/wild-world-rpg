@@ -12,9 +12,12 @@ class ArmorCraft2Select extends BaseAction
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
+        $scope = new \App\Services\Tasks\ActionScopeService();
+
         // Текст с кратким описанием раздела брони (добавляем тематические эмоджи)
         $text = "*Ты в разделе 🛡️ Броня!* 🏭\n\n"
             . "Раздел крафта различных защитных элементов.\n\n"
+            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n"
             . "_Ниже — доступные варианты для создания._\n"
             . "Выбирай нужную позицию и приступай к крафту:\n\n"
             . "1) 👕 *Рваная рубаха*\n"

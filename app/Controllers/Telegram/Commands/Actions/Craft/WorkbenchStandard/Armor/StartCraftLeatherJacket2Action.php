@@ -214,7 +214,10 @@ class StartCraftLeatherJacket2Action extends BaseAction
             'callback_query_id' => $this->callbackQuery->getId()
         ]);
 
-        $text = "*Начат крафт {$this->quantity} шт. «Кожаной куртки»!*\n"
+        $scope      = new \App\Services\Tasks\ActionScopeService();
+        $background = $scope->isBackground($taskRow['parallel_execution_allowed'] ?? 1);
+        $text = "*Начат крафт {$this->quantity} шт. «Кожаной куртки»!*\n\n"
+            . $scope->startedBlock(\App\Services\Tasks\ActionScopeService::KIND_CRAFT, $background) . "\n\n"
             . "Общее время: ~{$totalTime} мин.\n"
             . "По окончании вы получите результат.\n";
 
