@@ -282,7 +282,7 @@ phpstan L9 полный 0 errors + php -l 4/4 миграции. **🔴 Нагр�
 
 ---
 
-## §0.9. РЕЗУЛЬТАТ S9 (построен 2026-06-28, dormant develop, ADR-147) — «ранняя атмосфера»
+## §0.9. РЕЗУЛЬТАТ S9 (🟢 LIVE прод v0.51.508, активирован 2026-06-28 22:14, ADR-147) — «ранняя атмосфера»
 
 **Audit-first (2 Explore + read-only прод-census):** движок событий зрелый и безопасный — 24 события
 (биом-скоуп), effect-strategy паттерн, **урон ≤10% HP/тик** (hardened) + нелетальный пол
@@ -304,10 +304,24 @@ NPC → march-мини и ADR-089 промахиваются мимо session-1.
   0.18 / tired_prompt_threshold 20, rich rationale). Guide-секция `atmosphere` (start), tip
   `EarlySurvivalAtmosphere` (события). **WipeManifest** н/п (one-shot маркеры в action_log).
 
-**Tier-1:** `NewbieAtmosphereServiceTest` (21: телеграф-текст/3 выбора/разные исходы без награды/JIT-
+**Tier-1:** `NewbieAtmosphereServiceTest` (телеграф-текст/3 выбора/разные исходы без награды/JIT-
 вода/markdown/оркестрация killswitch+newbie-гейт+one-shot+приоритет вода→шорох+шанс) + WipeManifestCoverage
 + CallbackRoutesResolve (`atmRustle`) зелёные + phpstan L9 полный 0 errors + php -l 2/2 миграции.
-**➡️ Дальше:** CI→preprod→Tier-3 на testbot (живой ход новичка → шорох-выбор/вода) → прод-тег → активация.
+
+**🔴 Tier-3 поймал прод-блокер (фикс v0.51.508 / `65fb028c`):** `maybeSendAtmosphere(array $character)`
+получал `CharacterEntity` (ArrayAccess) из `MoveCharacterToDirectionAction:442` → `TypeError ...
+CharacterEntity given` = HTTP 500 на КАЖДОМ ходу новичка при killswitch ON. **phpstan L9 (полный) — 0
+errors, НЕ поймал.** Фикс — union в сигнатуре `array|CharacterEntity` (зеркало проверенных соседей
+`LuckyFindService::maybeGrantFirstMove`, `ColdOpenSignalService::tryReachBait`). Урок усилен в памяти
+`feedback_entity_strict_array_typehint_trap` (для НОВЫХ on-move хуков — union сразу). Именно это Tier-3
+и должен ловить.
+
+**Tier-3 PASS** (preprod webhook, фикс-релиз `190906`): move новичка → шорох (RUSTLE marker, HTTP 200),
+`atmRustle_peek` → HTTP 200, thirst-путь (tired≤20) → THIRST marker; 0 новых ошибок; dormant baseline
+восстановлен. **🟢 LIVE:** тег `v0.51.508` (dormant) → **активирован на проде 2026-06-28 22:14 EEST**
+через admin UI (audit-trail GAME_SETTING_UPDATE, кеш 60с). Дефолты: max_level=5, rustle_chance=0.18,
+tired_prompt_threshold=20. Owner-pick «активировать сейчас тихо» (ритм S2/S7/S8), анонс — на S10.
+Замер D1-D7 — в общем срезе S10. **🏁 S9 закрыт.** Остался S10.
 
 ---
 
