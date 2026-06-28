@@ -106,6 +106,38 @@ final class ActionScopeServiceTest extends CIUnitTestCase
         $this->assertStringContainsString("\n", $block);
     }
 
+    /**
+     * Anti-drift: ключи, по которым T3/готовка-select-экраны берут представительную
+     * занятость через isRecipeBackground(). Если ключ переименуют/опечатают —
+     * isRecipeBackground вернёт default и предупреждение может стать неверным.
+     * Гард ловит рассинхрон select ↔ Config\CraftRecipes (без DB).
+     */
+    public function testRepresentativeRecipeKeysResolve(): void
+    {
+        $keys = [
+            'GaussPistol', 'TacticalArmorSuit', 'SyntheticMedicine', 'DiamondPickaxe',
+            'BunkerRifle', 'BunkerPlateArmor', 'MushroomSoup',
+        ];
+        $cfg = config('CraftRecipes');
+        foreach ($keys as $key) {
+            $recipe = $cfg->get($key);
+            $this->assertIsArray($recipe, "Рецепт '{$key}' должен существовать в CraftRecipes (select берёт по нему занятость)");
+            $this->assertArrayHasKey('task_name', $recipe, "У рецепта '{$key}' должен быть task_name");
+        }
+    }
+
+    public function testOccupancyWarningBranchesAreDistinct(): void
+    {
+        $blocking = $this->svc->occupancyWarning(false);
+        $bg       = $this->svc->occupancyWarning(true);
+
+        $this->assertStringContainsString('🔒', $blocking);
+        $this->assertStringContainsString('нельзя', $blocking);
+        $this->assertStringContainsString('⏳', $bg);
+        $this->assertStringContainsString('добывать', $bg);
+        $this->assertNotSame($blocking, $bg);
+    }
+
     public function testLegendDiffersByKind(): void
     {
         $craft = $this->svc->legend(ActionScopeService::KIND_CRAFT);
@@ -149,6 +181,8 @@ final class ActionScopeServiceTest extends CIUnitTestCase
             }
             $out[] = [$svc->legend($kind)];
         }
+        $out[] = [$svc->occupancyWarning(true)];
+        $out[] = [$svc->occupancyWarning(false)];
         return $out;
     }
 }

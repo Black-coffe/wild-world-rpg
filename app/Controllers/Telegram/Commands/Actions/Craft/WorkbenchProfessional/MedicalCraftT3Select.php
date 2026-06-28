@@ -35,7 +35,7 @@ class MedicalCraftT3Select extends BaseAction
             . "_Три высокотехнологичных медикамента из доколлапсного сырья. "
             . "От экстренного переливания до полного синтетического восстановления и многоразового "
             . "хирургического набора. Каждый требует ProfessionalWorkbench, редкие материалы и время._\n\n"
-            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n"
+            . $scope->occupancyWarning($scope->isRecipeBackground('SyntheticMedicine')) . "\n\n"
             . "Выбирай рецепт для деталей и крафта:\n\n"
             . "1) 💉 *Синтетическое лекарство* — L20, полное восстановление (100 HP / 60 вынос.)\n"
             . "2) 🩸 *Экстренное переливание* — L18, +80 HP (одноразовое)\n"

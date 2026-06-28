@@ -55,6 +55,36 @@ class ActionScopeService
         return false;
     }
 
+    /**
+     * Занятость крафта по ключу рецепта (Config\CraftRecipes) → bool «фоновое».
+     * Резолвит recipe → task_name → живой `tasks.parallel_execution_allowed`.
+     * Нужен для select/хаб-экранов однородного тира (T3/готовка), чтобы показать
+     * РЕАЛЬНОЕ предупреждение по представительному рецепту, не хардкодя занятость.
+     *
+     * @param string $recipeKey ключ из Config\CraftRecipes
+     * @param bool   $default   если рецепт/задача не найдены
+     */
+    public function isRecipeBackground(string $recipeKey, bool $default = false): bool
+    {
+        /** @var \Config\CraftRecipes $cfg */
+        $cfg      = config('CraftRecipes');
+        $recipe   = $cfg->get($recipeKey);
+        $taskName = is_array($recipe) && isset($recipe['task_name']) && is_string($recipe['task_name'])
+            ? $recipe['task_name']
+            : '';
+        if ($taskName === '') {
+            return $default;
+        }
+        $row = (new \App\Models\TaskModel())->where('name', $taskName)->first();
+        if (is_array($row) && array_key_exists('parallel_execution_allowed', $row)) {
+            return $this->isBackground($row['parallel_execution_allowed']);
+        }
+        if (is_object($row) && isset($row->parallel_execution_allowed)) {
+            return $this->isBackground($row->parallel_execution_allowed);
+        }
+        return $default;
+    }
+
     /** Бейдж позиции: 🌍 Где угодно (крафт) / 🏠 Только на базе (стройка). */
     public function positionBadge(string $kind): string
     {
@@ -99,6 +129,21 @@ class ActionScopeService
     public function startedBlock(string $kind, bool $background): string
     {
         return $this->scopeLine($kind, $background) . "\n" . $this->reassurance($kind, $background);
+    }
+
+    /**
+     * Усиленное предупреждение о занятости для хаб/select-экранов ОДНОРОДНОГО
+     * тира, где все крафты с одним флагом (T3 / готовка / сезон = блокирующие).
+     * Сильнее обычного legend(): прямо говорит, что нельзя делать, пока идёт,
+     * чтобы предупредить ДО входа в долгий блокирующий крафт. Курсив, markdown-safe.
+     * Занятость передаётся вызывающим (вычислена из живого флага представительной
+     * задачи) → предупреждение не дрейфит, если админ поменяет parallel_execution_allowed.
+     */
+    public function occupancyWarning(bool $background): string
+    {
+        return $background
+            ? '_⏳ Эти крафты идут в фоне — можешь спокойно уходить добывать и ходить, пока делается._'
+            : '_🔒 Учти: эти крафты займут тебя целиком — пока идут, нельзя двигаться и добывать. Запускай, когда никуда не спешишь._';
     }
 
     /**

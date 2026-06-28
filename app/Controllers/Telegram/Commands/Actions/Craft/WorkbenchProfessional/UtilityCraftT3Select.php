@@ -35,7 +35,7 @@ class UtilityCraftT3Select extends BaseAction
             . "_Три премиальных инструмента добычи. Алмазная кирка для шахтёров, "
             . "сапёрная лопата для копателей, золотая мотыга для фермеров. "
             . "Каждый требует ProfessionalWorkbench, редкие материалы и время._\n\n"
-            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n"
+            . $scope->occupancyWarning($scope->isRecipeBackground('DiamondPickaxe')) . "\n\n"
             . "Выбирай рецепт для деталей и крафта:\n\n"
             . "1) ⛏️ *Алмазная кирка* — L20, премиум добыча камня/руды/глины (до +220%)\n"
             . "2) 🪏 *Сапёрная лопата* — L16, копаемые ресурсы (глина/песок/ил/травы)\n"

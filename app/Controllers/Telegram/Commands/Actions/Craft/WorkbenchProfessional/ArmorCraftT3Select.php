@@ -34,7 +34,7 @@ class ArmorCraftT3Select extends BaseAction
         $text = "*🛡 Броня T3 — Профессиональный верстак*\n\n"
             . "_Четыре рецепта брони высокого тира. От тактического жилета до силовой брони и тесла-доспеха. "
             . "Каждое требует ProfessionalWorkbench, редкие материалы и время._\n\n"
-            . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n"
+            . $scope->occupancyWarning($scope->isRecipeBackground('TacticalArmorSuit')) . "\n\n"
             . "Выбирай рецепт для деталей и крафта:\n\n"
             . "1) 🛡 *Тактический бронекостюм* — L16 Epic, 22 armor\n"
             . "2) 🦋 *Экзоскелет «Стрекоза»* — L16 Epic, 10 armor (лёгкий)\n"
