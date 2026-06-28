@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Onboarding;
 
+use App\Entities\CharacterEntity;
 use App\Models\ActionLogModel;
 use Longman\TelegramBot\Request;
 
@@ -52,9 +53,11 @@ class NewbieAtmosphereService
      * LuckyFindService::maybeGrantFirstMove). Возвращает отправленный «beat» для тестов/логов:
      * 'thirst' | 'rustle' | null.
      *
-     * @param array<int|string, mixed> $character
+     * @param array<int|string, mixed>|CharacterEntity $character на ходу прилетает CharacterEntity
+     *        (ArrayAccess) — union обязателен: `array`-only даёт латентный TypeError, который phpstan
+     *        L9 НЕ ловит (см. зеркало LuckyFindService::maybeGrantFirstMove). Поля читаем через `[]`.
      */
-    public function maybeSendAtmosphere(array $character, int $chatId): ?string
+    public function maybeSendAtmosphere(array|CharacterEntity $character, int $chatId): ?string
     {
         if (! $this->enabled()) {
             return null;
