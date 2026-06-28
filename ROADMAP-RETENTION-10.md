@@ -213,7 +213,7 @@ PASS** (автономный /start webhook: char 502 в Y≥900 → Мусор�
 2 стары́х Шрам в Y≥900 (pre-fix утечка) самочистятся NodeRespawnHandler-purge; замер «% встретивших
 NPC сессии-1» — S10. **🏁 S2 закрыт.** Остались S7/S8/S9/S10.
 
-## §0.7. РЕЗУЛЬТАТ S7 (построен 2026-06-28, dormant develop, ADR-145) — «живой остров»
+## §0.7. РЕЗУЛЬТАТ S7 (🟢 LIVE прод v0.51.506, активирован 2026-06-28 18:49, ADR-145) — «живой остров»
 
 **Audit-first (2 Explore + read-only прод-census):** остров реально жив, но редко — ~850 клеток
 исследовано/сутки, 13 высадок/нед, последняя база ~4ч назад, 22 активных explorer'а/нед →
@@ -233,8 +233,13 @@ buildIslandText/teaserLine/agoLabel (media-off, markdown-balanced). NEW `IslandA
 миграция `S7IslandPulseGameSettings`): social.presence.enabled (OFF) + window_hours (24) +
 survivors_days (7). **Coverage:** guide-секция `island`, tip `LivingIsland` (общие). **WipeManifest**
 н/п (нет таблицы). **Tier-1:** `IslandPulseServiceTest` + `CallbackRoutesResolveTest` = 29 зелёных +
-phpstan L9 чисто + php -l 2/2. **➡️ Дальше:** CI→preprod→Tier-3 на testbot (живой тап «🌍 Остров
-живёт») → прод-тег → активация через admin UI.
+phpstan L9 чисто + php -l 2/2. **Tier-3 на testbot PASS:** webhook-callback'и `move` (карта+тизер+кнопка,
+live SQL) + `island` (IslandAction→payload→editTextOrSend real Telegram) → оба HTTP 200, 0 ошибок;
+zero-omit отработал на sparse-данных (скрыты пустые строки, показана высадка+кумулятив), markdown без 400.
+**🟢 LIVE:** тег `v0.51.506` (dormant) → **активирован на проде 2026-06-28 18:49**
+(`social.presence.enabled=1` через admin UI = audit-trail; cache:clear). Прод live-числа на момент
+активации: **814 клеток/сутки, 10 movers, 14 высадок/нед, 549 всего**; +75с — 0 ошибок. Откат=OFF.
+Замер D2-D7 — в общем срезе S10. **🏁 S7 закрыт.** Остались S8/S9/S10.
 
 ---
 
