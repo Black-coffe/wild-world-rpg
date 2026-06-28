@@ -80,6 +80,7 @@ class CallbackRoutes extends BaseConfig
         'move'                            => \App\Controllers\Telegram\Commands\Actions\MoveCharacterAction::class,
         'island'                          => \App\Controllers\Telegram\Commands\Actions\World\IslandAction::class,    // S7 ADR-145 — «🌍 Остров живёт» (правдивый пульс)
         'referral'                        => \App\Controllers\Telegram\Commands\Actions\Social\ReferralAction::class, // S8 ADR-146 — «👥 Позови выжившего» (реферальная петля)
+        'atmRustle'                       => \App\Controllers\Telegram\Commands\Actions\NewbieAtmosphereAction::class, // S9 ADR-147 — выбор «шороха» ранней атмосферы (peek/hide/leave)
         'march'                           => \App\Controllers\Telegram\Commands\Actions\MarchAction::class,          // ADR-019 — «Поход»
         'cancelMarch'                     => \App\Controllers\Telegram\Commands\Actions\CancelMarchAction::class,    // ADR-019 — остановить поход
         'marchMini'                       => \App\Controllers\Telegram\Commands\Actions\MarchMiniInvestigateAction::class, // E17 Ф2 — осмотреть мини-событие в Походе

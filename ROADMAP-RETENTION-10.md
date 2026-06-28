@@ -282,6 +282,35 @@ phpstan L9 полный 0 errors + php -l 4/4 миграции. **🔴 Нагр�
 
 ---
 
+## §0.9. РЕЗУЛЬТАТ S9 (построен 2026-06-28, dormant develop, ADR-147) — «ранняя атмосфера»
+
+**Audit-first (2 Explore + read-only прод-census):** движок событий зрелый и безопасный — 24 события
+(биом-скоуп), effect-strategy паттерн, **урон ≤10% HP/тик** (hardened) + нелетальный пол
+`max(0.01,hp)`, защита новичка УЖЕ LIVE (`world.events.level_tier_enabled=1`: L≤9 урон ×0.5, польза
+×1.3). **Пробел:** события пассивны (без уровневого таргетинга и без выбора); choice-механики в
+стороне (march-мини «🔍/🚶» но `min_level=25`, ADR-089 диалоги привязаны к NPC); в сессии нет prompt
+про выносливость/воду. **Ключевое:** новичок сессии-1 тапает/двигается в поясе, НЕ марширует и не у
+NPC → march-мини и ADR-089 промахиваются мимо session-1. Нужен реактивный on-move канал.
+
+**Решение (owner-pick «reactive on-move + JIT-prompt»):** 🔴 несмертельно по конструкции (сервис не
+трогает health/tired/ресурсы — нет damage-пути; DeathRoulette неприменим).
+- NEW `App\Services\Onboarding\NewbieAtmosphereService` (зеркало NewbieGreeter/LuckyFind): на ходу
+  новичка (level ≤ max_level) one-shot доставляет либо JIT-подсказку «найди воду» (при tired ≤ порога),
+  либо телеграфированный шорох-выбор (далёкая буря + 🔍 Подкрасться / 🌿 Затаиться / 🚶 Уйти, исход —
+  РАЗНЫЙ нарратив БЕЗ урона/наград). Чистые builders + protected seam'ы (тесты без БД/Telegram).
+- NEW `NewbieAtmosphereAction` (exact-роут `atmRustle`, edit-in-place исход выбора).
+- `MoveCharacterToDirectionAction` — hook `maybeSendAtmosphere` в обе ветки (edit/new), под killswitch
+  (OFF=byte-identical). GS `world.events.newbie_atmosphere.*` (enabled OFF / max_level 5 / rustle_chance
+  0.18 / tired_prompt_threshold 20, rich rationale). Guide-секция `atmosphere` (start), tip
+  `EarlySurvivalAtmosphere` (события). **WipeManifest** н/п (one-shot маркеры в action_log).
+
+**Tier-1:** `NewbieAtmosphereServiceTest` (21: телеграф-текст/3 выбора/разные исходы без награды/JIT-
+вода/markdown/оркестрация killswitch+newbie-гейт+one-shot+приоритет вода→шорох+шанс) + WipeManifestCoverage
++ CallbackRoutesResolve (`atmRustle`) зелёные + phpstan L9 полный 0 errors + php -l 2/2 миграции.
+**➡️ Дальше:** CI→preprod→Tier-3 на testbot (живой ход новичка → шорох-выбор/вода) → прод-тег → активация.
+
+---
+
 ## §1. Аналитика: насколько закрыты механики по этапам
 
 | Этап | Уровни | Полнота | Интерес | Вердикт |
