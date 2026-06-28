@@ -243,7 +243,7 @@ zero-omit отработал на sparse-данных (скрыты пустые
 
 ---
 
-## §0.8. РЕЗУЛЬТАТ S8 (построен 2026-06-28, dormant develop, ADR-146) — «позови выжившего»
+## §0.8. РЕЗУЛЬТАТ S8 (🟢 LIVE прод v0.51.507, активирован 2026-06-28 19:40, ADR-146) — «позови выжившего»
 
 **Audit-first (2 Explore + read-only прод-census):** deep-link парсинг УЖЕ есть
 (`StartCommand::extractAcquisitionSource`, first-touch в `telegram_users.acquisition_source`) —
@@ -269,8 +269,16 @@ non-power (П9). **🔴 Главная находка:** spec задавал `qu
 
 **Tier-1:** `ReferralServiceTest` (18) + WipeManifestCoverage + CallbackRoutesResolve = зелёные +
 phpstan L9 полный 0 errors + php -l 4/4 миграции. **🔴 Награда не сила (П9), анти-фарм (qualify за
-реальный прогресс + cap + anti-self + first-touch), честное pre-invite раскрытие.** **➡️ Дальше:**
-CI→preprod→Tier-3 на testbot (живой цикл двух чаров) → прод-тег → активация через admin UI.
+реальный прогресс + cap + anti-self + first-touch), честное pre-invite раскрытие.**
+
+**Tier-3 на testbot PASS (двух-чаровый цикл):** `/start ref_25` → HTTP 200, приглашённый создан с
+`acquisition_source='referral'`, ребро записано; приглашённый дорос до L2 (через статы, чтобы пересчёт
+не сбросил — урок testbot level-revert) → `referral.qualify` cron → `referrals.rewarded_at` + титул
+«Зовущий» реферреру + лог `rewarded=1`; экран `referral` рендерится HTTP 200; 0 ошибок; testbot
+восстановлен в dormant. **🚀 LIVE прод тег `v0.51.507`** (deploy production + миграции ✅, dormant).
+**🟢 АКТИВИРОВАН на проде 2026-06-28 19:40** (`referral.enabled=1` через admin UI form-submit =
+`admin_audit_log` GAME_SETTING_UPDATE; cache:clear). Откат=enabled=0. Замер %реферал/ретеншн — S10.
+**🏁 S8 закрыт.** Остались S9/S10.
 
 ---
 
