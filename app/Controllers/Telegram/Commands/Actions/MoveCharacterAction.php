@@ -15,6 +15,7 @@ use App\Models\ExploredCellsModel;
 use App\Models\BiomeModel;
 use App\Services\Player\PlayerStateService;
 use App\Services\World\TextMapService;
+use App\Services\World\IslandPulseService;
 
 /**
  * Класс, вызываемый при нажатии кнопки "Переехать" из основного меню "ДЕЙСТВИЯ".
@@ -107,6 +108,17 @@ class MoveCharacterAction
         $textMapService = new TextMapService();
         $finalText = $this->buildMapText($character, $textMapService);
 
+        // S7 (ADR-145): тизер «живого острова» в подвале карты + кнопка входа на экран
+        // пульса. Гейт killswitch social.presence.enabled → OFF = карта byte-identical.
+        $island = new IslandPulseService();
+        $islandEnabled = $island->enabled();
+        if ($islandEnabled) {
+            $teaser = $island->teaserLine($island->snapshot());
+            if ($teaser !== null) {
+                $finalText .= "\n" . $teaser . "\n";
+            }
+        }
+
         // 2) Готовим inline-кнопки (8 направлений)
         $directionsKeyboard = [
             [
@@ -129,6 +141,14 @@ class MoveCharacterAction
                 ['text' => '🗺️ Поход', 'callback_data' => 'march'], // ADR-019
             ],
         ];
+
+        // S7 (ADR-145): кнопка «🌍 Остров живёт» — только при killswitch ON (иначе byte-identical).
+        if ($islandEnabled) {
+            $directionsKeyboard[] = [
+                ['text' => '🌍 Остров живёт', 'callback_data' => 'island'],
+            ];
+        }
+
         $keyboard = ['inline_keyboard' => $directionsKeyboard];
 
         // 3) Отправляем новое сообщение (sendMessage), т.к. это «первый показ»

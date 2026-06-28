@@ -213,6 +213,29 @@ PASS** (автономный /start webhook: char 502 в Y≥900 → Мусор�
 2 стары́х Шрам в Y≥900 (pre-fix утечка) самочистятся NodeRespawnHandler-purge; замер «% встретивших
 NPC сессии-1» — S10. **🏁 S2 закрыт.** Остались S7/S8/S9/S10.
 
+## §0.7. РЕЗУЛЬТАТ S7 (построен 2026-06-28, dormant develop, ADR-145) — «живой остров»
+
+**Audit-first (2 Explore + read-only прод-census):** остров реально жив, но редко — ~850 клеток
+исследовано/сутки, 13 высадок/нед, последняя база ~4ч назад, 22 активных explorer'а/нед →
+правдивых следов достаточно, разрежённость = КАНОН («редкие выжившие, но ты не один»).
+**Greenfield:** нет экрана пульса; `social.presence.*` не существовало (НЕ seed-default-trap).
+Источники = те же, что `DashboardAnalyticsService` (канон: активность = `explored_cells.created_at`)
+→ **новая таблица НЕ нужна**. `characters.last_update_time` мёртв (NULL); фабрикации presence нет
+(🔴 only-true-data выполним as-is). `PlayerDetectionService` (PvP-proximity) live → «кто-то рядом» не дублируем.
+
+**Решение (owner-pick «экран «🌍 Остров» с карты + тизер»):** 🔴 инвариант only-true-data (0 не
+показываем строкой; пустое окно → честная «тихо» + кумулятив, всегда > 0). NEW
+`App\Services\World\IslandPulseService` (read-only drift-safe live, зеркало DashboardAnalyticsService::
+row/scalar): snapshot (клетки/movers/последняя база+квадрат/высадки/стычки) + чистые builders
+buildIslandText/teaserLine/agoLabel (media-off, markdown-balanced). NEW `IslandAction` (exact-роут
+`island`, зеркало GuideAction, edit-in-place + кнопка ⬅️ К карте). `MoveCharacterAction` — кнопка
+«🌍 Остров живёт» + тизер в подвале, под killswitch (OFF=byte-identical). **GS** (категория world,
+миграция `S7IslandPulseGameSettings`): social.presence.enabled (OFF) + window_hours (24) +
+survivors_days (7). **Coverage:** guide-секция `island`, tip `LivingIsland` (общие). **WipeManifest**
+н/п (нет таблицы). **Tier-1:** `IslandPulseServiceTest` + `CallbackRoutesResolveTest` = 29 зелёных +
+phpstan L9 чисто + php -l 2/2. **➡️ Дальше:** CI→preprod→Tier-3 на testbot (живой тап «🌍 Остров
+живёт») → прод-тег → активация через admin UI.
+
 ---
 
 ## §1. Аналитика: насколько закрыты механики по этапам
