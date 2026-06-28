@@ -96,6 +96,39 @@ final class WandererSpawnHandlerTest extends CIUnitTestCase
         $h->run();
         $this->assertSame([], $h->zoneCalls);
     }
+
+    // ── S2/ADR-144 — классификация под-пула (странник ≠ босс) ────────────────────
+
+    public function testClassifyExcludesBossTemplates(): void
+    {
+        // 🔴 Узлы-боссы (ADR-106 переведены в passive) НЕ должны попадать в пул блукачей.
+        $boss = ['ai_behavior' => 'passive', 'npc_type' => 'hostile', 'is_boss' => 1];
+        $this->assertNull(WandererSpawnHandler::classifyPoolRow($boss), 'босс is_boss=1 → исключён');
+
+        // Даже neutral-тип, но is_boss=1 → всё равно исключён (инвариант по is_boss).
+        $neutralBoss = ['ai_behavior' => 'passive', 'npc_type' => 'neutral', 'is_boss' => 1];
+        $this->assertNull(WandererSpawnHandler::classifyPoolRow($neutralBoss));
+    }
+
+    public function testClassifyExcludesNamed(): void
+    {
+        $named = ['ai_behavior' => 'passive', 'npc_type' => 'named', 'is_boss' => 0];
+        $this->assertNull(WandererSpawnHandler::classifyPoolRow($named), 'именные не масс-спавнятся');
+    }
+
+    public function testClassifyExcludesNonPassive(): void
+    {
+        $aggressive = ['ai_behavior' => 'aggressive', 'npc_type' => 'neutral', 'is_boss' => 0];
+        $this->assertNull(WandererSpawnHandler::classifyPoolRow($aggressive));
+    }
+
+    public function testClassifyNeutralAndFaction(): void
+    {
+        $neutral = ['ai_behavior' => 'passive', 'npc_type' => 'neutral', 'is_boss' => 0];
+        $faction = ['ai_behavior' => 'passive', 'npc_type' => 'faction', 'is_boss' => 0];
+        $this->assertSame('neutral', WandererSpawnHandler::classifyPoolRow($neutral));
+        $this->assertSame('faction', WandererSpawnHandler::classifyPoolRow($faction));
+    }
 }
 
 /**

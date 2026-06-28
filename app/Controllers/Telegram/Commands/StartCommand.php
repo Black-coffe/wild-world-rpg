@@ -90,6 +90,7 @@ class StartCommand extends UserCommand
             $encodedKeyboard = json_encode([]);
             $starterKitText = null; // ADR-104: текст набора Роби (если выдан)
             $signalText     = null; // S4 (ADR-139) слайс 3: радио-нарратив приманки (если размещена)
+            $greeterText    = null; // S2 (ADR-144): нарратив встречающего-нейтрала (если размещён)
 
             if (!empty($spawnCells)) {
                 $randomCell = $spawnCells[array_rand($spawnCells)];
@@ -115,6 +116,12 @@ class StartCommand extends UserCommand
                 if (is_array($randomCell)) {
                     $signalText = (new \App\Services\Onboarding\ColdOpenSignalService())
                         ->placeBaitForNewChar((int) $createdCharacterId, $randomCell);
+
+                    // S2 (ADR-144): «скриптовая первая встреча» — ставим дружелюбного нейтрала
+                    // рядом со спавном (reactive) и возвращаем нарратив Роби (или null).
+                    // dormant под npc.newbie_zone.greeter_enabled → null = byte-identical.
+                    $greeterText = (new \App\Services\Onboarding\NewbieGreeterService())
+                        ->placeGreeterForNewChar((int) $createdCharacterId, $randomCell, (int) $chatId);
                 }
 
                 // Формируем приветственное сообщение.
@@ -175,6 +182,17 @@ class StartCommand extends UserCommand
                 Request::sendMessage([
                     'chat_id'                  => $chatId,
                     'text'                     => $signalText,
+                    'parse_mode'               => 'Markdown',
+                    'disable_web_page_preview' => true,
+                ]);
+            }
+
+            // S2 (ADR-144): нарратив встречающего-нейтрала (если размещён) — ПОСЛЕ сигнала,
+            // ПЕРЕД финальным welcome'ом, чтобы CTA «Задать имя» остался последним. MEDIA-OFF.
+            if ($greeterText !== null) {
+                Request::sendMessage([
+                    'chat_id'                  => $chatId,
+                    'text'                     => $greeterText,
                     'parse_mode'               => 'Markdown',
                     'disable_web_page_preview' => true,
                 ]);

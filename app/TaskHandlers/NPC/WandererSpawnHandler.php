@@ -73,13 +73,20 @@ class WandererSpawnHandler
      * (npc_type='faction') в отдельный под-пул, остальное passive-non-named = истинные нейтралы.
      * Overridable seam (тесты — без БД на CI).
      *
+     * 🔴 S2 (ADR-144): фильтр `is_boss = 0` ОБЯЗАТЕЛЕН. NodeRespawnHandler (ADR-106/137)
+     * намеренно переводит шаблоны узлов-боссов (Шрам L30 / Цербер L32 / Патриарх L35) в
+     * `ai_behavior='passive'` (чтобы AutoPveHandler их не авто-бил — бой инициирует игрок на
+     * узле). Без `is_boss=0` эти боссы протекали в «нейтральный» пул блукачей и спавнились
+     * как странники по всей карте (вкл. новичковую зону Y≥900) → смертельная ловушка L1.
+     * Странник по определению НЕ босс; узлы-боссы материализует только NodeRespawnHandler.
+     *
      * @return array{neutral: list<int>, faction: list<int>}
      */
     protected function loadPools(): array
     {
         $neutralIds = [];
         $factionIds = [];
-        foreach ($this->npcs->where('ai_behavior', 'passive')->where('npc_type !=', 'named')->findAll() as $n) {
+        foreach ($this->npcs->where('ai_behavior', 'passive')->where('npc_type !=', 'named')->where('is_boss', 0)->findAll() as $n) {
             if (! is_array($n)) {
                 continue;
             }
@@ -87,15 +94,42 @@ class WandererSpawnHandler
             if (! is_numeric($idRaw)) {
                 continue;
             }
-            $id = (int) $idRaw;
-            if (($n['npc_type'] ?? '') === 'faction') {
-                $factionIds[] = $id;
-            } else {
-                $neutralIds[] = $id;
+            $bucket = self::classifyPoolRow($n);
+            if ($bucket === 'faction') {
+                $factionIds[] = (int) $idRaw;
+            } elseif ($bucket === 'neutral') {
+                $neutralIds[] = (int) $idRaw;
             }
         }
 
         return ['neutral' => $neutralIds, 'faction' => $factionIds];
+    }
+
+    /**
+     * Чистая классификация шаблона в под-пул блукачей (тестируемо без БД; дублирует
+     * SQL-фильтры loadPools как defense-in-depth). Возвращает 'faction' | 'neutral' | null
+     * (null = ИСКЛЮЧЁН): именной (ADR-089 Ф5+ не масс-спавнятся) ИЛИ босс (S2/ADR-144 —
+     * странник ≠ узел-босс, иначе L30+ ловушка у новичка). npc_type='faction' → фракционный
+     * под-пул (ADR-099); остальное passive-non-named-non-boss = истинный нейтрал.
+     *
+     * @param array<int|string, mixed> $row
+     */
+    public static function classifyPoolRow(array $row): ?string
+    {
+        if (($row['ai_behavior'] ?? '') !== 'passive') {
+            return null;
+        }
+        $typeRaw = $row['npc_type'] ?? '';
+        $type    = is_string($typeRaw) ? $typeRaw : '';
+        if ($type === 'named') {
+            return null;
+        }
+        $bossRaw = $row['is_boss'] ?? 0;
+        if ((is_numeric($bossRaw) ? (int) $bossRaw : 0) === 1) {
+            return null; // S2/ADR-144: узлы-боссы (ADR-106 passive) не протекают в блукачи
+        }
+
+        return $type === 'faction' ? 'faction' : 'neutral';
     }
 
     /**

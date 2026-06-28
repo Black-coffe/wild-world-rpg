@@ -177,6 +177,36 @@ OnbStepBuild + хинт FIRST_BUILD уже в потоке. **WipeManifest** н/
 (`v0.51.502`) → **🟢 АКТИВИРОВАН на проде 2026-06-27 00:21** (`onboarding.first_build.enabled=1` через admin UI, audit-trail +
 cache:clear; 0 error/warning; Навес живёт ~93 игрокам). Откат=OFF. **🏁 S5 закрыт.** Метрика Build 9%→20-25% — замер S10.
 
+## §0.6. РЕЗУЛЬТАТ S2 (построен 2026-06-28, dormant develop, ADR-144) — «населить ghost-town»
+
+**Audit-first (2 Explore + read-only прод-census) — премиз подтверждён и уточнён:**
+1. **Ghost-town измерен:** новичковая зона Y≥900 = **2 NPC** (оба L30-босс «Шрам»!) против **8874**
+   на карте (плотность растёт к северу, Y0=2060); новые 23/24 за 14д спавнятся в пустоту.
+   `npc.newbie_zone.population=0` — ЕДИНСТВЕННЫЙ реально спящий core-рычаг (с 06-10).
+2. **Ускорители доставляются — разрыва НЕТ** (прод-маркеры: `STARTER_KIT_GRANTED`=24 = 100% новых,
+   `LUCKY_FIND_FIRST`=9; остальные просто не делают первый ход — 56% bounce). Вопрос роадмапа
+   «фирят ли уже-живые?» закрыт: да.
+3. 🔴 **Boss-контаминация (фикс корректности):** `WandererSpawnHandler::loadPools()` тянул все
+   passive non-named, а `NodeRespawnHandler` (ADR-106) переводит узлы-боссы (Шрам L30/Цербер
+   L32/Патриарх L35, is_boss=1) в passive → они протекали в пул блукачей (по 8 живых, один в Y917).
+   Активация population как есть → L30+ боссы у L1. Фикс: `->where('is_boss', 0)` + чистая
+   `classifyPoolRow` («странник ≠ босс»); чинит и новичковую, и основную зону.
+4. 🔴 **Ambient-плотности мало для цели:** 8-15 NPC на ~100k клеток статистически невидимы за ~29
+   ходов → «скриптовая встреча» роадмапа ambient'ом НЕ достигается (encounter всплывает при NPC в
+   СМЕЖНОЙ клетке).
+
+**Решение (owner-pick «Reactive встреча + фон»):** (1) boss-pool фикс (безусловный); (2) NEW
+`NewbieGreeterService` (зеркало ColdOpenSignalService) — при /start ставит дружелюбного нейтрала
+(приоритет квестгивера = «Мусорщик» L6) в смежную клетку → гарантированная первая встреча +
+кнопка «👤 Незнакомец»; killswitch `npc.newbie_zone.greeter_enabled` (OFF=byte-identical) + one-shot
+`NEWBIE_GREETER_PLACED`; (3) активация ambient `npc.newbie_zone.population`~8 (чистый пул).
+**GS** (категория world, миграция `S2NewbieGreeterGameSettings`): greeter_enabled (OFF) +
+greeter_distance (1) + population (0→8). **Coverage:** guide-раздел `npc` дополнен, tip
+`S2SeedNewbieEncounterTip` (NPC), onboarding just-in-time. **WipeManifest** н/п (npc_spawns
+TRANSIENT). **Tier-1:** `NewbieGreeterServiceTest`+`WandererSpawnHandlerTest` (classifyPoolRow) =
+41/41 локально + phpstan L9 чисто + php -l 2/2. **➡️ Дальше:** CI→preprod→Tier-3 cold-smoke на
+testbot (чистый /start → 🧑 у спавна + кнопка + 0 боссов) → прод-тег → активация через admin UI.
+
 ---
 
 ## §1. Аналитика: насколько закрыты механики по этапам
