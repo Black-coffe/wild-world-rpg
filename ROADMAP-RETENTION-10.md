@@ -243,6 +243,37 @@ zero-omit отработал на sparse-данных (скрыты пустые
 
 ---
 
+## §0.8. РЕЗУЛЬТАТ S8 (построен 2026-06-28, dormant develop, ADR-146) — «позови выжившего»
+
+**Audit-first (2 Explore + read-only прод-census):** deep-link парсинг УЖЕ есть
+(`StartCommand::extractAcquisitionSource`, first-touch в `telegram_users.acquisition_source`) —
+реферал переиспользует путь, отщепляя `ref_<id>` от маркетинговых `src_*`. Связи «кто-кого-привёл»
+НЕТ (greenfield, низкий BUILT-BUT-DEAD-риск). Награда-носитель: **система Титулов ADR-112 LIVE на
+проде** (`titles.enabled=1`, 897 холдеров) → «Зовущий» = титул `source_type='referral'`, выдаётся
+императивно через `TitleService::award` (cron такой тип пропускает, как `boss_kill`) — чистый
+non-power (П9). **🔴 Главная находка:** spec задавал `qualify_level=3`, но прод-данные — L1=86% из
+549, до L3 дошли 12%, **пост-S3-когорта 0/7 за 3 дня**, интейк ~14/нед → L3 = выплаты живым друзьям
+~0. Жёстко зашитый L3 = петля-награда мертва. Вывод: qualify обязан быть тюнингом.
+
+**Решение (owner-pick «титул + qualify L2 + честный счётчик»):**
+- NEW `App\Services\Player\ReferralService` (parseReferrerId строго `ref_<id>` · recordReferralOnRegister
+  с anti-self/cap/first-touch · qualifyAndReward — выдача титула за дозревшего приглашённого ·
+  screenPayload/buildScreenText/notifyText — media-off, markdown-safe; DB-примитивы — protected seam'ы).
+- NEW `ReferralAction` (exact-роут `referral`, edit-in-place, кнопка ⬅️ К персонажу + 📤 Поделиться).
+- NEW `ReferralQualifyCron` (everyMinute, выдаёт титул + уведомляет реферрера; lazy-telegram).
+- NEW таблица `referrals` (ребро + qualified_at/rewarded_at, UNIQUE referred_user_id=first-touch) →
+  **WipeManifest=PLAYER_DATA** (coverage-гейт зелёный). GS `referral.*` (enabled OFF / qualify_level 2 /
+  max_per_referrer 50, категория world, rich rationale). Seed титул «Зовущий» + tip `ReferralCallSurvivor`
+  (общие). Guide-секция `referral`. Кнопка «👥 Позови выжившего» на карточке Перса (gated → dormant скрыта).
+- StartCommand: при ON и `ref_<id>` помечает источник 'referral' + пишет ребро (OFF → byte-identical).
+
+**Tier-1:** `ReferralServiceTest` (18) + WipeManifestCoverage + CallbackRoutesResolve = зелёные +
+phpstan L9 полный 0 errors + php -l 4/4 миграции. **🔴 Награда не сила (П9), анти-фарм (qualify за
+реальный прогресс + cap + anti-self + first-touch), честное pre-invite раскрытие.** **➡️ Дальше:**
+CI→preprod→Tier-3 на testbot (живой цикл двух чаров) → прод-тег → активация через admin UI.
+
+---
+
 ## §1. Аналитика: насколько закрыты механики по этапам
 
 | Этап | Уровни | Полнота | Интерес | Вердикт |

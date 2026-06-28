@@ -234,6 +234,13 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\Other\FactionNotificationHandler())->handle())
             ->everyMinute()->singleInstance()->named('faction.notification');
 
+        // S8 (ROADMAP-RETENTION-10, ADR-146) — реферальная петля «позови выжившего»: выдаёт
+        // реферреру титул «Зовущий», когда приглашённый достиг qualify-уровня (анти-фарм: за
+        // реальный прогресс, не за регистрацию). everyMinute + killswitch referral.enabled
+        // (default OFF dormant) → no-op до активации. singleInstance против overlap.
+        $schedule->call(static fn() => (new \App\TaskHandlers\Referral\ReferralQualifyCron())->handle())
+            ->everyMinute()->singleInstance()->named('referral.qualify');
+
         // ============================================================
         // ACHIEVEMENTS — W9 (ADR-066) state-driven cron-poll выдача
         // ============================================================

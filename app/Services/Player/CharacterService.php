@@ -257,6 +257,14 @@ class CharacterService
         // ряды действий (отдельная строка снизу).
         $inlineRows[] = [['text' => '📖 Путь новичка', 'callback_data' => 'guide']];
 
+        // S8 (ADR-146) — «👥 Позови выжившего»: вход в реферальную петлю (личная ссылка +
+        // honor-титул «Зовущий» за реального приглашённого). Виден ТОЛЬКО при killswitch
+        // referral.enabled (dormant → скрыт, карточка byte-identical). Без player-prerequisite →
+        // доступен сразу как кнопка (UX-DISCOVERABILITY). Отдельная строка (рядом с viral-петлёй).
+        if ((new \App\Services\Player\ReferralService())->enabled()) {
+            $inlineRows[] = [['text' => '👥 Позови выжившего', 'callback_data' => 'referral']];
+        }
+
         // E30 (ROADMAP-100) — viral-петля: URL-кнопка на публичный веб-профиль (flat ADR-062).
         // Игроку есть что показать наружу (уровень/титулы/достижения/PvP, БЕЗ локации) → бесплатный
         // приток. URL-кнопка открывает /profile/{id} в браузере, откуда игрок делится ссылкой.

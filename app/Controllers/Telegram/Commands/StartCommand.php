@@ -35,6 +35,18 @@ class StartCommand extends UserCommand
         // First-touch — пишется один раз при создании пользователя ниже.
         $acquisitionSource = self::extractAcquisitionSource($message->getText(true));
 
+        // S8 (ADR-146): реферальная петля «позови выжившего». При killswitch ON и payload вида
+        // `ref_<telegram_users.id>` это приглашение (не маркетинг `src_*`): помечаем источник
+        // 'referral', а ребро пишем ниже после создания персонажа (first-touch). При OFF парсинга
+        // нет → ref_<id> падает в обычную acquisition-атрибуцию как сегодня (byte-identical).
+        $referralService = new \App\Services\Player\ReferralService();
+        $referrerUserId  = $referralService->enabled()
+            ? $referralService->parseReferrerId($message->getText(true))
+            : null;
+        if ($referrerUserId !== null) {
+            $acquisitionSource = 'referral';
+        }
+
         // 1. Закрепляем постоянную клавиатуру.
         // ADR-103 Часть A: единый источник истины — BotMenuService::mainReplyKeyboard()
         // (раньше определение жило только здесь).
@@ -74,6 +86,17 @@ class StartCommand extends UserCommand
                 'gold'        => 1000,
                 'cell_number' => null,
             ], true);
+
+            // S8 (ADR-146): записать реферальное ребро — first-touch, ТОЛЬКО для нового TG-аккаунта
+            // (existingUser отсутствовал). Идемпотентно + анти-self + cap внутри сервиса; при OFF
+            // $referrerUserId=null → не вызывается (byte-identical).
+            if ($referrerUserId !== null && !$existingUser) {
+                $referralService->recordReferralOnRegister(
+                    $referrerUserId,
+                    (int) $createdUserId,
+                    (int) $createdCharacterId
+                );
+            }
 
             $mapModel   = new MapModel();
             $biomeModel = new BiomeModel();
