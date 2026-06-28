@@ -204,8 +204,14 @@ cache:clear; 0 error/warning; Навес живёт ~93 игрокам). Отк�
 greeter_distance (1) + population (0→8). **Coverage:** guide-раздел `npc` дополнен, tip
 `S2SeedNewbieEncounterTip` (NPC), onboarding just-in-time. **WipeManifest** н/п (npc_spawns
 TRANSIENT). **Tier-1:** `NewbieGreeterServiceTest`+`WandererSpawnHandlerTest` (classifyPoolRow) =
-41/41 локально + phpstan L9 чисто + php -l 2/2. **➡️ Дальше:** CI→preprod→Tier-3 cold-smoke на
-testbot (чистый /start → 🧑 у спавна + кнопка + 0 боссов) → прод-тег → активация через admin UI.
+41/41 локально + phpstan L9 чисто + php -l 2/2. **CI develop + deploy preprod ✅. Tier-3 на testbot
+PASS** (автономный /start webhook: char 502 в Y≥900 → Мусорщик is_boss=0 квестгивер в смежной клетке
++ маркер + ambient 8 чистых, 0 новых боссов; урок off-by-one cell_number=x*1000+y+1). **🚀 LIVE прод
+тег `v0.51.505`** (deploy success, миграции применены). **🟢 АКТИВИРОВАН 2026-06-28 17:37**
+(`greeter_enabled=1` + `population=8` через admin UI = audit-trail + cache:clear; прод-крон за 70с
+налил 8 чистых нейтралов/фракционеров в Y≥900, 0 новых боссов, 0 ошибок). Откат=OFF. **⏳ WATCH:**
+2 стары́х Шрам в Y≥900 (pre-fix утечка) самочистятся NodeRespawnHandler-purge; замер «% встретивших
+NPC сессии-1» — S10. **🏁 S2 закрыт.** Остались S7/S8/S9/S10.
 
 ---
 
