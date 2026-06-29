@@ -63,6 +63,14 @@ class BotController extends Controller
             ? \App\Services\Player\LastSeenService::extractTelegramId($update)
             : null;
 
+        // ADR-148 — firehose ВСЕХ прямых действий игрока. begin() парсит «что/кто/откуда» из
+        // сырого апдейта (1 апдейт = 1 действие); commit() в finally пишет ровно одну строку с
+        // исходом. 🔴 Defensive — захват не влияет на обработку апдейта; не-player апдейты
+        // (channel_post, my_chat_member, …) сами отсеиваются в begin() → commit() no-op.
+        if (is_array($update)) {
+            \App\Services\Logging\PlayerActionLogger::current()->begin($update);
+        }
+
         // E6 (ADR-108) Ф2 — оффлайн-digest «пока тебя не было». ДО handle() (last_seen
         // ещё ПРЕДЫДУЩИЙ; стамп в finally ПОСЛЕ → следующее взаимодействие свежее =
         // естественный one-shot per возврат). Dormant под killswitch; defensive.
@@ -93,11 +101,21 @@ class BotController extends Controller
         try {
             $this->telegram->handle();
         } catch (TelegramException $e) {
+            // Текущее поведение: логируем и глотаем TelegramException.
             log_message('error', $e->getMessage());
+            \App\Services\Logging\PlayerActionLogger::current()->markError($e->getMessage());
+        } catch (\Throwable $e) {
+            // ADR-148 — прочие исключения (TypeError и т.п.) помечаем 'error' и ПРОБРАСЫВАЕМ
+            // дальше (поведение как раньше — наверх к обработчику фреймворка).
+            \App\Services\Logging\PlayerActionLogger::current()->markError($e->getMessage());
+            throw $e;
         } finally {
             if ($telegramUserId !== null) {
                 (new \App\Services\Player\LastSeenService())->stampByTelegramId($telegramUserId);
             }
+            // ADR-148 — записать строку firehose (defensive; no-op если begin() не активировал
+            // захват, killswitch выключен или уже закоммичено). Выполняется и при исключении.
+            \App\Services\Logging\PlayerActionLogger::current()->commit();
         }
     }
 

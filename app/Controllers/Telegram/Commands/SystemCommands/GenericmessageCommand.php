@@ -79,6 +79,8 @@ class GenericmessageCommand extends SystemCommand
                 return $this->handleMediaPreference($chatId, 0);
 
             default:
+                // ADR-148 — нераспознанный текст: пометить действие как 'unrouted' в firehose.
+                \App\Services\Logging\PlayerActionLogger::current()->markUnrouted();
                 // ADR-103 Часть A — escape-hatch: подсказываем, как вернуть нижнее меню,
                 // если игрок его потерял (свернул reply-клавиатуру). /start и /menu
                 // гарантированно её пере-аттачивают; `/`-меню (☰ у поля ввода) всегда на месте.

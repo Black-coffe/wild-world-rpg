@@ -136,7 +136,8 @@ class WipeManifest extends BaseConfig
         // ─────────────────────────────────────────────────────────────
         // 🔴 PLAYER_DATA — прогресс игрока (полный вайп = DELETE всех; single-char = WHERE link)
         // ─────────────────────────────────────────────────────────────
-        'action_log'             => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Лог действий игрока'],
+        'action_log'             => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Лог действий игрока (курируемые маркеры онбординга/квестов/воронки + форензика экономики)'],
+        'player_action_log'      => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Firehose всех прямых действий игрока (ADR-148): callback/текст/reply/forceReply/slash. Append-only телеметрия — при вайпе чистится как прогресс игрока'],
         'base_storage'           => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Хранилище базы'],
         'battle_logs'            => ['strategy' => self::PLAYER_DATA, 'link' => ['player1_id', 'player2_id'], 'by' => 'character', 'note' => 'Логи боёв PvP'],
         'character_tributes'     => ['strategy' => self::PLAYER_DATA, 'link' => ['master_id', 'vassal_id'], 'by' => 'character', 'note' => 'Трофейная подать PvP (ADR-135) — активные/исторические отношения дани между игроками'],

@@ -246,6 +246,10 @@ abstract class BaseAction
      */
     protected function logRejected(?int $characterId, string $actionName, string $reason, array $extra = []): void
     {
+        // ADR-148 — отразить бизнес-отказ в firehose (строка действия получит статус 'rejected').
+        // markRejected — in-memory аннотация request-scoped логгера, не валит действие.
+        \App\Services\Logging\PlayerActionLogger::current()->markRejected($actionName . ': ' . $reason);
+
         try {
             $logModel = new ActionLogModel();
             $description = $reason;

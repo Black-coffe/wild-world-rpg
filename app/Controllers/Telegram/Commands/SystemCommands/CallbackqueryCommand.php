@@ -63,6 +63,8 @@ class CallbackqueryCommand extends SystemCommand
         // тишину И висящие «часики» (исторические инциденты npcAct_/npcDlg_).
         // Принцип no-silent-failures: гасим спиннер и объясняем причину.
         // log_message('warning') — чтобы мёртвые кнопки всплывали в daily log review.
+        // ADR-148 — пометить действие как 'unrouted' в firehose (форензика мёртвых кнопок).
+        \App\Services\Logging\PlayerActionLogger::current()->markUnrouted();
         log_message('warning', 'Unrouted callback_data: ' . $callbackData);
 
         Request::answerCallbackQuery([
