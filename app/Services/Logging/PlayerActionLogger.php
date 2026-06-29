@@ -38,7 +38,7 @@ class PlayerActionLogger
     public const KILLSWITCH = 'logging.player_actions.enabled';
 
     /** @var list<string> */
-    private const VALID_SOURCES = ['callback', 'command', 'text', 'forcereply', 'other'];
+    private const VALID_SOURCES = ['callback', 'command', 'text', 'forcereply', 'other', 'task'];
 
     /** @var list<string> */
     private const VALID_STATUSES = ['ok', 'error', 'rejected', 'unrouted'];
@@ -191,6 +191,40 @@ class PlayerActionLogger
             ]);
         } catch (\Throwable $e) {
             log_message('error', '[PlayerActionLogger] commit failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * ADR-148 (расширение охвата) — записать ЗАВЕРШЕНИЕ фоновой задачи игрока (Worker:
+     * добыча/крафт/стройка/поход/ремонт/…). Самостоятельная вставка, НЕ связана с
+     * request-scoped begin/commit: один прогон Worker'а завершает N задач → N строк.
+     * source='task', status: 'ok' (хендлер отработал) / 'error' (хендлер упал).
+     *
+     * 🔴 Defensive: не бросает, не валит тик Worker'а (вызывается внутри try/catch claim'а).
+     * character_id известен из character_tasks = надёжная связь; telegram_user_id/chat_id НЕ
+     * пишем (в character_tasks telegram_user_id = внутренний users.id, не raw — не мешаем
+     * семантику колонки firehose).
+     */
+    public function recordTaskCompletion(?int $characterId, string $taskName, string $status, ?string $errorText = null): void
+    {
+        try {
+            if (! $this->enabled()) {
+                return;
+            }
+            $st = in_array($status, self::VALID_STATUSES, true) ? $status : 'ok';
+            $this->insertRow([
+                'character_id'     => $characterId,
+                'telegram_user_id' => null,
+                'chat_id'          => null,
+                'source'           => 'task',
+                'action_name'      => $taskName === '' ? null : mb_substr($taskName, 0, 255),
+                'raw_input'        => null,
+                'status'           => $st,
+                'error_text'       => ($errorText !== null && $errorText !== '') ? mb_substr($errorText, 0, 500) : null,
+                'created_at'       => date('Y-m-d H:i:s'),
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[PlayerActionLogger] recordTaskCompletion failed: ' . $e->getMessage());
         }
     }
 

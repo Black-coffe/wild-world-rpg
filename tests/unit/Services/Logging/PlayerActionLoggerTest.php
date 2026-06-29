@@ -143,6 +143,63 @@ final class PlayerActionLoggerTest extends CIUnitTestCase
         $this->assertSame('not_enough_gold', $row['error_text']);
     }
 
+    // ── recordTaskCompletion (фоновые завершения) ─────────────────────────────
+
+    public function testTaskCompletionOk(): void
+    {
+        $log = $this->fake();
+        $log->recordTaskCompletion(491, 'Gather', 'ok');
+
+        $row = $log->lastRow();
+        $this->assertSame('task', $row['source']);
+        $this->assertSame('Gather', $row['action_name']);
+        $this->assertSame('ok', $row['status']);
+        $this->assertSame(491, $row['character_id']);
+        $this->assertNull($row['telegram_user_id'], 'task-строка не пишет raw telegram_user_id');
+        $this->assertNull($row['raw_input']);
+        $this->assertNull($row['error_text']);
+    }
+
+    public function testTaskCompletionErrorRecordsMessage(): void
+    {
+        $log = $this->fake();
+        $log->recordTaskCompletion(491, 'craftBandage', 'error', 'TypeError boom');
+
+        $row = $log->lastRow();
+        $this->assertSame('task', $row['source']);
+        $this->assertSame('error', $row['status']);
+        $this->assertSame('TypeError boom', $row['error_text']);
+    }
+
+    public function testTaskCompletionInvalidStatusCoercedToOk(): void
+    {
+        $log = $this->fake();
+        $log->recordTaskCompletion(491, 'Marching', 'weird');
+        $this->assertSame('ok', $log->lastRow()['status']);
+    }
+
+    public function testTaskCompletionTruncatesError(): void
+    {
+        $log = $this->fake();
+        $log->recordTaskCompletion(491, 'x', 'error', str_repeat('e', 700));
+        $this->assertSame(500, self::len($log->lastRow()['error_text']));
+    }
+
+    public function testTaskCompletionKillswitchOffNoInsert(): void
+    {
+        $log     = $this->fake();
+        $log->on = false;
+        $log->recordTaskCompletion(491, 'Gather', 'ok');
+        $this->assertSame(0, $log->insertCount());
+    }
+
+    public function testTaskCompletionSourceIsValidEnum(): void
+    {
+        $log = $this->fake();
+        $log->recordTaskCompletion(491, 'Gather', 'ok');
+        $this->assertContains($log->lastRow()['source'], ['callback', 'command', 'text', 'forcereply', 'other', 'task']);
+    }
+
     // ── Defensive commit ──────────────────────────────────────────────────────
 
     public function testKillswitchOffNoInsert(): void

@@ -103,11 +103,17 @@ class Worker extends Controller
             return;
         }
 
+        // ADR-148 (расширение охвата) — firehose фоновых завершений задач игрока.
+        // character_id из character_tasks = надёжная связь; имя задачи = action_name.
+        $charId   = is_numeric($task['character_id'] ?? null) ? (int) $task['character_id'] : null;
+        $taskName = is_string($taskDetails['name'] ?? null) ? $taskDetails['name'] : '';
+
         try {
             $handler = new $handlerClassName();
             if (method_exists($handler, 'handle')) {
                 $handler->handle($task);
             }
+            \App\Services\Logging\PlayerActionLogger::current()->recordTaskCompletion($charId, $taskName, 'ok');
         } catch (\Throwable $e) {
             // Откатываем статус, чтобы handler можно было перезапустить вручную
             // или расследовать. Не бросаем дальше — иначе один упавший handler
@@ -115,6 +121,7 @@ class Worker extends Controller
             $db->table('character_tasks')
                 ->where('id', $task['id'])
                 ->update(['status' => 'interrupted', 'updated_at' => date('Y-m-d H:i:s')]);
+            \App\Services\Logging\PlayerActionLogger::current()->recordTaskCompletion($charId, $taskName, 'error', $e->getMessage());
             log_message('error', "[Worker] Handler {$handlerClassName} упал на task #{$task['id']}: " . $e->getMessage());
         }
     }
