@@ -46,6 +46,16 @@ final class NpcDialogueTreeInvariantTest extends CIUnitTestCase
         );
     }
 
+    public function testSettlementResidentTreesSatisfyTwoOptionInvariant(): void
+    {
+        // ADR-089 Phase 6 контент-пасс №3 — 5 жителей поселений (ADR-101): Смотритель /
+        // Маркитант / Кузнец Перекрёстка + Барыга / Крупье Логова (132 узла).
+        $this->assertTreeMigrationValid(
+            APPPATH . 'Database/Migrations/2026-09-27-100000_Adr089SettlementResidentTrees.php',
+            130
+        );
+    }
+
     /**
      * Парсит встроенный JSON деревьев из миграции и проверяет инвариант по всем узлам.
      */

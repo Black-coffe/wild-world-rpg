@@ -94,6 +94,7 @@ final class SettlementHubAction extends BaseAction
         $residents      = (new SettlementNpcModel())->forSettlement($sid);
         $lines          = [];
         $serviceButtons = [];
+        $talkButtons    = [];
         $seenService    = [];
         foreach ($residents as $r) {
             $npcId  = is_numeric($r['npc_id'] ?? null) ? (int) $r['npc_id'] : 0;
@@ -108,6 +109,14 @@ final class SettlementHubAction extends BaseAction
             if ($svcKey !== '' && isset(self::SERVICE_ROUTES[$svcKey]) && ! isset($seenService[$svcKey])) {
                 $seenService[$svcKey] = true;
                 $serviceButtons[]     = ['text' => self::SERVICE_ROUTES[$svcKey][0], 'callback_data' => self::SERVICE_ROUTES[$svcKey][1]];
+            }
+
+            // ADR-101 resident-picker: разговор адресуется КОНКРЕТНОМУ жителю (несколько делят
+            // якорную клетку; единый `npcEncounter`→`first()` показывал лишь одного — остальные
+            // деревья были недостижимы). Кнопка — только для разговорчивых (passive) жителей.
+            $behavior = is_array($npcRow) && is_string($npcRow['ai_behavior'] ?? null) ? $npcRow['ai_behavior'] : '';
+            if ($npcId > 0 && $behavior === 'passive') {
+                $talkButtons[] = ['text' => "💬 {$nm}", 'callback_data' => "npcEncounter_{$npcId}"];
             }
         }
 
@@ -156,8 +165,13 @@ final class SettlementHubAction extends BaseAction
         if ($type === 'faction' && (new \App\Services\Settlement\SettlementShopService())->enabled()) {
             $rows[] = [['text' => '🛍 Лавка фракции', 'callback_data' => 'settleShop']];
         }
-        if ((new NpcInteractionService())->enabled()) {
-            $rows[] = [['text' => '💬 Поговорить с жителями', 'callback_data' => 'npcEncounter']];
+        // ADR-101 resident-picker: кнопка разговора на КАЖДОГО разговорчивого жителя. Заголовок-
+        // подсказка в caption (ниже) объясняет, что можно подойти к любому. Fallback: если ни
+        // одного passive-жителя нет — кнопок разговора нет (раньше единая «Поговорить» вела к ->first()).
+        if ((new NpcInteractionService())->enabled() && $talkButtons !== []) {
+            foreach ($talkButtons as $tb) {
+                $rows[] = [$tb];
+            }
         }
         // ADR-101 Фаза 5 — быстрое перемещение между открытыми поселениями (gated killswitch).
         if ((new \App\Services\Settlement\SettlementTeleportService())->enabled()) {

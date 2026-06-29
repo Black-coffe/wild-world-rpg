@@ -147,6 +147,29 @@ final class NpcInteractionService
     }
 
     /**
+     * ADR-101/ADR-089 — конкретный passive-NPC на клетке по npc_id. Нужен resident-picker'у
+     * поселений: несколько жителей делят якорную клетку, а `passiveSpawnOnCell`→`first()` вернул
+     * бы только одного (остальные деревья были недостижимы — BUILT-BUT-DEAD). Свежий Model на
+     * вызов — анти builder-state quirk.
+     *
+     * @return array<int|string,mixed>|null
+     */
+    public function passiveSpawnOnCellForNpc(int $cellNumber, int $npcId): ?array
+    {
+        $row = (new NpcSpawnModel())
+            ->select('npc_spawns.id AS spawn_id, npc_spawns.npc_id, npc_spawns.cell_number, '
+                . 'npcs.npc_name_ru, npcs.npc_name_en, npcs.description, npcs.ai_behavior, npcs.faction_id')
+            ->join('npcs', 'npcs.id = npc_spawns.npc_id')
+            ->where('npc_spawns.cell_number', $cellNumber)
+            ->where('npc_spawns.npc_id', $npcId)
+            ->where('npc_spawns.status', 'alive')
+            ->where('npcs.ai_behavior', 'passive')
+            ->first();
+
+        return is_array($row) ? $row : null;
+    }
+
+    /**
      * ADR-089 Фаза 2 — приветствие с учётом attitude: пробуем greeting_<attitude>,
      * затем базовое greeting. neutral → базовое.
      */

@@ -73,7 +73,17 @@ final class NpcDialogueAction extends BaseAction
 
         // Phase 6 — реплика-исход (act-*).
         if (str_starts_with($nodeKey, 'act-')) {
-            return $this->dispatchOutcome(substr($nodeKey, 4), $svc, $charId, $npcId, $spawnId, $inMarch);
+            // ADR-101 safe-zone guard: боевые исходы (грабёж/драка/провокация) внутри безопасной
+            // зоны поселения запрещены, даже если узел дерева их предлагает — пакт «здесь не
+            // нападают». Легаси-меню (NpcEncounterAction) скрывает их в safe-зоне, но rich-ветка
+            // диалога шла мимо этого гейта → теперь блок построчно в dispatchOutcome.
+            $safeZone = (new \App\Services\Settlement\SettlementZoneService())->isSafeZone(
+                $cCell,
+                is_numeric($character['coordinate_x'] ?? null) ? (int) $character['coordinate_x'] : null,
+                is_numeric($character['coordinate_y'] ?? null) ? (int) $character['coordinate_y'] : null
+            );
+
+            return $this->dispatchOutcome(substr($nodeKey, 4), $svc, $charId, $npcId, $spawnId, $inMarch, $safeZone);
         }
 
         $node = (new NpcDialogueTreeService())->node($npcId, $nodeKey);
@@ -91,9 +101,18 @@ final class NpcDialogueAction extends BaseAction
     /**
      * Phase 6 — исход реплики act-*.
      */
-    private function dispatchOutcome(string $outcome, NpcInteractionService $svc, int $charId, int $npcId, int $spawnId, bool $inMarch): ServerResponse
+    private function dispatchOutcome(string $outcome, NpcInteractionService $svc, int $charId, int $npcId, int $spawnId, bool $inMarch, bool $safeZone = false): ServerResponse
     {
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+        // ADR-101 — безопасная зона поселения: грабёж/драка/провокация запрещены (пакт). Возврат
+        // к разговору, NPC остаётся. Не-боевые исходы (квест/торговля/уход) проходят как обычно.
+        if ($safeZone && in_array($outcome, ['rob', 'fight', 'provoke'], true)) {
+            return $this->backToDialogue(
+                '🕊 Это *безопасная зона* поселения — здесь не нападают и не грабят. Таков уговор.',
+                $spawnId
+            );
+        }
 
         switch ($outcome) {
             case 'leave':

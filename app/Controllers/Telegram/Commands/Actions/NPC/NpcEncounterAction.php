@@ -54,7 +54,15 @@ final class NpcEncounterAction extends BaseAction
         }
 
         $cell = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : 0;
-        $npc  = $svc->passiveSpawnOnCell($cell);
+
+        // ADR-101 resident-picker: callback `npcEncounter_<npcId>` адресует КОНКРЕТНОГО жителя
+        // (в поселении несколько passive-жителей делят якорную клетку). Без хвоста — легаси-
+        // поведение: первый passive на клетке (одиночные нейтралы пустоши).
+        $parts     = explode('_', (string) $this->callbackQuery->getData());
+        $wantNpcId = (count($parts) >= 2 && is_numeric($parts[1])) ? (int) $parts[1] : 0;
+        $npc       = $wantNpcId > 0
+            ? $svc->passiveSpawnOnCellForNpc($cell, $wantNpcId)
+            : $svc->passiveSpawnOnCell($cell);
         if ($npc === null) {
             return $this->alert('Незнакомец ушёл.');
         }
