@@ -292,6 +292,12 @@ class Tasks extends BaseTasks
         $schedule->command('battles:cleanup')
             ->daily('03:35')->named('battle-logs.cleanup');
 
+        // ADR-148 — авто-очистка + кольцевая ротация firehose player_action_log по created_at:
+        // TTL (logging.player_actions.retention_days) + кап числа строк
+        // (logging.player_actions.max_rows, «старое вытесняется новым»). Пакетное удаление.
+        $schedule->command('player-actions:cleanup')
+            ->daily('03:40')->named('player-actions.cleanup');
+
         // v0.51.113 — Endgame threshold check + scenario activation.
         // Daily 04:00 EEST. Idempotent (no-op якщо threshold ще не hit
         // або вже triggered). Перевіряє чи якась з 4 factions hit 75k
