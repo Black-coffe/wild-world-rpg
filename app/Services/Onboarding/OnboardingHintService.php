@@ -244,6 +244,22 @@ class OnboardingHintService
     }
 
     /**
+     * Slice 2 («ресурс-грамотность») — just-in-time подсказка при ПЕРВОМ открытии
+     * «📦 Склад базы». Объясняет, что добыча в рюкзаке (не на складе), склад наполняется
+     * только карго-дроном, и где смотреть всё разом («Все мои ресурсы»).
+     *
+     * БЕЗ level-ceiling (как у обнаружения узла): путаница «склад vs рюкзак» не
+     * привязана к уровню — триггер-инцидент был у игрока L209. Лимитер — one-shot dedup
+     * + killswitch + opt-out (всё внутри {@see maybeSend}).
+     *
+     * @param array<string, mixed>|CharacterEntity $character
+     */
+    public function maybeSendFirstStorageHint(array|CharacterEntity $character, int $chatId): bool
+    {
+        return $this->maybeSend($character, $chatId, OnboardingHintCatalog::FIRST_STORAGE_OPEN);
+    }
+
+    /**
      * Базовый one-shot отправитель: killswitch + opt-out + дедуп + отправка + запись.
      *
      * @param array<string, mixed>|CharacterEntity $character

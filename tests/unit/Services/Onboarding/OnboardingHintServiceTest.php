@@ -553,6 +553,74 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
         $this->assertFalse($svc->maybeSendFirstBossSightingHint(['id' => 20, 'level' => 3, 'daily_tips_enabled' => 0], 100));
         $this->assertCount(0, $svc->sent);
     }
+
+    // ── Первое открытие склада (Slice 2 «ресурс-грамотность») ─────────────────────
+
+    /** Анти-дрифт: текст учит «добыча в рюкзаке, склад через карго-дрон» (media-off самодостаточность). */
+    public function testStorageHintTeachesCoreFacts(): void
+    {
+        $text = OnboardingHintCatalog::get(OnboardingHintCatalog::FIRST_STORAGE_OPEN)['text'] ?? '';
+        foreach (['рюкзак', 'карго-дрон', 'склад'] as $needle) {
+            $this->assertStringContainsString($needle, $text, "Хинт склада не упоминает «{$needle}».");
+        }
+    }
+
+    /** Хинт ведёт в «🎒 Инвентарь» (callback `inventory`) — туда, где реально лежит добыча. */
+    public function testStorageHintLinksToInventory(): void
+    {
+        $markupRaw = OnboardingHintCatalog::get(OnboardingHintCatalog::FIRST_STORAGE_OPEN)['reply_markup'] ?? null;
+        $this->assertIsString($markupRaw, 'У хинта склада нет кнопок.');
+        $markup = json_decode($markupRaw, true);
+        $this->assertIsArray($markup);
+        $callbacks = [];
+        array_walk_recursive($markup, static function ($value, $key) use (&$callbacks): void {
+            if ($key === 'callback_data') {
+                $callbacks[] = $value;
+            }
+        });
+        $this->assertContains('inventory', $callbacks, 'Нет кнопки на инвентарь.');
+    }
+
+    /** Happy path: первое открытие склада → шлём один раз. */
+    public function testStorageHintHappyPathSendsOnce(): void
+    {
+        $svc    = new FakeHintService();
+        $player = ['id' => 30, 'level' => 5, 'daily_tips_enabled' => 1];
+
+        $this->assertTrue($svc->maybeSendFirstStorageHint($player, 100));
+        $this->assertCount(1, $svc->sent);
+        $this->assertSame([OnboardingHintCatalog::FIRST_STORAGE_OPEN], $svc->recorded);
+
+        // one-shot: повторно не шлём.
+        $this->assertFalse($svc->maybeSendFirstStorageHint($player, 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    /**
+     * Анти-BUILT-BUT-DEAD: у хинта склада НЕТ level-ceiling — путаница «склад vs рюкзак»
+     * встречается на всех уровнях (триггер-инцидент был у игрока L209).
+     */
+    public function testStorageHintFiresForVeteranNoLevelCeiling(): void
+    {
+        $svc = new FakeHintService(); // maxLvl=6, но хинт склада его не учитывает
+        $this->assertTrue($svc->maybeSendFirstStorageHint(['id' => 31, 'level' => 209, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    public function testStorageHintKillswitchOffSuppresses(): void
+    {
+        $svc = new FakeHintService();
+        $svc->killswitch = false;
+        $this->assertFalse($svc->maybeSendFirstStorageHint(['id' => 30, 'level' => 5, 'daily_tips_enabled' => 1], 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testStorageHintRespectsOptOut(): void
+    {
+        $svc = new FakeHintService();
+        $this->assertFalse($svc->maybeSendFirstStorageHint(['id' => 30, 'level' => 5, 'daily_tips_enabled' => 0], 100));
+        $this->assertCount(0, $svc->sent);
+    }
 }
 
 /**

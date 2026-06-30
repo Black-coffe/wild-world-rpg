@@ -9,6 +9,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\BaseStorageModel;
 use App\Models\CharacterResourceModel;
 use App\Services\Bases\BaseCheckService;
+use App\Services\Onboarding\OnboardingHintService;
 use App\Services\Player\InventorySortService;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
@@ -61,16 +62,23 @@ class BaseStorageListAction extends BaseAction
         $callbackData = (string) $this->callbackQuery->getData();
 
         if ($callbackData === 'baseStorageList_all') {
-            return $this->retrieveAll($chatId, $characterId);
+            $resp = $this->retrieveAll($chatId, $characterId);
+        } else {
+            // W8: режим сортировки из `baseStorageList_sort_<mode>` (stateless). Default — recent.
+            $rawMode = str_starts_with($callbackData, 'baseStorageList_sort_')
+                ? substr($callbackData, strlen('baseStorageList_sort_'))
+                : null;
+            $mode = InventorySortService::normalizeMode($rawMode, InventorySortService::STORAGE_MODES, InventorySortService::MODE_RECENT);
+
+            $resp = $this->renderList($chatId, $characterId, $mode);
         }
 
-        // W8: режим сортировки из `baseStorageList_sort_<mode>` (stateless). Default — recent.
-        $rawMode = str_starts_with($callbackData, 'baseStorageList_sort_')
-            ? substr($callbackData, strlen('baseStorageList_sort_'))
-            : null;
-        $mode = InventorySortService::normalizeMode($rawMode, InventorySortService::STORAGE_MODES, InventorySortService::MODE_RECENT);
+        // Slice 2 («ресурс-грамотность») — one-shot подсказка при первом открытии склада:
+        // добыча в рюкзаке, склад наполняется только карго-дроном. Гейты (killswitch/
+        // opt-out/one-shot) внутри сервиса; шлётся ПОСЛЕ основного сообщения склада.
+        (new OnboardingHintService())->maybeSendFirstStorageHint($character, (int) $chatId);
 
-        return $this->renderList($chatId, $characterId, $mode);
+        return $resp;
     }
 
     private function renderList(int $chatId, int $characterId, string $mode = InventorySortService::MODE_RECENT): ServerResponse

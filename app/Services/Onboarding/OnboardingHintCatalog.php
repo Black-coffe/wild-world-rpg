@@ -77,6 +77,16 @@ class OnboardingHintCatalog
     public const FIRST_BOSS_SIGHTING = 'first_boss_sighting';
 
     /**
+     * Первое открытие «📦 Склад базы» (Slice 2 инициативы «ресурс-грамотность»,
+     * след жалоб Arseny L209 + Евгения 2026-06): объясняет, что *добыча* лежит в
+     * рюкзаке (а не на складе), склад наполняется только карго-дроном, и где смотреть
+     * всё разом («Все мои ресурсы»). В ОТЛИЧИЕ от newbie-funnel хинтов — БЕЗ
+     * level-ceiling: путаница «склад vs рюкзак» встречается на всех уровнях (триггер-
+     * инцидент — игрок L209). Лимитер — one-shot dedup + killswitch + opt-out.
+     */
+    public const FIRST_STORAGE_OPEN = 'first_storage_open';
+
+    /**
      * @return array{text: string, reply_markup?: string}|null
      */
     public static function get(string $key): ?array
@@ -196,6 +206,21 @@ class OnboardingHintCatalog
                 'reply_markup' => json_encode([
                     'inline_keyboard' => [[
                         ['text' => '☠ Осмотреть', 'callback_data' => 'nodeAct_look_0'],
+                    ]],
+                ], JSON_THROW_ON_ERROR),
+            ],
+            self::FIRST_STORAGE_OPEN => [
+                'text' => "📦 *Склад базы — это не рюкзак*\n\n"
+                    . "Вся твоя *добыча* лежит не на складе, а в *инвентаре* (рюкзаке): "
+                    . "«🎒 Инвентарь» → «Добытые ресурсы». Склад базы — отдельное хранилище, "
+                    . "и наполняется он только *карго-дроном* (его собирают в Мастерской "
+                    . "робототехники).\n\n"
+                    . "Хочешь видеть всё разом — где что лежит и на какую сумму — открой сводку "
+                    . "*«Все мои ресурсы»* в «🎒 Инвентаре».\n\n"
+                    . "_Коротко: добыча — в рюкзаке, склад базы — через карго-дрон._",
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [[
+                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                     ]],
                 ], JSON_THROW_ON_ERROR),
             ],
