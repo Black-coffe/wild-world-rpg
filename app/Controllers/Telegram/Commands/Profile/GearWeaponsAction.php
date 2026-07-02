@@ -55,9 +55,24 @@ class GearWeaponsAction extends BaseAction
             ->where('building_id', $arsenal['id'])
             ->first();
         if (!$charArsenal) {
+            // UX-Discoverability (CLAUDE.md): lock-state вместо глухого тупика —
+            // объясняем prerequisite + даём путь к стройке. Зеркало GearArmorAction.
+            $arsenalLvl = (new \App\Services\Onboarding\BuildLockService())->requiredLevel('Arsenal');
             return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => 'У вас нет здания «Арсенал», поэтому оружие хранить негде.',
+                'chat_id'      => $chatId,
+                'parse_mode'   => 'Markdown',
+                'text'         => "🔒 *Нужен Арсенал*\n\n"
+                    . "Оружие берут в руки (экипируют) в здании *«Арсенал»* — на твоей базе его пока нет. "
+                    . "Скрафтленное оружие *никуда не делось*: оно ждёт тебя и экипируется, "
+                    . "как только Арсенал будет построен.\n\n"
+                    . "Арсенал — постройка позднего этапа: нужен *уровень {$arsenalLvl}* и несколько "
+                    . "базовых зданий (Мастерская, Домна, Солнечная станция, Лаборатория).\n\n"
+                    . "Жми «🏗 К стройке Арсенала» — там точный список ресурсов и чего пока не хватает.",
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [[
+                        ['text' => '🏗 К стройке Арсенала', 'callback_data' => 'genericBuildInfo_Arsenal'],
+                    ]],
+                ]),
             ]);
         }
 

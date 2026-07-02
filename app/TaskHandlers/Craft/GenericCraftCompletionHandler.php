@@ -653,11 +653,23 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         // а не сбрасывает в 1 (как раньше через recipe.craft_again_callback).
         $craftAgainCallback = 'genericCraft_' . $recipeKey . '_' . $quantityAdded;
 
+        // Куда ведёт вторая кнопка: экипировка/броня/оружие лежат в отдельных
+        // экранах («Перс → ⚔️ Экип»), а НЕ в «🎒 Инвентарь» (там только ресурсы).
+        // Направлять броню/оружие в инвентарь = мисдирекшн (жалоба игрока 02.07:
+        // «скрафтил куртку… в инвентаре не видно»). Обычные предметы — в инвентарь.
+        if (!empty($craftedItem['__outfit'])) {
+            $secondButton = ['text' => '👕 Надеть',        'callback_data' => 'gearArmor'];
+        } elseif (!empty($craftedItem['__weapon'])) {
+            $secondButton = ['text' => '⚔️ Экипировать',   'callback_data' => 'gearWeapons'];
+        } else {
+            $secondButton = ['text' => '🎒 Инвентарь',     'callback_data' => 'inventory'];
+        }
+
         $keyboard = [
             'inline_keyboard' => [
                 [
                     ['text' => '🔄 Крафтить еще', 'callback_data' => $craftAgainCallback],
-                    ['text' => '🎒 Инвентарь',    'callback_data' => 'inventory'],
+                    $secondButton,
                 ],
             ],
         ];
@@ -671,5 +683,17 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+
+        // JIT one-shot (ADR-103): скрафтил снаряжение (T3-броня/оружие) без Арсенала —
+        // где вещь лежит и как надеть. Только для outfit/weapon (обычные предметы —
+        // в инвентаре, подсказка не нужна).
+        if (!empty($craftedItem['__outfit']) || !empty($craftedItem['__weapon'])) {
+            try {
+                (new \App\Services\Onboarding\OnboardingHintService())
+                    ->maybeSendArmorCraftedNoArsenalHint($characterId, (int) $telegramId);
+            } catch (\Throwable $e) {
+                log_message('error', '[GenericCraftCompletion] onboarding hint failed: ' . $e->getMessage());
+            }
+        }
     }
 }

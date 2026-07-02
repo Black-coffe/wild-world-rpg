@@ -621,6 +621,79 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
         $this->assertFalse($svc->maybeSendFirstStorageHint(['id' => 30, 'level' => 5, 'daily_tips_enabled' => 0], 100));
         $this->assertCount(0, $svc->sent);
     }
+
+    // ── Крафт брони/оружия без Арсенала (2026-07-02, жалоба Евгения) ─────────────
+
+    /** Анти-дрифт: текст учит, ГДЕ вещь и как надеть (media-off самодостаточность). */
+    public function testArmorNoArsenalHintTeachesCoreFacts(): void
+    {
+        $text = OnboardingHintCatalog::get(OnboardingHintCatalog::ARMOR_NO_ARSENAL)['text'] ?? '';
+        foreach (['Экип', 'Арсенал', 'Инвентаре'] as $needle) {
+            $this->assertStringContainsString($needle, $text, "Хинт брони не упоминает «{$needle}».");
+        }
+    }
+
+    /** Хинт ведёт на экип-меню И к стройке Арсенала (discoverability обоих путей). */
+    public function testArmorNoArsenalHintLinksToEquipAndBuild(): void
+    {
+        $markupRaw = OnboardingHintCatalog::get(OnboardingHintCatalog::ARMOR_NO_ARSENAL)['reply_markup'] ?? null;
+        $this->assertIsString($markupRaw, 'У хинта брони нет кнопок.');
+        $markup = json_decode($markupRaw, true);
+        $this->assertIsArray($markup);
+        $callbacks = [];
+        array_walk_recursive($markup, static function ($value, $key) use (&$callbacks): void {
+            if ($key === 'callback_data') {
+                $callbacks[] = $value;
+            }
+        });
+        $this->assertContains('equipMenu', $callbacks, 'Нет кнопки на экип-меню.');
+        $this->assertContains('genericBuildInfo_Arsenal', $callbacks, 'Нет кнопки на стройку Арсенала.');
+    }
+
+    /** Happy path: скрафтил броню без Арсенала → шлём один раз. */
+    public function testArmorNoArsenalHintHappyPathSendsOnce(): void
+    {
+        $svc = new FakeHintService();
+        $svc->fakeCharacter = ['id' => 42, 'level' => 5, 'daily_tips_enabled' => 1];
+
+        $this->assertTrue($svc->maybeSendArmorCraftedNoArsenalHint(42, 100));
+        $this->assertCount(1, $svc->sent);
+        $this->assertSame([OnboardingHintCatalog::ARMOR_NO_ARSENAL], $svc->recorded);
+
+        // one-shot: повторно не шлём.
+        $this->assertFalse($svc->maybeSendArmorCraftedNoArsenalHint(42, 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    /** Есть Арсенал — надеть можно штатно, хинт молчит. */
+    public function testArmorNoArsenalHintSuppressedWhenArsenalOwned(): void
+    {
+        $svc = new FakeHintService();
+        $svc->arsenalOwned  = true;
+        $svc->fakeCharacter = ['id' => 42, 'level' => 5, 'daily_tips_enabled' => 1];
+        $this->assertFalse($svc->maybeSendArmorCraftedNoArsenalHint(42, 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    /**
+     * Анти-BUILT-BUT-DEAD: у хинта брони НЕТ level-ceiling — броню крафтят задолго до
+     * Арсенала (L15), путаница возникает на любом уровне.
+     */
+    public function testArmorNoArsenalHintFiresAboveNewbieCeiling(): void
+    {
+        $svc = new FakeHintService(); // maxLvl=6, но хинт брони его не учитывает
+        $svc->fakeCharacter = ['id' => 42, 'level' => 12, 'daily_tips_enabled' => 1];
+        $this->assertTrue($svc->maybeSendArmorCraftedNoArsenalHint(42, 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    public function testArmorNoArsenalHintRespectsOptOut(): void
+    {
+        $svc = new FakeHintService();
+        $svc->fakeCharacter = ['id' => 42, 'level' => 5, 'daily_tips_enabled' => 0];
+        $this->assertFalse($svc->maybeSendArmorCraftedNoArsenalHint(42, 100));
+        $this->assertCount(0, $svc->sent);
+    }
 }
 
 /**
@@ -642,6 +715,9 @@ final class FakeHintService extends OnboardingHintService
     public bool $hasCrafted = false;
     public bool $workshopOwned = false;
     public bool $greenhouseOwned = false;
+    public bool $arsenalOwned = false;
+    /** @var array<string, mixed>|null фейковый персонаж для loadCharacter-seam */
+    public ?array $fakeCharacter = null;
     /** @var array<string, int> per-key значения gsInt (E20: окно automation-хинта) */
     public array $gsIntMap = [];
     /** @var list<string> */
@@ -675,6 +751,16 @@ final class FakeHintService extends OnboardingHintService
     protected function ownsGreenhouse(int $charId): bool
     {
         return $this->greenhouseOwned;
+    }
+
+    protected function ownsArsenal(int $charId): bool
+    {
+        return $this->arsenalOwned;
+    }
+
+    protected function loadCharacter(int $charId): array|\App\Entities\CharacterEntity|null
+    {
+        return $this->fakeCharacter;
     }
 
     protected function hasAnyBuilding(int $charId): bool

@@ -87,6 +87,18 @@ class OnboardingHintCatalog
     public const FIRST_STORAGE_OPEN = 'first_storage_open';
 
     /**
+     * Скрафтил броню/оружие, но нет Арсенала (2026-07-02, след жалобы Евгения
+     * «скрафтил куртку, но как её надеть? арсенала нет, в инвентаре не видно»):
+     * триггер — завершение крафта брони/оружия у персонажа БЕЗ построенного Арсенала.
+     * Объясняет, что снаряжение надевается в Арсенале (не в инвентаре ресурсов),
+     * предмет не потеряется и ждёт в «Перс → ⚔️ Экип», и ведёт к стройке Арсенала.
+     * В ОТЛИЧИЕ от newbie-funnel хинтов — БЕЗ level-ceiling: скрафтить броню можно
+     * задолго до Арсенала (уровень 15), путаница возникает на любом уровне < 15.
+     * Лимитер — one-shot dedup + killswitch + opt-out + гейт «нет Арсенала».
+     */
+    public const ARMOR_NO_ARSENAL = 'armor_no_arsenal';
+
+    /**
      * @return array{text: string, reply_markup?: string}|null
      */
     public static function get(string $key): ?array
@@ -221,6 +233,20 @@ class OnboardingHintCatalog
                 'reply_markup' => json_encode([
                     'inline_keyboard' => [[
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                    ]],
+                ], JSON_THROW_ON_ERROR),
+            ],
+            self::ARMOR_NO_ARSENAL => [
+                'text' => "🧥 *Куда делась скрафтленная броня?*\n\n"
+                    . "Она *не потерялась* — броня и оружие не лежат в «🎒 Инвентаре» "
+                    . "(там только ресурсы). Твоя вещь ждёт на экране *«Перс» → «⚔️ Экип»*.\n\n"
+                    . "Но чтобы *надеть* снаряжение, на базе нужно здание *«Арсенал»*. "
+                    . "Пока его нет — вещь просто хранится и не потеряется. Арсенал — "
+                    . "постройка позднего этапа; жми «🏗 К стройке Арсенала», там точные требования.",
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [[
+                        ['text' => '⚔️ Экип', 'callback_data' => 'equipMenu'],
+                        ['text' => '🏗 К стройке Арсенала', 'callback_data' => 'genericBuildInfo_Arsenal'],
                     ]],
                 ], JSON_THROW_ON_ERROR),
             ],

@@ -53,9 +53,26 @@ class GearArmorAction extends BaseAction
             ->where('building_id', $arsenal['id'])
             ->first();
         if (!$charArsenal) {
+            // UX-Discoverability (CLAUDE.md): не глухой тупик, а lock-state с
+            // объяснением prerequisite + путь к нему. Триггер — жалоба игрока 02.07
+            // («скрафтил куртку, а надеть негде»). Уровень тянем динамически из
+            // Config\Buildings (BuildLockService) — без хардкода/дрейфа.
+            $arsenalLvl = (new \App\Services\Onboarding\BuildLockService())->requiredLevel('Arsenal');
             return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => 'У вас нет здания «Арсенал». Обратитесь к строителю или изучите чертежи!',
+                'chat_id'      => $chatId,
+                'parse_mode'   => 'Markdown',
+                'text'         => "🔒 *Нужен Арсенал*\n\n"
+                    . "Броню и одежду надевают в здании *«Арсенал»* — на твоей базе его пока нет. "
+                    . "Скрафтленная броня *никуда не делась и не потеряется*: она ждёт тебя и наденется, "
+                    . "как только Арсенал будет построен.\n\n"
+                    . "Арсенал — постройка позднего этапа: нужен *уровень {$arsenalLvl}* и несколько "
+                    . "базовых зданий (Мастерская, Домна, Солнечная станция, Лаборатория).\n\n"
+                    . "Жми «🏗 К стройке Арсенала» — там точный список ресурсов и чего пока не хватает.",
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [[
+                        ['text' => '🏗 К стройке Арсенала', 'callback_data' => 'genericBuildInfo_Arsenal'],
+                    ]],
+                ]),
             ]);
         }
 

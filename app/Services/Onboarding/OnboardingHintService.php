@@ -260,6 +260,43 @@ class OnboardingHintService
     }
 
     /**
+     * Крафт брони/оружия без Арсенала (2026-07-02, след жалобы Евгения) — just-in-time
+     * подсказка после завершения крафта снаряжения у персонажа БЕЗ Арсенала: объясняет,
+     * что вещь не потеряна (лежит в «Перс → ⚔️ Экип», а не в инвентаре ресурсов) и что
+     * надеть можно после постройки Арсенала. Гейт — «нет Арсенала» (у кого есть — кнопка
+     * «👕 Надеть» и так работает). БЕЗ level-ceiling: броню крафтят задолго до Арсенала
+     * (L15). Лимитер — one-shot + killswitch + opt-out (внутри {@see maybeSend}).
+     *
+     * Принимает characterId (task-handler'ы завершения крафта имеют его, но не полный
+     * массив персонажа) — грузим CharacterEntity сами, чтобы уважить per-char opt-out.
+     */
+    public function maybeSendArmorCraftedNoArsenalHint(int $characterId, int $chatId): bool
+    {
+        if ($characterId <= 0 || $this->ownsArsenal($characterId)) {
+            return false;
+        }
+
+        $character = $this->loadCharacter($characterId);
+        if ($character === null) {
+            return false;
+        }
+
+        return $this->maybeSend($character, $chatId, OnboardingHintCatalog::ARMOR_NO_ARSENAL);
+    }
+
+    /**
+     * Загрузка персонажа по id (overridable seam для тестов — без DB).
+     *
+     * @return array<string, mixed>|CharacterEntity|null
+     */
+    protected function loadCharacter(int $charId): array|CharacterEntity|null
+    {
+        $character = (new \App\Models\CharacterModel())->find($charId);
+
+        return $character instanceof CharacterEntity ? $character : null;
+    }
+
+    /**
      * Базовый one-shot отправитель: killswitch + opt-out + дедуп + отправка + запись.
      *
      * @param array<string, mixed>|CharacterEntity $character
@@ -349,6 +386,14 @@ class OnboardingHintService
     protected function ownsGreenhouse(int $charId): bool
     {
         return $this->ownsBuilding($charId, 'Greenhouse');
+    }
+
+    /**
+     * Есть ли у персонажа Арсенал (любого уровня, любая база). Overridable seam.
+     */
+    protected function ownsArsenal(int $charId): bool
+    {
+        return $this->ownsBuilding($charId, 'Arsenal');
     }
 
     /**

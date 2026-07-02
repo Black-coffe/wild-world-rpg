@@ -154,7 +154,7 @@ class CraftCompletionRaggedShirtHandler extends BaseTaskHandler
             'inline_keyboard' => [
                 [
                     ['text' => '🔄 Крафтить еще', 'callback_data' => 'startCraftRaggedShirt2'],
-                    ['text' => '🎒 Инвентарь',     'callback_data' => 'inventory'],
+                    ['text' => '👕 Надеть',     'callback_data' => 'gearArmor'],
                 ],
             ]
         ];
@@ -165,5 +165,13 @@ class CraftCompletionRaggedShirtHandler extends BaseTaskHandler
             $text,
             ['parse_mode' => 'Markdown', 'reply_markup' => json_encode($keyboard)]
         );
+
+        // JIT one-shot (ADR-103): скрафтил броню без Арсенала → где она и как надеть.
+        try {
+            (new \App\Services\Onboarding\OnboardingHintService())
+                ->maybeSendArmorCraftedNoArsenalHint($characterId, (int) $telegramId);
+        } catch (\Throwable $e) {
+            log_message('error', '[ArmorCraft] onboarding hint failed: ' . $e->getMessage());
+        }
     }
 }
