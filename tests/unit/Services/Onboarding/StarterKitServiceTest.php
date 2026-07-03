@@ -41,12 +41,14 @@ final class StarterKitServiceTest extends CIUnitTestCase
         $text = $svc->grant(1, 10, 555);
 
         $this->assertNotNull($text);
-        // 4 ресурса набора (water/wood/bark/pebble) выданы.
-        $this->assertCount(4, $svc->granted);
+        // 6 ресурсов набора (water/wood/bark/pebble/herbs/algae) выданы.
+        $this->assertCount(6, $svc->granted);
         $this->assertSame([17, 10], $svc->granted[0]); // water id 17 ×10
         $this->assertSame([2, 10], $svc->granted[1]);  // wood id 2 ×10
         $this->assertSame([8, 8], $svc->granted[2]);   // bark id 8 ×8
         $this->assertSame([19, 8], $svc->granted[3]);  // pebble id 19 ×8
+        $this->assertSame([3, 4], $svc->granted[4]);   // herbs id 3 ×4 (инпут Повязки)
+        $this->assertSame([20, 6], $svc->granted[5]);  // algae id 20 ×6 (инпут Повязки)
         // idempotency-флаг записан ровно один раз.
         $this->assertSame([1], $svc->flags);
     }
@@ -69,7 +71,7 @@ final class StarterKitServiceTest extends CIUnitTestCase
         $this->assertNotNull($svc->grant(1, 10, 555));
         // Второй раз — флаг уже стоит → no-op (защита от пере-выдачи).
         $this->assertNull($svc->grant(1, 10, 555));
-        $this->assertCount(4, $svc->granted);
+        $this->assertCount(6, $svc->granted);
         $this->assertSame([1], $svc->flags);
     }
 
@@ -80,7 +82,7 @@ final class StarterKitServiceTest extends CIUnitTestCase
 
         $text = $svc->grant(1, 10, 555);
         $this->assertNotNull($text);
-        $this->assertCount(3, $svc->granted); // только wood/bark/pebble
+        $this->assertCount(5, $svc->granted); // только wood/bark/pebble/herbs/algae
         $this->assertStringNotContainsString('Вода', (string) $text);
     }
 
@@ -111,6 +113,8 @@ final class FakeStarterKitService extends StarterKitService
         'onboarding.starter_kit.wood'   => 10,
         'onboarding.starter_kit.bark'   => 8,
         'onboarding.starter_kit.pebble' => 8,
+        'onboarding.starter_kit.herbs'  => 4,
+        'onboarding.starter_kit.algae'  => 6,
     ];
 
     /** @var list<array{0:int,1:int}> [resourceId, amount] */

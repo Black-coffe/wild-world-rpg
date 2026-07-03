@@ -45,6 +45,10 @@ class StarterKitService
         'onboarding.starter_kit.wood'   => [2,  '🪵', 'Древесина'],
         'onboarding.starter_kit.bark'   => [8,  '🪨', 'Кора деревьев'],
         'onboarding.starter_kit.pebble' => [19, '⚪', 'Галька'],
+        // Травы+Водоросли — недостающие инпуты Повязки: снимают ресурс-стену
+        // онбординг-шага 3 «Руки помнят» (первый крафт обучающей цепочки).
+        'onboarding.starter_kit.herbs'  => [3,  '🌿', 'Травы'],
+        'onboarding.starter_kit.algae'  => [20, '🪸', 'Водоросли'],
     ];
 
     /** Дефолтные количества (на случай отсутствия game_settings-строки). */
@@ -53,6 +57,8 @@ class StarterKitService
         'onboarding.starter_kit.wood'   => 10,
         'onboarding.starter_kit.bark'   => 8,
         'onboarding.starter_kit.pebble' => 8,
+        'onboarding.starter_kit.herbs'  => 4,
+        'onboarding.starter_kit.algae'  => 6,
     ];
 
     public function __construct(
