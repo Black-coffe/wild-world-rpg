@@ -33,7 +33,7 @@ class SeedRuinsTip extends Migration
         $this->db->table('game_tips')->insert([
             'title_ru'   => '☢️ Охраняемые руины',
             'title_en'   => $titleEn,
-            'tip_type'   => 'world',
+            'tip_type'   => 'биомы',
             'content'    => $content,
             'created_at' => $now,
             'updated_at' => $now,
