@@ -13,7 +13,7 @@ $date    = is_string($post['published_at'] ?? null) ? date('d.m.Y', (int) strtot
 $content = is_string($post['content_html'] ?? null) ? $post['content_html'] : '';
 
 $social = config('Social');
-$tg     = $social->botLink;
+$tg     = $social->botStart('src_site_post');
 ?>
 <?= $this->extend('site/layout') ?>
 <?= $this->section('content') ?>

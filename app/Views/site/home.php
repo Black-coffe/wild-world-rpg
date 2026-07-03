@@ -7,7 +7,7 @@
  * @var list<array<string,mixed>> $factions
  */
 $social = config('Social');
-$tg     = $social->botLink;
+$tg     = $social->botStart('src_site_home');
 $group  = $social->groupLink;
 
 $features = [

@@ -8,7 +8,7 @@
  * `wildworld-ui.css` вручную ради единства с основным сайтом (ADR-062).
  */
 $social  = config('Social');
-$tgLink  = $social->botLink;
+$tgLink  = $social->botStart('src_site_botstub');
 $group   = $social->groupLink;
 $site    = 'https://wildworld.fun/';
 ?><!DOCTYPE html>

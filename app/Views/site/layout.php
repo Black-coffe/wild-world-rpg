@@ -103,8 +103,9 @@ $metaData = [
     'artSection'  => $artSection,
     'jsonLd'      => $jsonLd,
 ];
-$headerData = ['navCats' => $navCats, 'uri' => $uri, 'tgLink' => $tgLink];
-$footerData = ['navCats' => $navCats, 'tgLink' => $tgLink, 'groupLink' => $groupLink];
+// CTA-ссылки шапки/подвала несут src-метку атрибуции ($tgLink выше остаётся голым — он идёт в schema.org sameAs).
+$headerData = ['navCats' => $navCats, 'uri' => $uri, 'tgLink' => $social->botStart('src_site_header')];
+$footerData = ['navCats' => $navCats, 'tgLink' => $social->botStart('src_site_footer'), 'groupLink' => $groupLink];
 ?><!DOCTYPE html>
 <html lang="ru" data-theme="ash">
 <head>
