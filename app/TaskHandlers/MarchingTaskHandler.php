@@ -54,6 +54,8 @@ use Longman\TelegramBot\Request;
 )]
 class MarchingTaskHandler extends BaseTaskHandler
 {
+    use \App\Services\GameSettings\GameSettingsReaderTrait;
+
     private GameBalance $cfg;
     private PlayerDetectionService $detector;
     private TowerAlertService $towerAlerts;
@@ -128,10 +130,10 @@ class MarchingTaskHandler extends BaseTaskHandler
             return;
         }
 
-        // Батч: за один крон-тик продвигаем до marchCellsPerTick клеток (крон everyMinute →
+        // Батч: за один крон-тик продвигаем до cellsPerTick() клеток (крон everyMinute →
         // granularity 1 мин, поэтому «быстрее» = больше клеток за тик). Если внутри пачки
         // сработал стоп/пауза/финиш — advanceOneCell уже отправил сообщение, выходим.
-        $cellsPerTick = max(1, $this->cfg->marchCellsPerTick);
+        $cellsPerTick = $this->cellsPerTick();
         for ($i = 0; $i < $cellsPerTick; $i++) {
             if ($this->advanceOneCell($characterId, $telegramUserId, $heading, $stepsPlanned, $s, $character) !== self::CELL_CONTINUE) {
                 return;
@@ -725,15 +727,26 @@ class MarchingTaskHandler extends BaseTaskHandler
     }
 
     /**
-     * ETA марша в минутах: `$cells` клеток идут пачками по `marchCellsPerTick` за тик,
-     * тик = `marchMinutesPerCell` мин. → ceil(cells / perTick) × minutesPerTick.
+     * ETA марша в минутах: `$cells` клеток идут пачками по `cellsPerTick()` за тик
+     * (admin GameSettings world.march.cells_per_tick), тик = `marchMinutesPerCell` мин.
+     * → ceil(cells / perTick) × minutesPerTick.
      */
     private function etaMinutes(int $cells): int
     {
-        $perTick = max(1, $this->cfg->marchCellsPerTick);
+        $perTick = $this->cellsPerTick();
         $ticks   = (int) ceil(max(0, $cells) / $perTick);
 
         return $ticks * max(1, $this->cfg->marchMinutesPerCell);
+    }
+
+    /**
+     * Клеток за крон-тик — live-tunable через admin GameSettings
+     * `world.march.cells_per_tick` (ADMIN-TUNABLE BALANCE, ADR-024). Fallback 3 = код-дефолт
+     * (safe baseline). Overridable seam для тестов (без обращения к game_settings).
+     */
+    protected function cellsPerTick(): int
+    {
+        return max(1, $this->gsInt('world.march.cells_per_tick', 3));
     }
 
     private function plural(int $n, string $one, string $few, string $many): string

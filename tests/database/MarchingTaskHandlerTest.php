@@ -101,11 +101,10 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
         }
 
         $this->cfg     = new GameBalance();
-        // Per-cell тесты гоняем с 1 клеткой/тик (батч по умолчанию 3) — они проверяют
-        // механику ОДНОЙ клетки. Батч покрыт отдельным testBatchAdvancesMultipleCells.
-        $this->cfg->marchCellsPerTick = 1;
         // Детектор-стаб (по умолчанию никого не обнаруживает) — реальный
         // PlayerDetectionService на CI падает на Request не инициализирован при send.
+        // cellsPerTickOverride=1 по умолчанию — per-cell тесты проверяют механику ОДНОЙ
+        // клетки; батч покрыт testBatch* (ставят override). GameSettings в тестах не трогаем.
         $this->handler = new TestableMarchingTaskHandler($this->cfg, new StubDetector(), new StubTowerAlerts(), new StubObjectSignal());
     }
 
@@ -242,7 +241,7 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
 
     public function testBatchAdvancesMultipleCellsPerTick(): void
     {
-        $this->cfg->marchCellsPerTick = 3; // батч: 3 клетки за один handle() (мутирует общий cfg хендлера)
+        $this->handler->cellsPerTickOverride = 3; // батч: 3 клетки за один handle()
         $char = $this->makeCharacter(5, 5);              // cell_number = 45
         $task = $this->makeMarchTask((int) $char['id'], 'east', 10, 0);
 
@@ -269,7 +268,7 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
 
     public function testBatchStopsMidBatchOnWaterWithoutOvershoot(): void
     {
-        $this->cfg->marchCellsPerTick = 5;
+        $this->handler->cellsPerTickOverride = 5;
         // Ставим воду (biome 4) на 3-й клетке к востоку от (2,2): (5,2). Стоп ДО неё на (4,2).
         $this->conn->query('UPDATE map SET biome_id = 4 WHERE coordinate_x = 5 AND coordinate_y = 2');
         $char = $this->makeCharacter(2, 2);              // cell_number = 12
@@ -433,6 +432,13 @@ final class TestableMarchingTaskHandler extends MarchingTaskHandler
 {
     public int $deliveries = 0;
     public string $lastText = '';
+    /** Клеток за тик (seam вместо GameSettings — тесты не трогают game_settings). */
+    public int $cellsPerTickOverride = 1;
+
+    protected function cellsPerTick(): int
+    {
+        return $this->cellsPerTickOverride;
+    }
 
     /**
      * @param array<int|string, mixed> $s

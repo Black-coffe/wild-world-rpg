@@ -28,6 +28,8 @@ use Longman\TelegramBot\Request;
  */
 class MarchAction extends BaseAction
 {
+    use \App\Services\GameSettings\GameSettingsReaderTrait;
+
     /** @var array<string, array{int,int}> */
     private const DIRECTIONS = [
         'north'     => [0, -1],
@@ -130,9 +132,9 @@ class MarchAction extends BaseAction
         $aheadBiome = $this->biomeAhead($characterId, $charCellNumber, $dir);
         $hpEst      = round($n * $this->cfg->marchHealthCostPerCell, 2);
         $tiredEst   = round($n * $this->cfg->marchTiredCostPerCell, 2);
-        // Скорость = marchCellsPerTick клеток за тик (marchMinutesPerCell мин на тик,
-        // дрожание убрано — stepDueInterval). ETA = ceil(n / клеток-за-тик) × мин-на-тик.
-        $perTick    = max(1, $this->cfg->marchCellsPerTick);
+        // Скорость = world.march.cells_per_tick клеток за тик (admin GameSettings; тик =
+        // marchMinutesPerCell мин, дрожание убрано — stepDueInterval). ETA = ceil(n / perTick) × мин.
+        $perTick    = max(1, $this->gsInt('world.march.cells_per_tick', 3));
         $minEst     = (int) ceil($n / $perTick) * max(1, $this->cfg->marchMinutesPerCell);
         $dirLabel   = self::DIR_LABEL[$dir];
 

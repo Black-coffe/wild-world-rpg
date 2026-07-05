@@ -378,15 +378,9 @@ class GameBalance extends BaseConfig
     /** Минут реального времени на один крон-тик марша (задержка между пачками клеток). */
     public int $marchMinutesPerCell = 1;
 
-    /**
-     * Клеток, обрабатываемых за один крон-тик (батч). Крон `everyMinute` ограничивает
-     * granularity 1 мин/тик, поэтому скорость марша = `marchCellsPerTick` клеток за
-     * `marchMinutesPerCell` мин. 1 = прежнее поведение (1 клетка/тик); >1 = быстрее
-     * (клетки идут пачкой, между пачками пауза в тик). Прерывания/стопы (встреча,
-     * вода, край, привал) обрываются на нужной клетке внутри пачки.
-     * TODO: → GameSettings (admin-tunable) вместе со всем march-блоком (ADR-024).
-     */
-    public int $marchCellsPerTick = 3;
+    // Клеток за крон-тик (батч) — вынесено в admin GameSettings `world.march.cells_per_tick`
+    // (ADMIN-TUNABLE BALANCE, ADR-024). Читают MarchingTaskHandler/MarchAction через
+    // GameSettingsReaderTrait::gsInt(..., 3). Здесь не держим (устранение «двойной правды»).
 
     /** Максимум клеток в одном заказе марша. Дальше — кнопка «➕ Продлить» / новый заказ. */
     public int $marchMaxStepsPerOrder = 60;
