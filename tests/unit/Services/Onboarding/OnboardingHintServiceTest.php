@@ -694,6 +694,61 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
         $this->assertFalse($svc->maybeSendArmorCraftedNoArsenalHint(42, 100));
         $this->assertCount(0, $svc->sent);
     }
+
+    // ── Первый Поход (2026-07-05, вопрос Max Syskov про скорость) ────────────────
+
+    /** Анти-дрифт: текст объясняет логику скорости (топливо ≠ двигатель, media-off самодостаточность). */
+    public function testFirstMarchHintTeachesCoreFacts(): void
+    {
+        $text = OnboardingHintCatalog::get(OnboardingHintCatalog::FIRST_MARCH)['text'] ?? '';
+        foreach (['постоянный', 'не зависит', 'топливо', 'выносливост'] as $needle) {
+            $this->assertStringContainsString($needle, $text, "Хинт Похода не упоминает «{$needle}».");
+        }
+    }
+
+    /** Happy path: первый запуск Похода → шлём один раз. */
+    public function testFirstMarchHintHappyPathSendsOnce(): void
+    {
+        $svc = new FakeHintService();
+        $svc->fakeCharacter = ['id' => 50, 'level' => 8, 'daily_tips_enabled' => 1];
+
+        $this->assertTrue($svc->maybeSendFirstMarchHint(50, 100));
+        $this->assertCount(1, $svc->sent);
+        $this->assertSame([OnboardingHintCatalog::FIRST_MARCH], $svc->recorded);
+
+        // one-shot: повторно не шлём.
+        $this->assertFalse($svc->maybeSendFirstMarchHint(50, 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    /**
+     * Анти-BUILT-BUT-DEAD: у хинта Похода НЕТ level-ceiling — путаница про скорость не
+     * привязана к уровню (триггер-игрок Max Syskov — не новичок).
+     */
+    public function testFirstMarchHintFiresAboveNewbieCeiling(): void
+    {
+        $svc = new FakeHintService(); // maxLvl=6, но хинт Похода его не учитывает
+        $svc->fakeCharacter = ['id' => 51, 'level' => 40, 'daily_tips_enabled' => 1];
+        $this->assertTrue($svc->maybeSendFirstMarchHint(51, 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    public function testFirstMarchHintKillswitchOffSuppresses(): void
+    {
+        $svc = new FakeHintService();
+        $svc->killswitch    = false;
+        $svc->fakeCharacter = ['id' => 50, 'level' => 8, 'daily_tips_enabled' => 1];
+        $this->assertFalse($svc->maybeSendFirstMarchHint(50, 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testFirstMarchHintRespectsOptOut(): void
+    {
+        $svc = new FakeHintService();
+        $svc->fakeCharacter = ['id' => 50, 'level' => 8, 'daily_tips_enabled' => 0];
+        $this->assertFalse($svc->maybeSendFirstMarchHint(50, 100));
+        $this->assertCount(0, $svc->sent);
+    }
 }
 
 /**

@@ -285,6 +285,31 @@ class OnboardingHintService
     }
 
     /**
+     * Первый Поход (2026-07-05, след вопроса Max Syskov про скорость) — just-in-time
+     * подсказка при ПЕРВОМ запуске Похода: объясняет, что темп постоянный (~минута-две
+     * на клетку, привязка к игровому циклу) и НЕ зависит от здоровья/выносливости
+     * (❤️/💤 = топливо, не двигатель). БЕЗ level-ceiling: путаница про скорость не
+     * привязана к уровню (триггер-игрок — не новичок). Лимитер — one-shot + killswitch
+     * + opt-out (внутри {@see maybeSend}).
+     *
+     * Принимает characterId (MarchAction::startMarch имеет его, но не полный массив
+     * персонажа) — грузим CharacterEntity сами, чтобы уважить per-char opt-out.
+     */
+    public function maybeSendFirstMarchHint(int $characterId, int $chatId): bool
+    {
+        if ($characterId <= 0) {
+            return false;
+        }
+
+        $character = $this->loadCharacter($characterId);
+        if ($character === null) {
+            return false;
+        }
+
+        return $this->maybeSend($character, $chatId, OnboardingHintCatalog::FIRST_MARCH);
+    }
+
+    /**
      * Загрузка персонажа по id (overridable seam для тестов — без DB).
      *
      * @return array<string, mixed>|CharacterEntity|null

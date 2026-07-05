@@ -130,7 +130,10 @@ class MarchAction extends BaseAction
         $aheadBiome = $this->biomeAhead($characterId, $charCellNumber, $dir);
         $hpEst      = round($n * $this->cfg->marchHealthCostPerCell, 2);
         $tiredEst   = round($n * $this->cfg->marchTiredCostPerCell, 2);
+        // Темп реально ~минута-две на клетку (шаг привязан к игровому циклу → дрожание),
+        // поэтому показываем честный диапазон, а не оптимистичный минимум.
         $minEst     = $n * max(1, $this->cfg->marchMinutesPerCell);
+        $minEst2    = $minEst * 2;
         $dirLabel   = self::DIR_LABEL[$dir];
 
         $text = "🚜 *Поход:* {$dirLabel} ×{$n}\n\n"
@@ -142,7 +145,9 @@ class MarchAction extends BaseAction
             . "  • чужой лагерь на пути → остановишься не доходя\n"
             . "  • кончится выносливость → привал раньше срока\n"
             . "_Прочее (находки, биомы, мелочи) — разгребётся само, отчёт по прибытии._\n\n"
-            . "Расход ≈ ❤️{$hpEst}  💤{$tiredEst}  ·  ~{$minEst} мин";
+            . "Расход ≈ ❤️{$hpEst}  💤{$tiredEst}  ·  в пути ~{$minEst}–{$minEst2} мин\n"
+            . "_Отряд идёт сам, ~минуту-две на клетку — темп постоянный и от ❤️/💤 не зависит "
+            . "(они лишь топливо в пути)._";
 
         $minus = max(1, $n - 1);
         $plus  = min($n + 5, $this->cfg->marchMaxStepsPerOrder);
@@ -200,10 +205,20 @@ class MarchAction extends BaseAction
             'task_settings'    => json_encode($settings),
         ]);
 
+        // JIT-подсказка при ПЕРВОМ Походе (one-shot): объясняет логику скорости —
+        // темп постоянный, ❤️/💤 = топливо, не двигатель (след вопроса Max Syskov).
+        // Defensive: сбой подсказки не должен ломать старт похода.
+        try {
+            (new \App\Services\Onboarding\OnboardingHintService())->maybeSendFirstMarchHint($characterId, $chatId);
+        } catch (\Throwable $e) {
+            log_message('error', '[MarchAction] first-march hint: ' . $e->getMessage());
+        }
+
         $map     = $this->renderMap($characterId);
         $dirLabel = self::DIR_LABEL[$dir];
         $text = "🚜 *Поход начат:* {$dirLabel} ×{$n}\n\n{$map}\n"
-            . "_Карта обновляется по мере движения (≈ 1 клетка / {$this->cfg->marchMinutesPerCell} мин)._";
+            . "_Карта обновляется по мере движения — отряд идёт сам, ~минуту-две на клетку "
+            . "(темп постоянный, от ❤️/💤 не зависит)._";
         $keyboard = [[['text' => '❌ Остановиться', 'callback_data' => 'cancelMarch']]];
         return $this->editOrSendText($chatId, $text, $keyboard);
     }
