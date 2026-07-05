@@ -73,4 +73,32 @@ final class DeathMessageBuilderTest extends CIUnitTestCase
         $noItem = $this->builder->adviceBlock(true, '');
         $this->assertStringNotContainsString('Bandage', $noItem);
     }
+
+    /**
+     * 🔴 Регресс prod-report Ярик (2026-07-05): лечащее событие «Чистый родник»
+     * (health_delta > 0) НЕ должно считаться причиной смерти. Только реальная просадка
+     * HP (health_delta < 0) — damage-событие.
+     *
+     * @dataProvider harmedHealthProvider
+     *
+     * @param array<string,mixed> $entry
+     */
+    public function testLogEntryHarmedHealth(array $entry, bool $expected): void
+    {
+        $this->assertSame($expected, DeathMessageBuilder::logEntryHarmedHealth($entry));
+    }
+
+    /**
+     * @return iterable<string, array{0: array<string,mixed>, 1: bool}>
+     */
+    public static function harmedHealthProvider(): iterable
+    {
+        yield 'урон HP (Hurricane)'                 => [['health_delta' => -23.5], true];
+        yield 'лечение HP (Чистый родник)'          => [['health_delta' => 8.0], false];
+        yield 'лечение +0.5'                        => [['health_delta' => 0.5], false];
+        yield 'только выносливость (heal tired)'    => [['health_delta' => 0.0, 'tired_delta' => 6.0], false];
+        yield 'золото/ресурсы, HP не тронуто'       => [['gold_delta' => 500], false];
+        yield 'нечисловой health_delta'             => [['health_delta' => 'нет'], false];
+        yield 'пустая запись'                       => [[], false];
+    }
 }

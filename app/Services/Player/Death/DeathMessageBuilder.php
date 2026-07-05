@@ -189,6 +189,16 @@ final class DeathMessageBuilder
             if (!array_key_exists($key, $log) || !is_array($log[$key])) {
                 continue;
             }
+            // 🔴 Bug-fix (2026-07-05, prod-report Ярик): effect_log содержит запись и для
+            // ПОЛЕЗНЫХ событий (heal: `CleanSpring`/«Чистый родник», GeothermalFountains) —
+            // они пишут туда `health_delta > 0`. Раньше метод возвращал любое событие из лога,
+            // и сообщение о смерти/предупреждение обвиняли ЛЕЧАЩЕЕ событие в просадке здоровья
+            // («здоровье просело из-за события Чистый родник»). Реальная причина смерти — голод.
+            // Считаем «damage-событием» только то, что реально уронило HP персонажу (суммарный
+            // health_delta < 0). Heal / нейтральные (золото/ресурсы/выносливость) — не причина.
+            if (!self::logEntryHarmedHealth($log[$key])) {
+                continue;
+            }
             $info = $this->eventInfo(self::asInt($row['event_id'] ?? null, 0));
             if ($info !== null) {
                 $info['is_active'] = (self::asStr($row['status'] ?? null) === 'active');
@@ -197,6 +207,22 @@ final class DeathMessageBuilder
         }
 
         return null;
+    }
+
+    /**
+     * Навредило ли событие ЗДОРОВЬЮ персонажа — по его записи в `effect_log`.
+     * Причиной «рулетки смерти» может быть только просадка HP (health < 1.0), поэтому
+     * damage-событием считаем лишь то, у которого суммарный `health_delta < 0`.
+     * Лечащие (`health_delta > 0`, напр. «Чистый родник»/CleanSpring) и нейтральные
+     * по здоровью (золото/ресурсы/только выносливость → `health_delta == 0`) — не причина.
+     *
+     * @param array<mixed,mixed> $logEntry запись effect_log для персонажа
+     */
+    public static function logEntryHarmedHealth(array $logEntry): bool
+    {
+        $delta = $logEntry['health_delta'] ?? 0;
+
+        return is_numeric($delta) && (float) $delta < 0.0;
     }
 
     /**
