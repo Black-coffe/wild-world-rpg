@@ -130,9 +130,10 @@ class MarchAction extends BaseAction
         $aheadBiome = $this->biomeAhead($characterId, $charCellNumber, $dir);
         $hpEst      = round($n * $this->cfg->marchHealthCostPerCell, 2);
         $tiredEst   = round($n * $this->cfg->marchTiredCostPerCell, 2);
-        // Темп ровно ~1 мин/клетку (шаг созревает к каждому крон-тику, дрожание убрано —
-        // stepDueInterval). ETA = n клеток × marchMinutesPerCell мин.
-        $minEst     = $n * max(1, $this->cfg->marchMinutesPerCell);
+        // Скорость = marchCellsPerTick клеток за тик (marchMinutesPerCell мин на тик,
+        // дрожание убрано — stepDueInterval). ETA = ceil(n / клеток-за-тик) × мин-на-тик.
+        $perTick    = max(1, $this->cfg->marchCellsPerTick);
+        $minEst     = (int) ceil($n / $perTick) * max(1, $this->cfg->marchMinutesPerCell);
         $dirLabel   = self::DIR_LABEL[$dir];
 
         $text = "🚜 *Поход:* {$dirLabel} ×{$n}\n\n"
@@ -145,7 +146,7 @@ class MarchAction extends BaseAction
             . "  • кончится выносливость → привал раньше срока\n"
             . "_Прочее (находки, биомы, мелочи) — разгребётся само, отчёт по прибытии._\n\n"
             . "Расход ≈ ❤️{$hpEst}  💤{$tiredEst}  ·  в пути ~{$minEst} мин\n"
-            . "_Отряд идёт сам, ~минуту на клетку — темп постоянный и от ❤️/💤 не зависит "
+            . "_Отряд идёт сам и довольно шустро — темп ровный и от ❤️/💤 не зависит "
             . "(они лишь топливо в пути)._";
 
         $minus = max(1, $n - 1);
@@ -216,8 +217,8 @@ class MarchAction extends BaseAction
         $map     = $this->renderMap($characterId);
         $dirLabel = self::DIR_LABEL[$dir];
         $text = "🚜 *Поход начат:* {$dirLabel} ×{$n}\n\n{$map}\n"
-            . "_Карта обновляется по мере движения — отряд идёт сам, ~минуту на клетку "
-            . "(темп постоянный, от ❤️/💤 не зависит)._";
+            . "_Карта обновляется по мере движения — отряд идёт сам и довольно шустро "
+            . "(темп ровный, от ❤️/💤 не зависит)._";
         $keyboard = [[['text' => '❌ Остановиться', 'callback_data' => 'cancelMarch']]];
         return $this->editOrSendText($chatId, $text, $keyboard);
     }

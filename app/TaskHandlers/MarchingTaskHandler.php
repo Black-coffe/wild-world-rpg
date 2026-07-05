@@ -84,6 +84,12 @@ class MarchingTaskHandler extends BaseTaskHandler
         'southeast' => '↘️ юго-восток',
     ];
 
+    /** Исходы {@see advanceOneCell()}: продолжать / жёсткий стоп / пауза / план выполнен. */
+    private const CELL_CONTINUE = 'continue';
+    private const CELL_STOPPED  = 'stopped';
+    private const CELL_PAUSED   = 'paused';
+    private const CELL_DONE     = 'done';
+
     public function __construct(?GameBalance $cfg = null, ?PlayerDetectionService $detector = null, ?TowerAlertService $towerAlerts = null, ?ObjectSignalService $objectSignal = null, ?\App\Services\World\MarchMiniEventService $miniEvents = null)
     {
         $this->cfg          = $cfg ?? new GameBalance();
@@ -115,19 +121,52 @@ class MarchingTaskHandler extends BaseTaskHandler
             return;
         }
         $stepsPlanned = max(1, $this->asInt($s['steps_planned'] ?? 1));
-        $stepsDone    = max(0, $this->asInt($s['steps_done'] ?? 0));
 
         $character = $this->fetchCharacter($characterId);
         if ($character === null || $this->asInt($character['cell_number'] ?? 0) <= 0) {
             log_message('error', '[MarchingTaskHandler] персонаж не найден / без cell_number, task #' . $taskId);
             return;
         }
-        $charCellNumber = $this->asInt($character['cell_number']);
 
+        // Батч: за один крон-тик продвигаем до marchCellsPerTick клеток (крон everyMinute →
+        // granularity 1 мин, поэтому «быстрее» = больше клеток за тик). Если внутри пачки
+        // сработал стоп/пауза/финиш — advanceOneCell уже отправил сообщение, выходим.
+        $cellsPerTick = max(1, $this->cfg->marchCellsPerTick);
+        for ($i = 0; $i < $cellsPerTick; $i++) {
+            if ($this->advanceOneCell($characterId, $telegramUserId, $heading, $stepsPlanned, $s, $character) !== self::CELL_CONTINUE) {
+                return;
+            }
+        }
+
+        // Пачка пройдена, поход не завершён и не на паузе → следующий батч через тик + прогресс.
+        $stepsDone = $this->asInt($s['steps_done'] ?? 0);
+        $this->spawnNextStep($characterId, $telegramUserId, $s);
+        $this->editMarchMessage($telegramUserId, $s, $character, $stepsDone, $stepsPlanned);
+    }
+
+    /**
+     * Продвинуть персонажа на ОДНУ клетку в направлении $heading (со всеми проверками,
+     * побочками и точками прерывания). `$s`/`$character` мутируются по ссылке (для батча
+     * и финал-сводки). Возвращает исход:
+     *   CELL_CONTINUE — клетка пройдена, можно идти дальше (сообщение НЕ слалось);
+     *   CELL_STOPPED  — жёсткий стоп (край/вода/чужой лагерь/привал), finishMarch отправил сводку;
+     *   CELL_PAUSED   — прерывание (встреча/мини-событие/игрок), pauseMarch отправил промпт;
+     *   CELL_DONE     — план выполнен, finishMarch отправил финал.
+     *
+     * 🔴 Батч-инвариант: обновляем ВСЮ in-memory копию персонажа (включая experience/стат),
+     * чтобы следующая клетка пачки читала свежие значения — иначе 2-я клетка затёрла бы
+     * прирост 1-й (DB-update считает от `$character[...]`).
+     *
+     * @param array<int|string, mixed> $s
+     * @param array<int|string, mixed> $character
+     */
+    private function advanceOneCell(int $characterId, int $telegramUserId, string $heading, int $stepsPlanned, array &$s, array &$character): string
+    {
+        $charCellNumber = $this->asInt($character['cell_number']);
         $currentCell = $this->fetchCellByNumber($charCellNumber);
         if ($currentCell === null) {
             log_message('error', '[MarchingTaskHandler] текущая клетка не найдена: ' . $charCellNumber);
-            return;
+            return self::CELL_STOPPED;
         }
         $curX = $this->asInt($currentCell['coordinate_x'] ?? 0);
         $curY = $this->asInt($currentCell['coordinate_y'] ?? 0);
@@ -139,12 +178,12 @@ class MarchingTaskHandler extends BaseTaskHandler
         // — Край мира (E2: реальная сетка карты 0..999, не 1..1000) —
         if ($newX < 0 || $newX > 999 || $newY < 0 || $newY > 999) {
             $this->finishMarch($telegramUserId, $s, $character, "уперся в край мира у (X={$curX}, Y={$curY})");
-            return;
+            return self::CELL_STOPPED;
         }
         $targetCell = $this->fetchCellByCoords($newX, $newY);
         if ($targetCell === null) {
             $this->finishMarch($telegramUserId, $s, $character, 'дальше нет клетки');
-            return;
+            return self::CELL_STOPPED;
         }
         $targetCellNumber = $this->asInt($targetCell['cell_number'] ?? 0);
         $targetBiomeId    = $this->asInt($targetCell['biome_id'] ?? 0);
@@ -153,13 +192,13 @@ class MarchingTaskHandler extends BaseTaskHandler
         $biome = $this->fetchBiome($targetBiomeId);
         if ($biome !== null && $this->isWaterBiome($biome)) {
             $this->finishMarch($telegramUserId, $s, $character, "впереди река у (X={$newX}, Y={$newY}) — обойди другим курсом");
-            return;
+            return self::CELL_STOPPED;
         }
 
         // — Чужой активный лагерь на следующей клетке —
         if ($this->hasForeignActiveClaim($targetCellNumber, $characterId)) {
             $this->finishMarch($telegramUserId, $s, $character, "дорогу преграждает чужой лагерь у (X={$newX}, Y={$newY})");
-            return;
+            return self::CELL_STOPPED;
         }
 
         // — Стоимость / пол выносливости —
@@ -173,7 +212,7 @@ class MarchingTaskHandler extends BaseTaskHandler
         $futureTired = $this->asFloat($character['tired'] ?? 0) - $tiredCost;
         if ($futureHp < 0.01 || $futureTired < 0.01) {
             $this->finishMarch($telegramUserId, $s, $character, "выбился из сил — привал на (X={$curX}, Y={$curY})");
-            return;
+            return self::CELL_STOPPED;
         }
         $futureHp    = round($futureHp, 2);
         $futureTired = round($futureTired, 2);
@@ -181,23 +220,28 @@ class MarchingTaskHandler extends BaseTaskHandler
         // — Шаг —
         // ADR-138 (S3): ранние гейны марша (xp/stat) ×gain_multiplier для новичка (level<cap).
         // Dormant/ветеран → marchMult=1.0 = byte-identical.
+        $stepsDone = max(0, $this->asInt($s['steps_done'] ?? 0));
         $marchMult = (new EarlyProgressionService())
             ->gainMultiplier($this->asFloat($character['level'] ?? 1));
         $statKeys  = ['strength', 'agility', 'intellect'];
         $statKey   = $statKeys[$stepsDone % 3];
+        $newExperience = $this->asFloat($character['experience'] ?? 0) + $this->cfg->marchXpPerCell * $marchMult;
+        $newStat       = $this->asFloat($character[$statKey] ?? 0) + $this->cfg->marchStatPerCell * $marchMult;
         (new CharacterModel())->update($characterId, [
             'cell_number' => $targetCellNumber,
             'biome_id'    => $targetBiomeId,
             'health'      => $futureHp,
             'tired'       => $futureTired,
-            'experience'  => $this->asFloat($character['experience'] ?? 0) + $this->cfg->marchXpPerCell * $marchMult,
-            $statKey      => $this->asFloat($character[$statKey] ?? 0) + $this->cfg->marchStatPerCell * $marchMult,
+            'experience'  => $newExperience,
+            $statKey      => $newStat,
         ]);
-        // Освежаем in-memory копию для рендера.
+        // Освежаем ВСЮ in-memory копию (батч-инвариант: следующая клетка читает свежее).
         $character['cell_number'] = $targetCellNumber;
         $character['biome_id']    = $targetBiomeId;
         $character['health']      = $futureHp;
         $character['tired']       = $futureTired;
+        $character['experience']  = $newExperience;
+        $character[$statKey]      = $newStat;
 
         // — Туман войны: раскрываем 3×3 вокруг новой позиции —
         $level = isset($character['level']) ? $this->asInt($character['level']) : null;
@@ -224,11 +268,6 @@ class MarchingTaskHandler extends BaseTaskHandler
             log_message('error', '[MarchingTaskHandler] discoverObjects: ' . $e->getMessage());
         }
 
-        // — PvE-стычка в пути / запись находок в $s['log'] для финал-сводки —
-        //   extension point (ADR-019 §6): пока выключено (marchNpcEncounterChancePerCell=0;
-        //   discoverObjectsAtPlayerPosition шлёт свои сообщения сам). Когда включат —
-        //   здесь auto-battle, при тяжёлой ране → pauseMarch('heavy_wound'), при смерти → death-флоу.
-
         // — S26b (ADR-031): дозорные вышки чужих баз в радиусе → пинг их владельцам —
         try {
             $this->towerAlerts->notifyTowersNear($characterId, $newX, $newY);
@@ -245,27 +284,27 @@ class MarchingTaskHandler extends BaseTaskHandler
 
         // — ADR-089 Фаза 3: случайная встреча с нейтральным NPC в пути → пауза похода —
         if ($this->tryRandomNpcEncounter($characterId, $telegramUserId, $targetCellNumber, $s, $character, $stepsPlanned - $stepsDone)) {
-            return;
+            return self::CELL_PAUSED;
         }
 
         // — E17 Ф2 (ADR-117): персональное мини-событие в пути для L25+ → пауза похода —
         if ($this->tryRandomMiniEvent($characterId, $telegramUserId, $s, $character, $stepsPlanned - $stepsDone)) {
-            return;
+            return self::CELL_PAUSED;
         }
 
         // — PvP detection: обнаружили игрока → пауза с промптом —
         if ($this->detector->detectNearbyPlayers($characterId)) {
             $this->pauseMarch($characterId, $telegramUserId, $s, $character, 'player_detected', $stepsPlanned - $stepsDone);
-            return;
+            return self::CELL_PAUSED;
         }
 
-        // — Продолжение —
+        // — План выполнен? —
         if ($stepsDone >= $stepsPlanned) {
             $this->finishMarch($telegramUserId, $s, $character, null);
-            return;
+            return self::CELL_DONE;
         }
-        $this->spawnNextStep($characterId, $telegramUserId, $s);
-        $this->editMarchMessage($telegramUserId, $s, $character, $stepsDone, $stepsPlanned);
+
+        return self::CELL_CONTINUE;
     }
 
     // ------------------------------------------------------------------ DB reads (raw)
@@ -607,7 +646,7 @@ class MarchingTaskHandler extends BaseTaskHandler
         $heading  = $this->asStr($s['heading'] ?? '');
         $dirLabel = self::DIR_LABEL[$heading] ?? $heading;
         $left     = max(0, $stepsPlanned - $stepsDone);
-        $etaMin   = $left * max(1, $this->cfg->marchMinutesPerCell);
+        $etaMin   = $this->etaMinutes($left);
         $mapRow   = $this->fetchCellByNumber($this->asInt($character['cell_number'] ?? 0));
         $coords   = $mapRow !== null ? ('X=' . $this->asInt($mapRow['coordinate_x'] ?? 0) . ', Y=' . $this->asInt($mapRow['coordinate_y'] ?? 0)) : '';
         $hpStr    = $this->asStr($character['health'] ?? '');
@@ -683,6 +722,18 @@ class MarchingTaskHandler extends BaseTaskHandler
             log_message('error', '[MarchingTaskHandler] renderMap: ' . $e->getMessage());
             return '';
         }
+    }
+
+    /**
+     * ETA марша в минутах: `$cells` клеток идут пачками по `marchCellsPerTick` за тик,
+     * тик = `marchMinutesPerCell` мин. → ceil(cells / perTick) × minutesPerTick.
+     */
+    private function etaMinutes(int $cells): int
+    {
+        $perTick = max(1, $this->cfg->marchCellsPerTick);
+        $ticks   = (int) ceil(max(0, $cells) / $perTick);
+
+        return $ticks * max(1, $this->cfg->marchMinutesPerCell);
     }
 
     private function plural(int $n, string $one, string $few, string $many): string

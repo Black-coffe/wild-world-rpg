@@ -101,6 +101,9 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
         }
 
         $this->cfg     = new GameBalance();
+        // Per-cell тесты гоняем с 1 клеткой/тик (батч по умолчанию 3) — они проверяют
+        // механику ОДНОЙ клетки. Батч покрыт отдельным testBatchAdvancesMultipleCells.
+        $this->cfg->marchCellsPerTick = 1;
         // Детектор-стаб (по умолчанию никого не обнаруживает) — реальный
         // PlayerDetectionService на CI падает на Request не инициализирован при send.
         $this->handler = new TestableMarchingTaskHandler($this->cfg, new StubDetector(), new StubTowerAlerts(), new StubObjectSignal());
@@ -233,6 +236,52 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
         $after = $this->reloadChar((int) $char['id']);
         $this->assertEqualsWithDelta(1.0 + $this->cfg->marchStatPerCell, (float) $after['agility'], 0.001);
         $this->assertEqualsWithDelta(1.0, (float) $after['strength'], 0.001);
+    }
+
+    // ---- батч: несколько клеток за один тик ----
+
+    public function testBatchAdvancesMultipleCellsPerTick(): void
+    {
+        $this->cfg->marchCellsPerTick = 3; // батч: 3 клетки за один handle() (мутирует общий cfg хендлера)
+        $char = $this->makeCharacter(5, 5);              // cell_number = 45
+        $task = $this->makeMarchTask((int) $char['id'], 'east', 10, 0);
+
+        $this->handler->handle($task);
+
+        // Прошёл 3 клетки на восток (x 5→8, y=5): cell_number = (5-1)*10 + 8 = 48.
+        $after = $this->reloadChar((int) $char['id']);
+        $this->assertSame(48, (int) $after['cell_number']);
+        // Стоимость/прирост ×3 клетки. experience ×3 доказывает батч-инвариант:
+        // in-memory experience освежается между клетками (иначе 2-я затёрла бы 1-ю).
+        $this->assertEqualsWithDelta(100.0 - 3 * $this->cfg->marchHealthCostPerCell, (float) $after['health'], 0.001);
+        $this->assertEqualsWithDelta(100.0 - 3 * $this->cfg->marchTiredCostPerCell, (float) $after['tired'], 0.001);
+        $this->assertEqualsWithDelta(3 * $this->cfg->marchXpPerCell, (float) $after['experience'], 0.001);
+
+        // Заспавнена следующая пачка (in_work, steps_done=3), поход не завершён (planned=10).
+        $next = $this->newTasks((int) $char['id'], (int) $task['id'], 'in_work');
+        $this->assertCount(1, $next);
+        $ns = json_decode((string) $next[0]['task_settings'], true);
+        $this->assertSame(3, $ns['steps_done']);
+
+        // Ровно ОДНО сообщение прогресса на всю пачку (не по одному на клетку).
+        $this->assertSame(1, $this->handler->deliveries);
+    }
+
+    public function testBatchStopsMidBatchOnWaterWithoutOvershoot(): void
+    {
+        $this->cfg->marchCellsPerTick = 5;
+        // Ставим воду (biome 4) на 3-й клетке к востоку от (2,2): (5,2). Стоп ДО неё на (4,2).
+        $this->conn->query('UPDATE map SET biome_id = 4 WHERE coordinate_x = 5 AND coordinate_y = 2');
+        $char = $this->makeCharacter(2, 2);              // cell_number = 12
+        $task = $this->makeMarchTask((int) $char['id'], 'east', 10, 0);
+
+        $this->handler->handle($task);
+
+        // Прошёл 2 клетки (x 2→4), уперся в реку на (5,2): cell_number = (2-1)*10 + 4 = 14.
+        $after = $this->reloadChar((int) $char['id']);
+        $this->assertSame(14, (int) $after['cell_number']);
+        // Стоп → следующая пачка НЕ спавнится (поход окончен).
+        $this->assertCount(0, $this->newTasks((int) $char['id'], (int) $task['id'], 'in_work'));
     }
 
     // ---- last step → finish ----
