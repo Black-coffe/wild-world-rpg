@@ -563,7 +563,7 @@ class MarchingTaskHandler extends BaseTaskHandler
             return;
         }
         $start = new \DateTime();
-        $end   = (clone $start)->add(new \DateInterval('PT' . max(1, $this->cfg->marchMinutesPerCell) . 'M'));
+        $end   = (clone $start)->add($this->stepDueInterval());
         (new CharacterTaskModel())->insert([
             'character_id'     => $characterId,
             'telegram_user_id' => $telegramUserId,
@@ -573,6 +573,27 @@ class MarchingTaskHandler extends BaseTaskHandler
             'status'           => 'in_work',
             'task_settings'    => json_encode($s),
         ]);
+    }
+
+    /**
+     * Интервал «созревания» следующего шага марша.
+     *
+     * Worker (`Config\Tasks` → `everyMinute`) выбирает задачи `WHERE end_time < now`
+     * раз в минуту (granularity 1 мин), батч фиксируется в начале прогона. Спавн шага
+     * происходит ВНУТРИ крон-прогона (его время ≈ старт прогона + мелкий сдвиг, т.е.
+     * phase-locked к тику). Поэтому `end_time = start + (marchMinutesPerCell − 1)мин`
+     * делает шаг «созревшим» ровно на M-й последующий тик — детерминированно.
+     *
+     * Раньше было `+ marchMinutesPerCell`мин: end_time попадал то до, то после
+     * следующего тика (зависело от сдвига спавна внутри прогона) → шаг ждал 1 ИЛИ 2
+     * тика → дрожание 1–2 мин/клетку (прод-жалоба Max Syskov). При M=1 новый интервал =
+     * `PT0M` → шаг созревает к СЛЕДУЮЩЕМУ тику → ровно ~1 мин/клетку, без дрожания.
+     */
+    private function stepDueInterval(): \DateInterval
+    {
+        $minutes = max(0, $this->cfg->marchMinutesPerCell - 1);
+
+        return new \DateInterval('PT' . $minutes . 'M');
     }
 
     /**

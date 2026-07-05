@@ -130,10 +130,9 @@ class MarchAction extends BaseAction
         $aheadBiome = $this->biomeAhead($characterId, $charCellNumber, $dir);
         $hpEst      = round($n * $this->cfg->marchHealthCostPerCell, 2);
         $tiredEst   = round($n * $this->cfg->marchTiredCostPerCell, 2);
-        // Темп реально ~минута-две на клетку (шаг привязан к игровому циклу → дрожание),
-        // поэтому показываем честный диапазон, а не оптимистичный минимум.
+        // Темп ровно ~1 мин/клетку (шаг созревает к каждому крон-тику, дрожание убрано —
+        // stepDueInterval). ETA = n клеток × marchMinutesPerCell мин.
         $minEst     = $n * max(1, $this->cfg->marchMinutesPerCell);
-        $minEst2    = $minEst * 2;
         $dirLabel   = self::DIR_LABEL[$dir];
 
         $text = "🚜 *Поход:* {$dirLabel} ×{$n}\n\n"
@@ -145,8 +144,8 @@ class MarchAction extends BaseAction
             . "  • чужой лагерь на пути → остановишься не доходя\n"
             . "  • кончится выносливость → привал раньше срока\n"
             . "_Прочее (находки, биомы, мелочи) — разгребётся само, отчёт по прибытии._\n\n"
-            . "Расход ≈ ❤️{$hpEst}  💤{$tiredEst}  ·  в пути ~{$minEst}–{$minEst2} мин\n"
-            . "_Отряд идёт сам, ~минуту-две на клетку — темп постоянный и от ❤️/💤 не зависит "
+            . "Расход ≈ ❤️{$hpEst}  💤{$tiredEst}  ·  в пути ~{$minEst} мин\n"
+            . "_Отряд идёт сам, ~минуту на клетку — темп постоянный и от ❤️/💤 не зависит "
             . "(они лишь топливо в пути)._";
 
         $minus = max(1, $n - 1);
@@ -194,7 +193,7 @@ class MarchAction extends BaseAction
             'log'           => [],
         ];
         $start = new \DateTime();
-        $end   = (clone $start)->add(new \DateInterval('PT' . max(1, $this->cfg->marchMinutesPerCell) . 'M'));
+        $end   = (clone $start)->add($this->stepDueInterval());
         $this->characterTaskModel->insert([
             'character_id'     => $characterId,
             'telegram_user_id' => $telegramUserId,
@@ -217,7 +216,7 @@ class MarchAction extends BaseAction
         $map     = $this->renderMap($characterId);
         $dirLabel = self::DIR_LABEL[$dir];
         $text = "🚜 *Поход начат:* {$dirLabel} ×{$n}\n\n{$map}\n"
-            . "_Карта обновляется по мере движения — отряд идёт сам, ~минуту-две на клетку "
+            . "_Карта обновляется по мере движения — отряд идёт сам, ~минуту на клетку "
             . "(темп постоянный, от ❤️/💤 не зависит)._";
         $keyboard = [[['text' => '❌ Остановиться', 'callback_data' => 'cancelMarch']]];
         return $this->editOrSendText($chatId, $text, $keyboard);
@@ -256,7 +255,7 @@ class MarchAction extends BaseAction
             ]);
         }
         $start = new \DateTime();
-        $end   = (clone $start)->add(new \DateInterval('PT' . max(1, $this->cfg->marchMinutesPerCell) . 'M'));
+        $end   = (clone $start)->add($this->stepDueInterval());
         $this->characterTaskModel->update($this->asInt($task['id'] ?? 0), [
             'status'     => 'in_work',
             'start_time' => $start->format('Y-m-d H:i:s'),
@@ -274,6 +273,19 @@ class MarchAction extends BaseAction
     private function dirBtn(string $dir): array
     {
         return ['text' => self::DIR_LABEL[$dir], 'callback_data' => "march_{$dir}_1"];
+    }
+
+    /**
+     * Интервал «созревания» шага марша: `marchMinutesPerCell − 1` мин (см. подробный
+     * разбор в {@see \App\TaskHandlers\MarchingTaskHandler::stepDueInterval()}). Worker
+     * — everyMinute, спавн phase-locked к тику → −1 убирает лишний тик ожидания
+     * (дрожание 1–2 мин/клетку → ровно ~1 мин/клетку). M=1 → PT0M = due на след. тике.
+     */
+    private function stepDueInterval(): \DateInterval
+    {
+        $minutes = max(0, $this->cfg->marchMinutesPerCell - 1);
+
+        return new \DateInterval('PT' . $minutes . 'M');
     }
 
     /** ServerResponse если поход начать нельзя (блокирующая задача / переезд), иначе null. */
