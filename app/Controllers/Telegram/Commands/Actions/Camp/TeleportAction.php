@@ -136,7 +136,7 @@ class TeleportAction extends BaseAction
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '🚜 Переехать пешком', 'callback_data' => 'move'],
+                        ['text' => '🧭 Двигаться пешком', 'callback_data' => 'move'],
                         ['text' => '🧑‍🌾 Действия 🛠️',   'callback_data' => 'characterActions'],
                     ],
                 ]

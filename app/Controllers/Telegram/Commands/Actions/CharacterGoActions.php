@@ -56,7 +56,9 @@ class CharacterGoActions extends BaseAction
         // Первая строка
         $keyboardButtons = [
             ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-            ['text' => '🚜 Переехать',       'callback_data' => 'move'],
+            // E4 Слайс 2 (срез 07-07): «Переехать» читалось как переезд базы — новички
+            // не находили простой ход, хотя все обучающие тексты зовут «Двигаться».
+            ['text' => '🧭 Двигаться',       'callback_data' => 'move'],
         ];
 
         // Вторая строка: "Окопаться" либо "Телепорт" — в зависимости от наличия базы.
@@ -105,11 +107,24 @@ class CharacterGoActions extends BaseAction
         // #12 edit-in-place (ADR-018): меню действий персонажа — навигация → редактируем
         // текущее сообщение. editOrSend при любой ошибке edit упадёт обратно на новое.
         $imagePath = base_url('uploads/telegram/character_ready_to_act.png');
-        return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
+        $response  = \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'photo'        => Request::encodeFile($imagePath),
             'caption'      => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $inlineKeyboard]),
         ]);
+
+        // E4 Слайс 2 (срез 07-07): новички застревают на этом хабе и карту не открывают →
+        // хинт «сделай первый шаг» (FIRST_MOVE) стреляет и отсюда. One-shot маркер общий
+        // с карт-триггером (BotMenuService) — спама не будет. Defensive: подсказка не
+        // должна валить хаб.
+        try {
+            (new \App\Services\Onboarding\OnboardingHintService())
+                ->maybeSendFirstMoveHintById((int) $character_id, (int) $chatId);
+        } catch (\Throwable $e) {
+            log_message('error', 'FIRST_MOVE hub hint failed: ' . $e->getMessage());
+        }
+
+        return $response;
     }
 }

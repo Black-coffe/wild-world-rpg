@@ -413,6 +413,47 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
         $this->assertCount(0, $svc->sent);
     }
 
+    // ── Первый шаг по characterId — триггер с хаба «Действия» (E4 Слайс 2, 07-07) ─
+
+    /** Happy path: новичок на хабе «Действия», не двигался → шлём; one-shot держит повтор. */
+    public function testFirstMoveHintByIdHappyPathSendsOnce(): void
+    {
+        $svc = new FakeHintService(); // barelyMoved = true по умолчанию
+        $svc->fakeCharacter = ['id' => 9, 'level' => 1, 'daily_tips_enabled' => 1];
+
+        $this->assertTrue($svc->maybeSendFirstMoveHintById(9, 100));
+        $this->assertCount(1, $svc->sent);
+        $this->assertSame([OnboardingHintCatalog::FIRST_MOVE], $svc->recorded);
+
+        // one-shot маркер общий с карт-триггером: повтор с ЛЮБОГО триггера молчит.
+        $this->assertFalse($svc->maybeSendFirstMoveHintById(9, 100));
+        $this->assertFalse($svc->maybeSendFirstMoveHint($svc->fakeCharacter, 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    /** Невалидный characterId / персонаж не загрузился → тихий false, без отправки. */
+    public function testFirstMoveHintByIdDefensiveOnBadCharacter(): void
+    {
+        $svc = new FakeHintService();
+        $svc->fakeCharacter = null; // loadCharacter-seam «не нашёл»
+
+        $this->assertFalse($svc->maybeSendFirstMoveHintById(0, 100));
+        $this->assertFalse($svc->maybeSendFirstMoveHintById(-5, 100));
+        $this->assertFalse($svc->maybeSendFirstMoveHintById(9, 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    /** Обёртка делегирует все гейты maybeSendFirstMoveHint: уже походил → молчим. */
+    public function testFirstMoveHintByIdSuppressedWhenAlreadyMoved(): void
+    {
+        $svc = new FakeHintService();
+        $svc->barelyMoved   = false;
+        $svc->fakeCharacter = ['id' => 9, 'level' => 1, 'daily_tips_enabled' => 1];
+
+        $this->assertFalse($svc->maybeSendFirstMoveHintById(9, 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
     // ── Первый крафт (2026-06-21, пере-срез A+B): горлышко OnbStepCraft ──────────
 
     /** Анти-дрифт: текст учит, с чего начать крафт + media-off самодостаточность. */

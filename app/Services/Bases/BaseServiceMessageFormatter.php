@@ -118,7 +118,7 @@ final class BaseServiceMessageFormatter
             'inline_keyboard' => [
                 [
                     ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
-                    ['text' => '🚜 Переехать', 'callback_data' => 'move'],
+                    ['text' => '🧭 Двигаться', 'callback_data' => 'move'],
                 ],
             ],
         ];
@@ -217,7 +217,7 @@ final class BaseServiceMessageFormatter
         $kbRows[] = $hangarRow;
         $kbRows[] = [
             ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
-            ['text' => '🚜 Переехать', 'callback_data' => 'move'],
+            ['text' => '🧭 Двигаться', 'callback_data' => 'move'],
         ];
         $kbRows[] = [
             ['text' => '❌ Удалить базу',         'callback_data' => 'DeleteBase'],

@@ -33,8 +33,8 @@ use Longman\TelegramBot\Request;
  *   - Нет user/character → ошибка.
  *   - Активный переезд → блок сервисом `ActiveTasksService`.
  *   - Нет лагеря → buttons «Разбить лагерь / Действия».
- *   - Не на базе → buttons «Телепорт / Переехать».
- *   - Низкий уровень → buttons «Телепорт / Переехать» + сообщение про уровень.
+ *   - Не на базе → buttons «Телепорт / Двигаться».
+ *   - Низкий уровень → buttons «Телепорт / Двигаться» + сообщение про уровень.
  *   - Список ресурсов + крафтовых компонентов (с иконками + в наличии).
  *   - Список зависимостей (зданий, которые должны быть построены).
  *   - Если всего хватает → кнопка «🛠️ Строить» → `genericStartBuild_<Key>` → {@see GenericBuildingAction}.
@@ -144,7 +144,7 @@ class GenericBuildingInfoAction extends BaseAction
                 'reply_markup' => json_encode([
                     'inline_keyboard' => [[
                         ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
-                        ['text' => '🚜 Переехать', 'callback_data' => 'move'],
+                        ['text' => '🧭 Двигаться', 'callback_data' => 'move'],
                     ]],
                 ]),
             ]);
@@ -159,7 +159,7 @@ class GenericBuildingInfoAction extends BaseAction
                 'reply_markup' => json_encode([
                     'inline_keyboard' => [[
                         ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
-                        ['text' => '🚜 Переехать', 'callback_data' => 'move'],
+                        ['text' => '🧭 Двигаться', 'callback_data' => 'move'],
                     ]],
                 ]),
             ]);

@@ -164,7 +164,7 @@ class CompleteRobotExplorationHandler extends BaseTaskHandler
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🚜 Переехать',  'callback_data' => 'move'],
+                    ['text' => '🧭 Двигаться',  'callback_data' => 'move'],
                     ['text' => '🗺️ Поход', 'callback_data' => 'march'],
                 ],
             ]

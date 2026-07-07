@@ -319,7 +319,7 @@ class ChooseFaction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🚜 Переехать',  'callback_data' => 'move'],
+                    ['text' => '🧭 Двигаться',  'callback_data' => 'move'],
                 ],
                 [
                     ['text' => '🏕️ Окопаться',     'callback_data' => 'entrench'],

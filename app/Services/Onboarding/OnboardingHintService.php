@@ -62,7 +62,8 @@ class OnboardingHintService
     }
 
     /**
-     * Первый шаг (2026-06-20) — хинт «сделай первый шаг» при открытии карты новичком,
+     * Первый шаг (2026-06-20) — хинт «сделай первый шаг» при открытии карты ИЛИ хаба
+     * «Действия» (E4 Слайс 2, {@see maybeSendFirstMoveHintById}) новичком,
      * который ещё фактически не двигался (стоит на спавне). Гейты: level ≤
      * contextual_hints.max_level + почти не двигался (`hasBarelyMoved` — мало
      * explored_cells) + общие killswitch/opt-out/one-shot. Закрывает холодный старт
@@ -90,6 +91,28 @@ class OnboardingHintService
         }
 
         return $this->maybeSend($character, $chatId, OnboardingHintCatalog::FIRST_MOVE);
+    }
+
+    /**
+     * E4 Слайс 2 (срез 07-07): тот же хинт «сделай первый шаг», но по characterId —
+     * для хаба «Действия» (CharacterGoActions). Firehose показал: новички сидят на
+     * хабе (добыча/Поход/окопаться) и карту НЕ открывают → карт-триггер хинта у них
+     * никогда не стреляет. Все гейты (level-ceiling, one-shot, hasBarelyMoved,
+     * killswitch/opt-out) — внутри {@see maybeSendFirstMoveHint}; one-shot маркер
+     * общий с карт-триггером → двойного показа не будет.
+     */
+    public function maybeSendFirstMoveHintById(int $characterId, int $chatId): bool
+    {
+        if ($characterId <= 0) {
+            return false;
+        }
+
+        $character = $this->loadCharacter($characterId);
+        if ($character === null) {
+            return false;
+        }
+
+        return $this->maybeSendFirstMoveHint($character, $chatId);
     }
 
     /**

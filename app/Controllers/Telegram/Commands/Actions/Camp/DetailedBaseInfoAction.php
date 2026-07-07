@@ -145,7 +145,7 @@ class DetailedBaseInfoAction extends BaseAction
             'inline_keyboard' => [
                 [
                     ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
-                    ['text' => '🚜 Переехать', 'callback_data' => 'move'],
+                    ['text' => '🧭 Двигаться', 'callback_data' => 'move'],
                 ],
             ]
         ];
