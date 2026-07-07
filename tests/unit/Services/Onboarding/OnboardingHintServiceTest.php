@@ -419,13 +419,13 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
     public function testFirstCraftHintTeachesCoreFacts(): void
     {
         $text = OnboardingHintCatalog::get(OnboardingHintCatalog::FIRST_CRAFT)['text'] ?? '';
-        foreach (['предмет', 'Общий крафт', 'Повязка'] as $needle) {
+        foreach (['предмет', 'Повязка', 'материалы'] as $needle) {
             $this->assertStringContainsString($needle, $text, "Хинт первого крафта не упоминает «{$needle}».");
         }
     }
 
-    /** Хинт ведёт в раздел «Общий крафт» (callback `generalCraft`) — без верстака. */
-    public function testFirstCraftHintLinksToGeneralCraft(): void
+    /** Шорткат ведёт ПРЯМО на экран Повязки (callback `bandage`), минуя сетку категорий — фикс обрыва OnbStepCraft. */
+    public function testFirstCraftHintLinksDirectlyToBandage(): void
     {
         $markupRaw = OnboardingHintCatalog::get(OnboardingHintCatalog::FIRST_CRAFT)['reply_markup'] ?? null;
         $this->assertIsString($markupRaw, 'У хинта первого крафта нет кнопок.');
@@ -437,7 +437,7 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
                 $callbacks[] = $value;
             }
         });
-        $this->assertContains('generalCraft', $callbacks, 'Нет кнопки на раздел общего крафта.');
+        $this->assertContains('bandage', $callbacks, 'Нет прямой кнопки на экран Повязки.');
     }
 
     /** Happy path: новичок открыл крафт-хаб, ещё ничего не крафтил → шлём один раз. */
