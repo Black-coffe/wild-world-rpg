@@ -101,8 +101,16 @@ class GatherTips extends Controller
         ])->first();
 
         if ($lastAction) {
+            // ADR-150 Слайс 1: хендофф обучения учит ЖИВОЙ связке ходьбы. В самом
+            // туториале «ход» делался одноразовой кнопкой «↗️ Северо-восток», которой в
+            // игре нет → выпускник не знал, как ходить (жалоба Пикабу «после обучения
+            // непонятно как идти»). Теперь финал даёт кнопку «🧭 Двигаться» (компас) как
+            // основную + объясняет путь. media-off-безопасно (весь смысл в тексте).
             $keyboard = [
                 'inline_keyboard' => [
+                    [
+                        ['text' => '🧭 Двигаться', 'callback_data' => 'move'],
+                    ],
                     [
                         ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
                     ],
@@ -111,7 +119,11 @@ class GatherTips extends Controller
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
             return Request::sendMessage([
                 'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                'text' => "Обучение закончено. Начни действовать не теряя время 👇",
+                'text' => "🎓 *Обучение закончено!*\n\n"
+                    . "Дальше — сам. Чтобы пойти по миру, жми *🧭 Двигаться*: появится "
+                    . "компас со стрелками сторон света, и каждый шаг открывает новые клетки.\n\n"
+                    . "А все остальные дела — добыть ресурсы, крафт, база, квесты — в "
+                    . "*🧑‍🌾 Действия*.",
                 'parse_mode' => 'Markdown',
                 'reply_markup' => json_encode($keyboard),
             ]);
