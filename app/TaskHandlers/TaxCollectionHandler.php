@@ -124,8 +124,12 @@ class TaxCollectionHandler extends BaseTaskHandler
             // путь маяков и сводки (без дублирования). Золото читаем один раз.
             $availableGold = (int) $character['gold'];
 
+            // E23/ADR-122 Ф2: при per-base пути собираем разбивку по базам для сводки
+            // (какая база оплачена/недофинансирована). Агрегатный путь — пустая разбивка.
+            $baseBreakdown = [];
+
             if ($lifecycle->taxPerBaseEnabled()) {
-                [$newGoldAmount, $collectedTaxBuildings] = $this->collectBuildingTaxPerBase(
+                [$newGoldAmount, $collectedTaxBuildings, $baseBreakdown] = $this->collectBuildingTaxPerBase(
                     $characterId,
                     $availableGold,
                     $characterModel,
@@ -329,6 +333,25 @@ class TaxCollectionHandler extends BaseTaskHandler
             $collectedM = number_format($collectedTaxBeacons,   0, '', ' ');
             $finalGold  = number_format($newGoldAmount,         0, '', ' ');
 
+            // E23/ADR-122 Ф2: блок «Здания». При per-base — разбивка по базам (какая
+            // оплачена ✅, какая недофинансирована ⚠️), иначе агрегат (byte-identical OFF).
+            if ($baseBreakdown !== []) {
+                $baseCount = count($baseBreakdown);
+                $lines     = '';
+                foreach ($baseBreakdown as $bd) {
+                    $nm   = $this->markdownSafeName($bd['name']);
+                    $tx   = number_format($bd['tax'], 0, '', ' ');
+                    $mark = $bd['status'] === 'SUCCESS' ? '✅' : '⚠️ недобор';
+                    $lines .= "   • {$nm} — налог *{$tx}* {$mark}\n";
+                }
+                $buildingsBlock = "🏘 Зданий: *{$buildingCount}* на *{$baseCount}* баз(ах)\n"
+                    . "   Налог собран: *{$collectedB}*\n"
+                    . "   По базам:\n" . $lines;
+            } else {
+                $buildingsBlock = "🏘 Зданий: *{$buildingCount}*\n"
+                    . "   Налог собран: *{$collectedB}*\n";
+            }
+
             // Формируем расширенное сообщение
             // Описываем механику: "сначала налог за здания, потом маяки,
             // если не хватило второй раз подряд — здание/маяк удаляется"
@@ -339,8 +362,7 @@ class TaxCollectionHandler extends BaseTaskHandler
                 . "2. *Затем* налог за *маяки*\n"
                 . "   - Логика та же: двойное предупреждение, при повторном — удаляем маяк.\n\n"
                 . "Вот твоя статистика:\n\n"
-                . "🏘 Зданий: *{$buildingCount}*\n"
-                . "   Налог собран: *{$collectedB}*\n"
+                . $buildingsBlock
                 . "🗼 Маяков: *" . count($beacons) . "*\n"
                 . "   Налог собран: *{$collectedM}*\n\n"
                 . "💎 *Итоговое золото*: {$finalGold}";
@@ -358,7 +380,8 @@ class TaxCollectionHandler extends BaseTaskHandler
      * ставится per-base (WHERE character_id AND map_cell_id), реакция на неуплату (legacy-снос
      * новейшей постройки этой базы / cascade-streak) — тоже per-base/per-character соответственно.
      *
-     * @return array{0:int,1:int} [новое золото игрока, фактически собрано налога за здания]
+     * @return array{0:int,1:int,2:list<array{cell:int,name:string,tax:int,paid:int,status:string}>}
+     *   [новое золото игрока, фактически собрано налога за здания, разбивка по базам для сводки]
      */
     private function collectBuildingTaxPerBase(
         int $characterId,
@@ -378,9 +401,14 @@ class TaxCollectionHandler extends BaseTaskHandler
             ->get();
         $bases = $res === false ? [] : $res->getResultArray();
 
+        // Имена баз (claimed_cells.camp_name) для разбивки в сводке — один запрос на игрока.
+        $baseNames = $this->baseNameMap($characterId);
+
         $remainingGold  = $availableGold;
         $collectedTotal = 0;
         $anyFailure     = false;
+        /** @var list<array{cell:int,name:string,tax:int,paid:int,status:string}> $breakdown */
+        $breakdown      = [];
 
         foreach ($bases as $baseRow) {
             $mapCellId = is_numeric($baseRow['map_cell_id'] ?? null) ? (int) $baseRow['map_cell_id'] : 0;
@@ -391,17 +419,26 @@ class TaxCollectionHandler extends BaseTaskHandler
                 $remainingGold  -= $baseTax;
                 $collectedTotal += $baseTax;
                 $this->setBaseTaxStatus($characterId, $mapCellId, 'SUCCESS', $now);
+                $breakdown[] = [
+                    'cell' => $mapCellId, 'name' => $baseNames[$mapCellId] ?? 'База',
+                    'tax' => $baseTax, 'paid' => $baseTax, 'status' => 'SUCCESS',
+                ];
             } else {
                 // Не хватает на эту базу — списываем остаток частично, база FAILURE.
-                $anyFailure      = true;
-                $collectedTotal += $remainingGold;
-                $remainingGold   = 0;
+                $anyFailure       = true;
+                $paidThisBase     = $remainingGold; // частичная оплата до обнуления
+                $collectedTotal  += $remainingGold;
+                $remainingGold    = 0;
                 // Legacy-реакция (снос новейшей постройки этой базы на 2-й FAILURE) — только
                 // когда каскад выключен; при cascadeOn неоплата ведётся через streak (ниже).
                 if (! $cascadeOn) {
                     $this->reactBaseTaxFailureLegacy($characterId, $mapCellId);
                 }
                 $this->setBaseTaxStatus($characterId, $mapCellId, 'FAILURE', $now);
+                $breakdown[] = [
+                    'cell' => $mapCellId, 'name' => $baseNames[$mapCellId] ?? 'База',
+                    'tax' => $baseTax, 'paid' => $paidThisBase, 'status' => 'FAILURE',
+                ];
             }
         }
 
@@ -431,7 +468,48 @@ class TaxCollectionHandler extends BaseTaskHandler
 
         $characterModel->update($characterId, ['gold' => $remainingGold]);
 
-        return [$remainingGold, $collectedTotal];
+        return [$remainingGold, $collectedTotal, $breakdown];
+    }
+
+    /**
+     * E23/ADR-122 Ф2 — карта имён баз игрока (map_cell_id → camp_name) для разбивки в сводке.
+     * Пустое/отсутствующее имя → 'База'.
+     *
+     * @return array<int,string>
+     */
+    private function baseNameMap(int $characterId): array
+    {
+        $db = \Config\Database::connect();
+        if (! $db->tableExists('claimed_cells')) {
+            return [];
+        }
+        $q = $db->table('claimed_cells')
+            ->select('map_cell_id, camp_name')
+            ->where('character_id', $characterId)
+            ->get();
+        $rows = $q === false ? [] : $q->getResultArray();
+
+        $out = [];
+        foreach ($rows as $r) {
+            $cell = is_numeric($r['map_cell_id'] ?? null) ? (int) $r['map_cell_id'] : 0;
+            $name = is_string($r['camp_name'] ?? null) && $r['camp_name'] !== '' ? $r['camp_name'] : 'База';
+            $out[$cell] = $name;
+        }
+
+        return $out;
+    }
+
+    /**
+     * Markdown-safe имя базы для caption (parse_mode=Markdown НЕ экранирует — непарные
+     * `*`/`_`/`` ` ``/`[` в имени ломают весь caption → HTTP 400 → тихий не-сенд).
+     * Убираем значимые символы; пустой результат → 'База'.
+     * Урок: memory feedback_legacy_markdown_no_backslash_escape.
+     */
+    private function markdownSafeName(string $name): string
+    {
+        $clean = trim(str_replace(['*', '_', '`', '[', ']'], '', $name));
+
+        return $clean === '' ? 'База' : $clean;
     }
 
     /**

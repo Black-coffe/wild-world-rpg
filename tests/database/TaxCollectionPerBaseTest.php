@@ -96,7 +96,8 @@ final class TaxCollectionPerBaseTest extends CIUnitTestCase
     }
 
     /**
-     * @return array{0:int,1:int} [новое золото, собрано за здания]
+     * @return array{0:int,1:int,2:list<array{cell:int,name:string,tax:int,paid:int,status:string}>}
+     *   [новое золото, собрано за здания, разбивка по базам]
      */
     private function runPerBase(int $charId, int $gold, bool $cascadeOn = false): array
     {
@@ -117,7 +118,7 @@ final class TaxCollectionPerBaseTest extends CIUnitTestCase
         $m = new ReflectionMethod(TaxCollectionHandler::class, 'collectBuildingTaxPerBase');
         $m->setAccessible(true);
 
-        /** @var array{0:int,1:int} $res */
+        /** @var array{0:int,1:int,2:list<array{cell:int,name:string,tax:int,paid:int,status:string}>} $res */
         $res = $m->invoke(
             $handler,
             $charId,
@@ -214,6 +215,37 @@ final class TaxCollectionPerBaseTest extends CIUnitTestCase
         $this->assertSame(5000, $collected); // 1200 (база A) + 3800 (частично база B)
         $this->assertSame('SUCCESS', $this->statusOf(100));
         $this->assertSame('FAILURE', $this->statusOf(200));
+    }
+
+    public function testBreakdownReturnedForSummary(): void
+    {
+        // E23/ADR-122 Ф2: метод возвращает per-base разбивку для сводки. Дешёвая база
+        // (cell100) первой → SUCCESS с полной оплатой; дорогая (cell200) → FAILURE с частичной.
+        $this->seedChar(6, 5000);
+        $this->seedBuilding(6, 100, 1200);
+        $this->seedBuilding(6, 200, 7000);
+
+        $res       = $this->runPerBase(6, 5000);
+        $breakdown = $res[2];
+
+        $this->assertCount(2, $breakdown);
+
+        $byCell = [];
+        foreach ($breakdown as $b) {
+            $byCell[$b['cell']] = $b;
+        }
+
+        $this->assertSame('SUCCESS', $byCell[100]['status']);
+        $this->assertSame(1200, $byCell[100]['tax']);
+        $this->assertSame(1200, $byCell[100]['paid']);
+
+        $this->assertSame('FAILURE', $byCell[200]['status']);
+        $this->assertSame(7000, $byCell[200]['tax']);
+        $this->assertSame(3800, $byCell[200]['paid']); // 5000 − 1200 = частичная оплата
+
+        // Имя базы присутствует (без claimed_cells для тест-чара → дефолт 'База').
+        $this->assertArrayHasKey('name', $byCell[100]);
+        $this->assertNotSame('', $byCell[100]['name']);
     }
 
     public function testSecondFailureDeletesOnlyFailingBaseBuilding(): void
