@@ -57,7 +57,16 @@ class GenericmessageCommand extends SystemCommand
                 return $this->handleCraft($chatId);
 
             case 'карта':
-                return $this->handleMap($chatId);
+                // ADR-150 Слайс 1: при world_hub ON «Карта» ведёт к компасу ходьбы
+                // (MoveSurfaceService), при OFF — к фото (byte-identical). Старая
+                // reply-клавиатура ещё шлёт «Карта» после флипа — тоже роутим на компас.
+                return \App\Services\Telegram\BotMenuService::worldHubEnabled()
+                    ? $this->handleWorld($chatId)
+                    : $this->handleMap($chatId);
+
+            // ADR-150 Слайс 1: новая нижняя кнопка «🌍 Мир» (при world_hub ON) → компас.
+            case '🌍 мир':
+                return $this->handleWorld($chatId);
 
             case 'настройки':
             case 'settings':
@@ -392,6 +401,37 @@ class GenericmessageCommand extends SystemCommand
         }
 
         return $response;
+    }
+
+    /**
+     * ADR-150 Слайс 1 — открыть поверхность «🌍 Мир» (компас ходьбы) из нижней кнопки/текста.
+     * Единый рендер {@see \App\Services\World\MoveSurfaceService::show} (тот же экран,
+     * что callback `move` и `/go`).
+     */
+    private function handleWorld(int $chatId): ServerResponse
+    {
+        $from       = $this->getMessage()->getFrom();
+        $telegramId = $from->getId();
+
+        $userModel = new TelegramUserModel();
+        $userRow   = $userModel->where('telegram_id', $telegramId)->first();
+        if (! is_array($userRow)) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'Пользователь не найден (world).',
+            ]);
+        }
+
+        $charModel    = new CharacterModel();
+        $characterRow = $charModel->where('telegram_user_id', $userRow['id'])->first();
+        if (! $characterRow instanceof \App\Entities\CharacterEntity) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'Персонаж не найден (world).',
+            ]);
+        }
+
+        return (new \App\Services\World\MoveSurfaceService())->show($chatId, $characterRow);
     }
 
     private function handleMap(int $chatId): ServerResponse

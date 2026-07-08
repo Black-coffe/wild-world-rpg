@@ -8,9 +8,11 @@ use App\Entities\CharacterEntity;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Services\BaseService;
+use App\Services\GameSettings\GameSettingsService;
 use App\Services\Player\CharacterService;
 use App\Services\Player\CraftService;
 use App\Services\World\MapService;
+use App\Services\World\MoveSurfaceService;
 use Longman\TelegramBot\Entities\Keyboard;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
@@ -39,15 +41,34 @@ class BotMenuService
      */
     public static function mainReplyKeyboard(): Keyboard
     {
+        // ADR-150 Слайс 1: при world_hub ON нижняя «Карта» → «🌍 Мир» (ведёт СРАЗУ к
+        // компасу ходьбы, а не к фото-тупику). OFF → «Карта» как раньше (byte-identical).
+        $mapLabel = self::worldHubEnabled() ? '🌍 Мир' : 'Карта';
+
         return new Keyboard([
             'keyboard' => [
-                ['Перс', 'База', 'Крафт', 'Карта'],
+                ['Перс', 'База', 'Крафт', $mapLabel],
                 ['Настройки'],
             ],
             'resize_keyboard'   => true,
             'one_time_keyboard' => false,
             'selective'         => false,
         ]);
+    }
+
+    /**
+     * Killswitch ADR-150 Слайс 1 (navigation.world_hub.enabled). false (default) —
+     * DORMANT: меню/роутинг byte-identical (нижняя «Карта» → фото). true — «🌍 Мир»
+     * ведёт к компасу, фото демотировано в «🗺 Обзор».
+     */
+    public static function worldHubEnabled(): bool
+    {
+        $raw = (new GameSettingsService())->get('navigation.world_hub.enabled', false);
+        if (is_bool($raw)) {
+            return $raw;
+        }
+
+        return is_numeric($raw) ? (int) $raw === 1 : false;
     }
 
     /**
@@ -66,6 +87,9 @@ class BotMenuService
             ['command' => 'me',       'description' => '🧑 Мой персонаж'],
             ['command' => 'base',     'description' => '🏚 Моя база и стройка'],
             ['command' => 'craft',    'description' => '🔧 Крафт'],
+            // ADR-150 Слайс 1 — прямой прыжок к компасу ходьбы (прямой ответ «как идти»).
+            // /map при world_hub ON тоже ведёт к компасу; фото карты — кнопкой «🗺 Обзор».
+            ['command' => 'go',       'description' => '🧭 Идти (компас ходьбы)'],
             ['command' => 'map',      'description' => '🗺 Карта мира'],
             ['command' => 'settings', 'description' => '⚙️ Настройки'],
             ['command' => 'tasks',    'description' => '📋 Активные задачи'],
@@ -134,6 +158,12 @@ class BotMenuService
 
     public static function openMap(int $chatId, int $telegramId): ServerResponse
     {
+        // ADR-150 Слайс 1: при world_hub ON «/map» и нижняя кнопка становятся входом к
+        // компасу ходьбы (а не к фото-тупику). Фото карты доступно кнопкой «🗺 Обзор».
+        if (self::worldHubEnabled()) {
+            return self::openWorld($chatId, $telegramId);
+        }
+
         $character = self::resolveCharacter($telegramId);
         if ($character === null) {
             return self::noCharacter($chatId);
@@ -150,6 +180,21 @@ class BotMenuService
             ->maybeSendFirstMoveHint($character, $chatId);
 
         return $response;
+    }
+
+    /**
+     * ADR-150 Слайс 1 — открыть поверхность «🌍 Мир» (компас ходьбы). Используется
+     * нижней кнопкой «🌍 Мир», slash `/go` и (при world_hub ON) `/map`. Единый рендер —
+     * {@see MoveSurfaceService::show} (тот же экран, что у callback `move`).
+     */
+    public static function openWorld(int $chatId, int $telegramId): ServerResponse
+    {
+        $character = self::resolveCharacter($telegramId);
+        if ($character === null) {
+            return self::noCharacter($chatId);
+        }
+
+        return (new MoveSurfaceService())->show($chatId, $character);
     }
 
     /**
