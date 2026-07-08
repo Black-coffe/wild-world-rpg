@@ -173,24 +173,51 @@ class CharacterService
             }
         }
 
-        // Инлайн-кнопки
-        $inlineRows = [
-            [
-                ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
-                ['text' => '🎉 События',     'callback_data' => 'events'],
-                ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-            ],
-            [
-                ['text' => '📡 Маяки',       'callback_data' => 'teleportBeacon'],
-                ['text' => '🎒 Инвентарь',   'callback_data' => 'inventory'],
-                ['text' => '🛒 Магазин',     'callback_data' => 'shop'],
-            ],
-            [
-                ['text' => '🧍 Страховка',      'callback_data' => 'PersonalInsurance'],
-                ['text' => '💊 Аптечка',        'callback_data' => 'pharmacy'],
-                ['text' => '⚔️ Экип',           'callback_data' => 'equipMenu'],
-            ],
-        ];
+        // Инлайн-кнопки. ADR-150 Слайс 2: при me_hub ON персональный блок «Я»
+        // (🎒 Инвентарь / ⚔️ Экип / 💊 Аптечка / 🧍 Страховка) собран В ЕДИНЫЙ блок сверху,
+        // а чужегрупповые кнопки (Действия/Маяки/Магазин/Развлечения/События — мигрируют
+        // в свои группы на финале ADR-150) идут ниже. OFF — исходные 3 ряда byte-identical.
+        if (\App\Services\Telegram\BotMenuService::meHubEnabled()) {
+            $inlineRows = [
+                // Личный блок «Я»
+                [
+                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                    ['text' => '⚔️ Экип',      'callback_data' => 'equipMenu'],
+                ],
+                [
+                    ['text' => '💊 Аптечка',   'callback_data' => 'pharmacy'],
+                    ['text' => '🧍 Страховка', 'callback_data' => 'PersonalInsurance'],
+                ],
+                // Прочее (кросс-групповое — до постройки своих групп остаётся здесь)
+                [
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                    ['text' => '📡 Маяки',          'callback_data' => 'teleportBeacon'],
+                ],
+                [
+                    ['text' => '🛒 Магазин',     'callback_data' => 'shop'],
+                    ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
+                    ['text' => '🎉 События',     'callback_data' => 'events'],
+                ],
+            ];
+        } else {
+            $inlineRows = [
+                [
+                    ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
+                    ['text' => '🎉 События',     'callback_data' => 'events'],
+                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                ],
+                [
+                    ['text' => '📡 Маяки',       'callback_data' => 'teleportBeacon'],
+                    ['text' => '🎒 Инвентарь',   'callback_data' => 'inventory'],
+                    ['text' => '🛒 Магазин',     'callback_data' => 'shop'],
+                ],
+                [
+                    ['text' => '🧍 Страховка',      'callback_data' => 'PersonalInsurance'],
+                    ['text' => '💊 Аптечка',        'callback_data' => 'pharmacy'],
+                    ['text' => '⚔️ Экип',           'callback_data' => 'equipMenu'],
+                ],
+            ];
+        }
 
         // N4 (ADR-039): on-demand вход к выбору фракции — кнопка появляется только
         // когда lvl≥10 и фракция ещё не выбрана (faction_id=5/нет записи, joined_at пуст).

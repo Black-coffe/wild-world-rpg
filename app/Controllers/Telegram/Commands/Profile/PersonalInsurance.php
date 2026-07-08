@@ -48,20 +48,25 @@ class PersonalInsurance extends BaseAction
 
         $toggleLabel = $hasInsurance ? '❌ Отключить страховку' : '🛡 Включить страховку';
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => $toggleLabel,    'callback_data' => 'toggleInsurance'],
-                    ['text' => '🧮 Просчет',    'callback_data' => 'calculateInsurance'],
-                ],
-                // V24 (ADR-056): селективная страховка крафта — pre-paid вечный полис
-                // на дорогие предметы (robots/workbench/transport). Альтернатива
-                // pay-on-death страховке всего персонажа.
-                [
-                    ['text' => '📦 Крафт-страховка', 'callback_data' => 'craftInsuranceList'],
-                ],
+        $inlineRows = [
+            [
+                ['text' => $toggleLabel,    'callback_data' => 'toggleInsurance'],
+                ['text' => '🧮 Просчет',    'callback_data' => 'calculateInsurance'],
+            ],
+            // V24 (ADR-056): селективная страховка крафта — pre-paid вечный полис
+            // на дорогие предметы (robots/workbench/transport). Альтернатива
+            // pay-on-death страховке всего персонажа.
+            [
+                ['text' => '📦 Крафт-страховка', 'callback_data' => 'craftInsuranceList'],
             ],
         ];
+
+        // ADR-150 Слайс 2: возврат на карточку «Я» (чинит тупик Страховки). Только при me_hub ON.
+        if (\App\Services\Telegram\BotMenuService::meHubEnabled()) {
+            $inlineRows[] = [['text' => '◀️ Я', 'callback_data' => 'character']];
+        }
+
+        $keyboard = ['inline_keyboard' => $inlineRows];
 
         return [
             'chat_id'      => $chatId,

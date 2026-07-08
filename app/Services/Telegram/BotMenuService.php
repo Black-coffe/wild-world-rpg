@@ -72,6 +72,21 @@ class BotMenuService
     }
 
     /**
+     * Killswitch ADR-150 Слайс 2 (navigation.me_hub.enabled). false (default) — DORMANT:
+     * карточка Перс + экраны byte-identical. true — персональный блок (🎒/⚔️/💊/🧍)
+     * сгруппирован + кнопка возврата «◀️ Я» на экранах Аптечки/Страховки.
+     */
+    public static function meHubEnabled(): bool
+    {
+        $raw = (new GameSettingsService())->get('navigation.me_hub.enabled', false);
+        if (is_bool($raw)) {
+            return $raw;
+        }
+
+        return is_numeric($raw) ? (int) $raw === 1 : false;
+    }
+
+    /**
      * Список команд бота для `setMyCommands` (вечный `/`-меню-гамбургер).
      *
      * Имена команд — латиница `[a-z0-9_]`, ≤32 символов (жёсткое требование Telegram;

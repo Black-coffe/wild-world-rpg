@@ -51,6 +51,10 @@ class PharmacyAction extends BaseAction
                 'text' => '🧑‍🌾 Действия 🛠️',
                 'callback_data' => 'characterActions'
             ];
+            // ADR-150 Слайс 2: возврат на карточку «Я» (чинит тупик Аптечки). Только при me_hub ON.
+            if (\App\Services\Telegram\BotMenuService::meHubEnabled()) {
+                $inline_keyboard[] = ['text' => '◀️ Я', 'callback_data' => 'character'];
+            }
             $keyboard = ['inline_keyboard' => array_chunk($inline_keyboard, 2)];
 
             Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
@@ -110,6 +114,10 @@ class PharmacyAction extends BaseAction
             'text' => '🧑‍🌾 Действия 🛠️',
             'callback_data' => 'characterActions'
         ];
+        // ADR-150 Слайс 2: возврат на карточку «Я» (чинит тупик Аптечки). Только при me_hub ON.
+        if (\App\Services\Telegram\BotMenuService::meHubEnabled()) {
+            $inline_keyboard[] = ['text' => '◀️ Я', 'callback_data' => 'character'];
+        }
 
         $keyboard = ['inline_keyboard' => array_chunk($inline_keyboard, 2)];
 
