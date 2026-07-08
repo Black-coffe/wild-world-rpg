@@ -184,6 +184,7 @@ writable/site-covers/
 # Артефакты внешних публикаций (Хабр/Пикабу posting-kit'ы + обложки/мемы, обложки уже на проде;
 # posting-kit нужен владельцу для ручной вёрстки) — throwaway, не в git.
 writable/habr*/
+writable/dtf*/
 writable/pikabu-covers/
 
 # Одноразовые SQL-скрипты миграций-состояния (применяются на проде вручную, аудит в daily/ADR) — не в git.
