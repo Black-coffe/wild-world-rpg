@@ -287,18 +287,22 @@ class MoveCharacterToDirectionAction
         // нарушено 2026-05-27: cargo-button и storage-button сначала шли соло-строками
         // тогда как «Поход» был sibling-кандидатом для паковки). Telegram inline
         // keyboard вмещает 2-3 короткие кнопки в строку — компактнее, читабельнее.
-        $tail = [
-            ['text' => '🗺️ Поход', 'callback_data' => 'march'], // ADR-019
-        ];
-
-        // ADR-150 Слайс 1 — «🗺 Обзор» (фото карты мира) сразу за «Поход»: pack-by-2 ниже
-        // ставит их в ОДИН ряд. Только при world_hub ON → иначе $tail byte-identical прежнему
-        // (и не будет рассинхрона с начальной поверхностью MoveSurfaceService).
+        // ADR-150 Слайс 1 — world_hub флаг. При ON нав-ряд «Поход/Легенда/Обзор» идёт
+        // ТРЕМЯ кнопками в ОДНОМ ряду (Легенда посередине), а сиблинги (караван/дрон/…)
+        // пакуются по 2 отдельными рядами ниже. При OFF — «Поход» в общей паковке с
+        // сиблингами → рендер $tail byte-identical прежнему (и синхронно с MoveSurfaceService).
         $whRaw      = (new \App\Services\GameSettings\GameSettingsService())->get('navigation.world_hub.enabled', false);
         $worldHubOn = is_bool($whRaw) ? $whRaw : (is_numeric($whRaw) && (int) $whRaw === 1);
+
+        $tail = [];
         if ($worldHubOn) {
-            $tail[] = ['text' => '🗺 Обзор',   'callback_data' => 'mapOverview'];
-            $tail[] = ['text' => '❓ Легенда', 'callback_data' => 'mapLegend'];
+            $directionsKeyboard[] = [
+                ['text' => '🗺️ Поход',   'callback_data' => 'march'],       // ADR-019
+                ['text' => '❓ Легенда', 'callback_data' => 'mapLegend'],   // тумблер легенды
+                ['text' => '🗺 Обзор',   'callback_data' => 'mapOverview'], // фото карты мира
+            ];
+        } else {
+            $tail[] = ['text' => '🗺️ Поход', 'callback_data' => 'march']; // ADR-019
         }
 
         // V25 (ADR-057) — если на НОВОЙ клетке (после move) стоит активный караван,

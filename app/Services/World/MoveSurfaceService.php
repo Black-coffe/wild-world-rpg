@@ -146,9 +146,9 @@ class MoveSurfaceService
     }
 
     /**
-     * Компас-розетка 3×3 + нижние кнопки. При world_hub ON нижний ряд паковкой по 2:
-     * [🗺️ Поход, 🗺 Обзор] и [❓ Легенда] (тумблер легенды, ADR-150 Слайс 1). При OFF —
-     * только [🗺️ Поход] → рендер byte-identical прежнему MoveCharacterAction.
+     * Компас-розетка 3×3 + нижний нав-ряд. При world_hub ON — три кнопки в один ряд
+     * [🗺️ Поход, ❓ Легенда, 🗺 Обзор] (ADR-150 Слайс 1). При OFF — только [🗺️ Поход]
+     * → рендер byte-identical прежнему MoveCharacterAction.
      *
      * @return array<int, array<int, array<string, string>>>
      */
@@ -173,15 +173,18 @@ class MoveSurfaceService
             ],
         ];
 
-        $tail = [
-            ['text' => '🗺️ Поход', 'callback_data' => 'march'], // ADR-019
-        ];
+        // Нижний нав-ряд. При world_hub ON — ТРИ кнопки в ОДИН ряд: [Поход, Легенда, Обзор]
+        // (Легенда посередине). При OFF — только [Поход] → byte-identical прежнему.
         if ($this->worldHubEnabled()) {
-            $tail[] = ['text' => '🗺 Обзор',   'callback_data' => 'mapOverview']; // фото карты мира
-            $tail[] = ['text' => '❓ Легенда', 'callback_data' => 'mapLegend'];   // тумблер легенды
-        }
-        for ($i = 0, $n = count($tail); $i < $n; $i += 2) {
-            $rows[] = array_slice($tail, $i, 2);
+            $rows[] = [
+                ['text' => '🗺️ Поход',   'callback_data' => 'march'],       // ADR-019
+                ['text' => '❓ Легенда', 'callback_data' => 'mapLegend'],   // тумблер легенды
+                ['text' => '🗺 Обзор',   'callback_data' => 'mapOverview'], // фото карты мира
+            ];
+        } else {
+            $rows[] = [
+                ['text' => '🗺️ Поход', 'callback_data' => 'march'],
+            ];
         }
 
         // S7 (ADR-145): кнопка «🌍 Остров живёт» — только при killswitch ON (иначе byte-identical).
