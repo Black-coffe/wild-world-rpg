@@ -6835,18 +6835,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/GatherAction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterAction\:\:buildMapText\(\) has parameter \$character with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/MoveCharacterAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterAction\:\:\$biomeModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/MoveCharacterAction.php
-
-		-
 			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterAction\:\:\$callbackQuery has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
@@ -6854,30 +6842,6 @@ parameters:
 
 		-
 			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterAction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/MoveCharacterAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterAction\:\:\$characterTaskModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/MoveCharacterAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterAction\:\:\$exploredCellsModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/MoveCharacterAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterAction\:\:\$mapModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/MoveCharacterAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\MoveCharacterAction\:\:\$taskModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/MoveCharacterAction.php

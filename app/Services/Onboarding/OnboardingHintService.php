@@ -30,6 +30,9 @@ class OnboardingHintService
 
     private const LOG_PREFIX = 'OnbHint_';
 
+    /** ADR-150 — маркер «открыл живой компас ходьбы» (action_log.action_name). */
+    private const LIVE_MOVE_MARKER = 'live_move_used';
+
     public function __construct(private readonly ?ActionLogModel $log = null)
     {
     }
@@ -84,9 +87,14 @@ class OnboardingHintService
             return false;
         }
 
-        // Только тем, кто ещё фактически не двигался (стоит на спавне). Кто уже походил —
-        // знает «как», хинт не нужен.
-        if (! $this->hasBarelyMoved($charId)) {
+        // ADR-150 Слайс 1 (фикс мёртвого гейта): показываем тем, кто ещё НИ РАЗУ не
+        // открывал живой компас ходьбы (MoveSurfaceService ставит маркер live_move_used).
+        // 🔴 Прежний гейт `hasBarelyMoved` (explored_cells ≤ 1) был ложно-false для
+        // выпускников обучения — туториал сам заполняет explored_cells (8 соседей +
+        // revealAround) → подсказка НИКОГДА не стреляла именно тем, кто прошёл обучение
+        // (ровно жалобщик с Пикабу «после обучения непонятно как идти»). Теперь сигнал —
+        // «открывал ли настоящий компас», а не «сколько клеток раскрыто».
+        if ($this->hasUsedLiveMove($charId)) {
             return false;
         }
 
@@ -464,6 +472,39 @@ class OnboardingHintService
         return (new \App\Models\ExploredCellsModel())
             ->where('character_id', $charId)
             ->countAllResults() <= 1;
+    }
+
+    /**
+     * ADR-150 — открывал ли персонаж живой компас ходьбы (MoveSurfaceService::show
+     * ставит маркер `live_move_used`). Сигнал «знает, где ходьба» — заменил
+     * `hasBarelyMoved` (тот считал explored_cells, которые заполняет туториал →
+     * ложно-false для выпускников обучения). Overridable seam для тестов (без DB).
+     */
+    protected function hasUsedLiveMove(int $charId): bool
+    {
+        return $this->logModel()
+            ->where('character_id', $charId)
+            ->where('action_name', self::LIVE_MOVE_MARKER)
+            ->countAllResults() > 0;
+    }
+
+    /**
+     * Ставит маркер «открыл живой компас» ровно один раз (идемпотентно). Вызывается из
+     * {@see \App\Services\World\MoveSurfaceService::show} при показе поверхности ходьбы
+     * (callback move / нижняя «🌍 Мир» / slash /go).
+     */
+    public function markLiveMoveUsed(int $charId): void
+    {
+        if ($charId <= 0 || $this->hasUsedLiveMove($charId)) {
+            return;
+        }
+        $this->logModel()->insert([
+            'character_id'  => $charId,
+            'chat_id'       => 0,
+            'action_name'   => self::LIVE_MOVE_MARKER,
+            'action_status' => 'Completed',
+            'description'   => 'ADR-150 live move surface opened',
+        ]);
     }
 
     /**

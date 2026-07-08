@@ -386,7 +386,7 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
     public function testFirstMoveHintSuppressedWhenAlreadyMoved(): void
     {
         $svc = new FakeHintService();
-        $svc->barelyMoved = false;
+        $svc->usedLiveMove = true; // уже открывал компас → знает «как», хинт молчит
         $this->assertFalse($svc->maybeSendFirstMoveHint(['id' => 9, 'level' => 1, 'daily_tips_enabled' => 1], 100));
         $this->assertCount(0, $svc->sent);
     }
@@ -447,7 +447,7 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
     public function testFirstMoveHintByIdSuppressedWhenAlreadyMoved(): void
     {
         $svc = new FakeHintService();
-        $svc->barelyMoved   = false;
+        $svc->usedLiveMove  = true; // уже открывал компас → обёртка молчит
         $svc->fakeCharacter = ['id' => 9, 'level' => 1, 'daily_tips_enabled' => 1];
 
         $this->assertFalse($svc->maybeSendFirstMoveHintById(9, 100));
@@ -808,6 +808,8 @@ final class FakeHintService extends OnboardingHintService
     public bool $baseExists = false;
     public bool $hasBuildings = false;
     public bool $barelyMoved = true;
+    /** ADR-150: гейт FIRST_MOVE — «открывал ли живой компас» (false = ещё нет → шлём). */
+    public bool $usedLiveMove = false;
     public bool $hasCrafted = false;
     public bool $workshopOwned = false;
     public bool $greenhouseOwned = false;
@@ -867,6 +869,11 @@ final class FakeHintService extends OnboardingHintService
     protected function hasBarelyMoved(int $charId): bool
     {
         return $this->barelyMoved;
+    }
+
+    protected function hasUsedLiveMove(int $charId): bool
+    {
+        return $this->usedLiveMove;
     }
 
     protected function hasCraftedAnything(int $charId): bool

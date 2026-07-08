@@ -30,7 +30,7 @@ class MapService
      * @param int   $chatId       Куда шлём ответ
      * @param array|\App\Entities\CharacterEntity $characterRow  Строка персонажа из БД
      */
-    public function showMapWithPlayer(int $chatId, array|\App\Entities\CharacterEntity $characterRow): ServerResponse
+    public function showMapWithPlayer(int $chatId, array|\App\Entities\CharacterEntity $characterRow, ?string $replyMarkup = null): ServerResponse
     {
         // Проверяем поле preferred_map_type
         $mapType = $characterRow['preferred_map_type'] ?? null;
@@ -148,12 +148,19 @@ class MapService
             $caption .= "\n\n" . $polarLine;
         }
 
-        $response = \App\Services\Notifications\MediaSender::sendPhotoOrText([
+        // ADR-150 Слайс 1: «🗺 Обзор» несёт кнопку возврата «🧭 Идти» (callback move) —
+        // чтобы фото-карта не была тупиком. reply_markup опционален: OFF-путь (нижняя
+        // кнопка «Карта» при world_hub OFF) передаёт null → byte-identical.
+        $photoParams = [
             'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($tempFile),
             'caption'    => $caption,
             'parse_mode' => 'Markdown',
-        ]);
+        ];
+        if ($replyMarkup !== null) {
+            $photoParams['reply_markup'] = $replyMarkup;
+        }
+        $response = \App\Services\Notifications\MediaSender::sendPhotoOrText($photoParams);
 
         // 7. Удаляем временный файл
         @unlink($tempFile);

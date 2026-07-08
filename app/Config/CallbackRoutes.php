@@ -78,6 +78,9 @@ class CallbackRoutes extends BaseConfig
         // V16 (ADR-047) — крафт-специализация: меню выбора ветки.
         'specialization'                  => \App\Controllers\Telegram\Commands\Actions\Specialization\SpecializationAction::class,
         'move'                            => \App\Controllers\Telegram\Commands\Actions\MoveCharacterAction::class,
+        // ADR-150 Слайс 1 — «🗺 Обзор»: фото карты мира (демотированный бывший тупик «Карта»)
+        // с кнопкой возврата «🧭 Идти». Вход — кнопка в компасе при world_hub ON.
+        'mapOverview'                     => \App\Controllers\Telegram\Commands\Actions\MapOverviewAction::class,
         'island'                          => \App\Controllers\Telegram\Commands\Actions\World\IslandAction::class,    // S7 ADR-145 — «🌍 Остров живёт» (правдивый пульс)
         'referral'                        => \App\Controllers\Telegram\Commands\Actions\Social\ReferralAction::class, // S8 ADR-146 — «👥 Позови выжившего» (реферальная петля)
         'atmRustle'                       => \App\Controllers\Telegram\Commands\Actions\NewbieAtmosphereAction::class, // S9 ADR-147 — выбор «шороха» ранней атмосферы (peek/hide/leave)

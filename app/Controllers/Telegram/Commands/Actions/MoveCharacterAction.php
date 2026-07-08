@@ -7,46 +7,32 @@ use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 
 use App\Models\CharacterModel;
-use App\Models\MapModel;
 use App\Models\TelegramUserModel;
-use App\Models\CharacterTaskModel;
-use App\Models\TaskModel;
-use App\Models\ExploredCellsModel;
-use App\Models\BiomeModel;
 use App\Services\Player\PlayerStateService;
-use App\Services\World\TextMapService;
-use App\Services\World\IslandPulseService;
+use App\Services\World\MoveSurfaceService;
 
 /**
- * Класс, вызываемый при нажатии кнопки "🧭 Двигаться" (бывш. "Переехать") из основного меню "ДЕЙСТВИЯ".
- * Он отправляет НОВОЕ текстовое сообщение с картой (12×12),
- * легендой, здоровьем, и inline-кнопками направлений.
+ * Класс, вызываемый при нажатии кнопки "🧭 Двигаться" (бывш. "Переехать") из меню "ДЕЙСТВИЯ".
  *
- * Все последующие перемещения по кнопкам (move_dir_...) будут
- * лишь редактировать ЭТО сообщение, если получится.
+ * ADR-150 Слайс 1: сам рендер поверхности ходьбы (карта 12×12 + компас-розетка)
+ * вынесен в {@see \App\Services\World\MoveSurfaceService}, чтобы тот же экран
+ * открывался и из нижней кнопки «🌍 Мир», и из slash `/go` без дрейфа. Здесь остаётся
+ * резолв персонажа + гейты блокирующих задач (переезд/сбор/исследование).
+ *
+ * Все последующие перемещения по кнопкам (move_dir_...) редактируют это сообщение.
  */
 class MoveCharacterAction
 {
     protected $callbackQuery;
 
     protected $characterModel;
-    protected $mapModel;
-    protected $characterTaskModel;
-    protected $taskModel;
     protected $telegramUserModel;
-    protected $exploredCellsModel;
-    protected $biomeModel;
 
     public function __construct(CallbackQuery $callbackQuery)
     {
-        $this->callbackQuery      = $callbackQuery;
-        $this->characterModel     = new CharacterModel();
-        $this->mapModel           = new MapModel();
-        $this->characterTaskModel = new CharacterTaskModel();
-        $this->taskModel          = new TaskModel();
-        $this->telegramUserModel  = new TelegramUserModel();
-        $this->exploredCellsModel = new ExploredCellsModel();
-        $this->biomeModel         = new BiomeModel();
+        $this->callbackQuery     = $callbackQuery;
+        $this->characterModel    = new CharacterModel();
+        $this->telegramUserModel = new TelegramUserModel();
     }
 
     public function handle(): ServerResponse
@@ -104,113 +90,7 @@ class MoveCharacterAction
             ]);
         }
 
-        // 1) Строим большой текст с картой
-        $textMapService = new TextMapService();
-        $finalText = $this->buildMapText($character, $textMapService);
-
-        // S7 (ADR-145): тизер «живого острова» в подвале карты + кнопка входа на экран
-        // пульса. Гейт killswitch social.presence.enabled → OFF = карта byte-identical.
-        $island = new IslandPulseService();
-        $islandEnabled = $island->enabled();
-        if ($islandEnabled) {
-            $teaser = $island->teaserLine($island->snapshot());
-            if ($teaser !== null) {
-                $finalText .= "\n" . $teaser . "\n";
-            }
-        }
-
-        // 2) Готовим inline-кнопки (8 направлений)
-        $directionsKeyboard = [
-            [
-                ['text' => '↖️ Сев-Запад', 'callback_data' => 'move_dir_northwest'],
-                ['text' => '⬆️ Север',     'callback_data' => 'move_dir_north'],
-                ['text' => '↗️ Сев-Восток','callback_data' => 'move_dir_northeast'],
-            ],
-            [
-                ['text' => '⬅️ Запад', 'callback_data' => 'move_dir_west'],
-                ['text' => '🏕',       'callback_data' => 'Base'],
-                ['text' => '🧑‍🌾 🛠️','callback_data' => 'characterActions'],
-                ['text' => '➡️ Восток','callback_data' => 'move_dir_east'],
-            ],
-            [
-                ['text' => '↙️ Юго-Запад','callback_data' => 'move_dir_southwest'],
-                ['text' => '⬇️ Юг',      'callback_data' => 'move_dir_south'],
-                ['text' => '↘️ Юго-Восток','callback_data' => 'move_dir_southeast'],
-            ],
-            [
-                ['text' => '🗺️ Поход', 'callback_data' => 'march'], // ADR-019
-            ],
-        ];
-
-        // S7 (ADR-145): кнопка «🌍 Остров живёт» — только при killswitch ON (иначе byte-identical).
-        if ($islandEnabled) {
-            $directionsKeyboard[] = [
-                ['text' => '🌍 Остров живёт', 'callback_data' => 'island'],
-            ];
-        }
-
-        $keyboard = ['inline_keyboard' => $directionsKeyboard];
-
-        // 3) Отправляем новое сообщение (sendMessage), т.к. это «первый показ»
-        //    (в дальнейшем при нажатии «move_dir_...»
-        //     мы будем редактировать это сообщение)
-        $response = Request::sendMessage([
-            'chat_id'    => $chatId,
-            'text'       => $finalText,
-            'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode($keyboard),
-        ]);
-
-        // 4) Если всё удачно, сохраним message_id
-        if ($response->isOk()) {
-            $result = $response->getResult();
-            if (is_object($result) && method_exists($result, 'getMessageId')) {
-                $messageId = $result->getMessageId();
-                $this->telegramUserModel->update($user['id'], [
-                    'last_map_message_id' => $messageId,
-                ]);
-            }
-        }
-
-        return $response;
-    }
-
-    /**
-     * Собираем текст (12×12 карта + легенда + здоровье и т.д.)
-     */
-    protected function buildMapText(array|\App\Entities\CharacterEntity $character, TextMapService $textMapService): string
-    {
-        // Шапка
-        $text = "Куда пойдём? Выберите направление с клавиатуры ниже:\n\n";
-
-        // Легенда
-        $legend  = $textMapService->getLegend();
-        $text   .= $legend . "\n";
-
-        // Расстояние до базы
-        $distanceLine = $textMapService->getDistanceLine($character);
-        if ($distanceLine) {
-            $text .= $distanceLine . "\n";
-        }
-
-        // Здоровье / усталость
-        $hp    = (float)($character['health'] ?? 0);
-        $tired = (float)($character['tired'] ?? 0);
-        $text .= "❤️ Здоровье: {$hp}\n"
-            . "💤 Усталость: {$tired}\n\n";
-
-        // Карта 12x12
-        $mapOnly = $textMapService->buildMapOnly($character);
-        $text   .= $mapOnly . "\n";
-
-        // Координаты
-        $mapRow = $this->mapModel->where('cell_number', $character['cell_number'])->first();
-        if ($mapRow) {
-            $px = $mapRow['coordinate_x'];
-            $py = $mapRow['coordinate_y'];
-            $text .= "Игрок по центру (X={$px}, Y={$py})\n";
-        }
-
-        return $text;
+        // Рендер поверхности ходьбы — единый для move / «🌍 Мир» / /go.
+        return (new MoveSurfaceService())->show($chatId, $character);
     }
 }
