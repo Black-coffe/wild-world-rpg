@@ -78,6 +78,9 @@ class Sitemap extends BaseController
             $urls[] = ['loc' => rtrim(base_url('wiki/' . $s['key']), '/'), 'lastmod' => null];
         }
 
+        // ADR-149 — интерактивный инструмент «Калькулятор крафта» (code-route, не CMS-страница).
+        $urls[] = ['loc' => rtrim(base_url('kalkulyator-krafta'), '/'), 'lastmod' => null];
+
         return $this->xml($this->urlset($urls));
     }
 

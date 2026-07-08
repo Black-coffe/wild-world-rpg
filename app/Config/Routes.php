@@ -213,6 +213,11 @@ $routes->get('wiki/(:segment)', 'Wiki::entry/$1');
 $routes->get('map', 'Map::index');
 $routes->get('map/data', 'Map::data');
 
+// ADR-149 — публичный калькулятор крафта (Поток E1): страница (server-render + no-JS
+// GET-форма) + JSON-эндпоинт expand() для progressive enhancement.
+$routes->get('kalkulyator-krafta', 'CraftCalculator::index');
+$routes->get('kalkulyator-krafta/data', 'CraftCalculator::data');
+
 // ADR-061 — Telegram Login Widget для игроков на сайте (видят свою позицию).
 $routes->get('login/telegram/callback', 'TelegramLogin::callback');
 $routes->post('logout/telegram', 'TelegramLogin::logout');
