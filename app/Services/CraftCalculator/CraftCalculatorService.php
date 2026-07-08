@@ -142,6 +142,7 @@ class CraftCalculatorService
      *   recipe: string, name: string, icon: string, qty: int, found: bool,
      *   rawResources: list<array{name: string, name_en: string, qty: int, rarity: int, icon: string, buy: float, lineGold: float, priced: bool}>,
      *   subCrafts: list<array{recipe: string, name: string, icon: string, qty: int}>,
+     *   tree: array<string, mixed>|null,
      *   goldMarket: float, goldRequired: float, goldTotal: float,
      *   unresolved: array<string, int>
      * }
@@ -161,6 +162,7 @@ class CraftCalculatorService
                 'found'        => false,
                 'rawResources' => [],
                 'subCrafts'    => [],
+                'tree'         => null,
                 'goldMarket'   => 0.0,
                 'goldRequired' => 0.0,
                 'goldTotal'    => 0.0,
@@ -225,6 +227,7 @@ class CraftCalculatorService
             'found'        => true,
             'rawResources' => $rawOut,
             'subCrafts'    => $subsOut,
+            'tree'         => $this->buildNode($key, $qty, []),
             'goldMarket'   => round($goldMarket, 2),
             'goldRequired' => round($goldRequired, 2),
             'goldTotal'    => round($goldMarket + $goldRequired, 2),
@@ -282,6 +285,98 @@ class CraftCalculatorService
                 $this->accumulate($subKey, $need, $raw, $subs, $goldRequired, $unresolved, [...$inFlight, $subKey]);
             }
         }
+    }
+
+    /**
+     * Строит ВЛОЖЕННЫЙ узел дерева крафта (для разворота по клику, ADR-149 E1.1) — в отличие
+     * от accumulate() (плоский аккумулятор итогов), сохраняет иерархию: прямое сырьё узла +
+     * его прямые суб-крафты как дочерние узлы (рекурсивно, каждый со своим сырьём и детьми).
+     * Cycle-safe через $inFlight: при цикле дочерний узел — лист без разворота (cyclic=true).
+     * qty каждого узла = потребность на этом уровне (× накопленный множитель родителей).
+     *
+     * @param list<string> $inFlight
+     * @return array<string, mixed>
+     */
+    private function buildNode(string $key, int $mult, array $inFlight): array
+    {
+        $map    = $this->recipeMap();
+        $recipe = $map[$key] ?? [];
+        $ri     = $this->resourceIndex();
+
+        /** @var list<array{name: string, icon: string, rarity: int, qty: int}> $directRaw */
+        $directRaw = [];
+        $resources = $recipe['resources'] ?? [];
+        if (is_array($resources)) {
+            foreach ($resources as $name => $q) {
+                if (! is_string($name) || ! is_numeric($q)) {
+                    continue;
+                }
+                $meta        = $ri[$name] ?? null;
+                $directRaw[] = [
+                    'name'   => $name,
+                    'icon'   => $meta !== null ? $meta['icon'] : '',
+                    'rarity' => $meta !== null ? $meta['rarity'] : 0,
+                    'qty'    => (int) $q * $mult,
+                ];
+            }
+            usort($directRaw, static fn (array $a, array $b): int => $b['qty'] <=> $a['qty']);
+        }
+
+        /** @var list<array{qty: int, node: array<string, mixed>}> $childEntries */
+        $childEntries = [];
+        /** @var list<string> $unresolved */
+        $unresolved = [];
+        $crafted    = $recipe['crafted_items'] ?? [];
+        if (is_array($crafted)) {
+            foreach ($crafted as $ref => $q) {
+                if (! is_string($ref) || ! is_numeric($q)) {
+                    continue;
+                }
+                $need   = (int) $q * $mult;
+                $subKey = $this->resolveRef($ref);
+                if ($subKey === null) {
+                    $unresolved[] = $ref;
+                    continue;
+                }
+                $node = in_array($subKey, $inFlight, true)
+                    ? $this->leafNode($subKey, $need, true)                       // 🔴 цикл — лист без разворота
+                    : $this->buildNode($subKey, $need, [...$inFlight, $subKey]);
+                $childEntries[] = ['qty' => $need, 'node' => $node];
+            }
+            usort($childEntries, static fn (array $a, array $b): int => $b['qty'] <=> $a['qty']);
+        }
+
+        return [
+            'recipe'     => $key,
+            'name'       => is_string($recipe['item_name_rus'] ?? null) ? $recipe['item_name_rus'] : $key,
+            'icon'       => is_string($recipe['icon_emoji'] ?? null) ? $recipe['icon_emoji'] : '',
+            'qty'        => $mult,
+            'directRaw'  => $directRaw,
+            'children'   => array_map(static fn (array $e): array => $e['node'], $childEntries),
+            'cyclic'     => false,
+            'unresolved' => $unresolved,
+        ];
+    }
+
+    /**
+     * Лист-узел суб-крафта без разворота (цикл): показывается, но глубже не раскрывается.
+     *
+     * @return array<string, mixed>
+     */
+    private function leafNode(string $key, int $qty, bool $cyclic): array
+    {
+        $recipe = $this->recipeMap()[$key] ?? [];
+
+        return [
+            'recipe'     => $key,
+            'name'       => is_string($recipe['item_name_rus'] ?? null) ? $recipe['item_name_rus'] : $key,
+            'icon'       => is_string($recipe['icon_emoji'] ?? null) ? $recipe['icon_emoji'] : '',
+            'qty'        => $qty,
+            'directRaw'  => [],
+            'children'   => [],
+            'cyclic'     => $cyclic,
+            'unresolved' => [],
+        ];
     }
 
     /**

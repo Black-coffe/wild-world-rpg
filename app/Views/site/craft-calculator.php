@@ -44,9 +44,6 @@ ksort($byZone);
 .cc-gold .val { font-family: var(--font-mono, monospace); font-size: 1.3rem; color: var(--text); }
 .cc-gold.total .val { color: var(--accent); }
 .cc-rar { display: inline-block; min-width: 26px; text-align: center; font-family: var(--font-mono, monospace); font-size: .72rem; border: 1px solid var(--border); padding: 1px 4px; color: var(--text-dim); }
-.cc-subs { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
-.cc-subs li { border: 1px solid var(--border); padding: 4px 10px; font-size: .9rem; }
-.cc-subs .n { color: var(--accent); font-family: var(--font-mono, monospace); }
 .cc-note { color: var(--warning, var(--text-dim)); font-size: .9rem; margin-top: 8px; }
 .cc-cat details { border: 1px solid var(--border); margin-bottom: 8px; }
 .cc-cat summary { cursor: pointer; padding: 12px 16px; background: var(--bg-elev-1); font-weight: 600; }
@@ -57,6 +54,23 @@ ksort($byZone);
 .cc-cat .rec .ing { color: var(--text-dim); font-size: .88rem; }
 .cc-cat .rec a { color: var(--text); }
 .cc-empty { color: var(--text-muted); font-style: italic; }
+/* Дерево крафта (E1.1) — вложенные нативные <details>, разворот по клику, без JS. */
+.cc-hint { color: var(--text-muted); font-weight: 400; font-size: .82rem; }
+.cc-tree { margin-top: 8px; }
+.cc-node { border: 1px solid var(--border); margin: 6px 0; }
+.cc-node > summary { cursor: pointer; padding: 8px 12px; background: var(--bg-elev-1); list-style: none; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.cc-node > summary::-webkit-details-marker { display: none; }
+.cc-node > summary::before { content: '▸'; color: var(--accent); display: inline-block; width: 1em; }
+.cc-node[open] > summary::before { content: '▾'; }
+.cc-node > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cc-node-label { font-weight: 600; }
+.cc-node-qty { color: var(--accent); font-family: var(--font-mono, monospace); }
+.cc-node-body { padding: 6px 12px 10px 22px; border-top: 1px solid var(--border); }
+.cc-node .cc-node, .cc-node .cc-leaf { margin-left: 6px; }
+.cc-node-raw { list-style: none; padding: 0; margin: 0 0 6px; }
+.cc-node-raw li { padding: 3px 0; font-size: .9rem; color: var(--text-dim); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.cc-leaf { border: 1px solid var(--border); margin: 6px 0; padding: 8px 12px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.cc-leaf::before { content: '•'; color: var(--text-muted); display: inline-block; width: 1em; }
 </style>
 <?= $this->endSection() ?>
 
@@ -181,6 +195,29 @@ ksort($byZone);
         return d.innerHTML;
     }
 
+    /* Рекурсивный рендер узла дерева крафта (E1.1) — зеркало SSR-партиала _craft_calc_result.php. */
+    function renderNode(node) {
+        var icon  = node.icon ? esc(node.icon) + ' ' : '';
+        var label = '<span class="cc-node-label">' + icon + esc(node.name) + '</span> <span class="cc-node-qty">×' + (node.qty | 0) + '</span>';
+        var raw   = node.directRaw || [];
+        var kids  = node.children || [];
+        if (!raw.length && !kids.length) {
+            return '<div class="cc-leaf">' + label + (node.cyclic ? ' <span class="cc-hint">(повтор выше)</span>' : '') + '</div>';
+        }
+        var body = '';
+        if (raw.length) {
+            body += '<ul class="cc-node-raw">';
+            raw.forEach(function (r) {
+                var ri = r.icon ? esc(r.icon) + ' ' : '';
+                body += '<li><span>' + ri + esc(r.name) + '</span> <span class="cc-node-qty">×' + (r.qty | 0)
+                     + '</span> <span class="cc-rar">R' + (r.rarity | 0) + '</span></li>';
+            });
+            body += '</ul>';
+        }
+        kids.forEach(function (k) { body += renderNode(k); });
+        return '<details class="cc-node"><summary>' + label + '</summary><div class="cc-node-body">' + body + '</div></details>';
+    }
+
     function renderPanel(data) {
         if (!data || !data.found) {
             resultBox.innerHTML = (data && data.recipe) ? '<p class="cc-note">Рецепт не найден. Выбери предмет из списка.</p>' : '';
@@ -218,13 +255,12 @@ ksort($byZone);
             h += '</tbody></table></div>';
         }
 
-        var subs = data.subCrafts || [];
-        if (subs.length) {
-            h += '<h3 style="margin:20px 0 4px">Промежуточные крафты</h3><ul class="cc-subs">';
-            subs.forEach(function (s) {
-                h += '<li>' + (s.icon ? esc(s.icon) + ' ' : '') + esc(s.name) + ' <span class="n">×' + (s.qty | 0) + '</span></li>';
-            });
-            h += '</ul>';
+        var tree = data.tree;
+        var treeKids = (tree && tree.children) ? tree.children : [];
+        if (treeKids.length) {
+            h += '<h3 style="margin:20px 0 8px">🌳 Дерево крафта <span class="cc-hint">— нажми узел, чтобы развернуть</span></h3><div class="cc-tree">';
+            treeKids.forEach(function (k) { h += renderNode(k); });
+            h += '</div>';
         }
 
         var unres = data.unresolved ? Object.keys(data.unresolved) : [];

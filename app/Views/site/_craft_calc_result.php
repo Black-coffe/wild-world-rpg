@@ -14,7 +14,6 @@ $gp = static function (mixed $n): string {
 };
 
 $raw   = is_array($result['rawResources'] ?? null) ? $result['rawResources'] : [];
-$subs  = is_array($result['subCrafts'] ?? null) ? $result['subCrafts'] : [];
 $unres = is_array($result['unresolved'] ?? null) ? $result['unresolved'] : [];
 ?>
 <div class="cc-result">
@@ -72,16 +71,54 @@ $unres = is_array($result['unresolved'] ?? null) ? $result['unresolved'] : [];
     </div>
     <?php endif ?>
 
-    <?php if ($subs !== []): ?>
-    <h3 style="margin:20px 0 4px">Промежуточные крафты</h3>
-    <ul class="cc-subs">
-        <?php foreach ($subs as $s): if (! is_array($s)) { continue; } ?>
-            <li>
-                <?= esc((is_string($s['icon'] ?? null) && $s['icon'] !== '' ? $s['icon'] . ' ' : '') . (is_string($s['name'] ?? null) ? $s['name'] : '')) ?>
-                <span class="n">×<?= (int) ($s['qty'] ?? 0) ?></span>
-            </li>
+    <?php
+    $tree     = is_array($result['tree'] ?? null) ? $result['tree'] : null;
+    $treeKids = ($tree !== null && is_array($tree['children'] ?? null)) ? $tree['children'] : [];
+    /**
+     * Рекурсивный рендер узла дерева крафта (E1.1): суб-крафт = разворачиваемый <details>
+     * (своё сырьё + дочерние суб-крафты), лист/цикл = плоская строка. Без JS работает нативно.
+     *
+     * @var callable(array<string,mixed>): string $renderNode
+     */
+    $renderNode = function (array $node) use (&$renderNode): string {
+        $icon  = (is_string($node['icon'] ?? null) && $node['icon'] !== '') ? $node['icon'] . ' ' : '';
+        $label = '<span class="cc-node-label">' . esc($icon . (is_string($node['name'] ?? null) ? $node['name'] : ''))
+               . '</span> <span class="cc-node-qty">×' . (int) ($node['qty'] ?? 0) . '</span>';
+        $raw   = is_array($node['directRaw'] ?? null) ? $node['directRaw'] : [];
+        $kids  = is_array($node['children'] ?? null) ? $node['children'] : [];
+
+        if ($raw === [] && $kids === []) {
+            $tag = (bool) ($node['cyclic'] ?? false) ? ' <span class="cc-hint">(повтор выше)</span>' : '';
+            return '<div class="cc-leaf">' . $label . $tag . '</div>';
+        }
+
+        $body = '';
+        if ($raw !== []) {
+            $body .= '<ul class="cc-node-raw">';
+            foreach ($raw as $r) {
+                if (! is_array($r)) { continue; }
+                $ri = (is_string($r['icon'] ?? null) && $r['icon'] !== '') ? $r['icon'] . ' ' : '';
+                $body .= '<li><span>' . esc($ri . (is_string($r['name'] ?? null) ? $r['name'] : ''))
+                       . '</span> <span class="cc-node-qty">×' . (int) ($r['qty'] ?? 0) . '</span>'
+                       . ' <span class="cc-rar">R' . (int) ($r['rarity'] ?? 0) . '</span></li>';
+            }
+            $body .= '</ul>';
+        }
+        foreach ($kids as $kid) {
+            if (is_array($kid)) { $body .= $renderNode($kid); }
+        }
+
+        return '<details class="cc-node"><summary>' . $label . '</summary>'
+             . '<div class="cc-node-body">' . $body . '</div></details>';
+    };
+    ?>
+    <?php if ($treeKids !== []): ?>
+    <h3 style="margin:20px 0 8px">🌳 Дерево крафта <span class="cc-hint">— нажми узел, чтобы развернуть</span></h3>
+    <div class="cc-tree">
+        <?php foreach ($treeKids as $child): if (! is_array($child)) { continue; } ?>
+            <?= $renderNode($child) ?>
         <?php endforeach ?>
-    </ul>
+    </div>
     <?php endif ?>
 
     <?php if ($unres !== []): ?>

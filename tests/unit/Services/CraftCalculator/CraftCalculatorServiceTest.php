@@ -274,6 +274,83 @@ final class CraftCalculatorServiceTest extends CIUnitTestCase
         $this->assertRawEquals(['Травы' => 2, 'Мхи' => 1], $r['rawResources']);
     }
 
+    // ── E1.1 — вложенное дерево крафта (разворот по клику) ────────────────────
+
+    public function testTreeLeafHasNoChildrenAndScaledSortedRaw(): void
+    {
+        $r    = $this->svc($this->recipes(), $this->prices())->expand('Bandage', 2);
+        $tree = $r['tree'];
+
+        $this->assertIsArray($tree);
+        $this->assertSame('Bandage', $tree['recipe']);
+        $this->assertSame(2, $tree['qty']);
+        $this->assertSame([], $tree['children']);
+        // directRaw ×2, отсортировано по qty desc: Водоросли 6, Травы 4.
+        $this->assertSame('Водоросли', $tree['directRaw'][0]['name']);
+        $this->assertSame(6, $tree['directRaw'][0]['qty']);
+        $this->assertSame(4, $tree['directRaw'][1]['qty']);
+    }
+
+    public function testTreeNestedChildCarriesScaledQtyAndOwnRaw(): void
+    {
+        $r    = $this->svc($this->recipes(), $this->prices())->expand('BasicMedKit', 1);
+        $tree = $r['tree'];
+
+        $this->assertIsArray($tree);
+        // Прямое сырьё корня: Грибы 4 (rarity 2).
+        $this->assertSame([['name' => 'Грибы', 'icon' => '', 'rarity' => 2, 'qty' => 4]], $tree['directRaw']);
+        // Один дочерний узел — Повязка ×5 со СВОИМ развёрнутым сырьём.
+        $this->assertCount(1, $tree['children']);
+        $child = $tree['children'][0];
+        $this->assertSame('Bandage', $child['recipe']);
+        $this->assertSame(5, $child['qty']);
+        $this->assertFalse($child['cyclic']);
+        $this->assertSame([], $child['children']);
+        $childRaw = [];
+        foreach ($child['directRaw'] as $rr) {
+            $childRaw[$rr['name']] = $rr['qty'];
+        }
+        ksort($childRaw);
+        $this->assertSame(['Водоросли' => 15, 'Травы' => 10], $childRaw);
+    }
+
+    public function testTreeResolvesChildByItemNameEng(): void
+    {
+        $r    = $this->svc($this->recipes(), $this->prices())->expand('Wiring', 1);
+        $tree = $r['tree'];
+
+        $this->assertIsArray($tree);
+        $this->assertCount(1, $tree['children']);
+        $this->assertSame('MetalFragments', $tree['children'][0]['recipe']);
+        $this->assertSame(3, $tree['children'][0]['qty']);
+    }
+
+    public function testTreeCycleGuardMarksLeafAndTerminates(): void
+    {
+        $r    = $this->svc($this->recipes(), $this->prices())->expand('A', 1);
+        $tree = $r['tree'];
+
+        // A → B → A → B(cyclic-лист, не разворачивается глубже) — рекурсия конечна.
+        $this->assertIsArray($tree);
+        $this->assertSame('A', $tree['recipe']);
+        $b = $tree['children'][0];
+        $this->assertSame('B', $b['recipe']);
+        $this->assertFalse($b['cyclic']);
+        $a2 = $b['children'][0];
+        $this->assertSame('A', $a2['recipe']);
+        $this->assertFalse($a2['cyclic']);
+        $bLeaf = $a2['children'][0];
+        $this->assertSame('B', $bLeaf['recipe']);
+        $this->assertTrue($bLeaf['cyclic']);
+        $this->assertSame([], $bLeaf['children']);
+    }
+
+    public function testTreeIsNullWhenRecipeNotFound(): void
+    {
+        $r = $this->svc($this->recipes(), $this->prices())->expand('DoesNotExist', 1);
+        $this->assertNull($r['tree']);
+    }
+
     public function testUnknownRecipeReturnsNotFound(): void
     {
         $r = $this->svc($this->recipes(), $this->prices())->expand('DoesNotExist', 1);
