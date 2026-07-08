@@ -291,6 +291,16 @@ class MoveCharacterToDirectionAction
             ['text' => '🗺️ Поход', 'callback_data' => 'march'], // ADR-019
         ];
 
+        // ADR-150 Слайс 1 — «🗺 Обзор» (фото карты мира) сразу за «Поход»: pack-by-2 ниже
+        // ставит их в ОДИН ряд. Только при world_hub ON → иначе $tail byte-identical прежнему
+        // (и не будет рассинхрона с начальной поверхностью MoveSurfaceService).
+        $whRaw      = (new \App\Services\GameSettings\GameSettingsService())->get('navigation.world_hub.enabled', false);
+        $worldHubOn = is_bool($whRaw) ? $whRaw : (is_numeric($whRaw) && (int) $whRaw === 1);
+        if ($worldHubOn) {
+            $tail[] = ['text' => '🗺 Обзор',   'callback_data' => 'mapOverview'];
+            $tail[] = ['text' => '❓ Легенда', 'callback_data' => 'mapLegend'];
+        }
+
         // V25 (ADR-057) — если на НОВОЙ клетке (после move) стоит активный караван,
         // показать кнопку «🚚 Караван». `$character` загружен ДО update'а, поэтому
         // берём `$targetCell['cell_number']` — куда персонаж только что перешёл.
@@ -543,9 +553,13 @@ class MoveCharacterToDirectionAction
 
         $text = "Куда пойдём? Выберите направление:\n\n";
 
-        // Легенда
-        $legend  = $textMapService->getLegend();
-        $text   .= $legend . "\n";
+        // ADR-150 Слайс 1 — при world_hub ON легенда спрятана за кнопку «❓ Легенда»
+        // (тумблер), чтобы не занимать ~80% сообщения. При OFF — в теле (byte-identical).
+        $whRaw      = (new \App\Services\GameSettings\GameSettingsService())->get('navigation.world_hub.enabled', false);
+        $worldHubOn = is_bool($whRaw) ? $whRaw : (is_numeric($whRaw) && (int) $whRaw === 1);
+        if (! $worldHubOn) {
+            $text .= $textMapService->getLegend() . "\n";
+        }
 
         // Расстояние до базы
         $distanceLine = $textMapService->getDistanceLine($character);

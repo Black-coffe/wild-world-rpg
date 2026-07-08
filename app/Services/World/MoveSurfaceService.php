@@ -59,45 +59,9 @@ class MoveSurfaceService
             }
         }
 
-        // 2) Компас-розетка (8 направлений + центр = хаб действий) + Поход
-        $directionsKeyboard = [
-            [
-                ['text' => '↖️ Сев-Запад', 'callback_data' => 'move_dir_northwest'],
-                ['text' => '⬆️ Север',     'callback_data' => 'move_dir_north'],
-                ['text' => '↗️ Сев-Восток','callback_data' => 'move_dir_northeast'],
-            ],
-            [
-                ['text' => '⬅️ Запад', 'callback_data' => 'move_dir_west'],
-                ['text' => '🏕',       'callback_data' => 'Base'],
-                ['text' => '🧑‍🌾 🛠️','callback_data' => 'characterActions'],
-                ['text' => '➡️ Восток','callback_data' => 'move_dir_east'],
-            ],
-            [
-                ['text' => '↙️ Юго-Запад','callback_data' => 'move_dir_southwest'],
-                ['text' => '⬇️ Юг',      'callback_data' => 'move_dir_south'],
-                ['text' => '↘️ Юго-Восток','callback_data' => 'move_dir_southeast'],
-            ],
-            [
-                ['text' => '🗺️ Поход', 'callback_data' => 'march'], // ADR-019
-            ],
-        ];
-
-        // S7 (ADR-145): кнопка «🌍 Остров живёт» — только при killswitch ON (иначе byte-identical).
-        if ($islandEnabled) {
-            $directionsKeyboard[] = [
-                ['text' => '🌍 Остров живёт', 'callback_data' => 'island'],
-            ];
-        }
-
-        // ADR-150 Слайс 1: «🗺 Обзор» (фото карты мира) — только при world_hub ON.
-        // При OFF кнопки нет → рендер идентичен прежнему MoveCharacterAction.
-        if ($this->worldHubEnabled()) {
-            $directionsKeyboard[] = [
-                ['text' => '🗺 Обзор', 'callback_data' => 'mapOverview'],
-            ];
-        }
-
-        $keyboard = ['inline_keyboard' => $directionsKeyboard];
+        // 2) Компас-розетка + нижние кнопки (Поход/Обзор/Легенда) — общий билдер
+        //    (тот же используется в renderCompassInPlace для возврата из легенды).
+        $keyboard = ['inline_keyboard' => $this->buildDirectionsKeyboard($islandEnabled)];
 
         // 3) Новое сообщение (первый показ); move_dir_* дальше будет его редактировать.
         $response = Request::sendMessage([
@@ -147,8 +111,12 @@ class MoveSurfaceService
     {
         $text = "Куда пойдём? Выберите направление с клавиатуры ниже:\n\n";
 
-        $legend = $textMapService->getLegend();
-        $text  .= $legend . "\n";
+        // ADR-150 Слайс 1 — при world_hub ON легенда съедала ~80% сообщения, поэтому
+        // прячем её за кнопку «❓ Легенда» (тумблер ⇄ карта). При OFF — оставляем в теле
+        // (рендер byte-identical прежнему MoveCharacterAction).
+        if (! $this->worldHubEnabled()) {
+            $text .= $textMapService->getLegend() . "\n";
+        }
 
         $distanceLine = $textMapService->getDistanceLine($character);
         if ($distanceLine) {
@@ -175,6 +143,86 @@ class MoveSurfaceService
         }
 
         return $text;
+    }
+
+    /**
+     * Компас-розетка 3×3 + нижние кнопки. При world_hub ON нижний ряд паковкой по 2:
+     * [🗺️ Поход, 🗺 Обзор] и [❓ Легенда] (тумблер легенды, ADR-150 Слайс 1). При OFF —
+     * только [🗺️ Поход] → рендер byte-identical прежнему MoveCharacterAction.
+     *
+     * @return array<int, array<int, array<string, string>>>
+     */
+    protected function buildDirectionsKeyboard(bool $islandEnabled): array
+    {
+        $rows = [
+            [
+                ['text' => '↖️ Сев-Запад', 'callback_data' => 'move_dir_northwest'],
+                ['text' => '⬆️ Север',     'callback_data' => 'move_dir_north'],
+                ['text' => '↗️ Сев-Восток','callback_data' => 'move_dir_northeast'],
+            ],
+            [
+                ['text' => '⬅️ Запад', 'callback_data' => 'move_dir_west'],
+                ['text' => '🏕',       'callback_data' => 'Base'],
+                ['text' => '🧑‍🌾 🛠️','callback_data' => 'characterActions'],
+                ['text' => '➡️ Восток','callback_data' => 'move_dir_east'],
+            ],
+            [
+                ['text' => '↙️ Юго-Запад','callback_data' => 'move_dir_southwest'],
+                ['text' => '⬇️ Юг',      'callback_data' => 'move_dir_south'],
+                ['text' => '↘️ Юго-Восток','callback_data' => 'move_dir_southeast'],
+            ],
+        ];
+
+        $tail = [
+            ['text' => '🗺️ Поход', 'callback_data' => 'march'], // ADR-019
+        ];
+        if ($this->worldHubEnabled()) {
+            $tail[] = ['text' => '🗺 Обзор',   'callback_data' => 'mapOverview']; // фото карты мира
+            $tail[] = ['text' => '❓ Легенда', 'callback_data' => 'mapLegend'];   // тумблер легенды
+        }
+        for ($i = 0, $n = count($tail); $i < $n; $i += 2) {
+            $rows[] = array_slice($tail, $i, 2);
+        }
+
+        // S7 (ADR-145): кнопка «🌍 Остров живёт» — только при killswitch ON (иначе byte-identical).
+        if ($islandEnabled) {
+            $rows[] = [
+                ['text' => '🌍 Остров живёт', 'callback_data' => 'island'],
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * ADR-150 Слайс 1 — возврат из легенды в компас БЕЗ движения: редактирует то же
+     * сообщение обратно на карту+розетку (кнопка «🧭 К карте» → callback mapBack).
+     *
+     * @param array<string, mixed>|CharacterEntity $character
+     */
+    public function renderCompassInPlace(int $chatId, int $messageId, array|CharacterEntity $character): ServerResponse
+    {
+        $textMapService = new TextMapService();
+        $finalText      = $this->buildMapText($character, $textMapService);
+
+        $island        = new IslandPulseService();
+        $islandEnabled = $island->enabled();
+        if ($islandEnabled) {
+            $teaser = $island->teaserLine($island->snapshot());
+            if ($teaser !== null) {
+                $finalText .= "\n" . $teaser . "\n";
+            }
+        }
+
+        $keyboard = ['inline_keyboard' => $this->buildDirectionsKeyboard($islandEnabled)];
+
+        return Request::editMessageText([
+            'chat_id'      => $chatId,
+            'message_id'   => $messageId,
+            'text'         => $finalText,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode($keyboard),
+        ]);
     }
 
     /** Killswitch ADR-150 Слайс 1 (navigation.world_hub.enabled). Overridable seam для тестов. */
