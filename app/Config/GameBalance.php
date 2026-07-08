@@ -346,7 +346,7 @@ class GameBalance extends BaseConfig
     // ===================================================================
     // ADR-019 cleanup-тег: блок exploration* (ExplorationTaskHandler, C/F6 +
     // community idea #5) удалён вместе со стоячим explore — ручная разведка
-    // заменена «Походом» (см. marchMinutesPerCell / marchTiredPerCell ниже).
+    // заменена «Походом» (баланс Похода — в admin GameSettings `world.march.*`, см. ниже).
     // ===================================================================
 
     // ===================================================================
@@ -369,47 +369,27 @@ class GameBalance extends BaseConfig
     // ===================================================================
     // Поход / Marching (MarchingTaskHandler, MarchAction) — ADR-019 Step 3
     //   «Движение И есть разведка». Направленный многоклеточный переход фоновой
-    //   задачей: 1 клетка / тик, карта обновляется в сообщении по мере движения.
-    //   Одиночный шаг (MoveCharacterToDirectionAction) остаётся дороже —
-    //   точный инструмент; марш дешевле/клетку, но capped + авто-обрыв по полу
-    //   выносливости + тайм-гейт. Расчёт до/после — ADR-019 §6.
+    //   задачей: cells_per_tick клеток / тик, карта обновляется по мере движения.
+    //   Одиночный шаг (MoveCharacterToDirectionAction) остаётся дороже. Расчёт
+    //   до/после — ADR-019 §6.
+    //
+    //   ⚙️ ВЕСЬ march-баланс вынесен в admin GameSettings `world.march.*`
+    //   (ADMIN-TUNABLE BALANCE, ADR-024) — устранение «двойной правды», значения
+    //   теперь ТОЛЬКО в game_settings; код держит safe-baseline fallback в
+    //   gsFloat/gsInt-вызовах. Читают через GameSettingsReaderTrait:
+    //     world.march.cells_per_tick        (int,   3)  — клеток за тик (батч)
+    //     world.march.minutes_per_cell      (int,   1)  — минут на тик
+    //     world.march.max_steps_per_order   (int,   60) — потолок заказа
+    //     world.march.tired_cost_per_cell   (float, 0.5)
+    //     world.march.health_cost_per_cell  (float, 0.02)
+    //     world.march.danger_health_surcharge (float, 1.0) — надбавка danger≥8
+    //     world.march.xp_per_cell           (float, 0.03)
+    //     world.march.stat_per_cell         (float, 0.02)
+    //   Миграции: 2026-10-05 (cells_per_tick) + 2026-10-08 (остальные 7).
+    //
+    //   Убраны как мёртвые (не выносились): marchNpcEncounterChancePerCell —
+    //   дубликат живого ключа `npc.march_encounter_chance` (читает
+    //   NpcInteractionService); marchHpHaltThreshold — нигде не читался,
+    //   зарезервированная невключённая механика halt-on-encounter.
     // ===================================================================
-
-    /** Минут реального времени на один крон-тик марша (задержка между пачками клеток). */
-    public int $marchMinutesPerCell = 1;
-
-    // Клеток за крон-тик (батч) — вынесено в admin GameSettings `world.march.cells_per_tick`
-    // (ADMIN-TUNABLE BALANCE, ADR-024). Читают MarchingTaskHandler/MarchAction через
-    // GameSettingsReaderTrait::gsInt(..., 3). Здесь не держим (устранение «двойной правды»).
-
-    /** Максимум клеток в одном заказе марша. Дальше — кнопка «➕ Продлить» / новый заказ. */
-    public int $marchMaxStepsPerOrder = 60;
-
-    /** Расход выносливости за клетку марша (vs одиночный шаг 3.35 — направленный переход эффективнее зигзага). */
-    public float $marchTiredCostPerCell = 0.5;
-
-    /** Расход здоровья за клетку марша. */
-    public float $marchHealthCostPerCell = 0.02;
-
-    /** Доп. расход здоровья за клетку в опасном биоме (danger_level ≥ 8). */
-    public float $marchDangerHealthSurcharge = 1.0;
-
-    /** Прирост опыта за клетку марша. */
-    public float $marchXpPerCell = 0.03;
-
-    /** Прирост характеристики (str/agi/int по ротации) за клетку марша. */
-    public float $marchStatPerCell = 0.02;
-
-    /**
-     * Шанс (доля, 0..1) стычки с NPC за клетку марша. PvE auto-battle.
-     * 0 = выключено (ship conservative — включаем после smoke и проверки PvE-on-march
-     * механики; см. ADR-019 §6 «ship conservative + 2 недели мониторинга»).
-     */
-    public float $marchNpcEncounterChancePerCell = 0.0;
-
-    /**
-     * Порог здоровья (доля от максимума) — если стычка в пути уронила HP ниже,
-     * марш встаёт на паузу «привал, зализываешь раны».
-     */
-    public float $marchHpHaltThreshold = 0.30;
 }

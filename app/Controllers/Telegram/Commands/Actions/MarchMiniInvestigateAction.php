@@ -8,7 +8,6 @@ use App\Services\Notifications\MediaSender;
 use App\Services\World\MarchMiniEventService;
 use CodeIgniter\Database\BaseResult;
 use Config\Database;
-use Config\GameBalance;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -21,6 +20,8 @@ use Longman\TelegramBot\Request;
  */
 final class MarchMiniInvestigateAction extends BaseAction
 {
+    use \App\Services\GameSettings\GameSettingsReaderTrait;
+
     public function handle(): ServerResponse
     {
         [$user, $character] = $this->getUserAndCharacter();
@@ -101,9 +102,8 @@ final class MarchMiniInvestigateAction extends BaseAction
         if ($taskId <= 0) {
             return;
         }
-        $cfg   = new GameBalance();
         $start = new \DateTime();
-        $end   = (clone $start)->add(new \DateInterval('PT' . max(1, $cfg->marchMinutesPerCell) . 'M'));
+        $end   = (clone $start)->add(new \DateInterval('PT' . max(1, $this->gsInt('world.march.minutes_per_cell', 1)) . 'M'));
         $data  = [
             'status'     => 'in_work',
             'start_time' => $start->format('Y-m-d H:i:s'),

@@ -6,7 +6,6 @@ use App\TaskHandlers\MarchingTaskHandler;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
-use Config\GameBalance;
 
 /**
  * ADR-019 Step 3 — integration-тесты «Похода» (`MarchingTaskHandler`, цепочка
@@ -41,8 +40,17 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
 
     protected $migrate = false;
 
+    // march-баланс уехал в admin GameSettings `world.march.*` (ADR-024). Тест-БД —
+    // table-less (migrate=false, нет game_settings), поэтому хендлер через
+    // gs()->get() отдаёт fallback-числа gsFloat/gsInt-вызовов (defensive degradation).
+    // Эти консты = те же fallback-дефолты → ожидаемые значения шага.
+    private const HEALTH_COST_PER_CELL = 0.02;
+    private const TIRED_COST_PER_CELL  = 0.5;
+    private const DANGER_SURCHARGE     = 1.0;
+    private const XP_PER_CELL          = 0.03;
+    private const STAT_PER_CELL        = 0.02;
+
     private TestableMarchingTaskHandler $handler;
-    private GameBalance $cfg;
     /** @var \CodeIgniter\Database\BaseConnection */
     private $conn;
 
@@ -100,12 +108,11 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
             }
         }
 
-        $this->cfg     = new GameBalance();
         // Детектор-стаб (по умолчанию никого не обнаруживает) — реальный
         // PlayerDetectionService на CI падает на Request не инициализирован при send.
         // cellsPerTickOverride=1 по умолчанию — per-cell тесты проверяют механику ОДНОЙ
         // клетки; батч покрыт testBatch* (ставят override). GameSettings в тестах не трогаем.
-        $this->handler = new TestableMarchingTaskHandler($this->cfg, new StubDetector(), new StubTowerAlerts(), new StubObjectSignal());
+        $this->handler = new TestableMarchingTaskHandler(new StubDetector(), new StubTowerAlerts(), new StubObjectSignal());
     }
 
     protected function tearDown(): void
@@ -196,11 +203,11 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
         // Сдвинулся на 1 клетку на север (y 5 → 4): cell_number = (4-1)*10 + 5 = 35.
         $after = $this->reloadChar((int) $char['id']);
         $this->assertSame(35, (int) $after['cell_number']);
-        $this->assertEqualsWithDelta(100.0 - $this->cfg->marchHealthCostPerCell, (float) $after['health'], 0.001);
-        $this->assertEqualsWithDelta(100.0 - $this->cfg->marchTiredCostPerCell, (float) $after['tired'], 0.001);
-        $this->assertEqualsWithDelta($this->cfg->marchXpPerCell, (float) $after['experience'], 0.001);
+        $this->assertEqualsWithDelta(100.0 - self::HEALTH_COST_PER_CELL, (float) $after['health'], 0.001);
+        $this->assertEqualsWithDelta(100.0 - self::TIRED_COST_PER_CELL, (float) $after['tired'], 0.001);
+        $this->assertEqualsWithDelta(self::XP_PER_CELL, (float) $after['experience'], 0.001);
         // stat-ротация: первый шаг (steps_done=0 % 3) → strength.
-        $this->assertEqualsWithDelta(1.0 + $this->cfg->marchStatPerCell, (float) $after['strength'], 0.001);
+        $this->assertEqualsWithDelta(1.0 + self::STAT_PER_CELL, (float) $after['strength'], 0.001);
 
         // 3×3 вокруг (5,4): 9 клеток раскрыто.
         $this->assertSame(9, $this->countExplored((int) $char['id']));
@@ -233,7 +240,7 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
         $this->handler->handle($task);
 
         $after = $this->reloadChar((int) $char['id']);
-        $this->assertEqualsWithDelta(1.0 + $this->cfg->marchStatPerCell, (float) $after['agility'], 0.001);
+        $this->assertEqualsWithDelta(1.0 + self::STAT_PER_CELL, (float) $after['agility'], 0.001);
         $this->assertEqualsWithDelta(1.0, (float) $after['strength'], 0.001);
     }
 
@@ -252,9 +259,9 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
         $this->assertSame(48, (int) $after['cell_number']);
         // Стоимость/прирост ×3 клетки. experience ×3 доказывает батч-инвариант:
         // in-memory experience освежается между клетками (иначе 2-я затёрла бы 1-ю).
-        $this->assertEqualsWithDelta(100.0 - 3 * $this->cfg->marchHealthCostPerCell, (float) $after['health'], 0.001);
-        $this->assertEqualsWithDelta(100.0 - 3 * $this->cfg->marchTiredCostPerCell, (float) $after['tired'], 0.001);
-        $this->assertEqualsWithDelta(3 * $this->cfg->marchXpPerCell, (float) $after['experience'], 0.001);
+        $this->assertEqualsWithDelta(100.0 - 3 * self::HEALTH_COST_PER_CELL, (float) $after['health'], 0.001);
+        $this->assertEqualsWithDelta(100.0 - 3 * self::TIRED_COST_PER_CELL, (float) $after['tired'], 0.001);
+        $this->assertEqualsWithDelta(3 * self::XP_PER_CELL, (float) $after['experience'], 0.001);
 
         // Заспавнена следующая пачка (in_work, steps_done=3), поход не завершён (planned=10).
         $next = $this->newTasks((int) $char['id'], (int) $task['id'], 'in_work');
@@ -369,7 +376,7 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
 
     public function testFatigueFloorStopsWithoutMoving(): void
     {
-        $char = $this->makeCharacter(5, 5, 100.0, 0.3); // tired 0.3 < marchTiredCostPerCell (0.5)
+        $char = $this->makeCharacter(5, 5, 100.0, 0.3); // tired 0.3 < world.march.tired_cost_per_cell (0.5)
         $task = $this->makeMarchTask((int) $char['id'], 'north', 5, 0);
 
         $this->handler->handle($task);
@@ -393,7 +400,7 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
 
         $after = $this->reloadChar((int) $char['id']);
         $this->assertSame(35, (int) $after['cell_number']); // сдвинулся
-        $expectedHp = 100.0 - ($this->cfg->marchHealthCostPerCell + $this->cfg->marchDangerHealthSurcharge);
+        $expectedHp = 100.0 - (self::HEALTH_COST_PER_CELL + self::DANGER_SURCHARGE);
         $this->assertEqualsWithDelta($expectedHp, (float) $after['health'], 0.001);
     }
 
@@ -402,7 +409,7 @@ final class MarchingTaskHandlerTest extends CIUnitTestCase
     public function testPlayerDetectedAfterStepPausesMarch(): void
     {
         // Детектор-стаб возвращает true → после шага поход обязан встать на паузу.
-        $handler = new TestableMarchingTaskHandler($this->cfg, new StubDetector(true), new StubTowerAlerts(), new StubObjectSignal());
+        $handler = new TestableMarchingTaskHandler(new StubDetector(true), new StubTowerAlerts(), new StubObjectSignal());
         $char = $this->makeCharacter(5, 5);
         $task = $this->makeMarchTask((int) $char['id'], 'north', 5, 0);
 

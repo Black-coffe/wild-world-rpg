@@ -14,7 +14,6 @@ use App\Services\World\ObjectSignalService;
 use App\Services\World\TextMapService;
 use CodeIgniter\Database\BaseResult;
 use Config\Database;
-use Config\GameBalance;
 use Longman\TelegramBot\Request;
 
 /**
@@ -25,7 +24,7 @@ use Longman\TelegramBot\Request;
  * подбирает задачу когда `end_time` прошёл → атомарно метит `completed` (это и
  * есть idempotency-guard, уже battle-tested) → вызывает `handle($task)`. Handler
  * продвигает персонажа на 1 клетку, раскрывает 3×3 (туман войны, `revealAround`),
- * затем либо спавнит следующую `Marching`-задачу (`end_time = now + marchMinutesPerCell`),
+ * затем либо спавнит следующую `Marching`-задачу (`end_time = now + minutes_per_cell`),
  * либо завершает поход (`finishMarch`), либо ставит на паузу (`pauseMarch`, новый
  * row со `status='paused'`).
  *
@@ -45,7 +44,7 @@ use Longman\TelegramBot\Request;
  *     след. клетке / пол выносливости.
  *   ПАУЗА (pauseMarch): обнаружен игрок → промпт «атаковать/бежать/идти дальше».
  *   (PvE-стычки, опасные событийные зоны, квест-триггеры — extension points,
- *    пока выключено: marchNpcEncounterChancePerCell=0; см. ADR-019 §6.)
+ *    гейтятся живым ключом npc.march_encounter_chance (по умолчанию 0); ADR-019 §6.)
  */
 #[HandlerKey(
     key: 'marching',
@@ -56,7 +55,6 @@ class MarchingTaskHandler extends BaseTaskHandler
 {
     use \App\Services\GameSettings\GameSettingsReaderTrait;
 
-    private GameBalance $cfg;
     private PlayerDetectionService $detector;
     private TowerAlertService $towerAlerts;
     private ObjectSignalService $objectSignal;
@@ -92,9 +90,8 @@ class MarchingTaskHandler extends BaseTaskHandler
     private const CELL_PAUSED   = 'paused';
     private const CELL_DONE     = 'done';
 
-    public function __construct(?GameBalance $cfg = null, ?PlayerDetectionService $detector = null, ?TowerAlertService $towerAlerts = null, ?ObjectSignalService $objectSignal = null, ?\App\Services\World\MarchMiniEventService $miniEvents = null)
+    public function __construct(?PlayerDetectionService $detector = null, ?TowerAlertService $towerAlerts = null, ?ObjectSignalService $objectSignal = null, ?\App\Services\World\MarchMiniEventService $miniEvents = null)
     {
-        $this->cfg          = $cfg ?? new GameBalance();
         $this->detector     = $detector ?? new PlayerDetectionService();
         $this->towerAlerts  = $towerAlerts ?? new TowerAlertService();
         $this->objectSignal = $objectSignal ?? new ObjectSignalService();
@@ -204,12 +201,12 @@ class MarchingTaskHandler extends BaseTaskHandler
         }
 
         // — Стоимость / пол выносливости —
-        $hpCost   = $this->cfg->marchHealthCostPerCell;
+        $hpCost   = $this->healthCostPerCell();
         $isDanger = $biome !== null && $this->asInt($biome['danger_level'] ?? 0) >= 8;
         if ($isDanger) {
-            $hpCost += $this->cfg->marchDangerHealthSurcharge;
+            $hpCost += $this->dangerHealthSurcharge();
         }
-        $tiredCost   = $this->cfg->marchTiredCostPerCell;
+        $tiredCost   = $this->tiredCostPerCell();
         $futureHp    = $this->asFloat($character['health'] ?? 0) - $hpCost;
         $futureTired = $this->asFloat($character['tired'] ?? 0) - $tiredCost;
         if ($futureHp < 0.01 || $futureTired < 0.01) {
@@ -227,8 +224,8 @@ class MarchingTaskHandler extends BaseTaskHandler
             ->gainMultiplier($this->asFloat($character['level'] ?? 1));
         $statKeys  = ['strength', 'agility', 'intellect'];
         $statKey   = $statKeys[$stepsDone % 3];
-        $newExperience = $this->asFloat($character['experience'] ?? 0) + $this->cfg->marchXpPerCell * $marchMult;
-        $newStat       = $this->asFloat($character[$statKey] ?? 0) + $this->cfg->marchStatPerCell * $marchMult;
+        $newExperience = $this->asFloat($character['experience'] ?? 0) + $this->xpPerCell() * $marchMult;
+        $newStat       = $this->asFloat($character[$statKey] ?? 0) + $this->statPerCell() * $marchMult;
         (new CharacterModel())->update($characterId, [
             'cell_number' => $targetCellNumber,
             'biome_id'    => $targetBiomeId,
@@ -251,10 +248,10 @@ class MarchingTaskHandler extends BaseTaskHandler
 
         // — Накопленные дельты —
         $acc = is_array($s['acc'] ?? null) ? $s['acc'] : [];
-        $acc['xp']    = round($this->asFloat($acc['xp'] ?? 0) + $this->cfg->marchXpPerCell * $marchMult, 4);
+        $acc['xp']    = round($this->asFloat($acc['xp'] ?? 0) + $this->xpPerCell() * $marchMult, 4);
         $acc['hp']    = round($this->asFloat($acc['hp'] ?? 0) + $hpCost, 4);
         $acc['tired'] = round($this->asFloat($acc['tired'] ?? 0) + $tiredCost, 4);
-        $acc['stat']  = round($this->asFloat($acc['stat'] ?? 0) + $this->cfg->marchStatPerCell * $marchMult, 4);
+        $acc['stat']  = round($this->asFloat($acc['stat'] ?? 0) + $this->statPerCell() * $marchMult, 4);
         $s['acc'] = $acc;
 
         $stepsDone++;
@@ -622,17 +619,17 @@ class MarchingTaskHandler extends BaseTaskHandler
      * Worker (`Config\Tasks` → `everyMinute`) выбирает задачи `WHERE end_time < now`
      * раз в минуту (granularity 1 мин), батч фиксируется в начале прогона. Спавн шага
      * происходит ВНУТРИ крон-прогона (его время ≈ старт прогона + мелкий сдвиг, т.е.
-     * phase-locked к тику). Поэтому `end_time = start + (marchMinutesPerCell − 1)мин`
+     * phase-locked к тику). Поэтому `end_time = start + (minutes_per_cell − 1)мин`
      * делает шаг «созревшим» ровно на M-й последующий тик — детерминированно.
      *
-     * Раньше было `+ marchMinutesPerCell`мин: end_time попадал то до, то после
+     * Раньше было `+ minutes_per_cell`мин: end_time попадал то до, то после
      * следующего тика (зависело от сдвига спавна внутри прогона) → шаг ждал 1 ИЛИ 2
      * тика → дрожание 1–2 мин/клетку (прод-жалоба Max Syskov). При M=1 новый интервал =
      * `PT0M` → шаг созревает к СЛЕДУЮЩЕМУ тику → ровно ~1 мин/клетку, без дрожания.
      */
     private function stepDueInterval(): \DateInterval
     {
-        $minutes = max(0, $this->cfg->marchMinutesPerCell - 1);
+        $minutes = max(0, $this->minutesPerCell() - 1);
 
         return new \DateInterval('PT' . $minutes . 'M');
     }
@@ -728,7 +725,7 @@ class MarchingTaskHandler extends BaseTaskHandler
 
     /**
      * ETA марша в минутах: `$cells` клеток идут пачками по `cellsPerTick()` за тик
-     * (admin GameSettings world.march.cells_per_tick), тик = `marchMinutesPerCell` мин.
+     * (admin GameSettings world.march.cells_per_tick), тик = `minutes_per_cell` мин.
      * → ceil(cells / perTick) × minutesPerTick.
      */
     private function etaMinutes(int $cells): int
@@ -736,7 +733,7 @@ class MarchingTaskHandler extends BaseTaskHandler
         $perTick = $this->cellsPerTick();
         $ticks   = (int) ceil(max(0, $cells) / $perTick);
 
-        return $ticks * max(1, $this->cfg->marchMinutesPerCell);
+        return $ticks * $this->minutesPerCell();
     }
 
     /**
@@ -747,6 +744,46 @@ class MarchingTaskHandler extends BaseTaskHandler
     protected function cellsPerTick(): int
     {
         return max(1, $this->gsInt('world.march.cells_per_tick', 3));
+    }
+
+    // ── march-баланс: live-tunable через admin GameSettings `world.march.*`
+    //    (ADMIN-TUNABLE BALANCE, ADR-024). Fallback-числа = safe-baseline код-дефолт;
+    //    в table-less тест-БД gs()->get() отдаёт именно fallback (defensive degradation).
+
+    /** Минут на крон-тик Похода (задержка между пачками клеток). Fallback 1. */
+    protected function minutesPerCell(): int
+    {
+        return max(1, $this->gsInt('world.march.minutes_per_cell', 1));
+    }
+
+    /** Базовый расход ❤️ за клетку (вне danger-биома). Fallback 0.02. */
+    protected function healthCostPerCell(): float
+    {
+        return $this->gsFloat('world.march.health_cost_per_cell', 0.02);
+    }
+
+    /** Доп. расход ❤️ за клетку в опасном биоме (danger_level ≥ 8). Fallback 1.0. */
+    protected function dangerHealthSurcharge(): float
+    {
+        return $this->gsFloat('world.march.danger_health_surcharge', 1.0);
+    }
+
+    /** Расход 💤 за клетку. Fallback 0.5. */
+    protected function tiredCostPerCell(): float
+    {
+        return $this->gsFloat('world.march.tired_cost_per_cell', 0.5);
+    }
+
+    /** Прирост опыта за клетку (до множителя новичка ADR-138). Fallback 0.03. */
+    protected function xpPerCell(): float
+    {
+        return $this->gsFloat('world.march.xp_per_cell', 0.03);
+    }
+
+    /** Прирост характеристики за клетку (ротация str/agi/int). Fallback 0.02. */
+    protected function statPerCell(): float
+    {
+        return $this->gsFloat('world.march.stat_per_cell', 0.02);
     }
 
     private function plural(int $n, string $one, string $few, string $many): string

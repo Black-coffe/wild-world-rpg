@@ -6,8 +6,6 @@ use App\Services\Tasks\ActiveTasksService;
 use App\Services\World\TextMapService;
 use CodeIgniter\Database\BaseResult;
 use Config\Database;
-use Config\GameBalance;
-use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -21,7 +19,7 @@ use Longman\TelegramBot\Request;
  *                           отредактировать сообщение в «🚜 Поход начат…» + карта
  *                           (MarchingTaskHandler дальше редактирует это сообщение каждый тик)
  *   `march_more_<n>`      → продлить идущий поход на n клеток (steps_planned += n) + toast
- *   `march_resume`        → возобновить paused-поход (status='in_work', end_time=now+marchMinutesPerCell) + toast
+ *   `march_resume`        → возобновить paused-поход (status='in_work', end_time=now+minutes_per_cell) + toast
  *
  * Экраны редактируют сообщение, на котором нажата кнопка (ADR-018 navTarget), с
  * fallback на новое. Остановку похода обрабатывает {@see CancelMarchAction} (`cancelMarch`).
@@ -53,14 +51,6 @@ class MarchAction extends BaseAction
         'southwest' => '↙️ Юго-Запад',
         'southeast' => '↘️ Юго-Восток',
     ];
-
-    private GameBalance $cfg;
-
-    public function __construct(CallbackQuery $callbackQuery)
-    {
-        parent::__construct($callbackQuery);
-        $this->cfg = new GameBalance();
-    }
 
     public function handle(): ServerResponse
     {
@@ -127,15 +117,15 @@ class MarchAction extends BaseAction
         if ($blocked !== null) {
             return $blocked;
         }
-        $n = max(1, min($n, $this->cfg->marchMaxStepsPerOrder));
+        $n = max(1, min($n, $this->maxStepsPerOrder()));
 
         $aheadBiome = $this->biomeAhead($characterId, $charCellNumber, $dir);
-        $hpEst      = round($n * $this->cfg->marchHealthCostPerCell, 2);
-        $tiredEst   = round($n * $this->cfg->marchTiredCostPerCell, 2);
+        $hpEst      = round($n * $this->healthCostPerCell(), 2);
+        $tiredEst   = round($n * $this->tiredCostPerCell(), 2);
         // Скорость = world.march.cells_per_tick клеток за тик (admin GameSettings; тик =
-        // marchMinutesPerCell мин, дрожание убрано — stepDueInterval). ETA = ceil(n / perTick) × мин.
+        // world.march.minutes_per_cell мин, дрожание убрано — stepDueInterval). ETA = ceil(n / perTick) × мин.
         $perTick    = max(1, $this->gsInt('world.march.cells_per_tick', 3));
-        $minEst     = (int) ceil($n / $perTick) * max(1, $this->cfg->marchMinutesPerCell);
+        $minEst     = (int) ceil($n / $perTick) * $this->minutesPerCell();
         $dirLabel   = self::DIR_LABEL[$dir];
 
         $text = "🚜 *Поход:* {$dirLabel} ×{$n}\n\n"
@@ -152,7 +142,7 @@ class MarchAction extends BaseAction
             . "(они лишь топливо в пути)._";
 
         $minus = max(1, $n - 1);
-        $plus  = min($n + 5, $this->cfg->marchMaxStepsPerOrder);
+        $plus  = min($n + 5, $this->maxStepsPerOrder());
         $keyboard = [
             [
                 ['text' => '➖', 'callback_data' => "march_{$dir}_{$minus}"],
@@ -177,7 +167,7 @@ class MarchAction extends BaseAction
         if ($blocked !== null) {
             return $blocked;
         }
-        $n = max(1, min($n, $this->cfg->marchMaxStepsPerOrder));
+        $n = max(1, min($n, $this->maxStepsPerOrder()));
 
         $marchingTaskId = $this->marchingTaskId();
         if ($marchingTaskId === null) {
@@ -279,16 +269,44 @@ class MarchAction extends BaseAction
     }
 
     /**
-     * Интервал «созревания» шага марша: `marchMinutesPerCell − 1` мин (см. подробный
-     * разбор в {@see \App\TaskHandlers\MarchingTaskHandler::stepDueInterval()}). Worker
-     * — everyMinute, спавн phase-locked к тику → −1 убирает лишний тик ожидания
+     * Интервал «созревания» шага марша: `world.march.minutes_per_cell − 1` мин (см.
+     * подробный разбор в {@see \App\TaskHandlers\MarchingTaskHandler::stepDueInterval()}).
+     * Worker — everyMinute, спавн phase-locked к тику → −1 убирает лишний тик ожидания
      * (дрожание 1–2 мин/клетку → ровно ~1 мин/клетку). M=1 → PT0M = due на след. тике.
      */
     private function stepDueInterval(): \DateInterval
     {
-        $minutes = max(0, $this->cfg->marchMinutesPerCell - 1);
+        $minutes = max(0, $this->minutesPerCell() - 1);
 
         return new \DateInterval('PT' . $minutes . 'M');
+    }
+
+    // ── march-баланс: live-tunable через admin GameSettings `world.march.*`
+    //    (ADMIN-TUNABLE BALANCE, ADR-024). Fallback-числа = safe-baseline код-дефолт,
+    //    синхронны с MarchingTaskHandler и seed-миграцией 2026-10-08.
+
+    /** Потолок клеток в одном заказе Похода. Fallback 60. */
+    private function maxStepsPerOrder(): int
+    {
+        return max(1, $this->gsInt('world.march.max_steps_per_order', 60));
+    }
+
+    /** Минут на крон-тик Похода. Fallback 1. */
+    private function minutesPerCell(): int
+    {
+        return max(1, $this->gsInt('world.march.minutes_per_cell', 1));
+    }
+
+    /** Базовый расход ❤️ за клетку (для оценки на экране заказа). Fallback 0.02. */
+    private function healthCostPerCell(): float
+    {
+        return $this->gsFloat('world.march.health_cost_per_cell', 0.02);
+    }
+
+    /** Расход 💤 за клетку (для оценки на экране заказа). Fallback 0.5. */
+    private function tiredCostPerCell(): float
+    {
+        return $this->gsFloat('world.march.tired_cost_per_cell', 0.5);
     }
 
     /** ServerResponse если поход начать нельзя (блокирующая задача / переезд), иначе null. */
