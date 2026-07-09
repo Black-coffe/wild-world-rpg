@@ -60,9 +60,13 @@ class GenericmessageCommand extends SystemCommand
                 // ADR-150 Слайс 1: при world_hub ON «Карта» ведёт к компасу ходьбы
                 // (MoveSurfaceService), при OFF — к фото (byte-identical). Старая
                 // reply-клавиатура ещё шлёт «Карта» после флипа — тоже роутим на компас.
-                return \App\Services\Telegram\BotMenuService::worldHubEnabled()
+                $mapResponse = \App\Services\Telegram\BotMenuService::worldHubEnabled()
                     ? $this->handleWorld($chatId)
                     : $this->handleMap($chatId);
+                // Текст «Карта» в новом каркасе не существует («🌍 Мир») → клавиатура устарела.
+                $this->refreshStaleMenu($chatId);
+
+                return $mapResponse;
 
             // ADR-150 Слайс 1: новая нижняя кнопка «🌍 Мир» (при world_hub ON) → компас.
             case '🌍 мир':
@@ -83,7 +87,13 @@ class GenericmessageCommand extends SystemCommand
 
             case 'настройки':
             case 'settings':
-                return $this->handleSettings($chatId);
+                $settingsResponse = $this->handleSettings($chatId);
+                // «Настройки» как нижняя кнопка живут только в старом каркасе (в новом — «⚙️ Ещё»).
+                // Латинское «settings» шлют не с клавиатуры — уликой не считаем, но вреда нет:
+                // maybeRefresh сам one-shot и проверяет, изменился ли каркас.
+                $this->refreshStaleMenu($chatId);
+
+                return $settingsResponse;
 
             // Новые команды для смены типа карты
             case 'beautiful_map':
@@ -475,6 +485,35 @@ class GenericmessageCommand extends SystemCommand
         $telegramId = (int) $this->getMessage()->getFrom()->getId();
 
         return \App\Services\Telegram\BotMenuService::openTasks($chatId, $telegramId);
+    }
+
+    /**
+     * ADR-150 — пере-аттач нижнего меню тому, кто прислал подпись СТАРОЙ кнопки («Карта» /
+     * «Настройки»): в новом каркасе таких кнопок нет, значит клавиатура у игрока устарела.
+     * Telegram сам её не обновляет — без этого шага Слайсы 1/3/4 остаются невидимыми
+     * (замер 09.07: `/start` после активации нажали 6 из 79 активных).
+     *
+     * One-shot на персонажа + гейт «каркас изменился» — внутри {@see NavMenuRefreshService}.
+     * Никогда не роняет основное действие игрока (сервис ловит Throwable сам).
+     */
+    private function refreshStaleMenu(int $chatId): void
+    {
+        $telegramId = (int) $this->getMessage()->getFrom()->getId();
+
+        $userRow = (new TelegramUserModel())->where('telegram_id', $telegramId)->first();
+        if (! is_array($userRow)) {
+            return;
+        }
+
+        $character = (new CharacterModel())->where('telegram_user_id', $userRow['id'])->first();
+        if (! $character instanceof \App\Entities\CharacterEntity) {
+            return;
+        }
+
+        $charIdRaw = $character->id ?? null;
+        $charId    = is_numeric($charIdRaw) ? (int) $charIdRaw : 0;
+
+        (new \App\Services\Telegram\NavMenuRefreshService())->maybeRefresh($charId, $chatId);
     }
 
     /**
