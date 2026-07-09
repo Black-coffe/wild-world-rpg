@@ -174,11 +174,22 @@ class DeleteBaseAction extends BaseAction
     }
 
     /**
-     * Выводит подсказку игроку о том, как запустить «Полноценный переезд» через команду /base_shifting.
+     * «Полноценный переезд». При killswitch `buildings.relocation.force_reply` кнопка сразу
+     * спрашивает координаты (forceReply) — команду печатать не нужно. При OFF — историческая
+     * инструкция «введи `/base_shifting X=123Y=543`», byte-identical.
+     *
+     * 🔴 Зачем. Это было единственное место в игре, где от игрока требовалось запомнить синтаксис
+     * команды. Прод за 10 дней: 7 тапов по кнопке → 6 набранных команд → 4 переезда. Команда
+     * остаётся рабочей: оба входа идут через один `RelocationRequestService`.
      */
     private function showFullRelocationInstructions(array|\App\Entities\CharacterEntity $character): ServerResponse
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
+
+        $relocation = new \App\Services\Player\Relocation\RelocationRequestService();
+        if ($relocation->forceReplyEnabled()) {
+            return $relocation->askCoords((int) $chatId);
+        }
 
         $text = "Ты выбрал *Полноценный переезд*, который занимает 24 часа.\n\n"
             . "🚚 Чтобы перевезти базу в новую локацию, введи в чат команду:\n"

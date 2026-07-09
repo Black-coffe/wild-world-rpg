@@ -44,6 +44,11 @@ class GenericmessageCommand extends SystemCommand
             if (mb_strpos($promptText, '✍ NAME') !== false) {
                 return $this->handleNameReply($chatId, $rawText);
             }
+            // ADR-122 (UX-хвост): forceReply-ввод координат «Полноценного переезда».
+            // Промпт помечен «🚚 ПЕРЕЕЗД» → координаты из свободного ответа («357 391»).
+            if (mb_strpos($promptText, \App\Services\Player\Relocation\RelocationRequestService::PROMPT_MARKER) !== false) {
+                return $this->handleRelocationReply($chatId, $rawText);
+            }
         }
 
         switch ($text) {
@@ -168,6 +173,26 @@ class GenericmessageCommand extends SystemCommand
                 . "_Меню пропало? Нажми_ /menu _или_ /start _— нижняя панель вернётся. "
                 . "Все команды также доступны через значок «☰» рядом с полем ввода._",
         ]);
+    }
+
+    /**
+     * ADR-122 (UX-хвост) — ответ игрока на forceReply-промпт «Полноценного переезда».
+     * Координаты разбираются свободно («357 391», «357,391», «X=357Y=391»), дальше — общий
+     * пайплайн {@see \App\Services\Player\Relocation\RelocationRequestService::handleCoords},
+     * тот же, что у команды `/base_shifting`. Второй копии валидаций не существует.
+     */
+    private function handleRelocationReply(int $chatId, string $rawText): ServerResponse
+    {
+        $svc    = new \App\Services\Player\Relocation\RelocationRequestService();
+        $coords = \App\Services\Player\Relocation\RelocationRequestService::parseCoords($rawText);
+
+        if ($coords === null) {
+            return $svc->coordsNotUnderstood($chatId);
+        }
+
+        $telegramId = (int) $this->getMessage()->getFrom()->getId();
+
+        return $svc->handleCoords($chatId, $telegramId, $coords[0], $coords[1]);
     }
 
     /**

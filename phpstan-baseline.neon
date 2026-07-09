@@ -8641,48 +8641,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/UsePharmacyAction.php
 
 		-
-			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
-
-		-
-			message: '#^Cannot access offset ''id'' on non\-empty\-array\<string, mixed\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 7
-			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\BaseShiftingCommand\:\:lookupUserAndCharacter\(\) should return array\{array\<string, mixed\>\|object\|null, array\<string, mixed\>\|object\|null\} but returns array\{non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object, non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\}\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\BaseShiftingCommand\:\:lookupUserAndCharacter\(\) should return array\{array\<string, mixed\>\|object\|null, array\<string, mixed\>\|object\|null\} but returns array\{non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object, null\}\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
-
-		-
-			message: '#^Offset ''error'' might not exist on array\{ok\: false, error\?\: string, fullRelocTaskId\?\: int\}\.$#'
-			identifier: offsetAccess.notFound
-			count: 2
-			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
-
-		-
-			message: '#^Offset ''fullRelocTaskId'' might not exist on array\{ok\: true, error\?\: string, fullRelocTaskId\?\: int\}\.$#'
-			identifier: offsetAccess.notFound
-			count: 2
-			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
-
-		-
-			message: '#^Parameter \#1 \$character of method App\\Services\\Player\\Relocation\\RelocationValidator\:\:checkPreconditions\(\) expects App\\Entities\\CharacterEntity\|array, array\<string, mixed\>\|object given\.$#'
-			identifier: argument.type
-			count: 2
-			path: app/Controllers/Telegram/Commands/BaseShiftingCommand.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Profile\\CalculateInsuranceAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1

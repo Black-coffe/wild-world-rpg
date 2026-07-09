@@ -65,19 +65,54 @@ class RelocationMessageFormatter
         );
     }
 
-    /** @return array{text: string, parse_mode: string} */
-    public function cellUnavailableWithAlt(int $x, int $y, string $reason, int $altX, int $altY, string $biomeName): array
+    /**
+     * ADR-122 (UX-хвост): если передан `$altMapCellId`, вместо «скопируй команду» показываем
+     * кнопку — иначе forceReply-флоу упирался бы в тот самый синтаксис, ради ухода от которого
+     * он и делался. Без id (легаси-путь) текст byte-identical.
+     *
+     * @return array{text: string, parse_mode: string, reply_markup?: string}
+     */
+    public function cellUnavailableWithAlt(int $x, int $y, string $reason, int $altX, int $altY, string $biomeName, ?int $altMapCellId = null): array
     {
-        return $this->md(
-            "🚫 *Ты не можешь переехать в выбранную ячейку* (X={$x}, Y={$y})\n"
+        $head = "🚫 *Ты не можешь переехать в выбранную ячейку* (X={$x}, Y={$y})\n"
             . "Причина: _{$reason}_\n\n"
             . "Но мы нашли *ближайшую* подходящую ячейку:\n"
             . "X={$altX}, Y={$altY}\n"
-            . "Биом: *{$biomeName}*\n\n"
+            . "Биом: *{$biomeName}*\n\n";
+
+        if ($altMapCellId !== null) {
+            return $this->altOffer($head, $altX, $altY, $altMapCellId);
+        }
+
+        return $this->md(
+            $head
             . "Если тебя это устраивает, просто скопируй команду:\n"
             . "`/base_shifting X={$altX}Y={$altY}`\n\n"
             . "Удачи в пути, сталкер! 🤠"
         );
+    }
+
+    /**
+     * Предложение переехать в найденную альтернативу одной кнопкой.
+     * Callback тот же, что у happy path — `StartRelocationConfirm_X_Y_cell`.
+     *
+     * @return array{text: string, parse_mode: string, reply_markup: string}
+     */
+    private function altOffer(string $head, int $altX, int $altY, int $altMapCellId): array
+    {
+        $keyboard = [
+            'inline_keyboard' => [
+                [
+                    ['text' => "🚚 Перенести туда ({$altX}:{$altY})", 'callback_data' => "StartRelocationConfirm_{$altX}_{$altY}_{$altMapCellId}"],
+                ],
+            ],
+        ];
+
+        return [
+            'text'         => $head . "_Задача займёт ~24 часа. Следующий переезд не раньше, чем через 10 дней._",
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => (string) json_encode($keyboard),
+        ];
     }
 
     /** @return array{text: string, parse_mode: string} */
@@ -90,15 +125,25 @@ class RelocationMessageFormatter
         );
     }
 
-    /** @return array{text: string, parse_mode: string} */
-    public function cellNotExploredWithAlt(int $x, int $y, int $altX, int $altY, string $biomeName): array
+    /**
+     * ADR-122 (UX-хвост): см. {@see cellUnavailableWithAlt} — с `$altMapCellId` предлагаем кнопку.
+     *
+     * @return array{text: string, parse_mode: string, reply_markup?: string}
+     */
+    public function cellNotExploredWithAlt(int $x, int $y, int $altX, int $altY, string $biomeName, ?int $altMapCellId = null): array
     {
-        return $this->md(
-            "🚫 *Ты не можешь переехать в выбранную ячейку* (X={$x}, Y={$y})\n"
+        $head = "🚫 *Ты не можешь переехать в выбранную ячейку* (X={$x}, Y={$y})\n"
             . "Причина: _Не изучена_\n\n"
             . "Но вот ближайшая изученная:\n"
             . "X={$altX}, Y={$altY}\n"
-            . "Биом: *{$biomeName}*\n\n"
+            . "Биом: *{$biomeName}*\n\n";
+
+        if ($altMapCellId !== null) {
+            return $this->altOffer($head, $altX, $altY, $altMapCellId);
+        }
+
+        return $this->md(
+            $head
             . "Хочешь туда? Скопируй:\n"
             . "`/base_shifting X={$altX}Y={$altY}`"
         );

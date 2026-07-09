@@ -11,7 +11,6 @@ use App\Models\TelegramUserModel;
 use App\Models\CharacterModel;
 use App\Models\MapModel;
 
-use App\Services\Player\Relocation\ClosestCellFinder;
 use App\Services\Player\Relocation\RelocationMessageFormatter;
 use App\Services\Player\Relocation\RelocationTaskCreator;
 use App\Services\Player\Relocation\RelocationValidator;
@@ -35,7 +34,6 @@ class BaseShiftingCommand extends UserCommand
     protected $version = '1.0.0';
 
     private ?RelocationValidator $validator = null;
-    private ?ClosestCellFinder $closestFinder = null;
     private ?RelocationTaskCreator $taskCreator = null;
     private ?RelocationMessageFormatter $formatter = null;
 
@@ -49,14 +47,6 @@ class BaseShiftingCommand extends UserCommand
             $this->validator = new RelocationValidator();
         }
         return $this->validator;
-    }
-
-    private function closestFinder(): ClosestCellFinder
-    {
-        if ($this->closestFinder === null) {
-            $this->closestFinder = new ClosestCellFinder($this->validator());
-        }
-        return $this->closestFinder;
     }
 
     private function taskCreator(): RelocationTaskCreator
@@ -95,19 +85,20 @@ class BaseShiftingCommand extends UserCommand
      * якщо lookup не знайшов. CI4 Model first() returns array або object
      * залежно від returnType — widened як array|object|null.
      *
-     * @return array{0: array<string,mixed>|object|null, 1: \App\Entities\CharacterEntity|array<string,mixed>|object|null}
+     * @return array{0: array<array-key, mixed>|null, 1: \App\Entities\CharacterEntity|null}
      */
     private function lookupUserAndCharacter(int $telegramId): array
     {
         $userRow = (new TelegramUserModel())->where('telegram_id', $telegramId)->first();
-        if (!$userRow) {
+        if (! is_array($userRow)) {
             return [null, null];
         }
-        $character = (new CharacterModel())->where('telegram_user_id', $userRow['id'])->first();
-        if (!$character) {
-            return [$userRow, null];
-        }
-        return [$userRow, $character];
+        $rawUserId = $userRow['id'] ?? null;
+        $userId    = is_numeric($rawUserId) ? (int) $rawUserId : 0;
+
+        $character = (new CharacterModel())->where('telegram_user_id', $userId)->first();
+
+        return [$userRow, $character instanceof \App\Entities\CharacterEntity ? $character : null];
     }
 
     /**
@@ -120,81 +111,15 @@ class BaseShiftingCommand extends UserCommand
         $from      = $message->getFrom();
         $userText  = $message->getText(true) ?? '';
 
-        // 1) Парсим "X=123Y=456"
-        if (!preg_match('/X=(\d+)Y=(\d+)/', $userText, $m)) {
+        // Пайплайн переезда живёт в RelocationRequestService — тот же, что у кнопки
+        // «🚚 Полноценный переезд» (forceReply). Второй копии валидаций нет.
+        $coords = \App\Services\Player\Relocation\RelocationRequestService::parseCoords($userText);
+        if ($coords === null) {
             return $this->send($chatId, $this->formatter()->badFormat());
         }
-        $x = (int)$m[1];
-        $y = (int)$m[2];
 
-        // 2) Ищем пользователя/персонажа (v0.51.51 — DRY lookup)
-        [$userRow, $character] = $this->lookupUserAndCharacter((int) $from->getId());
-        if (!$userRow) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => "Ошибка: телеграм-профиль не найден.",
-            ]);
-        }
-        if (!$character) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => "У вас нет персонажа! Сначала создайте персонажа.",
-            ]);
-        }
-
-        // 3) Проверяем диапазон
-        if ($x<1 || $x>1000 || $y<1 || $y>1000) {
-            return $this->send($chatId, $this->formatter()->coordsOutOfRange($x, $y));
-        }
-
-        // 4) Проверяем кулдаун, активную задачу и т.д. (v0.51.47 — RelocationValidator)
-        $canProceed = $this->validator()->checkPreconditions($character);
-        if (!$canProceed['ok']) {
-            // Если там текст — возвращаем
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => $canProceed['error'],
-                'parse_mode' => 'Markdown',
-            ]);
-        }
-        $frTaskId = $canProceed['fullRelocTaskId']; // ID задачи FullRelocation
-
-        // 5) Проверяем карту
-        $mapModel = new MapModel();
-        $mapRow   = $mapModel->where('coordinate_x',$x)->where('coordinate_y',$y)->first();
-        if (!$mapRow) {
-            return $this->send($chatId, $this->formatter()->cellNotFound($x, $y));
-        }
-        $mapCellId = $mapRow['id'];
-
-        // 6) Проверяем занятость ячейки / резерв (v0.51.47 — RelocationValidator)
-        $reason = '';
-        if (!$this->validator()->isCellAvailableForRelocation($character['id'], $mapCellId, $reason)) {
-            $closestInfo = $this->closestFinder()->findClosest((int) $character['id'], $x, $y);
-            if (!$closestInfo) {
-                return $this->send($chatId, $this->formatter()->cellUnavailableNoAlt($x, $y, $reason));
-            }
-            $altBiomeName = $this->getBiomeNameByMapId($closestInfo['map_id']);
-            return $this->send($chatId, $this->formatter()->cellUnavailableWithAlt(
-                $x, $y, $reason, $closestInfo['x'], $closestInfo['y'], $altBiomeName
-            ));
-        }
-
-        // 7) Проверяем, изучил ли игрок данную точку (v0.51.47 — RelocationValidator)
-        if (!$this->validator()->isCellExploredBy($character['id'], $mapCellId)) {
-            $closestInfo = $this->closestFinder()->findClosest((int) $character['id'], $x, $y);
-            if (!$closestInfo) {
-                return $this->send($chatId, $this->formatter()->cellNotExploredNoAlt($x, $y));
-            }
-            $altBiomeName = $this->getBiomeNameByMapId($closestInfo['map_id']);
-            return $this->send($chatId, $this->formatter()->cellNotExploredWithAlt(
-                $x, $y, $closestInfo['x'], $closestInfo['y'], $altBiomeName
-            ));
-        }
-
-        // 8) Всё ок, ячейка доступна и изучена => предлагаем подтверждение
-        $biomeName = $this->getBiomeNameByMapId($mapCellId);
-        return $this->send($chatId, $this->formatter()->confirmPrompt($x, $y, $biomeName, $mapCellId));
+        return (new \App\Services\Player\Relocation\RelocationRequestService())
+            ->handleCoords((int) $chatId, (int) $from->getId(), $coords[0], $coords[1]);
     }
 
     /**
@@ -233,33 +158,33 @@ class BaseShiftingCommand extends UserCommand
 
             // Снова проверим кулдаун и т.д. (v0.51.47 — RelocationValidator)
             $canProceed = $this->validator()->checkPreconditions($character);
-            if (!$canProceed['ok']) {
+            if ($canProceed['ok'] !== true) {
                 return Request::sendMessage([
                     'chat_id' => $chatId,
-                    'text'    => $canProceed['error'],
+                    'text'    => $canProceed['error'] ?? 'Сейчас переехать нельзя.',
                     'parse_mode' => 'Markdown',
                 ]);
             }
-            $frTaskId = $canProceed['fullRelocTaskId'];
+            $frTaskId = $canProceed['fullRelocTaskId'] ?? 0;
+
+            $rawCharId = $character['id'] ?? null;
+            $charIdNum = is_numeric($rawCharId) ? (int) $rawCharId : 0;
 
             // Проверим, не занял ли кто-то эту ячейку за то время (v0.51.47 — RelocationValidator)
             $reason = '';
-            if (!$this->validator()->isCellAvailableForRelocation($character['id'], $mapCellId, $reason)) {
+            if (!$this->validator()->isCellAvailableForRelocation($charIdNum, $mapCellId, $reason)) {
                 return $this->send($chatId, $this->formatter()->confirmRaceCondition($reason));
             }
             // Проверим, не изучал ли. (v0.51.47 — RelocationValidator)
-            if (!$this->validator()->isCellExploredBy($character['id'], $mapCellId)) {
+            if (!$this->validator()->isCellExploredBy($charIdNum, $mapCellId)) {
                 return $this->send($chatId, $this->formatter()->confirmNotExplored());
             }
 
             // ADR-102: исходная база, которую переносим (мультибэйс) — та, на которой
             // стоит игрок (fallback — единственная база). null → просим встать на базу.
-            $charArr = $character instanceof \App\Entities\CharacterEntity
-                ? $character->toArray()
-                : (is_array($character) ? $character : []);
-            $charId     = is_numeric($charArr['id'] ?? null) ? (int) $charArr['id'] : 0;
-            $curCell    = is_numeric($charArr['cell_number'] ?? null) ? (int) $charArr['cell_number'] : 0;
-            $sourceCell = (new \App\Models\ClaimedCellModel())->resolveTargetBaseCell($charId, $curCell);
+            $curCellRaw = $character['cell_number'] ?? null;
+            $curCell    = is_numeric($curCellRaw) ? (int) $curCellRaw : 0;
+            $sourceCell = (new \App\Models\ClaimedCellModel())->resolveTargetBaseCell($charIdNum, $curCell);
             if ($sourceCell === null) {
                 return Request::sendMessage([
                     'chat_id'    => $chatId,
@@ -269,9 +194,10 @@ class BaseShiftingCommand extends UserCommand
             }
 
             // Всё нормально => создаём задачу (v0.51.49 — RelocationTaskCreator)
+            $rawUserId = $user['id'] ?? null;
             $this->taskCreator()->createTask(
-                $charId,
-                (int) $user['id'],
+                $charIdNum,
+                is_numeric($rawUserId) ? (int) $rawUserId : 0,
                 $frTaskId,
                 $mapCellId,
                 $x,
@@ -285,25 +211,4 @@ class BaseShiftingCommand extends UserCommand
         return Request::emptyResponse();
     }
 
-    /**
-     * Біом-name lookup за map_id → map.biome_id → biome.name через JOIN.
-     * Single helper — використовується тільки у execute() flow для display.
-     */
-    private function getBiomeNameByMapId(int $mapId): string
-    {
-        $db    = \Config\Database::connect();
-        $query = $db->table('map')
-            ->select('biomes.name AS biome_name')
-            ->join('biomes', 'biomes.id=map.biome_id', 'left')
-            ->where('map.id', $mapId)
-            ->get();
-        if ($query === false) {
-            return "Неизвестный биом";
-        }
-        $row = $query->getRowArray();
-        if ($row && !empty($row['biome_name'])) {
-            return $row['biome_name'];
-        }
-        return "Неизвестный биом";
-    }
 }
