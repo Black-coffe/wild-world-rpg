@@ -215,14 +215,33 @@ final class BaseServiceMessageFormatter
             $hangarRow[] = ['text' => '🎨 Декор', 'callback_data' => 'campDecor'];
         }
         $kbRows[] = $hangarRow;
-        $kbRows[] = [
-            ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
-            ['text' => '🧭 Двигаться', 'callback_data' => 'move'],
-        ];
-        $kbRows[] = [
-            ['text' => '❌ Удалить базу',         'callback_data' => 'DeleteBase'],
-            ['text' => '🚚 Полноценный переезд', 'callback_data' => 'DeleteBase_FullRelocation'],
-        ];
+
+        // ADR-150 Слайс 5: «📦 Склад базы» — тема Базы, но входа с экрана Базы не было вовсе
+        // (только Инвентарь / «Все ресурсы» / карго-дрон / движение). Возвращаем в свою группу.
+        //
+        // Разрушительные операции схлопываются в ОДНУ кнопку → callback `DeleteBase`, который
+        // УЖЕ является дверью: показывает три варианта (моментальный снос −70% ресурсов/−80%
+        // крафта, планируемый снос 8 ч, полноценный переезд 24 ч) с честными числами. Отдельный
+        // ярлык «🚚 Полноценный переезд» на экране Базы дублировал третий пункт того же меню.
+        if (\App\Services\Telegram\BotMenuService::craftBaseHubEnabled()) {
+            $kbRows[] = [
+                ['text' => '📦 Склад базы', 'callback_data' => 'baseStorageList'],
+                ['text' => '📡 Телепорт',   'callback_data' => 'TeleportToCamp'],
+            ];
+            $kbRows[] = [
+                ['text' => '🧭 Двигаться',          'callback_data' => 'move'],
+                ['text' => '⚠️ Снести / переехать', 'callback_data' => 'DeleteBase'],
+            ];
+        } else {
+            $kbRows[] = [
+                ['text' => '📡 Телепорт', 'callback_data' => 'TeleportToCamp'],
+                ['text' => '🧭 Двигаться', 'callback_data' => 'move'],
+            ];
+            $kbRows[] = [
+                ['text' => '❌ Удалить базу',         'callback_data' => 'DeleteBase'],
+                ['text' => '🚚 Полноценный переезд', 'callback_data' => 'DeleteBase_FullRelocation'],
+            ];
+        }
 
         $keyboard = ['inline_keyboard' => $kbRows];
 

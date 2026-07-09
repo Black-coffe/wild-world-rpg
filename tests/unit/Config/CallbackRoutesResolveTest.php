@@ -438,4 +438,31 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
             );
         }
     }
+
+    /**
+     * ADR-150 Слайс 5 — «🔨 Крафт / 🏠 База»: сущности возвращаются в свои группы.
+     * Ремонт ИНСТРУМЕНТОВ появляется в Крафте, склад — на Базе, снос/переезд схлопнуты
+     * в существующую дверь `DeleteBase`. Все кнопки обязаны резолвиться.
+     */
+    public function testCraftBaseSliceButtonsResolve(): void
+    {
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\Craft\Repair\RepairToolsListAction::class,
+            $this->cbRoutes->resolve('repairToolsList'),
+            'Кнопка «🪛 Ремонт инструментов» на экране Крафта обязана вести в RepairToolsListAction.'
+        );
+
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\Storage\BaseStorageListAction::class,
+            $this->cbRoutes->resolve('baseStorageList'),
+            'Кнопка «📦 Склад базы» на экране Базы обязана вести в BaseStorageListAction.'
+        );
+
+        // «⚠️ Снести / переехать» ведёт в существующую дверь DeleteBase (три варианта с числами).
+        // Её же суффикс `DeleteBase_FullRelocation` обязан резолвиться в тот же handler.
+        $deleteBase = \App\Controllers\Telegram\Commands\Actions\Camp\DeleteBaseAction::class;
+        $this->assertSame($deleteBase, $this->cbRoutes->resolve('DeleteBase'));
+        $this->assertSame($deleteBase, $this->cbRoutes->resolve(explode('_', 'DeleteBase_FullRelocation')[0]));
+        $this->assertSame($deleteBase, $this->cbRoutes->resolve(explode('_', 'DeleteBase_InstantDemolition')[0]));
+    }
 }

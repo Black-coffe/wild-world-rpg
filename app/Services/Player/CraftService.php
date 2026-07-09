@@ -41,8 +41,27 @@ class CraftService
         ];
 
         // W19 (ADR-074): «🔧 Модернизация» — gated killswitch'ом (dormant → скрыта, как W9-W18).
-        if ((new \App\Services\Craft\ItemModifierService())->enabled()) {
-            $rows[] = [['text' => '🔧 Модернизация', 'callback_data' => 'enchant']];
+        $modernization = (new \App\Services\Craft\ItemModifierService())->enabled()
+            ? ['text' => '🔧 Модернизация', 'callback_data' => 'enchant']
+            : null;
+
+        // ADR-150 Слайс 5: ремонт ИНСТРУМЕНТОВ живёт в неймспейсе `Craft\Repair`, но кнопки на
+        // экране Крафта не было ВООБЩЕ — попасть можно было лишь из Инвентаря (Крафтовые ресурсы)
+        // или из хаба поселения. Возвращаем его в свою группу. Ремонт ЗДАНИЙ остаётся на Базе.
+        if (\App\Services\Telegram\BotMenuService::craftBaseHubEnabled()) {
+            $repairRow = [['text' => '🪛 Ремонт инструментов', 'callback_data' => 'repairToolsList']];
+            if ($modernization !== null) {
+                $repairRow[] = $modernization;
+                $modernization = null;
+            }
+            $rows[] = $repairRow;
+
+            $text .= "\n\n🪛 _Изношенный инструмент чинится в «Ремонте инструментов» — ресурсами "
+                . "или сразу за золото у мастера._";
+        }
+
+        if ($modernization !== null) {
+            $rows[] = [$modernization];
         }
 
         $keyboard = ['inline_keyboard' => $rows];

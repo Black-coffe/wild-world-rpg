@@ -141,6 +141,22 @@ class BotMenuService
     }
 
     /**
+     * Killswitch ADR-150 Слайс 5 (navigation.craftbase_hub.enabled). false (default) — DORMANT:
+     * экраны «Крафт» и «База» byte-identical. true — каждая группа забирает своё:
+     * ремонт ИНСТРУМЕНТОВ появляется в Крафте, склад базы — на Базе, а разрушительные операции
+     * (снос/переезд) прячутся за одну дверь.
+     */
+    public static function craftBaseHubEnabled(): bool
+    {
+        $raw = (new GameSettingsService())->get('navigation.craftbase_hub.enabled', false);
+        if (is_bool($raw)) {
+            return $raw;
+        }
+
+        return is_numeric($raw) ? (int) $raw === 1 : false;
+    }
+
+    /**
      * Список команд бота для `setMyCommands` (вечный `/`-меню-гамбургер).
      *
      * Имена команд — латиница `[a-z0-9_]`, ≤32 символов (жёсткое требование Telegram;
