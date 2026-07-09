@@ -88,7 +88,12 @@ class CharacterGoActions extends BaseAction
         }
 
         // Добавим остальные кнопки (например, Квесты, Исследования...)
-        $keyboardButtons[] = ['text' => '📜 Квесты и задания', 'callback_data' => 'questAndTask'];
+        // ADR-150 Слайс 3: при tasks_hub ON вход ведёт в «📋 Дела» — дом ВСЕХ целей (что идёт
+        // сейчас + полярная звезда + квесты + задания дня), а не сразу в один из источников.
+        // Квесты остаются в одном тапе оттуда. OFF → byte-identical.
+        $keyboardButtons[] = \App\Services\Telegram\BotMenuService::tasksHubEnabled()
+            ? ['text' => '📋 Дела', 'callback_data' => 'tasksHub']
+            : ['text' => '📜 Квесты и задания', 'callback_data' => 'questAndTask'];
         $keyboardButtons[] = ['text' => '🗺️ Поход', 'callback_data' => 'march'];
         $keyboardButtons[] = ['text' => '⛏️ Добыть ресурсы',    'callback_data' => 'gather'];
         // ADR-094 discoverability: аптечка (лечение/расходники) — раньше пряталась в

@@ -23,6 +23,13 @@ class TasksCommand extends UserCommand
         $chatId  = $message->getChat()->getId();
         $userId  = $message->getFrom()->getId();
 
+        // ADR-150 Слайс 3: при tasks_hub ON `/tasks` открывает единый экран «📋 Дела»
+        // (таймеры + полярная звезда + квесты + задания дня) — тот же рендер, что у нижней
+        // кнопки и callback `tasksHub`. OFF → легаси-список ниже, byte-identical.
+        if (\App\Services\Telegram\BotMenuService::tasksHubEnabled()) {
+            return \App\Services\Telegram\BotMenuService::openTasks((int) $chatId, (int) $userId);
+        }
+
         // 1) Находим TelegramUser и Character
         $telegramUserModel = new TelegramUserModel();
         $telegramUser      = $telegramUserModel->where('telegram_id', $userId)->first();

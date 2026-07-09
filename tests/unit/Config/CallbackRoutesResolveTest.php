@@ -392,4 +392,24 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
         $this->assertNotSame($expected, $this->cbRoutes->resolve('building'));
         $this->assertNotSame($expected, $this->cbRoutes->resolve(explode('_', 'genericBuildInfo_Arsenal')[0]));
     }
+
+    /**
+     * ADR-150 Слайс 3 — хаб «📋 Дела»: callback `tasksHub` → TasksHubAction. Соседний
+     * `finishAllTasks_<id>` (прерывание задачи с экрана) обязан по-прежнему уходить в
+     * FinishTaskAction — префиксы не должны перехватывать друг друга.
+     */
+    public function testTasksHubCallbackRouteResolves(): void
+    {
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\TasksHubAction::class,
+            $this->cbRoutes->resolve('tasksHub'),
+            'callback_data «tasksHub» обязан резолвиться в TasksHubAction (хаб «Дела»).'
+        );
+
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\FinishTaskAction::class,
+            $this->cbRoutes->resolve(explode('_', 'finishAllTasks_42')[0]),
+            'Кнопка «⛔️ Прервать» с экрана «Дела» обязана резолвиться в FinishTaskAction.'
+        );
+    }
 }

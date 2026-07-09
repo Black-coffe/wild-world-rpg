@@ -11,6 +11,7 @@ use App\Services\BaseService;
 use App\Services\GameSettings\GameSettingsService;
 use App\Services\Player\CharacterService;
 use App\Services\Player\CraftService;
+use App\Services\Tasks\TasksSurfaceService;
 use App\Services\World\MapService;
 use App\Services\World\MoveSurfaceService;
 use Longman\TelegramBot\Entities\Keyboard;
@@ -41,19 +42,33 @@ class BotMenuService
      */
     public static function mainReplyKeyboard(): Keyboard
     {
-        // ADR-150 Слайс 1: при world_hub ON нижняя «Карта» → «🌍 Мир» (ведёт СРАЗУ к
-        // компасу ходьбы, а не к фото-тупику). OFF → «Карта» как раньше (byte-identical).
-        $mapLabel = self::worldHubEnabled() ? '🌍 Мир' : 'Карта';
-
         return new Keyboard([
-            'keyboard' => [
-                ['Перс', 'База', 'Крафт', $mapLabel],
-                ['Настройки'],
-            ],
+            'keyboard'          => self::replyRows(),
             'resize_keyboard'   => true,
             'one_time_keyboard' => false,
             'selective'         => false,
         ]);
+    }
+
+    /**
+     * Ряды нижнего меню — ЕДИНЫЙ источник истины (клавиатура + тексты, которые её называют).
+     *
+     * @return list<list<string>>
+     */
+    private static function replyRows(): array
+    {
+        // ADR-150 Слайс 1: при world_hub ON нижняя «Карта» → «🌍 Мир».
+        $mapLabel = self::worldHubEnabled() ? '🌍 Мир' : 'Карта';
+
+        // ADR-150 Слайс 3: при tasks_hub ON во втором ряду появляется «📋 Дела» — дом целей
+        // (таймеры/квесты/задания дня). Раньше активные задачи жили ТОЛЬКО в slash `/tasks`:
+        // ни одной кнопки → их находили 30% активных игроков. OFF → ряд byte-identical.
+        $secondRow = self::tasksHubEnabled() ? ['📋 Дела', 'Настройки'] : ['Настройки'];
+
+        return [
+            ['Перс', 'База', 'Крафт', $mapLabel],
+            $secondRow,
+        ];
     }
 
     /**
@@ -87,6 +102,21 @@ class BotMenuService
     }
 
     /**
+     * Killswitch ADR-150 Слайс 3 (navigation.tasks_hub.enabled). false (default) — DORMANT:
+     * `/tasks` рендерит легаси-список, нижнее меню и хаб «Действия» byte-identical.
+     * true — «📋 Дела» становится единым домом целей (таймеры + звезда + квесты + дейлики).
+     */
+    public static function tasksHubEnabled(): bool
+    {
+        $raw = (new GameSettingsService())->get('navigation.tasks_hub.enabled', false);
+        if (is_bool($raw)) {
+            return $raw;
+        }
+
+        return is_numeric($raw) ? (int) $raw === 1 : false;
+    }
+
+    /**
      * Список команд бота для `setMyCommands` (вечный `/`-меню-гамбургер).
      *
      * Имена команд — латиница `[a-z0-9_]`, ≤32 символов (жёсткое требование Telegram;
@@ -107,7 +137,8 @@ class BotMenuService
             ['command' => 'go',       'description' => '🧭 Идти (компас ходьбы)'],
             ['command' => 'map',      'description' => '🗺 Карта мира'],
             ['command' => 'settings', 'description' => '⚙️ Настройки'],
-            ['command' => 'tasks',    'description' => '📋 Активные задачи'],
+            // ADR-150 Слайс 3 — «📋 Дела»: что идёт сейчас + квесты + задания дня в одном экране.
+            ['command' => 'tasks',    'description' => '📋 Дела: задачи, квесты, задания дня'],
             ['command' => 'tips',     'description' => '💡 Совет по игре'],
             // ADR-127 — «📖 Путь новичка»: пройти обучение и справочник заново в любой момент.
             ['command' => 'guide',    'description' => '📖 Путь новичка (обучение заново)'],
@@ -123,11 +154,28 @@ class BotMenuService
         return Request::sendMessage([
             'chat_id'      => $chatId,
             'text'         => "🧭 Нижнее меню возвращено.\n\n"
-                . "Кнопки внизу экрана: *Перс* · *База* · *Крафт* · *Карта* · *Настройки*.\n"
+                . 'Кнопки внизу экрана: ' . self::replyButtonsLine() . ".\n"
                 . "_Если их не видно — нажми значок «☰» справа от поля ввода._",
             'parse_mode'   => 'Markdown',
             'reply_markup' => self::mainReplyKeyboard(),
         ]);
+    }
+
+    /**
+     * Перечисление кнопок нижнего меню одной markdown-строкой — ЕДИНЫЙ источник для текстов,
+     * которые их называют (`sendMainMenu`, fallback «не понял команду»). Раньше список был
+     * захардкожен в двух местах: при смене каркаса (ADR-150) тексты начинали врать про UI.
+     */
+    public static function replyButtonsLine(): string
+    {
+        $labels = [];
+        foreach (self::replyRows() as $row) {
+            foreach ($row as $label) {
+                $labels[] = '*' . $label . '*';
+            }
+        }
+
+        return implode(' · ', $labels);
     }
 
     public static function openCharacter(int $chatId, int $telegramId): ServerResponse
@@ -210,6 +258,21 @@ class BotMenuService
         }
 
         return (new MoveSurfaceService())->show($chatId, $character);
+    }
+
+    /**
+     * ADR-150 Слайс 3 — открыть поверхность «📋 Дела» (таймеры + звезда + квесты + дейлики).
+     * Используется нижней кнопкой «📋 Дела» и slash `/tasks` (при tasks_hub ON). Единый рендер —
+     * {@see TasksSurfaceService::show} (тот же экран, что у callback `tasksHub`).
+     */
+    public static function openTasks(int $chatId, int $telegramId): ServerResponse
+    {
+        $character = self::resolveCharacter($telegramId);
+        if ($character === null) {
+            return self::noCharacter($chatId);
+        }
+
+        return (new TasksSurfaceService())->show($chatId, $character);
     }
 
     /**

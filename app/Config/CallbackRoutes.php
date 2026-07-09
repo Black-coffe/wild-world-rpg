@@ -155,6 +155,8 @@ class CallbackRoutes extends BaseConfig
         'oracleLocked'                    => \App\Controllers\Telegram\Commands\Actions\Games\OracleAction::class,
         'events'                          => \App\Controllers\Telegram\Commands\Actions\EventAction::class,
         'finishAllTasks'                  => \App\Controllers\Telegram\Commands\Actions\FinishTaskAction::class,
+        // ADR-150 Слайс 3 — хаб «📋 Дела» (таймеры + полярная звезда + квесты + дейлики).
+        'tasksHub'                        => \App\Controllers\Telegram\Commands\Actions\TasksHubAction::class,
 
         // === Crafting (Workbench Standard — F3.B5..B9 generics) ===
         'standardCraft'                   => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\StandardCraftingAction::class,

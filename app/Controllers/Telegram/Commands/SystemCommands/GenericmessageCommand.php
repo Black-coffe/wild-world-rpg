@@ -68,6 +68,12 @@ class GenericmessageCommand extends SystemCommand
             case '🌍 мир':
                 return $this->handleWorld($chatId);
 
+            // ADR-150 Слайс 3: новая нижняя кнопка «📋 Дела» (при tasks_hub ON) → хаб целей.
+            // Голое «дела» ловим тоже — игрок печатает без эмодзи.
+            case '📋 дела':
+            case 'дела':
+                return $this->handleTasks($chatId);
+
             case 'настройки':
             case 'settings':
                 return $this->handleSettings($chatId);
@@ -88,20 +94,31 @@ class GenericmessageCommand extends SystemCommand
                 return $this->handleMediaPreference($chatId, 0);
 
             default:
-                // ADR-148 — нераспознанный текст: пометить действие как 'unrouted' в firehose.
-                \App\Services\Logging\PlayerActionLogger::current()->markUnrouted();
-                // ADR-103 Часть A — escape-hatch: подсказываем, как вернуть нижнее меню,
-                // если игрок его потерял (свернул reply-клавиатуру). /start и /menu
-                // гарантированно её пере-аттачивают; `/`-меню (☰ у поля ввода) всегда на месте.
-                return Request::sendMessage([
-                    'chat_id'    => $chatId,
-                    'parse_mode' => 'Markdown',
-                    'text'       => "Не понял команду.\n\n"
-                        . "Используй нижнее меню: *Перс* · *База* · *Крафт* · *Карта* · *Настройки*.\n\n"
-                        . "_Меню пропало? Нажми_ /menu _или_ /start _— нижняя панель вернётся. "
-                        . "Все команды также доступны через значок «☰» рядом с полем ввода._",
-                ]);
+                return $this->unrecognized($chatId);
         }
+    }
+
+    /**
+     * ADR-103 Часть A — escape-hatch на нераспознанный текст: подсказываем, как вернуть нижнее
+     * меню, если игрок его потерял (свернул reply-клавиатуру). /start и /menu гарантированно
+     * её пере-аттачивают; `/`-меню (☰ у поля ввода) всегда на месте.
+     *
+     * Список кнопок берётся из {@see BotMenuService::replyButtonsLine} — единого источника
+     * истины каркаса. Хардкод врал бы про UI после каждого слайса ADR-150.
+     */
+    private function unrecognized(int $chatId): ServerResponse
+    {
+        // ADR-148 — нераспознанный текст: пометить действие как 'unrouted' в firehose.
+        \App\Services\Logging\PlayerActionLogger::current()->markUnrouted();
+
+        return Request::sendMessage([
+            'chat_id'    => $chatId,
+            'parse_mode' => 'Markdown',
+            'text'       => "Не понял команду.\n\n"
+                . 'Используй нижнее меню: ' . \App\Services\Telegram\BotMenuService::replyButtonsLine() . ".\n\n"
+                . "_Меню пропало? Нажми_ /menu _или_ /start _— нижняя панель вернётся. "
+                . "Все команды также доступны через значок «☰» рядом с полем ввода._",
+        ]);
     }
 
     /**
@@ -432,6 +449,25 @@ class GenericmessageCommand extends SystemCommand
         }
 
         return (new \App\Services\World\MoveSurfaceService())->show($chatId, $characterRow);
+    }
+
+    /**
+     * ADR-150 Слайс 3 — открыть поверхность «📋 Дела» из нижней кнопки/текста. Единый рендер
+     * {@see \App\Services\Tasks\TasksSurfaceService::show} (тот же экран, что callback
+     * `tasksHub` и slash `/tasks`).
+     *
+     * При killswitch OFF слово «дела» — обычный нераспознанный текст → отдаём его в общий
+     * fallback (иначе dormant-флаг протёк бы наружу новым поведением).
+     */
+    private function handleTasks(int $chatId): ServerResponse
+    {
+        if (! \App\Services\Telegram\BotMenuService::tasksHubEnabled()) {
+            return $this->unrecognized($chatId);
+        }
+
+        $telegramId = (int) $this->getMessage()->getFrom()->getId();
+
+        return \App\Services\Telegram\BotMenuService::openTasks($chatId, $telegramId);
     }
 
     private function handleMap(int $chatId): ServerResponse
