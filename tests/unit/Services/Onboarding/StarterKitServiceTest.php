@@ -62,7 +62,8 @@ final class StarterKitServiceTest extends CIUnitTestCase
         $this->assertStringContainsString('Вода', $text);
         $this->assertStringContainsString('×10', $text);
         $this->assertStringContainsString('Галька', $text);
-        $this->assertStringContainsString('Перс', $text);
+        // ADR-150 ФИНАЛ: кнопка карточки называется «🧑 Я» (было «Перс») — путь в тексте честный.
+        $this->assertStringContainsString('🧑 Я', $text);
     }
 
     public function testIdempotentSecondCallIsNoOp(): void

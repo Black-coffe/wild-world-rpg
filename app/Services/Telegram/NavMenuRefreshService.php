@@ -27,8 +27,18 @@ use Longman\TelegramBot\Request;
  */
 class NavMenuRefreshService
 {
-    /** Маркер one-shot в `action_log`. Меняется, если каркас пере-собран заново. */
+    /** Маркер one-shot в `action_log` для ПЕРЕХОДНОГО каркаса (слайсы 1-4). */
     public const MARKER = 'NavMenuRefreshed_adr150';
+
+    /**
+     * Маркер финальной сетки 2×3.
+     *
+     * 🔴 Зачем отдельный. Маркер one-shot: игрок, уже получивший переходный каркас, имеет
+     * {@see MARKER} и второго сообщения не получил бы НИКОГДА — а его клавиатура снова
+     * устарела бы (в финале «Перс»→«🧑 Я», «Карта» исчезла, добавилась «🏠 База»).
+     * Версионирование маркера = каждый новый каркас доезжает ровно один раз.
+     */
+    public const MARKER_FINAL = 'NavMenuRefreshed_adr150_final';
 
     /**
      * Пере-аттачит нижнее меню ровно один раз, если каркас изменился, а у игрока — старый.
@@ -46,8 +56,7 @@ class NavMenuRefreshService
                 'parse_mode'   => 'Markdown',
                 'text'         => "🧭 *Меню обновилось.*\n\n"
                     . 'Внизу экрана теперь: ' . BotMenuService::replyButtonsLine() . ".\n\n"
-                    . "_«🌍 Мир» — компас ходьбы. «📋 Дела» — что идёт сейчас, квесты и задания дня. "
-                    . "«⚙️ Ещё» — магазин, арена, развлечения, помощь и настройки._",
+                    . $this->explainer(),
                 'reply_markup' => BotMenuService::mainReplyKeyboard(),
             ]);
 
@@ -72,12 +81,32 @@ class NavMenuRefreshService
             || BotMenuService::moreHubEnabled();
     }
 
+    /** Маркер текущего каркаса: финальная сетка 2×3 доезжает отдельно от переходной. */
+    protected function marker(): string
+    {
+        return BotMenuService::finalGridEnabled() ? self::MARKER_FINAL : self::MARKER;
+    }
+
+    /** Пояснение к кнопкам — ровно про тот каркас, который сейчас уезжает игроку. */
+    protected function explainer(): string
+    {
+        if (BotMenuService::finalGridEnabled()) {
+            return "_Шесть кнопок — шесть мест. «🌍 Мир» — компас ходьбы и всё, что на клетке. "
+                . "«🧑 Я» — персонаж, инвентарь, экипировка. «🔨 Крафт» — верстаки и ремонт инструментов. "
+                . "«🏠 База» — стройка, склад, маяки. «📋 Дела» — что идёт сейчас, квесты и задания дня. "
+                . "«⚙️ Ещё» — магазин, арена, развлечения, помощь и настройки._";
+        }
+
+        return "_«🌍 Мир» — компас ходьбы. «📋 Дела» — что идёт сейчас, квесты и задания дня. "
+            . "«⚙️ Ещё» — магазин, арена, развлечения, помощь и настройки._";
+    }
+
     /** Overridable seam (тесты — без БД). */
     protected function alreadyRefreshed(int $charId): bool
     {
         return (new ActionLogModel())
             ->where('character_id', $charId)
-            ->where('action_name', self::MARKER)
+            ->where('action_name', $this->marker())
             ->countAllResults() > 0;
     }
 
@@ -104,7 +133,7 @@ class NavMenuRefreshService
         (new ActionLogModel())->insert([
             'character_id'  => $charId,
             'chat_id'       => 0,
-            'action_name'   => self::MARKER,
+            'action_name'   => $this->marker(),
             'action_status' => 'Completed',
             'description'   => 'ADR-150 reply keyboard re-attached',
         ]);

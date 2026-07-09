@@ -52,19 +52,25 @@ class GenericmessageCommand extends SystemCommand
             // кто уже получил новое меню (маркер ставится и при `/start`). Без этого игроки,
             // которые никогда не жмут «Карта» (её шлют вчетверо реже), навсегда остались бы
             // со старой клавиатурой.
+            // ADR-150 ФИНАЛ: подписи получили иконки («🧑 Я», «🏠 База», «🔨 Крафт»). Старые
+            // голые слова остаются навсегда — их шлют и со старой клавиатуры, и руками.
+            // Голое «я» в case НЕ ловим: слишком частое слово в обычной речи.
             case 'перс':
+            case '🧑 я':
                 $charResponse = $this->handleCharacter($chatId);
                 $this->refreshStaleMenu($chatId);
 
                 return $charResponse;
 
             case 'база':
+            case '🏠 база':
                 $baseResponse = $this->handleBase($chatId);
                 $this->refreshStaleMenu($chatId);
 
                 return $baseResponse;
 
             case 'крафт':
+            case '🔨 крафт':
                 $craftResponse = $this->handleCraft($chatId);
                 $this->refreshStaleMenu($chatId);
 
@@ -83,21 +89,33 @@ class GenericmessageCommand extends SystemCommand
                 return $mapResponse;
 
             // ADR-150 Слайс 1: новая нижняя кнопка «🌍 Мир» (при world_hub ON) → компас.
+            // Пере-аттач пробуем и здесь: у игрока может висеть ПЕРЕХОДНЫЙ каркас (слайсы 1-4),
+            // где «🌍 Мир» уже есть, а финальной сетки 2×3 ещё нет.
             case '🌍 мир':
-                return $this->handleWorld($chatId);
+            case 'мир':
+                $worldResponse = $this->handleWorld($chatId);
+                $this->refreshStaleMenu($chatId);
+
+                return $worldResponse;
 
             // ADR-150 Слайс 3: новая нижняя кнопка «📋 Дела» (при tasks_hub ON) → хаб целей.
             // Голое «дела» ловим тоже — игрок печатает без эмодзи.
             case '📋 дела':
             case 'дела':
-                return $this->handleTasks($chatId);
+                $tasksResponse = $this->handleTasks($chatId);
+                $this->refreshStaleMenu($chatId);
+
+                return $tasksResponse;
 
             // ADR-150 Слайс 4: новая нижняя кнопка «⚙️ Ещё» (при more_hub ON) → хаб «Ещё».
             // «еще» без ё — игрок часто печатает так.
             case '⚙️ ещё':
             case 'ещё':
             case 'еще':
-                return $this->handleMore($chatId);
+                $moreResponse = $this->handleMore($chatId);
+                $this->refreshStaleMenu($chatId);
+
+                return $moreResponse;
 
             case 'настройки':
             case 'settings':

@@ -58,6 +58,18 @@ class BotMenuService
      */
     private static function replyRows(): array
     {
+        // ADR-150 ФИНАЛ: целевой каркас — 6 стабильных групп «место→действие», 2×3.
+        // Включается только когда дома всех групп реально построены и живы (иначе игрок
+        // получил бы кнопку в пустоту): world_hub + tasks_hub + more_hub. Конъюнкция —
+        // не перестраховка: «🌍 Мир» без world_hub вёл бы на фото-тупик, «📋 Дела» и
+        // «⚙️ Ещё» без своих killswitch — на гвард-заглушку.
+        if (self::finalGridEnabled()) {
+            return [
+                ['🌍 Мир', '🧑 Я', '🔨 Крафт'],
+                ['🏠 База', '📋 Дела', '⚙️ Ещё'],
+            ];
+        }
+
         // ADR-150 Слайс 1: при world_hub ON нижняя «Карта» → «🌍 Мир».
         $mapLabel = self::worldHubEnabled() ? '🌍 Мир' : 'Карта';
 
@@ -154,6 +166,26 @@ class BotMenuService
         }
 
         return is_numeric($raw) ? (int) $raw === 1 : false;
+    }
+
+    /**
+     * Killswitch ADR-150 ФИНАЛ (navigation.final_grid.enabled). false (default) — DORMANT:
+     * каркас остаётся переходным (`[Перс·База·Крафт·🌍 Мир]/[📋 Дела·⚙️ Ещё]`). true — полный
+     * своп на целевую сетку 2×3 `[🌍 Мир·🧑 Я·🔨 Крафт]/[🏠 База·📋 Дела·⚙️ Ещё]` + чистка
+     * кросс-групповых кнопок с карточки Перса (их дома уже построены).
+     *
+     * 🔴 Гейт-конъюнкция: без домов групп (world/tasks/more) своп не происходит, даже если флаг
+     * поднят вручную — кнопка не может вести в несуществующий экран.
+     */
+    public static function finalGridEnabled(): bool
+    {
+        $raw = (new GameSettingsService())->get('navigation.final_grid.enabled', false);
+        $on  = is_bool($raw) ? $raw : (is_numeric($raw) ? (int) $raw === 1 : false);
+
+        return $on
+            && self::worldHubEnabled()
+            && self::tasksHubEnabled()
+            && self::moreHubEnabled();
     }
 
     /**

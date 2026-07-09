@@ -327,8 +327,8 @@ class AttackPlayerAction extends BaseAction
             // Ф4 уведомления — приклеиваем к сообщениям бойцов (HTML). При dormant обе ветки
             // пусты (id=null, lifted=0) → текст byte-identical прежнему.
             if ($tributeCreatedId !== null && $winner && $loser) {
-                $masterLine = "\n\n⚖️ <b>Трофейная подать!</b> {$loser['name']} теперь отдаёт тебе долю с добычи — 👤 Перс → ⚖️ Трофейная подать.";
-                $vassalLine = "\n\n⚖️ <b>Ты под трофейной податью</b> у {$winner['name']}: часть добычи уходит ему. Сбрось реваншем в бою или выкупись — 👤 Перс → ⚖️ Трофейная подать.";
+                $masterLine = "\n\n⚖️ <b>Трофейная подать!</b> {$loser['name']} теперь отдаёт тебе долю с добычи — 🧑 Я → ⚖️ Трофейная подать.";
+                $vassalLine = "\n\n⚖️ <b>Ты под трофейной податью</b> у {$winner['name']}: часть добычи уходит ему. Сбрось реваншем в бою или выкупись — 🧑 Я → ⚖️ Трофейная подать.";
                 if ((int) $winner['id'] === (int) $attacker['id']) {
                     $attackerFinalText .= $masterLine;
                     $defenderFinalText .= $vassalLine;
