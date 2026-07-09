@@ -24,6 +24,55 @@ use CodeIgniter\I18n\Time;
  */
 class DeleteBaseAction extends BaseAction
 {
+    use \App\Services\GameSettings\GameSettingsReaderTrait;
+
+    /**
+     * ADR-122 — штраф моментального сноса берётся ЗА СВЁРНУТЫЙ ЛАГЕРЬ, а не за «один сарай».
+     *
+     * 🔴 Что чинит. Здания сносились per-base (ADR-102), а вот 70% ресурсов и 80% крафта
+     * списывались ГЛОБАЛЬНО, по `character_id`, независимо от того, какую из баз сносят.
+     * Игрок с тремя базами, снёсший второстепенную, лишался 70% ВСЕГО имущества.
+     *
+     * Почему именно «последняя база», а не доля 1/N: ресурсы физически не принадлежат базе —
+     * ни `character_resources`, ни `base_storage` не имеют `map_cell_id` (склад тоже общий
+     * на персонажа). Любая пропорция была бы выдуманной. Честная семантика одна: штраф — цена
+     * «свернуть лагерь целиком и остаться бездомным». Здания сносимой базы сгорают всегда —
+     * это и есть настоящая per-base цена.
+     *
+     * Killswitch `buildings.demolition.last_base_only` (default OFF → byte-identical).
+     */
+    protected function lastBaseOnlyEnabled(): bool
+    {
+        return $this->gsBool('buildings.demolition.last_base_only', false);
+    }
+
+    /** Доля ресурсов, теряемая при моментальном сносе (0.70 = теряется 70%). */
+    protected function resourceLossPct(): float
+    {
+        return $this->gsFloat('buildings.demolition.resource_loss_pct', 0.70);
+    }
+
+    /** Доля крафта, теряемая при моментальном сносе (0.80 = теряется 80%). */
+    protected function craftLossPct(): float
+    {
+        return $this->gsFloat('buildings.demolition.craft_loss_pct', 0.80);
+    }
+
+    /** Сколько баз у персонажа сейчас (для «последняя ли это база»). */
+    protected function baseCount(int $charId): int
+    {
+        return (new ClaimedCellModel())->countActiveBases($charId);
+    }
+
+    /**
+     * Штрафовать ли имущество при этом сносе. При включённом killswitch и наличии других баз —
+     * нет: игрок не сворачивает лагерь, а лишь убирает один из нескольких.
+     */
+    protected function shouldChargePenalty(int $charId): bool
+    {
+        return ! $this->lastBaseOnlyEnabled() || $this->baseCount($charId) <= 1;
+    }
+
     public function handle(): ServerResponse
     {
         // Закрываем "часики" на инлайн-кнопке
@@ -73,11 +122,25 @@ class DeleteBaseAction extends BaseAction
     {
         $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
 
+        // Числа берём из GameSettings, а не из строки: иначе после ребаланса текст соврёт.
+        [, $character] = $this->getUserAndCharacter();
+        $charId  = ($character !== null && is_numeric($character['id'] ?? null)) ? (int) $character['id'] : 0;
+        $resPct  = (int) round($this->resourceLossPct() * 100);
+        $crfPct  = (int) round($this->craftLossPct() * 100);
+        $charged = $charId > 0 ? $this->shouldChargePenalty($charId) : true;
+
+        // Честно говорим ИМЕННО ЭТОМУ игроку, что он потеряет: у владельца нескольких баз
+        // имущество не страдает — сгорают только здания сносимой базы.
+        $instantLoss = $charged
+            ? "   - Теряешь *{$resPct}%* от ресурсов и *{$crfPct}%* от крафта — это твоя последняя база, "
+                . "ты сворачиваешь лагерь целиком.\n"
+            : "   - Ресурсы и крафт *не пострадают*: у тебя есть другие базы, лагерь ты не сворачиваешь.\n";
+
         $text = "Ты собираешься удалить свою базу. Возможные варианты:\n\n"
             . "1) *Моментальный снос*\n"
             . "   - База удаляется мгновенно.\n"
-            . "   - Теряешь *70%* от ресурсов и *80%* от крафта.\n"
-            . "   - Все здания безвозвратно сгорают.\n\n"
+            . $instantLoss
+            . "   - Все здания этой базы безвозвратно сгорают.\n\n"
             . "2) *Планируемый снос* (8 ч)\n"
             . "   - Сохранение 100% ресурсов и построек.\n"
             . "   - Но база исчезает окончательно (без переноса).\n"
@@ -169,41 +232,54 @@ class DeleteBaseAction extends BaseAction
             }
         }
 
-        // --- B) Списываем 70% ресурсов ---
-        $resModel = new CharacterResourceModel();
-        $allResources = $resModel->where('id_characters', $character['id'])->findAll();
+        // --- B/C) Штраф за имущество — ТОЛЬКО если игрок сворачивает лагерь целиком (ADR-122).
+        // При нескольких базах снос одной из них имущество не трогает: ресурсы и крафт лежат
+        // в общем пуле персонажа и базе не принадлежат (нет map_cell_id ни в character_resources,
+        // ни в base_storage). Раньше снос второстепенной базы стирал 70% ВСЕГО.
+        $charIdInt = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $charged   = $this->shouldChargePenalty($charIdInt);
 
-        foreach ($allResources as $res) {
-            $oldQty = (int) $res['quantity'];
-            if ($oldQty <= 0) continue;
+        if ($charged) {
+            // 🔴 Считаем ПОТЕРЮ, а не остаток. `floor($qty * (1.0 - 0.80))` даёт 19 из 100:
+            // 1.0 − 0.8 = 0.19999999999999996 в double, и floor съедает единицу. Вычитание
+            // округлённой вверх потери от целого количества от этой ошибки свободно.
+            $resLoss   = min(1.0, max(0.0, $this->resourceLossPct()));
+            $craftLoss = min(1.0, max(0.0, $this->craftLossPct()));
 
-            $newQty = (int) floor($oldQty * 0.30);
-            if ($oldQty >= 1 && $newQty == 0) {
-                $newQty = 1;
+            $resModel     = new CharacterResourceModel();
+            $allResources = $resModel->where('id_characters', $character['id'])->findAll();
+
+            foreach ($allResources as $res) {
+                $oldQty = (int) $res['quantity'];
+                if ($oldQty <= 0) continue;
+
+                $newQty = $oldQty - (int) ceil($oldQty * $resLoss);
+                if ($oldQty >= 1 && $newQty == 0) {
+                    $newQty = 1;
+                }
+                if ($newQty <= 0) {
+                    $resModel->delete($res['id']);
+                } else {
+                    $resModel->update($res['id'], ['quantity' => $newQty]);
+                }
             }
-            if ($newQty <= 0) {
-                $resModel->delete($res['id']);
-            } else {
-                $resModel->update($res['id'], ['quantity' => $newQty]);
-            }
-        }
 
-        // --- C) Списываем 80% крафта ---
-        $craftedItemsLogModel = new CraftedItemsLogModel();
-        $allCraft = $craftedItemsLogModel->where('character_id', $character['id'])->findAll();
+            $craftedItemsLogModel = new CraftedItemsLogModel();
+            $allCraft = $craftedItemsLogModel->where('character_id', $character['id'])->findAll();
 
-        foreach ($allCraft as $cItem) {
-            $oldQty = (int) $cItem['quantity'];
-            if ($oldQty <= 0) continue;
+            foreach ($allCraft as $cItem) {
+                $oldQty = (int) $cItem['quantity'];
+                if ($oldQty <= 0) continue;
 
-            $newQty = (int) floor($oldQty * 0.20);
-            if ($oldQty >= 1 && $newQty == 0) {
-                $newQty = 1;
-            }
-            if ($newQty <= 0) {
-                $craftedItemsLogModel->delete($cItem['id']);
-            } else {
-                $craftedItemsLogModel->update($cItem['id'], ['quantity' => $newQty]);
+                $newQty = $oldQty - (int) ceil($oldQty * $craftLoss);
+                if ($oldQty >= 1 && $newQty == 0) {
+                    $newQty = 1;
+                }
+                if ($newQty <= 0) {
+                    $craftedItemsLogModel->delete($cItem['id']);
+                } else {
+                    $craftedItemsLogModel->update($cItem['id'], ['quantity' => $newQty]);
+                }
             }
         }
 
@@ -225,9 +301,14 @@ class DeleteBaseAction extends BaseAction
         $this->cleanupBaseOrphans((int) $character['id'], $targetCell);
 
         // --- F) Сообщаем результат ---
+        $lossLine = $charged
+            ? '📉 Потеряно ~' . (int) round($this->resourceLossPct() * 100) . '% ресурсов и ~'
+                . (int) round($this->craftLossPct() * 100) . "% крафта.\n"
+            : "📦 Ресурсы и крафт сохранены — у тебя остались другие базы.\n";
+
         $text = "Ты произвёл *Моментальный снос* базы!\n\n"
-            . "📉 Потеряно ~70% ресурсов и ~80% крафта.\n"
-            . "Все строения уничтожены безвозвратно.\n\n"
+            . $lossLine
+            . "Все строения этой базы уничтожены безвозвратно.\n\n"
             . "Если решишь снова основать базу – сможешь построить её в другой локации.";
 
         $keyboard = [
