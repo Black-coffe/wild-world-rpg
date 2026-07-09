@@ -319,6 +319,23 @@ class BotMenuService
     }
 
     /**
+     * ADR-150 — пометить: игрок уже держит актуальный reply-каркас (после `/menu`), сообщение
+     * «Меню обновилось» ему слать не нужно. Идемпотентно, defensive.
+     */
+    public static function markMenuFresh(int $telegramId): void
+    {
+        $character = self::resolveCharacter($telegramId);
+        if ($character === null) {
+            return;
+        }
+
+        $rawId  = $character->id ?? null;
+        $charId = is_numeric($rawId) ? (int) $rawId : 0;
+
+        (new NavMenuRefreshService())->markAlreadyFresh($charId);
+    }
+
+    /**
      * Резолв персонажа по telegram_id. null — если нет Telegram-юзера или персонажа.
      * TelegramUserModel отдаёт array; CharacterModel типизирован `returnType=CharacterEntity`
      * → `first()` даёт CharacterEntity (или null).

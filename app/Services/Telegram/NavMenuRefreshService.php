@@ -81,6 +81,23 @@ class NavMenuRefreshService
             ->countAllResults() > 0;
     }
 
+    /**
+     * Пометить персонажа как «уже держит новый каркас» БЕЗ отправки сообщения. Зовётся оттуда,
+     * где меню и так пере-аттачится штатно (`/start`, `/menu`) → такой игрок не получит потом
+     * лишнее «Меню обновилось». Идемпотентно.
+     */
+    public function markAlreadyFresh(int $charId): void
+    {
+        try {
+            if ($charId <= 0 || $this->alreadyRefreshed($charId)) {
+                return;
+            }
+            $this->mark($charId);
+        } catch (\Throwable $e) {
+            log_message('error', '[NavMenuRefresh] mark failed: ' . $e->getMessage());
+        }
+    }
+
     /** Overridable seam (тесты — без БД). */
     protected function mark(int $charId): void
     {

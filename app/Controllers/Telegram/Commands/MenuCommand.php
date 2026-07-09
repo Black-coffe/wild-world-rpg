@@ -24,8 +24,15 @@ class MenuCommand extends UserCommand
 
     public function execute(): ServerResponse
     {
-        return BotMenuService::sendMainMenu(
-            $this->getMessage()->getChat()->getId(),
-        );
+        $message  = $this->getMessage();
+        $response = BotMenuService::sendMainMenu($message->getChat()->getId());
+
+        // ADR-150: `/menu` уже отдал новый каркас и перечислил кнопки → помечаем игрока, чтобы
+        // NavMenuRefreshService не прислал ему потом дубль «Меню обновилось».
+        if ($response->isOk()) {
+            BotMenuService::markMenuFresh((int) $message->getFrom()->getId());
+        }
+
+        return $response;
     }
 }

@@ -47,14 +47,28 @@ class GenericmessageCommand extends SystemCommand
         }
 
         switch ($text) {
+            // ADR-150: «Перс»/«База»/«Крафт» есть и в старом, и в новом каркасе — сами по себе
+            // уликой не служат, но пере-аттач всё равно пробуем: он one-shot и пропускает тех,
+            // кто уже получил новое меню (маркер ставится и при `/start`). Без этого игроки,
+            // которые никогда не жмут «Карта» (её шлют вчетверо реже), навсегда остались бы
+            // со старой клавиатурой.
             case 'перс':
-                return $this->handleCharacter($chatId);
+                $charResponse = $this->handleCharacter($chatId);
+                $this->refreshStaleMenu($chatId);
+
+                return $charResponse;
 
             case 'база':
-                return $this->handleBase($chatId);
+                $baseResponse = $this->handleBase($chatId);
+                $this->refreshStaleMenu($chatId);
+
+                return $baseResponse;
 
             case 'крафт':
-                return $this->handleCraft($chatId);
+                $craftResponse = $this->handleCraft($chatId);
+                $this->refreshStaleMenu($chatId);
+
+                return $craftResponse;
 
             case 'карта':
                 // ADR-150 Слайс 1: при world_hub ON «Карта» ведёт к компасу ходьбы
