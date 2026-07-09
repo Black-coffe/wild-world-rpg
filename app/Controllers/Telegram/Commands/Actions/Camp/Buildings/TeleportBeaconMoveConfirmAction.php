@@ -228,18 +228,25 @@ class TeleportBeaconMoveConfirmAction
         }
 
         // Кнопки
-        $keyboard = [
-            'inline_keyboard' => [
+        // ADR-150 (чистка дублей): «📡 Маяки» — контекстная кнопка этого экрана и остаётся.
+        $keyboard = \App\Services\Telegram\NavKeyboards::simplified()
+            ? \App\Services\Telegram\NavKeyboards::whatNextWith([
                 [
-                    ['text' => '📡 Маяки',       'callback_data' => 'teleportBeacon'],
-                    ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
+                    ['text' => '📡 Маяки', 'callback_data' => 'teleportBeacon'],
                 ],
-                [
-                    ['text' => '🎉 События',     'callback_data' => 'events'],
-                    ['text' => '🧑‍🌾 Действия 🛠️','callback_data' => 'characterActions'],
-                ],
-            ]
-        ];
+            ])
+            : [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '📡 Маяки',       'callback_data' => 'teleportBeacon'],
+                        ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
+                    ],
+                    [
+                        ['text' => '🎉 События',     'callback_data' => 'events'],
+                        ['text' => '🧑‍🌾 Действия 🛠️','callback_data' => 'characterActions'],
+                    ],
+                ]
+            ];
 
         return Request::sendMessage([
             'chat_id'      => $chatId,

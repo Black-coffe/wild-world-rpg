@@ -133,18 +133,27 @@ class RunAwayAction extends BaseAction
             . "<b>Золото:</b> ".(int)$newGold."\n\n"
             . "Осталось лишь надеяться, что вас не настигнут вновь...";
 
-        $keyboard = [
-            'inline_keyboard' => [
+        // ADR-150 (чистка дублей): после побега важно уйти дальше — «🧭 Идти» + «Поход».
+        // «Инвентарь»/«События» переехали на нижнюю панель, из боя они не нужны.
+        $keyboard = \App\Services\Telegram\NavKeyboards::simplified()
+            ? \App\Services\Telegram\NavKeyboards::whatNextWith([
                 [
+                    ['text' => '🗺️ Поход',    'callback_data' => 'march'],
                     ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🗺️ Поход', 'callback_data' => 'march'],
                 ],
-                [
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '🎉 События',   'callback_data' => 'events'],
-                ],
-            ]
-        ];
+            ])
+            : [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                        ['text' => '🗺️ Поход', 'callback_data' => 'march'],
+                    ],
+                    [
+                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                        ['text' => '🎉 События',   'callback_data' => 'events'],
+                    ],
+                ]
+            ];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 

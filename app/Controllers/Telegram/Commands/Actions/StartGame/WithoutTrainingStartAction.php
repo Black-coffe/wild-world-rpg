@@ -51,23 +51,31 @@ class WithoutTrainingStartAction extends BaseAction
             . "🌟 _Я благодарен тебе за выбор нашей игры и уверен, что ты проявишь себя как настоящий герой и изощрённый стратег! Вперёд, к новым вершинам и победам!_\n\n"
             . "👋 До скорой встречи в *Wild World*! Жду новостей о твоих захватывающих приключениях! 🌌\n";
 
-        $keyboard = [
-            'inline_keyboard' => [
+        // ADR-150 (чистка дублей): «📖 Путь новичка» остаётся — игрок ТОЛЬКО ЧТО пропустил
+        // обучение, это его страховка. Остальные шесть кнопок теперь на нижней панели.
+        $keyboard = \App\Services\Telegram\NavKeyboards::simplified()
+            ? \App\Services\Telegram\NavKeyboards::whatNextWith([
                 [
                     ['text' => '📖 Путь новичка', 'callback_data' => 'guide'],
                 ],
-                [
-                    ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🎉 События', 'callback_data' => 'events']
-                ],
-                [
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                    ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
+            ])
+            : [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '📖 Путь новичка', 'callback_data' => 'guide'],
+                    ],
+                    [
+                        ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
+                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                        ['text' => '🎉 События', 'callback_data' => 'events']
+                    ],
+                    [
+                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                        ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+                        ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
+                    ]
                 ]
-            ]
-        ];
+            ];
         $imagePath = base_url('uploads/telegram/picture_of_the_playable_character.png'); // Укажите актуальный путь к изображению
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 

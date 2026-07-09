@@ -80,17 +80,20 @@ class CancelGatherAction extends BaseAction
         $messageText .= "*Пустые руки, но целая жизнь — тоже результат!* 😜\n";
 
         // Клавиатура для продолжения
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
-                ],
-                [
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '🎉 События', 'callback_data' => 'events']
+        // ADR-150 (чистка дублей): «Инвентарь»/«События» — в один-два тапа с нижней панели.
+        $keyboard = \App\Services\Telegram\NavKeyboards::simplified()
+            ? \App\Services\Telegram\NavKeyboards::whatNextWith()
+            : [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
+                    ],
+                    [
+                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                        ['text' => '🎉 События', 'callback_data' => 'events']
+                    ]
                 ]
-            ]
-        ];
+            ];
 
         // Отвечаем на callbackQuery, чтобы убрать значок «загрузка» в Telegram
         Request::answerCallbackQuery([

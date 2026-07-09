@@ -309,15 +309,18 @@ class GatherTips extends Controller
             . "5️⃣ Продавай ненужное, покупай нужное для крафта\n\n"
             . "🌟 На 2–4 уровнях я приду с новыми новостями. 🛠️ Меню — внизу чата. Удачи!";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '🎉 События', 'callback_data' => 'events'],
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
+        // ADR-150 (чистка дублей): новичку нужна ОДНА ясная стрелка, а не три равнозначные.
+        $keyboard = \App\Services\Telegram\NavKeyboards::simplified()
+            ? \App\Services\Telegram\NavKeyboards::whatNextWith()
+            : [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                        ['text' => '🎉 События', 'callback_data' => 'events'],
+                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
+                    ]
                 ]
-            ]
-        ];
+            ];
 
         // #12 edit-in-place (ADR-018): результат первой добычи — навигация → редактируем
         // сообщение, на котором нажата кнопка «⛏️ Добыть ресурсы» (fallback на новое).

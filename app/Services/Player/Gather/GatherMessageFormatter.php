@@ -108,17 +108,20 @@ final class GatherMessageFormatter
 
         $msg .= "\n<b>Твои усилия были вознаграждены!</b>";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
-                ],
-                [
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '🎉 События', 'callback_data' => 'events']
+        // ADR-150 (чистка дублей): суп дублировал нижнюю панель → канонический «что дальше».
+        $keyboard = \App\Services\Telegram\NavKeyboards::simplified()
+            ? \App\Services\Telegram\NavKeyboards::whatNextWith()
+            : [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions']
+                    ],
+                    [
+                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                        ['text' => '🎉 События', 'callback_data' => 'events']
+                    ]
                 ]
-            ]
-        ];
+            ];
 
         return [
             'text'     => $msg,

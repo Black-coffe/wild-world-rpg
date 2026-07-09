@@ -111,15 +111,18 @@ class CharacterDataHandler extends BaseTaskHandler
     {
         // Если клавиатура не задана, используем дефолт
         if ($keyboard === null || $keyboard === 0 || $keyboard === '') {
-            $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                        ['text' => '🎉 События', 'callback_data' => 'events']
+            // ADR-150 (чистка дублей): дефолтная клавиатура уведомления → «что дальше».
+            $keyboard = \App\Services\Telegram\NavKeyboards::simplified()
+                ? \App\Services\Telegram\NavKeyboards::whatNextWith()
+                : [
+                    'inline_keyboard' => [
+                        [
+                            ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                            ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                            ['text' => '🎉 События', 'callback_data' => 'events']
+                        ]
                     ]
-                ]
-            ];
+                ];
         }
 
         // Если путь к картинке не задан, берём дефолтную

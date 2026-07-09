@@ -323,9 +323,18 @@ class EventAction extends BaseAction
         return is_scalar($v) ? (string) $v : $default;
     }
 
+    /**
+     * ADR-150 (чистка дублей). 🔴 Здесь была кнопка «🎉 События» → callback `events`, то есть
+     * ссылка экрана на самого себя: игрок «переходил» туда, где уже стоит. Плюс суп из чужих
+     * групп. Теперь — честный выход: идти в мир или действовать на клетке.
+     * Канонический вход на этот экран — кнопка «🎉 События» на экране «🌍 Мир».
+     */
     protected function getKeyboard()
     {
-        // Метод для получения клавиатуры, если нужно изменить структуру
+        if (\App\Services\Telegram\NavKeyboards::simplified()) {
+            return \App\Services\Telegram\NavKeyboards::whatNextWith();
+        }
+
         return [
             'inline_keyboard' => [
                 [

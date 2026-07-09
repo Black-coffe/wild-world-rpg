@@ -297,19 +297,22 @@ class FoodAndWaterConsumptionHandler extends BaseTaskHandler
             . "🔹*Воды:* " . number_format($totalWaterResources) . " 💧\n\n"
             . "*P.S.*: 👀 Не забудь пополнить запасы провизии! 😉\n\n";
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🎉 События', 'callback_data' => 'events']
-                ],
-                [
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+        // ADR-150 (чистка дублей): суп дублировал нижнюю панель → канонический «что дальше».
+        $keyboard = \App\Services\Telegram\NavKeyboards::simplified()
+            ? \App\Services\Telegram\NavKeyboards::whatNextWith()
+            : [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
+                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                        ['text' => '🎉 События', 'callback_data' => 'events']
+                    ],
+                    [
+                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                        ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+                    ]
                 ]
-            ]
-        ];
+            ];
         $imagePath = base_url('uploads/telegram/water_and_food_resources.png');
 
         $this->safeSendPhoto(

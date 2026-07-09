@@ -187,11 +187,21 @@ class MoveSurfaceService
             ];
         }
 
-        // S7 (ADR-145): кнопка «🌍 Остров живёт» — только при killswitch ON (иначе byte-identical).
+        // Нижний ряд «состояние мира». Обе кнопки — read-only витрины про остров, а не про
+        // персонажа, поэтому живут именно здесь.
+        //  - S7 (ADR-145) «🌍 Остров живёт» — только при своём killswitch.
+        //  - ADR-150 (чистка дублей) «🎉 События» — канонический дом экрана `events`. Раньше дома
+        //    не было вовсе: кнопку копировали на 17 чужих экранов, а сам экран «События» имел
+        //    кнопку «События» на себя же. Появляется при final_grid ON, чтобы не осиротеть.
+        $worldRow = [];
         if ($islandEnabled) {
-            $rows[] = [
-                ['text' => '🌍 Остров живёт', 'callback_data' => 'island'],
-            ];
+            $worldRow[] = ['text' => '🌍 Остров живёт', 'callback_data' => 'island'];
+        }
+        if ($this->finalGridEnabled()) {
+            $worldRow[] = ['text' => '🎉 События', 'callback_data' => 'events'];
+        }
+        if ($worldRow !== []) {
+            $rows[] = $worldRow;
         }
 
         return $rows;
@@ -226,6 +236,12 @@ class MoveSurfaceService
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /** Killswitch ADR-150 ФИНАЛ (navigation.final_grid.enabled). Overridable seam для тестов. */
+    protected function finalGridEnabled(): bool
+    {
+        return \App\Services\Telegram\BotMenuService::finalGridEnabled();
     }
 
     /** Killswitch ADR-150 Слайс 1 (navigation.world_hub.enabled). Overridable seam для тестов. */

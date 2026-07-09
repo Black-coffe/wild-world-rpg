@@ -39,20 +39,23 @@ class EntrenchAction extends BaseAction
         $maxBases  = $baseLimit->maxBasesForLevel($level);
 
         // Management-клавиатура (когда строить новую базу нельзя).
-        $manageKeyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🎉 События', 'callback_data' => 'events'],
+        // ADR-150 (чистка дублей): суп из шести кнопок дублировал нижнюю панель → «что дальше».
+        $manageKeyboard = \App\Services\Telegram\NavKeyboards::simplified()
+            ? \App\Services\Telegram\NavKeyboards::whatNextWith()
+            : [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
+                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                        ['text' => '🎉 События', 'callback_data' => 'events'],
+                    ],
+                    [
+                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                        ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+                        ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
+                    ],
                 ],
-                [
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                    ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
-                ],
-            ],
-        ];
+            ];
 
         // Лимит баз достигнут — объясняем игроку (UX-discoverability), дальше не идём.
         if ($campCount >= $maxBases) {

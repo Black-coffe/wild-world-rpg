@@ -75,20 +75,23 @@ class QuestExploreAllBiomesHandler extends BaseTaskHandler
 
     protected function sendMessage($telegramUserId, $message): void
     {
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🎉 События', 'callback_data' => 'events']
-                ],
-                [
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                    ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
+        // ADR-150 (чистка дублей): награда за квест — не место для шести чужих кнопок.
+        $keyboard = \App\Services\Telegram\NavKeyboards::simplified()
+            ? \App\Services\Telegram\NavKeyboards::whatNextWith()
+            : [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
+                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                        ['text' => '🎉 События', 'callback_data' => 'events']
+                    ],
+                    [
+                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                        ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+                        ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
+                    ]
                 ]
-            ]
-        ];
+            ];
         $imagePath = base_url('uploads/telegram/quests/explore_allBiomes_finish.jpg');
 
         $this->safeSendPhoto(
