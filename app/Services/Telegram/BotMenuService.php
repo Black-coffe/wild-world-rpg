@@ -10,6 +10,7 @@ use App\Models\TelegramUserModel;
 use App\Services\BaseService;
 use App\Services\GameSettings\GameSettingsService;
 use App\Services\Player\CharacterService;
+use App\Services\More\MoreSurfaceService;
 use App\Services\Player\CraftService;
 use App\Services\Tasks\TasksSurfaceService;
 use App\Services\World\MapService;
@@ -63,7 +64,15 @@ class BotMenuService
         // ADR-150 Слайс 3: при tasks_hub ON во втором ряду появляется «📋 Дела» — дом целей
         // (таймеры/квесты/задания дня). Раньше активные задачи жили ТОЛЬКО в slash `/tasks`:
         // ни одной кнопки → их находили 30% активных игроков. OFF → ряд byte-identical.
-        $secondRow = self::tasksHubEnabled() ? ['📋 Дела', 'Настройки'] : ['Настройки'];
+        //
+        // ADR-150 Слайс 4: при more_hub ON «Настройки» уступают место «⚙️ Ещё» — дому группы
+        // (магазин/арена/развлечения/фракция/помощь/настройки). Сами Настройки живут ВНУТРИ
+        // «Ещё» (один тап) + slash `/settings` + текст «настройки» — путь не теряется.
+        $secondRow = [];
+        if (self::tasksHubEnabled()) {
+            $secondRow[] = '📋 Дела';
+        }
+        $secondRow[] = self::moreHubEnabled() ? '⚙️ Ещё' : 'Настройки';
 
         return [
             ['Перс', 'База', 'Крафт', $mapLabel],
@@ -109,6 +118,21 @@ class BotMenuService
     public static function tasksHubEnabled(): bool
     {
         $raw = (new GameSettingsService())->get('navigation.tasks_hub.enabled', false);
+        if (is_bool($raw)) {
+            return $raw;
+        }
+
+        return is_numeric($raw) ? (int) $raw === 1 : false;
+    }
+
+    /**
+     * Killswitch ADR-150 Слайс 4 (navigation.more_hub.enabled). false (default) — DORMANT:
+     * нижняя кнопка «Настройки» как раньше, экрана «Ещё» нет. true — «⚙️ Ещё» становится домом
+     * группы (магазин/арена/развлечения/фракция/помощь/настройки).
+     */
+    public static function moreHubEnabled(): bool
+    {
+        $raw = (new GameSettingsService())->get('navigation.more_hub.enabled', false);
         if (is_bool($raw)) {
             return $raw;
         }
@@ -273,6 +297,21 @@ class BotMenuService
         }
 
         return (new TasksSurfaceService())->show($chatId, $character);
+    }
+
+    /**
+     * ADR-150 Слайс 4 — открыть поверхность «⚙️ Ещё». Используется нижней кнопкой «⚙️ Ещё»
+     * и текстом «ещё». Единый рендер — {@see MoreSurfaceService::show} (тот же экран, что у
+     * callback `moreHub`).
+     */
+    public static function openMore(int $chatId, int $telegramId): ServerResponse
+    {
+        $character = self::resolveCharacter($telegramId);
+        if ($character === null) {
+            return self::noCharacter($chatId);
+        }
+
+        return (new MoreSurfaceService())->show($chatId, $character);
     }
 
     /**

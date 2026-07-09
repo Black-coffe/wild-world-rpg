@@ -412,4 +412,30 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
             'Кнопка «⛔️ Прервать» с экрана «Дела» обязана резолвиться в FinishTaskAction.'
         );
     }
+
+    /**
+     * ADR-150 Слайс 4 — хаб «⚙️ Ещё»: callback `moreHub` → MoreHubAction. Плюс КАЖДАЯ кнопка,
+     * которую рендерит экран «Ещё», обязана резолвиться — иначе получим мёртвую кнопку
+     * (class-of-bug `npcAct_`, пойманный только живым тапом).
+     */
+    public function testMoreHubCallbackRoutesResolve(): void
+    {
+        $this->assertSame(
+            \App\Controllers\Telegram\Commands\Actions\MoreHubAction::class,
+            $this->cbRoutes->resolve('moreHub'),
+            'callback_data «moreHub» обязан резолвиться в MoreHubAction (хаб «Ещё»).'
+        );
+
+        // Все выходы экрана «Ещё» (первый сегмент до `_`, как это делает CallbackqueryCommand).
+        foreach ([
+            'shop', 'arena', 'entertainment', 'chooseFaction_info', 'chooseFactionLocked',
+            'factionProject', 'referral', 'tributeStatus', 'guide', 'whatsNewCatalog',
+            'settings', 'move',
+        ] as $cb) {
+            $this->assertNotNull(
+                $this->cbRoutes->resolve(explode('_', $cb)[0]),
+                "Кнопка «{$cb}» с экрана «Ещё» не резолвится — мёртвая кнопка."
+            );
+        }
+    }
 }

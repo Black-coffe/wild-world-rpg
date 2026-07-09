@@ -74,6 +74,13 @@ class GenericmessageCommand extends SystemCommand
             case 'дела':
                 return $this->handleTasks($chatId);
 
+            // ADR-150 Слайс 4: новая нижняя кнопка «⚙️ Ещё» (при more_hub ON) → хаб «Ещё».
+            // «еще» без ё — игрок часто печатает так.
+            case '⚙️ ещё':
+            case 'ещё':
+            case 'еще':
+                return $this->handleMore($chatId);
+
             case 'настройки':
             case 'settings':
                 return $this->handleSettings($chatId);
@@ -468,6 +475,24 @@ class GenericmessageCommand extends SystemCommand
         $telegramId = (int) $this->getMessage()->getFrom()->getId();
 
         return \App\Services\Telegram\BotMenuService::openTasks($chatId, $telegramId);
+    }
+
+    /**
+     * ADR-150 Слайс 4 — открыть поверхность «⚙️ Ещё» из нижней кнопки/текста. Единый рендер
+     * {@see \App\Services\More\MoreSurfaceService::show} (тот же экран, что callback `moreHub`).
+     *
+     * При killswitch OFF слово «ещё» — обычный нераспознанный текст → общий fallback
+     * (иначе dormant-флаг протёк бы наружу новым поведением).
+     */
+    private function handleMore(int $chatId): ServerResponse
+    {
+        if (! \App\Services\Telegram\BotMenuService::moreHubEnabled()) {
+            return $this->unrecognized($chatId);
+        }
+
+        $telegramId = (int) $this->getMessage()->getFrom()->getId();
+
+        return \App\Services\Telegram\BotMenuService::openMore($chatId, $telegramId);
     }
 
     private function handleMap(int $chatId): ServerResponse
