@@ -129,11 +129,25 @@ class DefensiveBuildingHandler extends BaseAction
             [['text' => '🏠 База', 'callback_data' => 'Base']],
         ]];
 
-        $imagePath = base_url(self::DEF[$nameEng]['image']);
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-        return MediaSender::editOrSend($this->navTarget() + [
-            'photo'        => Request::encodeFile($imagePath),
-            'caption'      => $text,
+
+        // ФС авторитетнее карты (класс-баг Gear, урок art-but-invisible): ключ уже провалидирован
+        // выше (стр. 59), но файл на диске может пропасть. Отсутствующий файл не должен ронять
+        // экран через fopen в encodeFile() → шлём caption текстом (MEDIA-OFF, ADR-020).
+        $imageRel = self::DEF[$nameEng]['image'];
+        $imageAbs = FCPATH . str_replace('/', DIRECTORY_SEPARATOR, $imageRel);
+
+        if (is_file($imageAbs)) {
+            return MediaSender::editOrSend($this->navTarget() + [
+                'photo'        => Request::encodeFile(base_url($imageRel)),
+                'caption'      => $text,
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode($keyboard),
+            ]);
+        }
+
+        return MediaSender::editTextOrSend($this->navTarget() + [
+            'text'         => $text,
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);

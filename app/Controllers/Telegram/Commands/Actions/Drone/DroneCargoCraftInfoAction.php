@@ -133,7 +133,14 @@ final class DroneCargoCraftInfoAction extends BaseAction
             ]]];
         }
 
-        $imageRel  = is_string($recipe['image_completed'] ?? null) ? $recipe['image_completed'] : '';
+        // Резолв как у сиблингов (DroneRepair/DroneCombat): FCPATH-проверка на диске, иначе
+        // fallback на image_in_progress. encodeFile() fopen'ит путь — пустой/несуществующий
+        // image_completed уронил бы экран осмотра (класс-баг Gear, урок art-but-invisible).
+        $imageRel = is_string($recipe['image_completed'] ?? null) ? $recipe['image_completed'] : '';
+        $imageAbs = FCPATH . str_replace('/', DIRECTORY_SEPARATOR, $imageRel);
+        if ($imageRel === '' || ! is_file($imageAbs)) {
+            $imageRel = is_string($recipe['image_in_progress'] ?? null) ? $recipe['image_in_progress'] : '';
+        }
         $imagePath = base_url($imageRel);
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
