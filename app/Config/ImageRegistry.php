@@ -318,9 +318,10 @@ class ImageRegistry extends BaseConfig
         ['key' => 'camp/blast_furnace', 'file' => 'uploads/telegram/camp/blast_furnace.png', 'lexicon' => 'building.blast-furnace', 'scene' => 'the furnace centred, smoking and glowing', 'mode' => 'V1', 'status' => 'generated', 'used_in' => 'BlastFurnace building (BlastFurnaceHandler)'],
         ['key' => 'camp/teleport_center', 'file' => 'uploads/telegram/camp/teleport_center.png', 'lexicon' => 'building.teleport-center', 'scene' => '', 'mode' => 'V1', 'status' => 'generated', 'used_in' => 'TeleportCenter building'],
         ['key' => 'camp/Robotics-Workshop', 'file' => 'uploads/telegram/camp/Robotics-Workshop.jpg', 'lexicon' => 'building.robotics-workshop', 'scene' => '', 'mode' => 'V1', 'status' => 'generated', 'used_in' => 'RoboticsWorkshop building (RoboticsWorkshopHandler)'],
-        // V28 — оборонные постройки (DefensiveBuildingHandler, ADR-041). 3 файла на диске отсутствуют,
-        // handler рендерил caption-only fallback через MediaSender (media-off safe). V4 mode — читаемая
-        // постройка, минимум артефактов плёнки (как у hero / арсенала / мастерской).
+        // V28 — оборонные постройки (DefensiveBuildingHandler, ADR-041). 3 файла есть на диске и в git
+        // (проверено 2026-07-10 при аудите карт name→файл). Handler резолвит их через is_file, при
+        // пропаже файла деградирует на caption-текст (MEDIA-OFF). V4 mode — читаемая постройка,
+        // минимум артефактов плёнки (как у hero / арсенала / мастерской).
         ['key' => 'camp/wooden_wall', 'file' => 'uploads/telegram/camp/wooden_wall.jpg', 'lexicon' => 'building.wooden-wall', 'scene' => 'the wall section centred and in focus, a quiet overcast camp behind', 'mode' => 'V4', 'status' => 'generated', 'used_in' => 'WoodenWall defensive building (DefensiveBuildingHandler)'],
         ['key' => 'camp/barbed_fence', 'file' => 'uploads/telegram/camp/barbed_fence.jpg', 'lexicon' => 'building.barbed-fence', 'scene' => 'a stretch of the fence centred and in focus, low grey light, the camp edge softly behind', 'mode' => 'V4', 'status' => 'generated', 'used_in' => 'BarbedFence defensive building (DefensiveBuildingHandler)'],
         ['key' => 'camp/watch_tower', 'file' => 'uploads/telegram/camp/watch_tower.jpg', 'lexicon' => 'building.watch-tower', 'scene' => 'the tower centred and in focus rising above the camp roofs, dawn or low-overcast light, the wider wild beyond', 'mode' => 'V4', 'status' => 'generated', 'used_in' => 'WatchTower defensive building (DefensiveBuildingHandler)'],
