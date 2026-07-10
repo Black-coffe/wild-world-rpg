@@ -687,6 +687,27 @@ class WorldEvents extends BaseConfig
             'protection_item'   => null,
             'notification_kind' => 'lifecycle',
         ],
+
+        // ============================================================
+        // 🎉 Витринные события (E32): механика — вне tick-диспетчера
+        // ============================================================
+
+        // «Новая эра» — праздничный глобальный буст добычи на неделю (E32).
+        // effect_kind=noop: tick-диспетчер резолвит чисто и НЕ применяет ничего
+        // (без warning-спама, без one_shot-компаундинга). Реальный эффект — +% ко
+        // всем ресурсам в GatherEventModifierService (читается в момент добычи).
+        // notification_kind=silent: старт-нотификацию НЕ шлём (активируем вручную,
+        // анонс идёт отдельным консолидированным broadcast'ом E32). В events.frequency_per_week=0
+        // → авто-активатор его не выбирает (только ручная активация active_events).
+        'NovayaEra' => [
+            'effect_kind'       => 'noop',
+            'effect_params'     => [],
+            'duration_minutes'  => 10080, // 7 дней (справочно; фактическую длительность задаёт active_events.end_time)
+            'frequency_weight'  => 1,
+            'tick_chance'       => 1.0,
+            'protection_item'   => null,
+            'notification_kind' => 'silent',
+        ],
     ];
 
     /**

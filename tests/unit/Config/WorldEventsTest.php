@@ -104,8 +104,9 @@ final class WorldEventsTest extends CIUnitTestCase
         // 2026-05-19: +4 S10 rare-drop events (VolcanicFuelCache / PreCollapseVaultOpening /
         // IndustrialDumpFind / MountainArmyDepot) → 29.
         // 2026-06-12: +2 E17 Ф2 (ADR-117) — RadioactiveFog (harm-tier) + CleanSpring (boon-tier) → 31.
+        // 2026-07-10: +1 E32 — NovayaEra (noop/silent витринное событие, буст добычи вне tick-движка) → 32.
         // Якщо число змінюється, оновити тут і в hot.md/Events-actual.md.
-        $this->assertCount(31, $this->cfg->keys(), 'Очікується 31 подія у конфігу');
+        $this->assertCount(32, $this->cfg->keys(), 'Очікується 32 події у конфігу');
     }
 
     // ============================================================
@@ -182,12 +183,22 @@ final class WorldEventsTest extends CIUnitTestCase
     public function testEveryDurationIsAtMost90Minutes(): void
     {
         foreach ($this->cfg->events as $key => $event) {
-            $this->assertLessThanOrEqual(
-                90,
-                $event['duration_minutes'],
-                "Подія '{$key}' має duration_minutes={$event['duration_minutes']}, " .
-                "максимум 90 за анти-spam policy F7."
-            );
+            // Анти-spam cap ≤90 хв стосується TICK-подій (кожнохвилинний ефект = ризик спаму).
+            // Витринні події з effect_kind='noop' + notification_kind='silent' (E32 NovayaEra:
+            // тижневий буст добычі поза tick-движком, без нотифікацій) НЕ тікають і НЕ спамлять —
+            // їхня реальна тривалість задається active_events.end_time, cap до них не застосовний.
+            $isSilentShowcase = ($event['effect_kind'] ?? '') === 'noop'
+                && ($event['notification_kind'] ?? '') === 'silent';
+
+            if (! $isSilentShowcase) {
+                $this->assertLessThanOrEqual(
+                    90,
+                    $event['duration_minutes'],
+                    "Подія '{$key}' має duration_minutes={$event['duration_minutes']}, " .
+                    "максимум 90 за анти-spam policy F7."
+                );
+            }
+
             $this->assertGreaterThan(
                 0,
                 $event['duration_minutes'],

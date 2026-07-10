@@ -80,8 +80,9 @@ final class GatherEventModifierServiceLoadTest extends CIUnitTestCase
     public function testLoadActiveEventsReturnsAllInactiveWhenNoEvents(): void
     {
         $result = $this->svc->loadActiveEvents();
-        // Все 5 в дефолте → все inactive с effect=0.
-        $this->assertCount(5, $result);
+        // Все relevant-события в дефолте → все inactive с effect=0. Размер выводим из константы
+        // (drift-proof: добавили NovayaEra (E32) → RELEVANT_EVENTS=6, тест не врёт).
+        $this->assertCount(count(GatherEventModifierService::RELEVANT_EVENTS), $result);
         foreach (GatherEventModifierService::RELEVANT_EVENTS as $name) {
             $this->assertArrayHasKey($name, $result);
             $this->assertFalse($result[$name]['active']);

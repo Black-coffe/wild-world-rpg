@@ -6,6 +6,7 @@ namespace App\Services\Player\Gather;
 
 use App\Models\ActiveEventModel;
 use App\Models\EventModel;
+use App\Services\GameSettings\GameSettingsService;
 
 /**
  * F2.7c — батч-загрузка активных событий + применение модификаторов добычи.
@@ -36,6 +37,7 @@ final class GatherEventModifierService
         'ExoticFlowering',
         'BerryBoom',
         'Dryness',
+        'NovayaEra', // E32 — глобальный праздничный буст добычи (зеркало LocustExodus, положительное).
     ];
 
     /**
@@ -50,13 +52,19 @@ final class GatherEventModifierService
 
     private EventModel $eventModel;
     private ActiveEventModel $activeEventModel;
+    private GameSettingsService $settings;
+
+    /** Кэш killswitch'а «Новой эры» на время жизни сервиса (одна добыча). */
+    private ?bool $novayaEraEnabledCache = null;
 
     public function __construct(
         ?EventModel $eventModel = null,
-        ?ActiveEventModel $activeEventModel = null
+        ?ActiveEventModel $activeEventModel = null,
+        ?GameSettingsService $settings = null
     ) {
         $this->eventModel       = $eventModel       ?? new EventModel();
         $this->activeEventModel = $activeEventModel ?? new ActiveEventModel();
+        $this->settings         = $settings         ?? new GameSettingsService();
     }
 
     /**
@@ -136,7 +144,41 @@ final class GatherEventModifierService
             $amount *= (1 - $locust['effect_value'] / 100.0);
         }
 
+        // E32 «Новая эра» — глобальный праздничный буст: +effect_value% ко ВСЕМ ресурсам,
+        // пока активно одноимённое событие. Зеркало LocustExodus (глобальный множитель по
+        // всему выхлопу), но положительное. Читается в момент добычи (не tick-эффект) →
+        // нет one_shot-компаундинга (урок ADR-141). Killswitch events.novaya_era.enabled —
+        // аварийный офф; ИСТИННЫЙ гейт активации — наличие active_events-строки события
+        // (без неё loadedEvents['NovayaEra']['active']=false, ветка не срабатывает, byte-identical).
+        $novaya = $loadedEvents['NovayaEra'] ?? null;
+        if ($novaya !== null && $novaya['active'] && $this->isNovayaEraEnabled()) {
+            $amount *= (1 + $novaya['effect_value'] / 100.0);
+        }
+
         return $amount;
+    }
+
+    /**
+     * E32 — killswitch буста «Новой эры» (аварийный офф без деплоя). Кэшируется на
+     * время жизни сервиса (одна добыча вызывает applyResourceModifiers на каждый ресурс).
+     * Дефолт true: настоящий гейт активации — active_events-строка, флаг лишь глушит буст
+     * при уже активном событии.
+     */
+    private function isNovayaEraEnabled(): bool
+    {
+        if ($this->novayaEraEnabledCache !== null) {
+            return $this->novayaEraEnabledCache;
+        }
+
+        $v = $this->settings->get('events.novaya_era.enabled', true);
+        if (is_bool($v)) {
+            return $this->novayaEraEnabledCache = $v;
+        }
+        if (is_numeric($v)) {
+            return $this->novayaEraEnabledCache = ((int) $v === 1);
+        }
+
+        return $this->novayaEraEnabledCache = in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
     }
 
     /**
