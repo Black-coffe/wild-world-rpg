@@ -49,6 +49,11 @@ final class ProfileHubService
                 $b[] = ['text' => "🔒 Музей (с lvl {$min})", 'callback_data' => 'museumLocked'];
             }
         }
+        // Топ игроков (2026-07-10) — общий рейтинг по уровню. Стоит ПЕРЕД «Рейтинг PvP»:
+        // спрашивали именно про него («тут есть топ игроков?»), а ладдер — это про дуэли.
+        if ((new \App\Services\Social\LeaderboardService())->enabled()) {
+            $b[] = ['text' => '🏆 Топ игроков', 'callback_data' => 'leaderboard'];
+        }
         if ((new \App\Services\PVE\PvpLadderService())->enabled()) {
             $b[] = ['text' => '🏆 Рейтинг PvP', 'callback_data' => 'pvpLadder'];
         }

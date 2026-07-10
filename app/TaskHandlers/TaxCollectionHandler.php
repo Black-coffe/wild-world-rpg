@@ -507,9 +507,9 @@ class TaxCollectionHandler extends BaseTaskHandler
      */
     private function markdownSafeName(string $name): string
     {
-        $clean = trim(str_replace(['*', '_', '`', '[', ']'], '', $name));
-
-        return $clean === '' ? 'База' : $clean;
+        // Логика вынесена в общий App\Services\Display\MarkdownSafe (2026-07-10):
+        // топ игроков рендерит имена десятками, второй копии не заводим.
+        return \App\Services\Display\MarkdownSafe::name($name, 'База');
     }
 
     /**

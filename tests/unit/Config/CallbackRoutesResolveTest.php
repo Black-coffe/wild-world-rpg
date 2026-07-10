@@ -51,6 +51,20 @@ final class CallbackRoutesResolveTest extends CIUnitTestCase
      * exact `move` (→ MoveCharacterAction, рендер карты 12×12). Этот тест фиксирует, что
      * `move` резолвится, а мёртвый `inlineMap` — нет (документирует, почему его убрали).
      */
+    /**
+     * Топ игроков (2026-07-10): обе вкладки и кнопка возврата обязаны резолвиться,
+     * иначе экран отвечает «кнопка устарела» (класс-бага мёртвых `npcAct_`).
+     */
+    public function testLeaderboardTabsResolve(): void
+    {
+        foreach (['leaderboard', 'leaderboardLegends', 'progressHub'] as $action) {
+            $this->assertNotNull(
+                $this->cbRoutes->resolve($action),
+                "Callback «{$action}» не резолвится — кнопка экрана «Топ игроков» будет мёртвой."
+            );
+        }
+    }
+
     public function testMapButtonUsesResolvableMoveRoute(): void
     {
         $this->assertSame(

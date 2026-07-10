@@ -149,6 +149,15 @@ class GenericmessageCommand extends SystemCommand
 
                 return $moreResponse;
 
+            // Text-алиасы (2026-07-10): «топ» и «тут есть топ игроков?» приходили в firehose как
+            // unrouted от ДВУХ разных игроков. Тогда алиас не сделали — общего топа не было, и
+            // вести слово в рейтинг ДУЭЛЕЙ значило соврать. Теперь экран есть → слово ведёт в него.
+            case 'топ':
+            case 'рейтинг':
+            case 'топ игроков':
+            case 'тут есть топ игроков?':
+                return $this->handleLeaderboard($chatId);
+
             case 'настройки':
             case 'settings':
                 $settingsResponse = $this->handleSettings($chatId);
@@ -607,6 +616,34 @@ class GenericmessageCommand extends SystemCommand
      * При killswitch OFF слово «ещё» — обычный нераспознанный текст → общий fallback
      * (иначе dormant-флаг протёк бы наружу новым поведением).
      */
+    /**
+     * Топ игроков по слову «топ»/«рейтинг» (2026-07-10). Рендер — общий {@see LeaderboardScreen},
+     * тот же, что у кнопки «🏆 Топ игроков». При killswitch OFF — честный текст «отключён
+     * администрацией», а не «Не понял команду»: слово не становится мёртвым.
+     */
+    private function handleLeaderboard(int $chatId): ServerResponse
+    {
+        $screen = new \App\Services\Social\LeaderboardScreen();
+        if (! (new \App\Services\Social\LeaderboardService())->enabled()) {
+            return Request::sendMessage(['chat_id' => $chatId] + $screen->disabledPayload());
+        }
+
+        $telegramId = (int) $this->getMessage()->getFrom()->getId();
+        $userRow    = (new TelegramUserModel())->where('telegram_id', $telegramId)->first();
+        if (! is_array($userRow)) {
+            return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Пользователь не найден.']);
+        }
+
+        // Модель типизирована CharacterEntity (F1.4.1) — Entity в array-контекст не суём
+        // вслепую (урок feedback_entity_strict_array_typehint_trap), нарроуим явно.
+        $charRow = (new CharacterModel())->where('telegram_user_id', $userRow['id'])->first();
+        $charId  = $charRow instanceof \App\Entities\CharacterEntity && is_numeric($charRow['id'] ?? null)
+            ? (int) $charRow['id']
+            : 0;
+
+        return Request::sendMessage(['chat_id' => $chatId] + $screen->payload($charId));
+    }
+
     private function handleMore(int $chatId): ServerResponse
     {
         if (! \App\Services\Telegram\BotMenuService::moreHubEnabled()) {
