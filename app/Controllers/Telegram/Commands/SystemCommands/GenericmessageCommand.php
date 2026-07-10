@@ -82,13 +82,33 @@ class GenericmessageCommand extends SystemCommand
                 return $craftResponse;
 
             case 'карта':
+            // Text-алиасы (2026-07-10, аудит firehose `status=unrouted` за 90 дней).
+            // Игроки НАБИРАЮТ то, что обучающие тексты называют кнопкой: «двигаться»,
+            // «как двигаться?», «вверх». Раньше это уходило в «Не понял команду» —
+            // прямое нарушение ONBOARDING-COVERAGE (навигация не должна теряться).
+            // Компас (MoveSurfaceService) как раз и даёт кнопки направлений.
+            // `map` — латиница, зеркало уже существующего `settings`.
+            case 'map':
+            case 'двигаться':
+            case 'двигатся':
+            case 'идти':
+            case 'иду':
+            case 'ходить':
+            case 'как двигаться':
+            case 'как двигаться?':
+            case 'вверх':
+            case 'вниз':
+            case 'влево':
+            case 'вправо':
                 // ADR-150 Слайс 1: при world_hub ON «Карта» ведёт к компасу ходьбы
                 // (MoveSurfaceService), при OFF — к фото (byte-identical). Старая
                 // reply-клавиатура ещё шлёт «Карта» после флипа — тоже роутим на компас.
+                // Алиасы уважают тот же флаг: слово ведёт ровно туда же, куда кнопка.
                 $mapResponse = \App\Services\Telegram\BotMenuService::worldHubEnabled()
                     ? $this->handleWorld($chatId)
                     : $this->handleMap($chatId);
                 // Текст «Карта» в новом каркасе не существует («🌍 Мир») → клавиатура устарела.
+                // Набранное руками слово — тоже улика: скорее всего меню потеряно.
                 $this->refreshStaleMenu($chatId);
 
                 return $mapResponse;
@@ -107,6 +127,13 @@ class GenericmessageCommand extends SystemCommand
             // Голое «дела» ловим тоже — игрок печатает без эмодзи.
             case '📋 дела':
             case 'дела':
+            // Text-алиасы (2026-07-10): «квест» приходил в firehose как unrouted. Хаб «Дела»
+            // и есть дом квестов + заданий дня. При tasks_hub OFF handleTasks сам вернёт
+            // fallback «не понял» → мёртвого слова не возникает.
+            case 'квест':
+            case 'квесты':
+            case 'задание':
+            case 'задания':
                 $tasksResponse = $this->handleTasks($chatId);
                 $this->refreshStaleMenu($chatId);
 
