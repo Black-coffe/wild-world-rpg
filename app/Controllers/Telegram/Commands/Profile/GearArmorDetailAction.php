@@ -8,6 +8,7 @@ use App\Models\OutfitModel;
 use App\Models\ClaimedCellModel;
 use App\Models\CharacterModel;
 use App\Models\MapModel;
+use App\Services\Display\GearImageResolver;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -68,31 +69,15 @@ class GearArmorDetailAction extends BaseAction
     }
 
     /**
-     * Возвращает путь к изображению брони или заглушку.
+     * Путь к существующему файлу картинки брони, либо null (файла нет → шлём текст).
+     *
+     * Прод-инцидент 2026-07-10: раньше метод возвращал `standard/<файл>` не проверяя
+     * существование → `Request::encodeFile()` падал на fopen. 16 из 20 позиций карты
+     * не лежат в `standard/`. Резолв и деградация — в {@see GearImageResolver}.
      */
-    protected function getArmorImagePath(string $armorEnName): string
+    protected function getArmorImagePath(string $armorEnName): ?string
     {
-        // V15: фракционная броня (V14/ADR-046) лежит в professional/, её нет
-        // в standard/-карте ниже → раньше осмотр owned-брони падал на заглушку.
-        $factionRel = \App\Services\Display\OutfitDisplayHelper::factionArmorImageRel($armorEnName);
-        if ($factionRel !== null) {
-            $factionAbs = FCPATH . $factionRel;
-            if (is_file($factionAbs)) {
-                return $factionAbs;
-            }
-        }
-
-        $map = $this->getArmorImageMap();
-
-        // Проверяем, есть ли изображение для данной брони
-        if (isset($map[$armorEnName])) {
-            $filename = $map[$armorEnName];
-            // Формируем путь к картинке (локально на сервере)
-            return FCPATH . 'uploads/telegram/craft/standard/' . $filename;
-        }
-
-        // Если изображения нет — используем заглушку
-        return FCPATH . 'uploads/telegram/craft/standard/default_armor.jpg';
+        return GearImageResolver::armorImage($armorEnName, $this->getArmorImageMap());
     }
 
     public function handle(): ServerResponse
@@ -212,9 +197,22 @@ class GearArmorDetailAction extends BaseAction
             'callback_query_id' => $this->callbackQuery->getId()
         ]);
 
+        $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
+
+        // Картинки нет на диске → картинка это enhancement (MEDIA-OFF, ADR-020):
+        // caption самодостаточен, шлём его текстом. Раньше здесь падал encodeFile().
+        if ($imagePath === null) {
+            return Request::sendMessage([
+                'chat_id'      => $chatId,
+                'text'         => $text,
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode($keyboard),
+            ]);
+        }
+
         // Отправляем фото + описание
         return \App\Services\Notifications\MediaSender::sendPhotoOrText([
-            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,
             'parse_mode' => 'Markdown',

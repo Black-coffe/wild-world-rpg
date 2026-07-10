@@ -9,6 +9,7 @@ use App\Models\WeaponModel;
 use App\Models\ClaimedCellModel;
 use App\Models\CharacterModel;
 use App\Models\MapModel;
+use App\Services\Display\GearImageResolver;
 
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
@@ -53,20 +54,15 @@ class GearWeaponDetailAction extends BaseAction
     }
 
     /**
-     * Возвращает путь к файлу изображения (или заглушке, если не найдено).
+     * Путь к существующему файлу картинки оружия, либо null (файла нет → шлём текст).
+     *
+     * Близнец бага брони (прод-инцидент 2026-07-10): путь возвращался без проверки
+     * существования → `Request::encodeFile()` падал бы на fopen. Сейчас все 4 файла
+     * карты на месте, но добавление позиции без картинки уронило бы экран.
      */
-    protected function getWeaponImagePath(string $weaponEnName): string
+    protected function getWeaponImagePath(string $weaponEnName): ?string
     {
-        $map = $this->getWeaponImageMap();
-
-        if (isset($map[$weaponEnName])) {
-            $filename = $map[$weaponEnName];
-            // Возвращаем локальный путь, откуда Request::encodeFile сможет прочитать
-            return FCPATH . 'uploads/telegram/craft/standard/' . $filename;
-        }
-
-        // Заглушка
-        return FCPATH . 'uploads/telegram/craft/standard/default_weapon.jpg';
+        return GearImageResolver::weaponImage($weaponEnName, $this->getWeaponImageMap());
     }
 
     public function handle(): ServerResponse
@@ -194,9 +190,21 @@ class GearWeaponDetailAction extends BaseAction
         $weaponEnName = $weaponInfo['name_en'] ?? 'default_weapon';
         $imagePath    = $this->getWeaponImagePath($weaponEnName);
 
+        $chatId = $this->callbackQuery->getMessage()->getChat()->getId();
+
+        // Картинки нет на диске → caption самодостаточен (MEDIA-OFF, ADR-020), шлём текст.
+        if ($imagePath === null) {
+            return Request::sendMessage([
+                'chat_id'      => $chatId,
+                'text'         => $text,
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode($keyboard),
+            ]);
+        }
+
         // Отправляем фото + описание
         return \App\Services\Notifications\MediaSender::sendPhotoOrText([
-            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'chat_id'    => $chatId,
             'photo'      => Request::encodeFile($imagePath),
             'caption'    => $text,
             'parse_mode' => 'Markdown',
