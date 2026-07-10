@@ -50,8 +50,10 @@ final class GearImageResolverTest extends CIUnitTestCase
 
     public function testMissingArmorFileFallsBackToPlaceholderNotBrokenPath(): void
     {
-        // HunterVest есть в карте, но картинки нет ни в одном каталоге.
-        $path = GearImageResolver::armorImage('HunterVest', self::ARMOR_MAP);
+        // Предмет есть в карте, но файла нет ни в одном каталоге. Имя намеренно синтетическое:
+        // раньше здесь стоял HunterVest, и тест сломался, когда броне нарисовали арт. Проверяем
+        // ПОВЕДЕНИЕ (нет файла → заглушка), а не отсутствие конкретной картинки.
+        $path = GearImageResolver::armorImage('GhostOfAMissingFile', ['GhostOfAMissingFile' => 'no_such_armor_file.jpg']);
 
         $this->assertIsString($path, 'Отсутствующий файл → заглушка, а не null (заглушка существует)');
         $this->assertFileExists($path, 'Заглушка обязана существовать — иначе encodeFile снова упадёт');
