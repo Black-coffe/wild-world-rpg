@@ -1705,12 +1705,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
 
 		-
-			message: '#^Parameter \#4 \$biomeRow of method App\\Services\\Player\\TeleportBeacon\\BeaconMessageFormatter\:\:installSuccess\(\) expects array\<string, mixed\>\|null, App\\Entities\\BiomeEntity\|null given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/Buildings/TeleportBeaconSetAction.php
-
-		-
 			message: '#^Parameter \#5 \$beaconItem of method App\\Controllers\\Telegram\\Commands\\Actions\\Camp\\Buildings\\TeleportBeaconSetAction\:\:installBeacon\(\) expects array, mixed given\.$#'
 			identifier: argument.type
 			count: 1

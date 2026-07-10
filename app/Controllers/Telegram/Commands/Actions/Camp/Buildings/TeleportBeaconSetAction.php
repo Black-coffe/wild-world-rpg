@@ -7,6 +7,8 @@ use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 
 // Models — only those used directly у Action body (после Step 1-4 decomp).
+use CodeIgniter\Entity\Entity;
+
 use App\Models\BiomeModel;
 use App\Models\CharacterModel;
 
@@ -166,7 +168,13 @@ class TeleportBeaconSetAction
         $counters = $this->installer->install($characterId, $mapRow, $playerLevel, $beaconItem);
 
         // 2) Biome lookup (потрібен для display details).
-        $biomeRow = $biomeId ? $this->biomeModel->find($biomeId) : null;
+        //
+        // 🔴 Прод-баг 2026-07-08 (char 1106): BiomeModel::$returnType = BiomeEntity (F1.4.1),
+        // а installSuccess() оголошує `?array $biomeRow` → strict_types кидав TypeError.
+        // Маяк на той момент УЖЕ встановлено (крок 1) — гравець не бачив підтвердження.
+        // Конвертуємо Entity→array в ОКРЕМУ змінну (урок entity_strict_array_typehint_trap).
+        $biomeFound = $biomeId ? $this->biomeModel->find($biomeId) : null;
+        $biomeRow   = $biomeFound instanceof Entity ? $biomeFound->toArray() : null;
 
         // 3) Format + send.
         $this->send($chatId, $this->formatter->installSuccess(
