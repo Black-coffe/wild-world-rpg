@@ -186,9 +186,18 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
     /**
      * Резолвит цель для `encodeFile` и говорит, ТОЧНО ли локальный файл отсутствует.
      * Callers шлют два вида пути, оба указывают на наш `public/`: абсолютный `FCPATH.путь`
-     * ЛИБО `base_url('uploads/...')`. URL нашего сайта мапится обратно в `public/` и
-     * отдаётся как локальный путь (надёжнее HTTP-fetch). Внешний URL (сейчас никто не шлёт)
-     * не проверяем — полагаемся на try/catch выше.
+     * ЛИБО `base_url('uploads/...')`. URL нашего сайта мапится в локальный путь (надёжнее
+     * HTTP-fetch).
+     *
+     * 🔒 Path-traversal guard (security-review 2026-07-10, HIGH): цель `encodeFile` уходит в
+     * `fopen` и её содержимое отправляется в чат. Без канонизации путь с `..` (например
+     * `base_url('uploads/../../.env')` или `FCPATH.'uploads/../../app/Config/...'`) прочитал
+     * бы произвольный файл вне webroot → эксфильтрация. Сейчас все callers шлют конфиг/БД-пути,
+     * не пользовательский ввод, но это `protected`-метод базы ~70 хендлеров — конфайним жёстко:
+     * канонизируем `realpath` и требуем, чтобы файл лежал под `public/uploads`. Любой выход за
+     * границу (traversal / симлинк наружу / абсолютный путь к секрету) → «отсутствует» →
+     * деградация на текст. `realpath()` даёт `false` для несуществующего пути — это и есть
+     * штатное «файла нет». Чужой URL не фетчим (анти-SSRF) → тоже текст.
      *
      * @return array{0:string,1:bool} [цель encodeFile, файл точно отсутствует]
      */
@@ -198,22 +207,27 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
             return [$photoPath, true];
         }
 
-        // Не URL → трактуем как локальный путь.
-        if (preg_match('#^https?://#i', $photoPath) !== 1) {
-            return [$photoPath, ! is_file($photoPath)];
+        // URL нашего сайта → мапим в локальный путь. Чужой URL не фетчим (анти-SSRF) → текст.
+        $candidate = $photoPath;
+        if (preg_match('#^https?://#i', $photoPath) === 1) {
+            $base = rtrim(base_url(), '/');
+            if (! str_starts_with($photoPath, $base . '/')) {
+                return [$photoPath, true];
+            }
+            $rel       = ltrim(substr($photoPath, strlen($base)), '/');
+            $candidate = FCPATH . str_replace('/', DIRECTORY_SEPARATOR, $rel);
         }
 
-        // URL нашего сайта → мапим в public/ и проверяем на диске.
-        $base = rtrim(base_url(), '/');
-        if (str_starts_with($photoPath, $base . '/')) {
-            $rel = ltrim(substr($photoPath, strlen($base)), '/');
-            $abs = FCPATH . str_replace('/', DIRECTORY_SEPARATOR, $rel);
-
-            return [$abs, ! is_file($abs)];
+        // Канонизация + конфайнмент к public/uploads. Отсекает `..`, симлинки наружу и
+        // абсолютные пути к секретам (.env / app / writable живут ВНЕ public).
+        $real    = realpath($candidate);
+        $allowed = realpath(FCPATH . 'uploads');
+        if ($real === false || $allowed === false
+            || strncmp($real, $allowed . DIRECTORY_SEPARATOR, strlen($allowed) + 1) !== 0) {
+            return [$photoPath, true];
         }
 
-        // Внешний URL — не проверяем существование.
-        return [$photoPath, false];
+        return [$real, false];
     }
 
     /**

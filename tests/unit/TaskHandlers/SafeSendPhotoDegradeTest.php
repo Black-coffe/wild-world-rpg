@@ -42,7 +42,8 @@ final class SafeSendPhotoDegradeTest extends CIUnitTestCase
         [$target, $missing] = $this->resolve($abs);
 
         $this->assertFalse($missing, 'существующий локальный файл не должен считаться отсутствующим');
-        $this->assertSame($abs, $target);
+        $this->assertFileExists($target, 'цель должна быть реальным файлом (канонизирована realpath)');
+        $this->assertStringEndsWith('hunter_vest.jpg', str_replace('\\', '/', $target));
     }
 
     public function testMissingLocalAbsolutePathIsMissing(): void
@@ -70,13 +71,12 @@ final class SafeSendPhotoDegradeTest extends CIUnitTestCase
         $this->assertTrue($missing, 'URL нашего сайта на несуществующий файл → деградация на текст');
     }
 
-    public function testExternalUrlIsNotFlaggedMissingAndPassedThrough(): void
+    public function testExternalUrlDegradesToText(): void
     {
-        $url = 'https://external.example.com/somewhere/x.jpg';
-        [$target, $missing] = $this->resolve($url);
+        // Анти-SSRF: чужой URL не фетчим, каким бы «настоящим» он ни был → текст.
+        [, $missing] = $this->resolve('https://external.example.com/somewhere/x.jpg');
 
-        $this->assertFalse($missing, 'внешний URL не проверяем на диске — не считаем отсутствующим');
-        $this->assertSame($url, $target, 'внешний URL уходит в encodeFile как есть (try/catch подстрахует)');
+        $this->assertTrue($missing, 'внешний URL не наш сайт → не фетчим, деградация на текст');
     }
 
     public function testEmptyPathIsMissing(): void
@@ -84,6 +84,28 @@ final class SafeSendPhotoDegradeTest extends CIUnitTestCase
         [, $missing] = $this->resolve('');
 
         $this->assertTrue($missing, 'пустой путь (напр. base_url(null)) → сразу текст, не fopen корня');
+    }
+
+    public function testPublicButOutsideUploadsIsBlocked(): void
+    {
+        // public/index.php существует, но НЕ под uploads → конфайнмент отсекает.
+        [, $missing] = $this->resolve(FCPATH . 'index.php');
+
+        $this->assertTrue($missing, 'файл вне uploads (даже внутри public) → не отдаём в encodeFile');
+    }
+
+    public function testTraversalToSecretIsBlocked(): void
+    {
+        // Path traversal через `..` к секрету вне webroot. Файл РЕАЛЬНО существует
+        // (.env лежит в корне проекта), но realpath уводит за границу uploads → блок.
+        $secretAbs = FCPATH . 'uploads' . str_repeat(DIRECTORY_SEPARATOR . '..', 2) . DIRECTORY_SEPARATOR . '.env';
+        [, $missingLocal] = $this->resolve($secretAbs);
+        $this->assertTrue($missingLocal, 'traversal к .env локальным путём → блок → текст');
+
+        // Тот же traversal, но через URL нашего сайта.
+        $secretUrl = rtrim(base_url(), '/') . '/uploads/../../.env';
+        [, $missingUrl] = $this->resolve($secretUrl);
+        $this->assertTrue($missingUrl, 'traversal к .env через base_url → блок → текст');
     }
 }
 
