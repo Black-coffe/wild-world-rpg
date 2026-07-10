@@ -126,11 +126,22 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
     }
 
     /**
-     * Безопасная отправка фото с подписью.
+     * Безопасная отправка фото с подписью — с деградацией на текст.
+     *
+     * Класс-баг «тихая потеря доставки» (аудит 2026-07-10, B2/C4): при отсутствии файла
+     * `Request::encodeFile()` бросал fopen-исключение ДО `MediaSender`, а catch лишь логировал
+     * → уведомление не доходило даже текстом. Картинка — enhancement (MEDIA-OFF, ADR-020):
+     * если её нельзя доставить, caption обязан уйти обычным сообщением, весь смысл (лут/числа/
+     * инструкции) доходит. Деградация во ВСЕХ трёх точках потери:
+     *   1) файла точно нет (пред-проверка `is_file`) → сразу текст, не трогаем encodeFile;
+     *   2) encodeFile/транспорт бросили (catch) → текст;
+     *   3) Telegram отклонил фото, `ok=false` (битый/не-того-формата файл) → текст.
+     * `MediaSender::sendPhotoOrText` свои деградации (media-off #14, caption>1024) отдаёт с
+     * `ok=true`, поэтому ветка (3) ловит только настоящий провал фото — задвоения доставки нет.
      *
      * @param int|string $chatId
-     * @param string $photoPath абсолютный путь или URL
-     * @param array<string,mixed> $extra
+     * @param string $photoPath абсолютный локальный путь или URL нашего сайта (base_url)
+     * @param array<string,mixed> $extra несёт parse_mode/reply_markup caller'а — они переходят в текст
      */
     protected function safeSendPhoto($chatId, string $photoPath, string $caption = '', array $extra = []): void
     {
@@ -141,20 +152,100 @@ abstract class BaseTaskHandler implements TaskHandlerInterface
             return;
         }
         $extra = $this->applySilentThreshold($chatId, $extra);
+
+        [$encodeTarget, $definitelyMissing] = $this->resolveLocalPhoto($photoPath);
+
+        // (1) Файла точно нет → не зовём encodeFile (fopen бросит), сразу текст.
+        if ($definitelyMissing) {
+            log_message('warning', '[' . static::class . '] photo missing, degrading to text: ' . $photoPath);
+            $this->degradeToText($chatId, $caption, $extra);
+            return;
+        }
+
         try {
             $payload = array_merge([
                 'chat_id'    => $chatId,
-                'photo'      => Request::encodeFile($photoPath),
+                'photo'      => Request::encodeFile($encodeTarget),
                 'caption'    => $caption,
                 'parse_mode' => 'HTML',
             ], $extra);
             $response = \App\Services\Notifications\MediaSender::sendPhotoOrText($payload);
             if (!$response->isOk()) {
-                log_message('warning', '[' . static::class . '] Telegram sendPhoto not ok: '
+                // (3) Реальный провал фото (media-off/длинный caption MediaSender отдаёт ok=true).
+                log_message('warning', '[' . static::class . '] Telegram sendPhoto not ok, degrading to text: '
+                    . $response->getDescription());
+                $this->degradeToText($chatId, $caption, $extra);
+            }
+        } catch (\Throwable $e) {
+            // (2) encodeFile fopen / транспорт бросили.
+            log_message('error', '[' . static::class . '] sendPhoto exception, degrading to text: ' . $e->getMessage());
+            $this->degradeToText($chatId, $caption, $extra);
+        }
+    }
+
+    /**
+     * Резолвит цель для `encodeFile` и говорит, ТОЧНО ли локальный файл отсутствует.
+     * Callers шлют два вида пути, оба указывают на наш `public/`: абсолютный `FCPATH.путь`
+     * ЛИБО `base_url('uploads/...')`. URL нашего сайта мапится обратно в `public/` и
+     * отдаётся как локальный путь (надёжнее HTTP-fetch). Внешний URL (сейчас никто не шлёт)
+     * не проверяем — полагаемся на try/catch выше.
+     *
+     * @return array{0:string,1:bool} [цель encodeFile, файл точно отсутствует]
+     */
+    protected function resolveLocalPhoto(string $photoPath): array
+    {
+        if ($photoPath === '') {
+            return [$photoPath, true];
+        }
+
+        // Не URL → трактуем как локальный путь.
+        if (preg_match('#^https?://#i', $photoPath) !== 1) {
+            return [$photoPath, ! is_file($photoPath)];
+        }
+
+        // URL нашего сайта → мапим в public/ и проверяем на диске.
+        $base = rtrim(base_url(), '/');
+        if (str_starts_with($photoPath, $base . '/')) {
+            $rel = ltrim(substr($photoPath, strlen($base)), '/');
+            $abs = FCPATH . str_replace('/', DIRECTORY_SEPARATOR, $rel);
+
+            return [$abs, ! is_file($abs)];
+        }
+
+        // Внешний URL — не проверяем существование.
+        return [$photoPath, false];
+    }
+
+    /**
+     * Деградация фото→текст: caption уходит обычным сообщением, когда картинку доставить
+     * нельзя. `$extra` уже прошёл {@see applySilentThreshold()} и несёт `parse_mode` /
+     * `reply_markup` caller'а — разметка и inline-кнопки сохраняются (важно для ивент-
+     * бродкастов с клавиатурой). Пустой caption → placeholder (как в MediaSender).
+     *
+     * @param int|string $chatId
+     * @param array<string,mixed> $extra
+     */
+    private function degradeToText($chatId, string $caption, array $extra): void
+    {
+        $text = $caption !== '' ? $caption : '📭 (без описания)';
+        // Telegram-лимит текста 4096 (caption фото ≤1024, так что обрезка почти никогда не нужна).
+        if (mb_strlen($text) > 4096) {
+            $text = mb_substr($text, 0, 4093) . '…';
+        }
+
+        try {
+            $payload = array_merge([
+                'chat_id'    => $chatId,
+                'text'       => $text,
+                'parse_mode' => 'HTML',
+            ], $extra);
+            $response = Request::sendMessage($payload);
+            if (!$response->isOk()) {
+                log_message('warning', '[' . static::class . '] degradeToText not ok: '
                     . $response->getDescription());
             }
         } catch (\Throwable $e) {
-            log_message('error', '[' . static::class . '] sendPhoto exception: ' . $e->getMessage());
+            log_message('error', '[' . static::class . '] degradeToText exception: ' . $e->getMessage());
         }
     }
 
