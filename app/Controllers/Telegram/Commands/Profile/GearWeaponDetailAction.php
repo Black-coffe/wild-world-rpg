@@ -41,15 +41,43 @@ class GearWeaponDetailAction extends BaseAction
 
     /**
      * Сопоставление name_en => имя файла оружия.
+     *
+     * Аудит 2026-07-10 (волна арта брони): в БД 24 оружия, а карта знала 4. Десять T3/фракционных
+     * стволов имели **и картинку на диске, и запись в `ImageRegistry`** — но без строки здесь
+     * резолвер их не находил и отдавал `default_weapon.jpg`. Арт был нарисован и невидим.
+     * Каталог не указываем: `GearImageResolver` ищет веером `standard→professional→general`.
      */
     protected function getWeaponImageMap(): array
     {
         return [
-            'MetalSpear'   => 'metal_spear.jpg',
-            'PipeGun'      => 'pipe_gun.jpg',
-            'EnhancedBat'  => 'wired_bat.jpg',
-            'CrossbowMk1'  => 'crossbow_mk1.jpg',
-            // ... При необходимости дополните ...
+            'MetalSpear'  => 'metal_spear.jpg',
+            'PipeGun'     => 'pipe_gun.jpg',
+            'EnhancedBat' => 'wired_bat.jpg',
+            'CrossbowMk1' => 'crossbow_mk1.jpg',
+
+            // Огнестрел и электро-железо (арт нарисован волной 2026-07-10) — standard/.
+            'SemiAutoPistol'   => 'semi_auto_pistol.jpg',
+            'ShortenedShotgun' => 'shortened_shotgun.jpg',
+            'TacticalSMG'      => 'tactical_smg.jpg',
+            'CombatShotgun'    => 'combat_shotgun.jpg',
+            'AssaultRifle556'  => 'assault_rifle_556.jpg',
+            'SniperRifle308'   => 'sniper_rifle_308.jpg',
+            'FirebombLauncher' => 'firebomb_launcher.jpg',
+            'ElectricBaton'    => 'electric_baton.jpg',
+            'PlasmaRifle'      => 'plasma_rifle.jpg',
+            'TeslaKnuckles'    => 'tesla_knuckles.jpg',
+
+            // T3-грандмастер и фракционное (V14/ADR-046, E16 Ф2) — арт лежит в professional/.
+            'GaussPistol'          => 'gauss_pistol.jpg',
+            'RailCarbineVikhr'     => 'rail_carbine_vikhr.jpg',
+            'IonDestabilizer'      => 'ion_destabilizer.jpg',
+            'FlamethrowerAid'      => 'flamethrower_aid.jpg',
+            'ExoRailgunBehemoth'   => 'exo_railgun_behemoth.jpg',
+            'HydraPlasmaCannon'    => 'hydra_plasma_cannon.jpg',
+            'BunkerRifle'          => 'bunker_rifle.jpg',
+            'TechnoBeamShotgun'    => 'techno_beam_shotgun.jpg',
+            'GhostCityKnife'       => 'ghost_city_knife.jpg',
+            'FarmersHarvestScythe' => 'farmers_harvest_scythe.jpg',
         ];
     }
 
