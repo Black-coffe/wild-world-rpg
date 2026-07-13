@@ -121,6 +121,7 @@ class RunAwayAction extends BaseAction
         // достаточность золота перепроверяется внутри lock'а (могли потратить параллельно).
         $adjusted = (new \App\Services\Player\CharacterStatsService())->mutate(
             (int) $character['id'],
+            ['health', 'tired', 'gold'],
             static function (array $stats): array {
                 if ($stats['gold'] < 1000) {
                     return []; // золото исчезло параллельно — побег не оплачен

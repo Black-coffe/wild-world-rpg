@@ -57,30 +57,45 @@ class CharacterStatsService
     {
         return $this->mutate(
             $characterId,
+            array_keys($deltas),
             static fn (array $stats): array => self::applyDeltas($stats, $deltas, $boundsOverride)
         );
     }
 
     /**
-     * Общий примитив: транзакция + SELECT ... FOR UPDATE → $mutator(свежие статы) →
-     * UPDATE только возвращённых полей → commit.
+     * Общий примитив: транзакция + SELECT <fields> ... FOR UPDATE → $mutator(свежие
+     * статы) → UPDATE только возвращённых полей → commit.
      *
-     * @param callable(array<string, float>): array<string, int|float> $mutator свежие статы → новые АБСОЛЮТНЫЕ значения
-     *                                                                          (только поля, которые надо записать)
+     * SELECT'ится ТОЛЬКО запрошенный список полей — тесты с минимальной схемой
+     * characters (например, id+gold) работают, и лишние колонки не читаются.
+     *
+     * @param list<string>                                                $fields  какие стат-поля читать/лочить (⊆ STAT_FIELDS)
+     * @param callable(array<string, float>): array<string, int|float>    $mutator свежие статы → новые АБСОЛЮТНЫЕ значения
+     *                                                                             (только поля из $fields; вернуть [] = ничего не писать)
      *
      * @return array{before: array<string, float>, after: array<string, float>}|null null = персонаж не найден
      */
-    public function mutate(int $characterId, callable $mutator): ?array
+    public function mutate(int $characterId, array $fields, callable $mutator): ?array
     {
+        $fields = array_values(array_intersect(self::STAT_FIELDS, $fields));
+        if ($fields === []) {
+            return ['before' => [], 'after' => []];
+        }
+
         $db = \Config\Database::connect();
         $db->transBegin();
 
         try {
-            $result = $db->query(
-                'SELECT health, tired, gold, experience, strength, agility, intellect FROM characters WHERE id = ? FOR UPDATE',
-                [$characterId]
-            );
-            $row = $result instanceof BaseResult ? $result->getRowArray() : null;
+            // prefixTable — уважаем DBPrefix группы. FOR UPDATE — только MySQL:
+            // SQLite (fallback tests-группы) синтаксис не знает, а его
+            // writer-lock и так сериализует запись.
+            $table = $db->prefixTable('characters');
+            $sql   = 'SELECT ' . implode(', ', $fields) . " FROM {$table} WHERE id = ?";
+            if ($db->DBDriver === 'MySQLi') {
+                $sql .= ' FOR UPDATE';
+            }
+            $result = $db->query($sql, [$characterId]);
+            $row    = $result instanceof BaseResult ? $result->getRowArray() : null;
 
             if ($row === null) {
                 $db->transRollback();
@@ -89,15 +104,15 @@ class CharacterStatsService
             }
 
             $stats = [];
-            foreach (self::STAT_FIELDS as $field) {
-                $value          = $row[$field] ?? null;
+            foreach ($fields as $field) {
+                $value         = $row[$field] ?? null;
                 $stats[$field] = is_numeric($value) ? (float) $value : 0.0;
             }
 
             $before = [];
             $write  = [];
             foreach ($mutator($stats) as $field => $value) {
-                if (! in_array($field, self::STAT_FIELDS, true)) {
+                if (! in_array($field, $fields, true) || ! array_key_exists($field, $stats)) {
                     continue;
                 }
                 $before[$field] = $stats[$field];

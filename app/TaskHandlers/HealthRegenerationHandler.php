@@ -94,14 +94,19 @@ class HealthRegenerationHandler
         // абсолютных записей из снапшота findAll() — снапшот-запись затирала
         // параллельные изменения (препарат, бой, добыча) на всю длительность
         // цикла крона. Бонус perf: ~N UPDATE'ов на тик → 1.
-        $db = Database::connect();
+        // CASE WHEN вместо LEAST() и PHP-timestamp вместо NOW() — портабельно
+        // MySQL (прод) + SQLite :memory: (PHPUnit); prefixTable для tests-группы (db_).
+        $db    = Database::connect();
+        $table = $db->prefixTable('characters');
+        $h     = $this->cfg->healthRegenPerTick;
+        $t     = $this->cfg->tiredRegenPerTick;
         $db->query(
-            'UPDATE characters
-                SET health = LEAST(100, health + ?),
-                    tired  = LEAST(100, tired + ?),
-                    updated_at = NOW()
-              WHERE level < ? AND (health < 100 OR tired < 100)',
-            [$this->cfg->healthRegenPerTick, $this->cfg->tiredRegenPerTick, $this->cfg->regenLevelCap]
+            "UPDATE {$table}
+                SET health = CASE WHEN health + ? > 100 THEN 100 ELSE health + ? END,
+                    tired  = CASE WHEN tired  + ? > 100 THEN 100 ELSE tired  + ? END,
+                    updated_at = ?
+              WHERE level < ? AND (health < 100 OR tired < 100)",
+            [$h, $h, $t, $t, date('Y-m-d H:i:s'), $this->cfg->regenLevelCap]
         );
 
         // Затем запускаем метод проверки соответствия biome_id

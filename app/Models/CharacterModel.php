@@ -114,6 +114,7 @@ class CharacterModel extends Model
 
         $result = (new \App\Services\Player\CharacterStatsService())->mutate(
             $characterId,
+            ['gold'],
             static fn (array $stats): array => $stats['gold'] < $amount
                 ? [] // недостаточно золота — ничего не пишем
                 : ['gold' => $stats['gold'] - $amount]
@@ -209,6 +210,7 @@ class CharacterModel extends Model
     {
         $result = (new \App\Services\Player\CharacterStatsService())->mutate(
             $characterId,
+            ['agility', 'intellect'],
             static fn (array $stats): array => [
                 'agility'   => round($stats['agility'] + $agilityIncrement, 2),
                 'intellect' => round($stats['intellect'] + $intellectIncrement, 2),
@@ -227,6 +229,7 @@ class CharacterModel extends Model
     {
         $result = (new \App\Services\Player\CharacterStatsService())->mutate(
             $characterId,
+            ['strength', 'agility'],
             static fn (array $stats): array => [
                 'strength' => round($stats['strength'] + $strPlus, 2),
                 'agility'  => round($stats['agility'] + $agiPlus, 2),

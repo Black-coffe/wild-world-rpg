@@ -382,6 +382,7 @@ class GatherAction extends BaseAction
         // снапшота начала запроса; floor 0.01 и округление до сотых сохранены.
         $result = (new \App\Services\Player\CharacterStatsService())->mutate(
             (int) $character['id'],
+            ['tired'],
             static function (array $stats) use ($tirednessLoss): array {
                 if ($stats['tired'] < $tirednessLoss) {
                     return []; // недостаточно выносливости — ничего не списываем

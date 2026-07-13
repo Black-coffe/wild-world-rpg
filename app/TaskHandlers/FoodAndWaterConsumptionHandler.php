@@ -251,6 +251,7 @@ class FoodAndWaterConsumptionHandler extends BaseTaskHandler
         $divisor  = $this->cfg->hungerHealthPenaltyDivisor;
         $adjusted = (new \App\Services\Player\CharacterStatsService())->mutate(
             (int) $character['id'],
+            ['health'],
             static fn (array $stats): array => ['health' => max(0.01, $stats['health'] / $divisor)]
         );
         $newHealth = $adjusted !== null ? ($adjusted['after']['health'] ?? 0.01) : 0.01;
