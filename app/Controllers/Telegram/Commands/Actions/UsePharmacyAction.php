@@ -216,42 +216,68 @@ class UsePharmacyAction extends BaseAction
             }
         }
 
-        // Сохраняем исходные значения
-        $originalValues = [
-            'health'    => $character['health']     ?? 0,
-            'tired'     => $character['tired']      ?? 0,
-            'gold'      => $character['gold']       ?? 0,
-            'experience'=> $character['experience'] ?? 0,
-            'strength'  => $character['strength']   ?? 0,
-            'agility'   => $character['agility']    ?? 0,
-            'intellect' => $character['intellect']  ?? 0,
-        ];
+        // 🔴 Fix lost-update (2026-07-13): раньше значения брались из снапшота
+        // персонажа, прочитанного в НАЧАЛЕ запроса, и писались обратно
+        // абсолютными числами по всем 7 полям. Два конкурентных запроса
+        // (быстрые тапы «Успокоительное → Стимулятор», webhook-retry,
+        // параллельный worker с XP/золотом) молча затирали друг друга
+        // last-writer-wins: второй препарат откатывал эффект первого.
+        // Теперь: короткая транзакция + SELECT ... FOR UPDATE → считаем от
+        // СВЕЖИХ значений и пишем только те поля, которые препарат меняет.
+        $charId = (int) $character['id'];
+        $db     = \Config\Database::connect();
 
-        $newValues = $originalValues;
+        $db->transBegin();
+        try {
+            $result = $db->query(
+                'SELECT health, tired, gold, experience, strength, agility, intellect FROM characters WHERE id = ? FOR UPDATE',
+                [$charId]
+            );
+            $fresh = $result instanceof \CodeIgniter\Database\BaseResult
+                ? $result->getRowArray()
+                : null;
 
-        // Применяем изменения (и ограничиваем health/tired максимумом 100)
-        foreach ($effects as $key => $change) {
-            if (array_key_exists($key, $newValues)) {
-                $newValue = $newValues[$key] + $change;
-                if ($key === 'health' || $key === 'tired') {
-                    $newValues[$key] = min(100, max(0, $newValue));
-                    // max(0, ...) чтобы не уходить в отрицательные значения
-                } else {
-                    $newValues[$key] = $newValue;
-                }
+            if ($fresh === null) {
+                $db->transRollback();
+                return $this->sendResponse('Персонаж не найден.');
             }
+
+            $originalValues = [];
+            $newValues      = [];
+
+            // Применяем изменения (и ограничиваем health/tired коридором 0..100)
+            foreach ($effects as $key => $change) {
+                if (!array_key_exists($key, $fresh) || !is_numeric($change)) {
+                    continue;
+                }
+                $current  = $fresh[$key] + 0; // string из БД → int|float
+                $newValue = $current + $change;
+                if ($key === 'health' || $key === 'tired') {
+                    $newValue = min(100, max(0, $newValue));
+                    // max(0, ...) чтобы не уходить в отрицательные значения
+                }
+                $originalValues[$key] = $current;
+                $newValues[$key]      = $newValue;
+            }
+
+            // Обновляем персонажа — только реально затронутые поля
+            if ($newValues !== []) {
+                $this->characterModel->update($charId, $newValues);
+            }
+
+            $db->transCommit();
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            throw $e;
         }
 
-        // Обновляем персонажа
-        $this->characterModel->update($character['id'], $newValues);
-
         // Списываем 1 единицу препарата (учитывая durability_count)
-        if (!$this->decrementItemUsage($character['id'], $itemId)) {
+        if (!$this->decrementItemUsage($charId, $itemId)) {
             return $this->sendResponse('Ошибка при списании использования препарата.');
         }
 
         // Формируем «красивое» игровое сообщение
-        return $this->sendUsageMessage($character['id'], $originalValues, $newValues, $itemId);
+        return $this->sendUsageMessage($charId, $originalValues, $newValues, $itemId);
     }
 
     /**
