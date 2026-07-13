@@ -687,7 +687,13 @@ final class TributeService
             $id = is_numeric($tribute['id'] ?? null) ? (int) $tribute['id'] : 0;
             $db = Database::connect();
             $db->transStart();
-            $this->characters->update($vassalId, ['gold' => $gold - $cost]); // burn (золото уходит из экономики)
+            // burn (золото уходит из экономики). Fix 2026-07-13 (класс lost-update):
+            // списание от СВЕЖЕГО золота под row-lock'ом с перепроверкой достаточности
+            // (decreaseGold); вложенная транзакция безопасна (CI4 depth-счётчик).
+            if (! $this->characters->decreaseGold($vassalId, $cost)) {
+                $db->transComplete();
+                return ['ok' => false, 'reason' => 'insufficient_gold', 'cost' => $cost];
+            }
             if ($id > 0) {
                 $this->markLifted($id, 'bought_out', 'buyout');
             }

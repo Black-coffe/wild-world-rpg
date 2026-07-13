@@ -53,10 +53,11 @@ class QuestExploreAllBiomesHandler extends BaseTaskHandler
             $uniqueBiomesCount = count($exploredBiomes);
 
             if ($uniqueBiomesCount >= 9) {
-                // Update character experience
+                // Update character experience — атомарный relative-UPDATE от свежих
+                // значений (CharacterStatsService, fix lost-update 2026-07-13).
                 $character = $this->characterModel->find($step['character_id']);
-                $newExperience = $character['experience'] + 2;
-                $this->characterModel->update($step['character_id'], ['experience' => $newExperience]);
+                (new \App\Services\Player\CharacterStatsService())
+                    ->adjust((int) $step['character_id'], ['experience' => 2]);
 
                 // Complete the quest step
                 $this->questStepsModel->update($step['id'], ['is_completed' => 1]);

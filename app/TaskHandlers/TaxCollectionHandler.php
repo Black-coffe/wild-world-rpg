@@ -207,8 +207,14 @@ class TaxCollectionHandler extends BaseTaskHandler
                     }
                 }
 
-                // Обновляем золото у персонажа
-                $characterModel->update($characterId, ['gold' => $newGoldAmount]);
+                // Обновляем золото у персонажа — атомарное относительное списание
+                // от СВЕЖЕГО золота (fix lost-update 2026-07-13); параллельное
+                // начисление/трата за время цикла крона не затирается.
+                $paid = (new \App\Services\Player\CharacterStatsService())
+                    ->adjust($characterId, ['gold' => -$collectedTaxBuildings]);
+                if ($paid !== null && isset($paid['after']['gold'])) {
+                    $newGoldAmount = (int) $paid['after']['gold'];
+                }
 
                 // Обновляем поля в character_buildings
                 $characterBuildingModel
@@ -242,9 +248,12 @@ class TaxCollectionHandler extends BaseTaskHandler
                 if ($totalBeaconTax <= $newGoldAmount) {
                     // Хватает на все
                     $collectedTaxBeacons = $totalBeaconTax;
-                    $newGoldAmount      -= $totalBeaconTax;
-                    // Обновляем золото
-                    $characterModel->update($characterId, ['gold' => $newGoldAmount]);
+                    // Обновляем золото — атомарное относительное списание (fix 2026-07-13)
+                    $paid = (new \App\Services\Player\CharacterStatsService())
+                        ->adjust($characterId, ['gold' => -$totalBeaconTax]);
+                    $newGoldAmount = ($paid !== null && isset($paid['after']['gold']))
+                        ? (int) $paid['after']['gold']
+                        : $newGoldAmount - $totalBeaconTax;
 
                     // Ставим маякам статус SUCCESS
                     foreach ($beacons as $b) {
@@ -291,9 +300,13 @@ class TaxCollectionHandler extends BaseTaskHandler
                         }
                     }
 
-                    // Обновляем деньги
-                    $newGoldAmount = $remainingGold;
-                    $characterModel->update($characterId, ['gold' => $newGoldAmount]);
+                    // Обновляем деньги — атомарное относительное списание собранного
+                    // с маяков (fix 2026-07-13)
+                    $paid = (new \App\Services\Player\CharacterStatsService())
+                        ->adjust($characterId, ['gold' => -$collectedTaxBeacons]);
+                    $newGoldAmount = ($paid !== null && isset($paid['after']['gold']))
+                        ? (int) $paid['after']['gold']
+                        : $remainingGold;
 
                     // Удаляем маяки, которые fail второй раз
                     foreach ($deletedBeacons as $bId) {
@@ -466,7 +479,14 @@ class TaxCollectionHandler extends BaseTaskHandler
             }
         }
 
-        $characterModel->update($characterId, ['gold' => $remainingGold]);
+        // Атомарное относительное списание собранного налога (fix 2026-07-13):
+        // решения SUCCESS/FAILURE приняты по снапшоту, но золото вычитается от
+        // СВЕЖЕГО значения — параллельная торговля/награда не затирается.
+        $paid = (new \App\Services\Player\CharacterStatsService())
+            ->adjust($characterId, ['gold' => -$collectedTotal]);
+        if ($paid !== null && isset($paid['after']['gold'])) {
+            $remainingGold = (int) $paid['after']['gold'];
+        }
 
         return [$remainingGold, $collectedTotal, $breakdown];
     }

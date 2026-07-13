@@ -176,10 +176,14 @@ class DeathService
         $cost = $this->insuranceCalculator->calculate($loserRow, $totalResourceRows);
 
         if ((int) $loserRow['gold'] >= $cost) {
-            $this->characterModel->update($loserId, [
-                'gold'      => (int) $loserRow['gold'] - $cost,
-                'insurance' => 0,
-            ]);
+            // Fix 2026-07-13 (класс lost-update): списание от СВЕЖЕГО золота под
+            // row-lock'ом; достаточность перепроверяется внутри (decreaseGold).
+            if (! $this->characterModel->decreaseGold($loserId, $cost)) {
+                // Золото исчезло параллельно — страховка сгорает без списания.
+                $this->characterModel->update($loserId, ['insurance' => 0]);
+                return false;
+            }
+            $this->characterModel->update($loserId, ['insurance' => 0]);
             return true;
         }
 

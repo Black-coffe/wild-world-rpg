@@ -31,15 +31,22 @@ class TeleportExecutor
     /**
      * @param array<string,mixed> $claimedCell — must have 'map_cell_id'
      * @param array<string,mixed> $mapRow      — must have 'biome_id'
-     * @param array<string,mixed> $additionalFields — optional payment fields (gold/experience/etc.)
+     * @param array<string,int|float> $statDeltas — optional payment DELTAS (например ['gold' => -500])
+     *
+     * Fix 2026-07-13 (класс lost-update): оплата (gold/experience) — атомарной
+     * ДЕЛЬТОЙ от свежих значений под row-lock'ом (CharacterStatsService), а не
+     * абсолютом из снапшота вызова. Позиция — отдельным update (+1 SQL при
+     * cost-bearing телепорте — цена корректности).
      */
-    public function teleport(int $characterId, array $claimedCell, array $mapRow, array $additionalFields = []): void
+    public function teleport(int $characterId, array $claimedCell, array $mapRow, array $statDeltas = []): void
     {
-        $update = array_merge($additionalFields, [
+        if ($statDeltas !== []) {
+            (new \App\Services\Player\CharacterStatsService())->adjust($characterId, $statDeltas);
+        }
+
+        $this->characterModel->update($characterId, [
             'cell_number' => $claimedCell['map_cell_id'],
             'biome_id'    => $mapRow['biome_id'],
         ]);
-
-        $this->characterModel->update($characterId, $update);
     }
 }

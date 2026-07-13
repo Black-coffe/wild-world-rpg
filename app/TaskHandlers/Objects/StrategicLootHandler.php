@@ -87,11 +87,13 @@ class StrategicLootHandler extends BaseObjectHandler implements ObjectHandlerInt
         }
 
         // XP bump за стратегічну знахідку (більше ніж warehouse — strategic value).
-        $this->characterModel->update($character['id'], [
-            'experience' => $character['experience'] + 0.5,
-            'strength'   => $character['strength'] + 0.15,
-            'agility'    => $character['agility'] + 0.05,
-            'intellect'  => $character['intellect'] + 0.20,
+        // Fix 2026-07-13 (клас lost-update): атомарний relative-UPDATE від свіжих
+        // значень (CharacterStatsService), а не від снапшота задачі.
+        (new \App\Services\Player\CharacterStatsService())->adjust((int) $character['id'], [
+            'experience' => 0.5,
+            'strength'   => 0.15,
+            'agility'    => 0.05,
+            'intellect'  => 0.20,
         ]);
 
         // Auto-loot.

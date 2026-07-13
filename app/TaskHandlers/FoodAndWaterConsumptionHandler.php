@@ -245,8 +245,15 @@ class FoodAndWaterConsumptionHandler extends BaseTaskHandler
     private function subtractHealth($character, $healthToSubtract, $missingFood = 0, $missingWater = 0)
     {
         $telegramId = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first()['telegram_id'];
-        $newHealth = max(0.01, $character['health'] / $this->cfg->hungerHealthPenaltyDivisor); // Новое значение здоровья, не ниже 0.01 (hungerHealthPenaltyDivisor = 2 default)
-        $this->characterModel->update($character['id'], ['health' => $newHealth]); // Обновление здоровья в базе данных
+        // Fix 2026-07-13 (класс lost-update): делим СВЕЖЕЕ здоровье под row-lock'ом
+        // (CharacterStatsService::mutate) — только что применённый препарат/бой не
+        // затирается снапшотом крона. Floor 0.01 сохранён (голод не убивает).
+        $divisor  = $this->cfg->hungerHealthPenaltyDivisor;
+        $adjusted = (new \App\Services\Player\CharacterStatsService())->mutate(
+            (int) $character['id'],
+            static fn (array $stats): array => ['health' => max(0.01, $stats['health'] / $divisor)]
+        );
+        $newHealth = $adjusted !== null ? ($adjusted['after']['health'] ?? 0.01) : 0.01;
 
         // Добавляем информацию о недостатке ресурсов в текст сообщения
         $resourceMessage = '';

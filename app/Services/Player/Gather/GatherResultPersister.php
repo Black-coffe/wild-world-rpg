@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services\Player\Gather;
 
-use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Services\Player\Progression\EarlyProgressionService;
 
@@ -22,11 +21,9 @@ final class GatherResultPersister
     private EarlyProgressionService $early;
 
     public function __construct(
-        private ?CharacterModel $characterModel = null,
         private ?CharacterResourceModel $characterResourceModel = null,
         ?EarlyProgressionService $early = null
     ) {
-        $this->characterModel         = $characterModel ?? new CharacterModel();
         $this->characterResourceModel = $characterResourceModel ?? new CharacterResourceModel();
         // ADR-138 (S3): XP за добычу новичку (level<cap). Dormant → gatherXpEarned()=0.0 = легаси.
         $this->early                  = $early ?? new EarlyProgressionService();
@@ -117,16 +114,18 @@ final class GatherResultPersister
             $healthGain += 0.0005;
         }
 
-        $newHealth = min(100, $character['health'] + $healthGain);
-
-        $updatedData = [
-            'experience' => $curExp + $expGain,
-            'health'     => $newHealth,
-            'strength'   => $character['strength'] + $strength,
-            'agility'    => $character['agility'] + $agility,
-            'intellect'  => $character['intellect'] + $intellect,
-        ];
-
-        $this->characterModel->update($character['id'], $updatedData);
+        // Fix 2026-07-13 (класс lost-update): гейны — атомарным relative-UPDATE от
+        // СВЕЖИХ значений (CharacterStatsService); снапшот задачи добычи (минуты
+        // давности) больше не затирает параллельные изменения (препарат, бой).
+        // Cap health 100 — дефолтный в сервисе.
+        $charIdRaw = $character['id'] ?? null;
+        $charId    = is_numeric($charIdRaw) ? (int) $charIdRaw : 0;
+        (new \App\Services\Player\CharacterStatsService())->adjust($charId, [
+            'experience' => $expGain,
+            'health'     => $healthGain,
+            'strength'   => $strength,
+            'agility'    => $agility,
+            'intellect'  => $intellect,
+        ]);
     }
 }

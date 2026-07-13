@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\Player;
 
 use App\Models\CharacterGameTipModel;
-use App\Models\CharacterModel;
 use App\Models\GameTipsModel;
 
 /**
@@ -30,16 +29,13 @@ final class TipService
 
     private GameTipsModel $tips;
     private CharacterGameTipModel $views;
-    private CharacterModel $characters;
 
     public function __construct(
         ?GameTipsModel $tips = null,
-        ?CharacterGameTipModel $views = null,
-        ?CharacterModel $characters = null
+        ?CharacterGameTipModel $views = null
     ) {
-        $this->tips       = $tips ?? new GameTipsModel();
-        $this->views      = $views ?? new CharacterGameTipModel();
-        $this->characters = $characters ?? new CharacterModel();
+        $this->tips  = $tips ?? new GameTipsModel();
+        $this->views = $views ?? new CharacterGameTipModel();
     }
 
     /**
@@ -89,24 +85,12 @@ final class TipService
             'viewed_at'    => date('Y-m-d H:i:s'),
         ]);
 
-        // Читаем текущие статы как array (избегаем entity-typing неоднозначности под L9).
-        $result = $this->characters->builder()
-            ->select('experience, agility, intellect')
-            ->where('id', $characterId)
-            ->get();
-        $row = $result === false ? null : $result->getRowArray();
-        if ($row === null) {
-            return;
-        }
-
-        $exp = isset($row['experience']) && is_numeric($row['experience']) ? (float) $row['experience'] : 0.0;
-        $agi = isset($row['agility']) && is_numeric($row['agility']) ? (float) $row['agility'] : 0.0;
-        $int = isset($row['intellect']) && is_numeric($row['intellect']) ? (float) $row['intellect'] : 0.0;
-
-        $this->characters->update($characterId, [
-            'experience' => $exp + self::REWARD_EXPERIENCE,
-            'agility'    => $agi + self::REWARD_AGILITY,
-            'intellect'  => $int + self::REWARD_INTELLECT,
+        // Награда за просмотр — атомарный relative-UPDATE от свежих значений
+        // под row-lock'ом (CharacterStatsService, fix lost-update 2026-07-13).
+        (new CharacterStatsService())->adjust($characterId, [
+            'experience' => self::REWARD_EXPERIENCE,
+            'agility'    => self::REWARD_AGILITY,
+            'intellect'  => self::REWARD_INTELLECT,
         ]);
     }
 

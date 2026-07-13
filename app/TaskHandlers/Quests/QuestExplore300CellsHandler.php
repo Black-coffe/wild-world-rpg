@@ -55,23 +55,17 @@ class QuestExplore300CellsHandler extends BaseTaskHandler
             $exploredCellsCount = $this->exploredCellsModel->where('character_id', $step['character_id'])->countAllResults();
 
             if ($exploredCellsCount >= 300) {
-                // Получаем текущие значения персонажа
+                // Получаем персонажа (для telegram_user_id ниже)
                 $character = $this->characterModel->find($step['character_id']);
                 if ($character) {
-                    // Вычисляем новые значения
-                    $newGold = $character['gold'] + 10000;
-                    $newExperience = $character['experience'] + 2;
-                    $newStrength = $character['strength'] + 2;
-                    $newAgility = $character['agility'] + 2;
-                    $newIntellect = $character['intellect'] + 2;
-
-                    // Обновляем данные персонажа
-                    $this->characterModel->update($step['character_id'], [
-                        'gold' => $newGold,
-                        'experience' => $newExperience,
-                        'strength' => $newStrength,
-                        'agility' => $newAgility,
-                        'intellect' => $newIntellect
+                    // Награда — атомарный relative-UPDATE от свежих значений
+                    // (CharacterStatsService, fix lost-update 2026-07-13).
+                    (new \App\Services\Player\CharacterStatsService())->adjust((int) $step['character_id'], [
+                        'gold'       => 10000,
+                        'experience' => 2,
+                        'strength'   => 2,
+                        'agility'    => 2,
+                        'intellect'  => 2,
                     ]);
 
                     // Завершаем шаг квеста

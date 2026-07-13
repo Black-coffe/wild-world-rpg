@@ -104,21 +104,20 @@ class FinishTaskAction
         $lostIntellect = 0.5  * $penaltyFactor;
         $lostTired     = 0.2  * $penaltyFactor;
 
-        $newExperience = max(0.1, $character['experience'] - $lostExp);
-        $newHealth     = max(0.1, $character['health'] - $lostHealth);
-        $newStrength   = max(0.1, $character['strength'] - $lostStrength);
-        $newAgility    = max(0.1, $character['agility'] - $lostAgility);
-        $newIntellect  = max(0.1, $character['intellect'] - $lostIntellect);
-        $newTired      = max(0.1, $character['tired'] - $lostTired);
-
-        $this->characterModel->update($character['id'], [
-            'experience' => $newExperience,
-            'health'     => $newHealth,
-            'strength'   => $newStrength,
-            'agility'    => $newAgility,
-            'intellect'  => $newIntellect,
-            'tired'      => $newTired,
-        ]);
+        // Fix 2026-07-13 (класс lost-update): штраф — атомарным relative-UPDATE от
+        // СВЕЖИХ значений (CharacterStatsService); floor 0.1 сохранён override'ом.
+        $floors = [];
+        foreach (['experience', 'health', 'strength', 'agility', 'intellect', 'tired'] as $f) {
+            $floors[$f] = ['min' => 0.1];
+        }
+        (new \App\Services\Player\CharacterStatsService())->adjust((int) $character['id'], [
+            'experience' => -$lostExp,
+            'health'     => -$lostHealth,
+            'strength'   => -$lostStrength,
+            'agility'    => -$lostAgility,
+            'intellect'  => -$lostIntellect,
+            'tired'      => -$lostTired,
+        ], $floors);
 
         // 6) Ответ пользователю
         Request::answerCallbackQuery([

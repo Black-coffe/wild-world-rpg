@@ -103,32 +103,43 @@ class CharacterModel extends Model
         return $info;
     }
 
+    /**
+     * Fix 2026-07-13 (класс lost-update): списание проверяет достаточность и
+     * вычитает от СВЕЖЕГО золота под row-lock'ом (CharacterStatsService), а не
+     * от снапшота find() — параллельное начисление/трата не затирается.
+     */
     public function decreaseGold(int $characterId, float $amount): bool
     {
         $amount = (int) round($amount);
-        $character = $this->find($characterId);
 
-        if (!$character || $character->gold < $amount) {
+        $result = (new \App\Services\Player\CharacterStatsService())->mutate(
+            $characterId,
+            static fn (array $stats): array => $stats['gold'] < $amount
+                ? [] // недостаточно золота — ничего не пишем
+                : ['gold' => $stats['gold'] - $amount]
+        );
+
+        if ($result === null || $result['after'] === []) {
             log_message('error', "Проблема с персонажем с ID $characterId при попытке списать золото.");
             return false;
         }
 
-        $newGoldAmount = $character->gold - $amount;
-        return $this->update($characterId, ['gold' => $newGoldAmount]);
+        return true;
     }
 
     public function increaseGold(int $characterId, float $amount): bool
     {
         $amount = (int) round($amount);
-        $character = $this->find($characterId);
 
-        if (!$character) {
+        $result = (new \App\Services\Player\CharacterStatsService())
+            ->adjust($characterId, ['gold' => $amount]);
+
+        if ($result === null) {
             log_message('error', "Персонаж с ID $characterId не найден при попытке увеличения золота.");
             return false;
         }
 
-        $newGoldAmount = $character->gold + $amount;
-        return $this->update($characterId, ['gold' => $newGoldAmount]);
+        return true;
     }
 
     /**
@@ -189,40 +200,45 @@ class CharacterModel extends Model
     }
 
     /**
-     * Пример обновления ловкости и интеллекта.
+     * Инкремент ловкости и интеллекта (награда за крафт/стройку).
+     *
+     * Fix 2026-07-13 (класс lost-update): дельты применяются к СВЕЖИМ значениям
+     * под row-lock'ом (CharacterStatsService), а не к снапшоту find().
      */
     public function updateAgilityAndIntellect(int $characterId, float $agilityIncrement, float $intellectIncrement): bool
     {
-        $character = $this->find($characterId);
-        if (!$character) {
+        $result = (new \App\Services\Player\CharacterStatsService())->mutate(
+            $characterId,
+            static fn (array $stats): array => [
+                'agility'   => round($stats['agility'] + $agilityIncrement, 2),
+                'intellect' => round($stats['intellect'] + $intellectIncrement, 2),
+            ]
+        );
+
+        if ($result === null) {
             log_message('error', "Персонаж с ID $characterId не найден при попытке обновления ловкости и интеллекта.");
             return false;
         }
 
-        $newAgility = round($character->agility + $agilityIncrement, 2);
-        $newIntellect = round($character->intellect + $intellectIncrement, 2);
-
-        return $this->update($characterId, [
-            'agility'   => $newAgility,
-            'intellect' => $newIntellect
-        ]);
+        return true;
     }
 
     public function updateStrengthAndAgility(int $characterId, float $strPlus, float $agiPlus): bool
     {
-        $row = $this->find($characterId);
-        if (!$row) {
+        $result = (new \App\Services\Player\CharacterStatsService())->mutate(
+            $characterId,
+            static fn (array $stats): array => [
+                'strength' => round($stats['strength'] + $strPlus, 2),
+                'agility'  => round($stats['agility'] + $agiPlus, 2),
+            ]
+        );
+
+        if ($result === null) {
             log_message('error', "Character #$characterId not found for Strength/Agility update.");
             return false;
         }
 
-        $newStr = round($row->strength + $strPlus, 2);
-        $newAgi = round($row->agility + $agiPlus, 2);
-
-        return $this->update($characterId, [
-            'strength' => $newStr,
-            'agility'  => $newAgi,
-        ]);
+        return true;
     }
 
 }

@@ -375,18 +375,23 @@ class GatherAction extends BaseAction
     protected function deductTiredness($character)
     {
         $level = $this->readLevel($character);
-        $currentTiredness = $this->readTired($character);
         $tirednessLoss = self::gatherStaminaCost($level);
 
-        if ($currentTiredness < $tirednessLoss) {
-            // Если текущая усталость меньше необходимой для списания, возвращаем false
-            return false;
-        }
+        // Fix 2026-07-13 (класс lost-update): проверка достаточности и списание —
+        // от СВЕЖЕЙ выносливости под row-lock'ом (CharacterStatsService), а не от
+        // снапшота начала запроса; floor 0.01 и округление до сотых сохранены.
+        $result = (new \App\Services\Player\CharacterStatsService())->mutate(
+            (int) $character['id'],
+            static function (array $stats) use ($tirednessLoss): array {
+                if ($stats['tired'] < $tirednessLoss) {
+                    return []; // недостаточно выносливости — ничего не списываем
+                }
 
-        $newTiredness = max(0.01, $currentTiredness - $tirednessLoss);
-        $newTiredness = round($newTiredness, 2);  // Округляем новое значение усталости до двух десятичных знаков
-        $this->characterModel->update($character['id'], ['tired' => $newTiredness]);
-        return true;
+                return ['tired' => round(max(0.01, $stats['tired'] - $tirednessLoss), 2)];
+            }
+        );
+
+        return $result !== null && $result['after'] !== [];
     }
 
     /**

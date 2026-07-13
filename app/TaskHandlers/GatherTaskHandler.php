@@ -116,7 +116,8 @@ class GatherTaskHandler extends BaseTaskHandler
         // v0.51.104 Step 1: pure HTML reply formatter.
         $this->messageFormatter       = new GatherMessageFormatter();
         // v0.51.105 Step 2: DB persistence (resources + stat gains).
-        $this->resultPersister        = new GatherResultPersister($this->characterModel);
+        // (стат-гейны с 2026-07-13 идут через CharacterStatsService — CharacterModel не нужен)
+        $this->resultPersister        = new GatherResultPersister();
         // v0.51.106 Step 3: cell+biome+resources lookup chain.
         $this->cellQuery              = new GatherCellResourceQuery(
             null,

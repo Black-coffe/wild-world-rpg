@@ -75,9 +75,8 @@ class TeleportCostService
             return false;
         }
 
-        // Списываем
-        $newGold = $character['gold'] - $cost;
-        $characterModel->update($characterId, ['gold' => $newGold]);
-        return true;
+        // Списываем — от СВЕЖЕГО золота под row-lock'ом, достаточность
+        // перепроверяется внутри (decreaseGold; fix lost-update 2026-07-13).
+        return $characterModel->decreaseGold($characterId, $cost);
     }
 }

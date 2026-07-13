@@ -55,12 +55,13 @@ class ClosedWarehouseHandler extends BaseObjectHandler implements ObjectHandlerI
         // 1) Парсим инструменты из JSON
         $requiredTools = json_decode($object['discovery_tools'], true);
 
-        // 2) Немного прокачиваем персонажа (пример)
-        $this->characterModel->update($character['id'], [
-            'experience' => $character['experience'] + 0.25,
-            'strength'   => $character['strength'] + 0.11,
-            'agility'    => $character['agility'] + 0.01,
-            'intellect'  => $character['intellect'] + 0.16,
+        // 2) Немного прокачиваем персонажа — атомарный relative-UPDATE от свежих
+        //    значений (CharacterStatsService, fix lost-update 2026-07-13).
+        (new \App\Services\Player\CharacterStatsService())->adjust((int) $character['id'], [
+            'experience' => 0.25,
+            'strength'   => 0.11,
+            'agility'    => 0.01,
+            'intellect'  => 0.16,
         ]);
 
         // 3) Проверяем наличие инструментов (только чтобы показать игроку "Можешь взломать" или "Нет")

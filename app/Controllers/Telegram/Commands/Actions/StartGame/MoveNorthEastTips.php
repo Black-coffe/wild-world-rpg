@@ -67,14 +67,17 @@ class MoveNorthEastTips
         // MoveCharacterToDirectionAction — движение И есть разведка). В северо-восточную
         // клетку шагнуть можно; факт прихода раскрывает её + 8 соседей (туман войны radius-1).
 
-        // Перемещение персонажа в северо-восточную ячейку
+        // Перемещение персонажа в северо-восточную ячейку.
+        // Fix 2026-07-13 (класс lost-update): статы — атомарным relative-UPDATE от
+        // свежих значений (CharacterStatsService), позиция — отдельным update.
+        (new \App\Services\Player\CharacterStatsService())->adjust((int) $character['id'], [
+            'strength'   => 0.1,
+            'agility'    => 0.1,
+            'experience' => 0.05,
+        ]);
         $this->characterModel->update($character['id'], [
             'cell_number' => $northeastCell['cell_number'],
             'biome_id' => $northeastCell['biome_id'], // Добавляем ID биома новой локации
-            // Увеличение параметров
-            'strength' => $character['strength'] + 0.1,
-            'agility' => $character['agility'] + 0.1,
-            'experience' => $character['experience'] + 0.05,
         ]);
 
         // Туман войны: раскрываем 3×3 вокруг новой позиции (ADR-019).

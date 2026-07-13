@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Services\Player\Death;
 
-use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
 
@@ -23,16 +22,13 @@ use App\Models\CraftedItemsLogModel;
  */
 class LootProcessor
 {
-    private CharacterModel $characterModel;
     private CharacterResourceModel $characterResourceModel;
     private CraftedItemsLogModel $craftedItemsLogModel;
 
     public function __construct(
-        ?CharacterModel $characterModel = null,
         ?CharacterResourceModel $characterResourceModel = null,
         ?CraftedItemsLogModel $craftedItemsLogModel = null
     ) {
-        $this->characterModel         = $characterModel         ?? new CharacterModel();
         $this->characterResourceModel = $characterResourceModel ?? new CharacterResourceModel();
         $this->craftedItemsLogModel   = $craftedItemsLogModel   ?? new CraftedItemsLogModel();
     }
@@ -111,11 +107,10 @@ class LootProcessor
         }
 
         if ($lostGold > 0) {
-            $loserRow = $this->characterModel->find($loserId);
-            if ($loserRow) {
-                $newGold = max(0, (int) $loserRow['gold'] - $lostGold);
-                $this->characterModel->update($loserId, ['gold' => $newGold]);
-            }
+            // Fix 2026-07-13 (класс lost-update): атомарное относительное списание
+            // от СВЕЖЕГО золота, floor 0 — дефолтный (CharacterStatsService).
+            (new \App\Services\Player\CharacterStatsService())
+                ->adjust($loserId, ['gold' => -$lostGold]);
         }
     }
 
@@ -191,12 +186,10 @@ class LootProcessor
         if ($amount <= 0) {
             return;
         }
-        $winnerRow = $this->characterModel->find($winnerId);
-        if (!$winnerRow) {
-            return;
-        }
-        $newGold = (int) $winnerRow['gold'] + $amount;
-        $this->characterModel->update($winnerId, ['gold' => $newGold]);
+        // Fix 2026-07-13 (класс lost-update): атомарное относительное начисление
+        // от СВЕЖЕГО золота (CharacterStatsService).
+        (new \App\Services\Player\CharacterStatsService())
+            ->adjust($winnerId, ['gold' => $amount]);
     }
 
     private function increaseCraftForWinner(int $winnerId, int $craftedItemId, int $amount): void

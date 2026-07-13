@@ -82,33 +82,27 @@ class HealthRegenerationHandler
 
         foreach ($characters as $character) {
             // 1) Вычисляем или «переопределяем» уровень персонажа
+            // (level — производное от статов, пересчёт-recompute; skip no-op writes)
             $newLevel = $this->calculateLevel($character);
-
-            $updates = [];
-
-            // Обновляем level только если изменился (skip no-op writes)
             if ((int) $character['level'] !== $newLevel) {
-                $updates['level'] = $newLevel;
-            }
-
-            // Если уровень < regenLevelCap (20 default) — добавляем регенерацию
-            if ($newLevel < $this->cfg->regenLevelCap) {
-                // Регенерация здоровья (healthRegenPerTick = 0.05 default)
-                if ((float) $character['health'] < 100.0) {
-                    $updates['health'] = min(100.0, (float) $character['health'] + $this->cfg->healthRegenPerTick);
-                }
-
-                // Регенерация усталости (tiredRegenPerTick = 0.1 default)
-                if ((float) $character['tired'] < 100.0) {
-                    $updates['tired'] = min(100.0, (float) $character['tired'] + $this->cfg->tiredRegenPerTick);
-                }
-            }
-
-            // Один UPDATE с всеми изменениями вместо до 3 раздельных
-            if (!empty($updates)) {
-                $this->characterModel->update($character['id'], $updates);
+                $this->characterModel->update($character['id'], ['level' => $newLevel]);
             }
         }
+
+        // 2) Регенерация. Fix 2026-07-13 (класс lost-update): ОДИН атомарный
+        // relative-UPDATE (health/tired = LEAST(100, x + tick)) вместо per-char
+        // абсолютных записей из снапшота findAll() — снапшот-запись затирала
+        // параллельные изменения (препарат, бой, добыча) на всю длительность
+        // цикла крона. Бонус perf: ~N UPDATE'ов на тик → 1.
+        $db = Database::connect();
+        $db->query(
+            'UPDATE characters
+                SET health = LEAST(100, health + ?),
+                    tired  = LEAST(100, tired + ?),
+                    updated_at = NOW()
+              WHERE level < ? AND (health < 100 OR tired < 100)',
+            [$this->cfg->healthRegenPerTick, $this->cfg->tiredRegenPerTick, $this->cfg->regenLevelCap]
+        );
 
         // Затем запускаем метод проверки соответствия biome_id
         $this->verifyCharactersBiome();

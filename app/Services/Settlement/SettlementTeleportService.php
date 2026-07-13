@@ -202,8 +202,9 @@ final class SettlementTeleportService
         }
         $biomeId = $this->intOf($mapRow['biome_id'] ?? null);
 
-        // Атомарный перенос (cell_number + biome_id + списание золота одним апдейтом).
-        $additional = $cost > 0 ? ['gold' => $gold - $cost] : [];
+        // Перенос (cell_number + biome_id) + списание золота атомарной ДЕЛЬТОЙ
+        // от свежего значения (fix lost-update 2026-07-13).
+        $additional = $cost > 0 ? ['gold' => -$cost] : [];
         $this->executor->teleport(
             $characterId,
             ['map_cell_id' => $anchor],

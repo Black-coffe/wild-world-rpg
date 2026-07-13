@@ -189,13 +189,15 @@ class RockPaperScissorsAction extends BaseAction {
      * @param mixed $characterId
      */
     protected function updateCharacterParam($characterId, float $delta, string $param): void {
-        $character = $this->characterModel->find($characterId);
-        if (!$character || !in_array($param, self::ALLOWED_PARAMS, true)) {
+        if (!in_array($param, self::ALLOWED_PARAMS, true)) {
             return;
         }
 
-        $newParamValue = max(0, (float) ($character[$param] ?? 0) + $delta);
-        $this->characterModel->update($characterId, [$param => $newParamValue]);
+        // Fix 2026-07-13 (класс lost-update): атомарный relative-UPDATE от свежего
+        // значения под row-lock'ом (CharacterStatsService); floor 0 — дефолтный.
+        $charId = is_numeric($characterId) ? (int) $characterId : 0;
+        (new \App\Services\Player\CharacterStatsService())
+            ->adjust($charId, [$param => $delta]);
     }
 
     protected function formatNumber(float $value): string {

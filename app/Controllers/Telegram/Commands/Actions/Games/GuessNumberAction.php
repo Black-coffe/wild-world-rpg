@@ -201,12 +201,11 @@ class GuessNumberAction extends BaseAction {
      * @param mixed $characterId
      */
     protected function applyGold($characterId, int $delta): void {
-        $character = $this->characterModel->find($characterId);
-        if (!$character) {
-            return;
-        }
-        $newGold = max(0, (int) ($character['gold'] ?? 0) + $delta);
-        $this->characterModel->update($characterId, ['gold' => $newGold]);
+        // Fix 2026-07-13 (класс lost-update): атомарный relative-UPDATE от свежего
+        // золота под row-lock'ом (CharacterStatsService); floor 0 — дефолтный.
+        $charId = is_numeric($characterId) ? (int) $characterId : 0;
+        (new \App\Services\Player\CharacterStatsService())
+            ->adjust($charId, ['gold' => $delta]);
     }
 
     /**

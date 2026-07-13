@@ -213,9 +213,6 @@ class MarchingTaskHandler extends BaseTaskHandler
             $this->finishMarch($telegramUserId, $s, $character, "выбился из сил — привал на (X={$curX}, Y={$curY})");
             return self::CELL_STOPPED;
         }
-        $futureHp    = round($futureHp, 2);
-        $futureTired = round($futureTired, 2);
-
         // — Шаг —
         // ADR-138 (S3): ранние гейны марша (xp/stat) ×gain_multiplier для новичка (level<cap).
         // Dormant/ветеран → marchMult=1.0 = byte-identical.
@@ -224,23 +221,32 @@ class MarchingTaskHandler extends BaseTaskHandler
             ->gainMultiplier($this->asFloat($character['level'] ?? 1));
         $statKeys  = ['strength', 'agility', 'intellect'];
         $statKey   = $statKeys[$stepsDone % 3];
-        $newExperience = $this->asFloat($character['experience'] ?? 0) + $this->xpPerCell() * $marchMult;
-        $newStat       = $this->asFloat($character[$statKey] ?? 0) + $this->statPerCell() * $marchMult;
+
+        // Fix 2026-07-13 (класс lost-update): статы — атомарной ДЕЛЬТОЙ от СВЕЖИХ
+        // значений под row-lock'ом (CharacterStatsService; floor 0.01 как у гейта
+        // выше), позиция — отдельным update. Препарат/бой во время марша не
+        // затирается снапшотом батча.
+        $adjusted = (new \App\Services\Player\CharacterStatsService())->adjust($characterId, [
+            'health'     => -$hpCost,
+            'tired'      => -$tiredCost,
+            'experience' => $this->xpPerCell() * $marchMult,
+            $statKey     => $this->statPerCell() * $marchMult,
+        ], ['health' => ['min' => 0.01], 'tired' => ['min' => 0.01]]);
+
         (new CharacterModel())->update($characterId, [
             'cell_number' => $targetCellNumber,
             'biome_id'    => $targetBiomeId,
-            'health'      => $futureHp,
-            'tired'       => $futureTired,
-            'experience'  => $newExperience,
-            $statKey      => $newStat,
         ]);
-        // Освежаем ВСЮ in-memory копию (батч-инвариант: следующая клетка читает свежее).
+        // Освежаем ВСЮ in-memory копию фактическим after (батч-инвариант:
+        // следующая клетка читает свежее).
         $character['cell_number'] = $targetCellNumber;
         $character['biome_id']    = $targetBiomeId;
-        $character['health']      = $futureHp;
-        $character['tired']       = $futureTired;
-        $character['experience']  = $newExperience;
-        $character[$statKey]      = $newStat;
+        if ($adjusted !== null) {
+            $character['health']     = round($adjusted['after']['health'], 2);
+            $character['tired']      = round($adjusted['after']['tired'], 2);
+            $character['experience'] = $adjusted['after']['experience'];
+            $character[$statKey]     = $adjusted['after'][$statKey];
+        }
 
         // — Туман войны: раскрываем 3×3 вокруг новой позиции —
         $level = isset($character['level']) ? $this->asInt($character['level']) : null;

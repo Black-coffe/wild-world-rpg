@@ -116,11 +116,34 @@ class RunAwayAction extends BaseAction
             );
         }
 
-        // 6. Обновляем данные персонажа (health, tired, gold, cell_number)
+        // 6. Обновляем данные персонажа. Fix 2026-07-13 (класс lost-update):
+        // статы — атомарно от СВЕЖИХ значений под row-lock'ом (CharacterStatsService);
+        // достаточность золота перепроверяется внутри lock'а (могли потратить параллельно).
+        $adjusted = (new \App\Services\Player\CharacterStatsService())->mutate(
+            (int) $character['id'],
+            static function (array $stats): array {
+                if ($stats['gold'] < 1000) {
+                    return []; // золото исчезло параллельно — побег не оплачен
+                }
+
+                return [
+                    'health' => max(1, $stats['health'] * 0.5),  // отнимаем 50%
+                    'tired'  => max(1, $stats['tired'] * 0.1),   // отнимаем 90%
+                    'gold'   => $stats['gold'] - 1000,
+                ];
+            }
+        );
+
+        if ($adjusted === null || $adjusted['after'] === []) {
+            return $this->sendError("Недостаточно золота для побега (необходимо 1000).");
+        }
+
+        // Фактические значения после атомарного списания — для сообщения игроку.
+        $newHealth = $adjusted['after']['health'];
+        $newTired  = $adjusted['after']['tired'];
+        $newGold   = $adjusted['after']['gold'];
+
         $this->characterModel->update($character['id'], [
-            'health'     => $newHealth,
-            'tired'      => $newTired,
-            'gold'       => $newGold,
             'cell_number'=> $targetCell['cell_number'],
         ]);
 

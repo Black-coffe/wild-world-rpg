@@ -4,7 +4,6 @@ namespace App\Services\Player\BuildingUpgrade;
 
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
-use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Services\PVE\DefenseStructureService;
@@ -29,7 +28,6 @@ use App\Services\PVE\DefenseStructureService;
  */
 class BuildingUpgradeApplier
 {
-    private CharacterModel $characterModel;
     private CharacterResourceModel $characterResourceModel;
     private ResourceModel $resourceModel;
     private CharacterBuildingModel $characterBuildingModel;
@@ -37,14 +35,12 @@ class BuildingUpgradeApplier
     private DefenseStructureService $defenseService;
 
     public function __construct(
-        ?CharacterModel $characterModel = null,
         ?CharacterResourceModel $characterResourceModel = null,
         ?ResourceModel $resourceModel = null,
         ?CharacterBuildingModel $characterBuildingModel = null,
         ?BuildingModel $buildingModel = null,
         ?DefenseStructureService $defenseService = null
     ) {
-        $this->characterModel         = $characterModel         ?? new CharacterModel();
         $this->characterResourceModel = $characterResourceModel ?? new CharacterResourceModel();
         $this->resourceModel          = $resourceModel          ?? new ResourceModel();
         $this->characterBuildingModel = $characterBuildingModel ?? new CharacterBuildingModel();
@@ -60,8 +56,10 @@ class BuildingUpgradeApplier
      */
     public function apply(array|\App\Entities\CharacterEntity $character, array $charBuilding, int $nextLevel, array $requirements): void
     {
-        $newGold = (int) $character['gold'] - (int) $requirements['gold'];
-        $this->characterModel->update($character['id'], ['gold' => $newGold]);
+        // Fix 2026-07-13 (класс lost-update): атомарное относительное списание
+        // от СВЕЖЕГО золота (CharacterStatsService), floor 0 — дефолтный.
+        (new \App\Services\Player\CharacterStatsService())
+            ->adjust((int) $character['id'], ['gold' => -(int) $requirements['gold']]);
 
         foreach ($requirements['resources'] as $resNameEn => $needQty) {
             if ($needQty <= 0) {

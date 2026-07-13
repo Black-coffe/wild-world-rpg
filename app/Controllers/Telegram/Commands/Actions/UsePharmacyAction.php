@@ -222,54 +222,17 @@ class UsePharmacyAction extends BaseAction
         // (быстрые тапы «Успокоительное → Стимулятор», webhook-retry,
         // параллельный worker с XP/золотом) молча затирали друг друга
         // last-writer-wins: второй препарат откатывал эффект первого.
-        // Теперь: короткая транзакция + SELECT ... FOR UPDATE → считаем от
-        // СВЕЖИХ значений и пишем только те поля, которые препарат меняет.
+        // Теперь: CharacterStatsService — дельта от СВЕЖИХ значений под
+        // row-lock'ом (SELECT ... FOR UPDATE), пишутся только меняемые поля.
         $charId = (int) $character['id'];
-        $db     = \Config\Database::connect();
+        $result = (new \App\Services\Player\CharacterStatsService())->adjust($charId, $effects);
 
-        $db->transBegin();
-        try {
-            $result = $db->query(
-                'SELECT health, tired, gold, experience, strength, agility, intellect FROM characters WHERE id = ? FOR UPDATE',
-                [$charId]
-            );
-            $fresh = $result instanceof \CodeIgniter\Database\BaseResult
-                ? $result->getRowArray()
-                : null;
-
-            if ($fresh === null) {
-                $db->transRollback();
-                return $this->sendResponse('Персонаж не найден.');
-            }
-
-            $originalValues = [];
-            $newValues      = [];
-
-            // Применяем изменения (и ограничиваем health/tired коридором 0..100)
-            foreach ($effects as $key => $change) {
-                if (!array_key_exists($key, $fresh) || !is_numeric($change)) {
-                    continue;
-                }
-                $current  = $fresh[$key] + 0; // string из БД → int|float
-                $newValue = $current + $change;
-                if ($key === 'health' || $key === 'tired') {
-                    $newValue = min(100, max(0, $newValue));
-                    // max(0, ...) чтобы не уходить в отрицательные значения
-                }
-                $originalValues[$key] = $current;
-                $newValues[$key]      = $newValue;
-            }
-
-            // Обновляем персонажа — только реально затронутые поля
-            if ($newValues !== []) {
-                $this->characterModel->update($charId, $newValues);
-            }
-
-            $db->transCommit();
-        } catch (\Throwable $e) {
-            $db->transRollback();
-            throw $e;
+        if ($result === null) {
+            return $this->sendResponse('Персонаж не найден.');
         }
+
+        $originalValues = $result['before'];
+        $newValues      = $result['after'];
 
         // Списываем 1 единицу препарата (учитывая durability_count)
         if (!$this->decrementItemUsage($charId, $itemId)) {

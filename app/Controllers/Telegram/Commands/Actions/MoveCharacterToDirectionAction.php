@@ -228,17 +228,21 @@ class MoveCharacterToDirectionAction
             ]);
         }
 
-        // Обновляем персонажа (ADR-138: ранние гейны ×gain_multiplier для новичка)
+        // Обновляем персонажа (ADR-138: ранние гейны ×gain_multiplier для новичка).
+        // Fix 2026-07-13 (класс lost-update): статы — атомарным relative-UPDATE от
+        // свежих значений (CharacterStatsService), позиция — отдельным update.
         $earlyMult       = $early->gainMultiplier($charLevel);
         $addedStrength   = 0.02 * $earlyMult;
         $addedExperience = 0.03 * $earlyMult;
+        (new \App\Services\Player\CharacterStatsService())->adjust((int) $character['id'], [
+            'health'     => -$healthCost,
+            'tired'      => -$tiredCost,
+            'strength'   => $addedStrength,
+            'experience' => $addedExperience,
+        ]);
         $this->characterModel->update($character['id'], [
             'cell_number' => $targetCell['cell_number'],
             'biome_id'    => $targetCell['biome_id'],
-            'health'      => $futureHealth,
-            'tired'       => $futureTired,
-            'strength'    => $character['strength'] + $addedStrength,
-            'experience'  => $character['experience'] + $addedExperience,
         ]);
 
         // Туман войны (ADR-019 §1): раскрываем 3×3-окно вокруг новой позиции —

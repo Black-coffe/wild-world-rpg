@@ -110,8 +110,8 @@ class TeleportUseAction extends BaseAction
         $cost    = (int) $ctx['cost'];
         $newGold = (int) $charRow['gold'] - $cost;
 
-        // Списываем золото + телепорт (1 SQL)
-        $this->executor->teleport((int) $charRow['id'], $ctx['claimedCell'], $ctx['mapRow'], ['gold' => $newGold]);
+        // Списываем золото (атомарной дельтой, fix 2026-07-13) + телепорт
+        $this->executor->teleport((int) $charRow['id'], $ctx['claimedCell'], $ctx['mapRow'], ['gold' => -$cost]);
 
         return $this->sendFormatted($this->formatter->successGold($cost, $newGold));
     }
@@ -148,12 +148,12 @@ class TeleportUseAction extends BaseAction
         $ctx     = $result['context'];
         $charRow = $ctx['charRow'];
 
-        // Обновляем местоположение + списываем 1 единицу опыта (1 SQL)
+        // Обновляем местоположение + списываем 1 единицу опыта (атомарной дельтой, fix 2026-07-13)
         $this->executor->teleport(
             (int) $charRow['id'],
             $ctx['claimedCell'],
             $ctx['mapRow'],
-            ['experience' => (float) $charRow['experience'] - 1],
+            ['experience' => -1],
         );
 
         return $this->sendFormatted($this->formatter->successExperience());

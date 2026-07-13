@@ -151,8 +151,11 @@ class TeleportBeaconMoveConfirmAction
                     ."Или раздобудь недостающие *{$needMore}* 💰."
                 );
             }
-            // Списываем золото
-            $this->characterModel->update($characterId, ['gold' => ($gold - $teleportCost)]);
+            // Списываем золото — от СВЕЖЕГО значения под row-lock'ом, достаточность
+            // перепроверяется внутри (decreaseGold; fix lost-update 2026-07-13)
+            if (! $this->characterModel->decreaseGold($characterId, $teleportCost)) {
+                return $this->sendError($chatId, "Недостаточно золота! Нужно {$teleportCost}.");
+            }
         }
 
         // Переводим персонажа

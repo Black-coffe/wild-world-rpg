@@ -244,13 +244,10 @@ class FortuneWheelAction extends BaseAction
 
     protected function subtractGoldFromCharacter($characterId, $amount)
     {
-        $character = $this->characterModel->find($characterId);
-        if (!$character) {
-            return;
-        }
-
-        $newGoldAmount = max(0, (int) ($character['gold'] ?? 0) - (int) $amount);
-        $this->characterModel->update($characterId, ['gold' => $newGoldAmount]);
+        // Fix 2026-07-13 (класс lost-update): атомарный relative-UPDATE от свежего
+        // золота под row-lock'ом (CharacterStatsService); floor 0 — дефолтный.
+        (new \App\Services\Player\CharacterStatsService())
+            ->adjust((int) $characterId, ['gold' => -(int) $amount]);
     }
 
     /**

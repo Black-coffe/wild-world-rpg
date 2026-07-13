@@ -72,9 +72,11 @@ final class ResourceTradeService
 
         $saleAmount = (int) round($sellQuantity * (float) $resource['sell_price']);
 
-        $this->characterModel->update($character['id'], [
-            'gold' => $character['gold'] + $saleAmount,
-        ]);
+        // Fix 2026-07-13 (класс lost-update): атомарное относительное начисление
+        // от СВЕЖЕГО золота (increaseGold → CharacterStatsService).
+        $sellerIdRaw = $character['id'] ?? null;
+        $sellerId    = is_numeric($sellerIdRaw) ? (int) $sellerIdRaw : 0;
+        $this->characterModel->increaseGold($sellerId, $saleAmount);
 
         $newQuantity = $charRes['quantity'] - $sellQuantity;
         if ($newQuantity > 0) {

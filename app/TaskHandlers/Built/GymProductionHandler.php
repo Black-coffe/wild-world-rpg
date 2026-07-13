@@ -118,16 +118,18 @@ class GymProductionHandler extends BaseTaskHandler
 
     /**
      * Увеличивает силу (strength) персонажу на заданную величину.
+     *
+     * Fix 2026-07-13 (класс lost-update): дельта применяется к СВЕЖЕЙ силе под
+     * row-lock'ом (CharacterStatsService), а не к снапшоту find() — параллельный
+     * апдейт персонажа (препарат, квест, бой) больше не затирается.
      */
     private function addStrengthToCharacter(int $characterId, float $increment): void
     {
-        $character = $this->characterModel->find($characterId);
-        if (!$character) {
-            log_message('error', "[GymProductionHandler] Character ID {$characterId} not found at addStrengthToCharacter.");
-            return;
-        }
+        $result = (new \App\Services\Player\CharacterStatsService())
+            ->adjust($characterId, ['strength' => $increment]);
 
-        $newStrength = $character['strength'] + $increment;
-        $this->characterModel->update($characterId, ['strength' => $newStrength]);
+        if ($result === null) {
+            log_message('error', "[GymProductionHandler] Character ID {$characterId} not found at addStrengthToCharacter.");
+        }
     }
 }

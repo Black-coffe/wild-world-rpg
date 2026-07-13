@@ -60,13 +60,12 @@ class RoboticsWorkshopUpgradeAction extends BaseBuildingUpgradeAction
         }
 
         // Если всего хватает, списываем
-        // 1) Списать золото
-        $newGold = $this->character['gold'] - $goldNeeded;
-        // В CharacterModel (запись персонажа) уменьшаем gold:
+        // 1) Списать золото — от СВЕЖЕГО значения под row-lock'ом, достаточность
+        //    перепроверяется внутри (decreaseGold; fix lost-update 2026-07-13)
         $charModel = new \App\Models\CharacterModel();
-        $charModel->update($this->character['id'], [
-            'gold' => $newGold,
-        ]);
+        if (! $charModel->decreaseGold((int) $this->character['id'], $goldNeeded)) {
+            return "Недостаточно золота: нужно {$goldNeeded}!";
+        }
 
         // 2) Списать металл
         $newMetal = $currentMetal - $metalNeeded;

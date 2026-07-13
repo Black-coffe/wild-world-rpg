@@ -32,15 +32,19 @@ final class UsePharmacyAtomicUpdateTest extends CIUnitTestCase
         return $src;
     }
 
-    public function testEffectAppliedFromFreshRowUnderLock(): void
+    public function testEffectAppliedViaAtomicStatsService(): void
     {
-        $src = $this->source();
+        // Handler применяет эффект через общий атомарный сервис…
+        $this->assertStringContainsString('CharacterStatsService', $this->source());
 
-        // Свежее чтение с блокировкой строки внутри транзакции.
-        $this->assertStringContainsString('FOR UPDATE', $src);
-        $this->assertStringContainsString('transBegin', $src);
-        $this->assertStringContainsString('transCommit', $src);
-        $this->assertStringContainsString('transRollback', $src);
+        // …а сам сервис держит контракт: свежее чтение с блокировкой строки
+        // внутри транзакции.
+        $svc = file_get_contents(APPPATH . 'Services/Player/CharacterStatsService.php');
+        $this->assertIsString($svc);
+        $this->assertStringContainsString('FOR UPDATE', $svc);
+        $this->assertStringContainsString('transBegin', $svc);
+        $this->assertStringContainsString('transCommit', $svc);
+        $this->assertStringContainsString('transRollback', $svc);
     }
 
     public function testNoStaleSnapshotAsEffectBase(): void
