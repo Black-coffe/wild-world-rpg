@@ -416,10 +416,17 @@ class BossEncounterService
             (int) round($chunk['playerDmg'])
         );
 
-        // Списание выносливости за спецприём.
+        // Списание выносливости за спецприём — ADR-151 (класс lost-update):
+        // относительно от СВЕЖЕЙ выносливости под row-lock. Бой с узлом
+        // пошаговый; между тапами regen поднимает tired, а снапшот-абсолют
+        // затирал бы тик. Целочисленная семантика (int)round(fresh)-cost и floor 0
+        // сохранены.
         if ($tiredCost > 0) {
-            $newTired = max(0, (int) round($this->fval($character['tired'] ?? null)) - $tiredCost);
-            $this->characters->update($charId, ['tired' => $newTired]);
+            (new \App\Services\Player\CharacterStatsService())->mutate(
+                $charId,
+                ['tired'],
+                static fn (array $s): array => ['tired' => (float) max(0, (int) round($s['tired']) - $tiredCost)]
+            );
         }
 
         $encUpdate = [
@@ -493,14 +500,23 @@ class BossEncounterService
         $newHp       = max(1, (int) round($playerHp - $partingBlow));
 
         $tiredCost = max(0, $this->gsInt('combat.nodes.flee_tired_cost', 10));
-        $newTired  = max(0, (int) round($this->fval($character['tired'] ?? null)) - $tiredCost);
 
         $this->encounters->update($this->ival($enc['id'] ?? null), [
             'status'         => 'fled',
             'player_hp'      => $newHp,
             'last_action_at' => $now, // маркер engage-cooldown
         ]);
-        $this->characters->update($charId, ['health' => $newHp, 'tired' => $newTired]);
+        // health = боевой HP после парт-инг-удара (absolute-by-design), tired —
+        // относительно от СВЕЖЕЙ выносливости под row-lock (ADR-151), одной
+        // атомарной записью. Целочисленная семантика tired сохранена.
+        (new \App\Services\Player\CharacterStatsService())->mutate(
+            $charId,
+            ['health', 'tired'],
+            static fn (array $s): array => [
+                'health' => (float) $newHp,
+                'tired'  => (float) max(0, (int) round($s['tired']) - $tiredCost),
+            ]
+        );
 
         return $this->renderFlee($point, $boss, $newHp, (int) round($partingBlow));
     }
