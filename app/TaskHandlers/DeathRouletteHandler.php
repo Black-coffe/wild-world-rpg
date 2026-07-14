@@ -132,42 +132,38 @@ class DeathRouletteHandler extends BaseTaskHandler
      */
     private function processDeathAndRespawn(array|\App\Entities\CharacterEntity $loser): void
     {
-        $model = new CharacterModel();
-        $before = $model->find($loser['id']);
-        if (!$before) {
+        $expLoss  = (float) $this->cfg->deathExpLossPercent;
+        $statLoss = (float) $this->cfg->deathStatLossPercent;
+        $floorStr = (float) $loser['strength'];
+        $floorAgi = (float) $loser['agility'];
+        $floorInt = (float) $loser['intellect'];
+
+        // 1) ADR-151 (класс lost-update): мультипликативные потери exp/статов
+        // считаются от СВЕЖИХ значений под row-lock, а не от снапшота find().
+        // Крон DeathRoulette бежит КАЖДУЮ МИНУТУ по всем health<=0.99 — снапшот
+        // затирал бы параллельный regen / начисление exp в окне find→update.
+        // Пишутся только стат-поля (health/tired восстановит респавн ниже).
+        $res = (new \App\Services\Player\CharacterStatsService())->mutate(
+            (int) $loser['id'],
+            ['experience', 'strength', 'agility', 'intellect'],
+            static function (array $s) use ($expLoss, $statLoss, $floorStr, $floorAgi, $floorInt): array {
+                return [
+                    'experience' => round(max(0.0, $s['experience'] * (1 - $expLoss)), 2),
+                    'strength'   => round(max($floorStr, $s['strength'] * (1 - $statLoss)), 2),
+                    'agility'    => round(max($floorAgi, $s['agility'] * (1 - $statLoss)), 2),
+                    'intellect'  => round(max($floorInt, $s['intellect'] * (1 - $statLoss)), 2),
+                ];
+            }
+        );
+        if ($res === null) {
             return;
         }
 
-        // 1) урезаем опыт/статы
-        $loserOldExp = $before['experience'];
-        $loserOldStr = $before['strength'];
-        $loserOldAgi = $before['agility'];
-        $loserOldInt = $before['intellect'];
-
-        $updatedLoser = [
-            'experience' => max(0, $loserOldExp * (1 - $this->cfg->deathExpLossPercent)),
-        ];
-
-        $updatedLoser['strength']  = max($loser['strength'],  $loserOldStr * (1 - $this->cfg->deathStatLossPercent));
-        $updatedLoser['agility']   = max($loser['agility'],   $loserOldAgi * (1 - $this->cfg->deathStatLossPercent));
-        $updatedLoser['intellect'] = max($loser['intellect'], $loserOldInt * (1 - $this->cfg->deathStatLossPercent));
-
-        // Здоровье в 0 (считаем "умер")
-        $updatedLoser['health'] = 0;
-
-        // Округлим
-        $updatedLoser['experience'] = round($updatedLoser['experience'], 2);
-        $updatedLoser['strength']   = round($updatedLoser['strength'],   2);
-        $updatedLoser['agility']    = round($updatedLoser['agility'],    2);
-        $updatedLoser['intellect']  = round($updatedLoser['intellect'],  2);
-
-        $model->update($loser['id'], $updatedLoser);
-
         // 2) Определяем клетку респауна (база или исследованная, иначе #1)
-        $respawnCell = $this->findRespawnCell($loser['id']);
+        $respawnCell = $this->findRespawnCell((int) $loser['id']);
 
-        // 3) Воскрешаем в респаун-ячейке со 100/100 (или иные значения)
-        $model->update($loser['id'], [
+        // 3) Воскрешаем в респаун-ячейке — health/tired/cell absolute-by-design.
+        (new CharacterModel())->update((int) $loser['id'], [
             'health'     => ($loser['max_health'] ?? 100),
             'tired'      => ($loser['max_tired']  ?? 100),
             'cell_number'=> $respawnCell,

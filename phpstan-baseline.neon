@@ -16093,18 +16093,6 @@ parameters:
 			path: app/TaskHandlers/Craft/WorkbenchStandard/CraftCompletionTeleportBeaconBasicHandler.php
 
 		-
-			message: '#^Cannot access offset ''agility'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/TaskHandlers/DeathRouletteHandler.php
-
-		-
-			message: '#^Cannot access offset ''experience'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/TaskHandlers/DeathRouletteHandler.php
-
-		-
 			message: '#^Cannot access offset ''health'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -16112,12 +16100,6 @@ parameters:
 
 		-
 			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/TaskHandlers/DeathRouletteHandler.php
-
-		-
-			message: '#^Cannot access offset ''intellect'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/TaskHandlers/DeathRouletteHandler.php
@@ -16136,12 +16118,6 @@ parameters:
 
 		-
 			message: '#^Cannot access offset ''name'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/TaskHandlers/DeathRouletteHandler.php
-
-		-
-			message: '#^Cannot access offset ''strength'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/TaskHandlers/DeathRouletteHandler.php
