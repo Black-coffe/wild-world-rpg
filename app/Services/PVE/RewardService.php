@@ -5,41 +5,29 @@ declare(strict_types=1);
 namespace App\Services\PVE;
 
 use App\Entities\BattleCharacter;
-use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsModel;
 use App\Models\CraftedItemsLogModel;
-use App\Repositories\CI4CharacterRepository;
-use App\Repositories\Contracts\CharacterRepositoryInterface;
-use Psr\Log\LoggerInterface;
 
 class RewardService
 {
-    private LoggerInterface $logger;
-    private CharacterModel $characterModel;
     private CharacterResourceModel $characterResourceModel;
     private ResourceModel $resourceModel;
     private CraftedItemsModel $craftedItemModel;
     private CraftedItemsLogModel $craftedItemsLogModel;
-    private CharacterRepositoryInterface $characterRepo;
 
     /**
-     * F2.6 wire-in: $characterRepo с дефолтом на CI4CharacterRepository.
-     * Существующие caller'ы (`new RewardService($logger)`) продолжают
-     * работать без изменений. Тесты могут подсунуть InMemory или mock.
+     * Наградные статы применяются атомарно через CharacterStatsService (ADR-151),
+     * поэтому ни CharacterRepository, ни CharacterModel, ни logger здесь больше
+     * не нужны — конструктор поднимает только модели ресурсов/предметов.
      */
-    public function __construct(
-        LoggerInterface $logger,
-        ?CharacterRepositoryInterface $characterRepo = null
-    ) {
-        $this->logger                  = $logger;
-        $this->characterModel          = new CharacterModel();
+    public function __construct()
+    {
         $this->characterResourceModel  = new CharacterResourceModel();
         $this->resourceModel           = new ResourceModel();
         $this->craftedItemModel        = new CraftedItemsModel();
         $this->craftedItemsLogModel    = new CraftedItemsLogModel();
-        $this->characterRepo           = $characterRepo ?? new CI4CharacterRepository();
     }
 
     /**
@@ -73,24 +61,21 @@ class RewardService
             $goldGained    = mt_rand(100, 1000);
         }
 
-        // 2. Обновляем статы игрока.
-        //    F2.6 wire-in: gold обновляется атомарно через CharacterRepository
-        //    (raw SQL `gold = gold + ?`), исключает TOCTOU при двойных
-        //    callback-кликах. Остальные статы (exp/agi/int/str) — через
-        //    update(), пока read-modify-write; race-эффект на них меньше,
-        //    мигрируются позже расширением Repository.
-        $this->characterRepo->adjustGold($winner->id, (float) $goldGained);
-
-        $newExp       = $winner->experience + $expGain;
-        $newStrength  = $winner->strength + $strGain;
-        $newAgility   = $winner->agility + $agiGain;
-        $newIntellect = $winner->intellect + $intGain;
-
-        $this->characterModel->update($winner->id, [
-            'experience' => $newExp,
-            'strength'   => $newStrength,
-            'agility'    => $newAgility,
-            'intellect'  => $newIntellect,
+        // 2. Обновляем статы игрока — АТОМАРНО (ADR-151, класс lost-update).
+        //    Все 5 наградных статов (gold/exp/str/agi/int) применяются ОДНОЙ
+        //    дельтой к СВЕЖИМ значениям под row-lock (SELECT … FOR UPDATE),
+        //    а НЕ абсолютом из снапшота $winner (BattleCharacter, прочитан ДО
+        //    боя). Раньше exp/agi/int/str писались абсолютом из снапшота, а gold
+        //    хоть и шёл через atomic adjustGold — тут же затирался абсолютным
+        //    update'ом gold в PvEService. Окно широкое: AutoPveHandler крутит
+        //    бой каждую минуту, параллельно игрок может купить в магазине,
+        //    собрать tribute, выиграть другой бой → те начисления терялись.
+        (new \App\Services\Player\CharacterStatsService())->adjust((int) $winner->id, [
+            'gold'       => $goldGained,
+            'experience' => $expGain,
+            'strength'   => $strGain,
+            'agility'    => $agiGain,
+            'intellect'  => $intGain,
         ]);
 
         // 3. Выдаём ресурсы

@@ -396,7 +396,7 @@ final class NpcInteractionService
 
         return new PvEService(
             new BattleService(new DamageService($logger), new EffectService($logger), new BattleLogger($logger), $logger),
-            new RewardService($logger),
+            new RewardService(),
             new EquipmentService($logger),
             $this->characters,
             $this->spawns,

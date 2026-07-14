@@ -13596,11 +13596,6 @@ parameters:
 			count: 1
 			path: app/Services/PVE/RewardService.php
 
-		-
-			message: '#^Property App\\Services\\PVE\\RewardService\:\:\$logger is never read, only written\.$#'
-			identifier: property.onlyWritten
-			count: 1
-			path: app/Services/PVE/RewardService.php
 
 		-
 			message: '#^Cannot cast mixed to int\.$#'

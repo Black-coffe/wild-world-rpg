@@ -53,7 +53,7 @@ class AutoPveHandler
         $effectService = new EffectService($logger);
         $battleLogger  = new BattleLogger($logger);
         $battleService = new BattleService($damageService, $effectService, $battleLogger, $logger);
-        $rewardService = new RewardService($logger);
+        $rewardService = new RewardService();
         $equipmentService = new EquipmentService($logger);
 
         $this->pveService = new PvEService(

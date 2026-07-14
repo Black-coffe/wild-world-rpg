@@ -136,19 +136,25 @@ class PvEService
             $this->logBossKill($playerData, $npcData);
         }
 
-        // Обновляем данные игрока
+        // Пост-боевые health/tired — АБСОЛЮТ BY DESIGN: значение определил
+        // симулятор боя, это и есть желаемое состояние после боя (как боевой HP
+        // в boss_encounters.player_hp). UPDATE трогает только эти 2 колонки и
+        // НЕ задевает gold/exp/статы.
+        // Наградные статы (gold/exp/str/agi/int) применены АТОМАРНО в
+        // RewardService::grantRewards (ADR-151, класс lost-update) — здесь их
+        // больше НЕ переписываем абсолютом из снапшота $player. Закрыто окно
+        // потери параллельных начислений (AutoPveHandler крутит бой каждую
+        // минуту; игрок мог параллельно купить в магазине / выиграть другой бой).
         $this->characterModel->update($player->id, [
-            'health'     => max(1, $player->health),
-            'tired'      => max(1, rand(1, (int)floor($player->health))),
-            'experience' => $player->experience + ($rewards['exp'] ?? 0),
-            'gold'       => $player->gold + ($rewards['gold'] ?? 0),
+            'health' => max(1, $player->health),
+            'tired'  => max(1, rand(1, (int)floor($player->health))),
         ]);
 
         // ADR-107: лут-таблица побеждённого NPC (npcs.loot_table_id; killswitch внутри).
-        // 🔴 СТРОГО ПОСЛЕ update выше: тот пишет gold АБСОЛЮТНЫМ значением (снапшот
-        // до боя + стандартное золото) и затёр бы атомарный adjustGold трофея
-        // (Tier-3 catch 2026-06-10: дельта золота < минимума трофея). Defensive:
-        // трофеи не роняют уже засчитанный бой.
+        // Порядок относительно update выше больше НЕ критичен (тот пишет только
+        // health/tired; трофейное золото идёт атомарным adjustGold, наградное —
+        // тоже атомарно в grantRewards → складываются корректно). Оставляем ПОСЛЕ
+        // засчитанного боя: трофеи defensive — не роняют уже применённые награды.
         if ($playerWon) {
             $lootRaw = $npcData['loot_table_id'] ?? null;
             if (is_numeric($lootRaw)) {
