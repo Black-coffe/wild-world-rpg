@@ -13389,7 +13389,7 @@ parameters:
 		-
 			message: '#^Cannot access offset ''agility'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
+			count: 2
 			path: app/Services/PVE/PvpRewardOrchestrator.php
 
 		-
@@ -13400,12 +13400,6 @@ parameters:
 
 		-
 			message: '#^Cannot access offset ''experience'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
-			path: app/Services/PVE/PvpRewardOrchestrator.php
-
-		-
-			message: '#^Cannot access offset ''experience'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 2
 			path: app/Services/PVE/PvpRewardOrchestrator.php
@@ -13419,7 +13413,7 @@ parameters:
 		-
 			message: '#^Cannot access offset ''intellect'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
+			count: 2
 			path: app/Services/PVE/PvpRewardOrchestrator.php
 
 		-
@@ -13443,13 +13437,7 @@ parameters:
 		-
 			message: '#^Cannot access offset ''strength'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
-			path: app/Services/PVE/PvpRewardOrchestrator.php
-
-		-
-			message: '#^Cannot cast mixed to float\.$#'
-			identifier: cast.double
-			count: 6
+			count: 2
 			path: app/Services/PVE/PvpRewardOrchestrator.php
 
 		-
@@ -13595,7 +13583,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Services/PVE/RewardService.php
-
 
 		-
 			message: '#^Cannot cast mixed to int\.$#'

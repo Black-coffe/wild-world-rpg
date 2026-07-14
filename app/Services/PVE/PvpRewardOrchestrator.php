@@ -81,26 +81,35 @@ final class PvpRewardOrchestrator
             $expBonus += min($levelDiff, 100) / 100 * $this->balance->winnerExpMaxAdditive;
         }
 
-        $winner['experience'] = (float) $winner['experience'] * (1 + $expBonus);
+        // RNG решается ДО lock'а — порядок 3× mt_rand сохранён 1:1 с legacy
+        // (seed-fence в PvpRewardOrchestratorTest опирается на этот порядок).
+        $factor   = (float) $this->balance->winnerAttrBonusFactor;
+        $boostStr = mt_rand(0, 100) < $this->balance->winnerAttrBonusChance;
+        $boostAgi = mt_rand(0, 100) < $this->balance->winnerAttrBonusChance;
+        $boostInt = mt_rand(0, 100) < $this->balance->winnerAttrBonusChance;
 
-        if (mt_rand(0, 100) < $this->balance->winnerAttrBonusChance) {
-            $winner['strength']  = (float) $winner['strength']  * (1 + $this->balance->winnerAttrBonusFactor);
-        }
-        if (mt_rand(0, 100) < $this->balance->winnerAttrBonusChance) {
-            $winner['agility']   = (float) $winner['agility']   * (1 + $this->balance->winnerAttrBonusFactor);
-        }
-        if (mt_rand(0, 100) < $this->balance->winnerAttrBonusChance) {
-            $winner['intellect'] = (float) $winner['intellect'] * (1 + $this->balance->winnerAttrBonusFactor);
-        }
+        // ADR-151 (класс lost-update): мультипликаторы применяются к СВЕЖИМ
+        // статам под row-lock, пишутся ТОЛЬКО стат-поля. Раньше
+        // update($winnerId, $winner) писал ВСЮ строку снапшота → затирал
+        // параллельный regen health/tired и cell_number.
+        (new \App\Services\Player\CharacterStatsService())->mutate(
+            $winnerId,
+            ['experience', 'strength', 'agility', 'intellect'],
+            static function (array $s) use ($expBonus, $factor, $boostStr, $boostAgi, $boostInt): array {
+                $out = ['experience' => round($s['experience'] * (1 + $expBonus), 2)];
+                if ($boostStr) {
+                    $out['strength'] = round($s['strength'] * (1 + $factor), 2);
+                }
+                if ($boostAgi) {
+                    $out['agility'] = round($s['agility'] * (1 + $factor), 2);
+                }
+                if ($boostInt) {
+                    $out['intellect'] = round($s['intellect'] * (1 + $factor), 2);
+                }
 
-        // F1.3 strict_types: explicit float cast — characters table возвращает
-        // strings из MySQL, без cast TypeError на round().
-        $winner['experience'] = round((float)$winner['experience'], 2);
-        $winner['strength']   = round((float)$winner['strength'],   2);
-        $winner['agility']    = round((float)$winner['agility'],    2);
-        $winner['intellect']  = round((float)$winner['intellect'],  2);
-
-        $this->characterModel->update($winnerId, $winner);
+                return $out;
+            }
+        );
     }
 
     /**
@@ -120,36 +129,39 @@ final class PvpRewardOrchestrator
      */
     public function processDeathAndRespawn(array|\App\Entities\CharacterEntity $loser): void
     {
-        $before = $this->characterModel->find($loser['id']);
-        if (!$before) {
+        $expLoss  = (float) $this->balance->deathExpLossPercent;
+        $statLoss = (float) $this->balance->deathStatLossPercent;
+        $floorStr = (float) $loser['strength'];
+        $floorAgi = (float) $loser['agility'];
+        $floorInt = (float) $loser['intellect'];
+
+        // ADR-151 (класс lost-update): мультипликативные потери считаются от
+        // СВЕЖИХ статов под row-lock, а не от снапшота find(). Пишутся только
+        // стат-поля. `max($floor, …)` сохраняет прежний пол потерь (battle-снапшот
+        // $loser). null-возврат mutate = персонаж не найден (прежний ранний return).
+        $res = (new \App\Services\Player\CharacterStatsService())->mutate(
+            (int) $loser['id'],
+            ['experience', 'strength', 'agility', 'intellect'],
+            static function (array $s) use ($expLoss, $statLoss, $floorStr, $floorAgi, $floorInt): array {
+                return [
+                    'experience' => round(max(0.0, $s['experience'] * (1 - $expLoss)), 2),
+                    'strength'   => round(max($floorStr, $s['strength'] * (1 - $statLoss)), 2),
+                    'agility'    => round(max($floorAgi, $s['agility'] * (1 - $statLoss)), 2),
+                    'intellect'  => round(max($floorInt, $s['intellect'] * (1 - $statLoss)), 2),
+                ];
+            }
+        );
+        if ($res === null) {
             return;
         }
 
-        $loserOldExp = $before['experience'];
-        $loserOldStr = $before['strength'];
-        $loserOldAgi = $before['agility'];
-        $loserOldInt = $before['intellect'];
-
-        $upd = [
-            'experience' => max(0, $loserOldExp * (1 - $this->balance->deathExpLossPercent)),
-            'strength'   => max($loser['strength'],  $loserOldStr * (1 - $this->balance->deathStatLossPercent)),
-            'agility'    => max($loser['agility'],   $loserOldAgi * (1 - $this->balance->deathStatLossPercent)),
-            'intellect'  => max($loser['intellect'], $loserOldInt * (1 - $this->balance->deathStatLossPercent)),
-            'health'     => 0,
-        ];
-        // F1.3 strict_types: explicit float cast (см. winnerHandle выше).
-        $upd['experience'] = round((float)$upd['experience'], 2);
-        $upd['strength']   = round((float)$upd['strength'],   2);
-        $upd['agility']    = round((float)$upd['agility'],    2);
-        $upd['intellect']  = round((float)$upd['intellect'],  2);
-
-        $this->characterModel->update($loser['id'], $upd);
-
-        // Восстанавливаем health/tired (cell_number уже выставлен PlayerRespawner
-        // в DeathService → handlePlayerDeathAndReward → respawner.respawn).
-        $this->characterModel->update($loser['id'], [
-            'health' => round((float)($loser['max_health'] ?? 100), 2),
-            'tired'  => round((float)($loser['max_tired']  ?? 100), 2),
+        // Respawn восстанавливает health/tired — absolute-by-design (полное
+        // восстановление; cell_number уже выставлен PlayerRespawner в
+        // DeathService → handlePlayerDeathAndReward → respawner.respawn).
+        // UPDATE трогает только health/tired → не клоббит exp/статы выше.
+        $this->characterModel->update((int) $loser['id'], [
+            'health' => round((float) ($loser['max_health'] ?? 100), 2),
+            'tired'  => round((float) ($loser['max_tired']  ?? 100), 2),
         ]);
     }
 
