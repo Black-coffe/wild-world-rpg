@@ -6,6 +6,7 @@ namespace App\Controllers\Telegram\Commands\Actions;
 
 use App\Entities\CharacterEntity;
 use App\Models\CharacterModel;
+use App\Models\MapModel;
 use App\Models\TelegramUserModel;
 use App\Services\World\MoveSurfaceService;
 use App\Services\World\TextMapService;
@@ -62,7 +63,10 @@ class MapLegendAction
         }
 
         // «❓ Легенда» — показать полную легенду поверх карты (edit-in-place) + возврат.
-        $legend   = (new TextMapService())->getLegend();
+        // Координаты игрока нужны компасу биомов («🌋 Вулкан · редкий · северо-восток, далеко»);
+        // если персонаж не резолвится — легенда рендерится в прежнем виде, без подсказок.
+        [$px, $py] = $this->playerCoords($this->resolveCharacter());
+        $legend    = (new TextMapService())->getLegend($px, $py);
         $keyboard = json_encode([
             'inline_keyboard' => [[
                 ['text' => '🧭 К карте', 'callback_data' => 'mapBack'],
@@ -76,6 +80,38 @@ class MapLegendAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => $keyboard !== false ? $keyboard : null,
         ]);
+    }
+
+    /**
+     * (X, Y) игрока: позиция хранится как `cell_number`, координаты живут в `map`
+     * (так же их достаёт компас движения в {@see MoveSurfaceService}).
+     * Персонаж/клетка не нашлись → [null, null] и легенда рендерится без подсказок.
+     *
+     * @return array{0:int|null,1:int|null}
+     */
+    private function playerCoords(?CharacterEntity $character): array
+    {
+        if ($character === null) {
+            return [null, null];
+        }
+
+        $cellRaw = $character['cell_number'] ?? null;
+        if (! is_numeric($cellRaw)) {
+            return [null, null];
+        }
+
+        $mapRow = (new MapModel())->where('cell_number', (int) $cellRaw)->first();
+        if (! is_array($mapRow)) {
+            return [null, null];
+        }
+
+        $xRaw = $mapRow['coordinate_x'] ?? null;
+        $yRaw = $mapRow['coordinate_y'] ?? null;
+        if (! is_numeric($xRaw) || ! is_numeric($yRaw)) {
+            return [null, null];
+        }
+
+        return [(int) $xRaw, (int) $yRaw];
     }
 
     private function resolveCharacter(): ?CharacterEntity
