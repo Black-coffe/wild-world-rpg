@@ -67,6 +67,17 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         return true;
     }
 
+    /**
+     * Строка «бонус здания сработал» для caption'а завершения крафта.
+     *
+     * Багрепорт игрока 2026-07-22: «+55% выход плавки работают, только если крафтить
+     * на базе». По коду это НЕ так — {@see BuildingEffectsService::getCraftYieldMultiplier}
+     * зависит только от character_id и уровня здания, локация в расчёт не входит вовсе.
+     * Игрок пришёл к выводу от безысходности: количество молча умножалось, и отличить
+     * «бонус сработал» от «не сработал» было нечем. Теперь пишем об этом прямо.
+     */
+    private ?string $yieldBoostNote = null;
+
     private CharacterModel          $characterModel;
     private CharacterTaskModel      $characterTaskModel;
     private CraftedItemsModel       $craftedItemsModel;
@@ -136,8 +147,17 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
                 $boostBuilding,
             );
             if ($yieldMultiplier > 1.0) {
-                $boosted = (int) round($quantityToAdd * $yieldMultiplier);
+                $boosted  = (int) round($quantityToAdd * $yieldMultiplier);
+                $baseQty  = $quantityToAdd;
                 $quantityToAdd = max($quantityToAdd, $boosted);
+                if ($quantityToAdd > $baseQty) {
+                    $this->yieldBoostNote = $this->buildYieldBoostNote(
+                        $boostBuilding,
+                        $yieldMultiplier,
+                        $baseQty,
+                        $quantityToAdd,
+                    );
+                }
             }
         }
 
@@ -521,6 +541,27 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
     }
 
     /**
+     * Собирает строку о сработавшем бонусе постройки: «🔥 Доменная печь (+55%): 16 шт.
+     * вместо 10». Название и эмодзи — из {@see \Config\Buildings}; если ключа там нет,
+     * обходимся без имени, но процент и числа показываем всё равно.
+     *
+     * Markdown-safe: парные `*` (непарная звёздочка = 400 от Telegram и тихая недоставка).
+     */
+    private function buildYieldBoostNote(string $buildingNameEn, float $multiplier, int $baseQty, int $finalQty): string
+    {
+        $cfg  = config('Buildings');
+        $meta = ($cfg instanceof \Config\Buildings) ? ($cfg->recipes[$buildingNameEn] ?? null) : null;
+        $pct  = (int) round(($multiplier - 1.0) * 100);
+
+        // Нет записи в конфиге (ручной ключ рецепта) — процент и числа всё равно полезны.
+        $who = $meta === null
+            ? '*Постройка на базе*'
+            : $meta['emoji'] . ' *' . $meta['name_rus'] . '*';
+
+        return "{$who} добавила +{$pct}%: {$finalQty} шт. вместо {$baseQty}.";
+    }
+
+    /**
      * V6 — уведомление о скрафченном ресурсе (семени). Caption самодостаточен
      * (media-off): что создано, сколько, итог в инвентаре. Картинка = enhancement.
      *
@@ -557,6 +598,7 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
 
         $text = "📌 *Крафт завершён!*\n\n"
             . "Ты заготовил: {$iconEmoji} *{$itemNameRus}* x{$quantityAdded} шт.\n\n"
+            . ($this->yieldBoostNote !== null ? $this->yieldBoostNote . "\n\n" : '')
             . "Теперь у тебя *{$totalNow} шт.* в запасах.\n\n"
             . "Посади семена в теплице, чтобы вырастить урожай. 🌱";
 
@@ -646,6 +688,7 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
 
         $text = "📌 *Крафт завершён!*\n\n"
             . "Ты создал: {$recipe['icon_emoji']} *{$itemNameRus}* x{$quantityAdded} шт.\n\n"
+            . ($this->yieldBoostNote !== null ? $this->yieldBoostNote . "\n\n" : '')
             . "Теперь у тебя *{$totalNow} шт.* в инвентаре.\n\n"
             . "Зона применения: *{$recipe['zone_name']}* {$recipe['zone_emoji']}";
 
