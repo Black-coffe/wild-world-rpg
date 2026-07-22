@@ -419,9 +419,17 @@ class GenericmessageCommand extends SystemCommand
             'preferred_map_type' => $mapType,
         ]);
 
+        $human = ($mapType === 'accurate')
+            ? '🗺 точная (пиксель в пиксель)'
+            : '🎨 художественная';
+
+        // Команды остаются рабочими (backwards-compat), но дальше зовём в тумблер:
+        // именно его отсутствие рождало вопрос «режим карты хрен поменять уже, да?».
         return Request::sendMessage([
-            'chat_id' => $chatId,
-            'text'    => "Теперь ваша карта будет отображаться в режиме: {$mapType}",
+            'chat_id'    => $chatId,
+            'text'       => "Вид карты изменён: {$human}\n\n"
+                . "_Переключать можно и кнопкой: «⚙️ Ещё» → «⚙️ Настройки» → «Вид карты мира»._",
+            'parse_mode' => 'Markdown',
         ]);
     }
 

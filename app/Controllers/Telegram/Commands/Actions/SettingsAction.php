@@ -112,6 +112,22 @@ class SettingsAction extends BaseAction
             $toast = ($sound === 1)
                 ? '🔔 Звук завершения задач включён'
                 : '🔕 Завершения задач теперь тихие — без звука';
+        } elseif ($data === 'mapAccurate' || $data === 'mapBeautiful') {
+            // Сигнал игрока (21.07.2026): «режим карты хрен поменять уже, да?». Тип карты
+            // менялся ТОЛЬКО слепым вводом `accurate_map`/`beautiful_map`, а узнать о командах
+            // можно было лишь на экране «тип не выбран» — который после первого выбора не
+            // показывается никогда. Фича без входа (UX-DISCOVERABILITY) → тумблер здесь.
+            $newType = ($data === 'mapAccurate') ? 'accurate' : 'beautiful';
+            if (self::mapTypeOf($character) !== $newType) {
+                $this->characterModel->update($character->id, ['preferred_map_type' => $newType]);
+                $reloaded = $this->characterModel->find($character->id);
+                if ($reloaded instanceof CharacterEntity) {
+                    $character = $reloaded;
+                }
+            }
+            $toast = ($newType === 'accurate')
+                ? '🗺 Карта: точная — пиксель в пиксель'
+                : '🎨 Карта: художественная';
         } elseif ($data === 'nodeAnnounceOn' || $data === 'nodeAnnounceOff') {
             // WB11 (ADR-137) — тумблер «Сводка с пустоши» (opt-out ежедневного дайджеста узлов).
             $enabled = ($data === 'nodeAnnounceOn') ? 1 : 0;
@@ -269,6 +285,29 @@ class SettingsAction extends BaseAction
         return is_numeric($raw) ? (int) $raw : 1;
     }
 
+    /**
+     * Текущий тип карты мира: 'accurate' | 'beautiful' | null (ещё не выбран).
+     * Хранится в `characters.preferred_map_type`, читается {@see \App\Services\World\MapService}.
+     *
+     * @param array<int|string,mixed>|object|null $character
+     */
+    public static function mapTypeOf($character): ?string
+    {
+        $raw = null;
+        if ($character instanceof ArrayAccess) {
+            $raw = $character['preferred_map_type'] ?? null;
+        } elseif (is_array($character)) {
+            $raw = $character['preferred_map_type'] ?? null;
+        }
+        $type = is_string($raw) ? strtolower(trim($raw)) : '';
+
+        return match ($type) {
+            'accurate'  => 'accurate',
+            'beautiful' => 'beautiful',
+            default     => null,
+        };
+    }
+
     /** WB11 — killswitch анонса узлов (тумблер показываем только при активном анонсе). */
     private static function nodeAnnounceEnabled(): bool
     {
@@ -318,6 +357,29 @@ class SettingsAction extends BaseAction
             : ['text' => '📌 Включить совет дня',  'callback_data' => 'dailyTipsOn'];
 
         $rows = [[$toggleButton], [$tipsButton]];
+
+        // Тип карты мира (2026-07-22) — раньше менялся только текстовыми командами
+        // `accurate_map`/`beautiful_map`, о которых игрок узнавал единственный раз: на экране
+        // «тип не выбран» до первого выбора. Живой сигнал из чата → полноценный тумблер.
+        $mapType  = self::mapTypeOf($character);
+        $mapState = match ($mapType) {
+            'accurate'  => '🗺 *точная* — пиксель в пиксель',
+            'beautiful' => '🎨 *художественная* — красивее, но менее точная',
+            default     => '❓ *не выбран* — выбери ниже',
+        };
+        $text .= "\n\n🗺 Вид карты мира: {$mapState}\n\n"
+            . "_Так выглядит картинка «🗺 Обзор» на экране карты. Точная — пиксель в пиксель, "
+            . "по ней удобно считать координаты. Художественная — живописнее, но менее точная. "
+            . "Текстовая карта-сетка и легенда одинаковы при любом выборе; переключать можно сколько угодно раз._";
+
+        $accurateBtn  = ['text' => '🗺 Точная карта',         'callback_data' => 'mapAccurate'];
+        $beautifulBtn = ['text' => '🎨 Художественная карта', 'callback_data' => 'mapBeautiful'];
+        // Выбор не сделан → показываем оба варианта; иначе — кнопку на противоположный.
+        $rows[] = match ($mapType) {
+            'accurate'  => [$beautifulBtn],
+            'beautiful' => [$accurateBtn],
+            default     => [$accurateBtn, $beautifulBtn],
+        };
 
         // W17 (ADR-071) — тумблер «открыт к дуэлям» показываем только при активном killswitch.
         if ((new \App\Services\PVE\DuelService())->enabled()) {
