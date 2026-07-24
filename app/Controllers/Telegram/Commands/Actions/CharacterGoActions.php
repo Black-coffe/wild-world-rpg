@@ -55,7 +55,10 @@ class CharacterGoActions extends BaseAction
         // Формируем кнопки
         // Первая строка
         $keyboardButtons = [
-            ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+            // Метки — из единого источника (BotMenuService::actionLabel): те же две двери
+            // рисует поверхность ходьбы, и расхождение подписи там уже стоило нам добычи
+            // (инцидент 2026-07-24, безымянная «🧑‍🌾 🛠️» в ряду направлений).
+            ['text' => \App\Services\Telegram\BotMenuService::actionLabel('actionsHub'), 'callback_data' => 'characterActions'],
             // E4 Слайс 2 (срез 07-07): «Переехать» читалось как переезд базы — новички
             // не находили простой ход, хотя все обучающие тексты зовут «Двигаться».
             ['text' => '🧭 Двигаться',       'callback_data' => 'move'],
@@ -95,7 +98,7 @@ class CharacterGoActions extends BaseAction
             ? ['text' => '📋 Дела', 'callback_data' => 'tasksHub']
             : ['text' => '📜 Квесты и задания', 'callback_data' => 'questAndTask'];
         $keyboardButtons[] = ['text' => '🗺️ Поход', 'callback_data' => 'march'];
-        $keyboardButtons[] = ['text' => '⛏️ Добыть ресурсы',    'callback_data' => 'gather'];
+        $keyboardButtons[] = ['text' => \App\Services\Telegram\BotMenuService::actionLabel('gather'), 'callback_data' => 'gather'];
         // ADR-094 discoverability: аптечка (лечение/расходники) — раньше пряталась в
         // экране Окопаться (только при наличии базы). Выносим на главный хаб действий,
         // всегда доступна. PharmacyAction сам объяснит, если медикаментов нет.

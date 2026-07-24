@@ -8,6 +8,7 @@ use App\Entities\CharacterEntity;
 use App\Models\MapModel;
 use App\Models\TelegramUserModel;
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Telegram\BotMenuService;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
 
@@ -154,24 +155,7 @@ class MoveSurfaceService
      */
     protected function buildDirectionsKeyboard(bool $islandEnabled): array
     {
-        $rows = [
-            [
-                ['text' => '↖️ Сев-Запад', 'callback_data' => 'move_dir_northwest'],
-                ['text' => '⬆️ Север',     'callback_data' => 'move_dir_north'],
-                ['text' => '↗️ Сев-Восток','callback_data' => 'move_dir_northeast'],
-            ],
-            [
-                ['text' => '⬅️ Запад', 'callback_data' => 'move_dir_west'],
-                ['text' => '🏕',       'callback_data' => 'Base'],
-                ['text' => '🧑‍🌾 🛠️','callback_data' => 'characterActions'],
-                ['text' => '➡️ Восток','callback_data' => 'move_dir_east'],
-            ],
-            [
-                ['text' => '↙️ Юго-Запад','callback_data' => 'move_dir_southwest'],
-                ['text' => '⬇️ Юг',      'callback_data' => 'move_dir_south'],
-                ['text' => '↘️ Юго-Восток','callback_data' => 'move_dir_southeast'],
-            ],
-        ];
+        $rows = $this->compassRows();
 
         // Нижний нав-ряд. При world_hub ON — ТРИ кнопки в ОДИН ряд: [Поход, Легенда, Обзор]
         // (Легенда посередине). При OFF — только [Поход] → byte-identical прежнему.
@@ -205,6 +189,78 @@ class MoveSurfaceService
         }
 
         return $rows;
+    }
+
+    /**
+     * Компас-розетка направлений + (при killswitch ON) ряд действий на текущей клетке.
+     * ЕДИНЫЙ источник для ОБЕИХ поверхностей ходьбы: первого рендера (этот сервис) и
+     * рендера каждого шага ({@see \App\Controllers\Telegram\Commands\Actions\MoveCharacterToDirectionAction}),
+     * который раньше держал собственную копию тех же трёх рядов — классический близнец,
+     * расходящийся при любой правке (memory feedback_twin_hotfix_grep).
+     *
+     * Слайс «Второй шаг» (2026-07-24, живая когорта Хабра на новом холодном старте):
+     * фикс старта поднял долю дошедших до первого шага 44% → 79%, и тем самым обнажил
+     * следующую стену — ДОБЫЧУ находил 1 новичок из 14 (79 шагов по карте против 3 тапов
+     * добычи). Причина не в балансе: добыча — ядро игрового цикла — не имела на пути
+     * новичка НИ ОДНОЙ подписанной словом двери. Единственный вход вёл через безымянную
+     * `🧑‍🌾 🛠️` в ряду направлений, и нашедший её единственный игрок когорты оказался
+     * единственным добывавшим. Нижнее меню входа в добычу тоже не содержит (ADR-150:
+     * `[🌍 Мир · 🧑 Я · 🔨 Крафт]/[🏠 База · 📋 Дела · ⚙️ Ещё]`).
+     *
+     * При ON ряд направлений становится честной 3×3-розеткой (в центре — 🏕 база), а под
+     * ней встаёт ряд из двух ПОДПИСАННЫХ дверей: `[⛏️ Добыть ресурсы] [🧑‍🌾 Действия 🛠️]`.
+     * Хаб при этом возвращает себе слово (в ряду из двух кнопок ширины хватает — именно
+     * теснота ряда из четырёх кнопок и съела подпись). Метки — из
+     * {@see \App\Services\Telegram\BotMenuService::actionLabel()}, не литералами.
+     * При OFF — рендер byte-identical прежнему.
+     *
+     * @return array<int, array<int, array<string, string>>>
+     */
+    public function compassRows(): array
+    {
+        $north = [
+            ['text' => '↖️ Сев-Запад', 'callback_data' => 'move_dir_northwest'],
+            ['text' => '⬆️ Север',     'callback_data' => 'move_dir_north'],
+            ['text' => '↗️ Сев-Восток','callback_data' => 'move_dir_northeast'],
+        ];
+        $south = [
+            ['text' => '↙️ Юго-Запад','callback_data' => 'move_dir_southwest'],
+            ['text' => '⬇️ Юг',      'callback_data' => 'move_dir_south'],
+            ['text' => '↘️ Юго-Восток','callback_data' => 'move_dir_southeast'],
+        ];
+
+        if (! $this->gatherOnCompassEnabled()) {
+            return [
+                $north,
+                [
+                    ['text' => '⬅️ Запад', 'callback_data' => 'move_dir_west'],
+                    ['text' => '🏕',       'callback_data' => 'Base'],
+                    ['text' => '🧑‍🌾 🛠️','callback_data' => 'characterActions'],
+                    ['text' => '➡️ Восток','callback_data' => 'move_dir_east'],
+                ],
+                $south,
+            ];
+        }
+
+        return [
+            $north,
+            [
+                ['text' => '⬅️ Запад', 'callback_data' => 'move_dir_west'],
+                ['text' => '🏕',       'callback_data' => 'Base'],
+                ['text' => '➡️ Восток','callback_data' => 'move_dir_east'],
+            ],
+            $south,
+            [
+                ['text' => BotMenuService::actionLabel('gather'),     'callback_data' => 'gather'],
+                ['text' => BotMenuService::actionLabel('actionsHub'), 'callback_data' => 'characterActions'],
+            ],
+        ];
+    }
+
+    /** Killswitch слайса «Второй шаг». Overridable seam для тестов. */
+    protected function gatherOnCompassEnabled(): bool
+    {
+        return BotMenuService::gatherOnCompassEnabled();
     }
 
     /**

@@ -265,25 +265,13 @@ class MoveCharacterToDirectionAction
         $directionTranslated = $this->directionsTranslation[$direction] ?? $direction;
         $updatedText .= "\nВы двинулись на: *{$directionTranslated}*\n";
 
-        // Кнопки те же самые, чтобы можно было продолжать двигаться
-        $directionsKeyboard = [
-            [
-                ['text' => '↖️ Сев-Запад', 'callback_data' => 'move_dir_northwest'],
-                ['text' => '⬆️ Север',     'callback_data' => 'move_dir_north'],
-                ['text' => '↗️ Сев-Восток','callback_data' => 'move_dir_northeast'],
-            ],
-            [
-                ['text' => '⬅️ Запад', 'callback_data' => 'move_dir_west'],
-                ['text' => '🏕',       'callback_data' => 'Base'],
-                ['text' => '🧑‍🌾 🛠️','callback_data' => 'characterActions'],
-                ['text' => '➡️ Восток','callback_data' => 'move_dir_east'],
-            ],
-            [
-                ['text' => '↙️ Юго-Запад','callback_data' => 'move_dir_southwest'],
-                ['text' => '⬇️ Юг',      'callback_data' => 'move_dir_south'],
-                ['text' => '↘️ Юго-Восток','callback_data' => 'move_dir_southeast'],
-            ],
-        ];
+        // Кнопки те же самые, чтобы можно было продолжать двигаться. Розетка берётся из
+        // ЕДИНОГО источника {@see MoveSurfaceService::compassRows()}: раньше здесь лежала
+        // собственная копия тех же трёх рядов, и любая правка поверхности ходьбы обязана
+        // была помнить про оба места (memory feedback_twin_hotfix_grep). Копия и разошлась —
+        // слайс «Второй шаг» (2026-07-24) чинил бы первый рендер, а экран шага, где новичок
+        // и проводит всё время, остался бы прежним.
+        $directionsKeyboard = (new \App\Services\World\MoveSurfaceService())->compassRows();
 
         // Tail (sibling-кнопки за пределами 3×3 направлений): Поход / Караван / Дрон /
         // Карго-дрон / Склад. Накопить в одном массиве и разбить по 2 в строку —
