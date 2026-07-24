@@ -101,7 +101,13 @@ class Front extends BaseController
         $canonical = rtrim(base_url($slug), '/');
         $metaDesc  = $desc !== ''
             ? $this->metaDescription($desc)
-            : ('Материалы рубрики «' . $name . '» — Wild World, постапокалиптическая текстовая MMORPG в Telegram.');
+            // Запасное описание рубрики. Прежнее («Материалы рубрики «X» — Wild World,
+            // постапокалиптическая текстовая MMORPG в Telegram.») давало 89 символов при
+            // коротком имени рубрики — в выдаче пустовала половина строки. Идёт ТОЛЬКО в
+            // meta description: видимый лид страницы берётся из `description` рубрики и
+            // остаётся пустым, пока его не заполнят.
+            : ('Материалы рубрики «' . $name . '» на сайте Wild World: гайды, разборы механик '
+                . 'и новости постапокалиптической текстовой MMORPG в Telegram.');
 
         return view('site/posts', [
             'heading'     => $name,
