@@ -98,7 +98,7 @@ class Front extends BaseController
 
         $canonical = rtrim(base_url($slug), '/');
         $metaDesc  = $desc !== ''
-            ? mb_substr(trim(strip_tags($desc)), 0, 160)
+            ? $this->metaDescription($desc)
             : ('Материалы рубрики «' . $name . '» — Wild World, постапокалиптическая текстовая MMORPG в Telegram.');
 
         return view('site/posts', [
@@ -171,7 +171,7 @@ class Front extends BaseController
         $canonical = rtrim(base_url($slug), '/');
         $imageUrl  = $image !== null ? rtrim(base_url($image), '/') : null;
         $descr     = $metaDesc !== ''
-            ? mb_substr(trim($metaDesc), 0, 160)
+            ? $this->metaDescription($metaDesc)
             : ($title . ' — Wild World, постапокалиптическая текстовая MMORPG в Telegram.');
 
         // ISO-даты для article-меты и BlogPosting.
@@ -248,7 +248,7 @@ class Front extends BaseController
             'breadcrumbs' => $breadcrumbs,
             'meta'        => $this->meta(
                 $title . ' — Wild World',
-                $metaDesc !== '' ? mb_substr(trim($metaDesc), 0, 160) : $title . ' — Wild World.',
+                $metaDesc !== '' ? $this->metaDescription($metaDesc) : $title . ' — Wild World.',
                 $canonical,
                 null,
                 'index,follow',
@@ -256,6 +256,39 @@ class Front extends BaseController
                 ['breadcrumbs' => $breadcrumbs],
             ),
         ]);
+    }
+
+    /**
+     * Описание для сниппета выдачи: обрезка ПО ГРАНИЦЕ СЛОВА с многоточием.
+     *
+     * SEO-аудит 2026-07-24 нашёл, что раньше здесь стоял голый `mb_substr(…, 0, 160)`, и он
+     * резал ровно на 160-м символе — то есть посреди слова. В выдаче это выглядело так:
+     * «…платные эталоны жанра и проекты без покупок вовсе. Как за» — фраза обрывается на
+     * предлоге. Google показывает ~155–160 символов, поэтому смысл не в том, чтобы уместиться
+     * любой ценой, а в том, чтобы обрыв читался как сокращение, а не как баг.
+     *
+     * Короче лимита — отдаём как есть (многоточие не дорисовываем: это была бы ложь о том,
+     * что текст продолжается).
+     */
+    private function metaDescription(string $raw, int $limit = 160): string
+    {
+        $text = trim(preg_replace('~\s+~u', ' ', strip_tags($raw)) ?? '');
+
+        if ($text === '' || mb_strlen($text) <= $limit) {
+            return $text;
+        }
+
+        // Режем с запасом под многоточие, затем откатываемся к последнему пробелу.
+        $cut   = mb_substr($text, 0, $limit - 1);
+        $space = mb_strrpos($cut, ' ');
+        if ($space !== false && $space > 0) {
+            $cut = mb_substr($cut, 0, $space);
+        }
+
+        // Хвостовая пунктуация перед многоточием читается как опечатка («слово, …»).
+        $cut = rtrim($cut, " \t\n\r\0\x0B.,;:!?—–-");
+
+        return $cut . '…';
     }
 
     /**

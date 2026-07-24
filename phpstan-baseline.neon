@@ -114,17 +114,7 @@ parameters:
 			count: 1
 			path: app/Config/Exceptions.php
 
-		-
-			message: '#^PHPDoc type array\<string, array\<int\<0, max\>\|string, array\<string, string\>\|string\>\> of property Config\\Filters\:\:\$globals is not covariant with PHPDoc type array\{before\: array\<int\<0, max\>\|string, array\{except\: list\<string\>\|string\}\|string\>, after\: array\<int\<0, max\>\|string, array\{except\: list\<string\>\|string\}\|string\>\} of overridden property CodeIgniter\\Config\\Filters\:\:\$globals\.$#'
-			identifier: property.phpDocType
-			count: 1
-			path: app/Config/Filters.php
 
-		-
-			message: '#^Property Config\\Filters\:\:\$globals \(array\<string, array\<int\<0, max\>\|string, array\<string, string\>\|string\>\>\) does not accept default value of type array\{before\: array\{csrf\: array\{except\: array\{''telegram/webhook''\}\}\}, after\: array\{\}\}\.$#'
-			identifier: property.defaultValue
-			count: 1
-			path: app/Config/Filters.php
 
 		-
 			message: '#^Property Config\\Logger\:\:\$handlers type has no value type specified in iterable type array\.$#'

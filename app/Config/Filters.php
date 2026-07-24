@@ -40,6 +40,7 @@ class Filters extends BaseFilters
         'botHost'           => BotHostFilter::class,
         'login'             => LoginFilter::class,
         'telegramRateLimit' => TelegramRateLimitFilter::class,
+        'trailingSlash'     => \App\Filters\TrailingSlashRedirectFilter::class,
     ];
 
     /**
@@ -67,7 +68,13 @@ class Filters extends BaseFilters
      * List of filter aliases that are always
      * applied before and after every request.
      *
-     * @var array<string, array<string, array<string, string>>>|array<string, list<string>>
+     * Тип повторяет родительский `CodeIgniter\Config\Filters::$globals` буквально: элементом
+     * может быть либо голый алиас-строка, либо `алиас => ['except' => путь|список путей]`.
+     * Прежний упрощённый `array<string, array<string, array<string, string>>>` реальную форму
+     * не описывал (значение `['except' => [...]]` — список, а не строка), поэтому обе ошибки
+     * висели в baseline. Правка 2026-07-24: описываем как есть, baseline-заглушки сняты.
+     *
+     * @var array{before: array<int<0, max>|string, array{except: list<string>|string}|string>, after: array<int<0, max>|string, array{except: list<string>|string}|string>}
      */
     public array $globals = [
         'before' => [
@@ -76,6 +83,10 @@ class Filters extends BaseFilters
             // у Telegram нет токена нашего фреймворка. Защиту webhook'а
             // обеспечивает X-Telegram-Bot-API-Secret-Token (см. F0.9).
             'csrf' => ['except' => ['telegram/webhook']],
+            // SEO: единственный канонический вид URL — без завершающего слеша (аудит 24.07:
+            // обе версии отдавали 200, обе сидели в индексе Google). Только GET, корень и
+            // вебхук не трогаются — см. TrailingSlashRedirectFilter.
+            'trailingSlash' => ['except' => ['telegram/*']],
             // 'honeypot',
             // 'invalidchars',
         ],
