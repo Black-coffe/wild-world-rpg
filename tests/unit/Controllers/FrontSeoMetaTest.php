@@ -73,6 +73,14 @@ final class FrontSeoMetaTest extends CIUnitTestCase
         $this->assertStringNotContainsString('Wild World', $long, 'бренд не должен выталкивать за лимит');
     }
 
+    /** Бренд внутри заголовка не задваивается суффиксом. */
+    public function testBrandNotDuplicated(): void
+    {
+        $out = (string) $this->call('pageTitle', 'Крафт в Wild World: рецепты и материалы', 'Крафт');
+
+        $this->assertSame(1, substr_count($out, 'Wild World'), 'бренд задвоился в <title>');
+    }
+
     /** Короткий seo_title вытесняет обычный заголовок. */
     public function testSeoTitleWins(): void
     {

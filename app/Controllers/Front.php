@@ -369,6 +369,12 @@ class Front extends BaseController
         $base   = trim($short) !== '' ? trim($short) : trim($fallback);
         $suffix = ' — Wild World';
 
+        // Бренд уже внутри заголовка («Крафт в Wild World: рецепты…») — второй раз не клеим:
+        // «…— Wild World» после этого читается как заикание и съедает место в выдаче.
+        if (mb_stripos($base, 'Wild World') !== false) {
+            return $base;
+        }
+
         return mb_strlen($base . $suffix) <= $limit ? $base . $suffix : $base;
     }
 
