@@ -248,6 +248,8 @@ class Front extends BaseController
         $slug     = is_string($page['slug'] ?? null) ? $page['slug'] : '';
         $title    = is_string($page['title'] ?? null) ? $page['title'] : '';
         $metaDesc = is_string($page['meta_description'] ?? null) ? $page['meta_description'] : '';
+        // Описательный <title> статической страницы (SEO-аудит 24.07). Пусто → прежнее.
+        $seoTitle = is_string($page['seo_title'] ?? null) ? $page['seo_title'] : '';
 
         $canonical   = rtrim(base_url($slug), '/');
         $breadcrumbs = [$this->homeCrumb(), ['name' => $title, 'url' => $canonical]];
@@ -256,7 +258,7 @@ class Front extends BaseController
             'page'        => $page,
             'breadcrumbs' => $breadcrumbs,
             'meta'        => $this->meta(
-                $this->pageTitle('', $title),
+                $this->pageTitle($seoTitle, $title),
                 $metaDesc !== '' ? $this->metaDescription($metaDesc) : $title . ' — Wild World.',
                 $canonical,
                 null,

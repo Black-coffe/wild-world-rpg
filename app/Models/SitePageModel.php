@@ -17,7 +17,9 @@ class SitePageModel extends Model
     protected $returnType    = 'array';
     protected $useSoftDeletes = false;
 
-    protected $allowedFields = ['slug', 'title', 'content_html', 'meta_description', 'status'];
+    // `seo_title` — короткий заголовок только для тега <title> (SEO-аудит 24.07); H1 из `title`.
+    // Обязателен в allowedFields, иначе Model::update молча выбросит поле при редактировании.
+    protected $allowedFields = ['slug', 'title', 'seo_title', 'content_html', 'meta_description', 'status'];
 
     protected $useTimestamps = true;
     protected $createdField  = 'created_at';
