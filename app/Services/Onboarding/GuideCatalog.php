@@ -70,9 +70,9 @@ class GuideCatalog
         $gatherLabel = \App\Services\Telegram\BotMenuService::actionLabel('gather');
         $gatherPath  = \App\Services\Telegram\BotMenuService::gatherOnCompassEnabled()
             ? "Найти: открой *«{$world}»* — кнопка *«{$gatherLabel}»* стоит прямо под компасом направлений."
-            : "Найти: открой *«{$world}»*, затем *«"
-                . \App\Services\Telegram\BotMenuService::actionLabel('actionsHub')
-                . "»* — внутри кнопка *«{$gatherLabel}»*.";
+            : "Найти: открой *«{$world}»*, затем кнопку *«"
+                . \App\Services\Telegram\BotMenuService::actionLabel('actionsHubCompact')
+                . "»* в ряду направлений — внутри кнопка *«{$gatherLabel}»*.";
 
         return [
             // ===== 🌱 Первые шаги =====

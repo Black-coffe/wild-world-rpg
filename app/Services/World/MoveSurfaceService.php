@@ -235,7 +235,7 @@ class MoveSurfaceService
                 [
                     ['text' => '⬅️ Запад', 'callback_data' => 'move_dir_west'],
                     ['text' => '🏕',       'callback_data' => 'Base'],
-                    ['text' => '🧑‍🌾 🛠️','callback_data' => 'characterActions'],
+                    ['text' => BotMenuService::actionLabel('actionsHubCompact'), 'callback_data' => 'characterActions'],
                     ['text' => '➡️ Восток','callback_data' => 'move_dir_east'],
                 ],
                 $south,

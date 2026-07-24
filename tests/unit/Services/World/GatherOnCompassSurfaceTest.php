@@ -94,7 +94,13 @@ final class GatherOnCompassSurfaceTest extends CIUnitTestCase
         $this->assertNull($this->findButton($rows, 'gather'), 'при killswitch OFF добыча не должна появляться');
         $this->assertCount(3, $rows, 'при OFF рядов ровно три — розетка без ряда действий');
         $this->assertCount(4, $rows[1], 'при OFF средний ряд прежний, из четырёх кнопок');
-        $this->assertNotNull($this->findButton($rows, 'characterActions'));
+        $hub = $this->findButton($rows, 'characterActions');
+        $this->assertNotNull($hub);
+        $this->assertSame(
+            BotMenuService::actionLabel('actionsHubCompact'),
+            $hub['text'],
+            'урезанная подпись хаба тоже обязана идти из единого источника — её называет /guide'
+        );
 
         foreach (self::ALL_DIRECTIONS as $dir) {
             $this->assertNotNull($this->findButton($rows, $dir), "потеряно направление {$dir}");
