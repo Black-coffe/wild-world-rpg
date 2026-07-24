@@ -35,6 +35,15 @@ $val    = static fn (string $k): string => esc((string) (old($k) ?? ($page[$k] ?
             <input type="text" name="title" class="aui-input" value="<?= $val('title') ?>" required>
         </div>
         <div class="aui-field">
+            <label class="aui-label">Короткий заголовок для выдачи (SEO)</label>
+            <input type="text" name="seo_title" class="aui-input" maxlength="190" value="<?= $val('seo_title') ?>">
+            <div class="aui-hint">
+                Пусто = берётся обычный заголовок. Заполняйте, если тот длиннее ~50 символов:
+                поисковик обрезает <code>&lt;title&gt;</code> примерно на 65. Заголовок на самой
+                странице (H1) не меняется.
+            </div>
+        </div>
+        <div class="aui-field">
             <label class="aui-label">Slug</label>
             <input type="text" name="slug" class="aui-input" value="<?= $val('slug') ?>">
             <div class="aui-hint">(пусто = из заголовка)</div>
@@ -46,6 +55,10 @@ $val    = static fn (string $k): string => esc((string) (old($k) ?? ($page[$k] ?
         <div class="aui-field">
             <label class="aui-label">Meta description (SEO)</label>
             <textarea name="meta_description" class="aui-textarea" rows="2" maxlength="320"><?= $val('meta_description') ?></textarea>
+            <div class="aui-hint">
+                Целься в <b>150–160 символов</b>: в выдачу уйдут первые ~160, остальное сайт
+                обрежет сам — по концу предложения, иначе по границе слова с многоточием.
+            </div>
         </div>
         <div class="aui-field">
             <label class="aui-label">Статус</label>

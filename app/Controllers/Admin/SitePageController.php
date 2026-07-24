@@ -102,9 +102,13 @@ class SitePageController extends BaseAdminController
             $slug = (new Slugifier())->transliterate($title);
         }
         $metaDesc = trim($this->str($this->request->getPost('meta_description')));
+        // Короткий заголовок только для тега <title> (SEO-аудит 2026-07-24): без приёма
+        // из формы поле осталось бы заполняемым лишь миграцией.
+        $seoTitle = trim($this->str($this->request->getPost('seo_title')));
 
         return [
             'title'            => $title,
+            'seo_title'        => $seoTitle !== '' ? $seoTitle : null,
             'slug'             => $slug,
             'content_html'     => $this->str($this->request->getPost('content_html')),
             'meta_description' => $metaDesc !== '' ? $metaDesc : null,

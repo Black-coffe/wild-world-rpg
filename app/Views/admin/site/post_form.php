@@ -39,6 +39,16 @@ $val    = static fn (string $k): string => esc((string) (old($k) ?? ($post[$k] ?
                 <input type="text" name="title" class="aui-input" value="<?= $val('title') ?>" required>
             </div>
             <div class="aui-field">
+                <label class="aui-label">Короткий заголовок для выдачи (SEO)</label>
+                <input type="text" name="seo_title" class="aui-input" maxlength="190" value="<?= $val('seo_title') ?>">
+                <div class="aui-hint">
+                    Пусто = берётся обычный заголовок. Заполняйте, если тот длиннее ~50 символов:
+                    поисковик обрезает <code>&lt;title&gt;</code> примерно на 65, а к нему ещё
+                    добавляется «— Wild World» (и не добавляется, если не влезает).
+                    Заголовок на самой странице (H1) при этом не меняется.
+                </div>
+            </div>
+            <div class="aui-field">
                 <label class="aui-label">Slug</label>
                 <input type="text" name="slug" class="aui-input" value="<?= $val('slug') ?>">
                 <div class="aui-hint">(пусто = из заголовка; меняет URL — осторожно для SEO)</div>
@@ -52,8 +62,13 @@ $val    = static fn (string $k): string => esc((string) (old($k) ?? ($post[$k] ?
                 <textarea name="content_html" class="aui-textarea aui-input--mono" rows="18"><?= esc((string) (old('content_html') ?? ($post['content_html'] ?? ''))) ?></textarea>
             </div>
             <div class="aui-field">
-                <label class="aui-label">Meta description (SEO, до 320)</label>
+                <label class="aui-label">Meta description (SEO)</label>
                 <textarea name="meta_description" class="aui-textarea" rows="2" maxlength="320"><?= $val('meta_description') ?></textarea>
+                <div class="aui-hint">
+                    Целься в <b>150–160 символов</b>. Поле принимает до 320, но в выдачу уйдут
+                    первые ~160: длинное описание сайт обрежет сам — по концу предложения,
+                    иначе по границе слова с многоточием.
+                </div>
             </div>
         </div></div>
         <div class="aui-card"><div class="aui-card__body">

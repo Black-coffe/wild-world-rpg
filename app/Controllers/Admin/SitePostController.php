@@ -151,6 +151,10 @@ class SitePostController extends BaseAdminController
             $slug = (new Slugifier())->transliterate($title);
         }
 
+        // Короткий заголовок только для тега <title> (SEO-аудит 2026-07-24). Без него
+        // форма молча теряла бы поле, и каждая новая статья снова получала бы
+        // обрезаемый в выдаче заголовок — ровно то, что чинили по всем 120 постам.
+        $seoTitle = trim($this->str($this->request->getPost('seo_title')));
         $excerpt  = trim($this->str($this->request->getPost('excerpt')));
         $metaDesc = trim($this->str($this->request->getPost('meta_description')));
         $featured = trim($this->str($this->request->getPost('featured_image')));
@@ -158,6 +162,7 @@ class SitePostController extends BaseAdminController
 
         return [
             'title'            => $title,
+            'seo_title'        => $seoTitle !== '' ? $seoTitle : null,
             'slug'             => $slug,
             'excerpt'          => $excerpt !== '' ? $excerpt : null,
             'content_html'     => $this->str($this->request->getPost('content_html')),
