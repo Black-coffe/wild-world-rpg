@@ -327,7 +327,24 @@ class Front extends BaseController
                     return $tag;
                 }
 
-                return rtrim($tag, '/>') . sprintf(' width="%d" height="%d">', (int) $size[0], (int) $size[1]);
+                $out = rtrim($tag, '/>') . sprintf(' width="%d" height="%d"', (int) $size[0], (int) $size[1]);
+
+                // 🔴 Обязательный спутник атрибута height. Картинки из WordPress несут
+                // инлайновый `style="width:100%"` БЕЗ height — и как только у тега появляется
+                // атрибут `height`, браузер берёт его буквально: ширина тянется по проценту,
+                // высота застревает на 768px, картинка растягивается. Поймано visual-смоком
+                // на 768px (681×766 вместо 681×340). `height:auto` возвращает пропорции,
+                // сохраняя выигрыш по CLS: место всё равно резервируется по соотношению сторон.
+                if (preg_match('~\bstyle\s*=\s*(["\'])(.*?)\1~i', $out, $st)) {
+                    if (! preg_match('~\bheight\s*:~i', $st[2])) {
+                        $newStyle = rtrim(trim($st[2]), ';') . ';height:auto';
+                        $out      = str_replace($st[0], 'style="' . $newStyle . '"', $out);
+                    }
+                } else {
+                    $out .= ' style="height:auto"';
+                }
+
+                return $out . '>';
             },
             $html
         );
