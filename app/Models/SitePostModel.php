@@ -22,6 +22,10 @@ class SitePostModel extends Model
         'wp_post_id',
         'slug',
         'title',
+        // Короткий заголовок для тега <title> (SEO-аудит 24.07). Пусто → берётся `title`.
+        // Обязателен в allowedFields: без него Model::update молча выбросит поле при
+        // редактировании поста из админки (memory feedback_ci4_alter_column_needs_allowedfields).
+        'seo_title',
         'excerpt',
         'content_html',
         'featured_image',

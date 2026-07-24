@@ -107,7 +107,7 @@ class Front extends BaseController
             'breadcrumbs' => [$this->homeCrumb(), ['name' => $name, 'url' => $canonical]],
             'posts'       => (new SitePostModel())->publishedInCategory($catId),
             'meta'        => $this->meta(
-                $name . ' — Wild World',
+                $this->pageTitle('', $name),
                 $metaDesc,
                 $canonical,
                 null,
@@ -163,6 +163,8 @@ class Front extends BaseController
         $slug     = is_string($post['slug'] ?? null) ? $post['slug'] : '';
         $title    = is_string($post['title'] ?? null) ? $post['title'] : '';
         $metaDesc = is_string($post['meta_description'] ?? null) ? $post['meta_description'] : '';
+        // Короткий заголовок для <title> (SEO-аудит 24.07). Пусто → прежнее поведение.
+        $seoTitle = is_string($post['seo_title'] ?? null) ? $post['seo_title'] : '';
         $image    = is_string($post['featured_image'] ?? null) && $post['featured_image'] !== '' ? $post['featured_image'] : null;
 
         $catIds     = (new SitePostCategoryModel())->categoryIdsForPost($id);
@@ -200,7 +202,7 @@ class Front extends BaseController
             'categories' => $categories,
             'breadcrumbs' => $breadcrumbs,
             'meta'       => $this->meta(
-                $title . ' — Wild World',
+                $this->pageTitle($seoTitle, $title),
                 $descr,
                 $canonical,
                 $imageUrl,
@@ -247,7 +249,7 @@ class Front extends BaseController
             'page'        => $page,
             'breadcrumbs' => $breadcrumbs,
             'meta'        => $this->meta(
-                $title . ' — Wild World',
+                $this->pageTitle('', $title),
                 $metaDesc !== '' ? $this->metaDescription($metaDesc) : $title . ' — Wild World.',
                 $canonical,
                 null,
@@ -270,6 +272,24 @@ class Front extends BaseController
      * Короче лимита — отдаём как есть (многоточие не дорисовываем: это была бы ложь о том,
      * что текст продолжается).
      */
+    /**
+     * Заголовок для тега <title>: короткая версия + бренд, если тот влезает.
+     *
+     * SEO-аудит 2026-07-24: 78 из 120 постов имели <title> длиннее 65 символов (максимум 113)
+     * и обрезались в выдаче. Заголовки писались под H1 — под чтение на странице, — а в <title>
+     * к ним ещё приклеивался бренд. Поэтому: если у поста задан `seo_title` — берём его (H1
+     * при этом не меняется), иначе обычный заголовок. Бренд-суффикс добавляем ТОЛЬКО когда
+     * итог остаётся в пределах лимита: лучше короткий заголовок без бренда, чем обрезанный
+     * с брендом (в выдаче бренд всё равно виден в имени домена).
+     */
+    private function pageTitle(string $short, string $fallback, int $limit = 65): string
+    {
+        $base   = trim($short) !== '' ? trim($short) : trim($fallback);
+        $suffix = ' — Wild World';
+
+        return mb_strlen($base . $suffix) <= $limit ? $base . $suffix : $base;
+    }
+
     private function metaDescription(string $raw, int $limit = 160): string
     {
         $text = trim(preg_replace('~\s+~u', ' ', strip_tags($raw)) ?? '');
