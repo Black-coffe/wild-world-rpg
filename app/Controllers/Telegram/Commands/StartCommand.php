@@ -176,6 +176,50 @@ class StartCommand extends UserCommand
                     ]
                 ];
                 $encodedKeyboard = json_encode($keyboard);
+
+                // Слайс «Первые 3 минуты» (замер 2026-07-24) — ОДНО окно вместо пяти.
+                //
+                // Замер когорты Хабра 07-08.07 (45 человек): 42 из 45 остались на L1, живы
+                // через две недели 3; лишь 18 (40%) нажали единственную кнопку первого экрана,
+                // а 18 из 26 ушедших уложились в ≤3 минуты. При этом сокращение текста
+                // (слайс 1b, `start_greeting`) метрику «не назвали героя» не сдвинуло: было
+                // ~58%, стало 60% → барьер не в длине копии, а в форме первого контакта:
+                // пять сообщений подряд, CTA в последнем, и он требует ПЕЧАТАТЬ, хотя имя
+                // уже автоподставлено из username (см. insert выше).
+                //
+                // Здесь: паёк/сигнал/встречающий въезжают секциями В welcome (обнуляем их —
+                // отдельные sendMessage ниже пропускаются), а первый CTA ведёт в мир
+                // (callback `move` → компас ходьбы). Имя остаётся второй кнопкой и явно
+                // названо необязательным. При OFF (default) — всё byte-identical.
+                if ($coldOpen->singleScreenEnabled()) {
+                    $composed = $coldOpen->composeWelcome([
+                        $coldOpen->greetingSingleScreen(),
+                        $starterKitText,
+                        $signalText,
+                        $greeterText,
+                        $coldOpen->closingSingleScreen(),
+                    ]);
+
+                    // Не влезло в одно сообщение (контент разросся) → честный откат на
+                    // раздельную отправку, а не потеря экрана целиком.
+                    if ($coldOpen->fitsSingleMessage($composed)) {
+                        $text            = $composed;
+                        $encodedKeyboard = json_encode([
+                            'inline_keyboard' => [
+                                [
+                                    ['text' => '🧭 Сделать первый шаг', 'callback_data' => 'move'],
+                                ],
+                                [
+                                    ['text' => '✏️ Назвать героя', 'callback_data' => 'setCharacterName'],
+                                ],
+                            ],
+                        ]);
+
+                        $starterKitText = null;
+                        $signalText     = null;
+                        $greeterText    = null;
+                    }
+                }
             }
 
             // N4 (ADR-039): постоянную reply-клавиатуру шлём только новичку. Для

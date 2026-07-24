@@ -63,6 +63,38 @@ class SetCharacterNameAction extends BaseAction
             ]
         ];
 
+        // Слайс «Первые 3 минуты» (замер 2026-07-24), шаг 2: экран регламента → одна строка.
+        //
+        // Замер: из 45 новичков когорты 18 нажали «Задать имя», но до ввода дошли 13 —
+        // регламент на восемь строк съедал 28% уже согласившихся. Правила при этом нужны
+        // (валидатор отклонит пробелы/эмодзи), поэтому не выбрасываем их, а сворачиваем в
+        // одну фразу и добавляем честный выход в мир: имя — не ворота.
+        //
+        // Имя уже есть (автоподстановка из username при создании персонажа) → показываем
+        // текущее. MarkdownSafe обязателен: реальные ники вида `mr_razrab` содержат `_`,
+        // непарный символ валит парсинг ВСЕГО сообщения → 400 → тихий не-сенд.
+        if ((new \App\Services\Onboarding\ColdOpenGreetingService())->singleScreenEnabled()) {
+            $currentName = \App\Services\Display\MarkdownSafe::name(
+                is_string($character['name'] ?? null) ? $character['name'] : ''
+            );
+
+            $text = "✏️ *Имя героя*\n\n"
+                . "Сейчас тебя зовут *{$currentName}*. Можно оставить так — или придумать своё.\n\n"
+                . "Требования простые: 3–20 символов, без пробелов и эмодзи.";
+
+            $keyboard = [
+                'inline_keyboard' => [
+                    [
+                        ['text' => '📝 Ввести своё', 'callback_data' => 'setName'],
+                        ['text' => '🎲 Придумай за меня', 'callback_data' => 'autoGenerateName'],
+                    ],
+                    [
+                        ['text' => '🧭 Оставить и в мир', 'callback_data' => 'move'],
+                    ],
+                ]
+            ];
+        }
+
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         // #12 edit-in-place (ADR-018): экран выбора имени — навигация → редактируем
         // сообщение, на котором нажата кнопка (fallback на новое при ошибке/клике с photo).
