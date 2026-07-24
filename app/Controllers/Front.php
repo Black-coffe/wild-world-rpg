@@ -278,8 +278,23 @@ class Front extends BaseController
             return $text;
         }
 
-        // Режем с запасом под многоточие, затем откатываемся к последнему пробелу.
-        $cut   = mb_substr($text, 0, $limit - 1);
+        $cut = mb_substr($text, 0, $limit - 1);
+
+        // Лучший вариант — оборвать на конце предложения: сниппет тогда читается как
+        // законченная мысль, а не как обрезок. Берём только если предложение занимает
+        // хотя бы 60% лимита, иначе описание выйдет неоправданно куцым.
+        $sentenceEnd = 0;
+        foreach (['.', '!', '?', '…'] as $mark) {
+            $pos = mb_strrpos($cut, $mark);
+            if ($pos !== false && $pos > $sentenceEnd) {
+                $sentenceEnd = $pos;
+            }
+        }
+        if ($sentenceEnd >= (int) ($limit * 0.6)) {
+            return mb_substr($cut, 0, $sentenceEnd + 1);
+        }
+
+        // Иначе — по границе слова с многоточием.
         $space = mb_strrpos($cut, ' ');
         if ($space !== false && $space > 0) {
             $cut = mb_substr($cut, 0, $space);
