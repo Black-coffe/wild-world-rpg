@@ -197,6 +197,11 @@ class Front extends BaseController
 
         $site = rtrim(base_url(), '/');
 
+        // Картинки в теле статьи получают размеры на рендере (CLS, аудит 24.07).
+        if (is_string($post['content_html'] ?? null)) {
+            $post['content_html'] = $this->enrichContentImages($post['content_html']);
+        }
+
         return view('site/post', [
             'post'       => $post,
             'categories' => $categories,
@@ -272,6 +277,64 @@ class Front extends BaseController
      * Короче лимита — отдаём как есть (многоточие не дорисовываем: это была бы ложь о том,
      * что текст продолжается).
      */
+    /**
+     * Проставляет `width`/`height` картинкам внутри тела статьи.
+     *
+     * SEO-аудит 2026-07-24: из 169 картинок сайта 165 шли без размеров. Обложку чиним в
+     * шаблоне, но 48 постов держат картинки прямо в `content_html` (наследие импорта из
+     * WordPress) — там разметку правит только рендер. Без width/height браузер не знает
+     * пропорций до загрузки и схлопывает высоту в ноль: текст под картинкой прыгает, когда
+     * она доезжает (CLS — один из трёх Core Web Vitals).
+     *
+     * Трогаем только СВОИ локальные картинки (`/uploads/...`), у которых атрибутов ещё нет;
+     * внешние и уже размеченные не переписываем. Файла нет или он битый → тег остаётся как
+     * был (деградация, а не поломка статьи).
+     */
+    private function enrichContentImages(string $html): string
+    {
+        if ($html === '' || stripos($html, '<img') === false) {
+            return $html;
+        }
+
+        $result = preg_replace_callback(
+            '~<img\b[^>]*>~i',
+            static function (array $m): string {
+                $tag = $m[0];
+
+                if (preg_match('~\bwidth\s*=~i', $tag) || preg_match('~\bheight\s*=~i', $tag)) {
+                    return $tag;
+                }
+
+                if (! preg_match('~\bsrc\s*=\s*["\']([^"\']+)["\']~i', $tag, $srcMatch)) {
+                    return $tag;
+                }
+
+                // Только собственные загруженные картинки: и абсолютные на наш домен, и
+                // относительные. Чужие хосты не трогаем — файла у нас всё равно нет.
+                $src  = html_entity_decode($srcMatch[1], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $path = parse_url($src, PHP_URL_PATH);
+                if (! is_string($path) || stripos($path, '/uploads/') === false) {
+                    return $tag;
+                }
+
+                $file = FCPATH . ltrim($path, '/');
+                if (! is_file($file)) {
+                    return $tag;
+                }
+
+                $size = @getimagesize($file);
+                if (! is_array($size) || $size[0] <= 0 || $size[1] <= 0) {
+                    return $tag;
+                }
+
+                return rtrim($tag, '/>') . sprintf(' width="%d" height="%d">', (int) $size[0], (int) $size[1]);
+            },
+            $html
+        );
+
+        return is_string($result) ? $result : $html;
+    }
+
     /**
      * Заголовок для тега <title>: короткая версия + бренд, если тот влезает.
      *
