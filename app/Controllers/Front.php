@@ -95,6 +95,8 @@ class Front extends BaseController
         $catId = is_numeric($cat['id'] ?? null) ? (int) $cat['id'] : 0;
         $name  = is_string($cat['name'] ?? null) ? $cat['name'] : $slug;
         $desc  = is_string($cat['description'] ?? null) ? $cat['description'] : '';
+        // Описательный <title> рубрики (SEO-аудит 24.07). Пусто → прежнее поведение.
+        $seoTitle = is_string($cat['seo_title'] ?? null) ? $cat['seo_title'] : '';
 
         $canonical = rtrim(base_url($slug), '/');
         $metaDesc  = $desc !== ''
@@ -107,7 +109,7 @@ class Front extends BaseController
             'breadcrumbs' => [$this->homeCrumb(), ['name' => $name, 'url' => $canonical]],
             'posts'       => (new SitePostModel())->publishedInCategory($catId),
             'meta'        => $this->meta(
-                $this->pageTitle('', $name),
+                $this->pageTitle($seoTitle, $name),
                 $metaDesc,
                 $canonical,
                 null,

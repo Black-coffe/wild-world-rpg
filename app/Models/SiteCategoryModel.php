@@ -18,7 +18,10 @@ class SiteCategoryModel extends Model
     protected $returnType    = 'array';
     protected $useSoftDeletes = false;
 
-    protected $allowedFields = ['wp_term_id', 'slug', 'name', 'description', 'sort'];
+    // `seo_title` — короткий заголовок только для тега <title> (SEO-аудит 24.07); H1 берётся
+    // из `name`. Обязателен в allowedFields, иначе Model::update молча выбросит поле
+    // (memory feedback_ci4_alter_column_needs_allowedfields).
+    protected $allowedFields = ['wp_term_id', 'slug', 'name', 'seo_title', 'description', 'sort'];
 
     protected $useTimestamps = true;
     protected $createdField  = 'created_at';
