@@ -65,13 +65,13 @@ class BotMenuService
         // «⚙️ Ещё» без своих killswitch — на гвард-заглушку.
         if (self::finalGridEnabled()) {
             return [
-                [self::worldButtonLabel(), '🧑 Я', '🔨 Крафт'],
-                ['🏠 База', '📋 Дела', '⚙️ Ещё'],
+                [self::menuLabel('world'), self::menuLabel('me'), self::menuLabel('craft')],
+                [self::menuLabel('base'), self::menuLabel('tasks'), self::menuLabel('more')],
             ];
         }
 
         // ADR-150 Слайс 1: при world_hub ON нижняя «Карта» → «🌍 Мир».
-        $mapLabel = self::worldButtonLabel();
+        $mapLabel = self::menuLabel('world');
 
         // ADR-150 Слайс 3: при tasks_hub ON во втором ряду появляется «📋 Дела» — дом целей
         // (таймеры/квесты/задания дня). Раньше активные задачи жили ТОЛЬКО в slash `/tasks`:
@@ -82,14 +82,43 @@ class BotMenuService
         // «Ещё» (один тап) + slash `/settings` + текст «настройки» — путь не теряется.
         $secondRow = [];
         if (self::tasksHubEnabled()) {
-            $secondRow[] = '📋 Дела';
+            $secondRow[] = self::menuLabel('tasks');
         }
-        $secondRow[] = self::moreHubEnabled() ? '⚙️ Ещё' : 'Настройки';
+        $secondRow[] = self::menuLabel('more');
 
         return [
-            ['Перс', 'База', 'Крафт', $mapLabel],
+            [self::menuLabel('me'), self::menuLabel('base'), self::menuLabel('craft'), $mapLabel],
             $secondRow,
         ];
+    }
+
+    /**
+     * 🔴 ЕДИНЫЙ ИСТОЧНИК метки кнопки нижнего меню по группе — и для самой клавиатуры
+     * ({@see replyRows()}), и для любого текста, который эту кнопку называет.
+     *
+     * Группы: `world` (мир/карта), `me` (персонаж), `craft`, `base`, `tasks`, `more`.
+     * Неизвестная группа → пустая строка (вызывающий текст просто не назовёт кнопку,
+     * вместо того чтобы соврать выдуманным названием).
+     *
+     * Зачем (инцидент 2026-07-24): подсказки годами звали «Открой «🗺 Карту»» и ««Перс» →
+     * «⚔️ Экип»», но после ADR-150 (final_grid ON) меню стало
+     * `[🌍 Мир · 🧑 Я · 🔨 Крафт]/[🏠 База · 📋 Дела · ⚙️ Ещё]` — кнопок с такими названиями
+     * там нет. Игрок читал инструкцию и искал несуществующую кнопку. Хардкод метки в копии =
+     * отложенная ложь при следующей смене каркаса, поэтому метку берём отсюда.
+     */
+    public static function menuLabel(string $group): string
+    {
+        $final = self::finalGridEnabled();
+
+        return match ($group) {
+            'world' => self::worldButtonLabel(),
+            'me'    => $final ? '🧑 Я' : 'Перс',
+            'base'  => $final ? '🏠 База' : 'База',
+            'craft' => $final ? '🔨 Крафт' : 'Крафт',
+            'tasks' => '📋 Дела',
+            'more'  => self::moreHubEnabled() ? '⚙️ Ещё' : 'Настройки',
+            default => '',
+        };
     }
 
     /**

@@ -7,6 +7,7 @@ namespace Tests\Unit\Services\Onboarding;
 use App\Services\Onboarding\ColdOpenSignalService;
 use App\Services\Onboarding\NewbieAtmosphereService;
 use App\Services\Onboarding\NewbieGreeterService;
+use App\Services\Player\TipService;
 use App\Services\Telegram\BotMenuService;
 use CodeIgniter\Test\CIUnitTestCase;
 
@@ -26,8 +27,14 @@ use CodeIgniter\Test\CIUnitTestCase;
  */
 final class OnboardingNavLabelConsistencyTest extends CIUnitTestCase
 {
-    /** Устаревшие метки кнопок, которых в нижнем меню больше нет. */
-    private const STALE_LABELS = ['«🗺 Карту»', '«🗺 Карта»'];
+    /**
+     * Литералы меток, которые НЕЛЬЗЯ хардкодить в player-facing текстах: либо кнопка
+     * так больше не подписана (ADR-150), либо подпись зависит от killswitch.
+     */
+    private const STALE_LABELS = ['«🗺 Карту»', '«🗺 Карта»', '«Перс»', '«Карта»', '«Крафт»', '«База»'];
+
+    /** Группы меню, кнопки которых присутствуют в клавиатуре при любом каркасе. */
+    private const ALWAYS_PRESENT_GROUPS = ['world', 'me', 'base', 'craft', 'more'];
 
     /** Кнопка, которую называем, обязана существовать в реальном нижнем меню. */
     public function testWorldLabelIsActuallyInTheReplyKeyboard(): void
@@ -36,6 +43,29 @@ final class OnboardingNavLabelConsistencyTest extends CIUnitTestCase
 
         $this->assertNotSame('', trim($label));
         $this->assertStringContainsString($label, BotMenuService::replyButtonsLine());
+    }
+
+    /** То же для КАЖДОЙ группы: метка непустая и реально стоит на клавиатуре. */
+    public function testEveryMenuLabelExistsOnTheKeyboard(): void
+    {
+        $line = BotMenuService::replyButtonsLine();
+
+        foreach (self::ALWAYS_PRESENT_GROUPS as $group) {
+            $label = BotMenuService::menuLabel($group);
+
+            $this->assertNotSame('', trim($label), "пустая метка группы {$group}");
+            $this->assertStringContainsString(
+                $label,
+                $line,
+                "метка «{$label}» (группа {$group}) не найдена в нижнем меню: {$line}"
+            );
+        }
+    }
+
+    /** Неизвестная группа не выдумывает название кнопки. */
+    public function testUnknownGroupYieldsEmptyLabel(): void
+    {
+        $this->assertSame('', BotMenuService::menuLabel('nope'));
     }
 
     /**
@@ -112,6 +142,39 @@ final class OnboardingNavLabelConsistencyTest extends CIUnitTestCase
         $this->assertStringContainsString('Незнакомец', $greeter);
         $this->assertSame(0, substr_count($signal, '_') % 2, 'непарные _ в сигнале');
         $this->assertSame(0, substr_count($greeter, '_') % 2, 'непарные _ у встречающего');
+    }
+
+    /**
+     * Советы лежат строками в БД и кодом не лечатся — поэтому они называют кнопки
+     * плейсхолдером `{{menu:<группа>}}`, который подставляется в момент показа.
+     */
+    public function testTipPlaceholdersResolveToLiveLabels(): void
+    {
+        $rendered = TipService::applyMenuLabels('Ищи в «{{menu:me}}» → «⚔️ Экип», а карта — «{{menu:world}}».');
+
+        $this->assertStringContainsString(BotMenuService::menuLabel('me'), $rendered);
+        $this->assertStringContainsString(BotMenuService::menuLabel('world'), $rendered);
+        $this->assertStringNotContainsString('{{menu:', $rendered);
+    }
+
+    /** Чужой плейсхолдер остаётся видимым, а не превращается в пустое место в тексте игроку. */
+    public function testUnknownPlaceholderIsLeftIntact(): void
+    {
+        $this->assertSame('жми {{menu:nope}}', TipService::applyMenuLabels('жми {{menu:nope}}'));
+    }
+
+    /** Миграция-починка данных использует ТОЛЬКО известные плейсхолдеры. */
+    public function testDataFixMigrationUsesKnownPlaceholdersOnly(): void
+    {
+        $file = APPPATH . 'Database/Migrations/2026-10-27-100000_FixStaleMenuLabelsInPlayerTexts.php';
+        $this->assertFileExists($file);
+
+        preg_match_all('/\{\{menu:([a-z]+)\}\}/', (string) file_get_contents($file), $m);
+        $this->assertNotEmpty($m[1], 'миграция обязана переводить советы на плейсхолдеры');
+
+        foreach (array_unique($m[1]) as $group) {
+            $this->assertNotSame('', BotMenuService::menuLabel($group), "неизвестная группа {$group}");
+        }
     }
 
     /** StartCommand обязан гасить хвосты именно в режиме одного окна. */

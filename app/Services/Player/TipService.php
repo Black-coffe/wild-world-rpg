@@ -6,6 +6,7 @@ namespace App\Services\Player;
 
 use App\Models\CharacterGameTipModel;
 use App\Models\GameTipsModel;
+use App\Services\Telegram\BotMenuService;
 
 /**
  * ADR-038 Фаза C — общая логика выдачи советов «/tips».
@@ -123,10 +124,34 @@ final class TipService
         $titleRu = isset($tip['title_ru']) && is_string($tip['title_ru']) ? $tip['title_ru'] : '';
         $tipType = isset($tip['tip_type']) && is_string($tip['tip_type']) ? $tip['tip_type'] : '';
         $content = isset($tip['content']) && is_string($tip['content']) ? $tip['content'] : '';
+        $content = self::applyMenuLabels($content);
 
         return "🤖 Это я – *Роби* и мой тебе игровой совет #: _{$id}_\n\n"
             . "🔈 *Название:* {$titleRu}\n\n"
             . "➡️ *Направление:* {$tipType}\n\n"
             . "📂 *Описание:* {$content}";
+    }
+
+    /**
+     * Подставить ЖИВЫЕ метки кнопок нижнего меню вместо плейсхолдеров `{{menu:<группа>}}`.
+     *
+     * Зачем: советы лежат в БД строками, а каркас меню меняется killswitch'ами (ADR-150).
+     * Захардкоженная в тексте метка молча превращается в ложь: после включения final_grid
+     * четыре живых совета звали ««Перс» → «⚔️ Экип»» и «на экране «Карта»», хотя кнопки
+     * с такими названиями в меню уже не было. Плейсхолдер решает это раз и навсегда —
+     * текст совета переживает любую смену каркаса.
+     *
+     * Подставляются ТОЛЬКО известные группы; чужой плейсхолдер остаётся как есть и ловится
+     * тестом (лучше заметная скобка в проде-тесте, чем тихо пустое место в тексте игроку).
+     */
+    public static function applyMenuLabels(string $text): string
+    {
+        $replaced = preg_replace_callback(
+            '/\{\{menu:(world|me|base|craft|tasks|more)\}\}/',
+            static fn (array $m): string => BotMenuService::menuLabel($m[1]),
+            $text
+        );
+
+        return is_string($replaced) ? $replaced : $text;
     }
 }

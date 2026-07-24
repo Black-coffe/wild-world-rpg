@@ -120,7 +120,10 @@ final class PolarStarServiceTest extends CIUnitTestCase
         $svc->active   = OnboardingChainCatalog::STEP_CRAFT;
         $svc->progress = ['craft_any' => 0];
         $line = $svc->line(1);
-        $this->assertSame('🎯 *Сейчас:* скрафти любой предмет (нижнее меню «Крафт»)', $line);
+        // Метка кнопки берётся из того же источника, что и клавиатура (инцидент 2026-07-24:
+        // захардкоженное в тесте название закрепляло бы устаревшую подпись как «правильную»).
+        $craft = \App\Services\Telegram\BotMenuService::menuLabel('craft');
+        $this->assertSame("🎯 *Сейчас:* скрафти любой предмет (кнопка «{$craft}»)", $line);
         $this->assertStringNotContainsString('/', (string) $line); // нет дроби X/Y
     }
 
@@ -128,7 +131,8 @@ final class PolarStarServiceTest extends CIUnitTestCase
     {
         $svc = new FakePolarStarService();
         $svc->active = OnboardingChainCatalog::STEP_CLAIM_BASE;
-        $this->assertSame('🎯 *Сейчас:* разбей лагерь (меню «База» → «🏕 Разбить лагерь»)', $svc->line(1));
+        $base        = \App\Services\Telegram\BotMenuService::menuLabel('base');
+        $this->assertSame("🎯 *Сейчас:* разбей лагерь (кнопка «{$base}» → «🏕 Разбить лагерь»)", $svc->line(1));
     }
 
     // ── Markdown-безопасность готовой строки на КАЖДОМ шаге ────────────────────
