@@ -91,7 +91,8 @@ class Wiki extends BaseController
             'breadcrumbs' => $crumbs,
             'meta'        => [
                 'title'       => $this->sectionTitle($section, $title),
-                'description' => 'Раздел «' . $title . '» — справочник Wild World: актуальные данные прямо из игры (' . count($listItems) . ' записей).',
+                'description' => 'Раздел «' . $title . '» — справочник Wild World: ' . $this->plural(count($listItems), 'запись', 'записи', 'записей')
+                    . ' с актуальными данными прямо из игры. Списки обновляются автоматически вместе с обновлениями игры.',
                 'canonical'   => $canonical,
                 'ogImage'     => null,
                 'robots'      => 'index,follow',
@@ -106,6 +107,30 @@ class Wiki extends BaseController
                 ]],
             ],
         ]);
+    }
+
+    /**
+     * Русское склонение числительных: 1 запись / 2 записи / 5 записей.
+     *
+     * SEO-аудит 2026-07-24: описание раздела печатало «(24 записей)» — форма родительного
+     * падежа при любом числе. Это видно прямо в сниппете выдачи и читается как небрежность.
+     */
+    private function plural(int $n, string $one, string $few, string $many): string
+    {
+        $mod100 = $n % 100;
+        $mod10  = $n % 10;
+
+        if ($mod100 >= 11 && $mod100 <= 14) {
+            return $n . ' ' . $many;
+        }
+        if ($mod10 === 1) {
+            return $n . ' ' . $one;
+        }
+        if ($mod10 >= 2 && $mod10 <= 4) {
+            return $n . ' ' . $few;
+        }
+
+        return $n . ' ' . $many;
     }
 
     /**
