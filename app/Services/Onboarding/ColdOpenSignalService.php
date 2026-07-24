@@ -83,7 +83,7 @@ class ColdOpenSignalService
      *
      * @param array<int|string, mixed> $spawnCell map-row спавна (coordinate_x/y, id, biome_id)
      */
-    public function placeBaitForNewChar(int $charId, array $spawnCell): ?string
+    public function placeBaitForNewChar(int $charId, array $spawnCell, bool $withNavHint = true): ?string
     {
         if ($charId <= 0 || ! $this->enabled()) {
             return null;
@@ -111,7 +111,7 @@ class ColdOpenSignalService
 
             $this->insertBait($anchorId, $landCell);
 
-            return $this->buildSignalNarrative($label, $arrow);
+            return $this->buildSignalNarrative($label, $arrow, $withNavHint);
         }
 
         return null;
@@ -342,13 +342,27 @@ class ColdOpenSignalService
 
     // ── Текст (media-off, markdown-safe) ─────────────────────────────────────
 
-    public function buildSignalNarrative(string $directionLabel, string $arrow): string
+    /**
+     * @param bool $withNavHint добавить навигационный хвост. false — когда текст едет
+     *                          секцией единого первого экрана (там кнопка входа в мир
+     *                          уже стоит рядом, вторая инструкция только шумит).
+     */
+    public function buildSignalNarrative(string $directionLabel, string $arrow, bool $withNavHint = true): string
     {
-        return "📡 *Сигнал в эфире.*\n\n"
+        $text = "📡 *Сигнал в эфире.*\n\n"
             . "Роби: «Ловлю слабый сигнал {$directionLabel} {$arrow} отсюда — пара клеток, не больше. "
             . "Отметил источник на твоей карте: ищи метку 🎯. Дойдёшь — глянем, что там. "
-            . "Может, кто-то припрятал и не вернулся.»\n\n"
-            . "_Открой «🗺 Карту» и двигайся к метке 🎯._";
+            . "Может, кто-то припрятал и не вернулся.»";
+
+        if (! $withNavHint) {
+            return $text;
+        }
+
+        // Метка кнопки — из BotMenuService, НЕ хардкодом: раньше здесь звали «Открой
+        // «🗺 Карту»», а после ADR-150 такой кнопки в нижнем меню не осталось.
+        $world = \App\Services\Telegram\BotMenuService::worldButtonLabel();
+
+        return $text . "\n\n_Жми «{$world}» в нижнем меню и иди к метке 🎯._";
     }
 
     public function buildFoundText(int $gold, int $resourceId, int $resourceQty): string

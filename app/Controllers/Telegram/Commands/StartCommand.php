@@ -127,6 +127,12 @@ class StartCommand extends UserCommand
                 (new \App\Services\Onboarding\OnboardingChainService())
                     ->ensureChainAssigned(['id' => (int) $createdCharacterId, 'level' => 1]);
 
+                // Слайс «Первые 3 минуты»: режим первого экрана нужен ДО размещения приманки
+                // и встречающего — их тексты в режиме одного окна едут секциями рядом с
+                // кнопкой входа в мир, и навигационный хвост в них только шумит.
+                $coldOpen     = new \App\Services\Onboarding\ColdOpenGreetingService();
+                $singleScreen = $coldOpen->singleScreenEnabled();
+
                 // ADR-104 Фаза 1: стартовый набор выжившего (dormant под
                 // onboarding.starter_kit.enabled). grant() видаёт паёк + idempotency-флаг
                 // и возвращает текст Роби (или null, если набор выключен/уже выдан).
@@ -138,20 +144,19 @@ class StartCommand extends UserCommand
                 // Роби (или null). dormant под onboarding.cold_open_v2.signal_hook → null = byte-identical.
                 if (is_array($randomCell)) {
                     $signalText = (new \App\Services\Onboarding\ColdOpenSignalService())
-                        ->placeBaitForNewChar((int) $createdCharacterId, $randomCell);
+                        ->placeBaitForNewChar((int) $createdCharacterId, $randomCell, ! $singleScreen);
 
                     // S2 (ADR-144): «скриптовая первая встреча» — ставим дружелюбного нейтрала
                     // рядом со спавном (reactive) и возвращаем нарратив Роби (или null).
                     // dormant под npc.newbie_zone.greeter_enabled → null = byte-identical.
                     $greeterText = (new \App\Services\Onboarding\NewbieGreeterService())
-                        ->placeGreeterForNewChar((int) $createdCharacterId, $randomCell, (int) $chatId);
+                        ->placeGreeterForNewChar((int) $createdCharacterId, $randomCell, (int) $chatId, ! $singleScreen);
                 }
 
                 // Формируем приветственное сообщение.
                 // S4 (ADR-139) слайс 1b: cold-open framing — короткий интригующий вариант под
                 // суб-killswitch `onboarding.cold_open_v2.start_greeting` (default OFF → легаси
                 // 121-слово ниже, byte-identical). CTA «Задать имя» / паёк / спавн не меняются.
-                $coldOpen = new \App\Services\Onboarding\ColdOpenGreetingService();
                 if ($coldOpen->greetingEnabled()) {
                     $text = $coldOpen->greeting();
                 } else {
@@ -191,7 +196,7 @@ class StartCommand extends UserCommand
                 // отдельные sendMessage ниже пропускаются), а первый CTA ведёт в мир
                 // (callback `move` → компас ходьбы). Имя остаётся второй кнопкой и явно
                 // названо необязательным. При OFF (default) — всё byte-identical.
-                if ($coldOpen->singleScreenEnabled()) {
+                if ($singleScreen) {
                     $composed = $coldOpen->composeWelcome([
                         $coldOpen->greetingSingleScreen(),
                         $starterKitText,

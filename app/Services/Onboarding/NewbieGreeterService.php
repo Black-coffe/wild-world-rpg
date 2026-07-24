@@ -85,7 +85,7 @@ class NewbieGreeterService
      *
      * @param array<int|string, mixed> $spawnCell map-row спавна (coordinate_x/y)
      */
-    public function placeGreeterForNewChar(int $charId, array $spawnCell, int $chatId): ?string
+    public function placeGreeterForNewChar(int $charId, array $spawnCell, int $chatId, bool $withNavHint = true): ?string
     {
         if ($charId <= 0 || ! $this->enabled() || $this->alreadyPlaced($charId)) {
             return null;
@@ -118,7 +118,7 @@ class NewbieGreeterService
             $this->insertSpawn($npcId, $landCell);
             $this->writeMarker($charId, $chatId);
 
-            return $this->buildGreeterNarrative($label, $arrow);
+            return $this->buildGreeterNarrative($label, $arrow, $withNavHint);
         }
 
         return null;
@@ -256,13 +256,25 @@ class NewbieGreeterService
 
     // ── Текст (media-off, markdown-safe) ─────────────────────────────────────
 
-    public function buildGreeterNarrative(string $directionLabel, string $arrow): string
+    /**
+     * @param bool $withNavHint добавить навигационный хвост. false — когда текст едет
+     *                          секцией единого первого экрана (кнопка входа в мир рядом).
+     */
+    public function buildGreeterNarrative(string $directionLabel, string $arrow, bool $withNavHint = true): string
     {
-        return "🧑 *Ты здесь не один.*\n\n"
+        $text = "🧑 *Ты здесь не один.*\n\n"
             . "Роби: «Замечаю движение {$directionLabel} {$arrow} отсюда — совсем рядом кто-то есть. "
             . "Похоже, выживший, не враг. Подойди и заговори: расспроси о землях, обменяйся — "
-            . "может, и делом поможет. На карте он отмечен значком 🧑.»\n\n"
-            . "_Открой «🗺 Карту», дойди до выжившего и нажми «👤 Незнакомец»._";
+            . "может, и делом поможет. На карте он отмечен значком 🧑.»";
+
+        if (! $withNavHint) {
+            return $text . "\n\n_Дойди до выжившего и нажми «👤 Незнакомец»._";
+        }
+
+        // Метка кнопки — из BotMenuService, НЕ хардкодом (см. ColdOpenSignalService).
+        $world = \App\Services\Telegram\BotMenuService::worldButtonLabel();
+
+        return $text . "\n\n_Жми «{$world}» в нижнем меню, дойди до выжившего и нажми «👤 Незнакомец»._";
     }
 
     // ── Резолверы зависимостей / хелперы ─────────────────────────────────────
