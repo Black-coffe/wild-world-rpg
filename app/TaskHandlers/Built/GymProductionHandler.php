@@ -82,7 +82,12 @@ class GymProductionHandler extends BaseTaskHandler
                 continue;
             }
 
-            $strengthIncrement = $this->cfg->gymStrengthByLevel[$level];
+            // ADR-156: отдача зала — admin-tunable (конституц. правило ADR-024). Множитель
+            // поверх таблицы GameBalance: один рычаг вместо десяти ключей, default 1.0 =
+            // прежние числа байт-в-байт. Аудит 2026-07-26 показал, что зал ставят только
+            // ветераны (L11-L223), и вопрос «стоит ли он своих 141k» решается этим числом.
+            $strengthIncrement = $this->cfg->gymStrengthByLevel[$level]
+                * $this->gsFloat('building.gym.strength_multiplier', 1.0);
 
             // Получаем персонажа
             $characterId = $buildingRow['character_id'];

@@ -105,4 +105,97 @@ final class BuildingGateServiceTest extends CIUnitTestCase
             );
         }
     }
+
+    // ── ADR-156: фактический порог по материалам ────────────────────────
+
+    /**
+     * 🔴 Якорь слайса 4: Спортзал объявлен с L5, но требует Стекло пакеты (крафт с L25) —
+     * значит своими руками он собирается только к 25-му. Эмпирика прода сходится: зал стоит
+     * у L11, L29, L50, L51, L64, L223 и ни у кого на пятом.
+     */
+    public function testGymEffectiveLevelIsDrivenByItsHardestMaterial(): void
+    {
+        $svc = new FakeGateService(new Buildings());
+
+        $this->assertSame(5, $svc->requiredLevel('Gym'), 'объявленный гейт не меняется');
+        $this->assertSame(25, $svc->effectiveLevel('Gym'), 'фактический — по Стеклу пакетам');
+    }
+
+    public function testEffectiveLevelNeverBelowDeclaredGate(): void
+    {
+        $svc = new FakeGateService(new Buildings());
+
+        // У Навеса материалы простые — фактический порог равен объявленному.
+        $this->assertSame($svc->requiredLevel('LeanTo'), $svc->effectiveLevel('LeanTo'));
+        // У Арсенала объявленный гейт выше части материалов — берётся больший.
+        $this->assertGreaterThanOrEqual($svc->requiredLevel('Arsenal'), $svc->effectiveLevel('Arsenal'));
+    }
+
+    public function testMapIsBuiltOnEffectiveLevels(): void
+    {
+        $svc = new FakeGateService(new Buildings());
+
+        $this->assertContains('Спортзал', $svc->unlockedAt(25), 'обещаем там, где реально собирается');
+        $this->assertNotContains('Спортзал', $svc->unlockedAt(5), 'на пятом обещать нельзя');
+    }
+
+    public function testOutOfReachMaterialsListedForLowLevelPlayer(): void
+    {
+        $svc = new FakeGateService(new Buildings());
+
+        $out = $svc->outOfReachMaterials('Gym', 5);
+        $names = array_column($out, 'name');
+        $this->assertContains('Стекло пакеты', $names);
+        $this->assertContains('Янтарь', $names);
+        $this->assertSame(25, $out[0]['level'], 'самое труднодоступное — первым');
+    }
+
+    public function testNothingOutOfReachForHighLevelPlayer(): void
+    {
+        $this->assertSame([], (new FakeGateService(new Buildings()))->outOfReachMaterials('Gym', 30));
+    }
+
+    public function testMissingContentTablesDegradeToDeclaredGate(): void
+    {
+        // Тестовая БД контент-таблиц не содержит: сервис обязан вернуть объявленный гейт,
+        // а не упасть и не выдумать порог.
+        $svc = new EmptyMaterialsGateService(new Buildings());
+
+        $this->assertSame(5, $svc->effectiveLevel('Gym'));
+        $this->assertSame([], $svc->outOfReachMaterials('Gym', 1));
+    }
+}
+
+/**
+ * Test-double: материалы фиксированы (реальные значения прода 2026-07-26), без БД.
+ *
+ * @internal
+ */
+class FakeGateService extends BuildingGateService
+{
+    protected function materialDetails(): array
+    {
+        return [
+            'Gym' => [
+                ['name' => 'Стекло пакеты', 'level' => 25, 'kind' => 'крафт'],
+                ['name' => 'Янтарь', 'level' => 20, 'kind' => 'добыча'],
+                ['name' => 'Минералы', 'level' => 10, 'kind' => 'добыча'],
+            ],
+            'LeanTo'  => [['name' => 'Древесина', 'level' => 1, 'kind' => 'добыча']],
+            'Arsenal' => [['name' => 'Нефть', 'level' => 20, 'kind' => 'добыча']],
+        ];
+    }
+}
+
+/**
+ * Test-double: контент-таблиц нет (как в тестовой БД).
+ *
+ * @internal
+ */
+final class EmptyMaterialsGateService extends BuildingGateService
+{
+    protected function materialDetails(): array
+    {
+        return [];
+    }
 }

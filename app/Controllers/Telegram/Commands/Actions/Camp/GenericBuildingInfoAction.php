@@ -201,6 +201,39 @@ class GenericBuildingInfoAction extends BaseAction
             $caption .= "\nНедостающие предметы:\n" . $this->formatMissing($missingItems);
         }
 
+        // ADR-156: честная оговорка про материалы выше собственного уровня. Аудит 2026-07-26:
+        // 13 построек из 16 требуют то, что игрок их «гейта» ещё не добывает и не крафтит
+        // (Спортзал объявлен с L5, а нужны Стекло пакеты — крафт с L25). Без этой строки
+        // новичок упирается в стену молча: список «недостающего» есть, а почему добыть не
+        // выходит — не сказано. Показываем ТОЛЬКО когда чего-то не хватает и только то,
+        // что вне досягаемости; материалы можно купить или выменять — так и пишем.
+        if ($hasShortage) {
+            $charLevel  = isset($character['level']) && is_numeric($character['level']) ? (int) $character['level'] : 1;
+            $outOfReach = (new \App\Services\Buildings\BuildingGateService())
+                ->outOfReachMaterials($buildingKey, $charLevel);
+            if ($outOfReach !== []) {
+                $parts    = [];
+                $hasRes   = false;
+                $hasCraft = false;
+                foreach (array_slice($outOfReach, 0, 3) as $row) {
+                    $parts[] = "{$row['name']} ({$row['kind']} с {$row['level']} ур.)";
+                    $row['kind'] === 'крафт' ? $hasCraft = true : $hasRes = true;
+                }
+                // Пути обхода РАЗНЫЕ, и обобщать их — снова полуправда: ресурсы свободно
+                // продаются в магазине, а крафтовые предметы идут только через закрытый
+                // рынок, который открывается Складом (BuyCraftAction проверяет постройку).
+                $ways = [];
+                if ($hasRes) {
+                    $ways[] = 'ресурсы продаются в магазине';
+                }
+                if ($hasCraft) {
+                    $ways[] = 'предметы делают на верстаке или берут на закрытом рынке (нужен Склад)';
+                }
+                $caption .= "\n⚠️ *На своём уровне добудешь не всё:* " . implode(', ', $parts)
+                    . '. ' . ucfirst(implode('; ', $ways)) . ".\n";
+            }
+        }
+
         // 10. Buttons: «Строить» if sufficient, else gather/buy/actions/inventory
         $keyboard = [
             'inline_keyboard' => [[

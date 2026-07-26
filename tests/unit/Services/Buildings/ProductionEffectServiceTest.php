@@ -63,6 +63,29 @@ final class ProductionEffectServiceTest extends CIUnitTestCase
         $this->assertStringContainsString('0.24 силы в сутки', $line); // 24 тика вместо 48
     }
 
+    /**
+     * ADR-156: множитель отдачи — admin-tunable. Строка обязана показывать ровно то, что
+     * начислит крон: иначе снова обещание мимо факта (класс ошибки «каждые 5ть минут»).
+     */
+    public function testGymLineFollowsStrengthMultiplier(): void
+    {
+        $svc                     = $this->svc();
+        $svc->strengthMultiplier = 2.0;
+
+        $line = (string) $svc->gymLine(1);
+        $this->assertStringContainsString('+0.02 силы', $line);
+        $this->assertStringContainsString('0.96 силы в сутки', $line);
+    }
+
+    public function testDefaultMultiplierKeepsLegacyNumbers(): void
+    {
+        $svc                     = $this->svc();
+        $svc->strengthMultiplier = 1.0;
+
+        $this->assertStringContainsString('+0.01 силы', (string) $svc->gymLine(1));
+        $this->assertStringContainsString('0.48 силы в сутки', (string) $svc->gymLine(1));
+    }
+
     public function testUnknownGymLevelSaysNothing(): void
     {
         $this->assertNull($this->svc()->gymLine(99));
@@ -140,9 +163,15 @@ final class ProductionEffectServiceTest extends CIUnitTestCase
 final class FakeProductionEffectService extends ProductionEffectService
 {
     public int $tickInterval = 30;
+    public float $strengthMultiplier = 1.0;
 
     protected function gsInt(string $key, int $default): int
     {
         return $this->tickInterval;
+    }
+
+    protected function gsFloat(string $key, float $default): float
+    {
+        return $this->strengthMultiplier;
     }
 }

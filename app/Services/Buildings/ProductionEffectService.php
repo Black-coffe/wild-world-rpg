@@ -56,16 +56,19 @@ class ProductionEffectService
     /** Спортзал: прибавка силы за тик + сколько это в сутки. */
     public function gymLine(int $level): ?string
     {
-        $perTick = $this->cfg->gymStrengthByLevel[$level] ?? null;
-        if (! is_numeric($perTick)) {
+        $base = $this->cfg->gymStrengthByLevel[$level] ?? null;
+        if (! is_numeric($base)) {
             return null;
         }
+        // Множитель отдачи (ADR-156) — тот же, что применяет крон: строка не имеет права
+        // разойтись с начислением, иначе снова обещание мимо факта.
+        $perTick  = ((float) $base) * $this->gsFloat('building.gym.strength_multiplier', 1.0);
         $interval = max(1, $this->gsInt('building.gym.tick_interval_minutes', (int) $this->cfg->gymTickIntervalMinutes));
-        $perDay   = ((float) $perTick) * (1440 / $interval);
+        $perDay   = $perTick * (1440 / $interval);
 
         return sprintf(
             '⚡ *Даёт сейчас:* +%s силы каждые %d мин — это примерно %s силы в сутки',
-            $this->num((float) $perTick),
+            $this->num($perTick),
             $interval,
             $this->num($perDay)
         );
