@@ -83,9 +83,19 @@ class HealthRegenerationHandler
         foreach ($characters as $character) {
             // 1) Вычисляем или «переопределяем» уровень персонажа
             // (level — производное от статов, пересчёт-recompute; skip no-op writes)
+            $oldLevel = (int) $character['level'];
             $newLevel = $this->calculateLevel($character);
-            if ((int) $character['level'] !== $newLevel) {
+            if ($oldLevel !== $newLevel) {
                 $this->characterModel->update($character['id'], ['level' => $newLevel]);
+                // Слайс «Видимая лестница L1→L10»: до этого повышение уровня было немым —
+                // единственная награда за первые часы игры не имела события. Уведомление
+                // gated (progression.ladder.levelup_notify, default OFF) и никогда не бросает
+                // наружу: регенерация не имеет права упасть из-за отправки сообщения.
+                // Только РОСТ: падение уровня (потеря статов при смерти) молчит, и нотификатор
+                // ради него даже не создаётся.
+                if ($newLevel > $oldLevel) {
+                    $this->notifyLevelUp($this->levelUpPayload($character), $oldLevel, $newLevel);
+                }
             }
         }
 
@@ -111,6 +121,52 @@ class HealthRegenerationHandler
 
         // Затем запускаем метод проверки соответствия biome_id
         $this->verifyCharactersBiome();
+    }
+
+    /**
+     * Ровно те поля, которые нужны нотификатору. Модель отдаёт CharacterEntity, но строка
+     * пересчёта приходит сюда как array|object — вместо ослабления типов собираем узкий
+     * снимок (заодно документирует контракт: что именно уходит в уведомление).
+     *
+     * @param array<int|string, mixed>|object $character
+     * @return array<string, mixed>
+     */
+    private function levelUpPayload($character): array
+    {
+        $payload = [];
+        foreach (['id', 'telegram_user_id', 'experience', 'strength', 'agility', 'intellect'] as $field) {
+            if (is_array($character)) {
+                $payload[$field] = $character[$field] ?? null;
+                continue;
+            }
+            $payload[$field] = $character instanceof \ArrayAccess && isset($character[$field])
+                ? $character[$field]
+                : null;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Seam для тестов: уведомление о повышении уровня. Отдельный метод, чтобы db-тест мог
+     * подменить отправку, не трогая логику пересчёта. Гасит любое исключение: регенерация —
+     * горячий крон и не имеет права упасть из-за отправки сообщения.
+     *
+     * @param array<string, mixed>|\App\Entities\CharacterEntity $character снимок levelUpPayload()
+     */
+    protected function notifyLevelUp(array|\App\Entities\CharacterEntity $character, int $oldLevel, int $newLevel): void
+    {
+        try {
+            $this->levelUpNotifier()->notifyLevelUp($character, $oldLevel, $newLevel);
+        } catch (\Throwable $e) {
+            log_message('error', '[HealthRegenerationHandler] levelUp notify: ' . $e->getMessage());
+        }
+    }
+
+    /** Seam для тестов: сам нотификатор (создаётся лениво, только при реальном level-up). */
+    protected function levelUpNotifier(): \App\Services\Player\Progression\LevelUpNotifier
+    {
+        return new \App\Services\Player\Progression\LevelUpNotifier();
     }
 
     /**

@@ -120,8 +120,26 @@ class CharacterService
         $text .= "🎢 *Изучено ячеек:* {$exploredCount}\n"
             . "💼 *Всего видов ресурсов:* {$totalResources}\n"
             . "⏳ *В игре:* {$timeInGame}\n"
-            . "📈 *Уровень:* {$characterRow['level']}\n"
-            . "🌟 *Опыт:* {$characterRow['experience']}\n"
+            . "📈 *Уровень:* {$characterRow['level']}\n";
+
+        // Слайс «Видимая лестница L1→L10» — прогресс к следующему уровню и что он откроет.
+        // До этого карточка показывала четыре сырых числа и ни слова о том, сколько осталось:
+        // прод-замер 2026-07-26 нашёл игрока с 292 действиями, стоящего на 68% пути к L2.
+        // Gated progression.ladder.enabled → null = строк нет (byte-identical, ADR-024).
+        $ladder     = new \App\Services\Player\Progression\LevelProgressService();
+        $ladderLine = $ladder->cardLine($characterRow);
+        if ($ladderLine !== null) {
+            $text .= $ladderLine . "\n";
+            $nextLevel  = \App\Services\Player\Progression\LevelProgressService::levelForSum(
+                \App\Services\Player\Progression\LevelProgressService::statSum($characterRow)
+            ) + 1;
+            $unlockLine = (new \App\Services\Player\Progression\LevelUnlockService())->summaryFor($nextLevel);
+            if ($unlockLine !== null) {
+                $text .= $unlockLine . "\n";
+            }
+        }
+
+        $text .= "🌟 *Опыт:* {$characterRow['experience']}\n"
             . "🤸‍♂️ *Ловкость:* {$characterRow['agility']}\n"
             . "🧠 *Интеллект:* {$characterRow['intellect']}\n"
             . "💪 *Сила:* {$characterRow['strength']}\n\n"
