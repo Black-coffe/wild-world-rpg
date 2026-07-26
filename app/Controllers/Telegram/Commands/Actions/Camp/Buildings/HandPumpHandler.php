@@ -78,6 +78,13 @@ class HandPumpHandler extends BaseAction
             $buildingInfo['description']
         );
 
+        // ADR-155: отдача для уровня ЭТОЙ скважины — из тех же чисел, что использует крон.
+        $effect = (new \App\Services\Buildings\ProductionEffectService())
+            ->handPumpLine((int) $characterBuilding['level']);
+        if ($effect !== null) {
+            $text .= "\n" . $effect;
+        }
+
         $keyboard = [
             'inline_keyboard' => [
                 [

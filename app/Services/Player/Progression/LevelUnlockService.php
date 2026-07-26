@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Player\Progression;
 
+use App\Services\Buildings\BuildingGateService;
 use App\Services\GameSettings\GameSettingsReaderTrait;
 use CodeIgniter\Database\ResultInterface;
 use Config\Database;
@@ -22,7 +23,9 @@ use Throwable;
  * Числа считаются ПО БАЗЕ, а не зашиты в код: добавили рецепт/оружие/постройку — строка
  * сама станет правдивой (анти-дрейф; правило «числа баланса в текст из кода, а не руками»).
  * Системные вехи (специализация / Оракул / верстак T3 / коллекции / вторая база) читаются из
- * GameSettings — админ подвинул порог, текст поехал за ним.
+ * GameSettings — админ подвинул порог, текст поехал за ним. Постройки — из `Config\Buildings`
+ * через {@see BuildingGateService}: колонка БД оказалась мёртвой (ADR-155), и до этой правки
+ * строка обещала постройки не на тех уровнях, а Спортзал не обещала вовсе.
  *
  * Read-only. Одна SQL-выборка (UNION ALL) на уровень + процесс-кеш: карточка Персонажа —
  * горячий экран, N COUNT'ов на рендер там неуместны.
@@ -37,8 +40,11 @@ class LevelUnlockService
     use GameSettingsReaderTrait;
 
     /**
-     * Контент-таблицы и колонка-гейт уровня. Порядок = порядок в строке (сначала то,
-     * что новичок почувствует раньше: ресурсы под ногами, потом рецепты, снаряжение, стройка).
+     * Контент-таблицы и колонка-гейт уровня.
+     *
+     * Постройки здесь ОТСУТСТВУЮТ намеренно (ADR-155): колонка `buildings.min_character_level`
+     * декоративная и разошлась с реально проверяемым гейтом у 9 построек из 16 — считаем их
+     * через {@see BuildingGateService} по тому же конфигу, который гейтит стройку.
      *
      * @var array<string, array{0: string, 1: string}> ключ → [таблица, колонка]
      */
@@ -47,9 +53,17 @@ class LevelUnlockService
         'craft'    => ['crafted_items', 'required_level'],
         'weapon'   => ['weapons', 'required_level'],
         'outfit'   => ['outfits', 'required_level'],
-        'building' => ['buildings', 'min_character_level'],
         'quest'    => ['quests', 'min_level'],
     ];
+
+    /**
+     * Порядок категорий в строке: сначала то, что новичок почувствует раньше (ресурсы под
+     * ногами), потом рецепты, снаряжение, стройка, задания. Постройки в SOURCES отсутствуют —
+     * они считаются по конфигу, а не по БД (ADR-155).
+     *
+     * @var list<string>
+     */
+    private const CATEGORY_ORDER = ['resource', 'craft', 'weapon', 'outfit', 'building', 'quest'];
 
     /**
      * Формы склонения для каждой категории: [одна, две, пять].
@@ -150,9 +164,14 @@ class LevelUnlockService
                 }
             }
 
+            // Постройки — НЕ из БД: колонка `buildings.min_character_level` декоративная и
+            // разошлась с реально проверяемым гейтом у 9 построек из 16 (ADR-155). Считаем по
+            // тому же источнику, который гейтит саму стройку.
+            $counts['building'] = (new BuildingGateService())->countUnlockedAt($level);
+
             // Порядок категорий задаём мы, а не БД.
             $ordered = [];
-            foreach (array_keys(self::SOURCES) as $key) {
+            foreach (self::CATEGORY_ORDER as $key) {
                 if (($counts[$key] ?? 0) > 0) {
                     $ordered[$key] = $counts[$key];
                 }

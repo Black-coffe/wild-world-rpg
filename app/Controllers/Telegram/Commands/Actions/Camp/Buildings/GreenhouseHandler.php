@@ -103,6 +103,13 @@ class GreenhouseHandler extends BaseAction
             $buildingInfo['description']
         );
 
+        // ADR-155: урожай и расход воды для уровня ЭТОЙ теплицы — из тех же чисел, что крон.
+        $effect = (new \App\Services\Buildings\ProductionEffectService())
+            ->greenhouseLine((int) $characterBuilding['level']);
+        if ($effect !== null) {
+            $text .= "\n" . $effect;
+        }
+
         // V6 (ADR-033): активное земледелие — компактный статус грядок в карточке
         // теплицы (полное меню — кнопка «🌱 Грядки» → SeedSelectAction).
         $farming     = new FarmingService();

@@ -99,6 +99,14 @@ class GymHandler extends BaseAction
             $buildingInfo['description']
         );
 
+        // ADR-155: отдача считается для УРОВНЯ ЭТОГО зала из тех же источников, что использует
+        // крон. До правки экран печатал только рукописное описание, завышавшее отдачу в 6 раз.
+        $effect = (new \App\Services\Buildings\ProductionEffectService())
+            ->gymLine((int) $characterBuilding['level']);
+        if ($effect !== null) {
+            $text .= "\n" . $effect;
+        }
+
         // Формируем клавиатуру с кнопками
         $keyboard = [
             'inline_keyboard' => [

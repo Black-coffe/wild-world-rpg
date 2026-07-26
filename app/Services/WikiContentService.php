@@ -138,6 +138,12 @@ final class WikiContentService
      */
     public function buildings(): array
     {
+        // ADR-155: требуемый уровень берём из того же источника, который РЕАЛЬНО гейтит стройку
+        // (Config\Buildings.level_required), а не из декоративной колонки `min_character_level` —
+        // они разошлись у 9 построек из 16, и вики публично обещала «треб. ур. 8» там, где
+        // строить можно с первого.
+        $gates = new \App\Services\Buildings\BuildingGateService();
+
         $out = [];
         foreach ((new BuildingModel())->findAll() as $row) {
             $b      = self::asArray($row);
@@ -151,7 +157,7 @@ final class WikiContentService
                 'construction_time'   => self::asInt($b['construction_time'] ?? null),
                 'tax'                 => self::asInt($b['tax'] ?? null),
                 'level'               => self::asInt($b['level'] ?? null),
-                'min_character_level' => self::asInt($b['min_character_level'] ?? null),
+                'min_character_level' => $nameEn !== '' ? $gates->requiredLevel($nameEn) : self::asInt($b['min_character_level'] ?? null),
                 'effects'             => $this->decodeJson(self::asString($b['effects'] ?? '')),
                 'image'               => $this->buildingImages()[$nameEn] ?? ($nameEn !== '' ? $this->resolveImage('camp/' . $nameEn) : null),
             ];
