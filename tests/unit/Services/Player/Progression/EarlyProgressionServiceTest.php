@@ -119,6 +119,74 @@ final class EarlyProgressionServiceTest extends CIUnitTestCase
         $this->assertSame(1.5, $svc->gatherXpEarned(2)); // 0.50 × 3.0
     }
 
+    // ── ADR-154: полоса затухания XP за добычу (ступень вместо обрыва) ────
+
+    /**
+     * 🔴 Главный инвариант слайса 2: дефолт `taper_level` = `level_cap` → средняя полоса
+     * ПУСТА → gatherXpEarned ведёт себя ровно как до ADR-154 (обрыв в ноль на cap).
+     * Если этот тест упал — значит dormant перестал быть byte-identical.
+     */
+    public function testDefaultTaperEqualsCapSoBehaviourUnchanged(): void
+    {
+        $svc = $this->svc($this->activeConfig()); // taper_level не задан → default 5
+
+        $this->assertSame(5, $svc->taperLevel());
+        $this->assertSame(0.6, $svc->gatherXpEarned(4)); // ранняя полоса
+        $this->assertFalse($svc->isTapering(5));
+        $this->assertSame(0.0, $svc->gatherXpEarned(5)); // обрыв, как было
+        $this->assertSame(0.0, $svc->gatherXpEarned(9));
+    }
+
+    public function testTaperBandGivesBaseXpWithoutMultiplier(): void
+    {
+        $svc = $this->svc($this->activeConfig() + ['progression.early.taper_level' => 10]);
+
+        // до cap — с множителем
+        $this->assertSame(0.6, $svc->gatherXpEarned(4));
+        // полоса затухания — базовый gather_xp БЕЗ множителя
+        $this->assertTrue($svc->isTapering(5));
+        $this->assertSame(0.3, $svc->gatherXpEarned(5));
+        $this->assertSame(0.3, $svc->gatherXpEarned(9));
+        // за полосой — легаси-ноль
+        $this->assertFalse($svc->isTapering(10));
+        $this->assertSame(0.0, $svc->gatherXpEarned(10));
+        $this->assertSame(0.0, $svc->gatherXpEarned(50));
+    }
+
+    public function testTaperNeverTouchesOtherLevers(): void
+    {
+        // Ступень касается ТОЛЬКО опыта за добычу: ход, усталость и штраф прерывания
+        // по-прежнему гаснут на level_cap.
+        $svc = $this->svc($this->activeConfig() + ['progression.early.taper_level' => 15]);
+
+        $this->assertSame(1.0, $svc->gainMultiplier(7));
+        $this->assertSame(1.0, $svc->moveCostFactor(7));
+        $this->assertSame(1.0, $svc->interruptPenaltyFactor(7));
+        $this->assertFalse($svc->isEarly(7));
+    }
+
+    public function testTaperIgnoredWhenMasterKillswitchOff(): void
+    {
+        $svc = $this->svc([
+            'progression.early.enabled'     => false,
+            'progression.early.level_cap'   => 5,
+            'progression.early.taper_level' => 99,
+        ]);
+
+        $this->assertFalse($svc->isTapering(7));
+        $this->assertSame(0.0, $svc->gatherXpEarned(7));
+    }
+
+    public function testTaperBelowCapIsEmptyBand(): void
+    {
+        // Админ выставил бессмысленное значение (ниже cap) — полосы просто нет, без сюрпризов.
+        $svc = $this->svc($this->activeConfig() + ['progression.early.taper_level' => 2]);
+
+        $this->assertSame(0.6, $svc->gatherXpEarned(1));
+        $this->assertSame(0.0, $svc->gatherXpEarned(5));
+        $this->assertFalse($svc->isTapering(5));
+    }
+
     // ── Coercion killswitch (admin шлёт строки/числа) ─────────────────────
 
     public function testEnabledCoercionTruthy(): void

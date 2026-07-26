@@ -184,13 +184,14 @@ final class LevelProgressService
     }
 
     /**
-     * Подсказка «из чего складывается уровень» — только для новичка в ранней полосе,
-     * где XP за добычу действительно начисляется (иначе совет был бы ложным).
+     * Подсказка «из чего складывается уровень» — ровно пока XP за добычу действительно
+     * начисляется (иначе совет был бы ложным). Условие — сам факт начисления, а не полоса:
+     * с ADR-154 добыча даёт опыт и в полосе затухания, уже без раннего множителя.
      */
     private function hintLine(int $level): ?string
     {
         $early = new EarlyProgressionService($this->settings, $this->overrides);
-        if (! $early->isEarly($level) || $early->gatherXpEarned($level) <= 0.0) {
+        if ($early->gatherXpEarned($level) <= 0.0) {
             return null;
         }
 

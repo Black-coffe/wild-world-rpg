@@ -56,6 +56,27 @@ final class EarlyProgressionService
         return is_numeric($raw) ? (int) $raw : 5;
     }
 
+    /**
+     * Верхняя граница полосы ЗАТУХАНИЯ XP за добычу (слайс 2 «Ступень вместо обрыва», ADR-154).
+     *
+     * До неё gather_xp начисляется без раннего множителя — вместо мгновенного обнуления на `cap`.
+     * Значение <= cap → полосы нет, поведение прежнее (dormant, byte-identical).
+     */
+    public function taperLevel(): int
+    {
+        $raw = $this->rawSetting('progression.early.taper_level', 5);
+
+        return is_numeric($raw) ? (int) $raw : 5;
+    }
+
+    /** Игрок в полосе затухания: ранние рычаги погасли, но добыча ещё даёт опыт. */
+    public function isTapering(int|float $level): bool
+    {
+        return $this->isEnabled()
+            && ! $this->isEarly($level)
+            && (float) $level < (float) $this->taperLevel();
+    }
+
     /** Новичок в ранней полосе (enabled && level < cap). */
     public function isEarly(int|float $level): bool
     {
@@ -74,17 +95,25 @@ final class EarlyProgressionService
     }
 
     /**
-     * Опыт за ЗАВЕРШЕНИЕ добычи (уже с учётом gain_multiplier). 0.0 = нейтрально (легаси).
+     * Опыт за ЗАВЕРШЕНИЕ добычи. 0.0 = нейтрально (легаси).
      * Прибавляется к experience в GatherResultPersister.
+     *
+     * Три полосы (слайс 2 «Ступень вместо обрыва», ADR-154):
+     *   level < cap    → gather_xp × gain_multiplier (ранний бустер, как было);
+     *   cap ≤ lvl < taper → gather_xp БЕЗ множителя (ступень вместо обрыва в ноль);
+     *   level ≥ taper  → 0.0 (легаси-поведение ветерана).
+     *
+     * При `taper_level <= cap` средняя полоса пуста → метод байт-в-байт эквивалентен прежнему.
      */
     public function gatherXpEarned(int|float $level): float
     {
-        if (! $this->isEarly($level)) {
-            return 0.0;
+        $base = $this->floatSetting('progression.early.gather_xp', 0.30);
+
+        if ($this->isEarly($level)) {
+            return $base * $this->floatSetting('progression.early.gain_multiplier', 2.0);
         }
 
-        return $this->floatSetting('progression.early.gather_xp', 0.30)
-            * $this->floatSetting('progression.early.gain_multiplier', 2.0);
+        return $this->isTapering($level) ? $base : 0.0;
     }
 
     /** Множитель цены усталости хода. 1.0 = нейтрально (легаси-цена). */
