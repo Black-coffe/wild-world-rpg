@@ -204,20 +204,24 @@ class CharacterService
             // «🧑‍🌾 Действия» остаются: это живой контекстный вход к действиям на клетке
             // (самая нагруженная кнопка игры). «🎉 События» ушли в свой дом — экран «🌍 Мир»
             // (они про состояние острова, а не про персонажа).
-            $inlineRows = [
-                [
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '⚔️ Экип',      'callback_data' => 'equipMenu'],
-                ],
-                [
-                    ['text' => '💊 Аптечка',   'callback_data' => 'pharmacy'],
-                    ['text' => '🧍 Страховка', 'callback_data' => 'PersonalInsurance'],
-                ],
-                [
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                ],
+            //
+            // Раскладка 2026-07-27 (фидбэк владельца): порядок сверху вниз ПО ЧАСТОТЕ +
+            // НИ ОДНОЙ одиночной кнопки в ряду. «🧑‍🌾 Действия» переехали в левый верхний
+            // угол (были третьим рядом и в одиночку) — самое частое ближе к пальцу. Ряды не
+            // прописываются руками: набор кнопок плавает (фракция / дейлики / хабы / подать —
+            // условные), поэтому плоский список режет {@see self::packButtonRows()}.
+            // tripleAt=2 → при нечётном числе кнопок ряд из трёх соберётся на самых КОРОТКИХ
+            // подписях (Экип/Аптечка/Страховка), а не на длинных — иначе перенос на 375px.
+            $personalFlat = [
+                ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                ['text' => '🎒 Инвентарь',      'callback_data' => 'inventory'],
+                ['text' => '⚔️ Экип',           'callback_data' => 'equipMenu'],
+                ['text' => '💊 Аптечка',        'callback_data' => 'pharmacy'],
+                ['text' => '🧍 Страховка',      'callback_data' => 'PersonalInsurance'],
             ];
+            $inlineRows = [];
         } elseif (\App\Services\Telegram\BotMenuService::meHubEnabled()) {
+            $personalFlat = [];
             $inlineRows = [
                 // Личный блок «Я»
                 [
@@ -240,6 +244,7 @@ class CharacterService
                 ],
             ];
         } else {
+            $personalFlat = [];
             $inlineRows = [
                 [
                     ['text' => '🎮 Развлечения', 'callback_data' => 'entertainment'],
@@ -268,17 +273,19 @@ class CharacterService
             && (int) ($charFaction['faction_id'] ?? 0) !== 5
             && !empty($charFaction['joined_at']);
 
-        // Фракция + «Задания дня» — В ОДНОМ ряду (фидбэк владельца 2026-06-11: две
-        // полноширинные кнопки подряд раздували карточку). Каждая может отсутствовать
-        // (фракция выбрана / killswitch дейликов) — тогда оставшаяся занимает ряд одна.
-        $midRow = [];
+        // Хвост карточки (цели → хабы → справочник → профиль) собирается ПЛОСКИМ списком
+        // в порядке частоты, а на ряды его режет packButtonRows(). Раньше каждый блок
+        // клал СВОЙ ряд, и при выключенном соседе кнопка оставалась в ряду одна
+        // (фидбэк владельца 2026-06-11 про пару «Фракция + Задания дня» лечил лишь один
+        // такой случай; 2026-07-27 — правило распространено на весь хвост).
+        $tailFlat = [];
         if ($level >= 10 && !$hasChosenFaction) {
-            $midRow[] = ['text' => '⚑ Выбрать фракцию', 'callback_data' => 'chooseFaction_info'];
+            $tailFlat[] = ['text' => '⚑ Выбрать фракцию', 'callback_data' => 'chooseFaction_info'];
         } elseif ($level < 10 && !$hasChosenFaction) {
             // E7 (ROADMAP-100): lock-кнопка для <L10 — ранняя посадка цели. Срез показал:
             // 62% доросших до L10 выбирают фракцию, но до L10 цель была НЕВИДИМА. Клик →
             // alert с prerequisite + value-prop teaser (UX-DISCOVERABILITY, не скрываем молча).
-            $midRow[] = ['text' => '🔒 ⚑ Фракция (с lvl 10)', 'callback_data' => 'chooseFactionLocked'];
+            $tailFlat[] = ['text' => '🔒 ⚑ Фракция (с lvl 10)', 'callback_data' => 'chooseFactionLocked'];
         }
 
         // N-навигация (2026-06-11) — АНТИ button-soup (memory feedback_character_card_button_soup):
@@ -290,24 +297,17 @@ class CharacterService
         $charId       = (int) ($characterRow['id'] ?? 0);
         $dailyEnabled = (new \App\Services\Quest\DailyTaskService())->enabled();
         if ($dailyEnabled) {
-            $midRow[] = ['text' => '🗓 Задания дня', 'callback_data' => 'dailyTasks'];
-        }
-        if ($midRow !== []) {
-            $inlineRows[] = $midRow;
+            $tailFlat[] = ['text' => '🗓 Задания дня', 'callback_data' => 'dailyTasks'];
         }
 
         // ДВА хаба: «📊 Прогресс» (достижения/титулы/рейтинг/экономика/что нового) +
         // «⚙️ Развитие» (специализация/проект фракции/дрон/модернизация). Каждый — только если
-        // в группе есть включённые фичи. Пакуем по 2 в строку.
-        $hubButtons = [];
+        // в группе есть включённые фичи.
         if (\App\Services\Player\ProfileHubService::progressButtons() !== []) {
-            $hubButtons[] = ['text' => '📊 Прогресс', 'callback_data' => 'progressHub'];
+            $tailFlat[] = ['text' => '📊 Прогресс', 'callback_data' => 'progressHub'];
         }
         if (\App\Services\Player\ProfileHubService::developmentButtons($charId, $level) !== []) {
-            $hubButtons[] = ['text' => '⚙️ Развитие', 'callback_data' => 'developmentHub'];
-        }
-        if ($hubButtons !== []) {
-            $inlineRows[] = $hubButtons;
+            $tailFlat[] = ['text' => '⚙️ Развитие', 'callback_data' => 'developmentHub'];
         }
 
         // ADR-135 — «⚖️ Трофейная подать»: вход виден ТОЛЬКО когда механика включена И у игрока
@@ -318,15 +318,16 @@ class CharacterService
         // «на всякий случай»), и терять его вассалу дороже, чем сэкономить строку → остаётся.
         $tributeSvc = new \App\Services\PVE\TributeService();
         if ($tributeSvc->enabled() && $tributeSvc->hasAnyTributeRelation($charId)) {
-            $inlineRows[] = [['text' => '⚖️ Трофейная подать', 'callback_data' => 'tributeStatus']];
+            $tailFlat[] = ['text' => '⚖️ Трофейная подать', 'callback_data' => 'tributeStatus'];
         }
 
-        // ADR-127 — «📖 Путь новичка»: вход в справочник-онбординг (`/guide`). ВСЕГДА виден
-        // отдельной строкой — точка спасения для растерявшегося игрока (пропустил обучение /
-        // забыл механику). Read-only, без наград (можно жать сколько угодно). Не раздувает
-        // ряды действий (отдельная строка снизу). ADR-150 ФИНАЛ: канон переехал в «⚙️ Ещё»,
-        // но точку спасения с карточки НЕ убираем — растерявшийся игрок ищет её именно здесь.
-        $inlineRows[] = [['text' => '📖 Путь новичка', 'callback_data' => 'guide']];
+        // ADR-127 — «📖 Путь новичка»: вход в справочник-онбординг (`/guide`). ВСЕГДА виден —
+        // точка спасения для растерявшегося игрока (пропустил обучение / забыл механику).
+        // Read-only, без наград (можно жать сколько угодно). ADR-150 ФИНАЛ: канон переехал в
+        // «⚙️ Ещё», но точку спасения с карточки НЕ убираем — растерявшийся игрок ищет её
+        // именно здесь. 2026-07-27: больше НЕ отдельной строкой — «мета»-низ карточки
+        // (справочник + профиль) идёт парой, одиночек в раскладке не осталось.
+        $tailFlat[] = ['text' => '📖 Путь новичка', 'callback_data' => 'guide'];
 
         // S8 (ADR-146) — «👥 Позови выжившего»: вход в реферальную петлю (личная ссылка +
         // honor-титул «Зовущий» за реального приглашённого). Виден ТОЛЬКО при killswitch
@@ -335,17 +336,28 @@ class CharacterService
         // ADR-150 ФИНАЛ: канон реферала — «⚙️ Ещё» (там он и живёт). С карточки убран: это не
         // контекстный вход, а вторая копия (дуал-хоминг). За всё время — 8 тапов.
         if (! $finalGrid && (new \App\Services\Player\ReferralService())->enabled()) {
-            $inlineRows[] = [['text' => '👥 Позови выжившего', 'callback_data' => 'referral']];
+            $tailFlat[] = ['text' => '👥 Позови выжившего', 'callback_data' => 'referral'];
         }
 
         // E30 (ROADMAP-100) — viral-петля: URL-кнопка на публичный веб-профиль (flat ADR-062).
         // Игроку есть что показать наружу (уровень/титулы/достижения/PvP, БЕЗ локации) → бесплатный
         // приток. URL-кнопка открывает /profile/{id} в браузере, откуда игрок делится ссылкой.
+        // 2026-07-27: подпись укорочена «🔗 Мой профиль (поделиться)» → «🔗 Мой профиль»,
+        // чтобы кнопка вставала В ПАРУ с «📖 Путь новичка» и не переносилась на узком экране.
+        // Смысл «наружу» не теряется: у url-кнопки Telegram сам рисует стрелку ↗.
         $rawCharId = $characterRow['id'] ?? null;
         $profCharId = is_numeric($rawCharId) ? (int) $rawCharId : 0;
         if ($profCharId > 0) {
-            $inlineRows[] = [['text' => '🔗 Мой профиль (поделиться)', 'url' => base_url('profile/' . $profCharId)]];
+            $tailFlat[] = ['text' => '🔗 Мой профиль', 'url' => base_url('profile/' . $profCharId)];
         }
+
+        // Раскладка: при финальной сетке карточка целиком пакуется одним списком (частота
+        // сверху вниз, тройка коротких — на Экип/Аптечка/Страховка). При выключенном
+        // killswitch'е верхние ряды legacy-веток остаются как были (rollback byte-identical),
+        // а хвост всё равно едет через тот же упаковщик — одиночек не остаётся нигде.
+        $inlineRows = $finalGrid
+            ? self::packButtonRows(array_merge($personalFlat, $tailFlat), 2)
+            : array_merge($inlineRows, self::packButtonRows($tailFlat));
 
         $inlineKeyboard = ['inline_keyboard' => $inlineRows];
 
@@ -355,6 +367,48 @@ class CharacterService
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($inlineKeyboard),
         ]);
+    }
+
+    /**
+     * Режет плоский список инлайн-кнопок на ряды — БЕЗ одиночек в ряду.
+     *
+     * Фидбэк владельца 2026-07-27: кнопка, стоящая в ряду одна, растягивается во всю
+     * ширину, рвёт ритм карточки и визуально «кричит» громче, чем заслуживает («Действия»,
+     * «Путь новичка», «Мой профиль» — три такие подряд). Ряды НЕЛЬЗЯ прописать руками:
+     * половина кнопок условна (фракция / дейлики / хабы / подать / реферал), и любая
+     * выключенная фича оставляла соседа одного. Поэтому раскладка считается.
+     *
+     * По 2 в ряд. При НЕЧЁТНОМ количестве ровно один ряд собирается из 3 — начиная с
+     * индекса `$tripleAt`: туда ставим самые короткие подписи, иначе тройка длинных
+     * переносится в две строки на 375px. Ряд из одной кнопки возможен лишь в вырожденном
+     * случае «кнопка всего одна» (на карточке не встречается — там минимум 7).
+     *
+     * @param  list<array<string, string>>       $flat     Кнопки в порядке показа.
+     * @param  int                               $tripleAt Индекс, РАНЬШЕ которого тройку не ставим.
+     * @return list<list<array<string, string>>>           Ряды для `inline_keyboard`.
+     */
+    private static function packButtonRows(array $flat, int $tripleAt = 0): array
+    {
+        $count = count($flat);
+        if ($count === 0) {
+            return [];
+        }
+        // Клампим позицию тройки так, чтобы для неё гарантированно осталось 3 кнопки.
+        $tripleAt = max(0, min($tripleAt, $count - 3));
+
+        $rows = [];
+        for ($i = 0; $i < $count;) {
+            $remaining = $count - $i;
+            if ($remaining === 1) {
+                $rows[] = array_slice($flat, $i, 1); // только при $count === 1
+                break;
+            }
+            $take = ($remaining % 2 === 1 && $i >= $tripleAt) ? 3 : 2;
+            $rows[] = array_slice($flat, $i, $take);
+            $i += $take;
+        }
+
+        return $rows;
     }
 
     private function getEquippedWeapon(int $characterId): ?string
