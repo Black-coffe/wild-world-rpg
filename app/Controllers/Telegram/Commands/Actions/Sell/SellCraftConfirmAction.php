@@ -95,11 +95,16 @@ class SellCraftConfirmAction extends BaseAction
             ]);
         }
 
-        // Расчёт цены с учётом кармы торговли (0.33x..10.5x ограничение)
-        $price = $basePrice * (1 + ($charRefresh['trading_karma'] - 100) / 200);
-        $price = max($basePrice * 0.33, min($price, $basePrice * 10.5));
-        // ADR-085: мягкий бонус цены владельцам Склада (dormant → ×1.0).
-        $price *= (new \App\Services\Player\WarehouseSellBonusService())->sellPriceMultiplier((int) $character['id']);
+        // ADR-157: цена считается единым сервисом (карма зажата, потолок = базовая
+        // цена, инвариант «продажа дешевле покупки» применяется последним).
+        // ADR-085: мягкий бонус цены владельцам Склада — как внешний множитель,
+        // поверх которого инвариант всё равно срабатывает.
+        $warehouseMult = (new \App\Services\Player\WarehouseSellBonusService())->sellPriceMultiplier((int) $character['id']);
+        $price = (new \App\Services\Economy\TradePricingService())->sellUnitPrice(
+            $basePrice,
+            (float) $charRefresh['trading_karma'],
+            $warehouseMult
+        );
         $totalPrice = $price * $quantity;
 
         // 1) Обновление таблицы sales
@@ -135,7 +140,10 @@ class SellCraftConfirmAction extends BaseAction
         // 4) Прибавление золота + 5) увеличение кармы — одним апдейтом
         $bonusFactor = 0.0002;
         $karmaDelta = $totalPrice * $bonusFactor;
-        $newKarma = $charRefresh['trading_karma'] + $karmaDelta;
+        // ADR-157: карма пишется уже нормализованной — без этого она копила
+        // десятки тысяч (продажа поднимала карму, карма поднимала цену продажи).
+        $newKarma = (new \App\Services\Economy\TradePricingService())
+            ->normalizeKarma((float) $charRefresh['trading_karma'] + $karmaDelta);
         $db->query(
             'UPDATE characters SET gold = gold + ?, trading_karma = ? WHERE id = ?',
             [$totalPrice, $newKarma, $character['id']]

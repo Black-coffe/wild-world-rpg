@@ -129,10 +129,13 @@ class BuyCraftConfirmAction extends BaseAction
             ]);
         }
 
-        // Расчёт цены с учётом кармы торговли (с ограничением 0.33x..10.5x)
+        // ADR-157: цена считается единым сервисом (карма зажата; пол множителя
+        // покупки гарантирует, что круг «купил → продал» всегда убыточен).
         $basePrice = (float) $saleItem['price'];
-        $price = $basePrice * (1 + (100 - $charRefresh['trading_karma']) / 50);
-        $price = max($basePrice * 0.33, min($price, $basePrice * 10.5));
+        $price = (new \App\Services\Economy\TradePricingService())->buyUnitPrice(
+            $basePrice,
+            (float) $charRefresh['trading_karma']
+        );
         $totalPrice = $price * $quantity;
 
         // Финальная проверка золота — уже после блокировки строки персонажа
@@ -190,7 +193,9 @@ class BuyCraftConfirmAction extends BaseAction
         // 4) Списание золота + 5) уменьшение кармы — одним апдейтом
         $penaltyFactor = 0.0002;
         $karmaDelta = -($totalPrice * $penaltyFactor);
-        $newKarma = $charRefresh['trading_karma'] + $karmaDelta;
+        // ADR-157: карма пишется уже нормализованной (симметрично продаже).
+        $newKarma = (new \App\Services\Economy\TradePricingService())
+            ->normalizeKarma((float) $charRefresh['trading_karma'] + $karmaDelta);
         $db->query(
             'UPDATE characters SET gold = gold - ?, trading_karma = ? WHERE id = ?',
             [$totalPrice, $newKarma, $character['id']]
