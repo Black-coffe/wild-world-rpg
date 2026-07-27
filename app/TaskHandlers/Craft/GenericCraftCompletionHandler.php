@@ -269,31 +269,54 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
             ->orderBy('id', 'ASC')  // FIFO via auto-increment (created_at ties resolved)
             ->first();
 
-        if ($next === null) {
+        // Модель отдаёт массив (returnType='array'), но статически это `array|object`
+        // — сужаем явно, чтобы дальше не гадать (раньше это гасилось baseline-записями).
+        if (! is_array($next)) {
             return;
         }
 
         // Дюрація based on character (поточні stats) + qty з task_settings.
         $taskRow = (new TaskModel())->find($taskId);
-        if ($taskRow === null) {
+        if (! is_array($taskRow)) {
             log_message('error', "[GenericCraftCompletion] dequeue: tasks row {$taskId} не знайдено");
             return;
         }
 
+        // CharacterModel::find() отдаёт CharacterEntity, а не массив — сужаем по типу.
         $character = $this->characterModel->find($characterId);
-        if ($character === null) {
+        if (! $character instanceof \App\Entities\CharacterEntity) {
             log_message('error', "[GenericCraftCompletion] dequeue: character {$characterId} не знайдено");
             return;
         }
 
-        $quantity      = $this->extractQuantity($next);
-        $durationOne   = $this->calculateCraftingDuration($character, $taskRow);
+        // ADR-158: раньше здесь жила ВТОРАЯ копия формулы — голая интерполяция по
+        // статам, без duration_override и без единого множителя, при комментарии
+        // «та сама формула». Из-за этого первая вещь у игрока с Мастерской L10
+        // делалась за 55% времени, а следующая из той же очереди — за 100%.
+        // Теперь и старт, и активация из очереди зовут один сервис; рецепт достаём
+        // из task_settings, чтобы override часов и boost-постройка тоже применились.
+        $quantity  = $this->extractQuantity($next);
+        $recipeKey = $this->extractRecipeKey($next);
+        $recipeRow = [];
+        if ($recipeKey !== null) {
+            /** @var CraftRecipes $cfgRecipes */
+            $cfgRecipes = config('CraftRecipes');
+            $recipeRow  = $cfgRecipes->get($recipeKey) ?? [];
+        }
+        $durationOne   = (new \App\Services\Craft\CraftDurationService())
+            ->minutesForOne($character, $taskRow, $recipeRow);
         $totalDuration = $durationOne * $quantity;
 
         $startTime = new DateTime();
         $endTime   = (clone $startTime)->add(new DateInterval('PT' . $totalDuration . 'M'));
 
-        $this->characterTaskModel->update($next['id'], [
+        $nextIdRaw = $next['id'] ?? null;
+        if (! is_numeric($nextIdRaw)) {
+            log_message('error', '[GenericCraftCompletion] dequeue: у queued-задачи нет id');
+            return;
+        }
+
+        $this->characterTaskModel->update((int) $nextIdRaw, [
             'status'     => 'in_work',
             'start_time' => $startTime->format('Y-m-d H:i:s'),
             'end_time'   => $endTime->format('Y-m-d H:i:s'),
@@ -304,33 +327,7 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
     }
 
     /**
-     * Та сама формула, що в `GenericCraftActionStart::calculateCraftingDuration`.
-     * Дублюємо для незалежності від action layer.
-     *
-     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
-     * @param array<string,mixed> $taskRow
-     */
-    private function calculateCraftingDuration(array|\App\Entities\CharacterEntity $character, array $taskRow): int
-    {
-        $expFactor = 0.3;
-        $agiFactor = 0.3;
-        $intFactor = 0.4;
-
-        $score    = ((float) $character['experience'] * $expFactor)
-                  + ((float) $character['agility']    * $agiFactor)
-                  + ((float) $character['intellect']  * $intFactor);
-        $maxScore = 1000 * ($expFactor + $agiFactor + $intFactor);
-        $norm     = $maxScore > 0 ? $score / $maxScore : 0;
-
-        $minD = (int) $taskRow['min_duration'];
-        $maxD = (int) $taskRow['max_duration'];
-
-        $adjusted = $minD + ($maxD - $minD) * (1 - $norm);
-        return max($minD, min($maxD, (int) round($adjusted)));
-    }
-
-    /**
-     * @param array<string, mixed> $task
+     * @param array<array-key, mixed> $task
      */
     private function notifyQueuedActivated(int $telegramUserId, array $task, int $quantity, DateTime $endTime): void
     {
@@ -454,9 +451,11 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
             ->where('outfit_id', $outfitId)
             ->first();
 
-        if (is_array($row) && isset($row['id']) && is_numeric($row['id'])) {
-            $oldQty = is_numeric($row['quantity'] ?? 0) ? (int) $row['quantity'] : 0;
-            $this->charactersOutfitsModel->update((int) $row['id'], ['quantity' => $oldQty + $quantityToAdd]);
+        $rowIdRaw  = is_array($row) ? ($row['id'] ?? null) : null;
+        $rowQtyRaw = is_array($row) ? ($row['quantity'] ?? null) : null;
+        if (is_numeric($rowIdRaw)) {
+            $oldQty = is_numeric($rowQtyRaw) ? (int) $rowQtyRaw : 0;
+            $this->charactersOutfitsModel->update((int) $rowIdRaw, ['quantity' => $oldQty + $quantityToAdd]);
         } else {
             $slotRaw = $recipe['outfit_slot'] ?? 'body';
             $this->charactersOutfitsModel->insert([

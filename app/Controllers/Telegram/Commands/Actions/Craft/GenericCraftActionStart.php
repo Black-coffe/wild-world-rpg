@@ -73,6 +73,8 @@ class GenericCraftActionStart extends BaseAction
     private BuildingEffectsService $buildingEffects;
     private GameSettingsService $gameSettings;
     private ActionScopeService $scope;
+    /** ADR-158: разбивка длительности последнего расчёта — для строки правды. */
+    private ?\App\Services\Craft\CraftDurationBreakdown $durationBreakdown = null;
 
     public function __construct($callbackQuery)
     {
@@ -328,6 +330,24 @@ class GenericCraftActionStart extends BaseAction
                 'missing_materials',
                 ['missing_resources' => $missRes, 'missing_items' => $missItems, 'qty' => $this->quantity]
             );
+
+            // ADR-158: точный список недостающего сервер уже посчитал — раньше он
+            // молча уходил в лог, а игрок получал «Недостаточно ресурсов» без единой
+            // подсказки и кнопки. 137 из 144 прод-отказов — нехватка сырья, поэтому
+            // экран прежде всего отвечает «где это добывается».
+            $shortage = new \App\Services\Craft\CraftShortageService();
+            if ($shortage->isEnabled()) {
+                $screen = $shortage->describe($character, $missRes, $missItems, $this->quantity, $recipe);
+                Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+                return Request::sendMessage([
+                    'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text'         => $screen['text'],
+                    'parse_mode'   => 'Markdown',
+                    'reply_markup' => json_encode($screen['keyboard']),
+                ]);
+            }
+
             return $this->sendError("Недостаточно ресурсов для крафта {$this->quantity} шт.");
         }
 
@@ -578,57 +598,14 @@ class GenericCraftActionStart extends BaseAction
      */
     private function calculateCraftingDuration(array|\App\Entities\CharacterEntity $character, array $taskRow, array $recipe = []): int
     {
-        $expFactor = 0.3;
-        $agiFactor = 0.3;
-        $intFactor = 0.4;
+        // ADR-158: формула вынесена в CraftDurationService. До этого её копия жила
+        // в GenericCraftCompletionHandler и уже разъехалась — активация из очереди
+        // считала время БЕЗ единого множителя, из-за чего вторая вещь в очереди
+        // делалась дольше первой. Разбивку сохраняем для строки правды в уведомлении.
+        $this->durationBreakdown = (new \App\Services\Craft\CraftDurationService($this->gameSettings, $this->buildingEffects))
+            ->forOne($character, $taskRow, $recipe);
 
-        $score    = ($character['experience'] * $expFactor)
-                  + ($character['agility']    * $agiFactor)
-                  + ($character['intellect']  * $intFactor);
-        $maxScore = 1000 * ($expFactor + $agiFactor + $intFactor);
-        $norm     = $maxScore > 0 ? $score / $maxScore : 0;
-
-        $minD = (int) $taskRow['min_duration'];
-        $maxD = (int) $taskRow['max_duration'];
-
-        // S16 (ADR-026): live-tunable duration override через GameSettings.
-        // recipe.duration_override_setting_key хранит ЧАСЫ; конвертируем в минуты,
-        // используем как min=max (overriding tasks.min_duration/max_duration).
-        $durationSettingKey = isset($recipe['duration_override_setting_key']) && is_string($recipe['duration_override_setting_key'])
-            ? $recipe['duration_override_setting_key']
-            : null;
-        if ($durationSettingKey !== null) {
-            $tunedHours = $this->gameSettings->get($durationSettingKey, null);
-            if (is_numeric($tunedHours) && (int) $tunedHours > 0) {
-                $minutes = (int) $tunedHours * 60;
-                $minD = $minutes;
-                $maxD = $minutes;
-            }
-        }
-
-        $adjusted = $minD + ($maxD - $minD) * (1 - $norm);
-        $baseDuration = max($minD, min($maxD, (int) round($adjusted)));
-
-        $extraBuilding = isset($recipe['boost_building_time']) && is_string($recipe['boost_building_time'])
-            ? $recipe['boost_building_time']
-            : null;
-        $multiplier = $this->buildingEffects->getCraftTimeMultiplier((int)($character['id'] ?? 0), $extraBuilding);
-        // V9 (ADR-034): «Сытость» ускоряет крафт (food.well_fed.craft_time_multiplier),
-        // пока now < character.well_fed_until. Не сыт / выключено → ×1.0 (no-op).
-        $foodMult = (new \App\Services\Food\FoodBuffService())->craftTimeMultiplierFor($character['well_fed_until'] ?? null);
-        // V16 (ADR-047): крафт-специализация ускоряет «свою» категорию (по zone_name
-        // рецепта). Нет ветки / зона не маппится / выключено → ×1.0 (no-op).
-        // V17 (ADR-048): множитель растёт по уровню персонажа (интерполяция L5↔L25).
-        $specRaw   = $character['specialization'] ?? null;
-        $lvlRaw    = $character['level'] ?? 0;
-        $charLevel = is_numeric($lvlRaw) ? (int) $lvlRaw : 0;
-        $specMult  = (new \App\Services\Player\SpecializationService())
-            ->getCraftTimeMultiplierFor(is_string($specRaw) ? $specRaw : null, $recipe, $charLevel);
-        // V20 (ADR-051): фракц-buff проекта снабжения — ускоряет крафт всем членам
-        // фракции, пока активен buff_until. Нет фракции / буффа / выключено → ×1.0 (no-op).
-        $charIdForFaction = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
-        $factionMult = (new \App\Services\Player\FactionProjectService())->craftTimeMultiplierFor($charIdForFaction);
-        return max(1, (int) round($baseDuration * $multiplier * $foodMult * $specMult * $factionMult));
+        return $this->durationBreakdown->minutes;
     }
 
     /**
@@ -667,10 +644,22 @@ class GenericCraftActionStart extends BaseAction
         $minutes  = $interval->days * 1440 + $interval->h * 60 + $interval->i;
         $timeStr  = $this->formatMinutes($minutes);
 
+        // ADR-158 «строка правды»: свободный стек множителей достигает ×0.22, но был
+        // полностью невидим — игрок с −78% видел только итоговое число, читал крафт
+        // как медленный и просил ускорение, которое у него уже есть. Показываем и
+        // базу, и за счёт чего быстрее. Без бонусов строка не отличается от прежней.
+        $timeBlock = "Время крафта: *{$timeStr}* ⏱️";
+        if ($this->durationBreakdown !== null
+            && $this->durationBreakdown->hasBonuses()
+            && (bool) $this->gameSettings->get('craft.duration_breakdown.enabled', true)
+        ) {
+            $timeBlock = $this->durationBreakdown->truthLine($qty);
+        }
+
         $text = "*Процесс крафта запущен*\n\n"
             . "Ты создаёшь: {$recipe['start_caption_name']} x{$qty} шт.\n\n"
             . $this->scope->startedBlock(ActionScopeService::KIND_CRAFT, $background) . "\n\n"
-            . "Время крафта: *{$timeStr}* ⏱️\n\n"
+            . $timeBlock . "\n\n"
             . "После завершения будет добавлено *{$qty}* шт. в твой инвентарь.\n\n"
             . "❗Прерывание задачи = потеря ресурсов!\n\n"
             . "_О готовности узнаешь в сообщении._ 🎁";

@@ -64,25 +64,69 @@ final class BuildingEffectsService
     public function getCraftTimeMultiplier(int $charId, ?string $extraBuilding = null): float
     {
         $multiplier = 1.0;
+        foreach ($this->craftTimeFactors($charId, $extraBuilding) as $factor) {
+            $multiplier *= $factor['mult'];
+        }
+
+        return $multiplier;
+    }
+
+    /**
+     * ADR-158 — те же множители, но с именами построек: нужны, чтобы показать игроку
+     * ЗА СЧЁТ ЧЕГО его крафт быстрее базового («⏱ 3 мин вместо 15 — Мастерская L10 …»).
+     * До этого стек в ×0.22 был полностью невидим, и игрок читал долгий крафт как
+     * поломку, а вложения в постройки — как бесполезные.
+     *
+     * `getCraftTimeMultiplier()` — произведение этого списка, поэтому второй формулы
+     * не появляется и разъехаться им негде.
+     *
+     * @return list<array{label:string, mult:float}> только реально действующие (mult < 1.0)
+     */
+    public function craftTimeFactors(int $charId, ?string $extraBuilding = null): array
+    {
+        $factors = [];
 
         $workshopLevel = $this->resolveBuildingLevel($charId, 'Workshop');
         if ($workshopLevel >= 2) {
-            $multiplier *= $this->resolveLevelMultiplier('workshop', $workshopLevel, 'craft_time_multiplier');
+            $mult = $this->resolveLevelMultiplier('workshop', $workshopLevel, 'craft_time_multiplier');
+            if ($mult < 1.0) {
+                $factors[] = [
+                    'label' => $this->buildingLabel('Workshop', $workshopLevel),
+                    'mult'  => $mult,
+                ];
+            }
         }
 
         if ($extraBuilding !== null && $extraBuilding !== '' && strcasecmp($extraBuilding, 'Workshop') !== 0
             && $this->boostBuildingEnabled($extraBuilding)) {
             $extraLevel = $this->resolveBuildingLevel($charId, $extraBuilding);
             if ($extraLevel >= 2) {
-                $multiplier *= $this->resolveLevelMultiplier(
+                $mult = $this->resolveLevelMultiplier(
                     strtolower($extraBuilding),
                     $extraLevel,
                     'craft_time_multiplier',
                 );
+                if ($mult < 1.0) {
+                    $factors[] = [
+                        'label' => $this->buildingLabel($extraBuilding, $extraLevel),
+                        'mult'  => $mult,
+                    ];
+                }
             }
         }
 
-        return $multiplier;
+        return $factors;
+    }
+
+    /** Русское имя постройки с уровнем; при отсутствии строки в БД — английский ключ. */
+    private function buildingLabel(string $buildingNameEn, int $level): string
+    {
+        $row  = $this->buildingModel->where('name_en', $buildingNameEn)->first();
+        $name = is_array($row) && isset($row['name_ru']) && is_string($row['name_ru']) && $row['name_ru'] !== ''
+            ? $row['name_ru']
+            : $buildingNameEn;
+
+        return $name . ' L' . $level;
     }
 
     /**
