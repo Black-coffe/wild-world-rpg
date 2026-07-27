@@ -35,6 +35,9 @@ class CraftDurationService
     private const AGI_FACTOR = 0.3;
     private const INT_FACTOR = 0.4;
 
+    /** ADR-159: пол длительности, если ключ `craft.min_duration_min` недоступен. */
+    private const DEFAULT_FLOOR_MINUTES = 10;
+
     private GameSettingsService $gameSettings;
     private BuildingEffectsService $buildingEffects;
     private FoodBuffService $food;
@@ -72,10 +75,26 @@ class CraftDurationService
             $multiplier *= $factor['mult'];
         }
 
+        $compressed = max(1, (int) round($base * $multiplier));
+
+        // ADR-159: множители не могут пробить коридор тайм-гейтов. Свободный стек
+        // достигает ×0.22, и 15-минутная задача превращалась в 3 минуты — крафт
+        // перестаёт быть выбором «занять время», а тайм-гейт, на котором держится
+        // темп игры, обходится вложениями в постройки.
+        //
+        // Пол применяется как ограничитель СЖАТИЯ, а не как минимальное время:
+        // min(база, пол). Иначе пол УДЛИНИЛ бы короткие по замыслу рецепты
+        // («Тряпичная рубаха» — база 3 мин, готовка — 10 мин) и превратил бы
+        // страховку баланса в скрытый нерф раннего крафта.
+        $floor      = $this->floorMinutes();
+        $floorLimit = $floor > 0 ? min($base, $floor) : 0;
+        $minutes    = max($compressed, $floorLimit);
+
         return new CraftDurationBreakdown(
-            max(1, (int) round($base * $multiplier)),
+            $minutes,
             $base,
-            $factors
+            $factors,
+            $minutes > $compressed ? $floorLimit : null
         );
     }
 
@@ -194,6 +213,18 @@ class CraftDurationService
     protected function factionMultiplier(int $charId): float
     {
         return $this->faction->craftTimeMultiplierFor($charId);
+    }
+
+    /**
+     * ADR-159 — пол длительности крафта (минуты, admin-tunable).
+     *
+     * 0 = выключено (прежнее поведение: единственный ограничитель — 1 минута).
+     */
+    protected function floorMinutes(): int
+    {
+        $raw = $this->gameSettings->get('craft.min_duration_min', self::DEFAULT_FLOOR_MINUTES);
+
+        return is_numeric($raw) ? max(0, (int) $raw) : self::DEFAULT_FLOOR_MINUTES;
     }
 
     private function num(mixed $value): float

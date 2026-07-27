@@ -229,4 +229,127 @@ final class CraftDurationServiceTest extends CIUnitTestCase
         $this->assertSame('1 ч', CraftDurationBreakdown::humanize(60));
         $this->assertSame('2 ч 5 мин', CraftDurationBreakdown::humanize(125));
     }
+
+    // ─── ADR-159: пол длительности крафта ────────────────────────────────────
+
+    /** Полный стек множителей (×0.356) при поле 10 обязан упереться в 10, а не в 5. */
+    public function testFloorStopsStackFromBreakingTimeGate(): void
+    {
+        $svc = $this->service(
+            [['label' => 'Мастерская L10', 'mult' => 0.55]],
+            0.90,
+            0.80,
+            0.90,
+            ['craft.min_duration_min' => 10]
+        );
+
+        // 15 × 0.55 × 0.90 × 0.80 × 0.90 = 5.35 → без пола было бы 5 минут.
+        $breakdown = $svc->forOne($this->character(), $this->task(15, 15));
+
+        $this->assertSame(10, $breakdown->minutes);
+        $this->assertSame(10, $breakdown->flooredAt);
+    }
+
+    /**
+     * Пол — ограничитель СЖАТИЯ, а не минимальное время: короткий по замыслу рецепт
+     * (база 3 мин) не удлиняется до 10, иначе это скрытый нерф раннего крафта.
+     */
+    public function testFloorNeverLengthensShortRecipe(): void
+    {
+        $stacked = $this->service(
+            [['label' => 'Мастерская L10', 'mult' => 0.55]],
+            0.90,
+            0.80,
+            0.90,
+            ['craft.min_duration_min' => 10]
+        );
+        $this->assertSame(3, $stacked->minutesForOne($this->character(), $this->task(3, 3)));
+
+        // И без единого бонуса база тоже остаётся собой.
+        $plain = $this->service(settings: ['craft.min_duration_min' => 10]);
+        $this->assertSame(3, $plain->minutesForOne($this->character(), $this->task(3, 3)));
+        $this->assertSame(5, $plain->minutesForOne($this->character(), $this->task(5, 5)));
+    }
+
+    /** 0 = пол выключен: прежнее поведение, единственный ограничитель — 1 минута. */
+    public function testFloorDisabledByZero(): void
+    {
+        $svc = $this->service(
+            [['label' => 'Мастерская L10', 'mult' => 0.55]],
+            0.90,
+            0.80,
+            0.90,
+            ['craft.min_duration_min' => 0]
+        );
+
+        $breakdown = $svc->forOne($this->character(), $this->task(15, 15));
+
+        $this->assertSame(5, $breakdown->minutes);
+        $this->assertNull($breakdown->flooredAt);
+    }
+
+    /** Долгий крафт пол не трогает — сжатие остаётся полным. */
+    public function testFloorLeavesLongCraftUntouched(): void
+    {
+        $breakdown = $this->service([['label' => 'Мастерская L10', 'mult' => 0.55]], settings: ['craft.min_duration_min' => 10])
+            ->forOne($this->character(), $this->task(600, 600));
+
+        $this->assertSame(330, $breakdown->minutes);
+        $this->assertNull($breakdown->flooredAt);
+    }
+
+    /** Срабатывание пола обязано быть сказано вслух, а не выглядеть как поломка бонусов. */
+    public function testTruthLineNamesTheFloorWhenItBites(): void
+    {
+        $line = $this->service(
+            [['label' => 'Мастерская L10', 'mult' => 0.55]],
+            0.90,
+            0.80,
+            0.90,
+            ['craft.min_duration_min' => 10]
+        )->forOne($this->character(), $this->task(15, 15))->truthLine();
+
+        $this->assertStringContainsString('дальше не ускорить', $line);
+        $this->assertStringContainsString('минимум 10 мин', $line);
+        $this->assertSame(0, substr_count($line, '*') % 2);
+        $this->assertSame(0, substr_count($line, '_') % 2);
+    }
+
+    /**
+     * Пограничный случай: пол съел ВСЁ ускорение (база 10 = пол 10). Бонусов «нет»,
+     * но игрок обязан узнать, почему его стек ничего не дал.
+     */
+    public function testFloorNoteShownEvenWhenWholeSpeedupIsEaten(): void
+    {
+        $breakdown = $this->service(
+            [['label' => 'Мастерская L10', 'mult' => 0.55]],
+            0.90,
+            0.80,
+            0.90,
+            ['craft.min_duration_min' => 10]
+        )->forOne($this->character(), $this->task(10, 10));
+
+        $this->assertSame(10, $breakdown->minutes);
+        $this->assertFalse($breakdown->hasBonuses(), 'выигрыша по времени нет — «−0%» писать нельзя');
+
+        $line = $breakdown->truthLine();
+        $this->assertStringContainsString('дальше не ускорить', $line);
+        $this->assertStringNotContainsString('−0%', $line);
+        $this->assertStringNotContainsString('ускоряют', $line);
+    }
+
+    /** Пол применяется на штуку: строка партии считает минимум для каждой единицы. */
+    public function testFloorAppliesPerItemInBatch(): void
+    {
+        $breakdown = $this->service(
+            [['label' => 'Мастерская L10', 'mult' => 0.55]],
+            0.90,
+            0.80,
+            0.90,
+            ['craft.min_duration_min' => 10]
+        )->forOne($this->character(), $this->task(15, 15));
+
+        $this->assertStringContainsString('30 мин', $breakdown->truthLine(3));
+        $this->assertStringContainsString('на штуку', $breakdown->truthLine(3));
+    }
 }

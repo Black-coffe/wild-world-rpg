@@ -18,11 +18,13 @@ final class CraftDurationBreakdown
      * @param int $minutes итоговые минуты на одну штуку
      * @param int $baseMinutes минуты до применения множителей
      * @param list<array{label:string, mult:float}> $factors только действующие ускорители
+     * @param int|null $flooredAt ADR-159: пол, который срезал сжатие (null — пол не сработал)
      */
     public function __construct(
         public readonly int $minutes,
         public readonly int $baseMinutes,
-        public readonly array $factors
+        public readonly array $factors,
+        public readonly ?int $flooredAt = null
     ) {
     }
 
@@ -65,7 +67,7 @@ final class CraftDurationBreakdown
         $total    = $this->minutes * $quantity;
 
         if (! $this->hasBonuses()) {
-            return '⏱ ' . self::humanize($total);
+            return '⏱ ' . self::humanize($total) . $this->floorNote();
         }
 
         $labels = [];
@@ -76,6 +78,22 @@ final class CraftDurationBreakdown
         return '⏱ ' . self::humanize($total)
             . ' _(база ' . self::humanize($this->baseMinutes * $quantity)
             . ', −' . $this->savedPercent() . '%)_'
-            . "\n     ускоряют: " . implode(' · ', $labels);
+            . "\n     ускоряют: " . implode(' · ', $labels)
+            . $this->floorNote();
+    }
+
+    /**
+     * ADR-159: когда пол срезал сжатие, молчать нельзя. Иначе игрок с полным стеком
+     * бонусов видит время, которое «не улучшается», и читает это как поломку своих
+     * вложений (тот же класс, что невидимый множитель в ADR-158). Говорим прямо:
+     * ускорение упёрлось в минимум, а не пропало.
+     */
+    private function floorNote(): string
+    {
+        if ($this->flooredAt === null) {
+            return '';
+        }
+
+        return "\n     дальше не ускорить: минимум " . self::humanize($this->flooredAt) . ' на штуку';
     }
 }
