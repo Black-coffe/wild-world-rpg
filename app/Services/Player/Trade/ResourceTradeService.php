@@ -74,9 +74,19 @@ final class ResourceTradeService
 
         // Fix 2026-07-13 (класс lost-update): атомарное относительное начисление
         // от СВЕЖЕГО золота (increaseGold → CharacterStatsService).
+        // Зеркальный близнец (2026-07-27): результат начисления тоже проверяется ДО
+        // списания ресурса. increaseGold возвращает false, когда персонажа не нашли —
+        // раньше в этом случае ресурс всё равно исчезал из инвентаря, а золото не
+        // приходило (потеря ценности в другую сторону).
         $sellerIdRaw = $character['id'] ?? null;
         $sellerId    = is_numeric($sellerIdRaw) ? (int) $sellerIdRaw : 0;
-        $this->characterModel->increaseGold($sellerId, $saleAmount);
+
+        if (! $this->characterModel->increaseGold($sellerId, $saleAmount)) {
+            return [
+                'success' => false,
+                'message' => 'Не удалось начислить золото — продажа отменена, ресурс остался у вас.',
+            ];
+        }
 
         $newQuantity = $charRes['quantity'] - $sellQuantity;
         if ($newQuantity > 0) {
@@ -146,8 +156,27 @@ final class ResourceTradeService
             return ['success' => false, 'message' => "У вас недостаточно золота для покупки {$qty} ед. (нужно {$totalCost}💰)."];
         }
 
-        $this->characterModel->decreaseGold((int) $character['id'], $totalCost);
-        $this->characterResourceModel->addOrIncreaseResource((int) $character['id'], $resourceId, $qty);
+        // Fix 2026-07-27 (последний незакрытый близнец класса lost-update): результат
+        // списания ОБЯЗАН проверяться. Предчек выше судит по снапшоту $character,
+        // прочитанному в начале запроса; decreaseGold перепроверяет достаточность от
+        // СВЕЖЕГО золота под row-lock'ом (CharacterStatsService) и возвращает false,
+        // когда денег уже нет. Без этой ветки параллельная трата (быстрые тапы,
+        // webhook-retry Телеграма) роняла списание, а ресурс начислялся всё равно —
+        // покупка становилась бесплатной и печатала ценность из воздуха. Зеркалит
+        // остальные call-site'ы decreaseGold (Караван, Ремонт, Страховка, Оракул,
+        // Телепорт, Подать, Смерть, Магазин поселения).
+        $buyerIdRaw = $character['id'] ?? null;
+        $buyerId    = is_numeric($buyerIdRaw) ? (int) $buyerIdRaw : 0;
+
+        if (! $this->characterModel->decreaseGold($buyerId, (float) $totalCost)) {
+            return [
+                'success' => false,
+                'message' => "Не удалось списать *{$totalCost}*💰 — золото уже ушло на другое действие. "
+                    . 'Проверьте баланс и попробуйте снова.',
+            ];
+        }
+
+        $this->characterResourceModel->addOrIncreaseResource($buyerId, $resourceId, $qty);
         $this->resourcesBankModel->updatePurchasedQuantity($resourceId, $qty);
 
         $message = "Вы успешно купили *{$qty}* ед. ресурса *{$resource['name']}* "

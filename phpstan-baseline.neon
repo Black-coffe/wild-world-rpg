@@ -14493,7 +14493,7 @@ parameters:
 		-
 			message: '#^Cannot cast mixed to int\.$#'
 			identifier: cast.int
-			count: 3
+			count: 1
 			path: app/Services/Player/Trade/ResourceTradeService.php
 
 		-
