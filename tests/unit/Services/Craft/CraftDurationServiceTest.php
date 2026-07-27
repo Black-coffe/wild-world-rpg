@@ -338,6 +338,23 @@ final class CraftDurationServiceTest extends CIUnitTestCase
         $this->assertStringNotContainsString('ускоряют', $line);
     }
 
+    /**
+     * Рецепт короче настроенного пола: эффективный предел — его собственная база,
+     * поэтому число печатать нельзя (оно гуляло бы от рецепта к рецепту и читалось
+     * как глобальное правило игры). Поймано Tier-3 на седативном (база 7 при поле 10).
+     */
+    public function testFloorNoteAvoidsPerRecipeNumberWhenRecipeIsShorterThanFloor(): void
+    {
+        $line = $this->service(
+            [['label' => 'Мастерская L10', 'mult' => 0.55]],
+            settings: ['craft.min_duration_min' => 10]
+        )->forOne($this->character(), $this->task(7, 7))->truthLine();
+
+        $this->assertStringContainsString('и так самый быстрый', $line);
+        $this->assertStringNotContainsString('минимум 7 мин', $line);
+        $this->assertStringNotContainsString('минимум 10 мин', $line);
+    }
+
     /** Пол применяется на штуку: строка партии считает минимум для каждой единицы. */
     public function testFloorAppliesPerItemInBatch(): void
     {
