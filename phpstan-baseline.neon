@@ -15555,7 +15555,7 @@ parameters:
 		-
 			message: '#^Cannot cast mixed to float\.$#'
 			identifier: cast.double
-			count: 4
+			count: 2
 			path: app/TaskHandlers/Craft/GenericCraftCompletionHandler.php
 
 		-

@@ -238,11 +238,22 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
 
         // 6. bump статов персонажа
         // F1.4.4-B 15th: $task['character_id'] приходит string из raw row → (int) cast.
+        // Прод-баг (лог 2026-07-25, task #37451): оба ключа читались БЕЗ `?? 0`, хотя
+        // три остальных чтения в этом же файле застрахованы. Бонус — не обязательное
+        // поле рецепта: `agility_bonus` отсутствует у 2 рецептов, `intellect_bonus` —
+        // у 15 (оружие + фракционная броня). Итого 17 рецептов роняли ЗАВЕРШЕНИЕ крафта
+        // на шаге «bump статов» — уже ПОСЛЕ выдачи предмета и ДО уведомления (шаг 7),
+        // а Worker помечает задачу completed ещё до handle(), поэтому повтора не будет:
+        // игрок получал вещь, но не получал ни статов, ни сообщения о готовности.
+        // Частичный успех страшнее падения — на 8-часовом крафте это читается как
+        // «крафт пропал».
         if (method_exists($this->characterModel, 'updateAgilityAndIntellect')) {
+            $agRaw  = $recipe['agility_bonus']   ?? 0;
+            $intRaw = $recipe['intellect_bonus'] ?? 0;
             $this->characterModel->updateAgilityAndIntellect(
                 (int) $task['character_id'],
-                (float) $recipe['agility_bonus'],
-                (float) $recipe['intellect_bonus']
+                is_numeric($agRaw) ? (float) $agRaw : 0.0,
+                is_numeric($intRaw) ? (float) $intRaw : 0.0
             );
         }
 
