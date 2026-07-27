@@ -350,18 +350,19 @@ class GenericBuildingAction extends BaseAction
         return implode("\n", $lines);
     }
 
+    /**
+     * ADR-160: расчёт вынесен в {@see \App\Services\Buildings\BuildDurationService} —
+     * единственную точку. Формула жила двумя копиями (здесь и в
+     * `GenericBuildingInfoAction::estimateDuration`, где обещается «Строительство
+     * займёт ~N минут») и уже разъехалась: тут статы читались дробными, там урезались
+     * до целых. Расхождение было в доли минуты, но копии расходятся всегда — вопрос
+     * лишь когда и насколько.
+     *
+     * Потолок счёта статов теперь admin-tunable (`buildings.duration.stat_score_cap`).
+     */
     private function calculateDuration(array|\App\Entities\CharacterEntity $character, array $taskRow): int
     {
-        $minD = (int) ($taskRow['min_duration'] ?? 60);
-        $maxD = (int) ($taskRow['max_duration'] ?? 180);
-
-        $score = $character['experience'] * 0.3
-               + $character['agility']    * 0.3
-               + $character['intellect']  * 0.4;
-        $ratio = min(1.0, $score / 2000.0);
-        $duration = (int) round($maxD - ($maxD - $minD) * $ratio);
-
-        return max($minD, min($maxD, $duration));
+        return (new \App\Services\Buildings\BuildDurationService())->minutes($character, $taskRow) ?? 0;
     }
 
     private function sendError(string $text): ServerResponse

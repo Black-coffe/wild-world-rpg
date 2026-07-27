@@ -448,24 +448,22 @@ class GenericBuildingInfoAction extends BaseAction
     /**
      * @param array<string, mixed> $character
      */
+    /**
+     * ADR-160: расчёт вынесен в {@see \App\Services\Buildings\BuildDurationService} —
+     * ту же точку, которой считается сама стройка (`GenericBuildingAction`). Раньше это
+     * была вторая копия формулы, и она уже разъехалась с первой: статы урезались до
+     * целых (`(int) 0.16 → 0`), тогда как реальная стройка считает по дробным.
+     * Расхождение было в доли минуты (граница округления), так что игроку это почти
+     * никогда не врало — но теперь обещание «Строительство займёт ~N минут» равно факту
+     * по построению, а не по совпадению.
+     *
+     * @param array<string, mixed> $character
+     */
     private function estimateDuration(array $character, string $taskName): ?int
     {
         $taskRow = $this->rowToArr($this->taskModel->where('name', $taskName)->first());
-        if ($taskRow === null) {
-            return null;
-        }
-        $minD = isset($taskRow['min_duration']) && is_numeric($taskRow['min_duration']) ? (int) $taskRow['min_duration'] : 60;
-        $maxD = isset($taskRow['max_duration']) && is_numeric($taskRow['max_duration']) ? (int) $taskRow['max_duration'] : 180;
-        if ($maxD <= 0) {
-            return $minD > 0 ? $minD : null;
-        }
-        $exp  = isset($character['experience']) && is_numeric($character['experience']) ? (int) $character['experience'] : 0;
-        $agi  = isset($character['agility'])    && is_numeric($character['agility'])    ? (int) $character['agility']    : 0;
-        $intl = isset($character['intellect'])  && is_numeric($character['intellect'])  ? (int) $character['intellect']  : 0;
-        $score    = $exp * 0.3 + $agi * 0.3 + $intl * 0.4;
-        $ratio    = min(1.0, $score / 2000.0);
-        $duration = (int) round($maxD - ($maxD - $minD) * $ratio);
-        return max($minD, min($maxD, $duration));
+
+        return (new \App\Services\Buildings\BuildDurationService())->minutes($character, $taskRow);
     }
 
     private function sendError(string $text): ServerResponse

@@ -6,6 +6,7 @@ namespace App\Services\Craft;
 
 use App\Entities\CharacterEntity;
 use App\Services\BuildingEffects\BuildingEffectsService;
+use App\Services\Duration\StatDurationInterpolator;
 use App\Services\Food\FoodBuffService;
 use App\Services\GameSettings\GameSettingsService;
 use App\Services\Player\FactionProjectService;
@@ -31,9 +32,8 @@ use App\Services\Player\SpecializationService;
  */
 class CraftDurationService
 {
-    private const EXP_FACTOR = 0.3;
-    private const AGI_FACTOR = 0.3;
-    private const INT_FACTOR = 0.4;
+    // ADR-160: веса статов (0.3 / 0.3 / 0.4) и сама интерполяция живут в
+    // StatDurationInterpolator — они общие со стройкой.
 
     /** ADR-159: пол длительности, если ключ `craft.min_duration_min` недоступен. */
     private const DEFAULT_FLOOR_MINUTES = 10;
@@ -120,14 +120,6 @@ class CraftDurationService
      */
     private function baseMinutes(array|CharacterEntity $character, array $taskRow, array $recipe): int
     {
-        $score = ((float) $this->num($character['experience'] ?? 0) * self::EXP_FACTOR)
-            + ((float) $this->num($character['agility'] ?? 0) * self::AGI_FACTOR)
-            + ((float) $this->num($character['intellect'] ?? 0) * self::INT_FACTOR);
-
-        // Сумма факторов = 1.0, поэтому знаменатель константен и заведомо положителен.
-        $maxScore = 1000 * (self::EXP_FACTOR + self::AGI_FACTOR + self::INT_FACTOR);
-        $norm     = $score / $maxScore;
-
         $minD = (int) $this->num($taskRow['min_duration'] ?? 0);
         $maxD = (int) $this->num($taskRow['max_duration'] ?? 0);
 
@@ -142,9 +134,15 @@ class CraftDurationService
             }
         }
 
-        $adjusted = $minD + ($maxD - $minD) * (1 - $norm);
-
-        return max($minD, min($maxD, (int) round($adjusted)));
+        // ADR-160: интерполяция по статам — общая с стройкой (веса жили в двух файлах;
+        // у стройки к тому же две копии уже разъехались). Различается только потолок
+        // счёта: у крафта 1000, у стройки 2000.
+        return StatDurationInterpolator::minutes(
+            $character,
+            $minD,
+            $maxD,
+            StatDurationInterpolator::CRAFT_SCORE_CAP
+        );
     }
 
     /**
