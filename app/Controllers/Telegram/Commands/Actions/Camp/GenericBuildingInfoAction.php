@@ -188,7 +188,10 @@ class GenericBuildingInfoAction extends BaseAction
             . "Для строительства тебе нужны:\n\n"
             . $this->formatResourcesText($character['id'], $requiredRes)
             . $this->formatCraftedItemsText($character['id'], $requiredItems)
-            . ($duration !== null ? "\n*Строительство займёт:* ~{$duration} минут\n" : '')
+            . ($duration !== null
+                ? "\n*Строительство займёт:* ~{$duration} минут"
+                    . $this->durationBonusNote($character, $recipe['task_name'], $duration) . "\n"
+                : '')
             . ($infoText !== '' ? "\n*Описание:* {$infoText}\n\n" : "\n");
 
         if (!empty($missingDeps)) {
@@ -464,6 +467,36 @@ class GenericBuildingInfoAction extends BaseAction
         $taskRow = $this->rowToArr($this->taskModel->where('name', $taskName)->first());
 
         return (new \App\Services\Buildings\BuildDurationService())->minutes($character, $taskRow);
+    }
+
+    /**
+     * ADR-162: строка правды о выигрыше от статов — « (новичку — 74 мин)».
+     *
+     * До калибровки потолка её не было смысла писать: при потолке 2000 выигрыш был нулевым
+     * у всех. Теперь статы реально сокращают стройку, а невидимый бонус читается как
+     * поломка (memory `feedback_invisible_multiplier_bonus_reads_as_broken`) — игрок должен
+     * видеть, что время личное, а не общее.
+     *
+     * Пустая строка, когда сравнивать не с чем: выигрыша нет (новичок), задачи нет, или у
+     * задачи нет верхней границы. «−0%» не пишем — тот же принцип, что в крафте (ADR-158).
+     *
+     * @param array<string, mixed> $character
+     */
+    private function durationBonusNote(array $character, string $taskName, ?int $minutes): string
+    {
+        if ($minutes === null) {
+            return '';
+        }
+
+        $taskRow = $this->rowToArr($this->taskModel->where('name', $taskName)->first());
+        $maxRaw  = $taskRow['max_duration'] ?? null;
+        $max     = is_numeric($maxRaw) ? (int) $maxRaw : 0;
+
+        if ($max <= 0 || $minutes >= $max) {
+            return '';
+        }
+
+        return " _(новичку — {$max} мин; ускоряют опыт, ловкость и интеллект)_";
     }
 
     private function sendError(string $text): ServerResponse

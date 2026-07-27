@@ -82,10 +82,13 @@ final class BuildDurationServiceTest extends CIUnitTestCase
      * но по масштабу это граница округления, а не видимая игроку ложь. Чтобы разница
      * вообще проявилась в целых минутах, нужен широкий диапазон: при `0..2000`
      * длительность = `2000 − счёт`, и половина единицы счёта уже флипает округление.
+     *
+     * Потолок задан здесь ЯВНО (2000), а не взят из дефолта: тест про участие дробной
+     * части, и он не должен переезжать вместе с калибровкой потолка (ADR-162).
      */
     public function testFractionalStatsParticipateInScore(): void
     {
-        $svc = $this->service();
+        $svc = $this->service([BuildDurationService::SETTING_SCORE_CAP => 2000.0]);
 
         $withFraction = $svc->minutes($this->character(0.0, 0.0, 1.5), $this->task(0, 2000)); // счёт 0.6
         $integerOnly  = $svc->minutes($this->character(0.0, 0.0, 1.0), $this->task(0, 2000)); // счёт 0.4
@@ -120,9 +123,9 @@ final class BuildDurationServiceTest extends CIUnitTestCase
     {
         $character = $this->character(2000.0); // счёт = 600
 
-        $default        = $this->service();
-        $defaultCap     = $default->scoreCap();
-        $defaultMinutes = $default->minutes($character, $this->task(60, 180));
+        $raised        = $this->service([BuildDurationService::SETTING_SCORE_CAP => 2000.0]);
+        $raisedCap     = $raised->scoreCap();
+        $raisedMinutes = $raised->minutes($character, $this->task(60, 180));
 
         service('cache')->clean();
 
@@ -130,17 +133,32 @@ final class BuildDurationServiceTest extends CIUnitTestCase
         $loweredCap     = $lowered->scoreCap();
         $loweredMinutes = $lowered->minutes($character, $this->task(60, 180));
 
-        $this->assertSame(2000.0, $defaultCap);
+        $this->assertSame(2000.0, $raisedCap);
         $this->assertSame(1000.0, $loweredCap);
-        $this->assertSame(144, $defaultMinutes, 'счёт 600 при потолке 2000 → 60 + 120×0.7');
+        $this->assertSame(144, $raisedMinutes, 'счёт 600 при потолке 2000 → 60 + 120×0.7');
         $this->assertSame(108, $loweredMinutes, 'счёт 600 при потолке 1000 → 60 + 120×0.4');
+    }
+
+    /**
+     * ADR-162: дефолт калиброван 2000 → 100, и код-fallback обязан совпадать с дефолтом
+     * ключа в GameSettings. Иначе «сломанная настройка» молча возвращала бы потолок, при
+     * котором стройка не реагирует на статы вовсе — то самое поведение, которое признали
+     * неверным замером прода.
+     */
+    public function testDefaultCapIsCalibratedValue(): void
+    {
+        $this->assertSame(100.0, $this->service()->scoreCap());
+
+        // Счёт 115 (исторический рекорд прода) при потолке 100 → быстрый край достижим.
+        $veteranish = $this->character(0.0, 0.0, 287.5); // счёт = 115
+        $this->assertSame(60, $this->service()->minutes($veteranish, $this->task(60, 180)));
     }
 
     /** Мусорное/неположительное значение ключа не ломает расчёт — падаем на дефолт. */
     public function testBrokenScoreCapFallsBackToDefault(): void
     {
-        $this->assertSame(2000.0, $this->service([BuildDurationService::SETTING_SCORE_CAP => 0])->scoreCap());
-        $this->assertSame(2000.0, $this->service([BuildDurationService::SETTING_SCORE_CAP => -5])->scoreCap());
+        $this->assertSame(100.0, $this->service([BuildDurationService::SETTING_SCORE_CAP => 0])->scoreCap());
+        $this->assertSame(100.0, $this->service([BuildDurationService::SETTING_SCORE_CAP => -5])->scoreCap());
     }
 
     /**
@@ -161,7 +179,12 @@ final class BuildDurationServiceTest extends CIUnitTestCase
             $this->assertStringContainsString('BuildDurationService', $src, basename($file) . ' обязан считать через сервис');
 
             // Признаки собственной копии формулы: потолок счёта и веса статов.
-            foreach (['2000.0', '* 0.3', '* 0.4'] as $needle) {
+            // Потолок сверяем по актуальной константе — иначе после калибровки (ADR-162)
+            // игла осталась бы искать число, которого в коде уже нет, и тест бы протух.
+            // Формат `%.1f` — ищем именно float-литерал (`100.0`), а не голое число «100»,
+            // которое легко встретится невинно (проценты, id) и дало бы ложное падение.
+            $capNeedle = sprintf('%.1f', \App\Services\Duration\StatDurationInterpolator::BUILD_SCORE_CAP);
+            foreach ([$capNeedle, '* 0.3', '* 0.4'] as $needle) {
                 $this->assertStringNotContainsString(
                     $needle,
                     $src,
