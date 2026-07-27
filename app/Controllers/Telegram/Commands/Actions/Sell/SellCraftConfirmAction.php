@@ -107,6 +107,35 @@ class SellCraftConfirmAction extends BaseAction
         );
         $totalPrice = $price * $quantity;
 
+        // ADR-157 шаг 2: суточный лимит выкупа. У части рецептов ВСЕ входы покупаются
+        // у того же торговца (сырьё продаётся без лимита стока), поэтому цикл
+        // «закупил вход → скрафтил → сдал» приносил прибыль без потолка. Правка цен
+        // обрушила бы доход честных поваров — вместо этого ограничен дневной оборот
+        // одного выжившего.
+        $limits = new \App\Services\Economy\VendorDailyLimitService();
+        if (! $limits->allows((int) $character['id'], (float) $totalPrice)) {
+            $db->transRollback();
+            $left = $limits->remaining((int) $character['id']);
+            $this->logRejected($character['id'], 'SELL_CRAFT', 'daily_buyback_cap', [
+                'requested' => round($totalPrice),
+                'remaining' => round($left),
+            ]);
+
+            $text = $left <= 0
+                ? "🛒 Торговец разводит руками: *монеты на сегодня кончились*.\n\n"
+                    . "Он скупает у одного выжившего ограниченно — приходи, когда разживётся "
+                    . "деньгами (в течение суток). Твой товар никуда не делся."
+                : "🛒 У торговца осталось всего *" . number_format($left, 0, '.', ' ') . "* 💰 на сегодня, "
+                    . "а за эту партию он должен *" . number_format($totalPrice, 0, '.', ' ') . "* 💰.\n\n"
+                    . "Продай меньше — или возвращайся, когда он разживётся деньгами.";
+
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => $text,
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
         // 1) Обновление таблицы sales
         $sale = $this->salesModel->where('crafted_item_id', $craftedItemId)->first();
         if ($sale) {
