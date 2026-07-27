@@ -144,6 +144,12 @@ final class WikiContentService
         // строить можно с первого.
         $gates = new \App\Services\Buildings\BuildingGateService();
 
+        // ADR-161: ровно тот же приём для времени стройки. Колонка `construction_time` ни с
+        // какой задачей не связана и разошлась у 14 построек из 16: девять публиковали время
+        // выше фактического (Склад 180 против 74), пять — ниже (Колючая ограда 45 против 70).
+        // Число берём из строки `tasks`, по которой стройка идёт на самом деле.
+        $buildTimes = new \App\Services\Buildings\BuildDurationService();
+
         $out = [];
         foreach ((new BuildingModel())->findAll() as $row) {
             $b      = self::asArray($row);
@@ -154,7 +160,7 @@ final class WikiContentService
                 'description'         => self::asString($b['description'] ?? ''),
                 'building_type'       => self::asString($b['building_type'] ?? ''),
                 'hp'                  => self::asInt($b['hp'] ?? null),
-                'construction_time'   => self::asInt($b['construction_time'] ?? null),
+                'construction_time'   => $nameEn !== '' ? $buildTimes->publishedMinutes($nameEn) : null,
                 'tax'                 => self::asInt($b['tax'] ?? null),
                 'level'               => self::asInt($b['level'] ?? null),
                 'min_character_level' => $nameEn !== '' ? $gates->requiredLevel($nameEn) : self::asInt($b['min_character_level'] ?? null),

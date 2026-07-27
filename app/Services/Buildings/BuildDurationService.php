@@ -7,6 +7,8 @@ namespace App\Services\Buildings;
 use App\Entities\CharacterEntity;
 use App\Services\Duration\StatDurationInterpolator;
 use App\Services\GameSettings\GameSettingsService;
+use Config\Buildings;
+use Config\Database;
 
 /**
  * ADR-160 — единственная точка расчёта длительности СТРОЙКИ.
@@ -25,16 +27,34 @@ use App\Services\GameSettings\GameSettingsService;
  * проект фракции) — в отличие от крафта. Это исходное поведение, оно сохранено
  * байт-в-байт; вопрос «должна ли стройка ускоряться» — отдельное решение владельца
  * (см. ADR-160 §Открытый вопрос).
+ *
+ * ADR-161 добавил сюда же СПРАВОЧНОЕ время ({@see publishedMinutes}) — для поверхностей
+ * без персонажа (публичная вики, админский craft-tree). До этого они публиковали
+ * колонку `buildings.construction_time`, не связанную с задачей ничем: из 16 построек
+ * она расходилась у 14 — девять завышали время (Склад 180 против 74), пять занижали
+ * (Колючая ограда 45 против 70). Колонка больше не читается нигде, кроме собственной
+ * модели и миграций.
  */
 final class BuildDurationService
 {
     public const SETTING_SCORE_CAP = 'buildings.duration.stat_score_cap';
 
-    private GameSettingsService $gameSettings;
+    /** @var array<string,array{min:int,max:int}>|null ключ постройки → границы задачи (процесс-кеш). */
+    private static ?array $ranges = null;
 
-    public function __construct(?GameSettingsService $gameSettings = null)
+    private GameSettingsService $gameSettings;
+    private Buildings $config;
+
+    public function __construct(?GameSettingsService $gameSettings = null, ?Buildings $config = null)
     {
         $this->gameSettings = $gameSettings ?? new GameSettingsService();
+
+        // config() отдаёт object|null — нарроим явно (как в BuildingGateService).
+        if ($config === null) {
+            $resolved = config('Buildings');
+            $config   = $resolved instanceof Buildings ? $resolved : new Buildings();
+        }
+        $this->config = $config;
     }
 
     /**
@@ -66,6 +86,121 @@ final class BuildDurationService
         return StatDurationInterpolator::minutes($character, $minD, $maxD, $this->scoreCap());
     }
 
+    /**
+     * ADR-161 — время стройки для СПРАВОЧНЫХ поверхностей (публичная вики, админский
+     * craft-tree), где персонажа нет.
+     *
+     * 🔴 Отдаём `max_duration` задачи, а НЕ диапазон «min–max» и не середину. Причина —
+     * замер прода 2026-07-27: потолок счёта статов равен 2000, а максимальный счёт среди
+     * 659 персонажей — **115** (5.75% потолка, средний счёт 4). Быстрый край задачи
+     * недостижим никому: у сильнейшего игрока Склад строится 73 минуты вместо 74, у всех
+     * остальных — ровно 74. Публиковать «56–74» значило бы обещать скорость, которой в
+     * игре нет — та же болезнь, что лечит этот ADR, только с другой стороны.
+     *
+     * Если потолок когда-нибудь опустят через `buildings.duration.stat_score_cap` и
+     * нижний край станет достижимым — здесь появится диапазон, но только после нового
+     * замера достижимости, а не «на всякий случай».
+     *
+     * `null` = у постройки нет строки в `tasks`: выдумывать число нельзя, поверхность
+     * просто не показывает время.
+     */
+    public function publishedMinutes(string $buildingKey): ?int
+    {
+        $range = $this->rangeFor($buildingKey);
+
+        return $range === null ? null : $range['max'];
+    }
+
+    /**
+     * Границы задачи постройки: `min` — время ветерана, `max` — новичка.
+     *
+     * @return array{min:int,max:int}|null
+     */
+    public function rangeFor(string $buildingKey): ?array
+    {
+        return $this->ranges()[$buildingKey] ?? null;
+    }
+
+    /**
+     * Границы всех построек одной выборкой (справочники перебирают все 16 сразу).
+     *
+     * Деградация: нет таблицы `tasks` (тестовая БД) → пустая карта, поверхности молчат
+     * о времени вместо выдуманного числа.
+     *
+     * @return array<string,array{min:int,max:int}>
+     */
+    public function ranges(): array
+    {
+        if (self::$ranges !== null) {
+            return self::$ranges;
+        }
+
+        $taskNames = [];
+        foreach ($this->recipes() as $key => $recipe) {
+            if (! is_array($recipe)) {
+                continue;
+            }
+            $taskName = $recipe['task_name'] ?? null;
+            if (is_string($taskName) && $taskName !== '') {
+                $taskNames[(string) $key] = $taskName;
+            }
+        }
+
+        if ($taskNames === []) {
+            return self::$ranges = [];
+        }
+
+        $rows = [];
+        try {
+            $result = Database::connect()
+                ->table('tasks')
+                ->select('name, min_duration, max_duration')
+                ->whereIn('name', array_values($taskNames))
+                ->get();
+
+            if ($result instanceof \CodeIgniter\Database\ResultInterface) {
+                foreach ($result->getResultArray() as $row) {
+                    $name = $row['name'] ?? null;
+                    if (is_string($name)) {
+                        $rows[$name] = $row;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            log_message('warning', '[BuildDurationService] task durations failed: ' . $e->getMessage());
+
+            return self::$ranges = [];
+        }
+
+        $map = [];
+        foreach ($taskNames as $key => $taskName) {
+            $row = $rows[$taskName] ?? null;
+            if ($row === null) {
+                continue;
+            }
+            $min = $this->intOr($row['min_duration'] ?? null, 0);
+            $max = $this->intOr($row['max_duration'] ?? null, 0);
+
+            // Та же деградация, что в minutes(): задача без верхней границы живёт по нижней.
+            if ($max <= 0) {
+                $max = $min;
+            }
+            if ($min <= 0 && $max <= 0) {
+                continue;
+            }
+
+            $map[$key] = ['min' => min($min, $max), 'max' => max($min, $max)];
+        }
+
+        return self::$ranges = $map;
+    }
+
+    /** Сбрасывает процесс-кеш границ (тесты). */
+    public static function resetRangeCache(): void
+    {
+        self::$ranges = null;
+    }
+
     /** Потолок счёта статов (admin-tunable, дефолт 2000). */
     public function scoreCap(): float
     {
@@ -86,5 +221,16 @@ final class BuildDurationService
     private function intOr(mixed $value, int $fallback): int
     {
         return is_numeric($value) ? (int) $value : $fallback;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function recipes(): array
+    {
+        /** @var array<string, mixed> $recipes */
+        $recipes = $this->config->recipes;
+
+        return $recipes;
     }
 }

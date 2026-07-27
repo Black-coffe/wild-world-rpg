@@ -4,6 +4,16 @@ namespace App\Models;
 
 use CodeIgniter\Model;
 
+/**
+ * 🔴 Две колонки этой таблицы ДЕКОРАТИВНЫЕ — рантайм их не читает, они остаются только
+ * ради схемы и админского редактирования:
+ *   - `min_character_level` — гейт уровня живёт в `Config\Buildings.level_required`
+ *     ({@see \App\Services\Buildings\BuildingGateService}, ADR-155);
+ *   - `construction_time`  — время стройки живёт в строке `tasks` задачи постройки
+ *     ({@see \App\Services\Buildings\BuildDurationService::publishedMinutes}, ADR-161).
+ * Обе успели разойтись с настоящим источником и врали игроку на публичной вики. Не
+ * возвращать их в player-facing поверхности.
+ */
 class BuildingModel extends Model
 {
     protected $table = 'buildings';

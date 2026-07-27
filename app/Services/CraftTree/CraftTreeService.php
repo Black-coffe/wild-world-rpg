@@ -506,7 +506,11 @@ final class CraftTreeService
     private function buildBuildings(): array
     {
         $rows = $this->fetchAll('buildings', 'level, name_ru');
-        $out  = [];
+        // ADR-161: время стройки — из строки `tasks`, по которой стройка идёт на самом деле,
+        // а не из декоративной колонки `buildings.construction_time` (она разошлась с задачей
+        // у 14 построек из 16). Админ принимает балансовые решения по этим числам.
+        $buildTimes = new \App\Services\Buildings\BuildDurationService();
+        $out        = [];
         foreach ($rows as $row) {
             $rawIngredients = isset($row['required_resources']) && is_string($row['required_resources'])
                 ? $row['required_resources']
@@ -539,7 +543,7 @@ final class CraftTreeService
                 'buildingType'           => $buildingType,
                 'icon'                   => $this->iconForBuildingType($buildingType),
                 'hp'                     => self::toNullableInt($row['hp'] ?? null),
-                'constructionTime'       => self::toNullableInt($row['construction_time'] ?? null),
+                'constructionTime'       => $nameEn !== '' ? $buildTimes->publishedMinutes($nameEn) : null,
                 'tax'                    => self::toNullableInt($row['tax'] ?? null),
                 'level'                  => self::toNullableInt($row['level'] ?? null),
                 'usage'                  => self::toString($row['usage'] ?? ''),
