@@ -74,12 +74,28 @@ final class VendorDailyLimitServiceTest extends CIUnitTestCase
         $this->assertEqualsWithDelta(40000.0, $svc->remaining(1), 0.001);
     }
 
-    public function testBlocksSaleThatWouldExceedCap(): void
+    /**
+     * Лимит закрывает СЛЕДУЮЩУЮ сделку, а не ту, что превысит потолок. Иначе
+     * дорогой штучный предмет становится непродаваемым навсегда.
+     */
+    public function testSaleLargerThanRemainderStillGoesThrough(): void
     {
         $svc = $this->service(48000.0);
 
-        $this->assertFalse($svc->allows(1, 5000.0));
+        $this->assertTrue($svc->allows(1, 5000.0), 'сделка сверх остатка должна пройти — она последняя');
         $this->assertTrue($svc->allows(1, 2000.0));
+    }
+
+    /**
+     * Регрессия прод-случая: «Верстак 1» стоит 132 000 при потолке 50 000.
+     * Проверка «сделка должна помещаться в остаток» отрезала бы его владельца
+     * от лавки без всякого пути обхода.
+     */
+    public function testExpensiveSingleItemIsAlwaysSellableOnFreshDay(): void
+    {
+        $svc = $this->service(0.0);
+
+        $this->assertTrue($svc->allows(1, 132000.0));
     }
 
     public function testBlocksEverythingWhenCapAlreadyReached(): void
@@ -102,9 +118,12 @@ final class VendorDailyLimitServiceTest extends CIUnitTestCase
     public function testCapIsTunable(): void
     {
         $svc = $this->service(0.0, [VendorDailyLimitService::KEY_CAP => 1234.0]);
-
         $this->assertEqualsWithDelta(1234.0, $svc->remaining(1), 0.001);
-        $this->assertFalse($svc->allows(1, 1235.0));
+
+        // Потолок исчерпан ровно по своему значению, а не по дефолтному.
+        $spent = $this->service(1234.0, [VendorDailyLimitService::KEY_CAP => 1234.0]);
+        $this->assertSame(0.0, $spent->remaining(1));
+        $this->assertFalse($spent->allows(1, 1.0));
     }
 
     /**
@@ -126,7 +145,9 @@ final class VendorDailyLimitServiceTest extends CIUnitTestCase
             $units++;
         }
 
+        // Перерасход ограничен стоимостью одного предмета — это цена того, что
+        // дорогая штучная вещь остаётся продаваемой.
         $this->assertLessThan(150, $units, 'цикл не упёрся в суточный потолок');
-        $this->assertLessThanOrEqual(50000.0, $sold);
+        $this->assertLessThanOrEqual(50000.0 + $revenuePerUnit, $sold);
     }
 }
