@@ -75,6 +75,17 @@ final class PvpRoundOrchestrator
      */
     public function simulateFight(array $p1, array $p2, array|\App\Entities\BiomeEntity $biome, ?array $defense = null): array
     {
+        // 🔴 Числа боя обязаны быть числами. Персонаж приезжает из БД через
+        // Entity::toRawArray(), а тот ОБХОДИТ касты, объявленные в CharacterEntity
+        // ($casts: health => float, level => integer, …) — на выходе строки
+        // ('52.95', '17'). Арифметике это безразлично, но файл под strict_types=1,
+        // и любой вызов round()/min()/max() со строкой — TypeError.
+        // Нормализуем на входе, а не в точке падения: строки текут дальше в
+        // PvpDamageCalculator, PvpFormulaService и в $winner/$loser для
+        // PvpRewardOrchestrator — там те же грабли ждут в каждом вызове.
+        $p1 = self::normalizeFighter($p1);
+        $p2 = self::normalizeFighter($p2);
+
         $roundLogs = [];
 
         $attacker = $this->determineInitiative($p1, $p2, $defense);
@@ -211,6 +222,63 @@ final class PvpRoundOrchestrator
             'loser'         => $loser,
             'roundLogs'     => $roundLogs,
         ];
+    }
+
+    /**
+     * Числовые поля персонажа, которые читает боевой и наградный путь.
+     *
+     * Источник истины по типам — `$casts` в `App\Entities\CharacterEntity`;
+     * `max_health`/`max_tired` каста не имеют, но нужны `PvpRewardOrchestrator`.
+     * Полноту списка относительно каст-карты сторожит
+     * `PvpFighterNormalizationTest::testCoversEveryNumericCastOfCharacterEntity`.
+     *
+     * @var array<string, 'int'|'float'>
+     */
+    private const NUMERIC_FIELDS = [
+        'id'               => 'int',
+        'telegram_user_id' => 'int',
+        'level'            => 'int',
+        'gold'             => 'int',
+        'cell_number'      => 'int',
+        'biome_id'         => 'int',
+        'last_message_id'  => 'int',
+        'health'           => 'float',
+        'max_health'       => 'float',
+        'tired'            => 'float',
+        'max_tired'        => 'float',
+        'experience'       => 'float',
+        'strength'         => 'float',
+        'agility'          => 'float',
+        'intellect'        => 'float',
+        'trading_karma'    => 'float',
+    ];
+
+    /**
+     * Приводит числовые поля бойца к числам, не трогая остальное.
+     *
+     * Только числовые строки: `name` игрока может состоять из одних цифр, и
+     * превращать его в int нельзя — поэтому список полей явный, а не «всё, что
+     * похоже на число». `null` остаётся `null` (колонки nullable), мусорная
+     * строка остаётся как есть — молча подставлять 0 значит врать о состоянии
+     * персонажа; такой случай должен падать громко, а не тихо ломать баланс боя.
+     *
+     * @param array<string, mixed> $fighter
+     * @return array<string, mixed>
+     */
+    public static function normalizeFighter(array $fighter): array
+    {
+        foreach (self::NUMERIC_FIELDS as $field => $type) {
+            if (!array_key_exists($field, $fighter)) {
+                continue;
+            }
+            $value = $fighter[$field];
+            if (!is_string($value) || !is_numeric($value)) {
+                continue; // уже число, null или не-число — не наша забота
+            }
+            $fighter[$field] = $type === 'int' ? (int) $value : (float) $value;
+        }
+
+        return $fighter;
     }
 
     /**
