@@ -9427,12 +9427,6 @@ parameters:
 			path: app/Filters/TelegramRateLimitFilter.php
 
 		-
-			message: '#^Cannot cast mixed to int\.$#'
-			identifier: cast.int
-			count: 1
-			path: app/Filters/TelegramRateLimitFilter.php
-
-		-
 			message: '#^Method App\\Filters\\TelegramRateLimitFilter\:\:after\(\) should return CodeIgniter\\HTTP\\ResponseInterface\|null but return statement is missing\.$#'
 			identifier: return.missing
 			count: 1
@@ -9447,12 +9441,6 @@ parameters:
 		-
 			message: '#^Method App\\Filters\\TelegramRateLimitFilter\:\:before\(\) should return CodeIgniter\\HTTP\\RequestInterface\|CodeIgniter\\HTTP\\ResponseInterface\|string\|null but return statement is missing\.$#'
 			identifier: return.missing
-			count: 2
-			path: app/Filters/TelegramRateLimitFilter.php
-
-		-
-			message: '#^Method App\\Filters\\TelegramRateLimitFilter\:\:extractUserId\(\) has parameter \$update with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
 			count: 1
 			path: app/Filters/TelegramRateLimitFilter.php
 
