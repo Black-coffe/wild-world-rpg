@@ -152,7 +152,47 @@ final class MediaSender
         }
 
         unset($params['message_id']);
-        return self::sendPhotoOrText($params);
+        return self::sendPhotoOrText(self::refreshPhotoStream($params));
+    }
+
+    /**
+     * 🔴 Прод-баг 2026-07-31 (тихая потеря photo-экранов, живёт с v0.51.230 / 10.05.2026).
+     *
+     * `Request::encodeFile()` отдаёт **поток**, а не путь. Неудачная попытка редактирования
+     * его ВЫЧИТЫВАЕТ, и fallback переотправлял тот же — уже исчерпанный — поток. Telegram
+     * на это отвечает `ok=false «there is no photo in the request»`, и сообщение молча
+     * пропадало: игрок жал кнопку и не получал НИЧЕГО (доказано пробой на testbot —
+     * повторная отправка ok=false, свежая ok=true).
+     *
+     * Срабатывало штатно: `editMessageMedia` не умеет править ТЕКСТОВОЕ сообщение, а к
+     * photo-экранам почти всегда приходят с текстового (`editTextOrSend`) — то есть edit
+     * падал закономерно, и фолбэк был единственным шансом доставить сообщение.
+     *
+     * Лечение: перед фолбэком переоткрываем файл по URI потока (`stream_get_meta_data`) —
+     * callsite'ы менять не нужно. Если URI недоступен или переоткрытие упало — оставляем
+     * как было (хуже, чем сейчас, уже не станет).
+     *
+     * @param array<string,mixed> $params
+     * @return array<string,mixed>
+     */
+    public static function refreshPhotoStream(array $params): array
+    {
+        if (!isset($params['photo']) || !is_resource($params['photo'])) {
+            return $params;
+        }
+
+        $uri = stream_get_meta_data($params['photo'])['uri'] ?? null;
+        if (!is_string($uri) || $uri === '') {
+            return $params;
+        }
+
+        try {
+            $params['photo'] = Request::encodeFile($uri);
+        } catch (Throwable) {
+            // Переоткрыть не вышло — отдаём исходные параметры без изменений.
+        }
+
+        return $params;
     }
 
     /**

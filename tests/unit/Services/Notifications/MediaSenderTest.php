@@ -280,4 +280,44 @@ final class MediaSenderTest extends CIUnitTestCase
         }
         $this->assertTrue(MediaSender::captionExceedsPhotoLimit($caption));
     }
+
+    // ---------------------------------------------------------------------
+    // refreshPhotoStream() — прод-баг 2026-07-31: фолбэк переотправлял
+    // ВЫЧИТАННЫЙ поток, Telegram отвечал «there is no photo in the request»,
+    // и сообщение молча терялось.
+    // ---------------------------------------------------------------------
+
+    public function testRefreshPhotoStreamReopensExhaustedStream(): void
+    {
+        $path = WRITEPATH . 'uploads/mediasender_probe.bin';
+        @mkdir(dirname($path), 0777, true);
+        file_put_contents($path, 'PHOTO-BYTES');
+
+        try {
+            $handle = \Longman\TelegramBot\Request::encodeFile($path);
+            // Имитируем неудачную попытку edit: поток уже вычитан до конца.
+            stream_get_contents($handle);
+            $this->assertSame('', stream_get_contents($handle), 'предусловие: поток исчерпан');
+
+            $out = MediaSender::refreshPhotoStream(['chat_id' => 1, 'photo' => $handle]);
+
+            $this->assertIsResource($out['photo']);
+            $this->assertSame(
+                'PHOTO-BYTES',
+                stream_get_contents($out['photo']),
+                'фолбэк обязан получить читаемый поток, иначе фото уедет пустым'
+            );
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function testRefreshPhotoStreamLeavesNonResourceParamsUntouched(): void
+    {
+        $asString = ['chat_id' => 1, 'photo' => 'https://example.test/a.png'];
+        $this->assertSame($asString, MediaSender::refreshPhotoStream($asString));
+
+        $noPhoto = ['chat_id' => 1, 'caption' => 'без фото'];
+        $this->assertSame($noPhoto, MediaSender::refreshPhotoStream($noPhoto));
+    }
 }
