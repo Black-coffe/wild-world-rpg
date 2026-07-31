@@ -147,20 +147,11 @@ class BuyCraftAction extends BaseAction
     }
 
     /**
-     * Добавлены пункты для роботов и телепорт-маяков.
+     * Название категории крафта. Единый словарь — {@see CraftTypeLabels}
+     * (жил в 4 копиях и покрывал 7 типов из 18: игрок видел «drones» / «❓utility»).
      */
     private function translateType($type)
     {
-        $translations = [
-            'workbench' => '🔬 Верстаки',
-            'component' => '📐 Компоненты',
-            'transport' => '🛴 Транспорт',
-            'tool'      => '🛠️ Инструменты',
-            'drug'      => '💊 Лекарства',
-            'robots'    => '🤖 Роботы',         // <-- Добавлено
-            'teleport'  => '🌀 Телепорт-маяки', // <-- Добавлено
-        ];
-
-        return $translations[$type] ?? $type;
+        return \App\Services\Player\Trade\CraftTypeLabels::rus((string) $type);
     }
 }

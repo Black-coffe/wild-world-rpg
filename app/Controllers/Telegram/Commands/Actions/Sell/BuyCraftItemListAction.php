@@ -132,14 +132,8 @@ class BuyCraftItemListAction extends BaseAction
 
     private function translateType($type)
     {
-        $translations = [
-            'workbench' => '🔬 Верстаки',
-            'component' => '📐 Компоненты',
-            'transport' => '🛴 Транспорт',
-            'tool' => '🛠️ Инструменты',
-            'drug' => '💊 Лекарства',
-        ];
-
-        return $translations[$type] ?? $type;
+        // Единый словарь категорий — см. CraftTypeLabels (жил в 4 копиях; здесь покрывал
+        // всего 5 типов из 18, остальные показывались игроку сырым ключом).
+        return \App\Services\Player\Trade\CraftTypeLabels::rus((string) $type);
     }
 }

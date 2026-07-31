@@ -113,16 +113,8 @@ class SellCraftAction extends BaseAction
      */
     private function translateType($type)
     {
-        $translations = [
-            'workbench' => '🔬 Верстаки',
-            'component' => '📐 Компоненты',
-            'transport' => '🛴 Транспорт',
-            'tool'      => '🛠️ Инструменты',
-            'drug'      => '💊 Лекарства',
-            'robots'    => '🤖 Роботы',
-            'teleport'  => '🌀 Телепорт-маяки',   // <-- Добавлена новая группа
-        ];
-
-        return $translations[$type] ?? ("❓" . $type);
+        // Единый словарь категорий (был в 4 копиях, покрывал 7 типов из 18 — игрок
+        // видел кнопки «drones» / «❓utility»).
+        return \App\Services\Player\Trade\CraftTypeLabels::rus((string) $type);
     }
 }
