@@ -55,10 +55,15 @@ class PlayerActionLogger
     private string $status      = 'ok';
     private ?string $errorText  = null;
 
-    /** Счётчики доставки за апдейт (заполняет {@see TelegramDeliveryProbe}). */
-    private int $sendsOk        = 0;
-    private int $sendsFailed    = 0;
-    private ?string $sendError  = null;
+    /**
+     * Окно доставки: счётчики отправок (заполняет {@see TelegramDeliveryProbe}).
+     * Открывается отдельно от `active`, потому что у Worker'а захвата begin/commit нет,
+     * а окно нужно СВОЁ на каждую задачу — один прогон завершает их N.
+     */
+    private bool $deliveryWindow = false;
+    private int $sendsOk         = 0;
+    private int $sendsFailed     = 0;
+    private ?string $sendError   = null;
 
     /** Request-scoped singleton (общий для BotController и глубоких аннотаций). */
     public static function current(): self
@@ -91,9 +96,7 @@ class PlayerActionLogger
         $this->rawInput       = '';
         $this->telegramUserId = null;
         $this->chatId         = null;
-        $this->sendsOk        = 0;
-        $this->sendsFailed    = 0;
-        $this->sendError      = null;
+        $this->openDeliveryWindow();
 
         if (isset($update['callback_query']) && is_array($update['callback_query'])) {
             $cq   = $update['callback_query'];
@@ -157,6 +160,37 @@ class PlayerActionLogger
     }
 
     /**
+     * Открыть НОВОЕ окно доставки (счётчики с нуля).
+     *
+     * Вебхук делает это внутри {@see begin()} — там окно = один апдейт. Worker обязан
+     * открывать окно ПЕРЕД каждой задачей: прогон завершает N задач подряд в одном процессе,
+     * и без сброса провал первой приписался бы всем следующим.
+     */
+    public function openDeliveryWindow(): void
+    {
+        $this->deliveryWindow = true;
+        $this->sendsOk        = 0;
+        $this->sendsFailed    = 0;
+        $this->sendError      = null;
+    }
+
+    /**
+     * Итог окна доставки: текст провала, если НИ ОДНА отправка не прошла при наличии провалов,
+     * иначе `null` (доставили либо не отправляли вовсе).
+     *
+     * Для Worker'а: у фоновых завершений нет begin/commit, поэтому вердикт им нужен явным
+     * значением — {@see recordTaskCompletion()} пишет строку сам.
+     */
+    public function deliveryFailureText(): ?string
+    {
+        if ($this->sendsOk > 0 || $this->sendsFailed === 0) {
+            return null;
+        }
+
+        return mb_substr('не доставлено — ' . ($this->sendError ?? 'отправка не удалась'), 0, 500);
+    }
+
+    /**
      * Отметить исход ОДНОЙ отправки в Telegram (зовёт {@see TelegramDeliveryProbe}).
      *
      * 🔴 Вердикт здесь НЕ выносится: провал одной отправки — норма (`MediaSender::editOrSend`
@@ -166,7 +200,7 @@ class PlayerActionLogger
      */
     public function noteDelivery(bool $ok, string $method, ?string $description = null): void
     {
-        if (! $this->active) {
+        if (! $this->deliveryWindow) {
             return;
         }
 
@@ -214,9 +248,10 @@ class PlayerActionLogger
             // Сигнал доставки: игрок нажал — ответа не ушло. Ставим, только если НИ ОДНА
             // отправка не прошла (провал одной при удачном фолбэке — норма, не тревога).
             // 'error' не понижаем: исключение объясняет причину точнее.
-            if ($status !== 'error' && $this->sendsOk === 0 && $this->sendsFailed > 0) {
+            $deliveryFailure = $this->deliveryFailureText();
+            if ($status !== 'error' && $deliveryFailure !== null) {
                 $status          = 'undelivered';
-                $this->errorText = $this->composeUndeliveredText();
+                $this->errorText = $this->composeUndeliveredText($deliveryFailure);
             }
 
             $this->insertRow([
@@ -273,12 +308,11 @@ class PlayerActionLogger
      * Текст для статуса 'undelivered'. Прежняя причина (например, бизнес-отказ) не теряется —
      * к ней дописывается, что именно не доехало.
      */
-    private function composeUndeliveredText(): string
+    private function composeUndeliveredText(string $deliveryFailure): string
     {
-        $delivery = 'не доставлено — ' . ($this->sendError ?? 'отправка не удалась');
-        $text     = ($this->errorText === null || $this->errorText === '')
-            ? $delivery
-            : $this->errorText . ' | ' . $delivery;
+        $text = ($this->errorText === null || $this->errorText === '')
+            ? $deliveryFailure
+            : $this->errorText . ' | ' . $deliveryFailure;
 
         return mb_substr($text, 0, 500);
     }

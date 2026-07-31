@@ -58,6 +58,11 @@ class Worker extends Controller
         // Lock освобождается автоматически при завершении процесса
         // (на Linux — также если PHP-FPM убивает воркер).
 
+        // ADR-148 (сигнал доставки) — фоновые уведомления о завершении задач шлются отсюда,
+        // и молчаливая потеря здесь опаснее: игрок даже не знает, что чего-то ждал.
+        // Ставим пробу один раз на прогон, ДО первого хендлера.
+        \App\Services\Logging\TelegramDeliveryProbe::install();
+
         try {
             $now = date('Y-m-d H:i:s');
             $activeTasks = $this->characterTaskModel
@@ -108,12 +113,25 @@ class Worker extends Controller
         $charId   = is_numeric($task['character_id'] ?? null) ? (int) $task['character_id'] : null;
         $taskName = is_string($taskDetails['name'] ?? null) ? $taskDetails['name'] : '';
 
+        // ADR-148 (сигнал доставки) — СВОЁ окно на задачу: один прогон завершает N задач в
+        // одном процессе, и без сброса провал первой приписался бы всем следующим.
+        $logger = \App\Services\Logging\PlayerActionLogger::current();
+        $logger->openDeliveryWindow();
+
         try {
             $handler = new $handlerClassName();
             if (method_exists($handler, 'handle')) {
                 $handler->handle($task);
             }
-            \App\Services\Logging\PlayerActionLogger::current()->recordTaskCompletion($charId, $taskName, 'ok');
+            // Хендлер отработал — но дошло ли уведомление? Провал одной отправки при удачном
+            // фолбэке остаётся 'ok' (вердикт считает сам логгер).
+            $undelivered = $logger->deliveryFailureText();
+            $logger->recordTaskCompletion(
+                $charId,
+                $taskName,
+                $undelivered === null ? 'ok' : 'undelivered',
+                $undelivered
+            );
         } catch (\Throwable $e) {
             // Откатываем статус, чтобы handler можно было перезапустить вручную
             // или расследовать. Не бросаем дальше — иначе один упавший handler

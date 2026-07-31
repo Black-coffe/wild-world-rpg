@@ -349,6 +349,67 @@ final class PlayerActionLoggerTest extends CIUnitTestCase
         $this->assertSame([], $log->lastRow(), 'не-player апдейт не порождает строку');
     }
 
+    // ── Сигнал доставки для фоновых задач (Worker, source='task') ─────────────
+
+    public function testTaskUndeliveredWhenNotificationNeverReached(): void
+    {
+        $log = $this->fake();
+        $log->openDeliveryWindow();
+        $log->noteDelivery(false, 'sendPhoto', 'Bad Request: chat not found');
+
+        $undelivered = $log->deliveryFailureText();
+        $this->assertNotNull($undelivered);
+        $log->recordTaskCompletion(491, 'Добыча ресурсов', 'undelivered', $undelivered);
+
+        $row = $log->lastRow();
+        $this->assertSame('task', $row['source']);
+        $this->assertSame('undelivered', $row['status']);
+        $this->assertIsString($row['error_text']);
+        $this->assertStringContainsString('chat not found', $row['error_text']);
+    }
+
+    public function testTaskDeliveryWindowDoesNotLeakBetweenTasks(): void
+    {
+        // Один прогон Worker'а завершает N задач в одном процессе: провал первой не должен
+        // приписаться второй.
+        $log = $this->fake();
+
+        $log->openDeliveryWindow();
+        $log->noteDelivery(false, 'sendPhoto', 'chat not found');
+        $this->assertNotNull($log->deliveryFailureText(), 'первая задача — не доставлено');
+
+        $log->openDeliveryWindow();
+        $log->noteDelivery(true, 'sendPhoto');
+        $this->assertNull($log->deliveryFailureText(), 'вторая задача чистая — окно сброшено');
+    }
+
+    public function testTaskWithoutNotificationIsNotFlagged(): void
+    {
+        // Полно хендлеров, которые просто меняют состояние и ничего не шлют.
+        $log = $this->fake();
+        $log->openDeliveryWindow();
+
+        $this->assertNull($log->deliveryFailureText(), 'нет отправок — нет и провалов');
+    }
+
+    public function testFailedEditWithFallbackIsNotFlaggedForTasks(): void
+    {
+        $log = $this->fake();
+        $log->openDeliveryWindow();
+        $log->noteDelivery(false, 'editMessageMedia', 'message to edit not found');
+        $log->noteDelivery(true, 'sendPhoto');
+
+        $this->assertNull($log->deliveryFailureText(), 'фолбэк дошёл — тревоги нет');
+    }
+
+    public function testNoteDeliveryIgnoredWithoutOpenWindow(): void
+    {
+        $log = $this->fake(); // окно не открывали
+        $log->noteDelivery(false, 'sendMessage', 'boom');
+
+        $this->assertNull($log->deliveryFailureText(), 'вне окна отправки не считаются');
+    }
+
     public function testUndeliveredErrorTextTruncatedTo500(): void
     {
         $log = $this->fake();
