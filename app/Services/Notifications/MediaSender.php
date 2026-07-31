@@ -137,6 +137,10 @@ final class MediaSender
             return self::sendPhotoOrText($params);
         }
 
+        // 🔴 Адрес фото запоминаем ДО попытки правки — после неё поток уже закрыт
+        // (см. photoStreamUri()).
+        $photoUri = self::photoStreamUri($params);
+
         try {
             $response = self::isMediaDisabled((int) $chatId)
                 ? Request::editMessageText(self::buildEditTextParams($params))
@@ -152,37 +156,52 @@ final class MediaSender
         }
 
         unset($params['message_id']);
-        return self::sendPhotoOrText(self::refreshPhotoStream($params));
+        return self::sendPhotoOrText(self::withReopenedPhoto($params, $photoUri));
     }
 
     /**
      * 🔴 Прод-баг 2026-07-31 (тихая потеря photo-экранов, живёт с v0.51.230 / 10.05.2026).
      *
-     * `Request::encodeFile()` отдаёт **поток**, а не путь. Неудачная попытка редактирования
-     * его ВЫЧИТЫВАЕТ, и fallback переотправлял тот же — уже исчерпанный — поток. Telegram
-     * на это отвечает `ok=false «there is no photo in the request»`, и сообщение молча
-     * пропадало: игрок жал кнопку и не получал НИЧЕГО (доказано пробой на testbot —
-     * повторная отправка ok=false, свежая ok=true).
+     * `Request::encodeFile()` отдаёт **поток**, а не путь, и Longman **закрывает** его после
+     * отправки. Значит после неудачной правки в `$params['photo']` лежит уже закрытый
+     * ресурс, и fallback переотправлял пустоту: Telegram отвечал
+     * `ok=false «there is no photo in the request»`, а сообщение молча пропадало —
+     * игрок жал кнопку и не получал НИЧЕГО.
      *
-     * Срабатывало штатно: `editMessageMedia` не умеет править ТЕКСТОВОЕ сообщение, а к
-     * photo-экранам почти всегда приходят с текстового (`editTextOrSend`) — то есть edit
-     * падал закономерно, и фолбэк был единственным шансом доставить сообщение.
+     * Срабатывало штатно, а не в экзотике: `editMessageMedia` не умеет править ТЕКСТОВОЕ
+     * сообщение, а к photo-экранам почти всегда приходят с текстового (`editTextOrSend`) —
+     * то есть правка падала закономерно, и фолбэк был единственным шансом доставить.
      *
-     * Лечение: перед фолбэком переоткрываем файл по URI потока (`stream_get_meta_data`) —
-     * callsite'ы менять не нужно. Если URI недоступен или переоткрытие упало — оставляем
-     * как было (хуже, чем сейчас, уже не станет).
+     * Доказано пробой на testbot: до правки `is_resource=true`, после —
+     * `resource (closed)`; повторная отправка ok=false, отправка свежим потоком ok=true.
+     *
+     * Отсюда порядок: **адрес снимаем ДО правки** (пока поток жив), а переоткрываем
+     * уже в фолбэке ({@see withReopenedPhoto()}). Callsite'ы не меняются — чинятся все сразу.
+     *
+     * @param array<string,mixed> $params
+     */
+    public static function photoStreamUri(array $params): ?string
+    {
+        if (!isset($params['photo']) || !is_resource($params['photo'])) {
+            return null;
+        }
+
+        $uri = stream_get_meta_data($params['photo'])['uri'] ?? null;
+
+        return is_string($uri) && $uri !== '' ? $uri : null;
+    }
+
+    /**
+     * Возвращает параметры со СВЕЖИМ фотопотоком, открытым по адресу из
+     * {@see photoStreamUri()}. Если адреса нет или переоткрыть не вышло — отдаёт параметры
+     * как есть (хуже, чем было, не станет).
      *
      * @param array<string,mixed> $params
      * @return array<string,mixed>
      */
-    public static function refreshPhotoStream(array $params): array
+    public static function withReopenedPhoto(array $params, ?string $uri): array
     {
-        if (!isset($params['photo']) || !is_resource($params['photo'])) {
-            return $params;
-        }
-
-        $uri = stream_get_meta_data($params['photo'])['uri'] ?? null;
-        if (!is_string($uri) || $uri === '') {
+        if ($uri === null) {
             return $params;
         }
 

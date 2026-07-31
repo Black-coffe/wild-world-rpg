@@ -282,12 +282,12 @@ final class MediaSenderTest extends CIUnitTestCase
     }
 
     // ---------------------------------------------------------------------
-    // refreshPhotoStream() — прод-баг 2026-07-31: фолбэк переотправлял
-    // ВЫЧИТАННЫЙ поток, Telegram отвечал «there is no photo in the request»,
-    // и сообщение молча терялось.
+    // photoStreamUri() + withReopenedPhoto() — прод-баг 2026-07-31: Longman
+    // ЗАКРЫВАЕТ поток после отправки, фолбэк слал пустоту, Telegram отвечал
+    // «there is no photo in the request», и сообщение молча терялось.
     // ---------------------------------------------------------------------
 
-    public function testRefreshPhotoStreamReopensExhaustedStream(): void
+    public function testPhotoStreamUriReadsAddressWhileStreamAlive(): void
     {
         $path = WRITEPATH . 'uploads/mediasender_probe.bin';
         @mkdir(dirname($path), 0777, true);
@@ -295,11 +295,44 @@ final class MediaSenderTest extends CIUnitTestCase
 
         try {
             $handle = \Longman\TelegramBot\Request::encodeFile($path);
-            // Имитируем неудачную попытку edit: поток уже вычитан до конца.
-            stream_get_contents($handle);
-            $this->assertSame('', stream_get_contents($handle), 'предусловие: поток исчерпан');
+            $uri    = MediaSender::photoStreamUri(['chat_id' => 1, 'photo' => $handle]);
+            $this->assertSame($path, $uri);
+            fclose($handle);
+        } finally {
+            @unlink($path);
+        }
+    }
 
-            $out = MediaSender::refreshPhotoStream(['chat_id' => 1, 'photo' => $handle]);
+    public function testPhotoStreamUriNullForClosedOrNonResourcePhoto(): void
+    {
+        $path = WRITEPATH . 'uploads/mediasender_probe2.bin';
+        @mkdir(dirname($path), 0777, true);
+        file_put_contents($path, 'x');
+
+        try {
+            $handle = \Longman\TelegramBot\Request::encodeFile($path);
+            fclose($handle); // ровно то, что делает Longman после отправки
+            $this->assertNull(MediaSender::photoStreamUri(['chat_id' => 1, 'photo' => $handle]));
+        } finally {
+            @unlink($path);
+        }
+
+        $this->assertNull(MediaSender::photoStreamUri(['chat_id' => 1, 'photo' => 'https://example.test/a.png']));
+        $this->assertNull(MediaSender::photoStreamUri(['chat_id' => 1, 'caption' => 'без фото']));
+    }
+
+    public function testWithReopenedPhotoGivesFallbackAReadableStream(): void
+    {
+        $path = WRITEPATH . 'uploads/mediasender_probe3.bin';
+        @mkdir(dirname($path), 0777, true);
+        file_put_contents($path, 'PHOTO-BYTES');
+
+        try {
+            $handle = \Longman\TelegramBot\Request::encodeFile($path);
+            $uri    = MediaSender::photoStreamUri(['photo' => $handle]);
+            fclose($handle); // поток мёртв — как после неудачной правки
+
+            $out = MediaSender::withReopenedPhoto(['chat_id' => 1, 'photo' => $handle], $uri);
 
             $this->assertIsResource($out['photo']);
             $this->assertSame(
@@ -312,12 +345,9 @@ final class MediaSenderTest extends CIUnitTestCase
         }
     }
 
-    public function testRefreshPhotoStreamLeavesNonResourceParamsUntouched(): void
+    public function testWithReopenedPhotoLeavesParamsUntouchedWithoutUri(): void
     {
-        $asString = ['chat_id' => 1, 'photo' => 'https://example.test/a.png'];
-        $this->assertSame($asString, MediaSender::refreshPhotoStream($asString));
-
-        $noPhoto = ['chat_id' => 1, 'caption' => 'без фото'];
-        $this->assertSame($noPhoto, MediaSender::refreshPhotoStream($noPhoto));
+        $params = ['chat_id' => 1, 'photo' => 'https://example.test/a.png'];
+        $this->assertSame($params, MediaSender::withReopenedPhoto($params, null));
     }
 }
