@@ -69,6 +69,10 @@ class BotController extends Controller
         // (channel_post, my_chat_member, …) сами отсеиваются в begin() → commit() no-op.
         if (is_array($update)) {
             \App\Services\Logging\PlayerActionLogger::current()->begin($update);
+            // ADR-148 (расширение) — сигнал ДОСТАВКИ. Без него firehose знал только про
+            // роутинг и писал 'ok', пока экраны лавки крафта 2.5 месяца уходили в пустоту.
+            // Ставится ПОСЛЕ begin(): счётчики отправок живут внутри текущего захвата.
+            \App\Services\Logging\TelegramDeliveryProbe::install();
         }
 
         // E6 (ADR-108) Ф2 — оффлайн-digest «пока тебя не было». ДО handle() (last_seen

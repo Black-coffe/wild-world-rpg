@@ -250,8 +250,114 @@ final class PlayerActionLoggerTest extends CIUnitTestCase
         $log->commit();
 
         $row = $log->lastRow();
-        $this->assertContains($row['status'], ['ok', 'error', 'rejected', 'unrouted']);
+        $this->assertContains($row['status'], ['ok', 'error', 'rejected', 'unrouted', 'undelivered']);
         $this->assertContains($row['source'], ['callback', 'command', 'text', 'forcereply', 'other']);
+    }
+
+    // ── Сигнал доставки: «нажал, а ответа не ушло» ────────────────────────────
+
+    public function testUndeliveredWhenEverySendFailed(): void
+    {
+        $log = $this->fake();
+        $log->begin($this->cbUpdate('sellResource_11_1_sell', 25, 25));
+        $log->noteDelivery(false, 'editMessageMedia', 'message to edit not found');
+        $log->noteDelivery(false, 'sendPhoto', 'there is no photo in the request');
+        $log->commit();
+
+        $row = $log->lastRow();
+        $this->assertSame('undelivered', $row['status'], 'ни одна отправка не прошла');
+        $this->assertIsString($row['error_text']);
+        $this->assertStringContainsString('не доставлено', $row['error_text']);
+        $this->assertStringContainsString(
+            'there is no photo in the request',
+            $row['error_text'],
+            'держим ПОСЛЕДНЮЮ ошибку — она ближе всего к тому, чего игрок не увидел'
+        );
+    }
+
+    public function testFailedEditWithSuccessfulFallbackStaysOk(): void
+    {
+        // Штатное поведение MediaSender::editOrSend: правка падает, фолбэк доставляет.
+        $log = $this->fake();
+        $log->begin($this->cbUpdate('inventory', 25, 25));
+        $log->noteDelivery(false, 'editMessageMedia', 'there is no media in the message to edit');
+        $log->noteDelivery(true, 'sendPhoto');
+        $log->commit();
+
+        $row = $log->lastRow();
+        $this->assertSame('ok', $row['status'], 'провал одной отправки при успешном фолбэке — не тревога');
+        $this->assertNull($row['error_text']);
+    }
+
+    public function testUpdateWithoutAnySendStaysOk(): void
+    {
+        $log = $this->fake();
+        $log->begin($this->cbUpdate('noop', 25, 25));
+        $log->commit();
+
+        $this->assertSame('ok', $log->lastRow()['status'], 'нет отправок — нет и провалов');
+    }
+
+    public function testErrorOutranksUndelivered(): void
+    {
+        $log = $this->fake();
+        $log->begin($this->cbUpdate('move', 25, 25));
+        $log->noteDelivery(false, 'sendMessage', 'chat not found');
+        $log->markError('TypeError: foo');
+        $log->commit();
+
+        $row = $log->lastRow();
+        $this->assertSame('error', $row['status'], 'исключение объясняет причину точнее');
+        $this->assertSame('TypeError: foo', $row['error_text']);
+    }
+
+    public function testUndeliveredKeepsEarlierRejectionReason(): void
+    {
+        $log = $this->fake();
+        $log->begin($this->cbUpdate('craft', 25, 25));
+        $log->markRejected('CRAFT: не хватает ресурсов');
+        $log->noteDelivery(false, 'sendMessage', 'bot was blocked by the user');
+        $log->commit();
+
+        $row = $log->lastRow();
+        $this->assertSame('undelivered', $row['status']);
+        $this->assertIsString($row['error_text']);
+        $this->assertStringContainsString('не хватает ресурсов', $row['error_text'], 'прежняя причина не теряется');
+        $this->assertStringContainsString('bot was blocked by the user', $row['error_text']);
+    }
+
+    public function testDeliveryCountersResetBetweenUpdates(): void
+    {
+        $log = $this->fake();
+        $log->begin($this->cbUpdate('first', 25, 25));
+        $log->noteDelivery(false, 'sendMessage', 'boom');
+        $log->commit();
+        $this->assertSame('undelivered', $log->lastRow()['status']);
+
+        $log->begin($this->cbUpdate('second', 25, 25));
+        $log->noteDelivery(true, 'sendMessage');
+        $log->commit();
+        $this->assertSame('ok', $log->lastRow()['status'], 'счётчики не тянутся из прошлого апдейта');
+    }
+
+    public function testNoteDeliveryIgnoredWithoutActiveCapture(): void
+    {
+        $log = $this->fake();
+        $log->noteDelivery(false, 'sendMessage', 'boom'); // begin() не вызывался
+        $log->commit();
+
+        $this->assertSame([], $log->lastRow(), 'не-player апдейт не порождает строку');
+    }
+
+    public function testUndeliveredErrorTextTruncatedTo500(): void
+    {
+        $log = $this->fake();
+        $log->begin($this->cbUpdate('move', 25, 25));
+        $log->markRejected(str_repeat('r', 480));
+        $log->noteDelivery(false, 'sendMessage', str_repeat('d', 300));
+        $log->commit();
+
+        $this->assertSame(500, self::len($log->lastRow()['error_text']));
     }
 
     // ── Фабрики апдейтов ──────────────────────────────────────────────────────

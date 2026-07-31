@@ -41,7 +41,7 @@ class PlayerActionLogger
     private const VALID_SOURCES = ['callback', 'command', 'text', 'forcereply', 'other', 'task'];
 
     /** @var list<string> */
-    private const VALID_STATUSES = ['ok', 'error', 'rejected', 'unrouted'];
+    private const VALID_STATUSES = ['ok', 'error', 'rejected', 'unrouted', 'undelivered'];
 
     private static ?self $current = null;
 
@@ -54,6 +54,11 @@ class PlayerActionLogger
     private string $rawInput    = '';
     private string $status      = 'ok';
     private ?string $errorText  = null;
+
+    /** Счётчики доставки за апдейт (заполняет {@see TelegramDeliveryProbe}). */
+    private int $sendsOk        = 0;
+    private int $sendsFailed    = 0;
+    private ?string $sendError  = null;
 
     /** Request-scoped singleton (общий для BotController и глубоких аннотаций). */
     public static function current(): self
@@ -86,6 +91,9 @@ class PlayerActionLogger
         $this->rawInput       = '';
         $this->telegramUserId = null;
         $this->chatId         = null;
+        $this->sendsOk        = 0;
+        $this->sendsFailed    = 0;
+        $this->sendError      = null;
 
         if (isset($update['callback_query']) && is_array($update['callback_query'])) {
             $cq   = $update['callback_query'];
@@ -148,6 +156,31 @@ class PlayerActionLogger
         }
     }
 
+    /**
+     * Отметить исход ОДНОЙ отправки в Telegram (зовёт {@see TelegramDeliveryProbe}).
+     *
+     * 🔴 Вердикт здесь НЕ выносится: провал одной отправки — норма (`MediaSender::editOrSend`
+     * штатно роняет правку и вытягивает фолбэком). Копим счётчики, а решение
+     * «игрок не получил ответа» принимает {@see commit()}: ни одной успешной при наличии
+     * провалов.
+     */
+    public function noteDelivery(bool $ok, string $method, ?string $description = null): void
+    {
+        if (! $this->active) {
+            return;
+        }
+
+        if ($ok) {
+            $this->sendsOk++;
+
+            return;
+        }
+
+        $this->sendsFailed++;
+        // Держим ПОСЛЕДНЮЮ ошибку: она ближе всего к тому, что игрок так и не увидел.
+        $this->sendError = mb_substr(trim($method . ': ' . ($description ?? 'ok=false')), 0, 200);
+    }
+
     /** Действие упало с исключением. Наивысший приоритет статуса. */
     public function markError(?string $message = null): void
     {
@@ -177,6 +210,14 @@ class PlayerActionLogger
 
             $status = in_array($this->status, self::VALID_STATUSES, true) ? $this->status : 'ok';
             $source = in_array($this->source, self::VALID_SOURCES, true) ? $this->source : 'other';
+
+            // Сигнал доставки: игрок нажал — ответа не ушло. Ставим, только если НИ ОДНА
+            // отправка не прошла (провал одной при удачном фолбэке — норма, не тревога).
+            // 'error' не понижаем: исключение объясняет причину точнее.
+            if ($status !== 'error' && $this->sendsOk === 0 && $this->sendsFailed > 0) {
+                $status          = 'undelivered';
+                $this->errorText = $this->composeUndeliveredText();
+            }
 
             $this->insertRow([
                 'character_id'     => $this->resolveCharacterId($this->telegramUserId),
@@ -228,10 +269,40 @@ class PlayerActionLogger
         }
     }
 
+    /**
+     * Текст для статуса 'undelivered'. Прежняя причина (например, бизнес-отказ) не теряется —
+     * к ней дописывается, что именно не доехало.
+     */
+    private function composeUndeliveredText(): string
+    {
+        $delivery = 'не доставлено — ' . ($this->sendError ?? 'отправка не удалась');
+        $text     = ($this->errorText === null || $this->errorText === '')
+            ? $delivery
+            : $this->errorText . ' | ' . $delivery;
+
+        return mb_substr($text, 0, 500);
+    }
+
     /** Текущий статус (для тестов/диагностики). */
     public function status(): string
     {
         return $this->status;
+    }
+
+    /**
+     * Включён ли firehose. Публично — чтобы {@see TelegramDeliveryProbe} не подменял
+     * Guzzle-клиент Longman'а, когда телеметрия всё равно выключена (один аварийный
+     * выключатель на оба механизма).
+     */
+    public function firehoseEnabled(): bool
+    {
+        try {
+            return $this->enabled();
+        } catch (\Throwable $e) {
+            log_message('error', '[PlayerActionLogger] firehoseEnabled failed: ' . $e->getMessage());
+
+            return false;
+        }
     }
 
     /** Активен ли захват (для тестов/диагностики). */
