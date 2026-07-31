@@ -293,18 +293,29 @@ class SellResourceAction extends BaseAction
             "res={$resourceId} qty=" . ($result['qty'] ?? '?') . ' gold=+' . ($result['amount'] ?? '?')
         );
 
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '💰 Продать', 'callback_data' => 'sell'],
-                    ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
-                ],
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                ],
-            ],
+        // Arseny report 2026-05-26 (хвост): после сделки — возврат в список той же
+        // редкости, чтобы «продать ещё» не требовало заново идти Магазин → Продать → редкость.
+        // ⚠️ find() отдаёт ResourceEntity, а не массив — читаем через ArrayAccess
+        // (как askForQuantity выше), иначе rarity=0 и кнопка не появится никогда.
+        $rows      = [];
+        $resource  = $this->resourceModel->find($resourceId);
+        $rawRarity = $resource['rarity'] ?? null;
+        $rarity    = is_numeric($rawRarity) ? (int) $rawRarity : 0;
+        if ($rarity > 0) {
+            $rows[] = [
+                ['text' => "⬅️ К редкости {$rarity}", 'callback_data' => "sellResource_rarity_{$rarity}"],
+                ['text' => '🛒 Магазин',              'callback_data' => 'shop'],
+            ];
+        }
+        $rows[] = [
+            ['text' => '💰 Продать', 'callback_data' => 'sell'],
+            ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
         ];
+        $rows[] = [
+            ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+            ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+        ];
+        $keyboard = ['inline_keyboard' => $rows];
         $imagePath = base_url('uploads/telegram/vendor_kiosk_in_the_game_world.png');
         return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [
             'chat_id'      => $chatId,

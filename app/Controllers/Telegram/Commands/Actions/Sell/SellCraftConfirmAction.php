@@ -185,12 +185,19 @@ class SellCraftConfirmAction extends BaseAction
         $text = "*Поздравляю с продажей*\n\nТы продал: *{$itemName}*\nВ количестве: *{$quantity}* штук\nИ заработал денег: *{$totalPrice}$*";
         $keyboardButtons = [];
 
-        $keyboardButtons[] = ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'];
-        $keyboardButtons[] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];
+        // Arseny report 2026-05-26 (хвост): после продажи — возврат в список той же
+        // категории, чтобы «продать ещё» не требовало заново идти Магазин → Продать крафт → категория.
+        $type = is_string($craftedItem['type'] ?? null) ? $craftedItem['type'] : '';
+        if ($type !== '') {
+            $keyboardButtons[] = ['text' => '⬅️ К списку', 'callback_data' => 'sellCraftList_' . $type];
+        }
         $keyboardButtons[] = ['text' => '🛒 Продать крафт', 'callback_data' => 'sellCraft'];
         $keyboardButtons[] = ['text' => '🛍️ Купить крафт', 'callback_data' => 'buyCraft'];
+        $keyboardButtons[] = ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'];
+        $keyboardButtons[] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];
 
-        $keyboard = array_chunk($keyboardButtons, 2);
+        // Раскладка без «одиночек» в ряду: 5 кнопок → 3+2, 4 кнопки → 2+2.
+        $keyboard = array_chunk($keyboardButtons, count($keyboardButtons) === 5 ? 3 : 2);
 
         $imagePath = base_url('uploads/telegram/craft/vendor_kiosk_in_the_game_world.jpg'); // Укажите актуальный путь к изображению
 

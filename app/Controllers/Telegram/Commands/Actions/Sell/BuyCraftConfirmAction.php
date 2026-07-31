@@ -215,11 +215,19 @@ class BuyCraftConfirmAction extends BaseAction
         $text = "*Поздравляю с покупкой!*\n\nТы купил: *{$itemName}*\nВ количестве: *{$quantity}* штук\nИ потратил денег: *{$totalPrice}$*";
         $keyboardButtons = [];
 
+        // Arseny report 2026-05-26 (хвост): после покупки — возврат в список той же
+        // категории, чтобы «купить ещё» не требовало заново идти Магазин → Купить крафт → категория.
+        $type = is_string($craftedItem['type'] ?? null) ? $craftedItem['type'] : '';
+        if ($type !== '') {
+            $keyboardButtons[] = ['text' => '⬅️ К списку', 'callback_data' => 'buyCraftList_' . $type];
+        }
+        $keyboardButtons[] = ['text' => '🛍️ Купить крафт', 'callback_data' => 'buyCraft'];
         $keyboardButtons[] = ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'];
         $keyboardButtons[] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];
-        $keyboardButtons[] = ['text' => '🛍️ Купить крафт', 'callback_data' => 'buyCraft'];
+        $keyboardButtons[] = ['text' => '🛒 Магазин', 'callback_data' => 'shop'];
 
-        $keyboard = array_chunk($keyboardButtons, 2);
+        // Раскладка без «одиночек» в ряду: 5 кнопок → 3+2, 4 кнопки → 2+2.
+        $keyboard = array_chunk($keyboardButtons, count($keyboardButtons) === 5 ? 3 : 2);
 
         $imagePath = base_url('uploads/telegram/craft/vendor_kiosk_in_the_game_world.jpg'); // Укажите актуальный путь к изображению
 

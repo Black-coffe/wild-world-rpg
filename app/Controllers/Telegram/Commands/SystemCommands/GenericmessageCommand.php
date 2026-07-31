@@ -346,18 +346,33 @@ class GenericmessageCommand extends SystemCommand
             }
         }
 
+        // Arseny report 2026-05-26 (хвост): после сделки «своим числом» — возврат в список
+        // той же редкости, а не только в корень магазина.
+        $rows     = [];
+        $resource = (new \App\Models\ResourceModel())->find($resourceId);
+        $rarity   = $resource->rarity ?? 0;
+        if ($rarity > 0) {
+            $rows[] = [
+                [
+                    'text'          => "⬅️ К редкости {$rarity}",
+                    'callback_data' => $direction === 'SELL' ? "sellResource_rarity_{$rarity}" : "buy_rarity_{$rarity}",
+                ],
+                [
+                    'text'          => $direction === 'SELL' ? '💰 Другая редкость' : '🛍️ Другая редкость',
+                    'callback_data' => $direction === 'SELL' ? 'sell' : 'buy',
+                ],
+            ];
+        }
+        $rows[] = [
+            ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+            ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+        ];
+
         return Request::sendMessage([
             'chat_id'    => $chatId,
             'text'       => $result['message'],
             'parse_mode' => 'Markdown',
-            'reply_markup' => json_encode([
-                'inline_keyboard' => [
-                    [
-                        ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ],
-                ],
-            ]),
+            'reply_markup' => json_encode(['inline_keyboard' => $rows]),
         ]);
     }
 

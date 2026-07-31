@@ -106,17 +106,24 @@ class BuyResourceAction extends BaseAction
      * результат), каждый шаг редактирует предыдущее сообщение (fallback на новое при ошибке /
      * клике с photo-экрана — так стартовые «нет золота» / «не найден» естественно приходят новым).
      */
-    protected function respondWithMessage(string $text): ServerResponse
+    /**
+     * @param list<array{text: string, callback_data: string}> $topRow
+     */
+    protected function respondWithMessage(string $text, array $topRow = []): ServerResponse
     {
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '🛒 Магазин',    'callback_data' => 'shop'],
-                ],
-            ]
+        $rows = [];
+        // Arseny report 2026-05-26 (хвост): экран результата сделки — ряд возврата
+        // в тот же список редкости, чтобы «купить ещё» не требовало заново идти
+        // Магазин → Купить ресы → редкость. Для ошибок ряд пустой.
+        if ($topRow !== []) {
+            $rows[] = $topRow;
+        }
+        $rows[] = [
+            ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+            ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+            ['text' => '🛒 Магазин',    'callback_data' => 'shop'],
         ];
+        $keyboard = ['inline_keyboard' => $rows];
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
         return MediaSender::editTextOrSend($this->navTarget() + [
             'text'         => $text,
@@ -316,6 +323,20 @@ class BuyResourceAction extends BaseAction
         $charArr = $character instanceof \App\Entities\CharacterEntity ? $character->toArray() : $character;
         $svc     = new \App\Services\Player\Trade\ResourceTradeService();
         $result  = $svc->buyResource($charArr, $resourceId, $quantity);
-        return $this->respondWithMessage($result['message']);
+
+        // Возврат в список той же редкости — «купить ещё» в один тап.
+        // ⚠️ find() отдаёт ResourceEntity, а не массив — читаем через ArrayAccess
+        // (как askForQuantity выше), иначе rarity=0 и кнопка не появится никогда.
+        $resource  = $this->resourceModel->find($resourceId);
+        $rawRarity = $resource['rarity'] ?? null;
+        $rarity    = is_numeric($rawRarity) ? (int) $rawRarity : 0;
+        $topRow    = $rarity > 0
+            ? [
+                ['text' => "⬅️ К редкости {$rarity}", 'callback_data' => "buy_rarity_{$rarity}"],
+                ['text' => '🛍️ Другая редкость',      'callback_data' => 'buy'],
+            ]
+            : [];
+
+        return $this->respondWithMessage($result['message'], $topRow);
     }
 }
