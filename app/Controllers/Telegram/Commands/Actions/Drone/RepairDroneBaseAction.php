@@ -159,7 +159,8 @@ abstract class RepairDroneBaseAction extends BaseAction
                 continue;
             }
 
-            $recipe = config(\Config\CraftRecipes::class)->get($nameEn);
+            // По name_eng, а не по ключу рецепта — они совпадают не всегда (S5b-баг ремонта).
+            $recipe = config(\Config\CraftRecipes::class)->findByItemNameEng($nameEn);
             if (! is_array($recipe)) {
                 continue;
             }

@@ -2890,10 +2890,59 @@ class CraftRecipes extends BaseConfig
     }
 
     /**
+     * Резолв рецепта по `crafted_items.name_eng` (а НЕ по ключу рецепта).
+     *
+     * Ключ рецепта и `item_name_eng` совпадают не всегда: 'SapperShovel' →
+     * 'Sapper Shovel' (с пробелом), 'GoldenHoe' → 'Golden Hoe', 'BasicMedKit' →
+     * 'FirstAidKit'. Всё, что стартует от строки в БД (ремонт инструмента /
+     * робота / дрона), обязано ходить сюда, иначе рецепт «не найдётся» и фича
+     * умирает для части предметов молча.
+     *
+     * @return array<string,mixed>|null
+     */
+    public function findByItemNameEng(string $itemNameEng): ?array
+    {
+        if ($itemNameEng === '') {
+            return null;
+        }
+
+        if ($this->itemNameIndex === null) {
+            $index = [];
+            foreach ($this->recipes as $recipeKey => $recipe) {
+                if (! is_array($recipe)) {
+                    continue;
+                }
+                $name = $recipe['item_name_eng'] ?? null;
+                // Первое вхождение выигрывает — порядок объявления детерминирован.
+                if (is_string($name) && $name !== '' && ! isset($index[$name])) {
+                    $index[$name] = (string) $recipeKey;
+                }
+            }
+            $this->itemNameIndex = $index;
+        }
+
+        $key = $this->itemNameIndex[$itemNameEng] ?? null;
+        if ($key !== null) {
+            return $this->get($key);
+        }
+
+        // Фолбэк: у рецепта нет item_name_eng, но ключ совпадает с name_eng.
+        return $this->get($itemNameEng);
+    }
+
+    /**
      * @return list<string>
      */
     public function keys(): array
     {
         return array_keys($this->recipes);
     }
+
+    /**
+     * Ленивая карта `item_name_eng` → recipe key. Private — CI4 BaseConfig
+     * не трогает private-свойства при env-override.
+     *
+     * @var array<string,string>|null
+     */
+    private ?array $itemNameIndex = null;
 }

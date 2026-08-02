@@ -84,7 +84,11 @@ class RepairToolsListAction extends BaseAction
         $text = "🔧 *Ремонт инструментов*\n\n"
             . "Выбери инструмент для ремонта. Текущая / максимальная прочность:\n\n";
 
-        $buttons = [];
+        $cfg     = config('CraftRecipes');
+        $recipes = $cfg instanceof \Config\CraftRecipes ? $cfg : new \Config\CraftRecipes();
+
+        $buttons    = [];
+        $noRecipe   = [];
         foreach ($rows as $row) {
             if (! is_array($row)) {
                 continue;
@@ -95,8 +99,17 @@ class RepairToolsListAction extends BaseAction
             $name     = is_string($nameRaw) ? $nameRaw : '???';
             $cur      = is_numeric($row['cur_dur'] ?? null) ? (int) $row['cur_dur'] : 0;
             $max      = is_numeric($row['max_dur'] ?? null) ? (int) $row['max_dur'] : 0;
+            $nameEng  = is_string($row['name_eng'] ?? null) ? $row['name_eng'] : '';
 
             if ($logId <= 0) {
+                continue;
+            }
+
+            // Стоимость ремонта считается от рецепта. Нет рецепта — оба пути
+            // (ресурсы и NPC) физически не могут посчитать цену, поэтому
+            // кнопку не рисуем, но и молча не прячем: говорим честно.
+            if ($recipes->findByItemNameEng($nameEng) === null) {
+                $noRecipe[] = "• *{$name}*: {$cur}/{$max}";
                 continue;
             }
 
@@ -105,6 +118,15 @@ class RepairToolsListAction extends BaseAction
                 ['text' => "🔧 {$name} ({$cur}/{$max})", 'callback_data' => "repair_{$logId}"],
                 ['text' => '🛠 NPC', 'callback_data' => "npc_repair_{$logId}"],
             ];
+        }
+
+        if ($noRecipe !== []) {
+            if ($buttons === []) {
+                $text = "🔧 *Ремонт инструментов*\n\n";
+            }
+            $text .= "\n_Эти инструменты чинить нельзя — у них нет рецепта, "
+                . "стоимость ремонта не из чего посчитать:_\n"
+                . implode("\n", $noRecipe) . "\n";
         }
 
         // V23: 2 кнопки в строке — S5 (ресурсы) и NPC (gold).

@@ -296,7 +296,9 @@ class RepairCraftedItemAction extends BaseAction
         }
 
         $nameEng = is_string($row['name_eng'] ?? null) ? $row['name_eng'] : '';
-        $recipe  = $this->recipes->get($nameEng);
+        // Ключ рецепта ≠ crafted_items.name_eng у части инструментов
+        // ('Sapper Shovel' → 'SapperShovel'). Резолвим по name_eng.
+        $recipe  = $this->recipes->findByItemNameEng($nameEng);
         if ($recipe === null) {
             return null;
         }
