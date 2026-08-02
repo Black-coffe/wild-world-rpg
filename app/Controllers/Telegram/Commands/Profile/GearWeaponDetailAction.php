@@ -147,14 +147,12 @@ class GearWeaponDetailAction extends BaseAction
         $damageType   = $weaponInfo['damage_type'];
         $rangeValue   = $weaponInfo['range_value'];
         $attackSpeed  = $weaponInfo['attack_speed'];
-        // Прочность не может быть больше максимума. Все выданные строки лежат с
-        // current_durability=100 (историческая константа выдачи), а максимум у
-        // оружия — 15..120, из-за чего экран показывал «Прочность: 100 / 25».
+        // Прочность показываем как характеристику предмета, без дроби «текущая /
+        // максимум»: износа у оружия и брони в игре нет (ничего не уменьшает
+        // current_durability), а в БД у всех строк лежит константа 100 при максимуме
+        // 15..120 — экран показывал то «100 / 25», то «100 / 200», то есть врал в
+        // обе стороны. Вернуть дробь — когда появится реальный износ.
         $durabilityMax= $weaponInfo['durability_max'];
-        $durability   = min(
-            (int) ($weaponRow['current_durability'] ?? $weaponInfo['durability']),
-            (int) $durabilityMax
-        );
         $rarity       = $weaponInfo['rarity'];
         $description  = $weaponInfo['description'];
 
@@ -172,7 +170,7 @@ class GearWeaponDetailAction extends BaseAction
         $text .= "Тип: *{$weaponType}*\n";
         $text .= "Редкость: *{$rarity}*\n";
         $text .= "Количество: *{$quantity}*\n";
-        $text .= "Прочность: {$durability} / {$durabilityMax}\n\n";
+        $text .= "Прочность: {$durabilityMax}\n\n";
         $text .= "Урон: *{$damageValue}* ({$damageType})\n";
         $text .= "Дальность: *{$rangeValue}*\n";
         $text .= "Скорость атаки: *{$attackSpeed}*\n\n";

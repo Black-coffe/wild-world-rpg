@@ -8731,19 +8731,7 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Profile/GearArmorDetailAction.php
 
 		-
-			message: '#^Cannot access offset ''current_durability'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Profile/GearArmorDetailAction.php
-
-		-
 			message: '#^Cannot access offset ''description'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Profile/GearArmorDetailAction.php
-
-		-
-			message: '#^Cannot access offset ''durability'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Telegram/Commands/Profile/GearArmorDetailAction.php
@@ -8833,12 +8821,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Profile/GearWeaponDetailAction.php
 
 		-
-			message: '#^Cannot access offset ''current_durability'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Profile/GearWeaponDetailAction.php
-
-		-
 			message: '#^Cannot access offset ''damage_type'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -8852,12 +8834,6 @@ parameters:
 
 		-
 			message: '#^Cannot access offset ''description'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Profile/GearWeaponDetailAction.php
-
-		-
-			message: '#^Cannot access offset ''durability'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Telegram/Commands/Profile/GearWeaponDetailAction.php
@@ -9068,12 +9044,6 @@ parameters:
 
 		-
 			message: '#^Cannot access offset ''damage_value'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Profile/ToggleEquipWeaponAction.php
-
-		-
-			message: '#^Cannot access offset ''durability'' on non\-empty\-array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Telegram/Commands/Profile/ToggleEquipWeaponAction.php

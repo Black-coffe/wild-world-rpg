@@ -116,13 +116,8 @@ class ToggleEquipArmorAction extends BaseAction
         $stealthMod    = $outfitInfo['stealth_modifier']    ?? 0;
         $weight        = $outfitInfo['weight']              ?? 0;
         $rarity        = $outfitInfo['rarity']              ?? 'Common';
-        // Прочность: смотрим, есть ли в characters_outfits текущее значение.
-        // Выше максимума не показываем — см. GearWeaponDetailAction.
+        // Прочность — характеристика предмета, без дроби: см. GearWeaponDetailAction.
         $durabilityMax = $outfitInfo['durability_max']      ?? 100;
-        $durability    = min(
-            (int) ($outfitRow['current_durability'] ?? $outfitInfo['durability']),
-            (int) $durabilityMax
-        );
 
         // Логика (снять/надеть)
         if ($currentlyEquipped) {
@@ -167,7 +162,7 @@ class ToggleEquipArmorAction extends BaseAction
             . "• Тип: `{$armorType}`\n"
             . "• 🛡 Защита: *{$armorValue}*\n"
             . "• 🏋️ Вес: *{$weight} кг*\n"
-            . "• 🔧 Прочность: *{$durability} / {$durabilityMax}*\n"
+            . "• 🔧 Прочность: *{$durabilityMax}*\n"
             . "• 🩸 Физ. защита: *{$physRes}%*\n"
             . "• 🔥 Огонь: *{$fireRes}%*\n"
             . "• ☣️ Яд: *{$poisonRes}%*\n"
