@@ -124,8 +124,12 @@ class GearArmorDetailAction extends BaseAction
         $armorType    = $outfitInfo['armor_type'] ?? 'Обычная';
         $slot         = $outfitInfo['slot'] ?? 'Неизвестный слот';
         $armorValue   = $outfitInfo['armor_value'] ?? 0;
-        $durability   = $outfitRow['current_durability'] ?? $outfitInfo['durability'];
+        // Прочность не может быть больше максимума — см. GearWeaponDetailAction.
         $durabilityMax= $outfitInfo['durability_max'];
+        $durability   = min(
+            (int) ($outfitRow['current_durability'] ?? $outfitInfo['durability']),
+            (int) $durabilityMax
+        );
         $rarity       = $outfitInfo['rarity'] ?? 'Common';
         $description  = $outfitInfo['description'] ?? 'Без описания';
         $isEquipped   = (bool) $outfitRow['equipped'];

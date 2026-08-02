@@ -38,6 +38,7 @@ final class LootProcessorTest extends CIUnitTestCase
         $db->query('DROP TABLE IF EXISTS characters');
         $db->query('DROP TABLE IF EXISTS character_resources');
         $db->query('DROP TABLE IF EXISTS crafted_items_log');
+        $db->query('DROP TABLE IF EXISTS crafted_items');
 
         $db->query('
             CREATE TABLE characters (
@@ -75,6 +76,19 @@ final class LootProcessorTest extends CIUnitTestCase
                 updated_at DATETIME NULL
             )
         ');
+        // Шаблон предмета: трофей должен приходить с ЕГО прочностью, а не нулевой.
+        $db->query('
+            CREATE TABLE crafted_items (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name_eng VARCHAR(150) NULL,
+                name_rus VARCHAR(150) NULL,
+                type VARCHAR(100) NULL,
+                direction_craft VARCHAR(100) NULL,
+                crafting_location VARCHAR(255) NULL,
+                durability_count INT NOT NULL DEFAULT 0
+            )
+        ');
+        $db->query('INSERT INTO crafted_items (id, name_eng, type, durability_count) VALUES (42, "Sapper Shovel", "tool", 120)');
 
         $this->proc = new LootProcessor();
     }
@@ -85,6 +99,7 @@ final class LootProcessorTest extends CIUnitTestCase
         $db->query('DROP TABLE IF EXISTS characters');
         $db->query('DROP TABLE IF EXISTS character_resources');
         $db->query('DROP TABLE IF EXISTS crafted_items_log');
+        $db->query('DROP TABLE IF EXISTS crafted_items');
         parent::tearDown();
     }
 
@@ -286,6 +301,11 @@ final class LootProcessorTest extends CIUnitTestCase
         $this->assertSame('loot', $row['type']);
         $this->assertSame('pvp_loot', $row['direction_craft']);
         $this->assertSame('battlefield', $row['crafting_location']);
+        $this->assertSame(
+            120,
+            (int) $row['durability_count'],
+            'трофей приходит с прочностью шаблона: ноль означал бы инструмент, который ломается при первом использовании'
+        );
     }
 
     public function testTransferCraftIncrementsExistingLogRow(): void

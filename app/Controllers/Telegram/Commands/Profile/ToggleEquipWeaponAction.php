@@ -161,8 +161,12 @@ class ToggleEquipWeaponAction extends BaseAction
         }
 
         // 5) Доп. инфо (урон, прочность)
-        $curDurability  = $weaponRow['current_durability'] ?? $weaponInfo['durability'];
         $durabilityMax  = $weaponInfo['durability_max']   ?? 100;
+        // Прочность не выше максимума — см. GearWeaponDetailAction.
+        $curDurability  = min(
+            (int) ($weaponRow['current_durability'] ?? $weaponInfo['durability']),
+            (int) $durabilityMax
+        );
         $damageValue    = $weaponInfo['damage_value']      ?? 0;
         $damageType     = $weaponInfo['damage_type']       ?? 'physical';
 

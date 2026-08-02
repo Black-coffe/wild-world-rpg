@@ -129,6 +129,13 @@ class RewardService
                     'quantity' => (int) $existing['quantity'] + (int) $ci['quantity'],
                 ]);
             } else {
+                // Прочность — из шаблона `crafted_items`, как это делает крафт
+                // (GenericCraftCompletionHandler). Захардкоженная 100 выдавала
+                // предмет уже изношенным: робот приезжал со 100 из 1200, сапёрная
+                // лопата со 100 из 120 — «награда, которую сразу надо чинить».
+                $tplDur = isset($ci['durability_count']) && is_numeric($ci['durability_count'])
+                    ? (int) $ci['durability_count']
+                    : 0;
                 $this->craftedItemsLogModel->insert([
                     'character_id'      => $winner->id,
                     'task_id'           => 1,
@@ -136,7 +143,7 @@ class RewardService
                     'type'              => $ci['type'],
                     'direction_craft'   => $ci['direction_craft'],
                     'crafting_location' => 'all',
-                    'durability_count'  => 100,
+                    'durability_count'  => $tplDur > 0 ? $tplDur : 100,
                     'quantity'          => $ci['quantity'],
                 ]);
             }

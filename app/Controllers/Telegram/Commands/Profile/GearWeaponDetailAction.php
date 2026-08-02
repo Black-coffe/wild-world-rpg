@@ -147,8 +147,14 @@ class GearWeaponDetailAction extends BaseAction
         $damageType   = $weaponInfo['damage_type'];
         $rangeValue   = $weaponInfo['range_value'];
         $attackSpeed  = $weaponInfo['attack_speed'];
-        $durability   = $weaponRow['current_durability'] ?? $weaponInfo['durability'];
+        // Прочность не может быть больше максимума. Все выданные строки лежат с
+        // current_durability=100 (историческая константа выдачи), а максимум у
+        // оружия — 15..120, из-за чего экран показывал «Прочность: 100 / 25».
         $durabilityMax= $weaponInfo['durability_max'];
+        $durability   = min(
+            (int) ($weaponRow['current_durability'] ?? $weaponInfo['durability']),
+            (int) $durabilityMax
+        );
         $rarity       = $weaponInfo['rarity'];
         $description  = $weaponInfo['description'];
 

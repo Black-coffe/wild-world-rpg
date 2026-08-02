@@ -6,6 +6,7 @@ namespace App\Services\Player\Death;
 
 use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
+use App\Models\CraftedItemsModel;
 
 /**
  * F2.8b — обработка имущества при смерти: списание у проигравшего +
@@ -24,13 +25,16 @@ class LootProcessor
 {
     private CharacterResourceModel $characterResourceModel;
     private CraftedItemsLogModel $craftedItemsLogModel;
+    private CraftedItemsModel $craftedItemsModel;
 
     public function __construct(
         ?CharacterResourceModel $characterResourceModel = null,
-        ?CraftedItemsLogModel $craftedItemsLogModel = null
+        ?CraftedItemsLogModel $craftedItemsLogModel = null,
+        ?CraftedItemsModel $craftedItemsModel = null
     ) {
         $this->characterResourceModel = $characterResourceModel ?? new CharacterResourceModel();
         $this->craftedItemsLogModel   = $craftedItemsLogModel   ?? new CraftedItemsLogModel();
+        $this->craftedItemsModel      = $craftedItemsModel      ?? new CraftedItemsModel();
     }
 
     // ---- compute (pure) ----
@@ -210,9 +214,21 @@ class LootProcessor
                 'type'              => 'loot',
                 'direction_craft'   => 'pvp_loot',
                 'crafting_location' => 'battlefield',
-                'durability_count'  => 0,
+                // Прочность — из шаблона (как крафт/покупка/PvE-награда). Ноль означал,
+                // что трофей приходит уже сломанным: инструмент уничтожался при первом
+                // же использовании, у медикамента сгорала одна доза.
+                'durability_count'  => $this->templateDurability($craftedItemId),
                 'quantity'          => $amount,
             ]);
         }
+    }
+
+    /** Базовая прочность предмета из `crafted_items`; 1 — безопасный минимум. */
+    private function templateDurability(int $craftedItemId): int
+    {
+        $row = $this->craftedItemsModel->find($craftedItemId);
+        $raw = is_array($row) ? ($row['durability_count'] ?? null) : null;
+
+        return is_numeric($raw) && (int) $raw > 0 ? (int) $raw : 1;
     }
 }
