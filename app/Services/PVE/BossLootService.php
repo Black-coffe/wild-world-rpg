@@ -231,7 +231,7 @@ class BossLootService
         $charTb = $kind === 'weapon' ? 'characters_weapons' : 'characters_outfits';
 
         $candidates = $this->db->table($table)
-            ->select('id, name, rarity')
+            ->select('id, name, rarity, durability')
             ->whereIn('rarity', ['Legendary', 'Epic'])
             ->where('required_level <=', $bossLevel)
             ->orderBy('required_level', 'DESC')
@@ -239,7 +239,7 @@ class BossLootService
         $rows = $candidates === false ? [] : $candidates->getResultArray();
         // Фолбэк: если на этом уровне нет Legendary/Epic — берём лучший доступный любой редкости.
         if ($rows === []) {
-            $any  = $this->db->table($table)->select('id, name, rarity')->where('required_level <=', $bossLevel)->orderBy('required_level', 'DESC')->get(8);
+            $any  = $this->db->table($table)->select('id, name, rarity, durability')->where('required_level <=', $bossLevel)->orderBy('required_level', 'DESC')->get(8);
             $rows = $any === false ? [] : $any->getResultArray();
         }
         if ($rows === []) {
@@ -253,13 +253,18 @@ class BossLootService
             return null;
         }
 
+        // Трофей выдаём целым. Ремонта у оружия/брони в игре нет, поэтому запись
+        // с current_durability=0 навсегда показывала бы «Прочность: 0 / N» —
+        // легендарка с боссa читалась бы как сломанная. Берём прочность шаблона
+        // (как LootTableService), фолбэк 100 — конвенция крафта/лавки.
+        $durTpl = $this->ival($pick['durability'] ?? null);
         $now    = date('Y-m-d H:i:s');
         $coords = $x . ',' . $y;
         $this->db->table($charTb)->insert([
             'character_id'     => $charId,
             $linkF             => $itemId,
             'quantity'         => 1,
-            'current_durability' => 0,
+            'current_durability' => $durTpl > 0 ? $durTpl : 100,
             'equipped'         => 0,
             'is_soulbound'     => 1,
             'soulbound_source' => $bossName !== '' ? $bossName : 'Узел',

@@ -36,13 +36,15 @@ final class BossLootServiceTest extends CIUnitTestCase
         $db->query('CREATE TABLE game_settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(191), value_type VARCHAR(16) NULL, value_int INT NULL, value_bool TINYINT NULL, value_float DOUBLE NULL, value_string TEXT NULL)');
         $db->query('CREATE TABLE boss_engagements (id INT AUTO_INCREMENT PRIMARY KEY, boss_point_id INT, boss_level INT, character_id INT, damage_dealt INT DEFAULT 0, rounds_participated INT DEFAULT 0, first_hit_at DATETIME NULL, last_hit_at DATETIME NULL, UNIQUE KEY uniq_contrib (boss_point_id, boss_level, character_id))');
         $db->query('CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(100), gold INT DEFAULT 0)');
-        $db->query("CREATE TABLE weapons (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(150), rarity VARCHAR(50), required_level INT DEFAULT 0)");
-        $db->query("CREATE TABLE outfits (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(150), rarity VARCHAR(50), required_level INT DEFAULT 0)");
+        // durability — как в проде: трофей выдаётся с прочностью шаблона,
+        // иначе легендарка с босса вечно показывала бы «Прочность: 0 / N».
+        $db->query("CREATE TABLE weapons (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(150), rarity VARCHAR(50), required_level INT DEFAULT 0, durability INT DEFAULT 0)");
+        $db->query("CREATE TABLE outfits (id INT AUTO_INCREMENT PRIMARY KEY, name VARCHAR(150), rarity VARCHAR(50), required_level INT DEFAULT 0, durability INT DEFAULT 0)");
         $db->query("CREATE TABLE characters_weapons (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, weapon_id INT, quantity INT DEFAULT 1, current_durability INT DEFAULT 0, equipped TINYINT DEFAULT 0, is_soulbound TINYINT DEFAULT 0, soulbound_source VARCHAR(100) NULL, soulbound_level INT NULL, soulbound_coords VARCHAR(20) NULL, created_at DATETIME NULL, updated_at DATETIME NULL)");
         $db->query("CREATE TABLE characters_outfits (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, outfit_id INT, quantity INT DEFAULT 1, current_durability INT DEFAULT 0, equipped TINYINT DEFAULT 0, is_soulbound TINYINT DEFAULT 0, soulbound_source VARCHAR(100) NULL, soulbound_level INT NULL, soulbound_coords VARCHAR(20) NULL, created_at DATETIME NULL, updated_at DATETIME NULL)");
         $db->query('CREATE TABLE boss_camp_state (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, boss_point_id INT, first_seen_in_zone_at DATETIME NULL, dwell_minutes INT DEFAULT 0, loot_locked_until DATETIME NULL, last_warned_at DATETIME NULL, UNIQUE KEY uniq_cs (character_id, boss_point_id))');
-        $db->table('weapons')->insert(['name' => 'Эхо-railgun «Бегемот»', 'rarity' => 'Legendary', 'required_level' => 24]);
-        $db->table('outfits')->insert(['name' => 'Экзо-броня «Скол»', 'rarity' => 'Legendary', 'required_level' => 24]);
+        $db->table('weapons')->insert(['name' => 'Эхо-railgun «Бегемот»', 'rarity' => 'Legendary', 'required_level' => 24, 'durability' => 120]);
+        $db->table('outfits')->insert(['name' => 'Экзо-броня «Скол»', 'rarity' => 'Legendary', 'required_level' => 24, 'durability' => 250]);
     }
 
     protected function tearDown(): void
@@ -313,6 +315,11 @@ final class BossLootServiceTest extends CIUnitTestCase
         $this->assertSame('Шрам', $row['soulbound_source'], 'провенанс: имя узла');
         $this->assertSame(60, (int) $row['soulbound_level']);
         $this->assertSame('480,100', $row['soulbound_coords']);
+        $this->assertSame(
+            120,
+            (int) $row['current_durability'],
+            'трофей выдан целым (прочность шаблона): ремонта у оружия в игре нет, 0 читался бы как «сломано навсегда»'
+        );
     }
 
     public function testTrophyGrantedOutfitWhenKindRollHigh(): void

@@ -78,10 +78,16 @@ abstract class RobotRepairBaseAction extends BaseAction
             return $fail('Рецепт этого робота не найден — ремонт невозможен.');
         }
 
+        // Берём САМУЮ ИЗНОШЕННУЮ строку, а не первую по id: кнопка «🔧 Ремонт»
+        // появляется, если изношена ХОТЯ БЫ одна строка этого робота, — значит и
+        // чинить надо именно её. Иначе при нескольких строках (у чара 793 на проде
+        // их 926) ремонт упирался в «уже в полной исправности», а изношенные
+        // оставались недостижимы. Тот же приём — в DefensiveBuildingHandler.
         $logRow = $this->logModel
             ->where('character_id', $characterId)
             ->where('crafted_item_id', $robotId)
             ->where('quantity >', 0)
+            ->orderBy('durability_count', 'ASC')
             ->orderBy('id', 'ASC')
             ->first();
         if (! is_array($logRow)) {
