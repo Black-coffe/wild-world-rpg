@@ -253,11 +253,14 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         // игрок получил бы вещь, но ни статов, ни сообщения о готовности. Частичный
         // успех страшнее падения — на 8-часовом крафте это читается как «крафт пропал».
         //
-        // ⚠️ НЕ путать с прод-падением task #37451 (лог 2026-07-25, «Undefined array key
-        // agility_bonus», рецепт JuggernautBattleArmor). Тот рецепт — `output_type='outfit'`
-        // с 12.06, до этого блока не доходит, и в релизе v0.51.567 других
-        // незастрахованных чтений во всём дереве не было. Причина того падения НЕ
-        // установлена (стек-трейса Worker не пишет); этот блок её не объясняет.
+        // ⚠️ НЕ путать с прод-падениями по `JuggernautBattleArmor` (task #37451 от
+        // 2026-07-25, #39526 от 07-31, #39722 от 08-01). Тот рецепт — `output_type='outfit'`,
+        // до этого блока не доходит. ✅ ПРИЧИНА УСТАНОВЛЕНА 2026-08-02: она была в
+        // outfit-ветке (`handleOutfitOutput`), где `??` стоял ВНУТРИ `is_numeric(... ?? 0)`,
+        // а не в месте использования — отсутствующий ключ давал is_numeric(0)=true и
+        // ветка обращалась к нему напрямую. Прошлый разбор счёл ту строку застрахованной
+        // из-за наличия `??` в ней. Урок: искать `is_numeric($x['k'] ?? <число>)` —
+        // с `?? null` такой приём безопасен, с числовым дефолтом ломается.
         if (method_exists($this->characterModel, 'updateAgilityAndIntellect')) {
             $agRaw  = $recipe['agility_bonus']   ?? 0;
             $intRaw = $recipe['intellect_bonus'] ?? 0;
@@ -465,7 +468,8 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
             return;
         }
         $outfitId       = is_numeric($outfit['id']) ? (int) $outfit['id'] : 0;
-        $characterIdInt = is_numeric($task['character_id'] ?? 0) ? (int) $task['character_id'] : 0;
+        $charIdRaw      = $task['character_id'] ?? null;
+        $characterIdInt = is_numeric($charIdRaw) ? (int) $charIdRaw : 0;
 
         // Add or increment quantity in characters_outfits
         $row = $this->charactersOutfitsModel
@@ -491,8 +495,16 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
         }
 
         // Stat bump: для armor → updateAgilityAndIntellect (как T2 armor handlers).
-        $agilityBonus   = is_numeric($recipe['agility_bonus']   ?? 0) ? (float) $recipe['agility_bonus']   : 0.0;
-        $intellectBonus = is_numeric($recipe['intellect_bonus'] ?? 0) ? (float) $recipe['intellect_bonus'] : 0.0;
+        // 🔴 `??` обязателен в месте ИСПОЛЬЗОВАНИЯ, а не внутри is_numeric(): с `?? 0`
+        // отсутствующий ключ давал is_numeric(0)=true, и ветка обращалась к ключу напрямую.
+        // Это роняло завершение крафта брони на проде (JuggernautBattleArmor /
+        // BunkerPlateArmor — единственные 2 рецепта без `agility_bonus`): вещь игроку
+        // уже выдана строкой выше, а уведомление «готово» и прибавка статов терялись —
+        // для игрока это читается как «крафт пропал». Падения 2026-07-25 / 07-31 / 08-01.
+        $agRaw          = $recipe['agility_bonus']   ?? 0;
+        $intRaw         = $recipe['intellect_bonus'] ?? 0;
+        $agilityBonus   = is_numeric($agRaw)  ? (float) $agRaw  : 0.0;
+        $intellectBonus = is_numeric($intRaw) ? (float) $intRaw : 0.0;
         $this->characterModel->updateAgilityAndIntellect($characterIdInt, $agilityBonus, $intellectBonus);
 
         // notify — переиспользуем notifyUser, передавая outfit-row.
@@ -506,11 +518,13 @@ class GenericCraftCompletionHandler extends BaseTaskHandler
             'name_rus' => $outfitNameRus,
             '__outfit' => true,
         ];
-        $telegramUserIdInt = is_numeric($task['telegram_user_id'] ?? 0) ? (int) $task['telegram_user_id'] : 0;
+        $tgRaw             = $task['telegram_user_id'] ?? null;
+        $telegramUserIdInt = is_numeric($tgRaw) ? (int) $tgRaw : 0;
         $this->notifyUser($telegramUserIdInt, $outfitAsItem, $characterIdInt, $quantityToAdd, $recipe, $recipeKey);
 
         // v0.51.129: dequeue next queued task для same recipe (для outfit path теж).
-        $taskIdInt = is_numeric($task['task_id'] ?? 0) ? (int) $task['task_id'] : 0;
+        $taskIdRaw = $task['task_id'] ?? null;
+        $taskIdInt = is_numeric($taskIdRaw) ? (int) $taskIdRaw : 0;
         $this->activateNextQueuedTask($characterIdInt, $taskIdInt);
     }
 

@@ -24,6 +24,17 @@ use CodeIgniter\Test\CIUnitTestCase;
  * Source-scan (как GuideCatalogTest / UsePharmacyAtomicUpdateTest): падение внутри
  * task-worker'а юнитом не воспроизвести — фиксируем контракт по исходнику.
  *
+ * 🔴 2026-08-02 — баг воспроизвёлся снова (task #39526 07-31, #39722 08-01), хотя тест
+ * был зелёным. Причина: он считал строку застрахованной, если в ней есть `??` ИЛИ
+ * `is_numeric`, а в сломанной строке было и то и другое:
+ *
+ *     is_numeric($recipe['agility_bonus'] ?? 0) ? (float) $recipe['agility_bonus'] : 0.0
+ *
+ * `??` стоял ВНУТРИ проверки, а не в месте использования: при отсутствующем ключе
+ * `is_numeric(0)` = true, и ветка обращалась к ключу напрямую. С `?? null` тот же приём
+ * безопасен (is_numeric(null)=false), с числовым дефолтом — ломается. Поэтому добавлен
+ * отдельный тест на сам идиом.
+ *
  * @internal
  */
 final class CraftCompletionBonusKeysGuardedTest extends CIUnitTestCase
@@ -55,6 +66,42 @@ final class CraftCompletionBonusKeysGuardedTest extends CIUnitTestCase
             $unguarded,
             "Чтение бонуса из рецепта без `?? 0` роняет завершение крафта у рецептов, "
             . "где ключа нет (прод-баг task #37451):\n" . implode("\n", $unguarded)
+        );
+    }
+
+    /**
+     * Ловит сам приём, а не конкретный ключ: `is_numeric($x[...] ?? <число>)` — ложная
+     * страховка. При отсутствующем ключе `is_numeric` получает число и возвращает true,
+     * после чего ветка обращается к несуществующему ключу → «Undefined array key».
+     * Безопасные варианты: `?? null` внутри проверки ЛИБО `??` в месте использования.
+     */
+    public function testNoNumericDefaultInsideIsNumericGuard(): void
+    {
+        $src = file_get_contents(self::HANDLER);
+        $this->assertIsString($src);
+
+        $lines  = preg_split('/\R/', $src) ?: [];
+        $bad    = [];
+
+        foreach ($lines as $i => $line) {
+            $trimmed = ltrim($line);
+            // Комментарии пропускаем: в этом файле идиом описан словами как урок.
+            if (str_starts_with($trimmed, '//') || str_starts_with($trimmed, '*')) {
+                continue;
+            }
+            // is_numeric( ... ?? 0 )  — числовой дефолт внутри проверки.
+            if (preg_match('/is_numeric\([^)]*\?\?\s*-?\d/', $line) === 1) {
+                $bad[] = ($i + 1) . ': ' . $trimmed;
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $bad,
+            "Числовой дефолт внутри is_numeric() — ложная страховка: отсутствующий ключ "
+            . "проходит проверку и роняет обращение в той же строке (прод-падения "
+            . "#37451 / #39526 / #39722). Выносить `??` в отдельную переменную:\n"
+            . implode("\n", $bad)
         );
     }
 
