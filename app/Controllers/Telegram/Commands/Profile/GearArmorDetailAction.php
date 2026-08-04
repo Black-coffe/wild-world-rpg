@@ -188,6 +188,17 @@ class GearArmorDetailAction extends BaseAction
         } else {
             $text .= "_⚠️ Надеть можно только на базе._\n\n";
         }
+
+        // ADR-165 — вход в продажу с карточки брони (зеркало GearWeaponDetailAction).
+        // Надетое и соулбаунд-трофеи не продаются: кнопки нет, причина — текстом.
+        if (! $isSoulbound && (new \App\Services\Economy\GearSaleService())->isEnabled()) {
+            if ($isEquipped) {
+                $text .= "_💰 Продать можно только снятую броню._\n\n";
+            } else {
+                $rows[] = [['text' => '💰 Продать торговцу', 'callback_data' => "sellGearItem_a_{$charOutfitId}"]];
+            }
+        }
+
         $rows[] = [['text' => '↩️ Назад', 'callback_data' => 'gearArmor']];
 
         $keyboard = ['inline_keyboard' => $rows];

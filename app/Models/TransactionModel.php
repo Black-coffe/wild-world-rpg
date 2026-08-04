@@ -12,6 +12,10 @@ class TransactionModel extends Model
     protected $allowedFields = [
         'character_id',
         'crafted_item_id',
+        // ADR-165: журнал сделок обслуживает не только крафт. 'craft' | 'weapon' | 'outfit';
+        // у экипировки crafted_item_id = NULL, ссылка лежит в item_ref_id.
+        'item_kind',
+        'item_ref_id',
         'type',
         'quantity',
         'price',

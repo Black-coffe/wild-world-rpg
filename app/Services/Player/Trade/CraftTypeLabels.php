@@ -22,7 +22,7 @@ final class CraftTypeLabels
     /** @var array<string,string> */
     private const LABELS = [
         'accessory'     => '💍 Украшения',
-        'armor'         => '🛡 Броня',
+        'armor'         => '🛡 Броня-самоделки',
         'building'      => '🧱 Стройматериалы',
         'clothing'      => '🧥 Одежда',
         'component'     => '📐 Компоненты',
@@ -38,8 +38,16 @@ final class CraftTypeLabels
         'tool'          => '🛠️ Инструменты',
         'transport'     => '🛴 Транспорт',
         'utility'       => '🧰 Снаряжение',
-        'weapon'        => '⚔️ Оружие',
+        'weapon'        => '🗡 Оружие-самоделки',
         'workbench'     => '🔬 Верстаки',
+
+        // ADR-165 — ВИРТУАЛЬНЫЕ категории экрана продажи: настоящая экипировка, которая
+        // лежит в `characters_weapons` / `characters_outfits`, а не в `crafted_items_log`.
+        // Легаси-типы `weapon` / `armor` из `crafted_items` — это НЕ она (там семь грубых
+        // поделок ценой 15–50 вроде «Деревянного меча»), поэтому им дана своя подпись:
+        // две одинаковые кнопки «⚔️ Оружие» на одном экране означали бы для игрока лотерею.
+        'gearWeapon'    => '⚔️ Оружие',
+        'gearArmor'     => '🛡 Броня',
     ];
 
     public static function rus(string $type): string

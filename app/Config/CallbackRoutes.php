@@ -137,6 +137,12 @@ class CallbackRoutes extends BaseConfig
         'sellCraftList'                   => \App\Controllers\Telegram\Commands\Actions\Sell\SellCraftItemListAction::class,
         'sellCraftItem'                   => \App\Controllers\Telegram\Commands\Actions\Sell\SellCraftItemAction::class,
         'sellCraftConfirm'                => \App\Controllers\Telegram\Commands\Actions\Sell\SellCraftConfirmAction::class,
+        // ADR-165 — продажа экипировки. Вход — виртуальные категории `sellCraftList_gearWeapon`
+        // / `sellCraftList_gearArmor` (их ловит sellCraftList выше), дальше своя пара экранов:
+        // id в этих ключах — строка ИНВЕНТАРЯ (characters_weapons/characters_outfits), а не
+        // определение предмета. Ключи без хвостового `_` — урок мёртвых `npcAct_` (ADR-089).
+        'sellGearItem'                    => \App\Controllers\Telegram\Commands\Actions\Sell\SellGearItemAction::class,
+        'sellGearConfirm'                 => \App\Controllers\Telegram\Commands\Actions\Sell\SellGearConfirmAction::class,
         'buyCraft'                        => \App\Controllers\Telegram\Commands\Actions\Sell\BuyCraftAction::class,
         'buyCraftList'                    => \App\Controllers\Telegram\Commands\Actions\Sell\BuyCraftItemListAction::class,
         'buyCraftItem'                    => \App\Controllers\Telegram\Commands\Actions\Sell\BuyCraftItemAction::class,

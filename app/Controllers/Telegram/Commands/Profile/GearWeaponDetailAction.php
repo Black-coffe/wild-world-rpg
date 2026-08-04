@@ -209,6 +209,19 @@ class GearWeaponDetailAction extends BaseAction
         } else {
             $text .= "_⚠️ Надеть можно только на базе._\n\n";
         }
+
+        // ADR-165 — вход в продажу прямо оттуда, где игрок смотрит на ненужный ствол.
+        // Лавка доступна с любой клетки, поэтому гейта по базе тут нет. Надетое и
+        // соулбаунд-трофеи не продаются — кнопки для них не рисуем (мёртвый тап хуже
+        // отсутствия кнопки), причину поясняем текстом.
+        if (! $isSoulbound && (new \App\Services\Economy\GearSaleService())->isEnabled()) {
+            if ($isEquipped) {
+                $text .= "_💰 Продать можно только снятое оружие._\n\n";
+            } else {
+                $rows[] = [['text' => '💰 Продать торговцу', 'callback_data' => "sellGearItem_w_{$charWeaponId}"]];
+            }
+        }
+
         $rows[] = [['text' => '↩️ Назад', 'callback_data' => 'gearWeapons']];
 
         $keyboard = ['inline_keyboard' => $rows];

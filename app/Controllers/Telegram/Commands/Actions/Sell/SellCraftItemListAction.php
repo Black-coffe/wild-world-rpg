@@ -40,6 +40,14 @@ class SellCraftItemListAction extends BaseAction
         $callbackData = $this->callbackQuery->getData();
         $type = str_replace('sellCraftList_', '', $callbackData);
 
+        // ADR-165 — виртуальные категории экипировки читают свой источник
+        // (`characters_weapons` / `characters_outfits`), а не `crafted_items_log`.
+        $gearSale = new \App\Services\Economy\GearSaleService();
+        $gearKind = $gearSale->kindForCategory($type);
+        if ($gearKind !== null) {
+            return $this->handleGear($chatId, $character, $type, $gearKind, $gearSale);
+        }
+
         // Получение всех крафтовых предметов данного типа у персонажа
         $craftedItemsLog = $this->craftedItemsLogModel->where('character_id', $character['id'])->findAll();
         $craftedItems = [];
@@ -101,6 +109,86 @@ class SellCraftItemListAction extends BaseAction
         return MediaSender::editTextOrSend($this->navTarget() + [
             'text' => $text,
             'parse_mode' => 'Markdown',
+            'reply_markup' => json_encode(['inline_keyboard' => $keyboard]),
+        ]);
+    }
+
+    /**
+     * ADR-165 — список продаваемой экипировки категории.
+     *
+     * Показываем ровно ту цену, которую торговец заплатит за штуку: доля от базовой
+     * цены предмета, карма и складской бонус — те же, что на крафте. Игрок не должен
+     * узнавать реальную сумму только на экране подтверждения.
+     *
+     * @param array<string,mixed> $character
+     */
+    private function handleGear(
+        int|string $chatId,
+        array $character,
+        string $category,
+        string $kind,
+        \App\Services\Economy\GearSaleService $gearSale
+    ): ServerResponse {
+        $characterId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+
+        if (! $gearSale->isEnabled()) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => 'Скупка экипировки сейчас закрыта — торговец берёт только крафт и сырьё.',
+            ]);
+        }
+
+        $items = $gearSale->sellable($characterId, $kind);
+        if ($items === []) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => "Свободной экипировки этого вида у тебя нет.\n\n"
+                    . "_Надетое торговец не берёт — сними вещь, если решил продать. "
+                    . "Трофеи с меткой 🔒 он не берёт вовсе._",
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
+        $karmaRaw      = $character['trading_karma'] ?? 0;
+        $karma         = is_numeric($karmaRaw) ? (float) $karmaRaw : 0.0;
+        $warehouseMult = (new \App\Services\Player\WarehouseSellBonusService())->sellPriceMultiplier($characterId);
+        $code          = $gearSale->codeForKind($kind);
+
+        $typeRus = $this->translateType($category);
+        $text    = "Категория: *{$typeRus}*\n\n";
+
+        $keyboardButtons = [];
+        foreach ($items as $index => $item) {
+            $unit  = (int) round($gearSale->unitPrice($item['base_price'], $karma, $warehouseMult));
+            $text .= '– *' . ($index + 1) . '* ' . $item['name']
+                . ' | ' . $item['quantity'] . " ед. | {$unit}💰 за шт.\n";
+
+            $keyboardButtons[] = [
+                'text'          => (string) ($index + 1),
+                'callback_data' => "sellGearItem_{$code}_{$item['row_id']}",
+            ];
+        }
+
+        $text .= "\n_Торговец берёт экипировку по цене подержанной вещи — заметно ниже, "
+            . "чем стоит новая._\n"
+            . "_Надетое и трофеи с 🔒 в списке не показаны._\n\n"
+            . "_Что будешь продавать?_\n";
+
+        $keyboard   = array_chunk($keyboardButtons, 4);
+        $keyboard[] = [
+            ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+            ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+        ];
+        $keyboard[] = [
+            ['text' => '⬅️ Назад',   'callback_data' => 'sellCraft'],
+            ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+        ];
+
+        Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+        return MediaSender::editTextOrSend($this->navTarget() + [
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $keyboard]),
         ]);
     }

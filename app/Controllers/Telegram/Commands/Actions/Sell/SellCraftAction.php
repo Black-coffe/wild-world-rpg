@@ -35,25 +35,9 @@ class SellCraftAction extends BaseAction
             ]);
         }
 
-        // Проверка наличия хотя бы одного скрафченного ресурса у персонажа
         $craftedItemsLog = $this->craftedItemsLogModel
             ->where('character_id', $character['id'])
             ->findAll();
-
-        if (empty($craftedItemsLog)) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => 'У вас нет скрафченных ресурсов для продажи.',
-                'reply_markup' => json_encode([
-                    'inline_keyboard' => [
-                        [
-                            ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                            ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
-                        ],
-                    ],
-                ]),
-            ]);
-        }
 
         // Получение всех типов крафтовых предметов у персонажа
         $craftedItems = [];
@@ -68,6 +52,44 @@ class SellCraftAction extends BaseAction
                     ];
                 }
             }
+        }
+
+        // ADR-165 — виртуальные категории экипировки. Оружие и броня живут в
+        // `characters_weapons` / `characters_outfits` и в `crafted_items_log` не попадают
+        // НИКОГДА, поэтому источник списка здесь отдельный. Ранний return «нет скрафченных
+        // ресурсов» снят выше по этой же причине: игрок с полным арсеналом и пустым логом
+        // крафта не увидел бы ни одной категории.
+        $gearSale = new \App\Services\Economy\GearSaleService();
+        if ($gearSale->isEnabled()) {
+            $gearCategories = [
+                \App\Services\Economy\GearSaleService::CATEGORY_WEAPON => \App\Services\Economy\GearSaleService::KIND_WEAPON,
+                \App\Services\Economy\GearSaleService::CATEGORY_ARMOR  => \App\Services\Economy\GearSaleService::KIND_OUTFIT,
+            ];
+            foreach ($gearCategories as $category => $kind) {
+                if ($gearSale->hasSellable((int) $character['id'], $kind)) {
+                    $craftedItems[$category] = [
+                        'type'     => $category,
+                        'type_rus' => $this->translateType($category),
+                    ];
+                }
+            }
+        }
+
+        if (empty($craftedItems)) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text' => "Продавать пока нечего: ни крафта, ни свободной экипировки.\n\n"
+                    . "Надетое оружие и броня в продажу не идут — сними их в «Арсенале» или "
+                    . "«Гардеробе», если решил сбыть. Трофеи с меткой 🔒 торговец не берёт вовсе.",
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [
+                        [
+                            ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                            ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                        ],
+                    ],
+                ]),
+            ]);
         }
 
         // Формирование сообщения и кнопок
