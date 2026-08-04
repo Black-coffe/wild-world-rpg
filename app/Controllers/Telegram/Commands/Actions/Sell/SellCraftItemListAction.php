@@ -120,11 +120,16 @@ class SellCraftItemListAction extends BaseAction
      * цены предмета, карма и складской бонус — те же, что на крафте. Игрок не должен
      * узнавать реальную сумму только на экране подтверждения.
      *
-     * @param array<string,mixed> $character
+     * Тип параметра — `array|CharacterEntity`, а не `array`: `getUserAndCharacter()` отдаёт
+     * Entity, и строгий `array` даёт TypeError на живом вызове, которого не видно ни в
+     * unit-тестах, ни в phpstan (метод-источник не типизирован). Entity реализует
+     * ArrayAccess, поэтому обращение по ключу работает для обеих форм.
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
      */
     private function handleGear(
         int|string $chatId,
-        array $character,
+        array|\App\Entities\CharacterEntity $character,
         string $category,
         string $kind,
         \App\Services\Economy\GearSaleService $gearSale
