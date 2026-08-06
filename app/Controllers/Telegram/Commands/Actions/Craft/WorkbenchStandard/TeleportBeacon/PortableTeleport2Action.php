@@ -36,13 +36,11 @@ class PortableTeleport2Action extends BaseAction
 {
     private const IMAGE_REL = 'uploads/telegram/craft/standard/portable_teleport.jpg';
 
-    // 🔴 Имена НЕ повторяют свойства BaseAction (`characterModel`/`resourceModel`/
-    // `characterTaskModel`/`taskModel`): там они объявлены без типов, а типизированное
-    // переобъявление в наследнике — фатальная ошибка PHP, а не замечание линтера.
-    protected CharacterResourceModel $characterResourceModel;
+    // 🔴 Имя `charModel` НЕ повторяет `characterModel` из BaseAction: там свойство без
+    // типа, и типизированное переобъявление в наследнике — фатальная ошибка PHP.
+    // Модели для циклов создаются на каждой итерации: CI4 builder копит where()
+    // (memory feedback_ci4_model_builder_state_quirk).
     protected CharacterModel $charModel;
-    protected CraftedItemsModel $craftedItemsModel;
-    protected CraftedItemsLogModel $craftedItemsLogModel;
     protected BuildingModel $buildingModel;
     protected CharacterBuildingModel $characterBuildingModel;
     protected ClaimedCellModel $claimedCellModel;
@@ -51,10 +49,7 @@ class PortableTeleport2Action extends BaseAction
     public function __construct(CallbackQuery $callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->characterResourceModel = new CharacterResourceModel();
         $this->charModel              = new CharacterModel();
-        $this->craftedItemsModel      = new CraftedItemsModel();
-        $this->craftedItemsLogModel   = new CraftedItemsLogModel();
         $this->buildingModel          = new BuildingModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
         $this->claimedCellModel       = new ClaimedCellModel();
@@ -99,8 +94,7 @@ class PortableTeleport2Action extends BaseAction
         }
 
         $goldCost   = $this->recipe->goldCost();
-        $charRow    = $this->charModel->find($characterId);
-        $goldHave   = (is_array($charRow) && is_numeric($charRow['gold'] ?? null)) ? (int) $charRow['gold'] : 0;
+        $goldHave   = self::goldOf($this->charModel->find($characterId));
         $lines      = [];
         $canCraft   = true;
 
@@ -195,6 +189,27 @@ class PortableTeleport2Action extends BaseAction
         return null;
     }
 
+
+    /**
+     * Золото персонажа из строки `characters`. 🔴 `CharacterModel::find()` возвращает
+     * **CharacterEntity**, а не массив (ArrayAccess у неё есть, но `is_array()` — false).
+     * Проверка «только is_array» тихо давала 0 золота и роняла крафт в
+     * «не хватает материалов» — поймано Tier-3 смоуком на testbot 2026-08-06
+     * (memory feedback_entity_strict_array_typehint_trap).
+     */
+    private static function goldOf(mixed $charRow): int
+    {
+        if ($charRow instanceof \App\Entities\CharacterEntity) {
+            $raw = $charRow->gold;
+        } elseif (is_array($charRow)) {
+            $raw = $charRow['gold'] ?? null;
+        } else {
+            return 0;
+        }
+
+        return is_numeric($raw) ? (int) $raw : 0;
+    }
+
     private function ownsBuilding(int $characterId, string $nameEn): bool
     {
         $building = $this->buildingModel->where('name_en', $nameEn)->first();
@@ -227,7 +242,9 @@ class PortableTeleport2Action extends BaseAction
 
     private function resourceQuantity(int $characterId, string $name): int
     {
-        $row = $this->characterResourceModel->getResourceByNameAndCharacterId($name, $characterId);
+        // Свежий инстанс: CI4 builder копит where() между вызовами в цикле
+        // (memory feedback_ci4_model_builder_state_quirk).
+        $row = (new CharacterResourceModel())->getResourceByNameAndCharacterId($name, $characterId);
         $qty = is_array($row) ? ($row['quantity'] ?? 0) : 0;
 
         return is_numeric($qty) ? (int) $qty : 0;
@@ -235,13 +252,13 @@ class PortableTeleport2Action extends BaseAction
 
     private function componentQuantity(int $characterId, string $name): int
     {
-        $item  = $this->craftedItemsModel->getCraftedItemByName($name);
+        $item  = (new CraftedItemsModel())->getCraftedItemByName($name);
         $idRaw = is_array($item) ? ($item['id'] ?? null) : null;
         if (! is_numeric($idRaw)) {
             return 0;
         }
 
-        $log = $this->craftedItemsLogModel
+        $log = (new CraftedItemsLogModel())
             ->where('crafted_item_id', (int) $idRaw)
             ->where('character_id', $characterId)
             ->first();

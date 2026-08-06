@@ -35,17 +35,15 @@ use Longman\TelegramBot\Request;
  */
 class StartCraftPortableTeleport2Action extends BaseAction
 {
-    // 🔴 Имена НЕ повторяют свойства BaseAction (`characterModel`/`resourceModel`/
-    // `characterTaskModel`/`taskModel`): там они без типов, и типизированное
-    // переобъявление в наследнике — фатальная ошибка PHP.
-    protected CharacterResourceModel $characterResourceModel;
-    protected ResourceModel $resModel;
+    // 🔴 Имена НЕ повторяют свойства BaseAction (`characterModel`/`characterTaskModel`/
+    // `taskModel`): там они без типов, и типизированное переобъявление в наследнике —
+    // фатальная ошибка PHP. Модели, которые нужны ВНУТРИ циклов, здесь намеренно НЕ
+    // хранятся: CI4 builder копит where() между вызовами, поэтому они создаются
+    // заново на каждой итерации (memory feedback_ci4_model_builder_state_quirk).
     protected CharacterModel $charModel;
     protected BuildingModel $buildingModel;
     protected CharacterBuildingModel $characterBuildingModel;
     protected ClaimedCellModel $claimedCellModel;
-    protected CraftedItemsLogModel $craftedItemsLogModel;
-    protected CraftedItemsModel $craftedItemsModel;
     protected CharacterTaskModel $charTaskModel;
     protected TaskModel $taskRegistryModel;
     protected PortableTeleportRecipe $recipe;
@@ -53,14 +51,10 @@ class StartCraftPortableTeleport2Action extends BaseAction
     public function __construct(CallbackQuery $callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->characterResourceModel = new CharacterResourceModel();
-        $this->resModel               = new ResourceModel();
         $this->charModel              = new CharacterModel();
         $this->buildingModel          = new BuildingModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
         $this->claimedCellModel       = new ClaimedCellModel();
-        $this->craftedItemsLogModel   = new CraftedItemsLogModel();
-        $this->craftedItemsModel      = new CraftedItemsModel();
         $this->charTaskModel          = new CharacterTaskModel();
         $this->taskRegistryModel      = new TaskModel();
         $this->recipe                 = new PortableTeleportRecipe();
@@ -211,7 +205,10 @@ class StartCraftPortableTeleport2Action extends BaseAction
         $missing = [];
 
         foreach ($this->recipe->resources() as $name => $need) {
-            $row  = $this->characterResourceModel->getResourceByNameAndCharacterId($name, $characterId);
+            // Свежий инстанс на итерацию: CI4 builder копит where() между вызовами —
+            // со второго ресурса условия складываются и запрос возвращает пусто
+            // (memory feedback_ci4_model_builder_state_quirk).
+            $row  = (new CharacterResourceModel())->getResourceByNameAndCharacterId($name, $characterId);
             $have = (is_array($row) && is_numeric($row['quantity'] ?? null)) ? (int) $row['quantity'] : 0;
             if ($have < $need) {
                 $missing[] = "{$name}: есть {$have}, нужно {$need}";
@@ -219,11 +216,11 @@ class StartCraftPortableTeleport2Action extends BaseAction
         }
 
         foreach ($this->recipe->components() as $name => $need) {
-            $item  = $this->craftedItemsModel->getCraftedItemByName($name);
+            $item  = (new CraftedItemsModel())->getCraftedItemByName($name);
             $idRaw = is_array($item) ? ($item['id'] ?? null) : null;
             $have  = 0;
             if (is_numeric($idRaw)) {
-                $log  = $this->craftedItemsLogModel
+                $log  = (new CraftedItemsLogModel())
                     ->where('crafted_item_id', (int) $idRaw)
                     ->where('character_id', $characterId)
                     ->first();
@@ -234,13 +231,33 @@ class StartCraftPortableTeleport2Action extends BaseAction
             }
         }
 
-        $charRow = $this->charModel->find($characterId);
-        $gold    = (is_array($charRow) && is_numeric($charRow['gold'] ?? null)) ? (int) $charRow['gold'] : 0;
+        $gold = self::goldOf($this->charModel->find($characterId));
         if ($gold < $this->recipe->goldCost()) {
             $missing[] = "Золото: есть {$gold}, нужно {$this->recipe->goldCost()}";
         }
 
         return $missing;
+    }
+
+
+    /**
+     * Золото персонажа из строки `characters`. 🔴 `CharacterModel::find()` возвращает
+     * **CharacterEntity**, а не массив (ArrayAccess у неё есть, но `is_array()` — false).
+     * Проверка «только is_array» тихо давала 0 золота и роняла крафт в
+     * «не хватает материалов» — поймано Tier-3 смоуком на testbot 2026-08-06
+     * (memory feedback_entity_strict_array_typehint_trap).
+     */
+    private static function goldOf(mixed $charRow): int
+    {
+        if ($charRow instanceof \App\Entities\CharacterEntity) {
+            $raw = $charRow->gold;
+        } elseif (is_array($charRow)) {
+            $raw = $charRow['gold'] ?? null;
+        } else {
+            return 0;
+        }
+
+        return is_numeric($raw) ? (int) $raw : 0;
     }
 
     /** @return array<int|string,mixed>|null */
@@ -290,37 +307,66 @@ class StartCraftPortableTeleport2Action extends BaseAction
             ->first() !== null;
     }
 
+    /**
+     * Списание сырья. 🔴 `ResourceModel::getResourceByName()` возвращает **ResourceEntity**,
+     * а не массив — проверка через `is_array()` молча пропускала все ресурсы, и сборка
+     * уходила бесплатной по материалам (поймано Tier-3 смоуком 2026-08-06).
+     *
+     * Списываем builder-выражением `quantity - N` (атомарно), а НЕ через
+     * `CharacterResourceModel::deductResource()`: тот читает строку джойном
+     * `character_resources.*, resources.*`, где `resources.id` затирает id строки, и
+     * обновляет чужую запись.
+     */
     private function chargeResources(int $characterId): void
     {
         foreach ($this->recipe->resources() as $name => $qty) {
-            $row   = $this->resModel->getResourceByName($name);
-            $idRaw = is_array($row) ? ($row['id'] ?? null) : null;
-            if (! is_numeric($idRaw)) {
+            $resourceId = self::idOf((new ResourceModel())->getResourceByName($name));
+            if ($resourceId <= 0) {
+                log_message('error', "[PortableTeleport] ресурс «{$name}» не найден в справочнике — списание пропущено.");
+
                 continue;
             }
             // Свежий инстанс модели на итерацию — CI4 builder копит where()
             // (memory feedback_ci4_model_builder_state_quirk).
             (new CharacterResourceModel())
                 ->where('id_characters', $characterId)
-                ->where('id_resources', (int) $idRaw)
+                ->where('id_resources', $resourceId)
                 ->set('quantity', 'quantity - ' . $qty, false)
                 ->update();
         }
     }
 
+    /** id строки из Entity или массива (mixed → int, phpstan L9). */
+    private static function idOf(mixed $row): int
+    {
+        if (is_object($row) && isset($row->id) && is_numeric($row->id)) {
+            return (int) $row->id;
+        }
+        if (is_array($row) && is_numeric($row['id'] ?? null)) {
+            return (int) $row['id'];
+        }
+
+        return 0;
+    }
+
+    /**
+     * Списание компонентов через канонический `deductCraftedItem` (транзакция + проверка
+     * достаточности + удаление пустой строки). Builder-выражение `quantity - N` здесь
+     * НЕ работает: `CraftedItemsLogModel::update()` с raw-set возвращает false и запрос
+     * не уходит — соседний `StartCraftTeleportBackpack2Action` этим и страдает.
+     */
     private function chargeComponents(int $characterId): void
     {
         foreach ($this->recipe->components() as $name => $qty) {
-            $item  = $this->craftedItemsModel->getCraftedItemByName($name);
-            $idRaw = is_array($item) ? ($item['id'] ?? null) : null;
-            if (! is_numeric($idRaw)) {
+            $itemId = self::idOf((new CraftedItemsModel())->getCraftedItemByName($name));
+            if ($itemId <= 0) {
+                log_message('error', "[PortableTeleport] компонент «{$name}» не найден в crafted_items — списание пропущено.");
+
                 continue;
             }
-            (new CraftedItemsLogModel())
-                ->where('character_id', $characterId)
-                ->where('crafted_item_id', (int) $idRaw)
-                ->set('quantity', 'quantity - ' . $qty, false)
-                ->update();
+            if (! (new CraftedItemsLogModel())->deductCraftedItem($itemId, $characterId, $qty)) {
+                log_message('error', "[PortableTeleport] не удалось списать «{$name}» x{$qty} у персонажа {$characterId}.");
+            }
         }
     }
 

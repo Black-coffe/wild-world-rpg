@@ -96,16 +96,15 @@ class CraftCompletionPortableTeleportHandler extends BaseTaskHandler
             ->first();
 
         if (is_array($existing)) {
-            $qty = is_numeric($existing['quantity'] ?? null) ? (int) $existing['quantity'] : 0;
+            $qty   = is_numeric($existing['quantity'] ?? null) ? (int) $existing['quantity'] : 0;
             $rowId = is_numeric($existing['id'] ?? null) ? (int) $existing['id'] : 0;
 
-            // Заряды у стака не суммируем сверх базы: устройство одно, зарядов у него
-            // ровно столько, сколько даёт рецепт (memory feedback_stack_merge_must_clamp_to_base).
-            $durability = is_numeric($existing['durability_count'] ?? null) ? (int) $existing['durability_count'] : 0;
-            $this->craftedItemsLogModel->update($rowId, [
-                'quantity'         => $qty + 1,
-                'durability_count' => max($durability, $this->recipe->charges()),
-            ]);
+            // 🔴 Заряды стака НЕ трогаем. `durability_count` — счётчик устройства, которое
+            // сейчас в руках; второе устройство просто ждёт своей очереди, а его полный
+            // запас проставит TeleportItemConsumer при переходе к следующему экземпляру.
+            // Ни суммировать, ни поднимать до базы нельзя — это печатало бы заряды
+            // (memory feedback_stack_merge_must_clamp_to_base).
+            $this->craftedItemsLogModel->update($rowId, ['quantity' => $qty + 1]);
 
             return $qty + 1;
         }
