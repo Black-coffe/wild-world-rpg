@@ -136,14 +136,19 @@ class SellGearConfirmAction extends BaseAction
         $warehouseMult = (new WarehouseSellBonusService())->sellPriceMultiplier($characterId);
         $pricing       = new TradePricingService();
 
-        $unitPrice  = $gearSale->unitPrice($item['base_price'], $karma, $warehouseMult, $pricing);
-        $totalPrice = $unitPrice * $quantity;
+        $unitPrice = $gearSale->unitPrice($item['base_price'], $karma, $warehouseMult, $pricing);
 
-        $limits = new VendorDailyLimitService();
-        if (! $limits->allows($characterId, $totalPrice)) {
+        // Количество зажимается по остатку суточного лимита (пол — 1 шт): зеркально
+        // крафту, лимит общий на оба прилавка.
+        $limits       = new VendorDailyLimitService();
+        $requestedQty = $quantity;
+        $quantity     = $limits->allowedQuantity($characterId, $quantity, $unitPrice);
+        $totalPrice   = $unitPrice * $quantity;
+
+        if ($quantity <= 0) {
             $db->transRollback();
             $this->logRejected($characterId, 'SELL_GEAR', 'daily_buyback_cap', [
-                'requested' => round($totalPrice),
+                'requested' => $requestedQty,
                 'sold_24h'  => round($limits->soldLast24h($characterId)),
             ]);
 
@@ -216,6 +221,14 @@ class SellGearConfirmAction extends BaseAction
             . "Ты продал: *{$item['name']}*\n"
             . "В количестве: *{$quantity}* шт.{$leftText}\n"
             . "И заработал: *{$earned}* 💰";
+
+        // Урезанную лимитом сделку называем прямо — иначе «продал 5, ушло 2» читается
+        // как пропажа вещей.
+        if ($quantity < $requestedQty) {
+            $kept  = $requestedQty - $quantity;
+            $text .= "\n\n🛒 _Ты предлагал {$requestedQty} шт., но на сегодня у торговца хватило монет "
+                . "только на {$quantity}. Оставшиеся {$kept} шт. остались у тебя._";
+        }
 
         $backCb = $kind === GearSaleService::KIND_WEAPON
             ? 'sellCraftList_' . GearSaleService::CATEGORY_WEAPON

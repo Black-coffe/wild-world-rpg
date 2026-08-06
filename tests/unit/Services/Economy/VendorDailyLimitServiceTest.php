@@ -160,17 +160,48 @@ final class VendorDailyLimitServiceTest extends CIUnitTestCase
     }
 
     /**
-     * Замер прода 2026-08-06: персонаж 1115 проносит «Верстак 1» ×5 = 660 000 одной
-     * сделкой через потолок 50 000 — потому что стек уходит целиком. Фиксируем дыру
-     * тестом, чтобы её закрытие было осознанным балансовым решением, а не сюрпризом.
+     * 🔴 Регрессия прод-дыры (замер 2026-08-06): персонаж 1115 проносил «Верстак 1»
+     * ×5 = 660 000 одной сделкой через потолок 50 000, потому что стек уходил целиком.
+     * Закрыто зажимом количества (решение владельца) — сделка режется до остатка.
      */
-    public function testWholeStackOvershootsCapInOneDeal(): void
+    public function testStackIsClampedToRemainingBudget(): void
     {
-        $svc = $this->service(0.0);
+        $unit = 132000.0; // «Верстак 1» на момент замера
 
-        $this->assertTrue($svc->allows(1, 660000.0), 'стек уходит целиком — потолок сделку не режет');
-        // После неё дверь закрыта, но 13 потолков уже прошли.
-        $this->assertFalse($this->service(660000.0)->allows(1, 1.0));
+        // Чистые сутки: потолок 50 000 не вмещает даже одну штуку — берём ровно одну.
+        $this->assertSame(1, $this->service(0.0)->allowedQuantity(1, 5, $unit));
+
+        // Дешёвый стек режется по остатку: 50 000 / 300 = 166 штук из 500 запрошенных.
+        $this->assertSame(166, $this->service(0.0)->allowedQuantity(1, 500, 300.0));
+
+        // Помещается целиком — не трогаем.
+        $this->assertSame(5, $this->service(0.0)->allowedQuantity(1, 5, 300.0));
+    }
+
+    /**
+     * Пол в одну штуку — то, ради чего дыру и оставляли: без него владелец дорогой
+     * штучной вещи отрезан от лавки навсегда, разбить её на части нельзя.
+     */
+    public function testExpensiveSingleItemStillSellsWhileBudgetRemains(): void
+    {
+        $this->assertSame(1, $this->service(49999.0)->allowedQuantity(1, 1, 132000.0));
+        $this->assertSame(1, $this->service(49999.0)->allowedQuantity(1, 9, 132000.0));
+
+        // Но ровно одну: перерасход ограничен ценой ОДНОГО предмета.
+        $this->assertSame(0, $this->service(50000.0)->allowedQuantity(1, 9, 132000.0));
+    }
+
+    public function testClampEdgeCases(): void
+    {
+        $this->assertSame(0, $this->service(0.0)->allowedQuantity(1, 0, 100.0), 'нулевой запрос');
+        $this->assertSame(0, $this->service(0.0)->allowedQuantity(1, -3, 100.0), 'отрицательный запрос');
+        // Бесплатный предмет золота не тратит — лимит к нему не применяется.
+        $this->assertSame(7, $this->service(49999.0)->allowedQuantity(1, 7, 0.0));
+        // Killswitch снимает зажим целиком.
+        $this->assertSame(
+            500,
+            $this->service(10_000_000.0, [VendorDailyLimitService::KEY_ENABLED => false])->allowedQuantity(1, 500, 300.0)
+        );
     }
 
     /**
@@ -221,17 +252,35 @@ final class VendorDailyLimitServiceTest extends CIUnitTestCase
     }
 
     /**
-     * 🔴 Подсказка НЕ должна обещать зажим количества: сделка проходит целиком.
-     * Число «осталось N» на экране означало бы обещание, которого сделка не держит.
+     * 🔴 Подсказка обязана описывать РЕАЛЬНОЕ поведение сделки. После зажима она
+     * называет остаток и прямо говорит, что лишнее останется у игрока — раньше
+     * (когда стек уходил целиком) она обещала обратное.
      */
-    public function testBudgetHintShowsRunningTotalNotAPromiseOfClamping(): void
+    public function testBudgetHintMatchesClampingBehaviour(): void
     {
         $hint = $this->service(40000.0)->budgetHint(1);
 
-        $this->assertStringContainsString('40000', $hint);
-        $this->assertStringContainsString('50000', $hint);
-        $this->assertStringContainsString('целиком', $hint, 'игрок должен знать, что сделка не режется');
+        $this->assertStringContainsString('40000', $hint, 'сколько уже отдал');
+        $this->assertStringContainsString('50000', $hint, 'потолок');
+        $this->assertStringContainsString('10000', $hint, 'остаток — то, чем зажмётся сделка');
+        $this->assertStringContainsString('останется у тебя', $hint, 'зажим должен быть назван');
+        $this->assertStringNotContainsString('целиком', $hint, 'старое обещание противоречит зажиму');
         $this->assertSame(0, substr_count($hint, '*') % 2, 'непарные звёздочки ломают Markdown');
+    }
+
+    /**
+     * Анти-дрейф: сделки обязаны зажимать количество, а не только спрашивать «открыто ли».
+     */
+    public function testConfirmScreensClampQuantity(): void
+    {
+        foreach (['SellCraftConfirmAction', 'SellGearConfirmAction'] as $screen) {
+            $source = (string) file_get_contents(
+                APPPATH . "Controllers/Telegram/Commands/Actions/Sell/{$screen}.php"
+            );
+
+            $this->assertStringContainsString('allowedQuantity(', $source, "{$screen} не зажимает количество");
+            $this->assertStringContainsString('requestedQty', $source, "{$screen} не помнит запрошенное");
+        }
     }
 
     public function testBudgetHintAnnouncesClosureWithTimeWhenCapSpent(): void

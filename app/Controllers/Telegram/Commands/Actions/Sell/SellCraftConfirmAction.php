@@ -108,24 +108,30 @@ class SellCraftConfirmAction extends BaseAction
             (float) $charRefresh['trading_karma'],
             $warehouseMult
         );
-        $totalPrice = $price * $quantity;
-
         // ADR-157 шаг 2: суточный лимит выкупа. У части рецептов ВСЕ входы покупаются
         // у того же торговца (сырьё продаётся без лимита стока), поэтому цикл
         // «закупил вход → скрафтил → сдал» приносил прибыль без потолка. Правка цен
         // обрушила бы доход честных поваров — вместо этого ограничен дневной оборот
         // одного выжившего.
-        $limits = new \App\Services\Economy\VendorDailyLimitService();
-        if (! $limits->allows((int) $character['id'], (float) $totalPrice)) {
+        //
+        // Количество зажимается по остатку лимита (пол — 1 шт, решение владельца
+        // 2026-08-06): раньше стек уходил целиком и «Верстак 1» ×5 проносил через
+        // потолок 660 000 одной сделкой.
+        $limits        = new \App\Services\Economy\VendorDailyLimitService();
+        $requestedQty  = $quantity;
+        $quantity      = $limits->allowedQuantity((int) $character['id'], $quantity, $price);
+        $totalPrice    = $price * $quantity;
+
+        if ($quantity <= 0) {
             $db->transRollback();
             $this->logRejected($character['id'], 'SELL_CRAFT', 'daily_buyback_cap', [
-                'requested' => round($totalPrice),
+                'requested' => $requestedQty,
                 'sold_24h'  => round($limits->soldLast24h((int) $character['id'])),
             ]);
 
             return Request::sendMessage([
                 'chat_id'    => $chatId,
-                'text'       => $limits->refusalText((int) $character['id'], 'товар'),
+                'text'       => $limits->refusalText((int) $character['id'], 'Твой товар никуда не делся.'),
                 'parse_mode' => 'Markdown',
                 'reply_markup' => json_encode(['inline_keyboard' => [[
                     ['text' => '🛒 Магазин',   'callback_data' => 'shop'],
@@ -186,8 +192,14 @@ class SellCraftConfirmAction extends BaseAction
             ]);
         }
 
-        // Отправка сообщения игроку
+        // Отправка сообщения игроку. Если лимит урезал сделку — сказать об этом прямо:
+        // молча продать 2 вместо 5 значит оставить игрока думать, что пропали три.
         $text = "*Поздравляю с продажей*\n\nТы продал: *{$itemName}*\nВ количестве: *{$quantity}* штук\nИ заработал денег: *{$totalPrice}$*";
+        if ($quantity < $requestedQty) {
+            $left  = $requestedQty - $quantity;
+            $text .= "\n\n🛒 _Ты предлагал {$requestedQty} шт., но на сегодня у торговца хватило монет "
+                . "только на {$quantity}. Оставшиеся {$left} шт. остались у тебя._";
+        }
         $keyboardButtons = [];
 
         // Arseny report 2026-05-26 (хвост): после продажи — возврат в список той же
