@@ -131,8 +131,9 @@ class BuyCraftConfirmAction extends BaseAction
 
         // ADR-157: цена считается единым сервисом (карма зажата; пол множителя
         // покупки гарантирует, что круг «купил → продал» всегда убыточен).
+        // Через CraftTradeService — тот же вызов, что делают экраны списка и карточки.
         $basePrice = (float) $saleItem['price'];
-        $price = (new \App\Services\Economy\TradePricingService())->buyUnitPrice(
+        $price = (new \App\Services\Economy\CraftTradeService())->buyUnitPrice(
             $basePrice,
             (float) $charRefresh['trading_karma']
         );

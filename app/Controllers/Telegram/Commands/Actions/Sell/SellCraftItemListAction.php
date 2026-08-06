@@ -75,11 +75,23 @@ class SellCraftItemListAction extends BaseAction
         // Перевод типа предмета на русский
         $typeRus = $this->translateType($type);
 
+        // Показываем ту же цену, которую заплатит торговец: карма и складской бонус —
+        // те же, что в сделке. Раньше здесь печаталось сырое `crafted_items.price`,
+        // а платил SellCraftConfirmAction всегда МЕНЬШЕ (потолок множителя 1.0 плюс
+        // инвариант спреда) — см. CraftTradeService.
+        $craftTrade    = new \App\Services\Economy\CraftTradeService();
+        $characterId   = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $karma         = $craftTrade->karmaOf($character);
+        $warehouseMult = $craftTrade->warehouseMultiplier($characterId);
+
         // Формирование сообщения и кнопок
         $text = "Категория: *{$typeRus}*\n\n";
         foreach ($craftedItems as $index => $item) {
-            $text .= "– *" . ($index + 1) . "* " . $item['name'] . " | " . $item['quantity'] . " ед. | " . $item['price'] . "💰\n";
+            $basePrice = is_numeric($item['price']) ? (float) $item['price'] : 0.0;
+            $unit      = $craftTrade->displaySellPrice($basePrice, $karma, $warehouseMult);
+            $text .= "– *" . ($index + 1) . "* " . $item['name'] . " | " . $item['quantity'] . " ед. | {$unit}💰 за шт.\n";
         }
+        $text .= "\n" . $craftTrade->sellPriceHint($warehouseMult) . "\n";
         $text .= "\n_Что будешь продавать?_\n";
 
         // Формирование кнопок с цифрами по 4 в ряд

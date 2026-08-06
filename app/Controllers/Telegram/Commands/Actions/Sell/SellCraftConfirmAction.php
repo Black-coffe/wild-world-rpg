@@ -99,8 +99,11 @@ class SellCraftConfirmAction extends BaseAction
         // цена, инвариант «продажа дешевле покупки» применяется последним).
         // ADR-085: мягкий бонус цены владельцам Склада — как внешний множитель,
         // поверх которого инвариант всё равно срабатывает.
-        $warehouseMult = (new \App\Services\Player\WarehouseSellBonusService())->sellPriceMultiplier((int) $character['id']);
-        $price = (new \App\Services\Economy\TradePricingService())->sellUnitPrice(
+        // Через CraftTradeService — тот же вызов, что делают экраны списка и карточки:
+        // показанное число и выплата обязаны совпадать по построению, а не по совпадению.
+        $craftTrade    = new \App\Services\Economy\CraftTradeService();
+        $warehouseMult = $craftTrade->warehouseMultiplier((int) $character['id']);
+        $price = $craftTrade->sellUnitPrice(
             $basePrice,
             (float) $charRefresh['trading_karma'],
             $warehouseMult

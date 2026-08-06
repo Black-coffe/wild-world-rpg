@@ -56,26 +56,53 @@ class SellCraftItemAction extends BaseAction
         // Получение информации о предмете
         $craftedItem = $this->craftedItemsModel->find($craftedItemId);
         $itemName = $craftedItem['name_rus'];
-        $itemQuantity = $craftedItemLog['quantity'];
-        $itemPrice = $craftedItem['price'];
+        $rawQuantity  = $craftedItemLog['quantity'] ?? 0;
+        $itemQuantity = is_numeric($rawQuantity) ? (int) $rawQuantity : 0;
+
+        // Цена — реальная выплата торговца (карма + складской бонус + инвариант спреда),
+        // а не сырое `crafted_items.price`. Единая формула на все экраны лавки —
+        // см. CraftTradeService; тот же приём, что у экипировки в ADR-165.
+        $craftTrade    = new \App\Services\Economy\CraftTradeService();
+        $characterId   = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $karma         = $craftTrade->karmaOf($character);
+        $warehouseMult = $craftTrade->warehouseMultiplier($characterId);
+        $rawPrice      = $craftedItem['price'] ?? 0;
+        $basePrice     = is_numeric($rawPrice) ? (float) $rawPrice : 0.0;
+
+        $itemPrice  = $craftTrade->displaySellPrice($basePrice, $karma, $warehouseMult);
         $totalPrice = $itemPrice * $itemQuantity;
 
         // Формирование сообщения и кнопок
         $text = "Ты собираешься продать:\n";
         $text .= "*Предмет:* _{$itemName}_\n";
         $text .= "*В наличии:* {$itemQuantity} штук\n";
-        $text .= "*Стоимость одного:* {$itemPrice} 💰\n";
-        $text .= "*Стоимость всех:* {$totalPrice} 💰\n";
+        $text .= "*Дадут за одну:* {$itemPrice} 💰\n";
+        $text .= "*Дадут за все:* {$totalPrice} 💰\n";
+        $text .= "\n" . $craftTrade->sellPriceHint($warehouseMult) . "\n";
         $text .= "\n_Укажи желаемое количество на продажу:_\n";
 
-        $keyboardButtons = [
-            ['text' => '1 шт', 'callback_data' => 'sellCraftConfirm_1_' . $craftedItemId],
-            ['text' => '5 шт', 'callback_data' => 'sellCraftConfirm_5_' . $craftedItemId],
-            ['text' => '10 шт', 'callback_data' => 'sellCraftConfirm_10_' . $craftedItemId],
-            ['text' => '50 шт', 'callback_data' => 'sellCraftConfirm_50_' . $craftedItemId],
-        ];
+        // Кнопки только на то количество, которое реально есть: раньше «50 шт» висела
+        // при двух предметах в сумке и приводила к отказу «нет достаточного количества».
+        // Экипировка так не делает (SellGearItemAction) — выравниваем.
+        $keyboardButtons = [];
+        foreach ([1, 5, 10, 50] as $qty) {
+            if ($qty > $itemQuantity) {
+                continue;
+            }
+            $keyboardButtons[] = [
+                'text'          => "{$qty} шт",
+                'callback_data' => 'sellCraftConfirm_' . $qty . '_' . $craftedItemId,
+            ];
+        }
+        // «Все N» — чтобы некруглый остаток не пришлось добивать по одной штуке.
+        if ($itemQuantity > 1 && ! in_array($itemQuantity, [1, 5, 10, 50], true)) {
+            $keyboardButtons[] = [
+                'text'          => "Все {$itemQuantity} шт",
+                'callback_data' => 'sellCraftConfirm_' . $itemQuantity . '_' . $craftedItemId,
+            ];
+        }
 
-        $keyboard = array_chunk($keyboardButtons, 4);
+        $keyboard = $keyboardButtons === [] ? [] : array_chunk($keyboardButtons, 3);
         // Arseny report 2026-05-26: «Нужна кнопка назад» — шаг назад на список той же категории
         // (а не на старт sellCraft через 2 шага). type берём из crafted_item.
         $rawType    = $craftedItem['type'] ?? '';

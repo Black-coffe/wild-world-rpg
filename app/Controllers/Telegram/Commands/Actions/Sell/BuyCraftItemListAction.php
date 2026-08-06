@@ -100,14 +100,24 @@ class BuyCraftItemListAction extends BaseAction
         $text = "*Ты собираешься купить:*\n";
         $text .= "Направление: {$typeRus}\n";
 
+        // Показываем ту цену, которую реально спишут: BuyCraftConfirmAction берёт
+        // `base × buyMultiplier`, а у множителя покупки ПОЛ 1.25 — то есть сырое
+        // `sales.price` занижало счёт минимум на четверть (см. CraftTradeService).
+        $craftTrade = new \App\Services\Economy\CraftTradeService();
+        $karma      = $craftTrade->karmaOf($character);
+
         $keyboardButtons = [];
         foreach ($craftedItemsList as $index => $item) {
-            $text .= "- *№" . ($index + 1) . "* / _" . $item['name'] . "_ / *" . $item['quantity'] . "* в наличии / *" . $item['price'] . " 💰* за шт.\n";
+            $basePrice = is_numeric($item['price']) ? (float) $item['price'] : 0.0;
+            $unit      = $craftTrade->displayBuyPrice($basePrice, $karma);
+            $text .= "- *№" . ($index + 1) . "* / _" . $item['name'] . "_ / *" . $item['quantity'] . "* в наличии / *" . $unit . " 💰* за шт.\n";
             $keyboardButtons[] = [
                 'text' => (string)($index + 1),
                 'callback_data' => 'buyCraftItem_' . $item['id']
             ];
         }
+
+        $text .= "\n" . $craftTrade->buyPriceHint() . "\n";
 
         $keyboardButtons[] = ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'];
         $keyboardButtons[] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];
