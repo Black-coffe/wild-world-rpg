@@ -124,11 +124,13 @@ class SellCraftConfirmAction extends BaseAction
             ]);
 
             return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text'    => "🛒 Торговец выворачивает пустые карманы: *монеты на сегодня кончились*.\n\n"
-                    . "Он скупает у одного выжившего ограниченно — приходи, когда разживётся "
-                    . "деньгами. Твой товар никуда не делся.",
+                'chat_id'    => $chatId,
+                'text'       => $limits->refusalText((int) $character['id'], 'товар'),
                 'parse_mode' => 'Markdown',
+                'reply_markup' => json_encode(['inline_keyboard' => [[
+                    ['text' => '🛒 Магазин',   'callback_data' => 'shop'],
+                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                ]]]),
             ]);
         }
 

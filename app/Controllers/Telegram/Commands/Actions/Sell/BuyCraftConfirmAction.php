@@ -4,35 +4,26 @@ namespace App\Controllers\Telegram\Commands\Actions\Sell;
 
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
-use App\Models\CharacterModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\SalesModel;
 use App\Models\TransactionModel;
-use App\Models\CharacterBuildingModel;
-use App\Models\BuildingModel;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 
 class BuyCraftConfirmAction extends BaseAction
 {
-    protected $characterModel;
     protected $craftedItemsLogModel;
     protected $craftedItemsModel;
     protected $salesModel;
     protected $transactionModel;
-    protected $characterBuildingModel;
-    protected $buildingModel;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->characterModel = new CharacterModel();
         $this->craftedItemsLogModel = new CraftedItemsLogModel();
         $this->craftedItemsModel = new CraftedItemsModel();
         $this->salesModel = new SalesModel();
         $this->transactionModel = new TransactionModel();
-        $this->characterBuildingModel = new CharacterBuildingModel();
-        $this->buildingModel = new BuildingModel();
     }
 
     public function handle(): ServerResponse
@@ -47,32 +38,21 @@ class BuyCraftConfirmAction extends BaseAction
             ]);
         }
 
-        if ($character['gold'] < 1000) {
-            $this->logRejected($character['id'], 'BUY_CRAFT', 'min_gold_threshold', ['gold' => $character['gold']]);
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => 'Для торговли необходимо иметь не менее 1000 золотых монет.',
-            ]);
-        }
+        // Гейты входа — единым сервисом (см. CraftShopGate): порог золота здесь был
+        // константой 1000, то есть последний экран мог отказать после того, как
+        // предыдущие с живой настройкой пропустили.
+        $gate = (new \App\Services\Economy\CraftShopGate())->check($character);
+        if ($gate !== null) {
+            $this->logRejected($character['id'], 'BUY_CRAFT', $gate['reason'], ['gold' => $character['gold'] ?? 0]);
 
-        $warehouseBuilding = $this->buildingModel->where('name_en', 'Warehouse')->first();
-        if (!$warehouseBuilding) {
             return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => 'Ошибка: постройка "Склад" не найдена в базе данных.',
-            ]);
-        }
-
-        $characterWarehouse = $this->characterBuildingModel
-            ->where('character_id', $character['id'])
-            ->where('building_id', $warehouseBuilding['id'])
-            ->first();
-
-        if (!$characterWarehouse) {
-            $this->logRejected($character['id'], 'BUY_CRAFT', 'no_warehouse');
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => 'Для покупки крафтовых предметов, необходимо иметь постройку "Склад".',
+                'chat_id'      => $chatId,
+                'text'         => $gate['text'],
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode(['inline_keyboard' => [[
+                    ['text' => '🛒 Магазин',   'callback_data' => 'shop'],
+                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                ]]]),
             ]);
         }
 

@@ -105,6 +105,13 @@ class VendorDailyLimitService
      * пути обхода. Перерасход ограничен стоимостью одного предмета, поток всё
      * равно упирается в потолок.
      *
+     * ⚠️ Перерасход ограничен стоимостью одного предмета только при продаже ПО
+     * ОДНОМУ. Стек уходит целиком, поэтому «Верстак 1» ×5 проносит через потолок
+     * 660 000 одной сделкой (замер прода 2026-08-06: персонаж 1115 делает ровно
+     * такую сделку раз в сутки). Это известная дыра конструкции, а не поломка;
+     * закрывать её — балансовое решение (частичный выкуп либо зажим количества),
+     * оно требует отдельного прохода через фреймворк валидации.
+     *
      * `$amount` в расчёте не участвует и оставлен для читаемости вызова.
      */
     public function allows(int $characterId, float $amount): bool
@@ -112,5 +119,147 @@ class VendorDailyLimitService
         unset($amount);
 
         return $this->remaining($characterId) > 0;
+    }
+
+    /**
+     * Когда торговец снова начнёт скупать, если лимит уже выбран.
+     *
+     * Окно скользящее, поэтому «завтра» — неправда: лимит освобождается не разом в
+     * полночь, а по мере того как старые сделки выпадают из последних 24 часов.
+     * Считаем честно: идём по сделкам окна от самой старой и ищем, выпадение какой
+     * из них опустит сумму ниже потолка. Её время + 24 часа и есть момент, когда
+     * дверь снова откроется.
+     *
+     * @return int|null unix-время открытия; null — лимит не выбран либо выключен
+     */
+    public function reliefAt(int $characterId): ?int
+    {
+        if (! $this->isEnabled()) {
+            return null;
+        }
+
+        $cap  = $this->cap();
+        $sold = $this->soldLast24h($characterId);
+        if ($sold < $cap) {
+            return null;
+        }
+
+        $remainingSum = $sold;
+        foreach ($this->salesInWindow($characterId) as $sale) {
+            $remainingSum -= $sale['price'];
+            if ($remainingSum < $cap) {
+                return $sale['at'] + 86400;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Сделки продажи внутри скользящего окна, от самой старой к свежей.
+     *
+     * Второй (и последний) seam чтения БД в классе — рядом с {@see soldLast24h()}:
+     * без него момент открытия лавки нельзя проверить тестом, не наполняя
+     * `transactions` живыми строками.
+     *
+     * @return list<array{price: float, at: int}>
+     */
+    protected function salesInWindow(int $characterId): array
+    {
+        $query = $this->db->query(
+            'SELECT price, created_at
+             FROM transactions
+             WHERE character_id = ? AND type = ? AND created_at >= (NOW() - INTERVAL 1 DAY)
+             ORDER BY created_at ASC',
+            [$characterId, 'sell']
+        );
+
+        if (! $query instanceof \CodeIgniter\Database\BaseResult) {
+            return [];
+        }
+
+        $sales = [];
+        foreach ($query->getResultArray() as $row) {
+            $when = isset($row['created_at']) && is_string($row['created_at']) ? strtotime($row['created_at']) : false;
+            if ($when === false) {
+                continue;
+            }
+            $sales[] = [
+                'price' => isset($row['price']) && is_numeric($row['price']) ? (float) $row['price'] : 0.0,
+                'at'    => $when,
+            ];
+        }
+
+        return $sales;
+    }
+
+    /**
+     * Готовая для игрока строка отказа: почему закрыто, сколько уже выкуплено и
+     * когда откроется. Одна на крафт и экипировку — тексты отказа разъезжались бы
+     * ровно так же, как разъезжались формулы цены (см. {@see CraftTradeService}).
+     *
+     * @param string $tail заключительное успокоение целиком — согласование рода у
+     *                     «товар не делся» и «экипировка не делась» разное, поэтому
+     *                     передаётся фраза, а не существительное
+     */
+    public function refusalText(int $characterId, string $tail = 'Твой товар никуда не делся.'): string
+    {
+        $cap   = (int) round($this->cap());
+        $sold  = (int) round($this->soldLast24h($characterId));
+        $when  = $this->reliefAt($characterId);
+
+        $text = "🛒 Торговец выворачивает пустые карманы: *монеты на сегодня кончились*.\n\n"
+            . "На одного выжившего он рассчитывает примерно *{$cap}* 💰 в сутки, "
+            . "а тебе за последние 24 часа отдал уже *{$sold}* 💰.\n";
+
+        if ($when !== null) {
+            $text .= 'Скупка снова откроется примерно в *' . date('H:i', $when) . "* — счёт идёт по последним 24 часам, а не по календарному дню.\n";
+        } else {
+            $text .= "Счёт идёт по последним 24 часам, а не по календарному дню: место освободится по мере того, как старые сделки выпадут из окна.\n";
+        }
+
+        return $text . "\n_{$tail}_";
+    }
+
+    /**
+     * Строка для карточки количества: как у игрока обстоит с суточным счётом.
+     *
+     * Показываем ТОЛЬКО тем, кто за последние сутки уже продавал, — иначе строка про
+     * лимит висела бы на каждой карточке у всех 675 персонажей, из которых в потолок
+     * за всё время упирались трое. Лимит становится видимым в тот момент, когда
+     * начинает касаться игрока, а не раньше.
+     *
+     * 🔴 Формулировка НЕ обещает зажим количества: {@see allows()} пропускает
+     * следующую сделку целиком, какого бы размера она ни была. Написать здесь
+     * «торговец готов потратить ещё N» значило бы поставить на экран число, которое
+     * сделка не соблюдает, — ровно та ошибка, что чинилась в ценах лавки
+     * (см. memory feedback_screen_price_must_come_from_transaction_service).
+     *
+     * @return string пустая строка — показывать нечего
+     */
+    public function budgetHint(int $characterId): string
+    {
+        if (! $this->isEnabled()) {
+            return '';
+        }
+
+        $sold = $this->soldLast24h($characterId);
+        if ($sold <= 0.0) {
+            return '';
+        }
+
+        $cap     = (int) round($this->cap());
+        $soldInt = (int) round($sold);
+
+        if ($sold >= $this->cap()) {
+            $when = $this->reliefAt($characterId);
+
+            return $when !== null
+                ? '_Монеты торговца на сегодня кончились — снова начнёт скупать около ' . date('H:i', $when) . '._'
+                : '_Монеты торговца на сегодня кончились._';
+        }
+
+        return "_За сутки торговец отдал тебе *{$soldInt}* из *{$cap}* 💰. "
+            . 'Эту сделку он возьмёт целиком, но как только счёт перевалит за потолок — закроется на сутки._';
     }
 }

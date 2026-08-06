@@ -4,32 +4,20 @@ namespace App\Controllers\Telegram\Commands\Actions\Sell;
 
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
-use App\Models\CharacterModel;
-use App\Models\CharacterBuildingModel;
-use App\Models\BuildingModel;
 use App\Models\SalesModel;
 use App\Models\CraftedItemsModel;
-use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 
 class BuyCraftAction extends BaseAction
 {
-    use GameSettingsReaderTrait;
-
-    protected $characterModel;
-    protected $characterBuildingModel;
-    protected $buildingModel;
     protected $salesModel;
     protected $craftedItemsModel;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->characterModel         = new CharacterModel();
-        $this->characterBuildingModel = new CharacterBuildingModel();
-        $this->buildingModel          = new BuildingModel();
-        $this->salesModel             = new SalesModel();
-        $this->craftedItemsModel      = new CraftedItemsModel();
+        $this->salesModel        = new SalesModel();
+        $this->craftedItemsModel = new CraftedItemsModel();
     }
 
     public function handle(): ServerResponse
@@ -54,35 +42,16 @@ class BuyCraftAction extends BaseAction
             ],
         ]);
 
-        // Проверка золота (порог live-tunable через GameSettings, ADR-040)
-        $minGold = $this->gsInt('economy.shop.buy_craft_min_gold', 1000);
-        if ((int) ($character['gold'] ?? 0) < $minGold) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => "Для торговли необходимо иметь не менее {$minGold} золотых монет.",
-                'reply_markup' => $backNav,
-            ]);
-        }
+        // Гейты входа (золото + Склад) — единым сервисом на все четыре экрана лавки:
+        // порог золота live-tunable, и раньше его читал ТОЛЬКО этот экран.
+        $gate = (new \App\Services\Economy\CraftShopGate())->check($character);
+        if ($gate !== null) {
+            $this->logRejected($character['id'], 'BUY_CRAFT', $gate['reason']);
 
-        // Проверка склада
-        $warehouseBuilding = $this->buildingModel->where('name_en', 'Warehouse')->first();
-        if (!$warehouseBuilding) {
             return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => 'Ошибка: постройка "Склад" не найдена в базе данных.',
-                'reply_markup' => $backNav,
-            ]);
-        }
-
-        $characterWarehouse = $this->characterBuildingModel
-            ->where('character_id', $character['id'])
-            ->where('building_id', $warehouseBuilding['id'])
-            ->first();
-
-        if (!$characterWarehouse) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => 'Для покупки крафтовых предметов, необходимо иметь постройку "Склад".',
+                'chat_id'      => $chatId,
+                'text'         => $gate['text'],
+                'parse_mode'   => 'Markdown',
                 'reply_markup' => $backNav,
             ]);
         }

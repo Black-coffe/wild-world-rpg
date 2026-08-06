@@ -148,11 +148,13 @@ class SellGearConfirmAction extends BaseAction
             ]);
 
             return Request::sendMessage([
-                'chat_id'    => $chatId,
-                'parse_mode' => 'Markdown',
-                'text'       => "🛒 Торговец выворачивает пустые карманы: *монеты на сегодня кончились*.\n\n"
-                    . "Он скупает у одного выжившего ограниченно — приходи, когда разживётся "
-                    . "деньгами. Твоя экипировка никуда не делась.",
+                'chat_id'      => $chatId,
+                'parse_mode'   => 'Markdown',
+                'text'         => $limits->refusalText($characterId, 'Твоя экипировка никуда не делась.'),
+                'reply_markup' => json_encode(['inline_keyboard' => [[
+                    ['text' => '🛒 Магазин',   'callback_data' => 'shop'],
+                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                ]]]),
             ]);
         }
 

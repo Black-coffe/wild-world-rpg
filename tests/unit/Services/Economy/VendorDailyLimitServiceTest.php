@@ -27,9 +27,10 @@ final class VendorDailyLimitServiceTest extends CIUnitTestCase
     }
 
     /**
-     * @param array<string,float|bool> $overrides
+     * @param array<string,float|bool>       $overrides
+     * @param list<array{price: float, at: int}> $window сделки окна, от старой к свежей
      */
-    private function service(float $alreadySold, array $overrides = []): VendorDailyLimitService
+    private function service(float $alreadySold, array $overrides = [], array $window = []): VendorDailyLimitService
     {
         $settingsModel = new class ($overrides) extends GameSettingsModel {
             /** @param array<string,float|bool> $overrides */
@@ -53,8 +54,9 @@ final class VendorDailyLimitServiceTest extends CIUnitTestCase
             }
         };
 
-        return new class (new GameSettingsService($settingsModel), $alreadySold) extends VendorDailyLimitService {
-            public function __construct(GameSettingsService $settings, private float $alreadySold)
+        return new class (new GameSettingsService($settingsModel), $alreadySold, $window) extends VendorDailyLimitService {
+            /** @param list<array{price: float, at: int}> $window */
+            public function __construct(GameSettingsService $settings, private float $alreadySold, private array $window)
             {
                 parent::__construct($settings, null);
             }
@@ -62,6 +64,12 @@ final class VendorDailyLimitServiceTest extends CIUnitTestCase
             public function soldLast24h(int $characterId): float
             {
                 return $this->alreadySold; // подменяем БД-чтение
+            }
+
+            /** @return list<array{price: float, at: int}> */
+            protected function salesInWindow(int $characterId): array
+            {
+                return $this->window; // второй seam — момент открытия лавки
             }
         };
     }
@@ -149,5 +157,90 @@ final class VendorDailyLimitServiceTest extends CIUnitTestCase
         // дорогая штучная вещь остаётся продаваемой.
         $this->assertLessThan(150, $units, 'цикл не упёрся в суточный потолок');
         $this->assertLessThanOrEqual(50000.0 + $revenuePerUnit, $sold);
+    }
+
+    /**
+     * Замер прода 2026-08-06: персонаж 1115 проносит «Верстак 1» ×5 = 660 000 одной
+     * сделкой через потолок 50 000 — потому что стек уходит целиком. Фиксируем дыру
+     * тестом, чтобы её закрытие было осознанным балансовым решением, а не сюрпризом.
+     */
+    public function testWholeStackOvershootsCapInOneDeal(): void
+    {
+        $svc = $this->service(0.0);
+
+        $this->assertTrue($svc->allows(1, 660000.0), 'стек уходит целиком — потолок сделку не режет');
+        // После неё дверь закрыта, но 13 потолков уже прошли.
+        $this->assertFalse($this->service(660000.0)->allows(1, 1.0));
+    }
+
+    /**
+     * Окно скользящее, поэтому «приходи завтра» — неправда. Освобождение наступает,
+     * когда из последних 24 часов выпадет достаточно старых сделок.
+     */
+    public function testReliefTimeIsWhenOldestSalesLeaveTheWindow(): void
+    {
+        $base = 1_700_000_000;
+        // 30 000 двадцать часов назад + 25 000 час назад = 55 000 при потолке 50 000.
+        $window = [
+            ['price' => 30000.0, 'at' => $base - 20 * 3600],
+            ['price' => 25000.0, 'at' => $base - 3600],
+        ];
+        $svc = $this->service(55000.0, [], $window);
+
+        // Выпадения ПЕРВОЙ сделки уже хватает: 55 000 − 30 000 = 25 000 < 50 000.
+        $this->assertSame($base - 20 * 3600 + 86400, $svc->reliefAt(1));
+    }
+
+    public function testReliefIsNullWhileCapNotReached(): void
+    {
+        $this->assertNull($this->service(10000.0)->reliefAt(1));
+        $this->assertNull($this->service(10_000_000.0, [VendorDailyLimitService::KEY_ENABLED => false])->reliefAt(1));
+    }
+
+    /**
+     * Отказ обязан называть причину числами: раньше он говорил только «монеты
+     * кончились», и игрок не мог отличить исчерпанный лимит от поломки.
+     */
+    public function testRefusalTextNamesCapSoldAndTail(): void
+    {
+        $window = [['price' => 60000.0, 'at' => 1_700_000_000]];
+        $text   = $this->service(60000.0, [], $window)->refusalText(1, 'Твоя экипировка никуда не делась.');
+
+        $this->assertStringContainsString('50000', $text, 'потолок не назван');
+        $this->assertStringContainsString('60000', $text, 'уже выкупленное не названо');
+        $this->assertStringContainsString('24 часа', $text, 'окно не объяснено');
+        $this->assertStringContainsString('Твоя экипировка никуда не делась.', $text);
+        $this->assertSame(0, substr_count($text, '*') % 2, 'непарные звёздочки ломают Markdown');
+    }
+
+    /** Тому, кто сегодня не продавал, лимита на карточке быть не должно. */
+    public function testBudgetHintSilentForPlayersWhoDidNotSellToday(): void
+    {
+        $this->assertSame('', $this->service(0.0)->budgetHint(1));
+        $this->assertSame('', $this->service(40000.0, [VendorDailyLimitService::KEY_ENABLED => false])->budgetHint(1));
+    }
+
+    /**
+     * 🔴 Подсказка НЕ должна обещать зажим количества: сделка проходит целиком.
+     * Число «осталось N» на экране означало бы обещание, которого сделка не держит.
+     */
+    public function testBudgetHintShowsRunningTotalNotAPromiseOfClamping(): void
+    {
+        $hint = $this->service(40000.0)->budgetHint(1);
+
+        $this->assertStringContainsString('40000', $hint);
+        $this->assertStringContainsString('50000', $hint);
+        $this->assertStringContainsString('целиком', $hint, 'игрок должен знать, что сделка не режется');
+        $this->assertSame(0, substr_count($hint, '*') % 2, 'непарные звёздочки ломают Markdown');
+    }
+
+    public function testBudgetHintAnnouncesClosureWithTimeWhenCapSpent(): void
+    {
+        $window = [['price' => 55000.0, 'at' => 1_700_000_000]];
+        $hint   = $this->service(55000.0, [], $window)->budgetHint(1);
+
+        $this->assertStringContainsString('кончились', $hint);
+        $this->assertStringContainsString(date('H:i', 1_700_000_000 + 86400), $hint);
+        $this->assertSame(0, substr_count($hint, '*') % 2);
     }
 }

@@ -79,6 +79,14 @@ class SellCraftItemAction extends BaseAction
         $text .= "*Дадут за одну:* {$itemPrice} 💰\n";
         $text .= "*Дадут за все:* {$totalPrice} 💰\n";
         $text .= "\n" . $craftTrade->sellPriceHint($warehouseMult) . "\n";
+
+        // ADR-157 шаг 2: суточный счёт торговца — только тем, кто за сутки уже продавал.
+        // Иначе игрок узнаёт о существовании лимита в момент отказа, а не заранее.
+        $budgetHint = (new \App\Services\Economy\VendorDailyLimitService())->budgetHint($characterId);
+        if ($budgetHint !== '') {
+            $text .= "\n" . $budgetHint . "\n";
+        }
+
         $text .= "\n_Укажи желаемое количество на продажу:_\n";
 
         // Кнопки только на то количество, которое реально есть: раньше «50 шт» висела

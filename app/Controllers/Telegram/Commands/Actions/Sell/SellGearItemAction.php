@@ -91,6 +91,15 @@ class SellGearItemAction extends BaseAction
         $text .= "*Дадут за одну:* {$unit} 💰\n";
         $text .= "*Дадут за все:* {$total} 💰\n\n";
         $text .= "_Обратно предмет не выкупить: проданная экипировка у торговца не оседает._\n";
+
+        // ADR-157 шаг 2: суточный счёт торговца — зеркально карточке крафта
+        // ({@see SellCraftItemAction}). Лимит общий на оба прилавка, значит и
+        // предупреждение обязано быть на обоих.
+        $budgetHint = (new \App\Services\Economy\VendorDailyLimitService())->budgetHint($characterId);
+        if ($budgetHint !== '') {
+            $text .= "\n" . $budgetHint . "\n";
+        }
+
         $text .= "\n_Сколько отдаёшь?_\n";
 
         $quantities = [1, 5, 10];

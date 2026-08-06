@@ -4,9 +4,6 @@ namespace App\Controllers\Telegram\Commands\Actions\Sell;
 
 use Longman\TelegramBot\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
-use App\Models\CharacterModel;
-use App\Models\CharacterBuildingModel;
-use App\Models\BuildingModel;
 use App\Models\SalesModel;
 use App\Models\CraftedItemsModel;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
@@ -14,18 +11,12 @@ use App\Services\Notifications\MediaSender;
 
 class BuyCraftItemListAction extends BaseAction
 {
-    protected $characterModel;
-    protected $characterBuildingModel;
-    protected $buildingModel;
     protected $salesModel;
     protected $craftedItemsModel;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->characterModel = new CharacterModel();
-        $this->characterBuildingModel = new CharacterBuildingModel();
-        $this->buildingModel = new BuildingModel();
         $this->salesModel = new SalesModel();
         $this->craftedItemsModel = new CraftedItemsModel();
     }
@@ -42,30 +33,20 @@ class BuyCraftItemListAction extends BaseAction
             ]);
         }
 
-        if ($character['gold'] < 1000) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => 'Для торговли необходимо иметь не менее 1000 золотых монет.',
-            ]);
-        }
+        // Гейты входа — единым сервисом (порог золота был захардкожен константой 1000
+        // и расходился бы с админской настройкой). См. CraftShopGate.
+        $gate = (new \App\Services\Economy\CraftShopGate())->check($character);
+        if ($gate !== null) {
+            $this->logRejected($character['id'], 'BUY_CRAFT', $gate['reason']);
 
-        $warehouseBuilding = $this->buildingModel->where('name_en', 'Warehouse')->first();
-        if (!$warehouseBuilding) {
             return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => 'Ошибка: постройка "Склад" не найдена в базе данных.',
-            ]);
-        }
-
-        $characterWarehouse = $this->characterBuildingModel
-            ->where('character_id', $character['id'])
-            ->where('building_id', $warehouseBuilding['id'])
-            ->first();
-
-        if (!$characterWarehouse) {
-            return Request::sendMessage([
-                'chat_id' => $chatId,
-                'text' => 'Для покупки крафтовых предметов, необходимо иметь постройку "Склад".',
+                'chat_id'      => $chatId,
+                'text'         => $gate['text'],
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode(['inline_keyboard' => [[
+                    ['text' => '🛒 Магазин',   'callback_data' => 'shop'],
+                    ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
+                ]]]),
             ]);
         }
 

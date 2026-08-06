@@ -7579,24 +7579,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftAction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftAction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftAction\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftAction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftAction.php
-
-		-
 			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftAction\:\:\$craftedItemsModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
@@ -7611,24 +7593,6 @@ parameters:
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftConfirmAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftConfirmAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftConfirmAction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftConfirmAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftConfirmAction\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftConfirmAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftConfirmAction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftConfirmAction.php
 
@@ -7663,24 +7627,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftItemAction.php
 
 		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftItemAction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftItemAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftItemAction\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftItemAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftItemAction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftItemAction.php
-
-		-
 			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftItemAction\:\:\$craftedItemsModel has no type specified\.$#'
 			identifier: missingType.property
 			count: 1
@@ -7707,24 +7653,6 @@ parameters:
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftItemListAction\:\:translateType\(\) has parameter \$type with no type specified\.$#'
 			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftItemListAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftItemListAction\:\:\$buildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftItemListAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftItemListAction\:\:\$characterBuildingModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftItemListAction.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\BuyCraftItemListAction\:\:\$characterModel has no type specified\.$#'
-			identifier: missingType.property
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Sell/BuyCraftItemListAction.php
 
