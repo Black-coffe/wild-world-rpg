@@ -40,17 +40,24 @@ class TeleportAction extends BaseAction
         $craftedItemLogModel = new CraftedItemsLogModel();
         $characterModel      = new CharacterModel();
 
-        // 1. Проверяем "Портативный телепорт"
+        // 1. Проверяем "Портативный телепорт".
+        // Кнопку показываем только при живых зарядах: пустое устройство уводило бы игрока
+        // в отказ уже ПОСЛЕ нажатия (валидатор проверяет durability_count с 2026-08-06).
         $portableTeleportRow = $craftedItemModel->where('name_eng', 'PortableTeleport')->first();
         $hasPortableTeleport = false;
+        $portableChargesLeft = 0;
         if ($portableTeleportRow) {
-            $countPortable = $craftedItemLogModel
+            $portableLog = $craftedItemLogModel
                 ->where('crafted_item_id', $portableTeleportRow['id'])
                 ->where('character_id', $character['id'])
-                ->selectSum('quantity', 'total_qty')
                 ->first();
-            if ($countPortable && ($countPortable['total_qty'] ?? 0) >= 1) {
-                $hasPortableTeleport = true;
+            if (is_array($portableLog)) {
+                $qty     = is_numeric($portableLog['quantity'] ?? null) ? (int) $portableLog['quantity'] : 0;
+                $charges = is_numeric($portableLog['durability_count'] ?? null) ? (int) $portableLog['durability_count'] : 0;
+                if ($qty > 0 && $charges > 0) {
+                    $hasPortableTeleport = true;
+                    $portableChargesLeft = $charges;
+                }
             }
         }
 
@@ -103,7 +110,9 @@ class TeleportAction extends BaseAction
 
         // --- Портативный телепорт
         if ($hasPortableTeleport) {
-            $text .= "*Портативный телепорт*\n_Отнимет 1 заряд устройства_\n\n";
+            $text .= "*Портативный телепорт*\n"
+                . "_Мгновенный возврат на базу, ждать между применениями не нужно_\n"
+                . "_(осталось зарядов: {$portableChargesLeft})_\n\n";
             $availableButtons[] = [
                 'text' => '📡 Портативный телепорт',
                 'callback_data' => 'TeleportUse_Portable'

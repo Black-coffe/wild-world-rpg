@@ -200,6 +200,17 @@ class TeleportUseValidator
             return ['ok' => false, 'error' => "У тебя нет портативного телепорта."];
         }
 
+        // 2026-08-06: пока предмет был недостижим (рецепта не существовало), проверки
+        // зарядов не было вовсе — пустое устройство сработало бы «бесплатно» и исчезло.
+        // Теперь его крафтят, поэтому заряды проверяем явно.
+        $portableQty     = (is_array($portableLog) && is_numeric($portableLog['quantity'] ?? null))
+            ? (int) $portableLog['quantity'] : 0;
+        $portableCharges = (is_array($portableLog) && is_numeric($portableLog['durability_count'] ?? null))
+            ? (int) $portableLog['durability_count'] : 0;
+        if ($portableQty < 1 || $portableCharges < 1) {
+            return ['ok' => false, 'error' => "Портативный телепорт разряжен — заряды кончились."];
+        }
+
         $location = $this->findBaseLocation((int) $character['id']);
         if (!$location['ok']) {
             return ['ok' => false, 'error' => "У тебя нет портативного телепорта."];

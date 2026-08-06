@@ -151,13 +151,20 @@ class CraftCompletionTeleportBeaconBasicHandler extends BaseTaskHandler
         $text = "📌 Вы успешно скрафтили предмет:\n\n"
             . "🌀 *{$itemNameRus}*\n\n"
             . "В наличии: *{$quantity} шт.*\n"
-            . "Теперь вы можете устанавливать маяк для быстрого перемещения.\n";
+            . "Маяк ставится в любой точке мира и работает как точка возврата: "
+            . "*«📡 Маяки»* → *«Установить маяк здесь»*, а прыжок — там же кнопкой "
+            . "*«Переместиться на маяк»*.\n";
 
+        // Вход в маяки прямо из сообщения о крафте: раньше игрок получал предмет и
+        // оставался без адреса — кнопки вели только назад в крафт и в инвентарь.
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '🔄 Крафтить ещё', 'callback_data' => 'teleportBeaconBasic2'],
+                    ['text' => '📡 Маяки', 'callback_data' => 'teleportBeacon'],
                     ['text' => '🎒 Инвентарь',     'callback_data' => 'inventory'],
+                ],
+                [
+                    ['text' => '🔄 Крафтить ещё', 'callback_data' => 'teleportBeaconBasic2'],
                 ],
             ]
         ];
@@ -172,5 +179,16 @@ class CraftCompletionTeleportBeaconBasicHandler extends BaseTaskHandler
             $text,
             ['parse_mode' => 'Markdown', 'reply_markup' => json_encode($keyboard)]
         );
+
+        // JIT one-shot (ADR-103): чем маяк отличается от рюкзака, где ставить и как прыгать.
+        // Defensive: сбой подсказки не должен ломать выдачу предмета.
+        $charId = is_numeric($characterId) ? (int) $characterId : 0;
+        $chatId = is_numeric($tgId) ? (int) $tgId : 0;
+        try {
+            (new \App\Services\Onboarding\OnboardingHintService())
+                ->maybeSendBeaconCraftedHint($charId, $chatId);
+        } catch (\Throwable $e) {
+            log_message('error', '[TeleportBeaconCraft] onboarding hint failed: ' . $e->getMessage());
+        }
     }
 }

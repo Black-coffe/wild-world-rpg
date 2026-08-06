@@ -256,6 +256,7 @@ class Worker extends Controller
         // Спеціалізовані craft handler'и (НЕ generic — окремий клас).
         'craftTeleportBeaconBasic'      => 'craft_teleport_beacon_basic',
         'craftTeleportBackpack'         => 'craft_teleport_backpack',
+        'craftPortableTeleport'         => 'craft_portable_teleport',
         'craftArmorRaggedShirt'         => 'craft_armor_ragged_shirt',
         'craftArmorDrifterClothes'      => 'craft_armor_drifter_clothes',
         'craftLeatherJacket'            => 'craft_leather_jacket',
@@ -322,6 +323,7 @@ class Worker extends Controller
         'startBuildTeleportationCenter' => 'Built\GenericBuildingCompletionHandler', // F3.B4
         'craftTeleportBeaconBasic' => 'Craft\WorkbenchStandard\CraftCompletionTeleportBeaconBasicHandler',
         'craftTeleportBackpack' => 'Craft\WorkbenchStandard\CraftCompletionTeleportBackpackHandler',
+        'craftPortableTeleport' => 'Craft\WorkbenchStandard\CraftCompletionPortableTeleportHandler',
         'startBuildArsenal' => 'Built\GenericBuildingCompletionHandler', // F3.B4
         'startBuildCommunicationTower' => 'Built\GenericBuildingCompletionHandler', // F3.B4
         'craftArmorRaggedShirt' => 'Craft\WorkbenchStandard\Armor\CraftCompletionRaggedShirtHandler',

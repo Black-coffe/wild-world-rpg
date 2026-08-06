@@ -2371,12 +2371,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportAction.php
 
 		-
-			message: '#^Cannot access offset ''total_qty'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Camp/TeleportAction.php
-
-		-
 			message: '#^Parameter \#1 \$characterRow of method App\\Services\\Player\\TeleportCostService\:\:canPayTeleport\(\) expects App\\Entities\\CharacterEntity\|array, array\<int\|string, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|bool\|float\|int\|object\|string\|null\>\|object\|null given\.$#'
 			identifier: argument.type
 			count: 1
@@ -14338,12 +14332,6 @@ parameters:
 			message: '#^Parameter \#1 \$id of method CodeIgniter\\Model\:\:update\(\) expects CodeIgniter\\Database\\RawSql\|int\|list\<int\|string\>\|string\|null, mixed given\.$#'
 			identifier: argument.type
 			count: 4
-			path: app/Services/Player/TeleportUse/TeleportItemConsumer.php
-
-		-
-			message: '#^Parameter \#2 \$row of method CodeIgniter\\Model\:\:update\(\) expects array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\|null, array\<string, mixed\> given\.$#'
-			identifier: argument.type
-			count: 1
 			path: app/Services/Player/TeleportUse/TeleportItemConsumer.php
 
 		-

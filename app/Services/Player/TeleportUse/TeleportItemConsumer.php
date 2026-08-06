@@ -79,10 +79,13 @@ class TeleportItemConsumer
         }
 
         if ((int) $portableLog['quantity'] > 1) {
-            // Quantity decrement + refresh durability до full template
+            // Quantity decrement + refresh durability до full.
+            // Источник числа — рецепт (GameSettings), тот же, из которого заряды выдаёт
+            // CraftCompletionPortableTeleportHandler: иначе админская правка зарядов
+            // расходилась бы с шаблоном `crafted_items` (две правды на одну величину).
             $this->craftedItemLogModel->update($portableLog['id'], [
                 'quantity'         => (int) $portableLog['quantity'] - 1,
-                'durability_count' => $portableItem['durability_count'],
+                'durability_count' => (new \App\Services\Player\Craft\PortableTeleportRecipe())->charges(),
             ]);
         } else {
             // Останній екземпляр + durability=1 → видалити (повністю використаний)

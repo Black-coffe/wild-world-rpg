@@ -341,6 +341,31 @@ class OnboardingHintService
     }
 
     /**
+     * Скрафтил телепорт-маяк (2026-08-06, вопрос постоянного игрока «как пользоваться
+     * телепортом, который не ранец?») — just-in-time подсказка сразу после выдачи маяка:
+     * чем он отличается от рюкзака, где его ставить и как потом прыгать. Ни один экран
+     * крафта этого не объяснял: игрок получал предмет и упирался в «а дальше что».
+     * БЕЗ level-ceiling (маяк требует L12+ и Центр телепортации — ceiling убил бы хинт).
+     * Лимитер — one-shot + killswitch + opt-out (внутри {@see maybeSend}).
+     *
+     * Принимает characterId (task-handler завершения крафта имеет его, но не полный
+     * массив персонажа) — грузим CharacterEntity сами, чтобы уважить per-char opt-out.
+     */
+    public function maybeSendBeaconCraftedHint(int $characterId, int $chatId): bool
+    {
+        if ($characterId <= 0) {
+            return false;
+        }
+
+        $character = $this->loadCharacter($characterId);
+        if ($character === null) {
+            return false;
+        }
+
+        return $this->maybeSend($character, $chatId, OnboardingHintCatalog::BEACON_CRAFTED);
+    }
+
+    /**
      * Загрузка персонажа по id (overridable seam для тестов — без DB).
      *
      * @return array<string, mixed>|CharacterEntity|null

@@ -119,6 +119,23 @@ final class GuideCatalogTest extends CIUnitTestCase
         $this->assertStringNotContainsStringIgnoringCase('клан', $text, 'Раздел «Узлы» НЕ должен упоминать клан (механика отрезана из v1).');
     }
 
+    /**
+     * Раздел «Телепорт» (2026-08-06, вопрос игрока «как пользоваться телепортом, который
+     * не ранец?»): справочник обязан РАЗВОДИТЬ три устройства — маяк (точка возврата в мире)
+     * против рюкзака и портативного (возврат домой). Именно их путаница и породила вопрос.
+     */
+    public function testTeleportSectionSeparatesBeaconFromReturnDevices(): void
+    {
+        $section = GuideCatalog::find('teleport');
+        $this->assertNotNull($section, 'Раздел «Телепорт» обязан быть в /guide.');
+        $this->assertSame('mid', $section['group'], 'Телепорт — механика среднего этапа.');
+
+        $text = $section['title'] . $section['body'];
+        foreach (['Маяки', 'Установить маяк здесь', 'Переместиться на маяк', 'рюкзак', 'Портативный'] as $needle) {
+            $this->assertStringContainsString($needle, $text, "Раздел «Телепорт» не упоминает «{$needle}».");
+        }
+    }
+
     // ── Сервис рендера ──────────────────────────────────────────────────────
 
     public function testIndexExposesButtonForEverySection(): void

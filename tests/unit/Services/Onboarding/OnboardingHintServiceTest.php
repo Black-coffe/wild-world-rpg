@@ -790,6 +790,90 @@ final class OnboardingHintServiceTest extends CIUnitTestCase
         $this->assertFalse($svc->maybeSendFirstMarchHint(50, 100));
         $this->assertCount(0, $svc->sent);
     }
+
+    // ── Скрафтил телепорт-маяк (2026-08-06, вопрос игрока про «телепорт, не ранец») ──
+
+    /**
+     * Анти-дрифт: подсказка обязана развести маяк и рюкзак и дать ОБА шага — где ставить
+     * и как прыгать (media-off самодостаточность). Ровно этого не было ни в одном экране.
+     */
+    public function testBeaconCraftedHintTeachesPlaceAndJump(): void
+    {
+        $text = OnboardingHintCatalog::get(OnboardingHintCatalog::BEACON_CRAFTED)['text'] ?? '';
+        foreach (['рюкзак', 'Маяки', 'Установить маяк здесь', 'Переместиться на маяк'] as $needle) {
+            $this->assertStringContainsString($needle, $text, "Хинт маяка не упоминает «{$needle}».");
+        }
+    }
+
+    /** Хинт ведёт прямо на экран маяков (callback `teleportBeacon`). */
+    public function testBeaconCraftedHintLinksToBeaconScreen(): void
+    {
+        $markupRaw = OnboardingHintCatalog::get(OnboardingHintCatalog::BEACON_CRAFTED)['reply_markup'] ?? null;
+        $this->assertIsString($markupRaw, 'У хинта маяка нет кнопок.');
+        $markup = json_decode($markupRaw, true);
+        $this->assertIsArray($markup);
+        $callbacks = [];
+        array_walk_recursive($markup, static function ($value, $key) use (&$callbacks): void {
+            if ($key === 'callback_data') {
+                $callbacks[] = $value;
+            }
+        });
+        $this->assertContains('teleportBeacon', $callbacks, 'Нет кнопки на экран маяков.');
+    }
+
+    /** Happy path: маяк скрафтен → шлём один раз. */
+    public function testBeaconCraftedHintHappyPathSendsOnce(): void
+    {
+        $svc = new FakeHintService();
+        $svc->fakeCharacter = ['id' => 60, 'level' => 14, 'daily_tips_enabled' => 1];
+
+        $this->assertTrue($svc->maybeSendBeaconCraftedHint(60, 100));
+        $this->assertCount(1, $svc->sent);
+        $this->assertSame([OnboardingHintCatalog::BEACON_CRAFTED], $svc->recorded);
+
+        // one-shot: повторный крафт маяка подсказку не повторяет.
+        $this->assertFalse($svc->maybeSendBeaconCraftedHint(60, 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    /**
+     * Анти-BUILT-BUT-DEAD: level-ceiling новичковых хинтов здесь неприменим — маяк требует
+     * L12+ и Центр телепортации, с ceiling=6 подсказка не сработала бы НИКОГДА.
+     */
+    public function testBeaconCraftedHintFiresAboveNewbieCeiling(): void
+    {
+        $svc = new FakeHintService(); // maxLvl = 6
+        $svc->fakeCharacter = ['id' => 61, 'level' => 40, 'daily_tips_enabled' => 1];
+        $this->assertTrue($svc->maybeSendBeaconCraftedHint(61, 100));
+        $this->assertCount(1, $svc->sent);
+    }
+
+    public function testBeaconCraftedHintKillswitchOffSuppresses(): void
+    {
+        $svc = new FakeHintService();
+        $svc->killswitch    = false;
+        $svc->fakeCharacter = ['id' => 60, 'level' => 14, 'daily_tips_enabled' => 1];
+        $this->assertFalse($svc->maybeSendBeaconCraftedHint(60, 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    public function testBeaconCraftedHintRespectsOptOut(): void
+    {
+        $svc = new FakeHintService();
+        $svc->fakeCharacter = ['id' => 60, 'level' => 14, 'daily_tips_enabled' => 0];
+        $this->assertFalse($svc->maybeSendBeaconCraftedHint(60, 100));
+        $this->assertCount(0, $svc->sent);
+    }
+
+    /** Персонаж не загрузился (seam вернул null) → тихий false, без отправки. */
+    public function testBeaconCraftedHintDefensiveOnBadCharacter(): void
+    {
+        $svc = new FakeHintService();
+        $svc->fakeCharacter = null;
+        $this->assertFalse($svc->maybeSendBeaconCraftedHint(0, 100));
+        $this->assertFalse($svc->maybeSendBeaconCraftedHint(60, 100));
+        $this->assertCount(0, $svc->sent);
+    }
 }
 
 /**

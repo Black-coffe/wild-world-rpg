@@ -192,6 +192,8 @@ class CallbackRoutes extends BaseConfig
         'startCraftTeleportBeaconBasic2'  => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\StartCraftTeleportBeaconBasic2Action::class,
         'teleportBackpack2'               => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\TeleportBackpack2Action::class,
         'startCraftTeleportBackpack2'     => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\StartCraftTeleportBackpack2Action::class,
+        'portableTeleport2'               => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\PortableTeleport2Action::class,
+        'startCraftPortableTeleport2'     => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\TeleportBeacon\StartCraftPortableTeleport2Action::class,
         'armorCraft2'                     => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Armor\ArmorCraft2Select::class,
         'weaponsCraft2'                   => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Weapons\WeaponsCraft2Select::class,
         'armorRaggedShirt'                => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchStandard\Armor\ArmorRaggedShirt2Action::class,
