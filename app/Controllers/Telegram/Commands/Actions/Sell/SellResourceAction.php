@@ -137,6 +137,7 @@ class SellResourceAction extends BaseAction
         $text            = "📦 *Ресурсы редкости {$rarity}:*\n\n";
         $keyboardButtons = [];
         $hasSellable     = false; // есть ли ходовой ресурс (sell_price>0) — для оптовых кнопок
+        $resourceTrade   = new \App\Services\Player\Trade\ResourceTradeService();
 
         foreach ($characterResources as $cr) {
             // Смотрим ресурс из $resources, у которого id = $cr['id_resources']
@@ -156,8 +157,10 @@ class SellResourceAction extends BaseAction
                 $hasSellable = true;
             }
 
-            // Считаем «на сумму» исходя из sell_price, добавляем "~" перед значением
-            $totalValue = $quantity * $res['sell_price'];
+            // «На сумму» — той же формулой, что и сделка (третья копия расчёта в этом
+            // же файле разъезжалась и с карточкой количества, и с выплатой).
+            $qtyInt     = is_numeric($quantity) ? (int) $quantity : 0;
+            $totalValue = $resourceTrade->totalFor($qtyInt, $resourceTrade->unitPrice($res, true));
             $text .= "*{$res['name']}* | "
                 . "Единиц: *" . number_format($quantity) . "* | "
                 . "На сумму: ~" . number_format($totalValue) . "💰\n";
@@ -226,13 +229,18 @@ class SellResourceAction extends BaseAction
 
         // Идея #15 (Arseny, 16.04.2025): прозрачная торговля — показываем
         // итоговую сумму прямо в кнопках, а не только цену за 1 ед.
-        $unitPrice = (int) $resource['sell_price'];
+        // Цена и итог — из того же сервиса, что проводит сделку. Раньше здесь стояло
+        // `(int) $resource['sell_price']`: дробь ЦЕНЫ обрезалась, а сделка округляла
+        // ИТОГ, и кнопка «5000 ед.» расходилась с выплатой на тысячи золота.
+        $trade     = new \App\Services\Player\Trade\ResourceTradeService();
+        $unitPrice = $trade->unitPrice($resource, true);
+        $unitText  = $trade->formatUnitPrice($unitPrice);
 
         $text = "Выберите количество для продажи ресурса:\n 📦 *{$resource['name']}*:\n"
-            . "Текущая цена продажи (за 1 ед.) = *{$unitPrice}* 💰";
+            . "Текущая цена продажи (за 1 ед.) = *{$unitText}* 💰";
 
-        $btn = static function (int $qty) use ($resourceId, $unitPrice): array {
-            $total = $qty * $unitPrice;
+        $btn = static function (int $qty) use ($resourceId, $unitPrice, $trade): array {
+            $total = $trade->totalFor($qty, $unitPrice);
             return [
                 'text'          => "{$qty} → " . number_format($total) . "💰",
                 'callback_data' => "sellResource_{$resourceId}_{$qty}_sell",

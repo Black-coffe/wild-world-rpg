@@ -32,6 +32,52 @@ final class ResourceTradeService
     }
 
     /**
+     * Цена за единицу — ровно то поле, по которому считает сделка.
+     *
+     * 🔴 Тип `array|ResourceEntity`, а не голый `array`: `ResourceModel::find()` отдаёт
+     * Entity, и под `strict_types` узкий typehint даёт TypeError. Ту же ловушку класс
+     * уже обходит в `resourceIsTradeable()`. См. memory
+     * `feedback_entity_strict_array_typehint_trap`.
+     *
+     * @param array<string,mixed>|\App\Entities\ResourceEntity $resource строка `resources`
+     */
+    public function unitPrice(array|\App\Entities\ResourceEntity $resource, bool $selling): float
+    {
+        $raw = $selling ? ($resource['sell_price'] ?? 0) : ($resource['buy_price'] ?? 0);
+
+        return is_numeric($raw) ? (float) $raw : 0.0;
+    }
+
+    /**
+     * Итог сделки — ЕДИНСТВЕННАЯ формула на экраны и на списание.
+     *
+     * 🔴 Экраны раньше считали иначе: брали `(int) $resource['sell_price']` (обрезая
+     * дробь у ЦЕНЫ) и умножали на количество, а сделка округляла ИТОГ. На проде
+     * 2026-08-06 дробную цену продажи имеют 50 ресурсов из 80, покупки — 65 из 80,
+     * и кнопки доходят до 5000 единиц: «Отработанные ТВЭЛы» (262.50) при 5000 ед.
+     * обещали 1 310 000, а списывали 1 312 500 — 2 500 золота мимо обещания, против
+     * игрока. См. memory `feedback_screen_price_must_come_from_transaction_service`.
+     */
+    public function totalFor(int $quantity, float $unitPrice): int
+    {
+        return (int) round($quantity * $unitPrice);
+    }
+
+    /**
+     * Цена за единицу для показа: дробь не теряется, хвостовые нули убраны
+     * (237.50 → «237.5», 4.00 → «4», 10.71 → «10.71»).
+     *
+     * Строка чисто ASCII, поэтому `rtrim` со списком символов безопасен
+     * (ср. memory `feedback_bytes_vs_chars_utf8_traps` — на кириллице так нельзя).
+     */
+    public function formatUnitPrice(float $unitPrice): string
+    {
+        $text = rtrim(rtrim(number_format($unitPrice, 2, '.', ''), '0'), '.');
+
+        return $text === '' || $text === '-' ? '0' : $text;
+    }
+
+    /**
      * Продажа `qty` единиц ресурса по `sell_price`. `qty='all'` → продать всё.
      *
      * @param array<string,mixed> $character
@@ -70,7 +116,7 @@ final class ResourceTradeService
             return ['success' => false, 'message' => 'Некорректное количество для продажи.'];
         }
 
-        $saleAmount = (int) round($sellQuantity * (float) $resource['sell_price']);
+        $saleAmount = $this->totalFor($sellQuantity, $this->unitPrice($resource, true));
 
         // Fix 2026-07-13 (класс lost-update): атомарное относительное начисление
         // от СВЕЖЕГО золота (increaseGold → CharacterStatsService).
@@ -151,7 +197,7 @@ final class ResourceTradeService
             return ['success' => false, 'message' => 'Некорректное количество для покупки.'];
         }
 
-        $totalCost = (int) round($qty * (float) $resource['buy_price']);
+        $totalCost = $this->totalFor($qty, $this->unitPrice($resource, false));
         if ((int) $character['gold'] < $totalCost) {
             return ['success' => false, 'message' => "У вас недостаточно золота для покупки {$qty} ед. (нужно {$totalCost}💰)."];
         }

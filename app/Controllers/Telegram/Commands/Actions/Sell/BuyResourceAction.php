@@ -244,15 +244,20 @@ class BuyResourceAction extends BaseAction
 
         // Идея #15 (Arseny, 16.04.2025): прозрачная торговля — итог в кнопках,
         // чтобы игрок видел сколько потратит ДО клика, а не после.
-        $unitPrice = (int) $resource['buy_price'];
+        // Цена и итог — из того же сервиса, что проводит сделку. Раньше здесь стояло
+        // `(int) $resource['buy_price']`: дробь ЦЕНЫ обрезалась, а сделка округляла
+        // ИТОГ, и кнопка недосчитывала — то есть списывалось БОЛЬШЕ обещанного.
+        $trade     = new \App\Services\Player\Trade\ResourceTradeService();
+        $unitPrice = $trade->unitPrice($resource, false);
+        $unitText  = $trade->formatUnitPrice($unitPrice);
 
         $text = "🧺 *Выберите желаемое количество*\n"
             . "📦 _{$resource['name']}_ *для покупки.*\n"
-            . "Текущая цена за 1 ед: ~*{$unitPrice}* 💰\n\n"
+            . "Текущая цена за 1 ед: ~*{$unitText}* 💰\n\n"
             . "Реальная цена может быть другой исходя из спроса ресурса.";
 
-        $btn = static function (int $qty) use ($resourceId, $unitPrice): array {
-            $total = $qty * $unitPrice;
+        $btn = static function (int $qty) use ($resourceId, $unitPrice, $trade): array {
+            $total = $trade->totalFor($qty, $unitPrice);
             return [
                 'text'          => "{$qty} → " . number_format($total) . "💰",
                 'callback_data' => "buy_quantity_{$resourceId}_{$qty}",

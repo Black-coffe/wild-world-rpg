@@ -7927,24 +7927,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Sell/SellResourceAction.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\SellSelectRarity1Action\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/SellSelectRarity1Action.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\SellSelectRarity1Action\:\:\$characterResourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/SellSelectRarity1Action.php
-
-		-
-			message: '#^Property App\\Controllers\\Telegram\\Commands\\Actions\\Sell\\SellSelectRarity1Action\:\:\$resourceModel has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Sell/SellSelectRarity1Action.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\ShopAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
 			count: 1
@@ -14356,12 +14338,6 @@ parameters:
 			message: '#^Cannot access offset ''resources_sold'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: app/Services/Player/Trade/ResourceTradeService.php
-
-		-
-			message: '#^Cannot cast mixed to float\.$#'
-			identifier: cast.double
-			count: 2
 			path: app/Services/Player/Trade/ResourceTradeService.php
 
 		-
