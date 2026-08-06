@@ -60,11 +60,18 @@ class CraftShopGate
     /**
      * Проверка обоих гейтов.
      *
-     * @param array<string, mixed> $character строка персонажа
+     * 🔴 Тип — `array|CharacterEntity`, а не просто `array`: `getUserAndCharacter()`
+     * отдаёт Entity, и под `strict_types` голый `array` даёт TypeError на живом тапе,
+     * которого не видно ни в unit-тестах (там фикстуры-массивы), ни в phpstan
+     * (вызывающие экраны без strict_types). Ровно эта ловушка поймана Tier-3 при первом
+     * же прогоне — см. memory `feedback_entity_strict_array_typehint_trap`. Оба типа
+     * поддерживают доступ по ключу, поэтому тело одно.
+     *
+     * @param array<string, mixed>|\App\Entities\CharacterEntity $character строка персонажа
      *
      * @return array{reason: string, text: string}|null null — путь открыт
      */
-    public function check(array $character): ?array
+    public function check(array|\App\Entities\CharacterEntity $character): ?array
     {
         $goldRaw = $character['gold'] ?? 0;
         $gold    = is_numeric($goldRaw) ? (int) $goldRaw : 0;

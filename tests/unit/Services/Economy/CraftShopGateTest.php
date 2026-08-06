@@ -170,6 +170,29 @@ final class CraftShopGateTest extends CIUnitTestCase
         $this->assertSame('min_gold_threshold', $refused['reason']);
     }
 
+    /**
+     * 🔴 Регрессия Tier-3 2026-08-06: `getUserAndCharacter()` отдаёт `CharacterEntity`,
+     * и голый `array`-typehint под `strict_types` валил все четыре экрана лавки в
+     * TypeError (HTTP 500). Unit-фикстуры массивами этого не ловили — фиксируем
+     * Entity явно. См. memory `feedback_entity_strict_array_typehint_trap`.
+     */
+    public function testAcceptsCharacterEntityNotOnlyArray(): void
+    {
+        $entity = new \App\Entities\CharacterEntity();
+        $entity->id   = 1;
+        $entity->gold = 5000;
+
+        $this->assertNull($this->gate(true)->check($entity), 'Entity должна проходить гейт как массив');
+
+        $poor = new \App\Entities\CharacterEntity();
+        $poor->id   = 1;
+        $poor->gold = 10;
+
+        $refused = $this->gate(true)->check($poor);
+        $this->assertNotNull($refused);
+        $this->assertSame('min_gold_threshold', $refused['reason']);
+    }
+
     /** Markdown ломается на непарных звёздочках — тексты уходят с parse_mode. */
     public function testAllRefusalTextsAreMarkdownSafe(): void
     {
