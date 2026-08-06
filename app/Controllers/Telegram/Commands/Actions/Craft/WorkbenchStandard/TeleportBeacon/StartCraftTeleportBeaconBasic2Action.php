@@ -136,6 +136,17 @@ class StartCraftTeleportBeaconBasic2Action extends BaseAction
         $startTime       = new \DateTime();
         $endTime         = (clone $startTime)->add(new \DateInterval('PT' . $durationMinutes . 'M'));
 
+        // Компоненты проверяем ДО создания задачи и любых списаний (фикс 2026-08-06):
+        // иначе при устаревшей кнопке снимутся золото и сырьё, а компонент — нет.
+        $missingComponents = $this->missingComponents($characterId, $requiredComponents);
+        if ($missingComponents !== []) {
+            return $this->sendError(
+                $chatId,
+                "Не хватает компонентов:\n• " . implode("\n• ", $missingComponents)
+                . "\n\nОткрой экран рецепта — там видно всё разом."
+            );
+        }
+
         $this->characterTaskModel->insert([
             'character_id'     => $characterId,
             'telegram_user_id' => $user['id'],
@@ -177,16 +188,65 @@ class StartCraftTeleportBeaconBasic2Action extends BaseAction
         }
     }
 
+    /**
+     * Хватает ли компонентов ПРЯМО СЕЙЧАС (экран требований мог быть открыт час назад,
+     * а кнопка в чате живёт вечно). Без этой проверки списание ушло бы наполовину:
+     * золото и сырьё сняты, а `deductCraftedItem` отказал по остатку.
+     *
+     * @param array<string,int> $requiredComponents
+     * @return list<string> человекочитаемые нехватки (пусто → всё на месте)
+     */
+    private function missingComponents(int $characterId, array $requiredComponents): array
+    {
+        $missing = [];
+        foreach ($requiredComponents as $itemName => $qty) {
+            $itemRow = (new CraftedItemsModel())->getCraftedItemByName($itemName);
+            $itemId  = (is_array($itemRow) && is_numeric($itemRow['id'] ?? null)) ? (int) $itemRow['id'] : 0;
+            $have    = 0;
+            if ($itemId > 0) {
+                $log  = (new CraftedItemsLogModel())
+                    ->where('crafted_item_id', $itemId)
+                    ->where('character_id', $characterId)
+                    ->first();
+                $have = (is_array($log) && is_numeric($log['quantity'] ?? null)) ? (int) $log['quantity'] : 0;
+            }
+            if ($have < (int) $qty) {
+                $missing[] = "{$itemName}: есть {$have}, нужно {$qty}";
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * Списание крафт-компонентов.
+     *
+     * 🔴 Фикс 2026-08-06 (замер на testbot): прежний код звал
+     * `CraftedItemsLogModel::update()` с raw-выражением `set('quantity','quantity - N', false)`.
+     * Такой вызов у ЭТОЙ модели молча возвращает `false` и запрос вообще не уходит —
+     * сырьё и золото списывались, а Проводка / Электронные компоненты / Ткань
+     * оставались нетронутыми, то есть рецепт был дешевле задуманного. Ни ошибки,
+     * ни лога: результат `update()` никто не проверял.
+     *
+     * Канонический путь — `deductCraftedItem()` (транзакция + проверка остатка +
+     * удаление опустевшей строки). Результат проверяем и логируем: молчаливое
+     * «списал» — это тихий эксплойт (memory feedback_crafted_items_log_raw_set_update_noop).
+     */
     private function decrementCraftedItems(int $characterId, array $requiredComponents)
     {
         foreach ($requiredComponents as $itemName => $qty) {
-            $itemRow = $this->craftedItemsModel->getCraftedItemByName($itemName);
-            if ($itemRow) {
-                $this->craftedItemsLogModel
-                    ->where('character_id',    $characterId)
-                    ->where('crafted_item_id', $itemRow['id'])
-                    ->set('quantity', 'quantity - ' . $qty, false)
-                    ->update();
+            // Свежие инстансы на итерацию — CI4 builder копит where()
+            // (memory feedback_ci4_model_builder_state_quirk).
+            $itemRow = (new CraftedItemsModel())->getCraftedItemByName($itemName);
+            $itemId  = (is_array($itemRow) && is_numeric($itemRow['id'] ?? null)) ? (int) $itemRow['id'] : 0;
+            if ($itemId <= 0) {
+                log_message('error', "[Craft] компонент «{$itemName}» не найден в crafted_items — списание пропущено.");
+
+                continue;
+            }
+
+            if (! (new CraftedItemsLogModel())->deductCraftedItem($itemId, $characterId, (int) $qty)) {
+                log_message('error', "[Craft] не удалось списать «{$itemName}» x{$qty} у персонажа {$characterId}.");
             }
         }
     }
