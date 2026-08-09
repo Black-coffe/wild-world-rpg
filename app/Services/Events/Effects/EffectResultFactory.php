@@ -67,7 +67,15 @@ final class EffectResultFactory
         $isGather  = (bool)($context['is_gathering'] ?? false);
         $isExplore = (bool)($context['is_exploring'] ?? false);
 
-        if ($onBase && !$isGather && !$isExplore) {
+        // 2026-08-09 — присутствие на базе доминирует над занятостью задачей.
+        // Было `$onBase && !$isGather && !$isExplore`: игрок, стоящий на своей базе
+        // с запущенной добычей, получал 'biome_active' (полный вред) — то есть на базе
+        // ему было ХУЖЕ, чем в чистом поле без дела ('biome_idle', ~0.7). Тексты событий
+        // обещают обратное («нахождение на базе защищает полностью» — Метеоритный удар,
+        // Эпидемия, Фонящий туман), а активный игрок почти всегда держит Gather → защита
+        // базой не работала ни у кого, кроме AFK. Инцидент: MeteorImpact 21:21, 4 игрока
+        // на своих базах получили полный удар (Father −52%).
+        if ($onBase) {
             return 'base_idle';
         }
         if ($isGather || $isExplore) {
