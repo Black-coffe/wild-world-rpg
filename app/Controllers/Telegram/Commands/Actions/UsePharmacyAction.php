@@ -258,22 +258,28 @@ class UsePharmacyAction extends BaseAction
             return false;
         }
 
-        // Проверяем durability_count
-        if (!isset($itemUsage['durability_count'])) {
-            // Если нет поля, можем просто считать durability_count = 1
-            $itemUsage['durability_count'] = 1;
-        }
+        // 🔴 Fix «бесконечный медовый сбитень» (2026-08-09): раньше остаток доз брался
+        // из `durability_count` КАК ЕСТЬ. У строк, выданных PvE-наградой, там лежала
+        // константа 100 — при базе 1 это давало 100 бесплатных применений, а экран всё
+        // это время честно писал «Остаток: 1 шт.». Теперь остаток зажат ёмкостью
+        // шаблона: min(остаток, база).
+        $baseDurability = CraftedItemsLogModel::baseCharges(
+            $this->craftedItemsModel->find($itemId)['durability_count'] ?? null
+        );
+        $chargesLeft = CraftedItemsLogModel::effectiveCharges(
+            $itemUsage['durability_count'] ?? null,
+            $baseDurability
+        );
 
-        // Если в durability_count ещё есть запас, уменьшим его
-        if ($itemUsage['durability_count'] > 1) {
+        // Если в дозах ещё есть запас, уменьшим его
+        if ($chargesLeft > 1) {
             $this->craftedItemsLogModel->update($itemUsage['id'], [
-                'durability_count' => $itemUsage['durability_count'] - 1
+                'durability_count' => $chargesLeft - 1
             ]);
         } else {
             // Иначе уменьшаем quantity на 1
             if ($itemUsage['quantity'] > 1) {
-                // Обнуляем счётчик durability и уменьшаем quantity
-                $baseDurability = $this->craftedItemsModel->find($itemId)['durability_count'] ?? 1;
+                // Начинаем следующую единицу стака — доз снова полная база
                 $this->craftedItemsLogModel->update($itemUsage['id'], [
                     'quantity' => $itemUsage['quantity'] - 1,
                     'durability_count' => $baseDurability
@@ -344,6 +350,16 @@ class UsePharmacyAction extends BaseAction
 
         // Сколько осталось единиц препарата
         $message .= "\nОстаток «{$itemName}»: *{$qtyLeft} шт.*\n";
+
+        // Если в упаковке несколько доз — говорим об этом прямо. Иначе повторное
+        // применение «одной штуки» читается как баг «предмет не заканчивается».
+        $baseCharges = CraftedItemsLogModel::baseCharges(
+            is_array($item) ? ($item['durability_count'] ?? null) : null
+        );
+        if ($baseCharges > 1 && $itemUsage) {
+            $left = CraftedItemsLogModel::effectiveCharges($itemUsage['durability_count'] ?? null, $baseCharges);
+            $message .= "Доз в начатой упаковке: *{$left} из {$baseCharges}*\n";
+        }
 
         // ADR-094: предупреждение о просрочке (эффект был снижен).
         if ($this->degradeMult < 1.0) {

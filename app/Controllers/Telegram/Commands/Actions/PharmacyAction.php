@@ -32,7 +32,7 @@ class PharmacyAction extends BaseAction
 
         // Выбираем только те предметы, у которых quantity > 0
         $craftedItemsLogs = $this->craftedItemsLogModel
-            ->select('crafted_items_log.quantity, crafted_items_log.durability_time, crafted_items.name_rus, crafted_items.name_eng, crafted_items.character_boost')
+            ->select('crafted_items_log.quantity, crafted_items_log.durability_time, crafted_items_log.durability_count AS log_charges, crafted_items.durability_count AS base_charges, crafted_items.name_rus, crafted_items.name_eng, crafted_items.character_boost')
             ->join('crafted_items', 'crafted_items.id = crafted_items_log.crafted_item_id')
             ->where([
                 'crafted_items_log.character_id' => $character['id'],
@@ -98,7 +98,18 @@ class PharmacyAction extends BaseAction
                 }
             }
 
+            // Многодозовые препараты (Антисептик — 5 применений в упаковке и т.п.)
+            // раньше молчали о дозах: игрок применял «1 шт.» несколько раз подряд и
+            // читал это как «предмет не заканчивается» (багрепорт 2026-08-09).
+            $baseCharges = CraftedItemsLogModel::baseCharges($item['base_charges'] ?? null);
+            $dosesLine   = '';
+            if ($baseCharges > 1) {
+                $left = CraftedItemsLogModel::effectiveCharges($item['log_charges'] ?? null, $baseCharges);
+                $dosesLine = " 💊 доз в начатой упаковке: {$left} из {$baseCharges}\n";
+            }
+
             $text .= "📋 *{$item['name_rus']}* | {$item['quantity']} шт.\n"
+                . $dosesLine
                 . $freshLine
                 . " *Баф:* {$boostText}\n\n";
 

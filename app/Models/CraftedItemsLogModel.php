@@ -161,4 +161,35 @@ class CraftedItemsLogModel extends Model
         return $this->db->transStatus();
     }
 
+    /**
+     * Сколько доз/зарядов несёт ОДНА единица предмета по шаблону `crafted_items`.
+     * Ноль/NULL/мусор в шаблоне = одноразовый предмет (1 доза), а не «бесконечный».
+     */
+    public static function baseCharges(mixed $templateDurability): int
+    {
+        return is_numeric($templateDurability) && (int) $templateDurability > 0
+            ? (int) $templateDurability
+            : 1;
+    }
+
+    /**
+     * Фактический остаток зарядов у строки стака — ЗАЖАТЫЙ ёмкостью шаблона.
+     *
+     * 🔴 `crafted_items_log.durability_count` — НЕ гарантия диапазона. Часть строк
+     * несёт историческую константу 100 от старой выдачи (PvE-награда до v0.51.593
+     * писала 100 всем предметам, а при пустом шаблоне пишет её и сейчас). Для
+     * одноразового медикамента (база 1) это превращалось в 100 бесплатных доз:
+     * экран показывал «1 шт.», а предмет не заканчивался (багрепорт про «бесконечный
+     * медовый сбитень», 2026-08-09).
+     *
+     * Правило: `min(остаток, база)`, снизу — 1 (строка с 0 всё ещё тратится как
+     * последняя доза, поведение не меняется).
+     */
+    public static function effectiveCharges(mixed $storedDurability, mixed $templateDurability): int
+    {
+        $base   = self::baseCharges($templateDurability);
+        $stored = is_numeric($storedDurability) ? (int) $storedDurability : $base;
+
+        return max(1, min($stored, $base));
+    }
 }
