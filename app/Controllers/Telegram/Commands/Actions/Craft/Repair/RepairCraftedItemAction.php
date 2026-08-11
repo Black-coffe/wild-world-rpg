@@ -165,6 +165,28 @@ class RepairCraftedItemAction extends BaseAction
             return $this->errReply($chatId, 'Инструмент не найден или уже отремонтирован.');
         }
 
+        // ADR-167: ремонт — 🔒-задача, значит не начинается поверх добычи, готовки
+        // или другого ремонта (и наоборот). Флаг берём живой из БД, а не константой,
+        // чтобы правка в админке сразу меняла и поведение, и текст отказа.
+        $repairTaskRow  = (new \App\Models\TaskModel())->where('handler_key', 'repair')->first();
+        $repairParallel = is_array($repairTaskRow) ? ($repairTaskRow['parallel_execution_allowed'] ?? 0) : 0;
+        $repairNameRus  = is_array($repairTaskRow) && is_string($repairTaskRow['name_rus'] ?? null) && $repairTaskRow['name_rus'] !== ''
+            ? $repairTaskRow['name_rus']
+            : 'Ремонт инструмента';
+        $conflict = $this->exclusiveConflictText(
+            $this->extractInt($character, 'id'),
+            $repairParallel,
+            $repairNameRus,
+        );
+        if ($conflict !== null) {
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => $conflict,
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
         $costFraction = $this->settings->get('repair.cost_fraction', 0.50);
         $duration     = $this->settings->get('repair.task_duration_minutes', 15);
         $duration     = is_numeric($duration) ? max(1, (int) $duration) : 15;

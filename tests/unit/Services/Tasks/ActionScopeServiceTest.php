@@ -149,6 +149,71 @@ final class ActionScopeServiceTest extends CIUnitTestCase
     }
 
     /**
+     * ADR-167 — экран отказа объясняет ПРАВИЛО, а не только факт: игрок должен
+     * прочитать, почему нельзя, и куда идти дальше. Иначе блокировка читается
+     * как новый баг (ровно то, с чего началась жалоба про асимметрию).
+     */
+    public function testExclusiveBlockTextNamesBothSidesAndTheRule(): void
+    {
+        $text = $this->svc->exclusiveBlockText('Добыча ресурсов', 42, 'Готовка: Грибная похлёбка');
+
+        $this->assertStringContainsString('Добыча ресурсов', $text, 'Должно быть видно, чем игрок занят');
+        $this->assertStringContainsString('Готовка: Грибная похлёбка', $text, 'И что он пытался начать');
+        $this->assertStringContainsString('42 мин.', $text, 'И сколько ждать');
+        $this->assertStringContainsString('/tasks', $text, 'И куда идти отменять');
+        $this->assertStringContainsString('🔒', $text);
+    }
+
+    /** Без имени стартующей задачи текст не должен ломаться или сыпать пустой строкой. */
+    public function testExclusiveBlockTextWorksWithoutAttemptedName(): void
+    {
+        $text = $this->svc->exclusiveBlockText('Ремонт инструмента', 5);
+
+        $this->assertStringContainsString('Ремонт инструмента', $text);
+        $this->assertStringNotContainsString('Хочешь начать:', $text);
+    }
+
+    /**
+     * Имена приходят из БД (`tasks.name_rus`) — символы разметки обязаны
+     * вырезаться. Один непарный `_` в legacy Markdown = ok=false и игрок не
+     * получает вообще ничего (урок feedback_legacy_markdown_no_backslash_escape).
+     */
+    public function testExclusiveBlockTextStripsMarkdownFromDbNames(): void
+    {
+        $text = $this->svc->exclusiveBlockText('Крафт_*hostile* [name]', 10, 'Ещё_один*');
+
+        $this->assertSame(0, substr_count($text, '*'), "В тексте не должно остаться '*': {$text}");
+        $this->assertSame(0, substr_count($text, '_') % 2, "Непарные '_': {$text}");
+        $this->assertStringContainsString('Крафтhostile', $text);
+    }
+
+    /**
+     * «0 мин.» рядом с отказом выглядит как поломка («ждать нечего, а не пускает»),
+     * поэтому нулевой и отрицательный остаток говорим словами.
+     *
+     * @dataProvider humanMinutesProvider
+     */
+    public function testHumanMinutesReadsLikeSpeech(int $minutes, string $expected): void
+    {
+        $this->assertSame($expected, $this->svc->humanMinutes($minutes));
+    }
+
+    /** @return list<array{0:int,1:string}> */
+    public static function humanMinutesProvider(): array
+    {
+        return [
+            [-5,   'меньше минуты'],
+            [0,    'меньше минуты'],
+            [1,    '1 мин.'],
+            [59,   '59 мин.'],
+            [60,   '1 ч'],
+            [125,  '2 ч 5 мин.'],
+            [1440, '1 дн.'],
+            [1620, '1 дн. 3 ч'],
+        ];
+    }
+
+    /**
      * Markdown-инвариант: все player-facing строки имеют парные `_` и не содержат
      * `*` (Telegram legacy Markdown иначе ломает рендер — урок S5b/Sell).
      *
@@ -183,6 +248,9 @@ final class ActionScopeServiceTest extends CIUnitTestCase
         }
         $out[] = [$svc->occupancyWarning(true)];
         $out[] = [$svc->occupancyWarning(false)];
+        // ADR-167: экран отказа — тоже player-facing строка, тот же инвариант.
+        $out[] = [$svc->exclusiveBlockText('Добыча ресурсов', 42, 'Готовка: Грибная похлёбка')];
+        $out[] = [$svc->exclusiveBlockText('Ремонт инструмента', 0)];
         return $out;
     }
 }

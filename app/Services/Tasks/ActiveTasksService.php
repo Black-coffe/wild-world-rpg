@@ -119,6 +119,122 @@ class ActiveTasksService
     }
 
     /**
+     * ADR-167 — активная задача, которая занимает персонажа целиком
+     * (`tasks.parallel_execution_allowed = 0`), либо null.
+     *
+     * Единая точка правды о «я сейчас занят». До ADR-167 этот запрос жил только
+     * внутри BaseAction::checkParallelExecutionAllowed и потому применялся лишь
+     * к добыче/движению/Походу; старты крафта и ремонта его не звали и стартовали
+     * поверх занятого персонажа.
+     *
+     * Свежая модель на вызов — CI4-builder накапливает where-состояние между
+     * вызовами внутри одного запроса (урок feedback_ci4_model_builder_state_quirk).
+     *
+     * @param int $ignoreTaskId `tasks.id`, который не считается помехой самому себе.
+     *                          Нужен очереди крафта: повторный запуск ТОГО ЖЕ рецепта
+     *                          не запускает второе дело, а становится в очередь
+     *                          (status='queued', end_time=NULL) и ждёт своей смены —
+     *                          инвариант «одновременно идёт одно 🔒» при этом цел.
+     * @return array{charTaskId:int, name:string, name_rus:string, end_time:?string, minutes_left:int}|null
+     */
+    public function findBlockingTask(int $characterId, int $ignoreTaskId = 0): ?array
+    {
+        $builder = (new CharacterTaskModel())->builder()
+            ->select('character_tasks.id AS charTaskId, character_tasks.end_time, tasks.name, tasks.name_rus')
+            ->join('tasks', 'tasks.id = character_tasks.task_id', 'inner')
+            ->where('character_tasks.character_id', $characterId)
+            ->where('character_tasks.status', 'in_work')
+            ->where('tasks.parallel_execution_allowed', 0);
+
+        if ($ignoreTaskId > 0) {
+            $builder->where('character_tasks.task_id !=', $ignoreTaskId);
+        }
+
+        // Раньше всех освободится — его и показываем игроку как «осталось».
+        $result = $builder->orderBy('character_tasks.end_time', 'ASC')->get();
+        if ($result === false) {
+            return null;
+        }
+
+        $row = $result->getRowArray();
+
+        if (! is_array($row)) {
+            return null;
+        }
+
+        $endTime  = isset($row['end_time']) && is_string($row['end_time']) && $row['end_time'] !== ''
+            ? $row['end_time']
+            : null;
+        $leftSec  = $endTime !== null ? strtotime($endTime) - Time::now()->getTimestamp() : 0;
+        $nameRus  = is_string($row['name_rus'] ?? null) && $row['name_rus'] !== '' ? $row['name_rus'] : 'Текущее дело';
+
+        return [
+            'charTaskId'   => (int) $row['charTaskId'],
+            'name'         => is_string($row['name'] ?? null) ? $row['name'] : '',
+            'name_rus'     => $nameRus,
+            'end_time'     => $endTime,
+            'minutes_left' => $leftSec > 0 ? (int) ceil($leftSec / 60) : 0,
+        ];
+    }
+
+    /**
+     * ADR-167 — единое правило «🔒 поверх 🔒 не начинается» + готовый текст отказа.
+     *
+     * Одна реализация на всех, потому что точек старта 🔒-задач четыре и они в
+     * разных слоях: крафт и ремонт (action-handler'ы), полный переезд (валидатор-
+     * сервис), полевые действия (свой давний гейт в BaseAction). Разъехавшиеся
+     * копии этого правила и были исходной причиной жалобы.
+     *
+     * @param mixed  $startingParallelFlag `tasks.parallel_execution_allowed` стартующей задачи
+     * @param string $attemptedNameRus     что игрок пытается начать
+     * @param int    $ignoreTaskId         своя же задача (очередь крафта) — см. findBlockingTask()
+     * @return string|null текст отказа (Markdown), либо null если начинать можно
+     */
+    public function exclusiveConflict(int $characterId, mixed $startingParallelFlag, string $attemptedNameRus = '', int $ignoreTaskId = 0): ?string
+    {
+        $scope = new ActionScopeService();
+
+        // Фоновое дело (⏳) начинать можно всегда — бейдж это прямо обещает.
+        if ($scope->isBackground($startingParallelFlag)) {
+            return null;
+        }
+
+        if (! $this->exclusiveLockEnabled()) {
+            return null;
+        }
+
+        $blocking = $this->findBlockingTask($characterId, $ignoreTaskId);
+        if ($blocking === null) {
+            return null;
+        }
+
+        return $scope->exclusiveBlockText(
+            $blocking['name_rus'],
+            $blocking['minutes_left'],
+            $attemptedNameRus,
+        );
+    }
+
+    /**
+     * Killswitch ADR-167 (`craft.exclusive_lock.enabled`, категория «Крафт»).
+     * Выключение возвращает ровно доправочное поведение — 🔒-дело снова стартует
+     * поверх занятого персонажа. Живёт в админке, чтобы откат не требовал деплоя.
+     */
+    public function exclusiveLockEnabled(): bool
+    {
+        $raw = (new \App\Services\GameSettings\GameSettingsService())->get('craft.exclusive_lock.enabled', true);
+
+        if (is_bool($raw)) {
+            return $raw;
+        }
+        if (is_numeric($raw)) {
+            return (int) $raw === 1;
+        }
+
+        return $raw === 'true';
+    }
+
+    /**
      * Быстрый метод, который проверяет, нет ли у игрока задачи "BaseRelocation".
      * Если есть, отправляет сообщение "Переезд активен" и возвращает true (блокируем).
      * Если нет ― возвращает false (можно продолжать).

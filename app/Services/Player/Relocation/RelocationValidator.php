@@ -88,6 +88,16 @@ class RelocationValidator
             return ['ok' => false, 'error' => "❌ У вас уже идёт полный переезд! Дождитесь окончания."];
         }
 
+        // ADR-167: переезд тоже занимает целиком (parallel_execution_allowed=0),
+        // поэтому не начинается поверх добычи, готовки или ремонта — раньше здесь
+        // проверялся только сам переезд, и он стартовал прямо посреди чужой задачи.
+        $charId   = isset($character['id']) && is_numeric($character['id']) ? (int) $character['id'] : 0;
+        $conflict = (new \App\Services\Tasks\ActiveTasksService())
+            ->exclusiveConflict($charId, 0, 'Полный переезд');
+        if ($conflict !== null) {
+            return ['ok' => false, 'error' => $conflict];
+        }
+
         // Кулдаун?
         $lastCompl = $this->characterTaskModel
             ->where('character_id', $character['id'])

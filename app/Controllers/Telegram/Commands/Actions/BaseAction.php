@@ -95,6 +95,30 @@ abstract class BaseAction
         return true;
     }
 
+    /**
+     * ADR-167 — симметрия 🔒: не даём начать «занимающее целиком» дело поверх
+     * другого такого же.
+     *
+     * Гейт `checkParallelExecutionAllowed()` выше читают только полевые действия
+     * (добыча / движение / Поход). Старты крафта и ремонта его не звали, поэтому
+     * костёр спокойно запускался поверх идущей добычи, хотя обратное было
+     * запрещено — жалоба Анжелы 2026-08-10. Здесь та же проверка, но со стороны
+     * стартующей задачи.
+     *
+     * Фоновые (`parallel_execution_allowed=1`) старты не трогаем: бейдж
+     * «⏳ Идёт в фоне» обещает, что их можно запускать когда угодно, и это
+     * обещание остаётся в силе.
+     *
+     * @param mixed  $startingParallelFlag `tasks.parallel_execution_allowed` стартующей задачи
+     * @param string $attemptedNameRus     что игрок пытается начать (для текста отказа)
+     * @return string|null текст отказа, либо null если начинать можно
+     */
+    protected function exclusiveConflictText(int $characterId, mixed $startingParallelFlag, string $attemptedNameRus = '', int $ignoreTaskId = 0): ?string
+    {
+        return (new \App\Services\Tasks\ActiveTasksService())
+            ->exclusiveConflict($characterId, $startingParallelFlag, $attemptedNameRus, $ignoreTaskId);
+    }
+
     protected function prepareBlockedTaskResponse($callbackDataCancel)
     {
         $endTime = new \DateTime($this->blockingTaskDetails['end_time']);

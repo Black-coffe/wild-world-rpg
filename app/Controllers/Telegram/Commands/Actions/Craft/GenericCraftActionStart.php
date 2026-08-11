@@ -125,6 +125,23 @@ class GenericCraftActionStart extends BaseAction
             return $this->sendError("Задача '{$recipe['task_name']}' не найдена в базе.");
         }
 
+        // ADR-167: 🔒-крафт (parallel_execution_allowed=0) не стартует поверх другого
+        // 🔒-дела. Проверка стоит ДО очереди и до списания ресурсов — иначе игрок
+        // терял бы сырьё в очередь, которая всё равно не может пойти.
+        // Свой же рецепт помехой не считается: ниже он уйдёт в очередь (queued),
+        // а не запустится вторым — очередь v0.51.129 остаётся рабочей.
+        $taskNameRus = is_string($taskRow['name_rus'] ?? null) ? $taskRow['name_rus'] : '';
+        $conflict    = $this->exclusiveConflictText(
+            (int) $character['id'],
+            $taskRow['parallel_execution_allowed'] ?? 1,
+            $taskNameRus,
+            (int) $taskRow['id'],
+        );
+        if ($conflict !== null) {
+            $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", 'exclusive_task_busy');
+            return $this->sendError($conflict);
+        }
+
         // v0.51.129: queue logic. Active task для цього recipe → НЕ блок'уємо,
         // а додаємо у queue (status='queued'). Reject лише при перевищенні
         // queue cap або slot cap.
