@@ -833,8 +833,10 @@ section.block:first-of-type { border-top: 0; }
   letter-spacing: .14em; text-transform: uppercase; color: var(--text-dim);
   margin: 0 0 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border);
 }
+/* колонка значения — фиксированной минимальной ширины (4ch), иначе «0%» и «100%»
+   дают колонкам разную ширину, треки строк расходятся и полосы съезжают со шкалы */
 .ww-chart .ww-chart-row {
-  display: grid; grid-template-columns: minmax(110px, 30%) 1fr auto;
+  display: grid; grid-template-columns: minmax(110px, 30%) 1fr minmax(4ch, auto);
   align-items: center; gap: 14px; padding: 9px 0;
 }
 .ww-chart .ww-chart-label { font-size: 14px; color: var(--text); line-height: 1.3; }
@@ -872,7 +874,7 @@ section.block:first-of-type { border-top: 0; }
 }
 @media (max-width: 560px) {
   .ww-chart { padding: 18px 14px; }
-  .ww-chart .ww-chart-row { grid-template-columns: 1fr auto; gap: 6px 12px; }
+  .ww-chart .ww-chart-row { grid-template-columns: 1fr minmax(4ch, auto); gap: 6px 12px; }
   .ww-chart .ww-chart-label { grid-column: 1 / -1; font-size: 13px; }
   .ww-chart.is-compare .ww-chart-values { text-align: left; }
 }
