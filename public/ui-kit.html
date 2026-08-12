@@ -1513,6 +1513,47 @@ section.block:first-of-type { border-top: 0; }
 @keyframes ww-cta-sweep { 0% { background-position: 120% 0; } 55%, 100% { background-position: -25% 0; } }
 @media (prefers-reduced-motion: reduce) { .ww-cta-break::before, .ww-cta-break::after, .ww-cta-break .ww-cta-btn::after { animation: none; transition: none; } }
 @media (max-width: 480px) { .ww-cta-break { padding: 28px 18px; } .ww-cta-break .ww-cta-btn { display: flex; width: 100%; justify-content: center; } }
+
+/* --- DATA-VIZ: плитки чисел, полосы, парное «было / стало» (зеркало wildworld-ui.css) --- */
+.ww-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); margin: 1.6em 0; }
+.ww-stat { background: var(--bg-elev-1); padding: 20px 18px; }
+.ww-stat .ww-stat-value { font-family: var(--font-mono); font-size: clamp(26px, 5vw, 38px); line-height: 1; color: var(--accent); letter-spacing: -.02em; }
+.ww-stat .ww-stat-label { font-family: var(--font-body); font-size: 13px; line-height: 1.35; color: var(--text-dim); margin-top: 10px; }
+.ww-stat.is-danger .ww-stat-value { color: var(--danger-hi); }
+.ww-stat.is-success .ww-stat-value { color: var(--success); }
+.ww-stat.is-dim .ww-stat-value { color: var(--text-dim); }
+.ww-chart { border: 1px solid var(--border); background: var(--bg-elev-1); padding: 22px 20px; margin: 1.6em 0; }
+.ww-chart .ww-chart-title { font-family: var(--font-display); font-weight: 500; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-dim); margin: 0 0 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.ww-chart .ww-chart-row { display: grid; grid-template-columns: minmax(110px, 30%) 1fr auto; align-items: center; gap: 14px; padding: 9px 0; }
+.ww-chart .ww-chart-label { font-size: 14px; color: var(--text); line-height: 1.3; }
+.ww-chart .ww-chart-track { background: var(--bg-elev-3); height: 18px; min-width: 2px; }
+.ww-chart .ww-chart-bar { display: block; height: 100%; width: var(--v, 0%); background: var(--accent); border-right: 1px solid var(--accent-hi); transform-origin: left center; animation: ww-bar-grow var(--dur-3) var(--ease) both; }
+.ww-chart .ww-chart-value { font-family: var(--font-mono); font-size: 14px; color: var(--text); white-space: nowrap; }
+.ww-chart .ww-chart-row.is-danger .ww-chart-bar { background: var(--danger); border-right-color: var(--danger-hi); }
+.ww-chart .ww-chart-row.is-danger .ww-chart-value { color: var(--danger-hi); }
+.ww-chart .ww-chart-row.is-success .ww-chart-bar { background: var(--success); border-right-color: var(--success); }
+.ww-chart .ww-chart-row.is-dim .ww-chart-bar { background: var(--text-muted); border-right-color: var(--text-dim); }
+.ww-chart .ww-chart-row.is-dim .ww-chart-value { color: var(--text-dim); }
+.ww-chart .ww-chart-note { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); margin: 16px 0 0; padding-top: 12px; border-top: 1px solid var(--border); }
+.ww-chart .ww-chart-legend { display: flex; flex-wrap: wrap; gap: 18px; margin: 0 0 16px; font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }
+.ww-chart .ww-chart-legend span { display: inline-flex; align-items: center; gap: 8px; }
+.ww-chart .ww-chart-legend i { width: 14px; height: 10px; background: var(--accent); display: inline-block; }
+.ww-chart .ww-chart-legend i.is-was { background: var(--text-muted); }
+.ww-chart.is-compare .ww-chart-row { align-items: start; padding: 12px 0; }
+.ww-chart.is-compare .ww-chart-pair { display: flex; flex-direction: column; gap: 6px; }
+.ww-chart.is-compare .ww-chart-values { display: flex; flex-direction: column; gap: 6px; text-align: right; }
+.ww-chart.is-compare .ww-chart-track { height: 14px; }
+.ww-chart.is-compare .ww-chart-track.is-was .ww-chart-bar { background: var(--text-muted); border-right-color: var(--text-dim); }
+.ww-chart.is-compare .ww-chart-value.is-was { color: var(--text-muted); text-decoration: line-through; }
+.ww-chart + .ww-chart, .ww-stats + .ww-chart { margin-top: 1.1em; }
+@keyframes ww-bar-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@media (prefers-reduced-motion: reduce) { .ww-chart .ww-chart-bar { animation: none; } }
+@media (max-width: 560px) {
+  .ww-chart { padding: 18px 14px; }
+  .ww-chart .ww-chart-row { grid-template-columns: 1fr auto; gap: 6px 12px; }
+  .ww-chart .ww-chart-label { grid-column: 1 / -1; font-size: 13px; }
+  .ww-chart.is-compare .ww-chart-values { text-align: left; }
+}
 </style>
 </head>
 
@@ -2227,6 +2268,69 @@ section.block:first-of-type { border-top: 0; }
         </div>
         <div class="skel block mt-3"></div>
       </div>
+    </div>
+
+    <h3 class="kicker mt-4">Графики для статей — плитки чисел, полосы, парное «было / стало»</h3>
+    <p class="dim" style="font-size:14px;max-width:70ch">Без JS и без библиотек. Длина полосы кодируется данными
+      (<code class="code">style="--v:72%"</code>), число всегда стоит вне полосы — короткая полоса остаётся читаемой.
+      Без CSS блок деградирует в обычный список. Используется внутри <code class="code">content_html</code> статей.</p>
+
+    <div class="ww-stats">
+      <div class="ww-stat"><div class="ww-stat-value">652</div><div class="ww-stat-label">персонажа задело событием</div></div>
+      <div class="ww-stat is-danger"><div class="ww-stat-value">0</div><div class="ww-stat-label">укрытий было собрано до правки</div></div>
+      <div class="ww-stat is-success"><div class="ww-stat-value">3</div><div class="ww-stat-label">за первые сутки после</div></div>
+      <div class="ww-stat is-dim"><div class="ww-stat-value">7</div><div class="ww-stat-label">срабатываний события за сезон</div></div>
+    </div>
+
+    <div class="ww-chart">
+      <p class="ww-chart-title">Доля потерь от полного удара</p>
+      <div class="ww-chart-row is-success">
+        <div class="ww-chart-label">На базе, без дела</div>
+        <div class="ww-chart-track"><span class="ww-chart-bar" style="--v:2%"></span></div>
+        <div class="ww-chart-value">0%</div>
+      </div>
+      <div class="ww-chart-row is-dim">
+        <div class="ww-chart-label">В поле, без дела</div>
+        <div class="ww-chart-track"><span class="ww-chart-bar" style="--v:70%"></span></div>
+        <div class="ww-chart-value">70%</div>
+      </div>
+      <div class="ww-chart-row is-danger">
+        <div class="ww-chart-label">На базе, идёт добыча</div>
+        <div class="ww-chart-track"><span class="ww-chart-bar" style="--v:100%"></span></div>
+        <div class="ww-chart-value">100%</div>
+      </div>
+      <p class="ww-chart-note">Третья строка — состояние до правки: дома било сильнее, чем в поле.</p>
+    </div>
+
+    <div class="ww-chart is-compare">
+      <p class="ww-chart-title">Цена выкупа у торговца</p>
+      <div class="ww-chart-legend">
+        <span><i class="is-was"></i> было</span>
+        <span><i></i> стало</span>
+      </div>
+      <div class="ww-chart-row">
+        <div class="ww-chart-label">Профессиональный верстак</div>
+        <div class="ww-chart-pair">
+          <div class="ww-chart-track is-was"><span class="ww-chart-bar" style="--v:100%"></span></div>
+          <div class="ww-chart-track"><span class="ww-chart-bar" style="--v:33%"></span></div>
+        </div>
+        <div class="ww-chart-values">
+          <span class="ww-chart-value is-was">150 000</span>
+          <span class="ww-chart-value">50 000</span>
+        </div>
+      </div>
+      <div class="ww-chart-row">
+        <div class="ww-chart-label">Рюкзак-телепорт</div>
+        <div class="ww-chart-pair">
+          <div class="ww-chart-track is-was"><span class="ww-chart-bar" style="--v:60%"></span></div>
+          <div class="ww-chart-track"><span class="ww-chart-bar" style="--v:11%"></span></div>
+        </div>
+        <div class="ww-chart-values">
+          <span class="ww-chart-value is-was">90 000</span>
+          <span class="ww-chart-value">17 000</span>
+        </div>
+      </div>
+      <p class="ww-chart-note">Полосы сравниваются с максимумом ряда — 150 000.</p>
     </div>
 
     <h3 class="kicker mt-4">Список новостей / постов</h3>
