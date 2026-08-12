@@ -11113,12 +11113,6 @@ parameters:
 			path: app/Services/Bases/BaseCheckService.php
 
 		-
-			message: '#^Cannot access offset ''map_cell_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Bases/BaseCheckService.php
-
-		-
 			message: '#^Method App\\Services\\Bases\\BaseCheckService\:\:checkBaseStatus\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
