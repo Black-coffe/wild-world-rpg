@@ -21,7 +21,7 @@ use Config\Database;
  * Источники (live-запросы, без новой таблицы — те же паттерны, что DashboardAnalyticsService):
  *   • explored_cells.created_at — «исследовано N клеток» + «бродили M выживших» (DISTINCT)
  *   • characters.created_at      — «высадилось L / всего T»
- *   • character_buildings.built_at + map — «последняя база поднята K назад (квадрат X/Y)»
+ *   • character_buildings.built_at — «последняя постройка возведена K назад» (БЕЗ координат: см. lastBase())
  *   • battle_logs.created_at      — «стычек S»
  *
  * Все запросы drift-safe (try/catch → 0/null), read-only. Гейт: killswitch
@@ -62,7 +62,7 @@ class IslandPulseService
     /**
      * Собрать все правдивые агрегаты в один массив (для рендера экрана/тизера).
      *
-     * @return array{cells:int, movers:int, survivors_period:int, survivors_total:int, last_base:array{mins:int,x:int,y:int}|null, skirmishes:int, window_hours:int, survivors_days:int}
+     * @return array{cells:int, movers:int, survivors_period:int, survivors_total:int, last_base:array{mins:int}|null, skirmishes:int, window_hours:int, survivors_days:int}
      */
     public function snapshot(): array
     {
@@ -109,26 +109,35 @@ class IslandPulseService
     }
 
     /**
-     * Последняя построенная база: минут назад + координаты квадрата. null, если баз нет.
+     * Последняя возведённая постройка: сколько минут назад. null, если построек нет.
      *
-     * @return array{mins:int,x:int,y:int}|null
+     * 🔴 **Координаты намеренно НЕ отдаём** (правка 2026-08-12). Раньше строка печатала
+     * точные `x/y` самой свежей постройки ВСЕМ, кто открыл «🌍 Остров живёт». Чужие базы и так
+     * не секрет — {@see TextMapService} рисует их маркерами в видимой области, — но это другой
+     * уровень доступа: там надо дойти ногами и разведать, а тут любой получал точку мгновенно.
+     * Целью автоматически становился самый свежий строитель, то есть чаще всего новичок, и
+     * согласия на публикацию домашней клетки он не давал. Рейдов баз в игре нет, но полевой PvP
+     * требует стоять вплотную — знание домашней клетки давало ровно это (кемп у чужого лагеря).
+     *
+     * Заодно снята вторая ложь: запрос идёт по `character_buildings`, то есть по ЛЮБОЙ постройке,
+     * а строка обещала «база поднята». Ветеран, поставивший очередной верстак на давно живущей
+     * базе, читался как «кто-то основал базу» (замер 12.08: у чара 1272 две записи на одной
+     * клетке, у 1107 — две за день). Теперь текст говорит ровно то, что считает запрос.
+     *
+     * @return array{mins:int}|null
      */
     protected function lastBase(): ?array
     {
         $row = $this->row(
-            'SELECT TIMESTAMPDIFF(MINUTE, cb.built_at, NOW()) AS mins, m.coordinate_x AS x, m.coordinate_y AS y '
-            . 'FROM character_buildings cb JOIN map m ON m.id = cb.map_cell_id '
+            'SELECT TIMESTAMPDIFF(MINUTE, cb.built_at, NOW()) AS mins '
+            . 'FROM character_buildings cb '
             . 'WHERE cb.built_at IS NOT NULL ORDER BY cb.built_at DESC LIMIT 1'
         );
         if (! isset($row['mins'])) {
             return null;
         }
 
-        return [
-            'mins' => self::intOf($row['mins']),
-            'x'    => self::intOf($row['x'] ?? 0),
-            'y'    => self::intOf($row['y'] ?? 0),
-        ];
+        return ['mins' => self::intOf($row['mins'])];
     }
 
     // ── Текст (media-off, markdown-balanced) ─────────────────────────────────
@@ -137,7 +146,7 @@ class IslandPulseService
      * Полный экран «🌍 Остров живёт». Показываем только ненулевые строки (честно: 0 не пишем).
      * Если окно пустое — честная «тихо» + кумулятив (всего высадилось T) — он всегда > 0.
      *
-     * @param array{cells:int, movers:int, survivors_period:int, survivors_total:int, last_base:array{mins:int,x:int,y:int}|null, skirmishes:int, window_hours:int, survivors_days:int} $s
+     * @param array{cells:int, movers:int, survivors_period:int, survivors_total:int, last_base:array{mins:int}|null, skirmishes:int, window_hours:int, survivors_days:int} $s
      */
     public function buildIslandText(array $s): string
     {
@@ -153,7 +162,7 @@ class IslandPulseService
         }
         if ($s['last_base'] !== null) {
             $ago = self::agoLabel($s['last_base']['mins']);
-            $lines[] = "🏕 Последняя база поднята *{$ago}* (квадрат {$s['last_base']['x']}/{$s['last_base']['y']})";
+            $lines[] = "🏕 Последняя постройка возведена *{$ago}*";
         }
         if ($s['survivors_period'] > 0) {
             $lines[] = "🆕 {$dlabel} высадилось *{$s['survivors_period']}* новых выживших";
@@ -182,7 +191,7 @@ class IslandPulseService
     /**
      * Короткий тизер для подвала карты (одна строка). null, если показывать нечего.
      *
-     * @param array{cells:int, movers:int, survivors_period:int, survivors_total:int, last_base:array{mins:int,x:int,y:int}|null, skirmishes:int, window_hours:int, survivors_days:int} $s
+     * @param array{cells:int, movers:int, survivors_period:int, survivors_total:int, last_base:array{mins:int}|null, skirmishes:int, window_hours:int, survivors_days:int} $s
      */
     public function teaserLine(array $s): ?string
     {

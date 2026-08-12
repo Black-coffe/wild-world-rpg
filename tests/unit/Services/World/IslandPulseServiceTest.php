@@ -42,7 +42,7 @@ final class IslandPulseServiceTest extends CIUnitTestCase
             'movers'           => 22,
             'survivors_period' => 13,
             'survivors_total'  => 548,
-            'last_base'        => ['mins' => 283, 'x' => 574, 'y' => 930],
+            'last_base'        => ['mins' => 283],
             'skirmishes'       => 1,
             'window_hours'     => 24,
             'survivors_days'   => 7,
@@ -56,7 +56,11 @@ final class IslandPulseServiceTest extends CIUnitTestCase
         $this->assertStringContainsString('за сутки', $t);
         $this->assertStringContainsString('22', $t);
         $this->assertStringContainsString('4 ч назад', $t);
-        $this->assertStringContainsString('574/930', $t);
+        // 🔴 Координат в экране быть не должно: строка публиковалась ВСЕМ и превращала
+        // самого свежего строителя (чаще всего новичка) в цель без его согласия.
+        $this->assertStringNotContainsString('574/930', $t);
+        $this->assertStringNotContainsString('квадрат', $t);
+        $this->assertStringContainsString('Последняя постройка возведена', $t);
         $this->assertStringContainsString('За неделю', $t);
         $this->assertStringContainsString('548', $t);
         $this->assertStringContainsString('настоящие', $t);
@@ -155,7 +159,7 @@ final class IslandPulseServiceTest extends CIUnitTestCase
         $this->assertSame(13, $snap['survivors_period']);
         $this->assertSame(548, $snap['survivors_total']);
         $this->assertSame(1, $snap['skirmishes']);
-        $this->assertSame(['mins' => 283, 'x' => 574, 'y' => 930], $snap['last_base']);
+        $this->assertSame(['mins' => 283], $snap['last_base'], 'снапшот не должен нести координаты');
         $this->assertSame(24, $snap['window_hours']);
         $this->assertSame(7, $snap['survivors_days']);
     }
@@ -215,6 +219,6 @@ final class FakeIslandPulseService extends IslandPulseService
 
     protected function lastBase(): ?array
     {
-        return ['mins' => 283, 'x' => 574, 'y' => 930];
+        return ['mins' => 283];
     }
 }
