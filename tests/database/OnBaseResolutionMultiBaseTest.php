@@ -39,7 +39,6 @@ final class OnBaseResolutionMultiBaseTest extends CIUnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->cleanCache();
 
         $db = Database::connect('tests');
 
