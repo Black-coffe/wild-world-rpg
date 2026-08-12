@@ -20,6 +20,7 @@ use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportationCenter
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\ArsenalHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\CommunicationTowerHandler;
 use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\DefensiveBuildingHandler;
+use App\Controllers\Telegram\Commands\Actions\Camp\Buildings\LeanToHandler;
 
 class BuildingHandlerAction extends BaseAction
 {
@@ -83,10 +84,27 @@ class BuildingHandlerAction extends BaseAction
                 $handler = new DefensiveBuildingHandler($this->callbackQuery);
                 break;
 
+            // S5 (ADR-142): «Навес» — ПЕРВАЯ постройка новичка. Case забыли завести,
+            // когда добавляли здание, → падал в default. Багрепорт из Bugs-info
+            // (12.08.2026, Анжела): тап по «⛺ Навес L1» отвечал «Неизвестное строение».
+            // Дофаминовый момент онбординга оборачивался ошибкой у всех 21 владельцев.
+            case 'LeanTo':
+                $handler = new LeanToHandler($this->callbackQuery);
+                break;
+
             default:
+                // Сюда попадать больше не должно: гейт
+                // tests/unit/Camp/BuildingHandlerCoverageTest требует case на каждый
+                // ключ Config\Buildings. Но если постройка всё же не опознана —
+                // не бросаем игрока в тупик, а возвращаем на базу.
                 return Request::sendMessage([
-                    'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
-                    'text' => 'Неизвестное строение, в классе: BuildingHandlerAction',
+                    'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+                    'text'         => "🏚 Не удалось открыть это строение.\n\n"
+                        . 'Оно есть на базе, но его экран пока не готов — мы уже знаем об этом. '
+                        . 'Вернись на базу и попробуй другое сооружение.',
+                    'reply_markup' => json_encode(['inline_keyboard' => [[
+                        ['text' => '🏠 База', 'callback_data' => 'Base'],
+                    ]]]),
                 ]);
         }
 
