@@ -104,6 +104,9 @@ class WipeManifest extends BaseConfig
         'site_posts'           => ['strategy' => self::KEEP, 'note' => 'Контент сайта (блог/гайды)'],
         'site_post_categories' => ['strategy' => self::KEEP, 'note' => 'Связи постов сайта'],
         'site_redirects'       => ['strategy' => self::KEEP, 'note' => 'Редиректы сайта'],
+        // Агрегат без привязки к персонажу (нет character_id): суточные когорты новичков.
+        // После вайпа он нужен ИМЕННО чтобы сравнить воронку до и после — поэтому KEEP.
+        'onboarding_cohort_daily' => ['strategy' => self::KEEP, 'note' => 'Снимок воронки новичков по суткам (админ-аналитика, переживает чистку логов)'],
         'seo_gsc_pages'        => ['strategy' => self::KEEP, 'note' => 'SEO снапшоты Search Console'],
         'seo_gsc_queries'      => ['strategy' => self::KEEP, 'note' => 'SEO снапшоты Search Console'],
         'whats_new_topics'     => ['strategy' => self::KEEP, 'note' => 'Контент «что нового» (девблог)'],

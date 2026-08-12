@@ -298,6 +298,13 @@ class Tasks extends BaseTasks
         $schedule->command('player-actions:cleanup')
             ->daily('03:40')->named('player-actions.cleanup');
 
+        // Аудит 2026-08-12: firehose живёт 30 дней, а первой добычи новичка больше нигде нет —
+        // сравнение когорт старше месяца молча считало ноль вместо «данных нет». Снимок суточных
+        // когорт фиксирует воронку до того, как чистка съест логи. Намеренно ПОСЛЕ 03:40: если
+        // чистка урезала окно, пересчёт пометит когорту logs_complete=0, а не запишет заниженное.
+        $schedule->command('onboarding:cohorts')
+            ->daily('03:50')->named('onboarding.cohorts');
+
         // v0.51.113 — Endgame threshold check + scenario activation.
         // Daily 04:00 EEST. Idempotent (no-op якщо threshold ще не hit
         // або вже triggered). Перевіряє чи якась з 4 factions hit 75k
