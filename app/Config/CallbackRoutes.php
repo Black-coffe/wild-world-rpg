@@ -304,6 +304,15 @@ class CallbackRoutes extends BaseConfig
         // ранее этот ключ был указан в recipe info_callback, но не зарегистрирован
         // здесь, и в StandardCraftingAction не было кнопки → BUILT-BUT-DEAD.
         'droneScout'                      => \App\Controllers\Telegram\Commands\Actions\Drone\DroneScoutCraftInfoAction::class,
+        // 12.08.2026 — ТОТ ЖЕ класс бага, что и `droneScout` строкой выше, только
+        // прожил дольше: info-callback из CraftRecipes['MeteorShelter'] не был
+        // зарегистрирован здесь, и ни одно меню крафта не имело кнопки → предмет
+        // нельзя было скрафтить с 09.05 (0 крафтов за 3 месяца при 652 задетых
+        // событием персонажах), хотя текст «Метеоритного удара» его обещает.
+        // Багрепорт в чате: «я везде пересмотрел в меню/подменю крафта, нигде нет».
+        // Дверь: 🔨 Общий крафт → 🛡 Защита → 🛡 Метеоритное укрытие.
+        'defenseCraft'                    => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Defense\DefenseCraft1Select::class,
+        'meteorShelter'                   => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Defense\MeteorShelterCraft1Action::class,
         'factionDeposit'                  => \App\Controllers\Telegram\Commands\Actions\Faction\FactionProjectDepositConfirmAction::class,
 
         // === Camp / Base management ===

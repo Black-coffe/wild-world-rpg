@@ -387,6 +387,11 @@ class CraftRecipes extends BaseConfig
             'start_caption_name'   => '🛡 *Метеоритное укрытие*',
             'info_callback'        => 'meteorShelter',
 
+            // 12.08.2026: гейт «с 3 уровня» жил только в строке `crafted_items` и
+            // потому НЕ применялся — GenericCraftActionStart читает уровень отсюда,
+            // а здесь ключа не было. Два источника правды у гейта, где решает код
+            // (урок `feedback_two_sources_of_truth_for_gates`): дублируем в рецепт.
+            'required_level'       => 3,
             'item_name_eng'        => 'MeteorShelter',
             'item_name_rus'        => 'Метеоритное укрытие',
             'icon_emoji'           => '🛡',
@@ -466,7 +471,13 @@ class CraftRecipes extends BaseConfig
             'resource_name_en'     => 'BerrySeeds',
             'image_in_progress'    => 'uploads/telegram/craft/seeds/berry_seeds.jpg',
             'start_caption_name'   => '🫐 *Семена ягод*',
-            'info_callback'        => 'berrySeeds',
+            // 12.08.2026: было 'berrySeeds' — callback, не зарегистрированный нигде.
+            // Семена крафтятся кнопкой прямо из экрана выбора семян, отдельного
+            // info-экрана у них нет, но `info_callback` живёт в рантайме как цель
+            // «⬅️ Назад» на экране нехватки ресурсов (CraftShortageService) — то есть
+            // возврат отдавал игроку «⚠️ Эта кнопка устарела». Ведём назад в теплицу,
+            // откуда игрок и пришёл. Тем же лечатся Mushroom/Fruit/Crop ниже.
+            'info_callback'        => 'plantSeedMenu',
 
             'item_name_eng'        => 'BerrySeeds',
             'item_name_rus'        => 'Семена ягод',
@@ -491,7 +502,7 @@ class CraftRecipes extends BaseConfig
             'resource_name_en'     => 'MushroomSeeds',
             'image_in_progress'    => 'uploads/telegram/craft/seeds/mushroom_seeds.jpg',
             'start_caption_name'   => '🍄 *Семена грибов*',
-            'info_callback'        => 'mushroomSeeds',
+            'info_callback'        => 'plantSeedMenu',
 
             'item_name_eng'        => 'MushroomSeeds',
             'item_name_rus'        => 'Семена грибов',
@@ -516,7 +527,7 @@ class CraftRecipes extends BaseConfig
             'resource_name_en'     => 'FruitSeeds',
             'image_in_progress'    => 'uploads/telegram/craft/seeds/fruit_seeds.jpg',
             'start_caption_name'   => '🍎 *Семена фруктов*',
-            'info_callback'        => 'fruitSeeds',
+            'info_callback'        => 'plantSeedMenu',
 
             'item_name_eng'        => 'FruitSeeds',
             'item_name_rus'        => 'Семена фруктов',
@@ -541,7 +552,7 @@ class CraftRecipes extends BaseConfig
             'resource_name_en'     => 'CropSeeds',
             'image_in_progress'    => 'uploads/telegram/craft/seeds/crop_seeds.jpg',
             'start_caption_name'   => '🌾 *Семена овощей*',
-            'info_callback'        => 'cropSeeds',
+            'info_callback'        => 'plantSeedMenu',
 
             'item_name_eng'        => 'CropSeeds',
             'item_name_rus'        => 'Семена овощей',

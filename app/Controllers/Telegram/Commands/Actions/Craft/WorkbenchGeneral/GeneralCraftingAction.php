@@ -32,7 +32,11 @@ class GeneralCraftingAction extends BaseAction
                     ['text' => '🗓 Сезонный крафт', 'callback_data' => 'seasonalCraft'],
                     ['text' => '🔥 Костёр', 'callback_data' => 'cook'],
                 ],
+                // «🛡 Защита» встаёт в пару к «Очереди»: раздел для предметов,
+                // смягчающих мировые события (direction_craft='protection').
+                // Заодно уходит одинокая кнопка в ряду — см. правило упаковки рядов.
                 [
+                    ['text' => '🛡 Защита', 'callback_data' => 'defenseCraft'],
                     ['text' => '📋 Очередь крафта', 'callback_data' => 'craftQueue'],
                 ],
             ]
