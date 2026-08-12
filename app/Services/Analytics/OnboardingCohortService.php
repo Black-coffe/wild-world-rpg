@@ -72,19 +72,23 @@ final class OnboardingCohortService
             $ts   = strtotime("-{$i} days");
             $date = date('Y-m-d', $ts === false ? time() : $ts);
 
-            // Когорта считается по полным логам, только если ВЕСЬ её 24-часовой горизонт
-            // лежит внутри окна хранения: логи должны начинаться не позже начала суток когорты.
+            $metrics = $this->metricsFor($date);
+
+            // Когорта посчитана по полным логам, если хранение накрывает ВЕСЬ её горизонт —
+            // то есть логи начинаются не позже ПЕРВОЙ регистрации этих суток. Сравнивать с
+            // полуночью нельзя: логи стартуют в середине дня (чистка режет по времени, а не
+            // по дате), и честная когорта помечалась бы неполной. Поймано тестом.
+            $firstReg     = is_string($metrics['first_reg'] ?? null) ? $metrics['first_reg'] : '';
+            $windowStart  = $firstReg !== '' ? strtotime($firstReg) : strtotime($date . ' 00:00:00');
             $oldestTs     = $oldestLog === null ? false : strtotime($oldestLog);
-            $dayStartTs    = strtotime($date . ' 00:00:00');
-            $logsComplete = $oldestTs !== false && $dayStartTs !== false && $oldestTs <= $dayStartTs;
+            $logsComplete = $oldestTs !== false && $windowStart !== false && $oldestTs <= $windowStart;
+            unset($metrics['first_reg']);
 
             // 🔴 Уже есть полная строка, а сейчас логи урезаны → НЕ трогаем: снимок дороже пересчёта.
             if (($existing[$date] ?? false) && ! $logsComplete) {
                 $skippedStale++;
                 continue;
             }
-
-            $metrics = $this->metricsFor($date);
             if ($metrics['regs'] === 0 && ! isset($existing[$date])) {
                 continue; // пустой день без регистраций — строку не заводим
             }
@@ -105,7 +109,7 @@ final class OnboardingCohortService
     /**
      * Метрики одной суточной когорты. Горизонт — 24 часа с регистрации персонажа.
      *
-     * @return array<string, int>
+     * @return array<string, int|string> целые метрики + `first_reg` (время первой регистрации суток)
      */
     private function metricsFor(string $date): array
     {
@@ -113,6 +117,7 @@ final class OnboardingCohortService
         $sql = "
             SELECT
               COUNT(*) AS regs,
+              COALESCE(MIN(u.created_at), '') AS first_reg,
               SUM((SELECT COUNT(*) FROM player_action_log p
                     WHERE p.character_id = c.id
                       AND p.created_at <= u.created_at + INTERVAL 24 HOUR) >= 2) AS beyond_start,
@@ -142,7 +147,10 @@ final class OnboardingCohortService
 
         $int = static fn (mixed $v): int => is_numeric($v) ? (int) $v : 0;
 
+        $firstReg = $row['first_reg'] ?? '';
+
         return [
+            'first_reg'    => is_string($firstReg) ? $firstReg : '',
             'regs'         => $int($row['regs'] ?? 0),
             'beyond_start' => $int($row['beyond_start'] ?? 0),
             'moved'        => $int($row['moved'] ?? 0),
