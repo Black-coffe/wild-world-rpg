@@ -12,11 +12,11 @@ use App\Models\ClaimedCellModel;
  * 1. По ID персонажа берёт данные из таблицы `characters` (важны поля: cell_number, biome_id).
  * 2. По этим данным ищет строку в таблице `map` (сравниваем `map.cell_number` и `characters.cell_number`),
  *    чтобы узнать coordinate_x, coordinate_y.
- * 3. Проверяет наличие базы игрока в `claimed_cells` (where character_id=?).
- *    Если ничего не нашли, база отсутствует.
- * 4. Если база есть, сравниваем:
- *    - `claimed_cells.map_cell_id` и `characters.cell_number`.
- *    Если равны — значит игрок сейчас физически на своей базе.
+ * 3. Проверяет наличие АКТИВНОЙ базы игрока в `claimed_cells` (status='active').
+ *    Если активных нет, базы нет.
+ * 4. Если база есть, спрашивает: стоит ли игрок на КАКОЙ-НИБУДЬ из своих активных баз
+ *    (`ClaimedCellModel::findActiveCell` по текущему `characters.cell_number`).
+ *    Мульти-база жива (ADR-095/122), поэтому «первая строка» тут не годится.
  *
  * Возвращает информацию (bool hasBase, bool isOnBase).
  */
@@ -76,13 +76,12 @@ class BaseCheckService
             }
         }
 
-        // 3) Проверяем, есть ли запись в `claimed_cells` по character_id
-        $claimedCell = $this->claimedCellModel
-            ->where('character_id', $characterId)
-            ->first();
+        // 3) Есть ли у игрока хоть одна АКТИВНАЯ база.
+        // 🔴 Считаем именно активные: строка со status='abandoned' — это уже не база,
+        // а старый след, и раньше она сюда попадала (фильтра по статусу не было вовсе).
+        $hasBase = $this->claimedCellModel->countActiveBases($characterId) > 0;
 
-        if (!$claimedCell) {
-            // Базы нет
+        if (! $hasBase) {
             return [
                 'hasBase'  => false,
                 'isOnBase' => false,
@@ -91,12 +90,15 @@ class BaseCheckService
             ];
         }
 
-        // 4) Сравниваем claimed_cells.map_cell_id и character.cell_number
-        //    Если совпадают, значит игрок на своей базе
-        // (причём тут важно, что map_cell_id в claimed_cells указывает на map.id,
-        //  а мы сравниваем с cell_number. Убедитесь, что ваша схема хранит именно cell_number в map_cell_id
-        //  или нужно дополнительно проверять map->id.)
-        $isOnBase = ($claimedCell['map_cell_id'] == $cellNumber);
+        // 4) На базе ли игрок СЕЙЧАС — матч по текущей клетке, а не по первой строке.
+        // 🔴 До 2026-08-12 бралась первая запись `claimed_cells` игрока и её `map_cell_id`
+        // сравнивался с текущей клеткой: владелец двух лагерей, стоящий на ВТОРОМ, получал
+        // isOnBase=false. Тот же класс ошибки чинился в
+        // {@see \App\Services\Player\PlayerStateService::isCharacterOnBase()} — резолв обязан
+        // спрашивать «стою ли я на КАКОЙ-НИБУДЬ своей базе», а не «стою ли я на первой».
+        // Канон — {@see ClaimedCellModel::findActiveCell()} (ADR-095 Фаза 1b).
+        $cellForMatch = is_numeric($cellNumber) ? (int) $cellNumber : 0;
+        $isOnBase     = $this->claimedCellModel->findActiveCell($characterId, $cellForMatch) !== null;
 
         return [
             'hasBase'  => true,

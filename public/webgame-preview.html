@@ -1,0 +1,2379 @@
+<!DOCTYPE html>
+<html lang="ru" class="preload">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex, nofollow">
+<title>Wild World — веб-клиент · Персонаж (прототип)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Manrope:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+/* ============================================================
+   WILD WORLD — WEB CLIENT HUD (прототип экрана «Персонаж»)
+   ------------------------------------------------------------
+   Палитра и шрифты — брендовые (wildworld-ui.css / ADR-062).
+   Радиусы 0 и запрет box-shadow сохранены: свет даётся
+   radial-gradient'ами и волосяными границами, а не тенями.
+   Регистр — игровой HUD: продуктовая дисциплина состояний
+   + брендовая атмосфера (зерно, дыхание витальных шкал).
+   ============================================================ */
+:root{
+  --bg-base:#0E0B07; --bg-surface:#1A1610; --bg-elev-1:#221C14;
+  --bg-elev-2:#2C241A; --bg-elev-3:#3A2F22;
+  --border:#3A2F22; --border-strong:#5A4630; --border-faint:#2C241A;
+  --text:#E8DCC4; --text-dim:#A89A82; --text-muted:#9A8C74; --text-inverse:#0E0B07;
+  --accent:#E89B2E; --accent-hi:#F2B045; --accent-lo:#8C5D1A; --accent-ink:#1A1106;
+  --danger:#B23A2A; --danger-hi:#D14D3B; --danger-txt:#E4644F; --warning:#D9B048;
+  --success:#7A9E3F; --info:#5C8AAE;
+  --r-trash:#6B6050; --r-common:#9C9080; --r-uncommon:#7A9E3F; --r-rare:#5C8AAE;
+  --r-epic:#A47AC4; --r-legend:#E89B2E; --r-mythic:#C44B3D;
+  --font-display:"Oswald","Segoe UI",system-ui,sans-serif;
+  --font-body:"Manrope","Segoe UI",system-ui,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  --ease:cubic-bezier(.2,.7,.2,1);
+  --out-quint:cubic-bezier(.22,1,.36,1);
+  --d1:140ms; --d2:240ms; --d3:420ms;
+  --rail:84px; --aside:300px;
+  --z-rail:20; --z-dock:30; --z-scrim:40; --z-drawer:50; --z-toast:60; --z-grain:90;
+}
+*,*::before,*::after{box-sizing:border-box}
+/* Шкалы отрисованы заполненными сразу (в т.ч. без JS); класс .preload
+   держит их на нуле ровно до первого кадра, чтобы налив был виден. */
+[data-fill]{transform:scaleX(var(--f,1))}
+.preload [data-fill]{transform:scaleX(0)}
+html,body{margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg-base); color:var(--text);
+  font:15px/1.5 var(--font-body);
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh; overflow-x:hidden;
+}
+img,svg{display:block;max-width:100%}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+a{color:var(--accent);text-decoration:none}
+:focus-visible{outline:2px solid var(--accent-hi);outline-offset:2px}
+::selection{background:var(--accent-lo);color:var(--text)}
+
+/* ── Атмосфера: зерно плёнки + виньетка ───────────────────── */
+.grain,.vig{position:fixed;inset:0;pointer-events:none;z-index:var(--z-grain)}
+.grain{
+  opacity:.05;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+  animation:grain 900ms steps(4) infinite;
+}
+@keyframes grain{
+  0%{transform:translate(0,0)} 25%{transform:translate(-2%,1%)}
+  50%{transform:translate(1%,-2%)} 75%{transform:translate(-1%,-1%)} 100%{transform:translate(0,0)}
+}
+.vig{background:radial-gradient(120% 90% at 50% 12%,transparent 40%,rgba(0,0,0,.55) 100%)}
+
+/* ── Верхняя панель ───────────────────────────────────────── */
+.top{
+  position:sticky;top:0;z-index:var(--z-rail);
+  display:flex;align-items:center;gap:16px;
+  height:56px;padding:0 18px;
+  background:linear-gradient(180deg,#15110C 0%,#100D09 100%);
+  border-bottom:1px solid var(--border);
+}
+.brand{display:flex;align-items:center;gap:10px;flex:0 0 auto}
+.brand svg{width:22px;height:22px;color:var(--accent)}
+.brand b{font:600 15px/1 var(--font-display);letter-spacing:.14em;text-transform:uppercase}
+.top__sep{width:1px;height:22px;background:var(--border);flex:0 0 auto}
+.who{display:flex;align-items:baseline;gap:8px;min-width:0}
+.who__name{font:500 15px/1 var(--font-display);letter-spacing:.06em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who__lvl{font:500 12px/1 var(--font-mono);color:var(--accent);white-space:nowrap}
+.top__spacer{flex:1 1 auto}
+.purse{display:flex;align-items:center;gap:6px;font:500 13px/1 var(--font-mono);color:var(--text);white-space:nowrap}
+.purse i{font-style:normal;font-size:13px}
+.purse b{color:var(--accent-hi);font-weight:700}
+.iconbtn{
+  width:34px;height:34px;display:grid;place-items:center;
+  border:1px solid transparent;color:var(--text-dim);
+  transition:color var(--d1) var(--ease),border-color var(--d1) var(--ease),background var(--d1) var(--ease);
+}
+.iconbtn:hover{color:var(--accent);border-color:var(--border-strong);background:var(--bg-elev-1)}
+
+/* демо-плашка */
+.demo{
+  margin:0;padding:7px 18px;border-bottom:1px solid var(--border-faint);
+  background:var(--bg-surface);color:var(--text-muted);font-size:12px;line-height:1.5;
+}
+.demo code{font:inherit;font-family:var(--font-mono);color:var(--text-dim)}
+.demo b{color:var(--accent);font-weight:600}
+
+/* ── Каркас ───────────────────────────────────────────────── */
+.shell{display:grid;grid-template-columns:var(--rail) minmax(0,1fr) var(--aside);align-items:start}
+
+/* ── Левый рельс = нижнее меню Telegram (6 групп, ADR-150) ── */
+.rail{
+  position:sticky;top:56px;align-self:start;
+  height:calc(100vh - 56px);
+  display:flex;flex-direction:column;gap:2px;padding:10px 6px;
+  border-right:1px solid var(--border);background:#131009;
+}
+.rail__btn{
+  position:relative;display:grid;gap:5px;justify-items:center;
+  padding:11px 4px 9px;color:var(--text-dim);width:100%;
+  transition:color var(--d1) var(--ease),background var(--d1) var(--ease);
+}
+.rail__btn em{font-style:normal;font-size:19px;line-height:1;transition:transform var(--d2) var(--out-quint)}
+.rail__btn span{font:500 10px/1.3 var(--font-body);letter-spacing:.04em;text-align:center}
+.rail__btn:hover{color:var(--text);background:var(--bg-elev-1)}
+.rail__btn:hover em{transform:translateY(-2px) scale(1.08)}
+.rail__btn[aria-current="page"]{color:var(--accent);background:radial-gradient(80% 100% at 0% 50%,rgba(232,155,46,.16),transparent 70%)}
+.rail__ind{
+  position:absolute;left:0;width:2px;height:44px;background:var(--accent);
+  transition:transform var(--d3) var(--out-quint);
+}
+.rail__fill{flex:1 1 auto}
+.rail__hint{color:var(--text-muted);font-size:10px;text-align:center;line-height:1.35;padding:8px 2px}
+
+/* ── Сцена ────────────────────────────────────────────────── */
+.stage{min-width:0;padding:20px 22px 90px}
+.sheet{position:relative;max-width:860px;margin:0 auto}
+
+/* уголки видоискателя */
+.sheet::before,.sheet::after{
+  content:"";position:absolute;width:14px;height:14px;pointer-events:none;opacity:.7;
+}
+.sheet::before{top:-6px;left:-6px;border-top:1px solid var(--border-strong);border-left:1px solid var(--border-strong)}
+.sheet::after{bottom:-6px;right:-6px;border-bottom:1px solid var(--border-strong);border-right:1px solid var(--border-strong)}
+
+/* ── Геройский кадр ───────────────────────────────────────── */
+.hero{position:relative;border:1px solid var(--border);background:#0B0906;overflow:hidden}
+.hero__img{
+  width:100%;height:260px;object-fit:cover;object-position:52% 38%;
+  filter:saturate(.72) contrast(1.06) brightness(.86);
+  transform:scale(1.04);
+  transition:transform 1.6s var(--out-quint),filter var(--d3) var(--ease);
+}
+.hero:hover .hero__img{transform:scale(1.075);filter:saturate(.8) contrast(1.08) brightness(.92)}
+.hero__wash{
+  position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(180deg,rgba(14,11,7,.35) 0%,transparent 26%,rgba(14,11,7,.62) 64%,#0E0B07 100%),
+    radial-gradient(70% 55% at 82% 22%,rgba(232,155,46,.14),transparent 68%);
+}
+/* перфорация плёнки */
+.hero__perf{position:absolute;left:0;right:0;height:9px;pointer-events:none;opacity:.5;
+  background:repeating-linear-gradient(90deg,var(--border-strong) 0 7px,transparent 7px 18px)}
+.hero__perf--t{top:0}
+.hero__perf--b{bottom:0}
+.hero__body{position:absolute;left:0;right:0;bottom:0;padding:0 20px 16px;display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.hero__id{min-width:0;flex:1 1 260px}
+.hero__flag{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-dim);margin-bottom:5px;flex-wrap:wrap}
+.hero__flag b{color:var(--text);font-weight:600}
+.hero__name{
+  margin:0;font:600 clamp(28px,4.4vw,42px)/1.02 var(--font-display);
+  letter-spacing:.02em;text-transform:uppercase;text-wrap:balance;
+}
+.hero__title{margin:6px 0 0;font-size:13px;color:var(--accent-hi)}
+.lvl{
+  flex:0 0 auto;display:grid;place-items:center;gap:1px;
+  width:74px;height:74px;padding:9px;border:1px solid var(--accent-lo);
+  background:radial-gradient(90% 90% at 50% 20%,rgba(232,155,46,.2),rgba(26,17,6,.55));
+}
+.lvl b{font:600 30px/1 var(--font-mono);color:var(--accent-hi)}
+.lvl span{font:500 9px/1.3 var(--font-body);letter-spacing:.18em;color:var(--text-dim);text-transform:uppercase}
+
+/* ── Общие блоки листа ────────────────────────────────────── */
+.row{border:1px solid var(--border);border-top:0;background:var(--bg-surface)}
+.row--pad{padding:14px 18px}
+.lab{
+  display:flex;align-items:center;gap:7px;
+  font:500 11px/1.3 var(--font-body);letter-spacing:.13em;text-transform:uppercase;color:var(--text-muted);
+}
+.lab i{font-style:normal;font-size:12px}
+
+/* полярная звезда — текущая цель */
+.goal{display:flex;align-items:center;gap:14px;padding:13px 18px;background:linear-gradient(90deg,rgba(232,155,46,.09),transparent 62%)}
+.goal__star{position:relative;flex:0 0 auto;width:30px;height:30px;display:grid;place-items:center;font-size:17px}
+.goal__star::after{
+  content:"";position:absolute;inset:-6px;
+  background:radial-gradient(circle,rgba(232,155,46,.42),transparent 66%);
+  animation:ping 3.4s var(--ease) infinite;
+}
+@keyframes ping{0%,70%,100%{transform:scale(.7);opacity:.25}35%{transform:scale(1.25);opacity:.75}}
+.goal__txt{min-width:0;flex:1 1 auto}
+.goal__txt p{margin:2px 0 0;font-size:14.5px;color:var(--text)}
+.goal__cnt{
+  flex:0 0 auto;font:500 13px/1 var(--font-mono);color:var(--accent);
+  border:1px solid var(--border-strong);padding:6px 9px;
+}
+
+/* ── Витальные шкалы ──────────────────────────────────────── */
+.vitals{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)}
+.vital{padding:14px 18px 15px;background:var(--bg-surface)}
+.vital__head{display:flex;align-items:baseline;gap:8px;margin-bottom:9px}
+.vital__ico{font-size:15px;line-height:1}
+.vital__name{font:500 11px/1.3 var(--font-body);letter-spacing:.13em;text-transform:uppercase;color:var(--text-dim);flex:1 1 auto}
+.vital__val{font:700 20px/1 var(--font-mono);color:var(--text)}
+.vital__max{font:400 12px/1 var(--font-mono);color:var(--text-muted)}
+.meter{position:relative;height:9px;background:var(--bg-elev-1);border:1px solid var(--border-faint);overflow:hidden}
+.meter>i{
+  display:block;height:100%;width:100%;background:var(--tone,var(--success));
+  transform-origin:left;
+  transition:transform 1.1s var(--out-quint);
+}
+/* дыхание: пульс шкалы, темп зависит от состояния */
+.meter::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.16),transparent);
+  transform:translateX(-100%);
+  animation:sweep var(--beat,4.5s) var(--ease) infinite;
+}
+@keyframes sweep{0%{transform:translateX(-100%)}55%,100%{transform:translateX(220%)}}
+.meter__ticks{
+  position:absolute;inset:0;pointer-events:none;opacity:.5;
+  background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),var(--bg-base) calc(10% - 1px),var(--bg-base) 10%);
+}
+.vital[data-state="ok"]{--tone:var(--success);--beat:4.5s}
+.vital[data-state="warn"]{--tone:var(--warning);--beat:2.6s}
+.vital[data-state="bad"]{--tone:var(--danger-hi);--beat:1.35s}
+.vital__note{margin:9px 0 0;font-size:12px;line-height:1.45;color:var(--text-muted)}
+.vital[data-state="bad"] .vital__val,.vital[data-state="bad"] .vital__note{color:var(--danger-txt)}
+.vital[data-state="warn"] .vital__val{color:var(--warning)}
+
+/* ── Лестница уровня ──────────────────────────────────────── */
+.ladder{padding:15px 18px 16px}
+.ladder__top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.ladder__to{font:500 13px/1.3 var(--font-body);color:var(--text)}
+.ladder__to b{color:var(--accent-hi)}
+.ladder__pct{font:700 15px/1 var(--font-mono);color:var(--accent-hi)}
+.ladder__num{margin-left:auto;font:500 12px/1 var(--font-mono);color:var(--text-dim)}
+.ladder__num b{color:var(--text)}
+.bar{position:relative;height:14px;border:1px solid var(--border);background:var(--bg-elev-1);overflow:hidden}
+.bar>i{
+  display:block;height:100%;width:100%;
+  background:linear-gradient(180deg,var(--accent-hi),var(--accent-lo));
+  transform-origin:left;
+  transition:transform 1.4s var(--out-quint);
+}
+.bar__cells{position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),var(--bg-base) calc(10% - 1px),var(--bg-base) 10%)}
+.bar__glint{
+  position:absolute;top:0;bottom:0;width:44px;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(255,236,196,.5),transparent);
+  transform:translateX(-60px);animation:glint 5.5s var(--ease) 1.6s infinite;
+}
+@keyframes glint{0%{transform:translateX(-60px)}42%,100%{transform:translateX(920px)}}
+.ladder__hint{margin:10px 0 0;padding-left:14px;border-left:1px solid var(--border);font-size:12px;color:var(--text-muted);line-height:1.5}
+.ladder__gift{margin:9px 0 0;font-size:12.5px;color:var(--text-dim)}
+.ladder__gift b{color:var(--text)}
+
+/* ── Инструментальная строка статов ───────────────────────── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border)}
+.stat{position:relative;padding:14px 14px 13px;background:var(--bg-surface);transition:background var(--d2) var(--ease)}
+.stat:hover{background:var(--bg-elev-1)}
+.stat__k{display:flex;align-items:center;gap:6px;font:500 10.5px/1.3 var(--font-body);letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted)}
+.stat__v{margin-top:7px;font:700 24px/1 var(--font-mono);color:var(--text);transition:color var(--d2) var(--ease)}
+.stat:hover .stat__v{color:var(--accent-hi)}
+.stat__scale{margin-top:9px;height:3px;background:var(--bg-elev-2);overflow:hidden}
+.stat__scale>i{display:block;height:100%;width:100%;background:var(--accent-lo);
+  transform-origin:left;
+  transition:transform 1.2s var(--out-quint),background var(--d2) var(--ease)}
+.stat:hover .stat__scale>i{background:var(--accent)}
+.stat__ruler{
+  margin-top:5px;height:5px;opacity:.55;
+  background:repeating-linear-gradient(90deg,var(--border-strong) 0 1px,transparent 1px 9px);
+}
+
+/* ── Мир вокруг: координаты / биом / стаж ─────────────────── */
+.world{display:grid;grid-template-columns:minmax(0,1.15fr) 1px minmax(0,1fr);gap:0}
+.world__hair{background:var(--border)}
+.place{position:relative;padding:15px 18px;overflow:hidden}
+.place::after{
+  content:"";position:absolute;right:-40px;top:-40px;width:180px;height:180px;pointer-events:none;
+  background:radial-gradient(circle,rgba(92,138,174,.16),transparent 68%);
+}
+.coords{display:flex;align-items:baseline;gap:12px;margin:8px 0 0;font:500 22px/1 var(--font-mono);color:var(--text)}
+.coords span{color:var(--text-muted);font-size:12px}
+.biome{margin:10px 0 0;display:flex;align-items:center;gap:9px;font-size:13.5px;color:var(--text-dim)}
+.biome b{color:var(--text);font-weight:600}
+.compass{
+  flex:0 0 auto;height:24px;padding:0 8px;border:1px solid var(--border-strong);
+  display:inline-grid;place-items:center;font:700 11px/1 var(--font-mono);
+  letter-spacing:.08em;color:var(--accent);
+  animation:tilt 7s var(--ease) infinite;transform-origin:center;
+}
+@keyframes tilt{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg)}}
+.tallies{display:grid;grid-template-rows:repeat(3,1fr)}
+.tally{display:flex;align-items:center;gap:10px;padding:11px 18px;border-bottom:1px solid var(--border-faint);font-size:13px;color:var(--text-dim)}
+.tally:last-child{border-bottom:0}
+.tally i{font-style:normal;font-size:14px}
+.tally b{margin-left:auto;font:500 15px/1 var(--font-mono);color:var(--text)}
+
+/* ── Кошелёк / карма ──────────────────────────────────────── */
+.wallet{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)}
+.wallet>div{display:flex;align-items:center;gap:10px;padding:13px 18px;background:var(--bg-surface);font-size:13px;color:var(--text-dim)}
+.wallet b{margin-left:auto;font:700 17px/1 var(--font-mono)}
+.wallet .gold b{color:var(--accent-hi)}
+.wallet .karma b{color:var(--success)}
+
+/* ── Серия входов ─────────────────────────────────────────── */
+.streak{padding:14px 18px}
+.streak__top{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--text-dim)}
+.streak__top b{color:var(--text);font:700 15px/1 var(--font-mono)}
+.streak__days{margin-left:auto;display:flex;gap:4px}
+.streak__days i{width:13px;height:13px;border:1px solid var(--border-strong);display:block}
+.streak__days i.on{background:var(--accent);border-color:var(--accent);animation:emberIn var(--d3) var(--out-quint) backwards}
+.streak__days i.next{border-color:var(--accent-lo);background:repeating-linear-gradient(45deg,transparent 0 3px,rgba(232,155,46,.25) 3px 6px)}
+@keyframes emberIn{from{transform:scale(.2);opacity:0}to{transform:scale(1);opacity:1}}
+.streak__next{margin:9px 0 0;padding-left:14px;border-left:1px solid var(--border);font-size:12.5px;color:var(--text-muted);line-height:1.5}
+.streak__next b{color:var(--text-dim)}
+
+/* ── Снаряжение ───────────────────────────────────────────── */
+.gear{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)}
+.slot{display:flex;align-items:center;gap:12px;padding:13px 16px;background:var(--bg-surface);transition:background var(--d2) var(--ease)}
+.slot:hover{background:var(--bg-elev-1)}
+.slot__ico{
+  flex:0 0 auto;width:40px;height:40px;display:grid;place-items:center;font-size:18px;
+  border:1px solid var(--rar,var(--border-strong));
+  background:radial-gradient(80% 80% at 50% 20%,rgba(255,255,255,.05),transparent);
+  transition:transform var(--d2) var(--out-quint);
+}
+.slot:hover .slot__ico{transform:translateY(-2px)}
+.slot__body{min-width:0}
+.slot__k{font:500 10.5px/1.3 var(--font-body);letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted)}
+.slot__v{margin-top:5px;font-size:13.5px;color:var(--text);overflow-wrap:anywhere}
+.slot__v.empty{color:var(--text-muted)}
+.meta2{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)}
+.meta2>div{display:flex;align-items:center;gap:9px;padding:12px 18px;background:var(--bg-surface);font-size:13px;color:var(--text-dim)}
+.meta2 b{color:var(--text)}
+.drone{position:relative;overflow:hidden}
+.drone::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(122,158,63,.12),transparent);
+  transform:translateX(-100%);animation:sweep 3.2s var(--ease) infinite;
+}
+.drone .tag{margin-left:auto;font:500 11px/1.4 var(--font-mono);color:var(--success);border:1px solid rgba(122,158,63,.5);padding:5px 7px}
+
+/* ── Кнопки действий ──────────────────────────────────────── */
+/* Сетка на 6 колонок: пары занимают по 3, тройка коротких — по 2.
+   Так же, как packButtonRows() в боте: ни одной кнопки в ряду в одиночку. */
+.acts{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-top:0}
+.act{grid-column:span 3}
+.act--third{grid-column:span 2}
+.act{
+  position:relative;display:flex;align-items:center;gap:11px;
+  padding:15px 16px;background:var(--bg-surface);color:var(--text);text-align:left;
+  transition:background var(--d1) var(--ease),color var(--d1) var(--ease),transform var(--d1) var(--ease);
+}
+.act em{font-style:normal;font-size:17px;line-height:1;flex:0 0 auto;transition:transform var(--d2) var(--out-quint)}
+.act span{font:500 13.5px/1.25 var(--font-body)}
+.act::after{
+  content:"";position:absolute;left:0;bottom:0;height:2px;width:100%;
+  background:var(--accent);transform:scaleX(0);transform-origin:left;
+  transition:transform var(--d2) var(--ease);
+}
+.act:hover{background:var(--bg-elev-1)}
+.act:hover em{transform:scale(1.16) rotate(-4deg)}
+.act:hover::after{transform:scaleX(1)}
+.act:active{transform:translateY(1px)}
+.act--primary{background:linear-gradient(180deg,rgba(232,155,46,.16),rgba(232,155,46,.05));grid-column:span 6}
+.act--primary span{font-weight:700;letter-spacing:.02em}
+.act--primary:hover{background:linear-gradient(180deg,rgba(232,155,46,.26),rgba(232,155,46,.09))}
+.act--danger{color:var(--danger-txt)}
+.act--danger::after{background:var(--danger-hi)}
+.act--danger:hover{background:rgba(178,58,42,.14)}
+.act--lock{color:var(--text-muted)}
+.act--lock em{filter:grayscale(1);opacity:.8}
+.act[aria-expanded="true"]{background:var(--bg-elev-2);color:var(--accent-hi)}
+.act[aria-expanded="true"]::after{transform:scaleX(1)}
+.act__chev{margin-left:auto;font:400 11px/1 var(--font-mono);color:var(--text-muted);transition:transform var(--d2) var(--ease)}
+.act[aria-expanded="true"] .act__chev{transform:rotate(90deg);color:var(--accent)}
+
+/* хаб-панель */
+.hub{grid-column:span 6;background:var(--bg-base);display:none}
+.hub.open{display:block}
+.hub__in{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1px;background:var(--border);padding:1px 0 0}
+.hubitem{
+  display:flex;align-items:center;gap:10px;padding:13px 16px;background:var(--bg-elev-1);
+  color:var(--text-dim);text-align:left;font-size:13px;
+  transition:background var(--d1) var(--ease),color var(--d1) var(--ease);
+  animation:hubIn var(--d3) var(--out-quint) backwards;
+}
+.hubitem:hover{background:linear-gradient(90deg,rgba(232,155,46,.16),var(--bg-elev-2) 45%);color:var(--text)}
+.hubitem em{font-style:normal;font-size:15px;transition:transform var(--d2) var(--out-quint)}
+.hubitem:hover em{transform:translateX(4px) scale(1.1)}
+.hubitem.lock{color:var(--text-muted)}
+.hubitem.lock em{filter:grayscale(1)}
+@keyframes hubIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+/* ── Правая колонка ───────────────────────────────────────── */
+.aside{position:sticky;top:56px;align-self:start;height:calc(100vh - 56px);overflow-y:auto;
+  border-left:1px solid var(--border);background:#131009;padding:16px 14px 40px}
+.panel{border:1px solid var(--border);background:var(--bg-surface);margin-bottom:14px}
+.panel__h{display:flex;align-items:center;gap:8px;padding:11px 13px;border-bottom:1px solid var(--border-faint)}
+.panel__b{padding:13px}
+.job__name{font:500 14px/1.2 var(--font-body);color:var(--text)}
+.job__time{margin:8px 0 10px;font:700 26px/1 var(--font-mono);color:var(--accent-hi);font-variant-numeric:tabular-nums}
+.job__bar{height:5px;background:var(--bg-elev-1);border:1px solid var(--border-faint);overflow:hidden}
+.job__bar>i{display:block;height:100%;width:100%;background:var(--accent);
+  transform:scaleX(0);transform-origin:left;transition:transform 1s linear}
+.job__note{margin:9px 0 0;font-size:12px;color:var(--text-muted);line-height:1.45}
+.pulse{margin:0;padding:0;list-style:none}
+.pulse li{display:flex;gap:9px;padding:9px 0;border-bottom:1px solid var(--border-faint);font-size:12.5px;color:var(--text-dim);line-height:1.45}
+.pulse li:last-child{border-bottom:0}
+.pulse i{font-style:normal;flex:0 0 auto}
+.pulse b{color:var(--text);font-weight:600}
+.pulse li{animation:pulseIn var(--d3) var(--out-quint) backwards}
+@keyframes pulseIn{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
+
+/* ── Нижний док (мобайл) — зеркало reply-клавиатуры ───────── */
+.dock{
+  display:none;position:fixed;left:0;right:0;bottom:0;z-index:var(--z-dock);
+  grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);
+  border-top:1px solid var(--border-strong);
+  padding-bottom:env(safe-area-inset-bottom,0);
+}
+.dock button{display:grid;justify-items:center;gap:4px;padding:9px 2px;background:#15110C;color:var(--text-dim);font-size:10px}
+.dock button em{font-style:normal;font-size:18px}
+.dock button[aria-current="page"]{color:var(--accent);background:#1D1710}
+
+/* ── Ящик экрана ──────────────────────────────────────────── */
+.scrim{position:fixed;inset:0;z-index:var(--z-scrim);background:rgba(5,4,2,.72);opacity:0;pointer-events:none;transition:opacity var(--d2) var(--ease)}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{
+  position:fixed;top:0;right:0;bottom:0;width:min(440px,100%);z-index:var(--z-drawer);
+  background:var(--bg-surface);border-left:1px solid var(--border-strong);
+  transform:translateX(102%);transition:transform var(--d3) var(--out-quint);
+  display:flex;flex-direction:column;
+}
+.drawer[hidden]{display:none} /* класс .drawer задаёт display:flex и перебил бы атрибут */
+.drawer.on{transform:none}
+.drawer__h{display:flex;align-items:center;gap:11px;padding:14px 16px;border-bottom:1px solid var(--border)}
+.drawer__h em{font-style:normal;font-size:19px}
+.drawer__h h2{margin:0;font:500 17px/1.1 var(--font-display);letter-spacing:.06em;text-transform:uppercase;flex:1 1 auto}
+.drawer__b{padding:14px 16px 26px;overflow-y:auto;flex:1 1 auto}
+.drawer__lead{margin:0 0 14px;font-size:13px;color:var(--text-dim);line-height:1.55}
+.dlist{margin:0;padding:0;list-style:none;border-top:1px solid var(--border-faint)}
+.dlist li{
+  display:flex;align-items:center;gap:11px;padding:11px 2px;border-bottom:1px solid var(--border-faint);font-size:13.5px;
+  animation:hubIn var(--d2) var(--out-quint) backwards;
+}
+.dlist em{font-style:normal;font-size:15px}
+.dlist b{margin-left:auto;font:500 13px/1 var(--font-mono);color:var(--text)}
+.dlist .dot{width:7px;height:7px;flex:0 0 auto;background:var(--rar,var(--r-common))}
+.skel{height:13px;background:linear-gradient(90deg,var(--bg-elev-1),var(--bg-elev-3),var(--bg-elev-1));background-size:220% 100%;animation:shimmer 1.1s linear infinite}
+@keyframes shimmer{from{background-position:120% 0}to{background-position:-120% 0}}
+.note{margin:16px 0 0;padding:11px 13px;border:1px solid var(--border);background:var(--bg-elev-1);font-size:12px;color:var(--text-muted);line-height:1.55}
+
+/* ── Тост ─────────────────────────────────────────────────── */
+.toast{
+  position:fixed;left:50%;bottom:26px;z-index:var(--z-toast);
+  transform:translate(-50%,14px);opacity:0;pointer-events:none;
+  border:1px solid var(--border-strong);background:var(--bg-elev-2);
+  padding:10px 15px;font-size:13px;color:var(--text);
+  transition:opacity var(--d2) var(--ease),transform var(--d2) var(--out-quint);
+}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* ============================================================
+   СВОДКА — постоянная полоса критического.
+   Живёт в оболочке, а не на экране: что бы игрок ни открыл,
+   здоровье / выносливость / касса против налога / активная
+   задача / тревоги всегда на одном и том же месте.
+   ============================================================ */
+.vbar{
+  position:sticky;top:56px;z-index:calc(var(--z-rail) - 1);
+  display:flex;align-items:stretch;gap:0;
+  background:#15110C;border-bottom:1px solid var(--border);
+  overflow:visible;
+}
+.vcell{
+  display:flex;align-items:center;gap:9px;
+  padding:9px 16px;border-right:1px solid var(--border-faint);
+  min-width:0;
+}
+.vcell__ico{font-size:15px;line-height:1;flex:0 0 auto}
+.vcell__body{min-width:0}
+.vcell__k{font:500 9.5px/1.3 var(--font-body);letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);white-space:nowrap}
+.vcell__v{margin-top:4px;font:700 14px/1 var(--font-mono);color:var(--text);white-space:nowrap}
+.vcell__v small{font:400 11px/1 var(--font-mono);color:var(--text-muted)}
+/* мини-шкала: тот же язык, что у крупных витальных полос */
+.vmeter{position:relative;width:52px;height:4px;margin-top:6px;background:var(--bg-elev-2);overflow:hidden}
+.vmeter>i{display:block;height:100%;width:100%;background:var(--tone,var(--success));transform-origin:left}
+.vcell[data-state="warn"]{--tone:var(--warning)}
+.vcell[data-state="warn"] .vcell__v{color:var(--warning)}
+.vcell[data-state="bad"]{--tone:var(--danger-hi)}
+.vcell[data-state="bad"] .vcell__v{color:var(--danger-txt)}
+.vcell--grow{flex:1 1 auto}
+.vcell--job .vcell__v{color:var(--accent-hi)}
+/* полоска «сколько прошло» под активной задачей */
+.vjob{position:relative;width:96px;height:3px;margin-top:6px;background:var(--bg-elev-2);overflow:hidden}
+.vjob>i{display:block;height:100%;width:100%;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform 1s linear}
+
+/* колокол тревог */
+.vbell{
+  position:relative;display:flex;align-items:center;gap:8px;
+  padding:0 16px;margin-left:auto;border-left:1px solid var(--border);
+  color:var(--text-dim);white-space:nowrap;
+  transition:background var(--d1) var(--ease),color var(--d1) var(--ease);
+}
+.vbell:hover,.vbell[aria-expanded="true"]{background:var(--bg-elev-1);color:var(--text)}
+.vbell__ico{position:relative;font-size:15px;line-height:1}
+.vbell__n{
+  font:700 12px/1 var(--font-mono);color:var(--accent-ink);
+  background:var(--warning);padding:4px 6px;
+}
+.vbell[data-max="bad"] .vbell__n{background:var(--danger-hi);color:#FFF1EA}
+/* кольцо тревоги — только когда есть красное */
+.vbell[data-max="bad"] .vbell__ico::after{
+  content:"";position:absolute;inset:-7px;
+  background:radial-gradient(circle,rgba(209,77,59,.5),transparent 68%);
+  animation:ping 2.2s var(--ease) infinite;
+}
+.vbell__lbl{font:500 11px/1.3 var(--font-body);letter-spacing:.1em;text-transform:uppercase}
+
+.alerts{
+  position:fixed;z-index:var(--z-toast);
+  width:min(420px,calc(100vw - 24px));
+  border:1px solid var(--border-strong);background:var(--bg-elev-1);
+  opacity:0;transform:translateY(-6px);pointer-events:none;
+  /* visibility, а не только opacity: закрытая всплывашка не должна
+     оставаться в дереве доступности и читаться скринридером. */
+  visibility:hidden;
+  transition:opacity var(--d2) var(--ease),transform var(--d2) var(--out-quint),visibility 0s linear var(--d2);
+}
+.alerts.on{opacity:1;transform:none;pointer-events:auto;visibility:visible;transition-delay:0s}
+.alerts h3{margin:0;padding:11px 14px;border-bottom:1px solid var(--border-faint);
+  font:500 11px/1.3 var(--font-body);letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted)}
+.alerts ul{margin:0;padding:0;list-style:none}
+.alerts li{
+  display:flex;gap:11px;padding:12px 14px;border-bottom:1px solid var(--border-faint);
+  animation:hubIn var(--d3) var(--out-quint) backwards;
+}
+.alerts li:last-child{border-bottom:0}
+.alerts .sev{width:3px;flex:0 0 auto;background:var(--sev,var(--info));align-self:stretch}
+.alerts b{display:block;font-size:13px;color:var(--text);font-weight:600}
+.alerts p{margin:4px 0 0;font-size:12px;line-height:1.5;color:var(--text-dim)}
+.alerts li[data-sev="bad"]{--sev:var(--danger-hi)}
+.alerts li[data-sev="warn"]{--sev:var(--warning)}
+.alerts li[data-sev="info"]{--sev:var(--info)}
+
+/* ============================================================
+   ЭКРАНЫ — переключаются в оболочке, сводка остаётся на месте
+   ============================================================ */
+.screen[hidden]{display:none}
+.screen{animation:screenIn var(--d3) var(--out-quint)}
+@keyframes screenIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.screen > .sheet > *{animation:blockIn 380ms var(--out-quint) backwards}
+
+@keyframes blockIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ── База: кадр лагеря с живым костром ────────────────────── */
+.camp{position:relative;border:1px solid var(--border);background:#0B0906;overflow:hidden}
+.camp__img{
+  width:100%;height:260px;object-fit:cover;object-position:50% 62%;
+  filter:saturate(.68) contrast(1.05) brightness(.82);
+  transform:scale(1.03);
+  transition:transform 1.8s var(--out-quint),filter var(--d3) var(--ease);
+}
+.camp:hover .camp__img{transform:scale(1.06);filter:saturate(.76) brightness(.88)}
+/* костёр: тёплое пятно ровно там, где он на фото, с неровным мерцанием */
+.camp__fire{
+  position:absolute;left:47.5%;top:63%;width:150px;height:130px;
+  transform:translate(-50%,-50%);pointer-events:none;
+  background:radial-gradient(circle,rgba(242,176,69,.42),rgba(232,155,46,.14) 42%,transparent 70%);
+  animation:flicker 3.7s var(--ease) infinite;
+}
+@keyframes flicker{
+  0%{opacity:.55;transform:translate(-50%,-50%) scale(1)}
+  17%{opacity:.85;transform:translate(-50%,-50%) scale(1.07)}
+  31%{opacity:.48;transform:translate(-50%,-50%) scale(.96)}
+  46%{opacity:.9;transform:translate(-50%,-50%) scale(1.1)}
+  58%{opacity:.6;transform:translate(-50%,-50%) scale(1.01)}
+  73%{opacity:.95;transform:translate(-50%,-50%) scale(1.05)}
+  88%{opacity:.52;transform:translate(-50%,-50%) scale(.98)}
+  100%{opacity:.55;transform:translate(-50%,-50%) scale(1)}
+}
+/* дым — очень медленный подъём тёплой дымки */
+.camp__smoke{
+  position:absolute;left:44%;top:20%;width:120px;height:230px;
+  transform:translateX(-50%);pointer-events:none;opacity:.16;
+  background:radial-gradient(ellipse at 50% 100%,rgba(232,220,196,.6),transparent 68%);
+  animation:smoke 13s linear infinite;
+}
+@keyframes smoke{
+  0%{opacity:0;transform:translate(-50%,20px) scaleX(.8)}
+  25%{opacity:.2}
+  100%{opacity:0;transform:translate(-50%,-70px) scaleX(1.5)}
+}
+.camp__body{position:absolute;left:0;right:0;bottom:0;padding:0 20px 16px;display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.camp__id{min-width:0;flex:1 1 260px}
+.camp__flag{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-dim);margin-bottom:5px}
+.camp__name{margin:0;font:600 clamp(26px,3.8vw,38px)/1.04 var(--font-display);letter-spacing:.02em;text-transform:uppercase;text-wrap:balance}
+.camp__where{margin:7px 0 0;font:500 13px/1 var(--font-mono);color:var(--text-dim)}
+.camp__where b{color:var(--text)}
+
+/* ── Сводка базы: постройки / налог / срок ────────────────── */
+.bsum{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border)}
+.bsum>div{padding:14px 18px;background:var(--bg-surface)}
+.bsum__k{display:flex;align-items:center;gap:6px;font:500 10.5px/1.3 var(--font-body);letter-spacing:.11em;text-transform:uppercase;color:var(--text-muted)}
+.bsum__v{margin-top:8px;font:700 22px/1 var(--font-mono);color:var(--text)}
+.bsum__n{margin:6px 0 0;font-size:12px;color:var(--text-muted);line-height:1.45}
+.bsum .tax .bsum__v{color:var(--warning)}
+.bsum .tax .bsum__n b{color:var(--warning)}
+/* тонкая полоса «сколько осталось до списания в 03:00» */
+.taxclock{margin-top:8px;height:3px;background:var(--bg-elev-2);overflow:hidden}
+.taxclock>i{display:block;height:100%;width:100%;background:var(--accent-lo);transform-origin:left}
+
+/* ── Постройки ────────────────────────────────────────────── */
+.blds{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1px;background:var(--border)}
+.bld{
+  position:relative;padding:14px 16px 15px;background:var(--bg-surface);overflow:hidden;text-align:left;
+  transition:background var(--d2) var(--ease);
+}
+.bld:hover{background:var(--bg-elev-1)}
+/* сканирующая полоска при наведении — «постройка отзывается» */
+.bld::after{
+  content:"";position:absolute;left:0;top:0;height:1px;width:100%;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  transform:scaleX(0);transform-origin:left;
+  transition:transform 520ms var(--out-quint);
+}
+.bld:hover::after{transform:scaleX(1)}
+.bld__top{display:flex;align-items:center;gap:10px}
+.bld__ico{
+  flex:0 0 auto;width:34px;height:34px;display:grid;place-items:center;font-size:16px;
+  border:1px solid var(--border-strong);
+  transition:transform var(--d2) var(--out-quint),border-color var(--d2) var(--ease);
+}
+.bld:hover .bld__ico{transform:translateY(-2px) rotate(-4deg);border-color:var(--accent-lo)}
+.bld__name{font:500 14px/1.2 var(--font-body);color:var(--text);min-width:0}
+.bld__lvl{margin-left:auto;flex:0 0 auto;font:700 11px/1 var(--font-mono);color:var(--accent);border:1px solid var(--accent-lo);padding:4px 6px}
+.bld__hp{margin-top:11px;display:flex;align-items:center;gap:8px}
+.bld__hpbar{position:relative;flex:1 1 auto;height:4px;background:var(--bg-elev-2);overflow:hidden}
+.bld__hpbar>i{display:block;height:100%;width:100%;background:var(--success);transform-origin:left}
+.bld[data-hp="warn"] .bld__hpbar>i{background:var(--warning)}
+.bld[data-hp="bad"] .bld__hpbar>i{background:var(--danger-hi)}
+.bld__hpn{font:500 10.5px/1 var(--font-mono);color:var(--text-muted);white-space:nowrap}
+.bld__eff{margin:10px 0 0;font-size:12px;line-height:1.5;color:var(--text-dim)}
+/* живой выход постройки: число тикает само */
+.bld__out{
+  margin-top:10px;display:flex;align-items:baseline;gap:7px;
+  padding-top:9px;border-top:1px solid var(--border-faint);
+}
+.bld__out em{font-style:normal;font:700 16px/1 var(--font-mono);color:var(--accent-hi)}
+.bld__out span{font-size:11.5px;color:var(--text-muted)}
+.bld__out em.tick{animation:tickflash 620ms var(--out-quint)}
+@keyframes tickflash{0%{color:#FFF3DC;transform:translateY(-2px)}100%{color:var(--accent-hi);transform:none}}
+.bld__tax{margin-top:8px;font:500 11px/1 var(--font-mono);color:var(--text-muted)}
+.bld__tax b{color:var(--text-dim)}
+/* «Работает прямо сейчас» — только у построек с выходом. Тихое дыхание
+   рамки отличает производителей от пассивных сооружений без подписи. */
+.bld--live .bld__ico{position:relative;border-color:var(--accent-lo)}
+.bld--live .bld__ico::after{
+  content:"";position:absolute;inset:-4px;
+  background:radial-gradient(circle,rgba(232,155,46,.3),transparent 68%);
+  animation:breathe 4.6s var(--ease) infinite;
+}
+@keyframes breathe{0%,100%{opacity:.18;transform:scale(.86)}50%{opacity:.6;transform:scale(1.06)}}
+/* Плитка-призыв на месте пустой клетки сетки: дыра ничего не сообщает,
+   а «поставить ещё» — сообщает, и честно предупреждает про налог. */
+.bld--add{
+  display:grid;place-content:center;justify-items:center;gap:8px;text-align:center;
+  background:var(--bg-base);color:var(--text-muted);min-height:150px;
+  transition:background var(--d2) var(--ease),color var(--d2) var(--ease);
+}
+.bld--add:hover{background:var(--bg-elev-1);color:var(--accent)}
+.bld--add em{font-style:normal;font-size:22px;transition:transform var(--d2) var(--out-quint)}
+.bld--add:hover em{transform:scale(1.15) rotate(-6deg)}
+.bld--add span{font:500 13px/1.35 var(--font-body)}
+.bld--add small{font-size:11px;color:var(--text-muted);max-width:20ch;display:block}
+.decor span em{transition:transform var(--d2) var(--out-quint)}
+.decor span:hover em{transform:rotate(-8deg) scale(1.15)}
+.bsum .tax:hover .taxclock>i{background:var(--accent)}
+.taxclock>i{transition:background var(--d2) var(--ease)}
+
+/* ── Обустройство (декор W22) ─────────────────────────────── */
+.decor{display:flex;flex-wrap:wrap;gap:8px;padding:13px 18px}
+.decor span{
+  display:inline-flex;align-items:center;gap:7px;padding:6px 10px;
+  border:1px solid var(--border);font-size:12.5px;color:var(--text-dim);
+  transition:border-color var(--d1) var(--ease),color var(--d1) var(--ease);
+}
+.decor span:hover{border-color:var(--border-strong);color:var(--text)}
+
+/* ============================================================
+   КРАФТ — три уровня лестницей, очередь, верстаки
+   ============================================================ */
+.legend{
+  display:flex;align-items:flex-start;gap:10px;padding:12px 18px;
+  font-size:12.5px;line-height:1.5;color:var(--text-dim);
+  background:linear-gradient(90deg,rgba(92,138,174,.08),transparent 60%);
+}
+.legend b{color:var(--text)}
+
+/* очередь крафта */
+.queue__head{display:flex;align-items:baseline;gap:10px;padding:13px 18px;flex-wrap:wrap}
+.queue__head .lab{flex:0 0 auto}
+.queue__cnt{margin-left:auto;font:500 12px/1 var(--font-mono);color:var(--text-dim)}
+.queue__cnt b{color:var(--text)}
+.qrow{
+  display:flex;align-items:center;gap:12px;padding:12px 18px;
+  border-top:1px solid var(--border-faint);
+  transition:background var(--d1) var(--ease);
+}
+.qrow:hover{background:var(--bg-elev-1)}
+.qrow__ico{font-size:16px;line-height:1;flex:0 0 auto}
+.qrow__body{min-width:0;flex:1 1 auto}
+.qrow__name{font-size:13.5px;color:var(--text)}
+.qrow__name b{color:var(--accent-hi);font-family:var(--font-mono)}
+.qrow__bar{margin-top:7px;height:3px;background:var(--bg-elev-2);overflow:hidden}
+.qrow__bar>i{display:block;height:100%;width:100%;background:var(--accent);transform-origin:left;transition:transform 1s linear}
+.qrow__eta{flex:0 0 auto;font:700 15px/1 var(--font-mono);color:var(--accent-hi);font-variant-numeric:tabular-nums}
+.qrow--wait{color:var(--text-muted)}
+.qrow--wait .qrow__name{color:var(--text-dim)}
+.qrow__pos{
+  flex:0 0 auto;width:22px;height:22px;display:grid;place-items:center;
+  border:1px solid var(--border-strong);font:500 11px/1 var(--font-mono);color:var(--text-muted);
+}
+.qrow__x{
+  flex:0 0 auto;padding:6px 9px;border:1px solid var(--border);
+  font-size:11.5px;color:var(--text-muted);
+  transition:border-color var(--d1) var(--ease),color var(--d1) var(--ease);
+}
+.qrow__x:hover{border-color:var(--danger-hi);color:var(--danger-txt)}
+.queue__note{padding:11px 18px;border-top:1px solid var(--border-faint);font-size:11.5px;color:var(--text-muted)}
+
+/* лестница уровней крафта */
+.tier{border-top:1px solid var(--border)}
+.tier__head{
+  display:flex;align-items:center;gap:13px;width:100%;padding:15px 18px;text-align:left;
+  transition:background var(--d1) var(--ease);
+}
+.tier__head:hover{background:var(--bg-elev-1)}
+.tier__n{
+  flex:0 0 auto;width:34px;height:34px;display:grid;place-items:center;
+  font:700 15px/1 var(--font-mono);
+  border:1px solid var(--border-strong);color:var(--text-muted);
+}
+.tier--open .tier__n,.tier--ok .tier__n{border-color:var(--accent-lo);color:var(--accent)}
+.tier__t{min-width:0;flex:1 1 auto}
+.tier__name{font:500 16px/1.2 var(--font-display);letter-spacing:.05em;text-transform:uppercase;color:var(--text)}
+.tier__sub{margin-top:4px;font-size:12.5px;color:var(--text-muted);line-height:1.45}
+.tier__state{
+  flex:0 0 auto;font:500 11px/1.3 var(--font-body);letter-spacing:.06em;
+  padding:6px 9px;border:1px solid var(--border-strong);color:var(--text-muted);white-space:nowrap;
+}
+.tier--ok .tier__state{border-color:rgba(122,158,63,.55);color:var(--success)}
+.tier--lock .tier__state{border-color:rgba(217,176,72,.5);color:var(--warning)}
+.tier--lock .tier__name,.tier--lock .tier__n{color:var(--text-dim)}
+.tier__chev{flex:0 0 auto;font:400 11px/1 var(--font-mono);color:var(--text-muted);transition:transform var(--d2) var(--ease)}
+.tier__head[aria-expanded="true"] .tier__chev{transform:rotate(90deg);color:var(--accent)}
+.tier__body{display:none;background:var(--bg-base)}
+.tier__body.open{display:block}
+/* flex-wrap, а не grid: последний ряд растягивается по ширине и
+   не оставляет пустых клеток — то же правило «никаких одиночек». */
+.cats{display:flex;flex-wrap:wrap;gap:1px;background:var(--border);border-top:1px solid var(--border)}
+.cat{
+  flex:1 1 190px;
+  display:flex;align-items:center;gap:10px;padding:13px 15px;background:var(--bg-elev-1);
+  color:var(--text-dim);text-align:left;font-size:13px;
+  transition:background var(--d1) var(--ease),color var(--d1) var(--ease);
+  animation:hubIn var(--d3) var(--out-quint) backwards;
+}
+.cat:hover{background:linear-gradient(90deg,rgba(232,155,46,.16),var(--bg-elev-2) 45%);color:var(--text)}
+.cat em{font-style:normal;font-size:15px;transition:transform var(--d2) var(--out-quint)}
+.cat:hover em{transform:translateX(3px) scale(1.12)}
+.cat small{margin-left:auto;font:400 10.5px/1 var(--font-mono);color:var(--text-muted)}
+.tier__req{padding:13px 18px;border-top:1px solid var(--border);font-size:12.5px;color:var(--text-muted);line-height:1.55}
+
+/* чек-лист сборки верстака */
+.reqs{display:grid;gap:1px;background:var(--border)}
+.req{display:flex;align-items:center;gap:11px;padding:11px 18px;background:var(--bg-surface);font-size:13px}
+.req__m{flex:0 0 auto;font-size:13px;line-height:1}
+.req__n{min-width:0;flex:1 1 auto;color:var(--text-dim)}
+.req--ok .req__n{color:var(--text)}
+.req__v{flex:0 0 auto;font:500 12px/1 var(--font-mono);color:var(--text-muted)}
+.req--ok .req__v{color:var(--success)}
+.req--no .req__v{color:var(--danger-txt)}
+.req__bar{flex:0 0 96px;height:3px;background:var(--bg-elev-2);overflow:hidden}
+.req__bar>i{display:block;height:100%;width:100%;background:var(--danger-hi);transform-origin:left}
+.req--ok .req__bar>i{background:var(--success)}
+/* итог сборки */
+.reqsum{display:flex;align-items:center;gap:12px;padding:13px 18px;background:var(--bg-elev-1);flex-wrap:wrap}
+.reqsum__v{font:700 20px/1 var(--font-mono);color:var(--warning)}
+.reqsum__t{font-size:12.5px;color:var(--text-dim);line-height:1.45;min-width:0;flex:1 1 200px}
+
+/* ремонт инструментов */
+.tools{display:grid;gap:1px;background:var(--border)}
+.tool{display:flex;align-items:center;gap:12px;padding:12px 18px;background:var(--bg-surface);text-align:left;
+  transition:background var(--d1) var(--ease)}
+.tool:hover{background:var(--bg-elev-1)}
+.tool__ico{font-size:16px;line-height:1;flex:0 0 auto}
+.tool__n{min-width:0;flex:1 1 auto;font-size:13.5px;color:var(--text)}
+.tool__bar{flex:0 0 110px;height:4px;background:var(--bg-elev-2);overflow:hidden}
+.tool__bar>i{display:block;height:100%;width:100%;background:var(--success);transform-origin:left}
+.tool[data-w="warn"] .tool__bar>i{background:var(--warning)}
+.tool[data-w="bad"] .tool__bar>i{background:var(--danger-hi)}
+.tool__v{flex:0 0 auto;font:500 11.5px/1 var(--font-mono);color:var(--text-muted);white-space:nowrap}
+.tool[data-w="bad"] .tool__v{color:var(--danger-txt)}
+
+/* строки рецепта в ящике: есть / нужно */
+.rec{margin:0;padding:0;list-style:none;border-top:1px solid var(--border-faint)}
+.rec li{display:flex;align-items:center;gap:10px;padding:10px 2px;border-bottom:1px solid var(--border-faint);
+  animation:hubIn var(--d2) var(--out-quint) backwards}
+.rec__n{min-width:0;flex:1 1 auto;font-size:13px}
+.rec__bar{flex:0 0 70px;height:3px;background:var(--bg-elev-2);overflow:hidden}
+.rec__bar>i{display:block;height:100%;width:100%;transform-origin:left;background:var(--success)}
+.rec li[data-no] .rec__bar>i{background:var(--danger-hi)}
+.rec__v{flex:0 0 auto;font:500 12px/1 var(--font-mono);color:var(--text)}
+.rec li[data-no] .rec__v{color:var(--danger-txt)}
+.qty{display:flex;flex-wrap:wrap;gap:1px;margin-top:16px;background:var(--border);border:1px solid var(--border)}
+.qty button{
+  flex:1 1 60px;padding:11px 8px;background:var(--bg-elev-1);color:var(--text);
+  font:500 13px/1 var(--font-mono);
+  transition:background var(--d1) var(--ease),color var(--d1) var(--ease);
+}
+.qty button:hover{background:var(--accent);color:var(--accent-ink)}
+.qty button.max{color:var(--accent-hi)}
+.qty button.max:hover{color:var(--accent-ink)}
+
+/* ============================================================
+   МИР — карта 12×12 и компас ходьбы
+   ============================================================ */
+.mapwrap{position:relative;padding:16px 18px;background:var(--bg-base);overflow:hidden}
+.mapwrap::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(60% 60% at 50% 50%,transparent 45%,rgba(14,11,7,.55) 100%);
+}
+.grid{
+  display:grid;grid-template-columns:repeat(12,1fr);gap:2px;
+  max-width:520px;margin:0 auto;position:relative;z-index:1;
+}
+.cell{
+  position:relative;aspect-ratio:1;display:grid;place-items:center;
+  font-size:clamp(13px,2.4vw,17px);line-height:1;
+  background:var(--bg-surface);border:1px solid transparent;
+  transition:background var(--d1) var(--ease),border-color var(--d1) var(--ease),transform var(--d1) var(--ease);
+}
+.cell--fog{background:#141009;color:transparent}
+.cell--void{background:#0B0906;color:var(--text-muted);opacity:.35}
+.cell--step{cursor:pointer}
+.cell--step:hover{border-color:var(--accent);background:var(--bg-elev-2);transform:scale(1.08);z-index:2}
+.cell--aim{border-color:var(--accent-hi);background:var(--bg-elev-2)}
+.cell--me{background:var(--bg-elev-2);border-color:var(--accent);z-index:3}
+/* маяк на клетке игрока — тихий пульс, чтобы взгляд всегда его находил */
+.cell--me::after{
+  content:"";position:absolute;inset:-5px;pointer-events:none;
+  background:radial-gradient(circle,rgba(232,155,46,.45),transparent 68%);
+  animation:ping 2.8s var(--ease) infinite;
+}
+.cell--base{border-color:rgba(122,158,63,.6)}
+.mapfoot{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding:12px 18px;border-top:1px solid var(--border-faint);
+  font:500 13px/1.4 var(--font-mono);color:var(--text-dim);
+}
+.mapfoot b{color:var(--text)}
+.mapfoot .arrow{font-size:16px;animation:tilt 5s var(--ease) infinite}
+.mapfoot__at{margin-left:auto;color:var(--text-muted)}
+
+/* компас-розетка */
+.rose{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:1px;
+  background:var(--border);border-top:1px solid var(--border);
+}
+.dir{
+  position:relative;display:grid;place-items:center;gap:5px;
+  padding:14px 8px;background:var(--bg-surface);color:var(--text-dim);
+  transition:background var(--d1) var(--ease),color var(--d1) var(--ease);
+}
+.dir em{font-style:normal;font-size:19px;line-height:1;transition:transform var(--d2) var(--out-quint)}
+.dir span{font:500 10.5px/1.2 var(--font-body);letter-spacing:.05em}
+.dir:hover{background:var(--bg-elev-2);color:var(--accent-hi)}
+.dir:hover em{transform:scale(1.2)}
+.dir:active{background:var(--accent);color:var(--accent-ink)}
+.dir--home{color:var(--success)}
+.dir--home:hover{color:var(--success)}
+/* короткая отдача на шаг: клетка «доехала» */
+.dir.went em{animation:went 420ms var(--out-quint)}
+@keyframes went{0%{transform:scale(1)}40%{transform:scale(1.45)}100%{transform:scale(1)}}
+
+/* легенда — тумблер поверх карты */
+.legendbox{display:none;padding:14px 18px;background:var(--bg-base)}
+.legendbox.open{display:block}
+.legendbox h2{margin:0 0 10px;font:500 11px/1.3 var(--font-body);letter-spacing:.13em;text-transform:uppercase;color:var(--text-muted)}
+.lgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1px;background:var(--border)}
+.lrow{display:flex;align-items:center;gap:9px;padding:9px 12px;background:var(--bg-surface);font-size:12.5px;color:var(--text-dim);
+  animation:hubIn var(--d2) var(--out-quint) backwards}
+.lrow em{font-style:normal;font-size:15px;flex:0 0 auto}
+.lrow b{color:var(--text);font-weight:600}
+.lrow small{margin-left:auto;font-size:11px;color:var(--text-muted);text-align:right}
+
+/* хроника справа */
+.chron{margin:0;padding:0;list-style:none}
+.chron li{display:flex;gap:9px;padding:9px 0;border-bottom:1px solid var(--border-faint);font-size:12px;color:var(--text-dim);line-height:1.45}
+.chron li:last-child{border-bottom:0}
+.chron i{font-style:normal;flex:0 0 auto}
+.chron time{margin-left:auto;flex:0 0 auto;font:400 10.5px/1.4 var(--font-mono);color:var(--text-muted)}
+.chron b{color:var(--text);font-weight:600}
+
+/* ── Адаптив ──────────────────────────────────────────────── */
+@media (max-width:1180px){
+  :root{--aside:0px}
+  .shell{grid-template-columns:var(--rail) minmax(0,1fr)}
+  .aside{position:static;height:auto;border-left:0;border-top:1px solid var(--border);
+    grid-column:1 / -1;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;padding:16px 22px 40px}
+  .aside .panel{margin:0}
+}
+@media (max-width:860px){
+  :root{--rail:0px}
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .rail{display:none}
+  .dock{display:grid}
+  .stage{padding:14px 12px 24px}
+  .aside{padding:14px 12px 150px;grid-column:1}
+  /* Логотип уступает место имени персонажа — иначе оно схлопывается в одну букву. */
+  .brand b{display:none}
+  /* На узком экране кадр перестаёт быть подложкой: подпись уходит под фото,
+     иначе имя + фракция + бейдж уровня не помещаются и обрезаются. */
+  .hero__img{height:180px}
+  .hero__body{position:static;padding:14px 16px 16px;background:var(--bg-surface);border-top:1px solid var(--border)}
+  .hero__wash{bottom:auto;height:180px}
+  .hero__perf--b{top:171px;bottom:auto}
+  .camp__img{height:180px}
+  .camp__body{position:static;padding:14px 16px 16px;background:var(--bg-surface);border-top:1px solid var(--border)}
+  .camp__fire{top:118px}
+  .camp__smoke{top:10px;height:150px}
+  .vitals,.wallet,.gear,.meta2,.bsum{grid-template-columns:1fr}
+  /* Сводка на узком экране — сетка 3+2, а не лента: критическое
+     не должно требовать горизонтальной прокрутки, чтобы его увидеть. */
+  .vbar{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);align-items:stretch}
+  .vcell{padding:9px 10px;gap:7px;border-right:0;background:#15110C}
+  .vcell--job{grid-column:span 2}
+  /* В узкой колонке «4 812 −354/сут» и «хватит на 13 дней» не помещаются
+     в одну строку — снимаем nowrap, иначе полоса растягивает всю страницу. */
+  .vcell__k{letter-spacing:.08em;white-space:normal}
+  .vcell__v{white-space:normal}
+  .vcell__v small{display:block;margin-top:3px}
+  .vmeter{width:100%}
+  .vjob{width:100%}
+  .vbell{margin:0;border-left:0;background:#15110C;justify-content:center;padding:9px 8px}
+  .vbell__lbl{display:none}
+  .stats{grid-template-columns:1fr 1fr}
+  .world{grid-template-columns:1fr}
+  .world__hair{height:1px}
+  .top{padding:0 12px}
+}
+@media (max-width:520px){
+  /* Одна колонка: span'ы нужно снять, иначе grid создаёт неявные колонки. */
+  .acts{grid-template-columns:1fr}
+  .act,.act--third,.act--primary,.hub{grid-column:span 1}
+  .hub__in{grid-template-columns:1fr}
+}
+@media (max-width:420px){
+  .stats{grid-template-columns:1fr 1fr}
+  .hero__name{font-size:26px}
+  .lvl{width:60px;height:60px;padding:7px}
+  .lvl b{font-size:24px}
+}
+
+/* ── Уважение к reduce-motion ─────────────────────────────── */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  .grain{display:none}
+  .drawer{transition:none}
+}
+</style>
+</head>
+<body>
+
+<div class="grain" aria-hidden="true"></div>
+<div class="vig" aria-hidden="true"></div>
+
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+      <circle cx="12" cy="12" r="9"/><path d="M15.5 8.5 10 10l-1.5 5.5L14 14z"/>
+    </svg>
+    <b>Wild World</b>
+  </div>
+  <div class="top__sep" aria-hidden="true"></div>
+  <div class="who">
+    <span class="who__name">Ковач</span>
+    <span class="who__lvl">lvl&nbsp;15</span>
+  </div>
+  <div class="top__spacer"></div>
+  <div class="purse" title="Золото">
+    <i aria-hidden="true">💰</i><b data-count="4812" data-fmt="space">0</b>
+  </div>
+  <button class="iconbtn" type="button" data-screen="settings" aria-label="Настройки">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+      <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/>
+    </svg>
+  </button>
+</header>
+
+<p class="demo" title="CharacterService::showCharacterInfo и BaseService::showBaseInfo, раскладка ADR-150">
+  <b>Прототип веб-клиента.</b>
+  Экраны «Персонаж», «База», «Крафт» и «Мир» несут тот же набор данных и кнопок, что в Telegram. Значения демонстрационные.
+</p>
+
+<!-- СВОДКА: живёт в оболочке, одинакова на всех экранах -->
+<div class="vbar" role="region" aria-label="Сводка состояния">
+  <div class="vcell" data-state="warn">
+    <span class="vcell__ico" aria-hidden="true">💖</span>
+    <div class="vcell__body">
+      <div class="vcell__k">Здоровье</div>
+      <div class="vcell__v"><span data-count="78">0</span><small>/100</small></div>
+      <div class="vmeter"><i data-fill="78" style="--f:0.78"></i></div>
+    </div>
+  </div>
+
+  <div class="vcell" data-state="bad">
+    <span class="vcell__ico" aria-hidden="true">🥱</span>
+    <div class="vcell__body">
+      <div class="vcell__k">Выносливость</div>
+      <div class="vcell__v"><span data-count="34">0</span><small>/100</small></div>
+      <div class="vmeter"><i data-fill="34" style="--f:0.34"></i></div>
+    </div>
+  </div>
+
+  <div class="vcell" data-state="warn">
+    <span class="vcell__ico" aria-hidden="true">💰</span>
+    <div class="vcell__body">
+      <div class="vcell__k">Касса против налога</div>
+      <div class="vcell__v"><span data-count="4812" data-fmt="space">0</span> <small>−354/сут</small></div>
+      <div class="vcell__k" style="margin-top:6px">хватит на <b style="color:var(--warning)">13 дней</b></div>
+    </div>
+  </div>
+
+  <div class="vcell vcell--job vcell--grow">
+    <span class="vcell__ico" aria-hidden="true">⏱</span>
+    <div class="vcell__body">
+      <div class="vcell__k">Идёт прямо сейчас</div>
+      <div class="vcell__v">Добыча · <span id="vbarTime">04:12</span></div>
+      <div class="vjob"><i id="vbarJob"></i></div>
+      <div class="vcell__k" style="margin-top:6px">+ крафт <b style="color:var(--accent)"><span id="vbarCraft">08:41</span></b> · 2 в очереди</div>
+    </div>
+  </div>
+
+  <button class="vbell" type="button" id="bell" data-max="bad" aria-expanded="false" aria-controls="alerts">
+    <span class="vbell__ico" aria-hidden="true">⚠</span>
+    <span class="vbell__n">4</span>
+    <span class="vbell__lbl">Требует внимания</span>
+  </button>
+</div>
+
+<div class="alerts" id="alerts" role="region" aria-label="Что требует внимания">
+  <h3>Что требует внимания</h3>
+  <ul>
+    <li data-sev="bad" style="animation-delay:0ms">
+      <span class="sev" aria-hidden="true"></span>
+      <div><b>Выносливость 34 из 100</b>
+      <p>Добыча стоит 8 — хватит на 4 захода. Восстанавливается едой и отдыхом на базе.</p></div>
+    </li>
+    <li data-sev="warn" style="animation-delay:40ms">
+      <span class="sev" aria-hidden="true"></span>
+      <div><b>Налог 354 золота в сутки, списание в 03:00</b>
+      <p>Кассы хватит на 13 дней. Если золота не хватит <b>два дня подряд</b> — снесут постройку, начиная с новейшей.</p></div>
+    </li>
+    <li data-sev="warn" style="animation-delay:80ms">
+      <span class="sev" aria-hidden="true"></span>
+      <div><b>Серия входов: 6 дней</b>
+      <p>Веха «Неделя в пустоши» — завтра. Пропустишь день — серия обнулится, веха уедет на неделю.</p></div>
+    </li>
+    <li data-sev="info" style="animation-delay:120ms">
+      <span class="sev" aria-hidden="true"></span>
+      <div><b>Задания дня: 2 из 3 не закрыты</b>
+      <p>Обновятся в полночь. Незакрытые сгорают без переноса.</p></div>
+    </li>
+  </ul>
+</div>
+
+<div class="shell">
+
+  <!-- Левый рельс = нижнее меню бота: 6 групп «место → действие» (ADR-150) -->
+  <nav class="rail" aria-label="Основные разделы">
+    <span class="rail__ind" aria-hidden="true" style="transform:translateY(48px)"></span>
+    <button class="rail__btn" type="button" data-screen="world"><em>🌍</em><span>Мир</span></button>
+    <button class="rail__btn" type="button" aria-current="page" data-screen="me"><em>🧑</em><span>Я</span></button>
+    <button class="rail__btn" type="button" data-screen="craft"><em>🔨</em><span>Крафт</span></button>
+    <button class="rail__btn" type="button" data-screen="base"><em>🏠</em><span>База</span></button>
+    <button class="rail__btn" type="button" data-screen="tasks"><em>📋</em><span>Дела</span></button>
+    <button class="rail__btn" type="button" data-screen="more"><em>⚙️</em><span>Ещё</span></button>
+    <span class="rail__fill"></span>
+    <p class="rail__hint">те же 6 кнопок,<br>что снизу в боте</p>
+  </nav>
+
+  <main class="stage">
+  <section class="screen" data-panel="me">
+  <article class="sheet" aria-label="Карточка персонажа">
+
+    <!-- Геройский кадр -->
+    <header class="hero">
+      <img class="hero__img" src="/uploads/telegram/gear/equipped_hero.png" alt="Выживший в снаряжении на берегу разрушенного причала">
+      <span class="hero__perf hero__perf--t" aria-hidden="true"></span>
+      <span class="hero__perf hero__perf--b" aria-hidden="true"></span>
+      <span class="hero__wash" aria-hidden="true"></span>
+      <div class="hero__body">
+        <div class="hero__id">
+          <p class="hero__flag"><span aria-hidden="true">🏳️</span> Фракция: <b>Инженеры</b></p>
+          <h1 class="hero__name">Ковач</h1>
+          <p class="hero__title"><span aria-hidden="true">🎖</span> Титул: Первопроходец</p>
+        </div>
+        <div class="lvl"><b data-count="15">0</b><span>уровень</span></div>
+      </div>
+    </header>
+
+    <!-- Полярная звезда: текущая цель онбординг-цепочки -->
+    <section class="row goal" aria-label="Текущая цель">
+      <span class="goal__star" aria-hidden="true">🎯</span>
+      <div class="goal__txt">
+        <span class="lab">Сейчас</span>
+        <p>Собрать древесину для верстака</p>
+      </div>
+      <span class="goal__cnt">2 / 3</span>
+    </section>
+
+    <!-- Витальные шкалы -->
+    <section class="row vitals" aria-label="Состояние">
+      <div class="vital" data-state="warn">
+        <div class="vital__head">
+          <span class="vital__ico" aria-hidden="true">💖</span>
+          <span class="vital__name">Здоровье</span>
+          <b class="vital__val" data-count="78">0</b><span class="vital__max">/100</span>
+        </div>
+        <div class="meter"><i data-fill="78" style="--f:0.78"></i><span class="meter__ticks" aria-hidden="true"></span></div>
+        <p class="vital__note">Смерть в мире стоит 3% ресурсов на базе. Без базы — половину всего.</p>
+      </div>
+      <div class="vital" data-state="bad">
+        <div class="vital__head">
+          <span class="vital__ico" aria-hidden="true">🥱</span>
+          <span class="vital__name">Выносливость</span>
+          <b class="vital__val" data-count="34">0</b><span class="vital__max">/100</span>
+        </div>
+        <div class="meter"><i data-fill="34" style="--f:0.34"></i><span class="meter__ticks" aria-hidden="true"></span></div>
+        <p class="vital__note">Тратится на действия в мире. Восстанавливается едой и отдыхом.</p>
+      </div>
+    </section>
+
+    <!-- Лестница уровня -->
+    <section class="row row--pad ladder" aria-label="Прогресс уровня">
+      <div class="ladder__top">
+        <span class="lab"><i aria-hidden="true">🪜</i> До уровня <b style="color:var(--accent-hi)">16</b></span>
+        <span class="ladder__pct"><span data-count="87">0</span>%</span>
+        <span class="ladder__num">набрано <b>63.5</b> из <b>64.0</b></span>
+      </div>
+      <div class="bar">
+        <i data-fill="87" style="--f:0.87"></i>
+        <span class="bar__cells" aria-hidden="true"></span>
+        <span class="bar__glint" aria-hidden="true"></span>
+      </div>
+      <p class="ladder__hint">уровень = (опыт + сила + ловкость + интеллект) ÷ 4; больше всего за раз даёт завершённая добыча ресурсов</p>
+      <p class="ladder__gift"><span aria-hidden="true">🎁</span> На 16-м уровне: <b>3 рецепта, 1 постройка, 1 оружие</b></p>
+    </section>
+
+    <!-- Инструментальная строка статов -->
+    <section class="row stats" aria-label="Характеристики">
+      <div class="stat"><span class="stat__k"><span aria-hidden="true">🌟</span> Опыт</span>
+        <div class="stat__v" data-count="9.8" data-dec="1">0</div>
+        <div class="stat__scale"><i data-fill="24" style="--f:0.24"></i></div><div class="stat__ruler" aria-hidden="true"></div></div>
+      <div class="stat"><span class="stat__k"><span aria-hidden="true">🤸</span> Ловкость</span>
+        <div class="stat__v" data-count="21.4" data-dec="1">0</div>
+        <div class="stat__scale"><i data-fill="54" style="--f:0.54"></i></div><div class="stat__ruler" aria-hidden="true"></div></div>
+      <div class="stat"><span class="stat__k"><span aria-hidden="true">🧠</span> Интеллект</span>
+        <div class="stat__v" data-count="6.2" data-dec="1">0</div>
+        <div class="stat__scale"><i data-fill="16" style="--f:0.16"></i></div><div class="stat__ruler" aria-hidden="true"></div></div>
+      <div class="stat"><span class="stat__k"><span aria-hidden="true">💪</span> Сила</span>
+        <div class="stat__v" data-count="26.1" data-dec="1">0</div>
+        <div class="stat__scale"><i data-fill="66" style="--f:0.66"></i></div><div class="stat__ruler" aria-hidden="true"></div></div>
+    </section>
+
+    <!-- Где я и сколько прошёл -->
+    <section class="row world" aria-label="Положение в мире">
+      <div class="place">
+        <span class="lab"><i aria-hidden="true">🧭</i> Координаты</span>
+        <p class="coords"><span>X</span>418 <span>Y</span>612</p>
+        <p class="biome"><span class="compass" title="Сторона света от точки старта">🧭&nbsp;ЮВ</span> <span aria-hidden="true">🌄</span> Биом: <b>Тропические джунгли</b></p>
+      </div>
+      <div class="world__hair" aria-hidden="true"></div>
+      <div class="tallies">
+        <div class="tally"><i aria-hidden="true">🎢</i> Изучено ячеек <b data-count="214">0</b></div>
+        <div class="tally"><i aria-hidden="true">💼</i> Видов ресурсов <b data-count="23">0</b></div>
+        <div class="tally"><i aria-hidden="true">⏳</i> В игре <b id="playtime">3 мес. 25 дн.</b></div>
+      </div>
+    </section>
+
+    <!-- Кошелёк -->
+    <section class="row wallet" aria-label="Золото и карма">
+      <div class="gold"><span aria-hidden="true">🧰</span> Золото <b data-count="4812" data-fmt="space">0</b></div>
+      <div class="karma"><span aria-hidden="true">💹</span> Карма торговли <b data-count="104.2" data-dec="1">0</b></div>
+    </section>
+
+    <!-- Серия входов -->
+    <section class="row row--pad streak" aria-label="Серия входов">
+      <div class="streak__top">
+        <span aria-hidden="true">🔥</span> Серия входов: <b>6 дней</b>
+        <span class="streak__days" aria-hidden="true">
+          <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="next"></i>
+        </span>
+      </div>
+      <p class="streak__next">→ <span aria-hidden="true">🏅</span> До вехи <b>«Неделя в пустоши»</b> (7 дн.): ещё 1 день · 200 золота + Древесина ×10 + титул</p>
+    </section>
+
+    <!-- Снаряжение -->
+    <section class="row gear" aria-label="Снаряжение">
+      <div class="slot" style="--rar:var(--r-uncommon)">
+        <span class="slot__ico" aria-hidden="true">🛡</span>
+        <div class="slot__body"><div class="slot__k">Броня</div><div class="slot__v">Кожаная куртка, Грубые сапоги</div></div>
+      </div>
+      <div class="slot" style="--rar:var(--r-rare)">
+        <span class="slot__ico" aria-hidden="true">⚔️</span>
+        <div class="slot__body"><div class="slot__k">Оружие</div><div class="slot__v">Самодельный арбалет</div></div>
+      </div>
+    </section>
+    <section class="row meta2" aria-label="Специализация и дрон">
+      <div><span aria-hidden="true">🎓</span> Специализация: <b>🔧 Инженер</b></div>
+      <div class="drone"><span aria-hidden="true">🛡</span> Боевой дрон <span class="tag" id="droneTag">активен 47 мин · +15% инициативы</span></div>
+    </section>
+
+    <!-- Кнопки — полный набор карточки Перса -->
+    <nav class="acts" aria-label="Действия персонажа">
+      <button class="act act--primary" type="button" data-screen="characterActions"><em>🧑‍🌾</em><span>Действия 🛠️</span></button>
+
+      <button class="act act--third" type="button" data-screen="inventory"><em>🎒</em><span>Инвентарь</span></button>
+      <button class="act act--third" type="button" data-screen="equipMenu"><em>⚔️</em><span>Экип</span></button>
+      <button class="act act--third" type="button" data-screen="pharmacy"><em>💊</em><span>Аптечка</span></button>
+
+      <button class="act" type="button" data-screen="PersonalInsurance"><em>🧍</em><span>Страховка</span></button>
+      <button class="act" type="button" data-screen="dailyTasks"><em>🗓</em><span>Задания дня</span></button>
+
+      <button class="act" type="button" data-hub="hubProgress" aria-expanded="false" aria-controls="hubProgress">
+        <em>📊</em><span>Прогресс</span><span class="act__chev" aria-hidden="true">▸</span>
+      </button>
+      <button class="act" type="button" data-hub="hubDev" aria-expanded="false" aria-controls="hubDev">
+        <em>⚙️</em><span>Развитие</span><span class="act__chev" aria-hidden="true">▸</span>
+      </button>
+      <div class="hub" id="hubProgress" role="region" aria-label="Хаб «Прогресс»">
+        <div class="hub__in">
+          <button class="hubitem" type="button" data-screen="achievements"><em>🏅</em>Достижения</button>
+          <button class="hubitem" type="button" data-screen="titles"><em>🎖</em>Титулы</button>
+          <button class="hubitem" type="button" data-screen="streakScreen"><em>🔥</em>Серия выживания</button>
+          <button class="hubitem lock" type="button" data-screen="museumLocked"><em>🔒</em>Музей (с lvl 50)</button>
+          <button class="hubitem" type="button" data-screen="leaderboard"><em>🏆</em>Топ игроков</button>
+          <button class="hubitem" type="button" data-screen="pvpLadder"><em>🏆</em>Рейтинг PvP</button>
+          <button class="hubitem" type="button" data-screen="myEconomy"><em>💰</em>Моя экономика</button>
+          <button class="hubitem" type="button" data-screen="whatsNewCatalog"><em>📚</em>Что нового</button>
+        </div>
+      </div>
+
+      <div class="hub" id="hubDev" role="region" aria-label="Хаб «Развитие»">
+        <div class="hub__in">
+          <button class="hubitem" type="button" data-screen="specialization"><em>🎓</em>Специализация</button>
+          <button class="hubitem" type="button" data-screen="factionProject"><em>🤝</em>Проект фракции</button>
+          <button class="hubitem" type="button" data-screen="combatDroneList"><em>🛡</em>Боевой дрон</button>
+          <button class="hubitem" type="button" data-screen="enchant"><em>🔧</em>Модернизация</button>
+        </div>
+      </div>
+
+      <button class="act" type="button" data-screen="guide"><em>📖</em><span>Путь новичка</span></button>
+      <a class="act" href="/profile/151" target="_blank" rel="noopener"><em>🔗</em><span>Мой профиль ↗</span></a>
+    </nav>
+
+  </article>
+  </section>
+
+  <!-- ЭКРАН «🏠 База» — паритет с BaseService::showBaseInfo (happy path, on-base) -->
+  <section class="screen" data-panel="base" hidden>
+  <article class="sheet" aria-label="Экран базы">
+
+    <header class="camp">
+      <img class="camp__img" src="/uploads/telegram/camp/base_with_its_buildings.jpg" alt="Лагерь выжившего: навесы, бочки, костёр и сушащееся бельё">
+      <span class="camp__smoke" aria-hidden="true"></span>
+      <span class="camp__fire" aria-hidden="true"></span>
+      <span class="hero__perf hero__perf--t" aria-hidden="true"></span>
+      <span class="hero__perf hero__perf--b" aria-hidden="true"></span>
+      <span class="hero__wash" aria-hidden="true"></span>
+      <div class="camp__body">
+        <div class="camp__id">
+          <p class="camp__flag"><span aria-hidden="true">🏴</span> Лагерь · <span>ты на базе, управление полное</span></p>
+          <h1 class="camp__name">Тихий омут</h1>
+          <p class="camp__where">📍 x=<b>418</b> y=<b>612</b> · 🌍 <b>Тропические джунгли</b></p>
+        </div>
+      </div>
+    </header>
+
+    <!-- Обустройство (декор базы) -->
+    <section class="row decor" aria-label="Обустройство">
+      <span><em style="font-style:normal" aria-hidden="true">🔥</em> Очаг: сложенный камень</span>
+      <span><em style="font-style:normal" aria-hidden="true">🪑</em> Обстановка: скамья из досок</span>
+      <span><em style="font-style:normal" aria-hidden="true">🐕</em> Питомец: пёс Уголёк</span>
+    </section>
+
+    <!-- Сводка базы -->
+    <section class="row bsum" aria-label="Сводка базы">
+      <div>
+        <div class="bsum__k"><span aria-hidden="true">🏘</span> Построек</div>
+        <div class="bsum__v"><span data-count="5">0</span> <small style="font:400 13px/1 var(--font-mono);color:var(--text-muted)">шт.</small></div>
+        <p class="bsum__n">Лимит баз на 15 уровне — 2. Занята одна.</p>
+      </div>
+      <div class="tax">
+        <div class="bsum__k"><span aria-hidden="true">💰</span> Налог</div>
+        <div class="bsum__v"><span data-count="354">0</span> <small style="font:400 13px/1 var(--font-mono);color:var(--text-muted)">з/сут</small></div>
+        <p class="bsum__n">Списание в <b>03:00</b> · через <b id="taxIn">—</b></p>
+        <div class="taxclock"><i id="taxClock"></i></div>
+      </div>
+      <div>
+        <div class="bsum__k"><span aria-hidden="true">⏳</span> Срок базы</div>
+        <div class="bsum__v" style="color:var(--success)">свежа</div>
+        <p class="bsum__n">Визит продлил срок. Простоит ещё 30 дн.</p>
+      </div>
+    </section>
+
+    <!-- Постройки -->
+    <section class="row blds" aria-label="Постройки базы">
+      <button class="bld bld--live" type="button" data-screen="building_1_HandPump">
+        <div class="bld__top"><span class="bld__ico" aria-hidden="true">🚰</span>
+          <span class="bld__name">Ручная скважина</span><span class="bld__lvl">L2</span></div>
+        <div class="bld__hp"><span class="bld__hpbar"><i data-fill="100" style="--f:1"></i></span><span class="bld__hpn">100/100</span></div>
+        <p class="bld__eff">Каждую минуту добавляет 1 единицу воды персонажу.</p>
+        <div class="bld__out"><em id="outWater">412</em><span>воды за сегодня · +1 через <b id="waterIn">37</b> с</span></div>
+        <div class="bld__tax">налог <b>24</b> з/сут</div>
+      </button>
+
+      <button class="bld bld--live" type="button" data-hp="warn" data-screen="building_5_Greenhouse">
+        <div class="bld__top"><span class="bld__ico" aria-hidden="true">🌱</span>
+          <span class="bld__name">Теплица</span><span class="bld__lvl">L1</span></div>
+        <div class="bld__hp"><span class="bld__hpbar"><i data-fill="72" style="--f:0.72"></i></span><span class="bld__hpn">180/250</span></div>
+        <p class="bld__eff">Каждые сутки приносит урожай: Фрукты 2500, Ягоды 600.</p>
+        <div class="bld__out"><em id="harvestIn">06:41:22</em><span>до урожая</span></div>
+        <div class="bld__tax">налог <b>80</b> з/сут</div>
+      </button>
+
+      <button class="bld bld--live" type="button" data-screen="building_7_Gym">
+        <div class="bld__top"><span class="bld__ico" aria-hidden="true">🥊</span>
+          <span class="bld__name">Спортзал</span><span class="bld__lvl">L1</span></div>
+        <div class="bld__hp"><span class="bld__hpbar"><i data-fill="100" style="--f:1"></i></span><span class="bld__hpn">100/100</span></div>
+        <p class="bld__eff">Каждые 5 минут добавляет 0,01 единицы силы.</p>
+        <div class="bld__out"><em id="outStr">+0.86</em><span>силы за сегодня · тик через <b id="strIn">2:14</b></span></div>
+        <div class="bld__tax">налог <b>54</b> з/сут</div>
+      </button>
+
+      <button class="bld" type="button" data-screen="building_4_Workshop">
+        <div class="bld__top"><span class="bld__ico" aria-hidden="true">🔧</span>
+          <span class="bld__name">Мастерская</span><span class="bld__lvl">L1</span></div>
+        <div class="bld__hp"><span class="bld__hpbar"><i data-fill="100" style="--f:1"></i></span><span class="bld__hpn">150/150</span></div>
+        <p class="bld__eff">Расширяет крафт и открывает постройку инженерных сооружений.</p>
+        <div class="bld__tax">налог <b>96</b> з/сут</div>
+      </button>
+
+      <button class="bld" type="button" data-hp="bad" data-screen="building_3_Warehouse">
+        <div class="bld__top"><span class="bld__ico" aria-hidden="true">🏚️</span>
+          <span class="bld__name">Склад</span><span class="bld__lvl">L1</span></div>
+        <div class="bld__hp"><span class="bld__hpbar"><i data-fill="31" style="--f:0.31"></i></span><span class="bld__hpn">93/300</span></div>
+        <p class="bld__eff">Открывает торговлю крафтовыми предметами на закрытом рынке.</p>
+        <div class="bld__tax">налог <b>100</b> з/сут · самая дорогая постройка базы</div>
+      </button>
+
+      <button class="bld bld--add" type="button" data-screen="Build">
+        <em aria-hidden="true">＋</em>
+        <span>Поставить ещё</span>
+        <small>каждая постройка добавит свой налог к суточному списанию</small>
+      </button>
+    </section>
+
+    <!-- Кнопки базы: тот же набор, что в BaseServiceMessageFormatter -->
+    <nav class="acts" aria-label="Действия на базе">
+      <button class="act act--primary" type="button" data-screen="Build"><em>🏗</em><span>Строить</span></button>
+
+      <button class="act act--third" type="button" data-screen="construction"><em>🏘</em><span>Постройки</span></button>
+      <button class="act act--third" type="button" data-screen="teleportBeacon"><em>📡</em><span>Маяки</span></button>
+      <button class="act act--third" type="button" data-screen="hangar"><em>🤖</em><span>Ангар</span></button>
+
+      <button class="act" type="button" data-screen="campDecor"><em>🎨</em><span>Декор</span></button>
+      <button class="act" type="button" data-screen="baseStorageList"><em>📦</em><span>Склад базы</span></button>
+
+      <button class="act" type="button" data-screen="TeleportToCamp"><em>📡</em><span>Телепорт</span></button>
+      <button class="act" type="button" data-screen="move"><em>🧭</em><span>Двигаться</span></button>
+
+      <button class="act act--danger" type="button" data-screen="DeleteBase"><em>⚠️</em><span>Снести / переехать</span></button>
+      <button class="act" type="button" data-screen="baseDevelopment"><em>🏗</em><span>Развитие базы</span></button>
+    </nav>
+
+  </article>
+  </section>
+
+  <!-- ЭКРАН «🔨 Крафт» — паритет с CraftService::showCraftMenu и всеми его ветками -->
+  <section class="screen" data-panel="craft" hidden>
+  <article class="sheet" aria-label="Экран крафта">
+
+    <header class="camp">
+      <img class="camp__img" src="/uploads/telegram/craft/crafting_area.png" alt="Мастерская выжившего: верстак, инструменты, заготовки">
+      <span class="hero__perf hero__perf--t" aria-hidden="true"></span>
+      <span class="hero__perf hero__perf--b" aria-hidden="true"></span>
+      <span class="hero__wash" aria-hidden="true"></span>
+      <div class="camp__body">
+        <div class="camp__id">
+          <p class="camp__flag"><span aria-hidden="true">🏭</span> Здесь куётся твоё могущество</p>
+          <h1 class="camp__name">Крафт</h1>
+          <p class="camp__where">три уровня · чем серьёзнее вещь, тем серьёзнее нужен верстак</p>
+        </div>
+      </div>
+    </header>
+
+    <p class="row legend" aria-label="Как работает крафт">
+      <span aria-hidden="true">🌍</span>
+      <span><b>Крафтить можно где угодно.</b> У каждого рецепта при запуске указано:
+      <b>⏳ идёт в фоне</b> — можно уйти добывать и ходить, или <b>🔒 займёт целиком</b> — жди на месте.</span>
+    </p>
+
+    <!-- Очередь крафта -->
+    <section class="row" aria-label="Очередь крафта">
+      <div class="queue__head">
+        <span class="lab"><i aria-hidden="true">📋</i> Очередь крафта</span>
+        <span class="queue__cnt">активных <b>1</b>, в очереди <b>2</b></span>
+      </div>
+
+      <div class="qrow">
+        <span class="qrow__ico" aria-hidden="true">🩹</span>
+        <div class="qrow__body">
+          <div class="qrow__name">Повязка <b>×5</b> · ⏳ идёт в фоне</div>
+          <div class="qrow__bar"><i id="q1bar"></i></div>
+        </div>
+        <span class="qrow__eta" id="q1eta">08:41</span>
+      </div>
+
+      <div class="qrow qrow--wait">
+        <span class="qrow__pos" aria-hidden="true">1</span>
+        <div class="qrow__body"><div class="qrow__name">Антисептик <b>×2</b> · встанет после текущего</div></div>
+        <button class="qrow__x" type="button" data-screen="cancelQueued_1">✕ Отменить</button>
+      </div>
+
+      <div class="qrow qrow--wait">
+        <span class="qrow__pos" aria-hidden="true">2</span>
+        <div class="qrow__body"><div class="qrow__name">Стимулятор <b>×1</b> · встанет после текущего</div></div>
+        <button class="qrow__x" type="button" data-screen="cancelQueued_2">✕ Отменить</button>
+      </div>
+
+      <p class="queue__note">Отмена очереди возвращает списанные ресурсы. Одинаковый рецепт, запущенный повторно, встаёт в очередь, а не отменяет текущий.</p>
+    </section>
+
+    <!-- Уровень 1 -->
+    <section class="row tier tier--ok tier--open" aria-label="Общий крафт">
+      <button class="tier__head" type="button" data-tier="tier1" aria-expanded="true" aria-controls="tier1">
+        <span class="tier__n" aria-hidden="true">1</span>
+        <span class="tier__t">
+          <span class="tier__name">Общий крафт</span>
+          <span class="tier__sub">Где угодно и когда угодно, без верстака: лекарства, инструменты, компоненты, костёр.</span>
+        </span>
+        <span class="tier__state">Доступен</span>
+        <span class="tier__chev" aria-hidden="true">▸</span>
+      </button>
+      <div class="tier__body open" id="tier1">
+        <div class="cats">
+          <button class="cat" type="button" data-screen="medicinesCraft1"><em>💊</em>Лекарства<small>9</small></button>
+          <button class="cat" type="button" data-screen="tools"><em>🛠️</em>Инструменты<small>8</small></button>
+          <button class="cat" type="button" data-screen="componentsCraft"><em>📐</em>Компоненты<small>11</small></button>
+          <button class="cat" type="button" data-screen="cook"><em>🔥</em>Костёр<small>еда</small></button>
+          <button class="cat" type="button" data-screen="seasonalCraft"><em>🗓</em>Сезонный крафт</button>
+          <button class="cat" type="button" data-screen="WorkbenchChoice"><em>🔬</em>Верстаки</button>
+          <button class="cat" type="button" data-screen="craftQueue"><em>📋</em>Очередь крафта</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Уровень 2 -->
+    <section class="row tier tier--ok" aria-label="Стандартный крафт">
+      <button class="tier__head" type="button" data-tier="tier2" aria-expanded="false" aria-controls="tier2">
+        <span class="tier__n" aria-hidden="true">2</span>
+        <span class="tier__t">
+          <span class="tier__name">Стандартный крафт</span>
+          <span class="tier__sub">Роботы, телепорты, броня, оружие, дроны. Нужны 🔬 Верстак 1 и своя база — но стоять на ней не обязательно.</span>
+        </span>
+        <span class="tier__state">Верстак 1 собран</span>
+        <span class="tier__chev" aria-hidden="true">▸</span>
+      </button>
+      <div class="tier__body" id="tier2">
+        <div class="cats">
+          <button class="cat" type="button" data-screen="robotsCraft2"><em>🤖</em>Роботы</button>
+          <button class="cat" type="button" data-screen="teleportBeaconCraft2"><em>🌀</em>Телепорты</button>
+          <button class="cat" type="button" data-screen="armorCraft2"><em>🛡️</em>Броня</button>
+          <button class="cat" type="button" data-screen="weaponsCraft2"><em>⚔️</em>Оружие</button>
+          <button class="cat" type="button" data-screen="droneScout"><em>🚁</em>Дрон-разведчик</button>
+          <button class="cat" type="button" data-screen="droneCargo"><em>🚚</em>Карго-дрон</button>
+          <button class="cat" type="button" data-screen="droneRepair"><em>🔧</em>Дрон-ремонтник</button>
+          <button class="cat" type="button" data-screen="droneCombat"><em>🛡</em>Боевой дрон</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Уровень 3 -->
+    <section class="row tier tier--lock" aria-label="Профессиональный крафт">
+      <button class="tier__head" type="button" data-tier="tier3" aria-expanded="false" aria-controls="tier3">
+        <span class="tier__n" aria-hidden="true">3</span>
+        <span class="tier__t">
+          <span class="tier__name">Профессиональный крафт</span>
+          <span class="tier__sub">Топовое оружие, броня, медицина, утилиты и фракционные вещи. Нужен 🛠️ Профессиональный верстак (цех).</span>
+        </span>
+        <span class="tier__state">🔒 Цех не собран</span>
+        <span class="tier__chev" aria-hidden="true">▸</span>
+      </button>
+      <div class="tier__body" id="tier3">
+        <div class="cats">
+          <button class="cat" type="button" data-screen="craftWeaponsT3Select"><em>⚔️</em>Оружие T3<small>5</small></button>
+          <button class="cat" type="button" data-screen="craftArmorT3Select"><em>🛡</em>Броня T3<small>4</small></button>
+          <button class="cat" type="button" data-screen="craftMedicalT3Select"><em>💊</em>Медицина T3<small>3</small></button>
+          <button class="cat" type="button" data-screen="craftUtilityT3Select"><em>🔧</em>Утилиты T3<small>3</small></button>
+          <button class="cat" type="button" data-screen="craftFactionWeaponsSelect"><em>🎖</em>Фракционное оружие</button>
+          <button class="cat" type="button" data-screen="craftFactionArmorSelect"><em>🛡</em>Фракционная броня</button>
+        </div>
+        <p class="tier__req">Разделы видны заранее, но крафт запустится только после сборки цеха — чек-лист ниже. Так видно, ради чего копить.</p>
+      </div>
+    </section>
+
+    <!-- Верстаки: чек-лист сборки цеха -->
+    <section class="row" aria-label="Сборка профессионального верстака">
+      <div class="queue__head">
+        <span class="lab"><i aria-hidden="true">🔬</i> Профессиональный верстак (цех)</span>
+        <span class="queue__cnt">готово <b id="benchDone">4</b> из <b>8</b></span>
+      </div>
+      <div class="reqs">
+        <div class="req req--ok"><span class="req__m" aria-hidden="true">✅</span><span class="req__n">👤 Уровень персонажа</span>
+          <span class="req__bar"><i data-fill="75" style="--f:0.75"></i></span><span class="req__v">15 / 20</span></div>
+        <div class="req req--ok"><span class="req__m" aria-hidden="true">✅</span><span class="req__n">🏚️ База (лагерь)</span>
+          <span class="req__bar"><i data-fill="100" style="--f:1"></i></span><span class="req__v">есть</span></div>
+        <div class="req req--no"><span class="req__m" aria-hidden="true">❌</span><span class="req__n">🏗 Доменная печь</span>
+          <span class="req__bar"><i data-fill="0" style="--f:0"></i></span><span class="req__v">нет / L3</span></div>
+        <div class="req req--no"><span class="req__m" aria-hidden="true">❌</span><span class="req__n">🏗 Лаборатория</span>
+          <span class="req__bar"><i data-fill="0" style="--f:0"></i></span><span class="req__v">нет / L3</span></div>
+        <div class="req req--ok"><span class="req__m" aria-hidden="true">✅</span><span class="req__n">🪵 Древесные доски</span>
+          <span class="req__bar"><i data-fill="100" style="--f:1"></i></span><span class="req__v">240 / 200</span></div>
+        <div class="req req--ok"><span class="req__m" aria-hidden="true">✅</span><span class="req__n">🧱 Каменные блоки</span>
+          <span class="req__bar"><i data-fill="100" style="--f:1"></i></span><span class="req__v">155 / 120</span></div>
+        <div class="req req--no"><span class="req__m" aria-hidden="true">❌</span><span class="req__n">🔩 Металл фрагменты</span>
+          <span class="req__bar"><i data-fill="22" style="--f:0.22"></i></span><span class="req__v">18 / 80</span></div>
+        <div class="req req--no"><span class="req__m" aria-hidden="true">❌</span><span class="req__n">💰 Золото</span>
+          <span class="req__bar"><i data-fill="9" style="--f:0.09"></i></span><span class="req__v">4 812 / 50 000</span></div>
+      </div>
+      <div class="reqsum">
+        <span class="reqsum__v">4 / 8</span>
+        <span class="reqsum__t">Собрать пока нельзя. Уровень 15 из 20, цех требует Доменную печь и Лабораторию третьего уровня. Крафт цеха занимает <b>15 часов</b>.</span>
+        <button class="act" type="button" style="flex:0 0 auto;border:1px solid var(--border-strong)" data-screen="WorkbenchChoice"><em>🔬</em><span>Все верстаки</span></button>
+      </div>
+    </section>
+
+    <!-- Ремонт инструментов -->
+    <section class="row" aria-label="Ремонт инструментов">
+      <div class="queue__head">
+        <span class="lab"><i aria-hidden="true">🪛</i> Ремонт инструментов</span>
+        <span class="queue__cnt">текущая / максимальная прочность</span>
+      </div>
+      <div class="tools">
+        <button class="tool" type="button" data-w="bad" data-screen="repair_1">
+          <span class="tool__ico" aria-hidden="true">⛏️</span><span class="tool__n">Каменная кирка</span>
+          <span class="tool__bar"><i data-fill="14" style="--f:0.14"></i></span><span class="tool__v">7 / 50</span></button>
+        <button class="tool" type="button" data-w="warn" data-screen="repair_2">
+          <span class="tool__ico" aria-hidden="true">🪓</span><span class="tool__n">Каменный топор</span>
+          <span class="tool__bar"><i data-fill="46" style="--f:0.46"></i></span><span class="tool__v">23 / 50</span></button>
+        <button class="tool" type="button" data-screen="repair_3">
+          <span class="tool__ico" aria-hidden="true">🎣</span><span class="tool__n">Удочка</span>
+          <span class="tool__bar"><i data-fill="88" style="--f:0.88"></i></span><span class="tool__v">35 / 40</span></button>
+      </div>
+      <p class="queue__note">Чинить можно ресурсами или сразу за золото у мастера-NPC. Ремонт зданий — на экране Базы, это разные вещи.</p>
+    </section>
+
+    <!-- Кнопки крафта: тот же набор, что в showCraftMenu -->
+    <nav class="acts" aria-label="Разделы крафта">
+      <button class="act act--primary" type="button" data-screen="craftQueue"><em>📋</em><span>Очередь крафта</span></button>
+
+      <button class="act act--third" type="button" data-screen="generalCraft"><em>🔨</em><span>Общий</span></button>
+      <button class="act act--third" type="button" data-screen="standardCraft"><em>🔧</em><span>Стандартный</span></button>
+      <button class="act act--third" type="button" data-screen="workbenchProfessional"><em>🛠️</em><span>Профессиональный</span></button>
+
+      <button class="act" type="button" data-screen="WorkbenchChoice"><em>🔬</em><span>Верстаки</span></button>
+      <button class="act" type="button" data-screen="repairToolsList"><em>🪛</em><span>Ремонт инструментов</span></button>
+
+      <button class="act" type="button" data-screen="enchant"><em>🔧</em><span>Модернизация</span></button>
+      <button class="act" type="button" data-screen="resourcesCrafting"><em>🎒</em><span>Крафтовые ресурсы</span></button>
+    </nav>
+
+  </article>
+  </section>
+
+  <!-- ЭКРАН «🌍 Мир» — паритет с MoveSurfaceService::show + compassRows -->
+  <section class="screen" data-panel="world" hidden>
+  <article class="sheet" aria-label="Экран мира">
+
+    <section class="row" style="border-top:1px solid var(--border)" aria-label="Карта местности">
+      <div class="queue__head">
+        <h1 class="lab" style="margin:0"><i aria-hidden="true">🧭</i> Куда пойдём?</h1>
+        <span class="queue__cnt">карта 12×12, игрок по центру</span>
+      </div>
+
+      <div class="mapwrap">
+        <div class="grid" id="map" role="grid" aria-label="Карта местности 12 на 12"></div>
+      </div>
+
+      <div class="legendbox" id="legendbox">
+        <h2>Что на карте</h2>
+        <div class="lgrid" id="legendMarks"></div>
+        <h2 style="margin-top:14px">Биомы и где их искать</h2>
+        <div class="lgrid" id="legendBiomes"></div>
+      </div>
+
+      <p class="mapfoot">
+        <span>От <b>🙎‍♂️</b> до <b>🏕</b> = <b id="distN">0</b> <span id="distWord">ходов</span></span>
+        <span class="arrow" id="distArrow">🎯</span>
+        <span class="mapfoot__at">Игрок по центру (X=<b id="mapX">418</b>, Y=<b id="mapY">612</b>)</span>
+      </p>
+    </section>
+
+    <!-- Компас-розетка 3×3, в центре — база -->
+    <nav class="row rose" aria-label="Компас ходьбы" style="border-top:0">
+      <button class="dir" type="button" data-move="-1,-1"><em>↖️</em><span>Сев-Запад</span></button>
+      <button class="dir" type="button" data-move="0,-1"><em>⬆️</em><span>Север</span></button>
+      <button class="dir" type="button" data-move="1,-1"><em>↗️</em><span>Сев-Восток</span></button>
+      <button class="dir" type="button" data-move="-1,0"><em>⬅️</em><span>Запад</span></button>
+      <button class="dir dir--home" type="button" data-screen="base"><em>🏕</em><span>База</span></button>
+      <button class="dir" type="button" data-move="1,0"><em>➡️</em><span>Восток</span></button>
+      <button class="dir" type="button" data-move="-1,1"><em>↙️</em><span>Юго-Запад</span></button>
+      <button class="dir" type="button" data-move="0,1"><em>⬇️</em><span>Юг</span></button>
+      <button class="dir" type="button" data-move="1,1"><em>↘️</em><span>Юго-Восток</span></button>
+    </nav>
+
+    <!-- Две подписанные двери под розеткой — слайс «Второй шаг» -->
+    <nav class="acts" aria-label="Действия на клетке" style="border-top:0">
+      <button class="act act--primary" type="button" data-screen="gather"><em>⛏️</em><span>Добыть ресурсы</span></button>
+      <button class="act" type="button" data-screen="characterActions"><em>🧑‍🌾</em><span>Действия 🛠️</span></button>
+      <button class="act" type="button" data-screen="march"><em>🗺️</em><span>Поход</span></button>
+      <button class="act act--third" type="button" id="legendBtn" aria-expanded="false" aria-controls="legendbox"><em>❓</em><span>Легенда</span></button>
+      <button class="act act--third" type="button" data-screen="mapOverview"><em>🗺</em><span>Обзор мира</span></button>
+      <button class="act act--third" type="button" data-screen="events"><em>🎉</em><span>События</span></button>
+    </nav>
+
+    <!-- Тизер живого острова -->
+    <section class="row" aria-label="Остров живёт">
+      <div class="queue__head">
+        <span class="lab"><i aria-hidden="true">🌍</i> Остров живёт</span>
+        <span class="queue__cnt">пульс за последние сутки</span>
+      </div>
+      <div class="cats">
+        <button class="cat" type="button" data-screen="island"><em>🔥</em>4 выживших сейчас</button>
+        <button class="cat" type="button" data-screen="island"><em>⚒️</em>7 зданий за сутки</button>
+        <button class="cat" type="button" data-screen="island"><em>👣</em>Сосед в 12 клетках</button>
+      </div>
+    </section>
+
+  </article>
+  </section>
+  </main>
+
+  <!-- Правая колонка: живой мир -->
+  <aside class="aside" aria-label="Что происходит сейчас">
+    <section class="panel">
+      <div class="panel__h"><span aria-hidden="true">📜</span> <span class="lab">Хроника</span></div>
+      <div class="panel__b">
+        <ul class="chron" id="chron">
+          <li><i aria-hidden="true">🚰</i><span>Скважина дала <b>1 воды</b></span><time>только что</time></li>
+          <li><i aria-hidden="true">🥊</i><span>Спортзал: <b>+0.01 силы</b></span><time>3 мин</time></li>
+          <li><i aria-hidden="true">🌱</i><span>Теплица заложила урожай</span><time>17 ч</time></li>
+          <li><i aria-hidden="true">💰</i><span>Налог списан: <b>−354</b></span><time>вчера, 03:00</time></li>
+          <li><i aria-hidden="true">🏗</i><span>Достроен <b>Склад</b></span><time>3 дн</time></li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel__h"><span aria-hidden="true">🌍</span> <span class="lab">Остров живёт</span></div>
+      <div class="panel__b">
+        <ul class="pulse">
+          <li><i aria-hidden="true">🔥</i><span><b>4 выживших</b> сейчас в мире</span></li>
+          <li><i aria-hidden="true">⚒️</i><span>За сутки построено <b>7 зданий</b></span></li>
+          <li><i aria-hidden="true">🎉</i><span>Событие «Ягодный бум» — <b>ещё 3 ч</b></span></li>
+          <li><i aria-hidden="true">👣</i><span>Ближайший сосед — <b>в 12 клетках</b></span></li>
+        </ul>
+      </div>
+    </section>
+  </aside>
+</div>
+
+<!-- Мобильный док = reply-клавиатура бота 2×3 -->
+<nav class="dock" aria-label="Основные разделы">
+  <button type="button" data-screen="world"><em>🌍</em>Мир</button>
+  <button type="button" aria-current="page" data-screen="me"><em>🧑</em>Я</button>
+  <button type="button" data-screen="craft"><em>🔨</em>Крафт</button>
+  <button type="button" data-screen="base"><em>🏠</em>База</button>
+  <button type="button" data-screen="tasks"><em>📋</em>Дела</button>
+  <button type="button" data-screen="more"><em>⚙️</em>Ещё</button>
+</nav>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" hidden>
+  <div class="drawer__h">
+    <em id="drawerIco" aria-hidden="true">🎒</em>
+    <h2 id="drawerTitle">Экран</h2>
+    <button class="iconbtn" type="button" id="drawerClose" aria-label="Закрыть">✕</button>
+  </div>
+  <div class="drawer__b" id="drawerBody"></div>
+</aside>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  'use strict';
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $  = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+
+  /* ── Счётчики: числа «набираются», а не появляются ─────────── */
+  const easeOut = t => 1 - Math.pow(1 - t, 4);
+  const fmt = (v, dec, style) => {
+    const n = dec ? v.toFixed(dec) : String(Math.round(v));
+    return style === 'space' ? n.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') : n;
+  };
+  function countUp(el) {
+    if (el.dataset.done) return;
+    el.dataset.done = '1';
+    const target = parseFloat(el.dataset.count);
+    const dec = parseInt(el.dataset.dec || '0', 10);
+    const style = el.dataset.fmt;
+    if (reduce) { el.textContent = fmt(target, dec, style); return; }
+    const dur = 900, t0 = performance.now();
+    const step = now => {
+      const p = Math.min(1, (now - t0) / dur);
+      el.textContent = fmt(target * easeOut(p), dec, style);
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  /* ── Шкалы наливаются после первого кадра ──────────────────── */
+  function fillBars() { document.documentElement.classList.remove('preload'); }
+
+  /* Контент виден по умолчанию: значения проставляются сразу, а счётчик
+     лишь «разгоняет» их при появлении в кадре. Без JS / без прокрутки
+     на экране всё равно настоящие числа, а не нули. */
+  $$('[data-count]').forEach(el => {
+    el.textContent = fmt(parseFloat(el.dataset.count), parseInt(el.dataset.dec || '0', 10), el.dataset.fmt);
+  });
+
+  /* Появление по мере прокрутки — анимация усиливает уже отрисованное. */
+  const io = new IntersectionObserver((entries, obs) => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      $$('[data-count]', e.target).forEach(countUp);
+      obs.unobserve(e.target);
+    });
+  }, { rootMargin: '0px 0px -8% 0px' });
+  $$('.row, .hero, .top, .aside .panel').forEach(el => io.observe(el));
+
+  requestAnimationFrame(() => { fillBars(); });
+
+  /* ── Индикатор активного раздела в рельсе ──────────────────── */
+  const rail = $('.rail');
+  if (rail) {
+    const ind = $('.rail__ind', rail);
+    const place = btn => {
+      const r = btn.getBoundingClientRect(), rr = rail.getBoundingClientRect();
+      ind.style.height = r.height + 'px';
+      ind.style.transform = `translateY(${r.top - rr.top}px)`;
+    };
+    const active = $('.rail__btn[aria-current="page"]', rail);
+    if (active) place(active);
+    addEventListener('resize', () => { const a = $('.rail__btn[aria-current="page"]', rail); if (a) place(a); });
+    $$('.rail__btn', rail).forEach(b => {
+      b.addEventListener('mouseenter', () => place(b));
+      b.addEventListener('mouseleave', () => { const a = $('.rail__btn[aria-current="page"]', rail); if (a) place(a); });
+    });
+  }
+
+  /* ── Хабы: раскрываются на месте, без ухода с экрана ───────── */
+  $$('[data-hub]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const hub = document.getElementById(btn.dataset.hub);
+      const open = btn.getAttribute('aria-expanded') === 'true';
+      $$('[data-hub]').forEach(o => {
+        if (o === btn) return;
+        o.setAttribute('aria-expanded', 'false');
+        document.getElementById(o.dataset.hub).classList.remove('open');
+      });
+      btn.setAttribute('aria-expanded', String(!open));
+      hub.classList.toggle('open', !open);
+      if (!open) $$('.hubitem', hub).forEach((it, i) => { it.style.animationDelay = (i * 34) + 'ms'; });
+    });
+  });
+
+  /* ── Содержимое экранов (демо) ─────────────────────────────── */
+  const R = { trash:'var(--r-trash)', common:'var(--r-common)', uncommon:'var(--r-uncommon)',
+              rare:'var(--r-rare)', epic:'var(--r-epic)', legend:'var(--r-legend)' };
+  /* Строка с `go` — это дверь дальше (список → рецепт), как в боте. */
+  const rows = list => `<ul class="dlist">${list.map((r, i) => {
+    const inner = `${r.dot ? `<span class="dot" style="--rar:${r.dot}"></span>` : ''}${r.ico ? `<em>${r.ico}</em>` : ''}<span>${r.t}</span>${r.v ? `<b>${r.v}</b>` : ''}${r.go ? '<b style="color:var(--accent)">›</b>' : ''}`;
+    return r.go
+      ? `<li style="animation-delay:${i * 30}ms;padding:0"><button type="button" data-go="${r.go}" style="display:flex;align-items:center;gap:11px;width:100%;padding:11px 2px;text-align:left">${inner}</button></li>`
+      : `<li style="animation-delay:${i * 30}ms">${inner}</li>`;
+  }).join('')}</ul>`;
+  const port = what => `<div class="note">Экран <b>${what}</b> переносится в веб-клиент один-в-один с Telegram: тот же набор кнопок, те же правила. В прототипе показан только вход.</div>`;
+
+  const SCREENS = {
+    characterActions: { ico:'🧑‍🌾', title:'Действия', lead:'То, что можно сделать прямо здесь — на клетке X=418 Y=612, биом «Тропические джунгли».',
+      body: rows([
+        { ico:'⛏️', t:'Добыть ресурсы', v:'−8 вын.' },
+        { ico:'🔍', t:'Исследовать клетку', v:'−5 вын.' },
+        { ico:'🏕', t:'Разбить лагерь' },
+        { ico:'🍳', t:'Приготовить еду' },
+      ]) + port('«Действия»') },
+    inventory: { ico:'🎒', title:'Инвентарь', lead:'Ресурсы при себе. Цвет метки — редкость.',
+      body: rows([
+        { dot:R.common,   t:'Древесина',  v:'42' },
+        { dot:R.common,   t:'Вода',       v:'18' },
+        { dot:R.uncommon, t:'Кора деревьев', v:'11' },
+        { dot:R.uncommon, t:'Рыба',       v:'7' },
+        { dot:R.rare,     t:'Шерсть животных', v:'3' },
+        { dot:R.epic,     t:'Вулканический пепел', v:'1' },
+      ]) + `<div class="note">В Telegram список приходит сообщением. Здесь он живой: сортировка, поиск и «показать всё» — без пересылки экрана.</div>` },
+    equipMenu: { ico:'⚔️', title:'Экипировка', lead:'Что надето и что можно надеть.',
+      body: rows([
+        { dot:R.rare,     t:'Самодельный арбалет', v:'надето' },
+        { dot:R.uncommon, t:'Кожаная куртка',      v:'надето' },
+        { dot:R.uncommon, t:'Грубые сапоги',       v:'надето' },
+        { dot:R.common,   t:'Тканевая маска',      v:'в сумке' },
+      ]) + port('«Экип»') },
+    pharmacy: { ico:'💊', title:'Аптечка', lead:'Лечение и восстановление выносливости.',
+      body: rows([
+        { ico:'🩹', t:'Бинт', v:'×3' },
+        { ico:'💉', t:'Стимулятор', v:'×1' },
+        { ico:'🥫', t:'Консервы', v:'×5' },
+      ]) + `<div class="note">Просроченные расходники лечат вдвое слабее, но не пропадают (ADR-094).</div>` },
+    PersonalInsurance: { ico:'🧍', title:'Страховка', lead:'Смягчает потери при смерти в мире.', body: port('«Страховка»') },
+    dailyTasks: { ico:'🗓', title:'Задания дня', lead:'Обновляются раз в сутки.',
+      body: rows([
+        { ico:'✅', t:'Добыть 20 ресурсов', v:'20/20' },
+        { ico:'⬜', t:'Пройти 10 клеток', v:'6/10' },
+        { ico:'⬜', t:'Скрафтить предмет', v:'0/1' },
+      ]) },
+    guide: { ico:'📖', title:'Путь новичка', lead:'Справочник по всем механикам — читается сколько угодно, наград нет.',
+      body: rows([
+        { ico:'🧭', t:'Как ходить по карте' },
+        { ico:'⛏️', t:'Ресурсы и редкость' },
+        { ico:'🔨', t:'Верстаки и три уровня крафта' },
+        { ico:'🏠', t:'База, стройка и налог' },
+        { ico:'⚔️', t:'Бой, смерть и потери' },
+      ]) },
+  };
+  /* Экраны Базы */
+  Object.assign(SCREENS, {
+    Build: { ico:'🏗', title:'Строить', lead:'Что можно возвести здесь и сейчас. Серым — не хватает уровня или ресурсов.',
+      body: rows([
+        { ico:'☀️', t:'Солнечная станция', v:'lvl 10' },
+        { ico:'🥼', t:'Лаборатория', v:'lvl 10' },
+        { ico:'🔥', t:'Доменная печь', v:'готово' },
+        { ico:'🤖', t:'Мастерская робототехники', v:'нет ресурсов' },
+      ]) + `<div class="note">Каждая новая постройка добавляет свой налог к суточному списанию. Сейчас база стоит <b>354 золота в сутки</b>.</div>` },
+    construction: { ico:'🏘', title:'Постройки', lead:'Подробная карточка каждого сооружения: уровень, прочность, эффекты.', body: port('«Постройки»') },
+    hangar: { ico:'🤖', title:'Ангар', lead:'Хаб автоматизации: дроны-сборщики, карго, ремонт.', body: port('«Ангар»') },
+    campDecor: { ico:'🎨', title:'Декор', lead:'Имя лагеря, флаг, очаг, обстановка, питомец.',
+      body: rows([
+        { ico:'🏷', t:'Имя лагеря', v:'Тихий омут' },
+        { ico:'🏴', t:'Флаг', v:'чёрный' },
+        { ico:'🔥', t:'Очаг', v:'сложенный камень' },
+        { ico:'🪑', t:'Обстановка', v:'скамья' },
+        { ico:'🐕', t:'Питомец', v:'пёс Уголёк' },
+      ]) },
+    baseStorageList: { ico:'📦', title:'Склад базы', lead:'Хранилище базы. Смерть в мире его не трогает.',
+      body: rows([
+        { dot:R.common,   t:'Древесные доски', v:'240' },
+        { dot:R.common,   t:'Каменные блоки',  v:'155' },
+        { dot:R.uncommon, t:'Ткань',           v:'62' },
+        { dot:R.rare,     t:'Металл фрагменты',v:'18' },
+      ]) + `<div class="note">Пять хранилищ игры — общий пул. «Все мои ресурсы» показывает их вместе.</div>` },
+    TeleportToCamp: { ico:'📡', title:'Телепорт', lead:'Возврат на базу через маяк или портативный телепорт.', body: port('«Телепорт»') },
+    move: { ico:'🧭', title:'Двигаться', lead:'Выход с базы на карту: направления, поход, компас.', body: port('«Двигаться»') },
+    baseDevelopment: { ico:'🏗', title:'Развитие базы', lead:'Что даёт каждый следующий уровень постройки.', body: port('«Развитие базы»') },
+    DeleteBase: { ico:'⚠️', title:'Снести / переехать', lead:'Три необратимых варианта — с честной ценой каждого.',
+      body: rows([
+        { ico:'❌', t:'Моментальный снос', v:'−70% рес.' },
+        { ico:'🐢', t:'Планируемый снос',  v:'8 часов' },
+        { ico:'🚚', t:'Полноценный переезд', v:'24 часа' },
+      ]) + `<div class="note">Моментальный снос теряет 70% ресурсов и 80% крафта. Постройки не переносятся ни в одном из вариантов.</div>` },
+  });
+
+  /* Экраны Крафта. Рецепт показывает то же, что в боте: сколько нужно,
+     сколько есть, цену на рынке, время и кнопки количества до максимума. */
+  const recipe = (o) => ({
+    ico: o.ico, title: o.title, lead: o.desc,
+    body: `<ul class="rec">${o.res.map((r, i) => {
+      const ok = r.have >= r.need;
+      return `<li ${ok ? '' : 'data-no'} style="animation-delay:${i * 30}ms">
+        <span class="rec__n">${r.t}</span>
+        <span class="rec__bar"><i style="transform:scaleX(${Math.min(1, r.have / r.need).toFixed(2)})"></i></span>
+        <span class="rec__v">${r.have} / ${r.need}</span></li>`;
+    }).join('')}</ul>
+    <ul class="dlist" style="margin-top:14px">
+      <li><em>⏱</em><span>Время крафта (1 шт.)</span><b>${o.time}</b></li>
+      <li><em>💰</em><span>Стоимость на рынке</span><b>${o.price}</b></li>
+      <li><em>${o.bg ? '⏳' : '🔒'}</em><span>${o.bg ? 'Идёт в фоне — можно уйти' : 'Займёт целиком — жди на месте'}</span><b>🌍 где угодно</b></li>
+    </ul>
+    ${o.max > 0
+      ? `<div class="qty">${[1, 5, 10].filter(n => n <= o.max).map(n => `<button type="button">×${n}</button>`).join('')}<button type="button" class="max">Максимум ×${o.max}</button></div>`
+      : `<div class="note">Не хватает ресурсов даже на 1 шт. Красным отмечено, чего именно и сколько.</div>`}`,
+  });
+
+  Object.assign(SCREENS, {
+    craftQueue: { ico:'📋', title:'Очередь крафта', lead:'Активных 1, в очереди 2. Очередь активируется сама по мере завершения.',
+      body: rows([
+        { ico:'🩹', t:'Повязка ×5 — крафтится', v:'08:41' },
+        { ico:'🧴', t:'Антисептик ×2 — в очереди', v:'1' },
+        { ico:'💉', t:'Стимулятор ×1 — в очереди', v:'2' },
+      ]) + `<div class="note">Отмена очереди возвращает списанные ресурсы.</div>` },
+    generalCraft: { ico:'🔨', title:'Общий крафт', lead:'Где угодно и когда угодно, без верстака.',
+      body: rows([
+        { ico:'💊', t:'Лекарства' }, { ico:'🛠️', t:'Инструменты' }, { ico:'📐', t:'Компоненты' },
+        { ico:'🗓', t:'Сезонный крафт' }, { ico:'🔥', t:'Костёр' }, { ico:'🔬', t:'Верстаки' }, { ico:'📋', t:'Очередь крафта' },
+      ]) },
+    standardCraft: { ico:'🔧', title:'Стандартный крафт', lead:'Нужны Верстак 1 и своя база — но стоять на ней не нужно, запускать можно откуда угодно.',
+      body: rows([
+        { ico:'🤖', t:'Роботы' }, { ico:'🌀', t:'Телепорты' }, { ico:'🛡️', t:'Броня' }, { ico:'⚔️', t:'Оружие' },
+        { ico:'🚁', t:'Дрон-разведчик' }, { ico:'🚚', t:'Карго-дрон' }, { ico:'🔧', t:'Дрон-ремонтник' }, { ico:'🛡', t:'Боевой дрон' },
+      ]) },
+    workbenchProfessional: { ico:'🛠️', title:'Профессиональный верстак', lead:'Второй и высший верстак в игре — тяжёлый ручной цех. Открывает крафт T3 и фракционные вещи.',
+      body: rows([
+        { ico:'👤', t:'Уровень персонажа', v:'15 / 20' },
+        { ico:'🏚️', t:'База (лагерь)', v:'есть' },
+        { ico:'🏗', t:'Доменная печь', v:'нет / L3' },
+        { ico:'🏗', t:'Лаборатория', v:'нет / L3' },
+        { ico:'💰', t:'Золото', v:'4 812 / 50 000' },
+      ]) + `<div class="note">Подкопи недостающее и возвращайся. Крафт цеха занимает <b>15 часов</b>.</div>` },
+    WorkbenchChoice: { ico:'🔬', title:'Верстаки', lead:'В игре их два. Отдельного «второго» верстака нет — сразу после Верстака 1 идёт Профессиональный.',
+      body: rows([
+        { ico:'🔬', t:'Верстак 1 — базовый', v:'собран' },
+        { ico:'🛠️', t:'Профессиональный (цех)', v:'4 / 8' },
+      ]) + `<div class="note">Верстак 1 открывает Стандартный крафт и требует свою базу. Цех открывает Профессиональный крафт: нужны Доменная печь и Лаборатория L3 плюс 20-й уровень.</div>` },
+    medicinesCraft1: { ico:'💊', title:'Лекарства', lead:'Девять рецептов общего крафта. Выбирай предмет — покажу, чего хватает.',
+      body: rows([
+        { ico:'🩹', t:'Повязка', go:'bandage' },
+        { ico:'💊', t:'Таблетки от головной боли', go:'pills' },
+        { ico:'🧴', t:'Антисептик' }, { ico:'🌡️', t:'Обезболивающий порошок' },
+        { ico:'🧪', t:'Укрепляющий эликсир' }, { ico:'🫖', t:'Успокоительное' },
+        { ico:'💉', t:'Стимулятор', v:'есть 1' }, { ico:'🔋', t:'Регенератор' },
+        { ico:'🚑', t:'Аптечка базовая' },
+      ]) + `<div class="note">Уже в наличии: Повязка ×3, Стимулятор ×1.</div>` },
+    pills: recipe({ ico:'💊', title:'Таблетки от головной боли', desc:'Простейшее средство общего крафта. Первый рецепт, который открыт с первого уровня.',
+      res:[{t:'Ягоды', have:12, need:2},{t:'Травы', have:14, need:1}],
+      time:'3 минуты', price:'12 💰', bg:true, max:6 }),
+    bandage: recipe({ ico:'🩹', title:'Повязка', desc:'Минимальное восстановление здоровья и выносливости. Идёт в состав более мощных средств.',
+      res:[{t:'Ткань', have:9, need:1},{t:'Травы', have:14, need:2},{t:'Кора деревьев', have:11, need:2},{t:'Водоросли', have:1, need:3}],
+      time:'3 мин.', price:'20 💰', bg:true, max:0 }),
+    tools: { ico:'🛠️', title:'Инструменты', lead:'Кирки, топоры, удочки, лопаты. Изнашиваются — чинятся в «Ремонте инструментов».',
+      body: rows([
+        { ico:'⛏️', t:'Каменная кирка', v:'есть 1' }, { ico:'🪓', t:'Каменный топор', v:'есть 1' },
+        { ico:'🎣', t:'Удочка', v:'есть 1' }, { ico:'🔪', t:'Складной нож' },
+        { ico:'🪏', t:'Лопата' },
+      ]) },
+    componentsCraft: { ico:'📐', title:'Компоненты', lead:'Промежуточные детали: доски, блоки, ткань, брикеты. Входят почти во всё остальное.',
+      body: rows([
+        { dot:R.common, t:'Древесные доски', v:'240' }, { dot:R.common, t:'Каменные блоки', v:'155' },
+        { dot:R.uncommon, t:'Ткань', v:'62' }, { dot:R.uncommon, t:'Угольные брикеты', v:'0' },
+        { dot:R.rare, t:'Металл фрагменты', v:'18' },
+      ]) },
+    cook: { ico:'🔥', title:'Костёр', lead:'Готовка еды: восстанавливает выносливость. Сейчас она у тебя 34 из 100.',
+      body: rows([
+        { ico:'🍖', t:'Жареное мясо' }, { ico:'🍲', t:'Похлёбка' }, { ico:'🫖', t:'Травяной чай' },
+      ]) + `<div class="note">Просроченная еда лечит вдвое слабее, но не пропадает.</div>` },
+    seasonalCraft: { ico:'🗓', title:'Сезонный крафт', lead:'Рецепты, доступные только в текущий сезон.', body: port('«Сезонный крафт»') },
+    repairToolsList: { ico:'🪛', title:'Ремонт инструментов', lead:'Текущая / максимальная прочность.',
+      body: rows([
+        { ico:'⛏️', t:'Каменная кирка', v:'7 / 50' },
+        { ico:'🪓', t:'Каменный топор', v:'23 / 50' },
+        { ico:'🎣', t:'Удочка', v:'35 / 40' },
+      ]) + `<div class="note">Чинить можно ресурсами или сразу за золото у мастера-NPC. Инструменты без рецепта починить нельзя.</div>` },
+    enchant: { ico:'🔧', title:'Модернизация', lead:'Улучшение уже созданных предметов модификаторами.', body: port('«Модернизация»') },
+    resourcesCrafting: { ico:'🎒', title:'Крафтовые ресурсы', lead:'Всё скрафтенное, что лежит при себе.', body: port('«Крафтовые ресурсы»') },
+  });
+
+  /* Экраны Мира */
+  Object.assign(SCREENS, {
+    march: { ico:'🗺️', title:'Поход', lead:'В походе ты идёшь, пока что-то не потребует решения: встреча с игроком, тяжёлая рана, чужой лагерь на пути, край мира, привал по усталости.',
+      body: rows([
+        { ico:'🧭', t:'Выбери направление', v:'8 сторон' },
+        { ico:'✖️', t:'Сколько клеток', v:'×1 … ×20' },
+      ]) + `<div class="note"><b>Поход: Восток ×10.</b> Видишь впереди 1 клетку — дальше туман.<br><br>
+      В пути возможно (поход тогда прервётся, ты решишь):<br>
+      • встреча с игроком → бой / бегство / пройти мимо<br>
+      • рейдеры → авто-стычка; тяжёлая рана → привал<br>
+      • объект или событие со 100% триггером → отчёт и выбор<br>
+      • чужой лагерь на пути → остановишься не доходя<br>
+      • кончится выносливость → привал раньше срока<br><br>
+      Прочее — находки, биомы, мелочи — разгребётся само, отчёт по прибытии.</div>
+      <div class="qty"><button type="button">➖</button><button type="button" class="max">×10</button><button type="button">➕5</button><button type="button">🚜 Выступить</button></div>` },
+    mapOverview: { ico:'🗺', title:'Обзор мира', lead:'Фото карты мира целиком — общий вид острова поверх текстовой сетки.', body: port('«Обзор мира»') },
+    island: { ico:'🌍', title:'Остров живёт', lead:'Правдивый пульс острова: только то, что реально произошло за сутки.',
+      body: rows([
+        { ico:'🔥', t:'Выживших сейчас в мире', v:'4' },
+        { ico:'⚒️', t:'Построено зданий за сутки', v:'7' },
+        { ico:'🎉', t:'Событие «Ягодный бум»', v:'ещё 3 ч' },
+        { ico:'👣', t:'Ближайший сосед', v:'12 клеток' },
+      ]) },
+    gather: { ico:'⛏️', title:'Добыть ресурсы', lead:'Что можно взять на этой клетке. Редкость зависит от биома и уровня.',
+      body: rows([
+        { dot:R.common, t:'Вода' }, { dot:R.common, t:'Древесина' },
+        { dot:R.uncommon, t:'Кора деревьев' }, { dot:R.rare, t:'Шерсть животных' },
+      ]) + `<div class="note">Добыча — ядро цикла: она даёт больше всего к уровню за раз. Стоит выносливости, сейчас у тебя 34 из 100.</div>` },
+    events: { ico:'🎉', title:'События', lead:'Что происходит на острове прямо сейчас.',
+      body: rows([{ ico:'🫐', t:'Ягодный бум', v:'ещё 3 ч' }]) },
+  });
+
+  const FALLBACK = k => ({ ico:'🧩', title:k, lead:'', body: port('«' + k + '»') });
+
+  /* Карточка постройки собирается из самой плитки — один источник правды */
+  function buildingScreen(card) {
+    const eff = $('.bld__eff', card), out = $('.bld__out', card), tax = $('.bld__tax', card);
+    return {
+      ico: $('.bld__ico', card).textContent.trim(),
+      title: $('.bld__name', card).textContent.trim() + ' ' + $('.bld__lvl', card).textContent.trim(),
+      lead: eff ? eff.textContent.trim() : '',
+      body: rows([
+        { ico:'🛡', t:'Прочность', v:$('.bld__hpn', card).textContent.trim() },
+        { ico:'💰', t:'Налог', v:(tax ? tax.textContent.replace('налог', '').trim() : '—') },
+      // между <em> и <span> в разметке нет пробела — склеиваем через него,
+      // иначе получается «06:41:16до урожая»
+      ].concat(out ? [{ ico:'⚙️', t:'Сейчас', v:[...out.children].map(n => n.textContent.trim()).join(' ').replace(/\s+/g, ' ') }] : []))
+        + port('карточки постройки'),
+    };
+  }
+
+  /* ── Ящик экрана ───────────────────────────────────────────── */
+  const drawer = $('#drawer'), scrim = $('#scrim');
+  let lastFocus = null;
+  function openScreen(key, card) {
+    const s = card ? buildingScreen(card) : (SCREENS[key] || FALLBACK(key));
+    lastFocus = document.activeElement;
+    $('#drawerIco').textContent = s.ico;
+    $('#drawerTitle').textContent = s.title;
+    $('#drawerBody').innerHTML = `<div class="skel" style="width:70%"></div>`;
+    drawer.hidden = false;
+    requestAnimationFrame(() => { drawer.classList.add('on'); scrim.classList.add('on'); });
+    setTimeout(() => {
+      $('#drawerBody').innerHTML = (s.lead ? `<p class="drawer__lead">${s.lead}</p>` : '') + s.body;
+      $('#drawerClose').focus();
+    }, reduce ? 0 : 220);
+  }
+  function closeScreen() {
+    drawer.classList.remove('on'); scrim.classList.remove('on');
+    setTimeout(() => { drawer.hidden = true; }, reduce ? 0 : 260);
+    if (lastFocus) lastFocus.focus();
+  }
+  /* Переход вглубь прямо в ящике: список рецептов → карточка рецепта */
+  $('#drawerBody').addEventListener('click', e => {
+    const go = e.target.closest('[data-go]');
+    if (go) { openScreen(go.dataset.go); return; }
+    const q = e.target.closest('.qty button');
+    if (q) say(`Запущен крафт: ${$('#drawerTitle').textContent} ${q.textContent}`);
+  });
+  $('#drawerClose').addEventListener('click', closeScreen);
+  scrim.addEventListener('click', closeScreen);
+  addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) closeScreen(); });
+
+  /* ── Переключение экранов внутри одной оболочки ────────────
+     Сводка, рельс и правая колонка остаются на месте: меняется
+     только середина. Это и есть смысл «критическое — в одном
+     месте, независимо от экрана». */
+  /* ── Мир: карта 12×12 и настоящая ходьба ───────────────────
+     Поле биомов детерминировано по координатам (одна и та же
+     клетка всегда одна и та же), туман снимается по мере обхода —
+     как таблица `map` + `explored_cells` на сервере. */
+  const BIOMES = {
+    1:['🌲','Лес'], 2:['⛰️','Горы'], 3:['❄️','Тундра'], 4:['🌊','Реки'], 5:['🌴','Джунгли'],
+    6:['🌾','Поля'], 7:['🕳️','Пещеры'], 8:['🌋','Вулкан'], 9:['🏜️','Пустыни'],
+  };
+  const MARKS = [
+    ['🙎‍♂️','игрок'], ['🏕','ваша база'], ['🚫','чужая база'], ['🏚','поселение'],
+    ['☠','узел (босс)'], ['⏳','узел в кулдауне'], ['🥷','NPC'],
+    ['⬛️','не изучено'], ['⬜','за пределами мира'],
+  ];
+  const BASE = { x: 418, y: 612 };
+  const world = { x: 418, y: 612, seen: new Set(), steps: 0 };
+
+  // Целочисленный хеш координат → биом. Регионы крупные (÷5), чтобы
+  // получались массивы одного биома, а не шум по клетке.
+  const hash = (a, b) => { let h = (a * 73856093) ^ (b * 19349663); h = (h ^ (h >>> 13)) >>> 0; return h; };
+  const biomeAt = (x, y) => (hash(Math.floor(x / 3), Math.floor(y / 3)) % 9) + 1;
+  const objectAt = (x, y) => {
+    if (x === BASE.x && y === BASE.y) return ['🏕', 'ваша база', 'base'];
+    const h = hash(x, y) % 100;
+    if (h === 3)  return ['☠', 'узел (босс)', ''];
+    if (h === 11) return ['🏚', 'поселение', ''];
+    if (h === 17) return ['🥷', 'NPC', ''];
+    if (h === 29) return ['🚫', 'чужая база', ''];
+    return null;
+  };
+  const see = (cx, cy) => { for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) world.seen.add(`${cx + dx}:${cy + dy}`); };
+  see(world.x, world.y);
+
+  const mapEl = $('#map');
+  function renderMap() {
+    if (!mapEl) return;
+    const out = [];
+    for (let dy = -6; dy <= 5; dy++) {
+      for (let dx = -6; dx <= 5; dx++) {
+        const x = world.x + dx, y = world.y + dy;
+        const me = dx === 0 && dy === 0;
+        const step = !me && Math.abs(dx) <= 1 && Math.abs(dy) <= 1;
+        let cls = 'cell', glyph = '', label = `X=${x} Y=${y}`;
+        if (x < 0 || y < 0 || x > 999 || y > 999) { cls += ' cell--void'; glyph = '⬜'; label = 'за пределами мира'; }
+        else if (me) { cls += ' cell--me'; glyph = '🙎‍♂️'; label = `ты здесь · ${label}`; }
+        else if (!world.seen.has(`${x}:${y}`)) { cls += ' cell--fog'; glyph = '⬛️'; label = `не изучено · ${label}`; }
+        else {
+          const o = objectAt(x, y);
+          if (o) { glyph = o[0]; label = `${o[1]} · ${label}`; if (o[2]) cls += ' cell--base'; }
+          else { const b = biomeAt(x, y); glyph = BIOMES[b][0]; label = `${BIOMES[b][1]} · ${label}`; }
+        }
+        if (step) cls += ' cell--step';
+        out.push(`<span class="${cls}" role="gridcell" title="${label}" aria-label="${label}"${step ? ` data-move="${dx},${dy}"` : ''}>${glyph}</span>`);
+      }
+    }
+    mapEl.innerHTML = out.join('');
+
+    // Расстояние до базы — метрика Чебышёва (ходим по диагонали) + стрелка.
+    const dx = BASE.x - world.x, dy = BASE.y - world.y;
+    const dist = Math.max(Math.abs(dx), Math.abs(dy));
+    $('#distN').textContent = dist;
+    // Русская плюрализация: 1 ход / 2 хода / 5 ходов (и 11-14 — «ходов»).
+    const m10 = dist % 10, m100 = dist % 100;
+    $('#distWord').textContent = (m100 >= 11 && m100 <= 14) ? 'ходов' : m10 === 1 ? 'ход' : (m10 >= 2 && m10 <= 4) ? 'хода' : 'ходов';
+    $('#distArrow').textContent = dist === 0 ? '🎯'
+      : ['↖️','⬆️','↗️','⬅️','','➡️','↙️','⬇️','↘️'][(Math.sign(dy) + 1) * 3 + (Math.sign(dx) + 1)];
+    $('#mapX').textContent = world.x;
+    $('#mapY').textContent = world.y;
+  }
+
+  function walk(dx, dy, btn) {
+    world.x += dx; world.y += dy; world.steps++;
+    see(world.x, world.y);
+    renderMap();
+    const o = objectAt(world.x, world.y);
+    const b = BIOMES[biomeAt(world.x, world.y)];
+    chronicle('👣', `Шаг: <b>${o ? o[1] : b[1]}</b> · X=${world.x} Y=${world.y}`);
+    if (btn) { btn.classList.remove('went'); void btn.offsetWidth; btn.classList.add('went'); }
+    if (o && o[0] === '☠') say('☠ Впереди узел с боссом — загляни в «Действия»');
+  }
+
+  document.addEventListener('click', e => {
+    const t = e.target.closest('[data-move]');
+    if (!t) return;
+    const [dx, dy] = t.dataset.move.split(',').map(Number);
+    walk(dx, dy, t.classList.contains('dir') ? t : null);
+  });
+
+  /* Легенда — тумблер поверх карты, как «❓ Легенда ⇄ 🧭 К карте» в боте */
+  const legendBtn = $('#legendBtn');
+  if (legendBtn) {
+    $('#legendMarks').innerHTML = MARKS.map((m, i) =>
+      `<span class="lrow" style="animation-delay:${i * 25}ms"><em>${m[0]}</em>${m[1]}</span>`).join('');
+    // Подсказки «где искать» — то же, что даёт BiomeCompassService по изученному.
+    const HINTS = { 1:'встречается повсюду', 2:'на северо-востоке, далеко', 3:'редкий · на севере, далеко',
+      4:'на западе, недалеко', 5:'ты уже рядом', 6:'встречается местами', 7:'редкий · на юге, далеко',
+      8:'редкий · на юго-востоке, далеко', 9:'нечастый · на востоке, средне' };
+    $('#legendBiomes').innerHTML = Object.entries(BIOMES).map(([id, b], i) =>
+      `<span class="lrow" style="animation-delay:${i * 25}ms"><em>${b[0]}</em><b>${b[1]}</b><small>${HINTS[id]}</small></span>`).join('');
+    legendBtn.addEventListener('click', () => {
+      const open = legendBtn.getAttribute('aria-expanded') === 'true';
+      legendBtn.setAttribute('aria-expanded', String(!open));
+      $('#legendbox').classList.toggle('open', !open);
+      $('.mapwrap').style.display = open ? '' : 'none';
+      $('span', legendBtn).textContent = open ? 'Легенда' : 'К карте';
+      $('em', legendBtn).textContent = open ? '❓' : '🧭';
+    });
+  }
+
+  const PANELS = { me: 'Персонаж', base: 'База', craft: 'Крафт', world: 'Мир' };
+  function showPanel(key) {
+    if (!PANELS[key]) return false;
+    $$('.screen').forEach(s => { s.hidden = s.dataset.panel !== key; });
+    // пере-проиграть вход блоков — экран «собирается» заново
+    const live = $(`.screen[data-panel="${key}"]`);
+    $$('.sheet > *', live).forEach((el, i) => { el.style.animationDelay = (i * 26) + 'ms'; });
+    $$('[aria-current="page"]').forEach(b => b.removeAttribute('aria-current'));
+    $$(`[data-screen="${key}"]`).forEach(b => b.setAttribute('aria-current', 'page'));
+    const railActive = $(`.rail__btn[data-screen="${key}"]`);
+    if (railActive && rail) {
+      const r = railActive.getBoundingClientRect(), rr = rail.getBoundingClientRect();
+      const ind = $('.rail__ind', rail);
+      ind.style.height = r.height + 'px';
+      ind.style.transform = `translateY(${r.top - rr.top}px)`;
+    }
+    $$('[data-count]', live).forEach(el => { delete el.dataset.done; countUp(el); });
+    if (key === 'world') renderMap();
+    scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+    return true;
+  }
+
+  /* ── Тревоги ───────────────────────────────────────────────
+     position:fixed, чтобы всплывашка не обрезалась полосой. */
+  const bell = $('#bell'), alerts = $('#alerts');
+  function placeAlerts() {
+    const r = bell.getBoundingClientRect();
+    alerts.style.top = (r.bottom + 6) + 'px';
+    alerts.style.left = Math.max(12, Math.min(r.right - alerts.offsetWidth, innerWidth - alerts.offsetWidth - 12)) + 'px';
+  }
+  function toggleAlerts(force) {
+    const open = force !== undefined ? force : bell.getAttribute('aria-expanded') !== 'true';
+    bell.setAttribute('aria-expanded', String(open));
+    alerts.classList.toggle('on', open);
+    if (open) placeAlerts();
+  }
+  bell.addEventListener('click', e => { e.stopPropagation(); toggleAlerts(); });
+  addEventListener('scroll', () => { if (alerts.classList.contains('on')) placeAlerts(); }, { passive: true });
+  addEventListener('resize', () => { if (alerts.classList.contains('on')) placeAlerts(); });
+  document.addEventListener('click', e => {
+    if (alerts.classList.contains('on') && !alerts.contains(e.target)) toggleAlerts(false);
+  });
+  addEventListener('keydown', e => { if (e.key === 'Escape' && alerts.classList.contains('on')) toggleAlerts(false); });
+
+  /* ── Лестница уровней крафта: раскрывается на месте ────────
+     В боте каждый уровень — отдельное сообщение с фото; здесь
+     все три видны сразу вместе со своим состоянием. */
+  $$('[data-tier]').forEach(head => {
+    head.addEventListener('click', () => {
+      const body = document.getElementById(head.dataset.tier);
+      const open = head.getAttribute('aria-expanded') === 'true';
+      head.setAttribute('aria-expanded', String(!open));
+      body.classList.toggle('open', !open);
+      head.closest('.tier').classList.toggle('tier--open', !open);
+      if (!open) $$('.cat', body).forEach((c, i) => { c.style.animationDelay = (i * 30) + 'ms'; });
+    });
+  });
+
+  const NAV = { tasks:'📋 Дела', more:'⚙️ Ещё', settings:'⚙️ Настройки' };
+  const toast = $('#toast');
+  let toastT;
+  function say(msg) {
+    toast.textContent = msg; toast.classList.add('on');
+    clearTimeout(toastT); toastT = setTimeout(() => toast.classList.remove('on'), 2200);
+  }
+  $$('[data-screen]').forEach(el => {
+    if (el.tagName === 'A') return;
+    el.addEventListener('click', () => {
+      const k = el.dataset.screen;
+      if (showPanel(k)) return;
+      if (NAV[k]) { say(`Раздел «${NAV[k]}» — следующий экран прототипа`); return; }
+      openScreen(k, el.classList.contains('bld') ? el : null);
+    });
+  });
+
+  /* ── Живые часы: стаж и таймер задачи ──────────────────────── */
+  const pt = $('#playtime');
+  const start = new Date(2026, 3, 12, 9, 40); // 12 апреля 2026
+  function tickPlaytime() {
+    const now = new Date();
+    let m = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+    const anchor = new Date(start); anchor.setMonth(start.getMonth() + m);
+    if (anchor > now) { m--; anchor.setMonth(anchor.getMonth() - 1); }
+    const dMs = now - anchor;
+    const d = Math.floor(dMs / 86400000), h = Math.floor(dMs % 86400000 / 3600000);
+    pt.textContent = `${m} мес. ${d} дн. ${h} чс.`;
+  }
+  tickPlaytime(); setInterval(tickPlaytime, 60000);
+
+  /* ── Один общий такт в секунду ─────────────────────────────
+     Всё живое на странице считает от одного интервала: меньше
+     таймеров — ровнее ход и предсказуемее нагрузка. */
+  const pad = n => String(n).padStart(2, '0');
+  const hms = s => `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s % 3600 / 60))}:${pad(s % 60)}`;
+
+  let jobLeft = 252; const jobTotal = 600;
+  const vTime = $('#vbarTime'), vJob = $('#vbarJob');
+
+  let waterLeft = 37, waterToday = 412;         // скважина: +1 вода / 60 с
+  let gymLeft = 134, gymToday = 0.86;           // спортзал: +0.01 силы / 5 мин
+  let harvestLeft = 6 * 3600 + 41 * 60 + 22;    // теплица: урожай раз в сутки
+  let droneMin = 47, droneSec = 0;
+  let craftLeft = 521; const craftTotal = 900;   // Повязка ×5 в работе
+  const q1eta = $('#q1eta'), q1bar = $('#q1bar'), vbarCraft = $('#vbarCraft');
+
+  const outWater = $('#outWater'), waterIn = $('#waterIn');
+  const outStr = $('#outStr'), strIn = $('#strIn');
+  const harvestEl = $('#harvestIn');
+  const taxIn = $('#taxIn'), taxClock = $('#taxClock');
+  const droneTag = $('#droneTag');
+  const chron = $('#chron');
+
+  function chronicle(ico, html) {
+    if (!chron) return;
+    const li = document.createElement('li');
+    li.innerHTML = `<i aria-hidden="true">${ico}</i><span>${html}</span><time>только что</time>`;
+    li.style.animation = reduce ? '' : 'pulseIn 380ms var(--out-quint)';
+    chron.prepend(li);
+    while (chron.children.length > 6) chron.lastElementChild.remove();
+  }
+  function flash(el) {
+    if (!el || reduce) return;
+    el.classList.remove('tick'); void el.offsetWidth; el.classList.add('tick');
+  }
+
+  function tick() {
+    // активная задача — в сводке, а не на экране: она критична везде
+    vTime.textContent = jobLeft > 0 ? `${pad(Math.floor(jobLeft / 60))}:${pad(jobLeft % 60)}` : 'готово';
+    vJob.style.transform = `scaleX(${((jobTotal - jobLeft) / jobTotal).toFixed(4)})`;
+    if (jobLeft > 0) jobLeft--;
+    else { say('⛏️ Добыча завершена — Древесина ×12'); chronicle('⛏️', 'Добыча: <b>Древесина ×12</b>'); jobLeft = jobTotal; }
+
+    // крафт в работе — тикает так же, как добыча, и виден в сводке с любого экрана
+    const craftTxt = craftLeft > 0 ? `${pad(Math.floor(craftLeft / 60))}:${pad(craftLeft % 60)}` : 'готово';
+    if (vbarCraft) vbarCraft.textContent = craftTxt;
+    if (q1eta) {
+      q1eta.textContent = craftTxt;
+      q1bar.style.transform = `scaleX(${((craftTotal - craftLeft) / craftTotal).toFixed(4)})`;
+    }
+    if (craftLeft > 0) craftLeft--;
+    else { say('🩹 Крафт завершён — Повязка ×5'); chronicle('🩹', 'Крафт: <b>Повязка ×5</b>'); craftLeft = craftTotal; }
+
+    // скважина
+    if (waterIn) {
+      waterLeft--;
+      if (waterLeft <= 0) {
+        waterLeft = 60; waterToday++;
+        outWater.textContent = waterToday; flash(outWater);
+        chronicle('🚰', 'Скважина дала <b>1 воды</b>');
+      }
+      waterIn.textContent = waterLeft;
+    }
+
+    // спортзал
+    if (strIn) {
+      gymLeft--;
+      if (gymLeft <= 0) {
+        gymLeft = 300; gymToday = +(gymToday + 0.01).toFixed(2);
+        outStr.textContent = '+' + gymToday.toFixed(2); flash(outStr);
+        chronicle('🥊', 'Спортзал: <b>+0.01 силы</b>');
+      }
+      strIn.textContent = `${Math.floor(gymLeft / 60)}:${pad(gymLeft % 60)}`;
+    }
+
+    // теплица
+    if (harvestEl) {
+      harvestLeft = harvestLeft > 0 ? harvestLeft - 1 : 86400;
+      harvestEl.textContent = hms(harvestLeft);
+    }
+
+    // до списания налога в 03:00 — и текст, и полоса «сутки утекают»
+    if (taxIn) {
+      const now = new Date();
+      const next = new Date(now); next.setHours(3, 0, 0, 0);
+      if (next <= now) next.setDate(next.getDate() + 1);
+      const secs = Math.floor((next - now) / 1000);
+      taxIn.textContent = `${Math.floor(secs / 3600)} ч ${pad(Math.floor(secs % 3600 / 60))} мин`;
+      taxClock.style.transform = `scaleX(${(1 - secs / 86400).toFixed(4)})`;
+    }
+
+    // дрон
+    if (droneTag) {
+      if (droneSec > 0) droneSec--;
+      else { droneSec = 59; droneMin = droneMin > 1 ? droneMin - 1 : 47; }
+      droneTag.textContent = `активен ${droneMin} мин · +15% инициативы`;
+    }
+  }
+  tick(); setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>

@@ -41,44 +41,40 @@ class PlayerStateService
     }
 
     /**
-     * Проверяет, есть ли у персонажа активная база и находится ли он на её ячейке.
+     * Проверяет, стоит ли персонаж СЕЙЧАС на одной из своих активных баз.
+     *
+     * 🔴 Матчить надо по ТЕКУЩЕЙ клетке, а не по первой строке `claimed_cells`.
+     * До 2026-08-12 здесь бралась первая активная запись (`->where('status','active')->first()`,
+     * без orderBy) и её клетка сравнивалась с клеткой персонажа. В одно-базовом мире это
+     * работало, но мульти-база жива (ADR-095/122): владелец двух лагерей, стоящий на ВТОРОМ,
+     * получал `false` — то есть переставал считаться «дома». Цена ошибки не косметическая:
+     * этот же метод резолвит состояние игрока для мировых событий
+     * ({@see \App\Services\Events\EventDispatcher}, `base_idle` = 0 потерь), и обещание
+     * «на базе не потеряешь» для него было бы ложью — тот самый класс расхождения обещания
+     * и поведения, из-за которого 09.08 чинилась защита базы.
+     *
+     * Канон резолва — {@see ClaimedCellModel::findActiveCell()} (ADR-095 Фаза 1b): он ищет
+     * активную запись ПО КЛЕТКЕ, где персонаж стоит, и потому одинаково верен и для одной
+     * базы, и для десяти. В таблице `map` id == cell_number для всех клеток (проверено на
+     * проде: 1 000 000 строк, расхождений 0), поэтому `map_cell_id` сравнивается с
+     * `characters.cell_number` напрямую — лишний поход в `map` не нужен.
      *
      * @param int $characterId
      * @return bool true, если у персонажа есть активная база и он физически на ней.
      */
     public function isCharacterOnBase(int $characterId): bool
     {
-        // 1) Ищем в claimed_cells запись по character_id со статусом 'active'
-        $claimedRow = $this->claimedCellModel
-            ->where('character_id', $characterId)
-            ->where('status', 'active')
-            ->first();
-
-        if (!$claimedRow) {
-            // Нет активной базы
-            return false;
-        }
-
-        // 2) Получаем ячейку, где стоит база
-        //    claimedRow['map_cell_id'] => ID строки из таблицы map
-        $mapCellId = $claimedRow['map_cell_id'];
-        $mapRow = $this->mapModel->find($mapCellId);
-        if (!$mapRow) {
-            // На случай, если нет такой записи в map
-            return false;
-        }
-
-        // 3) Получаем самого персонажа, чтобы узнать его cell_number
         $character = $this->characterModel->find($characterId);
-        if (!$character) {
+        if (! $character) {
             return false;
         }
 
-        // 4) Сравниваем cell_number персонажа и cell_number базы
-        //    Дело в том, что mapRow['cell_number'] — номер ячейки,
-        //    тогда как у персонажа character['cell_number'] — тоже номер ячейки.
-        return isset($mapRow['cell_number'])
-            && $mapRow['cell_number'] == $character['cell_number'];
+        $cellNumber = $character['cell_number'] ?? null;
+        if (! is_numeric($cellNumber)) {
+            return false;
+        }
+
+        return $this->claimedCellModel->findActiveCell($characterId, (int) $cellNumber) !== null;
     }
 
     /**
