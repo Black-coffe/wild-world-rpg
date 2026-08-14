@@ -112,12 +112,86 @@ final class ColdOpenSingleScreenTest extends CIUnitTestCase
         $source = (string) file_get_contents(self::START_COMMAND);
 
         $this->assertStringContainsString(self::FIRST_STEP_LABEL, $source, 'метка кнопки разъехалась с копией');
+        // callback_data допускается в двух видах: голый `'move'` и помеченный источником
+        // (ADR-168) `ActionOrigin::tag('move', …)`. Метка снимается централизованно в
+        // BotController до роутинга, поэтому роут остаётся тем же — но регексп обязан
+        // принимать обе формы, иначе анти-дрейф-тест сломается на самой телеметрии.
         $this->assertMatchesRegularExpression(
-            "/'text'\s*=>\s*'" . preg_quote(self::FIRST_STEP_LABEL, '/') . "'\s*,\s*'callback_data'\s*=>\s*'move'/u",
+            "/'text'\s*=>\s*'" . preg_quote(self::FIRST_STEP_LABEL, '/') . "'\s*,\s*'callback_data'\s*=>\s*(?:'move'|[^,\n]*tag\('move')/u",
             $source,
             'кнопка «первый шаг» обязана вести в callback `move`'
         );
         $this->assertArrayHasKey('move', (new CallbackRoutes())->exactRoutes, 'роут `move` мёртв');
+    }
+
+    // ── Правка «одна инструкция вместо двух» (аудит 2026-08-14) ──────────────
+
+    /** Флаг читается СВОИМ ключом и по умолчанию выключен (копия первого впечатления). */
+    public function testMenuDeferReadsOwnKeyAndDefaultsOff(): void
+    {
+        $svc = new SingleScreenFlagSpy();
+
+        $this->assertFalse($svc->menuDeferEnabled(), 'default обязан быть OFF');
+        $this->assertSame('onboarding.cold_open_v2.menu_defer', $svc->lastKey);
+        $this->assertFalse($svc->lastDefault, 'default-аргумент обязан быть false');
+    }
+
+    /**
+     * 🔴 Суть правки: при ON текст, несущий клавиатуру, больше НЕ зовёт в нижнее меню.
+     * Замер 14.08: этот призыв конкурировал с CTA следующего экрана и уводил 36% свежей
+     * когорты в хабы, где активности втрое меньше.
+     */
+    public function testMenuAttachTextStopsCompetingWithTheCta(): void
+    {
+        $svc = new MenuDeferFlagSpy();
+
+        $svc->value = false;
+        $legacy     = $svc->menuAttachText();
+        $this->assertStringContainsString('меню ниже', mb_strtolower($legacy), 'легаси обязан остаться прежним');
+
+        $svc->value = true;
+        $fixed      = $svc->menuAttachText();
+        $this->assertStringNotContainsString('выбор', mb_strtolower($fixed), 'нет призыва выбирать действие в меню');
+        $this->assertStringNotContainsString('ниже', mb_strtolower($fixed), '«ниже» указывает и на меню, и на след. сообщение — двусмысленность и есть корень');
+        $this->assertStringNotContainsString('внизу', mb_strtolower($fixed));
+        $this->assertStringContainsString('Роби', $fixed, 'текст обязан направлять вперёд, к следующему экрану');
+        $this->assertNotSame($legacy, $fixed);
+    }
+
+    /** Оба текста непустые и markdown-safe (сообщение уходит без parse_mode, но правило общее). */
+    public function testMenuAttachTextsAreSaneInBothStates(): void
+    {
+        $svc = new MenuDeferFlagSpy();
+
+        foreach ([false, true] as $state) {
+            $svc->value = $state;
+            $text       = $svc->menuAttachText();
+
+            $this->assertNotSame('', trim($text), 'Telegram не прикрепит клавиатуру к пустому сообщению');
+            $this->assertSame(0, substr_count($text, '*') % 2, 'непарные *');
+            $this->assertSame(0, substr_count($text, '_') % 2, 'непарные _');
+        }
+    }
+
+    /**
+     * 🔴 Обе двери первого экрана помечены источником `cold` (ADR-168). Без метки эффект
+     * правки не измерить: callback `move` шлют десятки экранов («к карте», «уйти»,
+     * «идти дальше»), и первый шаг новичка неотличим от возврата ветерана на карту.
+     */
+    public function testBothFirstScreenDoorsCarryOriginTag(): void
+    {
+        $source = (string) file_get_contents(self::START_COMMAND);
+
+        $this->assertMatchesRegularExpression(
+            "/tag\('move',\s*\\\\?[\w\\\\]*ActionOrigin::FROM_COLDOPEN\)/u",
+            $source,
+            'кнопка «первый шаг» обязана нести метку источника'
+        );
+        $this->assertMatchesRegularExpression(
+            "/tag\('setCharacterName',\s*\\\\?[\w\\\\]*ActionOrigin::FROM_COLDOPEN\)/u",
+            $source,
+            'кнопка «назвать героя» обязана нести метку источника'
+        );
     }
 
     /**
@@ -135,6 +209,21 @@ final class ColdOpenSingleScreenTest extends CIUnitTestCase
                 "секция \${$var} должна обнуляться после встраивания в одно окно"
             );
         }
+    }
+}
+
+/**
+ * Test-double: подменяет killswitch, не запоминая ключ (его проверяет SingleScreenFlagSpy).
+ *
+ * @internal
+ */
+final class MenuDeferFlagSpy extends ColdOpenGreetingService
+{
+    public bool $value = false;
+
+    protected function gsBool(string $key, bool $default): bool
+    {
+        return $this->value;
     }
 }
 

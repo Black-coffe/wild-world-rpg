@@ -173,10 +173,12 @@ class StartCommand extends UserCommand
                         . "Придумай герою имя и поехали.";
                 }
 
+                // ADR-168: метка `cold` — это первый экран. Без неё вход неотличим от прочих
+                // мест, где та же кнопка встречается позже.
                 $keyboard = [
                     'inline_keyboard' => [
                         [
-                            ['text' => '🤔 Задать имя персонажа', 'callback_data' => 'setCharacterName']
+                            ['text' => '🤔 Задать имя персонажа', 'callback_data' => \App\Services\Logging\ActionOrigin::tag('setCharacterName', \App\Services\Logging\ActionOrigin::FROM_COLDOPEN)]
                         ],
                     ]
                 ];
@@ -209,13 +211,17 @@ class StartCommand extends UserCommand
                     // раздельную отправку, а не потеря экрана целиком.
                     if ($coldOpen->fitsSingleMessage($composed)) {
                         $text            = $composed;
+                        // ADR-168: обе двери первого экрана помечены `cold`. Особенно важно для
+                        // `move` — этот callback шлют около полусотни экранов («к карте»,
+                        // «уйти», «идти дальше»), и без метки первый шаг новичка неотличим от
+                        // любого возврата ветерана на карту, то есть эффект правки не измерить.
                         $encodedKeyboard = json_encode([
                             'inline_keyboard' => [
                                 [
-                                    ['text' => '🧭 Сделать первый шаг', 'callback_data' => 'move'],
+                                    ['text' => '🧭 Сделать первый шаг', 'callback_data' => \App\Services\Logging\ActionOrigin::tag('move', \App\Services\Logging\ActionOrigin::FROM_COLDOPEN)],
                                 ],
                                 [
-                                    ['text' => '✏️ Назвать героя', 'callback_data' => 'setCharacterName'],
+                                    ['text' => '✏️ Назвать героя', 'callback_data' => \App\Services\Logging\ActionOrigin::tag('setCharacterName', \App\Services\Logging\ActionOrigin::FROM_COLDOPEN)],
                                 ],
                             ],
                         ]);
@@ -230,9 +236,15 @@ class StartCommand extends UserCommand
             // N4 (ADR-039): постоянную reply-клавиатуру шлём только новичку. Для
             // существующих игроков её ставит CharacterService::showCharacterInfo —
             // раньше StartCommand слал её безусловно → дубль keyboard-сообщения на /start.
+            //
+            // Правка «одна инструкция вместо двух» (аудит 2026-08-14): текст этого сообщения
+            // приказывал «используйте меню ниже» и конкурировал с CTA следующего экрана —
+            // 36% свежей когорты уходили в нижнее меню и делали втрое меньше действий.
+            // Теперь он направляет вперёд. Клавиатура по-прежнему ставится (прятать её нельзя:
+            // игрок должен знать, что меню есть). Dormant под `cold_open_v2.menu_defer`.
             Request::sendMessage([
                 'chat_id'      => $chatId,
-                'text'         => 'Добро пожаловать! Используйте меню ниже для выбора действия.',
+                'text'         => (new \App\Services\Onboarding\ColdOpenGreetingService())->menuAttachText(),
                 'reply_markup' => $replyKeyboard,
             ]);
 

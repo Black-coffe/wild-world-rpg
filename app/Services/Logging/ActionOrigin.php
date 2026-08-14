@@ -51,6 +51,10 @@ final class ActionOrigin
     public const FROM_MARCH    = 'mar'; // экран завершения Похода
     public const FROM_BUILDING = 'bld'; // экран постройки на базе
     public const FROM_CRAFT    = 'crf'; // «не хватает сырья» в крафте
+    // Первый экран /start (холодный старт). Заведена под правку «одна инструкция вместо двух»:
+    // callback `move` шлют около полусотни экранов («к карте», «уйти», «идти дальше»), и без
+    // метки первый шаг новичка неотличим от любого возврата ветерана на карту.
+    public const FROM_COLDOPEN = 'cold';
 
     /** Предел Telegram на callback_data — 64 БАЙТА. Метка не имеет права его пробить. */
     private const MAX_CALLBACK_BYTES = 64;
