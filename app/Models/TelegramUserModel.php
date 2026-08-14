@@ -26,6 +26,7 @@ class TelegramUserModel extends Model
         'blocked_at',  // 2026-05-31 — отметка блокировки бота (broadcast-гигиена)
         'last_seen',   // E6 (ADR-108) — момент последнего входящего взаимодействия (digest/стрик/sleeping-skip)
         'acquisition_source', // 2026-06-21 — источник первой регистрации из payload /start (src_*); first-touch, атрибуция интейка
+        'language_code',      // 2026-08-14 — язык клиента Telegram; аудит «молчунов»: игра только на русском, а долю нечитающих измерить было нечем
     ];
 
     protected $useTimestamps = true;

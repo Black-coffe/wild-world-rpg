@@ -53,6 +53,11 @@ class StartCommand extends UserCommand
         $replyKeyboard = \App\Services\Telegram\BotMenuService::mainReplyKeyboard();
 
         // 2. Проверяем/создаём пользователя
+        // Язык клиента (аудит «молчунов» 2026-08-14). Игра существует только на русском, а
+        // доля тех, кто физически не может прочитать первый экран, до сих пор была неизмерима:
+        // Telegram шлёт `language_code` в каждом апдейте, а мы его выбрасывали.
+        $languageCode = self::normalizeLanguageCode($from->getLanguageCode());
+
         $telegramUserModel = new TelegramUserModel();
         $existingUser      = $telegramUserModel->where('telegram_id', $telegramId)->first();
         if (!$existingUser) {
@@ -62,9 +67,19 @@ class StartCommand extends UserCommand
                 'first_name'         => $firstName,
                 'last_name'          => $lastName,
                 'acquisition_source' => $acquisitionSource,
+                'language_code'      => $languageCode,
             ], true);
         } else {
             $createdUserId = $existingUser['id'];
+
+            // Добор для уже заведённых: при 1.7 регистрации в сутки замер только по новым
+            // набирался бы месяцами. Пишем ОДИН раз (пустое поле → значение) и только на
+            // /start, чтобы не превращать каждый апдейт в запись.
+            // is_array() сужает тип строки модели явно (не приводим mixed вслепую).
+            $knownLanguage = is_array($existingUser) ? ($existingUser['language_code'] ?? null) : null;
+            if ($languageCode !== null && $knownLanguage === null) {
+                $telegramUserModel->update($createdUserId, ['language_code' => $languageCode]);
+            }
         }
 
         // 3. Ищем персонажа
@@ -327,6 +342,26 @@ class StartCommand extends UserCommand
      * start-payload этим набором + 64 симв), обрезает до 191; пусто/мусор → null
      * (органика/прямой вход). Pure — тестируется напрямую.
      */
+    /**
+     * Нормализует IETF-тег языка из Telegram (`ru`, `en-GB`, `zh-hans`) в компактный ключ.
+     *
+     * Оставляет только `[a-zA-Z-]`, приводит к нижнему регистру и режет до 16 символов под
+     * ширину колонки. Пусто/мусор → null (поле у Telegram опциональное — его может не быть
+     * вовсе, и это НЕ ошибка). Pure — тестируется напрямую.
+     */
+    public static function normalizeLanguageCode(?string $code): ?string
+    {
+        if ($code === null) {
+            return null;
+        }
+        $clean = preg_replace('/[^a-zA-Z-]/', '', trim($code));
+        if (! is_string($clean) || $clean === '') {
+            return null;
+        }
+
+        return mb_strtolower(mb_substr($clean, 0, 16));
+    }
+
     public static function extractAcquisitionSource(?string $payload): ?string
     {
         if ($payload === null) {
