@@ -69,13 +69,16 @@ class BotController extends Controller
         // безусловно (кнопки живут в истории чата вечно), простановка — под killswitch.
         $actionOrigin = null;
         if (is_array($update)) {
-            [$update, $actionOrigin] = \App\Services\Logging\ActionOrigin::stripUpdate($update);
+            [$update, $actionOrigin, $originStripped] = \App\Services\Logging\ActionOrigin::stripUpdate($update);
             \App\Services\Logging\ActionOrigin::set($actionOrigin);
 
             // Longman читает php://input САМ, а не наш $update, поэтому очищенную строку ему
-            // надо отдать явно. Трогаем ввод ТОЛЬКО когда метка реально была: непомеченный
+            // надо отдать явно. Трогаем ввод ТОЛЬКО когда апдейт реально очищен: непомеченный
             // трафик (весь легаси) идёт прежним путём, без json-раундтрипа.
-            if ($actionOrigin !== null && $this->telegram !== null) {
+            // 🔴 Условие — на ФАКТЕ очистки, а не на валидности метки: мусорный хвост тоже
+            // срезается, и без перезаписи Longman получил бы строку, которой роутер не знает
+            // (мёртвая кнопка + firehose, разошедшийся с реальностью). Поймано Tier-3 14.08.
+            if ($originStripped && $this->telegram !== null) {
                 $reencoded = json_encode($update, JSON_UNESCAPED_UNICODE);
                 if (is_string($reencoded)) {
                     $this->telegram->setCustomInput($reencoded);

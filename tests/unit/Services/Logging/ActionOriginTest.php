@@ -119,28 +119,45 @@ final class ActionOriginTest extends CIUnitTestCase
 
     public function testStripUpdateCleansCallbackDataAndReturnsOrigin(): void
     {
-        [$clean, $origin] = ActionOrigin::stripUpdate($this->cbUpdate('gather_10~cmp'));
+        [$clean, $origin, $stripped] = ActionOrigin::stripUpdate($this->cbUpdate('gather_10~cmp'));
 
         $this->assertSame('gather_10', $clean['callback_query']['data'], 'хендлеры видят прежнюю строку');
         $this->assertSame('cmp', $origin);
+        $this->assertTrue($stripped);
     }
 
     public function testStripUpdateLeavesUntaggedUpdateUntouched(): void
     {
-        $update           = $this->cbUpdate('gather');
-        [$clean, $origin] = ActionOrigin::stripUpdate($update);
+        $update                      = $this->cbUpdate('gather');
+        [$clean, $origin, $stripped] = ActionOrigin::stripUpdate($update);
 
         $this->assertSame($update, $clean, 'непомеченный трафик не трогаем вовсе');
         $this->assertNull($origin);
+        $this->assertFalse($stripped, 'ввод Longman-у перезаписывать не за чем');
     }
 
     public function testStripUpdateIgnoresNonCallbackUpdates(): void
     {
-        $update           = ['message' => ['text' => 'привет~cmp', 'from' => ['id' => 25]]];
-        [$clean, $origin] = ActionOrigin::stripUpdate($update);
+        $update                      = ['message' => ['text' => 'привет~cmp', 'from' => ['id' => 25]]];
+        [$clean, $origin, $stripped] = ActionOrigin::stripUpdate($update);
 
         $this->assertSame($update, $clean, 'текст игрока — не callback_data, тильда в нём законна');
         $this->assertNull($origin);
+        $this->assertFalse($stripped);
+    }
+
+    public function testGarbageTagIsStrippedEvenThoughOriginIsRejected(): void
+    {
+        // 🔴 Замок на баг, пойманный Tier-3 14.08. «Апдейт изменён» ≠ «метка распознана»:
+        // мусорный хвост срезается так же, как валидный, но источником не становится. Если
+        // связать перезапись ввода Longman-а с наличием метки, он получит СЫРУЮ строку,
+        // которой роутер не знает → мёртвая кнопка, а firehose запишет очищенную. На проде
+        // это выглядело как `status='unrouted'` при `raw_input='gather'`.
+        [$clean, $origin, $stripped] = ActionOrigin::stripUpdate($this->cbUpdate('gather~ЧУШЬ'));
+
+        $this->assertSame('gather', $clean['callback_query']['data'], 'кнопка обязана доехать до хендлера');
+        $this->assertNull($origin, 'мусор не попадает в телеметрию');
+        $this->assertTrue($stripped, 'ввод обязан быть перезаписан, иначе роут увидит сырую строку');
     }
 
     // ── Совместимость с разбором firehose ─────────────────────────────────────

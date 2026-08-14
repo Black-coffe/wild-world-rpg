@@ -140,25 +140,32 @@ final class ActionOrigin
     /**
      * Снять метку с сырого Telegram-апдейта.
      *
+     * 🔴 Третий элемент — «апдейт ИЗМЕНЁН», и он НЕ равен «метка распознана». Мусорный хвост
+     * (`gather~ЧУШЬ`) очищается так же, как валидный, но источником не становится. Если
+     * связать перезапись ввода с наличием метки, а не с фактом очистки, Longman получит
+     * СЫРУЮ строку, которую роутер не знает → мёртвая кнопка, а firehose при этом запишет
+     * очищенную. Поймано Tier-3 на testbot 14.08: `gather~ЧУШЬ` → `status='unrouted'` при
+     * `raw_input='gather'` — телеметрия разошлась с тем, что реально произошло.
+     *
      * @param array<array-key,mixed> $update
      *
-     * @return array{0: array<array-key,mixed>, 1: string|null} очищенный апдейт + метка
+     * @return array{0: array<array-key,mixed>, 1: string|null, 2: bool} апдейт + метка + изменён ли
      */
     public static function stripUpdate(array $update): array
     {
         if (! isset($update['callback_query']) || ! is_array($update['callback_query'])) {
-            return [$update, null];
+            return [$update, null, false];
         }
 
         $data = $update['callback_query']['data'] ?? null;
         if (! is_string($data) || ! str_contains($data, self::SEPARATOR)) {
-            return [$update, null];
+            return [$update, null, false];
         }
 
         $origin = self::extract($data);
         $update['callback_query']['data'] = self::strip($data);
 
-        return [$update, $origin];
+        return [$update, $origin, true];
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
