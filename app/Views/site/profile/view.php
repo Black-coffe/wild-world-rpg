@@ -156,7 +156,11 @@ $pvpRate  = $pvpTotal > 0 ? (int) round($pvpWins / $pvpTotal * 100) : 0;
         <div class="center mt-4">
             <a class="btn" href="<?= site_url('achievements') ?>">🏅 Все достижения</a>
             <?php if ($botUsername !== ''): ?>
-                <a class="btn primary" href="https://t.me/<?= esc($botUsername, 'attr') ?>" target="_blank" rel="noopener">▶ Играть в Telegram</a>
+                <?php // Единственная CTA сайта, которая шла БЕЗ метки источника (аудит трафика
+                      // 14.08). Профиль — вирусная поверхность (E30, им делятся), то есть ровно
+                      // тот канал, приход по которому важнее всего различать. Ссылку собираем
+                      // через Social::botStart(), как все прочие CTA, а не руками из username. ?>
+                <a class="btn primary" href="<?= esc((new \Config\Social())->botStart('src_site_profile'), 'attr') ?>" target="_blank" rel="noopener">▶ Играть в Telegram</a>
             <?php endif ?>
         </div>
     </div>
