@@ -32,6 +32,7 @@ class PlayerActionLogModel extends Model
         'raw_input',
         'status',
         'error_text',
+        'origin', // ADR-168 — с какого экрана нажата кнопка (метка `~cmp` на callback_data)
         'created_at',
     ];
 }

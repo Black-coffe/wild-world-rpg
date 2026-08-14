@@ -445,7 +445,8 @@ class MarchingTaskHandler extends BaseTaskHandler
         $keyboardRows = [
             [
                 ['text' => '🚜 Идти дальше', 'callback_data' => 'move'],
-                ['text' => '⛏ Добыть', 'callback_data' => 'gather'],
+                // ADR-168 — метка источника «финиш Похода».
+                ['text' => '⛏ Добыть', 'callback_data' => \App\Services\Logging\ActionOrigin::tag('gather', \App\Services\Logging\ActionOrigin::FROM_MARCH)],
             ],
             [
                 ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],

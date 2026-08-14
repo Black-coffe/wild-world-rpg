@@ -276,7 +276,8 @@ class FoodAndWaterConsumptionHandler extends BaseTaskHandler
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '⛏️ Добыть ресурсы', 'callback_data' => 'gather'],
+                    // ADR-168 — метка источника «уведомление о голоде/жажде».
+                    ['text' => '⛏️ Добыть ресурсы', 'callback_data' => \App\Services\Logging\ActionOrigin::tag('gather', \App\Services\Logging\ActionOrigin::FROM_NEEDS)],
                 ],
                 [
                     ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],

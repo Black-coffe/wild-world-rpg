@@ -8,6 +8,7 @@ use App\Entities\CharacterEntity;
 use App\Models\MapModel;
 use App\Models\TelegramUserModel;
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Logging\ActionOrigin;
 use App\Services\Telegram\BotMenuService;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
@@ -251,7 +252,10 @@ class MoveSurfaceService
             ],
             $south,
             [
-                ['text' => BotMenuService::actionLabel('gather'),     'callback_data' => 'gather'],
+                // ADR-168 — метка источника: ровно этот вход мерил слайс «второй шаг», и до
+                // метки он был неотличим от входа из хаба действий. При выключенном
+                // killswitch tag() возвращает строку без изменений (byte-identical).
+                ['text' => BotMenuService::actionLabel('gather'),     'callback_data' => ActionOrigin::tag('gather', ActionOrigin::FROM_COMPASS)],
                 ['text' => BotMenuService::actionLabel('actionsHub'), 'callback_data' => 'characterActions'],
             ],
         ];

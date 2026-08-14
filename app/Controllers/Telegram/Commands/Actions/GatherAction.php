@@ -73,20 +73,27 @@ class GatherAction extends BaseAction
                 . "🕑 Базовый расчёт идёт за 10 минут,\n"
                 . "но если выберешь больше — лут будет больше (и риск тоже!).";
 
+            // ADR-168 — наследуем метку экрана, с которого вошли в добычу. Без этого источник
+            // был бы виден только на ОТКРЫТИИ меню, а замер спрашивает про реальный старт:
+            // между «посмотрел длительности» и «запустил добычу» новичок отваливается чаще
+            // всего. Метки нет (легаси-кнопка из истории чата) → строки прежние.
+            $org = \App\Services\Logging\ActionOrigin::current();
+            $cb  = static fn (string $data): string => \App\Services\Logging\ActionOrigin::tag($data, $org);
+
             // Кнопки: 10 мин, 30 мин, 60 мин, 120 мин, 360 мин, 720 мин
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '10 минут',   'callback_data' => 'gather_10'],
-                        ['text' => '30 минут',   'callback_data' => 'gather_30'],
+                        ['text' => '10 минут',   'callback_data' => $cb('gather_10')],
+                        ['text' => '30 минут',   'callback_data' => $cb('gather_30')],
                     ],
                     [
-                        ['text' => '1 час',      'callback_data' => 'gather_60'],
-                        ['text' => '2 часа',     'callback_data' => 'gather_120'],
+                        ['text' => '1 час',      'callback_data' => $cb('gather_60')],
+                        ['text' => '2 часа',     'callback_data' => $cb('gather_120')],
                     ],
                     [
-                        ['text' => '6 часов',    'callback_data' => 'gather_360'],
-                        ['text' => '12 часов',   'callback_data' => 'gather_720'],
+                        ['text' => '6 часов',    'callback_data' => $cb('gather_360')],
+                        ['text' => '12 часов',   'callback_data' => $cb('gather_720')],
                     ],
                 ]
             ];
@@ -97,7 +104,7 @@ class GatherAction extends BaseAction
             $fastMinutes = $this->fastStartGatherMinutes($character);
             if ($fastMinutes !== null) {
                 array_unshift($keyboard['inline_keyboard'], [
-                    ['text' => "⚡ {$fastMinutes} мин (быстрый старт)", 'callback_data' => "gather_{$fastMinutes}"],
+                    ['text' => "⚡ {$fastMinutes} мин (быстрый старт)", 'callback_data' => $cb("gather_{$fastMinutes}")],
                 ]);
                 $text .= "\n\n⚡ *Быстрый старт:* для первых шагов доступна короткая добыча — "
                     . "лута меньше, зато результат сразу.";

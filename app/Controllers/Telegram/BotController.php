@@ -63,12 +63,35 @@ class BotController extends Controller
             ? \App\Services\Player\LastSeenService::extractTelegramId($update)
             : null;
 
+        // ADR-168 — снять метку источника с callback_data ДО всего остального: и firehose, и
+        // Longman обязаны увидеть уже очищенную строку. Метка (`gather~cmp`) отвечает на вопрос
+        // «с какого экрана нажали», на который ADR-148 в одиночку ответить не мог. 🔴 Снятие
+        // безусловно (кнопки живут в истории чата вечно), простановка — под killswitch.
+        $actionOrigin = null;
+        if (is_array($update)) {
+            [$update, $actionOrigin] = \App\Services\Logging\ActionOrigin::stripUpdate($update);
+            \App\Services\Logging\ActionOrigin::set($actionOrigin);
+
+            // Longman читает php://input САМ, а не наш $update, поэтому очищенную строку ему
+            // надо отдать явно. Трогаем ввод ТОЛЬКО когда метка реально была: непомеченный
+            // трафик (весь легаси) идёт прежним путём, без json-раундтрипа.
+            if ($actionOrigin !== null && $this->telegram !== null) {
+                $reencoded = json_encode($update, JSON_UNESCAPED_UNICODE);
+                if (is_string($reencoded)) {
+                    $this->telegram->setCustomInput($reencoded);
+                }
+            }
+        }
+
         // ADR-148 — firehose ВСЕХ прямых действий игрока. begin() парсит «что/кто/откуда» из
         // сырого апдейта (1 апдейт = 1 действие); commit() в finally пишет ровно одну строку с
         // исходом. 🔴 Defensive — захват не влияет на обработку апдейта; не-player апдейты
         // (channel_post, my_chat_member, …) сами отсеиваются в begin() → commit() no-op.
         if (is_array($update)) {
             \App\Services\Logging\PlayerActionLogger::current()->begin($update);
+            // ADR-168 — источник нажатия в отдельную колонку. ПОСЛЕ begin(): он сбрасывает
+            // состояние захвата. action_name/raw_input остаются легаси-сравнимыми с историей.
+            \App\Services\Logging\PlayerActionLogger::current()->setOrigin($actionOrigin);
             // ADR-148 (расширение) — сигнал ДОСТАВКИ. Без него firehose знал только про
             // роутинг и писал 'ok', пока экраны лавки крафта 2.5 месяца уходили в пустоту.
             // Ставится ПОСЛЕ begin(): счётчики отправок живут внутри текущего захвата.
@@ -120,6 +143,9 @@ class BotController extends Controller
             // ADR-148 — записать строку firehose (defensive; no-op если begin() не активировал
             // захват, killswitch выключен или уже закоммичено). Выполняется и при исключении.
             \App\Services\Logging\PlayerActionLogger::current()->commit();
+            // ADR-168 — холдер источника живёт ровно один апдейт (гигиена: процесс может
+            // переиспользоваться, и чужая метка не должна протечь в следующее действие).
+            \App\Services\Logging\ActionOrigin::reset();
         }
     }
 

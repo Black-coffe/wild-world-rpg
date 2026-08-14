@@ -331,7 +331,8 @@ class CraftShortageService
             $rows[] = $craftButtons;
         }
 
-        $rows[] = [['text' => '⛏ Добыть', 'callback_data' => 'gather']];
+        // ADR-168 — метка источника «не хватает сырья в крафте».
+        $rows[] = [['text' => '⛏ Добыть', 'callback_data' => \App\Services\Logging\ActionOrigin::tag('gather', \App\Services\Logging\ActionOrigin::FROM_CRAFT)]];
 
         if ($buyButtons !== []) {
             $rows[] = $buyButtons;

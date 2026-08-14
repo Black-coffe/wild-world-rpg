@@ -240,7 +240,8 @@ class GenericBuildingInfoAction extends BaseAction
         // 10. Buttons: «Строить» if sufficient, else gather/buy/actions/inventory
         $keyboard = [
             'inline_keyboard' => [[
-                ['text' => '⛏️ Добыть ресурсы', 'callback_data' => 'gather'],
+                // ADR-168 — метка источника «экран постройки».
+                ['text' => '⛏️ Добыть ресурсы', 'callback_data' => \App\Services\Logging\ActionOrigin::tag('gather', \App\Services\Logging\ActionOrigin::FROM_BUILDING)],
                 ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
             ], [
                 ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],

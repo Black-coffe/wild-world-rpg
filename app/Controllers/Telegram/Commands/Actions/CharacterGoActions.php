@@ -98,7 +98,9 @@ class CharacterGoActions extends BaseAction
             ? ['text' => '📋 Дела', 'callback_data' => 'tasksHub']
             : ['text' => '📜 Квесты и задания', 'callback_data' => 'questAndTask'];
         $keyboardButtons[] = ['text' => '🗺️ Поход', 'callback_data' => 'march'];
-        $keyboardButtons[] = ['text' => \App\Services\Telegram\BotMenuService::actionLabel('gather'), 'callback_data' => 'gather'];
+        // ADR-168 — метка источника «хаб действий»: второй из шести экранов, шлющих ту же
+        // кнопку. Именно смешение этого входа с компасом делало замер слайса неразрешимым.
+        $keyboardButtons[] = ['text' => \App\Services\Telegram\BotMenuService::actionLabel('gather'), 'callback_data' => \App\Services\Logging\ActionOrigin::tag('gather', \App\Services\Logging\ActionOrigin::FROM_HUB)];
         // ADR-094 discoverability: аптечка (лечение/расходники) — раньше пряталась в
         // экране Окопаться (только при наличии базы). Выносим на главный хаб действий,
         // всегда доступна. PharmacyAction сам объяснит, если медикаментов нет.

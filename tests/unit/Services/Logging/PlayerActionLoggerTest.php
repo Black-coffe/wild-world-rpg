@@ -421,6 +421,63 @@ final class PlayerActionLoggerTest extends CIUnitTestCase
         $this->assertSame(500, self::len($log->lastRow()['error_text']));
     }
 
+    // ── ADR-168: источник нажатия (колонка `origin`) ──────────────────────────
+
+    public function testOriginWrittenToItsOwnColumn(): void
+    {
+        $log = $this->fake();
+        // BotController снимает метку ДО begin(), поэтому сюда приходит уже чистая строка.
+        $log->begin($this->cbUpdate('gather_10', 25, 25));
+        $log->setOrigin('cmp');
+        $log->commit();
+
+        $row = $log->lastRow();
+        $this->assertSame('cmp', $row['origin']);
+        $this->assertSame('gather', $row['action_name'], 'разбор действия не изменился');
+        $this->assertSame('gather_10', $row['raw_input'], 'raw_input остаётся сравнимым с историей до ADR-168');
+    }
+
+    public function testOriginNullWhenButtonUntagged(): void
+    {
+        $log = $this->fake();
+        $log->begin($this->cbUpdate('gather', 25, 25));
+        $log->commit();
+
+        $this->assertNull($log->lastRow()['origin'], 'легаси-кнопка источника не несёт');
+    }
+
+    public function testOriginDoesNotLeakBetweenUpdates(): void
+    {
+        $log = $this->fake();
+        $log->begin($this->cbUpdate('gather', 25, 25));
+        $log->setOrigin('cmp');
+        $log->commit();
+        $this->assertSame('cmp', $log->lastRow()['origin']);
+
+        $log->begin($this->cbUpdate('craft', 25, 25)); // begin() сбрасывает захват
+        $log->commit();
+        $this->assertNull($log->lastRow()['origin'], 'чужая метка не тянется в следующее действие');
+    }
+
+    public function testOriginIgnoredWithoutActiveCapture(): void
+    {
+        $log = $this->fake();
+        $log->setOrigin('cmp'); // begin() не вызывался
+        $log->commit();
+
+        $this->assertSame([], $log->lastRow(), 'не-player апдейт не порождает строку');
+    }
+
+    public function testOriginTruncatedToColumnWidth(): void
+    {
+        $log = $this->fake();
+        $log->begin($this->cbUpdate('gather', 25, 25));
+        $log->setOrigin(str_repeat('o', 40)); // колонка — VARCHAR(16)
+        $log->commit();
+
+        $this->assertSame(16, self::len($log->lastRow()['origin']));
+    }
+
     // ── Фабрики апдейтов ──────────────────────────────────────────────────────
 
     /** @return array<string,mixed> */

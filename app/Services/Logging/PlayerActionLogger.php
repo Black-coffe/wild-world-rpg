@@ -54,6 +54,8 @@ class PlayerActionLogger
     private string $rawInput    = '';
     private string $status      = 'ok';
     private ?string $errorText  = null;
+    /** ADR-168 — с какого экрана нажата кнопка (метка снята в BotController). */
+    private ?string $origin     = null;
 
     /**
      * Окно доставки: счётчики отправок (заполняет {@see TelegramDeliveryProbe}).
@@ -96,6 +98,7 @@ class PlayerActionLogger
         $this->rawInput       = '';
         $this->telegramUserId = null;
         $this->chatId         = null;
+        $this->origin         = null;
         $this->openDeliveryWindow();
 
         if (isset($update['callback_query']) && is_array($update['callback_query'])) {
@@ -135,6 +138,19 @@ class PlayerActionLogger
         }
 
         // Не player-апдейт — не логируем.
+    }
+
+    /**
+     * ADR-168 — источник нажатия (с какого экрана пришла кнопка). Ставится в
+     * {@see \App\Controllers\Telegram\BotController::webhook()} сразу после {@see begin()}
+     * (тот сбрасывает состояние захвата). Пишется в отдельную колонку `origin`, а не в
+     * `raw_input`: тот обязан остаться сравнимым с историей замеров до ADR-168.
+     */
+    public function setOrigin(?string $origin): void
+    {
+        if ($this->active) {
+            $this->origin = ($origin === null || $origin === '') ? null : mb_substr($origin, 0, 16);
+        }
     }
 
     /** Мёртвая/устаревшая кнопка или «не понял команду». Не перекрывает error. */
@@ -263,6 +279,7 @@ class PlayerActionLogger
                 'raw_input'        => $this->rawInput === '' ? null : mb_substr($this->rawInput, 0, 255),
                 'status'           => $status,
                 'error_text'       => $this->errorText,
+                'origin'           => $this->origin,
                 'created_at'       => date('Y-m-d H:i:s'),
             ]);
         } catch (\Throwable $e) {
@@ -321,6 +338,12 @@ class PlayerActionLogger
     public function status(): string
     {
         return $this->status;
+    }
+
+    /** Текущий источник нажатия (для тестов/диагностики). */
+    public function origin(): ?string
+    {
+        return $this->origin;
     }
 
     /**
