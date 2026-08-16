@@ -7,7 +7,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Greenhouse;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Farming\FarmingService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * V6 (ADR-033) — превью/подтверждение посадки (callback `plantSeedPreview_<crop>`).

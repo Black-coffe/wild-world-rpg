@@ -12,7 +12,7 @@ use App\Models\WeaponModel;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S17 (v0.51.199) — generic preview screen для T3 weapon крафта.

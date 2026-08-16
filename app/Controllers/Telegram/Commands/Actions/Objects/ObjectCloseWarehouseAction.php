@@ -8,7 +8,7 @@ use App\Models\CharacterModel;
 use App\Models\MapModel;
 use App\Models\ResourceModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Telegram;
 

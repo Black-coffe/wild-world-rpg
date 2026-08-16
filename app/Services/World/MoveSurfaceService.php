@@ -11,7 +11,7 @@ use App\Services\GameSettings\GameSettingsService;
 use App\Services\Logging\ActionOrigin;
 use App\Services\Telegram\BotMenuService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-150 Слайс 1 — единый рендер «поверхности ходьбы» (компас-розетка 3×3 + карта

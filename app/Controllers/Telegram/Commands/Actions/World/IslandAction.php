@@ -8,7 +8,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Notifications\MediaSender;
 use App\Services\World\IslandPulseService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S7 (ROADMAP-RETENTION-10, ADR-145) — экран «🌍 Остров живёт» (edit-in-place с карты).

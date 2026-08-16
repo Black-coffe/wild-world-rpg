@@ -12,7 +12,7 @@ use App\Models\ResourceModel;
 use App\Services\Notifications\MediaSender;
 use DateTime;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class SetCharacterNameAction extends BaseAction
 {

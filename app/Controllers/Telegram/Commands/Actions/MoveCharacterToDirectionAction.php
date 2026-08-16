@@ -14,7 +14,7 @@ use App\Services\Player\Progression\EarlyProgressionService;
 use App\Services\World\TextMapService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Класс, обрабатывающий перемещение персонажа в одно из 8 направлений

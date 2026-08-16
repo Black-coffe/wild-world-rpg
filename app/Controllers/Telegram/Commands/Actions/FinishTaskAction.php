@@ -1,7 +1,7 @@
 <?php
 namespace App\Controllers\Telegram\Commands\Actions;
 
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use App\Models\CharacterModel;

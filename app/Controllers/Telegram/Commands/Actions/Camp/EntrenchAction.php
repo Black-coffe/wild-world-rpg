@@ -5,7 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Camp;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\ClaimedCellModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class EntrenchAction extends BaseAction
 {

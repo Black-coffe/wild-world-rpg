@@ -5,7 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CraftedItemsModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class ActivateRobotHandler extends BaseAction
 {

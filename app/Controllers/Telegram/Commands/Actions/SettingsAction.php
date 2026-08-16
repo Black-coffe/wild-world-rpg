@@ -6,7 +6,7 @@ use App\Entities\CharacterEntity;
 use App\Services\Notifications\MediaSender;
 use ArrayAccess;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Идея #14 (Yupirex) — экран «⚙️ Настройки» с понятным тумблером «Картинки в сообщениях».

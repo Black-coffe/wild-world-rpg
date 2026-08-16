@@ -11,7 +11,7 @@ use App\Models\CharacterResourceModel;
 use App\Models\MapModel;
 use App\Models\WorldObjectModel;
 use App\Services\GameSettings\GameSettingsReaderTrait;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S4 (ROADMAP-RETENTION-10, ADR-139) — cold-open «нарратив радио-крючок + bait у спавна»

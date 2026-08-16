@@ -10,7 +10,7 @@ use App\Services\Settlement\RuinLootService;
 use App\Services\Settlement\SettlementZoneService;
 use Config\Database;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * E16 Ф2 (ADR-116) — исследование поясной аномалии (повторяемый лут по кулдауну).

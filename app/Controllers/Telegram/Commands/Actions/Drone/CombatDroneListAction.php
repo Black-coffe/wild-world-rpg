@@ -9,7 +9,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Services\Player\DroneService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * W5 (ADR-064) — entry-point Combat-drone списка. Callback `combatDroneList`.

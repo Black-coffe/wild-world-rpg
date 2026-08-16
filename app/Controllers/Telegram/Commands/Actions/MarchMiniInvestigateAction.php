@@ -9,7 +9,7 @@ use App\Services\World\MarchMiniEventService;
 use CodeIgniter\Database\BaseResult;
 use Config\Database;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * E17 Ф2 (ADR-117) — «🔍 Осмотреть» мини-событие в Походе (callback `marchMini`).

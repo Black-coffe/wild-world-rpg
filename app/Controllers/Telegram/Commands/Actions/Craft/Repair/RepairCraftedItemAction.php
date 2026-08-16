@@ -15,7 +15,7 @@ use App\Services\GameSettings\GameSettingsService;
 use Config\CraftRecipes;
 use DateTime;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S5b (v0.51.188) — 2-этапный ремонт изношенного инструмента.

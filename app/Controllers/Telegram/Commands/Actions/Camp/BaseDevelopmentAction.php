@@ -12,7 +12,7 @@ use Config\Database;
 use Config\GameBalance;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * E18 (ADR-118) — витрина «🏗 Развитие базы». Callback `baseDevelopment`.

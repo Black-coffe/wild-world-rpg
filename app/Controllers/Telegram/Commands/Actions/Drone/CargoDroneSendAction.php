@@ -10,7 +10,7 @@ use App\Models\BaseStorageModel;
 use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use App\Services\Player\DroneService;
 
 /**

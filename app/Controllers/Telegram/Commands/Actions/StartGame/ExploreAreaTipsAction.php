@@ -11,7 +11,7 @@ use App\Models\MapModel;
 use App\Models\TelegramUserModel;
 use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class ExploreAreaTipsAction extends BaseAction
 {

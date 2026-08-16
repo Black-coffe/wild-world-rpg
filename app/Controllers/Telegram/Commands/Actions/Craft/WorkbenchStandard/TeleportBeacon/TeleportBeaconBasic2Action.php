@@ -12,7 +12,7 @@ use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\ClaimedCellModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Показывает требования к крафту "Базового телепорт-маяка" (teleportBeaconBasic2).

@@ -7,7 +7,7 @@ namespace App\Controllers\Telegram\Commands\Actions;
 use App\Services\Notifications\MediaSender;
 use App\Services\Onboarding\NewbieAtmosphereService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S9 (ROADMAP-RETENTION-10, ADR-147) — обработка выбора «шороха» ранней атмосферы.

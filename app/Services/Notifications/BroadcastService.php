@@ -7,7 +7,7 @@ namespace App\Services\Notifications;
 use App\Models\TelegramUserModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Telegram;
 use Throwable;
 

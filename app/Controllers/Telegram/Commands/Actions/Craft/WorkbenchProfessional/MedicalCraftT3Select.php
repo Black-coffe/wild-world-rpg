@@ -6,7 +6,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S19 (v0.51.201) — меню T3 медицины в Professional Workbench (ADR-026 reusable, Фаза 4 4/5).

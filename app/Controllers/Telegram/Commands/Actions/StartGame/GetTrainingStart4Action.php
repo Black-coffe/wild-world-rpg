@@ -7,7 +7,7 @@ use App\Models\CharacterModel;
 use App\Models\ActionLogModel;
 use App\Services\GameSettings\GameSettingsReaderTrait;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class GetTrainingStart4Action extends BaseAction
 {

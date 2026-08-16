@@ -8,7 +8,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\World\SeasonalCraftService;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S28 (ADR-032) — меню сезонного крафта.

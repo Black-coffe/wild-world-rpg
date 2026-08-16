@@ -8,7 +8,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterModel;
 use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Переключение «страховки от смерти» в инвентаре персонажа.

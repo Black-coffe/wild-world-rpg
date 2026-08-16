@@ -8,7 +8,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\SpecializationService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * V16 (ADR-047) — меню крафт-специализации (callback `specialization`).

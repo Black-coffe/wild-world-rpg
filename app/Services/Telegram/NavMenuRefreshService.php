@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Telegram;
 
 use App\Models\ActionLogModel;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-150 — доставка нового reply-каркаса живым игрокам («пере-аттач меню»).

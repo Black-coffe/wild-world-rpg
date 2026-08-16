@@ -13,7 +13,7 @@ use App\Services\Player\CaravanService;
 use App\Services\Player\DroneService;
 use Config\Database;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * W5 (ADR-064) — покупка готового дрона у странствующего NPC-каравана.

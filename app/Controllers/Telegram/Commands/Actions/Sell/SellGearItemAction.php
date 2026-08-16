@@ -9,7 +9,7 @@ use App\Services\Economy\GearSaleService;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\WarehouseSellBonusService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-165 — карточка предмета экипировки на продажу: сколько дадут и за сколько штук.

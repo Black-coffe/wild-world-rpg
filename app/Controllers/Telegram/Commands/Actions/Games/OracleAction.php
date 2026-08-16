@@ -9,7 +9,7 @@ use App\Entities\CharacterEntity;
 use App\Services\Oracle\OracleService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * 🎲 «Оракул острова» (ADR-133) — золотой пари-мютюэль рынок предсказаний.

@@ -9,7 +9,7 @@ use App\Services\Player\TeleportUse\TeleportUseMessageFormatter;
 use App\Services\Player\TeleportUse\TeleportUseValidator;
 use App\Services\Tasks\ActiveTasksService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class TeleportUseAction extends BaseAction
 {

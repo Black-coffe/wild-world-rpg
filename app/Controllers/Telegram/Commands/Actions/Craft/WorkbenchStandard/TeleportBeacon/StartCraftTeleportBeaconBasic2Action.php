@@ -14,7 +14,7 @@ use App\Models\CraftedItemsModel;
 use App\Models\ResourceModel;
 use App\Models\TaskModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Запуск процесса крафта "Базовый телепорт-маяк" (с автосозданием записи в tasks, если её не было).

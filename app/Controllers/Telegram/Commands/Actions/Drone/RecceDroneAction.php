@@ -12,7 +12,7 @@ use App\Models\ExploredCellsModel;
 use App\Models\MapModel;
 use App\Services\Player\DroneService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * W2 (ADR-058) — main launch action. Callback `recceDrone_<crafted_items_log_id>`

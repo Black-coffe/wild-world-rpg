@@ -5,7 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions;
 use CodeIgniter\Database\BaseResult;
 use Config\Database;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-019 Step 3c — остановка «Похода» (callback `cancelMarch`).

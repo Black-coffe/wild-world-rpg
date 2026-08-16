@@ -17,7 +17,7 @@ use Config\Buildings;
 use DateInterval;
 use DateTime;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * F2.1 — generic-handler начала постройки любого здания.

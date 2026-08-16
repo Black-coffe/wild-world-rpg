@@ -9,7 +9,7 @@ use App\Services\Notifications\MediaSender;
 use App\Services\Player\TitleService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * E11 (ADR-112) — экран «🎖 Титулы». Callback `titles`.

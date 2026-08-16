@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers\Telegram\Commands\Actions\Drone;
 
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * W4 (ADR-063) — atomic batch-ремонт. Callback `repairDroneRun`.

@@ -9,7 +9,7 @@ use App\Services\Notifications\MediaSender;
 use App\Services\Player\CollectionService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * E19 (ADR-119) — экран одной коллекции. Callback `collOpen_<id>` (prefix `collOpen`).

@@ -13,7 +13,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\TaskModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Аналог класса StartCraftArmorRaggedShirt2Action, но для "Одежды бродяги" (DrifterClothes).

@@ -9,7 +9,7 @@ use App\Models\BiomeModel;
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 // >>> Подключаем сервис вышки связи <<<
 use App\Services\Coverage\CommunicationTowerCoverageService;

@@ -8,7 +8,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Farming\FarmingService;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * V6 (ADR-033) — хаб активного земледелия (callback `plantSeedMenu`).

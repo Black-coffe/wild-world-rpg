@@ -8,7 +8,7 @@ use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use Longman\TelegramBot\Commands\UserCommand;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * `/settings` — экран настроек (пока: тумблер «Картинки в сообщениях», идея #14).

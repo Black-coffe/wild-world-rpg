@@ -9,7 +9,7 @@ use App\Services\Economy\PlayerEconomyService;
 use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * W24 (ADR-079) — «💰 Моя экономика»: персональный экономический срез (snapshot).

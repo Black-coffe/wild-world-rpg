@@ -16,7 +16,7 @@ use App\Services\Notifications\MediaSender;
 use App\Services\Player\Craft\PortableTeleportRecipe;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Экран требований крафта «📡 Портативный телепорт» (callback `portableTeleport2`).

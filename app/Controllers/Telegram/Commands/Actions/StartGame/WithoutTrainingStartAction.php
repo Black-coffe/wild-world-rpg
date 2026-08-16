@@ -11,7 +11,7 @@ use App\Models\MapModel;
 use App\Models\ResourceModel;
 use DateTime;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class WithoutTrainingStartAction extends BaseAction
 {

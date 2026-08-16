@@ -9,7 +9,7 @@ use App\Services\Notifications\MediaSender;
 use App\Services\Player\ProfileHubService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * N-навигация (2026-06-11) — подменю «⚙️ Развитие». Callback `developmentHub`.

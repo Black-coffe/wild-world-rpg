@@ -8,7 +8,7 @@ use App\Models\PlayerDetectionHistoryModel;
 use App\Models\TelegramUserModel;
 use Config\GameBalance;
 use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Telegram;
 
 class PlayerDetectionService

@@ -10,7 +10,7 @@ use App\Services\NPC\NpcInteractionService;
 use App\Services\Notifications\MediaSender;
 use App\Services\Settlement\SettlementZoneService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-101 Фаза 1 — экран-хаб поселения «Перекрёсток» (Rust-style Outpost).

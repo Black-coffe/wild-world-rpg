@@ -13,7 +13,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Services\Tasks\ActiveTasksService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * CLAUDE.md §🎮 UX-DISCOVERABILITY (audit 2026-05-27).

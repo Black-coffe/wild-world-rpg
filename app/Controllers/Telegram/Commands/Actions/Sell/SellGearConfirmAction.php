@@ -11,7 +11,7 @@ use App\Services\Economy\VendorDailyLimitService;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\WarehouseSellBonusService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-165 — сделка: экипировка уходит торговцу, золото приходит игроку.

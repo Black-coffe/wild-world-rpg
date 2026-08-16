@@ -6,7 +6,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Faction;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * E7 (ROADMAP-100-SESSIONS) — lock-state кнопки «⚑ Фракция (с lvl 10)» для игрока < L10.

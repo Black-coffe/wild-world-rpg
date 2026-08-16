@@ -6,7 +6,7 @@ namespace App\Services\PVE;
 
 use App\Models\TelegramUserModel;
 use App\Services\Notifications\BroadcastDeliveryClassifier;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * v0.51.89 (PvEService decomp Step 4) — extract Telegram notification

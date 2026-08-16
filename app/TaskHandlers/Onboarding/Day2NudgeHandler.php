@@ -11,7 +11,7 @@ use App\Services\Notifications\BroadcastDeliveryClassifier;
 use App\TaskHandlers\BaseTaskHandler;
 use CodeIgniter\Database\BaseResult;
 use Config\Database;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S6 (ROADMAP-RETENTION-10, [[ADR-140]]) — day-2 пинг: проактивный возврат в окне D1→D2.

@@ -4,7 +4,7 @@ namespace App\Services\World;
 
 use App\Models\MapModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 // нужно, чтобы найти (x,y) персонажа
 // если нужно что-то из CodeIgniter

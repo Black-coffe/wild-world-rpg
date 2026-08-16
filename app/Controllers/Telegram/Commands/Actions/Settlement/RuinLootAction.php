@@ -10,7 +10,7 @@ use App\Services\Settlement\RuinLootService;
 use App\Services\Settlement\SettlementZoneService;
 use Config\Database;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-101 Фаза 4 — обыск охраняемых руин (повторяемый лут по кулдауну).

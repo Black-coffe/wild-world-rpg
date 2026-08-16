@@ -13,7 +13,7 @@ use App\Services\Onboarding\PolarStarService;
 use App\Services\Quest\QuestOverviewService;
 use CodeIgniter\I18n\Time;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-150 Слайс 3 — единый рендер поверхности «📋 Дела».

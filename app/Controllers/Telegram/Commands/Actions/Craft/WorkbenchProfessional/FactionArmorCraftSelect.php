@@ -6,7 +6,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * V14 (ADR-046) — меню фракционной брони в Professional Workbench.

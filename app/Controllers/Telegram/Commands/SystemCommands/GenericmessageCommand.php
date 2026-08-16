@@ -11,7 +11,7 @@ use App\Services\Player\CraftService;
 use App\Services\World\MapService;
 use Longman\TelegramBot\Commands\SystemCommand;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 // Модели
 

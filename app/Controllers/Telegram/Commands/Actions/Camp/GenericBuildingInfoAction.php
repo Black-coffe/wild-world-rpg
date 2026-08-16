@@ -19,7 +19,7 @@ use App\Services\Tasks\ActiveTasksService;
 use Config\Buildings;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S1 (v0.51.182+) — generic preview-handler для всех зданий.

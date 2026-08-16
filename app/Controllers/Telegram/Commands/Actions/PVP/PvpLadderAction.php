@@ -11,7 +11,7 @@ use App\Services\Notifications\MediaSender;
 use App\Services\PVE\PvpLadderService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * W18 (ADR-072) — экран «🏆 Рейтинг PvP». Callback `pvpLadder` (global) /

@@ -8,7 +8,7 @@ use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Services\GameSettings\GameSettingsReaderTrait;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * 🛞 Колесо фортуны — азартная игра на золото с наградой ресурсами (N5, ADR-040).

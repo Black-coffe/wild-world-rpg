@@ -15,7 +15,7 @@ use App\Services\Notifications\MediaSender;
 use App\Services\Player\DroneService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * E20 (ADR-120) — «🤖 Ангар»: единый хаб автоматизации (роботы + дроны). Callback `hangar`.

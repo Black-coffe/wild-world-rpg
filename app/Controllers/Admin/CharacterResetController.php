@@ -9,7 +9,7 @@ use App\Services\Admin\WipeService;
 use CodeIgniter\HTTP\RedirectResponse;
 use App\Controllers\Telegram\BotController;
 use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Telegram;
 
 class CharacterResetController extends BaseAdminController

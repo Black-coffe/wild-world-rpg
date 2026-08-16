@@ -12,7 +12,7 @@ use App\Services\Bases\BaseCheckService;
 use App\Services\Onboarding\OnboardingHintService;
 use App\Services\Player\InventorySortService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * W3b (ADR-060) — retrieve UI для base_storage (закрывает Q5 ADR-059).

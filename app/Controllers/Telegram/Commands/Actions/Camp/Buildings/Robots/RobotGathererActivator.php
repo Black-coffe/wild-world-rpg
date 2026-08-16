@@ -6,7 +6,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\BuildingModel;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Bases\BaseCheckService;
 use App\Services\Coverage\CommunicationTowerCoverageService;

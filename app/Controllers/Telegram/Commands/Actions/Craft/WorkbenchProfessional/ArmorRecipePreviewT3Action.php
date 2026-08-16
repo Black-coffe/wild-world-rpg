@@ -12,7 +12,7 @@ use App\Models\OutfitModel;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S18 (v0.51.200) — generic preview screen для T3 armor крафта.

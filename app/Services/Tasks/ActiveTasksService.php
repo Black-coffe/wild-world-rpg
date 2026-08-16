@@ -5,7 +5,7 @@ namespace App\Services\Tasks;
 use App\Models\CharacterTaskModel;
 use App\Models\TaskModel;
 use CodeIgniter\I18n\Time;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Сервис для работы с активными задачами персонажа.

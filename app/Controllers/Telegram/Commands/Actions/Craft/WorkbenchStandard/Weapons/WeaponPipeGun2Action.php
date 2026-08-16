@@ -13,7 +13,7 @@ use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsModel;
 use App\Models\CraftedItemsLogModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Класс для вывода информации по крафту "Трубчатый пистолет" (PipeGun).

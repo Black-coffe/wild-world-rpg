@@ -7,7 +7,7 @@ use App\Models\PollModel;
 use App\Models\PollAnswerModel;
 use App\Models\PollVoteModel;
 use App\Models\TelegramUserModel;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 
 class PollVoteAction extends BaseAction

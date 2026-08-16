@@ -6,7 +6,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots;
 
 use App\Services\Bases\BaseCheckService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * V19 (ADR-050) — подтверждение ремонта: списание ресурсов+золота, восстановление

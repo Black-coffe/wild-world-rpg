@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Events;
 
 use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Telegram;
 
 /**

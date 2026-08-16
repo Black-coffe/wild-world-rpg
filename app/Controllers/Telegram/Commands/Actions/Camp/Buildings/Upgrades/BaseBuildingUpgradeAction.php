@@ -3,7 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Upgrades;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Models\CharacterBuildingModel;
 use App\Models\BuildingModel;

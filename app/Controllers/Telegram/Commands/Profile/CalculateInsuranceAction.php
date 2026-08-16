@@ -6,7 +6,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel; // Модель для работы с ресурсами персонажа
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class CalculateInsuranceAction extends BaseAction
 {

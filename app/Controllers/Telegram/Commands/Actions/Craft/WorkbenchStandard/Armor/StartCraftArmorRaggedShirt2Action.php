@@ -13,7 +13,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\TaskModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Шаг 2 (окончательный): запускаем крафт "Рваная рубаха" (RaggedShirt) — на X штук.

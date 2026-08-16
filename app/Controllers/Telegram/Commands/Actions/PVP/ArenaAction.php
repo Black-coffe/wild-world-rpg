@@ -9,7 +9,7 @@ use App\Controllers\Telegram\Commands\Actions\SettingsAction;
 use App\Services\Notifications\MediaSender;
 use App\Services\PVE\DuelService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * E25 (ADR-124) — «🏟 Арена» дуэлей: точка входа, делающая opt-in дуэли (ADR-071) ДОСТИЖИМЫМИ.

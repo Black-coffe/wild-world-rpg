@@ -10,7 +10,7 @@ use App\Models\CharacterBuildingModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * CLAUDE.md §🎮 UX-DISCOVERABILITY (правило #4, 2026-05-27) + W3b (ADR-060) —

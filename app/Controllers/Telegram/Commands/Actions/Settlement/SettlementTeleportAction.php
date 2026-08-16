@@ -9,7 +9,7 @@ use App\Services\Notifications\MediaSender;
 use App\Services\Settlement\SettlementTeleportService;
 use App\Services\Settlement\SettlementZoneService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-101 Фаза 5 — экран «🛰 Быстрое перемещение» (список открытых поселений-назначений).

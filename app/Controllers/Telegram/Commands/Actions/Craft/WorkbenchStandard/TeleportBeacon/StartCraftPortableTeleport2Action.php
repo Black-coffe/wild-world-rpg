@@ -20,7 +20,7 @@ use App\Services\Player\Craft\PortableTeleportRecipe;
 use App\Services\Tasks\ActionScopeService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Запуск сборки «📡 Портативный телепорт» (callback `startCraftPortableTeleport2`).

@@ -12,7 +12,7 @@ use App\Services\GameSettings\GameSettingsService;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S19 (v0.51.201) — generic preview screen для T3 medical крафта.

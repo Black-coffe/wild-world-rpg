@@ -9,7 +9,7 @@ use App\Models\CaravanModel;
 use App\Models\ResourceModel;
 use App\Services\Player\CaravanService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * V25 (ADR-057) — экран странствующего NPC-каравана на клетке игрока.

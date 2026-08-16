@@ -6,7 +6,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S18 (v0.51.200) — меню T3 брони в Professional Workbench (ADR-026 reusable, Фаза 4 3/5).

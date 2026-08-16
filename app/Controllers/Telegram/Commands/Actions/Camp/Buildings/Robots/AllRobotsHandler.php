@@ -6,7 +6,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Класс для отображения/активации всех роботов, доступных в мастерской.

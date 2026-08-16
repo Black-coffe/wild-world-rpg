@@ -16,7 +16,7 @@ use App\Models\CharactersOutfitsModel;
 use App\Models\OutfitModel;
 use DateTime;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class CharacterService
 {

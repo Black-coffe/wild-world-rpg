@@ -17,7 +17,7 @@ use App\Services\World\MapService;
 use App\Services\World\MoveSurfaceService;
 use Longman\TelegramBot\Entities\Keyboard;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-103 Часть A — навигационная устойчивость.

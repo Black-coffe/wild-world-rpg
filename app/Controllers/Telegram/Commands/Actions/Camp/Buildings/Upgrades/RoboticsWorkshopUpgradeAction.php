@@ -2,7 +2,7 @@
 
 namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Upgrades;
 
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Пример: чтобы апгрейдить Мастерскую робототехники,

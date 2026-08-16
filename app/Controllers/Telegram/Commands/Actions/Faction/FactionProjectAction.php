@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers\Telegram\Commands\Actions\Faction;
 
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * V20 (ADR-051) — экран фракц-проекта: прогресс, статус баффа, кнопка вклада.

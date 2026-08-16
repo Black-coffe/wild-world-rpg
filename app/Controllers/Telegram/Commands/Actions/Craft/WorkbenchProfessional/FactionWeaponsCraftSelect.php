@@ -6,7 +6,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchProfessional;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S25 (v0.51.205) — меню фракционного оружия в Professional Workbench

@@ -12,7 +12,7 @@ use App\Services\Onboarding\OnboardingChainCatalog;
 use App\TaskHandlers\BaseTaskHandler;
 use CodeIgniter\Database\BaseResult;
 use Config\Database;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-136 (ROADMAP-100 продолжение воронки) — comeback-пинг УШЕДШИМ новичкам

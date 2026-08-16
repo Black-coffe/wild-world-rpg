@@ -5,7 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Quest;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use App\Models\QuestModel;
 use App\Models\CharacterModel;
 

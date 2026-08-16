@@ -14,7 +14,7 @@ use App\Services\World\ObjectSignalService;
 use App\Services\World\TextMapService;
 use CodeIgniter\Database\BaseResult;
 use Config\Database;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-019 Step 3 — «Поход»: движение И есть разведка.

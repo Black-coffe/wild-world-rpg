@@ -3,7 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions;
 
 use Longman\TelegramBot\Entities\CallbackQuery;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use App\Models\ActionLogModel;
 use App\Models\CharacterModel;
 use App\Models\ResourceModel;

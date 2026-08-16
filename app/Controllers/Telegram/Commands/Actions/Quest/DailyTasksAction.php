@@ -9,7 +9,7 @@ use App\Services\Quest\DailyTaskCatalog;
 use App\Services\Quest\DailyTaskService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-109 (E8) Ф2 — экран «🗓 Задания дня».

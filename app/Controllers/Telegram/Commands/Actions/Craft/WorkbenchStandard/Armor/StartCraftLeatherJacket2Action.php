@@ -11,7 +11,7 @@ use App\Models\TaskModel;
 use App\Models\CharacterTaskModel;
 use App\Models\ClaimedCellModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class StartCraftLeatherJacket2Action extends BaseAction
 {

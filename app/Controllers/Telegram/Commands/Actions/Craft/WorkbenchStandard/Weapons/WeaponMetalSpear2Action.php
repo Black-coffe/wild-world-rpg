@@ -13,7 +13,7 @@ use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsModel;
 use App\Models\CraftedItemsLogModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Класс для отображения крафта "Металлическое копьё" (MetalSpear).

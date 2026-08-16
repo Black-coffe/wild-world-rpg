@@ -9,7 +9,7 @@ use App\Models\CraftedItemsModel; // <-- добавляем, чтобы узна
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\TaskModel;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 
 // Подключаем наши сервисы

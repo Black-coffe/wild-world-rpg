@@ -10,7 +10,7 @@ use App\Services\Social\LeaderboardScreen;
 use App\Services\Social\LeaderboardService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Экран «🏆 Топ игроков». Callback `leaderboard` (живые) / `leaderboardLegends` (за всё время).

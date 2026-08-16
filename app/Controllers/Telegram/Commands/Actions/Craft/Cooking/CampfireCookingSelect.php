@@ -10,7 +10,7 @@ use App\Services\Notifications\MediaSender;
 use App\Services\Telegram\ButtonPacker;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * V8 (vNext, Фаза 2) — меню готовки на костре. Farm-to-table payoff для V6/V7:

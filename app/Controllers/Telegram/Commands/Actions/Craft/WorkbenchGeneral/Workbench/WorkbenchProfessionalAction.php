@@ -13,7 +13,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Services\GameSettings\GameSettingsService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S16 (v0.51.198) — entrance screen для Tier 3 Professional Workbench (ADR-026).

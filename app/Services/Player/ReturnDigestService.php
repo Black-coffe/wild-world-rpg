@@ -6,7 +6,7 @@ namespace App\Services\Player;
 
 use App\Services\GameSettings\GameSettingsReaderTrait;
 use Config\Database;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ROADMAP-100 E6 (ADR-108) Фаза 2 — оффлайн-digest «пока тебя не было».

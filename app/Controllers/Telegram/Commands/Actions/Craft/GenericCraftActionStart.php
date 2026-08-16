@@ -19,7 +19,7 @@ use Config\GameBalance;
 use DateInterval;
 use DateTime;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * F3.B5 (v0.21.0) — generic action-start для любого крафта.

@@ -12,7 +12,7 @@ use App\Models\ResourceModel;
 use App\Services\Player\NpcRepairService;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * V23 (ADR-055) — NPC-мастер на базе: мгновенный gold-only ремонт tools.

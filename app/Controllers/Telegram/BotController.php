@@ -5,7 +5,7 @@ namespace App\Controllers\Telegram;
 use CodeIgniter\Controller;
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Telegram;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class BotController extends Controller
 {

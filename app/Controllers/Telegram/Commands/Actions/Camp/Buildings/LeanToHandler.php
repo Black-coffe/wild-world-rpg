@@ -8,7 +8,7 @@ use App\Models\CharacterBuildingModel;
 use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Экран «⛺ Навес» (LeanTo) — первая постройка новичка (S5, ADR-142).

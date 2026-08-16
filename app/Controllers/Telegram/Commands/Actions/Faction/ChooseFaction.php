@@ -4,7 +4,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Faction;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use App\Models\CharacterModel;
 use App\Models\CharacterFactionModel;
 use App\Models\FactionModel;

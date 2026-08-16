@@ -2,7 +2,7 @@
 
 namespace App\Controllers\Telegram\Commands\Actions;
 
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * F7.5b — обробка кнопок mute/throttle на event-нотіфікаціях.

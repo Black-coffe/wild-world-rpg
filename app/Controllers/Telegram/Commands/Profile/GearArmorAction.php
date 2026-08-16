@@ -8,7 +8,7 @@ use App\Models\CharacterBuildingModel;
 use App\Models\CharactersOutfitsModel;
 use App\Models\OutfitModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class GearArmorAction extends BaseAction
 {

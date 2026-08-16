@@ -10,7 +10,7 @@ use App\Models\ActionLogModel;
 use App\Services\Player\WhatsNewService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class GetTrainingStart7Action extends BaseAction
 {

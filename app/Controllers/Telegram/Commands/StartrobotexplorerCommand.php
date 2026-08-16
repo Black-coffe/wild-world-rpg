@@ -14,7 +14,7 @@ use DateInterval;
 use DateTime;
 use Longman\TelegramBot\Commands\UserCommand;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use CodeIgniter\Log\Logger;
 use Config\Services;
 

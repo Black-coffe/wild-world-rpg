@@ -8,7 +8,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\ReferralService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S8 (ROADMAP-RETENTION-10, ADR-146) — экран «👥 Позови выжившего» (edit-in-place с карточки Перса).

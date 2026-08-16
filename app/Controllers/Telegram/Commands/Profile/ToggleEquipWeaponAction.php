@@ -14,7 +14,7 @@ use App\Models\CharacterModel;
 use App\Models\MapModel;
 
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class ToggleEquipWeaponAction extends BaseAction
 {

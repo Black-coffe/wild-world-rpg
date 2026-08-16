@@ -9,7 +9,7 @@ use App\Services\Farming\FarmingService;
 use DateInterval;
 use DateTime;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * V6 (ADR-033) — старт посадки (callback `plantSeedStart_<crop>`).

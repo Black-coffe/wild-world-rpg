@@ -9,7 +9,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Services\Player\DroneService;
 use Config\Database;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * W5 (ADR-064) — атомарная активация Combat-drone. Callback prefix

@@ -9,7 +9,7 @@ use App\Models\MapModel;
 use App\Services\World\StrategicObjectService;
 use App\TaskHandlers\Objects\StrategicLootHandler;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-129 — кнопка «🔍 Обыскать» для стратегического объекта на клетке игрока.

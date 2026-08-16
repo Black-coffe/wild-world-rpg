@@ -4,7 +4,7 @@ namespace App\Controllers\Telegram\Commands;
 
 use Longman\TelegramBot\Commands\UserCommand;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\CallbackQuery;
 
 use App\Models\TelegramUserModel;

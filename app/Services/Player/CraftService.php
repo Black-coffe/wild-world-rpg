@@ -3,7 +3,7 @@
 namespace App\Services\Player;
 
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class CraftService
 {

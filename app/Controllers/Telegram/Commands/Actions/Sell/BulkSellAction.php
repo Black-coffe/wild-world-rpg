@@ -2,7 +2,7 @@
 
 namespace App\Controllers\Telegram\Commands\Actions\Sell;
 
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;

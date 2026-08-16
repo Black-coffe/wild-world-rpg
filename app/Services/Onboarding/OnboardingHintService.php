@@ -8,7 +8,7 @@ use App\Entities\CharacterEntity;
 use App\Models\ActionLogModel;
 use App\Models\ClaimedCellModel;
 use App\Services\GameSettings\GameSettingsReaderTrait;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-103 Часть B Слой 1 — контекстные one-shot обучающие подсказки (just-in-time).

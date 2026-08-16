@@ -14,7 +14,7 @@ use App\Models\TeleportBeaconModel;
 use App\Services\Tasks\ActiveTasksService;
 
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use CodeIgniter\I18n\Time;
 
 /**

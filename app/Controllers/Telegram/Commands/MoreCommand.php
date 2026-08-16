@@ -6,7 +6,7 @@ namespace App\Controllers\Telegram\Commands;
 
 use App\Services\Telegram\BotMenuService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Commands\UserCommand;
 
 /**

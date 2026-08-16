@@ -7,7 +7,7 @@ namespace App\Services\PVE;
 use App\Services\GameSettings\GameSettingsService;
 use Config\Database;
 use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Telegram;
 use Throwable;
 

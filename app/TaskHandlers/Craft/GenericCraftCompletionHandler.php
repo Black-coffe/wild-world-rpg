@@ -22,7 +22,7 @@ use Config\CraftRecipes;
 use DateInterval;
 use DateTime;
 use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * F2.2 (PoC) — generic-handler завершения любого крафта.

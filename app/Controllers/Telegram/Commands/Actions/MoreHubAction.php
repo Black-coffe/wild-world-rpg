@@ -8,7 +8,7 @@ use App\Services\More\MoreSurfaceService;
 use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-150 Слайс 4 — экран-хаб «⚙️ Ещё» (callback `moreHub`).

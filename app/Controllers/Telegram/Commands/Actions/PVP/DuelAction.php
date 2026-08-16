@@ -22,7 +22,7 @@ use App\Services\PVE\PvpFormulaService;
 use App\Services\PVE\PvpRoundOrchestrator;
 use Config\GameBalance;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * W17 (ADR-071) — PvP-дуэль: opt-in честный бой (stat-equalize), БЕЗ летальных последствий.

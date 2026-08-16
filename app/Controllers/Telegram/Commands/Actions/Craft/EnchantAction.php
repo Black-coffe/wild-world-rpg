@@ -11,7 +11,7 @@ use App\Services\Notifications\MediaSender;
 use Config\Database;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * W19 (ADR-074) + W20 (ADR-075) — экран «🔧 Модернизация».

@@ -7,7 +7,7 @@ namespace App\Controllers\Telegram\Commands;
 use App\Services\Onboarding\GuideService;
 use Longman\TelegramBot\Commands\UserCommand;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-127 — `/guide`: команда-реплей онбординга «📖 Путь новичка».

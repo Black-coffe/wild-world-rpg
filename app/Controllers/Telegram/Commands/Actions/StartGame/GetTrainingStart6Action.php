@@ -9,7 +9,7 @@ use App\Models\CharacterModel;
 use App\Models\ActionLogModel;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class GetTrainingStart6Action extends BaseAction
 {

@@ -8,7 +8,7 @@ use App\Entities\CharacterEntity;
 use App\Models\CharacterModel;
 use App\Services\GameSettings\GameSettingsReaderTrait;
 use Config\Database;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ROADMAP-100 E6 (ADR-108) Фаза 3 — стрик входа (мягко, без FOMO).

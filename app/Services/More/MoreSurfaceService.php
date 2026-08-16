@@ -13,7 +13,7 @@ use App\Services\Player\FactionProjectService;
 use App\Services\Player\ReferralService;
 use App\Services\Player\WhatsNewService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-150 Слайс 4 — единый рендер поверхности «⚙️ Ещё».

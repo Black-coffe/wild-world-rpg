@@ -7,7 +7,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Camp;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Onboarding\BuildLockService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S4 (ROADMAP-RETENTION-10, ADR-139, спина-слайс 2) — клик по lock-кнопке уровневой постройки.

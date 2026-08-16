@@ -7,7 +7,7 @@ use App\Models\CharacterFactionModel;
 use App\Services\Notifications\MediaSender;
 use App\Services\Quest\QuestOverviewService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * E27 (ADR-126) — единый экран «📜 Задания»: дашборд-обзор ВСЕХ источников целей.

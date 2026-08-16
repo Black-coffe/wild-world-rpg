@@ -9,7 +9,7 @@ use App\Services\Notifications\MediaSender;
 use App\Services\Player\StreakMilestoneService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-132 Ф2 — экран «🔥 Серия выживания». Callback `streakScreen`.

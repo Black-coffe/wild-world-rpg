@@ -8,7 +8,7 @@ use App\Models\MapModel;
 use App\Models\BiomeModel;
 use App\Models\BuildingModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use App\Services\Tasks\ActiveTasksService;
 
 class BuildListAction extends BaseAction

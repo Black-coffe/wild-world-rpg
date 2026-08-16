@@ -5,7 +5,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\BaseService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class ShowBaseInfoAction extends BaseAction
 {

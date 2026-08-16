@@ -9,7 +9,7 @@ use App\Services\Notifications\MediaSender;
 use App\Services\Player\AchievementService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * W10 (ADR-066) — экран «🏅 Достижения». Callback `achievements`.

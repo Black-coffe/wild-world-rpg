@@ -7,7 +7,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots;
 use App\Helpers\ResourceIconHelper;
 use App\Services\Bases\BaseCheckService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * V19 (ADR-050) — превью ремонта робота: текущая/базовая durability, стоимость

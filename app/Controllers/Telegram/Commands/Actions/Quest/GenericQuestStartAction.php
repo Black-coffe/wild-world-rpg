@@ -10,7 +10,7 @@ use App\Models\QuestStepsModel;
 use App\Services\Notifications\MediaSender;
 use App\Services\Quest\QuestChainService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-088 — generic-старт STANDALONE расширенных квестов (collect_resource /

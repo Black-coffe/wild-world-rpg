@@ -2,7 +2,7 @@
 
 namespace App\Controllers\Telegram\Commands\Profile;
 
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 

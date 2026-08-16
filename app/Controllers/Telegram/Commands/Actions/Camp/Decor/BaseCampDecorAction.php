@@ -9,7 +9,7 @@ use App\Services\Housing\BaseCampDecorService;
 use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * W21 (ADR-076) — Housing customisation: экран декора базы.

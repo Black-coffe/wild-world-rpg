@@ -7,7 +7,7 @@ namespace App\Controllers\Telegram\Commands\Actions;
 use App\Services\Player\ResourceOverviewService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Slice 1 (инициатива «ресурс-грамотность») — экран «📊 Все мои ресурсы».

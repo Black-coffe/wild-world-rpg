@@ -11,7 +11,7 @@ use App\Models\CraftedItemsModel;
 use App\Services\Notifications\MediaSender;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * v0.51.129 (community idea #1) — скасування queued craft з refund.

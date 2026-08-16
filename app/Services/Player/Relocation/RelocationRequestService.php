@@ -10,7 +10,7 @@ use App\Models\MapModel;
 use App\Models\TelegramUserModel;
 use App\Services\GameSettings\GameSettingsReaderTrait;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Единый пайплайн запроса «Полноценного переезда» базы: координаты → валидация → подтверждение.

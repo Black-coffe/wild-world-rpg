@@ -8,7 +8,7 @@ use App\Models\CharacterBuildingModel;
 use App\Models\CharactersWeaponsModel;
 use App\Models\WeaponModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class GearWeaponsAction extends BaseAction
 {

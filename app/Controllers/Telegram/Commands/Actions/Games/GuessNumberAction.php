@@ -2,7 +2,7 @@
 
 namespace App\Controllers\Telegram\Commands\Actions\Games;
 
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Entities\InlineKeyboard;
 use App\Models\CharacterModel;

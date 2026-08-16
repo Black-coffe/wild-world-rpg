@@ -9,7 +9,7 @@ use App\Models\TelegramUserModel;
 use App\Services\Player\PlayerDetectionService;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Exception\TelegramException;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Класс для обработки нажатия кнопки "🏃 Бежать" в PVP.

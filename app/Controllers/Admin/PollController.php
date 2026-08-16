@@ -8,7 +8,7 @@ use App\Models\PollVoteModel;
 use App\Models\TelegramUserModel;
 use CodeIgniter\HTTP\RedirectResponse;
 use Longman\TelegramBot\Telegram;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Longman\TelegramBot\Exception\TelegramException;
 
 class PollController extends BaseAdminController

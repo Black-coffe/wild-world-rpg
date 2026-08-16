@@ -9,7 +9,7 @@ use App\Models\CharacterTaskModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\BuildingModel;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class CampCreateConfirmAction extends BaseAction
 {

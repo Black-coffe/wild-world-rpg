@@ -6,7 +6,7 @@ namespace App\Services\Onboarding;
 
 use App\Entities\CharacterEntity;
 use App\Models\ActionLogModel;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S9 (ROADMAP-RETENTION-10, ADR-147) — ранняя выживальческая атмосфера: телеграфированная

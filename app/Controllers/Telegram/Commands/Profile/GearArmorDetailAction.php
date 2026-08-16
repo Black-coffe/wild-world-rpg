@@ -10,7 +10,7 @@ use App\Models\CharacterModel;
 use App\Models\MapModel;
 use App\Services\Display\GearImageResolver;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 class GearArmorDetailAction extends BaseAction
 {

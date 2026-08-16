@@ -8,7 +8,7 @@ use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use Longman\TelegramBot\Entities\InputMedia\InputMediaPhoto;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 use Throwable;
 
 /**

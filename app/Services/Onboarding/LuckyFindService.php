@@ -9,7 +9,7 @@ use App\Models\ActionLogModel;
 use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Services\GameSettings\GameSettingsReaderTrait;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * ADR-104 Фаза 3b — гарантированный «момент удачи» на ПЕРВЫЙ ход новичка.

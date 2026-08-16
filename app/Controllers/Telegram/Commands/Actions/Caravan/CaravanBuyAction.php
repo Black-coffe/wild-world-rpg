@@ -11,7 +11,7 @@ use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Services\Player\CaravanService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * V25 (ADR-057) — покупка ВСЕГО offer'а каравана за gold.

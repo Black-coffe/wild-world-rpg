@@ -12,7 +12,7 @@ use App\Services\GameSettings\GameSettingsService;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * S20 (v0.51.202) — generic preview screen для T3 utility (инструментов).

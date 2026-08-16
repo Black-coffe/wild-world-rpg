@@ -9,7 +9,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\CraftInsuranceService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * V24 (ADR-056) — список eligible нестрахованных предметов для NPC-страхового

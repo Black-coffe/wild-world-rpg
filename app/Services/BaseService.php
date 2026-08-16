@@ -11,7 +11,7 @@ use App\Services\Bases\CampCheckService;
 use App\Services\Coverage\CommunicationTowerCoverageService;
 use App\Services\Housing\BaseCampDecorService;
 use Longman\TelegramBot\Entities\ServerResponse;
-use Longman\TelegramBot\Request;
+use App\Services\Telegram\Request;
 
 /**
  * Класс BaseService — логика по работе с базой/лагерем.
