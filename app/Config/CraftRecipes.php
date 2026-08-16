@@ -2799,7 +2799,11 @@ class CraftRecipes extends BaseConfig
         'StewPreserve' => [
             'task_name'            => 'craftStewPreserve',
             'preserved'            => true,
-            'resources'            => ['Грибы' => 4, 'Зерновые культуры' => 3, 'Вода' => 2],
+            // Мясо — обязательное (имя, описание «Мясо-овощная тушёнка» и арт с банками
+            // мясного рагу обещают его). До этого рецепт был грибы+зерно+вода — игрок
+            // поймал drift шуткой «автор веган?». Заодно «Мясо диких животных» получает
+            // второе применение (было одно — Регенератор). Anti-drift: CookingRecipesTest.
+            'resources'            => ['Мясо диких животных' => 2, 'Грибы' => 2, 'Зерновые культуры' => 3, 'Вода' => 2],
             'crafted_items'        => [],
             'image_in_progress'    => 'uploads/telegram/craft/cooking/stew_preserve.jpg',
             'start_caption_name'   => '🥫 *Тушёнка*',

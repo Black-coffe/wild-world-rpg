@@ -44,6 +44,20 @@ final class CookingRecipesTest extends CIUnitTestCase
         }
     }
 
+    /**
+     * Тушёнка ОБЯЗАНА требовать мясо: имя, описание в БД («Мясо-овощная тушёнка
+     * в закатанной банке») и арт (sealed jars of meat-and-vegetable stew) обещают
+     * мясо. До 2026-08-16 рецепт был грибы+зерно+вода — игрок поймал расхождение
+     * («автор веган?»). Тест держит имя/описание/арт и рецепт в одной правде.
+     */
+    public function testStewPreserveRequiresMeat(): void
+    {
+        $recipe = config('CraftRecipes')->get('StewPreserve');
+
+        $this->assertArrayHasKey('Мясо диких животных', $recipe['resources'] ?? [], 'Тушёнка должна требовать мясо');
+        $this->assertGreaterThan(0, $recipe['resources']['Мясо диких животных'], 'кол-во мяса > 0');
+    }
+
     public function testCookingRecipesResolveInConfig(): void
     {
         $cfg = config('CraftRecipes');
