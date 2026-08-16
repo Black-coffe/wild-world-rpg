@@ -161,10 +161,10 @@ final class KeyboardNormalizer
             // Сначала пробуем предыдущий ряд (кнопка встаёт в конец — порядок сохранён),
             // затем следующий (кнопка встаёт в начало).
             foreach ([['prev', $i - 1], ['next', $i + 1]] as [$where, $j]) {
+                // Единственное препятствие — ряд уже полон. Ширину НЕ проверяем:
+                // правило «ноль одиночек» безусловно, а длинную подпись Telegram
+                // перенесёт в две строки — это всё равно лучше кнопки-одиночки.
                 if (! isset($rows[$j]) || count($rows[$j]) >= ButtonPacker::MAX_PER_ROW) {
-                    continue;
-                }
-                if (! self::fits($rows[$j], $rows[$i][0])) {
                     continue;
                 }
 
@@ -183,17 +183,4 @@ final class KeyboardNormalizer
         return $rows;
     }
 
-    /**
-     * @param list<array<string,string>> $row
-     * @param array<string,string>       $btn
-     */
-    private static function fits(array $row, array $btn): bool
-    {
-        $width = mb_strlen((string) ($btn['text'] ?? ''));
-        foreach ($row as $b) {
-            $width += mb_strlen((string) ($b['text'] ?? ''));
-        }
-
-        return $width <= ButtonPacker::ROW_BUDGET;
-    }
 }

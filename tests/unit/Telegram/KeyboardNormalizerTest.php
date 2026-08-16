@@ -64,15 +64,24 @@ final class KeyboardNormalizerTest extends CIUnitTestCase
         $this->assertSame([['Купить', 'Продать', 'Назад']], $this->shapeOf($out));
     }
 
-    public function testLoneRowStaysWhenNeighbourIsFullOrTooWide(): void
+    public function testLoneRowStaysOnlyWhenBothNeighboursAreFull(): void
     {
-        // Сосед уже из трёх — подсаживать некуда.
+        // Единственное препятствие — соседний ряд уже из трёх кнопок.
         $full = [['А', 'Б', 'В'], ['Назад']];
         $this->assertSame($full, $this->shapeOf(KeyboardNormalizer::normalize($this->kb($full))));
+    }
 
-        // Подписи слишком длинные — ряд не влезет.
+    /**
+     * Длинные подписи одиночку НЕ спасают: правило безусловно, а перенос подписи
+     * в две строки лучше кнопки-одиночки (решение владельца, 2026-08-16).
+     */
+    public function testLongLabelsDoNotExcuseALoneRow(): void
+    {
         $wide = [[str_repeat('я', 20), str_repeat('ю', 20)], [str_repeat('э', 20)]];
-        $this->assertSame($wide, $this->shapeOf(KeyboardNormalizer::normalize($this->kb($wide))));
+        $out  = $this->shapeOf(KeyboardNormalizer::normalize($this->kb($wide)));
+
+        $this->assertCount(1, $out, 'одиночка обязана подсесть к соседу');
+        $this->assertCount(3, $out[0]);
     }
 
     public function testSingleButtonKeyboardIsLeftAlone(): void
