@@ -160,6 +160,7 @@ final class KeyboardNormalizer
 
             // Сначала пробуем предыдущий ряд (кнопка встаёт в конец — порядок сохранён),
             // затем следующий (кнопка встаёт в начало).
+            $attached = false;
             foreach ([['prev', $i - 1], ['next', $i + 1]] as [$where, $j]) {
                 // Единственное препятствие — ряд уже полон. Ширину НЕ проверяем:
                 // правило «ноль одиночек» безусловно, а длинную подпись Telegram
@@ -174,13 +175,57 @@ final class KeyboardNormalizer
                     array_unshift($rows[$j], $rows[$i][0]);
                 }
                 array_splice($rows, $i, 1);
-                $changed = true;
+                $changed  = true;
+                $attached = true;
                 $i--;
                 break;
+            }
+
+            if (! $attached) {
+                $changed = self::borrowFromFullNeighbour($rows, $i) || $changed;
             }
         }
 
         return $rows;
+    }
+
+    /**
+     * Последнее средство: одиночка зажата между ПОЛНЫМИ рядами — занимаем ей соседа.
+     *
+     * Изначально такой случай считался неустранимым: ряды из двух-трёх кнопок
+     * трогать не хотелось, там осознанная группировка. Но замер (2026-08-16)
+     * показал цену этой осторожности: на 31 экране крафта хвост собран как
+     * `array_chunk($quantityButtons, 3)` + `[Инвентарь]` + `[Продать, Купить]` +
+     * `[Назад]`, и при 3 или 6 кнопках количества «⬅️ Назад» остаётся один в
+     * ряду — оба соседа полны. Правило владельца безусловно, поэтому одинокий
+     * ряд перевешивает сохранность тройки.
+     *
+     * Двигаем ровно одну кнопку и только через границу рядов, так что чтение
+     * слева-направо-сверху-вниз не меняется: `[a|b|c] / [x]` → `[a|b] / [c|x]`.
+     *
+     * @param list<list<array<string,string>>> $rows
+     */
+    private static function borrowFromFullNeighbour(array &$rows, int $i): bool
+    {
+        $prev = $i - 1;
+        if (isset($rows[$prev]) && count($rows[$prev]) === ButtonPacker::MAX_PER_ROW) {
+            /** @var array<string,string> $moved */
+            $moved = array_pop($rows[$prev]);
+            array_unshift($rows[$i], $moved);
+
+            return true;
+        }
+
+        $next = $i + 1;
+        if (isset($rows[$next]) && count($rows[$next]) === ButtonPacker::MAX_PER_ROW) {
+            /** @var array<string,string> $moved */
+            $moved = array_shift($rows[$next]);
+            $rows[$i][] = $moved;
+
+            return true;
+        }
+
+        return false;
     }
 
 }

@@ -64,11 +64,119 @@ final class KeyboardNormalizerTest extends CIUnitTestCase
         $this->assertSame([['Купить', 'Продать', 'Назад']], $this->shapeOf($out));
     }
 
-    public function testLoneRowStaysOnlyWhenBothNeighboursAreFull(): void
+    /**
+     * Одиночка между ПОЛНЫМИ рядами — занимаем ей соседа.
+     *
+     * До 2026-08-16 этот случай считался неустранимым и ряд из одной кнопки
+     * оставался. Замер показал цену: на 31 экране крафта хвост
+     * `array_chunk($quantityButtons, 3)` + `[Инвентарь]` + `[Продать, Купить]` +
+     * `[Назад]` при 3 и 6 кнопках количества оставлял «⬅️ Назад» одного.
+     * Правило владельца безусловно → тройка уступает.
+     */
+    public function testLoneRowBorrowsFromFullNeighbour(): void
     {
-        // Единственное препятствие — соседний ряд уже из трёх кнопок.
-        $full = [['А', 'Б', 'В'], ['Назад']];
-        $this->assertSame($full, $this->shapeOf(KeyboardNormalizer::normalize($this->kb($full))));
+        $out = $this->shapeOf(KeyboardNormalizer::normalize($this->kb([['А', 'Б', 'В'], ['Назад']])));
+
+        $this->assertSame([['А', 'Б'], ['В', 'Назад']], $out, 'кнопка переезжает через границу рядов, порядок чтения не меняется');
+    }
+
+    public function testLoneRowBorrowsFromNextRowWhenThereIsNoPrevious(): void
+    {
+        $out = $this->shapeOf(KeyboardNormalizer::normalize($this->kb([['Назад'], ['А', 'Б', 'В']])));
+
+        $this->assertSame([['Назад', 'А'], ['Б', 'В']], $out);
+    }
+
+    /**
+     * Главный инвариант, проверенный перебором: после нормализации ряда из одной
+     * кнопки НЕ существует — кроме вырожденного случая «кнопка всего одна».
+     * Порядок чтения слева-направо-сверху-вниз при этом обязан сохраниться.
+     */
+    public function testNoLoneRowSurvivesAnyShape(): void
+    {
+        $shapes = $this->allShapes(4, 3);
+        $this->assertGreaterThan(100, count($shapes), 'перебор обязан быть содержательным');
+
+        foreach ($shapes as $shape) {
+            $flatIn = array_merge(...$shape);
+            if (count($flatIn) === 1) {
+                continue; // вырожденный случай — одиночка неизбежна
+            }
+
+            $out = $this->shapeOf(KeyboardNormalizer::normalize($this->kb($shape)));
+
+            foreach ($out as $row) {
+                $this->assertGreaterThan(1, count($row), 'одиночка выжила на форме ' . json_encode($shape));
+                $this->assertLessThanOrEqual(3, count($row), 'ряд разросся больше трёх на форме ' . json_encode($shape));
+            }
+
+            $this->assertSame($flatIn, array_merge(...$out), 'порядок кнопок изменился на форме ' . json_encode($shape));
+        }
+    }
+
+    /**
+     * Живая форма экрана крафта: кнопки количества чанками по три плюс хвост.
+     * Именно она и вскрыла дыру, поэтому проверяем её отдельно и на всех
+     * размерах — новое количество вариантов крафта не вернёт одиночку молча.
+     */
+    public function testCraftQuantityScreenHasNoLoneRowAtAnyQuantity(): void
+    {
+        foreach (range(1, 6) as $n) {
+            $shape   = array_chunk(array_map(static fn (int $i): string => "Крафт {$i} шт", range(1, $n)), 3);
+            $shape[] = ['Инвентарь'];
+            $shape[] = ['Продать', 'Купить'];
+            $shape[] = ['Назад'];
+
+            foreach ($this->shapeOf(KeyboardNormalizer::normalize($this->kb($shape))) as $row) {
+                $this->assertGreaterThan(1, count($row), "одиночка на экране крафта при {$n} кнопках количества");
+            }
+        }
+    }
+
+    /**
+     * Все раскладки из $maxRows рядов по 1..$maxPerRow кнопок, с уникальными подписями.
+     *
+     * @return list<list<list<string>>>
+     */
+    private function allShapes(int $maxRows, int $maxPerRow): array
+    {
+        $shapes = [];
+
+        for ($rows = 1; $rows <= $maxRows; $rows++) {
+            foreach ($this->sizeCombos($rows, $maxPerRow) as $sizes) {
+                $shape = [];
+                $n     = 1;
+                foreach ($sizes as $size) {
+                    $row = [];
+                    for ($k = 0; $k < $size; $k++) {
+                        $row[] = 'к' . $n++;
+                    }
+                    $shape[] = $row;
+                }
+                $shapes[] = $shape;
+            }
+        }
+
+        return $shapes;
+    }
+
+    /**
+     * @return list<list<int>>
+     */
+    private function sizeCombos(int $rows, int $maxPerRow): array
+    {
+        if ($rows === 0) {
+            return [[]];
+        }
+
+        $out = [];
+        foreach ($this->sizeCombos($rows - 1, $maxPerRow) as $tail) {
+            for ($size = 1; $size <= $maxPerRow; $size++) {
+                $out[] = array_merge([$size], $tail);
+            }
+        }
+
+        return $out;
     }
 
     /**
