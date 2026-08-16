@@ -30,8 +30,14 @@ final class ButtonPacker
     public const MAX_PER_ROW = 3;
 
     /**
-     * @param  list<array<string,string>>       $buttons кнопки в порядке показа
-     * @return list<list<array<string,string>>> ряды для inline_keyboard
+     * Точная форма кнопки проносится через упаковщик: вызывающий код часто
+     * объявляет `array{text: string, callback_data: string}`, и без шаблона
+     * он терял бы её на `pack()`.
+     *
+     * @template TButton of array<string,string>
+     *
+     * @param  list<TButton>       $buttons кнопки в порядке показа
+     * @return list<list<TButton>> ряды для inline_keyboard
      */
     public static function pack(array $buttons, int $rowBudget = self::ROW_BUDGET): array
     {

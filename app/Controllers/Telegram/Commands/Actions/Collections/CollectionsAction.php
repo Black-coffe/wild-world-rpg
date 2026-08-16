@@ -7,6 +7,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Collections;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\CollectionService;
+use App\Services\Telegram\ButtonPacker;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
@@ -91,7 +92,8 @@ final class CollectionsAction extends BaseAction
             . "Сдавай редкие находки в коллекции — экспонат останется здесь навсегда. "
             . "За полный сет — почётный титул.\n\n";
 
-        $rows = [];
+        $rows              = [];
+        $collectionButtons = [];
         if ($defs === []) {
             $text .= "_Коллекций пока нет._";
         } else {
@@ -114,7 +116,11 @@ final class CollectionsAction extends BaseAction
                 $mark     = $complete ? ' ✅ _собрана_' : '';
                 $text .= "{$icon} *{$name}* — {$bar} {$done}/{$total}{$mark}{$this->rarityTag($rarity[$cid] ?? null)}\n";
 
-                $rows[] = [['text' => "{$icon} {$name} ({$done}/{$total})", 'callback_data' => 'collOpen_' . $cid]];
+                $collectionButtons[] = ['text' => "{$icon} {$name} ({$done}/{$total})", 'callback_data' => 'collOpen_' . $cid];
+            }
+            // Коллекции пакуем по 2-3 в ряд: колонкой список был бы простынёй.
+            foreach (ButtonPacker::pack($collectionButtons) as $packedRow) {
+                $rows[] = $packedRow;
             }
             $text .= "\n_Открой коллекцию, чтобы посмотреть, что нужно сдать._";
         }

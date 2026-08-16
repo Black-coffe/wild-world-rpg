@@ -7,6 +7,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Games;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Entities\CharacterEntity;
 use App\Services\Oracle\OracleService;
+use App\Services\Telegram\ButtonPacker;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
@@ -89,7 +90,8 @@ class OracleAction extends BaseAction
             . "за вычетом комиссии дома (она *сгорает*). Дом не доплачивает: приумножить можно только "
             . "за счёт тех, кто не угадал.\n\n";
 
-        $keyboard = [];
+        $keyboard      = [];
+        $marketButtons = [];
         if ($markets === []) {
             $text .= "_Сейчас открытых рынков нет. Загляни позже — новые открываются каждый день и каждую неделю._\n";
         } else {
@@ -99,12 +101,18 @@ class OracleAction extends BaseAction
                 $tag  = $m['type'] === 'daily' ? 'дневной' : 'недельный';
                 $text .= "\n{$icon} *{$m['question']}*\n"
                     . "   Банк: {$m['bank']}🪙 · закрытие: " . $this->fmtTime($m['locks_at']) . " ({$tag})\n";
-                $keyboard[] = [['text' => "{$icon} Ставить — {$m['question']}", 'callback_data' => 'oracle_m_' . $m['id']]];
+                $marketButtons[] = ['text' => "{$icon} Ставить — {$m['question']}", 'callback_data' => 'oracle_m_' . $m['id']];
+            }
+            // Рынки пакуем по 2-3 в ряд: колонкой список был бы простынёй.
+            foreach (ButtonPacker::pack($marketButtons) as $packedRow) {
+                $keyboard[] = $packedRow;
             }
         }
 
-        $keyboard[] = [['text' => '📊 Мои ставки', 'callback_data' => 'oracle_my']];
-        $keyboard[] = [['text' => '⬅️ Развлечения', 'callback_data' => 'entertainment']];
+        $keyboard[] = [
+            ['text' => '📊 Мои ставки', 'callback_data' => 'oracle_my'],
+            ['text' => '⬅️ Развлечения', 'callback_data' => 'entertainment'],
+        ];
 
         return Request::sendMessage([
             'chat_id'      => $chatId,
@@ -140,12 +148,15 @@ class OracleAction extends BaseAction
             . "К дележу: *{$market['distributable']}🪙*\n\n"
             . "*Исход · ставок · доля · котировка:*\n";
 
-        $keyboard = [];
+        $outcomeButtons = [];
         foreach ($market['outcomes'] as $o) {
             $oddsStr = $o['odds'] > 0 ? '×' . $this->fmtNum($o['odds'], 2) : '—';
             $text .= "{$o['label']} — {$o['pool']}🪙 · {$o['share']}% · {$oddsStr}\n";
-            $keyboard[] = [['text' => "Ставить на: {$o['label']} ({$oddsStr})", 'callback_data' => 'oracle_o_' . $marketId . '_' . $o['code']]];
+            $outcomeButtons[] = ['text' => "Ставить на: {$o['label']} ({$oddsStr})", 'callback_data' => 'oracle_o_' . $marketId . '_' . $o['code']];
         }
+
+        // Исходы пакуем по 2-3 в ряд: колонкой список был бы простынёй.
+        $keyboard = ButtonPacker::pack($outcomeButtons);
 
         $text .= "\n_Котировка = (банк − комиссия) / ставки на исход; плавает по мере ставок, фиксируется на закрытии._\n";
         if ($myStake > 0) {

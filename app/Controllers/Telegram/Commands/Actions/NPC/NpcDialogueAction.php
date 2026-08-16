@@ -9,6 +9,7 @@ use App\Models\NpcSpawnModel;
 use App\Services\NPC\NpcDialogueTreeService;
 use App\Services\NPC\NpcInteractionService;
 use App\Services\NPC\NpcRelationService;
+use App\Services\Telegram\ButtonPacker;
 use App\Services\Notifications\MediaSender;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
@@ -208,15 +209,18 @@ final class NpcDialogueAction extends BaseAction
      */
     private function renderNode(array $node, int $spawnId, int $charId, int $npcId, bool $inMarch): ServerResponse
     {
-        $rel  = new NpcRelationService();
-        $rows = [];
+        $rel        = new NpcRelationService();
+        $optButtons = [];
         foreach ($node['options'] as $opt) {
             if ($opt['gate'] !== '' && ! $rel->meetsStanding($charId, $npcId, $opt['gate'])) {
                 continue; // ступень отношения не достигнута — реплика скрыта
             }
-            $next   = $opt['next'] !== '' ? $opt['next'] : 'end';
-            $rows[] = [['text' => $opt['label'], 'callback_data' => "npcDlg_{$spawnId}_{$next}_{$opt['rel']}"]];
+            $next         = $opt['next'] !== '' ? $opt['next'] : 'end';
+            $optButtons[] = ['text' => $opt['label'], 'callback_data' => "npcDlg_{$spawnId}_{$next}_{$opt['rel']}"];
         }
+
+        // Реплики пакуем по 2-3 в ряд: ветвящийся диалог колонкой — простыня прокрутки.
+        $rows = ButtonPacker::pack($optButtons);
         $rows[] = $inMarch
             ? [['text' => '🚜 Продолжить поход', 'callback_data' => 'march_resume']]
             : [['text' => '🚶 Уйти', 'callback_data' => 'move']];

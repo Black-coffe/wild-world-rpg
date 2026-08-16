@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers\Telegram\Commands\Actions\Craft\Seasonal;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Services\Telegram\ButtonPacker;
 use App\Services\World\SeasonalCraftService;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\ServerResponse;
@@ -67,7 +68,8 @@ class SeasonalCraftSelect extends BaseAction
               . "_Рецепты доступны только в этот сезон. Не успеешь — вернутся в следующем году._\n\n"
               . $scope->legend(\App\Services\Tasks\ActionScopeService::KIND_CRAFT) . "\n\n";
 
-        $rows = [];
+        // Рецепты пакуем по 2-3 в ряд: сезон даёт до пяти блюд, колонкой это простыня.
+        $recipeButtons = [];
         foreach ($recipeKeys as $key) {
             $recipe = $cfg->get($key);
             if ($recipe === null) {
@@ -78,9 +80,10 @@ class SeasonalCraftSelect extends BaseAction
             $nameRaw = $recipe['item_name_rus'] ?? $key;
             $name    = is_string($nameRaw) ? $nameRaw : $key;
             $text   .= "{$icon} *{$name}*\n";
-            $rows[]  = [['text' => "{$icon} {$name}", 'callback_data' => "craftPreviewSeasonal_{$key}"]];
+            $recipeButtons[] = ['text' => "{$icon} {$name}", 'callback_data' => "craftPreviewSeasonal_{$key}"];
         }
 
+        $rows   = ButtonPacker::pack($recipeButtons);
         $rows[] = $backRow;
 
         return \App\Services\Notifications\MediaSender::editOrSend($this->navTarget() + [

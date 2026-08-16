@@ -8,6 +8,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Controllers\Telegram\Commands\Actions\SettingsAction;
 use App\Services\Notifications\MediaSender;
 use App\Services\PVE\DuelService;
+use App\Services\Telegram\ButtonPacker;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -45,7 +46,8 @@ final class ArenaAction extends BaseAction
             . "_Спортивный поединок на равных статах: ни здоровья, ни опыта не теряется. "
             . "Решают билд и удача. Победы идут в 🏆 Рейтинг PvP._\n\n";
 
-        $rows = [];
+        $rows        = [];
+        $duelButtons = [];
         if ($roster === []) {
             $text .= "Пока *никто не открыт* для дуэлей.\n";
         } else {
@@ -60,7 +62,11 @@ final class ArenaAction extends BaseAction
                 }
                 $ptsTag = $pts > 0 ? " · {$pts} очк." : '';
                 $text  .= "• {$name} (ур.{$lvl}{$ptsTag})\n";
-                $rows[] = [['text' => "⚔️ Вызвать: {$name}", 'callback_data' => 'arenaDuel_' . $id]];
+                $duelButtons[] = ['text' => "⚔️ Вызвать: {$name}", 'callback_data' => 'arenaDuel_' . $id];
+            }
+            // Соперников пакуем по 2-3 в ряд: колонкой ростер был бы простынёй.
+            foreach (ButtonPacker::pack($duelButtons) as $packedRow) {
+                $rows[] = $packedRow;
             }
         }
 

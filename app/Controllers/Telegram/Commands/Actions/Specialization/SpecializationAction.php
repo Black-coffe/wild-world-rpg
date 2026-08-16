@@ -7,6 +7,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Specialization;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\SpecializationService;
+use App\Services\Telegram\ButtonPacker;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -78,11 +79,16 @@ class SpecializationAction extends BaseAction
                     $text .= "⏳ Сменить можно после " . date('Y-m-d H:i', $next) . ".\n";
                 }
             }
+            // Список веток пакуем по 2-3 в ряд: колонкой он был бы простынёй.
+            $branchButtons = [];
             foreach ($svc->branches() as $key => $def) {
                 if ($key === $current) {
                     continue;
                 }
-                $rows[] = [['text' => $def['emoji'] . ' ' . $def['label'], 'callback_data' => 'specChoose_' . $key]];
+                $branchButtons[] = ['text' => $def['emoji'] . ' ' . $def['label'], 'callback_data' => 'specChoose_' . $key];
+            }
+            foreach (ButtonPacker::pack($branchButtons) as $packedRow) {
+                $rows[] = $packedRow;
             }
         }
         $rows[] = [['text' => '↩️ Назад', 'callback_data' => 'character']];

@@ -8,6 +8,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CharacterResourceModel;
 use App\Services\Craft\ItemModifierService;
 use App\Services\Notifications\MediaSender;
+use App\Services\Telegram\ButtonPacker;
 use Config\Database;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
@@ -87,12 +88,14 @@ final class EnchantAction extends BaseAction
                 . "% требуют *" . $this->modifiers->grandmasterResourceName() . "*.\n";
         }
 
-        $rows = [];
+        // Список снаряжения пакуем по 2-3 в ряд: колонкой он был бы простынёй.
+        $itemButtons = [];
         foreach ($items as $it) {
             $cur   = $this->modifiers->modifierBonusPct($it['type'], $it['id'], $it['stat']);
             $label = ($it['type'] === 'weapon' ? '🗡 ' : '🛡 ') . $it['name'] . ($cur > 0 ? " (+{$cur}%)" : '');
-            $rows[] = [['text' => $label, 'callback_data' => "enchantSel_{$it['type']}_{$it['id']}"]];
+            $itemButtons[] = ['text' => $label, 'callback_data' => "enchantSel_{$it['type']}_{$it['id']}"];
         }
+        $rows = ButtonPacker::pack($itemButtons);
         $rows[] = [['text' => '◀️ Перс', 'callback_data' => 'character']];
 
         return $this->editText($chatId, $text, $rows);
