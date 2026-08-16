@@ -45,9 +45,9 @@ final class ImageAssetsExistTest extends CIUnitTestCase
      * @var array<string,string> путь относительно public/ => почему терпим
      */
     private const KNOWN_MISSING = [
-        'uploads/telegram/objects/islandheart.jpg' => 'Сердце острова dormant на проде: '
-            . 'world.strategic.islandheart.max_spawns=0, объект не спавнится и экран никому '
-            . 'не показывается. Перед активацией арт обязан появиться — иначе экран без картинки.',
+        // Пусто — и пусть остаётся пустым. Единственная запись (`objects/islandheart.jpg`,
+        // Сердце острова: объект dormant, `world.strategic.islandheart.max_spawns=0`)
+        // закрыта 2026-08-16 генерацией арта, а не продлением исключения.
     ];
 
     /** Поля рецепта, содержащие путь к картинке. */
