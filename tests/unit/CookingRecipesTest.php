@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Unit;
 
 use App\Controllers\Telegram\Commands\Actions\Craft\Cooking\CampfireCookingSelect;
+use App\Services\Notifications\MediaSender;
+use App\Services\Tasks\ActionScopeService;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
@@ -117,5 +119,146 @@ final class CookingRecipesTest extends CIUnitTestCase
             $this->assertTrue(!empty($cfg->get($key)['perishable']), "{$key}: горячее блюдо perishable");
         }
         $this->assertTrue(!empty($cfg->get('FishPreserve')['preserved']), 'FishPreserve: консерва preserved');
+    }
+
+    // ── 2026-08-16 — экран разбит надвое (горячее / консервы) ──
+
+    /**
+     * Разбиение обязано быть РАЗБИЕНИЕМ: без потерь и без дублей. Иначе блюдо
+     * молча выпадет из обоих экранов и станет недостижимым (BUILT-BUT-INVISIBLE).
+     */
+    public function testHotAndPreserveSplitPartitionsTheMenu(): void
+    {
+        $this->assertSame(
+            CampfireCookingSelect::COOKING_RECIPES,
+            array_merge(CampfireCookingSelect::HOT_RECIPES, CampfireCookingSelect::PRESERVE_RECIPES),
+            'горячее + консервы должны давать ровно COOKING_RECIPES',
+        );
+        $this->assertSame(
+            [],
+            array_intersect(CampfireCookingSelect::HOT_RECIPES, CampfireCookingSelect::PRESERVE_RECIPES),
+            'блюдо не может быть одновременно горячим и консервой',
+        );
+        $this->assertSame(
+            CampfireCookingSelect::FISH_RECIPES,
+            array_merge(CampfireCookingSelect::FISH_HOT_RECIPES, CampfireCookingSelect::FISH_PRESERVE_RECIPES),
+            'рыбное горячее + рыбная консерва должны давать ровно FISH_RECIPES',
+        );
+    }
+
+    /** Флаг рецепта и экран, на котором он показан, обязаны совпадать. */
+    public function testSplitMatchesPerishableFlags(): void
+    {
+        $cfg = config('CraftRecipes');
+
+        foreach (array_merge(CampfireCookingSelect::HOT_RECIPES, CampfireCookingSelect::FISH_HOT_RECIPES) as $key) {
+            $this->assertTrue(!empty($cfg->get($key)['perishable']), "{$key}: на экране горячего — значит perishable");
+        }
+        foreach (array_merge(CampfireCookingSelect::PRESERVE_RECIPES, CampfireCookingSelect::FISH_PRESERVE_RECIPES) as $key) {
+            $this->assertTrue(!empty($cfg->get($key)['preserved']), "{$key}: на экране консервов — значит preserved");
+        }
+    }
+
+    /**
+     * `info_callback` — это кнопка «⬅️ Назад» экрана нехватки сырья
+     * ({@see \App\Services\Craft\CraftShortageService}). У консервы она обязана
+     * вести на экран консервов, иначе игрок после отказа попадает не туда,
+     * откуда пришёл, и своё блюдо в списке не находит.
+     */
+    public function testPreserveRecipesReturnToPreserveScreen(): void
+    {
+        $cfg = config('CraftRecipes');
+
+        foreach (array_merge(CampfireCookingSelect::PRESERVE_RECIPES, CampfireCookingSelect::FISH_PRESERVE_RECIPES) as $key) {
+            $this->assertSame(CampfireCookingSelect::CB_PRESERVES, $cfg->get($key)['info_callback'] ?? null, "{$key}: назад → экран консервов");
+        }
+        foreach (array_merge(CampfireCookingSelect::HOT_RECIPES, CampfireCookingSelect::FISH_HOT_RECIPES) as $key) {
+            $this->assertSame('cook', $cfg->get($key)['info_callback'] ?? null, "{$key}: назад → экран горячего");
+        }
+    }
+
+    /** Оба экрана готовки должны быть зарегистрированы в роутере (иначе дверь мёртвая). */
+    public function testBothCookingScreensAreRouted(): void
+    {
+        $routes = config('CallbackRoutes');
+
+        foreach (['cook', CampfireCookingSelect::CB_PRESERVES] as $cb) {
+            $this->assertArrayHasKey($cb, $routes->exactRoutes, "callback {$cb} не зарегистрирован");
+            $this->assertSame(CampfireCookingSelect::class, $routes->resolve($cb), "callback {$cb} ведёт не туда");
+        }
+    }
+
+    /**
+     * 🔴 Гейт, которого не хватало. До разбиения подпись экрана готовки при живом
+     * `cooking.fish_dishes.enabled` доходила до 1206 символов при лимите 1024 —
+     * MediaSender штатно уводил экран в текст, и картинку не видел НИКТО. Тест
+     * считает ХУДШИЙ случай (рыба включена, все строки шапки на месте, трёхзначные
+     * heal-числа) и не даёт длине снова уползти за лимит.
+     *
+     * Состав блюд и их числа берутся из реального конфига — то есть новый рецепт
+     * или удлинившийся список ингредиентов уронит этот тест, а не прод.
+     */
+    public function testWorstCaseCaptionFitsPhotoLimit(): void
+    {
+        $cfg = config('CraftRecipes');
+        // Самое длинное из двух предупреждений о занятости (🔒 — блокирующий крафт).
+        $occupancy = (new ActionScopeService())->occupancyWarning(false);
+
+        $screens = [
+            'горячее'  => array_merge(CampfireCookingSelect::HOT_RECIPES, CampfireCookingSelect::FISH_HOT_RECIPES),
+            'консервы' => array_merge(CampfireCookingSelect::PRESERVE_RECIPES, CampfireCookingSelect::FISH_PRESERVE_RECIPES),
+        ];
+
+        foreach ($screens as $label => $keys) {
+            $dishes = [];
+            foreach ($keys as $key) {
+                $recipe   = $cfg->get($key);
+                $dishes[] = [
+                    'icon' => $recipe['icon_emoji'] ?? '🍲',
+                    'name' => $recipe['item_name_rus'] ?? $key,
+                    'cost' => CampfireCookingSelect::costOf($recipe),
+                    // Худший случай по разрядности чисел — админ может поднять heal.
+                    'hp'    => 999,
+                    'tired' => 999,
+                ];
+            }
+
+            $text = CampfireCookingSelect::renderText(
+                $label === 'консервы',
+                $dishes,
+                $occupancy,
+                9,    // freshDays — двузначным не бывает, но берём максимум разряда
+                9999, // остаток «Сытости» в минутах
+                true, // боевой бонус включён
+            );
+
+            $this->assertFalse(
+                MediaSender::captionExceedsPhotoLimit($text),
+                "экран «{$label}»: подпись " . mb_strlen($text) . " симв. — не влезает в лимит фото, картинка отвалится",
+            );
+
+            // Состав блюд неприкосновенен: ужиматься можно только шапкой.
+            foreach ($dishes as $d) {
+                $this->assertStringContainsString($d['cost'], $text, "экран «{$label}»: пропал состав блюда {$d['name']}");
+            }
+        }
+    }
+
+    /** Ужимание идёт по одной строке и останавливается, как только подпись влезла. */
+    public function testFitCaptionDropsOnlyWhatIsNeeded(): void
+    {
+        $header = "H\n";
+        $body   = str_repeat('x', 1000);
+
+        // Влезает сразу — не выкидываем ничего.
+        $short = CampfireCookingSelect::fitCaption($header, ['a' => "A\n", 'b' => "B\n"], "short\n", ['a', 'b']);
+        $this->assertStringContainsString('A', $short);
+        $this->assertStringContainsString('B', $short);
+
+        // Не влезает — уходит ПЕРВЫЙ по приоритету, второй остаётся.
+        $long = CampfireCookingSelect::fitCaption($header, ['a' => str_repeat('A', 30) . "\n", 'b' => "B\n"], $body, ['a', 'b']);
+        $this->assertStringNotContainsString('AAA', $long);
+        $this->assertStringContainsString('B', $long);
+        $this->assertStringContainsString($body, $long, 'тело подписи не трогаем никогда');
     }
 }
