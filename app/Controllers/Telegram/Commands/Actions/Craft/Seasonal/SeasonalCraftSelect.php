@@ -26,7 +26,7 @@ class SeasonalCraftSelect extends BaseAction
 
         $svc       = new SeasonalCraftService();
         $seasonKey = $svc->getActiveSeasonKey();
-        $imagePath = base_url('uploads/telegram/craft/general_crafting_img.png');
+        $imagePath = base_url(self::imageRel());
 
         $backRow = [
             ['text' => '🔨 К общему крафту', 'callback_data' => 'generalCraft'],
@@ -90,5 +90,27 @@ class SeasonalCraftSelect extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $rows]),
         ]);
+    }
+
+    /**
+     * Картинка хаба сезонного крафта.
+     *
+     * До 2026-08-16 здесь стоял `general_crafting_img.png` — верстак с ножами и
+     * молотком, хотя за экраном 20 рецептов еды и питья: отвары, медовуха, квас,
+     * варенье, соленья. Экран превью конкретного рецепта уже брал собственную
+     * картинку рецепта, врал только хаб.
+     *
+     * Файла нет → откат на общий крафт: `Request::encodeFile` на несуществующем
+     * пути бросает исключение и убивает экран целиком.
+     */
+    private static function imageRel(): string
+    {
+        $rel = 'uploads/telegram/craft/seasonal/seasonal_craft.jpg';
+
+        if (defined('FCPATH') && ! is_file(FCPATH . $rel)) {
+            return 'uploads/telegram/craft/general_crafting_img.png';
+        }
+
+        return $rel;
     }
 }

@@ -70,7 +70,11 @@ class DefenseCraft1Select extends BaseAction
         // Картинку подставляем только если файл реально на диске: `encodeFile`
         // падает на fopen отсутствующего пути и убивает весь экран целиком
         // (урок `feedback_gear_image_must_resolve_via_is_file`).
-        $imageRel  = 'uploads/telegram/camp/Construction-by-improvised.jpg';
+        // Свой арт с 2026-08-16: раньше стояла картинка стройки
+        // (`camp/Construction-by-improvised.jpg`), та же, что на экране списка
+        // построек — «Защита» и «Стройка» выглядели одинаково, и игрок, ищущий
+        // «чем прикрыться от события», попадал взглядом на стройплощадку.
+        $imageRel  = 'uploads/telegram/craft/defense_craft.jpg';
         $imageFile = FCPATH . $imageRel;
         if (is_file($imageFile)) {
             return \App\Services\Notifications\MediaSender::editOrSend($base + [
