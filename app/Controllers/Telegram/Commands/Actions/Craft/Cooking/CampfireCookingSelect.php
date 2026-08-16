@@ -177,7 +177,7 @@ class CampfireCookingSelect extends BaseAction
             ['text' => '📋 Очередь крафта', 'callback_data' => 'craftQueue'],
         ];
 
-        $imagePath = base_url('uploads/telegram/craft/general_crafting_img.png');
+        $imagePath = base_url(self::imageRel($preserves));
 
         return MediaSender::editOrSend($this->navTarget() + [
             'chat_id'      => $chatId,
@@ -186,6 +186,31 @@ class CampfireCookingSelect extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $rows]),
         ]);
+    }
+
+    /**
+     * Картинка экрана: у горячего и у консервов она СВОЯ.
+     *
+     * До 2026-08-16 обе половины рендерились общим `general_crafting_img.png` —
+     * фото верстака с ножами и молотком, то есть экран про готовку показывал
+     * мастерскую. Теперь: огонь с котлом против полки с банками — половины
+     * различаются даже на миниатюре.
+     *
+     * Если файл не доехал (не выкатили uploads) — откатываемся на общий крафт:
+     * `Request::encodeFile` на несуществующем пути бросает исключение и убивает
+     * весь экран, а экран важнее картинки.
+     */
+    private static function imageRel(bool $preserves): string
+    {
+        $rel = $preserves
+            ? 'uploads/telegram/craft/cooking/campfire_preserves.jpg'
+            : 'uploads/telegram/craft/cooking/campfire_hot.jpg';
+
+        if (defined('FCPATH') && ! is_file(FCPATH . $rel)) {
+            return 'uploads/telegram/craft/general_crafting_img.png';
+        }
+
+        return $rel;
     }
 
     /**
