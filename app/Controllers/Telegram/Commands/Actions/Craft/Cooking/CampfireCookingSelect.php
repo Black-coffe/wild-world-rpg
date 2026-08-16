@@ -7,6 +7,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\Cooking;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\GameSettings\GameSettingsService;
 use App\Services\Notifications\MediaSender;
+use App\Services\Telegram\ButtonPacker;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Request;
@@ -125,8 +126,8 @@ class CampfireCookingSelect extends BaseAction
             $wellFedMinutes = $tsEnd !== false ? max(1, (int) ceil(($tsEnd - time()) / 60)) : 0;
         }
 
-        $dishes = [];
-        $rows   = [];
+        $dishes      = [];
+        $dishButtons = [];
         foreach ($recipeKeys as $key) {
             $recipe = $cfg->get($key);
             if ($recipe === null) {
@@ -147,8 +148,12 @@ class CampfireCookingSelect extends BaseAction
                 'hp'    => is_numeric($hpRaw) ? (int) $hpRaw : 0,
                 'tired' => is_numeric($tdRaw) ? (int) $tdRaw : 0,
             ];
-            $rows[] = [['text' => "{$icon} {$name}", 'callback_data' => "genericCraft_{$key}_1"]];
+            $dishButtons[] = ['text' => "{$icon} {$name}", 'callback_data' => "genericCraft_{$key}_1"];
         }
+
+        // Блюда — по 2-3 в ряд (ButtonPacker), а не колонкой: семь кнопок в столбик
+        // на телефоне превращают меню в простыню прокрутки.
+        $rows = ButtonPacker::pack($dishButtons);
 
         $text = self::renderText(
             $preserves,
