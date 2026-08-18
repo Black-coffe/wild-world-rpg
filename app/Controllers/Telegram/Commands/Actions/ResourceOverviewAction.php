@@ -57,6 +57,9 @@ final class ResourceOverviewAction extends BaseAction
             . "Это один общий запас — он у тебя единый, на скольких бы базах ты ни сидел.\n\n"
             . "🎒 *Добытые ресурсы:* " . $this->fmt($s['backpack']['units']) . " шт"
                 . " (" . $this->fmt($s['backpack']['kinds']) . " видов, ~" . $this->fmt($s['backpack']['value']) . "💰)\n"
+            // Вопрос игрока 18.08.2026: «какая вообще вместимость инвентаря?» Предела
+            // сейчас нет вовсе, и об этом нигде не говорилось — называем и вес, и факт.
+            . "⚖️ *Вес добычи:* " . $this->fmt($s['backpack']['weight']) . " кг — рюкзак не ограничен\n"
             . "🔨 *Крафтовые предметы:* " . $this->fmt($s['crafted']['units']) . " шт"
                 . " (~" . $this->fmt($s['crafted']['value']) . "💰)\n"
             . "⚔️ *Оружие:* " . $this->fmt($s['weapons']) . " · 🛡 *Броня:* " . $this->fmt($s['outfits']) . "\n"

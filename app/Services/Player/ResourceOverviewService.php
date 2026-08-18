@@ -46,11 +46,11 @@ final class ResourceOverviewService
      * Срез всех мест хранения персонажа.
      *
      * @return array{
-     *   backpack: array{kinds:int, units:int, value:int},
+     *   backpack: array{kinds:int, units:int, value:int, weight:int},
      *   crafted: array{kinds:int, units:int, value:int},
      *   weapons: int,
      *   outfits: int,
-     *   base_storage: array{kinds:int, units:int, value:int},
+     *   base_storage: array{kinds:int, units:int, value:int, weight:int},
      *   gold: int,
      *   net_worth: int
      * }
@@ -84,12 +84,12 @@ final class ResourceOverviewService
      * Агрегат ресурс-хранилища (character_resources / base_storage): виды (строки),
      * штуки (Σ quantity), стоимость (Σ quantity × sell_price). Только quantity > 0.
      *
-     * @return array{kinds:int, units:int, value:int}
+     * @return array{kinds:int, units:int, value:int, weight:int}
      */
     private function aggResources(string $table, string $charCol, string $resCol, int $charId): array
     {
         $q = Database::connect()->table($table . ' t')
-            ->select('COUNT(*) AS kinds, COALESCE(SUM(t.quantity),0) AS units, COALESCE(SUM(t.quantity * r.sell_price),0) AS value')
+            ->select('COUNT(*) AS kinds, COALESCE(SUM(t.quantity),0) AS units, COALESCE(SUM(t.quantity * r.sell_price),0) AS value, COALESCE(SUM(t.quantity * r.weight),0) AS weight')
             ->join('resources r', 'r.id = t.' . $resCol)
             ->where('t.' . $charCol, $charId)
             ->where('t.quantity >', 0)
@@ -97,9 +97,14 @@ final class ResourceOverviewService
         $row = $q === false ? null : $q->getRowArray();
 
         return [
-            'kinds' => $this->toInt(is_array($row) ? ($row['kinds'] ?? 0) : 0),
-            'units' => $this->toInt(is_array($row) ? ($row['units'] ?? 0) : 0),
-            'value' => $this->toInt(is_array($row) ? ($row['value'] ?? 0) : 0),
+            'kinds'  => $this->toInt(is_array($row) ? ($row['kinds'] ?? 0) : 0),
+            'units'  => $this->toInt(is_array($row) ? ($row['units'] ?? 0) : 0),
+            'value'  => $this->toInt(is_array($row) ? ($row['value'] ?? 0) : 0),
+            // Вес добычи. Вопрос игрока 18.08.2026: «какая вообще вместимость инвентаря?
+            // если единица весит 1 кг, то у меня в рюкзаке пятьсот тонн». Предела
+            // сейчас действительно нет (`inventory.weight_cap.enabled=0`), и об этом
+            // нигде не говорилось — показываем хотя бы сам вес, честно.
+            'weight' => $this->toInt(is_array($row) ? ($row['weight'] ?? 0) : 0),
         ];
     }
 

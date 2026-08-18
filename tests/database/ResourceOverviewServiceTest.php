@@ -36,7 +36,7 @@ final class ResourceOverviewServiceTest extends CIUnitTestCase
             $db->query("DROP TABLE IF EXISTS {$t}");
         }
         $db->query('CREATE TABLE characters (id INT AUTO_INCREMENT PRIMARY KEY, gold BIGINT NULL)');
-        $db->query('CREATE TABLE resources (id INT AUTO_INCREMENT PRIMARY KEY, sell_price DECIMAL(10,2) NULL)');
+        $db->query('CREATE TABLE resources (id INT AUTO_INCREMENT PRIMARY KEY, sell_price DECIMAL(10,2) NULL, weight DECIMAL(10,2) NULL)');
         $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT NULL, id_resources INT NULL, quantity BIGINT NULL)');
         $db->query('CREATE TABLE crafted_items (id INT AUTO_INCREMENT PRIMARY KEY, price DECIMAL(10,2) NULL)');
         $db->query('CREATE TABLE crafted_items_log (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NULL, crafted_item_id INT NULL, quantity INT NULL)');
@@ -45,8 +45,9 @@ final class ResourceOverviewServiceTest extends CIUnitTestCase
         $db->query('CREATE TABLE base_storage (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT NULL, resource_id INT NULL, quantity INT NULL)');
 
         // Ресурсы: id1 sell 10, id2 sell 4.
-        $db->table('resources')->insert(['id' => 1, 'sell_price' => 10.00]);
-        $db->table('resources')->insert(['id' => 2, 'sell_price' => 4.00]);
+        // Вес нужен для строки «Вес добычи» (вопрос игрока про вместимость рюкзака).
+        $db->table('resources')->insert(['id' => 1, 'sell_price' => 10.00, 'weight' => 2.00]);
+        $db->table('resources')->insert(['id' => 2, 'sell_price' => 4.00, 'weight' => 0.50]);
         // Крафт-предмет id5 price 100.
         $db->table('crafted_items')->insert(['id' => 5, 'price' => 100.00]);
 
@@ -83,6 +84,10 @@ final class ResourceOverviewServiceTest extends CIUnitTestCase
         $this->assertSame(2, $s['backpack']['kinds']);
         $this->assertSame(75, $s['backpack']['units']);
         $this->assertSame(600, $s['backpack']['value']);
+        // Вес добычи: 50 × 2.00 + 25 × 0.50 = 112.5 → 113 (округление до целых кг для экрана).
+        // Строка появилась как ответ на вопрос игрока «какая вообще вместимость рюкзака»:
+        // предела нет, но сам вес игрок обязан видеть.
+        $this->assertSame(113, $s['backpack']['weight']);
 
         $this->assertSame(1, $s['crafted']['kinds']);
         $this->assertSame(3, $s['crafted']['units']);
