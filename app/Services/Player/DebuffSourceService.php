@@ -54,13 +54,20 @@ final class DebuffSourceService
     /**
      * Бросок при входе на клетку. Возвращает ключ полученной раны или null.
      *
-     * @param array<array-key, mixed>|null $biomeRow строка `biomes` целевой клетки
+     * 🔴 Принимает и массив, и Entity: `BiomeModel` объявляет `$returnType = BiomeEntity`,
+     * и первая версия хука отсеивала Entity через `is_array()` — источник молча не
+     * работал вовсе (поймано Tier-3 на testbot: шанс 100%, переход в «Горы», ноль ран).
+     * Нормализуем здесь, чтобы вызывающему не приходилось помнить про тип модели.
+     *
+     * @param array<array-key, mixed>|\CodeIgniter\Entity\Entity|null $biomeRow строка `biomes` целевой клетки
      */
-    public function rollOnMove(int $characterId, ?array $biomeRow): ?string
+    public function rollOnMove(int $characterId, array|\CodeIgniter\Entity\Entity|null $biomeRow): ?string
     {
         if ($characterId <= 0 || $biomeRow === null || ! $this->debuffs->enabled()) {
             return null;
         }
+
+        $biomeRow = $biomeRow instanceof \CodeIgniter\Entity\Entity ? $biomeRow->toArray() : $biomeRow;
 
         $key = $this->riskFor($biomeRow);
         if ($key === null) {

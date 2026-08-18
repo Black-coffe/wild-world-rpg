@@ -109,6 +109,40 @@ final class DebuffServiceTest extends CIUnitTestCase
         $this->assertSame(30, $service->poisonTickMinutes());
     }
 
+    /**
+     * 🔴 Регресс Tier-3 (18.08.2026): `BiomeModel` объявляет `$returnType = BiomeEntity`,
+     * а первая версия хука движения отсеивала Entity через `is_array()` — источник ран
+     * молча не работал ВООБЩЕ. Шанс стоял 100%, переход в «Горы» шёл, ран — ноль.
+     * Сервис обязан понимать оба вида строки биома.
+     */
+    public function testSourceUnderstandsBiomeEntityAndArray(): void
+    {
+        $source = new \App\Services\Player\DebuffSourceService();
+
+        $asArray = ['biome_type' => 'cave', 'danger_level' => 9];
+        $this->assertSame(Debuffs::FRACTURE, $source->riskFor($asArray), 'Пещеры обязаны давать перелом.');
+
+        $entity = new \App\Entities\BiomeEntity($asArray);
+        $this->assertSame(
+            Debuffs::FRACTURE,
+            $source->riskFor($entity->toArray()),
+            'Entity после toArray() обязан читаться так же, как массив.'
+        );
+
+        $this->assertNull($source->riskFor(['biome_type' => 'plain']), 'Поля безопасны — ран там нет.');
+        $this->assertNull($source->riskFor([]), 'Строка без типа биома не должна ронять бросок.');
+    }
+
+    /** Типы биомов в карте рисков обязаны существовать в игре, иначе источник мёртв. */
+    public function testRiskMapUsesRealBiomeTypes(): void
+    {
+        $source = new \App\Services\Player\DebuffSourceService();
+
+        foreach (['wet' => Debuffs::POISON, 'cold' => Debuffs::FROSTBITE, 'volcanic' => Debuffs::BURN, 'cave' => Debuffs::FRACTURE] as $type => $expected) {
+            $this->assertSame($expected, $source->riskFor(['biome_type' => $type]), "Тип биома «{$type}» потерял свою рану.");
+        }
+    }
+
     /** Настоящий GameSettingsService поверх подменённой модели (сервис объявлен final). */
     private function settingsWith(array $values): \App\Services\GameSettings\GameSettingsService
     {

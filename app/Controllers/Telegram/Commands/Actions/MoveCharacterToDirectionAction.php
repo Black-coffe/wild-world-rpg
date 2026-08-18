@@ -252,7 +252,7 @@ class MoveCharacterToDirectionAction
         // основного экрана перехода — иначе оно потерялось бы в подписи карты.
         $gotDebuff = (new \App\Services\Player\DebuffSourceService())->rollOnMove(
             (int) $character['id'],
-            is_array($biome) ? $biome : null
+            $biome
         );
 
         // Туман войны (ADR-019 §1): раскрываем 3×3-окно вокруг новой позиции —
