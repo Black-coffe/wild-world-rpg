@@ -411,6 +411,9 @@ class CallbackRoutes extends BaseConfig
         // - droneCargo: preview-экран чек-листа крафта
         // - baseStorageList / baseStorageList_all: retrieve UI склада (Q5 ADR-059)
         'cargoDroneList'                  => \App\Controllers\Telegram\Commands\Actions\Drone\CargoDroneSelectAction::class,
+        // Автовывоз: дрон сам набирает груз по убыванию редкости (просьба игрока 18.08.2026),
+        // минуя еду, воду и семена. Хвост `_<log_id>` разбирает сам action.
+        'cargoDroneAuto'                  => \App\Controllers\Telegram\Commands\Actions\Drone\CargoDroneAutoSendAction::class,
         'cargoDroneLocked'                => \App\Controllers\Telegram\Commands\Actions\Drone\CargoDroneLockedAction::class,
         'droneCargo'                      => \App\Controllers\Telegram\Commands\Actions\Drone\DroneCargoCraftInfoAction::class,
         'baseStorageList'                 => \App\Controllers\Telegram\Commands\Actions\Storage\BaseStorageListAction::class,
