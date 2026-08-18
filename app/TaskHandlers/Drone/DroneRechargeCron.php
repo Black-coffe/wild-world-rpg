@@ -131,8 +131,13 @@ class DroneRechargeCron
             $logsByChar[$charId][] = $log;
         }
 
+        // Доля скорости вне базы (просьба игрока 18.08.2026: «заряжаться везде, на базе
+        // быстро, в поле медленнее»). 0 = прежнее поведение, в поле заряда нет вовсе.
+        $fieldFactor = $this->service->fieldChargeFactor();
+
         foreach ($logsByChar as $charId => $logs) {
-            if (! $this->isCharacterOnBase($charId)) {
+            $onBase = $this->isCharacterOnBase($charId);
+            if (! $onBase && $fieldFactor <= 0.0) {
                 continue;
             }
             foreach ($logs as $log) {
@@ -149,6 +154,19 @@ class DroneRechargeCron
                 if ($step < 1) {
                     $step = 1;
                 }
+
+                if (! $onBase) {
+                    // 🔴 В поле floor=1 применять НЕЛЬЗЯ: при доле 25% и минутном тике
+                    // округление вверх сделало бы полевую зарядку такой же быстрой, как
+                    // базовую. Поэтому считаем от времени последнего изменения строки и
+                    // ждём, пока накопится хотя бы единица (`updated_at` обновится этим же
+                    // UPDATE — счётчик самосбрасывается, отдельная колонка не нужна).
+                    $minutes = $this->minutesSinceUpdate($log, $intervalMinutes);
+                    $step    = (int) floor($minutes * $rate * $fieldFactor);
+                    if ($step < 1) {
+                        continue;
+                    }
+                }
                 $next = (int) min($batteryMax, $current + $step);
                 if ($next === $current) {
                     continue;
@@ -156,6 +174,27 @@ class DroneRechargeCron
                 $this->logModel->update($logId, ['durability_count' => $next]);
             }
         }
+    }
+
+    /**
+     * Сколько минут прошло с последнего изменения строки дрона. Нужен для полевой
+     * зарядки: она медленнее минутного тика, и шаг приходится копить по времени.
+     *
+     * @param array<array-key, mixed>|object $log
+     */
+    private function minutesSinceUpdate(array|object $log, int $fallbackMinutes): float
+    {
+        $raw = is_array($log) ? ($log['updated_at'] ?? null) : ($log->updated_at ?? null);
+        if (! is_string($raw) || $raw === '') {
+            return (float) $fallbackMinutes;
+        }
+
+        $ts = strtotime($raw);
+        if ($ts === false) {
+            return (float) $fallbackMinutes;
+        }
+
+        return max(0.0, (time() - $ts) / 60);
     }
 
     /**

@@ -125,14 +125,33 @@ final class DroneRechargeCronTest extends CIUnitTestCase
         ]);
     }
 
-    private function seedDrone(int $charId, int $durability, int $qty = 1): int
+    private function seedDrone(int $charId, int $durability, int $qty = 1, ?int $updatedMinutesAgo = null): int
     {
-        $db = Database::connect('tests');
-        $db->table('crafted_items_log')->insert([
+        $db  = Database::connect('tests');
+        $row = [
             'character_id' => $charId, 'crafted_item_id' => self::DRONE_ITEM_ID,
             'quantity' => $qty, 'durability_count' => $durability,
-        ]);
+        ];
+
+        // Полевая зарядка копит шаг по времени с последнего изменения строки, поэтому
+        // тестам нужно уметь «состарить» `updated_at`.
+        if ($updatedMinutesAgo !== null) {
+            $row['updated_at'] = date('Y-m-d H:i:s', time() - $updatedMinutesAgo * 60);
+        }
+
+        $db->table('crafted_items_log')->insert($row);
+
         return (int) $db->insertID();
+    }
+
+    private function setFieldChargePercent(int $percent): void
+    {
+        Database::connect('tests')->table('game_settings')->insert([
+            'setting_key' => 'drone.field_charge_percent',
+            'value_type'  => 'int',
+            'value_int'   => $percent,
+        ]);
+        $this->cleanCache();
     }
 
     private function durability(int $logId): int
@@ -165,6 +184,53 @@ final class DroneRechargeCronTest extends CIUnitTestCase
         (new DroneRechargeCron())->run(1);
 
         $this->assertSame(0, $this->durability($logId), 'Вне базы заряд не должен расти.');
+    }
+
+    /**
+     * Просьба игрока (18.08.2026): «дрон должен заряжаться везде, на базе быстро, в поле
+     * медленнее». До правки в поле не набегало ни единицы, и дальняя вылазка означала
+     * мёртвый дрон до возвращения домой.
+     */
+    public function testRechargesInFieldWhenEnabled(): void
+    {
+        $this->setFieldChargePercent(100);
+        $this->seedChar(11, 600);
+        $this->seedClaim(11, 999, 'active');           // база далеко → игрок в поле
+        $logId = $this->seedDrone(11, 0, 1, 60);       // строка не менялась час
+
+        (new DroneRechargeCron())->run(1);
+
+        $this->assertGreaterThan(0, $this->durability($logId), 'При включённой полевой зарядке дрон обязан заряжаться и вне базы.');
+    }
+
+    /**
+     * 🔴 Главный инвариант: поле МЕДЛЕННЕЕ базы. Минутный floor=1 в поле применять
+     * нельзя — иначе при доле 25% дрон в поле заряжался бы с той же скоростью, что дома.
+     */
+    public function testFieldChargeAccumulatesInsteadOfRoundingUp(): void
+    {
+        $this->setFieldChargePercent(25);
+        $this->seedChar(12, 600);
+        $this->seedClaim(12, 999, 'active');
+        $logId = $this->seedDrone(12, 0, 1, 2);        // прошло всего 2 минуты
+
+        (new DroneRechargeCron())->run(1);
+
+        // 2 мин × 0.833 × 0.25 ≈ 0.42 → шаг ещё не накопился.
+        $this->assertSame(0, $this->durability($logId), 'В поле шаг обязан копиться по времени, а не округляться вверх до 1.');
+    }
+
+    /** При выключенной полевой зарядке (0%) поведение прежнее: вне базы заряда нет. */
+    public function testFieldChargeZeroKeepsOldBehaviour(): void
+    {
+        $this->setFieldChargePercent(0);
+        $this->seedChar(13, 600);
+        $this->seedClaim(13, 999, 'active');
+        $logId = $this->seedDrone(13, 0, 1, 600);      // хоть десять часов — всё равно ноль
+
+        (new DroneRechargeCron())->run(1);
+
+        $this->assertSame(0, $this->durability($logId), 'При 0% полевая зарядка обязана быть выключена полностью.');
     }
 
     public function testDoesNotRechargeOnAbandonedClaim(): void
