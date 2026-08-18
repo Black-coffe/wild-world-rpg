@@ -20,6 +20,12 @@ class UsePharmacyAction extends BaseAction
     /** ADR-094: множитель heal-эффекта при просрочке медикамента (1.0 = свежий). */
     private float $degradeMult = 1.0;
 
+    /**
+     * `name_eng` применяемого предмета — нужен, чтобы снять состояние, которое лечит
+     * именно он (`Config\Debuffs::curedByItem`). Раньше вниз по стеку шёл только id.
+     */
+    private string $itemNameEng = '';
+
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
@@ -49,6 +55,8 @@ class UsePharmacyAction extends BaseAction
         if ($medicineName === '') {
             return $this->sendResponse('Неправильные данные кнопки.');
         }
+
+        $this->itemNameEng = $medicineName;
 
         $itemId = $this->getCraftedItemId($medicineName);
         if (!$itemId) {
@@ -225,7 +233,20 @@ class UsePharmacyAction extends BaseAction
         // Теперь: CharacterStatsService — дельта от СВЕЖИХ значений под
         // row-lock'ом (SELECT ... FOR UPDATE), пишутся только меняемые поля.
         $charId = (int) $character['id'];
-        $result = (new \App\Services\Player\CharacterStatsService())->adjust($charId, $effects);
+
+        // Раны, которые не лечатся едой (аудит 18.08.2026). Две вещи разом:
+        //  - ожог/обморожение ставят ПОТОЛОК лечения: сколько ни ешь, выше предела не
+        //    поднимешься, пока не перевяжешь. Потолок общий для еды и лекарств — оба
+        //    приходят сюда же, поэтому «отожраться консервами» перестаёт работать;
+        //  - предмет из `cured_by` СНИМАЕТ состояние. Это и есть ниша лекарств: еда
+        //    не снимает ничего и снимать не может.
+        $debuffs = new \App\Services\Player\DebuffService();
+        $capFactor = $debuffs->healCapFactor($charId);
+        $bounds    = $capFactor < 1.0 ? ['health' => ['max' => 100.0 * $capFactor]] : [];
+
+        $cured = $this->itemNameEng !== '' ? $debuffs->cureByItem($charId, $this->itemNameEng) : [];
+
+        $result = (new \App\Services\Player\CharacterStatsService())->adjust($charId, $effects, $bounds);
 
         if ($result === null) {
             return $this->sendResponse('Персонаж не найден.');
@@ -240,7 +261,7 @@ class UsePharmacyAction extends BaseAction
         }
 
         // Формируем «красивое» игровое сообщение
-        return $this->sendUsageMessage($charId, $originalValues, $newValues, $itemId);
+        return $this->sendUsageMessage($charId, $originalValues, $newValues, $itemId, $cured, $capFactor);
     }
 
     /**
@@ -296,7 +317,11 @@ class UsePharmacyAction extends BaseAction
     /**
      * Отправляем итоговое сообщение (более «игровое»).
      */
-    private function sendUsageMessage(int $characterId, array $originalValues, array $newValues, int $itemId)
+    /**
+     * @param list<string> $cured     какие состояния снял предмет (ниша лекарств)
+     * @param float        $capFactor потолок лечения из-за ожога/обморожения (1.0 = нет)
+     */
+    private function sendUsageMessage(int $characterId, array $originalValues, array $newValues, int $itemId, array $cured = [], float $capFactor = 1.0)
     {
         // Узнаем, сколько препарата осталось
         $itemUsage = $this->craftedItemsLogModel->where([
@@ -340,7 +365,9 @@ class UsePharmacyAction extends BaseAction
 
         // Если никаких изменений нет (бывает, если уже был cap=100), можно добавить фразу
         if (empty($reportLines)) {
-            $message .= "Кажется, твой организм уже достиг предела по этому параметру, и эффект не подействовал.\n";
+            $message .= $capFactor < 1.0
+                ? "Рана не даёт подняться выше своего предела — лечение впустую, пока её не обработать.\n"
+                : "Кажется, твой организм уже достиг предела по этому параметру, и эффект не подействовал.\n";
         } else {
             $message .= "Вот как изменились твои характеристики:\n";
             foreach ($reportLines as $line) {
@@ -379,6 +406,24 @@ class UsePharmacyAction extends BaseAction
                 ? ', в бою сильнее и крепче'
                 : '';
             $message .= "\n🍖 *Сытость активна* — крафт быстрее, добыча щедрее{$combat} (ещё ~{$minsLeft} мин).\n";
+        }
+
+        // Раны, которые не лечатся едой: что снял этот предмет — и почему еда бессильна.
+        if ($cured !== []) {
+            $names = [];
+            foreach ($cured as $key) {
+                $meta = \Config\Debuffs::get($key);
+                if ($meta !== null) {
+                    $names[] = "{$meta['emoji']} {$meta['name']}";
+                }
+            }
+            if ($names !== []) {
+                $message .= "\n🩺 *Снято:* " . implode(', ', $names) . "\n";
+            }
+        } elseif ($capFactor < 1.0) {
+            $capPct   = (int) round($capFactor * 100);
+            $message .= "\n🩺 *Рана держит потолок:* выше *{$capPct}%* здоровья не подняться, пока не обработаешь её. "
+                . "Еда тут не поможет — она кормит, но рану не лечит.\n";
         }
 
         $message .= "\n_В этом жестоком пустоши каждый баф может спасти твою шкуру. Береги себя!_\n";

@@ -159,6 +159,7 @@ class WipeManifest extends BaseConfig
         'character_resources'    => ['strategy' => self::PLAYER_DATA, 'link' => 'id_characters', 'by' => 'character', 'note' => 'Инвентарь ресурсов'],
         'character_ruin_loot'    => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Кулдаун лута охраняемых руин (ADR-101 Фаза 4)'],
         'character_tasks'        => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Активные/очередные задачи'],
+        'character_debuffs'      => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Раны, которые не лечатся едой (отравление/ожог/обморожение/перелом) + история лечения'],
         'characters_outfits'     => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Броня игрока'],
         'characters_weapons'     => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Оружие игрока'],
         'claimed_cells'          => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Захваченные ячейки (база/лагерь)'],

@@ -66,8 +66,26 @@ class PharmacyAction extends BaseAction
         }
 
         // Есть препараты > 0
-        $text = "🔥 *Исцели свои раны и зарядись силой в этом безумном мире!* 🔥\n\n"
-            . "*У тебя в наличии:*\n\n";
+        $text = "🔥 *Исцели свои раны и зарядись силой в этом безумном мире!* 🔥\n\n";
+
+        // Раны, которые не лечатся едой: показываем прямо здесь, вместе с тем, какой
+        // предмет их снимает. Это единственный экран, где решение «что применить»
+        // принимается, — без списка ран игрок не поймёт, зачем ему лекарства.
+        $charIdForDebuffs = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $debuffService    = new \App\Services\Player\DebuffService();
+        $activeDebuffs    = $debuffService->active($charIdForDebuffs);
+        if ($activeDebuffs !== []) {
+            $text .= "🩺 *Сейчас на тебе:*\n";
+            foreach ($activeDebuffs as $debuffRow) {
+                $line = $debuffService->describe($debuffRow);
+                if ($line !== '') {
+                    $text .= $line . "\n";
+                }
+            }
+            $text .= "\n";
+        }
+
+        $text .= "*У тебя в наличии:*\n\n";
         $inline_keyboard = [];
 
         foreach ($craftedItemsLogs as $item) {

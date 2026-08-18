@@ -182,6 +182,14 @@ class CraftDurationService
             $factors[] = ['label' => 'Проект фракции', 'mult' => $factionMult];
         }
 
+        // Перелом растягивает сборку. Единственный множитель БОЛЬШЕ единицы: остальные
+        // ускоряют, этот честно замедляет — и виден игроку в разбивке, чтобы «крафт
+        // вдруг стал дольше» не читалось как баг.
+        $debuffMult = $this->debuffMultiplier($charId);
+        if ($debuffMult > 1.0) {
+            $factors[] = ['label' => 'Перелом', 'mult' => $debuffMult];
+        }
+
         return $factors;
     }
 
@@ -195,6 +203,15 @@ class CraftDurationService
     protected function buildingFactors(int $charId, ?string $extraBuilding): array
     {
         return $this->buildingEffects->craftTimeFactors($charId, $extraBuilding);
+    }
+
+    /**
+     * Замедление от ран, которые не лечатся едой (перелом). 1.0 — здоров.
+     * Seam, как и остальные внешние чтения выше.
+     */
+    protected function debuffMultiplier(int $charId): float
+    {
+        return (new \App\Services\Player\DebuffService())->slowdownFactor($charId);
     }
 
     protected function foodMultiplier(mixed $wellFedUntil): float

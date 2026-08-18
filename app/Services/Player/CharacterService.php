@@ -148,6 +148,21 @@ class CharacterService
             . "💹 *Карма торговли:* {$characterRow['trading_karma']}\n"
             . $goldText . "\n";
 
+        // Раны, которые не лечатся едой: если они есть, игрок обязан видеть их там же,
+        // где смотрит здоровье, — иначе «еда не долечивает» читается как поломка.
+        $debuffService = new \App\Services\Player\DebuffService();
+        $activeDebuffs = $debuffService->active((int) $characterRow['id']);
+        if ($activeDebuffs !== []) {
+            $text .= "🩺 *Раны:*\n";
+            foreach ($activeDebuffs as $debuffRow) {
+                $line = $debuffService->describe($debuffRow);
+                if ($line !== '') {
+                    $text .= $line . "\n";
+                }
+            }
+            $text .= "_Еда их не снимает — нужен предмет из «💊 Аптечки»._\n\n";
+        }
+
         // E6 (ADR-108) Ф3 — серия входов (discoverability: видна всем при killswitch ON).
         $streakLine = (new \App\Services\Player\LoginStreakService())->streakLine($characterRow);
         $text .= ($streakLine !== null ? $streakLine . "\n" : '');

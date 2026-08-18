@@ -65,6 +65,12 @@ class Tasks extends BaseTasks
         $schedule->call(static fn() => (new \App\TaskHandlers\DeathRouletteHandler())->handle())
             ->everyMinute()->singleInstance()->named('death-roulette');
 
+        // Раны, которые не лечатся едой: тик отравления + закрытие истёкших состояний.
+        // Внутри — killswitch `debuff.enabled` и собственный интервал тика, поэтому
+        // при выключенном слое минутный вызов ничего не стоит.
+        $schedule->call(static fn() => (new \App\TaskHandlers\DebuffTickHandler())->handle())
+            ->everyMinute()->singleInstance()->named('debuff.tick');
+
         // Питание/вода — v0.51.95: stable since FoodWater hotfix v0.51.36 (2026-05-06).
         // Switched everyMinute() + internal 21:33 check → native daily('21:33').
         // Saves ~1440 noop cron calls/day. Handler keeps internal time guard

@@ -245,6 +245,16 @@ class MoveCharacterToDirectionAction
             'biome_id'    => $targetCell['biome_id'],
         ]);
 
+        // Раны, которые не лечатся едой: где ходишь — то и ловишь (пещеры → перелом,
+        // холод → обморожение, вулкан → ожог, влажные биомы → отравление). Внутри —
+        // killswitch `debuff.enabled` и нулевые по умолчанию шансы, поэтому пока слой
+        // выключен вызов ничего не меняет. Сообщение о ране уходит отдельно, ПОСЛЕ
+        // основного экрана перехода — иначе оно потерялось бы в подписи карты.
+        $gotDebuff = (new \App\Services\Player\DebuffSourceService())->rollOnMove(
+            (int) $character['id'],
+            is_array($biome) ? $biome : null
+        );
+
         // Туман войны (ADR-019 §1): раскрываем 3×3-окно вокруг новой позиции —
         // саму клетку + 8 соседей по Чебышёву. Идемпотентно (де-дуп внутри).
         $this->exploredCellsModel->revealAround(
@@ -483,7 +493,48 @@ class MoveCharacterToDirectionAction
         // S9 (ADR-147) — ранняя выживальческая атмосфера (шорох-выбор / JIT «найди воду»), one-shot,
         // killswitch world.events.newbie_atmosphere.enabled → OFF = no-op = byte-identical.
         (new \App\Services\Onboarding\NewbieAtmosphereService())->maybeSendAtmosphere($character, $chatId);
+
+        // Рану сообщаем ОТДЕЛЬНЫМ сообщением после экрана перехода: она меняет правила
+        // (еда перестаёт вытягивать здоровье до конца), и игрок обязан узнать об этом
+        // сразу, а не обнаружить через час по «лечение не работает».
+        if ($gotDebuff !== null) {
+            $this->notifyDebuffCaught($chatId, $gotDebuff);
+        }
+
         return $newMsgResponse;
+    }
+
+    /**
+     * Сообщение о полученной ране: что случилось, чем грозит и чем лечится.
+     * Самодостаточно текстом (media-off, ADR-020).
+     */
+    private function notifyDebuffCaught(int $chatId, string $debuffKey): void
+    {
+        $meta = \Config\Debuffs::get($debuffKey);
+        if ($meta === null) {
+            return;
+        }
+
+        $cureNames = [];
+        foreach ($meta['cured_by'] as $itemEng) {
+            $item = (new \App\Models\CraftedItemsModel())->where('name_eng', $itemEng)->first();
+            $cureNames[] = is_array($item) && is_string($item['name_rus'] ?? null) ? $item['name_rus'] : $itemEng;
+        }
+
+        $text = "{$meta['emoji']} *{$meta['name']}!*\n\n"
+            . "{$meta['what']}\n\n"
+            . "🩺 *Чем снять:* " . implode(' или ', $cureNames) . ".\n"
+            . "Идти с этим можно, но лучше не тянуть — само оно быстро не пройдёт.";
+
+        Request::sendMessage([
+            'chat_id'      => $chatId,
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode(['inline_keyboard' => [[
+                ['text' => '💊 Аптечка',    'callback_data' => 'pharmacy'],
+                ['text' => '⚕️ Скрафтить', 'callback_data' => 'medicinesCraft1'],
+            ]]]),
+        ]);
     }
 
     protected $directionsTranslation = [
