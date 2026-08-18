@@ -232,3 +232,7 @@ public/uploads/site/
 # admin-redesign-preview.html) в репозитории ОСТАЮТСЯ — они часть дизайн-системы.
 #-------------------------
 public/webgame-preview.html
+
+# Личные карты исследованного (App\Services\World\ExploredMapService) — генерятся на лету
+writable/tmp_map/*
+!writable/tmp_map/index.html

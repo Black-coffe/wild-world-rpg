@@ -184,7 +184,8 @@ class TeleportBeaconSetAction
             $biomeRow,
             $counters['beaconLeft'],
             $counters['updatedCount'],
-            $maxBeacons
+            $maxBeacons,
+            (new \App\Services\Player\TeleportBeacon\BeaconSettings())->maxUses()
         ));
     }
 

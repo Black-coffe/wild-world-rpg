@@ -74,8 +74,8 @@ class BaseStorageListAction extends BaseAction
         }
 
         // Slice 2 («ресурс-грамотность») — one-shot подсказка при первом открытии склада:
-        // добыча в рюкзаке, склад наполняется только карго-дроном. Гейты (killswitch/
-        // opt-out/one-shot) внутри сервиса; шлётся ПОСЛЕ основного сообщения склада.
+        // добыча лежит в рюкзаке, на склад её кладут руками дома или карго-дроном из поля.
+        // Гейты (killswitch/opt-out/one-shot) внутри сервиса; шлётся ПОСЛЕ основного экрана.
         (new OnboardingHintService())->maybeSendFirstStorageHint($character, (int) $chatId);
 
         return $resp;
@@ -87,11 +87,13 @@ class BaseStorageListAction extends BaseAction
         if (empty($entries)) {
             return Request::sendMessage([
                 'chat_id'    => $chatId,
-                'text'       => "📦 *Склад базы пуст*\n\nКарго-дрон может доставить сюда ресурсы — отправь его с любой клетки.",
+                'text'       => "📦 *Склад базы пуст*\n\nСюда можно сложить добычу двумя путями: руками, "
+                    . "стоя на базе, или карго-дроном с любой клетки.",
                 'parse_mode' => 'Markdown',
                 'reply_markup' => json_encode(['inline_keyboard' => [[
-                    ['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList'],
-                    ['text' => '🏠 База',       'callback_data' => 'Base'],
+                    ['text' => '📥 Положить на склад', 'callback_data' => 'baseStorageDeposit'],
+                    ['text' => '🚚 Карго-дрон',        'callback_data' => 'cargoDroneList'],
+                    ['text' => '🏠 База',              'callback_data' => 'Base'],
                 ]]]),
             ]);
         }
@@ -116,12 +118,16 @@ class BaseStorageListAction extends BaseAction
         $rows = [$this->sortRow($mode)]; // W8: переключатель сортировки
 
         if ($onBase) {
-            $text .= "Ты на базе — можно забрать всё в инвентарь.";
-            $rows[] = [['text' => '🎒 Забрать всё', 'callback_data' => 'baseStorageList_all']];
+            $text .= "Ты на базе — можно забрать всё в инвентарь или, наоборот, сложить сюда добычу из рюкзака.";
+            $rows[] = [
+                ['text' => '🎒 Забрать всё',       'callback_data' => 'baseStorageList_all'],
+                ['text' => '📥 Положить на склад', 'callback_data' => 'baseStorageDeposit'],
+            ];
             $rows[] = [['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList'], ['text' => '🏠 База', 'callback_data' => 'Base']];
         } else {
-            $text .= "_Склад физически на базе. Вернись на свою клейм-клетку, чтобы забрать._";
-            $rows[] = [['text' => '🗺 Карта', 'callback_data' => 'move']];
+            $text .= "_Склад физически на базе. Вернись на свою клейм-клетку, чтобы забрать или сложить руками — "
+                . "а из поля груз домой носит карго-дрон._";
+            $rows[] = [['text' => '🗺 Карта', 'callback_data' => 'move'], ['text' => '🚚 Карго-дрон', 'callback_data' => 'cargoDroneList']];
         }
         $keyboard = ['inline_keyboard' => $rows];
 

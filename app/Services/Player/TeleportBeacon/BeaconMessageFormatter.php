@@ -45,7 +45,8 @@ class BeaconMessageFormatter
         ?array $biomeRow,
         int $beaconLeft,
         int $updatedCount,
-        int $maxBeacons
+        int $maxBeacons,
+        int $maxUses
     ): array {
         $biomeName        = '???';
         $biomeDescription = '';
@@ -72,7 +73,7 @@ class BeaconMessageFormatter
               . "• Координаты: `X={$coordX}, Y={$coordY}` (#{$cellNumber})\n"
               . "• Биом: *{$biomeName}*\n"
               . "   _{$biomeDescription}_\n\n"
-              . "🔋 *Запас прочности:* 100 использований\n\n"
+              . "🔋 *Запас телепортов:* {$maxUses} — столько раз можно переместиться на этот маяк\n\n"
               . "📋 *Характеристики биома:*\n"
               . "• Тип: `{$biomeType}`\n"
               . "• Опасность: {$biomeDangerLevel}/10 «{$dangerLevelText}»\n"
@@ -177,5 +178,74 @@ class BeaconMessageFormatter
     public function error(string $msg): array
     {
         return $this->md($msg);
+    }
+
+    /**
+     * Сколько установленных маяков показываем списком. Остальные — строкой
+     * «…и ещё N», иначе caption у фото уезжает за 1024 символа и Telegram молча
+     * не отправляет сообщение (урок photo-caption).
+     */
+    public const OVERVIEW_LIST_LIMIT = 5;
+
+    /**
+     * Caption экрана «📡 Маяки» — заряд, налог и где что стоит.
+     *
+     * Зачем метод отдельный и чистый. Вопрос игрока (Анжела, 18.08.2026): «как узнать,
+     * сколько заряда осталось в маяке?» Остаток существовал (`remaining_uses`), но
+     * попадал на глаза ровно в одном месте — хвостом строки списка перемещения в виде
+     * «ТП. 87», а на самом экране маяков не было ни одного установленного маяка: только
+     * лимиты и счётчик в инвентаре. Текст вынесен из хендлера, чтобы длину caption'а
+     * можно было мерить тестом, а не обещанием.
+     *
+     * @param list<array{x:int, y:int, uses:int, max_uses:int, biome:string, tax:int}> $beacons
+     *        установленные маяки игрока (порядок = порядок показа)
+     * @param array{x:int|string, y:int|string, cell:int, biome:string}                $position
+     *        где игрок стоит сейчас
+     */
+    public function beaconsOverview(
+        array $beacons,
+        array $position,
+        int $playerLevel,
+        int $baseMaxByPlayer,
+        int $teleportCenterLevel,
+        int $maxBeacons,
+        int $beaconQuantity,
+        int $newBeaconUses,
+        int $newBeaconTax
+    ): string {
+        $installed = count($beacons);
+
+        $text = "📡 *Маяки телепорта*\n\n"
+            . "Маяк — своя точка возврата: поставил здесь, потом переместишься сюда с любого места.\n"
+            . "Новый маяк держит *{$newBeaconUses}* телепортов и стоит *{$newBeaconTax}\$* налога в сутки, пока цел.\n\n";
+
+        if ($installed === 0) {
+            $text .= "📡 *Установлено маяков: 0 из {$maxBeacons}*\n"
+                . "_Пока ни одного — заряд показывать не у чего._\n\n";
+        } else {
+            $text .= "📡 *Установлено маяков: {$installed} из {$maxBeacons}*\n";
+
+            $totalTax = 0;
+            foreach ($beacons as $i => $b) {
+                $totalTax += $b['tax'];
+                if ($i < self::OVERVIEW_LIST_LIMIT) {
+                    $text .= "• `X={$b['x']} Y={$b['y']}` — ⚡ *{$b['uses']}* из {$b['max_uses']} телепортов · {$b['biome']}\n";
+                }
+            }
+
+            if ($installed > self::OVERVIEW_LIST_LIMIT) {
+                $rest = $installed - self::OVERVIEW_LIST_LIMIT;
+                $text .= "_…и ещё {$rest} — все видны в «Переместиться на маяк»._\n";
+            }
+
+            $text .= "💸 Налог за них: *{$totalTax}\$* в сутки\n\n";
+        }
+
+        $text .= "🎒 В инвентаре: *{$beaconQuantity}* шт. маяков\n"
+            . "📍 Ты здесь: `X={$position['x']} Y={$position['y']}` (#{$position['cell']}), {$position['biome']}\n\n"
+            . "⚙ Лимит: 1 маяк за каждые *10 уровней* (твой {$playerLevel} → {$baseMaxByPlayer}) "
+            . "плюс уровень *Центра телепортации* (сейчас {$teleportCenterLevel}) — итого *{$maxBeacons}*.";
+
+        return $text;
     }
 }

@@ -16,31 +16,33 @@ use App\Models\TeleportBeaconModel;
  *   }
  *
  * Side effects:
- *  1. INSERT teleport_beacons row (ownership_type='author', remaining_uses=100,
- *     tax_cost=180 — hardcoded baseline)
+ *  1. INSERT teleport_beacons row (ownership_type='author', remaining_uses и
+ *     tax_cost — из админки, см. {@see BeaconSettings})
  *  2. subtractItem('TeleportBeaconBasic', 1) — inventory write через
  *     CraftedItemsLogModel
  *  3. Read total beacon count + beacon items_left для downstream display
  */
 class BeaconInstaller
 {
-    /**
-     * Hardcoded constants from original installBeacon — could move у GameBalance
-     * у future C/F6 wire-in (TODO).
-     */
-    private const REMAINING_USES = 100;
-    private const TAX_COST       = 180;
-    private const ITEM_NAME_ENG  = 'TeleportBeaconBasic';
+    private const ITEM_NAME_ENG = 'TeleportBeaconBasic';
 
     private TeleportBeaconModel $teleportBeaconModel;
     private CraftedItemsLogModel $craftedItemsLogModel;
+    /**
+     * Запас телепортов и налог больше не константы этого класса: это баланс, и по
+     * ADR-024 он живёт в админке ({@see BeaconSettings}). Раньше 100/180 стояли
+     * литералами и здесь, и в текстах экранов — при ребалансе экраны начали бы врать.
+     */
+    private BeaconSettings $balance;
 
     public function __construct(
         ?TeleportBeaconModel $teleportBeaconModel = null,
-        ?CraftedItemsLogModel $craftedItemsLogModel = null
+        ?CraftedItemsLogModel $craftedItemsLogModel = null,
+        ?BeaconSettings $balance = null
     ) {
         $this->teleportBeaconModel  = $teleportBeaconModel  ?? new TeleportBeaconModel();
         $this->craftedItemsLogModel = $craftedItemsLogModel ?? new CraftedItemsLogModel();
+        $this->balance              = $balance              ?? new BeaconSettings();
     }
 
     /**
@@ -66,8 +68,8 @@ class BeaconInstaller
             'map_cell_id'              => (int) $mapRow['id'],
             'coordinate_x'             => $mapRow['coordinate_x'],
             'coordinate_y'             => $mapRow['coordinate_y'],
-            'tax_cost'                 => self::TAX_COST,
-            'remaining_uses'           => self::REMAINING_USES,
+            'tax_cost'                 => $this->balance->taxPerDay(),
+            'remaining_uses'           => $this->balance->maxUses(),
             'last_teleport_at'         => null,
             'ownership_type'           => 'author',
             'settings_json'            => null,

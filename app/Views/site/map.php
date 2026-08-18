@@ -9,7 +9,7 @@ $this->extend('site/layout');
 $csrfHash = csrf_hash();
 $csrfName = csrf_token();
 
-// Цвета биомов — синхронизированы с App\Services\World\MiniMapService::$biomeColors
+// Цвета биомов — синхронизированы с App\Services\World\BiomePalette::COLORS
 $biomeColors = [
     1 => '#008874', // Леса
     2 => '#003239', // Горы

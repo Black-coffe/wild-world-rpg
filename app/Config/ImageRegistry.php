@@ -293,7 +293,7 @@ class ImageRegistry extends BaseConfig
         // ─────────────── КАРТА (🔒 LOCKED — попиксельные технические карты, не трогать) ───────────────
         // Инцидент 2026-05-13: Пачка N image-ребренда перезаписала обе карты в JPEG 1536×1024 →
         // MapService падал «Ошибка GD: не могу открыть PNG.» (см. {@see \App\Commands\GenerateImages::BLOCKED_KEYS}).
-        // Обе карты — попиксельные Photoshop-снэпшоты 1М ячеек БД (9 биомных цветов из MiniMapService),
+        // Обе карты — попиксельные Photoshop-снэпшоты 1М ячеек БД (9 биомных цветов из BiomePalette),
         // ровно 2000×2000 PNG (масштаб 2px = 1 coord); MapService рисует поверх перекрестие позиции игрока.
         // Регенерация запрещена; ассеты восстановлены из коммита e3a88be.
         ['key' => 'character/world_map_1000x1000', 'file' => 'uploads/telegram/character/world_map_1000x1000.png', 'lexicon' => 'map.island', 'scene' => 'a hand-drawn island map pinned to a board, water-stained, marked', 'mode' => 'V4', 'status' => 'locked', 'used_in' => 'world map screen', 'notes' => '🔒 LOCKED — попиксельная техническая карта реальных биомов из БД, 2000×2000 PNG, рисуется перекрестие через GD. НЕ регенерить.'],

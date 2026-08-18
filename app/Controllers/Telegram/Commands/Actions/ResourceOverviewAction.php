@@ -61,7 +61,7 @@ final class ResourceOverviewAction extends BaseAction
                 . " (~" . $this->fmt($s['crafted']['value']) . "💰)\n"
             . "⚔️ *Оружие:* " . $this->fmt($s['weapons']) . " · 🛡 *Броня:* " . $this->fmt($s['outfits']) . "\n"
             . "📦 *Склад базы:* " . $this->fmt($s['base_storage']['units']) . " шт"
-                . " (~" . $this->fmt($s['base_storage']['value']) . "💰) — туда возит карго-дрон\n"
+                . " (~" . $this->fmt($s['base_storage']['value']) . "💰) — кладёшь сам на базе или возит карго-дрон\n"
             . "💰 *Золото:* " . $this->fmt($s['gold']) . "\n"
             . "━━━━━━━━━━\n"
             . "🧮 *Итого по стоимости:* ~" . $this->fmt($s['net_worth']) . "💰\n\n"

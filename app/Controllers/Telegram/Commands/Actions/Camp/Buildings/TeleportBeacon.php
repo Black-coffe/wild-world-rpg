@@ -14,6 +14,9 @@ use App\Models\CraftedItemsModel;
 use App\Models\CharacterModel;
 use App\Models\MapModel;
 use App\Models\BiomeModel;
+use App\Models\TeleportBeaconModel;
+use App\Services\Player\TeleportBeacon\BeaconMessageFormatter;
+use App\Services\Player\TeleportBeacon\BeaconSettings;
 
 /**
  * Класс для вывода информации о телепорт-маяках,
@@ -31,6 +34,7 @@ class TeleportBeacon
     protected CharacterModel $characterModel;
     protected MapModel $mapModel;
     protected BiomeModel $biomeModel;
+    protected TeleportBeaconModel $teleportBeaconModel;
 
     public function __construct(CallbackQuery $callbackQuery)
     {
@@ -42,6 +46,7 @@ class TeleportBeacon
         $this->characterModel         = new CharacterModel();
         $this->mapModel               = new MapModel();
         $this->biomeModel             = new BiomeModel();
+        $this->teleportBeaconModel    = new TeleportBeaconModel();
     }
 
     public function handle(): ServerResponse
@@ -152,31 +157,69 @@ class TeleportBeacon
         // Итого maxBeacons = baseMaxByPlayer + teleportCenterLevel
         $maxBeacons = $baseMaxByPlayer + $teleportCenterLevel;
 
-        // -- Формируем текст
-        $text = "Ты в разделе *«Маяки телепорта»*.\n\n"
-            . "Здесь доступны действия:\n"
-            . "• *Поставить маяк* (в текущей локации)\n"
-            . "• *Переместиться* (на локацию, где уже стоит маяк)\n"
+        // -- Установленные маяки игрока: остаток телепортов у каждого + налог.
+        //    Раньше экран про маяки не показывал ни одного маяка — только лимиты и
+        //    счётчик в инвентаре, а остаток заряда жил хвостом «ТП. 87» в списке
+        //    перемещения. Вопрос игрока (Анжела, 18.08.2026) «как узнать, сколько
+        //    заряда осталось в маяке?» — ровно про это.
+        $balance = new BeaconSettings();
+        $beacons = [];
+        // Свежие модели под цикл: у `$this->mapModel` выше уже накоплен where('cell_number'),
+        // а builder CI4 копит условия между вызовами (урок feedback_ci4_model_builder_state_quirk).
+        $beaconMapModel   = new MapModel();
+        $beaconBiomeModel = new BiomeModel();
+        foreach ($this->teleportBeaconModel->where('character_id', $characterId)->findAll() as $beaconRaw) {
+            $b = is_array($beaconRaw) ? $beaconRaw : (array) $beaconRaw;
 
-            // Информация про лимиты:
-            . "⚙ *Правила установки:*\n"
-            . "1) 1 маяк на каждые *10 уровней* игрока (но не более 10 при уровне 100+).\n"
-            . "2) Здание *Центр телепортации* даёт +1 маяк за *каждый* свой уровень.\n"
-            . "   (Уровень здания: {$teleportCenterLevel}, значит +{$teleportCenterLevel} к лимиту.)\n"
-            . "   _Максимальный уровень здания — 10._\n\n"
-            . "🔹 *Твой уровень*: {$playerLevel}\n"
-            . "🔹 *Базовый лимит маяков* (по уровню персонажа): {$baseMaxByPlayer}\n"
-            . "🔹 *Уровень Центра*: {$teleportCenterLevel}, значит +{$teleportCenterLevel} к лимиту\n"
-            . "🔹 Итого можно установить *максимум: {$maxBeacons}* маяков.\n\n"
+            $beaconBiome  = '???';
+            $beaconCellId = $this->asInt($b['map_cell_id'] ?? null);
+            if ($beaconCellId > 0) {
+                $mapFound      = $beaconMapModel->find($beaconCellId);
+                $beaconMapRow  = is_array($mapFound) ? $mapFound : (is_object($mapFound) ? (array) $mapFound : []);
+                $beaconBiomeId = $this->asInt($beaconMapRow['biome_id'] ?? null);
+                if ($beaconBiomeId > 0) {
+                    // BiomeModel отдаёт BiomeEntity (F1.4.1) — конвертируем в массив
+                    // отдельной переменной (урок entity_strict_array_typehint_trap).
+                    $biomeFound     = $beaconBiomeModel->find($beaconBiomeId);
+                    $beaconBiomeRow = $biomeFound !== null ? $biomeFound->toArray() : [];
+                    $foundName      = $beaconBiomeRow['name'] ?? null;
+                    if (is_string($foundName) && $foundName !== '') {
+                        $beaconBiome = $foundName;
+                    }
+                }
+            }
 
-            // Отображаем, сколько у него маяков в инвентаре
-            . "У тебя в инвентаре: *{$beaconQuantity}* шт. _телепорт-маяков._\n\n"
+            $uses = $this->asInt($b['remaining_uses'] ?? null);
 
-            // Информация о текущей локации
-            . "📍 *Твоя позиция*:\n"
-            . "• Ячейка: *{$cellNumber}*\n"
-            . "• Координаты: `X={$coordX}, Y={$coordY}`\n"
-            . "• Биом: *{$biomeName}*\n\n";
+            $beacons[] = [
+                'x'        => $this->asInt($b['coordinate_x'] ?? null),
+                'y'        => $this->asInt($b['coordinate_y'] ?? null),
+                'uses'     => $uses,
+                // Потолок берём максимумом из настройки и остатка: у старых маяков
+                // запас мог быть выставлен другим значением, и «87 из 100» при 120
+                // на руках читалось бы как враньё.
+                'max_uses' => max($balance->maxUses(), $uses),
+                'biome'    => $beaconBiome,
+                'tax'      => $this->asInt($b['tax_cost'] ?? null),
+            ];
+        }
+
+        $text = (new BeaconMessageFormatter())->beaconsOverview(
+            $beacons,
+            [
+                'x'     => is_scalar($coordX) ? (string) $coordX : '?',
+                'y'     => is_scalar($coordY) ? (string) $coordY : '?',
+                'cell'  => $this->asInt($cellNumber),
+                'biome' => is_string($biomeName) ? $biomeName : '???',
+            ],
+            $this->asInt($playerLevel),
+            $baseMaxByPlayer,
+            $this->asInt($teleportCenterLevel),
+            $maxBeacons,
+            $this->asInt($beaconQuantity),
+            $balance->maxUses(),
+            $balance->taxPerDay()
+        ) . "\n\n";
 
         // --- Формируем кнопки
         $keyboardRows = [];
@@ -200,9 +243,12 @@ class TeleportBeacon
             ];
         }
 
-        // Остальные кнопки — «Переместиться на маяк»
+        // Перемещение и снятие. «🗑 Снять маяк» — единственный выход из состояния
+        // «лимит забит выработанными маяками»: до 18.08.2026 удаления не существовало,
+        // хотя отказ установки советовал «сначала удали старый маяк».
         $keyboardRows[] = [
-            ['text' => 'Переместиться на маяк',  'callback_data' => 'teleportBeaconMove'],
+            ['text' => '🌀 Переместиться', 'callback_data' => 'teleportBeaconMove'],
+            ['text' => '🗑 Снять маяк',    'callback_data' => 'teleportBeaconRemove'],
         ];
 
         // N2: возврат на базу (экран не должен быть тупиком).
@@ -223,6 +269,15 @@ class TeleportBeacon
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * Мягкое приведение к int: модели отдают значения как mixed, а прямой каст
+     * mixed→int запрещён статикой (и врёт на неожиданных типах).
+     */
+    private function asInt(mixed $value): int
+    {
+        return is_numeric($value) ? (int) $value : 0;
     }
 
     private function sendError(int $chatId, string $message): ServerResponse

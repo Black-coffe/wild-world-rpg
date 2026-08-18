@@ -54,7 +54,8 @@ final class BeaconInstallSuccessEntityTest extends CIUnitTestCase
             $biomeRow,
             2,
             1,
-            3
+            3,
+            100
         );
 
         $this->assertArrayHasKey('text', $payload);
@@ -66,7 +67,7 @@ final class BeaconInstallSuccessEntityTest extends CIUnitTestCase
     public function testNullBiomeStillRendersInstallConfirmation(): void
     {
         // Клетка без биома → подтверждение всё равно уходит (маяк-то установлен).
-        $payload = (new BeaconMessageFormatter())->installSuccess(1, 2, 3, null, 0, 0, 3);
+        $payload = (new BeaconMessageFormatter())->installSuccess(1, 2, 3, null, 0, 0, 3, 100);
 
         $this->assertStringContainsString('???', $payload['text'], 'Неизвестный биом → плейсхолдер, не падение');
         $this->assertArrayHasKey('reply_markup', $payload);

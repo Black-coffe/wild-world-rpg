@@ -81,6 +81,10 @@ class CallbackRoutes extends BaseConfig
         // ADR-150 Слайс 1 — «🗺 Обзор»: фото карты мира (демотированный бывший тупик «Карта»)
         // с кнопкой возврата «🧭 Идти». Вход — кнопка в компасе при world_hub ON.
         'mapOverview'                     => \App\Controllers\Telegram\Commands\Actions\MapOverviewAction::class,
+        // «🔍 Что я открыл» — личная карта исследованного (explored_cells). До 18.08.2026
+        // туман войны копился, но игроку не показывался нигде (вопрос игрока про «ресурс,
+        // показывающий открытую карту»).
+        'exploredMap'                     => \App\Controllers\Telegram\Commands\Actions\ExploredMapAction::class,
         // ADR-150 Слайс 1 — тумблер легенды карты (легенда съедала ~80% сообщения):
         // `mapLegend` показывает легенду edit-in-place, `mapBack` возвращает к компасу.
         'mapLegend'                       => \App\Controllers\Telegram\Commands\Actions\MapLegendAction::class,
@@ -411,6 +415,11 @@ class CallbackRoutes extends BaseConfig
         'droneCargo'                      => \App\Controllers\Telegram\Commands\Actions\Drone\DroneCargoCraftInfoAction::class,
         'baseStorageList'                 => \App\Controllers\Telegram\Commands\Actions\Storage\BaseStorageListAction::class,
         'baseStorageList_all'             => \App\Controllers\Telegram\Commands\Actions\Storage\BaseStorageListAction::class,
+        // Ручная сдача на склад — обратная сторона выдачи (сигнал игрока 18.08.2026:
+        // «забрать со склада в инвентарь кнопкой, а выложить — только дроном»).
+        // Хвосты `_all` / `_res_<id>` разбирает сам action: роутер режет callback_data
+        // по первому `_`, поэтому одного exact-ключа хватает (НЕ prefixRoute).
+        'baseStorageDeposit'              => \App\Controllers\Telegram\Commands\Actions\Storage\BaseStorageDepositAction::class,
         // W4 (ADR-063) — Repair drone. Gold-only batch ремонтник всех роботов чара.
         // - repairDrone: preview-экран (charge-bar + список роботов + cumulative cost)
         // - repairDroneRun: atomic batch commit (decrement gold, restore all durability)
@@ -459,6 +468,11 @@ class CallbackRoutes extends BaseConfig
         'teleportBeaconSet'               => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportBeaconSetAction::class,
         'teleportBeaconMove'              => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportBeaconMoveAction::class,
         'teleportBeaconMoveGo'            => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportBeaconMoveConfirmAction::class,
+        // Снятие маяка. До 18.08.2026 удаления не существовало вовсе, а выработанные
+        // маяки навсегда занимали лимит — отказ «сначала удали старый маяк» был
+        // невыполнимой инструкцией (тупик).
+        'teleportBeaconRemove'            => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportBeaconRemoveAction::class,
+        'teleportBeaconRemoveGo'          => \App\Controllers\Telegram\Commands\Actions\Camp\Buildings\TeleportBeaconRemoveAction::class,
     ];
 
     /**
