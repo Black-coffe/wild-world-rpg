@@ -118,6 +118,16 @@ public function withdraw(int $characterId, int $resourceId, int $qty): int;
 
 ## Plan deltas
 
-*(пусто)*
+**2026-08-19 — `BuildingUpgradeApplier` добавлен в story 06.**
+Триггер: воркер story 06 остановился, не начав работу — в `## Files` был назван только
+`BuildingUpgradeValidator` (читает остаток для проверки), а фактическое списание живёт в
+`BuildingUpgradeApplier::apply()`. Правка одного Validator'а пропускала бы игрока со складским
+сырьём через проверку, после чего `decreaseResources()` списал бы только рюкзак — либо бесплатный
+апгрейд, либо порча строки `character_resources` уходом в минус. Тихий баг хуже исходного.
+Решение: `app/Services/Player/BuildingUpgrade/BuildingUpgradeApplier.php` внесён в `## Files`
+story 06. Отвергнуто: отдельная story (тот же класс бага, те же тесты, лишний круг) и
+«оставить как есть» (частичная правка опаснее отсутствия правки). Коллизий волны нет —
+файл не назван ни одной другой story.
+
 
 **Approved:** владелец, 2026-08-19 — «Запусти вулик план и на автопилоте фикси, дорабатывай, пуш, деплой и смок тести».

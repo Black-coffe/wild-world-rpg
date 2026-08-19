@@ -21,6 +21,7 @@ blocked_by: [storage-craft-insurance-01]
 
 ## Files
 - app/Services/Player/BuildingUpgrade/BuildingUpgradeValidator.php
+- app/Services/Player/BuildingUpgrade/BuildingUpgradeApplier.php
 - app/Controllers/Telegram/Commands/Actions/Craft/Repair/RepairCraftedItemAction.php
 - app/Controllers/Telegram/Commands/Actions/Craft/Repair/NpcRepairAction.php
 - tests/unit/Player/PoolAdoptionRepairUpgradeTest.php

@@ -1,7 +1,7 @@
 ---
 story: storage-craft-insurance-03
 spec: storage-craft-insurance
-status: todo
+status: done
 tier: 3
 worker: worker-code
 tracer: false
@@ -49,5 +49,29 @@ blocked_by: [storage-craft-insurance-01]
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Storage/BaseStorageRetrieveTest.php`
 
 ## Implementation notes
+
+- Файлы: `app/Controllers/Telegram/Commands/Actions/Storage/BaseStorageListAction.php` (изменён),
+  `tests/unit/Storage/BaseStorageRetrieveTest.php` (создан).
+- Роутинг подтверждён чтением `CallbackqueryCommand::execute()` (`explode('_', $callbackData)[0]`)
+  и `Config\CallbackRoutes` — `baseStorageList` уже зарегистрирован единственным exact-ключом,
+  правка конфига не понадобилась.
+- Новые callback'ы:
+  - `baseStorageList_res_<resource_id>_<mode>` — забрать один вид ресурса целиком (весь остаток
+    со склада → рюкзак, атомарно). `<mode>` — текущий режим сортировки (`recent`/`name`/`qty`),
+    протащен, чтобы после забора экран вернулся в том же порядке, а не сбросился на recent.
+  - Существующие `baseStorageList`, `baseStorageList_all`, `baseStorageList_sort_<mode>` не тронуты.
+- Кнопки выбора ресурса — на главном экране склада (отдельного экрана-выбора, в отличие от
+  депозита, нет: тут и обзор, и выбор — один экран), лимит 18 (как у сдачи), честная строка
+  «…и ещё N видов» при превышении.
+- Списание сделано БЕЗ раздельного чтения `quantityFor()` перед `withdraw()`: `withdraw($id, $res,
+  PHP_INT_MAX)` в одной транзакции сам берёт «сколько реально есть» и возвращает списанное — так
+  устранена гонка между чтением остатка и списанием (сильнее, чем зеркалируемый `depositOne`,
+  который такой гонки не имеет, т.к. читает `character_resources` без параллельных писателей склада).
+- Тест — source-scan (как `BaseStorageDepositTest`), без БД: резолв callback'ов через
+  `CallbackRoutes`, наличие `ButtonPacker::pack()`, honesty-строка лимита, текст отказа «не на базе»
+  дважды (retrieveAll + retrieveOne).
+- `vendor/bin/phpstan analyse` на весь `app/` падает с фатальной ошибкой в НЕ тронутом файле
+  `GenericCraftActionStart.php` (protected/private mismatch, chunk parallel worker crash) —
+  предсуществующий баг вне scope этой story; точечный прогон на изменённый файл — чисто.
 
 ## Findings

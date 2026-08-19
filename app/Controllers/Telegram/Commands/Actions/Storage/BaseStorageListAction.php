@@ -11,6 +11,7 @@ use App\Models\CharacterResourceModel;
 use App\Services\Bases\BaseCheckService;
 use App\Services\Onboarding\OnboardingHintService;
 use App\Services\Player\InventorySortService;
+use App\Services\Telegram\ButtonPacker;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -28,10 +29,19 @@ use App\Services\Telegram\Request;
  * atomic retrieve всех ресурсов: для каждого row в base_storage → increase
  * character_resources, delete row из base_storage.
  *
+ * storage-craft-insurance-03 — зеркало ручной сдачи (`BaseStorageDepositAction`):
+ * `baseStorageList_res_<resource_id>_<mode>` забирает ОДИН вид ресурса целиком.
+ * `<mode>` — текущий режим сортировки (W8), протащенный сквозь callback_data,
+ * чтобы после забора экран вернулся в том же порядке, а не сбросился на recent
+ * (сортировка stateless, другого места её хранить нет).
+ *
  * Media-off safe (caption самодостаточен).
  */
 class BaseStorageListAction extends BaseAction
 {
+    /** Сколько видов показываем кнопками (зеркало `BaseStorageDepositAction::MAX_BUTTONS`). */
+    private const MAX_BUTTONS = 18;
+
     private BaseStorageModel $storageModel;
     /** @var CharacterResourceModel */
     protected $resourceModel;
@@ -63,6 +73,8 @@ class BaseStorageListAction extends BaseAction
 
         if ($callbackData === 'baseStorageList_all') {
             $resp = $this->retrieveAll($chatId, $characterId);
+        } elseif (str_starts_with($callbackData, 'baseStorageList_res_')) {
+            $resp = $this->retrieveOneFromCallback($chatId, $characterId, $callbackData);
         } else {
             // W8: режим сортировки из `baseStorageList_sort_<mode>` (stateless). Default — recent.
             $rawMode = str_starts_with($callbackData, 'baseStorageList_sort_')
@@ -118,7 +130,31 @@ class BaseStorageListAction extends BaseAction
         $rows = [$this->sortRow($mode)]; // W8: переключатель сортировки
 
         if ($onBase) {
-            $text .= "Ты на базе — можно забрать всё в инвентарь или, наоборот, сложить сюда добычу из рюкзака.";
+            $text .= "Ты на базе — можно забрать всё в инвентарь, забрать один вид, или, наоборот, сложить сюда добычу из рюкзака.";
+
+            // storage-craft-insurance-03: выбор одного вида — зеркало депозита.
+            // Кнопки ограничены тем же пределом, что у сдачи; «Забрать всё» страхует хвост.
+            $shown   = array_slice($entries, 0, self::MAX_BUTTONS);
+            $buttons = [];
+            foreach ($shown as $e) {
+                $rid   = is_numeric($e['resource_id'] ?? null) ? (int) $e['resource_id'] : 0;
+                $ename = is_string($e['name'] ?? null) ? $e['name'] : '';
+                $eqty  = is_numeric($e['quantity'] ?? null) ? (int) $e['quantity'] : 0;
+                if ($rid <= 0 || $ename === '' || $eqty <= 0) {
+                    continue;
+                }
+                $buttons[] = [
+                    'text'          => ResourceIconHelper::for($ename) . ' ' . $ename,
+                    'callback_data' => "baseStorageList_res_{$rid}_{$mode}",
+                ];
+            }
+            foreach (ButtonPacker::pack($buttons) as $row) {
+                $rows[] = $row;
+            }
+            if (count($entries) > self::MAX_BUTTONS) {
+                $text .= "\n\n_…и ещё " . (count($entries) - self::MAX_BUTTONS) . " видов — их заберёт кнопка «Забрать всё»._";
+            }
+
             $rows[] = [
                 ['text' => '🎒 Забрать всё',       'callback_data' => 'baseStorageList_all'],
                 ['text' => '📥 Положить на склад', 'callback_data' => 'baseStorageDeposit'],
@@ -185,6 +221,94 @@ class BaseStorageListAction extends BaseAction
                 ['text' => '🏠 База',     'callback_data' => 'Base'],
             ]]]),
         ]);
+    }
+
+    /**
+     * Разбирает `baseStorageList_res_<resource_id>_<mode>` и делегирует забор.
+     * Роутер режет callback_data только по первому `_` (см. class docblock), хвост
+     * разбираем сами: первый сегмент — id ресурса, второй (опциональный) — режим
+     * сортировки, чтобы после забора вернуться в тот же порядок.
+     */
+    private function retrieveOneFromCallback(int $chatId, int $characterId, string $callbackData): ServerResponse
+    {
+        $tail  = substr($callbackData, strlen('baseStorageList_res_'));
+        $parts = explode('_', $tail, 2);
+        $resId = is_numeric($parts[0]) ? (int) $parts[0] : 0;
+        $mode  = InventorySortService::normalizeMode($parts[1] ?? null, InventorySortService::STORAGE_MODES, InventorySortService::MODE_RECENT);
+
+        return $this->retrieveOne($chatId, $characterId, $resId, $mode);
+    }
+
+    /**
+     * Забрать один вид ресурса целиком (зеркало `BaseStorageDepositAction::depositOne`).
+     * Списание и зачисление — в одной транзакции через `withdraw()` (списывает не
+     * больше, чем реально было на складе — на сбое ресурс не задваивается и не
+     * исчезает); `quantityFor()`/read-then-withdraw гонки нет, т.к. `withdraw()`
+     * сам берёт «сколько есть», а не то, что мы заранее прочитали отдельным запросом.
+     */
+    private function retrieveOne(int $chatId, int $characterId, int $resourceId, string $mode): ServerResponse
+    {
+        if ($resourceId <= 0) {
+            return $this->errReply($chatId, 'Неверный ресурс.');
+        }
+
+        if (! $this->isOnBase($characterId)) {
+            return Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => "🚫 Чтобы забрать со склада, нужно быть на своей клейм-клетке. Вернись на базу.",
+                'parse_mode' => 'Markdown',
+            ]);
+        }
+
+        $name = $this->resourceName($resourceId);
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+        $withdrawn = $this->storageModel->withdraw($characterId, $resourceId, PHP_INT_MAX);
+        if ($withdrawn > 0) {
+            $this->resourceModel->increaseResources($characterId, $resourceId, $withdrawn);
+        }
+        $db->transComplete();
+
+        if ($withdrawn <= 0) {
+            return $this->errReply($chatId, 'Такого ресурса на складе уже нет.');
+        }
+
+        $this->logActivity($characterId, 'BASE_STORAGE_RETRIEVE_ONE', "res={$name} qty={$withdrawn}");
+
+        $emoji = ResourceIconHelper::for($name);
+        $units = number_format($withdrawn, 0, '.', ' ');
+
+        $text  = "🎒 *Забрано со склада*\n\n";
+        $text .= "  {$emoji} *{$name}* × *{$units}* шт.\n\n";
+        $text .= "Ресурс теперь в рюкзаке.";
+
+        return Request::sendMessage([
+            'chat_id'      => $chatId,
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode(['inline_keyboard' => [
+                [
+                    ['text' => '🎒 Забрать ещё',       'callback_data' => "baseStorageList_sort_{$mode}"],
+                    ['text' => '📥 Положить на склад', 'callback_data' => 'baseStorageDeposit'],
+                ],
+                [
+                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                    ['text' => '🏠 База',      'callback_data' => 'Base'],
+                ],
+            ]]),
+        ]);
+    }
+
+    /**
+     * Имя ресурса по id — для caption'а результата забора.
+     */
+    private function resourceName(int $resourceId): string
+    {
+        $db  = \Config\Database::connect();
+        $q   = $db->query('SELECT name FROM resources WHERE id = ?', [$resourceId]);
+        $row = (is_object($q) && method_exists($q, 'getRowArray')) ? $q->getRowArray() : null;
+        return (is_array($row) && is_string($row['name'] ?? null)) ? $row['name'] : '';
     }
 
     /**
