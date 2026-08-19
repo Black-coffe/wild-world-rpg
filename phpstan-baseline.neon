@@ -2613,17 +2613,11 @@ parameters:
 		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
-
-		-
-			message: '#^Cannot access offset ''name_rus'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
 
 		-
-			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			message: '#^Cannot access offset ''name_rus'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/GenericCraftActionStart.php
@@ -16379,12 +16373,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/TaskHandlers/GatherTaskHandler.php
-
-		-
-			message: '#^Method App\\TaskHandlers\\GreenhouseProductionHandler\:\:checkAndNotifyWaterShortage\(\) has parameter \$charResWater with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/TaskHandlers/GreenhouseProductionHandler.php
 
 		-
 			message: '#^Parameter \#1 \$datetime of class DateTime constructor expects string, mixed given\.$#'

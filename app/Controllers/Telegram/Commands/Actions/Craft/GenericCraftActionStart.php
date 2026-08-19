@@ -7,12 +7,12 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
-use App\Models\CharacterResourceModel;
 use App\Models\ClaimedCellModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Services\BuildingEffects\BuildingEffectsService;
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Player\ResourcePoolService;
 use App\Services\Tasks\ActionScopeService;
 use Config\CraftRecipes;
 use Config\GameBalance;
@@ -58,7 +58,6 @@ use App\Services\Telegram\Request;
  */
 class GenericCraftActionStart extends BaseAction
 {
-    private CharacterResourceModel $characterResourceModel;
     private CraftedItemsModel      $craftedItemsModel;
     private CraftedItemsLogModel   $craftedItemsLogModel;
     // F3.B8: модели для проверки base/buildings (используются опциональными
@@ -66,6 +65,12 @@ class GenericCraftActionStart extends BaseAction
     private ClaimedCellModel       $claimedCellModel;
     private BuildingModel          $buildingModel;
     private CharacterBuildingModel $characterBuildingModel;
+    // ADR-171: единая точка правды рюкзак+склад — жалоба игрока «сырьё доступно
+    // только из рюкзака, даже стоя на складе с тысячами». Проверка и списание
+    // обе идут через пул, иначе достаточность считается честно, а списание бы
+    // тихо портило данные, добираясь только до рюкзака.
+    // `$resourceModel` для resolveResourceId() — уже есть в `BaseAction`, свой не заводим.
+    private ResourcePoolService    $resourcePool;
 
     private string $recipeKey = '';
     private int    $quantity  = 1;
@@ -79,12 +84,12 @@ class GenericCraftActionStart extends BaseAction
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->characterResourceModel = new CharacterResourceModel();
         $this->craftedItemsModel      = new CraftedItemsModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
         $this->claimedCellModel       = new ClaimedCellModel();
         $this->buildingModel          = new BuildingModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
+        $this->resourcePool           = new ResourcePoolService();
         $this->cfg                    = config('GameBalance');
         $this->buildingEffects        = new BuildingEffectsService(
             $this->characterBuildingModel,
@@ -372,8 +377,21 @@ class GenericCraftActionStart extends BaseAction
         $db = \Config\Database::connect();
         $db->transStart();
 
-        $this->subtractResources($character['id'], $recipe['resources'], $this->quantity);
-        $this->subtractCraftedItems($character['id'], $recipe['crafted_items'] ?? [], $this->quantity);
+        // ADR-171 race guard: `checkResources()` подтвердил достаточность ДО транзакции,
+        // но между проверкой и списанием мог проскочить параллельный запрос (второй крафт,
+        // сдача на склад и т.д.) и забрать тот же остаток. `consumeByName()` в этом случае
+        // не списывает ничего и бросает — раньше это глушилось здесь же логом и крафт
+        // стартовал, ничего не заплатив за ресурс (хуже прежнего silent-clamp «недоплатил»).
+        // Теперь гонка обязана ломать старт целиком: откат транзакции, честный ответ игроку,
+        // задача не создаётся — тот же путь отказа, что и ниже у транзакции создания задачи.
+        try {
+            $this->subtractResources($character['id'], $recipe['resources'], $this->quantity);
+            $this->subtractCraftedItems($character['id'], $recipe['crafted_items'] ?? [], $this->quantity);
+        } catch (\RuntimeException $e) {
+            $db->transRollback();
+            log_message('error', "[GenericCraftActionStart:{$this->recipeKey}] пул словил гонку при списании для character {$character['id']}: " . $e->getMessage());
+            return $this->sendError('Сырьё разошлось, пока ты выбирал — проверь запас и попробуй ещё раз.');
+        }
 
         // F3.B8: списание золота (если требуется рецептом).
         if ($goldRequired > 0) {
@@ -448,21 +466,49 @@ class GenericCraftActionStart extends BaseAction
     }
 
     /**
+     * ADR-171: достаточность считается по пулу рюкзак+склад (когда игрок на базе),
+     * не только по рюкзаку. `storage`/`pooled` в возврате нужны экрану нехватки —
+     * он обязан сказать «ждёт на складе», даже если сейчас игрок не на базе и
+     * склад в `have` не засчитан.
+     *
      * @param array<string,int> $reqs name_rus → количество на 1 шт.
-     * @return array<string,array{need:int,have:int,name:string}>
+     * @return array<string,array{need:int,have:int,name:string,storage:int,pooled:bool}>
      */
     private function checkResources(int $charId, array $reqs, int $qty): array
     {
         $missing = [];
         foreach ($reqs as $resName => $perOne) {
-            $need     = $perOne * $qty;
-            $resource = $this->characterResourceModel->getResourceByNameAndCharacterId($resName, $charId);
-            $have     = $resource['quantity'] ?? 0;
-            if (!$resource || $have < $need) {
-                $missing[$resName] = ['need' => $need, 'have' => $have, 'name' => $resName];
+            $need       = $perOne * $qty;
+            $resourceId = $this->resolveResourceId($resName);
+            if ($resourceId === null) {
+                $missing[$resName] = ['need' => $need, 'have' => 0, 'name' => $resName, 'storage' => 0, 'pooled' => false];
+                continue;
+            }
+
+            $breakdown = $this->resourcePool->breakdown($charId, $resourceId);
+            $have      = $breakdown['backpack'] + ($breakdown['pooled'] ? $breakdown['storage'] : 0);
+            if ($have < $need) {
+                $missing[$resName] = [
+                    'need'    => $need,
+                    'have'    => $have,
+                    'name'    => $resName,
+                    'storage' => $breakdown['storage'],
+                    'pooled'  => $breakdown['pooled'],
+                ];
             }
         }
         return $missing;
+    }
+
+    private function resolveResourceId(string $resName): ?int
+    {
+        $resource = $this->resourceModel->getResourceByName($resName);
+        if ($resource === null) {
+            return null;
+        }
+        $id = is_object($resource) ? ($resource->id ?? null) : ($resource['id'] ?? null);
+
+        return is_numeric($id) ? (int) $id : null;
     }
 
     /**
@@ -557,24 +603,27 @@ class GenericCraftActionStart extends BaseAction
             : 0;
     }
 
-    /** @param array<string,int> $reqs */
+    /**
+     * ADR-171: списание идёт через тот же пул, что и проверка достаточности —
+     * рюкзак сначала, остаток со склада. Работает внутри уже открытой транзакции
+     * старта (`consume()` своей не открывает). `checkResources()` уже подтвердил
+     * достаточность перед вызовом; `RuntimeException` здесь возможен только при
+     * гонке (параллельный запрос успел списать то же самое между проверкой и
+     * транзакцией) — намеренно НЕ ловим её тут: пусть поднимется вызывающему,
+     * который откатывает транзакцию целиком (см. `handle()`). Глотать её здесь
+     * означало бы запустить крафт, не заплатив за ресурс вовсе.
+     *
+     * @param array<string,int> $reqs
+     * @throws \RuntimeException при гонке за тот же остаток
+     */
     private function subtractResources(int $charId, array $reqs, int $qty): void
     {
         foreach ($reqs as $resName => $perOne) {
-            $need     = $perOne * $qty;
-            $resource = $this->characterResourceModel->getResourceByNameAndCharacterId($resName, $charId);
-            if (!$resource) {
+            $need = $perOne * $qty;
+            if ($need < 1) {
                 continue;
             }
-            $charRes = $this->characterResourceModel
-                ->where('id_characters', $charId)
-                ->where('id_resources', $resource['id'])
-                ->first();
-            if (!$charRes) {
-                continue;
-            }
-            $newQty = $charRes['quantity'] - $need;
-            $this->characterResourceModel->update($charRes['id'], ['quantity' => max(0, $newQty)]);
+            $this->resourcePool->consumeByName($charId, $resName, $need);
         }
     }
 

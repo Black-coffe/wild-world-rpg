@@ -126,7 +126,12 @@ class CraftShortageService
     }
 
     /**
-     * @param array{need:int|float,have:int|float|string,name:string} $row
+     * ADR-171: `storage`/`pooled` приходят от `GenericCraftActionStart::checkResources()` —
+     * сколько лежит на складе базы и засчитан ли он сейчас в `have`. Игрок мимо базы
+     * не видит склад в остатке, но заслуживает знать, что он там есть — жалоба
+     * Анжелы была ровно про это молчание.
+     *
+     * @param array{need:int|float,have:int|float|string,name:string,storage?:int|float,pooled?:bool} $row
      * @param array<int,string> $hints biome_id → подсказка компаса
      * @param list<array<string,string>> $buyButtons
      */
@@ -137,6 +142,12 @@ class CraftShortageService
         $gap  = max(0, $need - $have);
 
         $text = '• *' . $this->safe($name) . '* — нужно ' . $need . ', есть ' . $have;
+
+        $storage = isset($row['storage']) ? (int) $row['storage'] : 0;
+        $pooled  = ($row['pooled'] ?? false) === true;
+        if (!$pooled && $storage > 0) {
+            $text .= "\n   🏠 на складе базы ждёт ещё *" . $storage . '* — вернись на базу, чтобы использовать';
+        }
 
         $resource = $this->findResource($name);
         if ($resource === null) {
