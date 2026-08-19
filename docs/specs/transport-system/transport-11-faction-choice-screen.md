@@ -48,4 +48,22 @@ blocked_by: [transport-06]
 
 ## Implementation notes
 
+- `ChooseFaction::renderFactionInfoText(string $incentiveLine = '', ?CraftRecipes $recipes = null): string`
+  — новая чистая static render-функция (без БД/GameSettings), собирает весь текст экрана
+  «Фракции»; `sendFactionInfo()` теперь только вызывает её и передаёт `$this->incentiveLine()`.
+- `ChooseFaction::vehicleLine(int $factionId, ?CraftRecipes $recipes = null): string` — строка
+  одной фракции; имя/эмодзи/уровень читаются из `Config\CraftRecipes` (тот же источник, что и
+  крафт story 06) через `required_faction`-ключи Snowmobile/MountainBike/AutonomousDrone/DraftCart
+  → нет расхождения экрана с каталогом. Человеческая фраза о характере машины — в приватной
+  константе `VEHICLE_CHARACTER_PHRASE` (не число баланса).
+- Caption без стимула — 948 знаков (проверено тестом), с типовым стимулом — тоже ≤1024.
+  Экран остаётся текстовым `sendMessage` (не фото/caption) — фото у машин не существует
+  (концепт §3), самодостаточность в media-off тем самым тривиальна.
+- Плашка необратимости расширена: «Сменить фракцию нельзя... — вместе с ней навсегда
+  закрепится и твоя машина» — явно называет цену ДО выбора, как требовал игрок на панели.
+- Guide/Tips-вердикт: НЕ добавляем отдельный раздел/совет в этой задаче — это чисто
+  текстовая правка существующего экрана выбора фракции (уже описанного в `/guide`/онбординге
+  story 03/10), новой player-поверхности не появилось; связь «фракция → транспорт» уже
+  зафиксирована в анонсе транспортной системы (story 10 витрина + JIT).
+
 ## Findings

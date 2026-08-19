@@ -9,10 +9,114 @@ use App\Models\CharacterModel;
 use App\Models\CharacterFactionModel;
 use App\Models\FactionModel;
 use App\Services\GameSettings\GameSettingsReaderTrait;
+use Config\CraftRecipes;
 
 class ChooseFaction extends BaseAction
 {
     use GameSettingsReaderTrait;
+
+    /**
+     * transport-11 (ADR-174, docs/specs/transport-system/) — выбор фракции на 10 уровне
+     * теперь ещё и необратимый выбор транспорта. Ключ рецепта берётся из того же
+     * `Config\CraftRecipes`, что читает крафт (story 06) — единый источник правды
+     * для имени машины и уровня доступа, экран не набирает их руками.
+     *
+     * @var array<int,string>
+     */
+    private const VEHICLE_RECIPE_BY_FACTION_ID = [
+        1 => 'Snowmobile',      // Милитари
+        2 => 'MountainBike',    // Партизаны
+        3 => 'AutonomousDrone', // Инженеры
+        4 => 'DraftCart',       // Фермеры
+    ];
+
+    /**
+     * Человеческая фраза о характере машины — не число баланса (концепт §1
+     * держит числа в GameSettings), а то, что игрок реально почувствует.
+     *
+     * @var array<string,string>
+     */
+    private const VEHICLE_CHARACTER_PHRASE = [
+        'Snowmobile'      => 'мчит по снегу, но требует топлива',
+        'MountainBike'    => 'быстрее там, где ещё не был',
+        'AutonomousDrone' => 'не ускоряет, зато бережёт силы и заряжается сам',
+        'DraftCart'       => 'тянет ровно и без устали',
+    ];
+
+    /** @var array<int,string> */
+    private const FACTION_TITLES = [
+        1 => '🛡️ *Милитари*',
+        2 => '🌲 *Партизаны*',
+        3 => '🛠️ *Инженеры*',
+        4 => '🌾 *Фермеры*',
+    ];
+
+    /**
+     * Строка «фракция → её машина» одной фракции. Имя, эмодзи и уровень читаются из
+     * `Config\CraftRecipes` (story 06) — единый источник с рецептами крафта, экран не
+     * может разойтись с каталогом.
+     */
+    public static function vehicleLine(int $factionId, ?CraftRecipes $recipes = null): string
+    {
+        $recipeKey = self::VEHICLE_RECIPE_BY_FACTION_ID[$factionId] ?? null;
+        $title     = self::FACTION_TITLES[$factionId] ?? null;
+        if ($recipeKey === null || $title === null) {
+            return '';
+        }
+
+        $recipes ??= new CraftRecipes();
+        $recipe = $recipes->get($recipeKey);
+        if (! $recipe) {
+            return '';
+        }
+
+        $iconRaw  = $recipe['icon_emoji'] ?? '';
+        $icon     = is_string($iconRaw) ? trim($iconRaw) : '';
+
+        $nameRaw  = $recipe['item_name_rus'] ?? $recipeKey;
+        $name     = is_string($nameRaw) ? $nameRaw : $recipeKey;
+
+        $levelRaw = $recipe['required_level'] ?? 0;
+        $level    = is_int($levelRaw) ? $levelRaw : (is_numeric($levelRaw) ? (int) $levelRaw : 0);
+
+        $phrase  = self::VEHICLE_CHARACTER_PHRASE[$recipeKey];
+        $vehicle = trim("{$icon} {$name}");
+
+        return "{$title} — {$vehicle} (ур. {$level}): {$phrase}.";
+    }
+
+    /**
+     * Чистая render-функция экрана «Фракции» (transport-11). Без побочных эффектов —
+     * тест идёт по ней напрямую. `$incentiveLine` передаётся аргументом, а не читается
+     * тут из GameSettings, чтобы функция оставалась чистой и тестируемой без БД.
+     */
+    public static function renderFactionInfoText(string $incentiveLine = '', ?CraftRecipes $recipes = null): string
+    {
+        $recipes ??= new CraftRecipes();
+
+        $vehicleLines = implode("\n", [
+            self::vehicleLine(1, $recipes),
+            self::vehicleLine(2, $recipes),
+            self::vehicleLine(3, $recipes),
+            self::vehicleLine(4, $recipes),
+        ]);
+
+        $message = "*🎉 Поздравляем!*\n\n"
+            . "Ваш персонаж достиг уровня 10. Теперь вы выбираете не только фракцию, но и "
+            . "транспорт — тот, что останется с тобой навсегда.\n\n"
+            . $vehicleLines . "\n\n"
+            . "*Что даёт членство:* легендарное оружие и броня своей фракции, общий "
+            . "крафт-проект (−10% к крафту всем своим на время) и скидки у "
+            . "караванов-союзников.\n"
+            . ($incentiveLine !== '' ? "\n{$incentiveLine}\n" : "\n")
+            . "*⚠️ Выбор необратим.* Сменить фракцию нельзя вплоть до вайпа персонажа — "
+            . "вместе с ней навсегда закрепится и твоя машина.\n\n"
+            . "*Учтите:* все фракции PvP, но бои доступны только за пределами стартовой "
+            . "зоны.\n\n"
+            . "🔽 *Нажатие кнопки ниже не выбирает фракцию — только покажет подробности.*";
+
+        return $message;
+    }
 
     public function handle(): ServerResponse
     {
@@ -70,22 +174,7 @@ class ChooseFaction extends BaseAction
 
     protected function sendFactionInfo($chatId)
     {
-        $message = "*🎉 Поздравляем!*
-
-Ваш персонаж достиг уровня 10. Теперь вы можете выбрать фракцию, за которую будете играть.
-
-1. 🛡️ *Милитари* — специализируются на военных технологиях и прямом столкновении.
-2. 🌲 *Партизаны* — делают ставку на скрытность, саботаж и партизанскую войну.
-3. 🛠️ *Инженеры* — развивают робототехнику и лаборатории для стратегического превосходства.
-4. 🌾 *Фермеры* — акцент на производство ресурсов и продовольствия, однако при необходимости готовы вступить в бой.
-
-*Что даёт членство:* легендарное оружие и броню своей фракции, общий крафт-проект (−10% к крафту всем своим на время) и скидки у караванов-союзников.
-" . $this->incentiveLine() . "
-*⚠️ Выберите мудро!* Сменить фракцию будет невозможно вплоть до вайпа вашего персонажа.
-
-*Учтите:* Все фракции являются PVP, но сражения доступны только за пределами стартовой зоны респавна игроков.
-
-🔽 *Нажатие на кнопку ниже не совершит окончательный выбор, а лишь покажет подробное описание каждой фракции.*";
+        $message = self::renderFactionInfoText($this->incentiveLine());
 
         $keyboard = [
             'inline_keyboard' => [
