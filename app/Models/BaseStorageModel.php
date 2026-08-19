@@ -95,4 +95,72 @@ class BaseStorageModel extends Model
         ]);
         return is_numeric($newId) ? (int) $newId : 0;
     }
+
+    /**
+     * Суммарное количество ресурса на складе персонажа. Таблица не несёт
+     * уникального индекса на (character_id, resource_id) — суммируем по всем
+     * строкам, а не берём первую попавшуюся (`first()` тут бы соврал).
+     */
+    public function quantityFor(int $characterId, int $resourceId): int
+    {
+        $rows = $this->where('character_id', $characterId)
+            ->where('resource_id', $resourceId)
+            ->findAll();
+
+        $total = 0;
+        foreach ($rows as $row) {
+            if (is_array($row) && isset($row['quantity']) && is_numeric($row['quantity'])) {
+                $total += (int) $row['quantity'];
+            }
+        }
+        return $total;
+    }
+
+    /**
+     * Частичное списание со склада (ADR-171, единый пул рюкзак+склад).
+     * Списывает по строкам (на случай дублей без уникального индекса), пока
+     * не наберёт `qty`; строка, ушедшая в ноль, удаляется — не остаётся ни
+     * отрицательного, ни нулевого остатка. Возвращает реально списанное
+     * (меньше `qty`, если на складе было меньше).
+     */
+    public function withdraw(int $characterId, int $resourceId, int $qty): int
+    {
+        if ($qty < 1) {
+            return 0;
+        }
+
+        $rows = $this->where('character_id', $characterId)
+            ->where('resource_id', $resourceId)
+            ->orderBy('id', 'ASC')
+            ->findAll();
+
+        $remaining = $qty;
+        $withdrawn = 0;
+        foreach ($rows as $row) {
+            if ($remaining <= 0) {
+                break;
+            }
+            if (! is_array($row)) {
+                continue;
+            }
+            $rowId  = is_numeric($row['id'] ?? null) ? (int) $row['id'] : 0;
+            $rowQty = is_numeric($row['quantity'] ?? null) ? (int) $row['quantity'] : 0;
+            if ($rowId <= 0 || $rowQty <= 0) {
+                continue;
+            }
+
+            $take = min($rowQty, $remaining);
+            $left = $rowQty - $take;
+            if ($left <= 0) {
+                $this->delete($rowId);
+            } else {
+                $this->update($rowId, ['quantity' => $left]);
+            }
+
+            $withdrawn += $take;
+            $remaining -= $take;
+        }
+
+        return $withdrawn;
+    }
 }
