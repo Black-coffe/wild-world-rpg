@@ -8,11 +8,13 @@ use App\Models\CharacterTaskModel;
 use App\Models\ExploredCellsModel;
 use App\Services\Player\PlayerDetectionService;
 use App\Services\Player\Progression\EarlyProgressionService;
+use App\Services\Player\VehicleActivationService;
 use App\Services\PVE\TowerAlertService;
 use App\Services\World\MarchPaceService;
 use App\Services\World\ObjectDiscoveryService;
 use App\Services\World\ObjectSignalService;
 use App\Services\World\TextMapService;
+use App\Services\World\VehicleEffectsService;
 use CodeIgniter\Database\BaseResult;
 use Config\Database;
 use App\Services\Telegram\Request;
@@ -60,6 +62,8 @@ class MarchingTaskHandler extends BaseTaskHandler
     private TowerAlertService $towerAlerts;
     private ObjectSignalService $objectSignal;
     private \App\Services\World\MarchMiniEventService $miniEvents;
+    private VehicleActivationService $vehicleActivation;
+    private VehicleEffectsService $vehicleEffects;
 
     /** @var array<string, array{int,int}> dx,dy по направлениям (y растёт на юг). */
     private const DIRECTIONS = [
@@ -91,12 +95,14 @@ class MarchingTaskHandler extends BaseTaskHandler
     private const CELL_PAUSED   = 'paused';
     private const CELL_DONE     = 'done';
 
-    public function __construct(?PlayerDetectionService $detector = null, ?TowerAlertService $towerAlerts = null, ?ObjectSignalService $objectSignal = null, ?\App\Services\World\MarchMiniEventService $miniEvents = null)
+    public function __construct(?PlayerDetectionService $detector = null, ?TowerAlertService $towerAlerts = null, ?ObjectSignalService $objectSignal = null, ?\App\Services\World\MarchMiniEventService $miniEvents = null, ?VehicleActivationService $vehicleActivation = null, ?VehicleEffectsService $vehicleEffects = null)
     {
-        $this->detector     = $detector ?? new PlayerDetectionService();
-        $this->towerAlerts  = $towerAlerts ?? new TowerAlertService();
-        $this->objectSignal = $objectSignal ?? new ObjectSignalService();
-        $this->miniEvents   = $miniEvents ?? new \App\Services\World\MarchMiniEventService();
+        $this->detector          = $detector ?? new PlayerDetectionService();
+        $this->towerAlerts       = $towerAlerts ?? new TowerAlertService();
+        $this->objectSignal      = $objectSignal ?? new ObjectSignalService();
+        $this->miniEvents        = $miniEvents ?? new \App\Services\World\MarchMiniEventService();
+        $this->vehicleActivation = $vehicleActivation ?? new VehicleActivationService();
+        $this->vehicleEffects    = $vehicleEffects ?? new VehicleEffectsService();
     }
 
     /**
@@ -128,20 +134,28 @@ class MarchingTaskHandler extends BaseTaskHandler
             return;
         }
 
+        // Профиль транспорта и класс местности впереди — РОВНО один раз за тик (Non-goal:
+        // не добавлять лишний lookup биома на каждую клетку). Заряды могут кончиться
+        // ПОСРЕДИ батча (per-cell списание в advanceOneCell) — profile мутируется по
+        // ссылке и откатывается на нейтраль, но cellsPerTick этого тика уже зафиксирован.
+        $vehicleProfile = $this->resolveVehicleProfile($characterId, $heading, $character);
+
         // Батч: за один крон-тик продвигаем до cellsPerTick() клеток (крон everyMinute →
         // granularity 1 мин, поэтому «быстрее» = больше клеток за тик). Если внутри пачки
         // сработал стоп/пауза/финиш — advanceOneCell уже отправил сообщение, выходим.
-        $cellsPerTick = $this->cellsPerTick();
+        $cellsPerTick = $this->cellsPerTick($vehicleProfile);
         for ($i = 0; $i < $cellsPerTick; $i++) {
-            if ($this->advanceOneCell($characterId, $telegramUserId, $heading, $stepsPlanned, $s, $character) !== self::CELL_CONTINUE) {
+            if ($this->advanceOneCell($characterId, $telegramUserId, $heading, $stepsPlanned, $s, $character, $vehicleProfile) !== self::CELL_CONTINUE) {
                 return;
             }
         }
 
         // Пачка пройдена, поход не завершён и не на паузе → следующий батч через тик + прогресс.
-        $stepsDone = $this->asInt($s['steps_done'] ?? 0);
+        $stepsDone       = $this->asInt($s['steps_done'] ?? 0);
+        $vehicleWarning  = is_string($s['vehicle_warning'] ?? null) ? $s['vehicle_warning'] : null;
+        unset($s['vehicle_warning']); // предупреждение одноразовое — не тащим его в task_settings дальше
         $this->spawnNextStep($characterId, $telegramUserId, $s);
-        $this->editMarchMessage($telegramUserId, $s, $character, $stepsDone, $stepsPlanned);
+        $this->editMarchMessage($telegramUserId, $s, $character, $stepsDone, $stepsPlanned, $vehicleProfile, $vehicleWarning);
     }
 
     /**
@@ -157,10 +171,16 @@ class MarchingTaskHandler extends BaseTaskHandler
      * чтобы следующая клетка пачки читала свежие значения — иначе 2-я клетка затёрла бы
      * прирост 1-й (DB-update считает от `$character[...]`).
      *
+     * 🔴 Все per-cell броски (PvP-детект, встреча NPC, мини-событие, износ транспорта,
+     * XP, стат, усталость, здоровье) остаются здесь, ВНУТРИ одной клетки — тик лишь
+     * определяет, сколько раз за минуту вызвать этот метод (см. Non-goal story-04).
+     *
      * @param array<int|string, mixed> $s
      * @param array<int|string, mixed> $character
+     * @param array<string, mixed> $vehicleProfile мутируется по ссылке: заряды кончились
+     *        посреди похода → откат на нейтраль для ОСТАВШИХСЯ клеток этого и следующих тиков.
      */
-    private function advanceOneCell(int $characterId, int $telegramUserId, string $heading, int $stepsPlanned, array &$s, array &$character): string
+    private function advanceOneCell(int $characterId, int $telegramUserId, string $heading, int $stepsPlanned, array &$s, array &$character, array &$vehicleProfile): string
     {
         $charCellNumber = $this->asInt($character['cell_number']);
         $currentCell = $this->fetchCellByNumber($charCellNumber);
@@ -202,12 +222,13 @@ class MarchingTaskHandler extends BaseTaskHandler
         }
 
         // — Стоимость / пол выносливости —
-        $hpCost   = $this->healthCostPerCell();
+        $pace     = new MarchPaceService();
+        $hpCost   = $pace->healthCostPerCell($this->healthCostPerCell(), $vehicleProfile);
         $isDanger = $biome !== null && $this->asInt($biome['danger_level'] ?? 0) >= 8;
         if ($isDanger) {
             $hpCost += $this->dangerHealthSurcharge();
         }
-        $tiredCost   = $this->tiredCostPerCell();
+        $tiredCost   = $pace->tiredCostPerCell($this->tiredCostPerCell(), $vehicleProfile);
         $futureHp    = $this->asFloat($character['health'] ?? 0) - $hpCost;
         $futureTired = $this->asFloat($character['tired'] ?? 0) - $tiredCost;
         if ($futureHp < 0.01 || $futureTired < 0.01) {
@@ -263,6 +284,27 @@ class MarchingTaskHandler extends BaseTaskHandler
 
         $stepsDone++;
         $s['steps_done'] = $stepsDone;
+
+        // — Износ активного транспорта (per-cell, story-04): списываем РОВНО 1 клетку ×
+        // wear_per_cell профиля с активной строки. Заряды кончились посреди похода →
+        // профиль откатывается на нейтраль для ВСЕХ последующих клеток (этот тик и
+        // дальше), поход не прерывается — предупреждение уходит одноразово в $s.
+        $activeVehicleKey = is_string($vehicleProfile['key'] ?? null) ? $vehicleProfile['key'] : null;
+        $wear             = $this->asInt($vehicleProfile['wear_per_cell'] ?? 0);
+        if ($activeVehicleKey !== null && $wear > 0) {
+            $remainder = $this->vehicleActivation->spendCharges($characterId, 1, $wear);
+            if ($remainder <= 0) {
+                $s['vehicle_warning'] = 'Транспорт выработал ресурс — дальше пешком.';
+                $vehicleProfile        = $this->vehicleEffects->neutralProfile();
+            } else {
+                $before      = $remainder + $wear; // спишется ровно $wear, если заряда хватило — обратимо точно
+                $baseCharges = max(1, $this->gsInt('world.vehicle.' . $activeVehicleKey . '.charges_full', 300));
+                $threshold   = (int) ceil($baseCharges * 0.2);
+                if ($before > $threshold && $remainder <= $threshold && !isset($s['vehicle_warning'])) {
+                    $s['vehicle_warning'] = 'Заряд транспорта на исходе (~1/5 осталось).';
+                }
+            }
+        }
 
         // — Находки в пути (handlers объектов шлют свои сообщения; марш не блокируется) —
         try {
@@ -437,6 +479,9 @@ class MarchingTaskHandler extends BaseTaskHandler
         foreach ($log as $line) {
             $text .= 'В пути: ' . $this->asStr($line) . "\n";
         }
+        if (isset($s['vehicle_warning']) && is_string($s['vehicle_warning']) && $s['vehicle_warning'] !== '') {
+            $text .= '⚠️ ' . $s['vehicle_warning'] . "\n";
+        }
         $mapRow = $this->fetchCellByNumber($this->asInt($character['cell_number'] ?? 0));
         if ($mapRow !== null) {
             $text .= 'Сейчас: X=' . $this->asInt($mapRow['coordinate_x'] ?? 0) . ', Y=' . $this->asInt($mapRow['coordinate_y'] ?? 0) . ".\n";
@@ -556,6 +601,7 @@ class MarchingTaskHandler extends BaseTaskHandler
         $pausedSettings = $s;
         $pausedSettings['steps_remaining'] = $stepsRemaining;
         $pausedSettings['paused_reason']   = $reason;
+        unset($pausedSettings['vehicle_warning']); // одноразовое — показано ниже, дальше не тащим
 
         (new CharacterTaskModel())->insert([
             'character_id'     => $characterId,
@@ -575,6 +621,9 @@ class MarchingTaskHandler extends BaseTaskHandler
             'mini_event' => $this->miniEventPrompt($s, $stepsRemaining),
             default => "⏸ *Поход на паузе* (осталось `{$stepsRemaining}` " . $this->plural($stepsRemaining, 'клетку', 'клетки', 'клеток') . ').',
         };
+        if (isset($s['vehicle_warning']) && is_string($s['vehicle_warning']) && $s['vehicle_warning'] !== '') {
+            $text .= "\n⚠️ " . $s['vehicle_warning'];
+        }
         $text .= "\n\n" . $this->renderMap($character);
 
         // ADR-089 Фаза 3: NPC → подойти/мимо; E17 Ф2: мини-событие → осмотреть/мимо; иначе продолжить/действия.
@@ -647,13 +696,14 @@ class MarchingTaskHandler extends BaseTaskHandler
      *
      * @param array<int|string, mixed> $s
      * @param array<int|string, mixed> $character
+     * @param array<string, mixed> $vehicleProfile
      */
-    private function editMarchMessage(int $telegramUserId, array $s, array $character, int $stepsDone, int $stepsPlanned): void
+    private function editMarchMessage(int $telegramUserId, array $s, array $character, int $stepsDone, int $stepsPlanned, array $vehicleProfile = [], ?string $vehicleWarning = null): void
     {
         $heading  = $this->asStr($s['heading'] ?? '');
         $dirLabel = self::DIR_LABEL[$heading] ?? $heading;
         $left     = max(0, $stepsPlanned - $stepsDone);
-        $etaMin   = $this->etaMinutes($left);
+        $etaMin   = $this->etaMinutes($left, $vehicleProfile);
         $mapRow   = $this->fetchCellByNumber($this->asInt($character['cell_number'] ?? 0));
         $coords   = $mapRow !== null ? ('X=' . $this->asInt($mapRow['coordinate_x'] ?? 0) . ', Y=' . $this->asInt($mapRow['coordinate_y'] ?? 0)) : '';
         $hpStr    = $this->asStr($character['health'] ?? '');
@@ -663,7 +713,8 @@ class MarchingTaskHandler extends BaseTaskHandler
             . $this->renderMap($character) . "\n"
             . "Пройдено `{$stepsDone}` / `{$stepsPlanned}`  ·  осталось ~{$etaMin} мин\n"
             . "❤️ {$hpStr}   💤 {$tiredStr}"
-            . ($coords !== '' ? "  ·  {$coords}" : '');
+            . ($coords !== '' ? "  ·  {$coords}" : '')
+            . ($vehicleWarning !== null && $vehicleWarning !== '' ? "\n⚠️ {$vehicleWarning}" : '');
 
         $keyboardRows = [
             [
@@ -732,45 +783,114 @@ class MarchingTaskHandler extends BaseTaskHandler
     }
 
     /**
-     * ETA марша в минутах: `$cells` клеток идут пачками по `cellsPerTick()` за тик
-     * (admin GameSettings world.march.cells_per_tick), тик = `minutes_per_cell` мин.
-     * → ceil(cells / perTick) × minutesPerTick.
+     * ETA марша в минутах: `$cells` клеток идут пачками по `cellsPerTick($vehicleProfile)`
+     * за тик (admin GameSettings world.march.cells_per_tick), тик = `minutes_per_cell` мин.
+     * → ceil(cells / perTick) × minutesPerTick. Тот же вызов `MarchPaceService::etaMinutes()`,
+     * что и превью `MarchAction::showRouteSetup()` — контракт «ETA превью == ETA обработчика».
+     *
+     * @param array<string, mixed> $vehicleProfile
      */
-    private function etaMinutes(int $cells): int
+    private function etaMinutes(int $cells, array $vehicleProfile = []): int
     {
-        return (new MarchPaceService())->etaMinutes($cells, $this->cellsPerTick(), $this->minutesPerCell());
+        return (new MarchPaceService())->etaMinutes($cells, $this->cellsPerTick($vehicleProfile), $this->minutesPerCell());
     }
 
     /**
      * Клеток за крон-тик — live-tunable через admin GameSettings
      * `world.march.cells_per_tick` (ADMIN-TUNABLE BALANCE, ADR-024). Fallback 3 = код-дефолт
-     * (safe baseline). Overridable seam для тестов (без обращения к game_settings). Формула —
-     * `MarchPaceService::cellsPerTick()`, единая точка с `MarchAction::showRouteSetup()`.
+     * (safe baseline). `$vehicleProfile` — профиль активного транспорта (story-04),
+     * пустой массив/нейтраль = byte-identical со старым поведением (dormant). Overridable
+     * seam для тестов (без обращения к game_settings). Формула — `MarchPaceService::
+     * cellsPerTick()`, единая точка с `MarchAction::showRouteSetup()`.
+     *
+     * @param array<string, mixed> $vehicleProfile
      */
-    protected function cellsPerTick(): int
+    protected function cellsPerTick(array $vehicleProfile = []): int
     {
         $base = max(1, $this->gsInt('world.march.cells_per_tick', 3));
 
-        return (new MarchPaceService())->cellsPerTick($base, $this->neutralProfile($base));
+        return (new MarchPaceService())->cellsPerTick($base, $vehicleProfile);
     }
 
     /**
-     * Профиль-нейтраль (нет транспорта) для MarchPaceService — контракт
-     * `docs/specs/transport-system/plan.md → ## Contracts`. Реальный профиль
-     * транспорта появится в transport-04 (VehicleEffectsService, transport-02).
+     * Профиль активного транспорта персонажа (story-04) для класса местности впереди.
+     * Килсвитч off / нет активной машины / заряды = 0 / имя предмета не резолвится через
+     * {@see VehicleEffectsService::keyForItemNameEng()} → {@see VehicleEffectsService::
+     * neutralProfile()} без исключения — dormant остаётся byte-identical (Acceptance
+     * criteria: `world.vehicle.enabled=false` ИЛИ указатель `NULL` → сегодняшние числа).
      *
-     * @return array<string,mixed>
+     * @param array<int|string, mixed> $character
+     * @return array<string, mixed>
      */
-    private function neutralProfile(int $cellsPerTickBase): array
+    private function resolveVehicleProfile(int $characterId, string $heading, array $character): array
     {
-        return [
-            'key'                 => null,
-            'cells_per_tick'      => $cellsPerTickBase,
-            'tired_factor'        => 1.0,
-            'max_steps_per_order' => $this->gsInt('world.march.max_steps_per_order', 60),
-            'cargo_share'         => 0.0,
-            'wear_per_cell'       => 0,
-        ];
+        $effects = $this->vehicleEffects;
+        if (! $effects->isEnabled()) {
+            return $effects->neutralProfile();
+        }
+
+        $active = $this->vehicleActivation->resolveActive($characterId);
+        if ($active === null || $active['charges'] <= 0) {
+            return $effects->neutralProfile();
+        }
+
+        $vehicleKey = VehicleEffectsService::keyForItemNameEng($active['key']);
+        if ($vehicleKey === null) {
+            return $effects->neutralProfile();
+        }
+
+        $terrain = $this->terrainAhead($characterId, $character, $heading);
+
+        return $effects->profileFor($vehicleKey, $terrain);
+    }
+
+    /**
+     * Класс местности впереди (1 клетка, тот же lookup что уже делал
+     * `MarchAction::biomeAhead()`) — РОВНО один раз за тик (Non-goal story-04).
+     *
+     * @param array<int|string, mixed> $character
+     */
+    private function terrainAhead(int $characterId, array $character, string $heading): string
+    {
+        if (! isset(self::DIRECTIONS[$heading])) {
+            return MarchPaceService::TERRAIN_UNEXPLORED;
+        }
+        $currentCell = $this->fetchCellByNumber($this->asInt($character['cell_number'] ?? 0));
+        if ($currentCell === null) {
+            return MarchPaceService::TERRAIN_UNEXPLORED;
+        }
+        [$dx, $dy] = self::DIRECTIONS[$heading];
+        $nx = $this->asInt($currentCell['coordinate_x'] ?? 0) + $dx;
+        $ny = $this->asInt($currentCell['coordinate_y'] ?? 0) + $dy;
+        if ($nx < 0 || $nx > 999 || $ny < 0 || $ny > 999) {
+            return MarchPaceService::TERRAIN_UNEXPLORED;
+        }
+        $target = $this->fetchCellByCoords($nx, $ny);
+        if ($target === null) {
+            return MarchPaceService::TERRAIN_UNEXPLORED;
+        }
+        $biome = $this->fetchBiome($this->asInt($target['biome_id'] ?? 0));
+        if ($biome !== null && $this->isColdBiome($biome)) {
+            return MarchPaceService::TERRAIN_COLD;
+        }
+        $explored = $this->fetchRow(
+            'SELECT id FROM explored_cells WHERE character_id = ? AND map_cell_id = ? LIMIT 1',
+            [$characterId, $this->asInt($target['cell_number'] ?? 0)]
+        );
+
+        return $explored !== null ? MarchPaceService::TERRAIN_EXPLORED : MarchPaceService::TERRAIN_UNEXPLORED;
+    }
+
+    /**
+     * Горы/Тундра — «холодная» местность (plan.md → ## Contracts).
+     *
+     * @param array<int|string, mixed> $biome
+     */
+    private function isColdBiome(array $biome): bool
+    {
+        $name = mb_strtolower($this->asStr($biome['name'] ?? ''));
+
+        return str_contains($name, 'горы') || str_contains($name, 'тундра');
     }
 
     // ── march-баланс: live-tunable через admin GameSettings `world.march.*`

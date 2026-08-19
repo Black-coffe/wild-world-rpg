@@ -27,12 +27,29 @@ use App\Services\GameSettings\GameSettingsService;
  */
 final class VehicleEffectsService
 {
-    public const TERRAIN_EXPLORED   = 'explored';
-    public const TERRAIN_UNEXPLORED = 'unexplored';
-    public const TERRAIN_COLD       = 'cold';
+    /** Сведено к единому источнику — `MarchPaceService::TERRAIN_*` (поправка контракта, wave 1). */
+    public const TERRAIN_EXPLORED   = MarchPaceService::TERRAIN_EXPLORED;
+    public const TERRAIN_UNEXPLORED = MarchPaceService::TERRAIN_UNEXPLORED;
+    public const TERRAIN_COLD       = MarchPaceService::TERRAIN_COLD;
 
     /** Единые ключи машин — GameSettings, профиль, ImageRegistry (plan.md → ## Contracts). */
     private const VEHICLE_KEYS = ['cart', 'mtb', 'snowmobile', 'draft_cart', 'drone_auto'];
+
+    /**
+     * Отображение «предмет → профиль машины» (поправка контракта, plan.md →
+     * «Поправка контракта (внесена в билд, волна 1)»). Единственный владелец ключей
+     * машин между `crafted_items.name_eng` (как их именует story-06) и ключами
+     * профиля/GameSettings (`world.vehicle.<key>.*`). Совпадения между ними нет по
+     * умолчанию — без этой карты активированная машина не давала бы никакого
+     * эффекта и никогда, тихо (см. `keyForItemNameEng()`).
+     */
+    private const NAME_ENG_TO_KEY = [
+        'LightCart'       => 'cart',
+        'MountainBike'    => 'mtb',
+        'Snowmobile'      => 'snowmobile',
+        'DraftCart'       => 'draft_cart',
+        'AutonomousDrone' => 'drone_auto',
+    ];
 
     private const HARD_MAX_CELLS_PER_TICK = 5;
 
@@ -109,6 +126,18 @@ final class VehicleEffectsService
             'cargo_share'         => $cargo,
             'wear_per_cell'       => $this->intSetting($prefix . 'wear_per_cell', 0),
         ];
+    }
+
+    /**
+     * Единственный легальный способ перевода `crafted_items.name_eng` в ключ профиля.
+     * Неизвестное имя → `null` — вызывающий код обязан читать это как «нет транспорта»,
+     * НЕ как ошибку резолвера (тихая нейтраль запрещена на уровне карты/теста, не рантайма:
+     * {@see \Tests\Unit\Transport\MarchingTransportTest} валит сборку, если хоть один из
+     * пяти транспортных рецептов несёт `item_name_eng`, которого нет в {@see NAME_ENG_TO_KEY}).
+     */
+    public static function keyForItemNameEng(string $nameEng): ?string
+    {
+        return self::NAME_ENG_TO_KEY[$nameEng] ?? null;
     }
 
     // ── internals ───────────────────────────────────────────────────────

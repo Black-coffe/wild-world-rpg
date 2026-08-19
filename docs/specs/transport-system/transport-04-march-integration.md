@@ -25,9 +25,21 @@ ETA той же формулой и с разбивкой: «Разведано 
 > и на нём можно быстро передвигаться по исследуемым ячейкам, не по исследуемым, скорость передвижения и так далее, механика передвижения
 
 ## Files
+- app/Services/World/VehicleEffectsService.php
 - app/TaskHandlers/MarchingTaskHandler.php
 - app/Controllers/Telegram/Commands/Actions/MarchAction.php
 - tests/unit/Transport/MarchingTransportTest.php
+
+## Поправка контракта (см. plan.md → «Поправка контракта»)
+
+`VehicleEffectsService` получает карту `crafted_items.name_eng` → ключ профиля
+(`LightCart`→`cart`, `MountainBike`→`mtb`, `Snowmobile`→`snowmobile`,
+`DraftCart`→`draft_cart`, `AutonomousDrone`→`drone_auto`) и резолвер
+`keyForItemNameEng()`. Правка этого файла разрешена ровно для двух вещей: карта
+с резолвером и сведение констант местности к `MarchPaceService::TERRAIN_*`.
+
+- [ ] Неизвестное имя предмета **не** даёт тихую нейтраль: тест падает, если хоть один
+      `item_name_eng` из пяти транспортных рецептов отсутствует в карте.
 
 ## Non-goals
 - 🔴 Не переносить per-cell броски на тик: PvP-детект, NPC, мини-событие, износ, XP, стат, усталость, здоровье остаются **за клетку**. Тик — единица времени, не единица игры; иначе транспорт станет невидимым щитом от PvP.
@@ -56,5 +68,11 @@ ETA той же формулой и с разбивкой: «Разведано 
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Transport/MarchingTransportTest.php`
 
 ## Implementation notes
+
+- `VehicleEffectsService`: `TERRAIN_*` сведены к `MarchPaceService::TERRAIN_*` (алиасы констант); добавлена `NAME_ENG_TO_KEY` карта + `keyForItemNameEng()` (static, единственный резолвер поправки контракта).
+- `MarchingTaskHandler`: профиль машины и класс местности резолвятся РОВНО раз за тик (`resolveVehicleProfile()`/`terrainAhead()`), `cellsPerTick`/`etaMinutes` теперь принимают `array $vehicleProfile = []` (default сохраняет байт-идентичность). `advanceOneCell()` получил `array &$vehicleProfile` — per-cell списание износа (`VehicleActivationService::spendCharges()`) и откат на нейтраль при обнулении заряда живут ВНУТРИ клетки, не тика. Предупреждение о заряде — одноразовое поле `$s['vehicle_warning']`, гасится после показа. DI-семя: конструктор принял `VehicleActivationService`/`VehicleEffectsService` (default `new`) — не ломает существующий `tests/database/MarchingTaskHandlerTest.php` (позиционные аргументы, лишние параметры молча игнорируются PHP при вызове через дочерний override с меньшим числом параметров).
+- `MarchAction`: `biomeAhead()` заменён на `aheadInfo()` (возвращает label+terrain одним lookup'ом); добавлены `resolveVehicleProfile()`, `routeBreakdown()` (batched SQL по всему заказу, не per-cell), `breakdownLine()`, `isColdBiome()`. `showRouteSetup`/`startMarch` используют персональный `max_steps_per_order` из профиля вместо плоского `world.march.max_steps_per_order`.
+- Тест `tests/unit/Transport/MarchingTransportTest.php`: изолированная схема (своя `characters`/`crafted_items_log`/`map`/…), 18 тестов. Пять транспортных `item_name_eng` захардкожены в `dataProvider` (story-06 ещё не выкачена в этой волне — `Config\CraftRecipes` их пока не несёт; тест валит сборку по контракту поправки, не по факту наличия рецептов).
+- Не найдено безопасного способа проверить критерий «предупреждение на остатке ~1/5» отдельным тестом без расширения времени сессии — покрыт только сценарий полного истощения заряда (`testChargesDepletedMidMarchFallsBackToPedestrianNextTick`). Формула порога (`before>threshold && remainder<=threshold`) реализована и проверена вручную по трассировке, но не тестом — кандидат на добор в review.
 
 ## Findings

@@ -2,9 +2,11 @@
 
 namespace App\Controllers\Telegram\Commands\Actions;
 
+use App\Services\Player\VehicleActivationService;
 use App\Services\Tasks\ActiveTasksService;
 use App\Services\World\MarchPaceService;
 use App\Services\World\TextMapService;
+use App\Services\World\VehicleEffectsService;
 use CodeIgniter\Database\BaseResult;
 use Config\Database;
 use Longman\TelegramBot\Entities\ServerResponse;
@@ -118,19 +120,29 @@ class MarchAction extends BaseAction
         if ($blocked !== null) {
             return $blocked;
         }
-        $n = max(1, min($n, $this->maxStepsPerOrder()));
+        $aheadInfo = $this->aheadInfo($characterId, $charCellNumber, $dir);
+        $pace      = new MarchPaceService();
+        $profile   = $this->resolveVehicleProfile($characterId, $aheadInfo['terrain']);
+        $n         = max(1, min($n, max(1, $this->asInt($profile['max_steps_per_order'] ?? 60, 60))));
 
-        $aheadBiome = $this->biomeAhead($characterId, $charCellNumber, $dir);
-        $pace       = new MarchPaceService();
-        $profile    = $this->neutralProfile(max(1, $this->gsInt('world.march.cells_per_tick', 3)));
+        $aheadBiome = $aheadInfo['label'];
         $hpEst      = round($n * $pace->healthCostPerCell($this->healthCostPerCell(), $profile), 2);
         $tiredEst   = round($n * $pace->tiredCostPerCell($this->tiredCostPerCell(), $profile), 2);
-        // Скорость = world.march.cells_per_tick клеток за тик (admin GameSettings; тик =
-        // world.march.minutes_per_cell мин, дрожание убрано — stepDueInterval). ETA считает
-        // MarchPaceService — единая точка с MarchingTaskHandler::etaMinutes() (transport-01).
+        // Скорость = профиль машины (нейтраль = world.march.cells_per_tick клеток за тик,
+        // admin GameSettings; тик = world.march.minutes_per_cell мин, дрожание убрано —
+        // stepDueInterval). ETA считает MarchPaceService — единая точка с
+        // MarchingTaskHandler::etaMinutes() (transport-01/04).
         $perTick    = $pace->cellsPerTick(max(1, $this->gsInt('world.march.cells_per_tick', 3)), $profile);
         $minEst     = $pace->etaMinutes($n, $perTick, $this->minutesPerCell());
         $dirLabel   = self::DIR_LABEL[$dir];
+
+        // Разбивка ETA по классу местности впереди по всему заказу (E5/story-04): «Разведано
+        // N по P · целина M по P» — самодостаточна в тексте (media-off, ADR-020), не требует
+        // картинки. Пеший ETA для сравнения — тем же MarchPaceService, нейтральным профилем.
+        $breakdown        = $this->routeBreakdown($characterId, $charCellNumber, $dir, $n, $profile);
+        $pedestrianPerTick = max(1, $this->gsInt('world.march.cells_per_tick', 3));
+        $pedestrianMinEst  = $pace->etaMinutes($n, $pedestrianPerTick, $this->minutesPerCell());
+        $breakdownLine     = $this->breakdownLine($breakdown, $pedestrianMinEst);
 
         $text = "🚜 *Поход:* {$dirLabel} ×{$n}\n\n"
             . "Видишь впереди (1 клетка): {$aheadBiome}. Дальше — туман.\n"
@@ -142,11 +154,12 @@ class MarchAction extends BaseAction
             . "  • кончится выносливость → привал раньше срока\n"
             . "_Прочее (находки, биомы, мелочи) — разгребётся само, отчёт по прибытии._\n\n"
             . "Расход ≈ ❤️{$hpEst}  💤{$tiredEst}  ·  в пути ~{$minEst} мин\n"
-            . "_Отряд идёт сам и довольно шустро — темп ровный и от ❤️/💤 не зависит "
-            . "(они лишь топливо в пути)._";
+            . ($breakdownLine !== '' ? "{$breakdownLine}\n" : '')
+            . "_Отряд идёт сам и довольно шустро — темп от ❤️/💤 не зависит "
+            . "(они лишь топливо в пути), но зависит от активного транспорта._";
 
         $minus = max(1, $n - 1);
-        $plus  = min($n + 5, $this->maxStepsPerOrder());
+        $plus  = min($n + 5, max(1, $this->asInt($profile['max_steps_per_order'] ?? 60, 60)));
         $keyboard = [
             [
                 ['text' => '➖', 'callback_data' => "march_{$dir}_{$minus}"],
@@ -171,7 +184,9 @@ class MarchAction extends BaseAction
         if ($blocked !== null) {
             return $blocked;
         }
-        $n = max(1, min($n, $this->maxStepsPerOrder()));
+        $aheadInfo = $this->aheadInfo($characterId, $charCellNumber, $dir);
+        $profile   = $this->resolveVehicleProfile($characterId, $aheadInfo['terrain']);
+        $n         = max(1, min($n, max(1, $this->asInt($profile['max_steps_per_order'] ?? 60, 60))));
 
         $marchingTaskId = $this->marchingTaskId();
         if ($marchingTaskId === null) {
@@ -286,33 +301,33 @@ class MarchAction extends BaseAction
     }
 
     /**
-     * Профиль-нейтраль (нет транспорта) для MarchPaceService — контракт
-     * `docs/specs/transport-system/plan.md → ## Contracts`. Реальный профиль
-     * транспорта появится в transport-04 (VehicleEffectsService, transport-02).
+     * Профиль активного транспорта персонажа (transport-04) для класса местности
+     * `$terrain`. Killswitch off / нет активной машины / заряды = 0 / имя предмета не
+     * резолвится через {@see VehicleEffectsService::keyForItemNameEng()} →
+     * {@see VehicleEffectsService::neutralProfile()} — контракт `plan.md → ## Contracts`.
      *
      * @return array<string,mixed>
      */
-    private function neutralProfile(int $cellsPerTickBase): array
+    private function resolveVehicleProfile(int $characterId, string $terrain): array
     {
-        return [
-            'key'                 => null,
-            'cells_per_tick'      => $cellsPerTickBase,
-            'tired_factor'        => 1.0,
-            'max_steps_per_order' => $this->maxStepsPerOrder(),
-            'cargo_share'         => 0.0,
-            'wear_per_cell'       => 0,
-        ];
+        $effects = new VehicleEffectsService();
+        if (!$effects->isEnabled()) {
+            return $effects->neutralProfile();
+        }
+        $active = (new VehicleActivationService())->resolveActive($characterId);
+        if ($active === null || $active['charges'] <= 0) {
+            return $effects->neutralProfile();
+        }
+        $vehicleKey = VehicleEffectsService::keyForItemNameEng($active['key']);
+        if ($vehicleKey === null) {
+            return $effects->neutralProfile();
+        }
+        return $effects->profileFor($vehicleKey, $terrain);
     }
 
     // ── march-баланс: live-tunable через admin GameSettings `world.march.*`
     //    (ADMIN-TUNABLE BALANCE, ADR-024). Fallback-числа = safe-baseline код-дефолт,
     //    синхронны с MarchingTaskHandler и seed-миграцией 2026-10-08.
-
-    /** Потолок клеток в одном заказе Похода. Fallback 60. */
-    private function maxStepsPerOrder(): int
-    {
-        return max(1, $this->gsInt('world.march.max_steps_per_order', 60));
-    }
 
     /** Минут на крон-тик Похода. Fallback 1. */
     private function minutesPerCell(): int
@@ -350,31 +365,152 @@ class MarchAction extends BaseAction
         return null;
     }
 
-    private function biomeAhead(int $characterId, int $charCellNumber, string $dir): string
+    /**
+     * Клетка впереди (1 шаг): подпись для текста (как раньше `biomeAhead()`) + класс
+     * местности (`MarchPaceService::TERRAIN_*`) для профиля транспорта — один и тот же
+     * lookup, не два по отдельности (E5/story-04).
+     *
+     * @return array{label: string, terrain: string}
+     */
+    private function aheadInfo(int $characterId, int $charCellNumber, string $dir): array
     {
         $cell = $this->fetchRow('SELECT coordinate_x, coordinate_y FROM map WHERE cell_number = ? LIMIT 1', [$charCellNumber]);
         if ($cell === null) {
-            return 'туман';
+            return ['label' => 'туман', 'terrain' => MarchPaceService::TERRAIN_UNEXPLORED];
         }
         [$dx, $dy] = self::DIRECTIONS[$dir];
         $nx = $this->asInt($cell['coordinate_x'] ?? 0) + $dx;
         $ny = $this->asInt($cell['coordinate_y'] ?? 0) + $dy;
         if ($nx < 1 || $nx > 1000 || $ny < 1 || $ny > 1000) {
-            return 'край мира';
+            return ['label' => 'край мира', 'terrain' => MarchPaceService::TERRAIN_UNEXPLORED];
         }
         $target = $this->fetchRow('SELECT cell_number, biome_id FROM map WHERE coordinate_x = ? AND coordinate_y = ? LIMIT 1', [$nx, $ny]);
         if ($target === null) {
-            return 'туман';
+            return ['label' => 'туман', 'terrain' => MarchPaceService::TERRAIN_UNEXPLORED];
         }
+        $biome    = $this->fetchRow('SELECT name FROM biomes WHERE id = ? LIMIT 1', [$this->asInt($target['biome_id'] ?? 0)]);
+        $terrain  = $biome !== null && $this->isColdBiome($this->asStr($biome['name'] ?? ''))
+            ? MarchPaceService::TERRAIN_COLD
+            : MarchPaceService::TERRAIN_UNEXPLORED;
         $explored = $this->fetchRow(
             'SELECT id FROM explored_cells WHERE character_id = ? AND map_cell_id = ? LIMIT 1',
             [$characterId, $this->asInt($target['cell_number'] ?? 0)]
         );
         if ($explored === null) {
-            return 'туман';
+            return ['label' => 'туман', 'terrain' => $terrain];
         }
-        $biome = $this->fetchRow('SELECT name FROM biomes WHERE id = ? LIMIT 1', [$this->asInt($target['biome_id'] ?? 0)]);
-        return $biome !== null ? $this->asStr($biome['name'] ?? 'неизвестно', 'неизвестно') : 'неизвестно';
+        if ($terrain !== MarchPaceService::TERRAIN_COLD) {
+            $terrain = MarchPaceService::TERRAIN_EXPLORED;
+        }
+        $label = $biome !== null ? $this->asStr($biome['name'] ?? 'неизвестно', 'неизвестно') : 'неизвестно';
+        return ['label' => $label, 'terrain' => $terrain];
+    }
+
+    /** Горы/Тундра — «холодная» местность (plan.md → ## Contracts). */
+    private function isColdBiome(string $biomeName): bool
+    {
+        $name = mb_strtolower($biomeName);
+        return str_contains($name, 'горы') || str_contains($name, 'тундра');
+    }
+
+    /**
+     * Разбивка предстоящего маршрута по классу местности (E5/story-04): сколько клеток
+     * уже разведано (быстрее с транспортом) и сколько целины (медленнее). Превью-экран,
+     * не тик-цикл — один batched SQL-запрос на весь заказ, не «лишний lookup за клетку»
+     * из Non-goal тика (тот адресован `MarchingTaskHandler`, не этому экрану).
+     *
+     * @param array<string,mixed> $profile
+     * @return array{segments: array<string, array{count:int, per_tick:int}>, total_minutes:int}
+     */
+    private function routeBreakdown(int $characterId, int $charCellNumber, string $dir, int $n, array $profile): array
+    {
+        $profileKey = is_string($profile['key'] ?? null) ? $profile['key'] : null;
+        $empty      = ['segments' => [], 'total_minutes' => 0];
+        $start = $this->fetchRow('SELECT coordinate_x, coordinate_y FROM map WHERE cell_number = ? LIMIT 1', [$charCellNumber]);
+        if ($start === null || !isset(self::DIRECTIONS[$dir])) {
+            return $empty;
+        }
+        [$dx, $dy] = self::DIRECTIONS[$dir];
+        $x = $this->asInt($start['coordinate_x'] ?? 0);
+        $y = $this->asInt($start['coordinate_y'] ?? 0);
+
+        $selects = [];
+        $bind    = [];
+        for ($i = 1; $i <= $n; $i++) {
+            $nx = $x + $dx * $i;
+            $ny = $y + $dy * $i;
+            if ($nx < 1 || $nx > 1000 || $ny < 1 || $ny > 1000) {
+                break;
+            }
+            $selects[] = 'SELECT ? AS cx, ? AS cy';
+            $bind[]    = $nx;
+            $bind[]    = $ny;
+        }
+        if ($selects === []) {
+            return $empty;
+        }
+
+        $sql = 'SELECT b.name AS biome_name, (ec.id IS NOT NULL) AS is_explored '
+            . 'FROM (' . implode(' UNION ALL ', $selects) . ') coords '
+            . 'JOIN map m ON m.coordinate_x = coords.cx AND m.coordinate_y = coords.cy '
+            . 'LEFT JOIN biomes b ON b.id = m.biome_id '
+            . 'LEFT JOIN explored_cells ec ON ec.character_id = ? AND ec.map_cell_id = m.cell_number';
+        $bind[] = $characterId;
+
+        $res  = Database::connect()->query($sql, $bind);
+        $rows = $res instanceof BaseResult ? $res->getResultArray() : [];
+
+        $counts = [
+            MarchPaceService::TERRAIN_EXPLORED   => 0,
+            MarchPaceService::TERRAIN_UNEXPLORED => 0,
+            MarchPaceService::TERRAIN_COLD       => 0,
+        ];
+        foreach ($rows as $row) {
+            if ($this->isColdBiome($this->asStr($row['biome_name'] ?? ''))) {
+                $counts[MarchPaceService::TERRAIN_COLD]++;
+            } elseif (!empty($row['is_explored'])) {
+                $counts[MarchPaceService::TERRAIN_EXPLORED]++;
+            } else {
+                $counts[MarchPaceService::TERRAIN_UNEXPLORED]++;
+            }
+        }
+
+        $effects    = new VehicleEffectsService();
+        $pace       = new MarchPaceService();
+        $base       = max(1, $this->gsInt('world.march.cells_per_tick', 3));
+        $minutes    = $this->minutesPerCell();
+        $segments   = [];
+        $totalTicks = 0;
+        foreach ($counts as $terrain => $count) {
+            if ($count <= 0) {
+                continue;
+            }
+            $perTick             = $pace->cellsPerTick($base, $effects->profileFor($profileKey, $terrain));
+            $segments[$terrain]  = ['count' => $count, 'per_tick' => $perTick];
+            $totalTicks         += (int) ceil($count / max(1, $perTick));
+        }
+
+        return ['segments' => $segments, 'total_minutes' => $totalTicks * $minutes];
+    }
+
+    /**
+     * @param array{segments: array<string, array{count:int, per_tick:int}>, total_minutes:int} $breakdown
+     */
+    private function breakdownLine(array $breakdown, int $pedestrianMinutes): string
+    {
+        if ($breakdown['segments'] === []) {
+            return '';
+        }
+        $labels = [
+            MarchPaceService::TERRAIN_EXPLORED   => 'Разведано',
+            MarchPaceService::TERRAIN_UNEXPLORED => 'целина',
+            MarchPaceService::TERRAIN_COLD       => 'мороз',
+        ];
+        $parts = [];
+        foreach ($breakdown['segments'] as $terrain => $seg) {
+            $parts[] = "{$labels[$terrain]} {$seg['count']} по {$seg['per_tick']}";
+        }
+        return implode(' · ', $parts) . " — {$breakdown['total_minutes']} мин (пешком {$pedestrianMinutes})";
     }
 
     private function renderMap(int $characterId): string
