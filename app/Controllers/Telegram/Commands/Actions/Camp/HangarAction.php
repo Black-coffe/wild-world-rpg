@@ -64,7 +64,7 @@ final class HangarAction extends BaseAction
         $charId = is_numeric($rawId) ? (int) $rawId : 0;
 
         $workshopLevel = $this->workshopLevel($charId);
-        if ($workshopLevel <= 0) {
+        if ($workshopLevel <= 0 && ! $this->hasAutomationGear($charId)) {
             return $this->renderLocked($chatId);
         }
 
@@ -106,8 +106,12 @@ final class HangarAction extends BaseAction
     {
         $service = new DroneService();
 
+        $workshopLine = $workshopLevel > 0
+            ? "_Мастерская робототехники: уровень {$workshopLevel}_"
+            : '_Мастерской робототехники нет — построй: 🏠 База → 🏗 Строить → 🤖 Мастерская робототехники_';
+
         $text = "🤖 *Ангар автоматизации*\n"
-            . "_Мастерская робототехники: уровень {$workshopLevel}_\n\n";
+            . "{$workshopLine}\n\n";
 
         $text .= "*Роботы:*\n" . $this->robotsBlock($charId) . "\n";
         $text .= "*Дроны:*\n" . $this->dronesBlock($charId, $workshopLevel, $service);
@@ -322,6 +326,37 @@ final class HangarAction extends BaseAction
         }
 
         return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * Есть ли у персонажа хотя бы одна единица техники (дрон/робот) на руках —
+     * например, дрон куплен у каравана без мастерской (ADR-172/S03). Один запрос
+     * на оба типа сразу, не по одному на тип.
+     */
+    private function hasAutomationGear(int $charId): bool
+    {
+        $ids = (new CraftedItemsModel())
+            ->whereIn('type', ['drones', 'robots'])
+            ->findColumn('id');
+        if ($ids === null || $ids === []) {
+            return false;
+        }
+
+        $numericIds = [];
+        foreach ($ids as $id) {
+            if (is_numeric($id)) {
+                $numericIds[] = (int) $id;
+            }
+        }
+        if ($numericIds === []) {
+            return false;
+        }
+
+        return (new CraftedItemsLogModel())
+            ->where('character_id', $charId)
+            ->whereIn('crafted_item_id', $numericIds)
+            ->where('quantity >', 0)
+            ->countAllResults() > 0;
     }
 
     /**

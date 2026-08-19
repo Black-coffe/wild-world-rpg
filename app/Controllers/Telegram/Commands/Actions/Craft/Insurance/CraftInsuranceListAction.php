@@ -110,7 +110,7 @@ class CraftInsuranceListAction extends BaseAction
 
         $navButtons = [
             ['text' => '🛡 Личная страховка', 'callback_data' => 'PersonalInsurance'],
-            ['text' => '🚁 Ангар',            'callback_data' => 'hangar'],
+            ['text' => '🤖 Ангар',            'callback_data' => 'hangar'],
             ['text' => '🎒 Инвентарь',        'callback_data' => 'inventory'],
         ];
 

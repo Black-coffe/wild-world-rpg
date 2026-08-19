@@ -63,7 +63,7 @@ class MoveSurfaceService
 
         // 2) Компас-розетка + нижние кнопки (Поход/Обзор/Легенда) — общий билдер
         //    (тот же используется в renderCompassInPlace для возврата из легенды).
-        $keyboard = ['inline_keyboard' => $this->buildDirectionsKeyboard($islandEnabled)];
+        $keyboard = ['inline_keyboard' => $this->buildDirectionsKeyboard($islandEnabled, $character)];
 
         // 3) Новое сообщение (первый показ); move_dir_* дальше будет его редактировать.
         $response = Request::sendMessage([
@@ -152,9 +152,11 @@ class MoveSurfaceService
      * [🗺️ Поход, ❓ Легенда, 🗺 Обзор] (ADR-150 Слайс 1). При OFF — только [🗺️ Поход]
      * → рендер byte-identical прежнему MoveCharacterAction.
      *
+     * @param array<string, mixed>|CharacterEntity $character
+     *
      * @return array<int, array<int, array<string, string>>>
      */
-    protected function buildDirectionsKeyboard(bool $islandEnabled): array
+    protected function buildDirectionsKeyboard(bool $islandEnabled, array|CharacterEntity $character): array
     {
         $rows = $this->compassRows();
 
@@ -185,8 +187,38 @@ class MoveSurfaceService
         if ($this->finalGridEnabled()) {
             $worldRow[] = ['text' => '🎉 События', 'callback_data' => 'events'];
         }
-        if ($worldRow !== []) {
-            $rows[] = $worldRow;
+
+        // Drone-discoverability story 02 — «🚁 Дрон» на компас-экране карты, на тех же
+        // условиях, что и близнец в MoveCharacterToDirectionAction:379 (killswitch,
+        // затем владение). Проверка владения выполняется ТОЛЬКО после isEnabled() —
+        // это самый горячий экран игры, лишний запрос при выключенном killswitch'е
+        // недопустим.
+        $droneService = new \App\Services\Player\DroneService();
+        if ($droneService->isEnabled()) {
+            $droneRow = (new \App\Models\CraftedItemsModel())->where('name_eng', 'DroneScout')->first();
+            if (is_array($droneRow)) {
+                $rawDroneId = $droneRow['id'] ?? null;
+                $droneId    = is_numeric($rawDroneId) ? (int) $rawDroneId : 0;
+                if ($droneId > 0) {
+                    $hasDrone = (new \App\Models\CraftedItemsLogModel())
+                        ->where('character_id', $character['id'])
+                        ->where('crafted_item_id', $droneId)
+                        ->where('quantity >', 0)
+                        ->first();
+                    if ($hasDrone) {
+                        $worldRow[] = ['text' => '🚁 Дрон', 'callback_data' => 'droneScoutList'];
+                    }
+                }
+            }
+        }
+
+        // Ряд «состояние мира» пакуется по 3 кнопки (унаследованное поведение самого ряда,
+        // не новая гарантия): при обоих killswitch'ах мира (island, final_grid) выключенных
+        // и наличии дрона у чара ряд выродится в одну кнопку «🚁 Дрон» — на проде оба
+        // killswitch'а сейчас ON, поэтому сегодня это недостижимо, но код такую конфигурацию
+        // не запрещает.
+        foreach (array_chunk($worldRow, 3) as $chunk) {
+            $rows[] = $chunk;
         }
 
         return $rows;
@@ -287,7 +319,7 @@ class MoveSurfaceService
             }
         }
 
-        $keyboard = ['inline_keyboard' => $this->buildDirectionsKeyboard($islandEnabled)];
+        $keyboard = ['inline_keyboard' => $this->buildDirectionsKeyboard($islandEnabled, $character)];
 
         return Request::editMessageText([
             'chat_id'      => $chatId,

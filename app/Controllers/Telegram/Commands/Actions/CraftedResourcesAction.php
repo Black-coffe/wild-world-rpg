@@ -210,11 +210,16 @@ class CraftedResourcesAction extends BaseAction
         }
 
         // S5b (v0.51.188+): кнопка ремонта изношенных инструментов.
+        // drone-discoverability #01: игрок видел «📦 Дрон-разведчик» на полке
+        // «🛸 Дроны» и не находил двери к нему — рюкзак был тупиком (правило
+        // UX-DISCOVERABILITY). Безусловная кнопка «🚁 Ангар» встаёт вторым
+        // соседом в тот же ряд, чтобы не плодить строку-одиночку.
         $keyboard = [
             'inline_keyboard' => [
                 $sortRow,
                 [
                     ['text' => '🔧 Ремонт инструментов', 'callback_data' => 'repairToolsList'],
+                    ['text' => '🤖 Ангар', 'callback_data' => 'hangar'],
                 ],
                 [
                     ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
