@@ -13411,12 +13411,6 @@ parameters:
 			path: app/Services/PVE/RewardService.php
 
 		-
-			message: '#^Cannot cast mixed to int\.$#'
-			identifier: cast.int
-			count: 3
-			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeApplier.php
-
-		-
 			message: '#^Parameter \#1 \$id of method CodeIgniter\\Model\:\:update\(\) expects CodeIgniter\\Database\\RawSql\|int\|list\<int\|string\>\|string\|null, mixed given\.$#'
 			identifier: argument.type
 			count: 1
@@ -13448,12 +13442,6 @@ parameters:
 
 		-
 			message: '#^Cannot access offset ''level'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeValidator.php
-
-		-
-			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: app/Services/Player/BuildingUpgrade/BuildingUpgradeValidator.php
@@ -16373,12 +16361,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/TaskHandlers/GatherTaskHandler.php
-
-		-
-			message: '#^Parameter \#1 \$datetime of class DateTime constructor expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/TaskHandlers/GreenhouseProductionHandler.php
 
 		-
 			message: '#^Property App\\TaskHandlers\\GreenhouseProductionHandler\:\:\$buildingModel has no type specified\.$#'

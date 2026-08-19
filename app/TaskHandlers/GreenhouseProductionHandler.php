@@ -3,6 +3,7 @@
 namespace App\TaskHandlers;
 
 use App\Attributes\HandlerKey;
+use App\Models\BaseStorageModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\CharacterResourceModel;
 use App\Models\BuildingModel;
@@ -43,9 +44,13 @@ class GreenhouseProductionHandler extends BaseTaskHandler
     protected $resourceModel;
     protected $characterModel;
     protected $telegramUserModel;
+    protected BaseStorageModel $baseStorageModel;
 
     private GameBalance $cfg;
     private BuildingEffectsService $buildingEffects;
+
+    /** ADR-171 (story storage-craft-insurance-04) — killswitch того же пула, что и рюкзак+склад. */
+    private const POOL_KILLSWITCH_KEY = 'storage.pool_enabled';
 
     public function __construct(?GameBalance $cfg = null, ?BuildingEffectsService $buildingEffects = null)
     {
@@ -56,6 +61,7 @@ class GreenhouseProductionHandler extends BaseTaskHandler
         $this->resourceModel          = new ResourceModel();
         $this->characterModel         = new CharacterModel();
         $this->telegramUserModel      = new TelegramUserModel();
+        $this->baseStorageModel       = new BaseStorageModel();
         $this->buildingEffects        = $buildingEffects ?? new BuildingEffectsService();
     }
 
@@ -119,30 +125,55 @@ class GreenhouseProductionHandler extends BaseTaskHandler
             $harvest = $production;
             unset($harvest['water']); // убираем ключ water, оставляем только еду
 
-            // Ищем, сколько у персонажа сейчас воды
+            // Ищем, сколько у персонажа сейчас воды в рюкзаке
             $charResWater = $this->characterResourceModel
                 ->where('id_characters', $characterId)
                 ->where('id_resources', $waterResource['id'])
                 ->first();
 
-            // Если у игрока нет воды / ноль
-            if (!$charResWater || $charResWater['quantity'] <= 0) {
+            $backpackQty = (is_array($charResWater) && isset($charResWater['quantity']) && is_numeric($charResWater['quantity']))
+                ? (int) $charResWater['quantity']
+                : 0;
+
+            // ADR-171: теплица стоит на базе, вода на складе той же базы ей доступна.
+            // ResourcePoolService гейтит пул тем, стоит ли ПЕРСОНАЖ на базе прямо сейчас
+            // (BaseCheckService::checkBaseStatus) — верно для крафта/ремонта, где игрок сам
+            // жмёт кнопку стоя на базе, но не для теплицы: крон обходит всех, включая тех,
+            // кто гуляет в поле, пока теплица дома продолжает работать. Поэтому здесь читаем
+            // склад напрямую через BaseStorageModel, минуя гейт «на базе» — только killswitch.
+            $poolEnabled = $this->gsBool(self::POOL_KILLSWITCH_KEY, true);
+            $storageQty  = $poolEnabled ? $this->baseStorageModel->quantityFor($characterId, (int) $waterResource['id']) : 0;
+
+            $poolQty = $backpackQty + $storageQty;
+
+            // Если воды нет нигде
+            if ($poolQty <= 0) {
                 continue;
             }
 
             // === (1) Проверяем, не надо ли отправить уведомление "мало воды" (<= threshold) ===
-            if ($charResWater['quantity'] <= $this->gsInt('building.greenhouse.water_shortage_threshold', (int) $this->cfg->greenhouseWaterShortageThreshold)) {
-                $this->checkAndNotifyWaterShortage($charResWater, $characterId);
+            if ($poolQty <= $this->gsInt('building.greenhouse.water_shortage_threshold', (int) $this->cfg->greenhouseWaterShortageThreshold)) {
+                // Дубли построек разрешены намеренно — у одного персонажа может быть несколько
+                // Теплиц. Cooldown ключуется по конкретной постройке (id строки character_buildings),
+                // не по персонажу — иначе шортаж на одной теплице глушил бы предупреждение о другой.
+                $this->checkAndNotifyWaterShortage($characterId, (int) $charBuild['id'], $poolQty);
             }
 
             // === (2) Если воды меньше, чем нужно — пропускаем списание и генерацию ===
-            if ($charResWater['quantity'] < $waterNeeded) {
+            if ($poolQty < $waterNeeded) {
                 continue;
             }
 
-            // === (3) Иначе списываем воду и добавляем еду ===
-            $newQuantity = $charResWater['quantity'] - $waterNeeded;
-            $this->characterResourceModel->update($charResWater['id'], ['quantity' => $newQuantity]);
+            // === (3) Иначе списываем воду: сначала рюкзак, остаток — склад ===
+            $fromBackpack = min($backpackQty, $waterNeeded);
+            $fromStorage  = $waterNeeded - $fromBackpack;
+
+            if ($fromBackpack > 0 && is_array($charResWater)) {
+                $this->characterResourceModel->update($charResWater['id'], ['quantity' => $backpackQty - $fromBackpack]);
+            }
+            if ($fromStorage > 0) {
+                $this->baseStorageModel->withdraw($characterId, (int) $waterResource['id'], $fromStorage);
+            }
 
             // Начисляем harvest (Fruit / Berries / Mushrooms / Crops и т.д.)
             foreach ($harvest as $resourceNameEn => $count) {
@@ -151,60 +182,47 @@ class GreenhouseProductionHandler extends BaseTaskHandler
         }
     }
 
+    /** Префикс ключа CI4-кэша для дедупа уведомлений о нехватке воды (см. ниже). */
+    private const NOTIFY_CACHE_PREFIX = 'greenhouse_water_shortage_';
+
     /**
-     * Проверяет, не пора ли отправить уведомление о малом количестве воды.
+     * Проверяет, не пора ли отправить уведомление о малом количестве воды, и шлёт его
+     * с cooldown-дедупом.
      *
-     * Правила простые:
-     *  - Если quantity <= 3, тогда проверяем, сколько времени прошло с момента последней отправки (хранимой в custom_data).
-     *  - Если разница >= 30 минут — шлём новое уведомление и записываем новую дату отправки в custom_data.
-     *  - Если уведомление не отправлялось (либо не прошло 30 минут), ничего не меняем.
+     * v0.51 (story storage-craft-insurance-04, ревью team-lead): метку последней отправки
+     * раньше писали в `character_resources.custom_data` строки воды. С пулом рюкзак+склад
+     * это перестало работать надёжно в обе стороны: (а) если весь рюкзак выложен на склад,
+     * строки для воды может не быть вовсе (`CharacterResourceModel::decreaseResources` удаляет
+     * строку при quantity<=0) — класть метку было некуда; (б) заведённая ради этого нулевая
+     * строка всплывает игроку на экране инвентаря `ResourcesGatheredAction` («📦 Вода | 0 шт»)
+     * — тот экран читает `character_resources` без фильтра `quantity > 0` (в отличие от
+     * `SellResourceAction`/`ResourceOverviewService`, где фильтр стоит). Чинить сам экран —
+     * вне scope этой story. Поэтому метка переехала в CI4-кэш (тот же `service('cache')`,
+     * которым в этом же handler'е уже пользуется `GameSettingsService`), TTL = cooldown:
+     * никакая игровая таблица не трогается, протечка в инвентарь структурно невозможна.
+     * Плата — сброс кэша (деплой/`cache:clear`) может стереть отметку раньше срока, тогда
+     * уйдёт одно лишнее предупреждение; это дешевле испорченного экрана инвентаря.
      */
-    private function checkAndNotifyWaterShortage(array $charResWater, int $characterId): void
+    private function checkAndNotifyWaterShortage(int $characterId, int $poolQty): void
     {
-        // Если воды больше threshold (default 3), ничего не делаем
-        if ($charResWater['quantity'] > $this->gsInt('building.greenhouse.water_shortage_threshold', (int) $this->cfg->greenhouseWaterShortageThreshold)) {
+        // Если пула больше threshold (default 3), ничего не делаем
+        if ($poolQty > $this->gsInt('building.greenhouse.water_shortage_threshold', (int) $this->cfg->greenhouseWaterShortageThreshold)) {
             return;
         }
 
-        // Извлекаем custom_data
-        $oldCustomData = $charResWater['custom_data'] ?? null;
-        $customData = $oldCustomData ? json_decode($oldCustomData, true) : [];
-        if (!is_array($customData)) {
-            $customData = [];
+        $cache    = service('cache');
+        $cacheKey = self::NOTIFY_CACHE_PREFIX . $characterId;
+
+        // Отметка ещё не истекла — cooldown не прошёл, повторно не шлём.
+        if (is_object($cache) && method_exists($cache, 'get') && $cache->get($cacheKey) !== null) {
+            return;
         }
 
-        // Достаем дату последнего уведомления
-        $lastNotification = $customData['last_shortage_notification'] ?? null;
-        $now = new \DateTime();
+        $this->notifyWaterShortage($characterId, $poolQty);
 
-        // Проверяем, если в поле уже была дата
-        if ($lastNotification) {
-            // Вычисляем разницу во времени
-            $lastTime = new \DateTime($lastNotification);
-            $diff = $now->getTimestamp() - $lastTime->getTimestamp();
-            // Если прошло меньше cooldown (default 1800 секунд = 30 минут), выходим
-            if ($diff < $this->gsInt('building.greenhouse.water_shortage_cooldown_sec', (int) $this->cfg->greenhouseWaterShortageCooldownSec)) {
-                return;
-            }
-        }
-
-        // Если (a) даты нет, или (b) она есть, но прошло >= 30 минут — шлём уведомление
-        $this->notifyWaterShortage($characterId, $charResWater['quantity']);
-
-        // Запоминаем дату отправки (текущую)
-        $newNotificationDate = $now->format('Y-m-d H:i:s');
-        $customData['last_shortage_notification'] = $newNotificationDate;
-
-        // Преобразуем в JSON
-        $newCustomData = json_encode($customData);
-
-        // ПРЯМОЙ SQL-ЗАПРОС ДЛЯ ОБНОВЛЕНИЯ custom_data
-        try {
-            $db = \Config\Database::connect(); // получаем экземпляр соединения с БД
-            $sql = "UPDATE character_resources SET custom_data = ? WHERE id = ?";
-            $db->query($sql, [$newCustomData, $charResWater['id']]);
-        } catch (\Exception $e) {
-            log_message('error', 'Update custom_data exception: ' . $e->getMessage());
+        if (is_object($cache) && method_exists($cache, 'save')) {
+            $cooldownSec = $this->gsInt('building.greenhouse.water_shortage_cooldown_sec', (int) $this->cfg->greenhouseWaterShortageCooldownSec);
+            $cache->save($cacheKey, time(), $cooldownSec);
         }
     }
 
@@ -256,9 +274,11 @@ class GreenhouseProductionHandler extends BaseTaskHandler
     }
 
     /**
-     * Отправляет предупреждение, что воды мало (<= 3).
+     * Отправляет предупреждение, что воды мало (<= threshold). $waterQuantity — суммарный
+     * пул (рюкзак + склад базы), а не только карман: иначе игрок со складом видел бы «осталось
+     * 3», хотя дома лежат тысячи (ADR-171, story storage-craft-insurance-04).
      */
-    private function notifyWaterShortage(int $characterId, int $waterQuantity): void
+    protected function notifyWaterShortage(int $characterId, int $waterQuantity): void
     {
         // 1) Найдём персонажа
         $character = $this->characterModel->find($characterId);
@@ -282,7 +302,7 @@ class GreenhouseProductionHandler extends BaseTaskHandler
         // 3) Формируем и отправляем
         $chatId = $telegramUser['telegram_id'];
         $text = "Внимание!\n"
-            . "У вас осталось всего *{$waterQuantity}* единиц воды.\n"
+            . "У вас осталось всего *{$waterQuantity}* единиц воды (рюкзак + склад базы).\n"
             . "Если вы не пополните запас, Теплица скоро перестанет приносить урожай!";
 
         $this->safeSendMessage($chatId, $text, ['parse_mode' => 'Markdown']);

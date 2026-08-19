@@ -60,10 +60,19 @@ blocked_by: [storage-craft-insurance-01]
   (не уходит в минус — модель уже это гарантирует).
 - Порог/cooldown-предупреждение теперь считается от `poolQty`, текст указывает «(рюкзак + склад
   базы)» — без этого игрок со складом снова не понял бы, о чём число.
-- Edge-case: если весь рюкзак выложен на склад, строки `character_resources` для воды может не
-  быть вовсе (`decreaseResources` удаляет строку при quantity<=0) — тогда класть cooldown-метку
-  было некуда. `checkAndNotifyWaterShortage` заводит нулевую строку под неё в этом случае —
-  единственное отклонение от «трогать только два файла из списка».
+- Edge-case (найден и исправлен по ревью team-lead): если весь рюкзак выложен на склад, строки
+  `character_resources` для воды может не быть вовсе (`decreaseResources` удаляет строку при
+  quantity<=0) — класть cooldown-метку было некуда. Первая версия заводила нулевую строку под
+  метку, но она всплывала игроку на экране инвентаря `ResourcesGatheredAction` («📦 Вода | 0 шт»,
+  тот экран читает `character_resources` без фильтра `quantity > 0` — в отличие от
+  `SellResourceAction`/`ResourceOverviewService`, где фильтр стоит). Финальное решение: cooldown-
+  метка живёт в CI4-кэше (`service('cache')`, ключ `greenhouse_water_shortage_{characterId}`,
+  TTL = cooldown_sec) — тот же file-driver, которым уже пользуется `GameSettingsService` в этом
+  же handler'е. `character_resources.custom_data` для этой цели больше не используется вовсе.
+  Плата: сброс кэша (деплой/`cache:clear`) может стереть отметку раньше срока — максимум одно
+  лишнее предупреждение, дешевле испорченного экрана инвентаря. Альтернатива (ALTER
+  `character_buildings` + новая колонка в `$allowedFields`) была на столе, но добавляла миграцию
+  вне `## Files` этой story ради данных, которые не обязаны переживать рестарт.
 - `notifyWaterShortage`: `private` → `protected` (seam для теста, по образцу
   `AntiCampDwellHandler::sendWarn`) — иначе тест не может подменить отправку без живого
   Telegram/БД character/telegram_users.
