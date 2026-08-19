@@ -51,8 +51,17 @@ final class BaseStorageDepositTest extends CIUnitTestCase
     }
 
     /**
-     * Вход должен стоять на самом экране склада — и когда там пусто (класть
-     * особенно логично именно тогда), и когда игрок стоит на базе.
+     * Вход должен стоять на каждом экране, где логично тут же что-то положить:
+     * на пустом складе, на экране склада при игроке на базе, и на экране
+     * подтверждения «ресурс забран» (ADR-171 — забрал одно, тут же можно
+     * положить другое, не возвращаясь никуда).
+     *
+     * Проверка режет исходник по границам методов/веток и требует кнопку
+     * ИМЕННО в каждом из трёх блоков — а не считает суммарные вхождения по
+     * файлу: голый счётчик и падает, и молчит не по адресу — падает если
+     * появится четвёртый экран с той же кнопкой (защищает от ложного
+     * фейла), и не ловит, если дверь исчезнет с одного конкретного экрана,
+     * но появится на другом (защищает смысл гейта).
      */
     public function testStorageScreenOffersTheDepositDoor(): void
     {
@@ -60,10 +69,46 @@ final class BaseStorageDepositTest extends CIUnitTestCase
             APPPATH . 'Controllers/Telegram/Commands/Actions/Storage/BaseStorageListAction.php'
         );
 
+        $button = "'callback_data' => 'baseStorageDeposit'";
+
+        // Блок renderList(): пустой склад — до ветки «на базе»; и сама ветка
+        // «на базе» — до следующего метода retrieveAll().
+        $renderListStart = strpos($src, 'private function renderList(');
+        $retrieveAllStart = strpos($src, 'private function retrieveAll(');
+        $this->assertNotFalse($renderListStart, 'Не нашёл renderList() — правь тест под актуальную структуру файла.');
+        $this->assertNotFalse($retrieveAllStart, 'Не нашёл retrieveAll() — правь тест под актуальную структуру файла.');
+        $renderListBody = substr($src, $renderListStart, $retrieveAllStart - $renderListStart);
+
+        $onBaseMarker = 'Ты на базе — можно забрать всё в инвентарь';
+        $onBasePos = strpos($renderListBody, $onBaseMarker);
+        $this->assertNotFalse($onBasePos, 'Не нашёл текст ветки «на базе» — правь тест под актуальную структуру файла.');
+
+        $emptyStorageBlock = substr($renderListBody, 0, $onBasePos);
+        $onBaseBlock       = substr($renderListBody, $onBasePos);
+
         $this->assertSame(
-            2,
-            substr_count($src, "'callback_data' => 'baseStorageDeposit'"),
-            'Кнопка «📥 Положить на склад» обязана быть и на пустом складе, и на экране склада при игроке на базе.'
+            1,
+            substr_count($emptyStorageBlock, $button),
+            'Кнопка «📥 Положить на склад» пропала с экрана пустого склада.'
+        );
+        $this->assertSame(
+            1,
+            substr_count($onBaseBlock, $button),
+            'Кнопка «📥 Положить на склад» пропала с экрана склада при игроке на базе.'
+        );
+
+        // Блок retrieveOne(): экран-подтверждение «ресурс забран» — до
+        // следующего метода resourceName().
+        $retrieveOneStart = strpos($src, 'private function retrieveOne(');
+        $resourceNameStart = strpos($src, 'private function resourceName(');
+        $this->assertNotFalse($retrieveOneStart, 'Не нашёл retrieveOne() — правь тест под актуальную структуру файла.');
+        $this->assertNotFalse($resourceNameStart, 'Не нашёл resourceName() — правь тест под актуальную структуру файла.');
+        $retrieveOneBody = substr($src, $retrieveOneStart, $resourceNameStart - $retrieveOneStart);
+
+        $this->assertSame(
+            1,
+            substr_count($retrieveOneBody, $button),
+            'Кнопка «📥 Положить на склад» пропала с экрана подтверждения «ресурс забран».'
         );
     }
 

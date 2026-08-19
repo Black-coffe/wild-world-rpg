@@ -12,6 +12,7 @@ use App\Models\CraftedItemsModel;
 use App\Models\ResourceModel;
 use App\Models\TaskModel;
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Player\ResourcePoolService;
 use Config\CraftRecipes;
 use DateTime;
 use Longman\TelegramBot\Entities\ServerResponse;
@@ -34,6 +35,7 @@ class RepairCraftedItemAction extends BaseAction
     // resourceModel, characterTaskModel, taskModel — inherited из BaseAction
     private CraftedItemsLogModel    $logModel;
     private CharacterResourceModel  $characterResourceModel;
+    private ResourcePoolService     $resourcePool;
     private GameSettingsService     $settings;
     private CraftRecipes            $recipes;
 
@@ -42,6 +44,7 @@ class RepairCraftedItemAction extends BaseAction
         parent::__construct($callbackQuery);
         $this->logModel               = new CraftedItemsLogModel();
         $this->characterResourceModel = new CharacterResourceModel();
+        $this->resourcePool           = new ResourcePoolService();
         // characterTaskModel + taskModel + resourceModel — из BaseAction.
         if (! ($this->characterTaskModel instanceof CharacterTaskModel)) {
             $this->characterTaskModel = new CharacterTaskModel();
@@ -208,24 +211,8 @@ class RepairCraftedItemAction extends BaseAction
             return $this->errReply($chatId, 'Ресурсов недостаточно для ремонта — состав изменился.');
         }
 
-        // Deduct ресурсы.
-        foreach ($cost as $resName => $needQty) {
-            // Fresh builder per iteration (CI4 Model where-chain quirk).
-            $resRow = (new \App\Models\ResourceModel())->where('name', $resName)->first();
-            if (is_object($resRow)) {
-                $resRow = $resRow->toArray();
-            }
-            if (! is_array($resRow) || ! is_numeric($resRow['id'] ?? null)) {
-                continue;
-            }
-            (new \App\Models\CharacterResourceModel())->decreaseResources(
-                $this->extractInt($character, 'id'),
-                (int) $resRow['id'],
-                $needQty
-            );
-        }
-
-        // Поиск repair task_id.
+        // Поиск repair task_id — до транзакции, чтобы не открывать её ради
+        // config-ошибки.
         $repairTask = $this->taskModel->where('handler_key', 'repair')->first();
         if (! is_array($repairTask)) {
             return $this->errReply($chatId, 'Ошибка конфигурации: task `repair` не найден.');
@@ -238,14 +225,29 @@ class RepairCraftedItemAction extends BaseAction
 
         // Telegram user id из callback context.
         $tgUserId = $this->extractInt($user, 'id');
+        $charId   = $this->extractInt($character, 'id');
 
         $taskSettings = json_encode([
             'tool_log_id' => $logId,
             'recipe'      => $ctx['name_eng'],
         ], JSON_UNESCAPED_UNICODE);
 
+        // ADR-171 + ревью-фикс (тот же приём, что GenericCraftActionStart и
+        // BuildingUpgradeApplier): `deductResources()` списывает все ресурсы в
+        // своей собственной транзакции (см. её docblock) и бросает при гонке —
+        // раньше исключение глушилось логом внутри цикла, и ремонт стартовал,
+        // не заплатив за ресурс вовсе (хуже прежнего silent-clamp «недоплатил»).
+        // Задача создаётся ТОЛЬКО если весь список ресурсов списан успешно —
+        // строка ниже недостижима при выброшенном исключении.
+        try {
+            $this->deductResources($charId, $cost);
+        } catch (\RuntimeException $e) {
+            log_message('error', "[RepairCraftedItemAction] пул словил гонку при списании для character {$charId}: " . $e->getMessage());
+            return $this->errReply($chatId, 'Ресурсы разошлись, пока ты выбирал — проверь запас и попробуй ещё раз.');
+        }
+
         $this->characterTaskModel->insert([
-            'character_id'      => $this->extractInt($character, 'id'),
+            'character_id'      => $charId,
             'telegram_user_id'  => $tgUserId,
             'task_id'           => $repairTaskId,
             'status'            => 'in_work',
@@ -336,38 +338,97 @@ class RepairCraftedItemAction extends BaseAction
     }
 
     /**
+     * Резолвит id ВСЕХ ресурсов из `$names` ОДНИМ `whereIn()`-запросом, а не
+     * `where()->first()` на переиспользуемой модели внутри цикла — CI4 Model
+     * builder state не гарантированно сбрасывается между вызовами в loop'е
+     * (см. memory `ci4-model-builder-state-quirk`, живой инцидент S5b: второй
+     * ресурс в цикле молча не находился из-за накопленного `AND` в builder'е).
+     * `availableByName()`/`consumeByName()` внутри `ResourcePoolService`
+     * страдали бы тем же риском при N ≥ 2 ресурсах — поэтому здесь резолвим id
+     * сами и дальше зовём id-based `available()`/`consume()`.
+     *
+     * @param array<int,string> $names
+     * @return array<string,int> name => resourceId
+     */
+    private function resolveResourceIds(array $names): array
+    {
+        if ($names === []) {
+            return [];
+        }
+
+        $idByName = [];
+        foreach ($this->resourceModel->whereIn('name', $names)->findAll() as $row) {
+            $r    = is_object($row) && method_exists($row, 'toArray') ? $row->toArray() : $row;
+            $name = is_array($r) && is_string($r['name'] ?? null) ? $r['name'] : null;
+            $id   = is_array($r) && is_numeric($r['id'] ?? null) ? (int) $r['id'] : null;
+            if ($name !== null && $id !== null) {
+                $idByName[$name] = $id;
+            }
+        }
+
+        return $idByName;
+    }
+
+    /**
+     * ADR-171: достаточность считается по пулу рюкзак+склад (когда игрок на
+     * базе) — иначе отказ по нехватке называл бы карманный остаток, который не
+     * сходится с тем, что игрок видит на складе.
+     *
      * @param array<string,int> $cost
      * @return array{have:array<string,int>, short:array<string,int>}
      */
     private function checkResourceAvailability(int $characterId, array $cost): array
     {
+        $ids   = $this->resolveResourceIds(array_keys($cost));
         $have  = [];
         $short = [];
         foreach ($cost as $resName => $needQty) {
-            $resRow = (new \App\Models\ResourceModel())->where('name', $resName)->first();
-            // ResourceModel у F1.4 повертає ResourceEntity — нормалізуємо до array.
-            if (is_object($resRow)) {
-                $resRow = $resRow->toArray();
-            }
-            if (! is_array($resRow) || ! is_numeric($resRow['id'] ?? null)) {
-                $short[$resName] = $needQty;
-                continue;
-            }
-            $resourceId = (int) $resRow['id'];
-            // Fresh builder each iteration (CI4 Model where()-chain не сбрасывается между ->first() вызовами в одном loop'е).
-            $charResRow = (new \App\Models\CharacterResourceModel())
-                ->where('id_characters', $characterId)
-                ->where('id_resources', $resourceId)
-                ->first();
-            $haveQty = is_array($charResRow) && is_numeric($charResRow['quantity'] ?? null)
-                ? (int) $charResRow['quantity']
-                : 0;
+            $resourceId     = $ids[$resName] ?? null;
+            $haveQty        = $resourceId !== null ? $this->resourcePool->available($characterId, $resourceId) : 0;
             $have[$resName] = $haveQty;
             if ($haveQty < $needQty) {
                 $short[$resName] = $needQty - $haveQty;
             }
         }
         return ['have' => $have, 'short' => $short];
+    }
+
+    /**
+     * ADR-171: списание через тот же пул, что и проверка достаточности выше —
+     * рюкзак сначала, остаток со склада.
+     *
+     * insurance-06: своя транзакция вокруг цикла — если `consume()` бросает
+     * на N-м ресурсе (гонка: checkResourceAvailability подтвердил достаточность
+     * секунду назад, но остаток успел уйти), уже списанные раньше в этом же
+     * цикле ресурсы откатываются, а не остаются потрачены в никуда. Исключение
+     * пробрасывается вызывающему (`confirmRepair()`) — эффект (задача ремонта)
+     * не создаётся, если оплата не прошла целиком.
+     *
+     * @param array<string,int> $cost
+     * @throws \RuntimeException при гонке за тот же остаток
+     */
+    private function deductResources(int $characterId, array $cost): void
+    {
+        $ids = $this->resolveResourceIds(array_keys($cost));
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+        try {
+            foreach ($cost as $resName => $needQty) {
+                if ($needQty < 1) {
+                    continue;
+                }
+                $resourceId = $ids[$resName] ?? null;
+                if ($resourceId === null) {
+                    continue; // неизвестный ресурс — молчаливый skip, как и раньше
+                }
+                $this->resourcePool->consume($characterId, $resourceId, $needQty);
+            }
+        } catch (\RuntimeException $e) {
+            $db->transRollback();
+            throw $e;
+        }
+        $db->transComplete();
     }
 
     /**

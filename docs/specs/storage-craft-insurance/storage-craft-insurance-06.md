@@ -24,6 +24,7 @@ blocked_by: [storage-craft-insurance-01]
 - app/Services/Player/BuildingUpgrade/BuildingUpgradeApplier.php
 - app/Controllers/Telegram/Commands/Actions/Craft/Repair/RepairCraftedItemAction.php
 - app/Controllers/Telegram/Commands/Actions/Craft/Repair/NpcRepairAction.php
+- app/Controllers/Telegram/Commands/Actions/Camp/Buildings/UpgradeBuildingAction.php
 - tests/unit/Player/PoolAdoptionRepairUpgradeTest.php
 
 ## Non-goals
@@ -47,8 +48,10 @@ blocked_by: [storage-craft-insurance-01]
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Player/PoolAdoptionRepairUpgradeTest.php`
-→ зелёно (11 тестов). `vendor/bin/phpstan analyse --memory-limit=512M --no-progress` (полный прогон
-проекта, paths=app) → No errors.
+→ зелёно (13 тестов). `vendor/bin/phpstan analyse --memory-limit=512M --no-progress` (полный прогон
+проекта, paths=app) → No errors. Полный `vendor/bin/phpunit --no-coverage --no-progress` (весь
+проект): 1 несвязанный сбой — `BaseStorageDepositTest::testStorageScreenOffersTheDepositDoor`
+(файл склад-депозита не в `## Files` этой story, диффа на нём нет — вне scope, не мой).
 
 ## Implementation notes
 
@@ -90,6 +93,74 @@ blocked_by: [storage-craft-insurance-01]
   `GameSettingsReaderTrait::gsFloat()` (ADR-043 множитель) — не относится к предмету story
   (Non-goals: не менять формулы), не хотелось тянуть ещё один DB-двойник ради ветки, которую эта
   story не трогает.
+
+### Ревью-раунд 2 (найденная дыра): оплата без эффекта / эффект без оплаты
+
+Ревью вскрыло: `deductResources()` в обоих файлах глотала `RuntimeException` из атомарного
+`ResourcePoolService::consume()/consumeByName()` (`try { consume } catch(\RuntimeException) { log }`)
+— при гонке/нехватке апгрейд/ремонт всё равно применялся, ничего не заплатив. Хуже прежнего
+silent-clamp (тот хотя бы недоплачивал, но списывал что было).
+
+Правки:
+- **`RepairCraftedItemAction`**: `deductResources()` больше не глотает исключение — оборачивает цикл
+  списания в свой `$db->transStart()/transRollback()/transComplete()` (частичное списание нескольких
+  ресурсов откатывается целиком) и пробрасывает наружу. `confirmRepair()` ловит, отвечает игроку
+  «Ресурсы разошлись, пока ты выбирал — проверь запас и попробуй ещё раз.» и НЕ создаёт
+  `character_tasks`-запись (эффект = сама задача ремонта, до неё дело не доходит).
+- **`BuildingUpgradeApplier::apply()`**: порядок шагов изменён на **ресурсы → золото → level** (было
+  золото → ресурсы → level). Раньше при отказе на ресурсах транзакция откатывала золото постфактум
+  (полагаясь на вложенный `transDepth` CI4 — технически корректно, но хрупко и нечитаемо); теперь
+  golden-adjust и `characterBuildingModel->update()` физически не выполняются, если
+  `deductResources()` бросил — не только не коммитятся. `CharacterStatsService` стал инжектируемой
+  зависимостью (`?CharacterStatsService $statsService = null`) специально для теста ниже.
+  `UpgradeBuildingAction::confirmUpgrade()` (добавлен в `## Files` с одобрения team-lead) оборачивает
+  `$this->applier->apply(...)` в try/catch — без него необработанное исключение было бы белым
+  экраном игроку, что хуже, чем дыра, которую чиним.
+- Новый тест `testApplierApplyDoesNotTouchGoldOrLevelWhenResourceRaceFails` — пул бросает на
+  ресурсах → шпион на `CharacterStatsService::adjust()` и `CharacterBuildingModel::update()`
+  подтверждает: ни один не вызван, `apply()` пробросил `RuntimeException`.
+- `RepairCraftedItemAction::deductResources()`/`BuildingUpgradeApplier::deductResources()` теперь
+  и логируют, и пробрасывают (было — только логировали и продолжали). Не тестировался refund
+  ресурсов, списанных предыдущим воркером репозитория параллельно этой сессии в те же файлы
+  (см. ниже) — их итоговая версия (whereIn+findAll резолв id, реальный `ResourceEntity` в тестовом
+  двойнике вместо голого массива) уже была в дереве к моменту фикса и осталась как есть.
+
+**Важно про конкурентную правку:** пока эта дыра чинилась, тот же набор файлов (`BuildingUpgradeApplier.php`,
+`BuildingUpgradeValidator.php`, `RepairCraftedItemAction.php`, тестовый файл) одновременно и
+независимо редактировался ещё одним процессом (та же story, судя по идентичным доккомментариям
+`insurance-06`/`ревью-фикс`) — несколько раз перезаписывая друг у друга одну и ту же строку
+(`$row->toArray()` vs `is_object($row) ? $row->toArray() : $row` в резолве id ресурса). Итоговая
+версия в дереве — от того процесса (тестовый двойник теперь отдаёт настоящий `ResourceEntity`,
+а не голый массив, поэтому defensive-check в production-коде не нужен) — technically чище, чем моя
+промежуточная защита, и я её не откатывал. `phpstan-baseline.neon` подрезан ещё на 2 unmatched-записи
+(`foreach.nonIterable` + `encapsedStringPart.nonString $resNameEn` для `BuildingUpgradeValidator.php`),
+которые перестали воспроизводиться после этой нормализации.
+
+### Ревью-раунд 3: решение по `$row->toArray()` (line 149) и проверка порядка/транзакции
+
+По просьбе team-lead — явное решение, а не default. `ResourceModel::$returnType = ResourceEntity::class`
+(`app/Models/ResourceModel.php:22`) — это НЕ смешанный тип, `findAll()` в проде гарантированно всегда
+отдаёт `ResourceEntity[]`, никогда голый массив. Значит defensive `is_object($row) && method_exists(...)`
+был бы подпоркой под тестовый двойник, а не защитой от реальной двойственности — тот самый
+анти-паттерн, о котором предупреждает `feedback_entity_strict_array_typehint_trap`. **Решение: НЕ
+добавлять defensive-check.** Оставлено как есть — `$row->toArray()` напрямую (и в `Applier`, и в
+`Validator`), тестовый двойник (`resourceModelDouble()`) отдаёт настоящий `ResourceEntity`, честно
+повторяя контракт живой модели.
+
+Порядок `apply()` (ресурсы → золото → level) и транзакция (`$db->transStart()` в начале,
+`transRollback()` в catch, `transComplete()` в конце) — оба на месте, я их не разрывал следующей
+правкой. Порядок сейчас избыточен относительно самой транзакции (откат покрыл бы «золото ушло,
+ресурсы нет» и при обратном порядке), но не вреден: делает намерение читаемым без похода в семантику
+вложенного `transDepth`, и тест `testApplierApplyDoesNotTouchGoldOrLevelWhenResourceRaceFails` доказывает
+инвариант на уровне вызовов (`adjustCalled`/`updateCalled`), а не только на уровне финального состояния
+БД — оставлено как есть, не откатывал.
+
+**Полный прогон `vendor/bin/phpunit --no-coverage --no-progress` (весь проект, не только эта story):**
+первая попытка дала 380+ ошибок вида `Table 'game_settings' already exists` — коллизия миграций в
+общей `wildworld_tests` MySQL от ДРУГОГО процесса, паралелльно гонявшего тесты в то же самое время
+(не от моего диффа: сами правки не трогают схему/миграции). Повторный прогон сразу после — чисто,
+1 несвязанный сбой (`BaseStorageDepositTest`, файл вне `## Files`, не мой дифф, за это время в дереве
+появился отдельный чужой дифф на этом файле).
 
 ## Findings
 

@@ -171,7 +171,23 @@ class UpgradeBuildingAction extends BaseAction
         $req          = $ctx['requirements'];
 
         // v0.51.60 (Step 3) — apply chain extracted у BuildingUpgradeApplier
-        $this->applier->apply($character, $charBuilding, $nextLevel, $req);
+        // insurance-06: `apply()` теперь пробрасывает RuntimeException при гонке
+        // на списании ресурса (пул успел забрать остаток между validate() и этим
+        // вызовом) вместо того чтобы применить апгрейд, не заплатив. Без catch
+        // здесь необработанное исключение — это белый экран игроку, а не отказ;
+        // тот же путь ответа, что и у остальных ошибок этого экрана.
+        try {
+            $this->applier->apply($character, $charBuilding, $nextLevel, $req);
+        } catch (\RuntimeException) {
+            Request::answerCallbackQuery([
+                'callback_query_id' => $this->callbackQuery->getId(),
+                'text'              => 'Ресурсы разошлись, пока ты подтверждал — проверь запас и попробуй ещё раз.',
+                'show_alert'        => false,
+            ]);
+            return $this->send($chatId, $this->formatter->simpleError(
+                'Ресурсы разошлись, пока ты подтверждал — проверь запас и попробуй ещё раз.'
+            ));
+        }
 
         // v0.51.112 endgame hook: building upgrade → faction score.
         $buildingNameEn = null;

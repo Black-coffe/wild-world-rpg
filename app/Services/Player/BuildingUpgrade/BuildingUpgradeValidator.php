@@ -4,10 +4,10 @@ namespace App\Services\Player\BuildingUpgrade;
 
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
-use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\Services\Player\PlayerStateService;
+use App\Services\Player\ResourcePoolService;
 
 /**
  * v0.51.57 (UpgradeBuildingAction decomp Step 1) — extract повний validation
@@ -48,22 +48,22 @@ class BuildingUpgradeValidator
 
     private CharacterBuildingModel $characterBuildingModel;
     private BuildingModel $buildingModel;
-    private CharacterResourceModel $characterResourceModel;
     private ResourceModel $resourceModel;
     private PlayerStateService $playerStateService;
+    private ResourcePoolService $resourcePool;
 
     public function __construct(
         ?CharacterBuildingModel $characterBuildingModel = null,
         ?BuildingModel $buildingModel = null,
-        ?CharacterResourceModel $characterResourceModel = null,
         ?ResourceModel $resourceModel = null,
-        ?PlayerStateService $playerStateService = null
+        ?PlayerStateService $playerStateService = null,
+        ?ResourcePoolService $resourcePool = null
     ) {
         $this->characterBuildingModel = $characterBuildingModel ?? new CharacterBuildingModel();
         $this->buildingModel          = $buildingModel          ?? new BuildingModel();
-        $this->characterResourceModel = $characterResourceModel ?? new CharacterResourceModel();
         $this->resourceModel          = $resourceModel          ?? new ResourceModel();
         $this->playerStateService     = $playerStateService     ?? new PlayerStateService();
+        $this->resourcePool           = $resourcePool           ?? new ResourcePoolService();
     }
 
     /**
@@ -132,21 +132,49 @@ class BuildingUpgradeValidator
         }
 
         // 8) Resources — accumulate ALL missing (multi-line error для UX)
+        // ADR-171: достаточность считается по пулу рюкзак+склад (когда игрок на
+        // базе), не только по рюкзаку — иначе отказ называл бы карманный остаток,
+        // который не сходится с тем, что игрок видит на складе.
+        //
+        // Резолвим id/name ВСЕХ ресурсов ОДНИМ `whereIn()`-запросом до цикла, а
+        // не `where()->first()` на переиспользуемой модели внутри — CI4 Model
+        // builder state не гарантированно сбрасывается между вызовами в loop'е
+        // (см. memory `ci4-model-builder-state-quirk`, живой инцидент S5b: второй
+        // ресурс в цикле молча не находился из-за накопленного `AND` в builder'е —
+        // для рецепта апгрейда с 2+ ресурсами вторая и далее строки молча не
+        // проверялись бы).
+        $resources     = is_array($req['resources'] ?? null) ? $req['resources'] : [];
+        $resourceNames = [];
+        foreach ($resources as $resNameEn => $needQty) {
+            if (is_string($resNameEn) && is_numeric($needQty) && $needQty > 0) {
+                $resourceNames[] = $resNameEn;
+            }
+        }
+
+        $resourceRows = [];
+        if ($resourceNames !== []) {
+            foreach ($this->resourceModel->whereIn('name_en', $resourceNames)->findAll() as $row) {
+                $r         = $row->toArray();
+                $nameEnKey = is_string($r['name_en'] ?? null) ? $r['name_en'] : null;
+                if ($nameEnKey !== null) {
+                    $resourceRows[$nameEnKey] = $r;
+                }
+            }
+        }
+
+        $charId           = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
         $missingResources = [];
-        foreach ($req['resources'] as $resNameEn => $needQty) {
-            if ($needQty <= 0) {
+        foreach ($resources as $resNameEn => $needQty) {
+            if (!is_string($resNameEn) || $needQty <= 0) {
                 continue;
             }
-            $resRow = $this->resourceModel->where('name_en', $resNameEn)->first();
-            if (!$resRow) {
+            $resRow = $resourceRows[$resNameEn] ?? null;
+            if (!is_array($resRow)) {
                 $missingResources[] = "- Неизвестный ресурс {$resNameEn}";
                 continue;
             }
-            $charRes = $this->characterResourceModel
-                ->where('id_characters', $character['id'])
-                ->where('id_resources', $resRow['id'])
-                ->first();
-            $playerHas = $charRes ? (int) $charRes['quantity'] : 0;
+            $resourceId = is_numeric($resRow['id'] ?? null) ? (int) $resRow['id'] : 0;
+            $playerHas  = $this->resourcePool->available($charId, $resourceId);
 
             if ($playerHas < $needQty) {
                 $missingResources[] = "- {$resRow['name']} (нужно: {$needQty}, есть: {$playerHas})";
