@@ -79,6 +79,27 @@ class DeathService
     }
 
     /**
+     * ADR-172 — разыгрывать ли дробный остаток штрафа на крафт-предметах.
+     *
+     * Без этого floor() съедает весь штраф на строках с `quantity=1` (дрон,
+     * робот, верстак, транспорт): −3% от одной штуки — ноль, и полис
+     * страховки защищает от несуществующего риска. Ключ живёт в GameSettings,
+     * чтобы механику можно было погасить из админки без релиза.
+     */
+    private function fractionalCraftLossEnabled(): bool
+    {
+        $v = $this->settings->get('combat.death.craft_fractional_loss', true);
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+
+        return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /**
      * Обработать смерть персонажа: страховка → штраф → списание/передача
      * имущества → respawn.
      *
@@ -126,7 +147,11 @@ class DeathService
         // 4) Расчёт потерь.
         $lostResources    = $this->lootProcessor->computeResourceLoss($loserResources, $deathPenalty);
         $lostGold         = (int) floor($loserGold * $deathPenalty);
-        $lostCraftedItems = $this->lootProcessor->computeCraftLoss($loserCraftedItems, $deathPenalty);
+        $lostCraftedItems = $this->lootProcessor->computeCraftLoss(
+            $loserCraftedItems,
+            $deathPenalty,
+            $this->fractionalCraftLossEnabled()
+        );
 
         // 5) Списание у проигравшего.
         $this->lootProcessor->applyLosses($loserId, $lostResources, $lostGold);

@@ -132,7 +132,13 @@ final class HangarAction extends BaseAction
             $rows[] = $chunk;
         }
 
-        $rows[] = [['text' => '🏠 База', 'callback_data' => 'Base']];
+        // ADR-172 — вход в крафт-страховку прямо оттуда, где игрок смотрит на свою
+        // технику. Кнопка безусловная: при выключенном killswitch'е экран страховки
+        // сам объяснит, что агент не работает, а не оставит игрока без двери.
+        $rows[] = [
+            ['text' => '🛡 Страховка техники', 'callback_data' => 'craftInsuranceList'],
+            ['text' => '🏠 База',              'callback_data' => 'Base'],
+        ];
 
         return MediaSender::editTextOrSend($this->navTarget() + [
             'chat_id'      => $chatId,

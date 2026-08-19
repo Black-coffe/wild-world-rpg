@@ -18,7 +18,8 @@ use App\Services\Telegram\Request;
  * или прямого callback `craftInsuranceList`.
  *
  * Eligible = `crafted_items.type` ∈ `craft_insurance.eligible_types` (default
- * robots/workbench/transport), `crafted_items_log.insured=0`, `quantity>0`.
+ * robots/workbench/transport/drones — дроны добавлены в ADR-172), `crafted_items_log.insured=0`,
+ * `quantity>0`.
  */
 class CraftInsuranceListAction extends BaseAction
 {
@@ -99,12 +100,18 @@ class CraftInsuranceListAction extends BaseAction
     public static function renderScreen(array $rows, array $policyRows, array $types, CraftInsuranceService $insurance): array
     {
         $text = "🛡 *Страховка крафта* (NPC-страховой агент)\n\n"
-            . "_Полис вечный — оплата один раз, защита до продажи/потери. При смерти insured-предметы НЕ списываются._\n\n"
+            . "_Смерть забирает часть имущества. Дорогая техника лежит поштучно, и доля для неё "
+            . "превращается в шанс лишиться предмета целиком. Полис снимает этот шанс._
+"
+            . "_Оплата один раз, защита — до продажи или потери предмета._
+
+"
             . self::renderPolicies($policyRows);
 
         $navButtons = [
             ['text' => '🛡 Личная страховка', 'callback_data' => 'PersonalInsurance'],
-            ['text' => '🎒 Инвентарь',         'callback_data' => 'inventory'],
+            ['text' => '🚁 Ангар',            'callback_data' => 'hangar'],
+            ['text' => '🎒 Инвентарь',        'callback_data' => 'inventory'],
         ];
 
         if (empty($rows)) {

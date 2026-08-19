@@ -65,15 +65,32 @@ class LootProcessor
 
     /**
      * V24 (ADR-056): строки с `insured=1` пропускаются — селективный полис
-     * защищает дорогие предметы (robots/workbench/transport). Killswitch
+     * защищает дорогие предметы (robots/workbench/transport/drones). Killswitch
      * `craft_insurance.enabled` обрабатывается выше (caller не передаёт
      * insured-флаг если выключено).
      *
+     * ADR-172 ($fractionalChance): голый `floor()` съедал весь штраф на предметах,
+     * которых у игрока по одной штуке. Дрон, робот, верстак и транспорт лежат в
+     * `crafted_items_log` строками с `quantity=1`, а floor(1 × 0.03) и даже
+     * floor(1 × 0.50) — ноль. Игра обещала «−3% имущества», крафт при этом не
+     * терялся вообще, а купленный полис защищал от риска, которого не было
+     * (прод на 2026-08-19: 18 оплаченных полисов, ни одной строки с qty ≥ 34).
+     * При включённом флаге целая часть списывается как раньше, а дробный остаток
+     * разыгрывается броском: qty=1 при −3% → 3% шанс потерять предмет целиком.
+     * Матожидание потерь при этом ровно то, которое игре и обещано.
+     *
      * @param list<array{id:int,crafted_item_id:int,quantity:int|string,insured?:int|string}> $loserCraftedItems
+     * @param bool                  $fractionalChance Разыгрывать дробный остаток (GameSettings
+     *                                                `combat.death.craft_fractional_loss`).
+     * @param (callable():float)|null $roll           Источник случайности [0,1) — для тестов.
      * @return list<array{logId:int,craftedItemId:int,lossAmount:int}>
      */
-    public function computeCraftLoss(array $loserCraftedItems, float $deathPenalty): array
-    {
+    public function computeCraftLoss(
+        array $loserCraftedItems,
+        float $deathPenalty,
+        bool $fractionalChance = false,
+        ?callable $roll = null
+    ): array {
         $lost = [];
         foreach ($loserCraftedItems as $item) {
             $insured = (int) ($item['insured'] ?? 0);
@@ -84,7 +101,19 @@ class LootProcessor
             if ($oldQty <= 0) {
                 continue;
             }
-            $lossAmount = (int) floor($oldQty * $deathPenalty);
+            $exact      = (float) $oldQty * $deathPenalty;
+            $lossAmount = (int) floor($exact);
+
+            if ($fractionalChance) {
+                $fraction = $exact - (float) $lossAmount;
+                if ($fraction > 0.0 && $this->rollUnit($roll) < $fraction) {
+                    $lossAmount++;
+                }
+                // Штраф не может забрать больше, чем лежит в строке: при penalty >= 1.0
+                // округление вверх иначе списало бы qty+1 и ушло в минус.
+                $lossAmount = min($lossAmount, $oldQty);
+            }
+
             if ($lossAmount > 0) {
                 $lost[] = [
                     'logId'         => (int) $item['id'],
@@ -94,6 +123,21 @@ class LootProcessor
             }
         }
         return $lost;
+    }
+
+    /**
+     * Бросок [0,1). Вынесен отдельно, чтобы тест подменял источник случайности
+     * и проверял обе ветки детерминированно.
+     *
+     * @param (callable():float)|null $roll
+     */
+    private function rollUnit(?callable $roll): float
+    {
+        if ($roll !== null) {
+            return $roll();
+        }
+
+        return mt_rand(0, mt_getrandmax() - 1) / (float) mt_getrandmax();
     }
 
     // ---- apply (DB writes у проигравшего) ----

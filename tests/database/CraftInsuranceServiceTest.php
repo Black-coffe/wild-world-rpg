@@ -104,7 +104,9 @@ final class CraftInsuranceServiceTest extends CIUnitTestCase
         $this->assertTrue($svc->enabled());
         $this->assertEqualsWithDelta(0.2, $svc->policyFraction(), 1e-9);
         $this->assertSame(50, $svc->minCostGold());
-        $this->assertSame(['robots', 'workbench', 'transport'], $svc->eligibleTypes());
+        // ADR-172 — дроны входят в дефолтный список: дорогая техника, которой при
+        // сборке списка ещё не существовало.
+        $this->assertSame(['robots', 'workbench', 'transport', 'drones'], $svc->eligibleTypes());
     }
 
     public function testKillswitchOff(): void
@@ -157,7 +159,7 @@ final class CraftInsuranceServiceTest extends CIUnitTestCase
     {
         $this->seedString('craft_insurance.eligible_types', '');
         $types = (new CraftInsuranceService())->eligibleTypes();
-        $this->assertSame(['robots', 'workbench', 'transport'], $types);
+        $this->assertSame(['robots', 'workbench', 'transport', 'drones'], $types);
     }
 
     public function testZeroQtyReturnsMinCost(): void

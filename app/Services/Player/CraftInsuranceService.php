@@ -53,6 +53,19 @@ final class CraftInsuranceService
         'drones'        => 'дрон',
     ];
 
+    /**
+     * Дефолт на случай отсутствия ключа в `game_settings` (свежее окружение,
+     * тесты). Прод-значение живёт в БД и правится в админке — менять эту
+     * константу означает менять только точку старта, не живую настройку.
+     *
+     * ADR-172: дроны добавлены к трём исходным типам. Карго-дрон завязан на
+     * склад базы, разведчик и ремонтник — эндгейм-инструменты ценой 8–16k
+     * золота: потеря такого при смерти бьёт больнее всего по тем, кто до них
+     * дошёл, а страховать их было нельзя просто потому, что дронов ещё не
+     * существовало, когда список собирали.
+     */
+    private const DEFAULT_ELIGIBLE_TYPES = 'robots,workbench,transport,drones';
+
     private GameSettingsService $settings;
 
     public function __construct(?GameSettingsService $settings = null)
@@ -92,8 +105,8 @@ final class CraftInsuranceService
      */
     public function eligibleTypes(): array
     {
-        $v   = $this->settings->get('craft_insurance.eligible_types', 'robots,workbench,transport');
-        $raw = is_string($v) ? $v : 'robots,workbench,transport';
+        $v   = $this->settings->get('craft_insurance.eligible_types', self::DEFAULT_ELIGIBLE_TYPES);
+        $raw = is_string($v) ? $v : self::DEFAULT_ELIGIBLE_TYPES;
         $out = [];
         foreach (explode(',', $raw) as $part) {
             $t = trim($part);
@@ -101,7 +114,7 @@ final class CraftInsuranceService
                 $out[] = $t;
             }
         }
-        return $out === [] ? ['robots', 'workbench', 'transport'] : $out;
+        return $out === [] ? explode(',', self::DEFAULT_ELIGIBLE_TYPES) : $out;
     }
 
     /**
