@@ -9,25 +9,85 @@ use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\GameSettings\GameSettingsService;
 
 class RewardService
 {
+    /**
+     * Дефолты на случай отсутствия ключа в `game_settings` (свежее окружение,
+     * тесты). Прод-значение живёт в БД и правится в админке (ADR-173) —
+     * менять эти константы означает менять только точку старта, не живую
+     * настройку. Значения обязаны совпадать буква в букву с seed-миграцией
+     * story `-01` (docs/specs/pve-reward-pool-whitelist/plan.md → «Контракт ключей»).
+     */
+    private const DEFAULT_CRAFT_TYPES         = 'drug,food,component,tool,weapon,clothing';
+    private const DEFAULT_PRICE_CAP           = 10000;
+    private const DEFAULT_EXPENSIVE_THRESHOLD = 5000;
+    private const DEFAULT_TYPE_FILTER_ENABLED = true;
+
     private CharacterResourceModel $characterResourceModel;
     private ResourceModel $resourceModel;
-    private CraftedItemsModel $craftedItemModel;
     private CraftedItemsLogModel $craftedItemsLogModel;
+    private GameSettingsService $settings;
 
     /**
      * Наградные статы применяются атомарно через CharacterStatsService (ADR-151),
      * поэтому ни CharacterRepository, ни CharacterModel, ни logger здесь больше
      * не нужны — конструктор поднимает только модели ресурсов/предметов.
      */
-    public function __construct()
+    public function __construct(?GameSettingsService $settings = null)
     {
         $this->characterResourceModel  = new CharacterResourceModel();
         $this->resourceModel           = new ResourceModel();
-        $this->craftedItemModel        = new CraftedItemsModel();
         $this->craftedItemsLogModel    = new CraftedItemsLogModel();
+        $this->settings                = $settings ?? new GameSettingsService();
+    }
+
+    /**
+     * Килсвитч белого списка по типу и потолка цены (ADR-173). `false` →
+     * пул наград фильтруется только порогом цены, как до фикса.
+     */
+    private function typeFilterEnabled(): bool
+    {
+        $v = $this->settings->get('pve.reward.type_filter_enabled', self::DEFAULT_TYPE_FILTER_ENABLED);
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+        return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /**
+     * @return list<string> Допустимые crafted_items.type для розыгрыша PvE-наград
+     */
+    private function eligibleCraftTypes(): array
+    {
+        $v   = $this->settings->get('pve.reward.craft_types', self::DEFAULT_CRAFT_TYPES);
+        $raw = is_string($v) ? $v : self::DEFAULT_CRAFT_TYPES;
+        $out = [];
+        foreach (explode(',', $raw) as $part) {
+            $t = trim($part);
+            if ($t !== '') {
+                $out[] = $t;
+            }
+        }
+        return $out === [] ? explode(',', self::DEFAULT_CRAFT_TYPES) : $out;
+    }
+
+    /** Потолок цены предмета в пуле. `0` = без потолка. */
+    private function priceCap(): int
+    {
+        $v = $this->settings->get('pve.reward.price_cap', self::DEFAULT_PRICE_CAP);
+        return is_numeric($v) && (int) $v >= 0 ? (int) $v : self::DEFAULT_PRICE_CAP;
+    }
+
+    /** Порог «дорогой/дешёвый» пул — заменяет бывший литерал 5000. */
+    private function expensiveThreshold(): int
+    {
+        $v = $this->settings->get('pve.reward.expensive_threshold', self::DEFAULT_EXPENSIVE_THRESHOLD);
+        return is_numeric($v) && (int) $v > 0 ? (int) $v : self::DEFAULT_EXPENSIVE_THRESHOLD;
     }
 
     /**
@@ -222,18 +282,38 @@ class RewardService
     /**
      * Получает N случайных крафтовых предметов — «дорогих» или «дешёвых».
      * По-простому считаем, что в таблице `crafted_items` есть поле `price`.
-     * - expensive=TRUE => where('price > 5000')
-     * - otherwise => where('price <= 5000')
+     * - expensive=TRUE  => where('price >= expensiveThreshold()')
+     * - otherwise       => where('price <  expensiveThreshold()')
+     *
+     * ADR-173: пул дополнительно курируется белым списком `type` и потолком
+     * цены (пока не выключены `pve.reward.type_filter_enabled`) — до фикса
+     * сюда попадал весь каталог, включая постройки/роботов/дронов/верстаки.
+     *
+     * Свежий инстанс модели на каждый вызов: `$this->craftedItemModel` —
+     * общее состояние сервиса, а `where()` CI4-моделей навешивается на этот
+     * же инстанс. `AutoPveHandler` крутит `grantRewards()` в кроне на одном
+     * процессе — накопленные `where()` со второго вызова аукнулись бы
+     * молчаливо пустым пулом.
      */
     private function getRandomCraftedItems(int $count, bool $expensive): array
     {
-        $query = $this->craftedItemModel;
+        $query = new CraftedItemsModel();
+        $threshold = $this->expensiveThreshold();
         if ($expensive) {
             // «Максимально дорогие»
-            $query = $query->where('price >=', 5000); // Порог подбирайте сами
+            $query = $query->where('price >=', $threshold);
         } else {
             // «Не очень дорогие»
-            $query = $query->where('price <', 5000);
+            $query = $query->where('price <', $threshold);
+        }
+
+        if ($this->typeFilterEnabled()) {
+            $query = $query->whereIn('type', $this->eligibleCraftTypes());
+
+            $cap = $this->priceCap();
+            if ($cap > 0) {
+                $query = $query->where('price <=', $cap);
+            }
         }
 
         $all = $query->findAll();
