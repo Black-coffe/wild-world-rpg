@@ -16,7 +16,10 @@ class CraftedItemsModel extends Model
         'name_rus', 'name_eng', 'type', 'direction_craft', 'effect', 'gathering_speed',
         'durability_count', 'durability_time', 'type_of_battle', 'damage', 'armor', 'hp',
         'character_boost', 'weight', 'price', 'stack_size', 'required_level', 'required_skills',
-        'required_resources', 'crafting_time', 'crafting_location', 'description'
+        'required_resources', 'crafting_time', 'crafting_location', 'description',
+        // transport-07 (ADR-174): status (active/deprecated) добавлен story 06 миграцией
+        // TransportCatalogCleanup — без allowedFields запись через модель молча терялась.
+        'status',
     ];
 
     protected $useTimestamps = true;

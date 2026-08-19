@@ -8,6 +8,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\InventorySortService;
+use Config\Database;
 
 class CraftedResourcesAction extends BaseAction
 {
@@ -25,6 +26,31 @@ class CraftedResourcesAction extends BaseAction
         InventorySortService::MODE_NAME,
         InventorySortService::MODE_QTY,
         InventorySortService::MODE_VALUE,
+    ];
+
+    /**
+     * transport-07 (ADR-174, docs/specs/transport-system/) -- dver v kraft pyati mashin
+     * (story 06 dobavila recepty v Config\CraftRecipes, no bez vhoda v UI oni ostavalis'
+     * BUILT-BUT-INVISIBLE -- tot zhe klass baga, chto u MeteorShelter/droneScout).
+     * Literaly `genericCraft_<Key>_1` -- pryamye knopki krafta (u receptov transporta net
+     * svoego info-ekrana, callback vedet srazu v GenericCraftActionStart).
+     *
+     * @var list<array{key:string,label:string,callback:string,required_level:int,required_faction:int}>
+     */
+    private const TRANSPORT_VEHICLES = [
+        ['key' => 'LightCart',       'label' => '🛒 Лёгкая повозка',   'callback' => 'genericCraft_LightCart_1',       'required_level' => 6,  'required_faction' => 0],
+        ['key' => 'MountainBike',    'label' => '🚲 Горный велосипед', 'callback' => 'genericCraft_MountainBike_1',    'required_level' => 12, 'required_faction' => 2],
+        ['key' => 'Snowmobile',      'label' => '🛻 Снегоход',         'callback' => 'genericCraft_Snowmobile_1',      'required_level' => 14, 'required_faction' => 1],
+        ['key' => 'DraftCart',       'label' => '🐎 Тягловая повозка', 'callback' => 'genericCraft_DraftCart_1',       'required_level' => 14, 'required_faction' => 4],
+        ['key' => 'AutonomousDrone', 'label' => '🛸 Автономный дрон',  'callback' => 'genericCraft_AutonomousDrone_1', 'required_level' => 16, 'required_faction' => 3],
+    ];
+
+    /** faction_id -> nazvanie (kommentarii Config\CraftRecipes: 1 Militari / 2 Partizany / 3 Inzhenery / 4 Fermery). */
+    private const FACTION_NAMES = [
+        1 => 'Милитари',
+        2 => 'Партизаны',
+        3 => 'Инженеры',
+        4 => 'Фермеры',
     ];
 
     protected $craftedItemsLogModel;
@@ -62,7 +88,7 @@ class CraftedResourcesAction extends BaseAction
             $text = "🤷‍♂️ *Не переживай, друг!* Твои усилия в крафтинге всё ещё впереди.\n\n"
                 . "Просто выбери рецепт и начни создавать что-то великолепное! 🗝️💎\n\n"
                 . "И помни, каждый великий мастер начинал с малого! 🌟";
-            return $this->reply($text, $mode);
+            return $this->reply($text, $mode, $character);
         }
 
         // Нормализуем строки к массиву + добавляем ключ `name` (= name_rus) для InventorySortService.
@@ -77,7 +103,7 @@ class CraftedResourcesAction extends BaseAction
             ? $this->renderGrouped($rows)
             : $this->renderFlat($rows, $mode);
 
-        return $this->reply($text, $mode);
+        return $this->reply($text, $mode, $character);
     }
 
     private function parseSortMode(string $callbackData): string
@@ -194,7 +220,7 @@ class CraftedResourcesAction extends BaseAction
         };
     }
 
-    private function reply(string $text, string $mode): ServerResponse
+    private function reply(string $text, string $mode, array $character): ServerResponse
     {
         $sortRow = [];
         foreach ([
@@ -209,24 +235,33 @@ class CraftedResourcesAction extends BaseAction
             ];
         }
 
+        // transport-07: витрина крафта пяти машин — экран показывает её ВСЕГДА (не
+        // только когда у игрока уже что-то есть на полке «🚚 Транспорт»), иначе
+        // рецепты остаются недостижимыми до первого владения (правило
+        // UX-DISCOVERABILITY: скрытый вход без ADR — баг, а не дизайн).
+        $text .= "\n" . $this->transportShowcaseText($character);
+
         // S5b (v0.51.188+): кнопка ремонта изношенных инструментов.
         // drone-discoverability #01: игрок видел «📦 Дрон-разведчик» на полке
         // «🛸 Дроны» и не находил двери к нему — рюкзак был тупиком (правило
         // UX-DISCOVERABILITY). Безусловная кнопка «🚁 Ангар» встаёт вторым
         // соседом в тот же ряд, чтобы не плодить строку-одиночку.
         $keyboard = [
-            'inline_keyboard' => [
-                $sortRow,
+            'inline_keyboard' => array_merge(
+                [$sortRow],
+                $this->transportShowcaseButtonRows(),
                 [
-                    ['text' => '🔧 Ремонт инструментов', 'callback_data' => 'repairToolsList'],
-                    ['text' => '🤖 Ангар', 'callback_data' => 'hangar'],
+                    [
+                        ['text' => '🔧 Ремонт инструментов', 'callback_data' => 'repairToolsList'],
+                        ['text' => '🤖 Ангар', 'callback_data' => 'hangar'],
+                    ],
+                    [
+                        ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
+                        ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                        ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
+                    ],
                 ],
-                [
-                    ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
-                    ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-                    ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
-                ],
-            ],
+            ),
         ];
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
@@ -238,5 +273,78 @@ class CraftedResourcesAction extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * transport-07: текст витрины — пять машин показаны ЛЮБОМУ игроку, недоступные
+     * несут 🔒 с причиной и путём («нужна фракция X — ты Y», «с N уровня — у тебя M»).
+     *
+     * @param array<string,mixed> $character
+     */
+    private function transportShowcaseText(array $character): string
+    {
+        $level        = is_numeric($character['level'] ?? null) ? (int) $character['level'] : 0;
+        $factionId    = $this->characterFactionId((int) ($character['id'] ?? 0));
+
+        $lines = ["🚚 *Транспорт* — крафт машин:\n"];
+        foreach (self::TRANSPORT_VEHICLES as $vehicle) {
+            $reasons = [];
+            if ($level < $vehicle['required_level']) {
+                $reasons[] = "с {$vehicle['required_level']} уровня — у тебя {$level}";
+            }
+            $requiredFaction = $vehicle['required_faction'];
+            if ($requiredFaction > 0 && $factionId !== $requiredFaction) {
+                $needName = self::FACTION_NAMES[$requiredFaction] ?? "фракция #{$requiredFaction}";
+                $haveName = $factionId > 0 ? (self::FACTION_NAMES[$factionId] ?? "фракция #{$factionId}") : 'без фракции';
+                $reasons[] = "нужна фракция {$needName} — ты {$haveName}";
+            }
+
+            $lines[] = $reasons === []
+                ? "🔓 {$vehicle['label']}"
+                : "🔒 {$vehicle['label']} — " . implode('; ', $reasons);
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * transport-07: ряды кнопок крафта — по 2-3 в ряд (правило проекта: ноль
+     * одиночных кнопок в строке). Кнопка живая для всех — недоступные отклонит
+     * сам `GenericCraftActionStart` тем же гейтом, что читает статус выше.
+     *
+     * @return list<list<array{text:string,callback_data:string}>>
+     */
+    private function transportShowcaseButtonRows(): array
+    {
+        $buttons = [];
+        foreach (self::TRANSPORT_VEHICLES as $vehicle) {
+            $buttons[] = ['text' => $vehicle['label'], 'callback_data' => $vehicle['callback']];
+        }
+
+        $rows = [];
+        foreach (array_chunk($buttons, 3) as $chunk) {
+            $rows[] = $chunk;
+        }
+
+        return $rows;
+    }
+
+    /**
+     * S25-паттерн (ADR-029), повторён из GenericCraftActionStart::characterFactionId —
+     * faction_id персонажа (0, если нет записи / Нейтрал).
+     */
+    private function characterFactionId(int $charId): int
+    {
+        if ($charId <= 0) {
+            return 0;
+        }
+        $db    = Database::connect();
+        $query = $db->table('character_factions')
+            ->where('character_id', $charId)
+            ->get();
+        $row = $query !== false ? $query->getFirstRow('array') : null;
+        return is_array($row) && isset($row['faction_id']) && is_numeric($row['faction_id'])
+            ? (int) $row['faction_id']
+            : 0;
     }
 }

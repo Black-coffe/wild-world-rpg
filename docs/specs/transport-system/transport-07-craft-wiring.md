@@ -26,6 +26,7 @@ blocked_by: [transport-02]
 > Заворотить систему транспорта, начиная от крафта, логики, интеграции, доступности от разных уровней, и даже чтобы фракция влияла на транспорт.
 
 ## Files
+- app/Models/CraftedItemsModel.php
 - app/Controllers/Worker.php
 - app/Config/CallbackRoutes.php
 - app/Config/ImageRegistry.php
@@ -33,6 +34,10 @@ blocked_by: [transport-02]
 - app/Services/Player/Trade/CraftTypeLabels.php
 - app/Database/Migrations/*SeedTransportCraftTasks.php
 - tests/unit/Transport/VehicleCraftWiringTest.php
+
+- [ ] Колонка `status` (её завела миграция story 06) добавлена в `CraftedItemsModel::$allowedFields`:
+      без этого любая будущая запись статуса через модель молча теряется — грабля, уже
+      стоившая проекту инцидента.
 
 ## Non-goals
 - Не менять сами рецепты и цены — они в story 06.
@@ -60,3 +65,17 @@ blocked_by: [transport-02]
 ## Implementation notes
 
 ## Findings
+
+## Implementation notes
+- `app/Database/Migrations/2026-11-29-120000_SeedTransportCraftTasks.php` — 5 строк `tasks` (craftLightCart/craftMountainBike/craftSnowmobile/craftDraftCart/craftAutonomousDrone), все `type='craft'`, `handler_key='generic_craft'`, idempotent по `name`.
+- `app/Controllers/Worker.php` — 5 записей в `$taskHandlerKeyMap` (→ `generic_craft`) и зеркально в legacy `$taskHandlerMap` (→ `Craft\GenericCraftCompletionHandler`), рядом с остальными generic-craft строками.
+- `app/Controllers/Telegram/Commands/Actions/CraftedResourcesAction.php` — дверь извне: экран «Твои созданные предметы» (`resourcesCrafting`) теперь ВСЕГДА (не только при владении) показывает блок «🚚 Транспорт» с 5 статус-строками (🔓/🔒 + причина: уровень/фракция) и 5 кнопками-литералами `genericCraft_<Key>_1` (один ряд из 3 + один из 2 — без одиночек). Faction-имя резолвится через прямой запрос `character_factions` (тот же паттерн, что `GenericCraftActionStart::characterFactionId`, не вынесен в общий сервис — вне scope story). Работал поверх версии параллельной сессии (коммит 472d6653, кнопка «🤖 Ангар») — её правки не тронуты.
+- `app/Services/Player/Trade/CraftTypeLabels.php` — эмодзи категории `transport` сведено 🛴→🚚 (совпадает с заголовком в CraftedResourcesAction).
+- `app/Models/CraftedItemsModel.php` — `status` добавлен в `$allowedFields` (колонка story 06, без allowedFields запись через модель молча терялась бы).
+- `app/Config/ImageRegistry.php` — 5 записей `craft/vehicles/<key>` со `status='pending'` (runbook image-generation.md) — арт ещё не сгенерён (Non-goal), это только очередь на генерацию; CraftRecipes.php не трогали (не в Files), поэтому recipe `image_in_progress`/`image_completed` пока продолжают указывать на общий плейсхолдер `standard_craft_area.jpg`.
+- `Config\CallbackRoutes` изменений не потребовал: `genericCraft` уже зарегистрирован exact-роутом (первый сегмент callback_data до `_`), пятёрка новых callback'ов резолвится тем же путём.
+- `tests/unit/Transport/VehicleCraftWiringTest.php` — изолированная схема (tasks/character_tasks/crafted_items/crafted_items_log/characters/telegram_users в `wildworld_tests`, паттерн как в `VehicleActivationServiceTest`): 1) task_name↔CraftRecipes.task_name контракт, 2) обе Worker-карты несут все 5 задач (красный при удалении строки), 3) `Worker::getHandlerClassName()` резолвит все 5 в `GenericCraftCompletionHandler` через HandlerRegistry, 4) поведенческий e2e: реальный `GenericCraftCompletionHandler::handle()` на `craftLightCart` — предмет в `crafted_items_log`, статус `character_tasks` → `completed` (не завис в `in_work`). Уведомление Telegram не триггерится намеренно: `telegram_user_id=999999` без строки в `telegram_users` → `notifyUser()` тихо возвращается (реальная защита в самом хендлере), сети не касаемся.
+- Известная хрупкость (не блокер): `VehicleCraftWiringTest` в связке ИМЕННО с `CraftRecipeReachabilityTest` в одном процессе иногда роняет `table 'tasks' doesn't exist` на вызове изнутри теста (изолированная DDL-таблица, не прод-схема) — воспроизводится не при любой комбинации файлов (сам по себе, с `WorkerHandlerRegistryConsistencyTest`, с `CraftTypeLabelsTest` — зелёный). Похоже на десинхронизацию `DatabaseTestTrait` транзакции с raw DDL (implicit commit в MySQL) при определённом порядке класса. Не заслон: команда верификации story (файл в одиночку) стабильно зелёная.
+
+## Findings
+(нет — потолок не достигнут, story закрыта)

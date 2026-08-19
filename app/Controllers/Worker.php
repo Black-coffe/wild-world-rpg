@@ -240,6 +240,12 @@ class Worker extends Controller
         // V10 (vNext) — 2 консервы (Костёр, shelf-stable).
         'craftStewPreserve'         => 'generic_craft',
         'craftDryRation'            => 'generic_craft',
+        // transport-07 (ADR-174) — пять машин через GenericCraftCompletionHandler.
+        'craftLightCart'            => 'generic_craft',
+        'craftMountainBike'         => 'generic_craft',
+        'craftSnowmobile'           => 'generic_craft',
+        'craftDraftCart'            => 'generic_craft',
+        'craftAutonomousDrone'      => 'generic_craft',
         // Generic building handler — покриває 12 task.name'ів через Buildings config.
         'buildingManualPump'             => 'generic_building',
         'buildBlastFurnace'              => 'generic_building',
@@ -377,6 +383,12 @@ class Worker extends Controller
         // V10 (vNext) — 2 консервы (shelf-stable).
         'craftStewPreserve'         => 'Craft\GenericCraftCompletionHandler',
         'craftDryRation'            => 'Craft\GenericCraftCompletionHandler',
+        // transport-07 (ADR-174) — пять машин (output_type=crafted_item default).
+        'craftLightCart'            => 'Craft\GenericCraftCompletionHandler',
+        'craftMountainBike'         => 'Craft\GenericCraftCompletionHandler',
+        'craftSnowmobile'           => 'Craft\GenericCraftCompletionHandler',
+        'craftDraftCart'            => 'Craft\GenericCraftCompletionHandler',
+        'craftAutonomousDrone'      => 'Craft\GenericCraftCompletionHandler',
     ];
 
     protected function getHandlerClassName($taskName, ?string $explicitHandlerKey = null)
