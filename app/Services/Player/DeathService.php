@@ -10,6 +10,12 @@ use App\Services\Player\Death\DeathPenaltyCalculator;
 use App\Services\Player\Death\InsuranceCalculator;
 use App\Services\Player\Death\LootProcessor;
 use App\Services\Player\Death\PlayerRespawner;
+use CodeIgniter\Database\ResultInterface;
+use Config\Database;
+use Longman\TelegramBot\Exception\TelegramException;
+use App\Services\Telegram\Request;
+use Longman\TelegramBot\Telegram;
+use Throwable;
 
 /**
  * F2.8 + F2.8b — thin orchestrator поверх 4 сервисов.
@@ -36,6 +42,9 @@ class DeathService
     private LootProcessor          $lootProcessor;
     private PlayerRespawner        $respawner;
     private GameSettingsService    $settings;
+
+    /** transport-14: lazy Telegram-мост для отдельного уведомления «машина разбита». */
+    private ?Telegram $telegram = null;
 
     public function __construct(
         ?InsuranceCalculator $insuranceCalculator = null,
@@ -157,6 +166,17 @@ class DeathService
         $this->lootProcessor->applyLosses($loserId, $lostResources, $lostGold);
         $this->lootProcessor->applyCraftLosses($loserId, $lostCraftedItems);
 
+        // 5b) transport-14 (замыкает transport-09): смерть не изымает активную машину,
+        // а разбивает её — `breakActiveVehicleOnDeath()` был написан и покрыт тестами
+        // ещё в story 09, но не вызывался ниоткуда (BUILT-BUT-DEAD). Здесь — реальное
+        // подключение к потоку смерти + отдельное самодостаточное уведомление игроку
+        // (DeathMessageBuilder и вызывающие TaskHandler/Action вне Files этой story —
+        // текст уходит своим сообщением, по образцу LevelUpNotifier).
+        $vehicleMessage = $this->lootProcessor->breakActiveVehicleOnDeath($loserId);
+        if ($vehicleMessage !== null) {
+            $this->notifyVehicleBroken($loserArr, $vehicleMessage);
+        }
+
         // 6) Передача части победителю (factor 0.5 без базы / 1.0 с базой).
         $transferredResources = [];
         $transferredCraft     = [];
@@ -215,5 +235,99 @@ class DeathService
         // Недоступная страховка — сгорает без эффекта.
         $this->characterModel->update($loserId, ['insurance' => 0]);
         return false;
+    }
+
+    /**
+     * transport-14 — доставка текста «машина разбита» игроку отдельным сообщением
+     * (по образцу {@see \App\Services\Player\Progression\LevelUpNotifier}): вызывающие
+     * стороны (`DeathRouletteHandler`, `AttackPlayerAction`, `BossEncounterService`) и
+     * `DeathMessageBuilder` вне `## Files` этой story, поэтому текст не вклеивается в
+     * чужое death-сообщение, а уходит своим — самодостаточным (media-off, ADR-020) и
+     * markdown-safe (текст `LootProcessor` без `*`/`_`).
+     *
+     * @param array<int|string,mixed> $loserArr
+     */
+    private function notifyVehicleBroken(array $loserArr, string $message): void
+    {
+        $chatId = $this->chatIdFor($loserArr);
+        if ($chatId === null) {
+            return;
+        }
+
+        $this->sendVehicleBrokenMessage($chatId, $message);
+    }
+
+    /**
+     * chat_id персонажа = telegram_id владельца.
+     *
+     * @param array<int|string,mixed> $loserArr
+     */
+    private function chatIdFor(array $loserArr): ?int
+    {
+        $userIdRaw = $loserArr['telegram_user_id'] ?? null;
+        $userId    = is_numeric($userIdRaw) ? (int) $userIdRaw : 0;
+        if ($userId <= 0) {
+            return null;
+        }
+
+        try {
+            $result = Database::connect()
+                ->table('telegram_users')
+                ->select('telegram_id')
+                ->where('id', $userId)
+                ->get();
+            if (! $result instanceof ResultInterface) {
+                return null;
+            }
+            $row = $result->getRowArray();
+        } catch (Throwable $e) {
+            log_message('warning', '[DeathService] chat lookup failed: ' . $e->getMessage());
+
+            return null;
+        }
+
+        $tg = $row['telegram_id'] ?? null;
+
+        return is_numeric($tg) && (int) $tg !== 0 ? (int) $tg : null;
+    }
+
+    /**
+     * Seam для тестов: реальная отправка. Никогда не бросает наружу — обработка смерти
+     * не должна падать из-за rate-limit или сетевой ошибки Telegram.
+     */
+    protected function sendVehicleBrokenMessage(int $chatId, string $text): void
+    {
+        try {
+            $this->telegram();
+            $response = Request::sendMessage([
+                'chat_id'    => $chatId,
+                'text'       => $text,
+                'parse_mode' => 'Markdown',
+            ]);
+            if (! $response->isOk()) {
+                log_message('warning', '[DeathService] sendMessage not ok: ' . $response->getDescription());
+            }
+        } catch (Throwable $e) {
+            log_message('error', '[DeathService] sendMessage exception: ' . $e->getMessage());
+        }
+    }
+
+    /** Ленивая инициализация Telegram-моста (как в BaseTaskHandler/LevelUpNotifier). */
+    private function telegram(): Telegram
+    {
+        if ($this->telegram === null) {
+            try {
+                $this->telegram = new Telegram(
+                    (string) getenv('telegram.API_KEY'),
+                    (string) getenv('telegram.BOT_USERNAME')
+                );
+                Request::initialize($this->telegram);
+            } catch (TelegramException $e) {
+                log_message('error', '[DeathService] Telegram init: ' . $e->getMessage());
+                $this->telegram = new Telegram('invalid', 'invalid');
+            }
+        }
+
+        return $this->telegram;
     }
 }
