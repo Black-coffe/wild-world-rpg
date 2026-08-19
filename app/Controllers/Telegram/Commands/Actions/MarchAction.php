@@ -3,6 +3,7 @@
 namespace App\Controllers\Telegram\Commands\Actions;
 
 use App\Services\Tasks\ActiveTasksService;
+use App\Services\World\MarchPaceService;
 use App\Services\World\TextMapService;
 use CodeIgniter\Database\BaseResult;
 use Config\Database;
@@ -120,12 +121,15 @@ class MarchAction extends BaseAction
         $n = max(1, min($n, $this->maxStepsPerOrder()));
 
         $aheadBiome = $this->biomeAhead($characterId, $charCellNumber, $dir);
-        $hpEst      = round($n * $this->healthCostPerCell(), 2);
-        $tiredEst   = round($n * $this->tiredCostPerCell(), 2);
+        $pace       = new MarchPaceService();
+        $profile    = $this->neutralProfile(max(1, $this->gsInt('world.march.cells_per_tick', 3)));
+        $hpEst      = round($n * $pace->healthCostPerCell($this->healthCostPerCell(), $profile), 2);
+        $tiredEst   = round($n * $pace->tiredCostPerCell($this->tiredCostPerCell(), $profile), 2);
         // Скорость = world.march.cells_per_tick клеток за тик (admin GameSettings; тик =
-        // world.march.minutes_per_cell мин, дрожание убрано — stepDueInterval). ETA = ceil(n / perTick) × мин.
-        $perTick    = max(1, $this->gsInt('world.march.cells_per_tick', 3));
-        $minEst     = (int) ceil($n / $perTick) * $this->minutesPerCell();
+        // world.march.minutes_per_cell мин, дрожание убрано — stepDueInterval). ETA считает
+        // MarchPaceService — единая точка с MarchingTaskHandler::etaMinutes() (transport-01).
+        $perTick    = $pace->cellsPerTick(max(1, $this->gsInt('world.march.cells_per_tick', 3)), $profile);
+        $minEst     = $pace->etaMinutes($n, $perTick, $this->minutesPerCell());
         $dirLabel   = self::DIR_LABEL[$dir];
 
         $text = "🚜 *Поход:* {$dirLabel} ×{$n}\n\n"
@@ -276,9 +280,28 @@ class MarchAction extends BaseAction
      */
     private function stepDueInterval(): \DateInterval
     {
-        $minutes = max(0, $this->minutesPerCell() - 1);
+        $minutes = (new MarchPaceService())->stepDueInterval($this->minutesPerCell());
 
         return new \DateInterval('PT' . $minutes . 'M');
+    }
+
+    /**
+     * Профиль-нейтраль (нет транспорта) для MarchPaceService — контракт
+     * `docs/specs/transport-system/plan.md → ## Contracts`. Реальный профиль
+     * транспорта появится в transport-04 (VehicleEffectsService, transport-02).
+     *
+     * @return array<string,mixed>
+     */
+    private function neutralProfile(int $cellsPerTickBase): array
+    {
+        return [
+            'key'                 => null,
+            'cells_per_tick'      => $cellsPerTickBase,
+            'tired_factor'        => 1.0,
+            'max_steps_per_order' => $this->maxStepsPerOrder(),
+            'cargo_share'         => 0.0,
+            'wear_per_cell'       => 0,
+        ];
     }
 
     // ── march-баланс: live-tunable через admin GameSettings `world.march.*`

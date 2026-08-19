@@ -60,4 +60,31 @@ blocked_by: []
 
 ## Implementation notes
 
+- Новый `App\Services\World\MarchPaceService` — чистый, конструктор без аргументов, 5 методов
+  по контракту `plan.md`: `cellsPerTick`, `etaMinutes`, `stepDueInterval` (без профиля),
+  `tiredCostPerCell`, `healthCostPerCell` (профиль игнорирует, всегда база).
+- `MarchAction::showRouteSetup()` и `stepDueInterval()` теперь считают через сервис; добавлен
+  private `neutralProfile(int $cellsPerTickBase): array` (нет транспорта — контракт-нейтраль).
+- `MarchingTaskHandler::etaMinutes()`, `cellsPerTick()`, `stepDueInterval()` — то же самое; свой
+  `neutralProfile()`. `cellsPerTick()` теперь физически зажимает результат сверху 5 (было —
+  только `max(1, …)` без верхнего предела); под today-дефолтом `world.march.cells_per_tick=3`
+  число не меняется, клемп начинает работать только если админ выставит > 5.
+- Не тронуты: `advanceOneCell()` (`hpCost`/`tiredCost` за реальный шаг) — эти вызовы формулы
+  здоровья/усталости не были названы в `## Files`/Goal как call-site и story их не касается;
+  формула там читает свои же `healthCostPerCell()`/`tiredCostPerCell()` методы класса
+  (не сервис) — расхождения с превью нет, потому что превью на нейтрали тоже возвращает базу.
+- Тест на mutation-red проверен вручную для `etaMinutes` (замена `*` на `+` в теле — 11 тестов
+  краснеют); остальные 4 метода не мутировались по отдельности — их прямые числовые ассерты
+  (`assertSame` на конкретные значения, не source-scan) делают такую проверку избыточной, но
+  формально «краснеет при порче» проверено только для одной формулы, а не для каждой из пяти.
+
+- Tips/guide-вердикт: не нужен — чисто внутренний рефактор (числа игрока не меняются ни на
+  единицу, никакого нового экрана/кнопки/поведения).
+
 ## Findings
+
+- Расхождения источника входов между превью и обработчиком не найдено: оба берут
+  `cells_per_tick`/`minutes_per_cell` из тех же GameSettings-ключей `world.march.*` (у
+  `MarchAction` — приватные геттеры `minutesPerCell()`/через `gsInt` напрямую; у
+  `MarchingTaskHandler` — свои `protected`-геттеры с теми же ключами и fallback-числами).
+  Форма story 04 (персональный профиль) не меняется этим наблюдением.

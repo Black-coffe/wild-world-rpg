@@ -9,6 +9,7 @@ use App\Models\ExploredCellsModel;
 use App\Services\Player\PlayerDetectionService;
 use App\Services\Player\Progression\EarlyProgressionService;
 use App\Services\PVE\TowerAlertService;
+use App\Services\World\MarchPaceService;
 use App\Services\World\ObjectDiscoveryService;
 use App\Services\World\ObjectSignalService;
 use App\Services\World\TextMapService;
@@ -636,7 +637,7 @@ class MarchingTaskHandler extends BaseTaskHandler
      */
     private function stepDueInterval(): \DateInterval
     {
-        $minutes = max(0, $this->minutesPerCell() - 1);
+        $minutes = (new MarchPaceService())->stepDueInterval($this->minutesPerCell());
 
         return new \DateInterval('PT' . $minutes . 'M');
     }
@@ -737,20 +738,39 @@ class MarchingTaskHandler extends BaseTaskHandler
      */
     private function etaMinutes(int $cells): int
     {
-        $perTick = $this->cellsPerTick();
-        $ticks   = (int) ceil(max(0, $cells) / $perTick);
-
-        return $ticks * $this->minutesPerCell();
+        return (new MarchPaceService())->etaMinutes($cells, $this->cellsPerTick(), $this->minutesPerCell());
     }
 
     /**
      * Клеток за крон-тик — live-tunable через admin GameSettings
      * `world.march.cells_per_tick` (ADMIN-TUNABLE BALANCE, ADR-024). Fallback 3 = код-дефолт
-     * (safe baseline). Overridable seam для тестов (без обращения к game_settings).
+     * (safe baseline). Overridable seam для тестов (без обращения к game_settings). Формула —
+     * `MarchPaceService::cellsPerTick()`, единая точка с `MarchAction::showRouteSetup()`.
      */
     protected function cellsPerTick(): int
     {
-        return max(1, $this->gsInt('world.march.cells_per_tick', 3));
+        $base = max(1, $this->gsInt('world.march.cells_per_tick', 3));
+
+        return (new MarchPaceService())->cellsPerTick($base, $this->neutralProfile($base));
+    }
+
+    /**
+     * Профиль-нейтраль (нет транспорта) для MarchPaceService — контракт
+     * `docs/specs/transport-system/plan.md → ## Contracts`. Реальный профиль
+     * транспорта появится в transport-04 (VehicleEffectsService, transport-02).
+     *
+     * @return array<string,mixed>
+     */
+    private function neutralProfile(int $cellsPerTickBase): array
+    {
+        return [
+            'key'                 => null,
+            'cells_per_tick'      => $cellsPerTickBase,
+            'tired_factor'        => 1.0,
+            'max_steps_per_order' => $this->gsInt('world.march.max_steps_per_order', 60),
+            'cargo_share'         => 0.0,
+            'wear_per_cell'       => 0,
+        ];
     }
 
     // ── march-баланс: live-tunable через admin GameSettings `world.march.*`
