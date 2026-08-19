@@ -56,4 +56,9 @@ blocked_by: []
 
 ## Implementation notes
 
+- `App\Services\World\VehicleEffectsService` создан с нуля: конструктор `(?GameSettingsService, ?array $overrides)` (паттерн ADR-131/138, как `EarlyProgressionService`). Терраин-константы `TERRAIN_EXPLORED/UNEXPLORED/COLD` объявлены локально в сервисе (строки `'explored'/'unexplored'/'cold'`) — `MarchPaceService` (story 01) в `## Files` этой story не входит и на момент работы в репозитории отсутствовал; story 01 может переиспользовать те же строковые значения.
+- `profileFor()` зажимает `cells_per_tick` в `[base..5]` и `cargo_share` в `[0..world.vehicle.cargo.max_share]`; при killswitch off, `null`-ключе или неизвестном ключе — всегда `neutralProfile()`, без исключений.
+- Seed-миграция `2026-11-28-100000_SeedVehicleGameSettings.php` сеет 52 ключа (2 глобальных + 5 машин × 10 полей, включая `required_level`/`required_faction`, которые `profileFor()` не читает — задел под story 06/07/11) с полным rationale/effect/above/below, идемпотентна по `setting_key`. `game_settings` уже классифицирован KEEP в `WipeManifest` — новых таблиц/колонок нет, манифест не трогали.
+- Тест — табличный `@dataProvider` (5×3=15 кейсов) + отдельные тесты на нейтраль/killswitch/unknown-key/clamp/«снегоход — единственное исключение».
+
 ## Findings
