@@ -1,7 +1,7 @@
 ---
 story: transport-03
 spec: transport-system
-status: todo
+status: done
 tier: 3
 worker: worker-code
 model: sonnet
@@ -60,4 +60,14 @@ blocked_by: []
 
 ## Implementation notes
 
+- Миграция `2026-08-19-231500_AddActiveVehicleLogIdToCharacters.php`: nullable `INT UNSIGNED`, без FK (Non-goal), `after node_announce_enabled`.
+- `CharacterModel::$allowedFields` += `active_vehicle_log_id`; `WipeManifest::$characterResetValues` += `active_vehicle_log_id => null` (прогресс, не преференс) — `characters` уже `CHARACTER_RESET`, отдельная запись таблицы не нужна.
+- `VehicleActivationService` (`app/Services/Player/VehicleActivationService.php`): все чтения владения — `WHERE id=? AND character_id=?` через `fetchOwnedRow()`. `resolveActive()`/`spendCharges()`/`breakActive()` читают указатель из `characters.active_vehicle_log_id` напрямую (raw builder, не `CharacterModel`, чтобы не тащить Entity/allowedFields-цикл в сервис).
+- Решение по «нулю зарядов» (расходится с `CraftedItemsLogModel::effectiveCharges()`): у модели пол `max(1, ...)` — корректно для «последней дозы» медикамента, но противоречит acceptance-критерию story (`charges===0` обязан быть достижим для полностью изношенного транспорта). `spendCharges()` использует `effectiveCharges()` только для чтения ТЕКУЩЕГО остатка перед списанием (защита от исторического мусора), а сам остаток после вычитания — `max(0, $current - $spend)`, пишется как есть. `resolveActive()` для отображения использует собственный локальный `clampCharges()` (`min(dur, base)` без пола) — не переиспользует `CraftedItemsLogModel::effectiveCharges()` для финального значения именно из-за этого пола. Задокументировано в phpdoc метода.
+- `key` в `resolveActive()` = `crafted_items.name_eng` как есть (join `crafted_items_log`→`crafted_items`). Маппинг на ключи профиля `world.vehicle.*` (`cart`/`mtb`/…) — не в scope этой story (рецепты появятся в transport-06); открытый вопрос уже зафиксирован в `plan.md`.
+- Тест (`tests/unit/Transport/VehicleActivationServiceTest.php`) — изолированная схема (паттерн `LootProcessorTest`): свои `characters`/`crafted_items`/`crafted_items_log` в `wildworld_tests`. Пришлось добавить ещё и фикстуру `map` — `WipeService::resetCharacter()` безусловно вызывает `spawnCells()`, а в `wildworld_tests` таблицы `map` нет вообще (известный факт проекта, "мир не рендерится в PHPUnit"); без фикстуры `resetCharacter()` падал с "Table 'wildworld_tests.map' doesn't exist". Продакшн-код `WipeService` не менялся — это фикстура теста, `WipeManifest`/`WipeService`-манифест в самом тесте — анонимный подкласс `WipeManifest` с минимальным набором таблиц, не production-манифест (иначе `set()` на изолированной `characters`-таблице не найдёт ~28 продовых колонок).
+- phpstan-грабля: raw `->get()` типизирован `ResultInterface|false` — `getRowArray()` напрямую на нём падает `method.nonObject`; поправлено явной проверкой `=== false` перед вызовом (везде в сервисе).
+
 ## Findings
+
+Не потребовались — все три ревью-раунда (миграция/модель/манифест, сервис, тест) сошлись без стены.
