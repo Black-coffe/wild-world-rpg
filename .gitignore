@@ -200,9 +200,22 @@ id_rsa.pub
 *.log
 
 #-------------------------
-# Claude Code / AI Tools
+# Claude Code / AI Tools (ADR-170: VULYK — рамка оркестрации)
 #-------------------------
-.claude/
+# До установки VULYK каталог игнорировался целиком, из-за чего каждая машина
+# (ПК <-> ноутбук) держала свою копию агентов, хуков и скиллов вручную — тот же
+# перекос, ради которого settings.local.json пришлось дублировать в ADR-087.
+# Теперь по умолчанию игнорируется ВСЁ содержимое, а рамка (агенты, команды,
+# хуки, правила, скиллы, общие настройки) явно возвращается в трекинг и едет
+# в git вместе с кодом. Секреты, per-machine и runtime — остаются вне git.
+.claude/*
+!.claude/agents/
+!.claude/commands/
+!.claude/hooks/
+!.claude/rules/
+!.claude/skills/
+!.claude/settings.json
+!.claude/vulyk-version
 
 #-------------------------
 # Misc Artifacts
@@ -236,3 +249,15 @@ public/webgame-preview.html
 # Личные карты исследованного (App\Services\World\ExploredMapService) — генерятся на лету
 writable/tmp_map/*
 !writable/tmp_map/index.html
+
+# --- VULYK runtime artifacts (added by install.sh; safe to reorder or annotate) ---
+# Per-machine or derived. Committing any of them creates a second account of
+# something the repository already holds, which is the failure mode the framework
+# spends most of its checks preventing.
+# Каталог .claude/ уже закрыт правилом `.claude/*` выше — runtime-артефакты улья
+# (handoff/, .vulyk-update-cache, state.json, settings.local.json, *.vulyk-bak)
+# под него подпадают и отдельных строк не требуют.
+CLAUDE.local.md
+memory/snapshots/
+memory/map/.stale
+__pycache__/

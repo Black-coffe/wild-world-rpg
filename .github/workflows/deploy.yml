@@ -116,6 +116,12 @@ jobs:
             --exclude='node_modules' \
             --exclude='tests/_output' \
             --exclude='build' \
+            --exclude='.claude' \
+            --exclude='memory' \
+            --exclude='templates' \
+            --exclude='bootstrap' \
+            --exclude='scripts' \
+            --exclude='CLAUDE.vulyk.md' \
             ./ "$USER@$HOST:~/releases/$TS/"
 
       - name: Run post-deploy
@@ -195,6 +201,12 @@ jobs:
             --exclude='node_modules' \
             --exclude='tests/_output' \
             --exclude='build' \
+            --exclude='.claude' \
+            --exclude='memory' \
+            --exclude='templates' \
+            --exclude='bootstrap' \
+            --exclude='scripts' \
+            --exclude='CLAUDE.vulyk.md' \
             ./ "$USER@$HOST:~/releases/$TS/"
 
       - name: Run post-deploy (public-rooted, shared DB)

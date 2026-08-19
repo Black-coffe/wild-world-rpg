@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "effortLevel": "medium",
+  "permissions": {
+    "allow": [
+      "Bash(bash scripts/state.sh:*)",
+      "Bash(bash scripts/scope-check.sh:*)",
+      "Bash(bash scripts/wave-check.sh:*)",
+      "Bash(bash scripts/trace-check.sh:*)",
+      "Bash(bash scripts/acceptance-log.sh:*)",
+      "Bash(bash scripts/release-check.sh:*)",
+      "Bash(bash scripts/vulyk-update.sh:*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start-brief.sh\"",
+            "timeout": 20,
+            "statusMessage": "VULYK: сводка улья…"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/vulyk-update-check.sh\"",
+            "timeout": 20,
+            "statusMessage": "VULYK: проверяю версию фреймворка…"
+          },
+          {
+            "type": "command",
+            "shell": "powershell",
+            "timeout": 30,
+            "statusMessage": "Проверяю git-обновления с другой машины…",
+            "command": "$ErrorActionPreference='SilentlyContinue'; function st($p){ if(Test-Path $p){ git -C $p fetch -q --all --tags 2>$null; (git -C $p status -sb 2>$null | Select-Object -First 1) } else { \"missing: $p\" } }; $code=st 'C:\\laragon\\www\\mmorpg'; $vault=st 'C:\\Projects\\mmorpg-vault'; $ctx=\"Multi-machine git check (PC<->laptop) at session start. code: $code | vault: $vault. If either shows 'behind' run git pull --rebase before working; if 'diverged' rebase, do not force.\"; @{hookSpecificOutput=@{hookEventName='SessionStart';additionalContext=$ctx}} | ConvertTo-Json -Compress"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-end-learnings.sh\"",
+            "timeout": 20,
+            "statusMessage": "VULYK: сохраняю уроки сессии…"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/context-guard.sh\"",
+            "timeout": 20,
+            "statusMessage": "VULYK: снимок памяти улья…"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/skill-usage-counter.sh\"",
+            "timeout": 20,
+            "statusMessage": "VULYK: счётчик скиллов…"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "timeout": 15,
+            "statusMessage": "Редколлегия: проверяю, не site-черновик ли это…",
+            "command": "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $ErrorActionPreference='SilentlyContinue'; $raw=[Console]::In.ReadToEnd(); if(-not $raw){exit 0}; try{$j=$raw|ConvertFrom-Json}catch{exit 0}; $fp=$j.tool_input.file_path; if(-not $fp){exit 0}; $norm=$fp.Replace([char]92,'/'); if(-not (($norm -like '*inbox/site-drafts/*') -and $norm.EndsWith('.md'))){exit 0}; $msg='[РЕДКОЛЛЕГИЯ] Создан/изменён site-черновик: '+$fp+'. Прежде чем публиковать его на wildworld.fun, ОБЯЗАН прогнать через скилл /redkollegiya (7 ревьюеров-персонажей + UI/UX-гейт на 3 вьюпортах). Прямая публикация в обход редколлегии запрещена. Если редколлегия уже идёт по этому черновику - просто продолжай её, повторно не запускай.'; @{hookSpecificOutput=@{hookEventName='PostToolUse';additionalContext=$msg}} | ConvertTo-Json -Compress"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "timeout": 15,
+            "statusMessage": "Wipe-coverage: не миграция ли это…",
+            "command": "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; $ErrorActionPreference='SilentlyContinue'; $raw=[Console]::In.ReadToEnd(); if(-not $raw){exit 0}; try{$j=$raw|ConvertFrom-Json}catch{exit 0}; $fp=$j.tool_input.file_path; if(-not $fp){exit 0}; $norm=$fp.Replace([char]92,'/'); if(-not (($norm -like '*app/Database/Migrations/*') -and $norm.EndsWith('.php'))){exit 0}; $msg='[WIPE-COVERAGE] Изменена/создана миграция: '+$fp+'. ОБЯЗАТЕЛЬНО: если она СОЗДАЁТ новую таблицу или добавляет player-связанную колонку — классифицируй таблицу в Config\\WipeManifest (KEEP / PLAYER_DATA / TRANSIENT / CHARACTER_RESET / IDENTITY_RESET / SEED_RESET) и прогони tests/unit/Config/WipeManifestCoverageTest. Новая таблица без записи в манифесте = падение coverage-теста = блок deploy. Подпадает ли она под вайп? (см. ADR-087).'; @{hookSpecificOutput=@{hookEventName='PostToolUse';additionalContext=$msg}} | ConvertTo-Json -Compress"
+          }
+        ]
+      }
+    ]
+  }
+}
