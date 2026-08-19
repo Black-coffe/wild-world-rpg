@@ -25,6 +25,12 @@ final class GatherMessageFormatter
      *                                                        исчерпала durability)
      * @param list<string>                 $signatureNames    V22 (ADR-054): signature-ресурсы биома
      *                                                        для хинта «этот биом богат на …»
+     * @param string|null                  $cargoNote         transport-15: строка про груз,
+     *                                                        увезённый грузовой машиной на склад
+     *                                                        базы (`GatherResultPersister::persist`,
+     *                                                        `$foldCargoNote=true`). `null` — как
+     *                                                        сегодня, без грузовой машины строка
+     *                                                        не добавляется вовсе (байт-идентично).
      *
      * @return array{text: string, keyboard: string}
      */
@@ -36,7 +42,8 @@ final class GatherMessageFormatter
         array $usedToolsCount,
         array $toolByName,
         array $brokenTools = [],
-        array $signatureNames = []
+        array $signatureNames = [],
+        ?string $cargoNote = null
     ): array {
         $msg  = "<b>Успешная добыча ресурсов!</b>\n";
         $msg .= "Время, затраченное на добычу: <b>{$spentMinutes}</b> мин.\n";
@@ -104,6 +111,13 @@ final class GatherMessageFormatter
                 $msg .= "- {$toolNameEsc} — последняя единица исчерпала прочность.\n";
             }
             $msg .= "<i>Скрафти новый, чтобы продолжить получать бонус добычи.</i>\n";
+        }
+
+        // transport-15: строка про увезённый на склад груз живёт внутри этого же сообщения
+        // (второе сообщение на каждую добычу с грузовой машиной было заметным шумом).
+        // Нет грузовой машины / нечего везти → $cargoNote===null → строка не появляется вовсе.
+        if ($cargoNote !== null && $cargoNote !== '') {
+            $msg .= "\n\n" . htmlspecialchars($cargoNote, ENT_QUOTES, 'UTF-8');
         }
 
         $msg .= "\n<b>Твои усилия были вознаграждены!</b>";

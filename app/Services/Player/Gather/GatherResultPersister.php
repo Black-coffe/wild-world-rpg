@@ -73,20 +73,31 @@ class GatherResultPersister
     }
 
     /**
+     * transport-15 — `$foldCargoNote=true` возвращает строку про увезённый на склад груз
+     * ВМЕСТО отдельной отправки её Telegram-сообщением (caller вклеивает в уже готовый
+     * текст добычи). `false` (default) — старое поведение байт-в-байт: отдельное
+     * `sendMessage`, возврат `null`. Дефолт-false, а не одностороннее удаление notify(),
+     * держит контракт `CargoSplitTest.php` (story-08, не в Files этой стори) целым.
+     *
      * @param array<int, array{resource_id: int, amount: int, type?: string}> $foundResources
      * @param array<string, mixed>|\App\Entities\CharacterEntity              $character
      * @param array<string, mixed>                                            $task         from character_tasks
+     *
+     * @return string|null Текст про груз, если `$foldCargoNote` и есть что сказать; иначе null.
      */
-    public function persist(array $foundResources, array|\App\Entities\CharacterEntity $character, array $task): void
+    public function persist(array $foundResources, array|\App\Entities\CharacterEntity $character, array $task, bool $foldCargoNote = false): ?string
     {
+        $cargoNote = null;
         if (!empty($foundResources)) {
             // ADR-135 Ф2 «Трофейная подать»: zero-sum переток rate% хозяину ДО зачисления
             // добычи жертве (Σ сохраняется, жертва получает остаток). Killswitch tribute.enabled
             // внутри → dormant = identity (byte-equivalent). Stat-gain per-entry → не меняется.
             $foundResources = (new \App\Services\PVE\TributeService())->collectOnGather($character, $foundResources);
-            $this->writeCharacterResources($foundResources, $character);
+            $cargoNote      = $this->writeCharacterResources($foundResources, $character, $foldCargoNote);
         }
         $this->bumpCharacterStats($character, $foundResources);
+
+        return $cargoNote;
     }
 
     /**
@@ -99,11 +110,13 @@ class GatherResultPersister
      *
      * @param array<int, array{resource_id: int, amount: int, type?: string}> $foundResources
      * @param array<string, mixed>|\App\Entities\CharacterEntity              $character
+     *
+     * @return string|null Груз-нота, если `$foldCargoNote` и что-то реально уехало на склад.
      */
-    private function writeCharacterResources(array $foundResources, array|\App\Entities\CharacterEntity $character): void
+    private function writeCharacterResources(array $foundResources, array|\App\Entities\CharacterEntity $character, bool $foldCargoNote): ?string
     {
         if ($foundResources === []) {
-            return;
+            return null;
         }
 
         $charId     = $this->intField($character, 'id');
@@ -113,15 +126,17 @@ class GatherResultPersister
         if ($cargoShare <= 0.0) {
             $this->creditBackpack($foundResources, $character);
 
-            return;
+            return null;
         }
 
         if (! $this->hasBase($charId)) {
             // Машина умеет возить груз, но везти некуда — честный текст, а не молчание.
+            // Отдельный редкий кейс (машина без базы), story-15 его не сворачивает —
+            // остаётся отдельным сообщением, как и раньше.
             $this->creditBackpack($foundResources, $character);
             $this->notify($character, $this->composeNoBaseNote());
 
-            return;
+            return null;
         }
 
         $split = self::splitForCargo($foundResources, $cargoShare);
@@ -129,8 +144,16 @@ class GatherResultPersister
 
         if ($split['storage'] !== []) {
             $this->creditStorage($charId, $split['storage']);
-            $this->notify($character, $this->composeCargoNote($split['storage']));
+            $note = $this->composeCargoNote($split['storage']);
+
+            if ($foldCargoNote) {
+                return $note;
+            }
+
+            $this->notify($character, $note);
         }
+
+        return null;
     }
 
     /**

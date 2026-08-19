@@ -216,13 +216,15 @@ class GatherTaskHandler extends BaseTaskHandler
         // Overflow-политика «добор до cap + излишек не собран». OFF → byte-identical.
         $foundResources = $this->applyWeightCapClamp($foundResources, $character);
 
-        // Сохраняем результаты
-        $this->saveFoundResources($foundResources, $character, $task);
+        // Сохраняем результаты. transport-15: `$cargoNote` — строка про груз, увезённый
+        // грузовой машиной на склад базы (persist() больше не шлёт её отдельным
+        // сообщением сам — она вклеивается в единый ответ ниже).
+        $cargoNote = $this->saveFoundResources($foundResources, $character, $task);
         $this->characterTaskModel->update($task['id'], ['status' => 'completed']);
 
         // Отправляем уведомление (V22: + signature-хинт «биом богат на …»).
         $signatureNames = $this->biomeGatherProfile->signatureNamesFor($biomeId);
-        $this->sendResourcesFoundReply($foundResources, $character, $spentMinutes, $biomeName, $signatureNames);
+        $this->sendResourcesFoundReply($foundResources, $character, $spentMinutes, $biomeName, $signatureNames, $cargoNote);
 
         // ADR-085 Склад Фаза 1b: уведомить, если рюкзак переполнился (clamp+notify). Dormant → no-op.
         $this->notifyWeightCapOverflow($character);
@@ -614,10 +616,12 @@ class GatherTaskHandler extends BaseTaskHandler
 
     /**
      * v0.51.105 (decomp Step 2): DB persistence delegated to GatherResultPersister.
+     * transport-15: `$foldCargoNote=true` — груз-нота возвращается сюда, а не шлётся
+     * персистером отдельным Telegram-сообщением.
      */
-    protected function saveFoundResources(array $foundResources, array|\App\Entities\CharacterEntity $character, array $task): void
+    protected function saveFoundResources(array $foundResources, array|\App\Entities\CharacterEntity $character, array $task): ?string
     {
-        $this->resultPersister->persist($foundResources, $character, $task);
+        return $this->resultPersister->persist($foundResources, $character, $task, true);
     }
 
     /**
@@ -629,13 +633,17 @@ class GatherTaskHandler extends BaseTaskHandler
      */
     /**
      * @param list<string> $signatureNames V22: signature-ресурсы биома для UI-хинта.
+     * @param string|null  $cargoNote      transport-15: строка про груз, увезённый на склад
+     *                                     базы (`null` — грузовой машины нет/нечего везти,
+     *                                     сообщение остаётся байт-идентичным сегодняшнему).
      */
     protected function sendResourcesFoundReply(
         array $foundResources,
         array|\App\Entities\CharacterEntity $character,
         int $spentMinutes,
         string $biomeName,
-        array $signatureNames = []
+        array $signatureNames = [],
+        ?string $cargoNote = null
     ): void {
         $userRow = $this->telegramUserModel->where('id', $character['telegram_user_id'])->first();
         if (!$userRow || empty($userRow['telegram_id'])) {
@@ -678,7 +686,8 @@ class GatherTaskHandler extends BaseTaskHandler
             $this->usedToolsCount,
             $toolByName,
             $brokenTools,
-            $signatureNames
+            $signatureNames,
+            $cargoNote
         );
 
         $this->safeSendPhoto(
