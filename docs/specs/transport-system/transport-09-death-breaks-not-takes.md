@@ -60,4 +60,21 @@ blocked_by: [transport-03]
 
 ## Implementation notes
 
+- `LootProcessor::computeCraftLoss` пропускает `type='transport'` строки до insured-фильтра —
+  quantity никогда не трогается ни на 3%, ни на 50%.
+- Новый публичный метод `LootProcessor::breakActiveVehicleOnDeath(int $characterId): ?string`
+  зовёт готовый `VehicleActivationService::resolveActive()`/`breakActive()` (constructor DI,
+  `?VehicleActivationService $vehicleActivationService = null`), возвращает текст про разбитую
+  машину и путь к ремонту (или `null`, если активной машины не было). **Не вызван из
+  `applyCraftLosses()`/`DeathService`** намеренно: тот метод переиспользует
+  `tests/database/LootProcessorTest.php` на схеме БЕЗ `characters.active_vehicle_log_id`
+  (файл вне `## Files` этой story) — добавление вызова туда сломало бы чужой тест. Оркестратор
+  смерти (`DeathService.php`) не в `## Files`, поэтому реальная проводка (вызов метода + отправка
+  сообщения игроку в Telegram) сюда не входит — см. CONCERNS.
+- Миграция `Adr174TransportOutOfInsurance` парсит текущий CSV `craft_insurance.eligible_types`
+  и убирает `transport`, не перезаписывая жёсткой строкой (значение могло измениться через
+  admin UI после V24) — идемпотентно в обе стороны (`up`/`down`).
+
 ## Findings
+
+(без стены — задача решена в рамках Files, гейт не сработал)

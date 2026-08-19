@@ -7,6 +7,7 @@ namespace App\Services\Player\Death;
 use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
+use App\Services\Player\VehicleActivationService;
 
 /**
  * F2.8b — обработка имущества при смерти: списание у проигравшего +
@@ -26,15 +27,18 @@ class LootProcessor
     private CharacterResourceModel $characterResourceModel;
     private CraftedItemsLogModel $craftedItemsLogModel;
     private CraftedItemsModel $craftedItemsModel;
+    private VehicleActivationService $vehicleActivationService;
 
     public function __construct(
         ?CharacterResourceModel $characterResourceModel = null,
         ?CraftedItemsLogModel $craftedItemsLogModel = null,
-        ?CraftedItemsModel $craftedItemsModel = null
+        ?CraftedItemsModel $craftedItemsModel = null,
+        ?VehicleActivationService $vehicleActivationService = null
     ) {
-        $this->characterResourceModel = $characterResourceModel ?? new CharacterResourceModel();
-        $this->craftedItemsLogModel   = $craftedItemsLogModel   ?? new CraftedItemsLogModel();
-        $this->craftedItemsModel      = $craftedItemsModel      ?? new CraftedItemsModel();
+        $this->characterResourceModel   = $characterResourceModel   ?? new CharacterResourceModel();
+        $this->craftedItemsLogModel     = $craftedItemsLogModel     ?? new CraftedItemsLogModel();
+        $this->craftedItemsModel        = $craftedItemsModel        ?? new CraftedItemsModel();
+        $this->vehicleActivationService = $vehicleActivationService ?? new VehicleActivationService();
     }
 
     // ---- compute (pure) ----
@@ -79,7 +83,12 @@ class LootProcessor
      * разыгрывается броском: qty=1 при −3% → 3% шанс потерять предмет целиком.
      * Матожидание потерь при этом ровно то, которое игре и обещано.
      *
-     * @param list<array{id:int,crafted_item_id:int,quantity:int|string,insured?:int|string}> $loserCraftedItems
+     * transport-09 (ADR-174, поправка владельца «разбивается, но не пропадает») —
+     * `type='transport'` пропускается здесь же, до броска монетки и до insured-фильтра:
+     * машина смертью не изымается вообще, `quantity` строки не трогается. Обнуление
+     * износа активной машины делает отдельно `breakActiveVehicleOnDeath()`.
+     *
+     * @param list<array{id:int,crafted_item_id:int,quantity:int|string,insured?:int|string,type?:string}> $loserCraftedItems
      * @param bool                  $fractionalChance Разыгрывать дробный остаток (GameSettings
      *                                                `combat.death.craft_fractional_loss`).
      * @param (callable():float)|null $roll           Источник случайности [0,1) — для тестов.
@@ -93,6 +102,9 @@ class LootProcessor
     ): array {
         $lost = [];
         foreach ($loserCraftedItems as $item) {
+            if (($item['type'] ?? '') === 'transport') {
+                continue;
+            }
             $insured = (int) ($item['insured'] ?? 0);
             if ($insured === 1) {
                 continue;
@@ -179,6 +191,33 @@ class LootProcessor
                 $this->craftedItemsLogModel->update($lc['logId'], ['quantity' => $newQty]);
             }
         }
+    }
+
+    /**
+     * transport-09 (ADR-174, поправка владельца) — смерть НЕ изымает активную машину:
+     * зовёт готовый `VehicleActivationService::breakActive()` (владелец метода — story 03,
+     * этот вызов его не меняет), который обнуляет износ активной строки и снимает
+     * указатель `characters.active_vehicle_log_id`. Строка `crafted_items_log` остаётся —
+     * её сохраняет исключение `type='transport'` в `computeCraftLoss()` выше.
+     *
+     * Не вызывается автоматически из `applyCraftLosses()`: тот метод переиспользуют
+     * интеграционные тесты на схеме без `characters.active_vehicle_log_id`
+     * (`tests/database/LootProcessorTest.php`, вне Files этой story). Вызывающая
+     * сторона (оркестратор смерти) зовёт этот метод отдельным шагом.
+     *
+     * @return string|null сообщение для игрока; `null` — если активной машины не было
+     */
+    public function breakActiveVehicleOnDeath(int $characterId): ?string
+    {
+        $active = $this->vehicleActivationService->resolveActive($characterId);
+        if ($active === null) {
+            return null;
+        }
+
+        $this->vehicleActivationService->breakActive($characterId);
+
+        return '🚚 Твоя машина разбита и потеряла весь заряд в бою. Она осталась у тебя — '
+            . 'почини её в «🔨 Крафтовые ресурсы» → ремонт, чтобы снова сесть за руль.';
     }
 
     // ---- transfer (DB writes — победителю) ----
