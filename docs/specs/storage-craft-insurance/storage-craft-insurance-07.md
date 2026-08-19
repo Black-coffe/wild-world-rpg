@@ -48,4 +48,15 @@ blocked_by: [storage-craft-insurance-03, storage-craft-insurance-05]
 
 ## Implementation notes
 
+- Совет: новая идемпотентная миграция `2026-11-25-110000_Adr171SeedStoragePoolTip.php`,
+  `title_en=BaseStorageIsNotADeadEnd`, категория `ресурсы`. Проверил существующие Seed*Tip про
+  склад/дрон (`BaseStorageDepositByHand`, `DroneChargesInFieldToo`) — оба про другой угол
+  (ручная сдача на склад / зарядка дрона в поле), дубля нет.
+- `/guide`: не заводил новый раздел — расширил уже существующий `storage` («📦 Где лежат твои
+  ресурсы», `app/Services/Onboarding/GuideCatalog.php`), потому что тема ложится ровно туда.
+  Добавил абзац про выдачу по одному виду ресурса (рядом с существующей «Забрать всё») и абзац
+  про единый пул трат крафта/ремонта/апгрейда построек на базе.
+- Числа баланса в текстах не использовал (ни в совете, ни в `/guide`) — только навигация и
+  понятия, как требует Non-goals.
+
 ## Findings
