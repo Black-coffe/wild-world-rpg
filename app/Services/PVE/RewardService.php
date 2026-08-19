@@ -17,13 +17,29 @@ class RewardService
      * Дефолты на случай отсутствия ключа в `game_settings` (свежее окружение,
      * тесты). Прод-значение живёт в БД и правится в админке (ADR-173) —
      * менять эти константы означает менять только точку старта, не живую
-     * настройку. Значения обязаны совпадать буква в букву с seed-миграцией
-     * story `-01` (docs/specs/pve-reward-pool-whitelist/plan.md → «Контракт ключей»).
+     * настройку. Значения обязаны совпадать буква в букву с сиданными в БД
+     * (story `-01`, ретюн порога/потолка — story `-04`,
+     * docs/specs/pve-reward-pool-whitelist/plan.md → «Контракт ключей»).
      */
     private const DEFAULT_CRAFT_TYPES         = 'drug,food,component,tool,weapon,clothing';
-    private const DEFAULT_PRICE_CAP           = 10000;
-    private const DEFAULT_EXPENSIVE_THRESHOLD = 5000;
+    private const DEFAULT_PRICE_CAP           = 1000;
+    private const DEFAULT_EXPENSIVE_THRESHOLD = 100;
     private const DEFAULT_TYPE_FILTER_ENABLED = true;
+
+    /**
+     * ADR-173, дельта плана 2. Порог, которым делится пул при ВЫКЛЮЧЕННОМ
+     * килсвитче (`type_filter_enabled=false`) — фиксированная точка отката
+     * к поведению коммита 4f575bf7 (до фикса), а не настраиваемая величина.
+     * Killswitch обещает «откат к дофиксовому поведению»; после снижения
+     * DEFAULT_EXPENSIVE_THRESHOLD до 100 использование настраиваемого порога
+     * при выключенном фильтре раздавало бы весь каталог без ограничений —
+     * `robots` 95000-100000, `workbench` 120000, `transport` до 120600 — то
+     * есть аварийный рычаг стал бы строго хуже аварии, от которой спасает.
+     * Эта константа не уезжает в GameSettings намеренно: она не баланс-
+     * параметр, а зафиксированная точка отката, и её подвижность как раз
+     * и ломала бы смысл killswitch'а.
+     */
+    private const LEGACY_EXPENSIVE_THRESHOLD = 5000;
 
     private CharacterResourceModel $characterResourceModel;
     private ResourceModel $resourceModel;
@@ -45,7 +61,11 @@ class RewardService
 
     /**
      * Килсвитч белого списка по типу и потолка цены (ADR-173). `false` →
-     * пул наград фильтруется только порогом цены, как до фикса.
+     * пул наград фильтруется только порогом цены — LEGACY_EXPENSIVE_THRESHOLD
+     * (исторические 5000, а не настраиваемый `expensiveThreshold()`), без
+     * `whereIn` по типу и без потолка. Ровно поведение до фикса, коммит
+     * 4f575bf7 — иначе снижение дефолтного порога до 100 сделало бы
+     * выключенный фильтр хуже той аварии, от которой он должен спасать.
      */
     private function typeFilterEnabled(): bool
     {
@@ -288,6 +308,9 @@ class RewardService
      * ADR-173: пул дополнительно курируется белым списком `type` и потолком
      * цены (пока не выключены `pve.reward.type_filter_enabled`) — до фикса
      * сюда попадал весь каталог, включая постройки/роботов/дронов/верстаки.
+     * При выключенном килсвитче порог берётся LEGACY_EXPENSIVE_THRESHOLD
+     * (исторические 5000), а не настраиваемый `expensiveThreshold()` — см.
+     * докблок константы.
      *
      * Свежий инстанс модели на каждый вызов: `$this->craftedItemModel` —
      * общее состояние сервиса, а `where()` CI4-моделей навешивается на этот
@@ -298,7 +321,11 @@ class RewardService
     private function getRandomCraftedItems(int $count, bool $expensive): array
     {
         $query = new CraftedItemsModel();
-        $threshold = $this->expensiveThreshold();
+        $filterEnabled = $this->typeFilterEnabled();
+        // При выключенном killswitch — исторический порог 5000, не настраиваемый
+        // (см. докблок LEGACY_EXPENSIVE_THRESHOLD): это точка отката к поведению
+        // до фикса, её подвижность ломала бы смысл аварийного рычага.
+        $threshold = $filterEnabled ? $this->expensiveThreshold() : self::LEGACY_EXPENSIVE_THRESHOLD;
         if ($expensive) {
             // «Максимально дорогие»
             $query = $query->where('price >=', $threshold);
@@ -307,7 +334,7 @@ class RewardService
             $query = $query->where('price <', $threshold);
         }
 
-        if ($this->typeFilterEnabled()) {
+        if ($filterEnabled) {
             $query = $query->whereIn('type', $this->eligibleCraftTypes());
 
             $cap = $this->priceCap();
