@@ -57,4 +57,21 @@ blocked_by: [transport-04, transport-06]
 
 ## Implementation notes
 
+- `2026-11-30-100000_SeedTransportTip.php` — новый совет `VehicleIntro` (категория `общие`),
+  idempotent по `title_en`; текст про крафт с 6 ур. и выбор машины вместе с фракцией на 10 ур.,
+  без чисел баланса.
+- `2026-11-30-110000_UpdateMarchSpeedTipTransportAware.php` — UPDATE по `title_en='MarchSpeed'`
+  (не INSERT): убрано «темп *постоянный*», добавлена правда «темп задаёт транспорт», сохранён
+  смысл ❤️/💤 = топливо, не двигатель.
+- `GAME_DESCRIPTION.md`: абзац в §Фракции (тягловый скот Фермеров, единственная фракция с живым
+  тяглом) и абзац в §Исследование (ADR-019 снял гейт; транспорт вводит модификатор темпа, гейт
+  и модификатор — разные вещи).
+- `tests/unit/Transport/TransportTipsTest.php`: изолированная таблица `game_tips`, миграции
+  подключены через `require_once APPPATH . 'Database/Migrations/...'` (паттерн из
+  `RewardServiceTest.php` — PSR-4-автозагрузчик не видит файлы с датой в имени). 4 теста:
+  идемпотентность seed, валидность категории/markdown, идемпотентность UPDATE MarchSpeed,
+  красный тест на возврат текста «темп *постоянный*»/«с одной скоростью».
+- Названия машин сверены с каталогом после transport-06 (`TransportCatalogCleanup.php`):
+  «Тягловая повозка», не «Конная».
+
 ## Findings
