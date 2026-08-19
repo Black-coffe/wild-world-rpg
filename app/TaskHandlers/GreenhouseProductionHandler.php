@@ -12,6 +12,7 @@ use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Services\BuildingEffects\BuildingEffectsService;
 use App\Services\GameSettings\GameSettingsReaderTrait;
+use App\Services\GameSettings\GameSettingsService;
 use Config\GameBalance;
 
 /**
@@ -30,7 +31,9 @@ use Config\GameBalance;
 )]
 class GreenhouseProductionHandler extends BaseTaskHandler
 {
-    use GameSettingsReaderTrait;
+    use GameSettingsReaderTrait {
+        gs as private traitGs;
+    }
 
     /** W28 (ADR-083) — рутинное завершение задачи: при активном killswitch уведомление шлётся тихо (disable_notification). */
     protected function isRoutineNotification(): bool
@@ -49,20 +52,56 @@ class GreenhouseProductionHandler extends BaseTaskHandler
     private GameBalance $cfg;
     private BuildingEffectsService $buildingEffects;
 
+    /**
+     * Story storage-craft-insurance-10: тестовый seam — `GameSettingsReaderTrait::gs()`
+     * жёстко создаёт `new GameSettingsService()` (реальная таблица `game_settings`), из-за
+     * чего DB-тест был вынужден трогать общую таблицу. `gs()` ниже переопределён: если
+     * инстанс задан через конструктор — используется он (тест подставляет
+     * `GameSettingsService` поверх `GameSettingsModel::setTable()` со своим приватным
+     * именем и никогда не касается `game_settings` в тестовой БД), иначе — исходное
+     * поведение трейта (`traitGs()`, см. алиас в `use` выше).
+     */
+    private ?GameSettingsService $gameSettingsOverride;
+
     /** ADR-171 (story storage-craft-insurance-04) — killswitch того же пула, что и рюкзак+склад. */
     private const POOL_KILLSWITCH_KEY = 'storage.pool_enabled';
 
-    public function __construct(?GameBalance $cfg = null, ?BuildingEffectsService $buildingEffects = null)
-    {
+    /**
+     * Story storage-craft-insurance-10: все модели, кроме `$cfg`/`$buildingEffects`, теперь
+     * тоже принимаются опционально — тем же DI-паттерном. В production все параметры null,
+     * поведение не меняется. Тесту это даёт способ подставить модели, указывающие на
+     * приватные (уникально-именованные) таблицы через `Model::setTable()` вместо похода в
+     * общие `buildings`/`character_buildings`/`resources`/`character_resources`/
+     * `base_storage` — тест никогда не рискует зацепить соседний DB-тест.
+     */
+    public function __construct(
+        ?GameBalance $cfg = null,
+        ?BuildingEffectsService $buildingEffects = null,
+        ?CharacterBuildingModel $characterBuildingModel = null,
+        ?CharacterResourceModel $characterResourceModel = null,
+        ?BuildingModel $buildingModel = null,
+        ?ResourceModel $resourceModel = null,
+        ?CharacterModel $characterModel = null,
+        ?TelegramUserModel $telegramUserModel = null,
+        ?BaseStorageModel $baseStorageModel = null,
+        ?GameSettingsService $gameSettings = null
+    ) {
         $this->cfg = $cfg ?? config('GameBalance');
-        $this->characterBuildingModel = new CharacterBuildingModel();
-        $this->characterResourceModel = new CharacterResourceModel();
-        $this->buildingModel          = new BuildingModel();
-        $this->resourceModel          = new ResourceModel();
-        $this->characterModel         = new CharacterModel();
-        $this->telegramUserModel      = new TelegramUserModel();
-        $this->baseStorageModel       = new BaseStorageModel();
+        $this->characterBuildingModel = $characterBuildingModel ?? new CharacterBuildingModel();
+        $this->characterResourceModel = $characterResourceModel ?? new CharacterResourceModel();
+        $this->buildingModel          = $buildingModel ?? new BuildingModel();
+        $this->resourceModel          = $resourceModel ?? new ResourceModel();
+        $this->characterModel         = $characterModel ?? new CharacterModel();
+        $this->telegramUserModel      = $telegramUserModel ?? new TelegramUserModel();
+        $this->baseStorageModel       = $baseStorageModel ?? new BaseStorageModel();
         $this->buildingEffects        = $buildingEffects ?? new BuildingEffectsService();
+        $this->gameSettingsOverride   = $gameSettings;
+    }
+
+    /** Переопределяет `GameSettingsReaderTrait::gs()` — см. `$gameSettingsOverride` выше. */
+    protected function gs(): GameSettingsService
+    {
+        return $this->gameSettingsOverride ?? $this->traitGs();
     }
 
     /**

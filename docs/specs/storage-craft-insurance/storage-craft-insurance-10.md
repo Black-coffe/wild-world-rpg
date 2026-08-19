@@ -53,19 +53,47 @@ Story 04 перенесла отметку о предупреждении в к
   метод, что удаляет строку при уходе в 0 (как у `ResourcePoolService`). Списание
   (рюкзак+склад) и начисление harvest обёрнуты в `$db->transStart()/transComplete()`
   (паттерн F0.6, как в `GenericCraftActionStart`).
-- `GreenhouseProductionWaterTest`: `setUp()`/`tearDown()` больше не дропают шесть общих
-  таблиц безусловно. Теперь проверяют `tableExists()` — если под этим именем уже лежит
-  настоящая таблица, она переименовывается в сторону (`RENAME TABLE ... __ghwt_backup`) и
-  возвращается в `tearDown()`; если оригинала не было (текущее состояние `wildworld_tests`
-  на этой машине — там только `factories`/`migrations`/`onboarding_cohort_daily`/
-  `player_action_log`), просто создают и дропают свою упрощённую схему, восстанавливать
-  нечего. Добавлены `backpackRow()` helper и тест
-  `testFullBackpackDrainByConsumptionLeavesNoZeroRow` (пул целиком из рюкзака, склад не
-  трогается) — доказывает отсутствие нулевой строки именно на пути СПИСАНИЯ, а не только
-  уведомления; тем же `assertNull` довооружён `testStorageCoversShortfallAfterBackpackDrained`.
-- Проверено эмпирически: прогон `GreenhouseProductionWaterTest` перед
-  `AchievementServiceTest` (обе трогают `game_settings`) и перед
-  `BaseStorageWithdrawTest` + `ResourceOverviewServiceTest` (обе трогают
-  `character_resources`/`base_storage`) — все зелёные в одном процессе PHPUnit.
+- **Тест-изоляция — вторая версия, после красной CI-сборки (см. Findings).** Первая
+  версия (`RENAME TABLE ... __ghwt_backup` + `tableExists()`) СЛОМАЛА CI: на реально
+  мигрированной `wildworld_tests` `RENAME TABLE game_settings TO ...` падал с «table
+  doesn't exist», потому что другие DB-тесты того же прогона (например
+  `AchievementServiceTest`) уже унесли `game_settings` своим собственным (существовавшим
+  до этой story) `DROP TABLE`-в-`tearDown()`, не восстанавливая её — общие имена в этой
+  тестовой БД в принципе никогда не гарантированно «настоящие» в середине прогона.
+  Правильное решение — не трогать общие имена вообще, а не чинить бэкап поверх них.
+  `GreenhouseProductionHandler` теперь принимает ВСЕ свои модели через конструктор (тот
+  же опциональный DI, что уже был у `$cfg`/`$buildingEffects`) плюс `GameSettingsService`
+  (переопределяет `GameSettingsReaderTrait::gs()` через trait-алиас `gs as private
+  traitGs`, поскольку `gs()` жёстко создавал `new GameSettingsService()` с реальной
+  `game_settings`). Тест подставляет модели с `Model::setTable('ghwt_...')` — уникальный
+  префикс, который не может пересечься ни с одним другим тестом в репозитории. `setUp()`/
+  `tearDown()` вернулись к простому безусловному `DROP TABLE IF EXISTS` + `CREATE TABLE`
+  на этих приватных именах — безопасно, потому что имена никому больше не принадлежат.
+- Добавлены `backpackRow()` helper и тест `testFullBackpackDrainByConsumptionLeavesNoZeroRow`
+  (пул целиком из рюкзака, склад не трогается) — доказывает отсутствие нулевой строки
+  именно на пути СПИСАНИЯ, а не только уведомления; тем же `assertNull` довооружён
+  `testStorageCoversShortfallAfterBackpackDrained`.
+- Репродукция CI-сценария локально (обязательное условие приёмки): вручную создал реальные
+  таблицы `game_settings`/`buildings`/`resources`/... в локальной `wildworld_tests` с
+  sentinel-строками (временным PHPUnit-тестом, не закоммичен), прогнал
+  `GreenhouseProductionWaterTest` — 10/10 зелёных, sentinel-строки не тронуты. Прогнал ту
+  же связку ВМЕСТЕ с `AchievementServiceTest` — sentinel `game_settings` пропадает, но
+  из-за `AchievementServiceTest::tearDown()` (её собственный `DROP TABLE IF EXISTS
+  game_settings` без восстановления — существовал до этой story, вне `## Files`, не
+  трогал). Изолированный прогон (только seed → наш тест → verify, без Achievement)
+  подтвердил: реальные таблицы переживают наш тест невредимыми. Полный `composer test`
+  после фикса — 2928/2928 зелёных.
 
 ## Findings
+Первая версия фикса (backup через `RENAME TABLE` + `tableExists()`) прошла локально
+(пустая `wildworld_tests`, ветка бэкапа ни разу не исполнилась), но упала на CI (10 ошибок,
+`Table 'wildworld_tests.game_settings' doesn't exist`, GitHub Actions прогон 32232665896) —
+там же, где команда-lead её и поймал. Гипотеза, подтверждённая репродукцией: причина не в
+логике rename/restore самой по себе, а в допущении, что общее имя таблицы в тестовой БД
+имеет стабильное «настоящее» состояние, которое можно временно одолжить и вернуть. В
+реальности десятки DB-тестов в этом репо (`AchievementServiceTest` и другие с `$migrate =
+false`) уже годами безусловно дропают/создают/дропают эти же имена без восстановления —
+любой другой тест того же прогона мог унести таблицу до нашего `tableExists()` check.
+Урок: для теста, вынужденного трогать общее имя таблицы в такой тестовой БД, единственный
+надёжный путь — не трогать общее имя вообще (свои приватные имена + DI моделей), а не
+пытаться временно «одолжить» чужое.

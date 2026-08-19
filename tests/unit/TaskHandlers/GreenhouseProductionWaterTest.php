@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Unit\TaskHandlers;
 
+use App\Models\BaseStorageModel;
+use App\Models\BuildingModel;
+use App\Models\CharacterBuildingModel;
+use App\Models\CharacterResourceModel;
+use App\Models\GameSettingsModel;
+use App\Models\ResourceModel;
+use App\Services\GameSettings\GameSettingsService;
 use App\TaskHandlers\GreenhouseProductionHandler;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -33,6 +40,18 @@ use Config\Database;
  * `GreenhouseProductionHandler::NOTIFY_CACHE_PREFIX` — если она поменяется, эти тесты
  * придётся поправить вместе с ней.
  *
+ * Story storage-craft-insurance-10 (второй заход, после красной CI-сборки на реальном
+ * дампе): первая версия этого файла безусловно дропала `game_settings`/`buildings`/
+ * `character_buildings`/`resources`/`character_resources`/`base_storage` — общие имена,
+ * которыми пользуются десятки других DB-тестов. Попытка «резервной копии» через
+ * `RENAME TABLE` на CI (где эти таблицы реально мигрированы) сама всё сломала — see
+ * git history. Правильное решение проще и надёжнее: вообще не трогать таблицы с общими
+ * именами. `GreenhouseProductionHandler` теперь принимает все свои модели через
+ * конструктор (тот же DI-паттерн, что уже был у `$cfg`/`$buildingEffects`), и тест
+ * подставляет модели, указывающие через `Model::setTable()` на уникальные таблицы с
+ * префиксом `ghwt_` — они не пересекаются ни с одним другим тестом ни при каких
+ * обстоятельствах, поэтому safe drop+create без всякого backup/restore.
+ *
  * @internal
  */
 final class GreenhouseProductionWaterTest extends CIUnitTestCase
@@ -41,55 +60,42 @@ final class GreenhouseProductionWaterTest extends CIUnitTestCase
 
     protected $migrate = false;
 
+    /** Уникальный префикс — гарантия, что тест никогда не заденет общие таблицы других тестов. */
+    private const PREFIX = 'ghwt_';
+
+    private const TABLE_GAME_SETTINGS       = self::PREFIX . 'game_settings';
+    private const TABLE_BUILDINGS           = self::PREFIX . 'buildings';
+    private const TABLE_CHARACTER_BUILDINGS = self::PREFIX . 'character_buildings';
+    private const TABLE_RESOURCES           = self::PREFIX . 'resources';
+    private const TABLE_CHARACTER_RESOURCES = self::PREFIX . 'character_resources';
+    private const TABLE_BASE_STORAGE        = self::PREFIX . 'base_storage';
+
     private const TABLES = [
-        'game_settings', 'buildings', 'character_buildings',
-        'resources', 'character_resources', 'base_storage',
+        self::TABLE_GAME_SETTINGS, self::TABLE_BUILDINGS, self::TABLE_CHARACTER_BUILDINGS,
+        self::TABLE_RESOURCES, self::TABLE_CHARACTER_RESOURCES, self::TABLE_BASE_STORAGE,
     ];
-
-    /**
-     * Story storage-craft-insurance-10: раньше setUp() безусловно дропал ЭТИ ЖЕ имена
-     * таблиц, а tearDown() дропал их ещё раз — не восстанавливая. Если где-то (локальный
-     * дамп с testbot, memory `reference_local_db_bootstrap_from_testbot`) под этими именами
-     * уже лежит настоящая мигрированная таблица, следующий DB-тест в том же прогоне
-     * PHPUnit, рассчитывающий на неё, падал по причине, не связанной со своим предметом —
-     * таблицы не существовало вовсе. Теперь существующий оригинал (если есть) переименовы-
-     * вается в сторону (`RENAME TABLE`) и возвращается на место в tearDown(); если оригинала
-     * не было (пустая `wildworld_tests`, как на этой машине сейчас), просто дропаем свою
-     * упрощённую схему — восстанавливать нечего.
-     */
-    private const BACKUP_SUFFIX = '__ghwt_backup';
-
-    /** @var list<string> имена таблиц из self::TABLES, у которых был настоящий оригинал (см. setUp) */
-    private array $backedUpTables = [];
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->cleanCache();
         $db = Database::connect('tests');
-        $this->backedUpTables = [];
         foreach (self::TABLES as $t) {
-            if ($db->tableExists($t)) {
-                $db->query("DROP TABLE IF EXISTS {$t}" . self::BACKUP_SUFFIX);
-                $db->query("RENAME TABLE {$t} TO {$t}" . self::BACKUP_SUFFIX);
-                $this->backedUpTables[] = $t;
-            } else {
-                $db->query("DROP TABLE IF EXISTS {$t}"); // на случай осколков от упавшего прошлого прогона
-            }
+            $db->query("DROP TABLE IF EXISTS {$t}");
         }
-        $db->query('CREATE TABLE game_settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(191), value_type VARCHAR(16) NULL, value_int INT NULL, value_bool TINYINT NULL, value_float DOUBLE NULL, value_string TEXT NULL)');
-        $db->query('CREATE TABLE buildings (id INT AUTO_INCREMENT PRIMARY KEY, name_en VARCHAR(191))');
-        $db->query('CREATE TABLE character_buildings (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, building_id INT, level INT DEFAULT 1)');
-        $db->query('CREATE TABLE resources (id INT AUTO_INCREMENT PRIMARY KEY, name_en VARCHAR(191))');
-        $db->query('CREATE TABLE character_resources (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT, id_resources INT, quantity INT DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
-        $db->query('CREATE TABLE base_storage (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, resource_id INT, quantity INT DEFAULT 0, arrived_from_cell INT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
+        $db->query('CREATE TABLE ' . self::TABLE_GAME_SETTINGS . ' (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(191), value_type VARCHAR(16) NULL, value_int INT NULL, value_bool TINYINT NULL, value_float DOUBLE NULL, value_string TEXT NULL)');
+        $db->query('CREATE TABLE ' . self::TABLE_BUILDINGS . ' (id INT AUTO_INCREMENT PRIMARY KEY, name_en VARCHAR(191))');
+        $db->query('CREATE TABLE ' . self::TABLE_CHARACTER_BUILDINGS . ' (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, building_id INT, level INT DEFAULT 1)');
+        $db->query('CREATE TABLE ' . self::TABLE_RESOURCES . ' (id INT AUTO_INCREMENT PRIMARY KEY, name_en VARCHAR(191))');
+        $db->query('CREATE TABLE ' . self::TABLE_CHARACTER_RESOURCES . ' (id INT AUTO_INCREMENT PRIMARY KEY, id_characters INT, id_resources INT, quantity INT DEFAULT 0, custom_data TEXT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
+        $db->query('CREATE TABLE ' . self::TABLE_BASE_STORAGE . ' (id INT AUTO_INCREMENT PRIMARY KEY, character_id INT, resource_id INT, quantity INT DEFAULT 0, arrived_from_cell INT NULL, created_at DATETIME NULL, updated_at DATETIME NULL)');
 
-        $db->table('buildings')->insert(['id' => 1, 'name_en' => 'Greenhouse']);
-        $db->table('resources')->insert(['id' => 1, 'name_en' => 'Water']);
-        $db->table('resources')->insert(['id' => 2, 'name_en' => 'Fruit']);
-        $db->table('resources')->insert(['id' => 3, 'name_en' => 'Berries']);
-        $db->table('resources')->insert(['id' => 4, 'name_en' => 'Mushrooms']);
-        $db->table('resources')->insert(['id' => 5, 'name_en' => 'Crops']);
+        $db->table(self::TABLE_BUILDINGS)->insert(['id' => 1, 'name_en' => 'Greenhouse']);
+        $db->table(self::TABLE_RESOURCES)->insert(['id' => 1, 'name_en' => 'Water']);
+        $db->table(self::TABLE_RESOURCES)->insert(['id' => 2, 'name_en' => 'Fruit']);
+        $db->table(self::TABLE_RESOURCES)->insert(['id' => 3, 'name_en' => 'Berries']);
+        $db->table(self::TABLE_RESOURCES)->insert(['id' => 4, 'name_en' => 'Mushrooms']);
+        $db->table(self::TABLE_RESOURCES)->insert(['id' => 5, 'name_en' => 'Crops']);
     }
 
     protected function tearDown(): void
@@ -97,9 +103,6 @@ final class GreenhouseProductionWaterTest extends CIUnitTestCase
         $db = Database::connect('tests');
         foreach (self::TABLES as $t) {
             $db->query("DROP TABLE IF EXISTS {$t}");
-            if (in_array($t, $this->backedUpTables, true)) {
-                $db->query("RENAME TABLE {$t}" . self::BACKUP_SUFFIX . " TO {$t}");
-            }
         }
         $this->cleanCache();
         parent::tearDown();
@@ -117,7 +120,7 @@ final class GreenhouseProductionWaterTest extends CIUnitTestCase
 
     private function setPoolEnabled(bool $enabled): void
     {
-        Database::connect('tests')->table('game_settings')->insert([
+        Database::connect('tests')->table(self::TABLE_GAME_SETTINGS)->insert([
             'setting_key' => 'storage.pool_enabled',
             'value_type'  => 'bool',
             'value_bool'  => $enabled ? 1 : 0,
@@ -129,7 +132,7 @@ final class GreenhouseProductionWaterTest extends CIUnitTestCase
     private function makeGreenhouse(int $characterId, int $level = 1): int
     {
         $db = Database::connect('tests');
-        $db->table('character_buildings')->insert([
+        $db->table(self::TABLE_CHARACTER_BUILDINGS)->insert([
             'character_id' => $characterId,
             'building_id'  => 1,
             'level'        => $level,
@@ -140,7 +143,7 @@ final class GreenhouseProductionWaterTest extends CIUnitTestCase
 
     private function setBackpackWater(int $characterId, int $qty): void
     {
-        Database::connect('tests')->table('character_resources')->insert([
+        Database::connect('tests')->table(self::TABLE_CHARACTER_RESOURCES)->insert([
             'id_characters' => $characterId,
             'id_resources'  => 1,
             'quantity'      => $qty,
@@ -161,7 +164,7 @@ final class GreenhouseProductionWaterTest extends CIUnitTestCase
 
     private function setStorageWater(int $characterId, int $qty): void
     {
-        Database::connect('tests')->table('base_storage')->insert([
+        Database::connect('tests')->table(self::TABLE_BASE_STORAGE)->insert([
             'character_id' => $characterId,
             'resource_id'  => 1,
             'quantity'     => $qty,
@@ -174,24 +177,49 @@ final class GreenhouseProductionWaterTest extends CIUnitTestCase
         return $row ? (int) $row['quantity'] : 0;
     }
 
-    /** @return array<string,mixed>|null сырая строка `character_resources` (Вода) — null, если строки нет вовсе */
+    /** @return array<string,mixed>|null сырая строка character_resources (Вода) — null, если строки нет вовсе */
     private function backpackRow(int $characterId): ?array
     {
-        $row = Database::connect('tests')->table('character_resources')
+        $row = Database::connect('tests')->table(self::TABLE_CHARACTER_RESOURCES)
             ->where('id_characters', $characterId)->where('id_resources', 1)->get()->getRowArray();
         return $row ?: null;
     }
 
     private function storageQty(int $characterId): int
     {
-        $row = Database::connect('tests')->table('base_storage')
+        $row = Database::connect('tests')->table(self::TABLE_BASE_STORAGE)
             ->where('character_id', $characterId)->where('resource_id', 1)->get()->getRowArray();
         return $row ? (int) $row['quantity'] : 0;
     }
 
+    /**
+     * Собирает handler со всеми моделями, указывающими на приватные `ghwt_*` таблицы —
+     * ни разу не задевает `game_settings`/`buildings`/`character_buildings`/`resources`/
+     * `character_resources`/`base_storage`, которыми пользуются другие DB-тесты. Модели
+     * персонажа/telegram-пользователя не переопределены: `notifyWaterShortage` ниже
+     * подменена seam'ом и до них дело не доходит.
+     */
     private function handler(): GreenhouseProductionHandler
     {
-        $h = new class extends GreenhouseProductionHandler {
+        $characterBuildingModel = (new CharacterBuildingModel())->setTable(self::TABLE_CHARACTER_BUILDINGS);
+        $characterResourceModel = (new CharacterResourceModel())->setTable(self::TABLE_CHARACTER_RESOURCES);
+        $buildingModel          = (new BuildingModel())->setTable(self::TABLE_BUILDINGS);
+        $resourceModel          = (new ResourceModel())->setTable(self::TABLE_RESOURCES);
+        $baseStorageModel       = (new BaseStorageModel())->setTable(self::TABLE_BASE_STORAGE);
+        $gameSettings           = new GameSettingsService((new GameSettingsModel())->setTable(self::TABLE_GAME_SETTINGS));
+
+        $h = new class(
+            null,
+            null,
+            $characterBuildingModel,
+            $characterResourceModel,
+            $buildingModel,
+            $resourceModel,
+            null,
+            null,
+            $baseStorageModel,
+            $gameSettings
+        ) extends GreenhouseProductionHandler {
             /** @var list<array{0:int,1:int}> */
             public array $captured = [];
 
@@ -308,9 +336,7 @@ final class GreenhouseProductionWaterTest extends CIUnitTestCase
 
         // Cooldown-метка теперь в кэше, не в character_resources — не должно остаться нулевой
         // строки, которая протекла бы в UI инвентаря (ResourcesGatheredAction без фильтра qty>0).
-        $row = Database::connect('tests')->table('character_resources')
-            ->where('id_characters', $c)->where('id_resources', 1)->get()->getRowArray();
-        $this->assertNull($row, 'не заведена заглушка-строка ради cooldown-метки');
+        $this->assertNull($this->backpackRow($c), 'не заведена заглушка-строка ради cooldown-метки');
     }
 
     public function testShortageWarningCooldownSuppressesRepeat(): void
