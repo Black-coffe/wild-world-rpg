@@ -58,4 +58,35 @@ blocked_by: [transport-02]
 
 ## Implementation notes
 
+- `app/Config/CraftRecipes.php`: пять новых записей `LightCart`/`MountainBike`/`Snowmobile`/
+  `DraftCart`/`AutonomousDrone`, `item_name_eng` 1:1 с ключом (контракт story 04). Вход собран
+  из реально существующих ресурсов/компонентов (сверено на testbot 2026-08-19), никаких
+  легаси-имён. `gold_required` не задан ни у одной — входа ресурсов/компонентов хватает на
+  ADR-157 с запасом. Картинки — временный плейсхолдер `standard_craft_area.jpg` (у транспорта
+  своего арта ещё нет, story 07/ImageRegistry заменит). `info_callback` намеренно не задан —
+  экрана категории транспорта в крафт-меню ещё нет (story 07).
+- `app/Database/Migrations/2026-11-29-100000_TransportCatalogCleanup.php`: добавляет
+  `crafted_items.status` ENUM(active/deprecated); id 48 «Воздушный шар» → deprecated; id 46
+  «Конная повозка»/«Horse Cart» → «Тягловая повозка»/«DraftCart»; id 43/47/49 `name_eng`
+  нормализован без пробела под контракт. Ничего не удалено (проверено dry-run транзакцией на
+  локальной БД — 11 строк type='transport' до и после). WipeManifest не тронут — `crafted_items`
+  уже KEEP, новая колонка не player-связана.
+- `tests/unit/Transport/VehicleRecipesTest.php`: изолированная схема (паттерн соседнего
+  `VehicleActivationServiceTest`, НЕ общая `wildworld_tests` — та мигрируется параллельными
+  сессиями). ADR-157 и «ингредиент реален» проверяются по значениям, вручную сверенным на
+  testbot (см. докблок класса), а не по live-подключению — детерминировано, не зависит от
+  состояния расшаренной тестовой БД. Гейт «enforced на старте» — тест зовёт РЕАЛЬНЫЙ приватный
+  `GenericCraftActionStart::characterFactionId()` через reflection на фикстуре БД (тот же
+  читатель, которым `handle()` резолвит фракцию в строке required_faction-проверки), а не
+  `handle()` целиком: последний бьёт в Telegram API и на CI без ключа падает
+  `TelegramException` до gate-проверки (см. memory `feedback_taskhandler_telegram_init_in_tests`).
+  Это честный, но частичный тест старта — не end-to-end вызов Action.
+- Локальная `mmorpg`-БД оказалась устаревшим дампом (нет `wiring`/`electronicComponents` в
+  `crafted_items`, `tasks` таблица без строк для новых рецептов) — сверка велась по testbot
+  через SSH, не по локальной БД.
+- `tasks`-строки (`craftLightCart` и т.д.) для этих пяти рецептов НЕ созданы — это explicit
+  scope story 07 (`plan.md`: «строки tasks»). До story 07 реальный крафт стартовать не может
+  (`GenericCraftActionStart` упадёт на «Задача не найдена в базе»), это ожидаемо на этой стадии
+  волны.
+
 ## Findings

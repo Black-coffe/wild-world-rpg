@@ -2894,6 +2894,142 @@ class CraftRecipes extends BaseConfig
             'image_completed'      => 'uploads/telegram/craft/cooking/fish_preserve.jpg',
             'craft_again_callback' => 'genericCraft_FishPreserve_1',
         ],
+
+        // ============================================================
+        // transport-06 (ADR-174, docs/specs/transport-system/) — пять машин.
+        // Числа бонусов (скорость/усталость/груз) НЕ живут здесь — они в
+        // GameSettings `world.vehicle.*` (story 02, ключи cart/mtb/snowmobile/
+        // draft_cart/drone_auto). Здесь только вход рецепта, время, гейты, цена.
+        // `item_name_eng` зафиксирован контрактом плана 1:1 с ключом рецепта —
+        // story 04 строит по нему карту профилей машин.
+        // Вход у каждой сверен с ADR-157 (price × 1.10 ≤ gold + сырьё):
+        // проверяется тестом tests/unit/Transport/VehicleRecipesTest.php.
+        // Картинок ещё нет (концепт §3) — временно общий верстак-плейсхолдер,
+        // заменит story 07 через Config\ImageRegistry.
+        // ============================================================
+
+        'LightCart' => [
+            'task_name'            => 'craftLightCart',
+            'resources'            => [
+                'Древесина' => 30,
+            ],
+            'crafted_items'        => [
+                'Fabric' => 3,
+            ],
+            'required_level'       => 6,
+            'image_in_progress'    => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'start_caption_name'   => '🛒 *Лёгкую повозку*',
+
+            'item_name_eng'        => 'LightCart',
+            'item_name_rus'        => 'Лёгкая повозка',
+            'icon_emoji'           => '🛒',
+            'zone_emoji'           => '🚚',
+            'zone_name'            => 'транспорт',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'craft_again_callback' => 'genericCraft_LightCart_1',
+        ],
+
+        'MountainBike' => [
+            'task_name'            => 'craftMountainBike',
+            'resources'            => [
+                'Древесина'      => 70,
+                'Шкура животных' => 60,
+            ],
+            'crafted_items'        => [],
+            'required_level'       => 12,
+            'required_faction'     => 2, // Партизаны
+            'image_in_progress'    => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'start_caption_name'   => '🚲 *Горный велосипед*',
+
+            'item_name_eng'        => 'MountainBike',
+            'item_name_rus'        => 'Горный велосипед',
+            'icon_emoji'           => '🚲',
+            'zone_emoji'           => '🚚',
+            'zone_name'            => 'транспорт',
+            'agility_bonus'        => 0.04,
+            'intellect_bonus'      => 0.01,
+            'image_completed'      => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'craft_again_callback' => 'genericCraft_MountainBike_1',
+        ],
+
+        'Snowmobile' => [
+            'task_name'            => 'craftSnowmobile',
+            'resources'            => [
+                'Нефть' => 10,
+            ],
+            'crafted_items'        => [
+                'metalFragments' => 2,
+            ],
+            'required_level'       => 14,
+            'required_faction'     => 1, // Милитари
+            'image_in_progress'    => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'start_caption_name'   => '🛻 *Снегоход*',
+
+            'item_name_eng'        => 'Snowmobile',
+            'item_name_rus'        => 'Снегоход',
+            'icon_emoji'           => '🛻',
+            'zone_emoji'           => '🚚',
+            'zone_name'            => 'транспорт',
+            'agility_bonus'        => 0.03,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'craft_again_callback' => 'genericCraft_Snowmobile_1',
+        ],
+
+        // Легенда узаконила тягловый скот у Фермеров (concept-final.md §1) — своя
+        // кожа/шкура вместо покупной. Каталожная строка переименована той же
+        // миграцией: «Конная повозка»/«Horse Cart» → «Тягловая повозка»/«DraftCart».
+        'DraftCart' => [
+            'task_name'            => 'craftDraftCart',
+            'resources'            => [
+                'Древесина'    => 80,
+                'Кожа животных' => 50,
+            ],
+            'crafted_items'        => [
+                'WoodMaterials' => 2,
+            ],
+            'required_level'       => 14,
+            'required_faction'     => 4, // Фермеры
+            'image_in_progress'    => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'start_caption_name'   => '🐎 *Тягловую повозку*',
+
+            'item_name_eng'        => 'DraftCart',
+            'item_name_rus'        => 'Тягловая повозка',
+            'icon_emoji'           => '🐎',
+            'zone_emoji'           => '🚚',
+            'zone_name'            => 'транспорт',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.02,
+            'image_completed'      => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'craft_again_callback' => 'genericCraft_DraftCart_1',
+        ],
+
+        'AutonomousDrone' => [
+            'task_name'            => 'craftAutonomousDrone',
+            'resources'            => [
+                'Солнечные камни' => 10,
+            ],
+            'crafted_items'        => [
+                'wiring'                => 1,
+                'electronicComponents'  => 2,
+            ],
+            'required_level'       => 16,
+            'required_faction'     => 3, // Инженеры
+            'image_in_progress'    => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'start_caption_name'   => '🛸 *Автономный дрон*',
+
+            'item_name_eng'        => 'AutonomousDrone',
+            'item_name_rus'        => 'Автономный дрон',
+            'icon_emoji'           => '🛸',
+            'zone_emoji'           => '🚚',
+            'zone_name'            => 'транспорт',
+            'agility_bonus'        => 0.02,
+            'intellect_bonus'      => 0.04,
+            'image_completed'      => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'craft_again_callback' => 'genericCraft_AutonomousDrone_1',
+        ],
     ];
 
     /**
