@@ -24,6 +24,35 @@ use App\Services\GameSettings\GameSettingsService;
  */
 final class CraftInsuranceService
 {
+    /**
+     * Машинный `crafted_items.type` → русская подпись для player-facing текста.
+     * Покрывает все значения `type`, встречающиеся в БД на момент V24.2 — не только
+     * то, что сейчас стоит в `craft_insurance.eligible_types`, чтобы смена настройки
+     * в админке не роняла экран новым непереведённым токеном.
+     *
+     * @var array<string,string>
+     */
+    private const TYPE_LABELS = [
+        'drug'          => 'лекарство',
+        'weapon'        => 'оружие',
+        'tool'          => 'инструмент',
+        'food'          => 'еда',
+        'clothing'      => 'одежда',
+        'building'      => 'постройка',
+        'component'     => 'компонент',
+        'transport'     => 'транспорт',
+        'utility'       => 'утилита',
+        'decorative'    => 'декор',
+        'magical item'  => 'магический предмет',
+        'military'      => 'военное снаряжение',
+        'accessory'     => 'аксессуар',
+        'teleport'      => 'телепорт',
+        'workbench'     => 'верстак',
+        'robots'        => 'робот',
+        'defense'       => 'защита',
+        'drones'        => 'дрон',
+    ];
+
     private GameSettingsService $settings;
 
     public function __construct(?GameSettingsService $settings = null)
@@ -73,6 +102,25 @@ final class CraftInsuranceService
             }
         }
         return $out === [] ? ['robots', 'workbench', 'transport'] : $out;
+    }
+
+    /**
+     * Русская подпись для машинного `crafted_items.type`. Неизвестный тип
+     * деградирует в сам токен — новое значение в GameSettings не должно
+     * ронять экран или показывать пустоту.
+     */
+    public function typeLabel(string $type): string
+    {
+        return self::TYPE_LABELS[$type] ?? $type;
+    }
+
+    /**
+     * @param  list<string> $types
+     * @return string Русские подписи через запятую, для вставки в player-facing текст.
+     */
+    public function typeLabels(array $types): string
+    {
+        return implode(', ', array_map(fn (string $t): string => $this->typeLabel($t), $types));
     }
 
     /**

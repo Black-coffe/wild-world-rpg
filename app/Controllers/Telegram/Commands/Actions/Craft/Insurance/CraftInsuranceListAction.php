@@ -6,6 +6,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft\Insurance;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Display\MarkdownSafe;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\CraftInsuranceService;
 use Longman\TelegramBot\Entities\ServerResponse;
@@ -64,11 +65,24 @@ class CraftInsuranceListAction extends BaseAction
             ->orderBy('crafted_items.name_rus', 'ASC')
             ->findAll();
 
+        $policyRows = $this->logModel
+            ->select('crafted_items.name_rus, crafted_items_log.quantity AS qty')
+            ->join('crafted_items', 'crafted_items.id = crafted_items_log.crafted_item_id')
+            ->where('crafted_items_log.character_id', $charId)
+            ->where('crafted_items_log.insured', 1)
+            ->where('crafted_items_log.quantity >', 0)
+            ->orderBy('crafted_items.name_rus', 'ASC')
+            ->findAll();
+
         $text  = "🛡 *Страховка крафта* (NPC-страховой агент)\n\n"
-            . "_Полис вечный — оплата один раз, защита до продажи/потери. При смерти insured-предметы НЕ списываются._\n\n";
+            . "_Полис вечный — оплата один раз, защита до продажи/потери. При смерти insured-предметы НЕ списываются._\n\n"
+            . $this->renderPolicies($policyRows);
 
         if (empty($rows)) {
-            $text .= "_У тебя нет дорогих предметов под страховку (типы: " . implode(', ', $types) . ")._";
+            $text .= empty($policyRows)
+                ? "_У тебя нет предметов под страховку (типы: " . $this->insurance->typeLabels($types) . ")._"
+                : '_Всё, что подходит под страховку, уже застраховано._';
+
             return MediaSender::editTextOrSend($this->navTarget() + [
                 'chat_id'    => $chatId,
                 'text'       => $text,
@@ -89,11 +103,12 @@ class CraftInsuranceListAction extends BaseAction
             if ($logId <= 0) {
                 continue;
             }
-            $name  = is_string($row['name_rus'] ?? null) ? $row['name_rus'] : '???';
+            $name  = MarkdownSafe::name(is_string($row['name_rus'] ?? null) ? $row['name_rus'] : '???', '???');
             $qty   = is_numeric($row['qty'] ?? null) ? (int) $row['qty'] : 0;
             $type  = is_string($row['type'] ?? null) ? $row['type'] : '';
+            $label = $this->insurance->typeLabel($type);
 
-            $text .= "• *{$name}* ({$type}) × {$qty}\n";
+            $text .= "• *{$name}* ({$label}) × {$qty}\n";
             $buttons[] = [[
                 'text'          => "🛡 {$name} ×{$qty}",
                 'callback_data' => "craftInsure_{$logId}",
@@ -111,6 +126,39 @@ class CraftInsuranceListAction extends BaseAction
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => $buttons]),
         ]);
+    }
+
+    /**
+     * Блок «Действующие полисы» — рисуется над списком доступного к страхованию,
+     * а при пустом $rows заменяет собой лживое «у тебя нет предметов» (V24.2).
+     * Лимит строк защищает caption от тихого обрезания Telegram (>1024 символов).
+     *
+     * @param list<mixed> $policyRows
+     */
+    private function renderPolicies(array $policyRows): string
+    {
+        if ($policyRows === []) {
+            return '';
+        }
+
+        $limit = 15;
+        $lines = [];
+        foreach ($policyRows as $row) {
+            if (! is_array($row) || count($lines) >= $limit) {
+                continue;
+            }
+            $name = MarkdownSafe::name(is_string($row['name_rus'] ?? null) ? $row['name_rus'] : '???', '???');
+            $qty  = is_numeric($row['qty'] ?? null) ? (int) $row['qty'] : 0;
+            $lines[] = "• {$name} × {$qty}";
+        }
+
+        $rest  = count($policyRows) - count($lines);
+        $block = "📜 *Действующие полисы:*\n" . implode("\n", $lines);
+        if ($rest > 0) {
+            $block .= "\n_…и ещё {$rest}_";
+        }
+
+        return $block . "\n\n";
     }
 
     private function extractCharId(mixed $character): int
