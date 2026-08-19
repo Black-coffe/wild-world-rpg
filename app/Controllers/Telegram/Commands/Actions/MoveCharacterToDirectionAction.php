@@ -9,9 +9,13 @@ use App\Models\TaskModel;
 use App\Models\ExploredCellsModel;
 use App\Models\MapModel;
 use App\Models\TelegramUserModel;
+use App\Services\GameSettings\GameSettingsService;
 use App\Services\Player\PlayerDetectionService;
 use App\Services\Player\Progression\EarlyProgressionService;
+use App\Services\Player\VehicleActivationService;
+use App\Services\World\MarchPaceService;
 use App\Services\World\TextMapService;
+use App\Services\World\VehicleEffectsService;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
@@ -59,10 +63,6 @@ class MoveCharacterToDirectionAction
         'southwest'  => [-1,  1 ],
         'southeast'  => [ 1,  1 ],
     ];
-
-    // Расходы на перемещение
-    protected $baseHealthCost = 0.1;
-    protected $baseTiredCost  = 3.35;
 
     public function __construct(CallbackQuery $callbackQuery)
     {
@@ -205,16 +205,26 @@ class MoveCharacterToDirectionAction
         // Списываем здоровье/усталость.
         // ADR-138 (S3): новичку (level<cap) цена усталости хода ×move_cost_factor + ранние
         // гейны ×gain_multiplier. Dormant/ветеран → факторы 1.0 = byte-identical.
-        $early      = new EarlyProgressionService();
-        $charLevel  = (float) ($character['level'] ?? 1);
-        $healthCost = $this->baseHealthCost;
-        $tiredCost  = $this->baseTiredCost * $early->moveCostFactor($charLevel);
+        // transport-05: одиночный шаг мгновенен — ускорять в нём нечего, из профиля транспорта
+        // берётся ТОЛЬКО множитель усталости (tired_factor). Три константы стоимости шага уехали
+        // в GameSettings под `world.move.*`; дефолты равны прежним hardcoded-числам — байт-идентично.
+        $early     = new EarlyProgressionService();
+        $charLevel = (float) ($character['level'] ?? 1);
+        $biome     = $this->biomeModel->find($targetCell['biome_id']);
 
-        // Если биом опасный
-        $biome = $this->biomeModel->find($targetCell['biome_id']);
-        if ($biome && $biome['danger_level'] >= 8) {
-            $healthCost += 1.15;
-        }
+        $settingsSvc  = new GameSettingsService();
+        $moveSettings = [
+            'health_cost_base'       => (float) $settingsSvc->get('world.move.health_cost_base', 0.1),
+            'tired_cost_base'        => (float) $settingsSvc->get('world.move.tired_cost_base', 3.35),
+            'danger_tired_surcharge' => (float) $settingsSvc->get('world.move.danger_tired_surcharge', 1.15),
+        ];
+
+        $vehicleProfile = $this->resolveVehicleProfile((int) $character['id']);
+        $dangerBiome    = (bool) ($biome && $biome['danger_level'] >= 8);
+
+        $stepCost   = self::computeStepCost($moveSettings, $dangerBiome, $vehicleProfile, $early->moveCostFactor($charLevel));
+        $healthCost = $stepCost['health'];
+        $tiredCost  = $stepCost['tired'];
 
         $futureHealth = $character['health'] - $healthCost;
         $futureTired  = $character['tired']  - $tiredCost;
@@ -547,6 +557,60 @@ class MoveCharacterToDirectionAction
         'southwest'  => 'юго-запад',
         'southeast'  => 'юго-восток',
     ];
+
+    /**
+     * transport-05 — чистая стоимость одиночного шага (без БД/Telegram, тест зовёт напрямую).
+     * Одиночный шаг мгновенен — из профиля транспорта берётся ТОЛЬКО `tired_factor`
+     * (ускорять нечего, у шага нет длительности). Здоровье профиль не трогает — только
+     * danger-надбавка. Комбинация «новичок + транспорт» — одно умножение без промежуточного
+     * округления: `tired_cost_base × tired_factor × earlyFactor` (нейтраль `tired_factor=1.0`
+     * умножает без потери точности — байт-идентично сегодняшнему `baseTiredCost × earlyFactor`).
+     *
+     * @param array{health_cost_base: float, tired_cost_base: float, danger_tired_surcharge: float} $settings
+     * @param array<string, mixed> $vehicleProfile профиль транспорта (контракт plan.md → ## Contracts);
+     *        нейтраль `['tired_factor' => 1.0, ...]` — байт-идентично сегодняшнему поведению.
+     * @return array{health: float, tired: float}
+     */
+    public static function computeStepCost(
+        array $settings,
+        bool $dangerBiome,
+        array $vehicleProfile,
+        float $earlyFactor
+    ): array {
+        $pace = new MarchPaceService();
+
+        $healthCost = $pace->healthCostPerCell((float) $settings['health_cost_base'], $vehicleProfile);
+        $tiredCost  = $pace->tiredCostPerCell((float) $settings['tired_cost_base'], $vehicleProfile) * $earlyFactor;
+
+        if ($dangerBiome) {
+            $healthCost += (float) $settings['danger_tired_surcharge'];
+        }
+
+        return ['health' => $healthCost, 'tired' => $tiredCost];
+    }
+
+    /**
+     * transport-05 — профиль активного транспорта персонажа для стоимости шага.
+     * Killswitch off / нет активной машины / машина изношена (charges<=0) →
+     * {@see VehicleEffectsService::neutralProfile()} без исключения (byte-identical).
+     * Terrain для одиночного шага роли не играет — `tired_factor` от него не зависит
+     * (только `cells_per_tick`, а шаг не ускоряется).
+     *
+     * @return array<string, mixed>
+     */
+    private function resolveVehicleProfile(int $characterId): array
+    {
+        $effects = new VehicleEffectsService();
+        $active  = (new VehicleActivationService())->resolveActive($characterId);
+
+        if ($active === null || $active['charges'] <= 0) {
+            return $effects->neutralProfile();
+        }
+
+        $vehicleKey = VehicleEffectsService::keyForItemNameEng($active['key']);
+
+        return $effects->profileFor($vehicleKey, VehicleEffectsService::TERRAIN_EXPLORED);
+    }
 
     /** Снять «часики» с нажатой кнопки (пустой ответ на callback_query). */
     private function dismissSpinner(): void
