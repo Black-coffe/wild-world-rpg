@@ -46,13 +46,36 @@ final class GreenhouseProductionWaterTest extends CIUnitTestCase
         'resources', 'character_resources', 'base_storage',
     ];
 
+    /**
+     * Story storage-craft-insurance-10: раньше setUp() безусловно дропал ЭТИ ЖЕ имена
+     * таблиц, а tearDown() дропал их ещё раз — не восстанавливая. Если где-то (локальный
+     * дамп с testbot, memory `reference_local_db_bootstrap_from_testbot`) под этими именами
+     * уже лежит настоящая мигрированная таблица, следующий DB-тест в том же прогоне
+     * PHPUnit, рассчитывающий на неё, падал по причине, не связанной со своим предметом —
+     * таблицы не существовало вовсе. Теперь существующий оригинал (если есть) переименовы-
+     * вается в сторону (`RENAME TABLE`) и возвращается на место в tearDown(); если оригинала
+     * не было (пустая `wildworld_tests`, как на этой машине сейчас), просто дропаем свою
+     * упрощённую схему — восстанавливать нечего.
+     */
+    private const BACKUP_SUFFIX = '__ghwt_backup';
+
+    /** @var list<string> имена таблиц из self::TABLES, у которых был настоящий оригинал (см. setUp) */
+    private array $backedUpTables = [];
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->cleanCache();
         $db = Database::connect('tests');
+        $this->backedUpTables = [];
         foreach (self::TABLES as $t) {
-            $db->query("DROP TABLE IF EXISTS {$t}");
+            if ($db->tableExists($t)) {
+                $db->query("DROP TABLE IF EXISTS {$t}" . self::BACKUP_SUFFIX);
+                $db->query("RENAME TABLE {$t} TO {$t}" . self::BACKUP_SUFFIX);
+                $this->backedUpTables[] = $t;
+            } else {
+                $db->query("DROP TABLE IF EXISTS {$t}"); // на случай осколков от упавшего прошлого прогона
+            }
         }
         $db->query('CREATE TABLE game_settings (id INT AUTO_INCREMENT PRIMARY KEY, setting_key VARCHAR(191), value_type VARCHAR(16) NULL, value_int INT NULL, value_bool TINYINT NULL, value_float DOUBLE NULL, value_string TEXT NULL)');
         $db->query('CREATE TABLE buildings (id INT AUTO_INCREMENT PRIMARY KEY, name_en VARCHAR(191))');
@@ -74,6 +97,9 @@ final class GreenhouseProductionWaterTest extends CIUnitTestCase
         $db = Database::connect('tests');
         foreach (self::TABLES as $t) {
             $db->query("DROP TABLE IF EXISTS {$t}");
+            if (in_array($t, $this->backedUpTables, true)) {
+                $db->query("RENAME TABLE {$t}" . self::BACKUP_SUFFIX . " TO {$t}");
+            }
         }
         $this->cleanCache();
         parent::tearDown();
@@ -144,9 +170,16 @@ final class GreenhouseProductionWaterTest extends CIUnitTestCase
 
     private function backpackQty(int $characterId): int
     {
+        $row = $this->backpackRow($characterId);
+        return $row ? (int) $row['quantity'] : 0;
+    }
+
+    /** @return array<string,mixed>|null сырая строка `character_resources` (Вода) — null, если строки нет вовсе */
+    private function backpackRow(int $characterId): ?array
+    {
         $row = Database::connect('tests')->table('character_resources')
             ->where('id_characters', $characterId)->where('id_resources', 1)->get()->getRowArray();
-        return $row ? (int) $row['quantity'] : 0;
+        return $row ?: null;
     }
 
     private function storageQty(int $characterId): int
@@ -212,6 +245,26 @@ final class GreenhouseProductionWaterTest extends CIUnitTestCase
 
         $this->assertSame(0, $this->backpackQty($c), 'рюкзак вычерпан');
         $this->assertSame(497, $this->storageQty($c), 'недостача (3) ушла со склада');
+        $this->assertNull($this->backpackRow($c), 'полный расход не оставляет строку с нулём (путь СПИСАНИЯ)');
+    }
+
+    /**
+     * Acceptance: полный расход воды из рюкзака НЕ оставляет строку с нулём. В отличие от
+     * `testShortageWarningFiresWhenBackpackEmptyButPoolLowAndLeavesNoZeroRow` (там строки
+     * не было вовсе — доказывает только путь уведомления), здесь строка ЕСТЬ до списания
+     * и ровно вычерпывается путём СПИСАНИЯ (fromStorage=0, склад не участвует).
+     */
+    public function testFullBackpackDrainByConsumptionLeavesNoZeroRow(): void
+    {
+        $c = 10;
+        $this->makeGreenhouse($c, 1); // L1 требует 1 воды
+        $this->setBackpackWater($c, 1); // рюкзак = ровно требуемое
+        $this->setStorageWater($c, 500); // склад есть, но не должен понадобиться
+
+        $this->handler()->handle();
+
+        $this->assertNull($this->backpackRow($c), 'списание вычерпало рюкзак — строка удалена, не осталась нулём');
+        $this->assertSame(500, $this->storageQty($c), 'склад не тронут — хватило рюкзака');
     }
 
     public function testNoShortageWarningWhenPoolIsSufficient(): void

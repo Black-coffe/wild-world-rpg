@@ -114,6 +114,18 @@ class BuildingUpgradeApplier
         $this->characterBuildingModel->update($charBuilding['id'], $update);
 
         $db->transComplete();
+
+        // story-09 (ревью team-lead, дефект 3): `transComplete()` откатывает
+        // без исключения на сбойном запросе / дедлоке / чужой более ранней
+        // неудаче в этом же request'е под `transStrict` — раньше это не
+        // проверялось, и `apply()` возвращала void независимо от исхода:
+        // `UpgradeBuildingAction` рапортовала «уровень повышен» при прежнем
+        // уровне и уже начисленном faction-score hook'е. Бросаем так же, как
+        // и при гонке на ресурсах выше — вызывающий отвечает игроку текстом.
+        if ($db->transStatus() === false) {
+            log_message('error', "[BuildingUpgradeApplier] транзакция апгрейда откачена без исключения для character {$charId}");
+            throw new \RuntimeException('Транзакция апгрейда откачена без исключения (оплата + level).');
+        }
     }
 
     /**

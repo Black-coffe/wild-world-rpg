@@ -136,6 +136,51 @@ final class GuideCatalogTest extends CIUnitTestCase
         }
     }
 
+    /**
+     * Story 07 (2ff1464a, storage-craft-insurance) расширила раздел «storage» двумя
+     * смыслами: рюкзак и склад базы — единый запас для крафта/ремонта/апгрейда построек,
+     * и забор со склада работает по одному виду ресурса (зеркало «Положить на склад»),
+     * а не только «забрать всё». `GuideCatalogTest.php` был назван в `## Files` story 07,
+     * но утверждения не появилось — story 12 закрывает этот пробел. Проверяем по устойчивым
+     * смысловым маркерам, а не по точной формулировке: текст ещё будут редактировать.
+     */
+    public function testStorageSectionExplainsUnifiedPoolAtBase(): void
+    {
+        $section = GuideCatalog::find('storage');
+        $this->assertNotNull($section, 'Раздел «Склад» (storage) обязан быть в /guide.');
+        $body = $section['body'];
+
+        foreach (['рюкзак', 'склад'] as $needle) {
+            $this->assertStringContainsStringIgnoringCase($needle, $body, "Раздел «Склад» не упоминает «{$needle}».");
+        }
+
+        // Единый пул касается всех трёх действий — крафта, ремонта, апгрейда построек.
+        foreach (['крафт', 'ремонт', 'апгрейд'] as $needle) {
+            $this->assertStringContainsStringIgnoringCase($needle, $body, "Раздел «Склад» не упоминает «{$needle}» (единый пул трат).");
+        }
+
+        $hasPoolMarker = mb_stripos($body, 'общ') !== false || mb_stripos($body, 'един') !== false;
+        $this->assertTrue($hasPoolMarker, 'Раздел «Склад» не называет запас рюкзака и склада общим/единым.');
+    }
+
+    public function testStorageSectionExplainsWithdrawByType(): void
+    {
+        $section = GuideCatalog::find('storage');
+        $this->assertNotNull($section, 'Раздел «Склад» (storage) обязан быть в /guide.');
+        $body = $section['body'];
+
+        $this->assertStringContainsStringIgnoringCase('забрать', $body, 'Раздел «Склад» не объясняет, как забрать со склада.');
+
+        $hasPerTypeMarker = false;
+        foreach (['по одному', 'каждым вид', 'только его', 'не трогая'] as $marker) {
+            if (mb_stripos($body, $marker) !== false) {
+                $hasPerTypeMarker = true;
+                break;
+            }
+        }
+        $this->assertTrue($hasPerTypeMarker, 'Раздел «Склад» не объясняет забор по одному виду ресурса (зеркало «Положить на склад»).');
+    }
+
     // ── Сервис рендера ──────────────────────────────────────────────────────
 
     public function testIndexExposesButtonForEverySection(): void

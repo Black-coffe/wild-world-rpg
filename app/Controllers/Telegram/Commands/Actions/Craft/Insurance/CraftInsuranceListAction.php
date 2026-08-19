@@ -74,24 +74,45 @@ class CraftInsuranceListAction extends BaseAction
             ->orderBy('crafted_items.name_rus', 'ASC')
             ->findAll();
 
-        $text  = "🛡 *Страховка крафта* (NPC-страховой агент)\n\n"
+        $screen = self::renderScreen($rows, $policyRows, $types, $this->insurance);
+
+        return MediaSender::editTextOrSend($this->navTarget() + [
+            'chat_id'      => $chatId,
+            'text'         => $screen['text'],
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode(['inline_keyboard' => $screen['buttons']]),
+        ]);
+    }
+
+    /**
+     * Чистая сборка текста и inline-кнопок экрана «Страховка крафта» — без DB/Telegram,
+     * поэтому тестируется юнит-тестом напрямую (V24.2 гейт story-12): три состояния
+     * (есть что страховать / всё уже застраховано / подходящих предметов нет) и
+     * поимённое перечисление действующих полисов, которые раньше были не закреплены
+     * ничем, кроме словаря `typeLabel()`.
+     *
+     * @param list<mixed>  $rows       eligible-строки (log_id, qty, name_rus, type)
+     * @param list<mixed>  $policyRows insured-строки (name_rus, qty)
+     * @param list<string> $types      `CraftInsuranceService::eligibleTypes()`
+     * @return array{text:string, buttons:list<list<array<string,string>>>}
+     */
+    public static function renderScreen(array $rows, array $policyRows, array $types, CraftInsuranceService $insurance): array
+    {
+        $text = "🛡 *Страховка крафта* (NPC-страховой агент)\n\n"
             . "_Полис вечный — оплата один раз, защита до продажи/потери. При смерти insured-предметы НЕ списываются._\n\n"
-            . $this->renderPolicies($policyRows);
+            . self::renderPolicies($policyRows);
+
+        $navButtons = [
+            ['text' => '🛡 Личная страховка', 'callback_data' => 'PersonalInsurance'],
+            ['text' => '🎒 Инвентарь',         'callback_data' => 'inventory'],
+        ];
 
         if (empty($rows)) {
             $text .= empty($policyRows)
-                ? "_У тебя нет предметов под страховку (типы: " . $this->insurance->typeLabels($types) . ")._"
+                ? "_У тебя нет предметов под страховку (типы: " . $insurance->typeLabels($types) . ")._"
                 : '_Всё, что подходит под страховку, уже застраховано._';
 
-            return MediaSender::editTextOrSend($this->navTarget() + [
-                'chat_id'    => $chatId,
-                'text'       => $text,
-                'parse_mode' => 'Markdown',
-                'reply_markup' => json_encode(['inline_keyboard' => [[
-                    ['text' => '🛡 Личная страховка', 'callback_data' => 'PersonalInsurance'],
-                    ['text' => '🎒 Инвентарь',         'callback_data' => 'inventory'],
-                ]]]),
-            ]);
+            return ['text' => $text, 'buttons' => [$navButtons]];
         }
 
         $buttons = [];
@@ -106,7 +127,7 @@ class CraftInsuranceListAction extends BaseAction
             $name  = MarkdownSafe::name(is_string($row['name_rus'] ?? null) ? $row['name_rus'] : '???', '???');
             $qty   = is_numeric($row['qty'] ?? null) ? (int) $row['qty'] : 0;
             $type  = is_string($row['type'] ?? null) ? $row['type'] : '';
-            $label = $this->insurance->typeLabel($type);
+            $label = $insurance->typeLabel($type);
 
             $text .= "• *{$name}* ({$label}) × {$qty}\n";
             $buttons[] = [[
@@ -115,27 +136,23 @@ class CraftInsuranceListAction extends BaseAction
             ]];
         }
 
-        $buttons[] = [
-            ['text' => '🛡 Личная страховка', 'callback_data' => 'PersonalInsurance'],
-            ['text' => '🎒 Инвентарь',         'callback_data' => 'inventory'],
-        ];
+        $buttons[] = $navButtons;
 
-        return MediaSender::editTextOrSend($this->navTarget() + [
-            'chat_id'      => $chatId,
-            'text'         => $text,
-            'parse_mode'   => 'Markdown',
-            'reply_markup' => json_encode(['inline_keyboard' => $buttons]),
-        ]);
+        return ['text' => $text, 'buttons' => $buttons];
     }
 
     /**
      * Блок «Действующие полисы» — рисуется над списком доступного к страхованию,
      * а при пустом $rows заменяет собой лживое «у тебя нет предметов» (V24.2).
-     * Лимит строк защищает caption от тихого обрезания Telegram (>1024 символов).
+     * Экран уходит текстовым сообщением через `MediaSender::editTextOrSend` — это
+     * НЕ photo-caption с пределом в 1024 символа, а обычный текст (лимит Telegram —
+     * 4096). Лимит строк здесь не защищает от тихого обрезания: Telegram по превышению
+     * длины не обрезает молча, а отвечает отказом (`ok=false`). Ограничение в 15 строк —
+     * читаемость экрана при большом числе полисов, не защита от API-лимита.
      *
      * @param list<mixed> $policyRows
      */
-    private function renderPolicies(array $policyRows): string
+    private static function renderPolicies(array $policyRows): string
     {
         if ($policyRows === []) {
             return '';

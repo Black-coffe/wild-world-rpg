@@ -232,31 +232,31 @@ class RepairCraftedItemAction extends BaseAction
             'recipe'      => $ctx['name_eng'],
         ], JSON_UNESCAPED_UNICODE);
 
-        // ADR-171 + ревью-фикс (тот же приём, что GenericCraftActionStart и
-        // BuildingUpgradeApplier): `deductResources()` списывает все ресурсы в
-        // своей собственной транзакции (см. её docblock) и бросает при гонке —
-        // раньше исключение глушилось логом внутри цикла, и ремонт стартовал,
-        // не заплатив за ресурс вовсе (хуже прежнего silent-clamp «недоплатил»).
-        // Задача создаётся ТОЛЬКО если весь список ресурсов списан успешно —
-        // строка ниже недостижима при выброшенном исключении.
+        // story-09 (ревью team-lead): оплата и создание задачи ремонта — теперь
+        // ОДНА транзакционная граница (`payAndScheduleRepair()`), а не своя
+        // транзакция на списание ресурсов + `insert()` снаружи неё. Раньше
+        // провал вставки оставлял игрока без ресурсов (оплата уже закоммичена)
+        // и без ремонта. `payAndScheduleRepair()` также смотрит `transStatus()`
+        // после `transComplete()` — откат без исключения (сбойный запрос,
+        // дедлок, либо чужая более ранняя неудача в этом же request'е под
+        // transStrict) раньше не бросал ничего, и код ниже создавал задачу
+        // поверх откаченной оплаты.
         try {
-            $this->deductResources($charId, $cost);
+            $this->payAndScheduleRepair($charId, $cost, [
+                'character_id'      => $charId,
+                'telegram_user_id'  => $tgUserId,
+                'task_id'           => $repairTaskId,
+                'status'            => 'in_work',
+                'start_time'        => $startTime->format('Y-m-d H:i:s'),
+                'end_time'          => $endTime->format('Y-m-d H:i:s'),
+                'task_settings'     => $taskSettings,
+                'created_at'        => $startTime->format('Y-m-d H:i:s'),
+                'updated_at'        => $startTime->format('Y-m-d H:i:s'),
+            ]);
         } catch (\RuntimeException $e) {
-            log_message('error', "[RepairCraftedItemAction] пул словил гонку при списании для character {$charId}: " . $e->getMessage());
+            log_message('error', "[RepairCraftedItemAction] оплата ремонта не прошла для character {$charId}: " . $e->getMessage());
             return $this->errReply($chatId, 'Ресурсы разошлись, пока ты выбирал — проверь запас и попробуй ещё раз.');
         }
-
-        $this->characterTaskModel->insert([
-            'character_id'      => $charId,
-            'telegram_user_id'  => $tgUserId,
-            'task_id'           => $repairTaskId,
-            'status'            => 'in_work',
-            'start_time'        => $startTime->format('Y-m-d H:i:s'),
-            'end_time'          => $endTime->format('Y-m-d H:i:s'),
-            'task_settings'     => $taskSettings,
-            'created_at'        => $startTime->format('Y-m-d H:i:s'),
-            'updated_at'        => $startTime->format('Y-m-d H:i:s'),
-        ]);
 
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId(),
@@ -397,12 +397,12 @@ class RepairCraftedItemAction extends BaseAction
      * ADR-171: списание через тот же пул, что и проверка достаточности выше —
      * рюкзак сначала, остаток со склада.
      *
-     * insurance-06: своя транзакция вокруг цикла — если `consume()` бросает
-     * на N-м ресурсе (гонка: checkResourceAvailability подтвердил достаточность
-     * секунду назад, но остаток успел уйти), уже списанные раньше в этом же
-     * цикле ресурсы откатываются, а не остаются потрачены в никуда. Исключение
-     * пробрасывается вызывающему (`confirmRepair()`) — эффект (задача ремонта)
-     * не создаётся, если оплата не прошла целиком.
+     * story-09: транзакционная граница переехала в `payAndScheduleRepair()` —
+     * этот метод сам транзакцию больше не открывает/не коммитит, только
+     * пробрасывает `RuntimeException` при гонке (checkResourceAvailability
+     * подтвердил достаточность секунду назад, но остаток успел уйти), чтобы
+     * вызывающий откатил ОБЩУЮ транзакцию целиком (оплата + задача), а не
+     * только списание ресурсов.
      *
      * @param array<string,int> $cost
      * @throws \RuntimeException при гонке за тот же остаток
@@ -411,24 +411,51 @@ class RepairCraftedItemAction extends BaseAction
     {
         $ids = $this->resolveResourceIds(array_keys($cost));
 
+        foreach ($cost as $resName => $needQty) {
+            if ($needQty < 1) {
+                continue;
+            }
+            $resourceId = $ids[$resName] ?? null;
+            if ($resourceId === null) {
+                continue; // неизвестный ресурс — молчаливый skip, как и раньше
+            }
+            $this->resourcePool->consume($characterId, $resourceId, $needQty);
+        }
+    }
+
+    /**
+     * story-09 (ревью team-lead, дефекты 1+2): единая транзакционная граница
+     * «оплата + создание задачи ремонта». Раньше `deductResources()` коммитила
+     * оплату СВОЕЙ транзакцией, а `character_tasks`-insert шёл снаружи неё —
+     * провал вставки оставлял игрока без ресурсов и без ремонта. Теперь оба
+     * шага — под одним `transStart()`/`transComplete()`, и исход транзакции
+     * проверяется явно: `transStatus()===false` (откат без исключения — сбойный
+     * запрос, дедлок, либо чужая более ранняя неудача в этом же request'е под
+     * `transStrict`) раньше означал «оплата откачена, а задача создаётся как ни
+     * в чём не бывало» — теперь это тоже бросает, и вызывающий отвечает игроку
+     * текстом отказа, а не показывает ложный успех.
+     *
+     * @param array<string,int> $cost
+     * @param array<string,mixed> $taskRow строка для `character_tasks->insert()`
+     * @throws \RuntimeException на гонку пула ИЛИ на неотслеженный откат транзакции
+     */
+    private function payAndScheduleRepair(int $characterId, array $cost, array $taskRow): void
+    {
         $db = \Config\Database::connect();
         $db->transStart();
+
         try {
-            foreach ($cost as $resName => $needQty) {
-                if ($needQty < 1) {
-                    continue;
-                }
-                $resourceId = $ids[$resName] ?? null;
-                if ($resourceId === null) {
-                    continue; // неизвестный ресурс — молчаливый skip, как и раньше
-                }
-                $this->resourcePool->consume($characterId, $resourceId, $needQty);
-            }
+            $this->deductResources($characterId, $cost);
+            $this->characterTaskModel->insert($taskRow);
         } catch (\RuntimeException $e) {
             $db->transRollback();
             throw $e;
         }
+
         $db->transComplete();
+        if ($db->transStatus() === false) {
+            throw new \RuntimeException('Транзакция ремонта откачена без исключения (оплата + задача).');
+        }
     }
 
     /**

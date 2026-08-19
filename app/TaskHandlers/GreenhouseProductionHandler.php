@@ -168,8 +168,18 @@ class GreenhouseProductionHandler extends BaseTaskHandler
             $fromBackpack = min($backpackQty, $waterNeeded);
             $fromStorage  = $waterNeeded - $fromBackpack;
 
+            // Story storage-craft-insurance-10: списание+начисление в одной транзакции —
+            // сбой посередине (например обрыв соединения) раньше мог оставить персонажа
+            // с потраченной водой и без урожая, либо наоборот.
+            $db = \Config\Database::connect();
+            $db->transStart();
+
             if ($fromBackpack > 0 && is_array($charResWater)) {
-                $this->characterResourceModel->update($charResWater['id'], ['quantity' => $backpackQty - $fromBackpack]);
+                // decreaseResources() удаляет строку при уходе в 0 — как decreaseResources()
+                // у ResourcePoolService. Раньше здесь был прямой update(), который при полном
+                // расходе рюкзака оставлял строку «Вода | 0 шт», всплывающую в
+                // ResourcesGatheredAction (тот экран листает рюкзак без фильтра quantity > 0).
+                $this->characterResourceModel->decreaseResources($characterId, (int) $waterResource['id'], $fromBackpack);
             }
             if ($fromStorage > 0) {
                 $this->baseStorageModel->withdraw($characterId, (int) $waterResource['id'], $fromStorage);
@@ -178,6 +188,11 @@ class GreenhouseProductionHandler extends BaseTaskHandler
             // Начисляем harvest (Fruit / Berries / Mushrooms / Crops и т.д.)
             foreach ($harvest as $resourceNameEn => $count) {
                 $this->addResourceToCharacter($characterId, $resourceNameEn, $count, $resourceByName);
+            }
+
+            $db->transComplete();
+            if ($db->transStatus() === false) {
+                log_message('error', "[GreenhouseProductionHandler] транзакция урожая упала для character {$characterId}");
             }
         }
     }

@@ -92,8 +92,16 @@ class ResourcePoolService
      * Списать qty: сначала рюкзак, остаток — со склада. При нехватке бросает
      * исключение и не списывает ничего — проверка идёт до любой мутации.
      *
-     * @return array{backpack:int, storage:int} сколько откуда реально ушло
-     * @throws RuntimeException если доступного меньше qty
+     * Story storage-craft-insurance-08: снапшот `breakdown()` в начале метода
+     * может устареть между чтением и записью (двойной тап, вебхук рядом с
+     * крон-Worker'ом). `withdrawBackpack()`/`withdrawStorage()` списывают
+     * атомарно и честно возвращают, сколько реально ушло — метод СВЕРЯЕТ
+     * это с затребованным по каждому источнику и при расхождении откатывает
+     * уже списанное и отказывает: недоплаченный крафт/ремонт не стартует.
+     *
+     * @return array{backpack:int, storage:int} сколько откуда РЕАЛЬНО ушло
+     * @throws RuntimeException если доступного меньше qty, либо если фактическое
+     *                          списание разошлось с затребованным (гонка)
      */
     public function consume(int $characterId, int $resourceId, int $qty): array
     {
@@ -114,14 +122,32 @@ class ResourcePoolService
         $fromBackpack = min($backpackHave, $qty);
         $fromStorage  = $qty - $fromBackpack;
 
-        if ($fromBackpack > 0) {
-            $this->withdrawBackpack($characterId, $resourceId, $fromBackpack);
-        }
-        if ($fromStorage > 0) {
-            $this->withdrawStorage($characterId, $resourceId, $fromStorage);
+        $backpackTaken = $fromBackpack > 0 ? $this->withdrawBackpack($characterId, $resourceId, $fromBackpack) : 0;
+
+        if ($backpackTaken < $fromBackpack) {
+            // Рюкзак списывается одним условным UPDATE — либо забрал всё
+            // запрошенное, либо ничего: откатывать нечего.
+            throw new RuntimeException(
+                "Недостаточно ресурса #{$resourceId} в рюкзаке: списано {$backpackTaken} из {$fromBackpack} " .
+                '(конкурентное списание опустошило остаток между чтением и записью)'
+            );
         }
 
-        return ['backpack' => $fromBackpack, 'storage' => $fromStorage];
+        $storageTaken = $fromStorage > 0 ? $this->withdrawStorage($characterId, $resourceId, $fromStorage) : 0;
+
+        if ($storageTaken < $fromStorage) {
+            // Склад отдал меньше обещанного — тот же класс гонки. Откатываем
+            // ВСЁ, что уже успели списать: частичная оплата недопустима.
+            $this->restoreBackpack($characterId, $resourceId, $backpackTaken);
+            $this->restoreStorage($characterId, $resourceId, $storageTaken);
+
+            throw new RuntimeException(
+                "Недостаточно ресурса #{$resourceId} на складе: списано {$storageTaken} из {$fromStorage} " .
+                '— списание отменено, ресурс возвращён'
+            );
+        }
+
+        return ['backpack' => $backpackTaken, 'storage' => $storageTaken];
     }
 
     /** @return array{backpack:int, storage:int} */
@@ -168,14 +194,67 @@ class ResourcePoolService
         return $this->baseStorageModel->quantityFor($characterId, $resourceId);
     }
 
-    protected function withdrawBackpack(int $characterId, int $resourceId, int $qty): void
+    /**
+     * Атомарное условное списание из рюкзака: `WHERE quantity >= ?` — строка
+     * блокируется на время UPDATE, конкурентное списание той же строки либо
+     * увидит уже уменьшённый остаток и получит 0 affected rows, либо
+     * применится после нас к свежему значению — расхождение физически
+     * невозможно. `CharacterResourceModel::decreaseResources()` тут не
+     * годится: он вычитает `amount` безусловно и при недостатке всё равно
+     * удаляет строку (см. её докблок) — то самое «списал меньше, чем
+     * попросили, но отрапортовал успех», от которого лечит эта стори.
+     *
+     * @return int реально списано: `$qty` (успех) либо 0 (строки не было
+     *             или в ней меньше `$qty` — недостача, ничего не тронуто)
+     */
+    protected function withdrawBackpack(int $characterId, int $resourceId, int $qty): int
     {
-        $this->characterResourceModel->decreaseResources($characterId, $resourceId, $qty);
+        if ($qty < 1) {
+            return 0;
+        }
+
+        $db    = \Config\Database::connect();
+        $table = $db->prefixTable('character_resources');
+
+        $db->query(
+            "UPDATE {$table} SET quantity = quantity - ? WHERE id_characters = ? AND id_resources = ? AND quantity >= ?",
+            [$qty, $characterId, $resourceId, $qty]
+        );
+
+        if ($db->affectedRows() < 1) {
+            return 0;
+        }
+
+        // Тот же инвариант, что у decreaseResources(): опустевшая строка не
+        // остаётся нулевым остатком.
+        $db->query(
+            'DELETE FROM ' . $table . ' WHERE id_characters = ? AND id_resources = ? AND quantity <= 0',
+            [$characterId, $resourceId]
+        );
+
+        return $qty;
     }
 
-    protected function withdrawStorage(int $characterId, int $resourceId, int $qty): void
+    /** @return int реально списано со склада — может быть меньше `$qty` (см. BaseStorageModel::withdraw()) */
+    protected function withdrawStorage(int $characterId, int $resourceId, int $qty): int
     {
-        $this->baseStorageModel->withdraw($characterId, $resourceId, $qty);
+        return $this->baseStorageModel->withdraw($characterId, $resourceId, $qty);
+    }
+
+    /** Откат уже списанного из рюкзака при отказе консьюма (частичная оплата недопустима). */
+    protected function restoreBackpack(int $characterId, int $resourceId, int $qty): void
+    {
+        if ($qty > 0) {
+            $this->characterResourceModel->increaseResources($characterId, $resourceId, $qty);
+        }
+    }
+
+    /** Откат уже списанного со склада при отказе консьюма. */
+    protected function restoreStorage(int $characterId, int $resourceId, int $qty): void
+    {
+        if ($qty > 0) {
+            $this->baseStorageModel->deliver($characterId, $resourceId, $qty);
+        }
     }
 
     protected function resolveResourceId(string $resourceName): ?int

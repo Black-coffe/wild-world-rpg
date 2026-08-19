@@ -28,6 +28,13 @@ final class ResourcePoolServiceTest extends CIUnitTestCase
         return new class ($backpack, $storage, $onBase, $poolEnabled) extends ResourcePoolService {
             public array $backpackWithdrawals = [];
             public array $storageWithdrawals  = [];
+            public array $backpackRestores    = [];
+            public array $storageRestores     = [];
+
+            /** Симулирует гонку: рюкзак реально отдаёт МЕНЬШЕ, чем у него просят. null = отдаёт сколько просят. */
+            public ?int $backpackShortfallTo = null;
+            /** Симулирует гонку: склад реально отдаёт МЕНЬШЕ, чем у него просят. null = отдаёт сколько просят. */
+            public ?int $storageShortfallTo = null;
 
             /**
              * @param array<string,int> $backpack
@@ -57,16 +64,34 @@ final class ResourcePoolServiceTest extends CIUnitTestCase
                 return $this->storage[$resourceId] ?? 0;
             }
 
-            protected function withdrawBackpack(int $characterId, int $resourceId, int $qty): void
+            protected function withdrawBackpack(int $characterId, int $resourceId, int $qty): int
             {
-                $this->backpackWithdrawals[] = [$resourceId, $qty];
-                $this->backpack[$resourceId] = ($this->backpack[$resourceId] ?? 0) - $qty;
+                $taken = $this->backpackShortfallTo !== null ? min($qty, $this->backpackShortfallTo) : $qty;
+                $this->backpackWithdrawals[] = [$resourceId, $taken];
+                $this->backpack[$resourceId] = ($this->backpack[$resourceId] ?? 0) - $taken;
+
+                return $taken;
             }
 
-            protected function withdrawStorage(int $characterId, int $resourceId, int $qty): void
+            protected function withdrawStorage(int $characterId, int $resourceId, int $qty): int
             {
-                $this->storageWithdrawals[] = [$resourceId, $qty];
-                $this->storage[$resourceId] = ($this->storage[$resourceId] ?? 0) - $qty;
+                $taken = $this->storageShortfallTo !== null ? min($qty, $this->storageShortfallTo) : $qty;
+                $this->storageWithdrawals[] = [$resourceId, $taken];
+                $this->storage[$resourceId] = ($this->storage[$resourceId] ?? 0) - $taken;
+
+                return $taken;
+            }
+
+            protected function restoreBackpack(int $characterId, int $resourceId, int $qty): void
+            {
+                $this->backpackRestores[]    = [$resourceId, $qty];
+                $this->backpack[$resourceId] = ($this->backpack[$resourceId] ?? 0) + $qty;
+            }
+
+            protected function restoreStorage(int $characterId, int $resourceId, int $qty): void
+            {
+                $this->storageRestores[]    = [$resourceId, $qty];
+                $this->storage[$resourceId] = ($this->storage[$resourceId] ?? 0) + $qty;
             }
         };
     }
@@ -155,5 +180,53 @@ final class ResourcePoolServiceTest extends CIUnitTestCase
         } catch (RuntimeException $e) {
             $this->assertStringContainsString('Недостаточно', $e->getMessage());
         }
+    }
+
+    /**
+     * Story storage-craft-insurance-08: склад по своему докблоку может списать
+     * МЕНЬШЕ запрошенного (гонка — параллельный запрос уже утащил часть). Раньше
+     * consume() возвращал намерение, не глядя на факт. Теперь — отказ и полный
+     * откат: и уже списанного рюкзака, и частично списанного склада.
+     */
+    public function testConsumeRollsBackEverythingWhenStorageWithdrawsLessThanPromised(): void
+    {
+        $svc                     = $this->service(['5' => 10], ['5' => 1000], onBase: true);
+        $svc->storageShortfallTo = 40; // просили 50 (60 - 10 из рюкзака), реально отдало 40
+
+        try {
+            $svc->consume(1, 5, 60);
+            $this->fail('ожидался RuntimeException при расхождении списания склада');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('складе', $e->getMessage());
+        }
+
+        $this->assertSame([[5, 10]], $svc->backpackWithdrawals, 'рюкзак был списан целиком (10)');
+        $this->assertSame([[5, 10]], $svc->backpackRestores, 'и целиком откачен обратно');
+        $this->assertSame([[5, 40]], $svc->storageWithdrawals, 'склад отдал частично (40 из 50)');
+        $this->assertSame([[5, 40]], $svc->storageRestores, 'частично списанное со склада тоже вернулось');
+    }
+
+    /**
+     * Расхождение в самом рюкзаке (двойной тап опустошил его между чтением
+     * breakdown() и записью) — отказ без обращения к складу вообще: рюкзак
+     * списывается одним атомарным UPDATE, поэтому либо всё, либо ничего,
+     * откатывать при недостаче нечего.
+     */
+    public function testConsumeThrowsWhenBackpackWithdrawsLessThanPromisedAndNeverTouchesStorage(): void
+    {
+        $svc                      = $this->service(['5' => 10], ['5' => 1000], onBase: true);
+        $svc->backpackShortfallTo = 4; // просили 10, реально осталось 4
+
+        try {
+            $svc->consume(1, 5, 60);
+            $this->fail('ожидался RuntimeException при расхождении списания рюкзака');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('рюкзаке', $e->getMessage());
+        }
+
+        $this->assertSame([[5, 4]], $svc->backpackWithdrawals);
+        $this->assertSame([], $svc->storageWithdrawals, 'склад не должен был тронут — отказ произошёл раньше');
+        $this->assertSame([], $svc->backpackRestores, 'рюкзак атомарен: нечего откатывать');
+        $this->assertSame([], $svc->storageRestores);
     }
 }

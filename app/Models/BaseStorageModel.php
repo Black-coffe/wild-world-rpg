@@ -122,6 +122,15 @@ class BaseStorageModel extends Model
      * не наберёт `qty`; строка, ушедшая в ноль, удаляется — не остаётся ни
      * отрицательного, ни нулевого остатка. Возвращает реально списанное
      * (меньше `qty`, если на складе было меньше).
+     *
+     * Story storage-craft-insurance-08: каждая строка списывается ОДНИМ
+     * условным `UPDATE ... WHERE quantity >= ?`, а не read-then-write из
+     * ранее прочитанного снапшота. Конкурентное списание той же строки
+     * (двойной тап, вебхук рядом с крон-Worker'ом) физически не может
+     * утащить больше, чем реально есть: если параллельный запрос уже
+     * уменьшил остаток ниже запрошенного, `affectedRows()` вернёт 0, и
+     * строка просто пропускается — недостача НЕ выдумывается, `withdraw()`
+     * честно вернёт меньше `qty`, а не соврёт об успехе.
      */
     public function withdraw(int $characterId, int $resourceId, int $qty): int
     {
@@ -133,6 +142,9 @@ class BaseStorageModel extends Model
             ->where('resource_id', $resourceId)
             ->orderBy('id', 'ASC')
             ->findAll();
+
+        $db    = $this->db;
+        $table = $db->prefixTable($this->table);
 
         $remaining = $qty;
         $withdrawn = 0;
@@ -150,11 +162,11 @@ class BaseStorageModel extends Model
             }
 
             $take = min($rowQty, $remaining);
-            $left = $rowQty - $take;
-            if ($left <= 0) {
-                $this->delete($rowId);
-            } else {
-                $this->update($rowId, ['quantity' => $left]);
+
+            if (! $this->withdrawRow($rowId, $take)) {
+                // Кто-то уже утащил эту строку между нашим SELECT и UPDATE —
+                // не считаем списанным, пробуем следующую строку.
+                continue;
             }
 
             $withdrawn += $take;
@@ -162,5 +174,35 @@ class BaseStorageModel extends Model
         }
 
         return $withdrawn;
+    }
+
+    /**
+     * Атомарный conditional-декремент одной строки: списывает `$take` только
+     * если в строке сейчас реально есть хотя бы `$take` (`affectedRows()`),
+     * затем убирает строку, если она ушла в ноль. Возвращает false, если
+     * строка исчезла или в ней меньше `$take` — недостача не выдумывается.
+     *
+     * Protected и вызывается отдельным шагом (не инлайн в `withdraw()`) —
+     * тест `BaseStorageWithdrawTest::testWithdrawSkipsRowConcurrentlyDrainedBelowRequestedAmount`
+     * подменяет её, чтобы честно воспроизвести гонку «строку тронули между
+     * SELECT и UPDATE», а не просто задать состояние до вызова `withdraw()`.
+     */
+    protected function withdrawRow(int $rowId, int $take): bool
+    {
+        $db    = $this->db;
+        $table = $db->prefixTable($this->table);
+
+        $db->query(
+            "UPDATE {$table} SET quantity = quantity - ? WHERE id = ? AND quantity >= ?",
+            [$take, $rowId, $take]
+        );
+
+        if ($db->affectedRows() < 1) {
+            return false;
+        }
+
+        $db->query("DELETE FROM {$table} WHERE id = ? AND quantity <= 0", [$rowId]);
+
+        return true;
     }
 }

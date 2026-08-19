@@ -39,6 +39,17 @@ final class CraftPoolConsumptionTest extends CIUnitTestCase
         return new class ($backpack, $storage, $onBase, $raceOn) extends ResourcePoolService {
             public array $storageWithdrawals  = [];
             public array $backpackWithdrawals = [];
+            public array $backpackRestores    = [];
+            public array $storageRestores     = [];
+
+            /**
+             * Story storage-craft-insurance-08: реальный `withdrawBackpack()`/`withdrawStorage()`
+             * возвращают фактически списанное, и `consume()` (не переопределён этим двойником —
+             * его настоящая логика сверки и отката работает здесь как в проде) отказывает при
+             * расхождении. `null` = отдаёт сколько просят (сегодняшнее поведение).
+             */
+            public ?int $backpackShortfallTo = null;
+            public ?int $storageShortfallTo  = null;
 
             /**
              * @param array<int,int> $backpack
@@ -78,16 +89,34 @@ final class CraftPoolConsumptionTest extends CIUnitTestCase
                 return $this->storage[$resourceId] ?? 0;
             }
 
-            protected function withdrawBackpack(int $characterId, int $resourceId, int $qty): void
+            protected function withdrawBackpack(int $characterId, int $resourceId, int $qty): int
             {
-                $this->backpackWithdrawals[] = [$resourceId, $qty];
-                $this->backpack[$resourceId] = ($this->backpack[$resourceId] ?? 0) - $qty;
+                $taken = $this->backpackShortfallTo !== null ? min($qty, $this->backpackShortfallTo) : $qty;
+                $this->backpackWithdrawals[] = [$resourceId, $taken];
+                $this->backpack[$resourceId] = ($this->backpack[$resourceId] ?? 0) - $taken;
+
+                return $taken;
             }
 
-            protected function withdrawStorage(int $characterId, int $resourceId, int $qty): void
+            protected function withdrawStorage(int $characterId, int $resourceId, int $qty): int
             {
-                $this->storageWithdrawals[] = [$resourceId, $qty];
-                $this->storage[$resourceId] = ($this->storage[$resourceId] ?? 0) - $qty;
+                $taken = $this->storageShortfallTo !== null ? min($qty, $this->storageShortfallTo) : $qty;
+                $this->storageWithdrawals[] = [$resourceId, $taken];
+                $this->storage[$resourceId] = ($this->storage[$resourceId] ?? 0) - $taken;
+
+                return $taken;
+            }
+
+            protected function restoreBackpack(int $characterId, int $resourceId, int $qty): void
+            {
+                $this->backpackRestores[]    = [$resourceId, $qty];
+                $this->backpack[$resourceId] = ($this->backpack[$resourceId] ?? 0) + $qty;
+            }
+
+            protected function restoreStorage(int $characterId, int $resourceId, int $qty): void
+            {
+                $this->storageRestores[]    = [$resourceId, $qty];
+                $this->storage[$resourceId] = ($this->storage[$resourceId] ?? 0) + $qty;
             }
 
             protected function resolveResourceId(string $resourceName): ?int
@@ -225,5 +254,40 @@ final class CraftPoolConsumptionTest extends CIUnitTestCase
             $this->assertSame([[self::RES_ID, 5]], $pool->backpackWithdrawals, "'Дерево' успело списаться до гонки на 'Камне'");
             $this->assertSame([], $pool->storageWithdrawals);
         }
+    }
+
+    /**
+     * Story storage-craft-insurance-08 — другой класс гонки, чем в
+     * `testSubtractResourcesPropagatesRaceInsteadOfSwallowing()` выше: там `consumeByName()`
+     * переопределён и бросает искусственно (симулирует «списали параллельно за пределами
+     * пула»). Здесь `consumeByName()` НЕ переопределён — работает настоящая логика
+     * `ResourcePoolService::consume()`, а расхождение возникает НА складе внутри самого
+     * списания (склад отдал меньше, чем `checkResources()` считал доступным). Проверяет,
+     * что интеграция крафта с реальной сверкой/откатом `consume()` (не только сам пул в
+     * изоляции — тот путь покрыт `ResourcePoolServiceTest`) действительно доходит до
+     * `subtractResources()` и не проглатывается: крафт обязан отказать, а не списать
+     * частично и продолжить.
+     */
+    public function testSubtractResourcesThrowsAndRollsBackWhenStorageWithdrawsLessThanPromised(): void
+    {
+        $pool = $this->poolDouble(
+            backpack: [self::RES_ID => 3],
+            storage: [self::RES_ID => 1000],
+            onBase: true,
+        );
+        $pool->storageShortfallTo = 4; // нужно 10 (3 из рюкзака + 7 со склада), склад реально отдаёт 4
+        $instance = $this->action($pool, $this->resourceModelDouble());
+
+        try {
+            $this->callPrivate($instance, 'subtractResources', [1, [self::RES_NAME => 5], 2]); // need = 10
+            $this->fail('ожидался RuntimeException при расхождении списания склада');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('складе', $e->getMessage());
+        }
+
+        $this->assertSame([[self::RES_ID, 3]], $pool->backpackWithdrawals, 'рюкзак был списан целиком (3)');
+        $this->assertSame([[self::RES_ID, 3]], $pool->backpackRestores, 'и целиком откачен обратно');
+        $this->assertSame([[self::RES_ID, 4]], $pool->storageWithdrawals, 'склад отдал частично (4 из 7)');
+        $this->assertSame([[self::RES_ID, 4]], $pool->storageRestores, 'частично списанное со склада тоже вернулось');
     }
 }

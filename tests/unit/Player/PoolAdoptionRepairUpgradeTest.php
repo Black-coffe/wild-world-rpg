@@ -7,6 +7,7 @@ namespace Tests\Unit\Player;
 use App\Controllers\Telegram\Commands\Actions\Craft\Repair\RepairCraftedItemAction;
 use App\Models\BuildingModel;
 use App\Models\CharacterBuildingModel;
+use App\Models\CharacterTaskModel;
 use App\Models\ResourceModel;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeApplier;
 use App\Services\Player\BuildingUpgrade\BuildingUpgradeValidator;
@@ -101,7 +102,7 @@ final class PoolAdoptionRepairUpgradeTest extends CIUnitTestCase
 
     // ── RepairCraftedItemAction ──────────────────────────────────────────
 
-    private function repairAction(ResourcePoolService $pool): RepairCraftedItemAction
+    private function repairAction(ResourcePoolService $pool, ?CharacterTaskModel $taskModel = null): RepairCraftedItemAction
     {
         $ref = new ReflectionClass(RepairCraftedItemAction::class);
         /** @var RepairCraftedItemAction $instance */
@@ -117,7 +118,28 @@ final class PoolAdoptionRepairUpgradeTest extends CIUnitTestCase
         $resProp->setAccessible(true);
         $resProp->setValue($instance, $this->resourceModelDouble());
 
+        if ($taskModel !== null) {
+            $taskProp = $ref->getProperty('characterTaskModel');
+            $taskProp->setAccessible(true);
+            $taskProp->setValue($instance, $taskModel);
+        }
+
         return $instance;
+    }
+
+    /** Спай `character_tasks->insert()` — story-09: считает вызовы, не трогает БД. */
+    private function characterTaskModelSpy(): CharacterTaskModel
+    {
+        return new class () extends CharacterTaskModel {
+            public bool $insertCalled = false;
+
+            public function insert($row = null, bool $returnID = true)
+            {
+                $this->insertCalled = true;
+
+                return 1;
+            }
+        };
     }
 
     /** @param array<int,mixed> $args @return mixed */
@@ -196,6 +218,37 @@ final class PoolAdoptionRepairUpgradeTest extends CIUnitTestCase
 
         $this->expectException(\RuntimeException::class);
         $this->callPrivate($instance, 'deductResources', [1, [self::RES_NAME => 10]]);
+    }
+
+    /**
+     * story-09 (ревью team-lead, дефекты 1+2): оплата и создание задачи ремонта —
+     * одна транзакционная граница (`payAndScheduleRepair()`). Гонка на списании
+     * обязана остановить всё целиком: `character_tasks->insert()` не должен
+     * вызываться, если оплата не прошла.
+     */
+    public function testPayAndScheduleRepairDoesNotInsertTaskWhenResourceRaceFails(): void
+    {
+        $pool     = $this->poolDouble(backpack: 0, storage: 0, onBase: true); // consume() гарантированно бросит
+        $taskSpy  = $this->characterTaskModelSpy();
+        $instance = $this->repairAction($pool, $taskSpy);
+
+        $threw = false;
+        try {
+            $this->callPrivate($instance, 'payAndScheduleRepair', [1, [self::RES_NAME => 10], [
+                'character_id'     => 1,
+                'telegram_user_id' => 1,
+                'task_id'          => 1,
+                'status'           => 'in_work',
+                'start_time'       => '2026-08-19 00:00:00',
+                'end_time'         => '2026-08-19 00:15:00',
+                'task_settings'    => '{}',
+            ]]);
+        } catch (\RuntimeException) {
+            $threw = true;
+        }
+
+        $this->assertTrue($threw, 'payAndScheduleRepair() должен пробросить RuntimeException при гонке на ресурсах');
+        $this->assertFalse($taskSpy->insertCalled, 'задача ремонта не должна создаваться, если оплата не прошла');
     }
 
     // ── BuildingUpgradeValidator ──────────────────────────────────────────

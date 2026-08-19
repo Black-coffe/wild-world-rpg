@@ -9,6 +9,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\BaseStorageModel;
 use App\Models\CharacterResourceModel;
 use App\Services\Bases\BaseCheckService;
+use App\Services\Display\MarkdownSafe;
 use App\Services\Onboarding\OnboardingHintService;
 use App\Services\Player\InventorySortService;
 use App\Services\Telegram\ButtonPacker;
@@ -122,8 +123,9 @@ class BaseStorageListAction extends BaseAction
                 continue;
             }
             $totalUnits += $qty;
-            $emoji  = ResourceIconHelper::for($name);
-            $text  .= "{$emoji} {$name} — *{$qty}* шт.\n";
+            $emoji     = ResourceIconHelper::for($name);
+            $safeName  = MarkdownSafe::name($name, 'ресурс');
+            $text     .= "{$emoji} {$safeName} — *{$qty}* шт.\n";
         }
         $text .= "\nИтого: *{$totalUnits}* шт.\n\n";
 
@@ -134,25 +136,12 @@ class BaseStorageListAction extends BaseAction
 
             // storage-craft-insurance-03: выбор одного вида — зеркало депозита.
             // Кнопки ограничены тем же пределом, что у сдачи; «Забрать всё» страхует хвост.
-            $shown   = array_slice($entries, 0, self::MAX_BUTTONS);
-            $buttons = [];
-            foreach ($shown as $e) {
-                $rid   = is_numeric($e['resource_id'] ?? null) ? (int) $e['resource_id'] : 0;
-                $ename = is_string($e['name'] ?? null) ? $e['name'] : '';
-                $eqty  = is_numeric($e['quantity'] ?? null) ? (int) $e['quantity'] : 0;
-                if ($rid <= 0 || $ename === '' || $eqty <= 0) {
-                    continue;
-                }
-                $buttons[] = [
-                    'text'          => ResourceIconHelper::for($ename) . ' ' . $ename,
-                    'callback_data' => "baseStorageList_res_{$rid}_{$mode}",
-                ];
-            }
-            foreach (ButtonPacker::pack($buttons) as $row) {
+            $built = $this->buildResourceButtonRows($entries, $mode);
+            foreach ($built['rows'] as $row) {
                 $rows[] = $row;
             }
-            if (count($entries) > self::MAX_BUTTONS) {
-                $text .= "\n\n_…и ещё " . (count($entries) - self::MAX_BUTTONS) . " видов — их заберёт кнопка «Забрать всё»._";
+            if ($built['hiddenCount'] > 0) {
+                $text .= "\n\n_…и ещё " . $built['hiddenCount'] . " видов — их заберёт кнопка «Забрать всё»._";
             }
 
             $rows[] = [
@@ -180,7 +169,7 @@ class BaseStorageListAction extends BaseAction
         if (! $this->isOnBase($characterId)) {
             return Request::sendMessage([
                 'chat_id'    => $chatId,
-                'text'       => "🚫 Чтобы забрать со склада, нужно быть на своей клейм-клетке. Вернись на базу.",
+                'text'       => $this->offBaseDenialText(),
                 'parse_mode' => 'Markdown',
             ]);
         }
@@ -198,19 +187,33 @@ class BaseStorageListAction extends BaseAction
         $db->transStart();
 
         $totalUnits = 0;
-        foreach ($entries as $e) {
-            $resId = is_numeric($e['resource_id'] ?? null) ? (int) $e['resource_id'] : 0;
-            $qty   = is_numeric($e['quantity'] ?? null) ? (int) $e['quantity'] : 0;
-            $id    = is_numeric($e['id'] ?? null) ? (int) $e['id'] : 0;
-            if ($resId <= 0 || $qty <= 0 || $id <= 0) {
-                continue;
+        $ok         = true;
+        try {
+            foreach ($entries as $e) {
+                $resId = is_numeric($e['resource_id'] ?? null) ? (int) $e['resource_id'] : 0;
+                $qty   = is_numeric($e['quantity'] ?? null) ? (int) $e['quantity'] : 0;
+                $id    = is_numeric($e['id'] ?? null) ? (int) $e['id'] : 0;
+                if ($resId <= 0 || $qty <= 0 || $id <= 0) {
+                    continue;
+                }
+                $this->resourceModel->increaseResources($characterId, $resId, $qty);
+                $this->storageModel->delete($id);
+                $totalUnits += $qty;
             }
-            $this->resourceModel->increaseResources($characterId, $resId, $qty);
-            $this->storageModel->delete($id);
-            $totalUnits += $qty;
+            $db->transComplete();
+            $ok = $db->transStatus() !== false;
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            $ok = false;
         }
 
-        $db->transComplete();
+        // Исход транзакции проверяется отдельно от локально накопленного $totalUnits:
+        // при откате (сбойный query внутри trans или брошенное исключение) счётчик в
+        // памяти PHP уже посчитан, а строки на складе физически не изменились — раньше
+        // это давало игроку «Забрано» при пустом реальном переносе.
+        if (! $ok) {
+            return $this->errReply($chatId, 'Не удалось забрать ресурсы со склада — попробуй ещё раз.');
+        }
 
         return Request::sendMessage([
             'chat_id'      => $chatId,
@@ -255,37 +258,24 @@ class BaseStorageListAction extends BaseAction
         if (! $this->isOnBase($characterId)) {
             return Request::sendMessage([
                 'chat_id'    => $chatId,
-                'text'       => "🚫 Чтобы забрать со склада, нужно быть на своей клейм-клетке. Вернись на базу.",
+                'text'       => $this->offBaseDenialText(),
                 'parse_mode' => 'Markdown',
             ]);
         }
 
-        $name = $this->resourceName($resourceId);
-
-        $db = \Config\Database::connect();
-        $db->transStart();
-        $withdrawn = $this->storageModel->withdraw($characterId, $resourceId, PHP_INT_MAX);
-        if ($withdrawn > 0) {
-            $this->resourceModel->increaseResources($characterId, $resourceId, $withdrawn);
+        $outcome = $this->performRetrieveOne($characterId, $resourceId);
+        if ($outcome === null) {
+            return $this->errReply($chatId, 'Не удалось забрать ресурс со склада — попробуй ещё раз.');
         }
-        $db->transComplete();
-
-        if ($withdrawn <= 0) {
+        if ($outcome['withdrawn'] <= 0) {
             return $this->errReply($chatId, 'Такого ресурса на складе уже нет.');
         }
 
-        $this->logActivity($characterId, 'BASE_STORAGE_RETRIEVE_ONE', "res={$name} qty={$withdrawn}");
-
-        $emoji = ResourceIconHelper::for($name);
-        $units = number_format($withdrawn, 0, '.', ' ');
-
-        $text  = "🎒 *Забрано со склада*\n\n";
-        $text .= "  {$emoji} *{$name}* × *{$units}* шт.\n\n";
-        $text .= "Ресурс теперь в рюкзаке.";
+        $this->logActivity($characterId, 'BASE_STORAGE_RETRIEVE_ONE', "res={$outcome['name']} qty={$outcome['withdrawn']}");
 
         return Request::sendMessage([
             'chat_id'      => $chatId,
-            'text'         => $text,
+            'text'         => $outcome['text'],
             'parse_mode'   => 'Markdown',
             'reply_markup' => json_encode(['inline_keyboard' => [
                 [
@@ -298,6 +288,70 @@ class BaseStorageListAction extends BaseAction
                 ],
             ]]),
         ]);
+    }
+
+    /**
+     * Списание одного вида ресурса со склада в рюкзак + сборка текста — вся
+     * логика забора одного вида без Telegram-обвязки (тестируется напрямую).
+     *
+     * Возвращает `null`, если транзакция не завершилась успешно (упавший
+     * query внутри trans или брошенное исключение из моделей) — раньше исход
+     * не проверялся вовсе: `$withdrawn` (посчитанный ДО возможного отката)
+     * использовался как есть, и при откате игрок читал «Забрано», а ресурс
+     * физически оставался на складе.
+     *
+     * @return array{withdrawn:int, name:string, text:string}|null
+     */
+    private function performRetrieveOne(int $characterId, int $resourceId): ?array
+    {
+        $name = $this->resourceName($resourceId);
+
+        $db = \Config\Database::connect();
+        $db->transStart();
+        $withdrawn = 0;
+        try {
+            $withdrawn = $this->storageModel->withdraw($characterId, $resourceId, PHP_INT_MAX);
+            if ($withdrawn > 0) {
+                $this->resourceModel->increaseResources($characterId, $resourceId, $withdrawn);
+            }
+            $db->transComplete();
+            if ($db->transStatus() === false) {
+                return null;
+            }
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            return null;
+        }
+
+        if ($withdrawn <= 0) {
+            return ['withdrawn' => 0, 'name' => $name, 'text' => ''];
+        }
+
+        return [
+            'withdrawn' => $withdrawn,
+            'name'      => $name,
+            'text'      => $this->formatRetrieveMessage($name, $withdrawn),
+        ];
+    }
+
+    /**
+     * Текст результата забора. Имя ресурса экранируется тем же способом, что
+     * на экране страховки ({@see MarkdownSafe::name()}) — пустое или
+     * содержащее `*`/`_` имя раньше давало непарный маркер в legacy-Markdown,
+     * Telegram отвечал 400, и сообщение молча не уходило уже ПОСЛЕ того, как
+     * ресурс был перемещён со склада в рюкзак.
+     */
+    private function formatRetrieveMessage(string $name, int $withdrawn): string
+    {
+        $safeName = MarkdownSafe::name($name, 'ресурс');
+        $emoji     = ResourceIconHelper::for($name);
+        $units     = number_format($withdrawn, 0, '.', ' ');
+
+        $text  = "🎒 *Забрано со склада*\n\n";
+        $text .= "  {$emoji} *{$safeName}* × *{$units}* шт.\n\n";
+        $text .= "Ресурс теперь в рюкзаке.";
+
+        return $text;
     }
 
     /**
@@ -341,6 +395,41 @@ class BaseStorageListAction extends BaseAction
     }
 
     /**
+     * Кнопки выбора одного вида ресурса — зеркало депозита. Кнопки ограничены
+     * `self::MAX_BUTTONS`, но внутри среза попадаются мусорные строки (нулевой
+     * id/пустое имя/нулевое количество) — их отсеивает `$buttons`. Раньше
+     * «…и ещё N видов» считало `count($entries) - MAX_BUTTONS`, т.е. хвост
+     * ЗА пределами среза, а кнопки строились из фильтрованного среза — при
+     * мусоре внутри среза число в тексте расходилось с фактическим числом
+     * кнопок. `hiddenCount` теперь считает от того же `$buttons`, что и ряды.
+     *
+     * @param  list<array<string,mixed>> $entries
+     * @return array{rows:list<list<array{text:string,callback_data:string}>>, hiddenCount:int}
+     */
+    private function buildResourceButtonRows(array $entries, string $mode): array
+    {
+        $shown   = array_slice($entries, 0, self::MAX_BUTTONS);
+        $buttons = [];
+        foreach ($shown as $e) {
+            $rid   = is_numeric($e['resource_id'] ?? null) ? (int) $e['resource_id'] : 0;
+            $ename = is_string($e['name'] ?? null) ? $e['name'] : '';
+            $eqty  = is_numeric($e['quantity'] ?? null) ? (int) $e['quantity'] : 0;
+            if ($rid <= 0 || $ename === '' || $eqty <= 0) {
+                continue;
+            }
+            $buttons[] = [
+                'text'          => ResourceIconHelper::for($ename) . ' ' . MarkdownSafe::name($ename, 'ресурс'),
+                'callback_data' => "baseStorageList_res_{$rid}_{$mode}",
+            ];
+        }
+
+        return [
+            'rows'        => ButtonPacker::pack($buttons),
+            'hiddenCount' => count($entries) - count($buttons),
+        ];
+    }
+
+    /**
      * W8: ряд кнопок переключения сортировки склада. Текущий режим помечен «•».
      *
      * @return list<array{text:string,callback_data:string}>
@@ -359,6 +448,15 @@ class BaseStorageListAction extends BaseAction
             ];
         }
         return $row;
+    }
+
+    /**
+     * Отказ «не на базе» — общий текст для «Забрать всё» и забора одного вида.
+     * Объясняет, что делать (правило UX-discoverability), не отдаёт голое «ошибка».
+     */
+    private function offBaseDenialText(): string
+    {
+        return "🚫 Чтобы забрать со склада, нужно быть на своей клейм-клетке. Вернись на базу.";
     }
 
     /**

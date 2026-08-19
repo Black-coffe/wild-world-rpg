@@ -176,9 +176,14 @@ class UpgradeBuildingAction extends BaseAction
         // вызовом) вместо того чтобы применить апгрейд, не заплатив. Без catch
         // здесь необработанное исключение — это белый экран игроку, а не отказ;
         // тот же путь ответа, что и у остальных ошибок этого экрана.
+        // story-09 (ревью team-lead, дефект 4): catch расширен на
+        // `DatabaseException` явно — `apply()` также бросает при откаченной без
+        // исключения транзакции (см. её докблок), и катастрофический сбой
+        // самой БД внутри `update()`/`insert()` обязан дойти до игрока текстом,
+        // а не пролететь мимо catch'а, ради которого он и заведён.
         try {
             $this->applier->apply($character, $charBuilding, $nextLevel, $req);
-        } catch (\RuntimeException) {
+        } catch (\RuntimeException|\CodeIgniter\Database\Exceptions\DatabaseException) {
             Request::answerCallbackQuery([
                 'callback_query_id' => $this->callbackQuery->getId(),
                 'text'              => 'Ресурсы разошлись, пока ты подтверждал — проверь запас и попробуй ещё раз.',
