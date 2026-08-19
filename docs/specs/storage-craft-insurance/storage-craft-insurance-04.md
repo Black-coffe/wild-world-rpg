@@ -66,13 +66,22 @@ blocked_by: [storage-craft-insurance-01]
   метку, но она всплывала игроку на экране инвентаря `ResourcesGatheredAction` («📦 Вода | 0 шт»,
   тот экран читает `character_resources` без фильтра `quantity > 0` — в отличие от
   `SellResourceAction`/`ResourceOverviewService`, где фильтр стоит). Финальное решение: cooldown-
-  метка живёт в CI4-кэше (`service('cache')`, ключ `greenhouse_water_shortage_{characterId}`,
-  TTL = cooldown_sec) — тот же file-driver, которым уже пользуется `GameSettingsService` в этом
-  же handler'е. `character_resources.custom_data` для этой цели больше не используется вовсе.
-  Плата: сброс кэша (деплой/`cache:clear`) может стереть отметку раньше срока — максимум одно
-  лишнее предупреждение, дешевле испорченного экрана инвентаря. Альтернатива (ALTER
-  `character_buildings` + новая колонка в `$allowedFields`) была на столе, но добавляла миграцию
-  вне `## Files` этой story ради данных, которые не обязаны переживать рестарт.
+  метка живёт в CI4-кэше (`service('cache')`, TTL = cooldown_sec) — тот же file-driver, которым
+  уже пользуется `GameSettingsService` в этом же handler'е. `character_resources.custom_data`
+  для этой цели больше не используется вовсе. Плата: сброс кэша (деплой/`cache:clear`) может
+  стереть отметку раньше срока — максимум одно лишнее предупреждение, дешевле испорченного
+  экрана инвентаря. Альтернатива (ALTER `character_buildings` + новая колонка в `$allowedFields`)
+  была на столе, но добавляла миграцию вне `## Files` этой story ради данных, которые не обязаны
+  переживать рестарт.
+- Ключ кэша — `greenhouse_water_shortage_{character_buildings.id}`, ПО ПОСТРОЙКЕ, не по персонажу
+  (второй раунд ревью team-lead): дубли построек разрешены намеренно, у одного игрока может стоять
+  несколько Теплиц одновременно, и общий ключ по `characterId` заглушил бы предупреждение второй
+  теплицы после того, как отправилось для первой. TTL пишется один раз через `save(key, ts, ttl)`
+  без последующего чтения-инкремента — `increment()` у CI4-кэша продлевает TTL и окно cooldown
+  никогда бы не закрылось (memory `feedback_ci4_cache_increment_refreshes_ttl`).
+- Тест `testCooldownIsPerBuildingNotPerCharacter` — две Теплицы одного персонажа, у первой
+  cooldown уже стоит, у второй нет; проверяет ровно одно уведомление (не ноль — общий cooldown
+  задушил бы обе, не два — нет общего окна).
 - `notifyWaterShortage`: `private` → `protected` (seam для теста, по образцу
   `AntiCampDwellHandler::sendWarn`) — иначе тест не может подменить отправку без живого
   Telegram/БД character/telegram_users.

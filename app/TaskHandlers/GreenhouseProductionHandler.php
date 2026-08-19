@@ -202,8 +202,15 @@ class GreenhouseProductionHandler extends BaseTaskHandler
      * никакая игровая таблица не трогается, протечка в инвентарь структурно невозможна.
      * Плата — сброс кэша (деплой/`cache:clear`) может стереть отметку раньше срока, тогда
      * уйдёт одно лишнее предупреждение; это дешевле испорченного экрана инвентаря.
+     *
+     * Ключ кэша — по конкретной ПОСТРОЙКЕ (`character_buildings.id`), не по персонажу: дубли
+     * построек в проекте разрешены намеренно, у одного игрока может стоять несколько Теплиц
+     * одновременно, и у каждой свой cooldown. TTL пишется ОДИН раз при `save()` и больше не
+     * трогается — здесь нет read-increment-write цикла (memory
+     * `feedback_ci4_cache_increment_refreshes_ttl`: `increment()` продлевает TTL и окно никогда
+     * не закрывается; `save()` с фиксированным TTL этой ловушке не подвержен).
      */
-    private function checkAndNotifyWaterShortage(int $characterId, int $poolQty): void
+    private function checkAndNotifyWaterShortage(int $characterId, int $buildingInstanceId, int $poolQty): void
     {
         // Если пула больше threshold (default 3), ничего не делаем
         if ($poolQty > $this->gsInt('building.greenhouse.water_shortage_threshold', (int) $this->cfg->greenhouseWaterShortageThreshold)) {
@@ -211,7 +218,7 @@ class GreenhouseProductionHandler extends BaseTaskHandler
         }
 
         $cache    = service('cache');
-        $cacheKey = self::NOTIFY_CACHE_PREFIX . $characterId;
+        $cacheKey = self::NOTIFY_CACHE_PREFIX . $buildingInstanceId;
 
         // Отметка ещё не истекла — cooldown не прошёл, повторно не шлём.
         if (is_object($cache) && method_exists($cache, 'get') && $cache->get($cacheKey) !== null) {

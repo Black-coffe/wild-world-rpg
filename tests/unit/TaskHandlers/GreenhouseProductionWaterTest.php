@@ -99,13 +99,17 @@ final class GreenhouseProductionWaterTest extends CIUnitTestCase
         $this->cleanCache();
     }
 
-    private function makeGreenhouse(int $characterId, int $level = 1): void
+    /** @return int id вставленной строки character_buildings (конкретный экземпляр постройки) */
+    private function makeGreenhouse(int $characterId, int $level = 1): int
     {
-        Database::connect('tests')->table('character_buildings')->insert([
+        $db = Database::connect('tests');
+        $db->table('character_buildings')->insert([
             'character_id' => $characterId,
             'building_id'  => 1,
             'level'        => $level,
         ]);
+
+        return (int) $db->insertID();
     }
 
     private function setBackpackWater(int $characterId, int $qty): void
@@ -117,12 +121,15 @@ final class GreenhouseProductionWaterTest extends CIUnitTestCase
         ]);
     }
 
-    /** Дублирует ключевую схему `GreenhouseProductionHandler::NOTIFY_CACHE_PREFIX`. */
-    private function markRecentlyNotified(int $characterId): void
+    /**
+     * Дублирует ключевую схему `GreenhouseProductionHandler::NOTIFY_CACHE_PREFIX` — ключ
+     * по id конкретной постройки (`character_buildings.id`), не по персонажу.
+     */
+    private function markRecentlyNotified(int $buildingInstanceId): void
     {
         $cache = service('cache');
         if (is_object($cache) && method_exists($cache, 'save')) {
-            $cache->save('greenhouse_water_shortage_' . $characterId, time(), 1800);
+            $cache->save('greenhouse_water_shortage_' . $buildingInstanceId, time(), 1800);
         }
     }
 
@@ -256,15 +263,38 @@ final class GreenhouseProductionWaterTest extends CIUnitTestCase
     public function testShortageWarningCooldownSuppressesRepeat(): void
     {
         $c = 7;
-        $this->makeGreenhouse($c, 1);
+        $buildingId = $this->makeGreenhouse($c, 1);
         $this->setBackpackWater($c, 2);
         $this->setStorageWater($c, 0);
-        $this->markRecentlyNotified($c);
+        $this->markRecentlyNotified($buildingId);
 
         $h = $this->handler();
         $h->handle();
 
         $this->assertSame([], $h->captured, 'cooldown не истёк — повторно не шлём');
+    }
+
+    /** Дубли построек разрешены намеренно — у одного игрока может стоять 2+ Теплицы одновременно. */
+    public function testCooldownIsPerBuildingNotPerCharacter(): void
+    {
+        $c = 9;
+        $firstGreenhouseId = $this->makeGreenhouse($c, 1);
+        $this->makeGreenhouse($c, 1); // вторая Теплица того же персонажа
+        $this->setBackpackWater($c, 2); // общий рюкзак: пул=2 <= threshold(3) для ОБЕИХ
+        $this->setStorageWater($c, 0);
+
+        // Первой уже недавно предупреждали, второй — ещё нет.
+        $this->markRecentlyNotified($firstGreenhouseId);
+
+        $h = $this->handler();
+        $h->handle();
+
+        // Ровно одно уведомление — от той теплицы, у которой не было своей cooldown-метки.
+        // Пул общий (один рюкзак на персонажа), первая теплица его слегка подъедает при
+        // списании — поэтому конкретное число pool здесь не фиксируем, важен факт: одно
+        // уведомление, не ноль (общий cooldown задушил бы обе) и не два (нет общего окна).
+        $this->assertCount(1, $h->captured, 'cooldown первой Теплицы не должен глушить вторую');
+        $this->assertSame(9, $h->captured[0][0]);
     }
 
     public function testPoolDisabledByKillswitchFallsBackToBackpackOnly(): void
