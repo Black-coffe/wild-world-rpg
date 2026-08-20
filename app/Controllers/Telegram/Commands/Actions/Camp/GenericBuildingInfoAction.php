@@ -238,6 +238,26 @@ class GenericBuildingInfoAction extends BaseAction
         }
 
         // 10. Buttons: «Строить» if sufficient, else gather/buy/actions/inventory
+        // Дефицит-ссылки: общая кнопка «Купить» вела на выбор редкости, и игрок сам гадал,
+        // какая редкость у глины. Теперь каждый недостающий ресурс — своя кнопка сразу на
+        // нужное количество. Первые четыре, по две в ряд; остальное добирается общей кнопкой.
+        $needRows = [];
+        $needBtns = [];
+        foreach (array_slice($missingRes, 0, 4) as $info) {
+            $resId  = (int) $info['id'];
+            $lack   = max(0, (int) $info['need'] - (int) $info['have']);
+            if ($resId <= 0 || $lack <= 0) {
+                continue;
+            }
+            $needBtns[] = [
+                'text'          => "🛒 {$info['name']} ×{$lack}",
+                'callback_data' => "buy_need_{$resId}_{$lack}",
+            ];
+        }
+        foreach (array_chunk($needBtns, 2) as $chunk) {
+            $needRows[] = $chunk;
+        }
+
         $keyboard = [
             'inline_keyboard' => [[
                 // ADR-168 — метка источника «экран постройки».
@@ -248,6 +268,9 @@ class GenericBuildingInfoAction extends BaseAction
                 ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
             ]],
         ];
+        if ($needRows !== []) {
+            array_splice($keyboard['inline_keyboard'], 0, 0, $needRows);
+        }
         if (!$hasShortage) {
             $keyboard['inline_keyboard'][] = [[
                 'text'          => "🛠️ Строить {$emoji} {$nameRus}",
@@ -323,7 +346,7 @@ class GenericBuildingInfoAction extends BaseAction
 
     /**
      * @param array<string,int> $reqs name_en → нужное количество
-     * @return array<string,array{need:int,have:int,name:string}>
+     * @return array<string,array{need:int,have:int,name:string,id:int}>
      */
     private function checkResources(int $charId, array $reqs): array
     {
@@ -331,7 +354,7 @@ class GenericBuildingInfoAction extends BaseAction
         foreach ($reqs as $resEn => $need) {
             $row = $this->rowToArr($this->resourceModel->getResourceByNameEn($resEn));
             if ($row === null || !isset($row['id']) || !is_numeric($row['id'])) {
-                $missing[$resEn] = ['need' => (int) $need, 'have' => 0, 'name' => $resEn . ' (нет в DB)'];
+                $missing[$resEn] = ['need' => (int) $need, 'have' => 0, 'name' => $resEn . ' (нет в DB)', 'id' => 0];
                 continue;
             }
             $charRes = $this->rowToArr($this->characterResourceModel
@@ -344,7 +367,7 @@ class GenericBuildingInfoAction extends BaseAction
             }
             if ($have < $need) {
                 $name = isset($row['name']) && is_string($row['name']) ? $row['name'] : $resEn;
-                $missing[$resEn] = ['need' => (int) $need, 'have' => $have, 'name' => $name];
+                $missing[$resEn] = ['need' => (int) $need, 'have' => $have, 'name' => $name, 'id' => (int) $row['id']];
             }
         }
         return $missing;

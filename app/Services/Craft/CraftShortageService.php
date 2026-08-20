@@ -171,9 +171,11 @@ class CraftShortageService
 
             $idRaw = $resource['id'] ?? null;
             if (is_numeric($idRaw) && count($buyButtons) < 3) {
+                // Дефицит-ссылка вместо `buy_select`: экран уже посчитал, сколько не хватает,
+                // — кнопка ведёт сразу на это количество, а не на пустой выбор qty.
                 $buyButtons[] = [
-                    'text'          => '🛒 ' . $this->safe($name),
-                    'callback_data' => 'buy_select_' . (int) $idRaw,
+                    'text'          => '🛒 ' . $this->safe($name) . ' ×' . (int) $gap,
+                    'callback_data' => 'buy_need_' . (int) $idRaw . '_' . (int) $gap,
                 ];
             }
         } elseif ($gap > 0) {

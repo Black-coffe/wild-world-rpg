@@ -81,6 +81,18 @@ class BuyResourceAction extends BaseAction
                 }
                 break;
 
+            // Дефицит-ссылка: экран нехватки (крафт / стройка) шлёт `buy_need_{id}_{qty}`
+            // и открывает количество СРАЗУ для нужного ресурса. Раньше обе кнопки «Купить»
+            // вели на общий выбор редкости, и игрок должен был сам вспомнить, какая
+            // редкость у глины — за 30 дней покупались только ресурсы id 1–10.
+            case 'need':
+                $resourceId = $params[2] ?? null;
+                $needQty    = $params[3] ?? null;
+                if ($resourceId) {
+                    return $this->askForQuantity((int) $resourceId, is_numeric($needQty) ? (int) $needQty : 0);
+                }
+                break;
+
             // Идея #6 (Arseny, 21.01.2025): свободный ввод qty через ForceReply.
             case 'custom':
                 $resourceId = $params[2] ?? null;
@@ -186,7 +198,10 @@ class BuyResourceAction extends BaseAction
      */
     protected function showResourcesOfRarity(int $rarity): ServerResponse
     {
-        $resources = $this->resourceModel->where('rarity', $rarity)->findAll();
+        // Не торгуемое в магазине не показываем: семена (`is_tradeable=0`) имеют
+        // `buy_price = 0.00`, попадали в список редкости 2 и продавались даром —
+        // при том что крафт-система берёт за них ресурсы.
+        $resources = $this->resourceModel->where('rarity', $rarity)->where('is_tradeable', 1)->findAll();
         if (empty($resources)) {
             return $this->respondWithMessage("*Ресурсы редкости {$rarity} не найдены.*");
         }
@@ -235,7 +250,7 @@ class BuyResourceAction extends BaseAction
      * Спросить, сколько единиц купить
      * Аналогично добавляем «~» и фразу о возможном отличии цены.
      */
-    protected function askForQuantity(int $resourceId): ServerResponse
+    protected function askForQuantity(int $resourceId, int $needQty = 0): ServerResponse
     {
         $resource = $this->resourceModel->find($resourceId);
         if (!$resource) {
@@ -270,12 +285,25 @@ class BuyResourceAction extends BaseAction
         $rarity        = is_numeric($rawRarity) ? (int) $rawRarity : 0;
         $backCallback  = $rarity > 0 ? "buy_rarity_{$rarity}" : 'buy';
 
+        // Пришли с экрана нехватки — первой кнопкой ровно то количество, которого не хватает,
+        // чтобы «докупить» было одним тапом, а не арифметикой в уме. Своё число рядом:
+        // одиночная кнопка в ряду запрещена.
+        $topRow = [['text' => '📝 Своё число', 'callback_data' => "buy_custom_{$resourceId}"]];
+        if ($needQty > 0) {
+            $needTotal = $trade->totalFor($needQty, $unitPrice);
+            array_unshift($topRow, [
+                'text'          => "🎯 Не хватает {$needQty} → " . number_format($needTotal) . '💰',
+                'callback_data' => "buy_quantity_{$resourceId}_{$needQty}",
+            ]);
+            $text .= "\n\n🎯 Для задуманного не хватает *{$needQty}* ед.";
+        }
+
         $keyboardButtons = [
             'inline_keyboard' => [
                 [$btn(1),   $btn(5),    $btn(10),   $btn(15)],
                 [$btn(25),  $btn(50),   $btn(100),  $btn(150)],
                 [$btn(250), $btn(500),  $btn(1000), $btn(5000)],
-                [['text' => '📝 Своё число', 'callback_data' => "buy_custom_{$resourceId}"]],
+                $topRow,
                 [
                     ['text' => '⬅️ Назад',  'callback_data' => $backCallback],
                     ['text' => '🛒 Магазин', 'callback_data' => 'shop'],
@@ -327,7 +355,8 @@ class BuyResourceAction extends BaseAction
         // (prod-баг 2026-05-11, тот же класс, что у продажи кнопкой).
         $charArr = $character instanceof \App\Entities\CharacterEntity ? $character->toArray() : $character;
         $svc     = new \App\Services\Player\Trade\ResourceTradeService();
-        $result  = $svc->buyResource($charArr, $resourceId, $quantity);
+        $chatId  = (int) $this->callbackQuery->getMessage()->getChat()->getId();
+        $result  = $svc->buyResource($charArr, $resourceId, $quantity, $chatId);
 
         // Возврат в список той же редкости — «купить ещё» в один тап.
         // ⚠️ find() отдаёт ResourceEntity, а не массив — читаем через ArrayAccess

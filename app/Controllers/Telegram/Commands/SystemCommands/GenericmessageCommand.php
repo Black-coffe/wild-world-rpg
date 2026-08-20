@@ -322,7 +322,7 @@ class GenericmessageCommand extends SystemCommand
         $svc    = new \App\Services\Player\Trade\ResourceTradeService();
         $result = $direction === 'SELL'
             ? $svc->sellResource($character, $resourceId, $qty)
-            : $svc->buyResource($character, $resourceId, $qty);
+            : $svc->buyResource($character, $resourceId, $qty, $chatId);
 
         // Логируем продажу сырья через ForceReply («своё число») в action_log — кнопочный
         // путь логируется в SellResourceAction, а этот (GenericmessageCommand) — здесь, иначе

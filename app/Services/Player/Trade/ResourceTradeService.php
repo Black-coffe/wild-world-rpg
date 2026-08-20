@@ -18,6 +18,8 @@ use App\Models\ResourcesBankModel;
  */
 final class ResourceTradeService
 {
+    use \App\Services\GameSettings\GameSettingsReaderTrait;
+
     private CharacterModel         $characterModel;
     private CharacterResourceModel $characterResourceModel;
     private ResourceModel          $resourceModel;
@@ -164,6 +166,25 @@ final class ResourceTradeService
     }
 
     /**
+     * Запись покупки в `action_log` (зеркало `SELL_RESOURCE`). Своё исключение глотаем:
+     * форензика не должна ронять уже проведённую сделку.
+     */
+    private function logPurchase(int $characterId, int $chatId, int $resourceId, int $qty, int $totalCost): void
+    {
+        try {
+            (new \App\Models\ActionLogModel())->save([
+                'character_id'  => $characterId,
+                'chat_id'       => $chatId,
+                'action_name'   => 'BUY_RESOURCE',
+                'action_status' => 'Completed',
+                'description'   => mb_substr("res={$resourceId} qty={$qty} gold=-{$totalCost}", 0, 500),
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[ResourceTradeService::logPurchase] insert failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * WB2 (ADR-137): единый предикат «ресурс можно продать». ResourceEntity кастует
      * is_tradeable в bool (casts['is_tradeable']='boolean'), сырой ряд даёт 0/1,
      * отсутствие колонки → считаем ходовым (true). Зеркалит normalizeResourceRow /
@@ -187,7 +208,7 @@ final class ResourceTradeService
      * @param array<string,mixed> $character
      * @return array{success:bool, message:string, qty?:int, cost?:int}
      */
-    public function buyResource(array $character, int $resourceId, int $qty): array
+    public function buyResource(array $character, int $resourceId, int $qty, int $chatId = 0): array
     {
         $resource = $this->resourceModel->find($resourceId);
         if (!$resource) {
@@ -195,6 +216,31 @@ final class ResourceTradeService
         }
         if ($qty <= 0) {
             return ['success' => false, 'message' => 'Некорректное количество для покупки.'];
+        }
+
+        // Покупка ОБЯЗАНА уважать is_tradeable ровно так же, как продажа (строка выше в
+        // sellResource). Без этого семена (`is_tradeable=0`, `buy_price=0.00`) отдавались
+        // магазином бесплатно и в любом количестве, хотя крафт берёт за них ресурсы.
+        if (! self::resourceIsTradeable($resource)) {
+            return ['success' => false, 'message' => 'Этот ресурс не продаётся в магазине — его добывают или выращивают.'];
+        }
+
+        // Гейт уровня: витрина показывает все редкости, и персонаж 1 уровня мог купить
+        // вещь с `level_required=100`. Килсвитч — на случай, если гейт окажется резким.
+        if ($this->gsBool('economy.shop.buy_level_gate_enabled', true)) {
+            $needLevelRaw = $resource['level_required'] ?? 0;
+            $needLevel    = is_numeric($needLevelRaw) ? (int) $needLevelRaw : 0;
+            $charLevelRaw = $character['level'] ?? 0;
+            $charLevel    = is_numeric($charLevelRaw) ? (int) $charLevelRaw : 0;
+            if ($needLevel > 0 && $charLevel < $needLevel) {
+                $nameRaw  = $resource['name'] ?? '';
+                $nameSafe = is_string($nameRaw) ? $nameRaw : '';
+
+                return [
+                    'success' => false,
+                    'message' => "Торговец не отдаёт *{$nameSafe}* новичку: нужен *{$needLevel}* уровень (у тебя *{$charLevel}*).",
+                ];
+            }
         }
 
         $totalCost = $this->totalFor($qty, $this->unitPrice($resource, false));
@@ -224,6 +270,13 @@ final class ResourceTradeService
 
         $this->characterResourceModel->addOrIncreaseResource($buyerId, $resourceId, $qty);
         $this->resourcesBankModel->updatePurchasedQuantity($resourceId, $qty);
+
+        // Форензика спроса. Продажа писала `SELL_RESOURCE` с 10.06, покупка не писала
+        // НИЧЕГО — единственным следом был счётчик `resources_bank.resources_purchased`,
+        // а он с ADR-175 затухает, то есть историю покупок восстановить было нечем.
+        // Пишем в сервисе, а не в экране: у покупки два входа (кнопка и «своё число»
+        // через ForceReply), и логирование в одном из них уже разошлось у продажи.
+        $this->logPurchase($buyerId, $chatId, $resourceId, $qty, $totalCost);
 
         $message = "Вы успешно купили *{$qty}* ед. ресурса *{$resource['name']}* "
             . "по цене *{$resource['buy_price']}*💰 за штуку.\n\n"

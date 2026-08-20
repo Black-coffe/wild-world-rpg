@@ -102,7 +102,8 @@ final class CraftShortageServiceTest extends CIUnitTestCase
         // Докупить нужно 30 по 2.5 → 75.
         $this->assertStringContainsString('докупить 30', $screen['text']);
         $this->assertStringContainsString('75', $screen['text']);
-        $this->assertStringContainsString('buy_select_31', json_encode($screen['keyboard'], JSON_UNESCAPED_UNICODE) ?: '');
+        // Дефицит-ссылка несёт и ресурс, и недостачу: 30 — это то, что кнопка купит одним тапом.
+        $this->assertStringContainsString('buy_need_31_30', json_encode($screen['keyboard'], JSON_UNESCAPED_UNICODE) ?: '');
     }
 
     /** Нетоварное сырьё: честно говорим, что купить нельзя, и не рисуем кнопку. */
@@ -113,7 +114,7 @@ final class CraftShortageServiceTest extends CIUnitTestCase
         $screen = $svc->describe([], $this->missing('Обсидиан', 5, 0), [], 1);
 
         $this->assertStringContainsString('не купить', $screen['text']);
-        $this->assertStringNotContainsString('buy_select_44', json_encode($screen['keyboard'], JSON_UNESCAPED_UNICODE) ?: '');
+        $this->assertStringNotContainsString('buy_need_44', json_encode($screen['keyboard'], JSON_UNESCAPED_UNICODE) ?: '');
     }
 
     /**
@@ -133,7 +134,7 @@ final class CraftShortageServiceTest extends CIUnitTestCase
                 if (($btn['callback_data'] ?? '') === 'gather') {
                     $gatherRow = $i;
                 }
-                if (str_starts_with($btn['callback_data'] ?? '', 'buy_select_')) {
+                if (str_starts_with($btn['callback_data'] ?? '', 'buy_need_')) {
                     $buyRow = $i;
                 }
             }
