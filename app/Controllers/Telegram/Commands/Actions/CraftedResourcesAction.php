@@ -8,6 +8,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\InventorySortService;
+use App\Services\Telegram\ButtonPacker;
 use App\Services\World\VehicleEffectsService;
 use Config\Database;
 
@@ -343,6 +344,10 @@ class CraftedResourcesAction extends BaseAction
      * Ревью-находка (MAJOR): при выключенном килсвитче кнопки не выводятся вовсе —
      * живая кнопка вела бы к реальному крафту без единого шанса на эффект.
      *
+     * Ревью-находка M6 (2026-08-20): было собственным `array_chunk($buttons, 3)` —
+     * для фиксированного списка из 5 машин совпадает с `ButtonPacker::packByCount()`
+     * (даёт те же 3+2), но было третьей независимой копией общей раскладки.
+     *
      * @return list<list<array{text:string,callback_data:string}>>
      */
     private function transportShowcaseButtonRows(bool $vehicleEnabled): array
@@ -356,12 +361,7 @@ class CraftedResourcesAction extends BaseAction
             $buttons[] = ['text' => $vehicle['label'], 'callback_data' => $vehicle['callback']];
         }
 
-        $rows = [];
-        foreach (array_chunk($buttons, 3) as $chunk) {
-            $rows[] = $chunk;
-        }
-
-        return $rows;
+        return ButtonPacker::packByCount($buttons);
     }
 
     /**

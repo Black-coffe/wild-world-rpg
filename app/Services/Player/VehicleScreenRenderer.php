@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Player;
 
+use App\Services\Telegram\ButtonPacker;
+
 /**
  * transport-10 (ADR-174, `docs/specs/transport-system/`) — чистая render-функция
  * экрана «🚚 Мой транспорт». Без БД и Telegram: принимает уже собранное состояние,
@@ -50,7 +52,7 @@ final class VehicleScreenRenderer
         }
         $buttons[] = ['text' => '👤 Персонаж', 'callback_data' => 'character'];
 
-        return ['text' => $text, 'buttons' => self::packRows($buttons)];
+        return ['text' => $text, 'buttons' => self::packButtons($buttons)];
     }
 
     /**
@@ -70,7 +72,7 @@ final class VehicleScreenRenderer
             ['text' => '👤 Персонаж', 'callback_data' => 'character'],
         ];
 
-        return ['text' => $text, 'buttons' => self::packRows($buttons)];
+        return ['text' => $text, 'buttons' => self::packButtons($buttons)];
     }
 
     /**
@@ -157,45 +159,18 @@ final class VehicleScreenRenderer
     }
 
     /**
-     * Ноль одиночек в ряду: 2–3 кнопки на ряд. Ревью-находка M6 (2026-08-20):
-     * дублирует `CharacterService::packButtonRows()` — но тот метод `private static`
-     * на чужом классе вне списка файлов этой правки, вызвать его отсюда нельзя без
-     * правки CharacterService.php (не наш файл в этой задаче). Централизация требует
-     * либо сделать общий метод `public`, либо вынести в отдельный shared-сервис —
-     * оставлено как CONCERNS для отдельной правки.
+     * Ноль одиночек в ряду: 2–3 кнопки на ряд. Ревью-находка M6 (2026-08-20): эта
+     * раскладка дублировала `CharacterService`'ную (теперь обе унесены в
+     * `ButtonPacker::packByCount()`, `mmorpg-vault/decisions` — общий сервис вместо
+     * второй копии). `$tripleAt = count($flat) - 3` ставит тройку В КОНЕЦ списка —
+     * побайтовая эквивалентность со старым `packRows()` подтверждена сравнением
+     * выхода на n=1..12 (см. `VehicleScreenRenderTest`).
      *
      * @param  list<array<string,string>>       $flat
      * @return list<list<array<string,string>>>
      */
-    private static function packRows(array $flat): array
+    private static function packButtons(array $flat): array
     {
-        $count = count($flat);
-        if ($count === 0) {
-            return [];
-        }
-        if ($count === 1) {
-            return [[$flat[0]]];
-        }
-
-        $rows = [];
-        $i = 0;
-        while ($i < $count) {
-            $remaining = $count - $i;
-            $take = ($remaining === 3 || $remaining === 1) ? min(3, $remaining) : 2;
-            if ($remaining === 1 && $i > 0) {
-                // Одиночка в хвосте — приклеить к предыдущему ряду, если там есть место (<3).
-                $lastIndex = count($rows) - 1;
-                if (count($rows[$lastIndex]) < 3) {
-                    $rows[$lastIndex][] = $flat[$i];
-                    $i++;
-                    continue;
-                }
-                $take = 1;
-            }
-            $rows[] = array_slice($flat, $i, $take);
-            $i += $take;
-        }
-
-        return $rows;
+        return ButtonPacker::packByCount($flat, count($flat) - 3);
     }
 }

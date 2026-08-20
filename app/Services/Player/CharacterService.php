@@ -16,6 +16,7 @@ use App\Models\CharactersOutfitsModel;
 use App\Models\OutfitModel;
 use DateTime;
 use Longman\TelegramBot\Entities\ServerResponse;
+use App\Services\Telegram\ButtonPacker;
 use App\Services\Telegram\Request;
 
 class CharacterService
@@ -224,7 +225,7 @@ class CharacterService
             // НИ ОДНОЙ одиночной кнопки в ряду. «🧑‍🌾 Действия» переехали в левый верхний
             // угол (были третьим рядом и в одиночку) — самое частое ближе к пальцу. Ряды не
             // прописываются руками: набор кнопок плавает (фракция / дейлики / хабы / подать —
-            // условные), поэтому плоский список режет {@see self::packButtonRows()}.
+            // условные), поэтому плоский список режет {@see ButtonPacker::packByCount()}.
             // tripleAt=2 → при нечётном числе кнопок ряд из трёх соберётся на самых КОРОТКИХ
             // подписях (Экип/Аптечка/Страховка), а не на длинных — иначе перенос на 375px.
             $personalFlat = [
@@ -289,7 +290,7 @@ class CharacterService
             && !empty($charFaction['joined_at']);
 
         // Хвост карточки (цели → хабы → справочник → профиль) собирается ПЛОСКИМ списком
-        // в порядке частоты, а на ряды его режет packButtonRows(). Раньше каждый блок
+        // в порядке частоты, а на ряды его режет ButtonPacker::packByCount(). Раньше каждый блок
         // клал СВОЙ ряд, и при выключенном соседе кнопка оставалась в ряду одна
         // (фидбэк владельца 2026-06-11 про пару «Фракция + Задания дня» лечил лишь один
         // такой случай; 2026-07-27 — правило распространено на весь хвост).
@@ -377,8 +378,8 @@ class CharacterService
         // killswitch'е верхние ряды legacy-веток остаются как были (rollback byte-identical),
         // а хвост всё равно едет через тот же упаковщик — одиночек не остаётся нигде.
         $inlineRows = $finalGrid
-            ? self::packButtonRows(array_merge($personalFlat, $tailFlat), 2)
-            : array_merge($inlineRows, self::packButtonRows($tailFlat));
+            ? ButtonPacker::packByCount(array_merge($personalFlat, $tailFlat), 2)
+            : array_merge($inlineRows, ButtonPacker::packByCount($tailFlat));
 
         $inlineKeyboard = ['inline_keyboard' => $inlineRows];
 
@@ -388,48 +389,6 @@ class CharacterService
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($inlineKeyboard),
         ]);
-    }
-
-    /**
-     * Режет плоский список инлайн-кнопок на ряды — БЕЗ одиночек в ряду.
-     *
-     * Фидбэк владельца 2026-07-27: кнопка, стоящая в ряду одна, растягивается во всю
-     * ширину, рвёт ритм карточки и визуально «кричит» громче, чем заслуживает («Действия»,
-     * «Путь новичка», «Мой профиль» — три такие подряд). Ряды НЕЛЬЗЯ прописать руками:
-     * половина кнопок условна (фракция / дейлики / хабы / подать / реферал), и любая
-     * выключенная фича оставляла соседа одного. Поэтому раскладка считается.
-     *
-     * По 2 в ряд. При НЕЧЁТНОМ количестве ровно один ряд собирается из 3 — начиная с
-     * индекса `$tripleAt`: туда ставим самые короткие подписи, иначе тройка длинных
-     * переносится в две строки на 375px. Ряд из одной кнопки возможен лишь в вырожденном
-     * случае «кнопка всего одна» (на карточке не встречается — там минимум 7).
-     *
-     * @param  list<array<string, string>>       $flat     Кнопки в порядке показа.
-     * @param  int                               $tripleAt Индекс, РАНЬШЕ которого тройку не ставим.
-     * @return list<list<array<string, string>>>           Ряды для `inline_keyboard`.
-     */
-    private static function packButtonRows(array $flat, int $tripleAt = 0): array
-    {
-        $count = count($flat);
-        if ($count === 0) {
-            return [];
-        }
-        // Клампим позицию тройки так, чтобы для неё гарантированно осталось 3 кнопки.
-        $tripleAt = max(0, min($tripleAt, $count - 3));
-
-        $rows = [];
-        for ($i = 0; $i < $count;) {
-            $remaining = $count - $i;
-            if ($remaining === 1) {
-                $rows[] = array_slice($flat, $i, 1); // только при $count === 1
-                break;
-            }
-            $take = ($remaining % 2 === 1 && $i >= $tripleAt) ? 3 : 2;
-            $rows[] = array_slice($flat, $i, $take);
-            $i += $take;
-        }
-
-        return $rows;
     }
 
     private function getEquippedWeapon(int $characterId): ?string

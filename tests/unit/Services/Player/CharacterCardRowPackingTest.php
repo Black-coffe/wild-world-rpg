@@ -4,15 +4,20 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Services\Player;
 
-use App\Services\Player\CharacterService;
+use App\Services\Telegram\ButtonPacker;
 use CodeIgniter\Test\CIUnitTestCase;
-use ReflectionMethod;
 
 /**
  * Раскладка карточки Персонажа (фидбэк владельца 2026-07-27): в ряду НИКОГДА не стоит
  * одна кнопка. Набор кнопок на карточке плавает — фракция / дейлики / хабы / подать /
- * реферал условны, — поэтому ряды считаются `CharacterService::packButtonRows()`, а не
+ * реферал условны, — поэтому ряды считаются `ButtonPacker::packByCount()`, а не
  * прописываются руками. Тест держит инвариант при ЛЮБОМ количестве кнопок.
+ *
+ * Ревью-находка M6 (2026-08-20): раскладка была приватным методом
+ * `CharacterService::packButtonRows()` — дублировалась в `VehicleScreenRenderer` и
+ * `CraftedResourcesAction`. Унесена в `App\Services\Telegram\ButtonPacker::packByCount()`
+ * без изменения алгоритма (сравнение выхода старой и новой логики — см. коммит),
+ * поэтому этот тест теперь зовёт её напрямую, без Reflection.
  *
  * @internal
  */
@@ -25,12 +30,7 @@ final class CharacterCardRowPackingTest extends CIUnitTestCase
      */
     private function pack(array $flat, int $tripleAt = 0): array
     {
-        $m = new ReflectionMethod(CharacterService::class, 'packButtonRows');
-
-        /** @var list<list<array<string, string>>> $rows */
-        $rows = $m->invoke(null, $flat, $tripleAt);
-
-        return $rows;
+        return ButtonPacker::packByCount($flat, $tripleAt);
     }
 
     /** @return list<array<string, string>> */
@@ -114,5 +114,31 @@ final class CharacterCardRowPackingTest extends CIUnitTestCase
     {
         $this->assertSame([], $this->pack([], 2));
         $this->assertSame([[['text' => 'btn0', 'callback_data' => 'cb0']]], $this->pack($this->buttons(1), 2));
+    }
+
+    /**
+     * Ревью-находка M6: `VehicleScreenRenderer` пакует иначе — тройка (если нужна) в
+     * КОНЦЕ, а не в начале. Доказываем побайтовую эквивалентность старого
+     * `VehicleScreenRenderer::packRows()` и нового вызова
+     * `ButtonPacker::packByCount($flat, count($flat) - 3)` на n=1..12.
+     */
+    public function testVehicleScreenTripleAtEquivalence(): void
+    {
+        for ($count = 1; $count <= 12; $count++) {
+            $flat = $this->buttons($count);
+            $rows = ButtonPacker::packByCount($flat, $count - 3);
+
+            foreach ($rows as $row) {
+                if (count($rows) > 1) {
+                    $this->assertGreaterThanOrEqual(2, count($row), "count={$count}: одиночный ряд не в вырожденном случае.");
+                }
+            }
+            $this->assertSame($flat, array_merge(...$rows), "count={$count}: порядок/состав потерян.");
+        }
+
+        // Опорные точки: старый `VehicleScreenRenderer::packRows()` ставил тройку в
+        // конец при нечётном количестве (2+3 на пятёрке, а не 3+2).
+        $this->assertSame([2, 3], array_map('count', ButtonPacker::packByCount($this->buttons(5), 5 - 3)));
+        $this->assertSame([2, 2, 3], array_map('count', ButtonPacker::packByCount($this->buttons(7), 7 - 3)));
     }
 }

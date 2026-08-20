@@ -95,4 +95,49 @@ final class ButtonPacker
     {
         return mb_strlen($btn['text'] ?? '');
     }
+
+    /**
+     * Второй режим упаковки — по ЧЁТНОСТИ количества, без взгляда на ширину подписи.
+     *
+     * Ревью-находка M6 (2026-08-20): та же раскладка «2 в ряд, один ряд из 3 при
+     * нечётном количестве» была независимо реализована трижды —
+     * `CharacterService::packButtonRows()`, `VehicleScreenRenderer::packRows()` и
+     * `CraftedResourcesAction`'ов `array_chunk(..., 3)`. `pack()` (выше) для этой же
+     * задачи не подходит без изменения видимой раскладки: он режет по ширине подписи
+     * и на нечётных количествах ставит тройку в ДРУГОЕ место ряда (см. тест на
+     * эквивалентность в `ButtonPackerTest`). `packByCount()` — унесённый в общее место
+     * оригинальный алгоритм, побайтово повторяющий обе копии (для
+     * `VehicleScreenRenderer` — при `$tripleAt = count($flat) - 3`).
+     *
+     * Гарантия та же: одиночный ряд — только если `$flat` состоит из одной кнопки.
+     *
+     * @template TButton of array<string,string>
+     *
+     * @param  list<TButton>       $flat     Кнопки в порядке показа.
+     * @param  int                 $tripleAt Индекс, РАНЬШЕ которого тройку не ставим (клампится внутри).
+     * @return list<list<TButton>>           Ряды для `inline_keyboard`.
+     */
+    public static function packByCount(array $flat, int $tripleAt = 0): array
+    {
+        $count = count($flat);
+        if ($count === 0) {
+            return [];
+        }
+        // Клампим позицию тройки так, чтобы для неё гарантированно осталось 3 кнопки.
+        $tripleAt = max(0, min($tripleAt, $count - 3));
+
+        $rows = [];
+        for ($i = 0; $i < $count;) {
+            $remaining = $count - $i;
+            if ($remaining === 1) {
+                $rows[] = array_slice($flat, $i, 1); // только при $count === 1
+                break;
+            }
+            $take = ($remaining % 2 === 1 && $i >= $tripleAt) ? 3 : 2;
+            $rows[] = array_slice($flat, $i, $take);
+            $i += $take;
+        }
+
+        return $rows;
+    }
 }
