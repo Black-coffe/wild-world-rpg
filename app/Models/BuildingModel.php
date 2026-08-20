@@ -155,6 +155,32 @@ class BuildingModel extends Model
     }
 
     /**
+     * Русское имя постройки для player-facing текста.
+     *
+     * 🔴 Колонка в таблице `buildings` называется `name_ru`, а ключ в `Config\Buildings`
+     * (и в рецептах крафта) — `name_rus`. Экраны, читавшие строку БД по `name_rus`,
+     * молча падали в английский fallback и показывали игроку «BlastFurnace» /
+     * «Laboratory» — постройки, которых он «не встречал». Резолвер знает оба ключа;
+     * читать строку `buildings` напрямую по имени больше не нужно.
+     *
+     * @param mixed  $row      строка `buildings` (или recipe-массив из Config\Buildings)
+     * @param string $fallback чем подписать, если имени нет вообще (обычно name_en)
+     */
+    public static function rusName($row, string $fallback = ''): string
+    {
+        if (is_array($row)) {
+            foreach (['name_ru', 'name_rus'] as $key) {
+                $value = $row[$key] ?? null;
+                if (is_string($value) && $value !== '') {
+                    return $value;
+                }
+            }
+        }
+
+        return $fallback;
+    }
+
+    /**
      * Сброс кэша name_en (для тестов и админ-правок справочника buildings).
      */
     public static function clearNameEnCache(): void

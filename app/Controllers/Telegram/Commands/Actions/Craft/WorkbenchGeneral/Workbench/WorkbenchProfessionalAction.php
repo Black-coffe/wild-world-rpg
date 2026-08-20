@@ -140,8 +140,7 @@ class WorkbenchProfessionalAction extends BaseAction
         // Здания.
         foreach ($requiredBuildingLevels as $buildingNameEn => $needLevel) {
             $building = $this->buildingModel->where('name_en', $buildingNameEn)->first();
-            $rusRaw = is_array($building) && isset($building['name_rus']) ? $building['name_rus'] : null;
-            $rusName = is_string($rusRaw) && $rusRaw !== '' ? $rusRaw : $buildingNameEn;
+            $rusName = BuildingModel::rusName($building, $buildingNameEn);
             $haveBuilding = null;
             if (is_array($building) && isset($building['id'])) {
                 $haveBuilding = $this->characterBuildingModel
@@ -157,6 +156,10 @@ class WorkbenchProfessionalAction extends BaseAction
             }
             $text .= "{$marker} 🏗 {$rusName} — L{$haveLevel} / L{$needLevel}\n";
         }
+
+        // UX-Discoverability: экран называл постройки, но не путь к ним — игрок читал
+        // требование как «не встречал такого». Путь одинаков для обеих построек.
+        $text .= "_Постройки ставят на базе: 🏚 База → 🏗 Строить. Уровень поднимают на экране самой постройки — «🆙 Поднять уровень»._\n";
 
         $text .= "\n*Ресурсы:*\n";
         foreach ($requiredResources as $resourceName => $requiredAmount) {

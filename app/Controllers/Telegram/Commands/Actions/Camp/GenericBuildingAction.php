@@ -239,7 +239,7 @@ class GenericBuildingAction extends BaseAction
                 ->where('building_id', $bld['id'])
                 ->countAllResults();
             if ($owns === 0) {
-                $missing[] = $bld['name_rus'] ?? $depEn;
+                $missing[] = BuildingModel::rusName($bld, (string) $depEn);
             }
         }
         return $missing;

@@ -207,7 +207,7 @@ class GenericCraftActionStart extends BaseAction
                 ->first();
             if (!$hasBuilding) {
                 $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", 'missing_building', ['building' => $buildingNameEn]);
-                $rusName = $building['name_rus'] ?? $buildingNameEn;
+                $rusName = BuildingModel::rusName($building, is_string($buildingNameEn) ? $buildingNameEn : '');
                 return $this->sendError("У вас нет необходимого здания: *{$rusName}*. Постройте его, чтобы крафтить.");
             }
             // S16: level-aware gate (новое поле). $buildingNameEn is mixed (recipe value);
@@ -225,8 +225,7 @@ class GenericCraftActionStart extends BaseAction
                         'need'     => $needLevel,
                         'have'     => $haveLevel,
                     ]);
-                    $rusRaw = is_array($building) && isset($building['name_rus']) ? $building['name_rus'] : null;
-                    $rusNameForLevel = is_string($rusRaw) && $rusRaw !== '' ? $rusRaw : $buildingNameEn;
+                    $rusNameForLevel = BuildingModel::rusName($building, (string) $buildingNameEn);
                     return $this->sendError("Здание *{$rusNameForLevel}* должно быть уровня *{$needLevel}* (сейчас *{$haveLevel}*). Прокачай и возвращайся.");
                 }
             }
