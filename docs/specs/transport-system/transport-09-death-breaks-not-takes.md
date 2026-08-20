@@ -1,7 +1,7 @@
 ---
 story: transport-09
 spec: transport-system
-status: todo
+status: done
 tier: 2
 worker: worker-code
 model: sonnet
