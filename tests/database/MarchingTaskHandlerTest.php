@@ -442,7 +442,10 @@ final class TestableMarchingTaskHandler extends MarchingTaskHandler
     /** Клеток за тик (seam вместо GameSettings — тесты не трогают game_settings). */
     public int $cellsPerTickOverride = 1;
 
-    protected function cellsPerTick(): int
+    /**
+     * @param array<string, mixed> $vehicleProfile
+     */
+    protected function cellsPerTick(array $vehicleProfile = []): int
     {
         return $this->cellsPerTickOverride;
     }
