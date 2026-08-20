@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Transport;
 
+use App\Controllers\Telegram\Commands\Actions\Vehicle\VehicleAction;
 use App\Services\Player\VehicleScreenRenderer;
 use CodeIgniter\Test\CIUnitTestCase;
 
@@ -284,5 +285,71 @@ final class VehicleScreenRenderTest extends CIUnitTestCase
         ]);
 
         $this->assertSame(0, substr_count($out['text'], '*') % 2, 'непарная * роняет Legacy Markdown отправку молча');
+    }
+
+    /**
+     * `VehicleAction::lockInfoText()` — чистая render-функция экрана «причина блокировки»
+     * (callback `vehicleLockInfo_<key>`). Общая `LightCart` закрыта только уровнем, у неё
+     * нет `required_faction` вовсе — экран не имеет права придумывать фракцию.
+     *
+     * @return array<string,mixed>
+     */
+    private function lightCartRecipe(): array
+    {
+        return [
+            'item_name_rus'  => 'Лёгкая повозка',
+            'required_level' => 6,
+        ];
+    }
+
+    /** @return array<string,mixed> */
+    private function factionRecipe(): array
+    {
+        return [
+            'item_name_rus'    => 'Снегоход',
+            'required_level'   => 14,
+            'required_faction' => 1, // Милитари
+        ];
+    }
+
+    public function testLockInfoLevelOnlyNamesLevelNotFaction(): void
+    {
+        $text = VehicleAction::lockInfoText($this->lightCartRecipe(), 'LightCart', 3, 0);
+
+        $this->assertStringContainsString('уровень', mb_strtolower($text));
+        $this->assertStringContainsString('6', $text);
+        $this->assertStringContainsString('3', $text);
+        $this->assertStringNotContainsString('фракц', mb_strtolower($text));
+        $this->assertStringNotContainsString('?', $text);
+    }
+
+    public function testLockInfoFactionOnlyNamesFactionNotLevel(): void
+    {
+        // Уровень уже набран (20 ≥ 14), но выбрана чужая фракция.
+        $text = VehicleAction::lockInfoText($this->factionRecipe(), 'Snowmobile', 20, 2);
+
+        $this->assertStringContainsString('Милитари', $text);
+        $this->assertStringNotContainsString('Нужен', $text);
+        $this->assertStringNotContainsString('?', $text);
+    }
+
+    public function testLockInfoBothLevelAndFactionAreNamed(): void
+    {
+        $text = VehicleAction::lockInfoText($this->factionRecipe(), 'Snowmobile', 5, 2);
+
+        $this->assertStringContainsString('Милитари', $text);
+        $this->assertStringContainsString('уровень', mb_strtolower($text));
+        $this->assertStringContainsString('14', $text);
+        $this->assertStringContainsString('5', $text);
+        $this->assertStringNotContainsString('?', $text);
+    }
+
+    public function testLockInfoUnknownRecipeKeyIsSafe(): void
+    {
+        $text = VehicleAction::lockInfoText(null, 'NoSuchRecipe', 5, 0);
+
+        $this->assertStringNotContainsString('?', $text);
+        $this->assertSame(0, substr_count($text, '*') % 2, 'непарная * роняет Legacy Markdown отправку молча');
+        $this->assertLessThanOrEqual(1024, mb_strlen($text));
     }
 }

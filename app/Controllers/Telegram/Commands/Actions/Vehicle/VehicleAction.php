@@ -133,25 +133,13 @@ class VehicleAction extends BaseAction
      */
     private function lockInfo(int|string $chatId, array|\App\Entities\CharacterEntity $character, string $recipeKey): ServerResponse
     {
-        $recipes = new CraftRecipes();
-        $recipe  = $recipes->get($recipeKey);
-        if (! $recipe) {
-            return Request::sendMessage([
-                'chat_id'    => $chatId,
-                'text'       => 'Машина не найдена.',
-                'parse_mode' => 'Markdown',
-            ]);
-        }
+        $recipes        = new CraftRecipes();
+        $recipe         = $recipes->get($recipeKey);
+        $characterLevel = is_numeric($character['level'] ?? null) ? (int) $character['level'] : 0;
+        $charId         = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $factionId      = (new CharacterFactionModel())->getFactionId($charId);
 
-        $requiredLevel   = is_numeric($recipe['required_level'] ?? null) ? (int) $recipe['required_level'] : 0;
-        $requiredFaction = is_numeric($recipe['required_faction'] ?? null) ? (int) $recipe['required_faction'] : 0;
-        $factionMeta     = self::FACTIONS[$requiredFaction] ?? ['name' => '?', 'icon' => ''];
-        $characterLevel  = is_numeric($character['level'] ?? null) ? (int) $character['level'] : 0;
-        $vehicleName     = self::recipeString($recipe, 'item_name_rus', $recipeKey);
-
-        $text = "🔒 *" . $vehicleName . "*\n\n"
-            . "Только {$factionMeta['icon']} {$factionMeta['name']}. Фракция выбирается на 10 уровне, "
-            . "один раз и навсегда. С {$requiredLevel} уровня — у тебя {$characterLevel}.";
+        $text = self::lockInfoText($recipe, $recipeKey, $characterLevel, $factionId);
 
         return Request::sendMessage([
             'chat_id'      => $chatId,
@@ -164,6 +152,47 @@ class VehicleAction extends BaseAction
                 ]],
             ]),
         ]);
+    }
+
+    /**
+     * Чистая render-функция экрана «причина блокировки» (`vehicleLockInfo_<key>`) — без
+     * БД/Telegram, покрыта {@see \Tests\Unit\Transport\VehicleScreenRenderTest}. Называет
+     * настоящую причину: уровень своей строкой, фракция своей, а не одну на все машины —
+     * `LightCart` закрыта только уровнем, у неё нет `required_faction` вовсе.
+     *
+     * @param array<string,mixed>|null $recipe
+     */
+    public static function lockInfoText(?array $recipe, string $recipeKey, int $characterLevel, int $characterFactionId): string
+    {
+        if (! $recipe) {
+            return "🔒 *Машина не найдена*\n\nВыбери другую машину из витрины.";
+        }
+
+        $requiredLevel   = is_numeric($recipe['required_level'] ?? null) ? (int) $recipe['required_level'] : 0;
+        $requiredFaction = is_numeric($recipe['required_faction'] ?? null) ? (int) $recipe['required_faction'] : 0;
+        $vehicleName     = self::recipeString($recipe, 'item_name_rus', $recipeKey);
+
+        $levelLocked   = $characterLevel < $requiredLevel;
+        $factionLocked = $requiredFaction > 0 && $characterFactionId !== $requiredFaction;
+
+        $lines = ['🔒 *' . $vehicleName . '*', ''];
+
+        if ($factionLocked) {
+            $factionMeta = self::FACTIONS[$requiredFaction] ?? ['name' => 'другой фракции', 'icon' => ''];
+            $lines[]     = "Только {$factionMeta['icon']} {$factionMeta['name']}. Фракция выбирается на 10 уровне, "
+                . 'один раз и навсегда.';
+        }
+
+        if ($levelLocked) {
+            $lines[] = "Нужен {$requiredLevel} уровень, у тебя {$characterLevel}. "
+                . 'Расти: исследуй мир, выполняй задания и дерись с врагами — опыт копится сам.';
+        }
+
+        if (! $factionLocked && ! $levelLocked) {
+            $lines[] = 'Уже доступна тебе — собери или скрафти её.';
+        }
+
+        return implode("\n", $lines);
     }
 
     /**
