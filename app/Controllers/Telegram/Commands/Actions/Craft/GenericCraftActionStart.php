@@ -311,18 +311,10 @@ class GenericCraftActionStart extends BaseAction
         // F3.B9: проверка stat-требований персонажа (для weapons).
         // Поля опциональны; для B5-B8 рецептов = 0 (skip check).
         //
-        // S16 (ADR-026): если recipe.required_level_setting_key задан — берём
-        // значение из GameSettings (admin-tunable), fallback на recipe.required_level.
-        $levelRequired = (int) ($recipe['required_level'] ?? 0);
-        $levelSettingKey = isset($recipe['required_level_setting_key']) && is_string($recipe['required_level_setting_key'])
-            ? $recipe['required_level_setting_key']
-            : null;
-        if ($levelSettingKey !== null) {
-            $tuned = $this->gameSettings->get($levelSettingKey, $levelRequired);
-            if (is_numeric($tuned)) {
-                $levelRequired = (int) $tuned;
-            }
-        }
+        // S16 (ADR-026): уровень рецепта живёт в GameSettings по `required_level_setting_key`.
+        // Правило вынесено в RecipeGateResolver — тот же читатель обслуживает витрину транспорта,
+        // иначе экран и сделка расходятся при первом же тюнинге через админку.
+        $levelRequired = (new \App\Services\Craft\RecipeGateResolver(fn (string $k, $d) => $this->gameSettings->get($k, $d)))->requiredLevel($recipe);
         $statChecks = [
             'strength' => (int) ($recipe['required_strength'] ?? 0),
             'agility'  => (int) ($recipe['required_agility']  ?? 0),

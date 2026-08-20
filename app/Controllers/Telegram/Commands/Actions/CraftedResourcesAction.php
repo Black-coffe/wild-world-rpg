@@ -40,12 +40,18 @@ class CraftedResourcesAction extends BaseAction
      *
      * @var list<array{key:string,label:string,callback:string,required_level:int,required_faction:int}>
      */
+    /**
+     * Только подпись и кнопка. Гейты (уровень, фракция) СЮДА НЕ ДУБЛИРУЮТСЯ: они живут в
+     * `Config\CraftRecipes` и в GameSettings, и читаются через `RecipeGateResolver` — до 2026-12-05
+     * здесь лежали свои копии чисел, то есть четвёртый источник правды рядом с конфигом,
+     * настройками и витриной «🚚 Мой транспорт». Совпадали, пока их никто не тюнил.
+     */
     private const TRANSPORT_VEHICLES = [
-        ['key' => 'LightCart',       'label' => '🛒 Лёгкая повозка',   'callback' => 'genericCraft_LightCart_1',       'required_level' => 6,  'required_faction' => 0],
-        ['key' => 'MountainBike',    'label' => '🚲 Горный велосипед', 'callback' => 'genericCraft_MountainBike_1',    'required_level' => 12, 'required_faction' => 2],
-        ['key' => 'Snowmobile',      'label' => '🛻 Снегоход',         'callback' => 'genericCraft_Snowmobile_1',      'required_level' => 14, 'required_faction' => 1],
-        ['key' => 'DraftCart',       'label' => '🐎 Тягловая повозка', 'callback' => 'genericCraft_DraftCart_1',       'required_level' => 14, 'required_faction' => 4],
-        ['key' => 'AutonomousDrone', 'label' => '🛸 Автономный дрон',  'callback' => 'genericCraft_AutonomousDrone_1', 'required_level' => 16, 'required_faction' => 3],
+        ['key' => 'LightCart',       'label' => '🛒 Лёгкая повозка',   'callback' => 'genericCraft_LightCart_1'],
+        ['key' => 'MountainBike',    'label' => '🚲 Горный велосипед', 'callback' => 'genericCraft_MountainBike_1'],
+        ['key' => 'Snowmobile',      'label' => '🛻 Снегоход',         'callback' => 'genericCraft_Snowmobile_1'],
+        ['key' => 'DraftCart',       'label' => '🐎 Тягловая повозка', 'callback' => 'genericCraft_DraftCart_1'],
+        ['key' => 'AutonomousDrone', 'label' => '🛸 Автономный дрон',  'callback' => 'genericCraft_AutonomousDrone_1'],
     ];
 
     /** faction_id -> nazvanie (kommentarii Config\CraftRecipes: 1 Militari / 2 Partizany / 3 Inzhenery / 4 Fermery). */
@@ -322,13 +328,20 @@ class CraftedResourcesAction extends BaseAction
         $charId    = is_numeric($charIdRaw) ? (int) $charIdRaw : 0;
         $factionId = $this->characterFactionId($charId);
 
+        $recipes  = config(\Config\CraftRecipes::class);
+        $resolver = new \App\Services\Craft\RecipeGateResolver();
+
         $lines = ["🚚 *Транспорт* — крафт машин:\n"];
         foreach (self::TRANSPORT_VEHICLES as $vehicle) {
+            $recipe        = $recipes->get($vehicle['key']);
+            $requiredLevel = $resolver->requiredLevel($recipe);
+
             $reasons = [];
-            if ($level < $vehicle['required_level']) {
-                $reasons[] = "с {$vehicle['required_level']} уровня — у тебя {$level}";
+            if ($requiredLevel > 0 && $level < $requiredLevel) {
+                $reasons[] = "с {$requiredLevel} уровня — у тебя {$level}";
             }
-            $requiredFaction = $vehicle['required_faction'];
+            $factionRaw      = is_array($recipe) ? ($recipe['required_faction'] ?? 0) : 0;
+            $requiredFaction = is_numeric($factionRaw) ? (int) $factionRaw : 0;
             if ($requiredFaction > 0 && $factionId !== $requiredFaction) {
                 $needName = self::FACTION_NAMES[$requiredFaction];
                 $haveName = $factionId > 0 ? (self::FACTION_NAMES[$factionId] ?? "фракция #{$factionId}") : 'без фракции';

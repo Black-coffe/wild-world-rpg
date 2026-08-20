@@ -208,7 +208,9 @@ class VehicleAction extends BaseAction
             return "🔒 *Машина не найдена*\n\nВыбери другую машину из витрины.";
         }
 
-        $requiredLevel   = is_numeric($recipe['required_level'] ?? null) ? (int) $recipe['required_level'] : 0;
+        // Уровень — только через общий резолвер: он знает про `required_level_setting_key`
+        // (admin-tunable, ADR-026). Прямое чтение `required_level` разводило витрину с крафтом.
+        $requiredLevel   = (new \App\Services\Craft\RecipeGateResolver())->requiredLevel($recipe);
         $requiredFaction = is_numeric($recipe['required_faction'] ?? null) ? (int) $recipe['required_faction'] : 0;
         $vehicleName     = self::recipeString($recipe, 'item_name_rus', $recipeKey);
 
@@ -316,13 +318,14 @@ class VehicleAction extends BaseAction
 
         $factionId = (new CharacterFactionModel())->getFactionId($charId);
 
-        $showcase = [];
+        $showcase     = [];
+        $gateResolver = new \App\Services\Craft\RecipeGateResolver();
         foreach (self::VEHICLE_RECIPE_BY_FACTION_ID as $fid => $recipeKey) {
             $recipe = $recipes->get($recipeKey);
             if (! $recipe) {
                 continue;
             }
-            $requiredLevel = is_numeric($recipe['required_level'] ?? null) ? (int) $recipe['required_level'] : 0;
+            $requiredLevel = $gateResolver->requiredLevel($recipe);
             $meta          = self::FACTIONS[$fid];
 
             $showcase[] = [
