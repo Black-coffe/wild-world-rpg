@@ -294,6 +294,12 @@ class CharacterService
         // (фидбэк владельца 2026-06-11 про пару «Фракция + Задания дня» лечил лишь один
         // такой случай; 2026-07-27 — правило распространено на весь хвост).
         $tailFlat = [];
+
+        // transport-10 (ADR-174) — «🚚 Мой транспорт»: вход виден ВСЕГДА (UX-DISCOVERABILITY),
+        // даже у персонажа без единой машины и без фракции — экран сам объясняет витрину
+        // и путь к ней (гараж пуст → подсказка на крафт, показ 🔒 у фракционных машин).
+        $tailFlat[] = ['text' => '🚚 Мой транспорт', 'callback_data' => 'vehicleScreen'];
+
         if ($level >= 10 && !$hasChosenFaction) {
             $tailFlat[] = ['text' => '⚑ Выбрать фракцию', 'callback_data' => 'chooseFaction_info'];
         } elseif ($level < 10 && !$hasChosenFaction) {

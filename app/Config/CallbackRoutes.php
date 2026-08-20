@@ -47,6 +47,15 @@ class CallbackRoutes extends BaseConfig
         // разбирает сам GuideAction. Ключ БЕЗ хвостового `_` — урок мёртвых `npcAct_`.
         // 🔴 read-only: никаких наград/телепортов/мутаций (анти-абьюз).
         'guide'                           => \App\Controllers\Telegram\Commands\Actions\Guide\GuideAction::class,
+        // transport-10 (ADR-174) — экран «🚚 Мой транспорт»: активация/снятие машины,
+        // гараж, витрина фракционных машин. `vehicleActivate_<logId>` резолвится сюда же —
+        // первый сегмент до `_` уже равен 'vehicleActivate' (см. CallbackqueryCommand::execute()).
+        // `vehicleLockInfo_<recipeKey>` — story 12 (крючок в Походе) зовёт этот же экшен.
+        'vehicleScreen'                   => \App\Controllers\Telegram\Commands\Actions\Vehicle\VehicleAction::class,
+        'vehicleActivate'                 => \App\Controllers\Telegram\Commands\Actions\Vehicle\VehicleAction::class,
+        'vehicleDeactivate'               => \App\Controllers\Telegram\Commands\Actions\Vehicle\VehicleAction::class,
+        'vehicleShowcase'                 => \App\Controllers\Telegram\Commands\Actions\Vehicle\VehicleAction::class,
+        'vehicleLockInfo'                 => \App\Controllers\Telegram\Commands\Actions\Vehicle\VehicleAction::class,
         // W10 (ADR-066) — экран «🏅 Достижения» (вход с карточки Перс при killswitch on).
         'achievements'                    => \App\Controllers\Telegram\Commands\Actions\Achievements\AchievementsAction::class,
         'titles'                          => \App\Controllers\Telegram\Commands\Actions\Titles\TitlesAction::class,
