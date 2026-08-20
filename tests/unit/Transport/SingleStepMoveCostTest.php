@@ -21,13 +21,13 @@ use CodeIgniter\Test\CIUnitTestCase;
  */
 final class SingleStepMoveCostTest extends CIUnitTestCase
 {
-    /** @return array{health_cost_base: float, tired_cost_base: float, danger_tired_surcharge: float} */
+    /** @return array{health_cost_base: float, tired_cost_base: float, danger_health_surcharge: float} */
     private function defaultSettings(): array
     {
         return [
             'health_cost_base'       => 0.1,
             'tired_cost_base'        => 3.35,
-            'danger_tired_surcharge' => 1.15,
+            'danger_health_surcharge' => 1.15,
         ];
     }
 
@@ -95,7 +95,7 @@ final class SingleStepMoveCostTest extends CIUnitTestCase
 
         $this->assertSame(0.1, $settings['health_cost_base']);
         $this->assertSame(3.35, $settings['tired_cost_base']);
-        $this->assertSame(1.15, $settings['danger_tired_surcharge']);
+        $this->assertSame(1.15, $settings['danger_health_surcharge']);
     }
 
     // ── новичок ────────────────────────────────────────────────────────

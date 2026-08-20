@@ -216,7 +216,7 @@ class MoveCharacterToDirectionAction
         $moveSettings = [
             'health_cost_base'       => (float) $settingsSvc->get('world.move.health_cost_base', 0.1),
             'tired_cost_base'        => (float) $settingsSvc->get('world.move.tired_cost_base', 3.35),
-            'danger_tired_surcharge' => (float) $settingsSvc->get('world.move.danger_tired_surcharge', 1.15),
+            'danger_health_surcharge' => (float) $settingsSvc->get('world.move.danger_health_surcharge', 1.15),
         ];
 
         $vehicleProfile = $this->resolveVehicleProfile((int) $character['id']);
@@ -566,7 +566,7 @@ class MoveCharacterToDirectionAction
      * округления: `tired_cost_base × tired_factor × earlyFactor` (нейтраль `tired_factor=1.0`
      * умножает без потери точности — байт-идентично сегодняшнему `baseTiredCost × earlyFactor`).
      *
-     * @param array{health_cost_base: float, tired_cost_base: float, danger_tired_surcharge: float} $settings
+     * @param array{health_cost_base: float, tired_cost_base: float, danger_health_surcharge: float} $settings
      * @param array<string, mixed> $vehicleProfile профиль транспорта (контракт plan.md → ## Contracts);
      *        нейтраль `['tired_factor' => 1.0, ...]` — байт-идентично сегодняшнему поведению.
      * @return array{health: float, tired: float}
@@ -583,7 +583,7 @@ class MoveCharacterToDirectionAction
         $tiredCost  = $pace->tiredCostPerCell((float) $settings['tired_cost_base'], $vehicleProfile) * $earlyFactor;
 
         if ($dangerBiome) {
-            $healthCost += (float) $settings['danger_tired_surcharge'];
+            $healthCost += (float) $settings['danger_health_surcharge'];
         }
 
         return ['health' => $healthCost, 'tired' => $tiredCost];
