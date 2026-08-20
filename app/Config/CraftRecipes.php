@@ -2904,8 +2904,8 @@ class CraftRecipes extends BaseConfig
         // story 04 строит по нему карту профилей машин.
         // Вход у каждой сверен с ADR-157 (price × 1.10 ≤ gold + сырьё):
         // проверяется тестом tests/unit/Transport/VehicleRecipesTest.php.
-        // Картинок ещё нет (концепт §3) — временно общий верстак-плейсхолдер,
-        // заменит story 07 через Config\ImageRegistry.
+        // Картинки сгенерены story 07 (Config\ImageRegistry, craft/vehicles/*,
+        // status=generated) — у каждой машины своя, плейсхолдер верстака снят.
         // ============================================================
 
         'LightCart' => [
@@ -2917,7 +2917,7 @@ class CraftRecipes extends BaseConfig
                 'Fabric' => 3,
             ],
             'required_level'       => 6,
-            'image_in_progress'    => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'image_in_progress'    => 'uploads/telegram/craft/vehicles/light_cart.jpg',
             'start_caption_name'   => '🛒 *Лёгкую повозку*',
 
             'item_name_eng'        => 'LightCart',
@@ -2927,7 +2927,7 @@ class CraftRecipes extends BaseConfig
             'zone_name'            => 'транспорт',
             'agility_bonus'        => 0.02,
             'intellect_bonus'      => 0.01,
-            'image_completed'      => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'image_completed'      => 'uploads/telegram/craft/vehicles/light_cart.jpg',
             'craft_again_callback' => 'genericCraft_LightCart_1',
         ],
 
@@ -2940,7 +2940,7 @@ class CraftRecipes extends BaseConfig
             'crafted_items'        => [],
             'required_level'       => 12,
             'required_faction'     => 2, // Партизаны
-            'image_in_progress'    => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'image_in_progress'    => 'uploads/telegram/craft/vehicles/mountain_bike.jpg',
             'start_caption_name'   => '🚲 *Горный велосипед*',
 
             'item_name_eng'        => 'MountainBike',
@@ -2950,7 +2950,7 @@ class CraftRecipes extends BaseConfig
             'zone_name'            => 'транспорт',
             'agility_bonus'        => 0.04,
             'intellect_bonus'      => 0.01,
-            'image_completed'      => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'image_completed'      => 'uploads/telegram/craft/vehicles/mountain_bike.jpg',
             'craft_again_callback' => 'genericCraft_MountainBike_1',
         ],
 
@@ -2964,7 +2964,7 @@ class CraftRecipes extends BaseConfig
             ],
             'required_level'       => 14,
             'required_faction'     => 1, // Милитари
-            'image_in_progress'    => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'image_in_progress'    => 'uploads/telegram/craft/vehicles/snowmobile.jpg',
             'start_caption_name'   => '🛻 *Снегоход*',
 
             'item_name_eng'        => 'Snowmobile',
@@ -2974,7 +2974,7 @@ class CraftRecipes extends BaseConfig
             'zone_name'            => 'транспорт',
             'agility_bonus'        => 0.03,
             'intellect_bonus'      => 0.02,
-            'image_completed'      => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'image_completed'      => 'uploads/telegram/craft/vehicles/snowmobile.jpg',
             'craft_again_callback' => 'genericCraft_Snowmobile_1',
         ],
 
@@ -2992,7 +2992,7 @@ class CraftRecipes extends BaseConfig
             ],
             'required_level'       => 14,
             'required_faction'     => 4, // Фермеры
-            'image_in_progress'    => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'image_in_progress'    => 'uploads/telegram/craft/vehicles/draft_cart.jpg',
             'start_caption_name'   => '🐎 *Тягловую повозку*',
 
             'item_name_eng'        => 'DraftCart',
@@ -3002,7 +3002,7 @@ class CraftRecipes extends BaseConfig
             'zone_name'            => 'транспорт',
             'agility_bonus'        => 0.02,
             'intellect_bonus'      => 0.02,
-            'image_completed'      => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'image_completed'      => 'uploads/telegram/craft/vehicles/draft_cart.jpg',
             'craft_again_callback' => 'genericCraft_DraftCart_1',
         ],
 
@@ -3017,7 +3017,7 @@ class CraftRecipes extends BaseConfig
             ],
             'required_level'       => 16,
             'required_faction'     => 3, // Инженеры
-            'image_in_progress'    => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'image_in_progress'    => 'uploads/telegram/craft/vehicles/autonomous_drone.jpg',
             'start_caption_name'   => '🛸 *Автономный дрон*',
 
             'item_name_eng'        => 'AutonomousDrone',
@@ -3027,7 +3027,7 @@ class CraftRecipes extends BaseConfig
             'zone_name'            => 'транспорт',
             'agility_bonus'        => 0.02,
             'intellect_bonus'      => 0.04,
-            'image_completed'      => 'uploads/telegram/craft/standard/standard_craft_area.jpg',
+            'image_completed'      => 'uploads/telegram/craft/vehicles/autonomous_drone.jpg',
             'craft_again_callback' => 'genericCraft_AutonomousDrone_1',
         ],
     ];

@@ -16,13 +16,30 @@ use ReflectionClass;
  * в `Config\CraftRecipes`: контракт ключей/гейтов, анти-эксплойт ADR-157,
  * реальность ингредиентов и реальное чтение фракционного гейта стартовым путём.
  *
- * ADR-157-цены (`crafted_items.price` компонентов Fabric/metalFragments/
- * WoodMaterials/wiring/electronicComponents и `resources.sell_price` сырья)
- * сверены вручную на testbot (2026-08-19, `SELECT ... FROM crafted_items/
- * resources`) — изолированная фикстура ниже сеет ИМЕННО эти подтверждённые
- * значения, а не гадает по общей `wildworld_tests` (та мигрируется/сидируется
- * параллельными сессиями и не гарантирует состав на момент прогона; паттерн
- * изоляции — как в соседнем `VehicleActivationServiceTest`).
+ * Два независимых слоя проверки ADR-157 (`price × 1.10 ≤ gold + сырьё`), а не один:
+ *
+ * 1. `testAdr157AntiExploitHoldsForEachVehicle()` — на ФИКСИРОВАННЫХ ценах
+ *    (см. `FIXTURE_*` ниже). Выполняется всегда, на любой БД (пустой локальной
+ *    или наполненной CI), краснеет при дрейфе СОСТАВА рецепта (новое сырьё/
+ *    компонент/qty) относительно этого фиксированного набора цен. Не заявляет,
+ *    что цены актуальны прямо сейчас в каком-либо окружении — гарантирует
+ *    только то, что формула и состав рецептов не разошлись до дыры.
+ * 2. `testAdr157HoldsOnLiveCatalogIfCatalogPopulated()` — на ЖИВЫХ ценах из
+ *    `crafted_items`/`resources` той БД, к которой подключён тестраннер
+ *    (той же, что читает сама игра через `ResourceModel`/`CraftedItemsModel`).
+ *    Если каталог не содержит нужных строк (пустая локальная/CI база — обычное
+ *    состояние, см. `feedback_local_green_on_empty_test_db_proves_nothing`) —
+ *    `markTestSkipped()` с именами недостающих строк, тест НЕ падает и НЕ
+ *    зелёный молча — прямо сообщает «здесь нечем проверить». Там, где каталог
+ *    наполнен (testbot/прод-дамп), ловит реальный дрейф цены.
+ *
+ * Раньше был только вариант 2 без skip — на пустом каталоге падал 9/9 в setUp()
+ * (не защита, а шум). Раньше до этого был только вариант 1, но с ложной пометкой
+ * «подтверждено на testbot» в комментарии к константам — теперь комментарий
+ * честно называет их фикстурой.
+ *
+ * `characters`/`character_factions` — отдельная изолированная фикстура для
+ * гейт-тестов ниже (гонки миграций её не касаются, см. `VehicleActivationServiceTest`).
  *
  * @internal
  */
@@ -43,22 +60,6 @@ final class VehicleRecipesTest extends CIUnitTestCase
         'AutonomousDrone' => [16, 3], // Инженеры
     ];
 
-    /** Подтверждённые на testbot (2026-08-19) цены компонентов и sell_price сырья. */
-    private const CRAFTED_ITEM_PRICES = [
-        'Fabric'                => 70.0,
-        'metalFragments'        => 420.0,
-        'WoodMaterials'         => 105.0,
-        'wiring'                => 200.0,
-        'electronicComponents'  => 300.0,
-    ];
-    private const RESOURCE_SELL_PRICES = [
-        'Древесина'       => 1.90,
-        'Шкура животных'  => 3.44,
-        'Кожа животных'   => 4.17,
-        'Нефть'           => 19.00,
-        'Солнечные камни' => 14.25,
-    ];
-
     /** Цена продажи каждой из пяти машин (`crafted_items.price`, id 43/47/50/46/49). */
     private const VEHICLE_SALE_PRICE = [
         'LightCart'       => 200.0,
@@ -66,6 +67,30 @@ final class VehicleRecipesTest extends CIUnitTestCase
         'Snowmobile'      => 700.0,
         'DraftCart'       => 400.0,
         'AutonomousDrone' => 800.0,
+    ];
+
+    /**
+     * Фикстура, НЕ снапшот «подтверждённых на testbot» цен — источник правды
+     * это тест 2 (живой каталог), этот набор существует только чтобы у теста 1
+     * (структурная защита состава рецептов) были детерминированные входные
+     * данные на любой БД. Подобраны так, чтобы инвариант держался — если
+     * кто-то расширит рецепт новым сырьём/компонентом без ключа здесь,
+     * `testRawResourceIngredientsAreFromRealCatalog()`/
+     * `testCraftedItemIngredientsResolveToRealRecipesInThisConfig()` это поймают.
+     */
+    private const FIXTURE_CRAFTED_ITEM_PRICES = [
+        'Fabric'                => 70.0,
+        'metalFragments'        => 420.0,
+        'WoodMaterials'         => 105.0,
+        'wiring'                => 200.0,
+        'electronicComponents'  => 300.0,
+    ];
+    private const FIXTURE_RESOURCE_SELL_PRICES = [
+        'Древесина'       => 1.90,
+        'Шкура животных'  => 3.44,
+        'Кожа животных'   => 4.17,
+        'Нефть'           => 19.00,
+        'Солнечные камни' => 14.25,
     ];
 
     private CraftRecipes $cfg;
@@ -93,6 +118,47 @@ final class VehicleRecipesTest extends CIUnitTestCase
                 faction_id INT NOT NULL
             )
         ');
+    }
+
+    /**
+     * Живой SELECT из каталожной таблицы — тех же данных, что читает игра
+     * через `ResourceModel`/`CraftedItemsModel`. В отличие от старой версии
+     * этого теста — НЕ падает, если строки нет: недостающие имена собираются
+     * и возвращаются вызывающему, который решает (`markTestSkipped`), а не
+     * молча считает отсутствующую цену нулём.
+     *
+     * Таблица может существовать, но с чужой схемой — соседние тесты в этом же
+     * прогоне создают свои изолированные `resources`/`crafted_items` с другим
+     * набором колонок в общей `tests`-БД и не всегда убирают их за собой
+     * (наблюдалось локально: `crafted_items` без колонки `price`). Любая ошибка
+     * запроса (нет таблицы, нет колонки, что угодно) — это тоже «каталог
+     * непригоден для проверки» и уходит в тот же skip-путь, а не в фатал.
+     *
+     * @param list<string> $names
+     * @return array{0:array<string,float>,1:list<string>} [цены по имени, недостающие имена]
+     */
+    private function loadLivePrices(string $table, string $nameColumn, string $priceColumn, array $names): array
+    {
+        try {
+            if (! $this->conn->tableExists($table)) {
+                return [[], $names];
+            }
+
+            $rows = $this->conn->table($table)
+                ->select("{$nameColumn}, {$priceColumn}")
+                ->whereIn($nameColumn, $names)
+                ->get()
+                ->getResultArray();
+        } catch (\Throwable $e) {
+            return [[], $names];
+        }
+
+        $prices = [];
+        foreach ($rows as $row) {
+            $prices[(string) $row[$nameColumn]] = (float) $row[$priceColumn];
+        }
+
+        return [$prices, array_values(array_diff($names, array_keys($prices)))];
     }
 
     // ── Контракт ключей/полей ──────────────────────────────────────────
@@ -163,8 +229,8 @@ final class VehicleRecipesTest extends CIUnitTestCase
     }
 
     /**
-     * Сырьё сверено против подтверждённого на testbot списка реальных
-     * ресурсов (see class docblock) — ни одно имя не из легаси-набора
+     * Сырьё сверено против фикстуры реальных имён ресурсов (`FIXTURE_RESOURCE_
+     * SELL_PRICES`) — ни одно имя не из легаси-набора
      * «Wooden Beams»/«Rope»/«Wheels»/«Horse»/«Rubber»/«Propane Burner».
      */
     public function testRawResourceIngredientsAreFromRealCatalog(): void
@@ -175,7 +241,7 @@ final class VehicleRecipesTest extends CIUnitTestCase
             $r = $this->cfg->get($key);
             foreach (($r['resources'] ?? []) as $name => $qty) {
                 $this->assertNotContains($name, $legacy, "{$key}: ссылается на легаси-ресурс '{$name}', которого не существует");
-                $this->assertArrayHasKey($name, self::RESOURCE_SELL_PRICES, "{$key}: ресурс '{$name}' не в подтверждённом на testbot списке реальных ресурсов");
+                $this->assertArrayHasKey($name, self::FIXTURE_RESOURCE_SELL_PRICES, "{$key}: ресурс '{$name}' не в фикстуре — обнови FIXTURE_RESOURCE_SELL_PRICES вместе с рецептом");
                 $checked++;
             }
         }
@@ -187,8 +253,9 @@ final class VehicleRecipesTest extends CIUnitTestCase
     /**
      * price × 1.10 ≤ gold_required + Σ сырьё×sell_price + Σ компоненты×price×1.10,
      * иначе крафт печатает золото (собрать → продать выгоднее, чем добыть).
-     * Считается по каждому из пяти отдельно — краснеет, если кто-то удешевит
-     * вход или поднимет `crafted_items.price` без пересчёта.
+     * Считается на ФИКСИРОВАННЫХ ценах (см. класс-докблок, слой 1) — выполняется
+     * всегда, краснеет при дрейфе СОСТАВА рецепта относительно этого набора.
+     * Актуальность самих цен здесь не проверяется — за это отвечает следующий тест.
      */
     public function testAdr157AntiExploitHoldsForEachVehicle(): void
     {
@@ -196,26 +263,76 @@ final class VehicleRecipesTest extends CIUnitTestCase
             $r = $this->cfg->get($key);
             $this->assertIsArray($r);
 
-            $goldRequired = (float) ($r['gold_required'] ?? 0);
-
-            $inputValue = $goldRequired;
-            foreach (($r['resources'] ?? []) as $name => $qty) {
-                $sell = self::RESOURCE_SELL_PRICES[$name] ?? 0.0;
-                $inputValue += $sell * (int) $qty;
-            }
-            foreach (($r['crafted_items'] ?? []) as $itemNameEng => $qty) {
-                $price = self::CRAFTED_ITEM_PRICES[$itemNameEng] ?? 0.0;
-                $inputValue += $price * 1.10 * (int) $qty;
-            }
-
+            $inputValue = $this->adr157InputValue($r, self::FIXTURE_RESOURCE_SELL_PRICES, self::FIXTURE_CRAFTED_ITEM_PRICES);
             $saleRevenue = self::VEHICLE_SALE_PRICE[$key] * 1.10;
 
             $this->assertLessThanOrEqual(
                 $inputValue,
                 $saleRevenue,
-                "{$key}: price×1.10 ({$saleRevenue}) превышает стоимость входа ({$inputValue}) — крафт печатает золото (ADR-157)"
+                "{$key}: price×1.10 ({$saleRevenue}) превышает стоимость входа на фикстуре ({$inputValue}) — крафт печатает золото (ADR-157)"
             );
         }
+    }
+
+    /**
+     * Слой 2 (см. класс-докблок): тот же инвариант, но на ЖИВЫХ ценах
+     * `crafted_items.price`/`resources.sell_price` из БД, к которой подключён
+     * тестраннер. Пустой/неполный каталог (обычное состояние локальной и CI
+     * БД) — `markTestSkipped`, а не падение и не тихий зелёный: явно называет
+     * недостающие строки, чтобы было видно, что проверка не выполнилась,
+     * а не что она подтвердила инвариант.
+     */
+    public function testAdr157HoldsOnLiveCatalogIfCatalogPopulated(): void
+    {
+        $craftedNames  = array_keys(self::FIXTURE_CRAFTED_ITEM_PRICES);
+        $resourceNames = array_keys(self::FIXTURE_RESOURCE_SELL_PRICES);
+
+        [$liveCraftedPrices, $missingCrafted]   = $this->loadLivePrices('crafted_items', 'name_eng', 'price', $craftedNames);
+        [$liveResourcePrices, $missingResource] = $this->loadLivePrices('resources', 'name', 'sell_price', $resourceNames);
+
+        $missing = array_merge($missingCrafted, $missingResource);
+        if ($missing !== []) {
+            $this->markTestSkipped(
+                'Живой каталог не наполнен нужными строками (' . implode(', ', $missing) . ') — '
+                . 'обычное состояние локальной/CI БД (feedback_local_green_on_empty_test_db_proves_nothing). '
+                . 'Дрейф реальных цен ловится там, где каталог наполнен (testbot/прод-дамп).'
+            );
+        }
+
+        foreach (self::KEYS as $key) {
+            $r = $this->cfg->get($key);
+            $this->assertIsArray($r);
+
+            $inputValue  = $this->adr157InputValue($r, $liveResourcePrices, $liveCraftedPrices);
+            $saleRevenue = self::VEHICLE_SALE_PRICE[$key] * 1.10;
+
+            $this->assertLessThanOrEqual(
+                $inputValue,
+                $saleRevenue,
+                "{$key}: price×1.10 ({$saleRevenue}) превышает стоимость входа на живом каталоге ({$inputValue}) — крафт печатает золото (ADR-157)"
+            );
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $recipe
+     * @param array<string,float> $resourceSellPrices
+     * @param array<string,float> $craftedItemPrices
+     */
+    private function adr157InputValue(array $recipe, array $resourceSellPrices, array $craftedItemPrices): float
+    {
+        $inputValue = (float) ($recipe['gold_required'] ?? 0);
+
+        foreach (($recipe['resources'] ?? []) as $name => $qty) {
+            $sell = $resourceSellPrices[$name] ?? 0.0;
+            $inputValue += $sell * (int) $qty;
+        }
+        foreach (($recipe['crafted_items'] ?? []) as $itemNameEng => $qty) {
+            $price = $craftedItemPrices[$itemNameEng] ?? 0.0;
+            $inputValue += $price * 1.10 * (int) $qty;
+        }
+
+        return $inputValue;
     }
 
     // ── Гейт enforced на старте, не только в превью ───────────────────────
