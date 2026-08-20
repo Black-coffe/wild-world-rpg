@@ -25,9 +25,10 @@ final class GatherMessageFormatter
      *                                                        исчерпала durability)
      * @param list<string>                 $signatureNames    V22 (ADR-054): signature-ресурсы биома
      *                                                        для хинта «этот биом богат на …»
-     * @param string|null                  $cargoNote         transport-15: строка про груз,
-     *                                                        увезённый грузовой машиной на склад
-     *                                                        базы (`GatherResultPersister::persist`,
+     * @param string|null                  $cargoNote         transport-15/M10: строка про груз —
+     *                                                        либо про то, что уехало на склад базы,
+     *                                                        либо (машина без базы) что везти
+     *                                                        некуда (`GatherResultPersister::persist`,
      *                                                        `$foldCargoNote=true`). `null` — как
      *                                                        сегодня, без грузовой машины строка
      *                                                        не добавляется вовсе (байт-идентично).

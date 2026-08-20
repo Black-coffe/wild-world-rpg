@@ -105,6 +105,32 @@ final class CargoMessageFoldTest extends CIUnitTestCase
         $this->assertStringContainsStringIgnoringCase('склад', $reply['text']);
     }
 
+    // ── m1: «груз некуда везти» (нет базы) сворачивается точно так же ──────
+
+    public function testNoBaseNoteFoldsIntoSingleMessage(): void
+    {
+        $foundResources = [['resource_id' => 1, 'amount' => 10, 'type' => 'raw']];
+        $resourceMap    = [1 => $this->resourceEntity(1, 'Дерево', 10)];
+        // Текст 1-в-1 с `GatherResultPersister::composeNoBaseNote()`.
+        $cargoNote = '🚚 Груз некуда везти: своей базы нет — вся добыча осталась в рюкзаке.';
+
+        $reply = $this->formatter->buildResourcesFoundReply(
+            $foundResources,
+            'Лес',
+            30,
+            $resourceMap,
+            [],
+            [],
+            [],
+            [],
+            $cargoNote
+        );
+
+        $this->assertArrayHasKey('text', $reply);
+        $this->assertStringContainsString('Груз некуда везти', $reply['text']);
+        $this->assertLessThanOrEqual(1024, mb_strlen($reply['text']));
+    }
+
     // ── Итог ≤ 1024 знаков (иначе Telegram молча не отправит фото с подписью) ──
 
     public function testFoldedMessageStaysUnder1024Chars(): void
