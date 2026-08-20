@@ -2917,6 +2917,7 @@ class CraftRecipes extends BaseConfig
                 'Fabric' => 3,
             ],
             'required_level'       => 6,
+            'required_level_setting_key' => 'world.vehicle.cart.required_level',
             'image_in_progress'    => 'uploads/telegram/craft/vehicles/light_cart.jpg',
             'start_caption_name'   => '🛒 *Лёгкую повозку*',
 
@@ -2939,6 +2940,7 @@ class CraftRecipes extends BaseConfig
             ],
             'crafted_items'        => [],
             'required_level'       => 12,
+            'required_level_setting_key' => 'world.vehicle.mtb.required_level',
             'required_faction'     => 2, // Партизаны
             'image_in_progress'    => 'uploads/telegram/craft/vehicles/mountain_bike.jpg',
             'start_caption_name'   => '🚲 *Горный велосипед*',
@@ -2963,6 +2965,7 @@ class CraftRecipes extends BaseConfig
                 'metalFragments' => 2,
             ],
             'required_level'       => 14,
+            'required_level_setting_key' => 'world.vehicle.snowmobile.required_level',
             'required_faction'     => 1, // Милитари
             'image_in_progress'    => 'uploads/telegram/craft/vehicles/snowmobile.jpg',
             'start_caption_name'   => '🛻 *Снегоход*',
@@ -2991,6 +2994,7 @@ class CraftRecipes extends BaseConfig
                 'WoodMaterials' => 2,
             ],
             'required_level'       => 14,
+            'required_level_setting_key' => 'world.vehicle.draft_cart.required_level',
             'required_faction'     => 4, // Фермеры
             'image_in_progress'    => 'uploads/telegram/craft/vehicles/draft_cart.jpg',
             'start_caption_name'   => '🐎 *Тягловую повозку*',
@@ -3016,6 +3020,7 @@ class CraftRecipes extends BaseConfig
                 'electronicComponents'  => 2,
             ],
             'required_level'       => 16,
+            'required_level_setting_key' => 'world.vehicle.drone_auto.required_level',
             'required_faction'     => 3, // Инженеры
             'image_in_progress'    => 'uploads/telegram/craft/vehicles/autonomous_drone.jpg',
             'start_caption_name'   => '🛸 *Автономный дрон*',

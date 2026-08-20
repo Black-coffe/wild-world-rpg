@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Transport;
 
 use App\Controllers\Telegram\Commands\Actions\Craft\GenericCraftActionStart;
+use App\Services\GameSettings\GameSettingsService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\CraftRecipes;
@@ -58,6 +59,22 @@ final class VehicleRecipesTest extends CIUnitTestCase
         'Snowmobile'      => [14, 1], // Милитари
         'DraftCart'       => [14, 4], // Фермеры
         'AutonomousDrone' => [16, 3], // Инженеры
+    ];
+
+    /**
+     * M3 (ревью-находка «два источника правды у гейта»): recipeKey → посеянный
+     * GameSettings-ключ `world.vehicle.<key>.required_level` (SeedVehicleGameSettings).
+     * Это ЕДИНСТВЕННОЕ место, откуда `GenericCraftActionStart::handle()` реально
+     * читает уровень при заданном `required_level_setting_key` (см. строки ~317-326
+     * файла) — тест ниже проверяет чтение через тот же `GameSettingsService`, а не
+     * копию логики.
+     */
+    private const LEVEL_SETTING_KEYS = [
+        'LightCart'       => 'world.vehicle.cart.required_level',
+        'MountainBike'    => 'world.vehicle.mtb.required_level',
+        'Snowmobile'      => 'world.vehicle.snowmobile.required_level',
+        'DraftCart'       => 'world.vehicle.draft_cart.required_level',
+        'AutonomousDrone' => 'world.vehicle.drone_auto.required_level',
     ];
 
     /** Цена продажи каждой из пяти машин (`crafted_items.price`, id 43/47/50/46/49). */
@@ -118,6 +135,67 @@ final class VehicleRecipesTest extends CIUnitTestCase
                 faction_id INT NOT NULL
             )
         ');
+
+        // M3: фикстура game_settings по образцу VehicleActivationServiceTest —
+        // те же колонки, которые читает GameSettingsService::get().
+        $this->conn->query('DROP TABLE IF EXISTS game_settings');
+        $this->conn->query('
+            CREATE TABLE game_settings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                setting_key VARCHAR(64) NOT NULL,
+                category VARCHAR(32) NOT NULL,
+                value_type VARCHAR(16) NOT NULL,
+                value_int INT NULL,
+                value_float DECIMAL(12,4) NULL,
+                value_bool TINYINT(1) NULL,
+                value_string VARCHAR(255) NULL,
+                default_value_text TEXT NOT NULL,
+                rationale_text TEXT NOT NULL,
+                effect_text TEXT NOT NULL,
+                above_effect_text TEXT NOT NULL,
+                below_effect_text TEXT NOT NULL,
+                recommended_min VARCHAR(64) NULL,
+                recommended_max VARCHAR(64) NULL,
+                hard_min VARCHAR(64) NULL,
+                hard_max VARCHAR(64) NULL,
+                updated_by VARCHAR(128) NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY setting_key (setting_key)
+            )
+        ');
+        $this->cleanCache();
+    }
+
+    protected function tearDown(): void
+    {
+        $this->cleanCache();
+        parent::tearDown();
+    }
+
+    private function cleanCache(): void
+    {
+        if (function_exists('cache')) {
+            $c = cache();
+            if (is_object($c) && method_exists($c, 'clean')) {
+                $c->clean();
+            }
+        }
+    }
+
+    private function seedRequiredLevel(string $settingKey, int $value): void
+    {
+        $this->conn->table('game_settings')->insert([
+            'setting_key'        => $settingKey,
+            'category'           => 'world',
+            'value_type'         => 'int',
+            'value_int'          => $value,
+            'default_value_text' => (string) $value,
+            'rationale_text'     => 'test',
+            'effect_text'        => 'test',
+            'above_effect_text'  => 'test',
+            'below_effect_text'  => 'test',
+        ]);
     }
 
     /**
@@ -185,6 +263,76 @@ final class VehicleRecipesTest extends CIUnitTestCase
             } else {
                 $this->assertSame($faction, $r['required_faction'] ?? null, "{$key}: required_faction mismatch");
             }
+        }
+    }
+
+    /**
+     * M3 (ревью-находка): каждый рецепт обязан объявлять `required_level_setting_key`,
+     * иначе admin-tunable ключи `world.vehicle.*.required_level` остаются мёртвыми
+     * (посеяны, но не читаются ни одной строкой кода — исходная находка).
+     */
+    public function testEachVehicleDeclaresRequiredLevelSettingKey(): void
+    {
+        foreach (self::LEVEL_SETTING_KEYS as $key => $settingKey) {
+            $r = $this->cfg->get($key);
+            $this->assertIsArray($r);
+            $this->assertSame(
+                $settingKey,
+                $r['required_level_setting_key'] ?? null,
+                "{$key}: обязан объявлять required_level_setting_key = {$settingKey} (иначе GameSettings-ключ мёртв)"
+            );
+        }
+    }
+
+    /**
+     * M3: смена значения ключа `world.vehicle.<key>.required_level` в GameSettings
+     * реально меняет гейт — через РЕАЛЬНЫЙ `GameSettingsService::get()`, тот же
+     * читатель, которым `GenericCraftActionStart::handle()` резолвит `$levelRequired`
+     * (строки ~317-326: `$this->gameSettings->get($levelSettingKey, $levelRequired)`).
+     */
+    public function testAdminOverrideOfRequiredLevelSettingIsReadThroughGameSettingsService(): void
+    {
+        $svc = new GameSettingsService();
+
+        foreach (self::LEVEL_SETTING_KEYS as $key => $settingKey) {
+            $r = $this->cfg->get($key);
+            $this->assertIsArray($r);
+            $fallback = (int) ($r['required_level'] ?? 0);
+
+            $tunedValue = $fallback + 5;
+            $this->seedRequiredLevel($settingKey, $tunedValue);
+
+            $resolved = $svc->get($settingKey, $fallback);
+
+            $this->assertSame(
+                $tunedValue,
+                $resolved,
+                "{$key}: изменение {$settingKey} в GameSettings обязано менять гейт (было {$fallback}, выставлено {$tunedValue})"
+            );
+        }
+    }
+
+    /**
+     * M3: фолбэк — если ключ не посеян (отсутствует строка в game_settings),
+     * действует `recipe.required_level`, а не тихий null/0.
+     */
+    public function testMissingGameSettingsRowFallsBackToRecipeRequiredLevel(): void
+    {
+        $svc = new GameSettingsService();
+
+        foreach (self::LEVEL_SETTING_KEYS as $key => $settingKey) {
+            $r = $this->cfg->get($key);
+            $this->assertIsArray($r);
+            $fallback = (int) ($r['required_level'] ?? 0);
+
+            // game_settings пуста для этого ключа в этом тесте — ключ не сеется.
+            $resolved = $svc->get($settingKey, $fallback);
+
+            $this->assertSame(
+                $fallback,
+                $resolved,
+                "{$key}: без строки в GameSettings обязан действовать recipe.required_level ({$fallback})"
+            );
         }
     }
 
