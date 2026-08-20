@@ -104,8 +104,12 @@ class RepairCraftedItemAction extends BaseAction
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
-        $text  = "🔧 *Ремонт: {$ctx['name_rus']}*\n\n";
-        $text .= "Текущая прочность: *{$ctx['cur_dur']}/{$ctx['max_dur']}*\n";
+        // Машины — «заряд», не «прочность» (канон транспорта, включая дрон Инженеров).
+        $icon = $ctx['is_vehicle'] ? '🔋' : '🔧';
+        $unit = $ctx['is_vehicle'] ? 'Текущий заряд' : 'Текущая прочность';
+
+        $text  = "{$icon} *Ремонт: {$ctx['name_rus']}*\n\n";
+        $text .= "{$unit}: *{$ctx['cur_dur']}/{$ctx['max_dur']}*\n";
         $text .= "Длительность ремонта: *{$duration} мин.*\n\n";
         $text .= "*Необходимые ресурсы* (50% от полного крафта):\n";
         foreach ($cost as $resName => $needQty) {
@@ -294,7 +298,7 @@ class RepairCraftedItemAction extends BaseAction
 
     /**
      * @param array<string, mixed>|object $character
-     * @return array{log_id:int, name_rus:string, name_eng:string, cur_dur:int, max_dur:int, recipe:array<string,mixed>}|null
+     * @return array{log_id:int, name_rus:string, name_eng:string, cur_dur:int, max_dur:int, recipe:array<string,mixed>, is_vehicle:bool}|null
      */
     private function buildContext(array|object $character, int $logId): ?array
     {
@@ -310,13 +314,17 @@ class RepairCraftedItemAction extends BaseAction
         if (! is_array($row)) {
             return null;
         }
-        if (($row['type'] ?? null) !== 'tool') {
+        // Ремонт ревью-находки (2026-08-20, ADR-174): 'transport' допущен наравне
+        // с 'tool' — та же механика (ресурсы × repair.cost_fraction), см. докблок
+        // RepairToolsListAction про синхронизацию каталога с charges_full.
+        $type = $row['type'] ?? null;
+        if ($type !== 'tool' && $type !== 'transport') {
             return null;
         }
         $cur = is_numeric($row['cur_dur'] ?? null) ? (int) $row['cur_dur'] : 0;
         $max = is_numeric($row['max_dur'] ?? null) ? (int) $row['max_dur'] : 0;
         if ($max <= 0 || $cur >= $max) {
-            return null; // полный durability — нет смысла ремонтировать
+            return null; // полный durability/заряд — нет смысла ремонтировать
         }
 
         $nameEng = is_string($row['name_eng'] ?? null) ? $row['name_eng'] : '';
@@ -328,12 +336,13 @@ class RepairCraftedItemAction extends BaseAction
         }
 
         return [
-            'log_id'   => $logId,
-            'name_rus' => is_string($row['name_rus'] ?? null) ? $row['name_rus'] : $nameEng,
-            'name_eng' => $nameEng,
-            'cur_dur'  => $cur,
-            'max_dur'  => $max,
-            'recipe'   => $recipe,
+            'log_id'    => $logId,
+            'name_rus'  => is_string($row['name_rus'] ?? null) ? $row['name_rus'] : $nameEng,
+            'name_eng'  => $nameEng,
+            'cur_dur'   => $cur,
+            'max_dur'   => $max,
+            'recipe'    => $recipe,
+            'is_vehicle' => $type === 'transport',
         ];
     }
 

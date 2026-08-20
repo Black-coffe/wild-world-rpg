@@ -78,8 +78,10 @@ class NpcRepairAction extends BaseAction
 
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
+        $unit = $ctx['is_vehicle'] ? 'Текущий заряд' : 'Текущая прочность';
+
         $text  = "🛠 *NPC-мастер: {$ctx['name_rus']}*\n\n";
-        $text .= "Текущая прочность: *{$ctx['cur_dur']}/{$ctx['max_dur']}*\n";
+        $text .= "{$unit}: *{$ctx['cur_dur']}/{$ctx['max_dur']}*\n";
         $text .= "Восстановление: *мгновенно*\n\n";
         $text .= "*Цена:* `{$gold}` 🪙 (золото)\n";
         $text .= "*В наличии:* `{$haveGold}` 🪙\n\n";
@@ -165,8 +167,10 @@ class NpcRepairAction extends BaseAction
             'text'              => 'NPC починил!',
         ]);
 
+        $unit = $ctx['is_vehicle'] ? 'заряд' : 'прочность';
+
         $text  = "🛠 *Готово!*\n\n"
-            . "Мастер починил *{$ctx['name_rus']}*: прочность {$ctx['max_dur']}/{$ctx['max_dur']}.\n"
+            . "Мастер починил *{$ctx['name_rus']}*: {$unit} {$ctx['max_dur']}/{$ctx['max_dur']}.\n"
             . "Списано: *{$gold}* 🪙.";
 
         $keyboard = [
@@ -190,7 +194,7 @@ class NpcRepairAction extends BaseAction
 
     /**
      * @param array<string,mixed>|object $character
-     * @return array{log_id:int, name_rus:string, name_eng:string, cur_dur:int, max_dur:int, recipe:array<string,mixed>}|null
+     * @return array{log_id:int, name_rus:string, name_eng:string, cur_dur:int, max_dur:int, recipe:array<string,mixed>, is_vehicle:bool}|null
      */
     private function buildContext(array|object $character, int $logId): ?array
     {
@@ -206,7 +210,10 @@ class NpcRepairAction extends BaseAction
         if (! is_array($row)) {
             return null;
         }
-        if (($row['type'] ?? null) !== 'tool') {
+        // Ремонт ревью-находки (2026-08-20, ADR-174): 'transport' допущен наравне
+        // с 'tool' — тот же instant gold-репаир, см. RepairToolsListAction.
+        $type = $row['type'] ?? null;
+        if ($type !== 'tool' && $type !== 'transport') {
             return null;
         }
         $cur = is_numeric($row['cur_dur'] ?? null) ? (int) $row['cur_dur'] : 0;
@@ -224,12 +231,13 @@ class NpcRepairAction extends BaseAction
         }
 
         return [
-            'log_id'   => $logId,
-            'name_rus' => is_string($row['name_rus'] ?? null) ? $row['name_rus'] : $nameEng,
-            'name_eng' => $nameEng,
-            'cur_dur'  => $cur,
-            'max_dur'  => $max,
-            'recipe'   => $recipe,
+            'log_id'     => $logId,
+            'name_rus'   => is_string($row['name_rus'] ?? null) ? $row['name_rus'] : $nameEng,
+            'name_eng'   => $nameEng,
+            'cur_dur'    => $cur,
+            'max_dur'    => $max,
+            'recipe'     => $recipe,
+            'is_vehicle' => $type === 'transport',
         ];
     }
 
