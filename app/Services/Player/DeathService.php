@@ -117,10 +117,11 @@ class DeathService
      *   transferredResources:list<array{resourceId:int,amount:int}>,
      *   transferredCraftItems:list<array{craftedItemId:int,amount:int}>,
      *   transferredGold:int,
+     *   vehicleBroken:?string,
      *   success:bool
      * }
      */
-    public function handlePlayerDeathAndReward(int $loserId, ?int $winnerId = null): array
+    public function handlePlayerDeathAndReward(int $loserId, ?int $winnerId = null, bool $deferVehicleNotice = false): array
     {
         $loserRow = $this->characterModel->find($loserId);
         if (!$loserRow) {
@@ -132,6 +133,7 @@ class DeathService
                 'transferredResources'  => [],
                 'transferredCraftItems' => [],
                 'transferredGold'       => 0,
+                'vehicleBroken'         => null,
                 'success'               => false,
             ];
         }
@@ -170,12 +172,14 @@ class DeathService
 
         // 5b) transport-14 (замыкает transport-09): смерть не изымает активную машину,
         // а разбивает её — `breakActiveVehicleOnDeath()` был написан и покрыт тестами
-        // ещё в story 09, но не вызывался ниоткуда (BUILT-BUT-DEAD). Здесь — реальное
-        // подключение к потоку смерти + отдельное самодостаточное уведомление игроку
-        // (DeathMessageBuilder и вызывающие TaskHandler/Action вне Files этой story —
-        // текст уходит своим сообщением, по образцу LevelUpNotifier).
+        // ещё в story 09, но не вызывался ниоткуда (BUILT-BUT-DEAD). Текст всегда
+        // возвращается в результате (`vehicleBroken`); story 16 добавила явный опт-ин
+        // `$deferVehicleNotice` — по умолчанию (false) поведение story 14 не меняется:
+        // отдельное сообщение уходит через `notifyVehicleBroken()`. Вызывающая сторона,
+        // которая берёт склейку на себя (см. DeathRouletteHandler), передаёт true и
+        // сама решает, куда приклеить текст — здесь он не отправляется отдельно.
         $vehicleMessage = $this->lootProcessor->breakActiveVehicleOnDeath($loserId);
-        if ($vehicleMessage !== null) {
+        if ($vehicleMessage !== null && !$deferVehicleNotice) {
             $this->notifyVehicleBroken($loserArr, $vehicleMessage);
         }
 
@@ -204,6 +208,7 @@ class DeathService
             'transferredResources'  => $transferredResources,
             'transferredCraftItems' => $transferredCraft,
             'transferredGold'       => $transferredGold,
+            'vehicleBroken'         => $vehicleMessage,
             'success'               => true,
         ];
     }

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Database\Transport;
 
+use App\Services\Player\Death\DeathMessageBuilder;
 use App\Services\Player\DeathService;
+use App\TaskHandlers\DeathRouletteHandler;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -327,6 +329,99 @@ final class DeathWiringTest extends CIUnitTestCase
 
         $row = $this->conn->table('character_resources')->where('id_characters', $char)->get()->getRowArray();
         $this->assertSame(100, (int) $row['quantity'], 'floor(200*0.5)=100 списано — поведение ресурсов byte-identical');
+    }
+
+    // ── transport-16: опт-ин $deferVehicleNotice ────────────────────────
+
+    public function testDeferVehicleNoticeReturnsTextWithoutSendingSeparateMessage(): void
+    {
+        $tgUser = $this->seedTelegramUser(555666);
+        $char   = $this->seedCharacter($tgUser);
+        $item   = $this->seedTemplate(300);
+        $log    = $this->seedVehicleLog($char, $item, durability: 250);
+        $this->activate($char, $log);
+
+        $svc    = new TestableDeathService();
+        $result = $svc->handlePlayerDeathAndReward($char, null, true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([], $svc->sent, 'при deferVehicleNotice=true отдельное сообщение не уходит');
+        $this->assertIsString($result['vehicleBroken'], 'текст возвращается — вызывающая сторона сама его приклеивает');
+        $this->assertStringContainsString('разбит', $result['vehicleBroken']);
+
+        $row = $this->vehicleRow($log);
+        $this->assertSame(0, (int) $row['durability_count'], 'машина всё равно разбивается — меняется только доставка текста');
+        $this->assertNull($this->pointerOf($char));
+    }
+
+    public function testDeferVehicleNoticeWithoutActiveVehicleReturnsNull(): void
+    {
+        $tgUser = $this->seedTelegramUser(555777);
+        $char   = $this->seedCharacter($tgUser);
+
+        $svc    = new TestableDeathService();
+        $result = $svc->handlePlayerDeathAndReward($char, null, true);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame([], $svc->sent);
+        $this->assertNull($result['vehicleBroken']);
+    }
+
+    public function testDefaultBehaviourStillSendsSeparateMessageAndReturnsSameText(): void
+    {
+        // Байт-идентичность default'а (false): результат story 14 не сломан этой правкой.
+        $tgUser = $this->seedTelegramUser(555888);
+        $char   = $this->seedCharacter($tgUser);
+        $item   = $this->seedTemplate(300);
+        $log    = $this->seedVehicleLog($char, $item, durability: 250);
+        $this->activate($char, $log);
+
+        $svc    = new TestableDeathService();
+        $result = $svc->handlePlayerDeathAndReward($char, null);
+
+        $this->assertCount(1, $svc->sent, 'default поведение не изменилось — отдельное сообщение по-прежнему уходит');
+        $this->assertSame($result['vehicleBroken'], $svc->sent[0][1], 'отправленный текст совпадает с текстом в результате');
+    }
+
+    // ── transport-16: склейка в DeathRouletteHandler — чистая функция ──
+
+    public function testGlueVehicleNoticeAppendsThroughBlankLine(): void
+    {
+        $glued = DeathRouletteHandler::glueVehicleNotice('шапка + причина + потери', '🚚 машина разбита');
+
+        $this->assertSame("шапка + причина + потери\n\n🚚 машина разбита", $glued);
+    }
+
+    public function testGlueVehicleNoticeWithoutVehicleReturnsTextUnchanged(): void
+    {
+        $rouletteText = 'шапка + причина + потери';
+
+        $this->assertSame($rouletteText, DeathRouletteHandler::glueVehicleNotice($rouletteText, null));
+        $this->assertSame($rouletteText, DeathRouletteHandler::glueVehicleNotice($rouletteText, ''), 'пустая строка — тоже «нет машины», без хвоста');
+    }
+
+    public function testGluedRouletteMessageStaysUnder1024AndMarkdownSafe(): void
+    {
+        $tgUser = $this->seedTelegramUser(555999);
+        $char   = $this->seedCharacter($tgUser);
+        $item   = $this->seedTemplate(300);
+        $log    = $this->seedVehicleLog($char, $item, durability: 250);
+        $this->activate($char, $log);
+
+        $svc    = new TestableDeathService();
+        $result = $svc->handlePlayerDeathAndReward($char, null, true);
+
+        $characterRow = $this->conn->table('characters')->where('id', $char)->get()->getRowArray();
+        $characterRow['name']   = 'Странник';
+        $characterRow['health'] = 0.42;
+
+        $rouletteText = (new DeathMessageBuilder())->rouletteDeath($characterRow, $result);
+        $glued        = DeathRouletteHandler::glueVehicleNotice($rouletteText, $result['vehicleBroken']);
+
+        $this->assertStringContainsString($result['vehicleBroken'], $glued);
+        $this->assertLessThanOrEqual(1024, mb_strlen($glued), 'склеенный текст ≤ 1024 знаков (mb_strlen, не strlen)');
+        $this->assertSame(0, substr_count($glued, '*') % 2, 'markdown-safe: парные *');
+        $this->assertSame(0, substr_count($glued, '_') % 2, 'markdown-safe: парные _');
     }
 }
 

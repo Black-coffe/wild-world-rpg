@@ -89,7 +89,10 @@ class DeathRouletteHandler extends BaseTaskHandler
 
             // Иначе - смерть
             // 5) Списываем ресурсы/учитываем страховку
-            $deathResult = $deathService->handlePlayerDeathAndReward($charId, null);
+            // transport-16: $deferVehicleNotice=true — текст «машина разбита» (если есть)
+            // приклеивается к тексту рулетки ниже (sendDeathMessage), а не уходит отдельным
+            // sendMessage (story 14) — одно событие смерти, одно сообщение игроку.
+            $deathResult = $deathService->handlePlayerDeathAndReward($charId, null, true);
             // deathResult['penalty'] может быть:
             //   0.0 (страховка сработала),
             //   0.03 (есть база),
@@ -228,7 +231,28 @@ class DeathRouletteHandler extends BaseTaskHandler
         // ⚠️ $character здесь — строка ДО респауна (health ещё ≤ 0.99 — нужно для текста причины).
         $text = (new DeathMessageBuilder())->rouletteDeath($character, $deathResult);
 
+        // transport-16: «машина разбита» (если активная машина была) приклеивается
+        // к тексту рулетки через пустую строку — одно сообщение вместо двух.
+        $vehicleBroken = $deathResult['vehicleBroken'] ?? null;
+        $text = self::glueVehicleNotice($text, is_string($vehicleBroken) ? $vehicleBroken : null);
+
         // safeSendMessage с overrideм parse_mode на Markdown (BaseTaskHandler default — HTML)
         $this->safeSendMessage($chatId, $text, ['parse_mode' => 'Markdown']);
+    }
+
+    /**
+     * transport-16 — чистая функция склейки: без активной машины текст рулетки
+     * не трогается (никаких пустых хвостов); с ней «машина разбита» приклеивается
+     * через пустую строку, ровно как в приёмке story. Отдельно public/static,
+     * чтобы длина/markdown-safety проверялись тестом на самой функции склейки,
+     * а не на факте отправки.
+     */
+    public static function glueVehicleNotice(string $rouletteText, ?string $vehicleBroken): string
+    {
+        if ($vehicleBroken === null || $vehicleBroken === '') {
+            return $rouletteText;
+        }
+
+        return $rouletteText . "\n\n" . $vehicleBroken;
     }
 }

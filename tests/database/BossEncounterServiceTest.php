@@ -131,11 +131,11 @@ final class BossEncounterServiceTest extends CIUnitTestCase
         return new class extends DeathService {
             public int $calls = 0;
 
-            public function handlePlayerDeathAndReward(int $loserId, ?int $winnerId = null): array
+            public function handlePlayerDeathAndReward(int $loserId, ?int $winnerId = null, bool $deferVehicleNotice = false): array
             {
                 $this->calls++;
 
-                return ['hasBase' => false, 'penalty' => 0.0, 'newbieProtected' => false, 'transferredResources' => [], 'transferredCraftItems' => [], 'transferredGold' => 0, 'success' => true];
+                return ['hasBase' => false, 'penalty' => 0.0, 'newbieProtected' => false, 'transferredResources' => [], 'transferredCraftItems' => [], 'transferredGold' => 0, 'vehicleBroken' => null, 'success' => true];
             }
         };
     }
