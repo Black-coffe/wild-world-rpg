@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services\Player;
 
 use App\Models\CraftedItemsLogModel;
+use App\Services\GameSettings\GameSettingsReaderTrait;
+use App\Services\World\VehicleEffectsService;
 use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 
@@ -18,9 +20,25 @@ use Config\Database;
  * 🔴 Чтение владения — ТОЛЬКО `WHERE id = ? AND character_id = ?` (анти-IDOR +
  * грабля `first()` без `orderBy` при дублях). Висячий указатель (строка лога удалена)
  * лечится чтением — самолечение в NULL, без FK/каскада (Non-goal story).
+ *
+ * 🔴 Ремонт ревью-находки (2026-08-20): единственный источник полной ёмкости —
+ * GameSettings `world.vehicle.<key>.charges_full` (admin-tunable, rationale уже в
+ * {@see \App\Database\Migrations\SeedVehicleGameSettings} — она и была задумана как
+ * база клэмпа с самого начала: «зажим min(текущий, эта база)»). Раньше клэмп читал
+ * `crafted_items.durability_count` (каталог) — не admin-tunable колонку, которая на
+ * проде разошлась с GameSettings (120/150/100/200/80 против 300/350/400/400/350):
+ * экран врал про окупаемость (`VehicleAction::savingsMinutes()`) и порог
+ * предупреждения (`VehicleScreenRenderer`) считали от РАЗНЫХ чисел. `charges_full`
+ * теперь проведён через все три точки чтения: клэмп остатка здесь, порог/текст и
+ * окупаемость в `VehicleAction::buildState()` читают то же самое поле `charges_full`,
+ * которое возвращает {@see resolveActive()}. Каталог остаётся запасным источником
+ * ТОЛЬКО для нетранспортных предметов (нет ключа в
+ * `VehicleEffectsService::NAME_ENG_TO_KEY`) — у них нет GameSettings-записи вовсе.
  */
 final class VehicleActivationService
 {
+    use GameSettingsReaderTrait;
+
     /** @var BaseConnection<object, object> */
     private BaseConnection $db;
 
@@ -36,13 +54,15 @@ final class VehicleActivationService
      * Разрешает активный транспорт персонажа. Промах (пустой указатель или строка
      * лога исчезла) — самолечение указателя в NULL, `null`, без исключения.
      *
-     * `charges` — фактический остаток, зажатый `min(dur, base)`, БЕЗ пола потребляемых
-     * предметов (`CraftedItemsLogModel::effectiveCharges()` держит пол `max(1, ...)` —
-     * корректно для «последней дозы» медикамента, но не для транспорта: полностью
-     * изношенная машина обязана репортовать буквальный `0` (бонус исчезает, поход
-     * не блокируется), поэтому клампится тем же `min(dur, base)`, но локально.
+     * `charges` — фактический остаток, зажатый `min(dur, charges_full)`, БЕЗ пола
+     * потребляемых предметов (`CraftedItemsLogModel::effectiveCharges()` держит пол
+     * `max(1, ...)` — корректно для «последней дозы» медикамента, но не для
+     * транспорта: полностью изношенная машина обязана репортовать буквальный `0`
+     * (бонус исчезает, поход не блокируется), поэтому клампится локально этим же
+     * классом. `charges_full` — та же база, что видит текст/порог/окупаемость в
+     * `VehicleAction` (единый источник, см. докблок класса).
      *
-     * @return array{log_id:int, key:string, charges:int}|null
+     * @return array{log_id:int, key:string, charges:int, charges_full:int}|null
      */
     public function resolveActive(int $characterId): ?array
     {
@@ -61,11 +81,14 @@ final class VehicleActivationService
 
         $rawId  = $row['id'] ?? null;
         $rawKey = $row['name_eng'] ?? null;
+        $key    = is_string($rawKey) ? $rawKey : '';
+        $base   = $this->chargesFullBase(VehicleEffectsService::keyForItemNameEng($key), $row['template_durability'] ?? null);
 
         return [
-            'log_id'  => is_numeric($rawId) ? (int) $rawId : 0,
-            'key'     => is_string($rawKey) ? $rawKey : '',
-            'charges' => $this->clampCharges($row['durability_count'] ?? null, $row['template_durability'] ?? null),
+            'log_id'       => is_numeric($rawId) ? (int) $rawId : 0,
+            'key'          => $key,
+            'charges'      => $this->clampCharges($row['durability_count'] ?? null, $base),
+            'charges_full' => $base,
         ];
     }
 
@@ -97,9 +120,9 @@ final class VehicleActivationService
 
     /**
      * Списывает износ с АКТИВНОЙ строки (по `id`, не по `crafted_item_id`) за `$cells`
-     * пройденных клеток. Текущий остаток читается через
-     * `CraftedItemsLogModel::effectiveCharges()` (зажим `min(dur, base)`, защита от
-     * исторического мусора в `durability_count`), затем списывается арифметикой —
+     * пройденных клеток. Текущий остаток зажимается `min(dur, charges_full)` (той же
+     * базой, что и {@see resolveActive()} — защита от исторического мусора в
+     * `durability_count`), с полом `max(1, ...)`, затем списывается арифметикой —
      * результат МОЖЕТ дойти до буквального 0 (в отличие от чтения, у списания нет
      * пола в 1: пустой бак — валидное состояние транспорта).
      *
@@ -122,10 +145,17 @@ final class VehicleActivationService
             return 0;
         }
 
-        $current = CraftedItemsLogModel::effectiveCharges(
-            $row['durability_count'] ?? null,
+        $rawKey = $row['name_eng'] ?? null;
+        $base   = $this->chargesFullBase(
+            VehicleEffectsService::keyForItemNameEng(is_string($rawKey) ? $rawKey : ''),
             $row['template_durability'] ?? null
         );
+
+        // Локальная копия CraftedItemsLogModel::effectiveCharges() с базой charges_full
+        // вместо каталога — тот метод общий с медикаментами (Pharmacy*), его пол max(1,...)
+        // не трогаем, но базу больше не берём из template_durability.
+        $stored  = $row['durability_count'] ?? null;
+        $current = max(1, min(is_numeric($stored) ? (int) $stored : $base, $base));
 
         $spend     = max(0, $cells) * max(0, $wearPerCell);
         $remainder = max(0, $current - $spend);
@@ -199,13 +229,30 @@ final class VehicleActivationService
     }
 
     /**
+     * Единственный источник полной ёмкости — GameSettings `world.vehicle.<key>.charges_full`
+     * (admin-tunable, rationale в {@see \App\Database\Migrations\SeedVehicleGameSettings}).
+     * Нетранспортные строки (`$vehicleKey === null`, нет записи в
+     * `VehicleEffectsService::NAME_ENG_TO_KEY`) не имеют GameSettings-ключа вовсе — для них
+     * базой остаётся каталог (`crafted_items.durability_count`), единственный источник,
+     * который у них есть.
+     */
+    private function chargesFullBase(?string $vehicleKey, mixed $templateDurability): int
+    {
+        $catalogBase = CraftedItemsLogModel::baseCharges($templateDurability);
+        if ($vehicleKey === null) {
+            return $catalogBase;
+        }
+
+        return max(1, $this->gsInt("world.vehicle.{$vehicleKey}.charges_full", $catalogBase));
+    }
+
+    /**
      * Зажим `min(dur, base)` для чтения текущего остатка, БЕЗ пола потребляемых
      * предметов — `0` для транспорта означает «изношен», а не «последняя доза».
      */
-    private function clampCharges(mixed $stored, mixed $templateDurability): int
+    private function clampCharges(mixed $stored, int $base): int
     {
-        $base   = CraftedItemsLogModel::baseCharges($templateDurability);
-        $value  = is_numeric($stored) ? (int) $stored : $base;
+        $value = is_numeric($stored) ? (int) $stored : $base;
 
         return max(0, min($value, $base));
     }

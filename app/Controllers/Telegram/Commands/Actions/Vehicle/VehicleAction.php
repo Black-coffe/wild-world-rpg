@@ -222,11 +222,18 @@ class VehicleAction extends BaseAction
             $recipe      = $recipes->findByItemNameEng($resolved['key']);
             $key         = VehicleEffectsService::keyForItemNameEng($resolved['key']);
 
-            $chargesFull = $key !== null ? $this->gsInt("world.vehicle.{$key}.charges_full", $resolved['charges']) : $resolved['charges'];
+            // Единственный источник ёмкости — `resolveActive()['charges_full']`
+            // (GameSettings `world.vehicle.<key>.charges_full`, ревью-находка
+            // 2026-08-20): раньше этот экран читал тот же ключ ВТОРЫМ, независимым
+            // вызовом GameSettings, а клэмп остатка в VehicleActivationService читал
+            // каталог — два разных числа расходились на проде (120/150/100/200/80
+            // против 300/350/400/400/350), окупаемость и порог предупреждения врали.
+            $chargesFull = $resolved['charges_full'];
             $wearPerCell = $key !== null ? $this->gsInt("world.vehicle.{$key}.wear_per_cell", 1) : 1;
             $cellsLeft   = $wearPerCell > 0 ? intdiv($resolved['charges'], $wearPerCell) : $resolved['charges'];
 
-            $savings = $this->savingsMinutes($effects, $key, $resolved['charges'], $chargesFull, $wearPerCell);
+            $minutesPerCell = $this->gsInt('world.march.minutes_per_cell', 1);
+            $savings        = self::savingsMinutes($effects, $key, $resolved['charges'], $chargesFull, $wearPerCell, $minutesPerCell);
 
             $activeRow = [
                 'name'            => self::recipeString($recipe, 'item_name_rus', $resolved['key']),
@@ -301,8 +308,12 @@ class VehicleAction extends BaseAction
      * Строка окупаемости: сравнивает время на уже пройденные клетки (по факту износа)
      * пешком против фактического темпа машины. Ничего не хранит в БД — считается на
      * лету из остатка/полного запаса зарядов, поэтому история похода не нужна.
+     *
+     * `static` + явный `$minutesPerCell` (вместо `$this->gsInt()` внутри) — чистая
+     * функция без БД/Telegram, тестируется рефлексией без сборки `VehicleAction`
+     * (конструктор требует `CallbackQuery` + модели персонажа).
      */
-    private function savingsMinutes(VehicleEffectsService $effects, ?string $key, int $charges, int $chargesFull, int $wearPerCell): int
+    private static function savingsMinutes(VehicleEffectsService $effects, ?string $key, int $charges, int $chargesFull, int $wearPerCell, int $minutesPerCell): int
     {
         if ($key === null || $wearPerCell <= 0 || ! $effects->isEnabled()) {
             return 0;
@@ -313,9 +324,8 @@ class VehicleAction extends BaseAction
             return 0;
         }
 
-        $minutesPerCell = $this->gsInt('world.march.minutes_per_cell', 1);
-        $neutral        = $effects->neutralProfile();
-        $profile        = $effects->profileFor($key, VehicleEffectsService::TERRAIN_UNEXPLORED);
+        $neutral = $effects->neutralProfile();
+        $profile = $effects->profileFor($key, VehicleEffectsService::TERRAIN_UNEXPLORED);
 
         $baseCellsPerTick    = max(1, $neutral['cells_per_tick']);
         $vehicleCellsPerTick = max(1, $profile['cells_per_tick']);

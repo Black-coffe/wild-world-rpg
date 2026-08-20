@@ -6,7 +6,9 @@ namespace Tests\Unit\Transport;
 
 use App\Controllers\Telegram\Commands\Actions\Vehicle\VehicleAction;
 use App\Services\Player\VehicleScreenRenderer;
+use App\Services\World\VehicleEffectsService;
 use CodeIgniter\Test\CIUnitTestCase;
+use ReflectionMethod;
 
 /**
  * transport-10 (ADR-174, docs/specs/transport-system/) — `VehicleScreenRenderer` — чистая
@@ -351,5 +353,59 @@ final class VehicleScreenRenderTest extends CIUnitTestCase
         $this->assertStringNotContainsString('?', $text);
         $this->assertSame(0, substr_count($text, '*') % 2, 'непарная * роняет Legacy Markdown отправку молча');
         $this->assertLessThanOrEqual(1024, mb_strlen($text));
+    }
+
+    // ── Ревью-находка 2026-08-20: `VehicleAction::savingsMinutes()` ──────────
+    // Приватный static-метод (тестируется рефлексией без сборки VehicleAction —
+    // конструктор требует CallbackQuery + модели персонажа).
+
+    private function invokeSavingsMinutes(VehicleEffectsService $effects, ?string $key, int $charges, int $chargesFull, int $wearPerCell, int $minutesPerCell): int
+    {
+        $method = new ReflectionMethod(VehicleAction::class, 'savingsMinutes');
+        $method->setAccessible(true);
+
+        return $method->invoke(null, $effects, $key, $charges, $chargesFull, $wearPerCell, $minutesPerCell);
+    }
+
+    /**
+     * 🔴 Ядро приёмки: свежескрафченная машина (`charges === chargesFull`, единый источник —
+     * GameSettings `world.vehicle.<key>.charges_full`) не показывает выдуманных клеток
+     * окупаемости. Раньше клэмп остатка и `chargesFull` текста читались из РАЗНЫХ источников
+     * (каталог vs GameSettings) — свежая машина 120/300 давала мнимые 180 клеток пройденного
+     * пути. Здесь оба параметра — уже согласованный вывод одного источника (charges_full).
+     */
+    public function testSavingsMinutesFreshVehicleShowsZeroNotImaginaryCells(): void
+    {
+        $effects = new VehicleEffectsService(null, [
+            'world.vehicle.enabled'                     => true,
+            'world.vehicle.cart.cells_per_tick_unexplored' => 5,
+        ]);
+
+        $savings = $this->invokeSavingsMinutes($effects, 'cart', 300, 300, 1, 1);
+
+        $this->assertSame(0, $savings, 'полный заряд = ноль пройденных клеток = ноль окупаемости');
+    }
+
+    /** Изношенная машина (реально пройдены клетки) — окупаемость положительная. */
+    public function testSavingsMinutesWornVehicleShowsPositiveSavings(): void
+    {
+        $effects = new VehicleEffectsService(null, [
+            'world.vehicle.enabled'                        => true,
+            'world.march.cells_per_tick'                    => 3,
+            'world.vehicle.cart.cells_per_tick_unexplored'  => 4,
+        ]);
+
+        $savings = $this->invokeSavingsMinutes($effects, 'cart', 280, 300, 1, 1);
+
+        $this->assertSame(2, $savings, 'ceil(20/3) − ceil(20/4) = 7 − 5 = 2 минуты');
+    }
+
+    public function testSavingsMinutesZeroWhenVehicleEffectsDisabled(): void
+    {
+        $effects = new VehicleEffectsService(null, ['world.vehicle.enabled' => false]);
+
+        $savings = $this->invokeSavingsMinutes($effects, 'cart', 280, 300, 1, 1);
+
+        $this->assertSame(0, $savings, 'килсвитч world.vehicle.enabled=false — окупаемость всегда 0');
     }
 }

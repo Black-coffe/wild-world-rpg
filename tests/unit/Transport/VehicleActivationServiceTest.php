@@ -27,7 +27,10 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
 
     protected $migrate = false;
 
-    private const TABLES = ['characters', 'crafted_items_log', 'crafted_items', 'map'];
+    // `game_settings` — только для тестов charges_full (ревью-находка 2026-08-20):
+    // своя изолированная таблица, как в RewardServiceTest/LootTableServiceTest,
+    // не общая тестовая схема.
+    private const TABLES = ['characters', 'crafted_items_log', 'crafted_items', 'map', 'game_settings'];
 
     private \CodeIgniter\Database\BaseConnection $conn;
     private VehicleActivationService $service;
@@ -35,6 +38,7 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
+        $this->cleanCache();
 
         $this->conn = Database::connect('tests');
 
@@ -83,8 +87,67 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
                 biome_id INT NULL
             )
         ');
+        // Схема — по образцу CreateGameSettingsTable/RewardServiceTest: те же колонки,
+        // которые читает GameSettingsService::get() (тип+value_int тут и достаточны).
+        $this->conn->query('
+            CREATE TABLE game_settings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                setting_key VARCHAR(64) NOT NULL,
+                category VARCHAR(32) NOT NULL,
+                value_type VARCHAR(16) NOT NULL,
+                value_int INT NULL,
+                value_float DECIMAL(12,4) NULL,
+                value_bool TINYINT(1) NULL,
+                value_string VARCHAR(255) NULL,
+                default_value_text TEXT NOT NULL,
+                rationale_text TEXT NOT NULL,
+                effect_text TEXT NOT NULL,
+                above_effect_text TEXT NOT NULL,
+                below_effect_text TEXT NOT NULL,
+                recommended_min VARCHAR(64) NULL,
+                recommended_max VARCHAR(64) NULL,
+                hard_min VARCHAR(64) NULL,
+                hard_max VARCHAR(64) NULL,
+                updated_by VARCHAR(128) NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY setting_key (setting_key)
+            )
+        ');
 
         $this->service = new VehicleActivationService($this->conn);
+    }
+
+    protected function tearDown(): void
+    {
+        $this->cleanCache();
+        parent::tearDown();
+    }
+
+    private function cleanCache(): void
+    {
+        if (function_exists('cache')) {
+            $c = cache();
+            if (is_object($c) && method_exists($c, 'clean')) {
+                $c->clean();
+            }
+        }
+    }
+
+    /** Сеет `world.vehicle.<key>.charges_full` — только int-поля нужны сервису. */
+    private function seedChargesFull(string $vehicleKey, int $value): void
+    {
+        $this->conn->table('game_settings')->insert([
+            'setting_key'        => "world.vehicle.{$vehicleKey}.charges_full",
+            'category'           => 'world',
+            'value_type'         => 'int',
+            'value_int'          => $value,
+            'default_value_text' => (string) $value,
+            'rationale_text'     => 'test',
+            'effect_text'        => 'test',
+            'above_effect_text'  => 'test',
+            'below_effect_text'  => 'test',
+        ]);
     }
 
     // ── Хелперы сидирования ─────────────────────────────────────────────
@@ -347,5 +410,81 @@ final class VehicleActivationServiceTest extends CIUnitTestCase
         $wipe->resetCharacter($char);
 
         $this->assertNull($this->pointerOf($char), 'указатель активного транспорта обязан стать NULL после сброса персонажа');
+    }
+
+    // ── Ревью-находка 2026-08-20: единственный источник ёмкости — charges_full ──
+
+    /**
+     * 🔴 Продовые каталожные числа (не «удобные» 300/400): `crafted_items.durability_count`
+     * для этих пяти машин на проде реально 120/150/100/200/80, а НЕ значения GameSettings
+     * `charges_full` (300/350/400/400/350) — источники разошлись (ревью-находка). Строка
+     * лога несёт исторический остаток 250 — между каталожным (100) и charges_full (400):
+     * старый код клэмпил по каталогу → 100, новый обязан клэмпить по charges_full → 250,
+     * доказывая, что клэмп больше не читает `crafted_items.durability_count`.
+     */
+    public function testResolveActiveClampsToChargesFullNotCatalogColumn(): void
+    {
+        $char = $this->seedCharacter();
+        $item = $this->seedTemplate('Snowmobile', 100); // прод: реальная каталожная ёмкость снегохода
+        $this->seedChargesFull('snowmobile', 400);       // прод: реальный admin-tunable дефолт
+        $log  = $this->seedLog($char, $item, 250);
+        $this->service->activate($char, $log);
+
+        $result = $this->service->resolveActive($char);
+
+        $this->assertNotNull($result);
+        $this->assertSame(400, $result['charges_full'], 'база обязана быть charges_full, не каталогом (100)');
+        $this->assertSame(250, $result['charges'], 'остаток не должен зажиматься к каталожным 100');
+    }
+
+    /** Симметричная проверка на `spendCharges()` — то же несоответствие каталог/charges_full. */
+    public function testSpendChargesUsesChargesFullNotCatalogBase(): void
+    {
+        $char = $this->seedCharacter();
+        $item = $this->seedTemplate('Snowmobile', 100); // прод: каталог
+        $this->seedChargesFull('snowmobile', 400);       // прод: charges_full
+        $log  = $this->seedLog($char, $item, 390);
+        $this->service->activate($char, $log);
+
+        $remainder = $this->service->spendCharges($char, 5, 2); // 5 клеток × 2 заряда/клетку
+
+        $this->assertSame(380, $remainder, 'при базе-каталоге (100) остаток был бы зажат до старта списания');
+    }
+
+    /**
+     * Свежескрафченная машина (остаток == charges_full, реальный прод-сценарий LightCart)
+     * зажимается ровно к 300 — это база, которую `VehicleAction::savingsMinutes()` берёт
+     * как `chargesFull`, поэтому «пройдено клеток» = chargesFull − charges = 0, окупаемость
+     * ноль, а не выдуманные клетки от рассинхрона источников.
+     */
+    public function testResolveActiveFreshVehicleAtFullChargesFullShowsNoImaginaryWear(): void
+    {
+        $char = $this->seedCharacter();
+        $item = $this->seedTemplate('LightCart', 120); // прод: каталог (не совпадает с charges_full)
+        $this->seedChargesFull('cart', 300);            // прод: charges_full
+        $log  = $this->seedLog($char, $item, 300);      // свежая — заряд равен базе charges_full
+        $this->service->activate($char, $log);
+
+        $result = $this->service->resolveActive($char);
+
+        $this->assertNotNull($result);
+        $this->assertSame(300, $result['charges_full']);
+        $this->assertSame(300, $result['charges'], 'свежая машина обязана показывать полный заряд по charges_full');
+        $this->assertSame(0, $result['charges_full'] - $result['charges'], 'ноль пройденных клеток — окупаемость обязана быть 0');
+    }
+
+    /** Нетранспортный предмет (нет ключа в NAME_ENG_TO_KEY) — база остаётся каталогом. */
+    public function testResolveActiveNonVehicleItemStillClampsToCatalog(): void
+    {
+        $char = $this->seedCharacter();
+        $item = $this->seedTemplate('MedKit', 50); // не входит в VehicleEffectsService::NAME_ENG_TO_KEY
+        $log  = $this->seedLog($char, $item, 200); // мусор выше каталожной базы
+        $this->service->activate($char, $log);
+
+        $result = $this->service->resolveActive($char);
+
+        $this->assertNotNull($result);
+        $this->assertSame(50, $result['charges_full']);
+        $this->assertSame(50, $result['charges'], 'без GameSettings-ключа базой остаётся каталог');
     }
 }
