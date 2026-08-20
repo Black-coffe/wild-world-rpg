@@ -299,7 +299,7 @@ class MarchingTaskHandler extends BaseTaskHandler
             } else {
                 $before      = $remainder + $wear; // спишется ровно $wear, если заряда хватило — обратимо точно
                 $baseCharges = max(1, $this->gsInt('world.vehicle.' . $activeVehicleKey . '.charges_full', 300));
-                $threshold   = (int) ceil($baseCharges * 0.2);
+                $threshold   = (int) ceil($baseCharges * $this->vehicleWarningThresholdRatio());
                 if ($before > $threshold && $remainder <= $threshold && !isset($s['vehicle_warning'])) {
                     $s['vehicle_warning'] = 'Заряд транспорта на исходе (~1/5 осталось).';
                 }
@@ -931,6 +931,18 @@ class MarchingTaskHandler extends BaseTaskHandler
     protected function statPerCell(): float
     {
         return $this->gsFloat('world.march.stat_per_cell', 0.02);
+    }
+
+    /**
+     * Находка 3 (ревью): порог «заряд на исходе» был зашит числом (`0.2`) прямо в
+     * {@see advanceOneCell()}. Вынесен именованным методом (не магическое число
+     * посреди формулы), fallback = сегодняшнее значение. Полноценная регистрация
+     * ключа в `GameSettings` (rationale/above/below-эффекты, ADR-024) — вне файлов
+     * этой правки, отдельная миграция.
+     */
+    protected function vehicleWarningThresholdRatio(): float
+    {
+        return $this->gsFloat('world.vehicle.warning_threshold_ratio', 0.2);
     }
 
     private function plural(int $n, string $one, string $few, string $many): string

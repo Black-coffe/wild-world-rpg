@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Transport;
 
+use App\Controllers\Telegram\Commands\Actions\MarchAction;
 use App\Services\Player\VehicleActivationService;
 use App\Services\Player\PlayerDetectionService;
 use App\Services\World\MarchMiniEventService;
@@ -443,6 +444,138 @@ final class MarchingTransportTest extends CIUnitTestCase
         // Заряд машины не тронут — killswitch off ни разу не читает crafted_items_log.
         $log = $this->conn->table('crafted_items_log')->where('character_id', $char['id'])->get()->getRowArray();
         $this->assertSame(300, (int) $log['durability_count']);
+    }
+
+    // ── ревью-находка 1: ОДНО ETA на экране, «пешком» — той же функцией ──────────
+
+    /**
+     * Пешеход БЕЗ транспорта, смешанный маршрут (1 разведано + 5 целины), perTick=3
+     * (нейтраль) на обоих сегментах — старая схема (сумма ceil() по сегментам)
+     * давала ceil(1/3)+ceil(5/3)=1+2=3 мин, при том что правильный путь — ОДИН
+     * ceil((1+5)/3)=2 мин. Именно этот случай воспроизводит баг из ревью
+     * («заказ в 6 клеток … даёт «в пути ~2 мин … — 3 мин (пешком 2)»).
+     */
+    public function testRouteEtaMinutesPedestrianMixedRouteDoesNotDoubleCeil(): void
+    {
+        $segments = [
+            MarchPaceService::TERRAIN_EXPLORED   => ['count' => 1, 'per_tick' => 3],
+            MarchPaceService::TERRAIN_UNEXPLORED => ['count' => 5, 'per_tick' => 3],
+        ];
+
+        $eta = MarchAction::routeEtaMinutes($segments, 1);
+
+        $this->assertSame(2, $eta, 'ОДИН ceil от суммы долей тика — не сумма ceil() по сегментам (систематическое завышение)');
+
+        // Контроль: старая (неверная) формула для этого же ввода дала бы 3.
+        $buggySum = (int) ceil(1 / 3) + (int) ceil(5 / 3);
+        $this->assertSame(3, $buggySum, 'дока: старая схема действительно расходится с правильным ответом');
+        $this->assertNotSame($buggySum, $eta);
+    }
+
+    /** Разбивка на 3 сегмента (explored+unexplored+cold), тот же принцип «один ceil». */
+    public function testRouteEtaMinutesThreeMixedSegmentsSingleCeil(): void
+    {
+        $segments = [
+            MarchPaceService::TERRAIN_EXPLORED   => ['count' => 2, 'per_tick' => 4],
+            MarchPaceService::TERRAIN_UNEXPLORED => ['count' => 5, 'per_tick' => 3],
+            MarchPaceService::TERRAIN_COLD       => ['count' => 3, 'per_tick' => 5],
+        ];
+        // Точные доли тика: 2/4=0.5, 5/3≈1.667, 3/5=0.6 → сумма ≈2.767 → ceil=3.
+        $eta = MarchAction::routeEtaMinutes($segments, 1);
+        $this->assertSame(3, $eta);
+
+        // Сумма ceil() по каждому сегменту завысила бы: ceil(0.5)+ceil(1.667)+ceil(0.6)=1+2+1=4.
+        $buggySum = (int) ceil(2 / 4) + (int) ceil(5 / 3) + (int) ceil(3 / 5);
+        $this->assertSame(4, $buggySum);
+        $this->assertLessThan($buggySum, $eta, 'route-функция обязана давать МЕНЬШЕ или равно сумме ceil() по сегментам');
+    }
+
+    public function testRouteEtaMinutesEmptySegmentsIsZero(): void
+    {
+        $this->assertSame(0, MarchAction::routeEtaMinutes([], 1));
+    }
+
+    // ── ревью-находка 1 (продолжение): ETA превью == ETA обработчика ─────────────
+
+    /**
+     * Контракт «ETA превью == ETA обработчика» (docblock `MarchAction::showRouteSetup()`
+     * и `MarchingTaskHandler::etaMinutes()`): на маршруте с ОДНИМ классом местности
+     * (самый частый случай — вся видимая часть пути одного типа) `MarchAction::
+     * routeEtaMinutes()` обязан давать ЧИСЛЕННО то же самое, что и прямой вызов
+     * `MarchPaceService::etaMinutes()`, которым пользуется обработчик — единый источник
+     * арифметики, не два независимых.
+     *
+     * @return array<string, array{0:int,1:int,2:int}>
+     */
+    public static function singleTerrainEtaProvider(): array
+    {
+        return [
+            '1 клетка, perTick 3'  => [1, 3, 1],
+            '3 клетки, perTick 3'  => [3, 3, 1],
+            '4 клетки, perTick 3'  => [4, 3, 1],
+            '6 клеток, perTick 3'  => [6, 3, 1],
+            '10 клеток, perTick 4' => [10, 4, 1],
+            '17 клеток, perTick 5' => [17, 5, 2],
+        ];
+    }
+
+    /** @dataProvider singleTerrainEtaProvider */
+    public function testRouteEtaMinutesMatchesHandlerFormulaForSingleTerrain(int $cells, int $perTick, int $minutesPerCell): void
+    {
+        $pace = new MarchPaceService();
+
+        // Путь превью (MarchAction::routeBreakdown → routeEtaMinutes), один сегмент.
+        $previewEta = MarchAction::routeEtaMinutes([
+            MarchPaceService::TERRAIN_UNEXPLORED => ['count' => $cells, 'per_tick' => $perTick],
+        ], $minutesPerCell);
+
+        // Путь обработчика (MarchingTaskHandler::etaMinutes → MarchPaceService::etaMinutes),
+        // те же входные данные (cells, perTick, minutesPerCell).
+        $handlerEta = $pace->etaMinutes($cells, $perTick, $minutesPerCell);
+
+        $this->assertSame($handlerEta, $previewEta, "превью и обработчик разошлись на клетках={$cells}, perTick={$perTick}");
+    }
+
+    // ── ревью-находка 2: килсвитч выключен → крючок не обещает эффекта ───────────
+
+    /**
+     * @return array<string, array{0:int,1:int,2:?array{icon:string,name:string,cells_left:int}}>
+     */
+    public static function vehicleHookInputProvider(): array
+    {
+        return [
+            'ниже уровня, без машины' => [4, 6, null],
+            'выше уровня, без машины' => [10, 6, null],
+            'выше уровня, с активной машиной' => [10, 6, ['icon' => '🚚', 'name' => 'Тележка', 'cells_left' => 42]],
+        ];
+    }
+
+    /**
+     * При выключенном килсвитче `world.vehicle.enabled` (default false) транспорт
+     * НИКОМУ не даёт эффекта (`VehicleEffectsService::profileFor()` всегда откатывается
+     * на нейтраль) — крючок обязан не обещать ускорение/остаток заряда независимо от
+     * уровня персонажа и наличия «активной» машины у него в базе.
+     *
+     * @dataProvider vehicleHookInputProvider
+     * @param ?array{icon:string,name:string,cells_left:int} $active
+     */
+    public function testVehicleHookDoesNotPromiseEffectWhenKillswitchOff(int $level, int $required, ?array $active): void
+    {
+        $hook = MarchAction::vehicleHookBlock($level, $required, $active, false);
+
+        $this->assertStringNotContainsString('хватит', mb_strtolower($hook['line']), 'killswitch off не должен обещать остаток хода на активной машине');
+        $this->assertStringNotContainsString('ускорит', mb_strtolower($hook['line']), 'killswitch off не должен обещать ускорение');
+        $this->assertStringNotContainsString('42', $hook['line'], 'реальные числа активной машины не должны просачиваться при killswitch off');
+        $this->assertSame('vehicleScreen', $hook['button']['callback_data']);
+    }
+
+    /** Дефолт четвёртого аргумента = true → старое поведение (по уровню/активной машине) сохраняется. */
+    public function testVehicleHookDefaultsToEnabledForBackwardCompatibility(): void
+    {
+        $active = ['icon' => '🚚', 'name' => 'Тележка', 'cells_left' => 42];
+        $hook   = MarchAction::vehicleHookBlock(10, 6, $active);
+
+        $this->assertStringContainsString('42', $hook['line']);
     }
 
     public function testDormantByteIdenticalWhenPointerIsNull(): void

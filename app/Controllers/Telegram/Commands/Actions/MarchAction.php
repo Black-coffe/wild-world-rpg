@@ -139,28 +139,29 @@ class MarchAction extends BaseAction
         $aheadBiome = $aheadInfo['label'];
         $hpEst      = round($n * $pace->healthCostPerCell($this->healthCostPerCell(), $profile), 2);
         $tiredEst   = round($n * $pace->tiredCostPerCell($this->tiredCostPerCell(), $profile), 2);
-        // Скорость = профиль машины (нейтраль = world.march.cells_per_tick клеток за тик,
-        // admin GameSettings; тик = world.march.minutes_per_cell мин, дрожание убрано —
-        // stepDueInterval). ETA считает MarchPaceService — единая точка с
-        // MarchingTaskHandler::etaMinutes() (transport-01/04).
-        $perTick    = $pace->cellsPerTick(max(1, $this->gsInt('world.march.cells_per_tick', 3)), $profile);
-        $minEst     = $pace->etaMinutes($n, $perTick, $this->minutesPerCell());
         $dirLabel   = self::DIR_LABEL[$dir];
 
-        // Разбивка ETA по классу местности впереди по всему заказу (E5/story-04): «Разведано
-        // N по P · целина M по P» — самодостаточна в тексте (media-off, ADR-020), не требует
-        // картинки. Пеший ETA для сравнения — тем же MarchPaceService, нейтральным профилем.
-        $breakdown        = $this->routeBreakdown($characterId, $charCellNumber, $dir, $n, $profile);
-        $pedestrianPerTick = max(1, $this->gsInt('world.march.cells_per_tick', 3));
-        $pedestrianMinEst  = $pace->etaMinutes($n, $pedestrianPerTick, $this->minutesPerCell());
-        $breakdownLine     = $this->breakdownLine($breakdown, $pedestrianMinEst);
+        // Находка 1 (ревью): было ДВА независимых ETA — заголовок по профилю одной клетки
+        // впереди на весь заказ, и сумма ceil() по сегментам разбивки — расходятся системно
+        // (sum(ceil) >= ceil(sum)), врёт даже пешеходу. Теперь ОДНА цифра — `routeBreakdown()`
+        // считает по фактическому пути одним финальным ceil ({@see self::routeEtaMinutes()}),
+        // и заголовок, и разбивка берут её же. Пеший ETA для сравнения — та же функция на
+        // нейтральном профиле (тот же путь, тот же ceil), не отдельный третий расчёт.
+        $profileKey    = is_string($profile['key'] ?? null) ? $profile['key'] : null;
+        $breakdown     = $this->routeBreakdown($characterId, $charCellNumber, $dir, $n, $profileKey);
+        $minEst        = $breakdown['total_minutes'];
+        $pedestrianMinEst = $breakdown['pedestrian_minutes'];
+        $breakdownLine = $this->breakdownLine($breakdown, $pedestrianMinEst);
 
         // Крючок «Транспорт» (story 12, ADR-174 §3): цель видна ВСЕГДА, пока игрок
         // топает пешком — UX-DISCOVERABILITY. Чистая функция builds текст+кнопку,
         // сама сборка активной машины — единственное DB-обращение здесь.
-        $requiredLevel = self::vehicleRequiredLevel();
-        $activeVehicle = $characterLevel >= $requiredLevel ? $this->activeVehicleDisplay($characterId) : null;
-        $hook          = self::vehicleHookBlock($characterLevel, $requiredLevel, $activeVehicle);
+        // Находка 2 (ревью): килсвитч `world.vehicle.enabled` по умолчанию false — крючок
+        // не имеет права обещать эффект, которого сейчас нет ни у кого.
+        $vehicleEnabled = (new VehicleEffectsService())->isEnabled();
+        $requiredLevel  = self::vehicleRequiredLevel();
+        $activeVehicle  = $characterLevel >= $requiredLevel ? $this->activeVehicleDisplay($characterId) : null;
+        $hook           = self::vehicleHookBlock($characterLevel, $requiredLevel, $activeVehicle, $vehicleEnabled);
 
         $text = "🚜 *Поход:* {$dirLabel} ×{$n}\n\n"
             . "Видишь впереди (1 клетка): {$aheadBiome}. Дальше — туман.\n"
@@ -420,11 +421,23 @@ class MarchAction extends BaseAction
      * числа (имя + остаток), а не обещание (acceptance: «числами, которые чувствуются,
      * и только тем, у кого машина есть»).
      *
+     * Находка 2 (ревью): при выключенном килсвитче `world.vehicle.enabled` (default
+     * false) транспорт ни у кого не даёт эффекта (`VehicleEffectsService::profileFor()`
+     * всегда откатывается на нейтраль) — крючок обязан честно сказать это, а не
+     * обещать ускорение/остаток заряда, которых сейчас нет ни у кого.
+     *
      * @param array{icon:string,name:string,cells_left:int}|null $active
      * @return array{line:string, button:array{text:string,callback_data:string}}
      */
-    public static function vehicleHookBlock(int $characterLevel, int $requiredLevel, ?array $active): array
+    public static function vehicleHookBlock(int $characterLevel, int $requiredLevel, ?array $active, bool $vehicleEnabled = true): array
     {
+        if (!$vehicleEnabled) {
+            return [
+                'line'   => '🚚 Транспорт — в разработке, на темп похода пока не влияет.',
+                'button' => ['text' => '🚚 Транспорт', 'callback_data' => 'vehicleScreen'],
+            ];
+        }
+
         if ($characterLevel < $requiredLevel) {
             return [
                 'line'   => "🔒 Транспорт — с {$requiredLevel} уровня (у тебя {$characterLevel})",
@@ -504,7 +517,10 @@ class MarchAction extends BaseAction
         [$dx, $dy] = self::DIRECTIONS[$dir];
         $nx = $this->asInt($cell['coordinate_x'] ?? 0) + $dx;
         $ny = $this->asInt($cell['coordinate_y'] ?? 0) + $dy;
-        if ($nx < 1 || $nx > 1000 || $ny < 1 || $ny > 1000) {
+        // Находка 3 (ревью): границы мира — реальная сетка карты `0..999` (1000×1000,
+        // сверено с `map`), тот же контур, что и `MarchingTaskHandler::terrainAhead()`/
+        // `advanceOneCell()`. Было `1..1000` — расхождение на клетку с обработчиком.
+        if ($nx < 0 || $nx > 999 || $ny < 0 || $ny > 999) {
             return ['label' => 'край мира', 'terrain' => MarchPaceService::TERRAIN_UNEXPLORED];
         }
         $target = $this->fetchRow('SELECT cell_number, biome_id FROM map WHERE coordinate_x = ? AND coordinate_y = ? LIMIT 1', [$nx, $ny]);
@@ -542,13 +558,17 @@ class MarchAction extends BaseAction
      * не тик-цикл — один batched SQL-запрос на весь заказ, не «лишний lookup за клетку»
      * из Non-goal тика (тот адресован `MarchingTaskHandler`, не этому экрану).
      *
-     * @param array<string,mixed> $profile
-     * @return array{segments: array<string, array{count:int, per_tick:int}>, total_minutes:int}
+     * Находка 1 (ревью): `total_minutes`/`pedestrian_minutes` — единственный источник
+     * ETA для всего экрана (заголовок И разбивка И «пешком» берут отсюда), через
+     * {@see self::routeEtaMinutes()}. Раньше заголовок считал отдельно (профиль одной
+     * клетки впереди на весь заказ), а разбивка суммировала ceil() по сегментам —
+     * два независимых числа, системно расходившихся.
+     *
+     * @return array{segments: array<string, array{count:int, per_tick:int}>, total_minutes:int, pedestrian_minutes:int}
      */
-    private function routeBreakdown(int $characterId, int $charCellNumber, string $dir, int $n, array $profile): array
+    private function routeBreakdown(int $characterId, int $charCellNumber, string $dir, int $n, ?string $profileKey): array
     {
-        $profileKey = is_string($profile['key'] ?? null) ? $profile['key'] : null;
-        $empty      = ['segments' => [], 'total_minutes' => 0];
+        $empty = ['segments' => [], 'total_minutes' => 0, 'pedestrian_minutes' => 0];
         $start = $this->fetchRow('SELECT coordinate_x, coordinate_y FROM map WHERE cell_number = ? LIMIT 1', [$charCellNumber]);
         if ($start === null || !isset(self::DIRECTIONS[$dir])) {
             return $empty;
@@ -562,7 +582,8 @@ class MarchAction extends BaseAction
         for ($i = 1; $i <= $n; $i++) {
             $nx = $x + $dx * $i;
             $ny = $y + $dy * $i;
-            if ($nx < 1 || $nx > 1000 || $ny < 1 || $ny > 1000) {
+            // Находка 3 (ревью): те же границы `0..999`, что и aheadInfo()/MarchingTaskHandler.
+            if ($nx < 0 || $nx > 999 || $ny < 0 || $ny > 999) {
                 break;
             }
             $selects[] = 'SELECT ? AS cx, ? AS cy';
@@ -598,26 +619,54 @@ class MarchAction extends BaseAction
             }
         }
 
-        $effects    = new VehicleEffectsService();
-        $pace       = new MarchPaceService();
-        $base       = max(1, $this->gsInt('world.march.cells_per_tick', 3));
-        $minutes    = $this->minutesPerCell();
-        $segments   = [];
-        $totalTicks = 0;
+        $effects           = new VehicleEffectsService();
+        $pace              = new MarchPaceService();
+        $base              = max(1, $this->gsInt('world.march.cells_per_tick', 3));
+        $minutes           = $this->minutesPerCell();
+        $segments          = [];
+        $pedestrianSegments = [];
         foreach ($counts as $terrain => $count) {
             if ($count <= 0) {
                 continue;
             }
-            $perTick             = $pace->cellsPerTick($base, $effects->profileFor($profileKey, $terrain));
-            $segments[$terrain]  = ['count' => $count, 'per_tick' => $perTick];
-            $totalTicks         += (int) ceil($count / max(1, $perTick));
+            $perTick               = $pace->cellsPerTick($base, $effects->profileFor($profileKey, $terrain));
+            $pedestrianPerTick     = $pace->cellsPerTick($base, $effects->neutralProfile());
+            $segments[$terrain]    = ['count' => $count, 'per_tick' => $perTick];
+            $pedestrianSegments[$terrain] = ['count' => $count, 'per_tick' => $pedestrianPerTick];
         }
 
-        return ['segments' => $segments, 'total_minutes' => $totalTicks * $minutes];
+        return [
+            'segments'           => $segments,
+            'total_minutes'      => self::routeEtaMinutes($segments, $minutes),
+            'pedestrian_minutes' => self::routeEtaMinutes($pedestrianSegments, $minutes),
+        ];
     }
 
     /**
-     * @param array{segments: array<string, array{count:int, per_tick:int}>, total_minutes:int} $breakdown
+     * Единственная арифметика ETA маршрута (Находка 1 ревью): сумма ДОЛЕЙ тика по
+     * сегментам местности, ОДИН `ceil()` в конце — не сумма `ceil()` по каждому
+     * сегменту (та схема завышает системно: `ceil(a) + ceil(b) >= ceil(a + b)`).
+     * Чистая функция без БД/GameSettings — тестируется напрямую без бутстрапа.
+     *
+     * @param array<string, array{count:int, per_tick:int}> $segments
+     */
+    public static function routeEtaMinutes(array $segments, int $minutesPerCell): int
+    {
+        if ($segments === []) {
+            return 0;
+        }
+        $ticksExact = 0.0;
+        foreach ($segments as $seg) {
+            $count   = max(0, (int) $seg['count']);
+            $perTick = max(1, (int) $seg['per_tick']);
+            $ticksExact += $count / $perTick;
+        }
+
+        return (int) ceil($ticksExact) * max(1, $minutesPerCell);
+    }
+
+    /**
+     * @param array{segments: array<string, array{count:int, per_tick:int}>, total_minutes:int, pedestrian_minutes:int} $breakdown
      */
     private function breakdownLine(array $breakdown, int $pedestrianMinutes): string
     {
