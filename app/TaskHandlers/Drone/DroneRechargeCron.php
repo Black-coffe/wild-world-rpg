@@ -11,9 +11,9 @@ use App\Models\CraftedItemsModel;
 use App\Services\Player\DroneService;
 
 /**
- * W2 (ADR-058) + W3b (ADR-060) + W4 (ADR-063) + W5 (ADR-064) — recharge cron для
- * всех типов дронов (scout + cargo + repair + combat). Запускается every minute
- * (Tasks.php singleInstance).
+ * W2 (ADR-058) + W3b (ADR-060) + W4 (ADR-063) + W5 (ADR-064) + ADR-174/transport-17 —
+ * recharge cron для всех типов дронов (scout + cargo + repair + combat + транспортный
+ * AutonomousDrone). Запускается every minute (Tasks.php singleInstance).
  * Для каждого характера, чьи дроны не на полном заряде И сам персонаж
  * сейчас на своей базе — увеличиваем durability_count у его drone-log-row
  * на (rate × interval_minutes), clamp battery_max.
@@ -87,6 +87,15 @@ class DroneRechargeCron
                 'enabled'  => $this->service->combatIsEnabled(),
                 'max'      => $this->service->combatBatteryMax(),
                 'rate'     => $this->service->combatChargeRatePerMinute(),
+            ],
+            [
+                // ADR-174 (story transport-17) — «зависимость от энергии»
+                // Инженеров: транспортный дрон заряжается на базе, а не чинится
+                // как остальные машины. Пятый тип, тот же контракт.
+                'name_eng' => 'AutonomousDrone',
+                'enabled'  => $this->service->droneAutoIsEnabled(),
+                'max'      => $this->service->droneAutoBatteryMax(),
+                'rate'     => $this->service->droneAutoChargeRatePerMinute(),
             ],
         ];
 

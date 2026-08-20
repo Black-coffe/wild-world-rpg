@@ -501,6 +501,65 @@ final class DroneService
     }
 
     // ──────────────────────────────────────────────────────────────────
+    // ADR-174 (story transport-17) — AutonomousDrone (Инженеры) recharge
+    // extension. Killswitch общий с транспортом (`world.vehicle.enabled`),
+    // отдельного `drone.drone_auto.enabled` не заводим: дрон-транспорт
+    // существует только пока включена транспортная система целиком. Max
+    // переиспользует уже посеянный `world.vehicle.drone_auto.charges_full`
+    // (story transport-02) — второго источника правды не заводим.
+    // ──────────────────────────────────────────────────────────────────
+
+    /**
+     * Killswitch зарядки транспортного дрона — общий тумблер транспорта.
+     * false → DroneRechargeCron пропускает AutonomousDrone-инстансы целиком
+     * (транспорт выключен целиком, а не только зарядка).
+     */
+    public function droneAutoIsEnabled(): bool
+    {
+        $v = $this->settings->get('world.vehicle.enabled', false);
+        if (is_bool($v)) {
+            return $v;
+        }
+        if (is_numeric($v)) {
+            return (int) $v === 1;
+        }
+        return in_array(strtolower((string) $v), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    /**
+     * Макс. заряд транспортного дрона — переиспользует `world.vehicle.drone_auto.
+     * charges_full` (story transport-02, на проде 350). Второго источника правды
+     * не заводим: то же значение, к которому VehicleActivationService зажимает
+     * текущий заряд машины.
+     */
+    public function droneAutoBatteryMax(): int
+    {
+        $v = $this->settings->get('world.vehicle.drone_auto.charges_full', 350);
+        return is_numeric($v) && (int) $v >= 1 ? (int) $v : 350;
+    }
+
+    /**
+     * Charge per minute для транспортного дрона. В отличие от остальных
+     * четырёх дронов ставка хранится напрямую (а не как base_charge_minutes_
+     * per_full → computed): «минут до полного» для транспорта нигде не
+     * существовало до этой story, заводить его как промежуточную величину
+     * было бы лишней абстракцией. DroneRechargeCron читает этот метод пятым
+     * типом по общему контракту (enabled/max/rate).
+     */
+    public function droneAutoChargeRatePerMinute(): float
+    {
+        $v = $this->settings->get('world.vehicle.drone_auto.charge_per_minute', 1.2);
+        if (! is_numeric($v)) {
+            return 1.2;
+        }
+
+        // В отличие от isEnabled/batteryMax здесь НЕ подстраховываем ≤0 дефолтом:
+        // DroneRechargeCron сам гейтит `rate <= 0.0 → continue` (тот же контракт, что
+        // у остальных четырёх дронов, где ставка = 0 при base_charge_minutes_per_full=0).
+        return (float) $v;
+    }
+
+    // ──────────────────────────────────────────────────────────────────
     // W5 (ADR-064) — Caravan drone-offer helpers. Симметричное чтение
     // per-type chance + markup. SpawnCaravanCron rolls через эти helper'ы.
     // ──────────────────────────────────────────────────────────────────
