@@ -11,6 +11,8 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 use Config\Services;
+use Longman\TelegramBot\Entities\CallbackQuery;
+use Longman\TelegramBot\Telegram;
 use ReflectionClass;
 
 /**
@@ -43,7 +45,7 @@ final class VehicleCraftWiringTest extends CIUnitTestCase
 
     private const TABLES = [
         'tasks', 'character_tasks', 'crafted_items', 'crafted_items_log',
-        'characters', 'telegram_users',
+        'characters', 'telegram_users', 'game_settings',
     ];
 
     private \CodeIgniter\Database\BaseConnection $conn;
@@ -51,6 +53,14 @@ final class VehicleCraftWiringTest extends CIUnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        if (! defined('PHPUNIT_TESTSUITE')) {
+            define('PHPUNIT_TESTSUITE', true);
+        }
+        // Штатная фейковая инициализация Request — без неё Request::send() падает
+        // на null Telegram-инстансе (паттерн VehicleRepairTest).
+        new Telegram('123456:TEST-fake-token-for-tests', 'test_bot');
+
         $this->conn = Database::connect('tests');
 
         foreach (self::TABLES as $t) {
@@ -122,6 +132,7 @@ final class VehicleCraftWiringTest extends CIUnitTestCase
         $this->conn->query('
             CREATE TABLE characters (
                 id INT AUTO_INCREMENT PRIMARY KEY,
+                telegram_user_id INT NULL,
                 agility DECIMAL(10,2) NOT NULL DEFAULT 0,
                 intellect DECIMAL(10,2) NOT NULL DEFAULT 0,
                 level INT NOT NULL DEFAULT 1
@@ -133,6 +144,22 @@ final class VehicleCraftWiringTest extends CIUnitTestCase
                 telegram_id BIGINT NULL
             )
         ');
+        $this->conn->query('
+            CREATE TABLE game_settings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                setting_key VARCHAR(191) NOT NULL,
+                category VARCHAR(64) NULL,
+                value_type VARCHAR(16) NULL,
+                value_int INT NULL,
+                value_float DECIMAL(15,5) NULL,
+                value_bool TINYINT NULL,
+                value_string TEXT NULL,
+                hard_min VARCHAR(32) NULL,
+                hard_max VARCHAR(32) NULL
+            )
+        ');
+        // Пусто: VehicleEffectsService::isEnabled() падает на дефолт
+        // world.vehicle.enabled=false — тот же дефолт, что на проде без ручной правки.
     }
 
     // ── 1) Слот: строка `tasks` обязана нести type=\'craft\' ────────────────
@@ -306,6 +333,52 @@ final class VehicleCraftWiringTest extends CIUnitTestCase
 
         $rows = $this->invokeShowcaseButtons($action, false);
         $this->assertSame([], $rows, 'выключенный килсвитч обязан убрать все кнопки крафта машины');
+    }
+
+    // ── 5) Регресс прода: CraftedResourcesAction::reply() падал TypeError на CharacterEntity ──
+
+    /**
+     * 108 срабатываний на проде: `CharacterModel::find()`/`->first()` отдаёт
+     * `CharacterEntity`, а `reply(string, string, array $character)` требовал строгий
+     * `array` — `TypeError` на КАЖДОМ открытии экрана «Крафтовые ресурсы». Тест идёт
+     * РЕАЛЬНЫМ путём (реальный `CallbackQuery`, реальный `handle()`), как
+     * `VehicleRepairTest` — красный на коде с `array $character`, зелёный после
+     * `array|CharacterEntity $character`.
+     */
+    public function testHandleAssemblesScreenWhenCharacterModelReturnsEntity(): void
+    {
+        $tgId = 222001;
+        $this->conn->table('telegram_users')->insert(['telegram_id' => $tgId]);
+        $tgUserId = (int) $this->conn->insertID();
+
+        $this->conn->table('characters')->insert([
+            'telegram_user_id' => $tgUserId,
+            'level'             => 20,
+        ]);
+
+        // characterModel->where(...)->first() отдаёт CharacterEntity (returnType модели) —
+        // никакого array-приведения в проде между БД и `reply()` нет.
+        $action = new CraftedResourcesAction($this->callbackQuery($tgId, 'resourcesCrafting'));
+        $response = $action->handle();
+
+        $this->assertTrue($response->isOk(), 'экран «Крафтовые ресурсы» обязан собраться для CharacterEntity');
+    }
+
+    /** Настоящий CallbackQuery — как из реального вебхука клика по кнопке. */
+    private function callbackQuery(int $tgId, string $data): CallbackQuery
+    {
+        return new CallbackQuery([
+            'id'   => 'cbq_1',
+            'from' => ['id' => $tgId, 'is_bot' => false, 'first_name' => 'Тест'],
+            'message' => [
+                'message_id' => 1,
+                'date'       => time(),
+                'chat'       => ['id' => $tgId, 'type' => 'private'],
+                'text'       => 'placeholder',
+            ],
+            'chat_instance' => 'ci_1',
+            'data'          => $data,
+        ]);
     }
 
     private function newCraftedResourcesActionWithoutConstructor(): CraftedResourcesAction

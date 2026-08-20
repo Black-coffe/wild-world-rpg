@@ -2,6 +2,7 @@
 
 namespace App\Controllers\Telegram\Commands\Actions;
 
+use App\Entities\CharacterEntity;
 use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Models\CraftedItemsLogModel;
@@ -223,9 +224,15 @@ class CraftedResourcesAction extends BaseAction
     }
 
     /**
-     * @param array<string,mixed> $character
+     * Тип параметра — `array|CharacterEntity`, а не `array`: `getUserAndCharacter()` отдаёт
+     * Entity (108 TypeError на проде до этой правки), а строгий `array` рвётся на живом
+     * вызове, которого не видно ни в unit-тестах, ни в phpstan (метод-источник не
+     * типизирован). Entity реализует ArrayAccess, поэтому `$character['id']`/`['level']`
+     * работают для обеих форм без дополнительной нормализации (паттерн — SellCraftItemListAction).
+     *
+     * @param array<string,mixed>|CharacterEntity $character
      */
-    private function reply(string $text, string $mode, array $character): ServerResponse
+    private function reply(string $text, string $mode, array|CharacterEntity $character): ServerResponse
     {
         $sortRow = [];
         foreach ([
@@ -297,9 +304,9 @@ class CraftedResourcesAction extends BaseAction
      * наступит. Названия машин остаются видимыми (UX-DISCOVERABILITY: скрытый вход —
      * баг), но без уровня/фракции — при выключенной системе это не имеет смысла.
      *
-     * @param array<string,mixed> $character
+     * @param array<string,mixed>|CharacterEntity $character
      */
-    private function transportShowcaseText(array $character, bool $vehicleEnabled): string
+    private function transportShowcaseText(array|CharacterEntity $character, bool $vehicleEnabled): string
     {
         if (!$vehicleEnabled) {
             $lines = ["🚚 *Транспорт* — раздел ещё не открыт:\n"];
