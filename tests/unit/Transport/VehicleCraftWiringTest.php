@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Transport;
 
+use App\Controllers\Telegram\Commands\Actions\CraftedResourcesAction;
 use App\Controllers\Worker;
 use App\TaskHandlers\Craft\GenericCraftCompletionHandler;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -264,6 +265,82 @@ final class VehicleCraftWiringTest extends CIUnitTestCase
 
         $updatedTask = $this->conn->table('character_tasks')->where('id', $charTaskId)->get()->getRowArray();
         $this->assertSame('completed', $updatedTask['status'], 'Задача осталась в in_work — крафт не довёлся до конца');
+    }
+
+    // ── 4) Ревью-находка (MAJOR): килсвитч гасит дверь, а не только эффект ─────
+
+    /**
+     * Килсвитч ВКЛЮЧЁН → витрина «🚚 Транспорт» ведёт себя ровно как сегодня:
+     * живые кнопки крафта, разблокированный статус в тексте.
+     */
+    public function testTransportShowcaseIsLiveWhenKillswitchEnabled(): void
+    {
+        $action    = $this->newCraftedResourcesActionWithoutConstructor();
+        $character = ['id' => 0, 'level' => 20];
+
+        $text = $this->invokeShowcaseText($action, $character, true);
+        $this->assertStringContainsString('🔓 🛒 Лёгкая повозка', $text, 'при включённом килсвитче доступная машина обязана быть 🔓');
+        $this->assertStringNotContainsString('ещё не открыт', $text, 'включённый килсвитч не должен показывать честную заглушку');
+
+        $rows = $this->invokeShowcaseButtons($action, true);
+        $flat = array_merge(...$rows);
+        $this->assertCount(5, $flat, 'при включённом килсвитче все 5 кнопок крафта живые');
+        $this->assertSame('genericCraft_LightCart_1', $flat[0]['callback_data']);
+    }
+
+    /**
+     * Килсвитч ВЫКЛЮЧЕН → ни одной рабочей кнопки крафта машины и ни одной
+     * строки, обещающей эффект (иначе игрок тратит ресурсы на бонус, который
+     * никогда не наступит — VehicleEffectsService::profileFor() всегда нейтрален).
+     */
+    public function testTransportShowcaseHasNoLiveCraftAndNoEffectPromiseWhenKillswitchDisabled(): void
+    {
+        $action    = $this->newCraftedResourcesActionWithoutConstructor();
+        $character = ['id' => 0, 'level' => 20];
+
+        $text = $this->invokeShowcaseText($action, $character, false);
+        $this->assertStringContainsString('ещё не открыт', $text, 'выключенный килсвитч обязан честно сказать «ещё не открыт»');
+        $this->assertStringNotContainsString('🔓', $text, 'выключенный килсвитч не должен показывать разблокированные машины');
+        $this->assertStringNotContainsString('скоро', $text, 'заглушка не обещает сроков, которых никто не давал');
+        $this->assertStringNotContainsString('уровня', $text, 'выключенный килсвитч не должен упоминать level-gate — фича вообще недоступна');
+
+        $rows = $this->invokeShowcaseButtons($action, false);
+        $this->assertSame([], $rows, 'выключенный килсвитч обязан убрать все кнопки крафта машины');
+    }
+
+    private function newCraftedResourcesActionWithoutConstructor(): CraftedResourcesAction
+    {
+        $refl = new ReflectionClass(CraftedResourcesAction::class);
+
+        return $refl->newInstanceWithoutConstructor();
+    }
+
+    /**
+     * @param array<string,mixed> $character
+     */
+    private function invokeShowcaseText(CraftedResourcesAction $action, array $character, bool $vehicleEnabled): string
+    {
+        $method = (new ReflectionClass($action))->getMethod('transportShowcaseText');
+        $method->setAccessible(true);
+
+        /** @var string $result */
+        $result = $method->invoke($action, $character, $vehicleEnabled);
+
+        return $result;
+    }
+
+    /**
+     * @return list<list<array{text:string,callback_data:string}>>
+     */
+    private function invokeShowcaseButtons(CraftedResourcesAction $action, bool $vehicleEnabled): array
+    {
+        $method = (new ReflectionClass($action))->getMethod('transportShowcaseButtonRows');
+        $method->setAccessible(true);
+
+        /** @var list<list<array{text:string,callback_data:string}>> $result */
+        $result = $method->invoke($action, $vehicleEnabled);
+
+        return $result;
     }
 
     /**

@@ -8,6 +8,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Services\Notifications\MediaSender;
 use App\Services\Player\InventorySortService;
+use App\Services\World\VehicleEffectsService;
 use Config\Database;
 
 class CraftedResourcesAction extends BaseAction
@@ -242,7 +243,14 @@ class CraftedResourcesAction extends BaseAction
         // только когда у игрока уже что-то есть на полке «🚚 Транспорт»), иначе
         // рецепты остаются недостижимыми до первого владения (правило
         // UX-DISCOVERABILITY: скрытый вход без ADR — баг, а не дизайн).
-        $text .= "\n" . $this->transportShowcaseText($character);
+        //
+        // Ревью-находка (MAJOR): килсвитч `world.vehicle.enabled` гасит только эффект
+        // в VehicleEffectsService::profileFor(), а витрина рисовалась безусловно —
+        // игрок тратил ресурсы на крафт и читал обещание темпа, которое никогда не
+        // сбывалось (килсвитч, не закрывающий вход, усиливает баг вместо страховки).
+        // Тот же источник правды, что и у самого эффекта — не дублируем ключ настройки.
+        $vehicleEnabled = (new VehicleEffectsService())->isEnabled();
+        $text .= "\n" . $this->transportShowcaseText($character, $vehicleEnabled);
 
         // S5b (v0.51.188+): кнопка ремонта изношенных инструментов.
         // drone-discoverability #01: игрок видел «📦 Дрон-разведчик» на полке
@@ -252,7 +260,7 @@ class CraftedResourcesAction extends BaseAction
         $keyboard = [
             'inline_keyboard' => array_merge(
                 [$sortRow],
-                $this->transportShowcaseButtonRows(),
+                $this->transportShowcaseButtonRows($vehicleEnabled),
                 [
                     [
                         ['text' => '🔧 Ремонт инструментов', 'callback_data' => 'repairToolsList'],
@@ -282,10 +290,25 @@ class CraftedResourcesAction extends BaseAction
      * transport-07: текст витрины — пять машин показаны ЛЮБОМУ игроку, недоступные
      * несут 🔒 с причиной и путём («нужна фракция X — ты Y», «с N уровня — у тебя M»).
      *
+     * Ревью-находка (MAJOR): при выключенном килсвитче `world.vehicle.enabled` эффект
+     * машины всегда нейтральный ({@see VehicleEffectsService::profileFor()}) — витрина
+     * обязана честно сказать «раздел ещё не открыт» и не сулить темп, который не
+     * наступит. Названия машин остаются видимыми (UX-DISCOVERABILITY: скрытый вход —
+     * баг), но без уровня/фракции — при выключенной системе это не имеет смысла.
+     *
      * @param array<string,mixed> $character
      */
-    private function transportShowcaseText(array $character): string
+    private function transportShowcaseText(array $character, bool $vehicleEnabled): string
     {
+        if (!$vehicleEnabled) {
+            $lines = ["🚚 *Транспорт* — раздел ещё не открыт:\n"];
+            foreach (self::TRANSPORT_VEHICLES as $vehicle) {
+                $lines[] = "🔒 {$vehicle['label']} — крафт машин пока недоступен";
+            }
+
+            return implode("\n", $lines);
+        }
+
         $level     = is_numeric($character['level'] ?? null) ? (int) $character['level'] : 0;
         $charIdRaw = $character['id'] ?? null;
         $charId    = is_numeric($charIdRaw) ? (int) $charIdRaw : 0;
@@ -317,10 +340,17 @@ class CraftedResourcesAction extends BaseAction
      * одиночных кнопок в строке). Кнопка живая для всех — недоступные отклонит
      * сам `GenericCraftActionStart` тем же гейтом, что читает статус выше.
      *
+     * Ревью-находка (MAJOR): при выключенном килсвитче кнопки не выводятся вовсе —
+     * живая кнопка вела бы к реальному крафту без единого шанса на эффект.
+     *
      * @return list<list<array{text:string,callback_data:string}>>
      */
-    private function transportShowcaseButtonRows(): array
+    private function transportShowcaseButtonRows(bool $vehicleEnabled): array
     {
+        if (!$vehicleEnabled) {
+            return [];
+        }
+
         $buttons = [];
         foreach (self::TRANSPORT_VEHICLES as $vehicle) {
             $buttons[] = ['text' => $vehicle['label'], 'callback_data' => $vehicle['callback']];
