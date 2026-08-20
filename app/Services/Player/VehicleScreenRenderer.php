@@ -157,9 +157,12 @@ final class VehicleScreenRenderer
     }
 
     /**
-     * Ноль одиночек в ряду: 2–3 кнопки на ряд. Копия правила
-     * `CharacterService::packButtonRows()` — тот приватный и static на другом
-     * классе, дублировать вызов нельзя, логика короткая и стабильная.
+     * Ноль одиночек в ряду: 2–3 кнопки на ряд. Ревью-находка M6 (2026-08-20):
+     * дублирует `CharacterService::packButtonRows()` — но тот метод `private static`
+     * на чужом классе вне списка файлов этой правки, вызвать его отсюда нельзя без
+     * правки CharacterService.php (не наш файл в этой задаче). Централизация требует
+     * либо сделать общий метод `public`, либо вынести в отдельный shared-сервис —
+     * оставлено как CONCERNS для отдельной правки.
      *
      * @param  list<array<string,string>>       $flat
      * @return list<list<array<string,string>>>

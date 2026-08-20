@@ -72,7 +72,9 @@ class VehicleAction extends BaseAction
         $charId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
 
         if ($action === 'vehicleActivate') {
-            $this->activate($charId, (int) ($parts[1] ?? 0));
+            if (! $this->activate($charId, (int) ($parts[1] ?? 0))) {
+                return $this->activationFailed($chatId);
+            }
         } elseif ($action === 'vehicleDeactivate') {
             (new VehicleActivationService())->deactivate($charId);
         } elseif ($action === 'vehicleLockInfo') {
@@ -86,14 +88,52 @@ class VehicleAction extends BaseAction
         return $this->screen($chatId, $character);
     }
 
-    private function activate(int $charId, int $logId): void
+    /**
+     * @return bool true — активация прошла; false — строка не найдена, чужая или
+     *              `logId` некорректен (VehicleActivationService сам держит анти-IDOR).
+     */
+    private function activate(int $charId, int $logId): bool
     {
         if ($logId <= 0) {
-            return;
+            return false;
         }
-        // Чужая/несуществующая строка → false без записи — VehicleActivationService
-        // сам держит анти-IDOR, экрану достаточно позвать метод и отрисовать факт.
-        (new VehicleActivationService())->activate($charId, $logId);
+
+        return (new VehicleActivationService())->activate($charId, $logId);
+    }
+
+    /**
+     * Ревью-находка M7: раньше провал активации (кнопка из старого сообщения —
+     * машина продана/разобрана/чужая) молча перерисовывал тот же экран, и игрок не
+     * понимал, что не сработало. Текст объясняет причину без паники: обычная
+     * ситуация с устаревшей кнопкой, а не ошибка.
+     */
+    private function activationFailed(int|string $chatId): ServerResponse
+    {
+        return Request::sendMessage([
+            'chat_id'      => $chatId,
+            'text'         => self::activationFailedText(),
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode([
+                'inline_keyboard' => [[
+                    ['text' => '🚚 Мой транспорт', 'callback_data' => 'vehicleScreen'],
+                ]],
+            ]),
+        ]);
+    }
+
+    /**
+     * Чистая render-функция текста провала активации, покрыта
+     * {@see \Tests\Unit\Transport\VehicleScreenRenderTest}. Одна и та же формулировка
+     * годится на все три причины провала (нет строки / чужая строка / некорректный
+     * id) — экран не различает их между собой (анти-IDOR не должен палить, что
+     * именно не так с чужим `logId`), но игроку в любом случае нужен один и тот же
+     * следующий шаг: открыть актуальный гараж.
+     */
+    public static function activationFailedText(): string
+    {
+        return "🚚 *Не вышло активировать*\n\n"
+            . 'Похоже, кнопка из старого сообщения — эта машина уже недоступна '
+            . '(продана, разобрана или это была не твоя). Открой актуальный гараж ниже.';
     }
 
     /**

@@ -408,4 +408,35 @@ final class VehicleScreenRenderTest extends CIUnitTestCase
 
         $this->assertSame(0, $savings, 'килсвитч world.vehicle.enabled=false — окупаемость всегда 0');
     }
+
+    // ── Ревью-находка M7: провал `vehicleActivate_<id>` больше не молчит ─────
+
+    public function testActivationFailedTextExplainsStaleButtonWithoutPanic(): void
+    {
+        $text = VehicleAction::activationFailedText();
+
+        $this->assertStringContainsString('старого сообщения', mb_strtolower($text));
+        $this->assertStringContainsString('гараж', mb_strtolower($text));
+        $this->assertSame(0, substr_count($text, '*') % 2, 'непарная * роняет Legacy Markdown отправку молча');
+        $this->assertLessThanOrEqual(1024, mb_strlen($text));
+    }
+
+    /**
+     * `activate()` не читает `$this` вовсе (вся анти-IDOR-логика — в
+     * `VehicleActivationService`), поэтому `logId<=0` проверяется без сборки
+     * `VehicleAction` (конструктор требует `CallbackQuery`) — через
+     * `newInstanceWithoutConstructor()`. Некорректный id отсекается ДО обращения
+     * к БД и возвращает `false`, что и приводит к тексту `activationFailedText()`
+     * выше — та же причина провала, что «нет строки» и «чужая строка» дают из
+     * `VehicleActivationService::activate()`.
+     */
+    public function testActivateReturnsFalseForNonPositiveLogIdWithoutTouchingDb(): void
+    {
+        $action = (new \ReflectionClass(VehicleAction::class))->newInstanceWithoutConstructor();
+        $method = new ReflectionMethod(VehicleAction::class, 'activate');
+        $method->setAccessible(true);
+
+        $this->assertFalse($method->invoke($action, 1, 0));
+        $this->assertFalse($method->invoke($action, 1, -5));
+    }
 }
