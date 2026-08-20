@@ -125,6 +125,18 @@ class OnboardingHintCatalog
     public const BEACON_CRAFTED = 'beacon_crafted';
 
     /**
+     * Транспорт (story 12, ADR-174 §3) — just-in-time подсказка на ПЕРВОМ длинном
+     * Походе (порог — `MarchAction::LONG_MARCH_HINT_THRESHOLD_CELLS`): напоминает,
+     * что длинные переходы можно ускорить машиной, и куда за ней идти. БЕЗ конкретных
+     * обещанных минут — этот текст видят все, а не только владельцы машины (числа,
+     * которые чувствуются, показывает сам экран Похода тому, у кого машина реально
+     * активна — см. `MarchAction::vehicleHookBlock()`). БЕЗ level-ceiling: длинный
+     * Поход можно запустить и до 6 уровня. Лимитер — one-shot + killswitch + opt-out
+     * (внутри {@see OnboardingHintService::maybeSend}).
+     */
+    public const FIRST_LONG_MARCH = 'first_long_march';
+
+    /**
      * @return array{text: string, reply_markup?: string}|null
      */
     public static function get(string $key): ?array
@@ -313,6 +325,20 @@ class OnboardingHintCatalog
                     . "показателями Поход идёт тем же темпом.\n"
                     . "• Кончится выносливость — отряд встанет на привал раньше срока.\n\n"
                     . "_Кнопка «➕ Продлить» добавит клеток на ходу, «❌ Остановиться» — прервёт поход в любой момент._",
+            ],
+            self::FIRST_LONG_MARCH => [
+                'text' => "🚚 *Длинные переходы можно ускорить*\n\n"
+                    . "Если в Походе часто набегаешь много клеток — присмотрись к транспорту: активная "
+                    . "машина заметно шустрее идёт по уже разведанной земле, а без неё Поход всегда идёт "
+                    . "пешим темпом.\n\n"
+                    . "Собирается в *«🔨 Крафт»* → *«🚚 Транспорт»* — самая простая и дешёвая машина, "
+                    . "*Лёгкая повозка*, доступна всем с 6 уровня. Уже собрал? Активируй её на экране "
+                    . "*«🚚 Мой транспорт»*.",
+                'reply_markup' => json_encode([
+                    'inline_keyboard' => [[
+                        ['text' => '🚚 Транспорт', 'callback_data' => 'resourcesCrafting'],
+                    ]],
+                ], JSON_THROW_ON_ERROR),
             ],
         ];
     }

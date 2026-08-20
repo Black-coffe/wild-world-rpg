@@ -8,6 +8,7 @@ use App\Services\World\MarchPaceService;
 use App\Services\World\TextMapService;
 use App\Services\World\VehicleEffectsService;
 use CodeIgniter\Database\BaseResult;
+use Config\CraftRecipes;
 use Config\Database;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
@@ -43,6 +44,15 @@ class MarchAction extends BaseAction
         'southeast' => [1, 1],
     ];
 
+    /**
+     * Порог «длинного» Похода для JIT-подсказки про транспорт (story 12): не баланс
+     * (не влияет на цену/вероятность/формулу боя — только на то, ПОКАЗЫВАЕМ ли
+     * одноразовую подсказку), поэтому остаётся кодовой константой, а не GameSettings.
+     * Значение — из «чувствуемого» примера концепта (`concept-final.md` §3): «Поход
+     * в 10 клеток».
+     */
+    private const LONG_MARCH_HINT_THRESHOLD_CELLS = 10;
+
     /** @var array<string, string> */
     private const DIR_LABEL = [
         'north'     => '⬆️ Север',
@@ -66,12 +76,13 @@ class MarchAction extends BaseAction
             return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Пользователь не найден.']);
         }
         $telegramUserId = $this->asInt($userRow['id'] ?? 0);
-        $charRow        = $this->fetchRow('SELECT id, cell_number FROM characters WHERE telegram_user_id = ? LIMIT 1', [$telegramUserId]);
+        $charRow        = $this->fetchRow('SELECT id, cell_number, level FROM characters WHERE telegram_user_id = ? LIMIT 1', [$telegramUserId]);
         if ($charRow === null) {
             return Request::sendMessage(['chat_id' => $chatId, 'text' => 'Персонаж не найден.']);
         }
         $characterId   = $this->asInt($charRow['id'] ?? 0);
         $charCellNumber = $this->asInt($charRow['cell_number'] ?? 0);
+        $characterLevel = $this->asInt($charRow['level'] ?? 0);
 
         $data  = (string) $this->callbackQuery->getData();
         $parts = explode('_', $data);
@@ -86,7 +97,7 @@ class MarchAction extends BaseAction
             return $this->startMarch($characterId, $telegramUserId, $charCellNumber, (string) $parts[2], (int) $parts[3], $chatId);
         }
         if (count($parts) === 3 && isset(self::DIRECTIONS[$parts[1]])) {
-            return $this->showRouteSetup($characterId, $charCellNumber, (string) $parts[1], (int) $parts[2], $chatId);
+            return $this->showRouteSetup($characterId, $charCellNumber, (string) $parts[1], (int) $parts[2], $chatId, $characterLevel);
         }
         return $this->showDirectionPicker($characterId, $chatId);
     }
@@ -111,7 +122,7 @@ class MarchAction extends BaseAction
         return $this->editOrSendText($chatId, $text, $keyboard);
     }
 
-    private function showRouteSetup(int $characterId, int $charCellNumber, string $dir, int $n, int $chatId): ServerResponse
+    private function showRouteSetup(int $characterId, int $charCellNumber, string $dir, int $n, int $chatId, int $characterLevel): ServerResponse
     {
         if (!isset(self::DIRECTIONS[$dir])) {
             return $this->showDirectionPicker($characterId, $chatId);
@@ -144,6 +155,13 @@ class MarchAction extends BaseAction
         $pedestrianMinEst  = $pace->etaMinutes($n, $pedestrianPerTick, $this->minutesPerCell());
         $breakdownLine     = $this->breakdownLine($breakdown, $pedestrianMinEst);
 
+        // Крючок «Транспорт» (story 12, ADR-174 §3): цель видна ВСЕГДА, пока игрок
+        // топает пешком — UX-DISCOVERABILITY. Чистая функция builds текст+кнопку,
+        // сама сборка активной машины — единственное DB-обращение здесь.
+        $requiredLevel = self::vehicleRequiredLevel();
+        $activeVehicle = $characterLevel >= $requiredLevel ? $this->activeVehicleDisplay($characterId) : null;
+        $hook          = self::vehicleHookBlock($characterLevel, $requiredLevel, $activeVehicle);
+
         $text = "🚜 *Поход:* {$dirLabel} ×{$n}\n\n"
             . "Видишь впереди (1 клетка): {$aheadBiome}. Дальше — туман.\n"
             . "В пути возможно (поход тогда прервётся, ты решишь):\n"
@@ -156,7 +174,8 @@ class MarchAction extends BaseAction
             . "Расход ≈ ❤️{$hpEst}  💤{$tiredEst}  ·  в пути ~{$minEst} мин\n"
             . ($breakdownLine !== '' ? "{$breakdownLine}\n" : '')
             . "_Отряд идёт сам и довольно шустро — темп от ❤️/💤 не зависит "
-            . "(они лишь топливо в пути), но зависит от активного транспорта._";
+            . "(они лишь топливо в пути), но зависит от активного транспорта._\n\n"
+            . $hook['line'];
 
         $minus = max(1, $n - 1);
         $plus  = min($n + 5, max(1, $this->asInt($profile['max_steps_per_order'] ?? 60, 60)));
@@ -170,6 +189,7 @@ class MarchAction extends BaseAction
             [
                 ['text' => '🧭 Другое направление', 'callback_data' => 'march'],
                 ['text' => '↩️ Назад', 'callback_data' => 'move'],
+                $hook['button'],
             ],
         ];
         return $this->editOrSendText($chatId, $text, $keyboard);
@@ -223,6 +243,29 @@ class MarchAction extends BaseAction
             (new \App\Services\Onboarding\OnboardingHintService())->maybeSendFirstMarchHint($characterId, $chatId);
         } catch (\Throwable $e) {
             log_message('error', '[MarchAction] first-march hint: ' . $e->getMessage());
+        }
+
+        // JIT-подсказка про транспорт (story 12) — при ПЕРВОМ ДЛИННОМ Походе (one-shot).
+        // Зовём public maybeSend() каталога напрямую: генерик-метод не заводит гейта
+        // по уровню (длинный Поход можно запустить и до 6 ур.). Defensive — как выше.
+        if ($n >= self::LONG_MARCH_HINT_THRESHOLD_CELLS) {
+            try {
+                $hintRow = $this->fetchRow('SELECT id, daily_tips_enabled FROM characters WHERE id = ? LIMIT 1', [$characterId]);
+                if ($hintRow !== null) {
+                    /** @var array<string, mixed> $hintCharacter */
+                    $hintCharacter = [
+                        'id'                 => $this->asInt($hintRow['id'] ?? 0),
+                        'daily_tips_enabled' => $hintRow['daily_tips_enabled'] ?? 1,
+                    ];
+                    (new \App\Services\Onboarding\OnboardingHintService())->maybeSend(
+                        $hintCharacter,
+                        $chatId,
+                        \App\Services\Onboarding\OnboardingHintCatalog::FIRST_LONG_MARCH
+                    );
+                }
+            } catch (\Throwable $e) {
+                log_message('error', '[MarchAction] first-long-march hint: ' . $e->getMessage());
+            }
         }
 
         $map     = $this->renderMap($characterId);
@@ -323,6 +366,86 @@ class MarchAction extends BaseAction
             return $effects->neutralProfile();
         }
         return $effects->profileFor($vehicleKey, $terrain);
+    }
+
+    /**
+     * Требуемый уровень общего транспорта (крючок читает его из рецепта каталога
+     * `Config\CraftRecipes`, а не хардкодит число второй раз — единый источник правды
+     * с `VehicleAction::lockInfo()`/крафт-витриной story 07).
+     */
+    private static function vehicleRequiredLevel(): int
+    {
+        $recipe = (new CraftRecipes())->get('LightCart');
+
+        return is_numeric($recipe['required_level'] ?? null) ? (int) $recipe['required_level'] : 6;
+    }
+
+    /**
+     * Активная машина для крючка (story 12): имя/иконка — `Config\CraftRecipes`,
+     * остаток износа в клетках — то же чтение GameSettings, что `VehicleAction::buildState()`
+     * (`world.vehicle.<key>.{charges_full,wear_per_cell}`). null — если машины нет.
+     *
+     * @return array{icon:string,name:string,cells_left:int}|null
+     */
+    private function activeVehicleDisplay(int $characterId): ?array
+    {
+        $resolved = (new VehicleActivationService())->resolveActive($characterId);
+        if ($resolved === null) {
+            return null;
+        }
+        $vehicleKey  = VehicleEffectsService::keyForItemNameEng($resolved['key']);
+        $chargesFull = $vehicleKey !== null ? $this->gsInt("world.vehicle.{$vehicleKey}.charges_full", $resolved['charges']) : $resolved['charges'];
+        $wearPerCell = $vehicleKey !== null ? $this->gsInt("world.vehicle.{$vehicleKey}.wear_per_cell", 1) : 1;
+        $cellsLeft   = $wearPerCell > 0 ? intdiv($resolved['charges'], $wearPerCell) : $resolved['charges'];
+
+        $recipe = (new CraftRecipes())->findByItemNameEng($resolved['key']);
+        $icon   = is_string($recipe['icon_emoji'] ?? null) ? $recipe['icon_emoji'] : '🚚';
+        $name   = is_string($recipe['item_name_rus'] ?? null) ? $recipe['item_name_rus'] : 'Транспорт';
+
+        return ['icon' => $icon, 'name' => $name, 'cells_left' => max(0, $cellsLeft)];
+    }
+
+    /**
+     * Крючок «Транспорт» на экране Похода (story 12, ADR-174 §3, правило
+     * UX-DISCOVERABILITY): видна ВСЕГДА, а не только при выполненном условии.
+     * Чистая функция без БД — тестируется напрямую в `VehicleGuideAndHintTest`
+     * (memory `feedback_caption_length_needs_a_test_not_a_note`).
+     *
+     * Ниже требуемого уровня — строка-замок с реальным уровнем игрока + кнопка на
+     * крафт-витрину (`resourcesCrafting`, story 07), которая честно объясняет прогресс
+     * ("с N уровня — у тебя M") для ЛЮБОЙ из пяти машин, включая общую (в отличие от
+     * `vehicleLockInfo`, рассчитанного только на фракционные машины — использовать его
+     * здесь для LightCart значило бы показать «Только фракция ?», это вне файлов story 12).
+     * С требуемого уровня — вход на «🚚 Мой транспорт»; с активной машиной — реальные
+     * числа (имя + остаток), а не обещание (acceptance: «числами, которые чувствуются,
+     * и только тем, у кого машина есть»).
+     *
+     * @param array{icon:string,name:string,cells_left:int}|null $active
+     * @return array{line:string, button:array{text:string,callback_data:string}}
+     */
+    public static function vehicleHookBlock(int $characterLevel, int $requiredLevel, ?array $active): array
+    {
+        if ($characterLevel < $requiredLevel) {
+            return [
+                'line'   => "🔒 Транспорт — с {$requiredLevel} уровня (у тебя {$characterLevel})",
+                'button' => ['text' => '🔒 Транспорт', 'callback_data' => 'resourcesCrafting'],
+            ];
+        }
+
+        if ($active === null) {
+            return [
+                'line'   => '🚚 Транспорт доступен — собери в 🔨 Крафте, ускорит длинные переходы.',
+                'button' => ['text' => '🚚 Транспорт', 'callback_data' => 'vehicleScreen'],
+            ];
+        }
+
+        $icon = $active['icon'] !== '' ? $active['icon'] : '🚚';
+        $name = $active['name'] !== '' ? $active['name'] : 'Транспорт';
+
+        return [
+            'line'   => "🚚 Активна: {$icon} {$name} — хватит ещё на ~{$active['cells_left']} клеток.",
+            'button' => ['text' => '🚚 Транспорт', 'callback_data' => 'vehicleScreen'],
+        ];
     }
 
     // ── march-баланс: live-tunable через admin GameSettings `world.march.*`
