@@ -151,7 +151,9 @@ class DeathService
         // 3) Сбор имущества проигравшего.
         $loserResources    = $this->characterResourceModel->where('id_characters', $loserId)->findAll();
         $loserGold         = (int) ($loserRow['gold'] ?? 0);
-        $loserCraftedItems = $this->craftedItemsLogModel->where('character_id', $loserId)->findAll();
+        $loserCraftedItems = $this->normalizeCraftedItemRows(
+            $this->craftedItemsLogModel->where('character_id', $loserId)->findAll()
+        );
 
         // 4) Расчёт потерь.
         $lostResources    = $this->lootProcessor->computeResourceLoss($loserResources, $deathPenalty);
@@ -204,6 +206,58 @@ class DeathService
             'transferredGold'       => $transferredGold,
             'success'               => true,
         ];
+    }
+
+    /**
+     * Ремонт phpstan-репорта после story 09: `CraftedItemsLogModel::findAll()` отдаёт
+     * рыхлый `array<int|string, bool|float|int|object|string|null>|object` на каждую
+     * строку (стандартная неопределённость Model::findAll() без параметризации), а
+     * `LootProcessor::computeCraftLoss()` начиная со story 09 (`type='transport'`
+     * исключение) ожидает честную форму
+     * `array{id:int, crafted_item_id:int, quantity:int|string, insured?:int|string, type?:string}`.
+     * Сужаем на месте чтения, а не расширяем контракт `computeCraftLoss()` и не глушим
+     * баселайном — форма реально известна на этом шаге (та же строка, что дальше пишет
+     * `applyCraftLosses()`/`breakActiveVehicleOnDeath()`).
+     *
+     * @param list<array<int|string,mixed>|object> $rows
+     * @return list<array{id:int, crafted_item_id:int, quantity:int|string, insured?:int|string, type?:string}>
+     */
+    private function normalizeCraftedItemRows(array $rows): array
+    {
+        $out = [];
+        foreach ($rows as $row) {
+            $arr = $row instanceof \App\Entities\CharacterEntity ? $row->toArray() : (is_array($row) ? $row : null);
+            if ($arr === null) {
+                continue;
+            }
+
+            $idRaw            = $arr['id'] ?? null;
+            $craftedItemIdRaw = $arr['crafted_item_id'] ?? null;
+            $quantityRaw      = $arr['quantity'] ?? null;
+            if (!is_numeric($idRaw) || !is_numeric($craftedItemIdRaw) || !is_numeric($quantityRaw) && !is_string($quantityRaw)) {
+                continue;
+            }
+
+            $entry = [
+                'id'              => (int) $idRaw,
+                'crafted_item_id' => (int) $craftedItemIdRaw,
+                'quantity'        => is_int($quantityRaw) ? $quantityRaw : (string) $quantityRaw,
+            ];
+
+            $insuredRaw = $arr['insured'] ?? null;
+            if (is_int($insuredRaw) || is_string($insuredRaw)) {
+                $entry['insured'] = $insuredRaw;
+            }
+
+            $typeRaw = $arr['type'] ?? null;
+            if (is_string($typeRaw)) {
+                $entry['type'] = $typeRaw;
+            }
+
+            $out[] = $entry;
+        }
+
+        return $out;
     }
 
     /**

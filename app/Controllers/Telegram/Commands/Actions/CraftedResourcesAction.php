@@ -220,6 +220,9 @@ class CraftedResourcesAction extends BaseAction
         };
     }
 
+    /**
+     * @param array<string,mixed> $character
+     */
     private function reply(string $text, string $mode, array $character): ServerResponse
     {
         $sortRow = [];
@@ -283,8 +286,10 @@ class CraftedResourcesAction extends BaseAction
      */
     private function transportShowcaseText(array $character): string
     {
-        $level        = is_numeric($character['level'] ?? null) ? (int) $character['level'] : 0;
-        $factionId    = $this->characterFactionId((int) ($character['id'] ?? 0));
+        $level     = is_numeric($character['level'] ?? null) ? (int) $character['level'] : 0;
+        $charIdRaw = $character['id'] ?? null;
+        $charId    = is_numeric($charIdRaw) ? (int) $charIdRaw : 0;
+        $factionId = $this->characterFactionId($charId);
 
         $lines = ["🚚 *Транспорт* — крафт машин:\n"];
         foreach (self::TRANSPORT_VEHICLES as $vehicle) {
@@ -294,7 +299,7 @@ class CraftedResourcesAction extends BaseAction
             }
             $requiredFaction = $vehicle['required_faction'];
             if ($requiredFaction > 0 && $factionId !== $requiredFaction) {
-                $needName = self::FACTION_NAMES[$requiredFaction] ?? "фракция #{$requiredFaction}";
+                $needName = self::FACTION_NAMES[$requiredFaction];
                 $haveName = $factionId > 0 ? (self::FACTION_NAMES[$factionId] ?? "фракция #{$factionId}") : 'без фракции';
                 $reasons[] = "нужна фракция {$needName} — ты {$haveName}";
             }

@@ -1,7 +1,7 @@
 ---
 story: transport-07
 spec: transport-system
-status: todo
+status: done
 tier: 3
 worker: worker-code
 model: sonnet
@@ -79,3 +79,9 @@ blocked_by: [transport-02]
 
 ## Findings
 (нет — потолок не достигнут, story закрыта)
+
+### Ремонт (phpstan)
+- `:223 missingType.iterableValue` — добавлен `@param array<string,mixed> $character` докблок к `reply()`.
+- `:287 cast.int` — `(int) ($character['id'] ?? 0)` заменён на узкий путь: `$charIdRaw = $character['id'] ?? null; $charId = is_numeric($charIdRaw) ? (int) $charIdRaw : 0;` (тот же приём, что уже стоял для `$level` строкой выше).
+- `:297 nullCoalesce.offset` — `self::FACTION_NAMES[$requiredFaction] ?? "фракция #{$requiredFaction}"` → без `??`: `$requiredFaction` внутри этой ветки статически сужен `TRANSPORT_VEHICLES`-константой до `1|2|3|4`, все четыре ключа в `FACTION_NAMES` есть — фолбэк был мёртвым кодом поверх места, где значение и так гарантировано (урок `feedback_null_coalesce_must_guard_the_use_site`). Соседняя строка `$factionId` (из БД, тип `int` без ограничения множества) оставлена с `??` — там страховка настоящая.
+- Поведение экрана не менялось (тот же текст/кнопки), только типизация. `vendor/bin/phpstan analyse --memory-limit=512M --no-progress app/Controllers/Telegram/Commands/Actions/CraftedResourcesAction.php` → 0 ошибок; полный прогон phpstan по проекту оставляет 2 ошибки исключительно в `app/Services/Player/DeathService.php` (не мой файл, чужая параллельная story transport-09/14).
