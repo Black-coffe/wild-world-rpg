@@ -6,6 +6,7 @@ use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Craft\CraftCardHelper;
 use Config\CraftRecipes;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
@@ -40,12 +41,14 @@ class MeteorShelterCraft1Action extends BaseAction
     // и там же инициализируется. Пере-объявление с типом — фатал «must not be defined».
     protected CharacterResourceModel $characterResourceModel;
     protected CraftedItemsLogModel $craftedItemsLogModel;
+    private CraftCardHelper $craftCardHelper;
 
     public function __construct(CallbackQuery $callbackQuery)
     {
         parent::__construct($callbackQuery);
         $this->characterResourceModel = new CharacterResourceModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -96,7 +99,9 @@ class MeteorShelterCraft1Action extends BaseAction
             $title .= " (в инв. – {$haveQty} шт.)";
         }
 
-        $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredPerOne);
+        // Тем же пулом (рюкзак + склад базы, ADR-171), которым потом считает старт крафта
+        // GenericCraftActionStart::checkResources().
+        $resourcesAvailable = $this->craftCardHelper->available($characterId, $requiredPerOne);
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredPerOne);
 
         $text = "*{$title}*\n\n"
@@ -143,6 +148,9 @@ class MeteorShelterCraft1Action extends BaseAction
                     ['text' => '💰 Продать', 'callback_data' => 'sell'],
                     ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
                 ],
+                [
+                    $this->craftCardHelper->fallbackButton(self::RECIPE_KEY),
+                ],
                 $backRow,
             ]];
         } else {
@@ -183,32 +191,6 @@ class MeteorShelterCraft1Action extends BaseAction
         $itemRow = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
 
         return $itemRow ? (int) $itemRow['quantity'] : 0;
-    }
-
-    /**
-     * @param array<string,int> $requiredPerOne
-     * @return list<array{name:string,quantity:int,rarity:int|string}>
-     */
-    private function checkResourcesAvailability(int $characterId, array $requiredPerOne): array
-    {
-        $results = [];
-        foreach (array_keys($requiredPerOne) as $resName) {
-            $resource = $this->resourceModel->getResourceByName($resName);
-            $qty      = 0;
-            $rarity   = 0;
-
-            if ($resource) {
-                $charRes = $this->characterResourceModel
-                    ->getResourceByNameAndCharacterId($resName, $characterId);
-
-                $qty    = $charRes ? (int) $charRes['quantity'] : 0;
-                $rarity = $resource['rarity'];
-            }
-
-            $results[] = ['name' => $resName, 'quantity' => $qty, 'rarity' => $rarity];
-        }
-
-        return $results;
     }
 
     /**

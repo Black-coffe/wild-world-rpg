@@ -7,6 +7,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Craft\CraftCardHelper;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -15,6 +16,7 @@ class FishingRodCraft1Action extends BaseAction
     protected $characterResourceModel;
     protected $resourceModel;
     protected $craftedItemsLogModel;
+    private CraftCardHelper $craftCardHelper;
 
     /**
      * Возможные варианты количественного крафта.
@@ -27,6 +29,7 @@ class FishingRodCraft1Action extends BaseAction
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -72,8 +75,9 @@ class FishingRodCraft1Action extends BaseAction
             'Лианы'             => 5,
         ];
 
-        // Считаем, сколько есть у игрока
-        $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
+        // Считаем, сколько есть у игрока — тем же пулом (рюкзак + склад базы, ADR-171),
+        // которым потом считает старт крафта GenericCraftActionStart::checkResources().
+        $resourcesAvailable = $this->craftCardHelper->available($characterId, $requiredResources);
         // На сколько шт. максимум хватает
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
@@ -104,6 +108,9 @@ class FishingRodCraft1Action extends BaseAction
                     [
                         ['text' => '💰 Продать', 'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
+                    ],
+                    [
+                        $this->craftCardHelper->fallbackButton('FishingRod'),
                     ],
                     [
                         ['text' => '⬅️ Назад', 'callback_data' => 'tools'],
@@ -151,32 +158,6 @@ class FishingRodCraft1Action extends BaseAction
         $logEntry = $this->craftedItemsLogModel
             ->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
         return $logEntry ? (int)$logEntry['quantity'] : 0;
-    }
-
-    /**
-     * Собираем информацию о том, сколько у игрока ресурсов из $requiredResources.
-     */
-    private function checkResourcesAvailability(int $characterId, array $requiredResources): array
-    {
-        $results = [];
-        foreach ($requiredResources as $resName => $reqAmount) {
-            $resRow = $this->resourceModel->getResourceByName($resName);
-            $qty    = 0;
-            $rar    = 0;
-            if ($resRow) {
-                $charRes = $this->characterResourceModel
-                    ->getResourceByNameAndCharacterId($resName, $characterId);
-
-                $qty = $charRes ? $charRes['quantity'] : 0;
-                $rar = $resRow['rarity'];
-            }
-            $results[] = [
-                'name'     => $resName,
-                'quantity' => $qty,
-                'rarity'   => $rar,
-            ];
-        }
-        return $results;
     }
 
     /**

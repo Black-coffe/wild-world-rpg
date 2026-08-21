@@ -7,6 +7,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Craft\CraftCardHelper;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -19,6 +20,7 @@ class TireIronCraft1Action extends BaseAction
     protected $characterResourceModel;
     protected $resourceModel;
     protected $craftedItemsLogModel;
+    private CraftCardHelper $craftCardHelper;
 
     /**
      * Варианты «пакетов» крафта: 1, 5, 10, 25, 50, 100.
@@ -32,6 +34,7 @@ class TireIronCraft1Action extends BaseAction
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -72,8 +75,9 @@ class TireIronCraft1Action extends BaseAction
             'Железная руда' => 54,
         ];
 
-        // Проверка ресурсов (для 1 шт.)
-        $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
+        // Проверка ресурсов — тем же пулом (рюкзак + склад базы, ADR-171), которым потом
+        // считает старт крафта GenericCraftActionStart::checkResources().
+        $resourcesAvailable = $this->craftCardHelper->available($characterId, $requiredResources);
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
         // Текст
@@ -107,6 +111,9 @@ class TireIronCraft1Action extends BaseAction
                     [
                         ['text' => '💰 Продать', 'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить', 'callback_data' => 'buy']
+                    ],
+                    [
+                        $this->craftCardHelper->fallbackButton('TireIron'),
                     ],
                     [
                         ['text' => '⬅️ Назад', 'callback_data' => 'tools'],
@@ -153,31 +160,6 @@ class TireIronCraft1Action extends BaseAction
     {
         $row = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
         return $row ? (int)$row['quantity'] : 0;
-    }
-
-    /**
-     * Проверка ресурсов для 1 шт. (возвращаем массив с информацией).
-     */
-    private function checkResourcesAvailability(int $characterId, array $requiredResources): array
-    {
-        $results = [];
-        foreach ($requiredResources as $resName => $need) {
-            $resRow = $this->resourceModel->getResourceByName($resName);
-            $qty    = 0;
-            $rar    = 0;
-            if ($resRow) {
-                $charRes = $this->characterResourceModel->getResourceByNameAndCharacterId($resName, $characterId);
-                $qty     = $charRes ? $charRes['quantity'] : 0;
-                $rar     = $resRow['rarity'];
-            }
-
-            $results[] = [
-                'name'     => $resName,
-                'quantity' => $qty,
-                'rarity'   => $rar,
-            ];
-        }
-        return $results;
     }
 
     /**

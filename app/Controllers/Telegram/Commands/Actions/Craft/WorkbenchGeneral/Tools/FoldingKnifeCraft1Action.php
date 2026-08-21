@@ -7,6 +7,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Craft\CraftCardHelper;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -19,6 +20,7 @@ class FoldingKnifeCraft1Action extends BaseAction
     protected $characterResourceModel;
     protected $resourceModel;
     protected $craftedItemsLogModel;
+    private CraftCardHelper $craftCardHelper;
 
     /**
      * Список возможных количеств крафта.
@@ -31,6 +33,7 @@ class FoldingKnifeCraft1Action extends BaseAction
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -76,8 +79,9 @@ class FoldingKnifeCraft1Action extends BaseAction
             'Камни'         => 2,
         ];
 
-        // Проверяем, сколько у игрока есть ресурсов
-        $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
+        // Проверяем, сколько у игрока есть ресурсов — тем же пулом (рюкзак + склад базы, ADR-171),
+        // которым потом считает старт крафта GenericCraftActionStart::checkResources().
+        $resourcesAvailable = $this->craftCardHelper->available($characterId, $requiredResources);
         // Определяем, на сколько шт. максимум хватает
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
@@ -107,6 +111,9 @@ class FoldingKnifeCraft1Action extends BaseAction
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                         ['text' => '💰 Продать',   'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить',   'callback_data' => 'buy'],
+                    ],
+                    [
+                        $this->craftCardHelper->fallbackButton('FoldingKnife'),
                     ],
                     [
                         ['text' => '⬅️ Назад', 'callback_data' => 'tools'],
@@ -156,34 +163,6 @@ class FoldingKnifeCraft1Action extends BaseAction
         $itemLog = $this->craftedItemsLogModel
             ->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
         return $itemLog ? (int)$itemLog['quantity'] : 0;
-    }
-
-    /**
-     * Проверяем, сколько у игрока ресурсов (только для 1 шт.).
-     */
-    private function checkResourcesAvailability(int $characterId, array $requiredResources): array
-    {
-        $results = [];
-        foreach ($requiredResources as $name => $needed) {
-            $resRow = $this->resourceModel->getResourceByName($name);
-            $qty    = 0;
-            $rarity = 0;
-
-            if ($resRow) {
-                $charRes = $this->characterResourceModel
-                    ->getResourceByNameAndCharacterId($name, $characterId);
-
-                $qty    = $charRes ? $charRes['quantity'] : 0;
-                $rarity = $resRow['rarity'];
-            }
-
-            $results[] = [
-                'name'     => $name,
-                'quantity' => $qty,
-                'rarity'   => $rarity,
-            ];
-        }
-        return $results;
     }
 
     /**

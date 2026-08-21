@@ -7,6 +7,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Craft\CraftCardHelper;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -19,6 +20,7 @@ class IronShovelCraft1Action extends BaseAction
     protected $characterResourceModel;
     protected $resourceModel;
     protected $craftedItemsLogModel;
+    private CraftCardHelper $craftCardHelper;
 
     /**
      * Варианты количественного крафта.
@@ -31,6 +33,7 @@ class IronShovelCraft1Action extends BaseAction
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -74,7 +77,9 @@ class IronShovelCraft1Action extends BaseAction
             'Железная руда' => 16,
         ];
 
-        $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
+        // Тем же пулом (рюкзак + склад базы, ADR-171), которым потом считает старт крафта
+        // GenericCraftActionStart::checkResources().
+        $resourcesAvailable = $this->craftCardHelper->available($characterId, $requiredResources);
         // Считаем, на сколько шт. максимум хватает
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
@@ -108,6 +113,9 @@ class IronShovelCraft1Action extends BaseAction
                     [
                         ['text' => '💰 Продать',    'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить',    'callback_data' => 'buy']
+                    ],
+                    [
+                        $this->craftCardHelper->fallbackButton('IronShovel'),
                     ],
                     [
                         ['text' => '⬅️ Назад', 'callback_data' => 'tools'],
@@ -155,33 +163,6 @@ class IronShovelCraft1Action extends BaseAction
         $logEntry = $this->craftedItemsLogModel
             ->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
         return $logEntry ? (int)$logEntry['quantity'] : 0;
-    }
-
-    /**
-     * Проверяем ресурсы для 1 шт.
-     */
-    private function checkResourcesAvailability(int $characterId, array $requiredResources): array
-    {
-        $results = [];
-        foreach ($requiredResources as $resName => $need) {
-            $resRow = $this->resourceModel->getResourceByName($resName);
-            $qty    = 0;
-            $rar    = 0;
-
-            if ($resRow) {
-                $charRes = $this->characterResourceModel
-                    ->getResourceByNameAndCharacterId($resName, $characterId);
-                $qty = $charRes ? $charRes['quantity'] : 0;
-                $rar = $resRow['rarity'];
-            }
-
-            $results[] = [
-                'name'     => $resName,
-                'quantity' => $qty,
-                'rarity'   => $rar
-            ];
-        }
-        return $results;
     }
 
     /**
