@@ -9,11 +9,12 @@ use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 
 /**
- * Story craft-shortfall-buy-05 — замок от дрейфа: карточка крафта не имеет
+ * Story craft-shortfall-buy-05/14 — замок от дрейфа: карточка крафта не имеет
  * права оставить игрока в состоянии «нельзя собрать ни одной штуки» без
  * единого действия вперёд (тот тупик, что закрыла story craft-shortfall-buy-01
  * помощником `App\Services\Craft\CraftCardHelper::fallbackButton()` для 27
- * карточек слоя WorkbenchGeneral — коммиты b9365c7d/98c60309/f1da4d3d/2f0de0b3).
+ * карточек слоя WorkbenchGeneral — коммиты b9365c7d/98c60309/f1da4d3d/2f0de0b3 —
+ * и story craft-shortfall-buy-14 для 8 карточек брони/оружия WorkbenchStandard).
  *
  * ⚠️ Это АНТИ-ДРЕЙФОВЫЙ ЗАМОК ПРИСУТСТВИЯ, а не покрытие поведения. Тест
  * смотрит только на исходник: содержит ли файл строку вызова
@@ -24,29 +25,24 @@ use RecursiveIteratorIterator;
  * Поведение самого помощника проверяется отдельно, поведенческими тестами —
  * `tests/unit/Services/Craft/CraftCardHelperTest.php` (story 01).
  *
- * Список карточек тест строит из дерева каталога слоя `Craft/WorkbenchGeneral/`,
- * а не хардкодит: карточкой считается любой PHP-файл, объявивший собственную
+ * Список карточек тест строит из дерева всего каталога `Craft/`, а не
+ * хардкодит: карточкой считается любой PHP-файл, объявивший собственную
  * логику количественных кнопок (`private array $craftQuantities`) — этим
  * признаком карточка отличается от экрана-хаба (списка карточек:
  * `ToolsCraft1Action`, `MedicalCraft1Action`, `ComponentsCraft1Select` и
  * подобных), у которого этой логики нет. Новая карточка с этим свойством,
- * добавленная в этот слой, попадает под проверку сама, без правки этого
- * файла.
+ * добавленная в любой слой `Craft/`, попадает под проверку сама, без правки
+ * этого файла.
  *
- * Область — именно слой `WorkbenchGeneral` (текущие 27 карточек + tracer,
- * story craft-shortfall-buy-01/02/03/04), а не весь каталог `Craft/`: 8
- * карточек брони/оружия `WorkbenchStandard` (Armor/Weapons) ещё не переведены
- * на этот помощник — их перевод заказан отдельной story craft-shortfall-buy-13
- * (wave 4 плана) и умышленно не входит в этот замок (см. `## Non-goals`
- * story craft-shortfall-buy-05: «не подменять... здесь только замок от
- * дрейфа слоя»). Расширение области на весь `Craft/` — за Queen, вместе со
- * story 13.
+ * Область — весь каталог `Craft/` (не только `WorkbenchGeneral`): после
+ * story craft-shortfall-buy-14 карточки брони/оружия `WorkbenchStandard`
+ * (Armor/Weapons) тоже переведены на этот помощник, покрывать больше нечего.
  *
  * @internal
  */
 final class CraftCardExitGuardTest extends CIUnitTestCase
 {
-    private const CRAFT_ACTIONS_DIR = APPPATH . 'Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral';
+    private const CRAFT_ACTIONS_DIR = APPPATH . 'Controllers/Telegram/Commands/Actions/Craft';
 
     /** Признак «это карточка со своей логикой кнопок количества», не хаб. */
     private const OWN_QUANTITY_LOGIC_MARKER = 'private array $craftQuantities';
