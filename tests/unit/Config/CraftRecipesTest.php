@@ -403,4 +403,144 @@ final class CraftRecipesTest extends CIUnitTestCase
         $components = $recipe['crafted_items'] ?? [];
         $this->assertSame(20, $components['wiring'] ?? null);
     }
+
+    /**
+     * Story `craft-shortfall-buy-09` — семь легаси-стартов (свой код в
+     * `WorkbenchStandard/Armor` и `WorkbenchStandard/TeleportBeacon`, не меняется)
+     * зарегистрированы здесь ТОЛЬКО чтобы `CraftShortfallBuyAction` находил рецепт
+     * по ключу докупки. Ключ = то, что легаси-класс уже кладёт в
+     * `craft_again_callback` (`genericCraft_<Key>_<qty>`) — не выдумка теста.
+     *
+     * Красный тест = регрессия ключа докупки для брони/маяков: ровно то, что
+     * ловил повторный ревью C1.
+     */
+    public function testLegacyShortfallBuyRecipesResolve(): void
+    {
+        $keys = [
+            'DrifterClothes2', 'RaggedShirt2', 'LeatherJacket2', 'ReinforcedLeather2',
+            'PortableTeleport2', 'TeleportBackpack2', 'TeleportBeaconBasic2',
+        ];
+
+        foreach ($keys as $key) {
+            $recipe = $this->cfg->get($key);
+            $this->assertNotNull($recipe, "Legacy shortfall-buy recipe missing: {$key}");
+
+            // Поля, которые реально читает CraftShortfallBuyAction/GenericCraftActionStart
+            // на пути докупки (## Contracts плана craft-shortfall-buy).
+            foreach (['task_name', 'resources', 'crafted_items', 'gold_required', 'item_name_eng', 'item_name_rus', 'info_callback'] as $field) {
+                $this->assertArrayHasKey($field, $recipe, "{$key} missing {$field}");
+            }
+
+            $this->assertSame(
+                "genericCraft_{$key}_1",
+                $recipe['craft_again_callback'],
+                "{$key} craft_again_callback must resolve via genericCraft_<Key>_1"
+            );
+        }
+    }
+
+    /**
+     * Сырьё/компоненты/золото сверены поштучно с `handle()` каждого легаси-класса
+     * (см. story `## Implementation notes`) — числа здесь обязаны совпадать 1:1.
+     */
+    public function testDrifterClothes2MatchesLegacyStart(): void
+    {
+        $recipe = $this->cfg->get('DrifterClothes2');
+        $this->assertSame([], $recipe['resources']);
+        $this->assertSame(['Fabric' => 8, 'FoldingKnife' => 1], $recipe['crafted_items']);
+        $this->assertSame(500, $recipe['gold_required']);
+        $this->assertTrue($recipe['requires_base'] ?? false);
+        $this->assertSame(['WorkbenchOne' => 1], $recipe['required_crafted_items'] ?? null);
+        $this->assertSame('craftArmorDrifterClothes', $recipe['task_name']);
+    }
+
+    public function testRaggedShirt2MatchesLegacyStart(): void
+    {
+        $recipe = $this->cfg->get('RaggedShirt2');
+        $this->assertSame([], $recipe['resources']);
+        $this->assertSame(['Fabric' => 6], $recipe['crafted_items']);
+        $this->assertSame(300, $recipe['gold_required']);
+        $this->assertTrue($recipe['requires_base'] ?? false);
+        $this->assertSame(['WorkbenchOne' => 1], $recipe['required_crafted_items'] ?? null);
+        $this->assertSame('craftArmorRaggedShirt', $recipe['task_name']);
+    }
+
+    public function testLeatherJacket2MatchesLegacyStart(): void
+    {
+        $recipe = $this->cfg->get('LeatherJacket2');
+        $this->assertSame(['Кожа животных' => 4, 'Древесина' => 2], $recipe['resources']);
+        $this->assertSame(['FoldingKnife' => 1, 'Fabric' => 8], $recipe['crafted_items']);
+        $this->assertSame(700, $recipe['gold_required']);
+        $this->assertTrue($recipe['requires_base'] ?? false);
+        $this->assertSame(['WorkbenchOne' => 1], $recipe['required_crafted_items'] ?? null);
+        $this->assertSame('craftLeatherJacket', $recipe['task_name']);
+    }
+
+    public function testReinforcedLeather2MatchesLegacyStart(): void
+    {
+        $recipe = $this->cfg->get('ReinforcedLeather2');
+        $this->assertSame(
+            ['Кожа животных' => 6, 'Древесина' => 4, 'Редкие металлы' => 3],
+            $recipe['resources']
+        );
+        $this->assertSame(
+            ['FoldingKnife' => 1, 'Fabric' => 12, 'metalFragments' => 1],
+            $recipe['crafted_items']
+        );
+        $this->assertSame(1200, $recipe['gold_required']);
+        $this->assertTrue($recipe['requires_base'] ?? false);
+        $this->assertSame(['WorkbenchOne' => 1], $recipe['required_crafted_items'] ?? null);
+        $this->assertSame(5, $recipe['required_strength'] ?? null);
+        $this->assertSame(3, $recipe['required_level'] ?? null);
+        $this->assertSame('craftReinforcedLeatherJacket', $recipe['task_name']);
+    }
+
+    public function testPortableTeleport2MatchesLegacyRecipeService(): void
+    {
+        $recipe = $this->cfg->get('PortableTeleport2');
+        $this->assertSame(
+            ['Кристаллы' => 12, 'Солнечные камни' => 18, 'Редкие металлы' => 10, 'Минералы' => 20],
+            $recipe['resources']
+        );
+        $this->assertSame(
+            ['wiring' => 30, 'electronicComponents' => 12, 'Fabric' => 10],
+            $recipe['crafted_items']
+        );
+        $this->assertSame(30000, $recipe['gold_required']);
+        $this->assertTrue($recipe['requires_base'] ?? false);
+        $this->assertSame(['TeleportationCenter', 'Workshop'], $recipe['required_buildings'] ?? null);
+        $this->assertSame(15, $recipe['required_level'] ?? null);
+        $this->assertSame('craft.portable_teleport.min_level', $recipe['required_level_setting_key'] ?? null);
+        $this->assertSame('craftPortableTeleport', $recipe['task_name']);
+    }
+
+    public function testTeleportBackpack2MatchesLegacyStart(): void
+    {
+        $recipe = $this->cfg->get('TeleportBackpack2');
+        $this->assertSame(
+            ['Янтарь' => 23, 'Минералы' => 15, 'Солнечные камни' => 12, 'Кристаллы' => 7],
+            $recipe['resources']
+        );
+        $this->assertSame(
+            ['wiring' => 4, 'electronicComponents' => 8, 'Fabric' => 36],
+            $recipe['crafted_items']
+        );
+        $this->assertSame(21000, $recipe['gold_required']);
+        $this->assertSame('craftTeleportBackpack', $recipe['task_name']);
+    }
+
+    public function testTeleportBeaconBasic2MatchesLegacyStart(): void
+    {
+        $recipe = $this->cfg->get('TeleportBeaconBasic2');
+        $this->assertSame(
+            ['Угольная порода' => 10, 'Железная руда' => 8, 'Редкие металлы' => 12],
+            $recipe['resources']
+        );
+        $this->assertSame(
+            ['wiring' => 26, 'electronicComponents' => 4, 'Fabric' => 8],
+            $recipe['crafted_items']
+        );
+        $this->assertSame(12500, $recipe['gold_required']);
+        $this->assertSame('craftTeleportBeaconBasic', $recipe['task_name']);
+    }
 }

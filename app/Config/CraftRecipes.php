@@ -3035,6 +3035,220 @@ class CraftRecipes extends BaseConfig
             'image_completed'      => 'uploads/telegram/craft/vehicles/autonomous_drone.jpg',
             'craft_again_callback' => 'genericCraft_AutonomousDrone_1',
         ],
+
+        // story `craft-shortfall-buy-09` — семь легаси-стартов (собственный код в
+        // `WorkbenchStandard/Armor` и `WorkbenchStandard/TeleportBeacon`, успешный
+        // путь старта НЕ меняется) регистрируются здесь только для того, чтобы
+        // `CraftShortfallBuyAction`/`GenericCraftActionStart` находили рецепт по
+        // ключу докупки (`craft_again_callback` легаси-класса, `genericCraft_<Key>_<qty>`).
+        // Числа сверены построчно с `handle()` каждого легаси-класса (см. story
+        // `## Implementation notes`); `task_name` — существующая/автосоздаваемая
+        // строка `tasks.name` того же класса, длительность рецепт не хранит —
+        // её считает `tasks.min_duration`/`max_duration` из БД.
+        'DrifterClothes2' => [
+            'task_name'             => 'craftArmorDrifterClothes',
+            'resources'             => [],
+            'crafted_items'         => [
+                'Fabric'      => 8,
+                'FoldingKnife' => 1,
+            ],
+            'gold_required'         => 500,
+            'requires_base'         => true,
+            'required_crafted_items' => ['WorkbenchOne' => 1],
+            'image_in_progress'     => 'uploads/telegram/craft/standard/drifter_clothes.jpg',
+            'start_caption_name'    => '🧥 *Одежду бродяги*',
+            'info_callback'         => 'armorDrifterClothes',
+
+            'item_name_eng'         => 'WandererClothes',
+            'item_name_rus'         => 'Одежда бродяги',
+            'icon_emoji'            => '🧥',
+            'zone_emoji'            => '🧥',
+            'zone_name'             => 'экипировка',
+            'agility_bonus'         => 0.05,
+            'intellect_bonus'       => 0.02,
+            'image_completed'       => 'uploads/telegram/craft/standard/drifter_clothes.jpg',
+            'craft_again_callback'  => 'genericCraft_DrifterClothes2_1',
+        ],
+
+        'RaggedShirt2' => [
+            'task_name'             => 'craftArmorRaggedShirt',
+            'resources'             => [],
+            'crafted_items'         => [
+                'Fabric' => 6,
+            ],
+            'gold_required'         => 300,
+            'requires_base'         => true,
+            'required_crafted_items' => ['WorkbenchOne' => 1],
+            'image_in_progress'     => 'uploads/telegram/craft/standard/ragged_shirt.jpg',
+            'start_caption_name'    => '👕 *Рваную рубаху*',
+            'info_callback'         => 'armorRaggedShirt',
+
+            'item_name_eng'         => 'RaggedShirt',
+            'item_name_rus'         => 'Рваная рубаха',
+            'icon_emoji'            => '👕',
+            'zone_emoji'            => '🧥',
+            'zone_name'             => 'экипировка',
+            'agility_bonus'         => 0.03,
+            'intellect_bonus'       => 0.01,
+            'image_completed'       => 'uploads/telegram/craft/standard/ragged_shirt.jpg',
+            'craft_again_callback'  => 'genericCraft_RaggedShirt2_1',
+        ],
+
+        'LeatherJacket2' => [
+            'task_name'             => 'craftLeatherJacket',
+            'resources'             => [
+                'Кожа животных' => 4,
+                'Древесина'     => 2,
+            ],
+            'crafted_items'         => [
+                'FoldingKnife' => 1,
+                'Fabric'       => 8,
+            ],
+            'gold_required'         => 700,
+            'requires_base'         => true,
+            'required_crafted_items' => ['WorkbenchOne' => 1],
+            'image_in_progress'     => 'uploads/telegram/craft/standard/leather_jacket.jpg',
+            'start_caption_name'    => '🧥 *Кожаную куртку*',
+            'info_callback'         => 'armorLeatherJacket',
+
+            'item_name_eng'         => 'LeatherJacket',
+            'item_name_rus'         => 'Кожаная куртка',
+            'icon_emoji'            => '🧥',
+            'zone_emoji'            => '🧥',
+            'zone_name'             => 'экипировка',
+            'agility_bonus'         => 0.05,
+            'intellect_bonus'       => 0.02,
+            'image_completed'       => 'uploads/telegram/craft/standard/leather_jacket.jpg',
+            'craft_again_callback'  => 'genericCraft_LeatherJacket2_1',
+        ],
+
+        'ReinforcedLeather2' => [
+            'task_name'             => 'craftReinforcedLeatherJacket',
+            'resources'             => [
+                'Кожа животных'  => 6,
+                'Древесина'      => 4,
+                'Редкие металлы' => 3,
+            ],
+            'crafted_items'         => [
+                'FoldingKnife'     => 1,
+                'Fabric'           => 12,
+                'metalFragments'   => 1,
+            ],
+            'gold_required'         => 1200,
+            'requires_base'         => true,
+            'required_crafted_items' => ['WorkbenchOne' => 1],
+            'required_strength'     => 5,
+            'required_level'        => 3,
+            'image_in_progress'     => 'uploads/telegram/craft/standard/reinforced_leather_jacket.jpg',
+            'start_caption_name'    => '🥋 *Усиленную кожаную куртку*',
+            'info_callback'         => 'armorReinforcedLeather',
+
+            'item_name_eng'         => 'ReinforcedLeatherJacket',
+            'item_name_rus'         => 'Усиленная кожаная куртка',
+            'icon_emoji'            => '🥋',
+            'zone_emoji'            => '🧥',
+            'zone_name'             => 'экипировка',
+            'agility_bonus'         => 0.07,
+            'intellect_bonus'       => 0.03,
+            'image_completed'       => 'uploads/telegram/craft/standard/reinforced_leather_jacket.jpg',
+            'craft_again_callback'  => 'genericCraft_ReinforcedLeather2_1',
+        ],
+
+        // required_level живёт по мосту RecipeGateResolver (как AutonomousDrone выше):
+        // GameSettings `craft.portable_teleport.min_level`, если ключ задан, иначе
+        // static-дефолт ниже — тот же дефолт, что и `PortableTeleportRecipe::DEFAULT_MIN_LEVEL`.
+        'PortableTeleport2' => [
+            'task_name'             => 'craftPortableTeleport',
+            'resources'             => [
+                'Кристаллы'       => 12,
+                'Солнечные камни' => 18,
+                'Редкие металлы'  => 10,
+                'Минералы'        => 20,
+            ],
+            'crafted_items'         => [
+                'wiring'               => 30,
+                'electronicComponents' => 12,
+                'Fabric'               => 10,
+            ],
+            'gold_required'         => 30000,
+            'requires_base'         => true,
+            'required_buildings'    => ['TeleportationCenter', 'Workshop'],
+            'required_level'        => 15,
+            'required_level_setting_key' => 'craft.portable_teleport.min_level',
+            'image_in_progress'     => 'uploads/telegram/craft/standard/portable_teleport.jpg',
+            'start_caption_name'    => '📡 *Портативный телепорт*',
+            'info_callback'         => 'portableTeleport2',
+
+            'item_name_eng'         => 'PortableTeleport',
+            'item_name_rus'         => 'Портативный телепорт',
+            'icon_emoji'            => '📡',
+            'zone_emoji'            => '🌀',
+            'zone_name'             => 'телепорт',
+            'agility_bonus'         => 0.0,
+            'intellect_bonus'       => 0.0,
+            'image_completed'       => 'uploads/telegram/craft/standard/portable_teleport.jpg',
+            'craft_again_callback'  => 'genericCraft_PortableTeleport2_1',
+        ],
+
+        // 🔴 У соседей `requires_base`/`required_buildings` намеренно нет: сам
+        // легаси-класс их не проверяет (см. story Implementation notes) — это
+        // перенос «как есть», не новая дыра в гейтах.
+        'TeleportBackpack2' => [
+            'task_name'             => 'craftTeleportBackpack',
+            'resources'             => [
+                'Янтарь'          => 23,
+                'Минералы'        => 15,
+                'Солнечные камни' => 12,
+                'Кристаллы'       => 7,
+            ],
+            'crafted_items'         => [
+                'wiring'               => 4,
+                'electronicComponents' => 8,
+                'Fabric'               => 36,
+            ],
+            'gold_required'         => 21000,
+            'image_in_progress'     => 'uploads/telegram/craft/standard/backpack_craft.jpg',
+            'start_caption_name'    => '🎒 *Рюкзак телепорт*',
+            'info_callback'         => 'teleportBackpack2',
+
+            'item_name_eng'         => 'TeleportBackpack',
+            'item_name_rus'         => 'Рюкзак телепорт',
+            'icon_emoji'            => '🎒',
+            'zone_emoji'            => '🌀',
+            'zone_name'             => 'телепорт',
+            'agility_bonus'         => 0.0,
+            'intellect_bonus'       => 0.0,
+            'image_completed'       => 'uploads/telegram/craft/standard/backpack_craft.jpg',
+            'craft_again_callback'  => 'genericCraft_TeleportBackpack2_1',
+        ],
+
+        'TeleportBeaconBasic2' => [
+            'task_name'             => 'craftTeleportBeaconBasic',
+            'resources'             => [
+                'Угольная порода' => 10,
+                'Железная руда'   => 8,
+                'Редкие металлы'  => 12,
+            ],
+            'crafted_items'         => [
+                'wiring'               => 26,
+                'electronicComponents' => 4,
+                'Fabric'               => 8,
+            ],
+            'gold_required'         => 12500,
+            'image_in_progress'     => 'uploads/telegram/craft/standard/beacon_craft.jpg',
+            'start_caption_name'    => '🌀 *Базовый телепорт-маяк*',
+            'info_callback'         => 'teleportBeaconBasic2',
+
+            'item_name_eng'         => 'TeleportBeaconBasic',
+            'item_name_rus'         => 'Базовый телепорт-маяк',
+            'icon_emoji'            => '🌀',
+            'zone_emoji'            => '🌀',
+            'zone_name'             => 'телепорт',
+            'agility_bonus'         => 0.0,
+            'intellect_bonus'       => 0.0,
+            'image_completed'       => 'uploads/telegram/craft/standard/beacon_craft.jpg',
+            'craft_again_callback'  => 'genericCraft_TeleportBeaconBasic2_1',
+        ],
     ];
 
     /**
