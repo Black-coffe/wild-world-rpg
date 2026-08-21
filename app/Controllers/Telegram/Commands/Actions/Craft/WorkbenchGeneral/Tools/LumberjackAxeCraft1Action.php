@@ -7,6 +7,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Craft\CraftCardHelper;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -15,6 +16,7 @@ class LumberjackAxeCraft1Action extends BaseAction
     protected $characterResourceModel;
     protected $resourceModel;
     protected $craftedItemsLogModel;
+    private CraftCardHelper $craftCardHelper;
 
     /**
      * Варианты количественного крафта.
@@ -27,6 +29,7 @@ class LumberjackAxeCraft1Action extends BaseAction
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -69,8 +72,9 @@ class LumberjackAxeCraft1Action extends BaseAction
             'Камни'     => 10,
         ];
 
-        // Собираем информацию о ресурсах
-        $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
+        // Собираем информацию о ресурсах — тем же пулом (рюкзак + склад базы, ADR-171),
+        // которым потом считает старт крафта GenericCraftActionStart::checkResources().
+        $resourcesAvailable = $this->craftCardHelper->available($characterId, $requiredResources);
         // Смотрим, на сколько шт. максимум хватает
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
@@ -93,11 +97,16 @@ class LumberjackAxeCraft1Action extends BaseAction
         // Если не хватает даже на 1 шт.
         if ($maxCraftableItems < 1) {
             $text .= "__Недостаточно ресурсов, чтобы скрафтить хотя бы 1 шт.__";
+            // Единственный выход из тупика — кнопка на экран «чего не хватает»
+            // (CraftShortageService), а не пустая клавиатура из «Персонаж/Инвентарь/Назад».
             $keyboard = [
                 'inline_keyboard' => [
                     [
                         ['text' => '👨‍🎤 Персонаж', 'callback_data' => 'character'],
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
+                    ],
+                    [
+                        $this->craftCardHelper->fallbackButton('LumberjackAxe'),
                     ],
                     [
                         ['text' => '⬅️ Назад', 'callback_data' => 'tools'],
@@ -139,32 +148,6 @@ class LumberjackAxeCraft1Action extends BaseAction
     {
         $row = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
         return $row ? (int) $row['quantity'] : 0;
-    }
-
-    /**
-     * Проверяем, сколько ресурсов для 1 шт. есть у игрока.
-     */
-    private function checkResourcesAvailability(int $characterId, array $requiredResources): array
-    {
-        $results = [];
-        foreach ($requiredResources as $resName => $need) {
-            $resRow = $this->resourceModel->getResourceByName($resName);
-            $qty    = 0;
-            $rar    = 0;
-
-            if ($resRow) {
-                $charRes = $this->characterResourceModel->getResourceByNameAndCharacterId($resName, $characterId);
-                $qty     = $charRes ? $charRes['quantity'] : 0;
-                $rar     = $resRow['rarity'];
-            }
-
-            $results[] = [
-                'name'     => $resName,
-                'quantity' => $qty,
-                'rarity'   => $rar
-            ];
-        }
-        return $results;
     }
 
     /**
