@@ -1,7 +1,7 @@
 ---
 story: craft-shortfall-buy-fix-05
 spec: craft-shortfall-buy
-status: todo
+status: done
 tier: 3
 worker: worker-code
 tracer: false
