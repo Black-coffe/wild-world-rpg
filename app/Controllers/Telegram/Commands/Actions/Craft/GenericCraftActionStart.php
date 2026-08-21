@@ -130,209 +130,36 @@ class GenericCraftActionStart extends BaseAction
             return $this->sendError("Задача '{$recipe['task_name']}' не найдена в базе.");
         }
 
-        // ADR-167: 🔒-крафт (parallel_execution_allowed=0) не стартует поверх другого
-        // 🔒-дела. Проверка стоит ДО очереди и до списания ресурсов — иначе игрок
-        // терял бы сырьё в очередь, которая всё равно не может пойти.
-        // Свой же рецепт помехой не считается: ниже он уйдёт в очередь (queued),
-        // а не запустится вторым — очередь v0.51.129 остаётся рабочей.
-        $taskNameRus = is_string($taskRow['name_rus'] ?? null) ? $taskRow['name_rus'] : '';
-        $conflict    = $this->exclusiveConflictText(
-            (int) $character['id'],
-            $taskRow['parallel_execution_allowed'] ?? 1,
-            $taskNameRus,
-            (int) $taskRow['id'],
-        );
-        if ($conflict !== null) {
-            $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", 'exclusive_task_busy');
-            return $this->sendError($conflict);
+        // ADR-167 / story `craft-shortfall-buy-09`: все гейты старта КРОМЕ проверки
+        // сырья/крафт-компонентов живут в одном методе — его же зовёт
+        // `CraftShortfallBuyAction` ДО покупки, чтобы порядок «сначала старт, потом
+        // покупка» проверялся одним кодом, а не двумя разошедшимися копиями.
+        $gateError = $this->checkCanStartWithoutMaterials($this->recipeKey, $recipe, $character, $taskRow, $this->quantity);
+        if ($gateError !== null) {
+            return $this->sendError($gateError);
         }
 
         // v0.51.129: queue logic. Active task для цього recipe → НЕ блок'уємо,
         // а додаємо у queue (status='queued'). Reject лише при перевищенні
-        // queue cap або slot cap.
+        // queue cap або slot cap (перевірено в checkCanStartWithoutMaterials()).
         $activeTask = $this->characterTaskModel->where([
             'character_id' => $character['id'],
             'task_id'      => $taskRow['id'],
             'status'       => 'in_work',
         ])->first();
 
-        // Per-recipe queue cap: count active+queued tasks для same recipe
+        // Позиция в очереди для уведомления — тот же подсчёт, что уже прошёл гейт
+        // выше (там он лишь СРАВНИВАЛСЯ с лимитом, здесь нужно само число).
         $sameRecipeCount = $this->characterTaskModel
             ->where('character_id', $character['id'])
             ->where('task_id', $taskRow['id'])
             ->whereIn('status', ['in_work', 'queued'])
             ->countAllResults();
-        if ($sameRecipeCount >= $this->cfg->craftMaxQueuePerRecipe) {
-            return $this->sendError(
-                "Очередь крафта *{$recipe['item_name_rus']}* заполнена ("
-                . "{$this->cfg->craftMaxQueuePerRecipe} макс.). Дождись завершения или отмени один."
-            );
-        }
 
-        // Slot cap: count distinct task_ids with active+queued tasks. Якщо new
-        // recipe (no active+queued for this taskRow yet) AND already at slot cap → reject.
-        if ($sameRecipeCount === 0) {
-            $distinctSlotsUsed = $this->countDistinctActiveSlots($character['id']);
-            if ($distinctSlotsUsed >= $this->cfg->craftMaxConcurrentSlots) {
-                return $this->sendError(
-                    "Все *{$this->cfg->craftMaxConcurrentSlots}* слота крафта заняты. "
-                    . "Дождись завершения одного из активных или отмени запас."
-                );
-            }
-        }
-
-        // F3.B8: проверка наличия базы (для крафтов, требующих лагерь).
-        if (!empty($recipe['requires_base'])) {
-            $hasBase = $this->claimedCellModel->where('character_id', $character['id'])->first();
-            if (!$hasBase) {
-                $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", 'no_base');
-                return $this->sendError('У вас нет построенной базы (лагеря).');
-            }
-        }
-
-        // F3.B8: проверка наличия требуемых построек (RoboticsWorkshop, Workshop и т.д.).
-        // S16 (ADR-026): дополнительно — level-aware check через recipe.required_building_levels.
-        $requiredBuildingLevels = (isset($recipe['required_building_levels']) && is_array($recipe['required_building_levels']))
-            ? $recipe['required_building_levels']
-            : [];
-        foreach ($recipe['required_buildings'] ?? [] as $buildingNameEn) {
-            $building = $this->buildingModel->where('name_en', $buildingNameEn)->first();
-            if (!$building) {
-                log_message('error', "[GenericCraftActionStart:{$this->recipeKey}] здание '{$buildingNameEn}' не найдено в БД");
-                return $this->sendError("Конфигурационная ошибка: здание '{$buildingNameEn}' не найдено в БД.");
-            }
-            $hasBuilding = $this->characterBuildingModel
-                ->where('character_id', $character['id'])
-                ->where('building_id', $building['id'])
-                ->first();
-            if (!$hasBuilding) {
-                $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", 'missing_building', ['building' => $buildingNameEn]);
-                $rusName = BuildingModel::rusName($building, is_string($buildingNameEn) ? $buildingNameEn : '');
-                return $this->sendError("У вас нет необходимого здания: *{$rusName}*. Постройте его, чтобы крафтить.");
-            }
-            // S16: level-aware gate (новое поле). $buildingNameEn is mixed (recipe value);
-            // is_string() narrow для безопасного offset lookup в $requiredBuildingLevels.
-            $needLevelRaw = is_string($buildingNameEn) && isset($requiredBuildingLevels[$buildingNameEn])
-                ? $requiredBuildingLevels[$buildingNameEn]
-                : 0;
-            $needLevel    = is_numeric($needLevelRaw) ? (int) $needLevelRaw : 0;
-            if ($needLevel > 0) {
-                $haveLevelRaw = is_array($hasBuilding) && isset($hasBuilding['level']) ? $hasBuilding['level'] : 0;
-                $haveLevel    = is_numeric($haveLevelRaw) ? (int) $haveLevelRaw : 0;
-                if ($haveLevel < $needLevel) {
-                    $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", 'insufficient_building_level', [
-                        'building' => $buildingNameEn,
-                        'need'     => $needLevel,
-                        'have'     => $haveLevel,
-                    ]);
-                    $rusNameForLevel = BuildingModel::rusName($building, (string) $buildingNameEn);
-                    return $this->sendError("Здание *{$rusNameForLevel}* должно быть уровня *{$needLevel}* (сейчас *{$haveLevel}*). Прокачай и возвращайся.");
-                }
-            }
-        }
-
-        // S17 (v0.51.199, ADR-026 extension): проверка наличия non-consumable
-        // crafted_items в инвентаре (например, ProfessionalWorkbench для T3 weapons).
-        // В отличие от recipe.crafted_items (расходные компоненты со списанием),
-        // recipe.required_crafted_items — gate-проверка без decrement: просто
-        // "у чара есть N штук в crafted_items_log". Reusable для tier-gated
-        // крафтов (S17-S20 + любые будущие predmety-as-gates).
-        $requiredCraftedItemsRaw = $recipe['required_crafted_items'] ?? [];
-        $requiredCraftedItems    = is_array($requiredCraftedItemsRaw) ? $requiredCraftedItemsRaw : [];
-        $missingRequiredItems    = $this->checkRequiredCraftedItems(
-            (int) $character['id'],
-            $requiredCraftedItems,
-        );
-        if (!empty($missingRequiredItems)) {
-            $firstMissing = reset($missingRequiredItems);
-            $missingName  = $firstMissing['name'];
-            $this->logRejected(
-                $character['id'],
-                "CRAFT_{$this->recipeKey}",
-                'missing_required_crafted_item',
-                ['missing' => $missingRequiredItems],
-            );
-            return $this->sendError("Нужно иметь *{$missingName}* в инвентаре. Скрафти его и возвращайся.");
-        }
-
-        // S25 (ADR-029): quest-gate — рецепт заблокирован пока не завершён нужный
-        // quest (StrategicCapture<X>). required_quest = quests.title_en.
-        $requiredQuest = isset($recipe['required_quest']) && is_string($recipe['required_quest'])
-            ? $recipe['required_quest']
-            : '';
-        if ($requiredQuest !== '' && !$this->isQuestCompleted((int) $character['id'], $requiredQuest)) {
-            $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", 'required_quest_incomplete', [
-                'quest' => $requiredQuest,
-            ]);
-            return $this->sendError("Этот рецепт откроется после захвата стратегического объекта (квест ещё не завершён).");
-        }
-
-        // S25 (ADR-029): faction-gate — только член нужной фракции (true
-        // faction-exclusive). required_faction = character_factions.faction_id.
-        $requiredFaction = isset($recipe['required_faction']) && is_numeric($recipe['required_faction'])
-            ? (int) $recipe['required_faction']
-            : 0;
-        if ($requiredFaction > 0 && $this->characterFactionId((int) $character['id']) !== $requiredFaction) {
-            $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", 'required_faction_mismatch', [
-                'need' => $requiredFaction,
-            ]);
-            return $this->sendError("Это фракционное оружие может скрафтить только член соответствующей фракции.");
-        }
-
-        // S28 (ADR-032): seasonal-gate — рецепт доступен только когда активен его
-        // сезон (SeasonalCraftService, детерминированно от anchor+cycle). Defense-
-        // in-depth: меню показывает только активные, но гейт страхует от прямого callback.
-        $requiredSeason = isset($recipe['required_season']) && is_string($recipe['required_season'])
-            ? $recipe['required_season']
-            : '';
-        if ($requiredSeason !== '') {
-            $seasonalService = new \App\Services\World\SeasonalCraftService();
-            if (!$seasonalService->isSeasonActive($requiredSeason)) {
-                $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", 'season_inactive', [
-                    'required_season' => $requiredSeason,
-                ]);
-                $label = $seasonalService->getSeasonLabel($requiredSeason);
-                $labelTxt = $label !== '' ? "«{$label}»" : 'свой сезон';
-                return $this->sendError("Этот сезонный рецепт сейчас недоступен — вернётся в сезон {$labelTxt}.");
-            }
-        }
-
-        // F3.B8: проверка наличия золота (умножается на quantity).
-        $goldPerOne   = (int) ($recipe['gold_required'] ?? 0);
+        // F3.B8: золото (умножается на quantity) — уже провалидировано выше,
+        // но значение нужно ниже для фактического списания.
+        $goldPerOne   = $this->recipeIntField($recipe, 'gold_required');
         $goldRequired = $goldPerOne * $this->quantity;
-        if ($goldRequired > 0 && (int) ($character['gold'] ?? 0) < $goldRequired) {
-            $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", 'insufficient_gold', [
-                'need' => $goldRequired,
-                'have' => (int) ($character['gold'] ?? 0),
-            ]);
-            return $this->sendError("Недостаточно золота. Нужно *{$goldRequired}* ед., есть *" . ((int) $character['gold']) . "* ед.");
-        }
-
-        // F3.B9: проверка stat-требований персонажа (для weapons).
-        // Поля опциональны; для B5-B8 рецептов = 0 (skip check).
-        //
-        // S16 (ADR-026): уровень рецепта живёт в GameSettings по `required_level_setting_key`.
-        // Правило вынесено в RecipeGateResolver — тот же читатель обслуживает витрину транспорта,
-        // иначе экран и сделка расходятся при первом же тюнинге через админку.
-        $levelRequired = (new \App\Services\Craft\RecipeGateResolver(fn (string $k, $d) => $this->gameSettings->get($k, $d)))->requiredLevel($recipe);
-        $statChecks = [
-            'strength' => (int) ($recipe['required_strength'] ?? 0),
-            'agility'  => (int) ($recipe['required_agility']  ?? 0),
-            'level'    => $levelRequired,
-        ];
-        foreach ($statChecks as $stat => $needed) {
-            if ($needed <= 0) {
-                continue;
-            }
-            $have = (int) ($character[$stat] ?? 0);
-            if ($have < $needed) {
-                $this->logRejected($character['id'], "CRAFT_{$this->recipeKey}", "insufficient_{$stat}", [
-                    'need' => $needed, 'have' => $have,
-                ]);
-                $statRus = ['strength' => 'силы', 'agility' => 'ловкости', 'level' => 'уровня'][$stat];
-                return $this->sendError("Недостаточно {$statRus}. Нужно *{$needed}*, есть *{$have}*.");
-            }
-        }
 
         $missRes   = $this->checkResources($character['id'], $recipe['resources'], $this->quantity);
         $missItems = $this->checkCraftedItems($character['id'], $recipe['crafted_items'] ?? [], $this->quantity);
@@ -430,6 +257,246 @@ class GenericCraftActionStart extends BaseAction
             return $this->notifyCraftQueued($recipe, $sameRecipeCount + 1, $this->quantity, $insertedId, $background);
         }
         return $this->notifyCraftStarted($recipe, $startTime, $endTime, $this->quantity, $background);
+    }
+
+    /**
+     * Story `craft-shortfall-buy-09` — единая точка «может ли крафт вообще стартовать»:
+     * все гейты КРОМЕ проверки сырья/крафт-компонентов (эксклюзивный слот ADR-167,
+     * очередь/слоты, база, постройки+уровень, S17 non-consumable gate, квест, фракция,
+     * сезон, золото сборки, стат-требования). Материалы шортфолл-докупка чинит сама,
+     * ДО вызова этого метода не участвуют.
+     *
+     * Дёргается дважды: этим же `handle()` (обычный путь старта) и
+     * `CraftShortfallBuyAction` (докупка недостающего сырья) — чтобы порядок
+     * «сначала проверить, что крафт может начаться, потом покупать» проверялся ОДНИМ
+     * кодом, а не двумя копиями, которые неизбежно разойдутся при следующей правке
+     * гейтов (docs/specs/craft-shortfall-buy/plan.md §Правила сделки).
+     *
+     * @param array<string,mixed> $recipe
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character `CharacterModel` отдаёт
+     *     `CharacterEntity` (не `array`) — строгий `array`-тайпхинт под `strict_types` кидал бы
+     *     `TypeError` на вызове из `handle()` (см. memory `feedback_entity_strict_array_typehint_trap`).
+     * @param array<string,mixed> $taskRow
+     * @return string|null текст отказа (Markdown) либо `null` — крафт может начаться
+     */
+    public function checkCanStartWithoutMaterials(string $recipeKey, array $recipe, array|\App\Entities\CharacterEntity $character, array $taskRow, int $quantity): ?string
+    {
+        // ADR-167: 🔒-крафт (parallel_execution_allowed=0) не стартует поверх другого
+        // 🔒-дела. Проверка стоит ДО очереди и до списания ресурсов — иначе игрок
+        // терял бы сырьё в очередь, которая всё равно не может пойти.
+        // Свой же рецепт помехой не считается: ниже он уйдёт в очередь (queued),
+        // а не запустится вторым — очередь v0.51.129 остаётся рабочей.
+        $taskNameRus = is_string($taskRow['name_rus'] ?? null) ? $taskRow['name_rus'] : '';
+        $conflict    = $this->exclusiveConflictText(
+            $this->characterIntField($character, 'id'),
+            $taskRow['parallel_execution_allowed'] ?? 1,
+            $taskNameRus,
+            (int) $taskRow['id'],
+        );
+        if ($conflict !== null) {
+            $this->logRejected($this->characterIntField($character, 'id'), "CRAFT_{$recipeKey}", 'exclusive_task_busy');
+            return $conflict;
+        }
+
+        // Per-recipe queue cap: count active+queued tasks для same recipe
+        $sameRecipeCount = $this->characterTaskModel
+            ->where('character_id', $character['id'])
+            ->where('task_id', $taskRow['id'])
+            ->whereIn('status', ['in_work', 'queued'])
+            ->countAllResults();
+        if ($sameRecipeCount >= $this->cfg->craftMaxQueuePerRecipe) {
+            return "Очередь крафта *{$recipe['item_name_rus']}* заполнена ("
+                . "{$this->cfg->craftMaxQueuePerRecipe} макс.). Дождись завершения или отмени один.";
+        }
+
+        // Slot cap: count distinct task_ids with active+queued tasks. Якщо new
+        // recipe (no active+queued for this taskRow yet) AND already at slot cap → reject.
+        if ($sameRecipeCount === 0) {
+            $distinctSlotsUsed = $this->countDistinctActiveSlots($this->characterIntField($character, 'id'));
+            if ($distinctSlotsUsed >= $this->cfg->craftMaxConcurrentSlots) {
+                return "Все *{$this->cfg->craftMaxConcurrentSlots}* слота крафта заняты. "
+                    . "Дождись завершения одного из активных или отмени запас.";
+            }
+        }
+
+        // F3.B8: проверка наличия базы (для крафтов, требующих лагерь).
+        if (!empty($recipe['requires_base'])) {
+            $hasBase = $this->claimedCellModel->where('character_id', $character['id'])->first();
+            if (!$hasBase) {
+                $this->logRejected($this->characterIntField($character, 'id'), "CRAFT_{$recipeKey}", 'no_base');
+                return 'У вас нет построенной базы (лагеря).';
+            }
+        }
+
+        // F3.B8: проверка наличия требуемых построек (RoboticsWorkshop, Workshop и т.д.).
+        // S16 (ADR-026): дополнительно — level-aware check через recipe.required_building_levels.
+        $requiredBuildingLevels = (isset($recipe['required_building_levels']) && is_array($recipe['required_building_levels']))
+            ? $recipe['required_building_levels']
+            : [];
+        foreach ($recipe['required_buildings'] ?? [] as $buildingNameEn) {
+            $building = $this->buildingModel->where('name_en', $buildingNameEn)->first();
+            if (!$building) {
+                log_message('error', "[GenericCraftActionStart:{$recipeKey}] здание '{$buildingNameEn}' не найдено в БД");
+                return "Конфигурационная ошибка: здание '{$buildingNameEn}' не найдено в БД.";
+            }
+            $hasBuilding = $this->characterBuildingModel
+                ->where('character_id', $character['id'])
+                ->where('building_id', $building['id'])
+                ->first();
+            if (!$hasBuilding) {
+                $this->logRejected($this->characterIntField($character, 'id'), "CRAFT_{$recipeKey}", 'missing_building', ['building' => $buildingNameEn]);
+                $rusName = BuildingModel::rusName($building, is_string($buildingNameEn) ? $buildingNameEn : '');
+                return "У вас нет необходимого здания: *{$rusName}*. Постройте его, чтобы крафтить.";
+            }
+            // S16: level-aware gate (новое поле). $buildingNameEn is mixed (recipe value);
+            // is_string() narrow для безопасного offset lookup в $requiredBuildingLevels.
+            $needLevelRaw = is_string($buildingNameEn) && isset($requiredBuildingLevels[$buildingNameEn])
+                ? $requiredBuildingLevels[$buildingNameEn]
+                : 0;
+            $needLevel    = is_numeric($needLevelRaw) ? (int) $needLevelRaw : 0;
+            if ($needLevel > 0) {
+                $haveLevelRaw = is_array($hasBuilding) && isset($hasBuilding['level']) ? $hasBuilding['level'] : 0;
+                $haveLevel    = is_numeric($haveLevelRaw) ? (int) $haveLevelRaw : 0;
+                if ($haveLevel < $needLevel) {
+                    $this->logRejected($this->characterIntField($character, 'id'), "CRAFT_{$recipeKey}", 'insufficient_building_level', [
+                        'building' => $buildingNameEn,
+                        'need'     => $needLevel,
+                        'have'     => $haveLevel,
+                    ]);
+                    $rusNameForLevel = BuildingModel::rusName($building, (string) $buildingNameEn);
+                    return "Здание *{$rusNameForLevel}* должно быть уровня *{$needLevel}* (сейчас *{$haveLevel}*). Прокачай и возвращайся.";
+                }
+            }
+        }
+
+        // S17 (v0.51.199, ADR-026 extension): проверка наличия non-consumable
+        // crafted_items в инвентаре (например, ProfessionalWorkbench для T3 weapons).
+        // В отличие от recipe.crafted_items (расходные компоненты со списанием),
+        // recipe.required_crafted_items — gate-проверка без decrement: просто
+        // "у чара есть N штук в crafted_items_log". Reusable для tier-gated
+        // крафтов (S17-S20 + любые будущие predmety-as-gates).
+        $requiredCraftedItemsRaw = $recipe['required_crafted_items'] ?? [];
+        $requiredCraftedItems    = is_array($requiredCraftedItemsRaw) ? $requiredCraftedItemsRaw : [];
+        $missingRequiredItems    = $this->checkRequiredCraftedItems(
+            $this->characterIntField($character, 'id'),
+            $requiredCraftedItems,
+        );
+        if (!empty($missingRequiredItems)) {
+            $firstMissing = reset($missingRequiredItems);
+            $missingName  = $firstMissing['name'];
+            $this->logRejected(
+                $this->characterIntField($character, 'id'),
+                "CRAFT_{$recipeKey}",
+                'missing_required_crafted_item',
+                ['missing' => $missingRequiredItems],
+            );
+            return "Нужно иметь *{$missingName}* в инвентаре. Скрафти его и возвращайся.";
+        }
+
+        // S25 (ADR-029): quest-gate — рецепт заблокирован пока не завершён нужный
+        // quest (StrategicCapture<X>). required_quest = quests.title_en.
+        $requiredQuest = isset($recipe['required_quest']) && is_string($recipe['required_quest'])
+            ? $recipe['required_quest']
+            : '';
+        if ($requiredQuest !== '' && !$this->isQuestCompleted($this->characterIntField($character, 'id'), $requiredQuest)) {
+            $this->logRejected($this->characterIntField($character, 'id'), "CRAFT_{$recipeKey}", 'required_quest_incomplete', [
+                'quest' => $requiredQuest,
+            ]);
+            return "Этот рецепт откроется после захвата стратегического объекта (квест ещё не завершён).";
+        }
+
+        // S25 (ADR-029): faction-gate — только член нужной фракции (true
+        // faction-exclusive). required_faction = character_factions.faction_id.
+        $requiredFaction = isset($recipe['required_faction']) && is_numeric($recipe['required_faction'])
+            ? (int) $recipe['required_faction']
+            : 0;
+        if ($requiredFaction > 0 && $this->characterFactionId($this->characterIntField($character, 'id')) !== $requiredFaction) {
+            $this->logRejected($this->characterIntField($character, 'id'), "CRAFT_{$recipeKey}", 'required_faction_mismatch', [
+                'need' => $requiredFaction,
+            ]);
+            return "Это фракционное оружие может скрафтить только член соответствующей фракции.";
+        }
+
+        // S28 (ADR-032): seasonal-gate — рецепт доступен только когда активен его
+        // сезон (SeasonalCraftService, детерминированно от anchor+cycle). Defense-
+        // in-depth: меню показывает только активные, но гейт страхует от прямого callback.
+        $requiredSeason = isset($recipe['required_season']) && is_string($recipe['required_season'])
+            ? $recipe['required_season']
+            : '';
+        if ($requiredSeason !== '') {
+            $seasonalService = new \App\Services\World\SeasonalCraftService();
+            if (!$seasonalService->isSeasonActive($requiredSeason)) {
+                $this->logRejected($this->characterIntField($character, 'id'), "CRAFT_{$recipeKey}", 'season_inactive', [
+                    'required_season' => $requiredSeason,
+                ]);
+                $label = $seasonalService->getSeasonLabel($requiredSeason);
+                $labelTxt = $label !== '' ? "«{$label}»" : 'свой сезон';
+                return "Этот сезонный рецепт сейчас недоступен — вернётся в сезон {$labelTxt}.";
+            }
+        }
+
+        // F3.B8: проверка наличия золота (умножается на quantity).
+        $goldPerOne   = $this->recipeIntField($recipe, 'gold_required');
+        $goldRequired = $goldPerOne * $quantity;
+        $goldHave = $this->characterIntField($character, 'gold');
+        if ($goldRequired > 0 && $goldHave < $goldRequired) {
+            $this->logRejected($this->characterIntField($character, 'id'), "CRAFT_{$recipeKey}", 'insufficient_gold', [
+                'need' => $goldRequired,
+                'have' => $goldHave,
+            ]);
+            return "Недостаточно золота. Нужно *{$goldRequired}* ед., есть *{$goldHave}* ед.";
+        }
+
+        // F3.B9: проверка stat-требований персонажа (для weapons).
+        // Поля опциональны; для B5-B8 рецептов = 0 (skip check).
+        //
+        // S16 (ADR-026): уровень рецепта живёт в GameSettings по `required_level_setting_key`.
+        // Правило вынесено в RecipeGateResolver — тот же читатель обслуживает витрину транспорта,
+        // иначе экран и сделка расходятся при первом же тюнинге через админку.
+        $levelRequired = (new \App\Services\Craft\RecipeGateResolver(fn (string $k, $d) => $this->gameSettings->get($k, $d)))->requiredLevel($recipe);
+        $statChecks = [
+            'strength' => $this->recipeIntField($recipe, 'required_strength'),
+            'agility'  => $this->recipeIntField($recipe, 'required_agility'),
+            'level'    => $levelRequired,
+        ];
+        foreach ($statChecks as $stat => $needed) {
+            if ($needed <= 0) {
+                continue;
+            }
+            $have = $this->characterIntField($character, $stat);
+            if ($have < $needed) {
+                $this->logRejected($this->characterIntField($character, 'id'), "CRAFT_{$recipeKey}", "insufficient_{$stat}", [
+                    'need' => $needed, 'have' => $have,
+                ]);
+                $statRus = ['strength' => 'силы', 'agility' => 'ловкости', 'level' => 'уровня'][$stat];
+                return "Недостаточно {$statRus}. Нужно *{$needed}*, есть *{$have}*.";
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * `$character` бывает и `CharacterEntity` (обычный старт), и plain `array`
+     * (вызов из `CraftShortfallBuyAction` уже приводит к массиву) — под PHPStan L9
+     * такая уния даёт `mixed` на любом ArrayAccess-чтении. Явный int-геттер
+     * возвращает настоящий `int`, а не гадает по месту использования.
+     *
+     * @param array<string,mixed>|\App\Entities\CharacterEntity $character
+     */
+    private function characterIntField(array|\App\Entities\CharacterEntity $character, string $key): int
+    {
+        $raw = $character[$key] ?? null;
+
+        return is_numeric($raw) ? (int) $raw : 0;
+    }
+
+    /** @param array<string,mixed> $recipe */
+    private function recipeIntField(array $recipe, string $key): int
+    {
+        $raw = $recipe[$key] ?? null;
+
+        return is_numeric($raw) ? (int) $raw : 0;
     }
 
     /**

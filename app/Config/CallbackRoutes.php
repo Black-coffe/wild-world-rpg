@@ -357,6 +357,12 @@ class CallbackRoutes extends BaseConfig
         // Кнопка появляется лишь при killswitch onboarding.cold_open_v2.build_locks.
         'buildLocked'                     => \App\Controllers\Telegram\Commands\Actions\Camp\BuildLockedAction::class,
         'genericCraft'                    => \App\Controllers\Telegram\Commands\Actions\Craft\GenericCraftActionStart::class,
+        // Story `craft-shortfall-buy-09` (## Contracts плана) — экран подтверждения
+        // докупки недостающего сырья у торговца и проведение сделки. Три ключа —
+        // один action, ветвление по первому сегменту внутри самого экшена.
+        'craftBuy'                        => \App\Controllers\Telegram\Commands\Actions\Craft\CraftShortfallBuyAction::class,
+        'craftBuyGo'                      => \App\Controllers\Telegram\Commands\Actions\Craft\CraftShortfallBuyAction::class,
+        'craftBuyOnly'                    => \App\Controllers\Telegram\Commands\Actions\Craft\CraftShortfallBuyAction::class,
 
         // S5b (v0.51.188+): Ремонт изношенных инструментов через GameSettings (ADR-024).
         // - repairToolsList: список изношенных инструментов с кнопкой Ремонт per item
