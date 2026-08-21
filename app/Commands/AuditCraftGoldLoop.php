@@ -119,6 +119,7 @@ final class AuditCraftGoldLoop extends BaseCommand
         );
 
         $report = $this->renderMarkdown(
+            $this->connectionSource(),
             $start,
             $end,
             count($buyers),
@@ -304,9 +305,24 @@ final class AuditCraftGoldLoop extends BaseCommand
     }
 
     /**
+     * Фактический источник данных активного подключения — имя базы и хост, без пароля и без
+     * полной строки подключения. Используется в шапке отчёта вместо захардкоженного
+     * предположения об окружении (см. story: отчёт от 2026-08-21 назвал прод «локальной БД»).
+     */
+    private function connectionSource(): string
+    {
+        $db       = Database::connect();
+        $database = $db->getDatabase();
+        $hostname = $db->hostname !== '' ? $db->hostname : '?';
+
+        return "{$hostname}/{$database}";
+    }
+
+    /**
      * @param list<array{name:string,qty:float,revenue:float,margin_per_unit:float|null}> $top
      */
     private function renderMarkdown(
+        string $source,
         string $start,
         string $end,
         int $buyers,
@@ -324,7 +340,7 @@ final class AuditCraftGoldLoop extends BaseCommand
         $lines = [];
         $lines[] = '# Аудит: масштаб цикла «купил сырьё → собрал → продал»';
         $lines[] = '';
-        $lines[] = 'Прогон: `php spark audit:craft-gold-loop` — ' . date('Y-m-d H:i:s') . ' (локальная БД, слепок testbot).';
+        $lines[] = 'Прогон: `php spark audit:craft-gold-loop` — ' . date('Y-m-d H:i:s') . " (источник: {$source}).";
         $lines[] = 'Источник — журналы действий (`transactions` type=buy|sell, `crafted_items_log`), не счётчики `resources_bank`';
         $lines[] = '(ADR-175: их «0» больше не значит «не покупали»). Read-only, ни один запрос не изменяет данные.';
         $lines[] = '';
@@ -341,7 +357,8 @@ final class AuditCraftGoldLoop extends BaseCommand
         if ($fullCycleCount < 20) {
             $lines[] = '';
             $lines[] = '> Выборка меньше 20 — по правилу проекта это читается как "сигнала нет", а не "цикла нет".'
-                . ' Локальная БД — старый/малый слепок testbot; для решения по 41 рецепту нужен тот же прогон на актуальном дампе/на testbot.';
+                . " Источник этого прогона — **{$source}**; если это не боевая база (не прод), для решения по 41 рецепту"
+                . ' нужен тот же прогон на актуальных боевых данных.';
         }
         $lines[] = '';
         $lines[] = '## Методология «полного цикла»';
