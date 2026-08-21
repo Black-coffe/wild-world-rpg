@@ -538,7 +538,7 @@ class GenericmessageCommand extends SystemCommand
 
         // Вызываем сервис крафта
         $craftService = new CraftService();
-        $response     = $craftService->showCraftMenu($chatId);
+        $response     = $craftService->showCraftMenu($chatId, $characterRow);
 
         // ADR-103 just-in-time: новичок открыл крафт-хаб (нижняя кнопка «Крафт» / текст
         // «крафт» — основной путь), но ещё ничего не скрафтил → подсказываем, с чего начать.

@@ -84,6 +84,40 @@ class CraftedItemsLogModel extends Model
             ->first();
     }
 
+    /**
+     * Сколько единиц предмета `name_eng` реально лежит у персонажа — СУММОЙ по всем
+     * строкам лога, а не по первой попавшейся (`first()` без orderBy врёт при
+     * множественности строк на одну пару character/item).
+     *
+     * Единая точка правды для гейтов «есть ли у игрока этот предмет». Хаб крафта и
+     * экран Профессионального верстака обязаны отвечать на этот вопрос одинаково —
+     * иначе кнопка и экран за ней расходятся.
+     */
+    public function ownedQuantityByNameEng(string $itemNameEng, int $characterId): int
+    {
+        $item = (new CraftedItemsModel())->where('name_eng', $itemNameEng)->first();
+        if (!is_array($item) || !isset($item['id']) || !is_numeric($item['id'])) {
+            return 0;
+        }
+
+        // Свежий builder на каждый вызов: у модели builder-state переживает first()
+        // и склеивает where() при повторных вызовах в одном запросе.
+        $result = $this->db->table($this->table)
+            ->selectSum('quantity', 'total')
+            ->where('crafted_item_id', (int) $item['id'])
+            ->where('character_id', $characterId)
+            ->get();
+
+        if ($result === false) {
+            return 0;
+        }
+
+        $row   = $result->getRowArray();
+        $total = is_array($row) && isset($row['total']) ? $row['total'] : 0;
+
+        return is_numeric($total) ? (int) $total : 0;
+    }
+
     public function subtractItem($characterId, $itemName, $subtractQuantity) {
         $itemModel = new CraftedItemsModel();
         $item = $itemModel->where('name_eng', $itemName)->first();

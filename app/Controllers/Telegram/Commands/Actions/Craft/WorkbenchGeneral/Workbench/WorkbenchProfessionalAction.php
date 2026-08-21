@@ -79,20 +79,14 @@ class WorkbenchProfessionalAction extends BaseAction
         $characterId = (int) $character['id'];
 
         // S17 (v0.51.199): если у чара уже есть ProfessionalWorkbench в инвентаре —
-        // показываем craft-menu T3 (Оружие/Броня/Медицина/Утилиты), а не gate screen
-        // для крафта самого верстака. Это превращает workbenchProfessional callback
-        // в two-mode dispatcher: pre-build → requirements / post-build → craft menu.
-        $existingWorkbench = $this->craftedItemsModel->where('name_eng', 'ProfessionalWorkbench')->first();
-        if (is_array($existingWorkbench) && isset($existingWorkbench['id'])) {
-            $log = $this->craftedItemsLogModel
-                ->where('character_id', $characterId)
-                ->where('crafted_item_id', $existingWorkbench['id'])
-                ->first();
-            $haveQtyRaw = is_array($log) && isset($log['quantity']) ? $log['quantity'] : 0;
-            $haveQty    = is_numeric($haveQtyRaw) ? (int) $haveQtyRaw : 0;
-            if ($haveQty > 0) {
-                return $this->renderCraftMenu($chatId);
-            }
+        // показываем craft-menu T3, а не gate screen для крафта самого верстака:
+        // two-mode dispatcher pre-build → requirements / post-build → craft menu.
+        //
+        // 2026-08-21: тот же вопрос задаёт хаб крафта, чтобы подписать кнопку
+        // (`CraftService::showCraftMenu`). Ответ обязан быть один — поэтому оба
+        // ходят в `ownedQuantityByNameEng`, а не считают владение каждый по-своему.
+        if ($this->craftedItemsLogModel->ownedQuantityByNameEng('ProfessionalWorkbench', $characterId) > 0) {
+            return $this->renderCraftMenu($chatId);
         }
 
         // Live-tunable gates.
@@ -115,9 +109,14 @@ class WorkbenchProfessionalAction extends BaseAction
 
         $hasBase = (bool) $this->claimedCellModel->where('character_id', $characterId)->first();
 
-        $text = "*🛠️ Профессиональный верстак (цех)*\n\n"
-            . "_Второй и высший верстак в игре — тяжёлый ручной цех с парными тисками, маленьким горном и стеной для инструментов. "
-            . "Открывает Профессиональный крафт: продвинутое оружие, броню, медицину, утилиты и фракционные вещи._\n\n"
+        // Сюда попадают ТОЛЬКО игроки без цеха. Раньше экран открывался молча под
+        // подписью «Профессиональный крафт» — игрок жал раздел крафта, а получал
+        // стройку верстака и читал это как дубль соседней кнопки «Верстаки».
+        // Первая строка теперь честно говорит, что раздел заперт и чем отпирается.
+        $text = "🔒 *Профессиональный крафт закрыт*\n"
+            . "_Раздел T3 откроется сам, как только соберёшь цех. Ниже — чего не хватает для сборки._\n\n"
+            . "*🛠️ Профессиональный верстак (цех)*\n"
+            . "_Высший верстак в игре: открывает топовое оружие, броню, медицину, утилиты и фракционные вещи._\n\n"
             . "*Требования для сборки:*\n";
 
         $hasAll = true;

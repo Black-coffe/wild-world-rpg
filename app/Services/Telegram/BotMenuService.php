@@ -370,7 +370,7 @@ class BotMenuService
             return self::noCharacter($chatId);
         }
 
-        $response = (new CraftService())->showCraftMenu($chatId);
+        $response = (new CraftService())->showCraftMenu($chatId, $character);
 
         // ADR-103 just-in-time: новичок открыл крафт-хаб, но ещё ничего не скрафтил —
         // подсказываем, с чего начать («🔨 Общий крафт», верстак не нужен). One-shot +
