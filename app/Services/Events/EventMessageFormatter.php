@@ -127,11 +127,14 @@ final class EventMessageFormatter
             ],
         ];
 
-        // Додаткова кнопка если HP loss значний
+        // Додаткова кнопка если HP loss значний — обе полки лечения (аптечка + провизия),
+        // еда лечит сильнее лекарств (Debuffs.php), одна кнопка на pharmacy уводила
+        // бы от лучшего варианта.
         $hd = (float)($aggregate['health_delta'] ?? 0);
         if ($hd < -10) {
             $rows[] = [
-                ['text' => '🩹 Лечиться', 'callback_data' => 'pharmacy'],
+                ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
+                ['text' => '🍲 Провизия', 'callback_data' => 'provision'],
             ];
         }
 

@@ -6,6 +6,7 @@ use App\Attributes\HandlerKey;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Services\Player\Death\DeathMessageBuilder;
+use App\Services\Telegram\ButtonPacker;
 
 /**
  * v0.51.20 (F2.9 batch-2): extends BaseTaskHandler (per F2.9 contract).
@@ -130,16 +131,17 @@ class LowHealthWarningHandler extends BaseTaskHandler
                 }
             }
 
-            $text .= "Предприми действия или воспользуйся аптечкой. Удачи в выживании!";
+            $text .= "Предприми действия или воспользуйся аптечкой/провизией. Удачи в выживании!";
 
-            // Inline-кнопки
+            // Inline-кнопки — обе полки лечения (аптечка + провизия) рядом с рецептом
+            // лекарств; ButtonPacker гарантирует отсутствие строк-одиночек.
+            $healButtons = [
+                ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
+                ['text' => '🍲 Провизия', 'callback_data' => 'provision'],
+                ['text' => '💊 Лекарства', 'callback_data' => 'medicinesCraft1'],
+            ];
             $keyboard = [
-                'inline_keyboard' => [
-                    [
-                        ['text' => '💊 Аптечка', 'callback_data' => 'pharmacy'],
-                        ['text' => '💊 Лекарства', 'callback_data' => 'medicinesCraft1'],
-                    ],
-                ],
+                'inline_keyboard' => ButtonPacker::pack($healButtons),
             ];
 
             // Отправляем фото + текст (lazy Telegram через BaseTaskHandler)

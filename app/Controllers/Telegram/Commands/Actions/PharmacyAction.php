@@ -55,7 +55,7 @@ class PharmacyAction extends BaseAction
         // видна и здесь (UX-discoverability) — своя пустая полка не тупик.
         if (empty($medicine)) {
             $text = "К сожалению, у тебя нет медицинских предметов! Нужно их сначала скрафтить: "
-                . "🔨 Крафт → 💊 Лекарства.";
+                . "🔨 Крафт → 🔨 Общий крафт → 💊 Лекарства.";
             $inline_keyboard = [
                 ['text' => "🍲 Провизия ({$provisionCount})", 'callback_data' => 'provision'],
                 ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],

@@ -6,7 +6,6 @@ use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Models\CraftedItemsLogModel;
-use App\Models\CraftedItemsModel;
 use App\Services\Player\ConsumableShelfService;
 use Config\Consumables;
 
@@ -19,13 +18,11 @@ use Config\Consumables;
 class ProvisionAction extends BaseAction
 {
     protected CraftedItemsLogModel $craftedItemsLogModel;
-    protected CraftedItemsModel $craftedItemsModel;
 
     public function __construct(CallbackQuery $callbackQuery)
     {
         parent::__construct($callbackQuery);
         $this->craftedItemsLogModel = new CraftedItemsLogModel();
-        $this->craftedItemsModel = new CraftedItemsModel();
     }
 
     public function handle(): ServerResponse
@@ -63,7 +60,7 @@ class ProvisionAction extends BaseAction
         // здесь (UX-discoverability) — своя пустая полка не тупик.
         if (empty($provision)) {
             $text = "К сожалению, у тебя нет провизии! Нужно её сначала приготовить: "
-                . "🔨 Крафт → 🔥 Костёр.";
+                . "🔨 Крафт → 🔨 Общий крафт → 🔥 Костёр.";
             $inline_keyboard = [
                 ['text' => "💊 Аптечка ({$medicineCount})", 'callback_data' => 'pharmacy'],
                 ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],

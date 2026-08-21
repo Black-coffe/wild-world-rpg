@@ -82,9 +82,21 @@ class Consumables extends BaseConfig
 
     /**
      * На какую полку кладём предмет. Незнакомое имя → провизия (см. класс-докблок).
+     *
+     * Сравнение без учёта регистра: `UsePharmacyAction::getCraftedItemId()` находит
+     * `crafted_items.name_eng` MySQL-запросом, чья коллация регистр игнорирует, — строка,
+     * отличающаяся только регистром, иначе применилась бы, но уехала на чужую полку.
+     * Литералы каталога (`self::MEDICINE`) остаются как есть, регистр приводим только
+     * для сравнения.
      */
     public static function shelfOf(string $nameEng): string
     {
-        return in_array($nameEng, self::MEDICINE, true) ? self::SHELF_MEDICINE : self::SHELF_PROVISION;
+        foreach (self::MEDICINE as $medicineName) {
+            if (strcasecmp($medicineName, $nameEng) === 0) {
+                return self::SHELF_MEDICINE;
+            }
+        }
+
+        return self::SHELF_PROVISION;
     }
 }
