@@ -7,6 +7,7 @@ namespace Tests\Unit\Config;
 use CodeIgniter\Test\CIUnitTestCase;
 use Config\Consumables;
 use Config\Debuffs;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Каталог полок (`Config\Consumables`): непересечение списков и связность с
@@ -58,9 +59,7 @@ final class ConsumablesCatalogTest extends CIUnitTestCase
         ];
     }
 
-    /**
-     * @dataProvider knownItems
-     */
+    #[DataProvider('knownItems')]
     public function testShelfOfKnownItems(string $nameEng, string $expectedShelf): void
     {
         $this->assertSame($expectedShelf, Consumables::shelfOf($nameEng));

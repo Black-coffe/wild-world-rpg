@@ -8,6 +8,7 @@ use App\Services\Player\ConsumableShelfService;
 use CodeIgniter\Test\CIUnitTestCase;
 use Config\Consumables;
 use Config\Debuffs;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * Полка расходника через её публичный вход: массив строк → `split()`/`screen()` →
@@ -89,9 +90,7 @@ final class ConsumableShelfTest extends CIUnitTestCase
         ];
     }
 
-    /**
-     * @dataProvider curingMedicine
-     */
+    #[DataProvider('curingMedicine')]
     public function testMedicineShelfPrintsCuredLineForCuringItems(string $nameEng): void
     {
         $screen = $this->service->screen(ConsumableShelfService::SHELF_MEDICINE, [$this->row($nameEng)]);
@@ -126,27 +125,137 @@ final class ConsumableShelfTest extends CIUnitTestCase
     }
 
     /**
-     * 🔴 Длина текста. Полный каталог полки — 28 провизий / 15 лекарств, по одному
-     * предмету в наличии — не имеет права перерасти лимит Telegram-сообщения 4096
-     * символов. `MediaSender::visibleTgLength` приватный, здесь текста без HTML-тегов
-     * не встречается — считаем `mb_strlen` напрямую (см. Requirement #5 story).
+     * Русские названия и бафы — той же ФОРМЫ, что реально лежит в `crafted_items`:
+     * двухключевой JSON `{"Здоровье": N, "Выносливость": M}` (замерено на живой БД,
+     * docs/specs/pharmacy-split/pharmacy-split-07.md), а не тестовый однодозовый
+     * английский fallback из `row()` выше. Используется только гейтами длины —
+     * остальные тесты этого файла проверены на излом и `row()` им не мешает.
+     *
+     * @return array<string, array{name_rus: string, boost: string}>
+     */
+    private static function productionCatalog(): array
+    {
+        return [
+            // Лекарства (10 из 15 — реальный `name_rus`/`character_boost` с живой БД;
+            // 5 отсутствующих в локальной БД — правдоподобный русский эквивалент той же формы).
+            'headache_tablets'      => ['name_rus' => 'Таблетки от головной боли', 'boost' => '[{"Здоровье": 10,"Выносливость": 4}]'],
+            'FirstAidKit'           => ['name_rus' => 'Аптечка базовая', 'boost' => '[{"Здоровье": 40,"Выносливость": 9}]'],
+            'Common cold tincture'  => ['name_rus' => 'Настойка от простуды', 'boost' => '[{"Здоровье": 45,"Выносливость": 6}]'],
+            'TonicElixir'           => ['name_rus' => 'Укрепляющий эликсир', 'boost' => '[{"Здоровье": 18,"Выносливость": 16}]'],
+            'Bandage'               => ['name_rus' => 'Повязка', 'boost' => '[{"Здоровье": 2,"Выносливость": 1}]'],
+            'AnalgesicPowder'       => ['name_rus' => 'Обезболивающий порошок', 'boost' => '[{"Здоровье": 18,"Выносливость": -4}]'],
+            'Stimulator'            => ['name_rus' => 'Стимулятор', 'boost' => '[{"Здоровье": 25,"Выносливость": 15}]'],
+            'Antiseptic'            => ['name_rus' => 'Антисептик', 'boost' => '[{"Здоровье": 4,"Выносливость": 2}]'],
+            'Sedative'              => ['name_rus' => 'Успокоительное', 'boost' => '[{"Здоровье": 5,"Выносливость": 30}]'],
+            'Regenerator'           => ['name_rus' => 'Регенератор', 'boost' => '[{"Здоровье": 30,"Выносливость": 20}]'],
+            'SyntheticMedicine'     => ['name_rus' => 'Синтетическое лекарство', 'boost' => '[{"Здоровье": 22,"Выносливость": 10}]'],
+            'EmergencyTransfusion'  => ['name_rus' => 'Экстренное переливание крови', 'boost' => '[{"Здоровье": 60,"Выносливость": 5}]'],
+            'SurgicalKit'           => ['name_rus' => 'Хирургический набор', 'boost' => '[{"Здоровье": 50,"Выносливость": 12}]'],
+            'WinterWarmingBalm'     => ['name_rus' => 'Зимний согревающий бальзам', 'boost' => '[{"Здоровье": 12,"Выносливость": 8}]'],
+            'SummerAloeBalm'        => ['name_rus' => 'Летний бальзам с алоэ', 'boost' => '[{"Здоровье": 8,"Выносливость": 6}]'],
+            // Провизия — правдоподобный русский эквивалент той же формы (двухключевой Баф).
+            'WinterHerbalBrew'      => ['name_rus' => 'Зимний травяной взвар', 'boost' => '[{"Здоровье": 3,"Выносливость": 12}]'],
+            'WinterHoneyMead'       => ['name_rus' => 'Зимний медовый сбитень', 'boost' => '[{"Здоровье": 4,"Выносливость": 14}]'],
+            'WinterCampStew'        => ['name_rus' => 'Зимняя походная похлёбка', 'boost' => '[{"Здоровье": 6,"Выносливость": 18}]'],
+            'WinterPreserves'       => ['name_rus' => 'Зимние заготовки', 'boost' => '[{"Здоровье": 2,"Выносливость": 10}]'],
+            'SpringFirstHerbTea'    => ['name_rus' => 'Весенний чай из первых трав', 'boost' => '[{"Здоровье": 3,"Выносливость": 9}]'],
+            'SpringBirchSap'        => ['name_rus' => 'Весенний берёзовый сок', 'boost' => '[{"Здоровье": 2,"Выносливость": 8}]'],
+            'SpringPrimroseInfusion' => ['name_rus' => 'Весенний настой примулы', 'boost' => '[{"Здоровье": 4,"Выносливость": 7}]'],
+            'SpringWildGreens'      => ['name_rus' => 'Весенняя дикая зелень', 'boost' => '[{"Здоровье": 3,"Выносливость": 6}]'],
+            'SpringShootsDecoction' => ['name_rus' => 'Весенний отвар из побегов', 'boost' => '[{"Здоровье": 3,"Выносливость": 9}]'],
+            'SummerColdKvass'       => ['name_rus' => 'Летний холодный квас', 'boost' => '[{"Здоровье": 2,"Выносливость": 15}]'],
+            'SummerBerryMors'       => ['name_rus' => 'Летний ягодный морс', 'boost' => '[{"Здоровье": 3,"Выносливость": 13}]'],
+            'SummerFruitWater'      => ['name_rus' => 'Летняя фруктовая вода', 'boost' => '[{"Здоровье": 1,"Выносливость": 16}]'],
+            'SummerMintTea'         => ['name_rus' => 'Летний мятный чай', 'boost' => '[{"Здоровье": 2,"Выносливость": 10}]'],
+            'AutumnBerryJam'        => ['name_rus' => 'Осенний ягодный джем', 'boost' => '[{"Здоровье": 4,"Выносливость": 8}]'],
+            'AutumnMushroomStew'    => ['name_rus' => 'Осенняя грибная похлёбка', 'boost' => '[{"Здоровье": 6,"Выносливость": 17}]'],
+            'AutumnNutMix'          => ['name_rus' => 'Осенняя ореховая смесь', 'boost' => '[{"Здоровье": 5,"Выносливость": 12}]'],
+            'AutumnCider'           => ['name_rus' => 'Осенний сидр', 'boost' => '[{"Здоровье": 2,"Выносливость": 11}]'],
+            'AutumnVegPreserves'    => ['name_rus' => 'Осенние овощные заготовки', 'boost' => '[{"Здоровье": 3,"Выносливость": 9}]'],
+            'MushroomSoup'          => ['name_rus' => 'Грибной суп', 'boost' => '[{"Здоровье": 5,"Выносливость": 14}]'],
+            'BerryBrew'             => ['name_rus' => 'Ягодный взвар', 'boost' => '[{"Здоровье": 2,"Выносливость": 12}]'],
+            'BakedFruit'            => ['name_rus' => 'Печёные фрукты', 'boost' => '[{"Здоровье": 3,"Выносливость": 8}]'],
+            'GrainPorridge'         => ['name_rus' => 'Зерновая каша', 'boost' => '[{"Здоровье": 4,"Выносливость": 15}]'],
+            'HeartyStew'            => ['name_rus' => 'Сытная похлёбка', 'boost' => '[{"Здоровье": 6,"Выносливость": 18}]'],
+            'StewPreserve'          => ['name_rus' => 'Тушёнка', 'boost' => '[{"Здоровье": 5,"Выносливость": 14}]'],
+            'DryRation'             => ['name_rus' => 'Сухой паёк', 'boost' => '[{"Здоровье": 2,"Выносливость": 10}]'],
+            'FishSoup'              => ['name_rus' => 'Рыбный суп', 'boost' => '[{"Здоровье": 4,"Выносливость": 13}]'],
+            'GrilledFish'           => ['name_rus' => 'Жареная рыба', 'boost' => '[{"Здоровье": 3,"Выносливость": 11}]'],
+            'FishPreserve'          => ['name_rus' => 'Рыбные консервы', 'boost' => '[{"Здоровье": 4,"Выносливость": 12}]'],
+        ];
+    }
+
+    /**
+     * Строка той же ФОРМЫ, что приходит из БД в `PharmacyAction`/`UsePharmacyAction`:
+     * русское имя, срок годности в будущем (годен), двухключевой `character_boost`.
+     * `$multiDose` включает начатую многодозовую упаковку (5 доз в шаблоне, 3 осталось,
+     * как у Антисептика) — только там, где вызывающий тест явно просит эту строку.
+     *
+     * @param array<string, array{name_rus: string, boost: string}> $catalog
+     * @return array<string, mixed>
+     */
+    private function productionRow(string $nameEng, array $catalog, int $quantity = 3, bool $multiDose = false): array
+    {
+        $entry = $catalog[$nameEng];
+
+        return [
+            'name_eng'        => $nameEng,
+            'name_rus'        => $entry['name_rus'],
+            'quantity'        => $quantity,
+            'character_boost' => $entry['boost'],
+            'durability_time' => date('Y-m-d H:i:s', strtotime('+30 days')),
+            'base_charges'    => $multiDose ? 5 : 1,
+            'log_charges'     => $multiDose ? 3 : 1,
+        ];
+    }
+
+    /**
+     * Длина в UTF-16 code units — ровно та метрика, которой Telegram считает лимиты
+     * caption/text ("after entities parsing"). Эмодзи (суррогатная пара) весит 2 unit,
+     * а экран аптечки — это эмодзи в каждой строке (📋/💊/✅/🩺/🔥/🍲): `mb_strlen` (1
+     * unit на символ) занижает реальную длину и давал ложное «укладывается впритык»
+     * там, где Telegram уже режет текст. Дублирует алгоритм приватного
+     * `MediaSender::visibleTgLength` (strip_tags+entity-decode тут не нужны — в
+     * экране нет HTML, только markdown `*...*`).
+     */
+    private static function utf16Length(string $text): int
+    {
+        return intdiv(strlen(mb_convert_encoding($text, 'UTF-16LE', 'UTF-8')), 2);
+    }
+
+    /**
+     * 🔴 Длина текста. Полный каталог полки — 28 провизий / 15 лекарств — кормится
+     * ПРОДОВОЙ формой строки (`productionRow()`), а не сырым `name_eng`-фолбэком:
+     * русские имена, «✅ годен до …», двухключевой «Баф» вместо однодозового
+     * английского фолбэка `row()`. Гейт на сырых строках срабатывал бы в разы позже
+     * реальной длины — то есть никогда.
+     *
+     * Порог — единственная реальная жёсткая граница у этого экрана: лимит текста
+     * Telegram-сообщения (4096, `MediaSender::TEXT_MESSAGE_LIMIT`). Лимит подписи
+     * фото (1024) НЕ гейтится здесь: `MediaSender::sendPhotoOrText` при подписи
+     * длиннее 1024 штатно переключается на текстовое сообщение (кнопки сохраняются,
+     * `captionExceedsPhotoLimit()`), так что превышение 1024 — ожидаемая, а не
+     * аварийная ветка. Сообщение падения называет фактическую длину ОБЕИХ полок.
      */
     public function testFullCatalogScreenFitsTelegramTextLimit(): void
     {
         $telegramLimit = 4096;
+        $catalog       = self::productionCatalog();
 
-        foreach ([Consumables::SHELF_MEDICINE => Consumables::MEDICINE, Consumables::SHELF_PROVISION => Consumables::PROVISION] as $shelf => $names) {
-            $rows = array_map(
-                fn (string $nameEng): array => $this->row($nameEng, ['quantity' => 3]),
-                $names,
-            );
+        $shelves = [Consumables::SHELF_MEDICINE => Consumables::MEDICINE, Consumables::SHELF_PROVISION => Consumables::PROVISION];
+        $lengths = [];
+        foreach ($shelves as $shelf => $names) {
+            $rows            = array_map(fn (string $nameEng): array => $this->productionRow($nameEng, $catalog, 3, $nameEng === 'Antiseptic'), $names);
+            $lengths[$shelf] = self::utf16Length($this->service->screen($shelf, $rows)['text']);
+        }
 
-            $screen = $this->service->screen($shelf, $rows);
+        $bothShelvesText = "лекарства: {$lengths[Consumables::SHELF_MEDICINE]} unit, провизия: {$lengths[Consumables::SHELF_PROVISION]} unit";
 
+        foreach ($lengths as $shelf => $length) {
             $this->assertLessThan(
                 $telegramLimit,
-                mb_strlen($screen['text']),
-                "Полный экран полки «{$shelf}» ({" . count($names) . "} предметов) перерос лимит Telegram-сообщения",
+                $length,
+                "Полный экран полки «{$shelf}» перерос лимит Telegram-сообщения {$telegramLimit} unit ({$bothShelvesText})",
             );
         }
     }
