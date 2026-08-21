@@ -6,6 +6,9 @@ use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
+use App\Services\Player\ConsumableShelfService;
+use App\Services\Player\DebuffService;
+use Config\Consumables;
 
 class PharmacyAction extends BaseAction
 {
@@ -30,7 +33,9 @@ class PharmacyAction extends BaseAction
             ]);
         }
 
-        // Выбираем только те предметы, у которых quantity > 0
+        // Выбираем только те предметы, у которых quantity > 0. Весь drug-набор разом —
+        // story 02 (pharmacy-split): на полки его раскладывает ConsumableShelfService::split(),
+        // а не отдельные WHERE-запросы под каждый экран.
         $craftedItemsLogs = $this->craftedItemsLogModel
             ->select('crafted_items_log.quantity, crafted_items_log.durability_time, crafted_items_log.durability_count AS log_charges, crafted_items.durability_count AS base_charges, crafted_items.name_rus, crafted_items.name_eng, crafted_items.character_boost')
             ->join('crafted_items', 'crafted_items.id = crafted_items_log.crafted_item_id')
@@ -41,15 +46,19 @@ class PharmacyAction extends BaseAction
             ->where('crafted_items_log.quantity >', 0)
             ->findAll();
 
-        // ADR-094: статус годности медикамента (свежо / просрочен → эффект снижен).
-        $expirySvc = new \App\Services\Craft\ConsumableExpiryService();
+        $shelfService   = new ConsumableShelfService();
+        $split          = $shelfService->split($craftedItemsLogs);
+        $medicine       = $split[Consumables::SHELF_MEDICINE];
+        $provisionCount = count($split[Consumables::SHELF_PROVISION]);
 
-        // Если ничего нет, предлагаем перейти к крафту
-        if (empty($craftedItemsLogs)) {
-            $text = "К сожалению, у тебя нет медицинских предметов! Нужно их сначала скрафтить.";
-            $inline_keyboard[] = [
-                'text' => '🧑‍🌾 Действия 🛠️',
-                'callback_data' => 'characterActions'
+        // Если лекарств нет, предлагаем перейти к крафту. Кнопка на «Провизия» остаётся
+        // видна и здесь (UX-discoverability) — своя пустая полка не тупик.
+        if (empty($medicine)) {
+            $text = "К сожалению, у тебя нет медицинских предметов! Нужно их сначала скрафтить: "
+                . "🔨 Крафт → 💊 Лекарства.";
+            $inline_keyboard = [
+                ['text' => "🍲 Провизия ({$provisionCount})", 'callback_data' => 'provision'],
+                ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
             ];
             // ADR-150 Слайс 2: возврат на карточку «Я» (чинит тупик Аптечки). Только при me_hub ON.
             if (\App\Services\Telegram\BotMenuService::meHubEnabled()) {
@@ -65,80 +74,27 @@ class PharmacyAction extends BaseAction
             ]);
         }
 
-        // Есть препараты > 0
-        $text = "🔥 *Исцели свои раны и зарядись силой в этом безумном мире!* 🔥\n\n";
-
-        // Раны, которые не лечатся едой: показываем прямо здесь, вместе с тем, какой
-        // предмет их снимает. Это единственный экран, где решение «что применить»
+        // Есть лекарства. Раны, которые не лечатся едой, показываем прямо здесь, вместе с
+        // тем, какой предмет их снимает. Это единственный экран, где решение «что применить»
         // принимается, — без списка ран игрок не поймёт, зачем ему лекарства.
-        $charIdForDebuffs = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
-        $debuffService    = new \App\Services\Player\DebuffService();
-        $activeDebuffs    = $debuffService->active($charIdForDebuffs);
-        if ($activeDebuffs !== []) {
-            $text .= "🩺 *Сейчас на тебе:*\n";
-            foreach ($activeDebuffs as $debuffRow) {
-                $line = $debuffService->describe($debuffRow);
-                if ($line !== '') {
-                    $text .= $line . "\n";
-                }
+        $charIdForDebuffs  = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
+        $debuffService     = new DebuffService();
+        $activeDebuffs     = $debuffService->active($charIdForDebuffs);
+        $activeDebuffLines = [];
+        foreach ($activeDebuffs as $debuffRow) {
+            $line = $debuffService->describe($debuffRow);
+            if ($line !== '') {
+                $activeDebuffLines[] = $line;
             }
-            $text .= "\n";
         }
 
-        $text .= "*У тебя в наличии:*\n\n";
-        $inline_keyboard = [];
+        $screen = $shelfService->screen(Consumables::SHELF_MEDICINE, $medicine, $activeDebuffLines);
 
-        foreach ($craftedItemsLogs as $item) {
-            // Читаем "character_boost" (JSON), формируем понятный текст
-            $cleanedBoost = preg_replace('/[[:cntrl:]]/', '', $item['character_boost']);
-            $cleanedBoost = str_replace(' ', ' ', $cleanedBoost);
-            $boost = json_decode($cleanedBoost, true);
+        $text            = $screen['text'] . "\n_Выбери снизу, какой предмет ты будешь использовать:_ 👇";
+        $inline_keyboard = $screen['buttons'];
 
-            $boostText = '';
-            if (is_array($boost) && !empty($boost)) {
-                foreach ($boost as $effects) {
-                    foreach ($effects as $effectName => $effectValue) {
-                        $boostText .= "{$effectName}: {$effectValue}, ";
-                    }
-                }
-                $boostText = rtrim($boostText, ', ');
-            }
-
-            // ADR-094: строка годности (только если механика включена и срок задан).
-            $freshLine = '';
-            if ($expirySvc->enabled()) {
-                $durTime = $item['durability_time'] ?? null;
-                if ($expirySvc->isExpired($durTime)) {
-                    $lostPct = 100 - $expirySvc->stalePercent();
-                    $freshLine = " 🕒 *просрочен* (эффект −{$lostPct}%)\n";
-                } elseif (is_string($durTime) && $durTime !== '') {
-                    $freshLine = " ✅ годен до " . substr($durTime, 0, 10) . "\n";
-                }
-            }
-
-            // Многодозовые препараты (Антисептик — 5 применений в упаковке и т.п.)
-            // раньше молчали о дозах: игрок применял «1 шт.» несколько раз подряд и
-            // читал это как «предмет не заканчивается» (багрепорт 2026-08-09).
-            $baseCharges = CraftedItemsLogModel::baseCharges($item['base_charges'] ?? null);
-            $dosesLine   = '';
-            if ($baseCharges > 1) {
-                $left = CraftedItemsLogModel::effectiveCharges($item['log_charges'] ?? null, $baseCharges);
-                $dosesLine = " 💊 доз в начатой упаковке: {$left} из {$baseCharges}\n";
-            }
-
-            $text .= "📋 *{$item['name_rus']}* | {$item['quantity']} шт.\n"
-                . $dosesLine
-                . $freshLine
-                . " *Баф:* {$boostText}\n\n";
-
-            // Добавляем кнопку для использования
-            $inline_keyboard[] = [
-                'text' => $item['name_rus'],
-                'callback_data' => 'usePharmacy_' . $item['name_eng']
-            ];
-        }
-
-        $text .= "\n_Выбери снизу, какой предмет ты будешь использовать:_ 👇";
+        // UX-discoverability: сосед виден всегда, даже когда там пусто.
+        $inline_keyboard[] = ['text' => "🍲 Провизия ({$provisionCount})", 'callback_data' => 'provision'];
         $inline_keyboard[] = [
             'text' => '🧑‍🌾 Действия 🛠️',
             'callback_data' => 'characterActions'

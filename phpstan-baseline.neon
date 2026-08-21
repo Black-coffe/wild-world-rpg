@@ -2718,8 +2718,6 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/CharcoalBriquettes1Action.php
 
-
-
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\CharcoalBriquettes1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
@@ -2834,8 +2832,6 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/FabricCraft1Action.php
 
-
-
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\FabricCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
@@ -2883,8 +2879,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/FertilizerCraft1Action.php
-
-
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\FertilizerCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
@@ -2934,8 +2928,6 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/GlassBagsCraft1Action.php
 
-
-
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\GlassBagsCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
@@ -2983,8 +2975,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/MetalFragmentsCraft1Action.php
-
-
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\MetalFragmentsCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
@@ -3034,8 +3024,6 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/SoilCraft1Action.php
 
-
-
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\SoilCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
@@ -3083,8 +3071,6 @@ parameters:
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/StoneBlocksCraft1Action.php
-
-
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\StoneBlocksCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
@@ -6873,32 +6859,8 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/PVP/RunAwayAction.php
 
 		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/PharmacyAction.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\PharmacyAction\:\:__construct\(\) has parameter \$callbackQuery with no type specified\.$#'
 			identifier: missingType.parameter
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/PharmacyAction.php
-
-		-
-			message: '#^Parameter \#1 \$json of function json_decode expects string, array\<string\>\|string given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/PharmacyAction.php
-
-		-
-			message: '#^Part \$effectName \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/PharmacyAction.php
-
-		-
-			message: '#^Part \$effectValue \(mixed\) of encapsed string cannot be cast to string\.$#'
-			identifier: encapsedStringPart.nonString
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/PharmacyAction.php
 

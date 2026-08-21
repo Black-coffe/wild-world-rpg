@@ -258,6 +258,7 @@ class CallbackRoutes extends BaseConfig
         'basicMedKit'                     => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Medical\BasicMedKitCraft1Action::class,
         'resourcesCrafting'               => \App\Controllers\Telegram\Commands\Actions\CraftedResourcesAction::class,
         'pharmacy'                        => \App\Controllers\Telegram\Commands\Actions\PharmacyAction::class,
+        'provision'                       => \App\Controllers\Telegram\Commands\Actions\ProvisionAction::class,
         'usePharmacy'                     => \App\Controllers\Telegram\Commands\Actions\UsePharmacyAction::class,
         'componentsCraft'                 => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\ComponentsCraft1Select::class,
         'metalFragments'                  => \App\Controllers\Telegram\Commands\Actions\Craft\WorkbenchGeneral\Components\MetalFragmentsCraft1Action::class,
