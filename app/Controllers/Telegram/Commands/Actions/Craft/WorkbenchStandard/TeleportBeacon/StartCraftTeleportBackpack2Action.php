@@ -147,10 +147,16 @@ class StartCraftTeleportBackpack2Action extends BaseAction
         $missingComponents = $this->missingComponents($characterId, $requiredComponents);
         if ($missingComponents !== []) {
             return $this->shortageScreen($character, [], $missingComponents, [
-                'item_name_rus' => 'Рюкзак телепорт',
-                'info_callback' => 'teleportBackpack2',
-                'resources'     => $requiredResources,
-                'crafted_items' => $this->componentsByEng($requiredComponents),
+                'item_name_rus'         => 'Рюкзак телепорт',
+                'info_callback'         => 'teleportBackpack2',
+                'resources'             => $requiredResources,
+                'crafted_items'         => $this->componentsByEng($requiredComponents),
+                // fix-07 (остаток критической находки 1 ревью): рецепта нет в
+                // Config\CraftRecipes — ключ докупки берём из собственного
+                // callback_data старта ('startCraftTeleportBackpack2'), тот же
+                // формат, что и у остальных ~105 рецептов. Количество здесь всегда
+                // 1 — у этого рецепта нет своей "×N" ветки.
+                'craft_again_callback' => 'genericCraft_TeleportBackpack2_1',
             ], $chatId);
         }
 

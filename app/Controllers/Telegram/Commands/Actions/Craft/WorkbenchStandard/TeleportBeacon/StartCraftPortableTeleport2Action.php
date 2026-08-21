@@ -131,11 +131,17 @@ class StartCraftPortableTeleport2Action extends BaseAction
             $this->logRejected($characterId, 'CRAFT_PORTABLE_TELEPORT', 'not_enough_resources');
 
             return $this->shortageScreen($character, $missingResources, $missingComponents, [
-                'item_name_rus' => PortableTeleportRecipe::ITEM_NAME_RUS,
-                'item_name_eng' => PortableTeleportRecipe::ITEM_NAME_ENG,
-                'info_callback' => 'portableTeleport2',
-                'resources'     => $this->recipe->resources(),
-                'crafted_items' => $this->componentsByEng(),
+                'item_name_rus'         => PortableTeleportRecipe::ITEM_NAME_RUS,
+                'item_name_eng'         => PortableTeleportRecipe::ITEM_NAME_ENG,
+                'info_callback'         => 'portableTeleport2',
+                'resources'             => $this->recipe->resources(),
+                'crafted_items'         => $this->componentsByEng(),
+                // fix-07 (остаток критической находки 1 ревью): рецепта нет в
+                // Config\CraftRecipes — ключ докупки берём из собственного
+                // callback_data старта ('startCraftPortableTeleport2'), тот же
+                // формат, что и у остальных ~105 рецептов. Количество здесь всегда
+                // 1 — у этого рецепта нет своей "×N" ветки.
+                'craft_again_callback' => 'genericCraft_PortableTeleport2_1',
             ], $chatId);
         }
 

@@ -162,10 +162,15 @@ class StartCraftReinforcedLeather2Action extends BaseAction
 
         if ($missingResources !== [] || $missingItems !== []) {
             return $this->shortageScreen($character, $missingResources, $missingItems, [
-                'item_name_rus' => 'Усиленная кожаная куртка',
-                'info_callback' => 'armorReinforcedLeather',
-                'resources'     => $resourcesRecipe,
-                'crafted_items' => $componentsRecipe,
+                'item_name_rus'         => 'Усиленная кожаная куртка',
+                'info_callback'         => 'armorReinforcedLeather',
+                'resources'             => $resourcesRecipe,
+                'crafted_items'         => $componentsRecipe,
+                // fix-07 (остаток критической находки 1 ревью): рецепта нет в
+                // Config\CraftRecipes — ключ докупки берём из собственного
+                // callback_data старта ('startCraftReinforcedLeather2_<qty>'), тот
+                // же формат, что и у остальных ~105 рецептов.
+                'craft_again_callback' => 'genericCraft_ReinforcedLeather2_' . $this->quantity,
             ], $chatId);
         }
 

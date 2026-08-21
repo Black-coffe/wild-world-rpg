@@ -133,9 +133,16 @@ class StartCraftArmorDrifterClothes2Action extends BaseAction
         }
         if ($missingItems !== []) {
             return $this->shortageScreen($character, [], $missingItems, [
-                'item_name_rus' => 'Одежда бродяги',
-                'info_callback' => 'armorDrifterClothes',
-                'crafted_items' => $componentsRecipe,
+                'item_name_rus'         => 'Одежда бродяги',
+                'info_callback'         => 'armorDrifterClothes',
+                'crafted_items'         => $componentsRecipe,
+                // fix-07 (остаток критической находки 1 ревью): у этого рецепта нет
+                // записи в Config\CraftRecipes (легаси-старт мимо общего конфига,
+                // story 13/14 были вне объёма fix-02) — CraftShortageService берёт
+                // ключ докупки отсюда же, из собственного callback_data старта
+                // ('startCraftDrifterClothes2_<qty>'), в том же формате, что и все
+                // остальные ~105 рецептов.
+                'craft_again_callback' => 'genericCraft_DrifterClothes2_' . $this->quantity,
             ], $chatId);
         }
 

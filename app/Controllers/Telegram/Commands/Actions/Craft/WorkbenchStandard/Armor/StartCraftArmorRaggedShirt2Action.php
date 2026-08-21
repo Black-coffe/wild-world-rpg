@@ -136,9 +136,14 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
         }
         if ($missingItems !== []) {
             return $this->shortageScreen($character, [], $missingItems, [
-                'item_name_rus' => 'Рваная рубаха',
-                'info_callback' => 'armorRaggedShirt',
-                'crafted_items' => $componentsRecipe,
+                'item_name_rus'         => 'Рваная рубаха',
+                'info_callback'         => 'armorRaggedShirt',
+                'crafted_items'         => $componentsRecipe,
+                // fix-07 (остаток критической находки 1 ревью): рецепта нет в
+                // Config\CraftRecipes — ключ докупки берём из собственного
+                // callback_data старта ('startCraftRaggedShirt2_<qty>'), тот же
+                // формат, что и у остальных ~105 рецептов.
+                'craft_again_callback' => 'genericCraft_RaggedShirt2_' . $this->quantity,
             ], $chatId);
         }
 
