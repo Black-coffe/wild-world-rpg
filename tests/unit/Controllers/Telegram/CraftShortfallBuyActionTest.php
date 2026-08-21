@@ -60,6 +60,11 @@ final class CraftShortfallBuyActionTestDouble extends CraftShortfallBuyAction
         return $this->attemptStartCraft($recipe, $character, $quote, $chatId);
     }
 
+    public function pubRetryScreenGateError(array $recipe, array $character, CraftShortfallQuote $quote): ?string
+    {
+        return $this->retryScreenGateError($recipe, $character, $quote);
+    }
+
     /** @return array<string,mixed> */
     public function pubCharacterAfterPurchase(array $character, CraftShortfallQuote $quote): array
     {
@@ -137,8 +142,14 @@ final class CraftShortfallBuyActionMoneyPathTestDouble extends CraftShortfallBuy
     public bool $chargeExtraGoldReturn = true;
     public ?int $chargeExtraGoldCalledWith = null;
 
+    public bool $refundExcessGoldReturn = true;
+    public ?int $refundExcessGoldCalledWith = null;
+
     public bool $throwInBuyLine     = false;
     public bool $throwInChargeExtra = false;
+
+    /** @var list<array<string,mixed>> `$character`, с которым реально позвали buyLine() — по одному на строку */
+    public array $buyLineCharacterLog = [];
 
     /** `false` — замок уже держит кто-то другой (симуляция двойного тапа). */
     public bool $lockAvailable = true;
@@ -174,7 +185,8 @@ final class CraftShortfallBuyActionMoneyPathTestDouble extends CraftShortfallBuy
 
     protected function buyLine(array $character, array $line, int $chatId): array
     {
-        $this->callLog[] = 'buyLine:' . $line['resourceId'];
+        $this->callLog[]              = 'buyLine:' . $line['resourceId'];
+        $this->buyLineCharacterLog[]  = $character;
         if ($this->throwInBuyLine) {
             throw new \RuntimeException('гонка на редком ресурсе');
         }
@@ -192,6 +204,14 @@ final class CraftShortfallBuyActionMoneyPathTestDouble extends CraftShortfallBuy
         }
 
         return $this->chargeExtraGoldReturn;
+    }
+
+    protected function refundExcessGold(int $charId, int $amount): bool
+    {
+        $this->callLog[]                = 'refundExcessGold:' . $amount;
+        $this->refundExcessGoldCalledWith = $amount;
+
+        return $this->refundExcessGoldReturn;
     }
 
     protected function beginPurchaseTransaction(): void
@@ -360,6 +380,35 @@ final class CraftShortfallBuyActionTest extends CIUnitTestCase
         $action->pubAttemptStartCraft($this->recipe(), ['id' => 1, 'gold' => 100], $this->quote(total: 90), 777);
 
         $this->assertSame(10, $action->gateCharacterLog[0]['gold']);
+    }
+
+    // ── 🔴 находка 2 (повторное ревью): гейт экрана «цена изменилась» считается ──
+    // ── всегда, а не только для craftBuyGo — «Просто добрать» не рисует кнопку, ──
+    // ── упирающуюся в отказ ──
+
+    public function testRetryScreenGateErrorComputedEvenOnJustAddPath(): void
+    {
+        $action = new CraftShortfallBuyActionTestDouble();
+        $action->canStartErrorReturn = 'Все 3 слота крафта заняты.';
+
+        // Раньше эта проверка звалась только для craftBuyGo ($startCraft=true);
+        // теперь метод не принимает $startCraft вовсе — гейт считается одинаково
+        // для обеих кнопок, доказывая, что «Просто добрать» больше не может
+        // получить null-гейт и нарисовать кнопку старта поверх реального отказа.
+        $result = $action->pubRetryScreenGateError($this->recipe(), ['id' => 1, 'gold' => 100], $this->quote());
+
+        $this->assertSame('Все 3 слота крафта заняты.', $result);
+        $this->assertSame(['gate'], $action->callLog);
+    }
+
+    public function testRetryScreenGateErrorNullWhenStartAllowed(): void
+    {
+        $action = new CraftShortfallBuyActionTestDouble();
+        $action->canStartErrorReturn = null;
+
+        $result = $action->pubRetryScreenGateError($this->recipe(), ['id' => 1, 'gold' => 100], $this->quote());
+
+        $this->assertNull($result);
     }
 
     // ── цена пересчитывается в момент подтверждения; при изменении — переспросить ──
@@ -561,6 +610,73 @@ final class CraftShortfallBuyActionTest extends CIUnitTestCase
         $this->assertNotContains('rollback', $action->callLog);
     }
 
+    /**
+     * 🔴 находка 1 (повторное ревью) — САМЫЙ ВАЖНЫЙ денежный тест ремонта: каждая
+     * строка списывается по своему отдельному округлению (`round(1×1.5)=2`), и на
+     * дробной корзине из нескольких таких позиций сумма построчных округлений
+     * (2+2=4) выходит БОЛЬШЕ показанного игроку `quote->total` (3 — округление
+     * ИТОГА, не суммы строк). Раньше отрицательный остаток тихо пропускался, и
+     * фактически списанное (4) превышало показанное (3). Инвариант «списано ровно
+     * столько, сколько показано» обязан держаться: излишек обязан вернуться.
+     */
+    public function testExecutePurchaseNeverChargesMoreThanShownTotalOnFractionalBasket(): void
+    {
+        $action = new CraftShortfallBuyActionMoneyPathTestDouble();
+        $lines  = [
+            ['resourceId' => 1, 'name' => 'Базальт', 'gap' => 1, 'unitPrice' => 1.5, 'buyable' => true],
+            ['resourceId' => 2, 'name' => 'Смола',   'gap' => 1, 'unitPrice' => 1.5, 'buyable' => true],
+        ];
+        // base = 1.5+1.5 = 3.0 (округление ИТОГА даёт 3), но построчно round(1.5)+round(1.5) = 2+2 = 4.
+        $quote = $this->quoteWithLines($lines, total: 3);
+
+        $result = $action->pubExecutePurchase(['id' => 1, 'gold' => 1000], $quote, 777);
+
+        $this->assertTrue($result['success']);
+        $this->assertNull($action->chargeExtraGoldCalledWith, 'построчная сумма (4) уже больше total (3) — доплаты нет');
+        $this->assertSame(1, $action->refundExcessGoldCalledWith, 'переплата 4-3=1 обязана вернуться игроку');
+        $this->assertContains('commit', $action->callLog);
+        $this->assertNotContains('rollback', $action->callLog);
+    }
+
+    /** Если возврат переплаты сорвался — откат, а не тихая переплата на руках у игрока. */
+    public function testExecutePurchaseRollsBackWhenRefundOfOverspendFails(): void
+    {
+        $action = new CraftShortfallBuyActionMoneyPathTestDouble();
+        $action->refundExcessGoldReturn = false;
+        $lines  = [
+            ['resourceId' => 1, 'name' => 'Базальт', 'gap' => 1, 'unitPrice' => 1.5, 'buyable' => true],
+            ['resourceId' => 2, 'name' => 'Смола',   'gap' => 1, 'unitPrice' => 1.5, 'buyable' => true],
+        ];
+        $quote = $this->quoteWithLines($lines, total: 3);
+
+        $result = $action->pubExecutePurchase(['id' => 1, 'gold' => 1000], $quote, 777);
+
+        $this->assertFalse($result['success']);
+        $this->assertContains('rollback', $action->callLog);
+        $this->assertNotContains('commit', $action->callLog);
+    }
+
+    /**
+     * 🔴 находка 3 (повторное ревью) — предчек каждой строки видит АКТУАЛЬНЫЙ
+     * остаток золота, а не исходный снапшот на весь цикл: вторая строка обязана
+     * получить `$character['gold']`, уменьшенный на стоимость первой.
+     */
+    public function testBuyLineSeesGoldDecreasedByPreviousLinesNotOriginalSnapshot(): void
+    {
+        $action = new CraftShortfallBuyActionMoneyPathTestDouble();
+        $lines  = [
+            ['resourceId' => 1, 'name' => 'Базальт', 'gap' => 2, 'unitPrice' => 5.0, 'buyable' => true], // cost=10
+            ['resourceId' => 2, 'name' => 'Смола',   'gap' => 1, 'unitPrice' => 3.0, 'buyable' => true], // cost=3
+        ];
+        $quote = $this->quoteWithLines($lines, total: 13);
+
+        $action->pubExecutePurchase(['id' => 1, 'gold' => 100], $quote, 777);
+
+        $this->assertCount(2, $action->buyLineCharacterLog);
+        $this->assertSame(100, $action->buyLineCharacterLog[0]['gold'], 'первая строка видит исходный снапшот');
+        $this->assertSame(90, $action->buyLineCharacterLog[1]['gold'], 'вторая строка видит золото ПОСЛЕ первой, не снапшот на весь цикл');
+    }
+
     /** Если базовая цена строк УЖЕ равна `quote->total` (наценки нет/min_markup_gold=0) — доплаты нет. */
     public function testExecutePurchaseSkipsExtraChargeWhenBaseAlreadyMatchesTotal(): void
     {
@@ -697,24 +813,38 @@ final class CraftShortfallBuyActionTest extends CIUnitTestCase
         $this->assertTrue($action->lockAvailable);
     }
 
-    // ── 🔴 находка 4 (примитив): реальный cache-замок без переопределения ──
+    // ── 🔴 находка 4 (повторное ревью): реальный атомарный примитив, а не cache ──
 
-    public function testAcquireLockBlocksSecondCallUntilReleased(): void
+    /**
+     * Прежний cache-замок (`get()!==null` → `save()`) был бы «зелёным» и на одном
+     * PHP-соединении — гонка живёт МЕЖДУ параллельными вебхук-процессами, то есть
+     * между разными DB-соединениями, не внутри одного. Открываем второе, реально
+     * независимое соединение (`Database::connect(..., false)`, `$getShared=false`)
+     * — так тест доказывает то же, что видели бы два параллельных PHP-FPM воркера,
+     * а не совпадение проверки на самой себе.
+     */
+    public function testAcquireLockBlocksAnotherConnectionUntilReleased(): void
     {
         $action = new CraftShortfallBuyActionTestDouble();
         $key    = 'test_craft_shortfall_lock_' . bin2hex(random_bytes(6));
+        $other  = \Config\Database::connect('tests', false);
 
         try {
             $this->assertTrue($action->pubAcquireLock($key, 5), 'первый тап получает замок');
-            $this->assertFalse(
-                $action->pubAcquireLock($key, 5),
-                'второй тап (двойной тап/повтор вебхука), пришедший пока первый держит замок, обязан получить отказ'
+
+            $row = $other->query('SELECT GET_LOCK(?, 0) AS locked', [$key])->getRow();
+            $this->assertSame(
+                0,
+                (int) $row->locked,
+                'другое соединение (симуляция второго вебхук-процесса) обязано получить отказ, пока первое держит замок'
             );
 
             $action->pubReleaseLock($key);
             $this->assertTrue($action->pubAcquireLock($key, 5), 'после освобождения замок снова доступен');
         } finally {
             $action->pubReleaseLock($key);
+            $other->query('SELECT RELEASE_LOCK(?)', [$key]);
+            $other->close();
         }
     }
 }

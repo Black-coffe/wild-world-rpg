@@ -52,9 +52,10 @@ class CraftShortfallBuyAction extends BaseAction
 
     /**
      * Ревью-находка 4: двойной тап / повтор вебхука Telegram проводили сделку дважды.
-     * Один узел, один процесс (`AGENTS.md` профиль) — замка на связке персонаж+рецепт
-     * на время самой покупки достаточно; TTL — страховка на случай, если процесс
-     * упадёт между `acquireLock()` и `releaseLock()`.
+     * Замок на связке персонаж+рецепт держится на время самой покупки. TTL здесь
+     * декоративен для новой реализации ({@see acquireLock()}) — MySQL-примитив сам
+     * освобождает именованный лок, когда соединение закрывается, и параметр остаётся
+     * только ради сигнатуры/протокола вызова.
      */
     private const PURCHASE_LOCK_TTL_SEC = 15;
 
@@ -192,7 +193,7 @@ class CraftShortfallBuyAction extends BaseAction
             // Цена успела измениться, пока игрок решал(а) — списывать старую сумму
             // нельзя, переспрашиваем на актуальной.
             $this->cacheQuoteTotal($charId, $quote->total);
-            $gateError = $startCraft ? $this->canStartError($recipe, $this->characterAfterPurchase($character, $quote)) : null;
+            $gateError = $this->retryScreenGateError($recipe, $character, $quote);
 
             Request::answerCallbackQuery([
                 'callback_query_id' => $this->callbackQuery->getId(),
@@ -293,6 +294,24 @@ class CraftShortfallBuyAction extends BaseAction
     }
 
     /**
+     * Гейт для экрана «цена изменилась, подтверди снова» ({@see confirmAndBuy()}).
+     *
+     * Находка 2 (повторное ревью): раньше гейт считался только когда `$startCraft`
+     * было `true` (`craftBuyGo`) — на пути «Просто добрать» (`craftBuyOnly`) он
+     * подменялся `null`, и клавиатура рисовала «Докупить и собрать» даже когда
+     * старт объективно заблокирован. Кнопка, упирающаяся в отказ, — обман (см.
+     * док-блок класса). Гейт не тратит золото, только читает — считаем его всегда,
+     * вне зависимости от того, какая кнопка привела на этот экран.
+     *
+     * @param array<string,mixed> $recipe
+     * @param array<string,mixed> $character
+     */
+    protected function retryScreenGateError(array $recipe, array $character, CraftShortfallQuote $quote): ?string
+    {
+        return $this->canStartError($recipe, $this->characterAfterPurchase($character, $quote));
+    }
+
+    /**
      * §Правила сделки п.1 — единая точка «может ли крафт вообще стартовать»,
      * без учёта сырья/крафт-компонентов (та же проверка, что и обычный старт).
      *
@@ -383,15 +402,27 @@ class CraftShortfallBuyAction extends BaseAction
         try {
             $spent       = 0;
             $boughtNames = [];
+            // Находка 3 (повторное ревью): один и тот же снапшот `$character`
+            // передавался в `buyLine()` для каждой строки — предчек второй и
+            // последующих позиций внутри `ResourceTradeService::buyResource()`
+            // судил по золоту ДО цикла, а не по тому, что реально осталось.
+            // Реальной дыры нет (`decreaseGold()` перепроверяет под row-lock), но
+            // отказ игрок получал бы не по настоящей причине. Ведём локальную
+            // копию, уменьшая золото после каждой успешно купленной строки.
+            $runningCharacter = $character;
             foreach ($lines as $line) {
-                $result = $this->buyLine($character, $line, $chatId);
+                $result = $this->buyLine($runningCharacter, $line, $chatId);
                 if (!$result['success']) {
                     $this->rollbackPurchaseTransaction();
 
                     return ['success' => false, 'message' => $result['message']];
                 }
-                $spent        += (int) ($result['cost'] ?? 0);
+                $cost          = (int) ($result['cost'] ?? 0);
+                $spent        += $cost;
                 $boughtNames[] = $line['name'] . ' x' . $line['gap'];
+
+                $goldRaw = $runningCharacter['gold'] ?? 0;
+                $runningCharacter['gold'] = max(0, (is_numeric($goldRaw) ? (int) $goldRaw : 0) - $cost);
             }
 
             // Находка 2 — наценка нигде не списывалась: то, что реально ушло за
@@ -407,6 +438,23 @@ class CraftShortfallBuyAction extends BaseAction
             }
             if ($markupGold > 0) {
                 $spent += $markupGold;
+            }
+
+            // 🔴 Находка 1 (повторное ревью): каждая строка списывается по своему
+            // отдельному округлению (`ResourceTradeService::totalFor()` округляет
+            // КАЖДУЮ строку), поэтому на дробных корзинах сумма построчных округлений
+            // может выйти БОЛЬШЕ показанного `quote->total` (округление по строкам ≠
+            // округление итога). Раньше отрицательный `markupGold` тихо пропускался —
+            // фактически списанное превышало показанное игроку. Инвариант «списано
+            // ровно столько, сколько показано» держим явным возвратом переплаты.
+            if ($markupGold < 0) {
+                $overspent = -$markupGold;
+                if (!$this->refundExcessGold($charId, $overspent)) {
+                    $this->rollbackPurchaseTransaction();
+
+                    return ['success' => false, 'message' => 'Не удалось выровнять списание — попробуй ещё раз.'];
+                }
+                $spent -= $overspent;
             }
 
             if (!$this->commitPurchaseTransaction()) {
@@ -459,6 +507,15 @@ class CraftShortfallBuyAction extends BaseAction
     }
 
     /**
+     * Seam: возврат переплаты, возникшей от построчного округления (находка 1,
+     * повторное ревью) — тем же атомарным `increaseGold()`, что и продажа.
+     */
+    protected function refundExcessGold(int $charId, int $amount): bool
+    {
+        return $this->characterModel->increaseGold($charId, (float) $amount);
+    }
+
+    /**
      * Seam: начало DB-транзакции покупки. Без возврата handle'а — `Config\Database::connect()`
      * без явной группы отдаёт ОДНО и то же закэшированное соединение на запрос (CI4 кэширует
      * по имени группы), поэтому `commitPurchaseTransaction()`/`rollbackPurchaseTransaction()`
@@ -486,29 +543,42 @@ class CraftShortfallBuyAction extends BaseAction
     }
 
     /**
-     * Находка 4: cache-замок сделки. `get() !== null` перед `save()` — не CAS, но
-     * один узел и один процесс (профиль проекта) делают гонку между этими двумя
-     * вызовами практически недостижимой, а cache-хендлер в проекте (`file`) её
-     * не поддерживает атомарно в принципе.
+     * Находка 4 (повторное ревью): прежний cache-замок проверял `get() !== null`
+     * и только потом звал `save()` — не CAS, окно между двумя вызовами реальное.
+     * Профиль проекта (`AGENTS.md`) — один узел и одна БД, но НЕ один процесс:
+     * вебхуки Telegram обслуживают параллельные PHP-FPM воркеры одного узла.
+     * Комментарий, оправдывавший невозможность гонки «одним процессом», был
+     * утверждением, не соответствующим тому, как это развёрнуто.
+     *
+     * На единственной БД есть настоящий атомарный примитив — именованный лок
+     * MySQL/MariaDB (`GET_LOCK`/`RELEASE_LOCK`): захват и проверка — одна атомарная
+     * операция на сервере БД, лок session-scoped и сам освобождается, если процесс
+     * упал и соединение оборвалось (страховка на случай сбоя даже без явного TTL).
      */
     protected function acquireLock(string $key, int $ttlSec): bool
     {
-        $cache = \Config\Services::cache();
-        if ($cache->get($key) !== null) {
+        $db     = \Config\Database::connect();
+        $result = $db->query('SELECT GET_LOCK(?, 0) AS locked', [$key]);
+        if (!$result instanceof \CodeIgniter\Database\BaseResult) {
             return false;
         }
+        $row = $result->getRow();
 
-        return $cache->save($key, 1, $ttlSec);
+        return $row !== null && (int) $row->locked === 1;
     }
 
     protected function releaseLock(string $key): void
     {
-        \Config\Services::cache()->delete($key);
+        \Config\Database::connect()->query('SELECT RELEASE_LOCK(?)', [$key]);
     }
 
+    /**
+     * Имя именованного лока MySQL ограничено 64 символами — хэшируем, чтобы длинный
+     * `recipeKey` не мог случайно обрезать ключ до неуникального префикса.
+     */
     private function purchaseLockKey(int $charId): string
     {
-        return 'craft_shortfall_purchase_lock_' . $charId . '_' . $this->recipeKey;
+        return 'csbl_' . md5($charId . '_' . $this->recipeKey);
     }
 
     /**
