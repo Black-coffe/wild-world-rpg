@@ -1,7 +1,7 @@
 ---
 story: craft-shortfall-buy-fix-02
 spec: craft-shortfall-buy
-status: todo
+status: done
 tier: 3
 worker: worker-code
 tracer: false
@@ -49,5 +49,22 @@ memory/map/craft.md; `.claude/rules/telegram-ux.md`, `.claude/rules/player-facin
 Полный разбор находок — `docs/specs/craft-shortfall-buy/review-findings.md`. Читай его, прежде чем править. Критическая 1, крупная 6.
 
 ## Implementation notes
+
+- `CraftShortageService::shortfallBuyBlock()` теперь возвращает `{lines, button}`: `button` —
+  рабочая `craftBuy_<RecipeKey>_<qty>` (контракт `plan.md`), появляется только когда
+  `quote()->available === true` И у рецепта есть `craft_again_callback` (`genericCraft_<Key>_<qty>`,
+  единственное поле, где `RecipeKey` уже есть во всех ~105 рецептах `CraftRecipes`).
+- Количество зажимается новым `maxUnitsPerPurchase()` (ключ `craft.shortfall_buy.max_units_per_purchase`,
+  тот же, что режет сделку в `CraftShortfallBuyAction`) ДО вызова `quote()` — экран и сделка теперь
+  считают на одном числе; при клампе добавлена строка-пояснение в текст.
+- `keyboard()` собирает хвост (кнопка докупки + «Инвентарь» + «Назад») через `ButtonPacker::pack()` —
+  одиночного ряда с новой кнопкой не бывает. Ряд «⛏ Добыть» как был единственной кнопкой в строке,
+  так и остался — это пред-существующее поведение, вне объёма правки.
+- Легаси-рецепты брони/маяков (`StartCraftArmor*2Action`, вне `Config\CraftRecipes`) не несут
+  `craft_again_callback` → кнопки для них по-прежнему нет, только текст. Известный, отдельно
+  зафиксированный пробел (находка 7 ревью), не в объёме этой story.
+- Тесты: `tests/unit/Services/Craft/CraftShortageServiceTest.php` — 5 новых тестов (рабочая кнопка,
+  упаковка ряда, отсутствие кнопки при отказе, кламп количества с проверкой quantity, переданной в
+  `quote()`, через капчурящий стаб).
 
 ## Findings

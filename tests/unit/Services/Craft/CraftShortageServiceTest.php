@@ -6,9 +6,11 @@ namespace Tests\Unit\Services\Craft;
 
 use App\Entities\CharacterEntity;
 use App\Entities\ResourceEntity;
+use App\Models\GameSettingsModel;
 use App\Services\Craft\CraftShortageService;
 use App\Services\Craft\CraftShortfallBuyService;
 use App\Services\Craft\CraftShortfallQuote;
+use App\Services\GameSettings\GameSettingsService;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
@@ -115,6 +117,27 @@ final class CraftShortageServiceTest extends CIUnitTestCase
                 return new ResourceEntity($this->resources[$name]);
             }
         };
+    }
+
+    /** Стаб `GameSettingsModel`, возвращающий заданный `max_units_per_purchase`. */
+    private function settingsWithMaxUnits(int $maxUnits): GameSettingsService
+    {
+        $model = new class ($maxUnits) extends GameSettingsModel {
+            public function __construct(private int $maxUnits)
+            {
+            }
+
+            public function findByKey(string $key): ?array
+            {
+                if ($key !== CraftShortageService::KEY_MAX_UNITS_PER_PURCHASE) {
+                    return null;
+                }
+
+                return ['setting_key' => $key, 'value_type' => 'int', 'value_int' => $this->maxUnits];
+            }
+        };
+
+        return new GameSettingsService($model);
     }
 
     public function testNamesExactlyWhatIsMissing(): void
@@ -487,5 +510,174 @@ final class CraftShortageServiceTest extends CIUnitTestCase
 
         $this->assertLessThanOrEqual(1024, mb_strlen($text), 'Telegram молча отвергает caption длиннее 1024 символов');
         $this->assertStringContainsString('и ещё 24 позиц', $text);
+    }
+
+    /**
+     * Ревью fix-02, критическая находка 1: `craftBuy` не отправляла ни одна
+     * клавиатура — блок печатался текстом, нажать было нечего. Тест краснеет,
+     * если кнопка исчезнет: он проверяет её присутствие в keyboard, а не
+     * подстроку исходника.
+     */
+    public function testShortfallBuyBlockShowsWorkingButtonToEnterPurchase(): void
+    {
+        $quote = new CraftShortfallQuote(
+            lines: [
+                ['resourceId' => 7, 'name' => 'Древесина', 'need' => 10, 'have' => 4, 'gap' => 6, 'unitPrice' => 1.5, 'lineTotal' => 9.0, 'buyable' => true, 'blockReason' => null],
+            ],
+            baseCost: 9.0,
+            fullCost: 30.0,
+            share: 0.3,
+            markupPct: 23,
+            total: 12,
+            goldAfter: 88,
+            available: true,
+            refusal: null
+        );
+
+        $svc    = $this->serviceWithShortfall($quote);
+        $screen = $svc->describe(
+            ['level' => 4, 'gold' => 100],
+            [],
+            [],
+            1,
+            ['resources' => ['Древесина' => 10], 'craft_again_callback' => 'genericCraft_LumberjackAxe_1']
+        );
+
+        $json = json_encode($screen['keyboard'], JSON_UNESCAPED_UNICODE) ?: '';
+        $this->assertStringContainsString('craftBuy_LumberjackAxe_1', $json);
+        $this->assertStringContainsString('Докупить и собрать', $json);
+    }
+
+    /** Ряд с новой кнопкой проходит через общий нормализатор — она не остаётся одна в строке. */
+    public function testShortfallBuyButtonRowIsPackedWithNavNotAlone(): void
+    {
+        $quote = new CraftShortfallQuote(
+            lines: [
+                ['resourceId' => 7, 'name' => 'Древесина', 'need' => 10, 'have' => 4, 'gap' => 6, 'unitPrice' => 1.5, 'lineTotal' => 9.0, 'buyable' => true, 'blockReason' => null],
+            ],
+            baseCost: 9.0,
+            fullCost: 30.0,
+            share: 0.3,
+            markupPct: 23,
+            total: 12,
+            goldAfter: 88,
+            available: true,
+            refusal: null
+        );
+
+        $svc  = $this->serviceWithShortfall($quote);
+        $rows = $svc->describe(
+            ['level' => 4, 'gold' => 100],
+            [],
+            [],
+            1,
+            ['resources' => ['Древесина' => 10], 'craft_again_callback' => 'genericCraft_LumberjackAxe_1']
+        )['keyboard']['inline_keyboard'];
+
+        $found = false;
+        foreach ($rows as $row) {
+            $callbacks = array_column($row, 'callback_data');
+            if (in_array('inventory', $callbacks, true)) {
+                $found = true;
+                $this->assertGreaterThanOrEqual(2, count($row), 'кнопка докупки не должна остаться одна в ряду');
+                $this->assertContains('craftBuy_LumberjackAxe_1', $callbacks);
+            }
+        }
+        $this->assertTrue($found, 'ряд с "Инвентарь" обязан присутствовать');
+    }
+
+    /** Отказ (например, не хватает золота) — кнопки нет, есть только объясняющий текст. */
+    public function testShortfallBuyBlockNoButtonWhenRefused(): void
+    {
+        $quote = new CraftShortfallQuote(
+            lines: [
+                ['resourceId' => 7, 'name' => 'Древесина', 'need' => 10, 'have' => 0, 'gap' => 10, 'unitPrice' => 5.0, 'lineTotal' => 50.0, 'buyable' => true, 'blockReason' => null],
+            ],
+            baseCost: 50.0,
+            fullCost: 50.0,
+            share: 1.0,
+            markupPct: 15,
+            total: 58,
+            goldAfter: -15,
+            available: false,
+            refusal: CraftShortfallBuyService::REASON_MIN_GOLD
+        );
+
+        $svc    = $this->serviceWithShortfall($quote);
+        $screen = $svc->describe(
+            [],
+            [],
+            [],
+            1,
+            ['resources' => ['Древесина' => 10], 'craft_again_callback' => 'genericCraft_LumberjackAxe_1']
+        );
+
+        $json = json_encode($screen['keyboard'], JSON_UNESCAPED_UNICODE) ?: '';
+        $this->assertStringNotContainsString('craftBuy_', $json);
+        $this->assertStringContainsString('Не хватает', $screen['text']);
+    }
+
+    /**
+     * Ревью fix-02, крупная находка 6: сделка режет докупку до
+     * `max_units_per_purchase`, а экран считал на запрошенное количество как
+     * есть. Игрок жмёт «5 шт.», сделка проведёт за лимит (здесь — 2) — блок
+     * обязан отправить в `quote()` те же 2, а не 5, и кнопка обязана нести то
+     * же клампнутое число.
+     */
+    public function testShortfallBuyBlockClampsQuantityToMaxUnitsPerPurchase(): void
+    {
+        $quote = new CraftShortfallQuote(
+            lines: [
+                ['resourceId' => 7, 'name' => 'Древесина', 'need' => 2, 'have' => 0, 'gap' => 2, 'unitPrice' => 1.5, 'lineTotal' => 3.0, 'buyable' => true, 'blockReason' => null],
+            ],
+            baseCost: 3.0,
+            fullCost: 3.0,
+            share: 1.0,
+            markupPct: 15,
+            total: 4,
+            goldAfter: 96,
+            available: true,
+            refusal: null
+        );
+
+        $shortfallBuy = new class ($quote) extends CraftShortfallBuyService {
+            /** @var list<int> */
+            public array $calls = [];
+
+            public function __construct(private CraftShortfallQuote $stubbedQuote)
+            {
+            }
+
+            public function quote(CharacterEntity|array $character, array $recipe, int $quantity): CraftShortfallQuote
+            {
+                $this->calls[] = $quantity;
+
+                return $this->stubbedQuote;
+            }
+        };
+
+        $settings = $this->settingsWithMaxUnits(2);
+
+        $svc = new class ($shortfallBuy, $settings) extends CraftShortageService {
+            public function __construct(CraftShortfallBuyService $shortfallBuy, GameSettingsService $settings)
+            {
+                parent::__construct(settings: $settings, shortfallBuy: $shortfallBuy);
+            }
+        };
+
+        $screen = $svc->describe(
+            ['level' => 4, 'gold' => 100],
+            [],
+            [],
+            5,
+            ['resources' => ['Древесина' => 2], 'craft_again_callback' => 'genericCraft_LumberjackAxe_1']
+        );
+
+        $this->assertSame([2], $shortfallBuy->calls, 'запрошено 5, лимит 2 — quote() обязан получить 2, а не 5');
+
+        $json = json_encode($screen['keyboard'], JSON_UNESCAPED_UNICODE) ?: '';
+        $this->assertStringContainsString('craftBuy_LumberjackAxe_2', $json);
+        $this->assertStringNotContainsString('craftBuy_LumberjackAxe_5', $json);
+        $this->assertStringContainsString('ограничена 2 шт', $screen['text']);
     }
 }

@@ -9,6 +9,7 @@ use App\Models\BiomeModel;
 use App\Models\MapModel;
 use App\Models\ResourceModel;
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Telegram\ButtonPacker;
 use App\Services\World\BiomeCompassService;
 use Config\CraftRecipes;
 
@@ -32,6 +33,14 @@ use Config\CraftRecipes;
 class CraftShortageService
 {
     public const KEY_ENABLED = 'craft.shortage_hint.enabled';
+
+    /**
+     * Тот же ключ, что и `CraftShortfallBuyAction::KEY_MAX_UNITS` (story 06/07,
+     * контракт `plan.md`): сделка режет докупку до этого лимита, и экран обязан
+     * считать блок на том же количестве — иначе игрок видит сумму за N штук, а
+     * спишется за меньшее (fix-02, крупная находка 6 ревью).
+     */
+    public const KEY_MAX_UNITS_PER_PURCHASE = 'craft.shortfall_buy.max_units_per_purchase';
 
     /** Сколько позиций показываем подробно — дальше caption распухает без пользы. */
     private const MAX_DETAILED = 6;
@@ -125,15 +134,15 @@ class CraftShortageService
         $lines[] = '';
         $lines[] = '_Добыть почти всегда дешевле, чем купить._';
 
-        $shortfallBlock = $this->shortfallBuyBlock($character, $recipe, $quantity);
-        if ($shortfallBlock !== []) {
+        $shortfall = $this->shortfallBuyBlock($character, $recipe, $quantity);
+        if ($shortfall['lines'] !== []) {
             $lines[] = '';
-            array_push($lines, ...$shortfallBlock);
+            array_push($lines, ...$shortfall['lines']);
         }
 
         return [
             'text'     => implode("\n", $lines),
-            'keyboard' => ['inline_keyboard' => $this->keyboard($craftButtons, $buyButtons, $recipe)],
+            'keyboard' => ['inline_keyboard' => $this->keyboard($craftButtons, $buyButtons, $recipe, $shortfall['button'])],
         ];
     }
 
@@ -149,15 +158,31 @@ class CraftShortageService
      * выключен (`REASON_KILLSWITCH_OFF`) или в рецепте нечего докупать (`$recipe`
      * не передан вызывающим кодом, либо все позиции уже в достатке).
      *
+     * Количество, на которое считается блок, зажимается `max_units_per_purchase`
+     * ДО вызова `quote()` — тем же лимитом, до которого `CraftShortfallBuyAction`
+     * режет сделку. Иначе экран честно печатает сумму за запрошенные 5 шт., а
+     * спишется она за 1 (fix-02, крупная находка 6 ревью).
+     *
+     * `button` — рабочая кнопка входа в докупку (`craftBuy_<RecipeKey>_<qty>`,
+     * контракт `plan.md`), а не только текст: до этой правки нажать было нечего
+     * (fix-02, критическая находка 1). `RecipeKey` берём из `craft_again_callback`
+     * рецепта (`genericCraft_<Key>_<qty>`) — единственное поле, где он уже есть
+     * во всех ~105 рецептах `CraftRecipes`. Если поля нет (легаси-старты брони/
+     * маяков мимо `CraftRecipes`, story 13/14 — вне объёма этой правки) или сделка
+     * недоступна — кнопки нет, это уже лечит существующий текст lock-состояния.
+     *
      * @param array<string,mixed>|CharacterEntity $character
      * @param array<string,mixed> $recipe
-     * @return list<string>
+     * @return array{lines:list<string>, button:array{text:string,callback_data:string}|null}
      */
     private function shortfallBuyBlock(array|CharacterEntity $character, array $recipe, int $quantity): array
     {
-        $quote = $this->shortfallBuy->quote($character, $this->shortfallQuoteRecipe($recipe), $quantity);
+        $maxUnits = $this->maxUnitsPerPurchase();
+        $quoteQty = min($quantity, $maxUnits);
+
+        $quote = $this->shortfallBuy->quote($character, $this->shortfallQuoteRecipe($recipe), $quoteQty);
         if ($quote->lines === []) {
-            return [];
+            return ['lines' => [], 'button' => null];
         }
 
         $characterLevelRaw = $character['level'] ?? 0;
@@ -178,9 +203,45 @@ class CraftShortageService
             $out[] = '• _…и ещё ' . $hidden . ' позиц' . ($hidden === 1 ? 'ия' : 'ий') . '._';
         }
 
+        if ($quoteQty < $quantity) {
+            $out[] = '_Докупка ограничена ' . $maxUnits . ' шт. за раз — цифры ниже посчитаны на ' . $quoteQty . '._';
+        }
+
         $out[] = $this->shortfallSummaryText($quote);
 
-        return $out;
+        $recipeKey = $this->shortfallRecipeKey($recipe);
+        $button    = ($quote->available && $recipeKey !== null)
+            ? ['text' => '🛒 Докупить и собрать', 'callback_data' => 'craftBuy_' . $recipeKey . '_' . $quoteQty]
+            : null;
+
+        return ['lines' => $out, 'button' => $button];
+    }
+
+    /**
+     * `craft_again_callback` живёт во всех рецептах `Config\CraftRecipes` в форме
+     * `genericCraft_<RecipeKey>_<qty>` — единственное поле рецепта, откуда `RecipeKey`
+     * можно взять честно, не изобретая новый контракт (`plan.md` §Contracts требует
+     * готовый `craftBuy_<RecipeKey>_<qty>`, не собственный ключ).
+     *
+     * @param array<string,mixed> $recipe
+     */
+    private function shortfallRecipeKey(array $recipe): ?string
+    {
+        $callback = $recipe['craft_again_callback'] ?? null;
+        if (! is_string($callback) || $callback === '') {
+            return null;
+        }
+
+        return preg_match('/^genericCraft_(.+)_\d+$/', $callback, $m) === 1 ? $m[1] : null;
+    }
+
+    /** Тот же лимит, что режет сделку (`CraftShortfallBuyAction::KEY_MAX_UNITS`). */
+    private function maxUnitsPerPurchase(): int
+    {
+        $raw = $this->settings->get(self::KEY_MAX_UNITS_PER_PURCHASE, 1);
+        $val = is_numeric($raw) ? (int) $raw : 1;
+
+        return max(1, $val);
     }
 
     /**
@@ -499,14 +560,17 @@ class CraftShortageService
 
     /**
      * Порядок рядов — это сообщение о ценностях: сперва собрать, потом добыть,
-     * и только потом купить.
+     * и только потом купить. Кнопка входа в докупку (если она есть — story
+     * fix-02) идёт НИЖЕ «⛏ Добыть» и вариантов «собрать самому», в самом низу,
+     * порядок экрана (ADR-158) не меняется.
      *
      * @param list<array<string,string>> $craftButtons
      * @param list<array<string,string>> $buyButtons
      * @param array<string,mixed> $recipe
+     * @param array{text:string,callback_data:string}|null $shortfallButton
      * @return list<list<array<string,string>>>
      */
-    private function keyboard(array $craftButtons, array $buyButtons, array $recipe): array
+    private function keyboard(array $craftButtons, array $buyButtons, array $recipe, ?array $shortfallButton = null): array
     {
         $rows = [];
 
@@ -524,10 +588,20 @@ class CraftShortageService
         $back = isset($recipe['info_callback']) && is_string($recipe['info_callback']) && $recipe['info_callback'] !== ''
             ? $recipe['info_callback']
             : 'craft';
-        $rows[] = [
-            ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
-            ['text' => '⬅️ Назад', 'callback_data' => $back],
-        ];
+
+        // Ряды кнопок проходят через общий нормализатор (`.claude/rules/telegram-ux.md`):
+        // одиночек в строке не остаётся. Кнопка докупки — та же строка, что и
+        // «Инвентарь»/«Назад», а не отдельный ряд из одной кнопки.
+        $trailing = [];
+        if ($shortfallButton !== null) {
+            $trailing[] = $shortfallButton;
+        }
+        $trailing[] = ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'];
+        $trailing[] = ['text' => '⬅️ Назад', 'callback_data' => $back];
+
+        foreach (ButtonPacker::pack($trailing) as $row) {
+            $rows[] = $row;
+        }
 
         return $rows;
     }
