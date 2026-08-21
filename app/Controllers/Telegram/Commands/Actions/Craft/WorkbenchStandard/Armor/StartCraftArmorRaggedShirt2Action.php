@@ -110,7 +110,10 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
             );
         }
 
-        // 4.2) крафтовые компоненты
+        // 4.2) крафтовые компоненты. Story craft-shortfall-buy-13: вместо отказа на
+        // первой нехватке собираем ВСЕ недостающие позиции и показываем общий экран
+        // нехватки (CraftShortageService), как остальной крафт.
+        $missingItems = [];
         foreach ($requiredComponents as $itemName => $reqPerOne) {
             $totalNeeded = $reqPerOne * $this->quantity;
             $craftedItem = $this->craftedItemsModel->getCraftedItemByName($itemName);
@@ -124,11 +127,17 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
                 ->first();
             $haveQty = $logRow ? (int) $logRow['quantity'] : 0;
             if ($haveQty < $totalNeeded) {
-                return $this->sendError(
-                    $chatId,
-                    "Недостаточно «{$itemName}». Нужно {$totalNeeded}, а есть {$haveQty}."
-                );
+                $itemEng = is_string($craftedItem['name_eng'] ?? null) ? $craftedItem['name_eng'] : $itemName;
+                $nameRus = is_string($craftedItem['name_rus'] ?? null) ? $craftedItem['name_rus'] : $itemName;
+                $missingItems[$itemEng] = ['need' => $totalNeeded, 'have' => $haveQty, 'name' => $nameRus];
             }
+        }
+        if ($missingItems !== []) {
+            return $this->shortageScreen($character, [], $missingItems, [
+                'item_name_rus' => 'Рваная рубаха',
+                'info_callback' => 'armorRaggedShirt',
+                'crafted_items' => $requiredComponents,
+            ], $chatId);
         }
 
         // 5) ищем/создаём задачу craftArmorRaggedShirt
@@ -240,5 +249,38 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
             'text'       => $msg,
             'parse_mode' => 'Markdown'
         ]);
+    }
+
+    /**
+     * ADR-158 / story craft-shortfall-buy-13 — тот же экран нехватки, что видит
+     * остальной крафт (`CraftShortageService::describe()`), а не собственный
+     * текстовый отказ. Ничего не пересчитывает: только собирает вход по уже
+     * посчитанным нехваткам.
+     *
+     * @param array<string,array{need:int,have:int,name:string}> $missingResources
+     * @param array<string,array{need:int,have:int,name:string}> $missingItems
+     * @param array<string,mixed> $recipe
+     */
+    private function shortageScreen(
+        \App\Entities\CharacterEntity $character,
+        array $missingResources,
+        array $missingItems,
+        array $recipe,
+        int|string $chatId
+    ): ServerResponse {
+        $shortage = new \App\Services\Craft\CraftShortageService();
+        if ($shortage->isEnabled()) {
+            $screen = $shortage->describe($character, $missingResources, $missingItems, $this->quantity, $recipe);
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+            return Request::sendMessage([
+                'chat_id'      => $chatId,
+                'text'         => $screen['text'],
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode($screen['keyboard']),
+            ]);
+        }
+
+        return $this->sendError($chatId, "Недостаточно ресурсов для крафта {$this->quantity} шт.");
     }
 }

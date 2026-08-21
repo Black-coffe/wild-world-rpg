@@ -121,16 +121,22 @@ class StartCraftPortableTeleport2Action extends BaseAction
             return $this->error($chatId, 'Нужен 1-й верстак (Мастерская): 🏠 База → 🏗 Строить.');
         }
 
-        // Материалы и золото — перепроверка ПЕРЕД списанием (анти-уход в минус).
-        $missing = $this->missingRequirements($characterId);
-        if ($missing !== []) {
+        // Материалы — перепроверка ПЕРЕД списанием (анти-уход в минус). Story
+        // craft-shortfall-buy-13: вместо текстового отказа — общий экран нехватки
+        // (CraftShortageService), как остальной крафт. Золото сюда не входит: его
+        // перепроверяет `decreaseGold()` ниже, атомарно под row-lock'ом.
+        $missingResources = $this->missingResources($characterId);
+        $missingComponents = $this->missingComponents($characterId);
+        if ($missingResources !== [] || $missingComponents !== []) {
             $this->logRejected($characterId, 'CRAFT_PORTABLE_TELEPORT', 'not_enough_resources');
 
-            return $this->error(
-                $chatId,
-                "Не хватает материалов:\n• " . implode("\n• ", $missing)
-                . "\n\nОткрой экран рецепта — там видно всё разом."
-            );
+            return $this->shortageScreen($character, $missingResources, $missingComponents, [
+                'item_name_rus' => PortableTeleportRecipe::ITEM_NAME_RUS,
+                'item_name_eng' => PortableTeleportRecipe::ITEM_NAME_ENG,
+                'info_callback' => 'portableTeleport2',
+                'resources'     => $this->recipe->resources(),
+                'crafted_items' => $this->componentsByEng(),
+            ], $chatId);
         }
 
         $taskRow = $this->ensureTaskRow();
@@ -196,11 +202,12 @@ class StartCraftPortableTeleport2Action extends BaseAction
     }
 
     /**
-     * Список нехваток человеческим текстом (пусто → всё есть).
+     * Нехватка сырья (пусто → всё есть). Ключ — русское имя ресурса (совпадает с
+     * `resources.name`), как ожидает `CraftShortageService::describe()`.
      *
-     * @return list<string>
+     * @return array<string,array{need:int,have:int,name:string}>
      */
-    private function missingRequirements(int $characterId): array
+    private function missingResources(int $characterId): array
     {
         $missing = [];
 
@@ -211,14 +218,28 @@ class StartCraftPortableTeleport2Action extends BaseAction
             $row  = (new CharacterResourceModel())->getResourceByNameAndCharacterId($name, $characterId);
             $have = (is_array($row) && is_numeric($row['quantity'] ?? null)) ? (int) $row['quantity'] : 0;
             if ($have < $need) {
-                $missing[] = "{$name}: есть {$have}, нужно {$need}";
+                $missing[$name] = ['need' => $need, 'have' => $have, 'name' => $name];
             }
         }
 
+        return $missing;
+    }
+
+    /**
+     * Нехватка крафт-компонентов (пусто → всё есть). Ключ — `crafted_items.name_eng`,
+     * как ожидает `CraftShortageService::describe()`.
+     *
+     * @return array<string,array{need:int,have:int,name:string}>
+     */
+    private function missingComponents(int $characterId): array
+    {
+        $missing = [];
+
         foreach ($this->recipe->components() as $name => $need) {
-            $item  = (new CraftedItemsModel())->getCraftedItemByName($name);
-            $idRaw = is_array($item) ? ($item['id'] ?? null) : null;
-            $have  = 0;
+            $item    = (new CraftedItemsModel())->getCraftedItemByName($name);
+            $idRaw   = is_array($item) ? ($item['id'] ?? null) : null;
+            $itemEng = (is_array($item) && is_string($item['name_eng'] ?? null)) ? $item['name_eng'] : $name;
+            $have    = 0;
             if (is_numeric($idRaw)) {
                 $log  = (new CraftedItemsLogModel())
                     ->where('crafted_item_id', (int) $idRaw)
@@ -227,37 +248,29 @@ class StartCraftPortableTeleport2Action extends BaseAction
                 $have = (is_array($log) && is_numeric($log['quantity'] ?? null)) ? (int) $log['quantity'] : 0;
             }
             if ($have < $need) {
-                $missing[] = "{$name}: есть {$have}, нужно {$need}";
+                $missing[$itemEng] = ['need' => $need, 'have' => $have, 'name' => $name];
             }
-        }
-
-        $gold = self::goldOf($this->charModel->find($characterId));
-        if ($gold < $this->recipe->goldCost()) {
-            $missing[] = "Золото: есть {$gold}, нужно {$this->recipe->goldCost()}";
         }
 
         return $missing;
     }
 
-
     /**
-     * Золото персонажа из строки `characters`. 🔴 `CharacterModel::find()` возвращает
-     * **CharacterEntity**, а не массив (ArrayAccess у неё есть, но `is_array()` — false).
-     * Проверка «только is_array» тихо давала 0 золота и роняла крафт в
-     * «не хватает материалов» — поймано Tier-3 смоуком на testbot 2026-08-06
-     * (memory feedback_entity_strict_array_typehint_trap).
+     * Полная (не только недостающая) карта компонентов рецепта, ключ — name_eng.
+     * Нужна `CraftShortfallBuyService::quote()` для расчёта доли рецепта деньгами.
+     *
+     * @return array<string,int>
      */
-    private static function goldOf(mixed $charRow): int
+    private function componentsByEng(): array
     {
-        if ($charRow instanceof \App\Entities\CharacterEntity) {
-            $raw = $charRow->gold;
-        } elseif (is_array($charRow)) {
-            $raw = $charRow['gold'] ?? null;
-        } else {
-            return 0;
+        $out = [];
+        foreach ($this->recipe->components() as $name => $need) {
+            $item    = (new CraftedItemsModel())->getCraftedItemByName($name);
+            $itemEng = (is_array($item) && is_string($item['name_eng'] ?? null)) ? $item['name_eng'] : $name;
+            $out[$itemEng] = $need;
         }
 
-        return is_numeric($raw) ? (int) $raw : 0;
+        return $out;
     }
 
     /** @return array<int|string,mixed>|null */
@@ -368,6 +381,38 @@ class StartCraftPortableTeleport2Action extends BaseAction
                 log_message('error', "[PortableTeleport] не удалось списать «{$name}» x{$qty} у персонажа {$characterId}.");
             }
         }
+    }
+
+    /**
+     * ADR-158 / story craft-shortfall-buy-13 — тот же экран нехватки, что видит
+     * остальной крафт (`CraftShortageService::describe()`), а не собственный
+     * текстовый отказ. `answerCallbackQuery` здесь не дублируем: `handle()` уже
+     * снял «часики» в самом начале.
+     *
+     * @param array<string,array{need:int,have:int,name:string}> $missingResources
+     * @param array<string,array{need:int,have:int,name:string}> $missingItems
+     * @param array<string,mixed> $recipe
+     */
+    private function shortageScreen(
+        \App\Entities\CharacterEntity $character,
+        array $missingResources,
+        array $missingItems,
+        array $recipe,
+        int|string $chatId
+    ): ServerResponse {
+        $shortage = new \App\Services\Craft\CraftShortageService();
+        if ($shortage->isEnabled()) {
+            $screen = $shortage->describe($character, $missingResources, $missingItems, 1, $recipe);
+
+            return Request::sendMessage([
+                'chat_id'      => $chatId,
+                'text'         => $screen['text'],
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode($screen['keyboard']),
+            ]);
+        }
+
+        return $this->error($chatId, 'Не хватает материалов для сборки.');
     }
 
     private function error(int|string $chatId, string $message): ServerResponse

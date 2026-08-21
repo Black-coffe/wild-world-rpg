@@ -142,13 +142,16 @@ class StartCraftTeleportBackpack2Action extends BaseAction
 
         // Компоненты проверяем ДО создания задачи и любых списаний (фикс 2026-08-06):
         // иначе при устаревшей кнопке снимутся золото и сырьё, а компонент — нет.
+        // Story craft-shortfall-buy-13: вместо текстового отказа — общий экран
+        // нехватки (CraftShortageService), как остальной крафт.
         $missingComponents = $this->missingComponents($characterId, $requiredComponents);
         if ($missingComponents !== []) {
-            return $this->sendError(
-                $chatId,
-                "Не хватает компонентов:\n• " . implode("\n• ", $missingComponents)
-                . "\n\nОткрой экран рецепта — там видно всё разом."
-            );
+            return $this->shortageScreen($character, [], $missingComponents, [
+                'item_name_rus' => 'Рюкзак телепорт',
+                'info_callback' => 'teleportBackpack2',
+                'resources'     => $requiredResources,
+                'crafted_items' => $this->componentsByEng($requiredComponents),
+            ], $chatId);
         }
 
         $this->characterTaskModel->insert([
@@ -204,7 +207,7 @@ class StartCraftTeleportBackpack2Action extends BaseAction
      * золото и сырьё сняты, а `deductCraftedItem` отказал по остатку.
      *
      * @param array<string,int> $requiredComponents
-     * @return list<string> человекочитаемые нехватки (пусто → всё на месте)
+     * @return array<string,array{need:int,have:int,name:string}> name_eng → нехватка
      */
     private function missingComponents(int $characterId, array $requiredComponents): array
     {
@@ -212,6 +215,7 @@ class StartCraftTeleportBackpack2Action extends BaseAction
         foreach ($requiredComponents as $itemName => $qty) {
             $itemRow = (new CraftedItemsModel())->getCraftedItemByName($itemName);
             $itemId  = (is_array($itemRow) && is_numeric($itemRow['id'] ?? null)) ? (int) $itemRow['id'] : 0;
+            $itemEng = (is_array($itemRow) && is_string($itemRow['name_eng'] ?? null)) ? $itemRow['name_eng'] : $itemName;
             $have    = 0;
             if ($itemId > 0) {
                 $log  = (new CraftedItemsLogModel())
@@ -221,11 +225,30 @@ class StartCraftTeleportBackpack2Action extends BaseAction
                 $have = (is_array($log) && is_numeric($log['quantity'] ?? null)) ? (int) $log['quantity'] : 0;
             }
             if ($have < (int) $qty) {
-                $missing[] = "{$itemName}: есть {$have}, нужно {$qty}";
+                $missing[$itemEng] = ['need' => (int) $qty, 'have' => $have, 'name' => $itemName];
             }
         }
 
         return $missing;
+    }
+
+    /**
+     * Полная (не только недостающая) карта компонентов рецепта, ключ — name_eng.
+     * Нужна `CraftShortfallBuyService::quote()` для расчёта доли рецепта деньгами.
+     *
+     * @param array<string,int> $requiredComponents
+     * @return array<string,int>
+     */
+    private function componentsByEng(array $requiredComponents): array
+    {
+        $out = [];
+        foreach ($requiredComponents as $itemName => $qty) {
+            $itemRow = (new CraftedItemsModel())->getCraftedItemByName($itemName);
+            $itemEng = (is_array($itemRow) && is_string($itemRow['name_eng'] ?? null)) ? $itemRow['name_eng'] : $itemName;
+            $out[$itemEng] = (int) $qty;
+        }
+
+        return $out;
     }
 
     /**
@@ -292,5 +315,37 @@ class StartCraftTeleportBackpack2Action extends BaseAction
             'chat_id' => $chatId,
             'text'    => $message,
         ]);
+    }
+
+    /**
+     * ADR-158 / story craft-shortfall-buy-13 — тот же экран нехватки, что видит
+     * остальной крафт (`CraftShortageService::describe()`), а не собственный
+     * текстовый отказ. `answerCallbackQuery` здесь не дублируем: `handle()` уже
+     * снял «часики» в самом начале.
+     *
+     * @param array<string,array{need:int,have:int,name:string}> $missingResources
+     * @param array<string,array{need:int,have:int,name:string}> $missingItems
+     * @param array<string,mixed> $recipe
+     */
+    private function shortageScreen(
+        \App\Entities\CharacterEntity $character,
+        array $missingResources,
+        array $missingItems,
+        array $recipe,
+        int|string $chatId
+    ): ServerResponse {
+        $shortage = new \App\Services\Craft\CraftShortageService();
+        if ($shortage->isEnabled()) {
+            $screen = $shortage->describe($character, $missingResources, $missingItems, 1, $recipe);
+
+            return Request::sendMessage([
+                'chat_id'      => $chatId,
+                'text'         => $screen['text'],
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode($screen['keyboard']),
+            ]);
+        }
+
+        return $this->sendError((int) $chatId, 'Не хватает материалов для сборки.');
     }
 }

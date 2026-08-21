@@ -86,19 +86,27 @@ class StartCraftLeatherJacket2Action extends BaseAction
             'Ткань'        => 8,
         ];
 
+        // Story craft-shortfall-buy-13: вместо отказа на первой нехватке собираем
+        // ВСЕ недостающие позиции (компоненты + сырьё) и показываем общий экран
+        // нехватки (CraftShortageService), как остальной крафт.
+        $componentsRecipe = [];
+        $missingItems = [];
         foreach ($craftedNeed as $itemName => $qtyPerOne) {
             $totalNeeded = $qtyPerOne * $this->quantity;
             $craftedItem = $this->craftedItemsModel->getCraftedItemByName($itemName);
             if (!$craftedItem) {
                 return $this->sendError($chatId, "Не найден предмет «{$itemName}» в crafted_items!");
             }
+            $itemEng = is_string($craftedItem['name_eng'] ?? null) ? $craftedItem['name_eng'] : $itemName;
+            $componentsRecipe[$itemEng] = $qtyPerOne;
             $logRow = $this->craftedItemsLogModel
                 ->where('character_id', $character['id'])
                 ->where('crafted_item_id', $craftedItem['id'])
                 ->first();
             $haveQty = $logRow ? (int)$logRow['quantity'] : 0;
             if ($haveQty < $totalNeeded) {
-                return $this->sendError($chatId, "Недостаточно «{$itemName}»: нужно {$totalNeeded}, у вас {$haveQty}.");
+                $nameRus = is_string($craftedItem['name_rus'] ?? null) ? $craftedItem['name_rus'] : $itemName;
+                $missingItems[$itemEng] = ['need' => $totalNeeded, 'have' => $haveQty, 'name' => $nameRus];
             }
         }
 
@@ -108,7 +116,10 @@ class StartCraftLeatherJacket2Action extends BaseAction
             ['name' => 'Древесина',     'qty' => 2],
         ];
 
+        $resourcesRecipe = [];
+        $missingResources = [];
         foreach ($rawNeeded as $res) {
+            $resourcesRecipe[$res['name']] = $res['qty'];
             $totalNeeded = $res['qty'] * $this->quantity;
             $resourceRow = (new \App\Models\ResourceModel())->getResourceByName($res['name']);
             if (!$resourceRow) {
@@ -120,11 +131,17 @@ class StartCraftLeatherJacket2Action extends BaseAction
                 ->first();
             $haveQty = $charRes ? (int)$charRes['quantity'] : 0;
             if ($haveQty < $totalNeeded) {
-                return $this->sendError(
-                    $chatId,
-                    "Недостаточно «{$res['name']}»: нужно {$totalNeeded}, у вас {$haveQty}."
-                );
+                $missingResources[$res['name']] = ['need' => $totalNeeded, 'have' => $haveQty, 'name' => $res['name']];
             }
+        }
+
+        if ($missingResources !== [] || $missingItems !== []) {
+            return $this->shortageScreen($character, $missingResources, $missingItems, [
+                'item_name_rus' => 'Кожаная куртка',
+                'info_callback' => 'armorLeatherJacket',
+                'resources'     => $resourcesRecipe,
+                'crafted_items' => $componentsRecipe,
+            ], $chatId);
         }
 
         // ----- Списываем -----
@@ -241,5 +258,38 @@ class StartCraftLeatherJacket2Action extends BaseAction
             'text'       => $msg,
             'parse_mode' => 'Markdown',
         ]);
+    }
+
+    /**
+     * ADR-158 / story craft-shortfall-buy-13 — тот же экран нехватки, что видит
+     * остальной крафт (`CraftShortageService::describe()`), а не собственный
+     * текстовый отказ. Ничего не пересчитывает: только собирает вход по уже
+     * посчитанным нехваткам.
+     *
+     * @param array<string,array{need:int,have:int,name:string}> $missingResources
+     * @param array<string,array{need:int,have:int,name:string}> $missingItems
+     * @param array<string,mixed> $recipe
+     */
+    private function shortageScreen(
+        \App\Entities\CharacterEntity $character,
+        array $missingResources,
+        array $missingItems,
+        array $recipe,
+        int|string $chatId
+    ): ServerResponse {
+        $shortage = new \App\Services\Craft\CraftShortageService();
+        if ($shortage->isEnabled()) {
+            $screen = $shortage->describe($character, $missingResources, $missingItems, $this->quantity, $recipe);
+            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
+
+            return Request::sendMessage([
+                'chat_id'      => $chatId,
+                'text'         => $screen['text'],
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode($screen['keyboard']),
+            ]);
+        }
+
+        return $this->sendError($chatId, "Недостаточно ресурсов для крафта {$this->quantity} шт.");
     }
 }
