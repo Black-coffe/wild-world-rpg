@@ -36,10 +36,14 @@ class CraftShortageService
     /** Сколько позиций показываем подробно — дальше caption распухает без пользы. */
     private const MAX_DETAILED = 6;
 
+    /** Столько же для блока докупки — свой лимит, свой счётчик «и ещё N». */
+    private const MAX_SHORTFALL_DETAILED = 6;
+
     private GameSettingsService $settings;
     private ResourceModel $resources;
     private BiomeModel $biomes;
     private MapModel $map;
+    private CraftShortfallBuyService $shortfallBuy;
 
     /** @var array<int,string>|null id биома → название (таблица маленькая, читаем раз) */
     private ?array $biomeNames = null;
@@ -48,12 +52,14 @@ class CraftShortageService
         ?GameSettingsService $settings = null,
         ?ResourceModel $resources = null,
         ?BiomeModel $biomes = null,
-        ?MapModel $map = null
+        ?MapModel $map = null,
+        ?CraftShortfallBuyService $shortfallBuy = null
     ) {
-        $this->settings  = $settings ?? new GameSettingsService();
-        $this->resources = $resources ?? new ResourceModel();
-        $this->biomes    = $biomes ?? new BiomeModel();
-        $this->map       = $map ?? new MapModel();
+        $this->settings     = $settings ?? new GameSettingsService();
+        $this->resources    = $resources ?? new ResourceModel();
+        $this->biomes       = $biomes ?? new BiomeModel();
+        $this->map          = $map ?? new MapModel();
+        $this->shortfallBuy = $shortfallBuy ?? new CraftShortfallBuyService();
     }
 
     public function isEnabled(): bool
@@ -119,10 +125,174 @@ class CraftShortageService
         $lines[] = '';
         $lines[] = '_Добыть почти всегда дешевле, чем купить._';
 
+        $shortfallBlock = $this->shortfallBuyBlock($character, $recipe, $quantity);
+        if ($shortfallBlock !== []) {
+            $lines[] = '';
+            array_push($lines, ...$shortfallBlock);
+        }
+
         return [
             'text'     => implode("\n", $lines),
             'keyboard' => ['inline_keyboard' => $this->keyboard($craftButtons, $buyButtons, $recipe)],
         ];
+    }
+
+    /**
+     * Блок «🛒 Докупить у торговца» (story `craft-shortfall-buy-08`). Стоит ниже
+     * «⛏ Добыть» и вариантов «собрать самому» по тексту — порядок экрана не меняем
+     * (ADR-158). Ни одно число здесь не считается заново: всё приходит из
+     * `CraftShortfallBuyService::quote()` — единственного источника чисел (contracts,
+     * `plan.md`). Наценка называется «наценка торговца за срочность»; слово «опт»
+     * запрещено (ADR-096) — оно занято оптовой продажей.
+     *
+     * Пустой возврат — обе ситуации, в которых блока быть не должно: killswitch
+     * выключен (`REASON_KILLSWITCH_OFF`) или в рецепте нечего докупать (`$recipe`
+     * не передан вызывающим кодом, либо все позиции уже в достатке).
+     *
+     * @param array<string,mixed>|CharacterEntity $character
+     * @param array<string,mixed> $recipe
+     * @return list<string>
+     */
+    private function shortfallBuyBlock(array|CharacterEntity $character, array $recipe, int $quantity): array
+    {
+        $quote = $this->shortfallBuy->quote($character, $this->shortfallQuoteRecipe($recipe), $quantity);
+        if ($quote->lines === []) {
+            return [];
+        }
+
+        $characterLevelRaw = $character['level'] ?? 0;
+        $characterLevel     = is_numeric($characterLevelRaw) ? (int) $characterLevelRaw : 0;
+
+        $out   = ['🛒 *Докупить у торговца* — сколько будет стоить закрыть остаток прямо сейчас:'];
+        $shown  = 0;
+        $hidden = 0;
+        foreach ($quote->lines as $line) {
+            if ($shown >= self::MAX_SHORTFALL_DETAILED) {
+                $hidden++;
+                continue;
+            }
+            $shown++;
+            $out[] = $this->shortfallLineText($line, $characterLevel);
+        }
+        if ($hidden > 0) {
+            $out[] = '• _…и ещё ' . $hidden . ' позиц' . ($hidden === 1 ? 'ия' : 'ий') . '._';
+        }
+
+        $out[] = $this->shortfallSummaryText($quote);
+
+        return $out;
+    }
+
+    /**
+     * `CraftShortfallBuyService::quote()` объявляет узкий тип `$recipe` (contracts,
+     * `plan.md`), а `describe()` принимает произвольный `array<string,mixed>` из
+     * рецепта конфига — сужаем явным чтением полей, не кастом и не игнором phpstan.
+     *
+     * @param array<string,mixed> $recipe
+     * @return array{resources:array<string,int>,crafted_items:array<string,int>,item_name_eng:string}
+     */
+    private function shortfallQuoteRecipe(array $recipe): array
+    {
+        return [
+            'resources'     => $this->stringIntMap($recipe['resources'] ?? []),
+            'crafted_items' => $this->stringIntMap($recipe['crafted_items'] ?? []),
+            'item_name_eng' => isset($recipe['item_name_eng']) && is_string($recipe['item_name_eng']) ? $recipe['item_name_eng'] : '',
+        ];
+    }
+
+    /** @return array<string,int> */
+    private function stringIntMap(mixed $raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+        $out = [];
+        foreach ($raw as $name => $qty) {
+            if (! is_string($name) || ! is_numeric($qty)) {
+                continue;
+            }
+            $out[$name] = (int) $qty;
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array{resourceId:int,name:string,need:int,have:int,gap:int,unitPrice:float,lineTotal:float,buyable:bool,blockReason:string|null} $line
+     */
+    private function shortfallLineText(array $line, int $characterLevel): string
+    {
+        $name = $this->safe($line['name']);
+        $need = (int) $line['need'];
+        $have = (int) $line['have'];
+        $gap  = (int) $line['gap'];
+
+        if ($line['buyable']) {
+            $unit  = number_format((float) $line['unitPrice'], 2, '.', ' ');
+            $total = number_format((float) $line['lineTotal'], 0, '.', ' ');
+
+            return '• *' . $name . '* — не хватает *' . $gap . '* (нужно ' . $need . ', есть ' . $have
+                . '), у торговца ' . $unit . ' 💰/шт → *' . $total . ' 💰* итого';
+        }
+
+        return '• *' . $name . '* — 🔒 ' . $this->shortfallBlockReasonText(
+            (string) $line['blockReason'],
+            $line['name'],
+            $characterLevel
+        );
+    }
+
+    /**
+     * Причина lock-состояния конкретной позиции + путь вперёд — до тапа, не после.
+     */
+    private function shortfallBlockReasonText(string $reason, string $rawName, int $characterLevel): string
+    {
+        return match ($reason) {
+            CraftShortfallBuyService::REASON_NOT_TRADEABLE
+                => 'не продаётся — эту позицию можно только добыть',
+            CraftShortfallBuyService::REASON_LEVEL_REQUIRED
+                => $this->levelRequiredText($rawName, $characterLevel),
+            CraftShortfallBuyService::REASON_NOT_ON_SALE
+                => 'это крафтовый компонент — у торговца его нет, собери на верстаке',
+            default => 'сейчас недоступно для докупки — добудь сам',
+        };
+    }
+
+    private function levelRequiredText(string $rawName, int $characterLevel): string
+    {
+        $resource  = $this->findResource($rawName);
+        $needRaw   = $resource['level_required'] ?? 0;
+        $needLevel = is_numeric($needRaw) ? (int) $needRaw : 0;
+
+        return $needLevel > 0
+            ? 'докупка открывается с ' . $needLevel . ' уровня, у тебя ' . $characterLevel . ' — пока добудь сам'
+            : 'докупка открывается с более высокого уровня, у тебя ' . $characterLevel . ' — пока добудь сам';
+    }
+
+    /**
+     * Итог блока: при доступной сделке — наценка/сумма/остаток золота/доля рецепта
+     * деньгами (что не докуплено — идёт из своего запаса и сборки). При отказе —
+     * причина и путь вперёд, а не голое «недоступно».
+     */
+    private function shortfallSummaryText(CraftShortfallQuote $quote): string
+    {
+        if ($quote->available) {
+            $sharePct = (int) round($quote->share * 100);
+
+            return 'Наценка торговца за срочность: *+' . $quote->markupPct . '%*. Итого спишется *'
+                . number_format($quote->total, 0, '.', ' ') . ' 💰*, после сделки останется *'
+                . number_format($quote->goldAfter, 0, '.', ' ') . ' 💰*. Докупка закроет ' . $sharePct
+                . '% рецепта деньгами — остальное идёт из своего запаса и сборки на верстаке.';
+        }
+
+        return match ($quote->refusal) {
+            CraftShortfallBuyService::REASON_MIN_GOLD => 'Не хватает *'
+                . number_format(-$quote->goldAfter, 0, '.', ' ') . ' 💰* на докупку (нужно '
+                . number_format($quote->total, 0, '.', ' ') . ' 💰) — заработай золото или добудь сырьё сам.',
+            CraftShortfallBuyService::REASON_PROFIT_GATE =>
+                'Докупка сейчас невыгодна: обошлась бы дороже, чем ты выручишь за собранный предмет — выгоднее добыть сырьё самому.',
+            default => 'Докупить всю сборку целиком нельзя — причина у позиции выше. Собери недостающее сам.',
+        };
     }
 
     /**
