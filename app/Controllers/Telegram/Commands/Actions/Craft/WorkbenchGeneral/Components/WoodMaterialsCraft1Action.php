@@ -7,6 +7,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel; // <-- (1) Подключаем модель логов
+use App\Services\Craft\CraftCardHelper;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -19,6 +20,7 @@ class WoodMaterialsCraft1Action extends BaseAction
     protected $characterResourceModel;
     protected $resourceModel;
     protected $craftedItemsLogModel; // <-- (2) Добавляем поле для логов
+    private CraftCardHelper $craftCardHelper;
 
     /**
      * Список доступных «пакетов» для крафта.
@@ -41,6 +43,7 @@ class WoodMaterialsCraft1Action extends BaseAction
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel(); // <-- (2) Инициализируем модель логов
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -114,6 +117,9 @@ class WoodMaterialsCraft1Action extends BaseAction
                         ['text' => '🛍️ Купить',     'callback_data' => 'buy'],
                     ],
                     [
+                        $this->craftCardHelper->fallbackButton('WoodMaterials'),
+                    ],
+                    [
                         ['text' => '⬅️ Назад', 'callback_data' => 'componentsCraft'],
                     ],
                 ]
@@ -164,21 +170,14 @@ class WoodMaterialsCraft1Action extends BaseAction
      */
     private function getResourcesInfo(int $characterId): array
     {
+        // Тем же пулом (рюкзак + склад базы, ADR-171), которым потом считает старт
+        // крафта GenericCraftActionStart::checkResources().
         $allRes = [];
-        foreach ($this->requiredResourcesBase as $resName => $resAmount) {
-            $resRow = $this->resourceModel->getResourceByName($resName);
-            if ($resRow) {
-                $charRes = $this->characterResourceModel
-                    ->getResourceByNameAndCharacterId($resName, $characterId);
-
-                $allRes[$resName] = [
-                    'quantity' => $charRes ? (int)$charRes['quantity'] : 0,
-                    'rarity'   => $resRow['rarity'],
-                ];
-            } else {
-                // На случай, если ресурс не найден в справочнике
-                $allRes[$resName] = ['quantity'=>0, 'rarity'=>'?'];
-            }
+        foreach ($this->craftCardHelper->available($characterId, $this->requiredResourcesBase) as $res) {
+            $allRes[$res['name']] = [
+                'quantity' => $res['quantity'],
+                'rarity'   => $res['rarity'],
+            ];
         }
         return $allRes;
     }

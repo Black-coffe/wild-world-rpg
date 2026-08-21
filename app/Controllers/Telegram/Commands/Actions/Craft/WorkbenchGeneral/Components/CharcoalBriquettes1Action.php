@@ -7,6 +7,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel; // <-- Добавляем модель логов
+use App\Services\Craft\CraftCardHelper;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -19,6 +20,7 @@ class CharcoalBriquettes1Action extends BaseAction
     protected $characterResourceModel;
     protected $resourceModel;
     protected $craftedItemsLogModel; // <-- Поле для хранения экземпляра модели логов
+    private CraftCardHelper $craftCardHelper;
 
     /**
      * Возможные пакеты крафта: 1, 5, 10, 25, 50, 100
@@ -32,6 +34,7 @@ class CharcoalBriquettes1Action extends BaseAction
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel(); // <-- Инициализируем модель логов
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -75,8 +78,9 @@ class CharcoalBriquettes1Action extends BaseAction
             'Угольная порода' => 20,
         ];
 
-        // Проверяем, сколько у игрока ресурсов
-        $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
+        // Проверяем, сколько у игрока ресурсов — тем же пулом (рюкзак + склад базы, ADR-171),
+        // которым потом считает старт крафта GenericCraftActionStart::checkResources().
+        $resourcesAvailable = $this->craftCardHelper->available($characterId, $requiredResources);
         // Считаем, на сколько штук хватает
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
@@ -110,6 +114,9 @@ class CharcoalBriquettes1Action extends BaseAction
                     [
                         ['text' => '💰 Продать', 'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить', 'callback_data' => 'buy']
+                    ],
+                    [
+                        $this->craftCardHelper->fallbackButton('CharcoalBriquettes'),
                     ],
                     [
                         ['text' => '⬅️ Назад', 'callback_data' => 'componentsCraft'],
@@ -159,33 +166,6 @@ class CharcoalBriquettes1Action extends BaseAction
         // Возвращает запись типа ['quantity' => ..., ...] или null
         $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
         return $item ? (int) $item['quantity'] : 0;
-    }
-
-    /**
-     * Проверяем, сколько ресурсов (для 1 шт.) есть у персонажа.
-     */
-    private function checkResourcesAvailability(int $characterId, array $requiredResources): array
-    {
-        $results = [];
-        foreach ($requiredResources as $resName => $need) {
-            $resRow = $this->resourceModel->getResourceByName($resName);
-            $qty    = 0;
-            $rar    = 0;
-
-            if ($resRow) {
-                $charRes = $this->characterResourceModel
-                    ->getResourceByNameAndCharacterId($resName, $characterId);
-                $qty = $charRes ? $charRes['quantity'] : 0;
-                $rar = $resRow['rarity'];
-            }
-
-            $results[] = [
-                'name'     => $resName,
-                'quantity' => $qty,
-                'rarity'   => $rar
-            ];
-        }
-        return $results;
     }
 
     /**

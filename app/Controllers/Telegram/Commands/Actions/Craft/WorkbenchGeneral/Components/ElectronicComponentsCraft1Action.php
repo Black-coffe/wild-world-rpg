@@ -7,6 +7,7 @@ use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Craft\CraftCardHelper;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -20,6 +21,7 @@ class ElectronicComponentsCraft1Action extends BaseAction
     protected $resourceModel;
     protected $craftedItemsModel;
     protected $craftedItemsLogModel;
+    private CraftCardHelper $craftCardHelper;
 
     /**
      * Возможные варианты количества для крафта.
@@ -34,6 +36,7 @@ class ElectronicComponentsCraft1Action extends BaseAction
         $this->resourceModel          = new ResourceModel();
         $this->craftedItemsModel      = new CraftedItemsModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -123,6 +126,9 @@ class ElectronicComponentsCraft1Action extends BaseAction
                         ['text' => '🛍️ Купить',   'callback_data' => 'buy'],
                     ],
                     [
+                        $this->craftCardHelper->fallbackButton('ElectronicComponents'),
+                    ],
+                    [
                         ['text' => '⬅️ Назад', 'callback_data' => 'componentsCraft'],
                     ],
                 ]
@@ -191,20 +197,12 @@ class ElectronicComponentsCraft1Action extends BaseAction
             'crafted_items' => [],
         ];
 
-        // 1) Обычные ресурсы
-        foreach ($req['resources'] as $resName => $amount) {
-            $resRow = $this->resourceModel->where('name', $resName)->first();
-            $have   = 0;
-            $rar    = '?';
-            if ($resRow) {
-                // Ищем у персонажа
-                $charRes = $this->characterResourceModel->getResourceByNameAndCharacterId($resName, $charId);
-                $have    = $charRes ? (int)$charRes['quantity'] : 0;
-                $rar     = $resRow['rarity'];
-            }
-            $result['resources'][$resName] = [
-                'quantity' => $have,
-                'rarity'   => $rar,
+        // 1) Обычные ресурсы — тем же пулом (рюкзак + склад базы, ADR-171), которым потом
+        // считает старт крафта GenericCraftActionStart::checkResources().
+        foreach ($this->craftCardHelper->available($charId, $req['resources']) as $res) {
+            $result['resources'][$res['name']] = [
+                'quantity' => $res['quantity'],
+                'rarity'   => $res['rarity'],
             ];
         }
 
