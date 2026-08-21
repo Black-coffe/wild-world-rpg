@@ -33,45 +33,15 @@ class CraftService
 
         $text = self::hubCaption($hasProfessionalWorkbench, $repairHubEnabled);
 
-        // Кнопки = три уровня крафта (Общий / Стандартный / Профессиональный)
-        // + раздел сборки самих верстаков. Раньше «Профессиональный крафт»
-        // не имел кнопки (вход только через Верстаки) — это и была причина
-        // путаницы игроков. Теперь все три уровня видны напрямую.
-        $rows = [
-            [
-                ['text' => '🔨 Общий крафт',          'callback_data' => 'generalCraft'],
-                ['text' => '🔧 Стандартный крафт',    'callback_data' => 'standardCraft'],
-            ],
-            [
-                $hasProfessionalWorkbench
-                    ? ['text' => '🛠️ Профессиональный крафт', 'callback_data' => 'workbenchProfessional']
-                    : ['text' => '🔒 Проф. крафт', 'callback_data' => 'workbenchProfessional'],
-                ['text' => '🔬 Верстаки',               'callback_data' => 'WorkbenchChoice'],
-            ],
+        $modernizationEnabled = (new \App\Services\Craft\ItemModifierService())->enabled();
+
+        $keyboard = [
+            'inline_keyboard' => self::hubRows(
+                $hasProfessionalWorkbench,
+                $repairHubEnabled,
+                $modernizationEnabled,
+            ),
         ];
-
-        // W19 (ADR-074): «🔧 Модернизация» — gated killswitch'ом (dormant → скрыта, как W9-W18).
-        $modernization = (new \App\Services\Craft\ItemModifierService())->enabled()
-            ? ['text' => '🔧 Модернизация', 'callback_data' => 'enchant']
-            : null;
-
-        // ADR-150 Слайс 5: ремонт ИНСТРУМЕНТОВ живёт в неймспейсе `Craft\Repair`, но кнопки на
-        // экране Крафта не было ВООБЩЕ — попасть можно было лишь из Инвентаря (Крафтовые ресурсы)
-        // или из хаба поселения. Возвращаем его в свою группу. Ремонт ЗДАНИЙ остаётся на Базе.
-        if ($repairHubEnabled) {
-            $repairRow = [['text' => '🪛 Ремонт инструментов', 'callback_data' => 'repairToolsList']];
-            if ($modernization !== null) {
-                $repairRow[] = $modernization;
-                $modernization = null;
-            }
-            $rows[] = $repairRow;
-        }
-
-        if ($modernization !== null) {
-            $rows[] = [$modernization];
-        }
-
-        $keyboard = ['inline_keyboard' => $rows];
 
         // Картинка та же, что и в CraftingAction
         $imagePath = base_url('uploads/telegram/craft/crafting_area.png');
@@ -118,5 +88,62 @@ class CraftService
         }
 
         return $text;
+    }
+
+    /**
+     * Чистая сборка рядов клавиатуры хаба — без БД и без Telegram.
+     *
+     * Ряды здесь оставлены «как задумано по смыслу»: одиночный хвост (ремонт без
+     * модернизации или наоборот) правит централизованный
+     * {@see \App\Services\Telegram\KeyboardNormalizer} в точке отправки. Правило
+     * «ноль одиночек в ряду» проверяется тестом на ВЫХОДЕ нормализатора, а не на
+     * этом массиве: мерить исходный массив — значит мерить не то, что видит игрок.
+     *
+     * @return list<list<array<string,string>>>
+     */
+    public static function hubRows(
+        bool $hasProfessionalWorkbench,
+        bool $repairHubEnabled,
+        bool $modernizationEnabled,
+    ): array {
+        // Кнопки = три уровня крафта (Общий / Стандартный / Профессиональный)
+        // + раздел сборки самих верстаков. Раньше «Профессиональный крафт»
+        // не имел кнопки (вход только через Верстаки) — это и была причина
+        // путаницы игроков. Теперь все три уровня видны напрямую.
+        $rows = [
+            [
+                ['text' => '🔨 Общий крафт',          'callback_data' => 'generalCraft'],
+                ['text' => '🔧 Стандартный крафт',    'callback_data' => 'standardCraft'],
+            ],
+            [
+                $hasProfessionalWorkbench
+                    ? ['text' => '🛠️ Профессиональный крафт', 'callback_data' => 'workbenchProfessional']
+                    : ['text' => '🔒 Проф. крафт', 'callback_data' => 'workbenchProfessional'],
+                ['text' => '🔬 Верстаки',               'callback_data' => 'WorkbenchChoice'],
+            ],
+        ];
+
+        // W19 (ADR-074): «🔧 Модернизация» — gated killswitch'ом (dormant → скрыта, как W9-W18).
+        $modernization = $modernizationEnabled
+            ? ['text' => '🔧 Модернизация', 'callback_data' => 'enchant']
+            : null;
+
+        // ADR-150 Слайс 5: ремонт ИНСТРУМЕНТОВ живёт в неймспейсе `Craft\Repair`, но кнопки на
+        // экране Крафта не было ВООБЩЕ — попасть можно было лишь из Инвентаря (Крафтовые ресурсы)
+        // или из хаба поселения. Возвращаем его в свою группу. Ремонт ЗДАНИЙ остаётся на Базе.
+        if ($repairHubEnabled) {
+            $repairRow = [['text' => '🪛 Ремонт инструментов', 'callback_data' => 'repairToolsList']];
+            if ($modernization !== null) {
+                $repairRow[] = $modernization;
+                $modernization = null;
+            }
+            $rows[] = $repairRow;
+        }
+
+        if ($modernization !== null) {
+            $rows[] = [$modernization];
+        }
+
+        return $rows;
     }
 }
