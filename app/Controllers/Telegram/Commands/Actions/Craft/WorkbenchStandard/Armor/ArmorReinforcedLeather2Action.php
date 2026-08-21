@@ -12,6 +12,7 @@ use App\Models\CraftedItemsModel;
 use App\Models\OutfitModel;
 use App\Models\ResourceModel;
 use App\Models\CharacterResourceModel;
+use App\Services\Craft\CraftCardHelper;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -31,6 +32,7 @@ class ArmorReinforcedLeather2Action extends BaseAction
     protected $outfitModel;
     protected $resourceModel;
     protected $charResourceModel;
+    private CraftCardHelper $craftCardHelper;
 
     /**
      * Возможные варианты крафта (количество).
@@ -51,6 +53,7 @@ class ArmorReinforcedLeather2Action extends BaseAction
 
         $this->resourceModel        = new ResourceModel();
         $this->charResourceModel    = new CharacterResourceModel();
+        $this->craftCardHelper      = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -159,22 +162,14 @@ class ArmorReinforcedLeather2Action extends BaseAction
             $haveCrafted[$itemName] = $haveQty;
         }
 
-        // 3) Сырьевые ресурсы
+        // 3) Сырьевые ресурсы — тем же пулом (рюкзак + склад базы, ADR-171),
+        // которым потом считает старт крафта GenericCraftActionStart::checkResources().
         $haveRawResources = [];
-        foreach ($requiredRawResources as $resInfo) {
-            $rName = $resInfo['name'];
-            $rQty  = (int)$resInfo['qty'];
-            // Ищем ресурс
-            $resourceRow = $this->resourceModel->getResourceByName($rName);
-            if (!$resourceRow) {
-                $insufficientDetails[] = "❓ {$rName} (нет в БД resources)";
-                continue;
-            }
-            $charRes = $this->charResourceModel
-                ->where('id_characters', $character['id'])
-                ->where('id_resources', $resourceRow['id'])
-                ->first();
-            $haveQty = $charRes ? (int)$charRes['quantity'] : 0;
+        $rawResourcesForHelper = array_column($requiredRawResources, 'qty', 'name');
+        foreach ($this->craftCardHelper->available($character['id'], $rawResourcesForHelper) as $res) {
+            $rName   = $res['name'];
+            $rQty    = (int) ($rawResourcesForHelper[$rName] ?? 0);
+            $haveQty = $res['quantity'];
             if ($haveQty < $rQty) {
                 $insufficientDetails[] = "{$rName}: нужно {$rQty}, у вас {$haveQty}";
             }
@@ -225,12 +220,21 @@ class ArmorReinforcedLeather2Action extends BaseAction
             }
             $text .= "\n";
 
+            // Выход из тупика ведёт туда же, куда обычная кнопка "Крафт 1шт" этой
+            // карточки — на свой стартовый класс StartCraftReinforcedLeather2Action,
+            // а не на общий genericCraft_.
+            $fallback = $this->craftCardHelper->fallbackButton('ReinforcedLeather2');
+            $fallback['callback_data'] = 'startCraftReinforcedLeather2_1';
+
             $keyboard = [
                 'inline_keyboard' => [
                     [
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                         ['text' => '💰 Продать',   'callback_data' => 'sell'],
                         ['text' => '🛍 Купить',    'callback_data' => 'buy'],
+                    ],
+                    [
+                        $fallback,
                     ],
                     [
                         ['text' => '⬅️ Назад', 'callback_data' => 'armorCraft2'],
@@ -295,12 +299,22 @@ class ArmorReinforcedLeather2Action extends BaseAction
         // Если maxCraftable < 1, то нет смысла выводить кнопки
         if ($maxCraftable < 1) {
             $text .= "\nДаже при достаточной силе/уровне, тебе не хватает ресурсов для 1 шт.\n";
+
+            // Выход из тупика ведёт туда же, куда обычная кнопка "Крафт 1шт" этой
+            // карточки — на свой стартовый класс StartCraftReinforcedLeather2Action,
+            // а не на общий genericCraft_.
+            $fallback = $this->craftCardHelper->fallbackButton('ReinforcedLeather2');
+            $fallback['callback_data'] = 'startCraftReinforcedLeather2_1';
+
             $keyboard = [
                 'inline_keyboard' => [
                     [
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                         ['text' => '💰 Продать',   'callback_data' => 'sell'],
                         ['text' => '🛍 Купить',    'callback_data' => 'buy'],
+                    ],
+                    [
+                        $fallback,
                     ],
                     [
                         ['text' => '⬅️ Назад', 'callback_data' => 'armorCraft2'],

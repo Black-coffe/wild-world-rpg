@@ -11,6 +11,7 @@ use App\Models\ClaimedCellModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\OutfitModel;   // <-- модель для таблицы outfits
+use App\Services\Craft\CraftCardHelper;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -28,6 +29,7 @@ class ArmorRaggedShirt2Action extends BaseAction
     protected $craftedItemsModel;
     protected $craftedItemsLogModel;
     protected $outfitModel;
+    private CraftCardHelper $craftCardHelper;
 
     /**
      * Массив доступных вариантов крафта (количеств).
@@ -46,6 +48,7 @@ class ArmorRaggedShirt2Action extends BaseAction
         $this->craftedItemsModel      = new CraftedItemsModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
         $this->outfitModel           = new OutfitModel();
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -184,12 +187,22 @@ class ArmorRaggedShirt2Action extends BaseAction
         // Если вообще нельзя (даже 1 шт.)
         if ($maxCraftable < 1) {
             $text .= "\nУ вас недостаточно ресурсов для крафта даже 1 шт.\n";
+
+            // Выход из тупика ведёт туда же, куда обычная кнопка "Крафт 1шт" этой
+            // карточки — на свой стартовый класс StartCraftRaggedShirt2Action, а не
+            // на общий genericCraft_.
+            $fallback = $this->craftCardHelper->fallbackButton('RaggedShirt2');
+            $fallback['callback_data'] = 'startCraftRaggedShirt2_1';
+
             $keyboard = [
                 'inline_keyboard' => [
                     [
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                         ['text' => '💰 Продать',   'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить',   'callback_data' => 'buy'],
+                    ],
+                    [
+                        $fallback,
                     ],
                     [
                         ['text' => '⬅️ Назад', 'callback_data' => 'armorCraft2'],

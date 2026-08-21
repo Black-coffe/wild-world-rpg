@@ -12,6 +12,7 @@ use App\Models\ResourceModel;
 use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Craft\CraftCardHelper;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -31,6 +32,7 @@ class WeaponMetalSpear2Action extends BaseAction
     protected $charResourceModel;
     protected $craftedItemsModel;
     protected $craftedItemsLogModel;
+    private CraftCardHelper $craftCardHelper;
 
     /**
      * Количество вариантов крафта (1, 5, 10…).
@@ -50,6 +52,7 @@ class WeaponMetalSpear2Action extends BaseAction
         $this->charResourceModel   = new CharacterResourceModel();
         $this->craftedItemsModel   = new CraftedItemsModel();
         $this->craftedItemsLogModel= new CraftedItemsLogModel();
+        $this->craftCardHelper     = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -156,21 +159,14 @@ class WeaponMetalSpear2Action extends BaseAction
             $haveCrafted[$itemName] = $haveQty;
         }
 
-        // Проверяем сырьевые ресурсы
+        // Проверяем сырьевые ресурсы — тем же пулом (рюкзак + склад базы, ADR-171),
+        // которым потом считает старт крафта GenericCraftActionStart::checkResources().
         $haveRawResources = [];
-        foreach ($requiredRawResources as $resInfo) {
-            $rName = $resInfo['name'];
-            $rQty  = (int)$resInfo['qty'];
-            $resRow= $this->resourceModel->getResourceByName($rName);
-            if (!$resRow) {
-                $insufficientDetails[] = "❓ {$rName} (нет в БД resources)";
-                continue;
-            }
-            $charRes = $this->charResourceModel
-                ->where('id_characters', $character['id'])
-                ->where('id_resources', $resRow['id'])
-                ->first();
-            $haveQty = $charRes ? (int)$charRes['quantity'] : 0;
+        $rawResourcesForHelper = array_column($requiredRawResources, 'qty', 'name');
+        foreach ($this->craftCardHelper->available($character['id'], $rawResourcesForHelper) as $res) {
+            $rName   = $res['name'];
+            $rQty    = (int) ($rawResourcesForHelper[$rName] ?? 0);
+            $haveQty = $res['quantity'];
             if ($haveQty < $rQty) {
                 $insufficientDetails[] = "{$rName}: нужно {$rQty}, у вас {$haveQty}";
             }
@@ -227,6 +223,9 @@ class WeaponMetalSpear2Action extends BaseAction
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                         ['text' => '💰 Продать',   'callback_data' => 'sell'],
                         ['text' => '🛍 Купить',    'callback_data' => 'buy'],
+                    ],
+                    [
+                        $this->craftCardHelper->fallbackButton('MetalSpear'),
                     ],
                     [
                         ['text' => '⬅️ Назад', 'callback_data' => 'weaponsCraft2'],
@@ -293,6 +292,9 @@ class WeaponMetalSpear2Action extends BaseAction
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                         ['text' => '💰 Продать',   'callback_data' => 'sell'],
                         ['text' => '🛍 Купить',    'callback_data' => 'buy'],
+                    ],
+                    [
+                        $this->craftCardHelper->fallbackButton('MetalSpear'),
                     ],
                     [
                         ['text' => '⬅️ Назад', 'callback_data' => 'weaponsCraft2'],
