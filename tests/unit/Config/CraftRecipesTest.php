@@ -4,6 +4,7 @@ namespace Tests\Unit\Config;
 
 use CodeIgniter\Test\CIUnitTestCase;
 use Config\CraftRecipes;
+use Config\Database;
 
 /**
  * F2.2 — unit-тесты на recipe-config CraftRecipes.php.
@@ -527,6 +528,83 @@ final class CraftRecipesTest extends CIUnitTestCase
         );
         $this->assertSame(21000, $recipe['gold_required']);
         $this->assertSame('craftTeleportBackpack', $recipe['task_name']);
+    }
+
+    /**
+     * Story `craft-shortfall-buy-fix-12`: `gold_required` у PortableTeleport2 обязан
+     * приходить из того же ключа GameSettings, что читает `PortableTeleportRecipe::
+     * goldCost()` при сборке (`craft.portable_teleport.gold_cost`), а не из
+     * записанного в конфиге числа. Тест меняет значение ключа напрямую в БД и
+     * проверяет, что новый экземпляр `CraftRecipes` подхватывает его — если
+     * `gold_required` снова станет жёстким числом, ассерт на tunedGold упадёт.
+     */
+    public function testPortableTeleport2GoldRequiredFollowsLiveGameSetting(): void
+    {
+        $conn = Database::connect('tests');
+        $conn->query('DROP TABLE IF EXISTS game_settings');
+        $conn->query('
+            CREATE TABLE game_settings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                setting_key VARCHAR(64) NOT NULL,
+                category VARCHAR(32) NOT NULL,
+                value_type VARCHAR(16) NOT NULL,
+                value_int INT NULL,
+                value_float DECIMAL(12,4) NULL,
+                value_bool TINYINT(1) NULL,
+                value_string VARCHAR(255) NULL,
+                default_value_text TEXT NOT NULL,
+                rationale_text TEXT NOT NULL,
+                effect_text TEXT NOT NULL,
+                above_effect_text TEXT NOT NULL,
+                below_effect_text TEXT NOT NULL,
+                recommended_min VARCHAR(64) NULL,
+                recommended_max VARCHAR(64) NULL,
+                hard_min VARCHAR(64) NULL,
+                hard_max VARCHAR(64) NULL,
+                updated_by VARCHAR(128) NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY setting_key (setting_key)
+            )
+        ');
+        $this->cleanGameSettingsCache();
+
+        $tunedGold = 45000;
+
+        try {
+            $conn->table('game_settings')->insert([
+                'setting_key'        => 'craft.portable_teleport.gold_cost',
+                'category'           => 'craft',
+                'value_type'         => 'int',
+                'value_int'          => $tunedGold,
+                'default_value_text' => '30000',
+                'rationale_text'     => 'test',
+                'effect_text'        => 'test',
+                'above_effect_text'  => 'test',
+                'below_effect_text'  => 'test',
+            ]);
+
+            $recipe = (new CraftRecipes())->get('PortableTeleport2');
+            $this->assertIsArray($recipe);
+            $this->assertSame(
+                $tunedGold,
+                $recipe['gold_required'] ?? null,
+                'PortableTeleport2.gold_required обязан приходить из craft.portable_teleport.gold_cost, а не из жёсткого числа'
+            );
+        } finally {
+            $conn->query('DROP TABLE IF EXISTS game_settings');
+            $this->cleanGameSettingsCache();
+        }
+    }
+
+    private function cleanGameSettingsCache(): void
+    {
+        if (function_exists('cache')) {
+            $c = cache();
+            if (is_object($c) && method_exists($c, 'clean')) {
+                $c->clean();
+            }
+        }
     }
 
     public function testTeleportBeaconBasic2MatchesLegacyStart(): void

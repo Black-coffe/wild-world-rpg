@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Config;
 
+use App\Services\Player\Craft\PortableTeleportRecipe;
 use CodeIgniter\Config\BaseConfig;
 
 /**
@@ -3157,6 +3158,14 @@ class CraftRecipes extends BaseConfig
         // required_level живёт по мосту RecipeGateResolver (как AutonomousDrone выше):
         // GameSettings `craft.portable_teleport.min_level`, если ключ задан, иначе
         // static-дефолт ниже — тот же дефолт, что и `PortableTeleportRecipe::DEFAULT_MIN_LEVEL`.
+        //
+        // 21.08.2026 (craft-shortfall-buy-fix-12): `gold_required` ниже — static-дефолт
+        // (тот же, что `PortableTeleportRecipe::DEFAULT_GOLD`), а не значение, которое
+        // видит игрок. Реальное число перечитывается в конструкторе класса из
+        // `craft.portable_teleport.gold_cost` — того же ключа, что читает
+        // `PortableTeleportRecipe::goldCost()` при запуске сборки. Раньше здесь стояло
+        // жёсткое число: первая же настройка ключа в админке развела бы экран докупки
+        // (`CraftShortfallBuyAction`) и реальное списание.
         'PortableTeleport2' => [
             'task_name'             => 'craftPortableTeleport',
             'resources'             => [
@@ -3170,7 +3179,7 @@ class CraftRecipes extends BaseConfig
                 'electronicComponents' => 12,
                 'Fabric'               => 10,
             ],
-            'gold_required'         => 30000,
+            'gold_required'         => PortableTeleportRecipe::DEFAULT_GOLD,
             'requires_base'         => true,
             'required_buildings'    => ['TeleportationCenter', 'Workshop'],
             'required_level'        => 15,
@@ -3250,6 +3259,19 @@ class CraftRecipes extends BaseConfig
             'craft_again_callback'  => 'genericCraft_TeleportBeaconBasic2_1',
         ],
     ];
+
+    public function __construct()
+    {
+        parent::__construct();
+
+        // craft-shortfall-buy-fix-12: единственный источник для `gold_required` докупки
+        // PortableTeleport2 — тот же читатель, что использует сборка (`PortableTeleportRecipe::
+        // goldCost()`, ключ `craft.portable_teleport.gold_cost`). Деградирует безопасно к
+        // static-дефолту выше, если GameSettings недоступна (см. GameSettingsService::get()).
+        if (isset($this->recipes['PortableTeleport2'])) {
+            $this->recipes['PortableTeleport2']['gold_required'] = (new PortableTeleportRecipe())->goldCost();
+        }
+    }
 
     /**
      * @return array<string,mixed>|null
