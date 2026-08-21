@@ -2718,17 +2718,7 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/CharcoalBriquettes1Action.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\CharcoalBriquettes1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/CharcoalBriquettes1Action.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\CharcoalBriquettes1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/CharcoalBriquettes1Action.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\CharcoalBriquettes1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
@@ -2844,17 +2834,7 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/FabricCraft1Action.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\FabricCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/FabricCraft1Action.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\FabricCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/FabricCraft1Action.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\FabricCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
@@ -2904,17 +2884,7 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/FertilizerCraft1Action.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\FertilizerCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/FertilizerCraft1Action.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\FertilizerCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/FertilizerCraft1Action.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\FertilizerCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
@@ -2964,17 +2934,7 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/GlassBagsCraft1Action.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\GlassBagsCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/GlassBagsCraft1Action.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\GlassBagsCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/GlassBagsCraft1Action.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\GlassBagsCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
@@ -3024,17 +2984,7 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/MetalFragmentsCraft1Action.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\MetalFragmentsCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/MetalFragmentsCraft1Action.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\MetalFragmentsCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/MetalFragmentsCraft1Action.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\MetalFragmentsCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
@@ -3084,17 +3034,7 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/SoilCraft1Action.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\SoilCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/SoilCraft1Action.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\SoilCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/SoilCraft1Action.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\SoilCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
@@ -3144,17 +3084,7 @@ parameters:
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/StoneBlocksCraft1Action.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\StoneBlocksCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredPerOne with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/StoneBlocksCraft1Action.php
 
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\StoneBlocksCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Components/StoneBlocksCraft1Action.php
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Components\\StoneBlocksCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
@@ -3331,18 +3261,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/AntisepticCraft1Action.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\AntisepticCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/AntisepticCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\AntisepticCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/AntisepticCraft1Action.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\AntisepticCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -3404,18 +3322,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\BandageCraft1Action\:\:calculateMaxCraftableItems\(\) has parameter \$resourcesAvailable with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/BandageCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\BandageCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/BandageCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\BandageCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/BandageCraft1Action.php
@@ -3589,18 +3495,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/PainReliefPowerCraft1Action.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\PainReliefPowerCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/PainReliefPowerCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\PainReliefPowerCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/PainReliefPowerCraft1Action.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\PainReliefPowerCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -3662,18 +3556,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\RegeneratorCraft1Action\:\:calculateMaxCraftableItems\(\) has parameter \$resourcesAvailable with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/RegeneratorCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\RegeneratorCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/RegeneratorCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\RegeneratorCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/RegeneratorCraft1Action.php
@@ -3745,18 +3627,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/SedativeCraft1Action.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\SedativeCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/SedativeCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\SedativeCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/SedativeCraft1Action.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\SedativeCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -3818,18 +3688,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\StimulatorCraft1Action\:\:calculateMaxCraftableItems\(\) has parameter \$resourcesAvailable with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/StimulatorCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\StimulatorCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/StimulatorCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\StimulatorCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/StimulatorCraft1Action.php
@@ -3901,18 +3759,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/StrengthElixirCraft1Action.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\StrengthElixirCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/StrengthElixirCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\StrengthElixirCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Medical/StrengthElixirCraft1Action.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Medical\\StrengthElixirCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -3974,18 +3820,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\FishingRodCraft1Action\:\:calculateMaxCraftableItems\(\) has parameter \$resourcesAvailable with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/FishingRodCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\FishingRodCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/FishingRodCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\FishingRodCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/FishingRodCraft1Action.php
@@ -4057,18 +3891,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/FoldingKnifeCraft1Action.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\FoldingKnifeCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/FoldingKnifeCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\FoldingKnifeCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/FoldingKnifeCraft1Action.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\FoldingKnifeCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -4130,18 +3952,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\HoeCraft1Action\:\:calculateMaxCraftableItems\(\) has parameter \$resourcesAvailable with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/HoeCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\HoeCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/HoeCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\HoeCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/HoeCraft1Action.php
@@ -4213,18 +4023,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/IronPickaxeCraft1Action.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\IronPickaxeCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/IronPickaxeCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\IronPickaxeCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/IronPickaxeCraft1Action.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\IronPickaxeCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -4286,18 +4084,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\IronShovelCraft1Action\:\:calculateMaxCraftableItems\(\) has parameter \$resourcesAvailable with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/IronShovelCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\IronShovelCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/IronShovelCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\IronShovelCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/IronShovelCraft1Action.php
@@ -4369,18 +4155,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/LumberjackAxeCraft1Action.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\LumberjackAxeCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/LumberjackAxeCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\LumberjackAxeCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/LumberjackAxeCraft1Action.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\LumberjackAxeCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -4447,18 +4221,6 @@ parameters:
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/StonePickaxeCraft1Action.php
 
 		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\StonePickaxeCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/StonePickaxeCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\StonePickaxeCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/StonePickaxeCraft1Action.php
-
-		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\StonePickaxeCraft1Action\:\:getAvailableQuantityButtons\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -4520,18 +4282,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\TireIronCraft1Action\:\:calculateMaxCraftableItems\(\) has parameter \$resourcesAvailable with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/TireIronCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\TireIronCraft1Action\:\:checkResourcesAvailability\(\) has parameter \$requiredResources with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/TireIronCraft1Action.php
-
-		-
-			message: '#^Method App\\Controllers\\Telegram\\Commands\\Actions\\Craft\\WorkbenchGeneral\\Tools\\TireIronCraft1Action\:\:checkResourcesAvailability\(\) return type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: app/Controllers/Telegram/Commands/Actions/Craft/WorkbenchGeneral/Tools/TireIronCraft1Action.php
