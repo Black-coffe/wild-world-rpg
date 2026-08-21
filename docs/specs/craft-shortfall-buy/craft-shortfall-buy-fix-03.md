@@ -1,7 +1,7 @@
 ---
 story: craft-shortfall-buy-fix-03
 spec: craft-shortfall-buy
-status: todo
+status: done
 tier: 3
 worker: worker-code
 tracer: false
@@ -47,5 +47,13 @@ memory/map/craft.md; `.claude/rules/balance.md`.
 Полный разбор находок — `docs/specs/craft-shortfall-buy/review-findings.md`. Читай его, прежде чем править. Крупная 8, мелкие 12, 13.
 
 ## Implementation notes
+
+- `app/Services/Craft/CraftShortfallBuyService.php`:
+  1. **Пол наценки (мелкая 12):** `total` теперь `(int) max(ceil($base + $minMarkupGold), ceil($base * (1 + $markupFraction)))` — каждое слагаемое `max()` округляется вверх ДО сравнения, `(int)`-каст больше не отрезает дробную часть пола. `base=1.6, min=1` даёт `3`, не `2` (тест `testMarkupFloorNeverTruncatesBelowPromisedMinimum`).
+  2. **Абсурдный процент (мелкая 13, часть 1):** `markupPct` считается от `max($base, 1.0)`, а не от сырой дробной `base` — копеечная позиция (`base=0.1, min=3`) даёт `390%` вместо `2900–3900%` (тест `testMarkupPctStaysSaneOnPennyPosition`). Выбор: 1 — минимальная единица золота, которую вообще видит игрок; не GameSettings-параметр (это математическая привязка к целочисленному отображению, не игровой баланс).
+  3. **«0 💰» при ненулевом итоге (мелкая 13, часть 2):** новый приватный метод `distributeTotalAcrossLines()` — метод наибольшего остатка распределяет весь `total` (уже с наценкой и полом) по покупаемым строкам пропорционально их сырому вкладу в `base`. На частом случае «не хватает одной позиции» вся сумма уходит в единственную строку — `lineTotal === (float) total`, никакого расхождения со строкой (тест `testLineTotalMatchesQuoteTotalWhenSinglePaidLine`).
+  4. **Гейт называет неверную причину (крупная 8):** добавлена `REASON_PRICE_UNKNOWN = 'price_unknown'`, отдельная от `REASON_PROFIT_GATE`. `recipeRevenue() === null` (нет `item_name_eng`, рецепт не найден в `crafted_items` — это ~70 из 105 значений, output_type weapon/outfit/resource продаются иначе, — `price` не число) → `price_unknown`; только когда выручка ДЕЙСТВИТЕЛЬНО посчитана и `total > revenue` → `profit_gate`. Экран (`CraftShortfallBuyAction::REASON_TEXT`, story 08, не в Files этой story) не знает текста для `price_unknown` и печатает безопасный дефолт «Докупка сейчас недоступна.» (строка 367 того файла, `?? 'Докупка сейчас недоступна.'`) — честно, без утверждения о невыгодности. Решение: не стал искать альтернативный источник цены для weapon/outfit/resource-рецептов (табличная сверка ценников оружия/брони — отдельная content-задача с миграциями и вне Files этой story); честный текст «недоступно» — минимальный безопасный фикс в рамках разрешённых файлов. Гейт остался выключенным по умолчанию (не трогал).
+- Профит-гейт тест `testProfitGateFailsClosedWhenItemPriceCannotBeResolved` обновлён: reason теперь `price_unknown`, не `profit_gate`; поведение (`available=false`) не изменилось. Добавлен `testProfitGateReturnsPriceUnknownWhenRecipeNotInCraftedItemsTable` — прямое покрытие реального случая (`item_name_eng` есть, строки в `crafted_items` нет).
+- phpstan L9 на файле сервиса: 0 ошибок (падал на генерике list-shape при точечной мутации `$lines[$i]['lineTotal'] = ...` внутри `distributeTotalAcrossLines()` — исправлено через read-modify-write всей строки, не точечную запись по вложенному ключу).
 
 ## Findings

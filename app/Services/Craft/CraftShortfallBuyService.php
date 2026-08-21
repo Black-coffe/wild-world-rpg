@@ -42,9 +42,12 @@ use App\Services\Player\WarehouseSellBonusService;
  * рецепта (по `item_name_eng`), пропущенный через ЖИВУЮ формулу прилавка
  * `CraftTradeService::sellUnitPrice()` (карма персонажа + складской бонус, ADR-157/ADR-085) —
  * ту же, что видит экран продажи, а не выдуманный множитель. Если цену предмета определить
- * нельзя (нет `item_name_eng`, рецепт не найден в `crafted_items`, `price` не число) — гейт
- * не молчит и не пропускает сделку: он отказывает (`profit_gate`), потому что «включён» обязан
- * значить «умеет сработать», а не «сработает, только если повезёт с данными».
+ * нельзя (нет `item_name_eng`, рецепт не найден в `crafted_items` — так у ~70 из 105
+ * `item_name_eng`, output_type weapon/outfit/resource продаются иначе, — `price` не число) —
+ * гейт не молчит и не пропускает сделку, но и не называет это невыгодностью: он отказывает
+ * `REASON_PRICE_UNKNOWN`, отдельно от `REASON_PROFIT_GATE` (fix-03, крупная находка 8).
+ * «Включён» обязан значить «умеет сработать», а не «выдаёт неизвестность за подсчитанную
+ * невыгодность, только если повезёт с данными».
  */
 class CraftShortfallBuyService
 {
@@ -60,6 +63,15 @@ class CraftShortfallBuyService
     public const REASON_PROFIT_GATE    = 'profit_gate';
     public const REASON_KILLSWITCH_OFF = 'killswitch_off';
     public const REASON_MIN_GOLD       = 'min_gold';
+    /**
+     * fix-03 (крупная находка 8): «цену определить не удалось» — это НЕ вычисленная
+     * невыгодность. У ~70 из 105 `item_name_eng` нет строки в `crafted_items` (output_type
+     * weapon/outfit/resource продаются иначе), и раньше это молча превращалось в
+     * `REASON_PROFIT_GATE` — экран печатал «цена превысит выручку», хотя выручку никто не
+     * считал. Отдельная причина не выдаёт неизвестность за подсчитанную невыгодность; экран
+     * не знает для неё текста и покажет безопасный дефолт «Докупка сейчас недоступна.».
+     */
+    public const REASON_PRICE_UNKNOWN = 'price_unknown';
 
     private ResourceModel          $resources;
     private ResourcePoolService    $pool;
@@ -122,19 +134,30 @@ class CraftShortfallBuyService
         $share          = $full > 0.0 ? $base / $full : 0.0;
         $markupFraction = ($baseMarkupPct + $slopeMarkupPct * $share) / 100;
 
+        // fix-03 (мелкая находка 12): пол наценки не должен усекаться. Оба слагаемых `max()`
+        // сначала округляются вверх по отдельности, ПОТОМ берётся максимум и приводится к int —
+        // так `(int)` больше не отрезает дробную часть пола (`base + min_markup_gold`) вниз.
         $total = $base > 0.0
-            ? (int) max($base + $minMarkupGold, ceil($base * (1 + $markupFraction)))
+            ? (int) max(ceil($base + $minMarkupGold), ceil($base * (1 + $markupFraction)))
             : 0;
 
-        $markupPct = $base > 0.0 ? (int) round((($total - $base) / $base) * 100) : 0;
+        // fix-03 (мелкая находка 13): процент считается не от «сырой» дробной `base` (та может
+        // быть меньше 1 копейки видимого золота и давать тысячи процентов), а от `base`,
+        // прижатой снизу к 1 — минимальной единице, которую вообще видит игрок на экране.
+        $markupPct = $base > 0.0 ? (int) round((($total - $base) / max($base, 1.0)) * 100) : 0;
+
+        if ($total > 0 && $base > 0.0) {
+            $lines = $this->distributeTotalAcrossLines($lines, $base, $total);
+        }
 
         $refusal = $blockingReason;
 
         if ($refusal === null && $total > 0 && $this->gsBool(self::KEY_PROFIT_GATE_ENABLED, false)) {
             $revenue = $this->recipeRevenue($character, $recipe, $characterId, $quantity);
-            // `null` — цену предмета определить не удалось: гейт отказывает, а не пропускает
-            // сделку молча (фича «выключена по умолчанию» обязана быть исправна при включении).
-            if ($revenue === null || $total > $revenue) {
+            if ($revenue === null) {
+                // Цену определить не удалось — не то же самое, что «посчитали и вышло невыгодно».
+                $refusal = self::REASON_PRICE_UNKNOWN;
+            } elseif ($total > $revenue) {
                 $refusal = self::REASON_PROFIT_GATE;
             }
         }
@@ -235,6 +258,56 @@ class CraftShortfallBuyService
         }
 
         return [$lines, $base, $full, $blockingReason];
+    }
+
+    /**
+     * fix-03 (мелкая находка 13): позиция и итог не должны расходиться на экране. `lineTotal`
+     * до этого шага — сырая стоимость сырья без наценки и без пола `min_markup_gold`; при
+     * копеечной позиции (например 0.1💰) она печаталась как «0 💰» рядом с ненулевым `total`,
+     * куда пол уже добавлен, и выглядела багом. Распределяем весь `total` по покупаемым
+     * строкам пропорционально их сырому вкладу в `base` (метод наибольшего остатка — сумма
+     * распределённого точно равна `total`, без потери и без превышения на округлении).
+     *
+     * @param list<array{resourceId:int,name:string,need:int,have:int,gap:int,unitPrice:float,lineTotal:float,buyable:bool,blockReason:string|null}> $lines
+     * @return list<array{resourceId:int,name:string,need:int,have:int,gap:int,unitPrice:float,lineTotal:float,buyable:bool,blockReason:string|null}>
+     */
+    private function distributeTotalAcrossLines(array $lines, float $base, int $total): array
+    {
+        $shares      = [];
+        $flooredSum  = 0;
+
+        foreach ($lines as $i => $line) {
+            if (! $line['buyable'] || $line['lineTotal'] <= 0.0) {
+                continue;
+            }
+            $raw   = $total * ($line['lineTotal'] / $base);
+            $floor = (int) floor($raw);
+            $shares[$i] = ['floor' => $floor, 'remainder' => $raw - $floor];
+            $flooredSum += $floor;
+        }
+
+        if ($shares === []) {
+            return $lines;
+        }
+
+        $remaining = $total - $flooredSum;
+        uasort($shares, static fn (array $a, array $b): int => $b['remainder'] <=> $a['remainder']);
+
+        foreach (array_keys($shares) as $i) {
+            if ($remaining <= 0) {
+                break;
+            }
+            $shares[$i]['floor']++;
+            $remaining--;
+        }
+
+        foreach ($shares as $i => $share) {
+            $line              = $lines[$i];
+            $line['lineTotal'] = (float) $share['floor'];
+            $lines[$i]         = $line;
+        }
+
+        return $lines;
     }
 
     /**

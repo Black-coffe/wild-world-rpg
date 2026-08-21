@@ -234,9 +234,71 @@ final class CraftShortfallBuyServiceTest extends CIUnitTestCase
 
         $quote = $svc->quote(['id' => 1, 'level' => 5, 'gold' => 1000], ['resources' => ['Вода' => 1]], 1);
 
-        // base = 0.1, ceil(0.1*1.05)=1, base+min_markup_gold=0.1+3=3.1 → (int) усекает до 3:
-        // без пола наценка (0.005) утонула бы в округлении, с полом — минимум 3💰 виден.
+        // base = 0.1, ceil(0.1*1.05)=1, base+min_markup_gold=0.1+3=3.1 → пол округляется ВВЕРХ
+        // (fix-03), не усекается: 4, а не 3 — без пола наценка (0.005) утонула бы в округлении.
+        $this->assertSame(4, $quote->total);
+        $this->assertGreaterThanOrEqual(0.1 + 3, (float) $quote->total);
+    }
+
+    /**
+     * fix-03 (мелкая находка 12): пол наценки никогда не даёт итог ниже своего обещания
+     * `base + min_markup_gold`. `(int) max(...)` без внутреннего `ceil()` на каждом слагаемом
+     * усекал 2.6 до 2 — ниже собственного пола; здесь пол — 2.6, а не 3.1, чтобы убедиться,
+     * что чинит именно усечение пола, а не совпадение с копеечным сценарием выше.
+     */
+    public function testMarkupFloorNeverTruncatesBelowPromisedMinimum(): void
+    {
+        $svc = $this->service(
+            self::DEFAULT_SETTINGS,
+            ['Смола' => ['id' => 1, 'buy_price' => 1.6]],
+            backpack: ['Смола' => 0]
+        );
+
+        $quote = $svc->quote(['id' => 1, 'level' => 5, 'gold' => 1000], ['resources' => ['Смола' => 1]], 1);
+
+        // base=1.6, min_markup_gold=1 → пол = 2.6. ceil(2.6) = 3, а старое усечение дало бы 2.
         $this->assertSame(3, $quote->total);
+        $this->assertGreaterThanOrEqual(1.6 + 1, (float) $quote->total);
+    }
+
+    /**
+     * fix-03 (мелкая находка 13): процент на копеечной позиции больше не абсурден — база
+     * прижата снизу к 1 при расчёте процента, поэтому `2900%` (и хуже — `3900%` после починки
+     * пола) не появляется на экране.
+     */
+    public function testMarkupPctStaysSaneOnPennyPosition(): void
+    {
+        $svc = $this->service(
+            ['enabled' => true, 'base_markup_pct' => 5, 'slope_markup_pct' => 0, 'min_markup_gold' => 3, 'profit_gate_enabled' => false],
+            ['Вода' => ['id' => 1, 'buy_price' => 0.1]],
+            backpack: ['Вода' => 0]
+        );
+
+        $quote = $svc->quote(['id' => 1, 'level' => 5, 'gold' => 1000], ['resources' => ['Вода' => 1]], 1);
+
+        $this->assertLessThan(1000, $quote->markupPct);
+        $this->assertSame(390, $quote->markupPct);
+    }
+
+    /**
+     * fix-03 (мелкая находка 13): строка позиции и итог не расходятся. Раньше при копеечной
+     * `unitPrice` строка печатала «0 💰» (округлённая сырая стоимость), пока итог включал
+     * весь пол `min_markup_gold` — на одной покупаемой строке весь `total` теперь и есть
+     * её видимая стоимость.
+     */
+    public function testLineTotalMatchesQuoteTotalWhenSinglePaidLine(): void
+    {
+        $svc = $this->service(
+            ['enabled' => true, 'base_markup_pct' => 5, 'slope_markup_pct' => 0, 'min_markup_gold' => 3, 'profit_gate_enabled' => false],
+            ['Вода' => ['id' => 1, 'buy_price' => 0.1]],
+            backpack: ['Вода' => 0]
+        );
+
+        $quote = $svc->quote(['id' => 1, 'level' => 5, 'gold' => 1000], ['resources' => ['Вода' => 1]], 1);
+
+        $this->assertSame(1, count($quote->lines));
+        $this->assertSame((float) $quote->total, $quote->lines[0]['lineTotal']);
+        $this->assertGreaterThan(0, (int) round($quote->lines[0]['lineTotal']));
     }
 
     public function testUnpurchasablePositionExcludedFromBaseButCountedInFull(): void
@@ -429,8 +491,9 @@ final class CraftShortfallBuyServiceTest extends CIUnitTestCase
 
     /**
      * Гейт обязан вести себя ПРЕДСКАЗУЕМО, если цену предмета определить нельзя (рецепт не
-     * несёт `item_name_eng`, либо `crafted_items` не знает такое имя): fail-closed, а не
-     * молчаливый пропуск проверки — иначе включённый гейт выглядел бы рабочим, не будучи им.
+     * несёт `item_name_eng`): fail-closed, а не молчаливый пропуск проверки — иначе включённый
+     * гейт выглядел бы рабочим, не будучи им. fix-03 (крупная находка 8): причина отдельная от
+     * `profit_gate` — сервис не вычислял невыгодность, ему неоткуда было взять цену.
      */
     public function testProfitGateFailsClosedWhenItemPriceCannotBeResolved(): void
     {
@@ -441,7 +504,25 @@ final class CraftShortfallBuyServiceTest extends CIUnitTestCase
         $quote = $this->profitGateQuote($settings, []);
 
         $this->assertFalse($quote->available);
-        $this->assertSame('profit_gate', $quote->refusal);
+        $this->assertSame('price_unknown', $quote->refusal);
+    }
+
+    /**
+     * fix-03 (крупная находка 8): реальный случай ~70 из 105 `item_name_eng` — рецепт НЕСЁТ имя,
+     * но строки в `crafted_items` для него нет (output_type weapon/outfit/resource продаются
+     * иначе). Раньше это молча превращалось в `profit_gate` — «цена превысит выручку», хотя
+     * выручку никто не считал. Теперь — честная отдельная причина, а не выдуманная невыгодность.
+     */
+    public function testProfitGateReturnsPriceUnknownWhenRecipeNotInCraftedItemsTable(): void
+    {
+        $settings = self::DEFAULT_SETTINGS;
+        $settings['profit_gate_enabled'] = true;
+
+        // item_name_eng есть, но craftedRows этого имени не знает — как у weapon/outfit-рецептов.
+        $quote = $this->profitGateQuote($settings, ['item_name_eng' => 'SomeWeaponNotInCraftedItems']);
+
+        $this->assertFalse($quote->available);
+        $this->assertSame('price_unknown', $quote->refusal);
     }
 
     public function testQuantityMultipliesPerUnitRequirement(): void
