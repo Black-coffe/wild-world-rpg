@@ -314,7 +314,9 @@ class StartCraftTeleportBeaconBasic2Action extends BaseAction
      * ADR-158 / story craft-shortfall-buy-13 — тот же экран нехватки, что видит
      * остальной крафт (`CraftShortageService::describe()`), а не собственный
      * текстовый отказ. `answerCallbackQuery` здесь не дублируем: `handle()` уже
-     * снял «часики» в самом начале.
+     * снял «часики» в самом начале. Общая часть (вызов describe() + отправка) —
+     * `CraftShortageScreenHelper` (Tier-2, семь копий сведены в story
+     * craft-shortage-screen-dedupe-01).
      *
      * @param array<string,array{need:int,have:int,name:string}> $missingResources
      * @param array<string,array{need:int,have:int,name:string}> $missingItems
@@ -327,19 +329,15 @@ class StartCraftTeleportBeaconBasic2Action extends BaseAction
         array $recipe,
         int|string $chatId
     ): ServerResponse {
-        $shortage = new \App\Services\Craft\CraftShortageService();
-        if ($shortage->isEnabled()) {
-            $screen = $shortage->describe($character, $missingResources, $missingItems, 1, $recipe);
-
-            return Request::sendMessage([
-                'chat_id'      => $chatId,
-                'text'         => $screen['text'],
-                'parse_mode'   => 'Markdown',
-                'reply_markup' => json_encode($screen['keyboard']),
-            ]);
-        }
-
-        return $this->sendError((int) $chatId, 'Не хватает материалов для сборки.');
+        return (new \App\Services\Craft\CraftShortageScreenHelper())->render(
+            $character,
+            $missingResources,
+            $missingItems,
+            1,
+            $recipe,
+            $chatId,
+            fn () => $this->sendError((int) $chatId, 'Не хватает материалов для сборки.')
+        );
     }
 
     private function sendInsufficientResponse(int $chatId, string $message): ServerResponse

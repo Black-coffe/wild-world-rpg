@@ -269,7 +269,9 @@ class StartCraftLeatherJacket2Action extends BaseAction
      * ADR-158 / story craft-shortfall-buy-13 — тот же экран нехватки, что видит
      * остальной крафт (`CraftShortageService::describe()`), а не собственный
      * текстовый отказ. Ничего не пересчитывает: только собирает вход по уже
-     * посчитанным нехваткам.
+     * посчитанным нехваткам. Общая часть (вызов describe() + отправка) —
+     * `CraftShortageScreenHelper` (Tier-2, семь копий сведены в story
+     * craft-shortage-screen-dedupe-01).
      *
      * @param array<string,array{need:int,have:int,name:string}> $missingResources
      * @param array<string,array{need:int,have:int,name:string}> $missingItems
@@ -282,19 +284,15 @@ class StartCraftLeatherJacket2Action extends BaseAction
         array $recipe,
         int|string $chatId
     ): ServerResponse {
-        $shortage = new \App\Services\Craft\CraftShortageService();
-        if ($shortage->isEnabled()) {
-            $screen = $shortage->describe($character, $missingResources, $missingItems, $this->quantity, $recipe);
-            Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
-
-            return Request::sendMessage([
-                'chat_id'      => $chatId,
-                'text'         => $screen['text'],
-                'parse_mode'   => 'Markdown',
-                'reply_markup' => json_encode($screen['keyboard']),
-            ]);
-        }
-
-        return $this->sendError($chatId, "Недостаточно ресурсов для крафта {$this->quantity} шт.");
+        return (new \App\Services\Craft\CraftShortageScreenHelper())->render(
+            $character,
+            $missingResources,
+            $missingItems,
+            $this->quantity,
+            $recipe,
+            $chatId,
+            fn () => $this->sendError($chatId, "Недостаточно ресурсов для крафта {$this->quantity} шт."),
+            $this->callbackQuery->getId()
+        );
     }
 }
