@@ -50,11 +50,20 @@ class CraftShortfallBuyAction extends BaseAction
     /** TTL кэша ожидаемой суммы — меньше минуты (цены живые, ADR-175). */
     private const QUOTE_CACHE_TTL_SEC = 50;
 
+    /**
+     * Ревью-находка 4: двойной тап / повтор вебхука Telegram проводили сделку дважды.
+     * Один узел, один процесс (`AGENTS.md` профиль) — замка на связке персонаж+рецепт
+     * на время самой покупки достаточно; TTL — страховка на случай, если процесс
+     * упадёт между `acquireLock()` и `releaseLock()`.
+     */
+    private const PURCHASE_LOCK_TTL_SEC = 15;
+
     public const REASON_TEXT = [
         CraftShortfallBuyService::REASON_NOT_TRADEABLE  => 'У торговца нет этого сырья — его можно только добыть.',
         CraftShortfallBuyService::REASON_LEVEL_REQUIRED => 'Нужен более высокий уровень, чтобы купить это сырьё у торговца.',
         CraftShortfallBuyService::REASON_NOT_ON_SALE    => 'Не хватает крафтового компонента — его нельзя купить, только собрать самому.',
         CraftShortfallBuyService::REASON_PROFIT_GATE    => 'Докупка сейчас невыгодна: цена превысит то, что ты выручишь за готовый предмет.',
+        CraftShortfallBuyService::REASON_PRICE_UNKNOWN  => 'Не удалось посчитать цену готового предмета — докупка пока недоступна. Собери его сам из добытого сырья.',
         CraftShortfallBuyService::REASON_KILLSWITCH_OFF => 'Докупка у торговца сейчас выключена.',
         CraftShortfallBuyService::REASON_MIN_GOLD       => 'Не хватает золота на докупку.',
     ];
@@ -92,7 +101,9 @@ class CraftShortfallBuyAction extends BaseAction
         $cfg    = config('CraftRecipes');
         $recipe = $cfg->get($this->recipeKey);
         if ($recipe === null) {
-            return $this->sendError("Неизвестный рецепт: {$this->recipeKey}");
+            // Находка 13: ключ рецепта приходит из callback_data (изменяемый клиентом
+            // ввод) — экранируем ДО подстановки в Markdown-ответ, как везде в файле.
+            return $this->sendError('Неизвестный рецепт: ' . $this->safe($this->recipeKey));
         }
 
         [$user, $character] = $this->getUserAndCharacter();
@@ -107,15 +118,24 @@ class CraftShortfallBuyAction extends BaseAction
         // `strict_types` (см. memory `feedback_entity_strict_array_typehint_trap`).
         $character = $character instanceof \App\Entities\CharacterEntity ? $character->toArray() : $character;
 
+        // Ревью-находка 18 (мелкая, вытекает из below_effect_text ключа в админке):
+        // «0 — фича фактически выключена, докупить нельзя ни одной единицы» — раньше
+        // `maxUnitsPerPurchase()` подменяла 0 единицей и докупка молча оставалась
+        // включённой. Гейт — раньше расчёта quote(), деньги не читаются вовсе.
+        $maxUnits = $this->maxUnitsPerPurchase();
+        if ($maxUnits <= 0) {
+            return $this->sendError(self::REASON_TEXT[CraftShortfallBuyService::REASON_KILLSWITCH_OFF], $recipe);
+        }
+
         // Контракт story 06/07: лимит штук за одну докупку. Выше настройки не
         // поднимаем — от конвейера защищает именно абсолютный лимит, не доля.
-        $this->quantity = min($this->quantity, $this->maxUnitsPerPurchase());
+        $this->quantity = min($this->quantity, $maxUnits);
 
         return match ($this->prefix) {
             'craftBuy'     => $this->showConfirmation($recipe, $character),
             'craftBuyGo'   => $this->confirmAndBuy($recipe, $character, $user, startCraft: true),
             'craftBuyOnly' => $this->confirmAndBuy($recipe, $character, $user, startCraft: false),
-            default        => $this->sendError('Неизвестное действие докупки.'),
+            default        => $this->sendError('Неизвестное действие докупки.', $recipe),
         };
     }
 
@@ -133,7 +153,11 @@ class CraftShortfallBuyAction extends BaseAction
         // Порядок сделки начинается ЗДЕСЬ, а не на втором тапе: показывать кнопку
         // «докупить и собрать», которая всё равно упрётся в отказ на следующем шаге,
         // — обман. Гейт не тратит золото, только читает.
-        $gateError = $this->canStartError($recipe, $character);
+        //
+        // Находка 3: гейт судит по золоту, которое ОСТАНЕТСЯ после докупки, а не по
+        // снапшоту ДО неё — иначе рецепт с `gold_required` пропускал показ кнопки
+        // «докупить и собрать», покупка списывала золото, а старт всё равно отказывал.
+        $gateError = $this->canStartError($recipe, $this->characterAfterPurchase($character, $quote));
 
         $this->cacheQuoteTotal($this->intField($character, 'id'), $quote->total);
 
@@ -168,7 +192,7 @@ class CraftShortfallBuyAction extends BaseAction
             // Цена успела измениться, пока игрок решал(а) — списывать старую сумму
             // нельзя, переспрашиваем на актуальной.
             $this->cacheQuoteTotal($charId, $quote->total);
-            $gateError = $startCraft ? $this->canStartError($recipe, $character) : null;
+            $gateError = $startCraft ? $this->canStartError($recipe, $this->characterAfterPurchase($character, $quote)) : null;
 
             Request::answerCallbackQuery([
                 'callback_query_id' => $this->callbackQuery->getId(),
@@ -190,7 +214,7 @@ class CraftShortfallBuyAction extends BaseAction
 
             return $purchase['success']
                 ? $this->sendPurchasedOnly($recipe, $quote)
-                : $this->sendError($purchase['message']);
+                : $this->sendError($purchase['message'], $recipe);
         }
 
         // 🔴 Порядок сделки (## Правила сделки плана): СНАЧАЛА проверить, что крафт
@@ -201,10 +225,10 @@ class CraftShortfallBuyAction extends BaseAction
         if ($attempt['gateError'] !== null) {
             $this->logRejected($charId, "CRAFT_SHORTFALL_BUY_{$this->recipeKey}", 'cannot_start');
 
-            return $this->sendError($attempt['gateError']);
+            return $this->sendError($attempt['gateError'], $recipe);
         }
         if (!$attempt['purchased']) {
-            return $this->sendError($attempt['message']);
+            return $this->sendError($attempt['message'], $recipe);
         }
 
         return $this->startCraftAfterPurchase();
@@ -222,7 +246,11 @@ class CraftShortfallBuyAction extends BaseAction
      */
     protected function attemptStartCraft(array $recipe, array $character, CraftShortfallQuote $quote, int $chatId): array
     {
-        $gateError = $this->canStartError($recipe, $character);
+        // Находка 3: гейт обязан судить по золоту, которое останется ПОСЛЕ докупки —
+        // иначе рецепт с `gold_required` пропускал бы гейт по снапшоту ДО покупки,
+        // покупка списывала бы золото, а `GenericCraftActionStart::handle()` при
+        // реальном старте отказал бы уже после того, как деньги ушли.
+        $gateError = $this->canStartError($recipe, $this->characterAfterPurchase($character, $quote));
         if ($gateError !== null) {
             return ['gateError' => $gateError, 'purchased' => false, 'message' => ''];
         }
@@ -232,10 +260,36 @@ class CraftShortfallBuyAction extends BaseAction
         return ['gateError' => null, 'purchased' => $purchase['success'], 'message' => $purchase['message']];
     }
 
-    /** Живые цены (ADR-175) — то, что показали минуту назад, могло устареть. */
+    /**
+     * Копия `$character` с золотом, уменьшенным на `quote->total` — то, что реально
+     * останется ПОСЛЕ докупки. Единая точка для находки 3: любой гейт «может ли
+     * крафт стартовать», вызываемый в рамках сделки докупки, обязан судить по этому
+     * снапшоту, а не по золоту ДО покупки.
+     *
+     * @param array<string,mixed> $character
+     * @return array<string,mixed>
+     */
+    protected function characterAfterPurchase(array $character, CraftShortfallQuote $quote): array
+    {
+        $goldRaw = $character['gold'] ?? 0;
+        $gold    = is_numeric($goldRaw) ? (int) $goldRaw : 0;
+
+        $character['gold'] = max(0, $gold - $quote->total);
+
+        return $character;
+    }
+
+    /**
+     * Живые цены (ADR-175) — то, что показали минуту назад, могло устареть.
+     *
+     * Находка 5: отсутствие закэшированной суммы (`cachedTotal === null` — TTL истёк
+     * или игрок дошёл сюда напрямую по `craftBuyGo_*`, минуя экран подтверждения)
+     * ТОЖЕ считается изменением цены: сделка не проводится по цене, которую игрок
+     * никогда не подтверждал, а переспрашивает.
+     */
     protected function priceChanged(?int $cachedTotal, int $freshTotal): bool
     {
-        return $cachedTotal !== null && $cachedTotal !== $freshTotal;
+        return $cachedTotal === null || $cachedTotal !== $freshTotal;
     }
 
     /**
@@ -268,10 +322,53 @@ class CraftShortfallBuyAction extends BaseAction
      * уже проведённые в рамках этого вызова: частичная оплата не остаётся
      * у игрока на руках как потеря.
      *
+     * Находка 2: `buyLine()` списывает только базовую цену строки (то же, что видит
+     * магазин) — наценку торговца (`quote->total - Σ базовых цен`) нигде не списывал
+     * никто. Разницу списываем ОДНИМ явным `chargeExtraGold()` в конце той же
+     * транзакции — так фактически списанное всегда равно `quote->total`, что было
+     * показано на экране подтверждения, а не сумме без наценки.
+     *
+     * Находка 4: единственный choke-point обеих сделочных кнопок (`craftBuyGo`
+     * покупает-и-стартует, `craftBuyOnly` только кладёт в рюкзак) — cache-замок на
+     * связке персонаж+рецепт держится на всё время метода. Повторный тап/повтор
+     * вебхука, пришедший ПОКА первый ещё не отпустил замок, получает честный отказ,
+     * а не вторую покупку (и, как следствие для `craftBuyGo`, не второй крафт в
+     * очередь — `startCraftAfterPurchase()` вызывается только если `executePurchase()`
+     * вернул `success`).
+     *
+     * Находка 9/6: транзакция и откат больше не спрятаны за тестовой заглушкой —
+     * DB-обвязка (`beginPurchaseTransaction`/`commitPurchaseTransaction`/
+     * `rollbackPurchaseTransaction`) и сама покупка строки (`buyLine`) вынесены
+     * в переопределяемые seam'ы (тот же приём, что `CraftPoolConsumptionTest` уже
+     * применяет к `GenericCraftActionStart`), а оркестрация — порядок вызовов, when
+     * откатывать, что списывать сверх базовой цены — настоящая и проверяется тестом
+     * напрямую. Любой сбой внутри транзакции (включая непредвиденное исключение из
+     * seam'ов) ловится здесь: откат явный, ответ игроку честный, наружу ничего не летит.
+     *
      * @param array<string,mixed>    $character
      * @return array{success:bool,message:string}
      */
     protected function executePurchase(array $character, CraftShortfallQuote $quote, int $chatId): array
+    {
+        $charId  = $this->intField($character, 'id');
+        $lockKey = $this->purchaseLockKey($charId);
+
+        if (!$this->acquireLock($lockKey, self::PURCHASE_LOCK_TTL_SEC)) {
+            return ['success' => false, 'message' => 'Эта докупка уже обрабатывается — подожди пару секунд и проверь инвентарь.'];
+        }
+
+        try {
+            return $this->runPurchaseTransaction($character, $quote, $chatId, $charId);
+        } finally {
+            $this->releaseLock($lockKey);
+        }
+    }
+
+    /**
+     * @param array<string,mixed> $character
+     * @return array{success:bool,message:string}
+     */
+    private function runPurchaseTransaction(array $character, CraftShortfallQuote $quote, int $chatId, int $charId): array
     {
         $lines = array_values(array_filter(
             $quote->lines,
@@ -281,32 +378,53 @@ class CraftShortfallBuyAction extends BaseAction
             return ['success' => false, 'message' => 'Докупать нечего — недостача уже закрыта.'];
         }
 
-        $db = \Config\Database::connect();
-        $db->transStart();
+        $this->beginPurchaseTransaction();
 
-        $spent       = 0;
-        $boughtNames = [];
-        foreach ($lines as $line) {
-            $result = $this->trade->buyResource($character, $line['resourceId'], $line['gap'], $chatId);
-            if (!$result['success']) {
-                $db->transRollback();
+        try {
+            $spent       = 0;
+            $boughtNames = [];
+            foreach ($lines as $line) {
+                $result = $this->buyLine($character, $line, $chatId);
+                if (!$result['success']) {
+                    $this->rollbackPurchaseTransaction();
 
-                return ['success' => false, 'message' => $result['message']];
+                    return ['success' => false, 'message' => $result['message']];
+                }
+                $spent        += (int) ($result['cost'] ?? 0);
+                $boughtNames[] = $line['name'] . ' x' . $line['gap'];
             }
-            $spent        += $result['cost'] ?? 0;
-            $boughtNames[] = $line['name'] . ' x' . $line['gap'];
-        }
 
-        $db->transComplete();
-        if ($db->transStatus() === false) {
+            // Находка 2 — наценка нигде не списывалась: то, что реально ушло за
+            // строки (базовая цена), почти всегда меньше `quote->total` (наценка +
+            // `min_markup_gold`). Разницу списываем явно, той же операцией, которой
+            // покупка уже пользуется для честного списания (см. `decreaseGold`
+            // twin-fix памяти `feedback_lost_update`).
+            $markupGold = $quote->total - $spent;
+            if ($markupGold > 0 && !$this->chargeExtraGold($charId, $markupGold)) {
+                $this->rollbackPurchaseTransaction();
+
+                return ['success' => false, 'message' => 'Не удалось списать наценку торговца — попробуй ещё раз.'];
+            }
+            if ($markupGold > 0) {
+                $spent += $markupGold;
+            }
+
+            if (!$this->commitPurchaseTransaction()) {
+                return ['success' => false, 'message' => 'Не удалось провести докупку — попробуй ещё раз.'];
+            }
+        } catch (\Throwable $e) {
+            // Находка 6: сбой внутри транзакции обязан закончиться явным откатом и
+            // честным ответом, а не исключением, летящим наверх в Telegram-обвязку.
+            $this->rollbackPurchaseTransaction();
+            log_message('error', "[CraftShortfallBuyAction:{$this->recipeKey}] сбой докупки для character {$charId}: " . $e->getMessage());
+
             return ['success' => false, 'message' => 'Не удалось провести докупку — попробуй ещё раз.'];
         }
 
         // Событие докупки — сумма, доля, предмет: без этого судить о пороге
         // тревоги (## Порог тревоги плана) нечем.
-        $charIdRaw = $character['id'] ?? null;
         $this->logActivity(
-            is_numeric($charIdRaw) ? (int) $charIdRaw : null,
+            $charId > 0 ? $charId : null,
             'CRAFT_SHORTFALL_BUY',
             sprintf(
                 'recipe=%s items=%s spent=%d share=%.2f',
@@ -318,6 +436,79 @@ class CraftShortfallBuyAction extends BaseAction
         );
 
         return ['success' => true, 'message' => ''];
+    }
+
+    /**
+     * Seam: покупка одной строки недостачи. Единственная точка, которая реально
+     * трогает БД/золото/инвентарь через `ResourceTradeService` — тест переопределяет
+     * её, оставляя транзакционную оркестрацию `runPurchaseTransaction()` настоящей.
+     *
+     * @param array<string,mixed>                                  $character
+     * @param array{resourceId:int,name:string,gap:int,...}        $line
+     * @return array{success:bool,message:string,cost?:int}
+     */
+    protected function buyLine(array $character, array $line, int $chatId): array
+    {
+        return $this->trade->buyResource($character, $line['resourceId'], $line['gap'], $chatId);
+    }
+
+    /** Seam: списание наценки — тем же атомарным `decreaseGold()`, что и сама покупка. */
+    protected function chargeExtraGold(int $charId, int $amount): bool
+    {
+        return $this->characterModel->decreaseGold($charId, (float) $amount);
+    }
+
+    /**
+     * Seam: начало DB-транзакции покупки. Без возврата handle'а — `Config\Database::connect()`
+     * без явной группы отдаёт ОДНО и то же закэшированное соединение на запрос (CI4 кэширует
+     * по имени группы), поэтому `commitPurchaseTransaction()`/`rollbackPurchaseTransaction()`
+     * зовут `connect()` заново и попадают на то же соединение — передавать handle не нужно,
+     * а тестовым двойникам не приходится подделывать типизированный `BaseConnection`.
+     */
+    protected function beginPurchaseTransaction(): void
+    {
+        \Config\Database::connect()->transStart();
+    }
+
+    /** Seam: коммит — `false`, если транзакция упала. */
+    protected function commitPurchaseTransaction(): bool
+    {
+        $db = \Config\Database::connect();
+        $db->transComplete();
+
+        return $db->transStatus() !== false;
+    }
+
+    /** Seam: откат — вызывается на любом сорвавшемся шаге покупки. */
+    protected function rollbackPurchaseTransaction(): void
+    {
+        \Config\Database::connect()->transRollback();
+    }
+
+    /**
+     * Находка 4: cache-замок сделки. `get() !== null` перед `save()` — не CAS, но
+     * один узел и один процесс (профиль проекта) делают гонку между этими двумя
+     * вызовами практически недостижимой, а cache-хендлер в проекте (`file`) её
+     * не поддерживает атомарно в принципе.
+     */
+    protected function acquireLock(string $key, int $ttlSec): bool
+    {
+        $cache = \Config\Services::cache();
+        if ($cache->get($key) !== null) {
+            return false;
+        }
+
+        return $cache->save($key, 1, $ttlSec);
+    }
+
+    protected function releaseLock(string $key): void
+    {
+        \Config\Services::cache()->delete($key);
+    }
+
+    private function purchaseLockKey(int $charId): string
+    {
+        return 'craft_shortfall_purchase_lock_' . $charId . '_' . $this->recipeKey;
     }
 
     /**
@@ -454,10 +645,21 @@ class CraftShortfallBuyAction extends BaseAction
 
     protected function maxUnitsPerPurchase(): int
     {
-        $raw = $this->settings->get(self::KEY_MAX_UNITS, 1);
+        return $this->resolveMaxUnits($this->settings->get(self::KEY_MAX_UNITS, 1));
+    }
+
+    /**
+     * Находка 18: `below_effect_text` ключа в админке обещает «0 — фича фактически
+     * выключена, докупить нельзя ни одной единицы» — раньше `max(1, $val)` подменял
+     * 0 единицей, и обещание не выполнялось. `0` (и любое отрицательное значение)
+     * обязаны остаться нулём; нечисловое/отсутствующее — единственный случай,
+     * где остаётся дефолт 1.
+     */
+    protected function resolveMaxUnits(mixed $raw): int
+    {
         $val = is_numeric($raw) ? (int) $raw : 1;
 
-        return max(1, $val);
+        return max(0, $val);
     }
 
     /**
@@ -567,14 +769,38 @@ class CraftShortfallBuyAction extends BaseAction
         return $out;
     }
 
-    private function sendError(string $message): ServerResponse
+    /**
+     * Находка 15: отказы обязаны нести кнопку назад — раньше `sendError()` уходил
+     * без клавиатуры, оставляя игрока в тупике. `$recipe` известен в большинстве
+     * мест вызова; когда его нет (ошибка ещё до lookup'а рецепта), ведём на общий
+     * `craft` — тот же fallback, что уже даёт `recipeInfoCallback()`.
+     *
+     * @param array<string,mixed>|null $recipe
+     */
+    private function sendError(string $message, ?array $recipe = null): ServerResponse
     {
         Request::answerCallbackQuery(['callback_query_id' => $this->callbackQuery->getId()]);
 
         return Request::sendMessage([
-            'chat_id'    => $this->callbackQuery->getMessage()->getChat()->getId(),
-            'text'       => $message,
-            'parse_mode' => 'Markdown',
+            'chat_id'      => $this->callbackQuery->getMessage()->getChat()->getId(),
+            'text'         => $message,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => json_encode($this->errorKeyboard($recipe)),
         ]);
+    }
+
+    /**
+     * Пул кнопки «Назад» для `sendError()` — вынесено из тела метода чистой
+     * функцией, чтобы находка 15 («отказы без клавиатуры») проверялась тестом
+     * напрямую, а не только источником.
+     *
+     * @param array<string,mixed>|null $recipe
+     * @return array{inline_keyboard:list<list<array<string,string>>>}
+     */
+    protected function errorKeyboard(?array $recipe): array
+    {
+        $buttons = [['text' => '⬅️ Назад', 'callback_data' => $recipe !== null ? $this->recipeInfoCallback($recipe) : 'craft']];
+
+        return ['inline_keyboard' => ButtonPacker::pack($buttons)];
     }
 }
