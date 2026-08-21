@@ -1,7 +1,7 @@
 ---
 story: craft-shortfall-buy-fix-08
 spec: craft-shortfall-buy
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -49,5 +49,20 @@ memory/map/craft.md; `.claude/rules/telegram-ux.md`, `.claude/rules/player-facin
 и не выполняет.
 
 ## Implementation notes
+
+`CraftShortageService::shortfallBuyBlock()`: кнопка докупки теперь требует не только распарсенный
+`RecipeKey` из `craft_again_callback` (как раньше), но и `Config\CraftRecipes::get($recipeKey) !==
+null` (новый приватный `knownToHandler()`) — тот же источник правды, каким резолвит рецепт
+`CraftShortfallBuyAction::handle()`. Три состояния: ключа нет вовсе → поведение как раньше (fix-02,
+кнопки не было, текст обычный, тест `...ShowsPositionsAndSummaryWhenAvailable` подтверждает); ключ
+есть и известен обработчику → кнопка + обычный итог (`...ShowsWorkingButtonToEnterPurchase`); ключ
+есть, но неизвестен обработчику (семь легаси броня/маяков fix-07) → кнопки нет, вместо итога — замок
+`shortfallUnknownRecipeText()` с причиной и путём вперёд (позиции с ценами/кнопками добычи-докупки
+выше остаются). Блок раскладки недостачи не убирается ни в одном из состояний.
+
+Tips/guide-вердикт (правило `player-facing.md`): **нет** — это фикс невидимого игроку класса
+дефекта (кнопка вела в «Неизвестный рецепт» только в узком случае, который редко наступал — fix-07
+Findings), нет новой механики и нового пути; существующий совет/раздел про докупку у торговца
+(если есть) не описывает эту частность.
 
 ## Findings

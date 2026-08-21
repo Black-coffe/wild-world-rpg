@@ -167,9 +167,12 @@ class CraftShortageService
      * контракт `plan.md`), а не только текст: до этой правки нажать было нечего
      * (fix-02, критическая находка 1). `RecipeKey` берём из `craft_again_callback`
      * рецепта (`genericCraft_<Key>_<qty>`) — единственное поле, где он уже есть
-     * во всех ~105 рецептах `CraftRecipes`. Если поля нет (легаси-старты брони/
-     * маяков мимо `CraftRecipes`, story 13/14 — вне объёма этой правки) или сделка
-     * недоступна — кнопки нет, это уже лечит существующий текст lock-состояния.
+     * во всех ~105 рецептах `CraftRecipes`. Если поля нет, или ключ есть, но
+     * `CraftShortfallBuyAction::handle()` его не найдёт в `Config\CraftRecipes`
+     * (fix-07: семь легаси-стартов брони и маяков мимо `CraftRecipes`, story 13/14
+     * — регистрировать их вне объёма этой правки, `## Non-goals`), — кнопки нет,
+     * это уже лечит существующий текст lock-состояния (fix-08, `knownToHandler()`).
+     * Сломанная кнопка хуже отсутствующей: она обещает сделку и не проводит её.
      *
      * @param array<string,mixed>|CharacterEntity $character
      * @param array<string,mixed> $recipe
@@ -207,14 +210,49 @@ class CraftShortageService
             $out[] = '_Докупка ограничена ' . $maxUnits . ' шт. за раз — цифры ниже посчитаны на ' . $quoteQty . '._';
         }
 
-        $out[] = $this->shortfallSummaryText($quote);
+        $recipeKey  = $this->shortfallRecipeKey($recipe);
+        $knownToBuy = $recipeKey !== null && $this->knownToHandler($recipeKey);
+        // Замок нужен ровно там, где `craft_again_callback` есть, но обработчик
+        // сделки его не резолвит (fix-07 семёрка). Если поля нет вовсе — это
+        // прежнее поведение (fix-02): кнопки не было и до этой правки, текст не
+        // менялся, лочить нечего.
+        $unresolvedKey = $recipeKey !== null && ! $knownToBuy;
 
-        $recipeKey = $this->shortfallRecipeKey($recipe);
-        $button    = ($quote->available && $recipeKey !== null)
+        $out[] = ($quote->available && $unresolvedKey)
+            ? $this->shortfallUnknownRecipeText()
+            : $this->shortfallSummaryText($quote);
+
+        $button = ($quote->available && $knownToBuy)
             ? ['text' => '🛒 Докупить и собрать', 'callback_data' => 'craftBuy_' . $recipeKey . '_' . $quoteQty]
             : null;
 
         return ['lines' => $out, 'button' => $button];
+    }
+
+    /**
+     * `CraftShortfallBuyAction::handle()` резолвит `RecipeKey` СТРОГО через
+     * `Config\CraftRecipes::get()` (не через `shortageScreen()`, который его вызвал)
+     * — рецепт с ключом, которого там нет, отвечает «Неизвестный рецепт». Это тот
+     * же источник правды, что использует сам обработчик сделки, а не догадка.
+     */
+    private function knownToHandler(string $recipeKey): bool
+    {
+        /** @var CraftRecipes $cfg */
+        $cfg = config('CraftRecipes');
+
+        return $cfg->get($recipeKey) !== null;
+    }
+
+    /**
+     * Замок с причиной для узкого случая fix-07/08: ключ рецепта в `craft_again_callback`
+     * есть (экран знает, как СОБРАТЬ этот предмет), но `Config\CraftRecipes` его не
+     * знает (обработчик сделки не сможет провести докупку). Путь вперёд у игрока уже
+     * есть выше — позиции с ценами и кнопками добычи/докупки по отдельности.
+     */
+    private function shortfallUnknownRecipeText(): string
+    {
+        return '🔒 Докупка одной кнопкой для этого предмета пока недоступна — докупи или добудь недостающее '
+            . 'по позициям выше, а собери на верстаке сам.';
     }
 
     /**

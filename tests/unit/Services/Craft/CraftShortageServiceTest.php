@@ -548,6 +548,49 @@ final class CraftShortageServiceTest extends CIUnitTestCase
         $this->assertStringContainsString('Докупить и собрать', $json);
     }
 
+    /**
+     * Story `craft-shortfall-buy-fix-08`: fix-07 дал семи легаси-рецептам (броня/маяки)
+     * `craft_again_callback`, но сами ключи (`DrifterClothes2` и т. п.) в
+     * `Config\CraftRecipes` не зарегистрированы (`## Non-goals`) — обработчик сделки
+     * ответил бы «Неизвестный рецепт». Кнопка обязана исчезнуть, а замок — объяснить
+     * причину и путь вперёд, не оставляя игрока в тупике.
+     */
+    public function testShortfallBuyBlockLocksWhenRecipeKeyUnknownToHandler(): void
+    {
+        $quote = new CraftShortfallQuote(
+            lines: [
+                ['resourceId' => 7, 'name' => 'Древесина', 'need' => 10, 'have' => 4, 'gap' => 6, 'unitPrice' => 1.5, 'lineTotal' => 9.0, 'buyable' => true, 'blockReason' => null],
+            ],
+            baseCost: 9.0,
+            fullCost: 30.0,
+            share: 0.3,
+            markupPct: 23,
+            total: 12,
+            goldAfter: 88,
+            available: true,
+            refusal: null
+        );
+
+        $svc    = $this->serviceWithShortfall($quote);
+        $screen = $svc->describe(
+            ['level' => 4, 'gold' => 100],
+            [],
+            [],
+            1,
+            // Ключ ровно как у fix-07 (story `craft-shortfall-buy-fix-07`,
+            // `Implementation notes`): в `craft_again_callback` есть, в
+            // `Config\CraftRecipes` — нет.
+            ['resources' => ['Древесина' => 10], 'craft_again_callback' => 'genericCraft_DrifterClothes2_1']
+        );
+
+        $json = json_encode($screen['keyboard'], JSON_UNESCAPED_UNICODE) ?: '';
+        $this->assertStringNotContainsString('craftBuy_DrifterClothes2', $json, 'кнопка не должна вести в «Неизвестный рецепт»');
+        $this->assertStringContainsString('🔒', $screen['text']);
+        $this->assertStringContainsString('недоступна', $screen['text']);
+        // Раскладка недостачи остаётся полезной и без кнопки.
+        $this->assertStringContainsString('Древесина', $screen['text']);
+    }
+
     /** Ряд с новой кнопкой проходит через общий нормализатор — она не остаётся одна в строке. */
     public function testShortfallBuyButtonRowIsPackedWithNavNotAlone(): void
     {
