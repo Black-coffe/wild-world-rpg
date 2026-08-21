@@ -181,6 +181,13 @@ class CraftShortageService
     private function shortfallBuyBlock(array|CharacterEntity $character, array $recipe, int $quantity): array
     {
         $maxUnits = $this->maxUnitsPerPurchase();
+        // fix-11: `0` — выключатель фичи (см. `maxUnitsPerPurchase()`). Блока быть не должно
+        // вовсе — не звать `quote()` совсем, иначе `CraftShortfallBuyService::quote()` сам
+        // прижимает количество к `max(1, …)` и вернёт доступную сделку на 1 шт., хотя админка
+        // обещала полный выключатель.
+        if ($maxUnits <= 0) {
+            return ['lines' => [], 'button' => null];
+        }
         $quoteQty = min($quantity, $maxUnits);
 
         $quote = $this->shortfallBuy->quote($character, $this->shortfallQuoteRecipe($recipe), $quoteQty);
@@ -273,13 +280,21 @@ class CraftShortageService
         return preg_match('/^genericCraft_(.+)_\d+$/', $callback, $m) === 1 ? $m[1] : null;
     }
 
-    /** Тот же лимит, что режет сделку (`CraftShortfallBuyAction::KEY_MAX_UNITS`). */
+    /**
+     * Тот же лимит, что режет сделку (`CraftShortfallBuyAction::KEY_MAX_UNITS`) — и то же
+     * чтение значения (`CraftShortfallBuyAction::resolveMaxUnits()`), fix-11: `0` — обещанный
+     * админкой (`below_effect_text`) выключатель фичи, а не «докупать по одной штуке». Раньше
+     * `max(1, $val)` подменял 0 единицей, и экран рисовал кнопку, которая при нажатии всегда
+     * отвечала «докупка выключена» (обработчик сделки уже читает 0 как честный ноль). Только
+     * нечисловое/отсутствующее значение остаётся дефолтом 1 — отрицательное, как и в
+     * обработчике, прижимается к 0, а не поднимается.
+     */
     private function maxUnitsPerPurchase(): int
     {
         $raw = $this->settings->get(self::KEY_MAX_UNITS_PER_PURCHASE, 1);
         $val = is_numeric($raw) ? (int) $raw : 1;
 
-        return max(1, $val);
+        return max(0, $val);
     }
 
     /**
@@ -327,11 +342,17 @@ class CraftShortageService
         $gap  = (int) $line['gap'];
 
         if ($line['buyable']) {
+            // fix-11: `unitPrice` приходит уже пересчитанным из распределённого `lineTotal`
+            // (`CraftShortfallBuyService::distributeTotalAcrossLines()`) — то есть УЖЕ с
+            // наценкой. Печатаем это честно («с наценкой»), а не как сырую рыночную цену —
+            // иначе «6 × 1.50 = 9» не сходится с напечатанным «11 итого» (наценка была вшита
+            // молча). Наценка называется здесь и только здесь на уровне строки; общий
+            // процент — отдельно, один раз, в итоговом резюме блока.
             $unit  = number_format((float) $line['unitPrice'], 2, '.', ' ');
             $total = number_format((float) $line['lineTotal'], 0, '.', ' ');
 
             return '• *' . $name . '* — не хватает *' . $gap . '* (нужно ' . $need . ', есть ' . $have
-                . '), у торговца ' . $unit . ' 💰/шт → *' . $total . ' 💰* итого';
+                . '), с наценкой ' . $unit . ' 💰/шт → *' . $total . ' 💰* итого';
         }
 
         return '• *' . $name . '* — 🔒 ' . $this->shortfallBlockReasonText(
@@ -390,6 +411,11 @@ class CraftShortageService
                 . number_format($quote->total, 0, '.', ' ') . ' 💰) — заработай золото или добудь сырьё сам.',
             CraftShortfallBuyService::REASON_PROFIT_GATE =>
                 'Докупка сейчас невыгодна: обошлась бы дороже, чем ты выручишь за собранный предмет — выгоднее добыть сырьё самому.',
+            // fix-11: не привязано ни к одной позиции списка выше — гейт рентабельности не
+            // смог определить цену продажи предмета (нет `item_name_eng` или рецепта нет в
+            // `crafted_items`), а не «эту строку заблокировала недоступная позиция».
+            CraftShortfallBuyService::REASON_PRICE_UNKNOWN =>
+                'Докупку сейчас нельзя оценить: неизвестна цена продажи этого предмета — собери недостающее сам.',
             default => 'Докупить всю сборку целиком нельзя — причина у позиции выше. Собери недостающее сам.',
         };
     }

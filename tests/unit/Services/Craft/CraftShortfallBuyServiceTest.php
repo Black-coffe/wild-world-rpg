@@ -525,6 +525,36 @@ final class CraftShortfallBuyServiceTest extends CIUnitTestCase
         $this->assertSame('price_unknown', $quote->refusal);
     }
 
+    /**
+     * fix-11 (ремонт повторного ревью): раньше `unitPrice` в строке оставался сырым
+     * (без наценки), пока `distributeTotalAcrossLines()` уже переписывал `lineTotal` на
+     * долю от `total` (с наценкой) — экран печатал «6 × 1.50 = 9 💰», а рядом стоял
+     * итог 11. Тут ровно тот сценарий из истории ремонта: gap=6, raw price=1.5 (base=9),
+     * `min_markup_gold=2` даёт `total=11`. Печатаемая цена за штуку обязана быть уже
+     * пересчитана так, чтобы `unitPrice × gap === lineTotal`.
+     */
+    public function testLineUnitPriceMatchesLineTotalAfterMarkupDistribution(): void
+    {
+        $svc = $this->service(
+            ['enabled' => true, 'base_markup_pct' => 0, 'slope_markup_pct' => 0, 'min_markup_gold' => 2, 'profit_gate_enabled' => false],
+            ['Древесина' => ['id' => 7, 'buy_price' => 1.5]],
+            backpack: ['Древесина' => 4]
+        );
+
+        $quote = $svc->quote(['id' => 1, 'level' => 5, 'gold' => 1000], ['resources' => ['Древесина' => 10]], 1);
+
+        // base=9 (6×1.5), total = base + min_markup_gold = 11.
+        $this->assertSame(11, $quote->total);
+        $this->assertSame(1, count($quote->lines));
+        $line = $quote->lines[0];
+        $this->assertSame(6, $line['gap']);
+        $this->assertSame(11.0, $line['lineTotal']);
+        // Печатаемое произведение «цена за штуку × количество» обязано сходиться со
+        // строкой — а не с сырой ценой 1.5, которая при 6 шт. дала бы 9, а не 11.
+        $this->assertEqualsWithDelta($line['lineTotal'], $line['unitPrice'] * $line['gap'], 0.0001);
+        $this->assertNotEqualsWithDelta(1.5, $line['unitPrice'], 0.0001, 'сырая цена без наценки не должна остаться в строке рядом с итогом, куда наценка уже вшита');
+    }
+
     public function testQuantityMultipliesPerUnitRequirement(): void
     {
         $svc = $this->service(

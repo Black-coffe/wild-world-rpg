@@ -268,6 +268,14 @@ class CraftShortfallBuyService
      * строкам пропорционально их сырому вкладу в `base` (метод наибольшего остатка — сумма
      * распределённого точно равна `total`, без потери и без превышения на округлении).
      *
+     * fix-11 (ремонт повторного ревью): `unitPrice` раньше оставался сырым (без наценки),
+     * пока `lineTotal` этим методом уже переписывался на долю от `total` — экран печатал
+     * «6 × 1.50 = 9», а рядом стоящий итог был 11 (наценка распределена молча). Теперь
+     * `unitPrice` пересчитывается ИЗ того же `lineTotal`, что уходит на экран (`lineTotal /
+     * gap`), — печатаемые «цена за штуку» и «итого» одной строки всегда произведение друг
+     * друга, а наценка видна ровно в одном месте (в самой цене строки, помеченной как «с
+     * наценкой» — `CraftShortageService::shortfallLineText()`), не дублируясь скрытно.
+     *
      * @param list<array{resourceId:int,name:string,need:int,have:int,gap:int,unitPrice:float,lineTotal:float,buyable:bool,blockReason:string|null}> $lines
      * @return list<array{resourceId:int,name:string,need:int,have:int,gap:int,unitPrice:float,lineTotal:float,buyable:bool,blockReason:string|null}>
      */
@@ -303,7 +311,12 @@ class CraftShortfallBuyService
 
         foreach ($shares as $i => $share) {
             $line              = $lines[$i];
-            $line['lineTotal'] = (float) $share['floor'];
+            $newTotal          = (float) $share['floor'];
+            $line['lineTotal'] = $newTotal;
+            // Пересчитываем цену за штуку ИЗ распределённого итога — иначе `unitPrice`
+            // остаётся сырым (без наценки), а `lineTotal` уже с наценкой, и «цена × gap»
+            // на экране не сходится с «итого» (fix-11).
+            $line['unitPrice'] = $line['gap'] > 0 ? $newTotal / $line['gap'] : $line['unitPrice'];
             $lines[$i]         = $line;
         }
 

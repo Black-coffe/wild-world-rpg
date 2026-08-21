@@ -550,9 +550,12 @@ final class CraftShortageServiceTest extends CIUnitTestCase
 
     /**
      * Story `craft-shortfall-buy-fix-08`: fix-07 дал семи легаси-рецептам (броня/маяки)
-     * `craft_again_callback`, но сами ключи (`DrifterClothes2` и т. п.) в
-     * `Config\CraftRecipes` не зарегистрированы (`## Non-goals`) — обработчик сделки
-     * ответил бы «Неизвестный рецепт». Кнопка обязана исчезнуть, а замок — объяснить
+     * `craft_again_callback` до того, как ключи (`DrifterClothes2` и т. п.) были
+     * зарегистрированы в `Config\CraftRecipes` — обработчик сделки отвечал
+     * «Неизвестный рецепт». Story `craft-shortfall-buy-fix-09` эти семь ключей уже
+     * зарегистрировала — поведение «ключ есть в callback, но не в конфиге» здесь
+     * проверяем на синтетическом ключе, которого в `Config\CraftRecipes` нет и не
+     * будет (не настоящем рецепте): кнопка обязана исчезнуть, а замок — объяснить
      * причину и путь вперёд, не оставляя игрока в тупике.
      */
     public function testShortfallBuyBlockLocksWhenRecipeKeyUnknownToHandler(): void
@@ -580,11 +583,11 @@ final class CraftShortageServiceTest extends CIUnitTestCase
             // Ключ ровно как у fix-07 (story `craft-shortfall-buy-fix-07`,
             // `Implementation notes`): в `craft_again_callback` есть, в
             // `Config\CraftRecipes` — нет.
-            ['resources' => ['Древесина' => 10], 'craft_again_callback' => 'genericCraft_DrifterClothes2_1']
+            ['resources' => ['Древесина' => 10], 'craft_again_callback' => 'genericCraft_NoSuchLegacyRecipeXyz_1']
         );
 
         $json = json_encode($screen['keyboard'], JSON_UNESCAPED_UNICODE) ?: '';
-        $this->assertStringNotContainsString('craftBuy_DrifterClothes2', $json, 'кнопка не должна вести в «Неизвестный рецепт»');
+        $this->assertStringNotContainsString('craftBuy_NoSuchLegacyRecipeXyz', $json, 'кнопка не должна вести в «Неизвестный рецепт»');
         $this->assertStringContainsString('🔒', $screen['text']);
         $this->assertStringContainsString('недоступна', $screen['text']);
         // Раскладка недостачи остаётся полезной и без кнопки.
@@ -627,6 +630,94 @@ final class CraftShortageServiceTest extends CIUnitTestCase
             }
         }
         $this->assertTrue($found, 'ряд с "Инвентарь" обязан присутствовать');
+    }
+
+    /**
+     * fix-11: `max_units_per_purchase = 0` — обещанный админкой (`below_effect_text`)
+     * выключатель фичи, и `CraftShortfallBuyAction` уже читает его так (отказывает ДО
+     * расчёта сделки). Раньше `maxUnitsPerPurchase()` экрана подменял 0 единицей, и
+     * блок продолжал рисовать кнопку, которая при нажатии всегда отвечала «докупка
+     * выключена» — сломанное обещание. Блока быть не должно вовсе, и `quote()` не
+     * должен звать вовсе — обработчик сделки не должен получать шанс тихо откатить
+     * количество к 1.
+     */
+    public function testShortfallBuyBlockHiddenWhenMaxUnitsIsZero(): void
+    {
+        $shortfallBuy = new class () extends CraftShortfallBuyService {
+            /** @var list<int> */
+            public array $calls = [];
+
+            public function __construct()
+            {
+            }
+
+            public function quote(CharacterEntity|array $character, array $recipe, int $quantity): CraftShortfallQuote
+            {
+                $this->calls[] = $quantity;
+
+                return new CraftShortfallQuote(
+                    lines: [],
+                    baseCost: 0.0,
+                    fullCost: 0.0,
+                    share: 0.0,
+                    markupPct: 0,
+                    total: 0,
+                    goldAfter: 0,
+                    available: false,
+                    refusal: null
+                );
+            }
+        };
+
+        $settings = $this->settingsWithMaxUnits(0);
+
+        $svc = new class ($shortfallBuy, $settings) extends CraftShortageService {
+            public function __construct(CraftShortfallBuyService $shortfallBuy, GameSettingsService $settings)
+            {
+                parent::__construct(settings: $settings, shortfallBuy: $shortfallBuy);
+            }
+        };
+
+        $screen = $svc->describe(
+            ['level' => 4, 'gold' => 100],
+            [],
+            [],
+            1,
+            ['resources' => ['Древесина' => 10], 'craft_again_callback' => 'genericCraft_LumberjackAxe_1']
+        );
+
+        $this->assertSame([], $shortfallBuy->calls, 'при выключателе 0 сделка не должна даже спрашиваться о цене');
+        $this->assertStringNotContainsString('Докупить у торговца', $screen['text']);
+        $json = json_encode($screen['keyboard'], JSON_UNESCAPED_UNICODE) ?: '';
+        $this->assertStringNotContainsString('craftBuy_', $json);
+    }
+
+    /**
+     * fix-11: `price_unknown` — гейт рентабельности не смог определить цену продажи
+     * предмета, это не привязано ни к одной позиции списка выше. Текст обязан назвать
+     * это своими словами, а не отсылать к «причине у позиции выше», которой в этом
+     * случае нет — все позиции в `lines` доступны для покупки.
+     */
+    public function testShortfallBuyBlockExplainsPriceUnknownRefusalWithItsOwnWords(): void
+    {
+        $quote = new CraftShortfallQuote(
+            lines: [
+                ['resourceId' => 7, 'name' => 'Древесина', 'need' => 10, 'have' => 0, 'gap' => 10, 'unitPrice' => 5.0, 'lineTotal' => 50.0, 'buyable' => true, 'blockReason' => null],
+            ],
+            baseCost: 50.0,
+            fullCost: 50.0,
+            share: 1.0,
+            markupPct: 15,
+            total: 58,
+            goldAfter: 42,
+            available: false,
+            refusal: CraftShortfallBuyService::REASON_PRICE_UNKNOWN
+        );
+
+        $text = $this->serviceWithShortfall($quote)->describe([], [], [], 1, ['resources' => ['Древесина' => 10]])['text'];
+
+        $this->assertStringContainsString('неизвестна цена продажи', $text);
+        $this->assertStringNotContainsString('причина у позиции выше', $text);
     }
 
     /** Отказ (например, не хватает золота) — кнопки нет, есть только объясняющий текст. */
