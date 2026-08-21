@@ -126,20 +126,41 @@ class GameSettingsController extends BaseAdminController
         );
     }
 
+    /**
+     * `service('auth')` в этом проекте — `App\Libraries\Authentication`, кастомный класс
+     * (не Shield), у которого нет метода `user()` — только `getCurrentUser()` (см.
+     * `WipeController::verifyAdminPassword()` для того же паттерна). Вызов
+     * `method_exists($auth, 'user')` был всегда false → `updated_by` всегда писался
+     * как 'unknown'. Фикс: тот же метод, что и у остальной админки.
+     */
     private function currentAdminLabel(): string
     {
         $auth = service('auth');
-        if (is_object($auth) && method_exists($auth, 'user')) {
-            $user = $auth->user();
-            if (is_object($user)) {
-                $email = $user->email ?? null;
-                if (is_string($email) && $email !== '') {
-                    return $email;
-                }
-                $id = $user->id ?? null;
-                if (is_numeric($id)) {
-                    return 'admin#' . (int) $id;
-                }
+        $user = is_object($auth) && method_exists($auth, 'getCurrentUser')
+            ? $auth->getCurrentUser()
+            : null;
+
+        return self::resolveAdminLabel($user);
+    }
+
+    /**
+     * Чистая функция резолва label'а из объекта пользователя — вынесена отдельно,
+     * чтобы её мог покрыть unit-тест без session/DB seam'ов.
+     */
+    public static function resolveAdminLabel(mixed $user): string
+    {
+        if (is_object($user)) {
+            $email = $user->email ?? null;
+            if (is_string($email) && $email !== '') {
+                return $email;
+            }
+            $name = $user->name ?? null;
+            if (is_string($name) && $name !== '') {
+                return $name;
+            }
+            $id = $user->id ?? null;
+            if (is_numeric($id)) {
+                return 'admin#' . (int) $id;
             }
         }
         return 'unknown';
