@@ -7,6 +7,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Craft\CraftCardHelper;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -19,6 +20,7 @@ class PainReliefPowerCraft1Action extends BaseAction
     protected $characterResourceModel;
     protected $resourceModel;
     protected $craftedItemsLogModel;
+    private CraftCardHelper $craftCardHelper;
 
     /**
      * Варианты количественного крафта (можно вынести в конфиг).
@@ -31,6 +33,7 @@ class PainReliefPowerCraft1Action extends BaseAction
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -68,8 +71,9 @@ class PainReliefPowerCraft1Action extends BaseAction
             'Цветы орхидей'           => 1,
         ];
 
-        // Проверим, сколько ресурсов есть у игрока
-        $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
+        // Проверим, сколько ресурсов есть у игрока — тем же пулом (рюкзак + склад базы, ADR-171),
+        // которым потом считает старт крафта GenericCraftActionStart::checkResources().
+        $resourcesAvailable = $this->craftCardHelper->available($characterId, $requiredResources);
         // Максимальное количество, доступное для крафта
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
@@ -105,6 +109,9 @@ class PainReliefPowerCraft1Action extends BaseAction
                     [
                         ['text' => '💰 Продать', 'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить',  'callback_data' => 'buy']
+                    ],
+                    [
+                        $this->craftCardHelper->fallbackButton('PainReliefPower'),
                     ],
                     [
                         ['text' => '⬅️ Назад', 'callback_data' => 'medicinesCraft1']
@@ -152,34 +159,6 @@ class PainReliefPowerCraft1Action extends BaseAction
         $row = $this->craftedItemsLogModel
             ->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
         return $row ? (int)$row['quantity'] : 0;
-    }
-
-    /**
-     * Узнаём, сколько у игрока есть требуемых ресурсов (только на 1 шт.).
-     */
-    private function checkResourcesAvailability(int $characterId, array $requiredResources): array
-    {
-        $results = [];
-        foreach ($requiredResources as $name => $reqAmount) {
-            $resRow = $this->resourceModel->getResourceByName($name);
-            $qty = 0;
-            $rarity = 0;
-
-            if ($resRow) {
-                $charRes = $this->characterResourceModel
-                    ->getResourceByNameAndCharacterId($name, $characterId);
-
-                $qty    = $charRes ? $charRes['quantity'] : 0;
-                $rarity = $resRow['rarity'];
-            }
-
-            $results[] = [
-                'name'     => $name,
-                'quantity' => $qty,
-                'rarity'   => $rarity,
-            ];
-        }
-        return $results;
     }
 
     /**

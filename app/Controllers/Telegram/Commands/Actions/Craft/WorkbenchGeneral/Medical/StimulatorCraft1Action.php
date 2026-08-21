@@ -7,6 +7,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Craft\CraftCardHelper;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -15,6 +16,7 @@ class StimulatorCraft1Action extends BaseAction
     protected $characterResourceModel;
     protected $resourceModel;
     protected $craftedItemsLogModel;
+    private CraftCardHelper $craftCardHelper;
 
     /**
      * Массив вариантов количественного крафта.
@@ -27,6 +29,7 @@ class StimulatorCraft1Action extends BaseAction
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -62,8 +65,9 @@ class StimulatorCraft1Action extends BaseAction
             'Вода'  => 12,
         ];
 
-        // Смотрим, сколько у игрока ресурсов
-        $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
+        // Смотрим, сколько у игрока ресурсов — тем же пулом (рюкзак + склад базы, ADR-171),
+        // которым потом считает старт крафта GenericCraftActionStart::checkResources().
+        $resourcesAvailable = $this->craftCardHelper->available($characterId, $requiredResources);
         // Определяем, на сколько шт. максимум хватит ресурсов
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
@@ -95,6 +99,9 @@ class StimulatorCraft1Action extends BaseAction
                     [
                         ['text' => '💰 Продать', 'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить', 'callback_data' => 'buy'],
+                    ],
+                    [
+                        $this->craftCardHelper->fallbackButton('Stimulator'),
                     ],
                     [
                         ['text' => '⬅️ Назад', 'callback_data' => 'medicinesCraft1'],
@@ -140,34 +147,6 @@ class StimulatorCraft1Action extends BaseAction
     {
         $logEntry = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
         return $logEntry ? (int)$logEntry['quantity'] : 0;
-    }
-
-    /**
-     * Определяем, сколько у игрока ресурсов (на 1 шт.).
-     */
-    private function checkResourcesAvailability(int $characterId, array $requiredResources): array
-    {
-        $results = [];
-        foreach ($requiredResources as $name => $amount) {
-            $resRow = $this->resourceModel->getResourceByName($name);
-            $qty    = 0;
-            $rarity = 0;
-
-            if ($resRow) {
-                $charRes = $this->characterResourceModel
-                    ->getResourceByNameAndCharacterId($name, $characterId);
-
-                $qty    = $charRes ? $charRes['quantity'] : 0;
-                $rarity = $resRow['rarity'];
-            }
-
-            $results[] = [
-                'name'     => $name,
-                'quantity' => $qty,
-                'rarity'   => $rarity
-            ];
-        }
-        return $results;
     }
 
     /**

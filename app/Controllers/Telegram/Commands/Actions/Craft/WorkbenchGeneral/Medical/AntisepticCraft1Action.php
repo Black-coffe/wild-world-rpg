@@ -7,6 +7,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Craft\CraftCardHelper;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -20,6 +21,7 @@ class AntisepticCraft1Action extends BaseAction
     protected $characterResourceModel;
     protected $resourceModel;
     protected $craftedItemsLogModel;
+    private CraftCardHelper $craftCardHelper;
 
     /**
      * Набор вариантов количественного крафта.
@@ -33,6 +35,7 @@ class AntisepticCraft1Action extends BaseAction
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     /**
@@ -71,8 +74,9 @@ class AntisepticCraft1Action extends BaseAction
             'Вода'   => 10,
         ];
 
-        // Узнаём, сколько у игрока ресурсов
-        $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
+        // Узнаём, сколько у игрока ресурсов — тем же пулом (рюкзак + склад базы, ADR-171),
+        // которым потом считает старт крафта GenericCraftActionStart::checkResources().
+        $resourcesAvailable = $this->craftCardHelper->available($characterId, $requiredResources);
         // Определяем, сколько всего штук игрок может скрафтить максимально
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
@@ -102,6 +106,9 @@ class AntisepticCraft1Action extends BaseAction
                         ['text' => '🎒 Инвентарь', 'callback_data' => 'inventory'],
                         ['text' => '💰 Продать',   'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить',   'callback_data' => 'buy']
+                    ],
+                    [
+                        $this->craftCardHelper->fallbackButton('Antiseptic'),
                     ],
                     [
                         ['text' => '⬅️ Назад', 'callback_data' => 'medicinesCraft1']
@@ -149,39 +156,6 @@ class AntisepticCraft1Action extends BaseAction
     {
         $item = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
         return $item ? (int) $item['quantity'] : 0;
-    }
-
-    /**
-     * Проверяем, сколько у персонажа есть каждого из требуемых ресурсов (для 1 шт.).
-     * Возвращает массив:
-     * [
-     *   ['name' => 'Кактус', 'quantity' => 10, 'rarity' => 2],
-     *   ...
-     * ]
-     */
-    private function checkResourcesAvailability(int $characterId, array $requiredResources): array
-    {
-        $results = [];
-        foreach ($requiredResources as $name => $amount) {
-            $resource       = $this->resourceModel->getResourceByName($name);
-            $currentQuantity = 0;
-            $rarity         = 0;
-
-            if ($resource) {
-                $characterResource = $this->characterResourceModel
-                    ->getResourceByNameAndCharacterId($name, $characterId);
-
-                $currentQuantity = $characterResource ? $characterResource['quantity'] : 0;
-                $rarity          = $resource['rarity'];
-            }
-
-            $results[] = [
-                'name'     => $name,
-                'quantity' => $currentQuantity,
-                'rarity'   => $rarity,
-            ];
-        }
-        return $results;
     }
 
     /**

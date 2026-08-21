@@ -7,6 +7,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\CharacterResourceModel;
 use App\Models\ResourceModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Craft\CraftCardHelper;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -15,6 +16,7 @@ class BandageCraft1Action extends BaseAction
     protected $characterResourceModel;
     protected $resourceModel;
     protected $craftedItemsLogModel;
+    private CraftCardHelper $craftCardHelper;
 
     /**
      * Возможные варианты количественного крафта (1, 5, 10, 25, 50, 100).
@@ -27,6 +29,7 @@ class BandageCraft1Action extends BaseAction
         $this->characterResourceModel = new CharacterResourceModel();
         $this->resourceModel          = new ResourceModel();
         $this->craftedItemsLogModel   = new CraftedItemsLogModel();
+        $this->craftCardHelper        = new CraftCardHelper();
     }
 
     public function handle(): ServerResponse
@@ -62,8 +65,9 @@ class BandageCraft1Action extends BaseAction
             'Водоросли'     => 3,
         ];
 
-        // Проверим, сколько ресурсов у игрока
-        $resourcesAvailable = $this->checkResourcesAvailability($characterId, $requiredResources);
+        // Проверим, сколько ресурсов у игрока — тем же пулом (рюкзак + склад базы, ADR-171),
+        // которым потом считает старт крафта GenericCraftActionStart::checkResources().
+        $resourcesAvailable = $this->craftCardHelper->available($characterId, $requiredResources);
         // Считаем, сколько штук максимально можно скрафтить
         $maxCraftableItems  = $this->calculateMaxCraftableItems($resourcesAvailable, $requiredResources);
 
@@ -97,6 +101,9 @@ class BandageCraft1Action extends BaseAction
                     [
                         ['text' => '💰 Продать',    'callback_data' => 'sell'],
                         ['text' => '🛍️ Купить',    'callback_data' => 'buy']
+                    ],
+                    [
+                        $this->craftCardHelper->fallbackButton('Bandage'),
                     ],
                     [
                         ['text' => '⬅️ Назад', 'callback_data' => 'medicinesCraft1']
@@ -145,34 +152,6 @@ class BandageCraft1Action extends BaseAction
     {
         $itemLog = $this->craftedItemsLogModel->getItemByNameEngAndCharacterId($itemNameEng, $characterId);
         return $itemLog ? (int)$itemLog['quantity'] : 0;
-    }
-
-    /**
-     * Смотрим, сколько ресурсов для 1 шт. есть у игрока.
-     */
-    private function checkResourcesAvailability(int $characterId, array $requiredResources): array
-    {
-        $results = [];
-        foreach ($requiredResources as $resName => $need) {
-            $resRow = $this->resourceModel->getResourceByName($resName);
-            $qty = 0;
-            $rarity = 0;
-
-            if ($resRow) {
-                $charRes = $this->characterResourceModel
-                    ->getResourceByNameAndCharacterId($resName, $characterId);
-
-                $qty    = $charRes ? $charRes['quantity'] : 0;
-                $rarity = $resRow['rarity'];
-            }
-
-            $results[] = [
-                'name'     => $resName,
-                'quantity' => $qty,
-                'rarity'   => $rarity,
-            ];
-        }
-        return $results;
     }
 
     /**
