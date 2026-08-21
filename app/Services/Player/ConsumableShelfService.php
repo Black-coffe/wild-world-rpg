@@ -11,9 +11,12 @@ use Config\Debuffs;
 
 /**
  * Полка расходника и её отрисовка — вынесены из `PharmacyAction` в чистый слой
- * (docs/specs/pharmacy-split/pharmacy-split-01.md). Ни БД, ни Telegram, ни `Request`:
+ * (docs/specs/pharmacy-split/pharmacy-split-01.md). Telegram и `Request`-слой не трогает:
  * на вход — уже выбранные строки `crafted_items_log`+`crafted_items`, на выход — готовый
- * текст и кнопки. Story 02 подключает это к экранам, ничего здесь не меняя.
+ * текст и кнопки. Настройки годности расходников всё же читает — через
+ * {@see ConsumableExpiryService}, который принимает параметром конструктора (и который
+ * сам ходит в `game_settings` через `GameSettingsService`). Story 02 подключает это
+ * к экранам, ничего здесь не меняя.
  */
 final class ConsumableShelfService
 {
@@ -22,25 +25,9 @@ final class ConsumableShelfService
 
     private ConsumableExpiryService $expiry;
 
-    /**
-     * Не читаем — держим ссылку ради стабильной API-поверхности, которую story 02
-     * подключит к контроллерам (`DebuffService` там уже используется для активных ран).
-     * Активные раны приходят сюда готовой строкой в `$activeDebuffLines`, а «что снимает
-     * предмет» берётся из каталога `Config\Debuffs::curedByItem()` (статика, без БД) —
-     * этому слою сам сервис ран не нужен, но конструктор его принимает.
-     */
-    private ?DebuffService $debuffs;
-
-    public function __construct(?ConsumableExpiryService $expiry = null, ?DebuffService $debuffs = null)
+    public function __construct(?ConsumableExpiryService $expiry = null)
     {
-        $this->expiry  = $expiry ?? new ConsumableExpiryService();
-        $this->debuffs = $debuffs;
-    }
-
-    /** Геттер, а не использование внутри — сервис ран этому слою не нужен (см. докблок поля). */
-    public function debuffs(): ?DebuffService
-    {
-        return $this->debuffs;
+        $this->expiry = $expiry ?? new ConsumableExpiryService();
     }
 
     /**
@@ -63,7 +50,7 @@ final class ConsumableShelfService
             }
         }
 
-        return ['medicine' => $medicine, 'provision' => $provision];
+        return [self::SHELF_MEDICINE => $medicine, self::SHELF_PROVISION => $provision];
     }
 
     /**
