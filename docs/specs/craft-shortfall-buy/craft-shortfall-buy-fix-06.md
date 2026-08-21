@@ -1,7 +1,7 @@
 ---
 story: craft-shortfall-buy-fix-06
 spec: craft-shortfall-buy
-status: todo
+status: done
 tier: 3
 worker: worker-code
 tracer: false
@@ -44,5 +44,11 @@ memory/map/onboarding.md; ADR-127 GUIDE-COVERAGE.
 Полный разбор находок — `docs/specs/craft-shortfall-buy/review-findings.md`. Читай его, прежде чем править. Мелкая 16. Делать ПОСЛЕ fix-01 и fix-02, иначе сверять не с чем.
 
 ## Implementation notes
+- Сверка выполнена без правок текста — оба обещания абзаца `trade` (GuideCatalog.php:805-813) уже стали правдой.
+- Кнопка «🛒 Докупить и собрать»: `CraftShortageService.php:214` печатает её с `callback_data = craftBuy_<Key>_<qty>` в блоке недостачи; ведёт на экран подтверждения (`CraftShortfallBuyAction::showConfirmation`), который несёт вторую кнопку с той же меткой и `callback_data = craftBuyGo_<Key>_<qty>` (`CraftShortfallBuyAction.php:632`) — она платит и стартует крафт.
+- Наценка: `executePurchase()`/`runPurchaseTransaction()` (`CraftShortfallBuyAction.php:351-410`) явно доплачивает `markupGold = quote->total - Σ базовых цен` через `chargeExtraGold()` — списанная сумма равна показанному `quote->total`.
+- «Чем больше докупаешь, тем хуже курс»: `CraftShortfallBuyService::quote()` — `markupFraction = base + slope × share` (`:135`), `share` растёт с объёмом покупки — подтверждено.
+- Слово «опт» в абзаце `trade` отсутствует (оно есть только в соседнем, вне скоупа, пункте «Продать ресы» — оптовая продажа ресурсов, другая фича).
+- Файлы не менялись; тест-файл тоже не тронут (нет узкого теста на этот абзац, есть только общие инварианты справочника).
 
 ## Findings
