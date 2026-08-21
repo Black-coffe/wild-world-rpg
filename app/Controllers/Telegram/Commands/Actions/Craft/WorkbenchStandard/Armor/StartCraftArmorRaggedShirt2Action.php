@@ -114,6 +114,7 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
         // первой нехватке собираем ВСЕ недостающие позиции и показываем общий экран
         // нехватки (CraftShortageService), как остальной крафт.
         $missingItems = [];
+        $componentsRecipe = [];
         foreach ($requiredComponents as $itemName => $reqPerOne) {
             $totalNeeded = $reqPerOne * $this->quantity;
             $craftedItem = $this->craftedItemsModel->getCraftedItemByName($itemName);
@@ -121,13 +122,14 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
                 return $this->sendError($chatId, "Не найден предмет «{$itemName}» в БД!");
             }
 
+            $itemEng = is_string($craftedItem['name_eng'] ?? null) ? $craftedItem['name_eng'] : $itemName;
+            $componentsRecipe[$itemEng] = $reqPerOne;
             $logRow = $this->craftedItemsLogModel
                 ->where('character_id', $character['id'])
                 ->where('crafted_item_id', $craftedItem['id'])
                 ->first();
             $haveQty = $logRow ? (int) $logRow['quantity'] : 0;
             if ($haveQty < $totalNeeded) {
-                $itemEng = is_string($craftedItem['name_eng'] ?? null) ? $craftedItem['name_eng'] : $itemName;
                 $nameRus = is_string($craftedItem['name_rus'] ?? null) ? $craftedItem['name_rus'] : $itemName;
                 $missingItems[$itemEng] = ['need' => $totalNeeded, 'have' => $haveQty, 'name' => $nameRus];
             }
@@ -136,7 +138,7 @@ class StartCraftArmorRaggedShirt2Action extends BaseAction
             return $this->shortageScreen($character, [], $missingItems, [
                 'item_name_rus' => 'Рваная рубаха',
                 'info_callback' => 'armorRaggedShirt',
-                'crafted_items' => $requiredComponents,
+                'crafted_items' => $componentsRecipe,
             ], $chatId);
         }
 

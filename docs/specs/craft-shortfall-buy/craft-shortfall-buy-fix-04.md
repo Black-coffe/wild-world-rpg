@@ -1,7 +1,7 @@
 ---
 story: craft-shortfall-buy-fix-04
 spec: craft-shortfall-buy
-status: todo
+status: done
 tier: 3
 worker: worker-code
 tracer: false
@@ -45,5 +45,12 @@ memory/map/craft.md; `.claude/rules/db-schema.md` — карта конвенц�
 Полный разбор находок — `docs/specs/craft-shortfall-buy/review-findings.md`. Читай его, прежде чем править. Крупная 7. Известный класс: «имя из БД не равно ключу конфига».
 
 ## Implementation notes
+- `StartCraftArmorDrifterClothes2Action.php`: собрал `$componentsRecipe` с ключами `name_eng` внутри
+  цикла проверки нехватки (тот же цикл, что уже строил `$missingItems`), передал его в
+  `shortageScreen()` вместо `$requiredComponents` (русские ключи). Цикл списания ниже не тронут —
+  он ищет по `getCraftedItemByName($itemName)` (русское имя), это отдельный путь, не источник бага.
+- `StartCraftArmorRaggedShirt2Action.php`: тот же паттерн, тот же способ фикса.
+- Успешный путь старта (списание золота/компонентов/ресурсов, создание task) не менялся — трогали
+  только построение `crafted_items` для экрана нехватки.
 
 ## Findings
