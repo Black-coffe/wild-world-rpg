@@ -108,6 +108,13 @@ class TaxCollectionHandler extends BaseTaskHandler
             if (!$character) {
                 continue;
             }
+            // Ревью §5: telegram_user_id уже здесь — все след-записи этого прогона
+            // (logTaxDeduction/logTaxEvent) переиспользуют его, без повторного JOIN'а.
+            // Нормализуем в отдельную переменную (не трогая `$character` — ниже по коду
+            // он используется как `array|CharacterEntity` без нормализации, менять тип
+            // локальной переменной задним числом означает плодить phpstan-шум).
+            $characterArr   = $character instanceof \App\Entities\CharacterEntity ? $character->toArray() : (is_array($character) ? $character : []);
+            $telegramUserId = is_numeric($characterArr['telegram_user_id'] ?? null) ? (int) $characterArr['telegram_user_id'] : 0;
 
             // ADR-095 Фаза 2 (DORMANT) — налог-каскад до уничтожения базы. При killswitch
             // OFF поведение byte-identical (удаление постройки на 2-й FAILURE).
@@ -135,7 +142,8 @@ class TaxCollectionHandler extends BaseTaskHandler
                     $characterModel,
                     $cascadeOn,
                     $lifecycle,
-                    $now
+                    $now,
+                    $telegramUserId
                 );
             } else {
                 // OFF (default) — существующий агрегатный путь (byte-identical).
@@ -156,7 +164,7 @@ class TaxCollectionHandler extends BaseTaskHandler
                         $streak = $this->unpaidStreak($characterId) + 1;
                         $grace  = $lifecycle->taxCascadeGraceDays();
                         if ($streak >= $grace) {
-                            $this->cascadeDestroySmallestBase($characterId, $characterBuildingModel);
+                            $this->cascadeDestroySmallestBase($characterId, $characterBuildingModel, $telegramUserId);
                             $streak = 0;
                         } else {
                             $left = $grace - $streak;
@@ -190,6 +198,13 @@ class TaxCollectionHandler extends BaseTaskHandler
                                     "🏚 Не хватило золота на налог во второй раз подряд!\n" .
                                     "Поэтому здание (ID={$buildingId}) было *удалено*."
                                 );
+                                // Ревью §4 — снос постройки за неуплату раньше не оставлял следа.
+                                $this->logTaxEvent(
+                                    $characterId,
+                                    $telegramUserId,
+                                    'TAX_BUILDING_DESTROYED',
+                                    "Здание (ID={$buildingId}) снесено за неуплату налога (2-й недобор подряд)"
+                                );
                             }
                         } else {
                             // Первый раз => лишь предупреждение
@@ -215,6 +230,15 @@ class TaxCollectionHandler extends BaseTaskHandler
                 if ($paid !== null && isset($paid['after']['gold'])) {
                     $newGoldAmount = (int) $paid['after']['gold'];
                 }
+                // Story chat-requests-batch-05/ревью §1: сумма — подтверждённая (before−after),
+                // не заказанная; §4 — «(частично)» при недоборе (FAILURE), как у маяков.
+                $this->logTaxDeduction(
+                    $characterId,
+                    $telegramUserId,
+                    'TAX_BUILDINGS',
+                    $this->confirmedGoldDelta($paid),
+                    "{$buildingCount} зданий" . ($taxCollectionStatus === 'FAILURE' ? ' (частично)' : '')
+                );
 
                 // Обновляем поля в character_buildings
                 $characterBuildingModel
@@ -254,6 +278,8 @@ class TaxCollectionHandler extends BaseTaskHandler
                     $newGoldAmount = ($paid !== null && isset($paid['after']['gold']))
                         ? (int) $paid['after']['gold']
                         : $newGoldAmount - $totalBeaconTax;
+                    // Story chat-requests-batch-05/ревью §1: сумма — подтверждённая (before−after).
+                    $this->logTaxDeduction($characterId, $telegramUserId, 'TAX_BEACONS', $this->confirmedGoldDelta($paid), count($beacons) . ' маяков');
 
                     // Ставим маякам статус SUCCESS
                     foreach ($beacons as $b) {
@@ -307,6 +333,8 @@ class TaxCollectionHandler extends BaseTaskHandler
                     $newGoldAmount = ($paid !== null && isset($paid['after']['gold']))
                         ? (int) $paid['after']['gold']
                         : $remainingGold;
+                    // Story chat-requests-batch-05/ревью §1: сумма — подтверждённая (before−after).
+                    $this->logTaxDeduction($characterId, $telegramUserId, 'TAX_BEACONS', $this->confirmedGoldDelta($paid), count($beacons) . ' маяков (частично)');
 
                     // Удаляем маяки, которые fail второй раз
                     foreach ($deletedBeacons as $bId) {
@@ -402,7 +430,8 @@ class TaxCollectionHandler extends BaseTaskHandler
         CharacterModel $characterModel,
         bool $cascadeOn,
         \App\Services\Bases\BaseLifecycleService $lifecycle,
-        string $now
+        string $now,
+        int $telegramUserId = 0
     ): array {
         // Базы игрока с собственным налогом, дешёвые первыми (greedy keep-alive).
         $res = \Config\Database::connect()->table('character_buildings')
@@ -445,7 +474,7 @@ class TaxCollectionHandler extends BaseTaskHandler
                 // Legacy-реакция (снос новейшей постройки этой базы на 2-й FAILURE) — только
                 // когда каскад выключен; при cascadeOn неоплата ведётся через streak (ниже).
                 if (! $cascadeOn) {
-                    $this->reactBaseTaxFailureLegacy($characterId, $mapCellId);
+                    $this->reactBaseTaxFailureLegacy($characterId, $mapCellId, $telegramUserId);
                 }
                 $this->setBaseTaxStatus($characterId, $mapCellId, 'FAILURE', $now);
                 $breakdown[] = [
@@ -463,7 +492,7 @@ class TaxCollectionHandler extends BaseTaskHandler
                 $streak = $this->unpaidStreak($characterId) + 1;
                 $grace  = $lifecycle->taxCascadeGraceDays();
                 if ($streak >= $grace) {
-                    $this->cascadeDestroySmallestBase($characterId, new CharacterBuildingModel());
+                    $this->cascadeDestroySmallestBase($characterId, new CharacterBuildingModel(), $telegramUserId);
                     $streak = 0;
                 } else {
                     $left = $grace - $streak;
@@ -487,6 +516,15 @@ class TaxCollectionHandler extends BaseTaskHandler
         if ($paid !== null && isset($paid['after']['gold'])) {
             $remainingGold = (int) $paid['after']['gold'];
         }
+        // Story chat-requests-batch-05/ревью §1: подтверждённая дельта; §4 — «(частично)»
+        // при недоборе хотя бы одной базы (та же пометка, что уже была у маяков).
+        $this->logTaxDeduction(
+            $characterId,
+            $telegramUserId,
+            'TAX_BUILDINGS',
+            $this->confirmedGoldDelta($paid),
+            count($bases) . ' баз' . ($anyFailure ? ' (частично)' : '')
+        );
 
         return [$remainingGold, $collectedTotal, $breakdown];
     }
@@ -552,7 +590,7 @@ class TaxCollectionHandler extends BaseTaskHandler
      * уже была в FAILURE в прошлый прогон — сносим её новейшую постройку, иначе предупреждаем.
      * Зеркало старого character-level поведения, но scoped по map_cell_id.
      */
-    private function reactBaseTaxFailureLegacy(int $characterId, int $mapCellId): void
+    private function reactBaseTaxFailureLegacy(int $characterId, int $mapCellId, int $telegramUserId = 0): void
     {
         $db = \Config\Database::connect();
 
@@ -582,6 +620,13 @@ class TaxCollectionHandler extends BaseTaskHandler
                     "🏚 Не хватило золота на налог за базу во второй раз подряд!\n" .
                     "Поэтому здание (ID={$buildingId}) было *удалено*."
                 );
+                // Ревью §4 — снос постройки за неуплату раньше не оставлял следа.
+                $this->logTaxEvent(
+                    $characterId,
+                    $telegramUserId,
+                    'TAX_BUILDING_DESTROYED',
+                    "Здание (ID={$buildingId}, база #{$mapCellId}) снесено за неуплату налога (2-й недобор подряд)"
+                );
             }
         } else {
             // Первый раз => лишь предупреждение.
@@ -597,7 +642,7 @@ class TaxCollectionHandler extends BaseTaskHandler
      * ADR-095 Фаза 2 — снос наименьшей (наименее застроенной) активной базы персонажа
      * вместе с её постройками + уведомление. Триггер: streak неуплаты ≥ grace при cascade ON.
      */
-    private function cascadeDestroySmallestBase(int $characterId, CharacterBuildingModel $buildingModel): void
+    private function cascadeDestroySmallestBase(int $characterId, CharacterBuildingModel $buildingModel, int $telegramUserId = 0): void
     {
         $db    = \Config\Database::connect();
         $bases = $db->table('claimed_cells')
@@ -644,6 +689,14 @@ class TaxCollectionHandler extends BaseTaskHandler
             "🏚 *{$name} уничтожена за неуплату налогов!*\n"
             . "Копи золото — иначе следующая база тоже падёт."
         );
+        // Ревью §4 — снос базы (каскад) за неуплату раньше не оставлял следа в action_log —
+        // самая болезненная потеря налогового пути.
+        $this->logTaxEvent(
+            $characterId,
+            $telegramUserId,
+            'TAX_BASE_DESTROYED',
+            "База «{$name}» и её постройки ({$smallestCount} шт.) снесены за неуплату налога"
+        );
     }
 
     /**
@@ -656,6 +709,89 @@ class TaxCollectionHandler extends BaseTaskHandler
             ->select('tax_unpaid_streak')->where('id', $characterId)->get();
         $row = $q !== false ? $q->getRowArray() : null;
         return is_array($row) && is_numeric($row['tax_unpaid_streak'] ?? null) ? (int) $row['tax_unpaid_streak'] : 0;
+    }
+
+    /**
+     * Story chat-requests-batch-05 — след списания налога в `action_log` (экран «Куда
+     * ушло», story 06). Пишем ПОСЛЕ успешного `adjust()` (золото уже списано); insert
+     * оборачиваем в try/catch — сбой форензики не должен откатывать или блокировать уже
+     * проведённое списание (тот же паттерн, что `ResourceTradeService::logPurchase`).
+     * Нулевую/отрицательную сумму не пишем — нечего трассировать. `description` — сумма
+     * и за что человеческим текстом, его читает экран story 06.
+     *
+     * Ревью §1: `$amount` обязан быть ПОДТВЕРЖДЁННОЙ дельтой (`confirmedGoldDelta()` —
+     * before−after из `adjust()`), не заказанной величиной — вызывающая сторона считает
+     * её сама, здесь только guard и запись.
+     *
+     * @param int $telegramUserId `$character['telegram_user_id']` — уже загружен
+     *                            вызывающей стороной (ревью §5: раньше здесь был лишний
+     *                            JOIN-запрос к `characters` на каждого персонажа цикла).
+     */
+    private function logTaxDeduction(int $characterId, int $telegramUserId, string $actionName, int $amount, string $what): void
+    {
+        if ($amount <= 0) {
+            return;
+        }
+        $this->logTaxEvent($characterId, $telegramUserId, $actionName, "Налог за {$what}: -{$amount} золота");
+    }
+
+    /**
+     * Ревью §4 — снос постройки/базы за неуплату налога раньше не оставлял следа вообще:
+     * для игрока это самая болезненная потеря в налоговом пути, и в ленте «Куда ушло» её
+     * не было видно. Общий с `logTaxDeduction()` insert-паттерн, но без суммы золота —
+     * это событие, а не списание.
+     */
+    private function logTaxEvent(int $characterId, int $telegramUserId, string $actionName, string $description): void
+    {
+        try {
+            (new \App\Models\ActionLogModel())->save([
+                'character_id'  => $characterId,
+                'chat_id'       => $this->resolveChatIdFromTelegramUserId($telegramUserId),
+                'action_name'   => $actionName,
+                'action_status' => 'Completed',
+                'description'   => mb_substr($description, 0, 500),
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[TaxCollectionHandler::logTaxEvent] insert failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Ревью §1 — сумма в `description` берётся из ПОДТВЕРЖДЁННОЙ дельты (`before−after`
+     * из `CharacterStatsService::adjust()`), не из заказанной величины: `adjust()` имеет
+     * пол `gold>=0` и может списать МЕНЬШЕ, чем просили (параллельная трата золота между
+     * чтением и списанием), а при `null` (персонаж не найден — гонка/удаление) не списано
+     * ничего вовсе. `logTaxDeduction()` тогда получит `0` и своим guard'ом ничего не
+     * запишет — «атомарно = сверь запись», не «залогируй то, что заказывали».
+     *
+     * @param array{before:array<string,float>,after:array<string,float>}|null $paid
+     */
+    private function confirmedGoldDelta(?array $paid): int
+    {
+        if ($paid === null || !isset($paid['before']['gold'], $paid['after']['gold'])) {
+            return 0;
+        }
+
+        return max(0, (int) $paid['before']['gold'] - (int) $paid['after']['gold']);
+    }
+
+    /**
+     * chat_id по `telegram_user_id` (характеристика персонажа, уже известна вызывающей
+     * стороне) — один запрос в `telegram_users`, БЕЗ join к `characters` (ревью §5:
+     * `$character` уже загружен циклом `handle()`, повторно ходить в БД за тем же не
+     * нужно). 0, если не найден — та же конвенция, что `QuestObjectiveHandler::resolveChatId()`
+     * (не `null`: колонка `action_log.chat_id` — `bigint unsigned NOT NULL` без default).
+     */
+    private function resolveChatIdFromTelegramUserId(int $telegramUserId): int
+    {
+        if ($telegramUserId <= 0) {
+            return 0;
+        }
+        $q = \Config\Database::connect()->table('telegram_users')
+            ->select('telegram_id')
+            ->where('id', $telegramUserId)->get();
+        $row = $q !== false ? $q->getRowArray() : null;
+        return is_array($row) && is_numeric($row['telegram_id'] ?? null) ? (int) $row['telegram_id'] : 0;
     }
 
     /**

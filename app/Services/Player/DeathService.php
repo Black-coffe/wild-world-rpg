@@ -2,9 +2,12 @@
 
 namespace App\Services\Player;
 
+use App\Models\ActionLogModel;
 use App\Models\CharacterModel;
 use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
+use App\Models\CraftedItemsModel;
+use App\Models\ResourceModel;
 use App\Services\GameSettings\GameSettingsService;
 use App\Services\Player\Death\DeathPenaltyCalculator;
 use App\Services\Player\Death\InsuranceCalculator;
@@ -170,6 +173,28 @@ class DeathService
         $this->lootProcessor->applyLosses($loserId, $lostResources, $lostGold);
         $this->lootProcessor->applyCraftLosses($loserId, $lostCraftedItems);
 
+        // Story chat-requests-batch-11: след потерь в action_log — рождается ЗДЕСЬ, а не
+        // в PlayerRespawner (Notes story 05: respawn() видит только characterId и клетку,
+        // состав/сумму потерь к тому моменту уже не восстановить — applyLosses() выше их
+        // уже списал). Пишем ПОСЛЕ applyLosses()/applyCraftLosses() — золото/ресурсы/крафт
+        // реально сняты. Крафт-предметы (роботы/дроны/верстаки/транспорт) — дополнение по
+        // тому же запросу team-lead: без них самая дорогая пропажа не названа.
+        //
+        // Ревью §1: логируем ПОДТВЕРЖДЁННУЮ дельту, а не заказанную величину —
+        // `$lostGold`/`$lostResources`/`$lostCraftedItems` это то, что МЫ ХОТЕЛИ списать
+        // (посчитано на шаге 4, ДО фактического списания). `LootProcessor::applyLosses()`
+        // вызывает `CharacterStatsService::adjust()` с полом `gold>=0` — параллельная
+        // трата между шагом 3 (чтение) и шагом 5 (списание) могла срезать часть, а
+        // `applyCraftLosses()::186` тихо пропускает строку, исчезнувшую гонкой (см.
+        // ревью §5) — то есть заказанная величина систематически может разойтись с
+        // реально произошедшей. `logDeathLoss()` поэтому сам перечитывает состояние
+        // ПОСЛЕ списания и считает before−after — `$loserResources`/`$loserGold`/
+        // `$loserCraftedItems` (шаг 3, снимок ДО) передаются как база сравнения,
+        // `$lostResources`/`$lostCraftedItems` (шаг 4) — только СПИСОК КАНДИДАТОВ (какие
+        // id вообще могли измениться, чтобы не перечитывать весь инвентарь). Не трогает
+        // `LootProcessor` (вне `## Files`) — вся проверка на стороне DeathService.
+        $this->logDeathLoss($loserId, $loserArr, $loserGold, $loserResources, $lostResources, $loserCraftedItems, $lostCraftedItems);
+
         // 5b) transport-14 (замыкает transport-09): смерть не изымает активную машину,
         // а разбивает её — `breakActiveVehicleOnDeath()` был написан и покрыт тестами
         // ещё в story 09, но не вызывался ниоткуда (BUILT-BUT-DEAD). Текст всегда
@@ -314,6 +339,273 @@ class DeathService
         }
 
         $this->sendVehicleBrokenMessage($chatId, $message);
+    }
+
+    /**
+     * Story chat-requests-batch-11 — след потерь при смерти в `action_log` (экран «Куда
+     * ушло», story 06): золото, состав ресурсов И крафт-предметов (роботы/дроны/
+     * верстаки/транспорт) — не одна безымянная сумма (жалоба Max Syskov «исчезло 50%
+     * ресурсов» — вопрос был именно про состав; крафт-предметы дописаны по тому же
+     * запросу — без них самая дорогая пропажа осталась бы неназванной). Insert
+     * оборачиваем в try/catch — сбой форензики не должен откатывать/блокировать уже
+     * проведённое списание (тот же паттерн, что `TaxCollectionHandler::logTaxDeduction()`
+     * / `PlayerRespawner::logDeathTrace()` из story 05). Нулевые потери по ВСЕМ трём
+     * категориям (страховка сработала, либо просто нечего было терять) — запись-пустышку
+     * не пишем.
+     *
+     * Вызывается ПОСЛЕ `applyLosses()`/`applyCraftLosses()` — перечитывает фактическое
+     * состояние и логирует ПОДТВЕРЖДЁННУЮ (before−after) дельту, не заказанную (ревью
+     * §1). `$loserGold`/`$loserResources`/`$loserCraftedItems` — снимок ДО списания
+     * (шаг 3); `$lostResources`/`$lostCraftedItems` (шаг 4) используются только как
+     * список id-кандидатов (что вообще могло измениться), не как источник суммы.
+     *
+     * @param list<array<int|string,mixed>|object>                             $loserResources
+     * @param list<array{charResId:int,resourceId:int,lossAmount:int}>          $lostResources
+     * @param list<array{id:int,crafted_item_id:int,quantity:int|string}>       $loserCraftedItems
+     * @param list<array{logId:int,craftedItemId:int,lossAmount:int}>           $lostCraftedItems
+     * @param array<int|string,mixed>                                          $loserArr
+     */
+    private function logDeathLoss(
+        int $loserId,
+        array $loserArr,
+        int $loserGold,
+        array $loserResources,
+        array $lostResources,
+        array $loserCraftedItems,
+        array $lostCraftedItems
+    ): void {
+        $confirmedGold          = $this->confirmedGoldLoss($loserId, $loserGold);
+        $confirmedResources     = $this->confirmedResourceLoss($loserResources, $lostResources);
+        $confirmedCraftedItems  = $this->confirmedCraftedItemLoss($loserCraftedItems, $lostCraftedItems);
+
+        if ($confirmedGold <= 0 && $confirmedResources === [] && $confirmedCraftedItems === []) {
+            return;
+        }
+
+        try {
+            $parts = [];
+            if ($confirmedGold > 0) {
+                $parts[] = "-{$confirmedGold} золота";
+            }
+            if ($confirmedResources !== []) {
+                $parts[] = 'ресурсы: ' . $this->describeResourceLoss($confirmedResources);
+            }
+            if ($confirmedCraftedItems !== []) {
+                $parts[] = 'предметы: ' . $this->describeCraftedItemLoss($confirmedCraftedItems);
+            }
+
+            (new ActionLogModel())->save([
+                'character_id'  => $loserId,
+                'chat_id'       => $this->chatIdFor($loserArr) ?? 0,
+                'action_name'   => 'DEATH_LOSS',
+                'action_status' => 'Completed',
+                'description'   => mb_substr('Смерть персонажа: ' . implode('; ', $parts), 0, 500),
+            ]);
+        } catch (Throwable $e) {
+            log_message('error', '[DeathService::logDeathLoss] insert failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Подтверждённая потеря золота = свежее `characters.gold` минус то, что было ДО
+     * списания. Персонаж исчез между шагом 3 и логом (крайний случай) — 0, не выдумываем.
+     */
+    private function confirmedGoldLoss(int $loserId, int $goldBefore): int
+    {
+        $fresh = $this->characterModel->find($loserId);
+        if ($fresh === null) {
+            return 0;
+        }
+        $freshArr  = $fresh instanceof \App\Entities\CharacterEntity ? $fresh->toArray() : (is_array($fresh) ? $fresh : []);
+        $goldAfter = is_numeric($freshArr['gold'] ?? null) ? (int) $freshArr['gold'] : $goldBefore;
+
+        return max(0, $goldBefore - $goldAfter);
+    }
+
+    /**
+     * Подтверждённая потеря ресурсов: сравнивает снимок ДО (`$loserResources`, шаг 3) со
+     * свежим состоянием строк-кандидатов (`$lostResources` называет их id, шаг 4) ПОСЛЕ
+     * `applyLosses()` — одним batch-запросом (`whereIn`), не в цикле. Строка исчезла
+     * (`decreaseQtyById()` удаляет при остатке ≤0) — считаем, что забрали всё, что было.
+     *
+     * @param list<array<int|string,mixed>|object>                       $loserResources
+     * @param list<array{charResId:int,resourceId:int,lossAmount:int}>  $lostResources
+     * @return list<array{charResId:int,resourceId:int,lossAmount:int}>
+     */
+    private function confirmedResourceLoss(array $loserResources, array $lostResources): array
+    {
+        if ($lostResources === []) {
+            return [];
+        }
+
+        $beforeById = [];
+        foreach ($loserResources as $row) {
+            $arr = $row instanceof \App\Entities\CharacterEntity ? $row->toArray() : (is_array($row) ? $row : null);
+            if ($arr === null || !is_numeric($arr['id'] ?? null)) {
+                continue;
+            }
+            $beforeById[(int) $arr['id']] = is_numeric($arr['quantity'] ?? null) ? (int) $arr['quantity'] : 0;
+        }
+
+        $charResIds = array_column($lostResources, 'charResId');
+        $afterById  = [];
+        foreach ($this->characterResourceModel->whereIn('id', $charResIds)->findAll() as $row) {
+            if (is_array($row) && is_numeric($row['id'] ?? null)) {
+                $afterById[(int) $row['id']] = is_numeric($row['quantity'] ?? null) ? (int) $row['quantity'] : 0;
+            }
+        }
+
+        $confirmed = [];
+        foreach ($lostResources as $candidate) {
+            $id     = $candidate['charResId'];
+            $before = $beforeById[$id] ?? 0;
+            $after  = $afterById[$id]  ?? 0; // строки нет — списано подчистую
+            $delta  = $before - $after;
+            if ($delta > 0) {
+                $confirmed[] = [
+                    'charResId'  => $id,
+                    'resourceId' => $candidate['resourceId'],
+                    'lossAmount' => $delta,
+                ];
+            }
+        }
+
+        return $confirmed;
+    }
+
+    /**
+     * Подтверждённая потеря крафт-предметов — тот же приём, что и у ресурсов, только по
+     * `crafted_items_log`. Закрывает и ревью §5 (`LootProcessor::applyCraftLosses()`
+     * молча пропускает строку, исчезнувшую между расчётом и списанием, — `continue` без
+     * следа): такая строка здесь получит `after=0` от `before=0` (её и в снимке ДО не
+     * было бы, если её удалили раньше шага 3) либо `after=0` от реального `before` — в
+     * любом случае считается фактическая, а не воображаемая величина.
+     *
+     * @param list<array{id:int,crafted_item_id:int,quantity:int|string}> $loserCraftedItems
+     * @param list<array{logId:int,craftedItemId:int,lossAmount:int}>     $lostCraftedItems
+     * @return list<array{logId:int,craftedItemId:int,lossAmount:int}>
+     */
+    private function confirmedCraftedItemLoss(array $loserCraftedItems, array $lostCraftedItems): array
+    {
+        if ($lostCraftedItems === []) {
+            return [];
+        }
+
+        $beforeById = [];
+        foreach ($loserCraftedItems as $row) {
+            $beforeById[(int) $row['id']] = is_numeric($row['quantity']) ? (int) $row['quantity'] : 0;
+        }
+
+        $logIds    = array_column($lostCraftedItems, 'logId');
+        $afterById = [];
+        foreach ($this->craftedItemsLogModel->whereIn('id', $logIds)->findAll() as $row) {
+            if (is_array($row) && is_numeric($row['id'] ?? null)) {
+                $afterById[(int) $row['id']] = is_numeric($row['quantity'] ?? null) ? (int) $row['quantity'] : 0;
+            }
+        }
+
+        $confirmed = [];
+        foreach ($lostCraftedItems as $candidate) {
+            $id     = $candidate['logId'];
+            $before = $beforeById[$id] ?? 0;
+            $after  = $afterById[$id]  ?? 0;
+            $delta  = $before - $after;
+            if ($delta > 0) {
+                $confirmed[] = [
+                    'logId'         => $id,
+                    'craftedItemId' => $candidate['craftedItemId'],
+                    'lossAmount'    => $delta,
+                ];
+            }
+        }
+
+        return $confirmed;
+    }
+
+    /** Максимум позиций, названных поимённо в одной строке `description` — дальше «и ещё N». */
+    private const DESCRIPTION_ITEM_LIMIT = 6;
+
+    /**
+     * Человекочитаемый состав потерянных ресурсов: «Дерево ×5, Вода ×3». Имя берём из
+     * `resources.name` (rus, см. `.claude/rules/db-schema.md`); не нашлось строки —
+     * нейтральное «Ресурс#{id}», как и остальные `Res#{id}`-фолбэки в игре.
+     *
+     * @param list<array{charResId:int,resourceId:int,lossAmount:int}> $lostResources
+     */
+    private function describeResourceLoss(array $lostResources): string
+    {
+        $resourceIds = array_values(array_unique(array_column($lostResources, 'resourceId')));
+        /** @var array<int,string> $nameById */
+        $nameById = [];
+        if ($resourceIds !== []) {
+            foreach ((new ResourceModel())->whereIn('id', $resourceIds)->findAll() as $r) {
+                $rid  = (int) $r->id;
+                $name = $r->name;
+                $nameById[$rid] = $name !== '' ? $name : "Ресурс#{$rid}";
+            }
+        }
+
+        $parts = [];
+        foreach ($lostResources as $lr) {
+            $name    = $nameById[$lr['resourceId']] ?? "Ресурс#{$lr['resourceId']}";
+            $parts[] = "{$name} ×{$lr['lossAmount']}";
+        }
+
+        return $this->joinWithLimit($parts, self::DESCRIPTION_ITEM_LIMIT);
+    }
+
+    /**
+     * Человекочитаемый состав потерянных крафт-предметов (роботы/дроны/верстаки/
+     * транспорт — то же, что списывает `applyCraftLosses()` чуть выше): «Промышленник
+     * ×1, Дрон-разведчик ×1». Имя — `crafted_items.name_rus` (см.
+     * `.claude/rules/db-schema.md`) батч-резолвом (`whereIn`), не запросом в цикле;
+     * не нашлось строки — нейтральное «Предмет#{id}».
+     *
+     * @param list<array{logId:int,craftedItemId:int,lossAmount:int}> $lostCraftedItems
+     */
+    private function describeCraftedItemLoss(array $lostCraftedItems): string
+    {
+        $craftedItemIds = array_values(array_unique(array_column($lostCraftedItems, 'craftedItemId')));
+        /** @var array<int,string> $nameById */
+        $nameById = [];
+        if ($craftedItemIds !== []) {
+            foreach ((new CraftedItemsModel())->whereIn('id', $craftedItemIds)->findAll() as $row) {
+                if (! is_array($row) || ! is_numeric($row['id'] ?? null)) {
+                    continue;
+                }
+                $cid  = (int) $row['id'];
+                $name = $row['name_rus'] ?? null;
+                $nameById[$cid] = is_string($name) && $name !== '' ? $name : "Предмет#{$cid}";
+            }
+        }
+
+        $parts = [];
+        foreach ($lostCraftedItems as $lc) {
+            $name    = $nameById[$lc['craftedItemId']] ?? "Предмет#{$lc['craftedItemId']}";
+            $parts[] = "{$name} ×{$lc['lossAmount']}";
+        }
+
+        return $this->joinWithLimit($parts, self::DESCRIPTION_ITEM_LIMIT);
+    }
+
+    /**
+     * Склеивает позиции через запятую, но не длиннее `$limit` поимённо — иначе строка
+     * `action_log.description` (которую экран story 06 покажет игроку дословно)
+     * разрастается до нечитаемой на персонаже с богатым инвентарём. Остаток называется
+     * числом, не молчанием.
+     *
+     * @param list<string> $parts
+     */
+    private function joinWithLimit(array $parts, int $limit): string
+    {
+        $total = count($parts);
+        if ($total <= $limit) {
+            return implode(', ', $parts);
+        }
+
+        $rest = $total - $limit;
+
+        return implode(', ', array_slice($parts, 0, $limit)) . " и ещё {$rest}";
     }
 
     /**
