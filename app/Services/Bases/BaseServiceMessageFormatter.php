@@ -223,6 +223,14 @@ final class BaseServiceMessageFormatter
         // УЖЕ является дверью: показывает три варианта (моментальный снос −70% ресурсов/−80%
         // крафта, планируемый снос 8 ч, полноценный переезд 24 ч) с честными числами. Отдельный
         // ярлык «🚚 Полноценный переезд» на экране Базы дублировал третий пункт того же меню.
+        // chat-requests-batch-07 — «🔨 Снести постройку»: снос ОДНОЙ ошибочной постройки
+        // без сноса базы целиком (Ярик 14.06.2026: «настроил лишних», «сломать можно
+        // лишние?»). Единственная точка входа — этот экран (список построек, где видны
+        // и дубли, и суммарный налог). Кнопка БЕЗУСЛОВНАЯ (UX-discoverability): нечего
+        // сносить или кулдаун активен — `DemolishBuildingAction` объяснит это понятным
+        // текстом ПОСЛЕ нажатия, а не исчезновением кнопки.
+        $demolishButton = ['text' => '🔨 Снести постройку', 'callback_data' => 'demolishBuilding'];
+
         if (\App\Services\Telegram\BotMenuService::craftBaseHubEnabled()) {
             $kbRows[] = [
                 ['text' => '📦 Склад базы', 'callback_data' => 'baseStorageList'],
@@ -231,6 +239,7 @@ final class BaseServiceMessageFormatter
             $kbRows[] = [
                 ['text' => '🧭 Двигаться',          'callback_data' => 'move'],
                 ['text' => '⚠️ Снести / переехать', 'callback_data' => 'DeleteBase'],
+                $demolishButton,
             ];
         } else {
             $kbRows[] = [
@@ -240,6 +249,7 @@ final class BaseServiceMessageFormatter
             $kbRows[] = [
                 ['text' => '❌ Удалить базу',         'callback_data' => 'DeleteBase'],
                 ['text' => '🚚 Полноценный переезд', 'callback_data' => 'DeleteBase_FullRelocation'],
+                $demolishButton,
             ];
         }
 
