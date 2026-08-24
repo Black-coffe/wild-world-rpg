@@ -39,8 +39,11 @@ class InventoryAction extends BaseAction
             // W8: вход на склад базы (base_storage) прямо из хаба инвентаря —
             // раньше достижим только из move-keyboard / после cargo-доставки
             // (UX-discoverability, CLAUDE.md §🎮 правило #4). Пустой склад — graceful.
+            // chat-requests-batch-06: «🧾 Куда ушло» — безусловная кнопка рядом со
+            // «Складом базы», там игрок и замечает пропажу (UX-DISCOVERABILITY).
             [
                 ['text' => '📦 Склад базы', 'callback_data' => 'baseStorageList'],
+                ['text' => '🧾 Куда ушло', 'callback_data' => 'whereItWent'],
                 ['text' => '🧑‍🌾 Действия 🛠️', 'callback_data' => 'characterActions'],
             ],
         ];

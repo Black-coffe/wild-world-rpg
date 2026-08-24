@@ -29,4 +29,17 @@ final class MarkdownSafe
 
         return $clean === '' ? $fallback : $clean;
     }
+
+    /**
+     * Произвольный текст из БД (описание/сводка, не короткое «имя») → безопасный для
+     * Markdown. В отличие от {@see self::name()} без fallback: пустой результат для
+     * целого предложения — легитимный, хоть и редкий, исход (feedback-довесок story
+     * chat-requests-batch-06 — `action_log.description`/`events.name` теперь содержат
+     * имена ресурсов/крафта из БД, а «Верстак_2» / «Сталь*» без обезвреживания валят
+     * ВЕСЬ рендер в тихий HTTP 400).
+     */
+    public static function text(string $text): string
+    {
+        return str_replace(self::BREAKING, '', $text);
+    }
 }

@@ -346,6 +346,12 @@ class CallbackRoutes extends BaseConfig
         'TeleportToCamp'                  => \App\Controllers\Telegram\Commands\Actions\Camp\TeleportAction::class,
         'TeleportUse'                     => \App\Controllers\Telegram\Commands\Actions\Camp\TeleportUseAction::class,
         'DeleteBase'                     => \App\Controllers\Telegram\Commands\Actions\Camp\DeleteBaseAction::class,
+        // chat-requests-batch-07 — снос ОДНОЙ постройки (не всей базы). Вход — список
+        // построек (`demolishBuilding`); `demolishBuildingConfirm_<id>`/`demolishBuildingGo_<id>`
+        // резолвятся по ПЕРВОМУ сегменту (до первого `_`) — свои exact-ключи, не prefix.
+        'demolishBuilding'               => \App\Controllers\Telegram\Commands\Actions\Camp\DemolishBuildingAction::class,
+        'demolishBuildingConfirm'        => \App\Controllers\Telegram\Commands\Actions\Camp\DemolishBuildingConfirmAction::class,
+        'demolishBuildingGo'             => \App\Controllers\Telegram\Commands\Actions\Camp\DemolishBuildingConfirmAction::class,
         'Build'                           => \App\Controllers\Telegram\Commands\Actions\Camp\BuildListAction::class,
         'building'                        => \App\Controllers\Telegram\Commands\Actions\Camp\BuildingHandlerAction::class,
         // S1 (v0.51.182+): 12 legacy `build<Name>` / `actionNameFor<Name>` routes удалены, заменены
@@ -434,6 +440,8 @@ class CallbackRoutes extends BaseConfig
         'droneCargo'                      => \App\Controllers\Telegram\Commands\Actions\Drone\DroneCargoCraftInfoAction::class,
         'baseStorageList'                 => \App\Controllers\Telegram\Commands\Actions\Storage\BaseStorageListAction::class,
         'baseStorageList_all'             => \App\Controllers\Telegram\Commands\Actions\Storage\BaseStorageListAction::class,
+        // chat-requests-batch-06 — экран «🧾 Куда ушло» (лента налог/торговля/событие/смерть).
+        'whereItWent'                     => \App\Controllers\Telegram\Commands\Actions\Economy\WhereItWentAction::class,
         // Ручная сдача на склад — обратная сторона выдачи (сигнал игрока 18.08.2026:
         // «забрать со склада в инвентарь кнопкой, а выложить — только дроном»).
         // Хвосты `_all` / `_res_<id>` разбирает сам action: роутер режет callback_data
