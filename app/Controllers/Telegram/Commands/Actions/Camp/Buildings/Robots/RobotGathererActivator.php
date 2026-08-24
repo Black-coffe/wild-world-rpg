@@ -91,8 +91,11 @@ class RobotGathererActivator implements RobotActivatorInterface
         $text = $this->buildCaption($characterId, $logRows);
 
         // 8) Кнопки: «Запуск робота», (V19) «Ремонт» если частично израсходован, «Назад»
+        // UX-DISCOVERABILITY: без мастерской кнопка не прячется, а становится lock-кнопкой;
+        // клик ведёт в StartRobotGatheringAction, который объяснит, что и где построить.
+        $launchLabel = $this->hasWorkshop($characterId) ? '🚀 Запуск робота' : '🔒 Нужна мастерская';
         $rows = [
-            [['text' => '🚀 Запуск робота', 'callback_data' => 'startRobotGatherer_' . $this->robotId]],
+            [['text' => $launchLabel, 'callback_data' => 'startRobotGatherer_' . $this->robotId]],
         ];
 
         // V19 (ADR-050): кнопка ремонта, если есть частично израсходованный робот этого типа.
@@ -176,7 +179,12 @@ class RobotGathererActivator implements RobotActivatorInterface
             ->where('character_id', $characterId)
             ->where('building_id', $roboticsId)
             ->first();
-        $workshopLevel = is_array($roboticsWorkshop) && isset($roboticsWorkshop['level']) && is_numeric($roboticsWorkshop['level'])
+        if (!is_array($roboticsWorkshop)) {
+            return "⚙️ *{$robotDisplayName}* ⚙️\n\n"
+                . "📊 Роботов данного типа: *{$totalQuantity}*, суммарный остаток запусков: *{$totalDurability}*.\n\n"
+                . StartRobotGatheringAction::noWorkshopMessage();
+        }
+        $workshopLevel = isset($roboticsWorkshop['level']) && is_numeric($roboticsWorkshop['level'])
             ? (int) $roboticsWorkshop['level']
             : 1;
 
@@ -201,5 +209,16 @@ class RobotGathererActivator implements RobotActivatorInterface
             . "   • Суммарный остаток запусков: *{$totalDurability}*\n"
             . "   • Одновременно может работать только один робот‐добытчик (по умолчанию).\n\n"
             . "🎉 Готов к сбору? Жми «Запуск робота» ниже!";
+    }
+
+    /** Есть ли у персонажа Мастерская робототехники (любого уровня). */
+    private function hasWorkshop(int $characterId): bool
+    {
+        $roboticsId = (new BuildingModel())->idByNameEn('RoboticsWorkshop');
+
+        return $this->characterBuildingModel
+            ->where('character_id', $characterId)
+            ->where('building_id', $roboticsId)
+            ->countAllResults() > 0;
     }
 }

@@ -246,4 +246,22 @@ final class RobotReachSingleSourceTest extends CIUnitTestCase
 
         $this->assertStringContainsString('Робот-добытчик', $caption);
     }
+
+    /**
+     * Чат сообщества 2026-08-24 (Torch0010): робота отправили без Мастерской, он потратил
+     * прочность и вернулся с «Мастерская отсутствует». Экран без мастерской обязан показывать
+     * lock-текст с путём стройки, а не «Уровень мастерской: 1».
+     */
+    public function testActivationScreenLocksWhenWorkshopMissing(): void
+    {
+        $fixture = $this->seedActivationFixture('Робот-добытчик', 'RobotGatherer', 3);
+        $characterWithoutWorkshop = $fixture['characterId'] + 1;
+
+        $caption = $this->captionFor($fixture['robotId'], $characterWithoutWorkshop);
+
+        $this->assertStringContainsString('🔒', $caption);
+        $this->assertStringContainsString('🏗 Строить', $caption);
+        $this->assertStringNotContainsString('уровень: *1*', $caption);
+        $this->assertLessThanOrEqual(1024, mb_strlen($caption));
+    }
 }

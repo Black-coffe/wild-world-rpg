@@ -146,7 +146,7 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
             ->where('building_id', $this->workshopBuildingId)
             ->first();
         if (!$workshop) {
-            $this->sendTextOnly($chatId, "⚙ *{$robotName} прибыл*\nНо 🤖Мастерская робототехники🤖 отсутствует.");
+            $this->sendTextOnly($chatId, "⚙ *{$robotName} прибыл*\nНо 🤖 Мастерская робототехники отсутствует — без неё робот не разгружает добычу.\nПострой её: 🏠 База → 🏗 Строить.");
             return;
         }
         $workshopLevel = (int)$workshop['level'];

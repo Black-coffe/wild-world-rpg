@@ -139,7 +139,13 @@ class StartRobotGatheringAction extends BaseAction
             ->where('building_id', $roboticsWorkshopId)
             ->first();
 
-        $workshopLevel = $roboticsWorkshop['level'] ?? 1;
+        // Чат сообщества 2026-08-24 (Torch0010): робот уходил БЕЗ мастерской, тратил
+        // прочность и возвращался с «Мастерская робототехники отсутствует». Гейт —
+        // здесь, до списания, а не в completion-handler'е.
+        if (!$roboticsWorkshop) {
+            return $this->sendError(self::noWorkshopMessage());
+        }
+        $workshopLevel = (int) ($roboticsWorkshop['level'] ?? 1);
 
         // 5) Ищем в crafted_items_log любую запись, где есть нужный робот (crafted_item_id = $robotId) и quantity > 0
         $robotLogEntry = $this->craftedItemsLogModel
@@ -305,5 +311,16 @@ class StartRobotGatheringAction extends BaseAction
             'chat_id' => $this->callbackQuery->getMessage()->getChat()->getId(),
             'text'    => $message,
         ]);
+    }
+
+    /**
+     * Текст отказа, если у персонажа нет Мастерской робототехники.
+     * Общий для lock-кнопки экрана робота и самого запуска.
+     */
+    public static function noWorkshopMessage(): string
+    {
+        return "🔒 Робота-добытчика запускает 🤖 Мастерская робототехники — у тебя её ещё нет.\n"
+            . "Без неё робот не знает, куда разгружать добычу, и работать не сможет.\n\n"
+            . "Как построить: 🏠 База → 🏗 Строить → Мастерская робототехники.";
     }
 }
