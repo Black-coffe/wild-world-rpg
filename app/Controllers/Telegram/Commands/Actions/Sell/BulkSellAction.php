@@ -153,16 +153,17 @@ class BulkSellAction extends BaseAction
             return $this->screen("🧺 {$result['message']}", [$this->backRow($rarity)]);
         }
 
-        // Логируем оптовый расход сырья в action_log (форензика «куда делись ресурсы?»).
+        $scopeTitle = $rarity === null ? 'всех ресурсов' : "редкости {$rarity}";
+
+        // Логируем оптовый расход сырья в action_log (форензика «куда делись ресурсы?»);
+        // тот же человекочитаемый голос, что налог/смерть (story 05/11) и одиночная
+        // сделка (story 12) — состав режется «и ещё N» (ResourceTradeService::joinWithLimit),
+        // не разносит ленту простынёй на богатом инвентаре.
         $this->logActivity(
             is_numeric($charArr['id'] ?? null) ? (int) $charArr['id'] : null,
             'BULK_SELL',
-            'pct=' . $percent . ' scope=' . ($rarity === null ? 'all' : "r{$rarity}")
-                . ' types=' . $result['typesSold'] . ' qty=' . $result['totalQty']
-                . ' gold=+' . $result['totalGold']
+            ResourceTradeService::describeBulkTrade("Продажа опт {$percent}% {$scopeTitle}", $result['lines'], $result['totalGold'])
         );
-
-        $scopeTitle = $rarity === null ? 'всех ресурсов' : "редкости {$rarity}";
         $text = "✅ *Оптовая продажа выполнена*\n\n"
             . "Продано по *{$percent}%* {$scopeTitle}: *{$result['typesSold']}* вид(ов), всего *"
             . number_format($result['totalQty']) . "* ед.\n"

@@ -294,19 +294,28 @@ class SellResourceAction extends BaseAction
             return Request::sendMessage(['chat_id' => $chatId, 'text' => $result['message']]);
         }
 
-        // Логируем расход сырья в action_log (форензика «куда делись ресурсы?»).
-        $this->logActivity(
-            is_numeric($charArr['id'] ?? null) ? (int) $charArr['id'] : null,
-            'SELL_RESOURCE',
-            "res={$resourceId} qty=" . ($result['qty'] ?? '?') . ' gold=+' . ($result['amount'] ?? '?')
-        );
-
         // Arseny report 2026-05-26 (хвост): после сделки — возврат в список той же
         // редкости, чтобы «продать ещё» не требовало заново идти Магазин → Продать → редкость.
         // ⚠️ find() отдаёт ResourceEntity, а не массив — читаем через ArrayAccess
         // (как askForQuantity выше), иначе rarity=0 и кнопка не появится никогда.
+        // Тот же ряд отдаёт имя для человекочитаемой записи ниже (story
+        // chat-requests-batch-12) — второго запроса ради имени не появляется.
         $rows      = [];
         $resource  = $this->resourceModel->find($resourceId);
+        $nameRaw   = $resource['name'] ?? null;
+        $nameSafe  = is_string($nameRaw) && $nameRaw !== '' ? $nameRaw : "Ресурс#{$resourceId}";
+        $qtySafe   = is_numeric($result['qty'] ?? null) ? (int) $result['qty'] : 0;
+        $goldSafe  = is_numeric($result['amount'] ?? null) ? (int) $result['amount'] : 0;
+
+        // Логируем расход сырья в action_log (форензика «куда делись ресурсы?»); тот же
+        // человекочитаемый голос, что налог/смерть (story 05/11) — экран «Куда ушло»
+        // (story 06) показывает description дословно, без разбора.
+        $this->logActivity(
+            is_numeric($charArr['id'] ?? null) ? (int) $charArr['id'] : null,
+            'SELL_RESOURCE',
+            \App\Services\Player\Trade\ResourceTradeService::describeTrade('Продажа', $nameSafe, $qtySafe, $goldSafe)
+        );
+
         $rawRarity = $resource['rarity'] ?? null;
         $rarity    = is_numeric($rawRarity) ? (int) $rawRarity : 0;
         if ($rarity > 0) {

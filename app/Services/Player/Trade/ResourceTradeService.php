@@ -166,10 +166,19 @@ final class ResourceTradeService
     }
 
     /**
-     * Запись покупки в `action_log` (зеркало `SELL_RESOURCE`). Своё исключение глотаем:
-     * форензика не должна ронять уже проведённую сделку.
+     * Сколько позиций назвать поимённо в описании оптовой сделки, прежде чем свернуть
+     * остаток в «и ещё N» — так же ленту не разносит на простыню у персонажа с богатым
+     * инвентарём, как `DeathService::DESCRIPTION_ITEM_LIMIT` у состава потерь.
      */
-    private function logPurchase(int $characterId, int $chatId, int $resourceId, int $qty, int $totalCost): void
+    private const DESCRIPTION_ITEM_LIMIT = 5;
+
+    /**
+     * Запись покупки в `action_log` (зеркало `SELL_RESOURCE`). Своё исключение глотаем:
+     * форензика не должна ронять уже проведённую сделку. `$resourceName` — уже
+     * известное вызывающей стороне имя (она и так читала строку `resources` ради
+     * цены) — второго запроса ради имени тут нет.
+     */
+    private function logPurchase(int $characterId, int $chatId, string $resourceName, int $qty, int $totalCost): void
     {
         try {
             (new \App\Models\ActionLogModel())->save([
@@ -177,7 +186,7 @@ final class ResourceTradeService
                 'chat_id'       => $chatId,
                 'action_name'   => 'BUY_RESOURCE',
                 'action_status' => 'Completed',
-                'description'   => mb_substr("res={$resourceId} qty={$qty} gold=-{$totalCost}", 0, 500),
+                'description'   => mb_substr(self::describeTrade('Покупка', $resourceName, $qty, -$totalCost), 0, 500),
             ]);
         } catch (\Throwable $e) {
             log_message('error', '[ResourceTradeService::logPurchase] insert failed: ' . $e->getMessage());
@@ -200,6 +209,65 @@ final class ResourceTradeService
         }
 
         return is_numeric($raw) ? ((int) $raw === 1) : true;
+    }
+
+    /**
+     * Story chat-requests-batch-12 — единая фраза одиночной сделки в `action_log`, тем
+     * же голосом, что налог/смерть (story 05/11): «Что произошло: Чего ×Сколько; ±N
+     * золота». Замена машинному `res=12 qty=3 gold=-45` — экран «Куда ушло» (story 06)
+     * показывает `description` дословно, без разбора, так что читаемость обязана
+     * появиться здесь, а не там. Знак золота — по знаку `$goldDelta` (списание отдают
+     * отрицательным, начисление — положительным); сам текст числа знака не хранит
+     * дважды.
+     */
+    public static function describeTrade(string $verb, string $resourceName, int $qty, int $goldDelta): string
+    {
+        $sign   = $goldDelta >= 0 ? '+' : '-';
+        $amount = abs($goldDelta);
+
+        return "{$verb}: {$resourceName} ×{$qty}; {$sign}{$amount} золота";
+    }
+
+    /**
+     * Фраза оптовой сделки — тот же голос, но состав из нескольких позиций. Длинный
+     * список режется `joinWithLimit()` («и ещё N»), чтобы богатый инвентарь не
+     * разносил ленту в простыню — тот же приём, что `DeathService::joinWithLimit()`
+     * держит для состава потерь при смерти (независимая реализация: чужой метод
+     * приватный и живёт вне `## Files` этой story, копировать его как единственную
+     * альтернативу переиспользованию не стали — сигнатура и поведение идентичны, что
+     * подтверждено тестом на «и ещё N»).
+     *
+     * @param list<array{name:string, qty:int}> $lines
+     */
+    public static function describeBulkTrade(string $verb, array $lines, int $totalGold, int $itemLimit = self::DESCRIPTION_ITEM_LIMIT): string
+    {
+        $parts = [];
+        foreach ($lines as $line) {
+            $parts[] = "{$line['name']} ×{$line['qty']}";
+        }
+        $composition = self::joinWithLimit($parts, $itemLimit);
+        $sign        = $totalGold >= 0 ? '+' : '-';
+
+        return "{$verb}: {$composition}; {$sign}" . abs($totalGold) . ' золота';
+    }
+
+    /**
+     * Склеивает позиции через запятую, но не длиннее `$limit` поимённо — остаток
+     * называется числом, не молчанием. Идентична по поведению
+     * `DeathService::joinWithLimit()` (см. описание {@see self::describeBulkTrade()}).
+     *
+     * @param list<string> $parts
+     */
+    private static function joinWithLimit(array $parts, int $limit): string
+    {
+        $total = count($parts);
+        if ($total <= $limit) {
+            return implode(', ', $parts);
+        }
+
+        $rest = $total - $limit;
+
+        return implode(', ', array_slice($parts, 0, $limit)) . " и ещё {$rest}";
     }
 
     /**
@@ -276,7 +344,9 @@ final class ResourceTradeService
         // а он с ADR-175 затухает, то есть историю покупок восстановить было нечем.
         // Пишем в сервисе, а не в экране: у покупки два входа (кнопка и «своё число»
         // через ForceReply), и логирование в одном из них уже разошлось у продажи.
-        $this->logPurchase($buyerId, $chatId, $resourceId, $qty, $totalCost);
+        $nameRaw          = $resource['name'] ?? null;
+        $resourceNameSafe = is_string($nameRaw) && $nameRaw !== '' ? $nameRaw : "Ресурс#{$resourceId}";
+        $this->logPurchase($buyerId, $chatId, $resourceNameSafe, $qty, $totalCost);
 
         $message = "Вы успешно купили *{$qty}* ед. ресурса *{$resource['name']}* "
             . "по цене *{$resource['buy_price']}*💰 за штуку.\n\n"
@@ -366,20 +436,25 @@ final class ResourceTradeService
      * Выполнить оптовую продажу: списать долю каждого ходового ресурса, начислить
      * золото одним обновлением, учесть продажи в банке. Атомарно (transaction).
      *
+     * `lines` (story chat-requests-batch-12) — состав сделки для человекочитаемого
+     * `description` в `action_log` ({@see self::describeBulkTrade()}); имена в нём уже
+     * разрешены батчем внутри `fetchSellableRows()`/`planBulkSale()`, второго запроса
+     * ради имён здесь не появляется.
+     *
      * @param array<string,mixed> $character
-     * @return array{success:bool,message:string,typesSold:int,totalQty:int,totalGold:int}
+     * @return array{success:bool,message:string,typesSold:int,totalQty:int,totalGold:int,lines:list<array{name:string,qty:int}>}
      */
     public function bulkSellResources(array $character, int $percent, ?int $rarity = null): array
     {
         $charId = is_numeric($character['id'] ?? null) ? (int) $character['id'] : 0;
         if ($charId <= 0) {
-            return ['success' => false, 'message' => 'Персонаж не определён.', 'typesSold' => 0, 'totalQty' => 0, 'totalGold' => 0];
+            return ['success' => false, 'message' => 'Персонаж не определён.', 'typesSold' => 0, 'totalQty' => 0, 'totalGold' => 0, 'lines' => []];
         }
 
         // Пересчитываем план НА МОМЕНТ подтверждения (не доверяем превью — запас мог измениться).
         $plan = self::planBulkSale($this->fetchSellableRows($charId, $rarity), $percent);
         if ($plan['lines'] === [] || $plan['totalGold'] <= 0) {
-            return ['success' => false, 'message' => 'Нечего продавать оптом — подходящих ресурсов не осталось.', 'typesSold' => 0, 'totalQty' => 0, 'totalGold' => 0];
+            return ['success' => false, 'message' => 'Нечего продавать оптом — подходящих ресурсов не осталось.', 'typesSold' => 0, 'totalQty' => 0, 'totalGold' => 0, 'lines' => []];
         }
 
         $db = \Config\Database::connect();
@@ -394,7 +469,12 @@ final class ResourceTradeService
         $db->transComplete();
 
         if ($db->transStatus() === false) {
-            return ['success' => false, 'message' => 'Не удалось выполнить оптовую продажу, попробуйте ещё раз.', 'typesSold' => 0, 'totalQty' => 0, 'totalGold' => 0];
+            return ['success' => false, 'message' => 'Не удалось выполнить оптовую продажу, попробуйте ещё раз.', 'typesSold' => 0, 'totalQty' => 0, 'totalGold' => 0, 'lines' => []];
+        }
+
+        $lines = [];
+        foreach ($plan['lines'] as $line) {
+            $lines[] = ['name' => $line['name'], 'qty' => $line['qty']];
         }
 
         return [
@@ -403,6 +483,7 @@ final class ResourceTradeService
             'typesSold' => $plan['typesCount'],
             'totalQty'  => $plan['totalQty'],
             'totalGold' => $plan['totalGold'],
+            'lines'     => $lines,
         ];
     }
 
