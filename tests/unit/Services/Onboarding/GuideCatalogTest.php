@@ -181,6 +181,60 @@ final class GuideCatalogTest extends CIUnitTestCase
         $this->assertTrue($hasPerTypeMarker, 'Раздел «Склад» не объясняет забор по одному виду ресурса (зеркало «Положить на склад»).');
     }
 
+    // ── chat-requests-batch-08: две новые двери дописаны в СУЩЕСТВУЮЩИЕ разделы ──
+
+    /**
+     * story 07 — «🔨 Снести постройку». Дописано в существующий раздел «база»
+     * (owner: отдельный раздел не заводим), а не отдельным ключом.
+     */
+    public function testBaseSectionMentionsSingleBuildingDemolishWithoutRefund(): void
+    {
+        $section = GuideCatalog::find('base');
+        $this->assertNotNull($section, 'Раздел «База» обязан быть в /guide.');
+        $body = $section['body'];
+
+        $this->assertStringContainsString('Снести постройку', $body, 'Раздел «База» не называет кнопку сноса ОДНОЙ постройки.');
+        $this->assertStringContainsStringIgnoringCase('не возвращаются', $body, 'Раздел «База» обязан честно сказать: ресурсы не возвращаются.');
+
+        // Без чисел баланса: ни ставки налога, ни длины кулдауна — они настраиваемые.
+        // Единственные допустимые цифры в разделе — уже существующие шаги "1️⃣/2️⃣/3️⃣".
+        $digits = [];
+        preg_match_all('/\d+/', $body, $digits);
+        foreach ($digits[0] as $digit) {
+            $this->assertContains(
+                (int) $digit,
+                [1, 2, 3],
+                "Раздел «База» не должен называть числа баланса (найдено «{$digit}») — они настраиваемые.",
+            );
+        }
+    }
+
+    /**
+     * story 06 — «🧾 Куда ушло». Дописано в существующий раздел «склад»
+     * (та же логика: где лежит vs куда делось — соседние вопросы одного игрока).
+     */
+    public function testStorageSectionMentionsWhereItWentLedger(): void
+    {
+        $section = GuideCatalog::find('storage');
+        $this->assertNotNull($section, 'Раздел «Склад» (storage) обязан быть в /guide.');
+        $body = $section['body'];
+
+        $this->assertStringContainsString('Куда ушло', $body, 'Раздел «Склад» не упоминает экран «Куда ушло».');
+        foreach (['налог', 'смерт', 'событ'] as $needle) {
+            $this->assertStringContainsStringIgnoringCase($needle, $body, "Раздел «Склад» не называет категорию «{$needle}» ленты «Куда ушло».");
+        }
+
+        // Глубина ленты (economy.ledger.depth) настраиваемая — именно параграф про
+        // «Куда ушло» не смеет называть её числом (остальной раздел «Склад» цифры
+        // содержит — шаги 1️⃣/2️⃣/3️⃣ карго-дрона, уровень мастерской — это не про эту дверь).
+        $paragraphs  = explode("\n\n", $body);
+        $ledgerParas = array_filter($paragraphs, static fn (string $p): bool => str_contains($p, 'Куда ушло'));
+        $this->assertNotEmpty($ledgerParas, 'Не найден параграф про «Куда ушло» в разделе «Склад».');
+        foreach ($ledgerParas as $para) {
+            $this->assertDoesNotMatchRegularExpression('/\d/u', $para, 'Параграф про «Куда ушло» не должен называть число баланса (глубина ленты, ADR-134).');
+        }
+    }
+
     // ── Сервис рендера ──────────────────────────────────────────────────────
 
     public function testIndexExposesButtonForEverySection(): void
