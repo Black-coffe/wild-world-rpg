@@ -2,6 +2,8 @@
 
 namespace App\Controllers\Telegram\Commands\SystemCommands;
 
+use App\Controllers\Telegram\Commands\Actions\Craft\Cooking\CampfireCookingSelect;
+use App\Controllers\Telegram\Commands\Actions\Craft\GenericCraftActionStart;
 use App\Controllers\Telegram\Commands\Actions\SettingsAction;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
@@ -10,6 +12,7 @@ use App\Services\Player\CharacterService;
 use App\Services\Player\CraftService;
 use App\Services\World\MapService;
 use Longman\TelegramBot\Commands\SystemCommand;
+use Longman\TelegramBot\Entities\CallbackQuery;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
 
@@ -20,6 +23,17 @@ use App\Services\Telegram\Request;
 class GenericmessageCommand extends SystemCommand
 {
     protected $name = 'genericmessage';
+
+    /**
+     * chat-requests-batch-10 — потолок «своего числа» готовки на костре. Не
+     * баланс (не GameSettings-параметр), а защита от переполнения при
+     * парсинге числа-простыни (`(int)` на 20+-значной цифровой строке даёт
+     * непредсказуемое значение ещё до проверки ресурсов) — тот же смысл, что
+     * у `CampfireCookingSelect::CAPTION_LIMIT`: технический потолок, не рычаг
+     * баланса. Реальный практический предел всё равно ставит нехватка сырья
+     * (`CraftShortageService`), это лишь страховка от абсурдного ввода.
+     */
+    private const COOK_QTY_MAX = 100000;
 
     public function execute(): ServerResponse
     {
@@ -48,6 +62,12 @@ class GenericmessageCommand extends SystemCommand
             // Промпт помечен «🚚 ПЕРЕЕЗД» → координаты из свободного ответа («357 391»).
             if (mb_strpos($promptText, \App\Services\Player\Relocation\RelocationRequestService::PROMPT_MARKER) !== false) {
                 return $this->handleRelocationReply($chatId, $rawText);
+            }
+            // chat-requests-batch-10: forceReply «своё число» на костре. Маркер
+            // `COOK:<RecipeKey>` — тот же паттерн, что SELL/BUY (Идея #6), образец
+            // `SellResourceAction::promptCustomQuantity()`/`handleTradeReply()`.
+            if (preg_match('/COOK:([A-Za-z0-9]+)/', $promptText, $mCook)) {
+                return $this->handleCookQuantityReply($chatId, $mCook[1], $rawText);
             }
         }
 
@@ -232,6 +252,75 @@ class GenericmessageCommand extends SystemCommand
     }
 
     /**
+     * chat-requests-batch-10: forceReply «своё число» на костре — маркер
+     * `COOK:<RecipeKey>` матчится в `execute()`, дальше та же логика, что у
+     * SELL/BUY (`handleTradeReply()`): распарсить число, честно ответить на
+     * мусор, иначе — запустить готовку ТЕМ ЖЕ путём, что и кнопка количества.
+     */
+    private function handleCookQuantityReply(int $chatId, string $recipeKey, string $rawReply): ServerResponse
+    {
+        if (! CampfireCookingSelect::isKnownCookingRecipe($recipeKey)) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => '⚠️ Это блюдо больше не готовят. Открой костёр заново.',
+            ]);
+        }
+
+        // Строго `^\d+$` (не преобразование "мусор→цифры", как у SELL) — иначе
+        // «-5» после чистки от нецифровых символов молча стало бы «5», а story
+        // явно требует честный отказ на отрицательное число, а не тихую замену знака.
+        $trimmed = trim($rawReply);
+        if ($trimmed === '' || ! preg_match('/^\d+$/', $trimmed)) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => '❌ Не понял число. Введите целое положительное количество (например, 5).',
+            ]);
+        }
+
+        $qty = (int) $trimmed;
+        if ($qty <= 0) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => '❌ Количество должно быть больше нуля.',
+            ]);
+        }
+        if ($qty > self::COOK_QTY_MAX) {
+            return Request::sendMessage([
+                'chat_id' => $chatId,
+                'text'    => '❌ Слишком много за один раз. Максимум — ' . number_format(self::COOK_QTY_MAX) . ' шт.',
+            ]);
+        }
+
+        // Дальше — ТОТ ЖЕ путь, что и у кнопки количества: синтетический
+        // CallbackQuery с `genericCraft_<Key>_<qty>` через реальный
+        // `GenericCraftActionStart::handle()`. Не копируем ни списание
+        // ресурсов, ни 🔒-гейт ADR-167, ни проверку 'in_work' — они уже там
+        // и остаются едиными для кнопки и для «своего числа».
+        $message = $this->getMessage();
+        $from    = $message->getFrom();
+        $chat    = $message->getChat();
+
+        $synthetic = new CallbackQuery([
+            'id'   => 'cookqty_' . uniqid('', true),
+            'from' => [
+                'id'         => $from->getId(),
+                'is_bot'     => false,
+                'first_name' => $from->getFirstName(),
+            ],
+            'message' => [
+                'message_id' => $message->getMessageId(),
+                'date'       => time(),
+                'chat'       => ['id' => $chat->getId(), 'type' => $chat->getType()],
+                'text'       => 'placeholder',
+            ],
+            'chat_instance' => 'ci_cookqty_' . $chat->getId(),
+            'data'          => "genericCraft_{$recipeKey}_{$qty}",
+        ]);
+
+        return (new GenericCraftActionStart($synthetic))->handle();
+    }
+
+    /**
      * Экран «⚙️ Настройки» (тумблер картинок, идея #14). Рендер — {@see SettingsAction::buildScreen()}.
      * Вызывается по тексту «настройки»/«settings» и кнопкой «Настройки» постоянной клавиатуры.
      */
@@ -327,19 +416,27 @@ class GenericmessageCommand extends SystemCommand
         // Логируем продажу сырья через ForceReply («своё число») в action_log — кнопочный
         // путь логируется в SellResourceAction, а этот (GenericmessageCommand) — здесь, иначе
         // продажи «своим числом» оставались невидимы в форензике расхода ресурсов.
+        //
+        // Story chat-requests-batch-12 (найдено при верификации ## Files — этот write-site
+        // писал ту же машинную строку, что кнопочный путь, и не был назван в story, но
+        // остался бы единственной необъяснённой записью в ленте «Куда ушло», если бы его
+        // не тронуть): тот же человекочитаемый голос, что у SellResourceAction, через
+        // ResourceTradeService::describeTrade().
         if ($direction === 'SELL' && $result['success'] === true) {
             try {
+                $resourceRow  = (new \App\Models\ResourceModel())->find($resourceId);
+                $nameRaw      = $resourceRow['name'] ?? null;
+                $nameSafe     = is_string($nameRaw) && $nameRaw !== '' ? $nameRaw : "Ресурс#{$resourceId}";
+                $qtySafe      = is_numeric($result['qty'] ?? null) ? (int) $result['qty'] : 0;
+                $goldSafe     = is_numeric($result['amount'] ?? null) ? (int) $result['amount'] : 0;
+                $description  = \App\Services\Player\Trade\ResourceTradeService::describeTrade('Продажа', $nameSafe, $qtySafe, $goldSafe);
+
                 (new \App\Models\ActionLogModel())->save([
                     'character_id'  => is_numeric($character['id'] ?? null) ? (int) $character['id'] : null,
                     'chat_id'       => $chatId,
                     'action_name'   => 'SELL_RESOURCE',
                     'action_status' => 'Completed',
-                    'description'   => mb_substr(
-                        "res={$resourceId} qty=" . ($result['qty'] ?? '?')
-                            . ' gold=+' . ($result['amount'] ?? '?') . ' (forcereply)',
-                        0,
-                        500
-                    ),
+                    'description'   => mb_substr($description, 0, 500),
                 ]);
             } catch (\Throwable $e) {
                 log_message('error', '[handleTradeReply] SELL log insert failed: ' . $e->getMessage());
