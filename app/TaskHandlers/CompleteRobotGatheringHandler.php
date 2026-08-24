@@ -15,6 +15,7 @@ use App\Models\TelegramUserModel;
 use App\Models\TaskModel;
 use App\Models\BiomeModel;
 use App\Models\CraftedItemsModel;
+use App\Services\Display\MarkdownSafe;
 use App\Services\Player\RobotService;
 use Config\GameBalance;
 
@@ -109,20 +110,26 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         }
         $chatId = $chatRow['telegram_id'];
 
+        // Story chat-requests-batch-01: имя робота из того же резолвера
+        // crafted_item_id, что и tier-бонусы (resolveRobotNameEn ниже) —
+        // все тексты отчёта подписываются именем реально запущенной машины,
+        // а не зашитым «Робот-добытчик». Не нашлось — нейтральное «Робот».
+        $robotName = $this->resolveRobotDisplayName($task);
+
         // 3) База
         $baseRow = $this->claimedCellModel
             ->where('character_id', $character['id'])
             ->where('status', 'active')
             ->first();
         if (!$baseRow) {
-            $this->sendTextOnly($chatId, "⚙ *Робот-добытчик вернулся...*\nНо базы тут нет, всё потеряно!");
+            $this->sendTextOnly($chatId, "⚙ *{$robotName} вернулся...*\nНо базы тут нет, всё потеряно!");
             return;
         }
 
         // 4) Ячейка базы
         $mapRec = $this->mapModel->find($baseRow['map_cell_id']);
         if (!$mapRec) {
-            $this->sendTextOnly($chatId, "⚙ *Робот-добытчик вернулся...*\nНо базы тут нет, всё потеряно!");
+            $this->sendTextOnly($chatId, "⚙ *{$robotName} вернулся...*\nНо базы тут нет, всё потеряно!");
             return;
         }
         $baseCellNumber = (int)$mapRec['cell_number'];
@@ -139,7 +146,7 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
             ->where('building_id', $this->workshopBuildingId)
             ->first();
         if (!$workshop) {
-            $this->sendTextOnly($chatId, "⚙ *Робот-добытчик прибыл*\nНо 🤖Мастерская робототехники🤖 отсутствует.");
+            $this->sendTextOnly($chatId, "⚙ *{$robotName} прибыл*\nНо 🤖Мастерская робототехники🤖 отсутствует.");
             return;
         }
         $workshopLevel = (int)$workshop['level'];
@@ -162,7 +169,7 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         $uniqueCells = $this->getLimitedCells($baseCellNumber, $desiredCellsCount);
 
         if (empty($uniqueCells)) {
-            $this->sendTextOnly($chatId, "⚙ *Робот-добытчик завершил работу*, но не удалось собрать ни одной ячейки?");
+            $this->sendTextOnly($chatId, "⚙ *{$robotName} завершил работу*, но не удалось собрать ни одной ячейки?");
             return;
         }
 
@@ -182,7 +189,7 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
             $totalCells++;
         }
         if ($totalCells <= 0) {
-            $this->sendTextOnly($chatId, "⚙ *Робот-добытчик завершил работу*, но нет доступных ячеек?");
+            $this->sendTextOnly($chatId, "⚙ *{$robotName} завершил работу*, но нет доступных ячеек?");
             return;
         }
 
@@ -221,7 +228,7 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
 
         // Если ничего не добыли
         if ($allZero) {
-            $this->sendTextOnly($chatId, "⚙ *Робот-добытчик завершил работу*, но ничего не собрано.");
+            $this->sendTextOnly($chatId, "⚙ *{$robotName} завершил работу*, но ничего не собрано.");
             return;
         }
 
@@ -249,7 +256,7 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         }
 
         // Формируем финальное сообщение
-        $msg = $this->formatGatheringResultMessage($biomeGroupedResources, $hoursSpent, $workshopLevel, $biomeCellCounts);
+        $msg = $this->formatGatheringResultMessage($biomeGroupedResources, $hoursSpent, $workshopLevel, $biomeCellCounts, $robotName);
 
         // Проверка длины текста => либо отправить фото, либо только текст
         $safeCaption = $this->sanitizeForTelegram($msg);
@@ -371,14 +378,15 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         array $biomeGroupedResources,
         float $hoursSpent,
         int   $workshopLevel,
-        array $biomeCellCounts
+        array $biomeCellCounts,
+        string $robotName = 'Робот'
     ): string
     {
         $wh= floor($hoursSpent);
         $mm= floor(($hoursSpent - $wh)*60);
         $timeStr= "{$wh} ч {$mm} мин";
 
-        $msg = "⚙ *Робот-добытчик завершил работу!* \n\n"
+        $msg = "⚙ *{$robotName} завершил работу!* \n\n"
             ."⏳ Время сбора: `{$timeStr}`\n"
             ."🏭 Уровень мастерской: *{$workshopLevel}*\n\n"
             ."🎉 *Сводка по биомам:*";
@@ -468,5 +476,39 @@ class CompleteRobotGatheringHandler extends BaseTaskHandler
         $row  = (new CraftedItemsModel())->find((int) $decoded['crafted_item_id']);
         $name = is_array($row) && isset($row['name_eng']) ? $row['name_eng'] : null;
         return is_string($name) ? $name : null;
+    }
+
+    /**
+     * Story chat-requests-batch-01: отображаемое имя робота (`name_rus`) для
+     * текста отчёта — тот же резолвер `task_settings.crafted_item_id`, что и
+     * `resolveRobotNameEn()` выше. Строка не нашлась / имя пустое — нейтральное
+     * «Робот» (Non-goals: не подставлять чужое имя).
+     *
+     * Ревью-довесок: имя из БД идёт в legacy-`parse_mode: 'Markdown'` внутри
+     * `*{$robotName}*` — непарные `*`/`_` в `name_rus` валят парсинг ВСЕГО
+     * сообщения (400 → тихий не-сенд, см. `MarkdownSafe`-докблок). Санитайзим
+     * здесь, в одной точке — все 7 мест использования `$robotName` в файле
+     * получают уже безопасную строку. Санитайзинг может сам обнулить имя
+     * (например, «___») — тогда тот же фолбэк «Робот», не пустая строка.
+     *
+     * @param array<string,mixed> $task
+     */
+    private function resolveRobotDisplayName(array $task): string
+    {
+        $raw = $task['task_settings'] ?? null;
+        if (!is_string($raw) || $raw === '') {
+            return 'Робот';
+        }
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded) || !isset($decoded['crafted_item_id']) || !is_numeric($decoded['crafted_item_id'])) {
+            return 'Робот';
+        }
+        $row  = (new CraftedItemsModel())->find((int) $decoded['crafted_item_id']);
+        $name = is_array($row) && isset($row['name_rus']) ? $row['name_rus'] : null;
+        if (!is_string($name) || $name === '') {
+            return 'Робот';
+        }
+        $safe = MarkdownSafe::text($name);
+        return $safe !== '' ? $safe : 'Робот';
     }
 }

@@ -3,10 +3,13 @@
 namespace App\Controllers\Telegram\Commands\Actions\Camp\Buildings\Robots;
 
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
+use App\Models\BuildingModel;
+use App\Models\CharacterBuildingModel;
 use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
+use App\Services\Player\RobotService;
 
 /**
  * Класс для отображения/активации всех роботов, доступных в мастерской.
@@ -16,12 +19,18 @@ class AllRobotsHandler extends BaseAction
 {
     protected $craftedItemsLogModel;
     protected $craftedItemsModel;
+    protected BuildingModel $buildingModel;
+    protected CharacterBuildingModel $characterBuildingModel;
+    protected RobotService $robotService;
 
     public function __construct($callbackQuery)
     {
         parent::__construct($callbackQuery);
-        $this->craftedItemsLogModel = new CraftedItemsLogModel();
-        $this->craftedItemsModel    = new CraftedItemsModel();
+        $this->craftedItemsLogModel   = new CraftedItemsLogModel();
+        $this->craftedItemsModel      = new CraftedItemsModel();
+        $this->buildingModel          = new BuildingModel();
+        $this->characterBuildingModel = new CharacterBuildingModel();
+        $this->robotService           = new RobotService();
     }
 
     /**
@@ -108,6 +117,7 @@ class AllRobotsHandler extends BaseAction
                 continue;
             }
             $nameRus        = $robotDetails['name_rus'] ?? '???';
+            $nameEng        = $robotDetails['name_eng'] ?? null;
             $baseDurability = (int) $robotDetails['durability_count'];
 
             // Считаем «фактический остаток» по этой конкретной записи
@@ -119,6 +129,7 @@ class AllRobotsHandler extends BaseAction
             if (!isset($robotInfo[$nameRus])) {
                 $robotInfo[$nameRus] = [
                     'crafted_item_id' => $craftedItemId,
+                    'name_eng'        => $nameEng,
                     'total_quantity'  => 0,
                     'total_leftover'  => 0
                 ];
@@ -142,15 +153,44 @@ class AllRobotsHandler extends BaseAction
             ]);
         }
 
+        // Chat-requests-batch-02/09: уровень Мастерской робототехники — тот же
+        // канонический резолвер `BuildingModel::idByNameEn()`, что использует
+        // соседний экран `RobotGathererActivator` (не второй ручной
+        // `where('name_en', ...)`, найденный ревью).
+        $roboticsWorkshopId = $this->buildingModel->idByNameEn('RoboticsWorkshop');
+        $roboticsWorkshop = $roboticsWorkshopId > 0
+            ? $this->characterBuildingModel
+                ->where('character_id', $characterId)
+                ->where('building_id', $roboticsWorkshopId)
+                ->first()
+            : null;
+        $workshopLevel = is_array($roboticsWorkshop) && isset($roboticsWorkshop['level']) && is_numeric($roboticsWorkshop['level'])
+            ? (int) $roboticsWorkshop['level']
+            : 1;
+
         // 5) Формируем сообщение
         $text = "*У тебя в Мастерской робототехники доступны:* \n\n";
         foreach ($filteredRobots as $robotName => $data) {
+            $robotNameEn = is_string($data['name_eng']) ? $data['name_eng'] : null;
+
             $text .= sprintf(
                 "🤖 %s / %d шт. / %d запусков (общее)\n",
                 $robotName,
                 $data['total_quantity'],
                 $data['total_leftover']
             );
+
+            // Chat-requests-batch-09 review fix (BLOCK #1): строка охвата —
+            // ТОЛЬКО у gatherer-роботов (RobotGatherer/RobotIndustrial).
+            // Список собирается по `type='robots'`, куда попадает и семья
+            // разведчиков (RobotExplorer/RobotScout) — у них другая механика
+            // (открытие клеток карты, не обход вокруг базы), печатать им
+            // ту же формулу — выдумывать число.
+            if ($this->robotService->familyOf($robotNameEn) === 'gatherer') {
+                $reachCurrent = $this->robotService->gatheringReachCells((int) $workshopLevel, $robotNameEn);
+                $reachNext    = $this->robotService->gatheringReachCells((int) $workshopLevel + 1, $robotNameEn);
+                $text .= "   🗺 обходит *{$reachCurrent}* яч. вокруг базы (след. уровень мастерской — *{$reachNext}*)\n";
+            }
         }
         $text .= "\n_Выбери внизу робота для его активации:_";
 

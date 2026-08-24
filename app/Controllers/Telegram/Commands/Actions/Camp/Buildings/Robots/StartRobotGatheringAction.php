@@ -15,6 +15,7 @@ use Longman\TelegramBot\Entities\ServerResponse;
 // Подключаем наши сервисы
 use App\Services\Bases\BaseCheckService;
 use App\Services\Coverage\CommunicationTowerCoverageService;
+use App\Services\Player\RobotService;
 
 /**
  * Класс, запускающий робота-добытчика ресурсов.
@@ -28,6 +29,7 @@ class StartRobotGatheringAction extends BaseAction
     protected $buildingModel;
     protected $characterBuildingModel;
     protected $taskModel;
+    protected RobotService $robotService;
 
     public function __construct($callbackQuery)
     {
@@ -37,6 +39,7 @@ class StartRobotGatheringAction extends BaseAction
         $this->buildingModel          = new BuildingModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
         $this->taskModel              = new TaskModel();
+        $this->robotService           = new RobotService();
     }
 
     public function handle(): ServerResponse
@@ -241,8 +244,29 @@ class StartRobotGatheringAction extends BaseAction
         }
 
         // 9) Формируем текст ответа
-        $text = "🚀 *Ты запустил робота-добытчика ресурсов!* ⚙\n\n"
+        // Chat-requests-batch-09: единственный источник охвата теперь
+        // RobotService::gatheringReachCells() (`max(1, workshopLevel +
+        // extraCells)`, линейно, НЕ квадрат уровня — жалоба Max Syskov,
+        // 19.08.2026). Приватная копия формулы из story 02 убрана.
+        $robotNameEn = is_array($robotData) && isset($robotData['name_eng']) && is_string($robotData['name_eng'])
+            ? $robotData['name_eng']
+            : null;
+        $reachCurrent = $this->robotService->gatheringReachCells((int) $workshopLevel, $robotNameEn);
+        $reachNext    = $this->robotService->gatheringReachCells((int) $workshopLevel + 1, $robotNameEn);
+        $reachLine    = "🗺 Он обходит *{$reachCurrent}* яч. вокруг базы "
+            . "(на след. уровне мастерской — *{$reachNext}*).";
+
+        // Chat-requests-batch-09 review fix (BLOCK #2): реальное имя робота —
+        // Max Syskov, 19.08.2026: «у меня промышленник, но в сообщении
+        // добытчик». Хендлер завершения (story 01) уже показывает
+        // `name_rus`; здесь было зашитое «робота-добытчика ресурсов».
+        $robotDisplayName = is_array($robotData) && isset($robotData['name_rus']) && is_string($robotData['name_rus']) && $robotData['name_rus'] !== ''
+            ? $robotData['name_rus']
+            : 'Робот-добытчик';
+
+        $text = "🚀 *{$robotDisplayName} запущен!* ⚙\n\n"
             . "🔧 Он будет работать *{$hoursUntilBreakdown} ч.* (Уровень мастерской: {$workshopLevel}).\n\n"
+            . "{$reachLine}\n\n"
             . "📉 Остаток роботов после запуска:\n"
             . "   — Роботов: *{$sumQuantity}* шт.\n"
             . "   — Общая прочность: *{$sumDurability}*\n\n"

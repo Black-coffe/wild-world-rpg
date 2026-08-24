@@ -6,6 +6,7 @@ use App\Models\CraftedItemsLogModel;
 use App\Models\CraftedItemsModel;
 use App\Models\CharacterBuildingModel;
 use App\Models\BuildingModel;
+use App\Services\Player\RobotService;
 use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Bases\BaseCheckService;
@@ -20,6 +21,7 @@ class RobotGathererActivator implements RobotActivatorInterface
     protected $craftedItemsModel;
     protected $characterBuildingModel;
     protected $robotId;
+    protected RobotService $robotService;
 
     public function __construct($robotId)
     {
@@ -27,6 +29,7 @@ class RobotGathererActivator implements RobotActivatorInterface
         $this->craftedItemsModel      = new CraftedItemsModel();
         $this->characterBuildingModel = new CharacterBuildingModel();
         $this->robotId                = $robotId;
+        $this->robotService           = new RobotService();
     }
 
     /**
@@ -81,69 +84,11 @@ class RobotGathererActivator implements RobotActivatorInterface
             ]);
         }
 
-        // 2) Суммируем общее количество роботов и «фактический» остаток запусков
-        $totalQuantity   = 0;
-        $totalDurability = 0;
-
-        foreach ($logRows as $row) {
-            $q              = (int) $row['quantity'];
-            $usedDurability = (int) $row['durability_count'];
-
-            $robotItem = $this->craftedItemsModel->find($this->robotId);
-            if (!$robotItem) {
-                continue;
-            }
-            $baseDurability = (int) $robotItem['durability_count'];
-
-            // Формула, аналогичная исследователю
-            $freshRobots  = max(0, $q - 1);
-            $rowLeftover  = $freshRobots * $baseDurability + $usedDurability;
-
-            $totalQuantity   += $q;
-            $totalDurability += $rowLeftover;
-        }
-
-        // 3) Уровень мастерской робототехники — id по стабильному name_en (E28, не хардкод 9)
-        $roboticsId       = (new BuildingModel())->idByNameEn('RoboticsWorkshop');
-        $roboticsWorkshop = $this->characterBuildingModel
-            ->where('character_id', $characterId)
-            ->where('building_id', $roboticsId)
-            ->first();
-
-        $workshopLevel = $roboticsWorkshop['level'] ?? 1;
-
-        // 4) Рассчитываем макс. время = 2 часа * уровень мастерской
-        $maxHours = 2 * $workshopLevel;
-
-        // 5) Влияет на диапазон редкости ресурсов, например:
-        //    Уровень мастерской 1 => только редкость "10"
-        //    Уровень 2 => 10..9
-        //    Уровень 3 => 10..8
-        //    и т.д.
-        //    Вычислим нижнюю границу (minRarity)
-        $minRarity = 10 - ($workshopLevel - 1);
-        if ($minRarity < 1) {
-            $minRarity = 1; // чтобы не было меньше 1
-        }
-
-        // 6) Число ячеек вокруг базы = уровень мастерской
-        //    Если уровень=1, то робот собирает только из ячейки, где находится база
-        //    Если уровень=3, то захватывает базовую + ещё 2 круга вокруг и т.п.
-        //    (Подробная логика сбора ресурсов будет в классе старта/завершения задачи)
-        $cellsCount = $workshopLevel;
-
-        // 7) Формируем описание для пользователя
-        $text = "⚙️ *Робот-добытчик ресурсов!* ⚙️\n\n"
-            . "🚫 *Внимание:* робот привязан строго к координате твоей базы, рандомно выбрать точку нельзя.\n\n"
-            . "🏭 Мастерская робототехники (уровень: *{$workshopLevel}*):\n"
-            . "   • даёт *{$maxHours}* часов работы (2 часа на уровень)\n"
-            . "   • позволяет собирать ресурсы редкости от *10* до *{$minRarity}*\n"
-            . "   • обходит *{$cellsCount}* яч. вокруг базы\n\n"
-            . "📊 *Текущая информация:*\n"
-            . "   • Количество роботов‐добытчиков данного типа: *{$totalQuantity}*\n"
-            . "   • Суммарный остаток запусков: *{$totalDurability}*\n"
-            . "   • Одновременно может работать только один робот‐добытчик (по умолчанию).\n\n"
-            . "🎉 Готов к сбору? Жми «Запуск робота» ниже!";
+        // 2-7) Уровень мастерской, охват, редкость, остаток запусков, caption —
+        // chat-requests-batch-09 review fix (BLOCK #3): вынесены в отдельный
+        // testable `buildCaption()`, чтобы тест мог проверить РЕНДЕР текста
+        // (не только приватный делегат формулы в отрыве от экрана).
+        $text = $this->buildCaption($characterId, $logRows);
 
         // 8) Кнопки: «Запуск робота», (V19) «Ремонт» если частично израсходован, «Назад»
         $rows = [
@@ -181,5 +126,80 @@ class RobotGathererActivator implements RobotActivatorInterface
             'parse_mode' => 'Markdown',
             'reply_markup' => json_encode($keyboard),
         ]);
+    }
+
+    /**
+     * Chat-requests-batch-09 review fix (BLOCK #2, #3): caption экрана
+     * активации, вынесен из `activate()` в отдельный testable метод (без
+     * похода в Telegram) — иначе занижение охвата ловится только на приватном
+     * делегате формулы в отрыве от реального текста, что и было причиной
+     * BLOCK-вердикта ревью.
+     *
+     * Охват — ЕДИНСТВЕННЫЙ источник `RobotService::gatheringReachCells()`
+     * (`max(1, workshopLevel + extraCells)`, до story 09 здесь стоял голый
+     * `$workshopLevel`). Имя робота — реальное `crafted_items.name_rus`, а не
+     * зашитое «Робот-добытчик» (Max Syskov, 19.08.2026: «у меня промышленник,
+     * но в сообщении добытчик» — до этого фикса был жив на ДВУХ из трёх
+     * экранов: этом и `StartRobotGatheringAction`).
+     *
+     * @param array<int,array<string,mixed>> $logRows строки `crafted_items_log`
+     *                                                 для `$this->robotId` (уже отфильтрованы quantity>0)
+     */
+    private function buildCaption(int $characterId, array $logRows): string
+    {
+        $robotItem = $this->craftedItemsModel->find($this->robotId);
+        $baseDurability = is_array($robotItem) && isset($robotItem['durability_count']) && is_numeric($robotItem['durability_count'])
+            ? (int) $robotItem['durability_count']
+            : 0;
+        $robotNameEn = is_array($robotItem) && isset($robotItem['name_eng']) && is_string($robotItem['name_eng'])
+            ? $robotItem['name_eng']
+            : null;
+        $robotDisplayName = is_array($robotItem) && isset($robotItem['name_rus']) && is_string($robotItem['name_rus']) && $robotItem['name_rus'] !== ''
+            ? $robotItem['name_rus']
+            : 'Робот-добытчик';
+
+        // Суммируем общее количество роботов и «фактический» остаток запусков.
+        $totalQuantity   = 0;
+        $totalDurability = 0;
+        foreach ($logRows as $row) {
+            $q              = isset($row['quantity']) && is_numeric($row['quantity']) ? (int) $row['quantity'] : 0;
+            $usedDurability = isset($row['durability_count']) && is_numeric($row['durability_count']) ? (int) $row['durability_count'] : 0;
+            $freshRobots    = max(0, $q - 1);
+
+            $totalQuantity   += $q;
+            $totalDurability += $freshRobots * $baseDurability + $usedDurability;
+        }
+
+        // Уровень мастерской робототехники — id по стабильному name_en (E28, не хардкод 9).
+        $roboticsId       = (new BuildingModel())->idByNameEn('RoboticsWorkshop');
+        $roboticsWorkshop = $this->characterBuildingModel
+            ->where('character_id', $characterId)
+            ->where('building_id', $roboticsId)
+            ->first();
+        $workshopLevel = is_array($roboticsWorkshop) && isset($roboticsWorkshop['level']) && is_numeric($roboticsWorkshop['level'])
+            ? (int) $roboticsWorkshop['level']
+            : 1;
+
+        // Макс. время = 2 часа * уровень мастерской.
+        $maxHours = 2 * $workshopLevel;
+
+        // Диапазон редкости ресурсов: уровень 1 => только "10", уровень 2 => 10..9, и т.д.
+        $minRarity = max(1, 10 - ($workshopLevel - 1));
+
+        // Охват — единственный источник RobotService::gatheringReachCells().
+        $cellsCount     = $this->robotService->gatheringReachCells($workshopLevel, $robotNameEn);
+        $cellsCountNext = $this->robotService->gatheringReachCells($workshopLevel + 1, $robotNameEn);
+
+        return "⚙️ *{$robotDisplayName}* ⚙️\n\n"
+            . "🚫 *Внимание:* робот привязан строго к координате твоей базы, рандомно выбрать точку нельзя.\n\n"
+            . "🏭 Мастерская робототехники (уровень: *{$workshopLevel}*):\n"
+            . "   • даёт *{$maxHours}* часов работы (2 часа на уровень)\n"
+            . "   • позволяет собирать ресурсы редкости от *10* до *{$minRarity}*\n"
+            . "   • обходит *{$cellsCount}* яч. вокруг базы (на след. уровне мастерской — *{$cellsCountNext}*)\n\n"
+            . "📊 *Текущая информация:*\n"
+            . "   • Количество роботов‐добытчиков данного типа: *{$totalQuantity}*\n"
+            . "   • Суммарный остаток запусков: *{$totalDurability}*\n"
+            . "   • Одновременно может работать только один робот‐добытчик (по умолчанию).\n\n"
+            . "🎉 Готов к сбору? Жми «Запуск робота» ниже!";
     }
 }

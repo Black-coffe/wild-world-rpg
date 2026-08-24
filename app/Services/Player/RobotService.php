@@ -125,6 +125,36 @@ final class RobotService
         return max(0, $this->intSetting('robots.industrial.extra_cells', 1));
     }
 
+    /**
+     * Chat-requests-batch-09: единственный источник охвата клеток
+     * gatherer-робота — `max(1, workshopLevel + extraCells)`, линейно, НЕ
+     * квадрат уровня Мастерской (жалоба Max Syskov, 19.08.2026: «мой после
+     * запуска обработал 8»). До этой story формула была продублирована
+     * трижды в разных экранах — теперь они зовут её отсюда.
+     *
+     * `CompleteRobotGatheringHandler::handle()` НЕ зовёт этот метод — он вне
+     * `## Files` этой story (сознательный non-goal, чтобы не трогать код
+     * story 01) и продолжает считать сам, дословно той же формулой. Сверено
+     * вручную (story 09 Findings) — расхождений нет, но если формулы
+     * когда-нибудь разъедутся, это первое место, куда стоит посмотреть.
+     */
+    public function gatheringReachCells(int $workshopLevel, ?string $nameEn): int
+    {
+        return max(1, $workshopLevel + $this->gatheringExtraCellsFor($nameEn));
+    }
+
+    /**
+     * Chat-requests-batch-09 review fix (BLOCK #1): семья робота по name_eng
+     * — 'gatherer'/'explorer'/null (неизвестный). `AllRobotsHandler` печатал
+     * строку охвата gatherer-формулой под КАЖДЫМ роботом списка, включая
+     * разведчиков (`type='robots'` содержит обе семьи) — у них другая
+     * механика (открытие карты, не обход клеток вокруг базы).
+     */
+    public function familyOf(?string $nameEn): ?string
+    {
+        return $nameEn !== null && isset(self::ROBOTS[$nameEn]) ? self::ROBOTS[$nameEn]['family'] : null;
+    }
+
     private function intSetting(string $key, int $default): int
     {
         $v = $this->settings->get($key, $default);
