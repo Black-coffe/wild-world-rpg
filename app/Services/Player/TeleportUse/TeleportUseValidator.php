@@ -276,6 +276,14 @@ class TeleportUseValidator
      * story backpack-teleport-base-choice-01 — активные базы персонажа, в порядке id.
      * Заброшенные (`status='abandoned'`) базы в список не попадают.
      *
+     * story backpack-teleport-base-choice-04 (ревью №4) — счёт баз и цель для ровно
+     * одной активной базы идут через канон `ClaimedCellModel::countActiveBases()` /
+     * `findFirstActiveCell()` (ADR-102). Этот метод — список ВСЕХ активных баз,
+     * обогащённый координатами из `map` — остаётся здесь, а не в модели: обогащение
+     * чужой таблицей (`map`) не забота `ClaimedCellModel`, у него нет зависимости
+     * на `MapModel`, и это разовый список для одного экрана телепорта, а не общий
+     * канон-запрос, переиспользуемый другими сервисами.
+     *
      * @return array<int, array{id:int, map_cell_id:int, camp_name:mixed, coordinate_x:mixed, coordinate_y:mixed}>
      */
     public function listActiveBases(int $characterId): array
@@ -288,10 +296,20 @@ class TeleportUseValidator
 
         $bases = [];
         foreach ($cells as $cell) {
-            $mapRow = $this->mapModel->where('cell_number', $cell['map_cell_id'])->first();
+            if (!is_array($cell)) {
+                continue;
+            }
+            $cell = $this->normalizeRow($cell);
+
+            $mapRowRaw = $this->mapModel->where('cell_number', $cell['map_cell_id'] ?? null)->first();
+            $mapRow    = is_array($mapRowRaw) ? $this->normalizeRow($mapRowRaw) : [];
+
+            $idRaw    = $cell['id'] ?? null;
+            $cellIdRaw = $cell['map_cell_id'] ?? null;
+
             $bases[] = [
-                'id'           => (int) $cell['id'],
-                'map_cell_id'  => (int) $cell['map_cell_id'],
+                'id'           => is_numeric($idRaw) ? (int) $idRaw : 0,
+                'map_cell_id'  => is_numeric($cellIdRaw) ? (int) $cellIdRaw : 0,
                 'camp_name'    => $cell['camp_name'] ?? null,
                 'coordinate_x' => $mapRow['coordinate_x'] ?? null,
                 'coordinate_y' => $mapRow['coordinate_y'] ?? null,
@@ -332,22 +350,22 @@ class TeleportUseValidator
     private function findBaseLocation(int $characterId, ?int $claimedCellId = null): array
     {
         if ($claimedCellId !== null) {
-            $claimedCell = $this->claimedCellModel
+            $claimedCellRaw = $this->claimedCellModel
                 ->where('id', $claimedCellId)
                 ->where('character_id', $characterId)
                 ->where('status', 'active')
                 ->first();
-            if (!$claimedCell) {
+            if (!is_array($claimedCellRaw)) {
                 return ['ok' => false, 'reason' => 'no_base'];
             }
 
-            return $this->resolveMapRow($claimedCell);
+            return $this->resolveMapRow($this->normalizeRow($claimedCellRaw));
         }
 
-        $activeCount = $this->claimedCellModel
-            ->where('character_id', $characterId)
-            ->where('status', 'active')
-            ->countAllResults();
+        // story backpack-teleport-base-choice-04 (ревью №4) — канон-хелперы
+        // ClaimedCellModel::countActiveBases()/findFirstActiveCell() (ADR-102)
+        // вместо дублирующих сырых where()->first()/countAllResults().
+        $activeCount = $this->claimedCellModel->countActiveBases($characterId);
 
         if ($activeCount === 0) {
             return ['ok' => false, 'error' => 'no_claimed_cell'];
@@ -357,11 +375,8 @@ class TeleportUseValidator
             return ['ok' => false, 'reason' => 'choose_base', 'bases' => $this->listActiveBases($characterId)];
         }
 
-        $claimedCell = $this->claimedCellModel
-            ->where('character_id', $characterId)
-            ->where('status', 'active')
-            ->first();
-        if (!$claimedCell) {
+        $claimedCell = $this->claimedCellModel->findFirstActiveCell($characterId);
+        if ($claimedCell === null) {
             return ['ok' => false, 'error' => 'no_claimed_cell'];
         }
 
@@ -370,23 +385,41 @@ class TeleportUseValidator
 
     /**
      * story backpack-teleport-base-choice-01 — вынесенный общий хвост findBaseLocation():
-     * map-строка по claimed_cell + сборка успешного результата. Держит один-единственный
-     * offset-access на `map_cell_id`, чтобы не плодить дубли phpstan-паттернов.
+     * map-строка по claimed_cell + сборка успешного результата.
      *
      * @param array<string,mixed> $claimedCell
      * @return array{ok:bool, error?:string, claimedCell?:array<string,mixed>, mapRow?:array<string,mixed>}
      */
     private function resolveMapRow(array $claimedCell): array
     {
-        $mapRow = $this->mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
-        if (!$mapRow) {
+        $mapRowRaw = $this->mapModel->where('cell_number', $claimedCell['map_cell_id'] ?? null)->first();
+        if (!is_array($mapRowRaw)) {
             return ['ok' => false, 'error' => 'no_map_row'];
         }
 
         return [
             'ok'          => true,
             'claimedCell' => $claimedCell,
-            'mapRow'      => $mapRow,
+            'mapRow'      => $this->normalizeRow($mapRowRaw),
         ];
+    }
+
+    /**
+     * story backpack-teleport-base-choice-04 (ревью №11) — CI4 `Model::first()/findAll()`
+     * возвращают `array<int|string,mixed>|object` статически; после `is_array()`-сужения
+     * приводим ключи к `string`, чтобы дальше обращаться к офсетам без phpstan-подавлений
+     * (тот же паттерн, что `ClaimedCellModel::normalizeKeys()`, локальная копия — Non-goal
+     * story 01 запрещает трогать `ClaimedCellModel`).
+     *
+     * @param array<int|string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function normalizeRow(array $row): array
+    {
+        $out = [];
+        foreach ($row as $key => $value) {
+            $out[(string) $key] = $value;
+        }
+        return $out;
     }
 }

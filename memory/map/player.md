@@ -15,6 +15,8 @@ last-verified: 2026-08-19
 - `DeathService.php` + `Death/`, `DebuffService.php`, `DebuffSourceService.php`.
 - `WeightCapacityService.php`, `InventorySortService.php`, `ResourceOverviewService.php`.
 - `Trade/`, `TeleportBeacon/`, `TeleportUse/`, `Gather/`, `Craft/`, `Progression/`, `Relocation/`.
+  `TeleportUse/`: destination = player-chosen active base (story backpack-teleport-base-choice),
+  not just the first claimed cell.
 - `DroneService.php`, `RobotService.php`, `RobotRepairService.php`, `CaravanService.php`.
 - `TipService.php` (советы), `TitleService.php`, `LoginStreakService.php`, `ReferralService.php`.
 - `app/Entities/CharacterEntity.php`, `app/Repositories/CI4CharacterRepository.php`.
@@ -34,6 +36,8 @@ outbound: модели `app/Models/*`, `Services/GameSettings`, `Services/Notifi
 - `characters.level` затирается пересчётом опыта — выставлять уровень на testbot напрямую бесполезно.
 - Списание крафт-предметов — только `deductCraftedItem`; raw-set `update()` молча не срабатывает.
 - Заряды при слиянии стаков зажимаются `min(dur, base)` на каждом чтении.
+- `Death/PlayerRespawner.php:82` всё ещё берёт `claimed_cells` bare `first()` (не тронут story
+  backpack-teleport-base-choice — non-goal).
 
 ## Vault
 `mmorpg-vault/apps/player/index.md` · `mmorpg-vault/tech-writing/services/`

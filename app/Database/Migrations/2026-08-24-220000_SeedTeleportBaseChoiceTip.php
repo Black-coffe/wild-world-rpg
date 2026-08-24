@@ -18,6 +18,13 @@ use CodeIgniter\Database\Migration;
  * Инварианты (ADR-134): про навигацию и понятия, без хрупких чисел баланса; markdown-safe
  * (парные *); utf8mb4-эмодзи; категория «персонаж» из 14 ENUM; идемпотентность по
  * `title_en`; media-off (ADR-020) — весь смысл в тексте.
+ *
+ * story backpack-teleport-base-choice-04 (ревью №7) — телепорт за опыт СТОИТ опыта
+ * (см. `TeleportAction.php:124`, `TeleportUseValidator::EXPERIENCE_COST`), поэтому
+ * совет больше не называет его «бесплатным». Идемпотентность держим по `title_en`
+ * (не меняем — иначе на preprod, где строка уже применена, завёлся бы дубль), но при
+ * повторном `migrate` уже существующая строка теперь UPSERT'ится: `content` обновляется
+ * до актуального текста вместо молчаливого no-op при найденной строке.
  */
 class SeedTeleportBaseChoiceTip extends Migration
 {
@@ -27,17 +34,25 @@ class SeedTeleportBaseChoiceTip extends Migration
     {
         $now = date('Y-m-d H:i:s');
 
-        if (! empty($this->db->table('game_tips')->where('title_en', self::TITLE_EN)->get()->getRowArray())) {
-            return;
-        }
-
         $content = '🏠 *Несколько баз — телепорт спросит, куда.* Если у тебя больше одной базы, '
-            . 'рюкзак-телепорт, золотой возврат, портативный телепорт и бесплатный телепорт за '
-            . 'опыт больше не прыгают наугад: сначала покажут список твоих баз с координатами, '
-            . 'и ты сам выбираешь нужную кнопкой.'
+            . 'рюкзак-телепорт, золотой возврат, портативный телепорт и телепорт за опыт больше '
+            . 'не прыгают наугад: сначала покажут список твоих баз с координатами, и ты сам '
+            . 'выбираешь нужную кнопкой.'
             . "\n\n"
             . 'Заброшенные базы в этом списке не появляются — целью для возврата бывает только та, '
             . 'что стоит. А если база одна, лишнего экрана не будет: прыжок пойдёт сразу, как раньше.';
+
+        $existing = $this->db->table('game_tips')->where('title_en', self::TITLE_EN)->get()->getRowArray();
+
+        if (! empty($existing)) {
+            $this->db->table('game_tips')
+                ->where('title_en', self::TITLE_EN)
+                ->update([
+                    'content'    => $content,
+                    'updated_at' => $now,
+                ]);
+            return;
+        }
 
         $this->db->table('game_tips')->insert([
             'title_ru'   => '🏠 Несколько баз — телепорт спросит, куда',

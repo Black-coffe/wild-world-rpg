@@ -103,7 +103,15 @@ class TeleportUseAction extends BaseAction
         }
 
         if ($result['reason'] === 'choose_base') {
-            return $this->sendFormatted($this->formatter->chooseBase($kind, $this->extractBases($result['bases'] ?? null)));
+            $bases = $this->extractBases($result['bases'] ?? null);
+            // story backpack-teleport-base-choice-04 (ревью №12) — пустой список после
+            // extractBases() не рендерит экран выбора («Активных баз: 0»): choose_base
+            // приходит от findBaseLocation() только когда активных баз ≥2, так что пустой
+            // $bases — защитный случай (например, повреждённые данные), не рабочий путь.
+            if ($bases === []) {
+                return $this->sendFormatted($this->formatter->baseNotFound());
+            }
+            return $this->sendFormatted($this->formatter->chooseBase($kind, $bases));
         }
 
         // reason === 'no_base'

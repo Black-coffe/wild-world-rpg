@@ -22,6 +22,7 @@
 - Заброшенные (`status='abandoned'`) базы из целей исключаются.
 - Респавн после смерти (`PlayerRespawner.php:82`) — тот же класс bare-`first()`, но **вне этого заказа** (игрок там не выбирает); фиксируется как открытый хвост в hot.md.
 - Балансовых чисел нет → GameSettings не трогаем.
+- Discoverability-вердикт: **да, без нового входа** — экран появляется внутри существующей кнопки телепорта; при 1 базе вход не меняется. Onboarding-вердикт: **JIT-подсказка не нужна** — сам экран выбора и есть объяснение в момент первого контакта; справочник — `/guide` (story 03).
 - Tips-вердикт: **да**, категория `персонаж` — совет «если баз несколько, телепорт спросит куда». Guide-вердикт: **да**, расширить существующий раздел `teleport`.
 
 ## Stories
@@ -33,13 +34,19 @@
 **Wave 2**
 - `backpack-teleport-base-choice-02` — `TeleportUseAction`: при ≥2 баз экран выбора с кнопками по базам, callback с id; при 1 — как раньше.
 
+## Stories (продолжение)
+(см. Wave 3 в конце файла)
+
 ## Contracts
 - `TeleportUseValidator::listActiveBases(int $characterId): array` — строки `claimed_cells` (`id, map_cell_id, camp_name`) + `coordinate_x/coordinate_y` из `map`, `ORDER BY claimed_cells.id`, только `status='active'`.
 - `validateBackpack/validateGold/validatePortable/validateExperience(array|CharacterEntity $character, ?int $claimedCellId = null)` (первый параметр — как и был) — при `null` и ровно одной активной базе берут её; при `null` и ≥2 возвращают `['ok'=>false,'reason'=>'choose_base','bases'=>[...]]`; при id, не принадлежащем персонажу / не active → `['ok'=>false,'reason'=>'no_base']`. Существующая форма успешного результата сохраняется.
 - Callback: `TeleportUse_<Kind>_<claimedCellId>` (напр. `TeleportUse_Backpack_242`); `TeleportUse_<Kind>` без хвоста остаётся валидным (одна база → прыжок; несколько → экран выбора).
-- Подпись кнопки: `🏠 <camp_name|«База»> (<x>,<y>)`; ряды через `packButtonRows()` (2–3 в ряд).
+- Подпись кнопки: `🏠 <camp_name|«База»> (<x>,<y>)`; ряды через `AppServicesTelegramButtonPacker::pack()` (2–3 в ряд; `packButtonRows()` — старое имя, слито в ButtonPacker).
 
 ## Integration gate
 `vendor/bin/phpunit --no-coverage --no-progress` · `vendor/bin/phpstan analyse --memory-limit=512M --no-progress` · `git ls-files 'app/Database/Migrations/*.php' | xargs -n1 php -l > /dev/null` · Tier-3 на preprod: тест-чар с 2 базами → рюкзак → экран выбора → прыжок на выбранную; с 1 базой → прыжок сразу. Затем тег на `develop` → прод (release-flow), ответ Torch0010 личкой.
 
 ## Descoped
+
+**Wave 3**
+- `backpack-teleport-base-choice-04` — ремонт по ревью (№3,4,7,8,11,12): экран называет способ, канон-хелперы, покрытие координат, совет без «бесплатно».

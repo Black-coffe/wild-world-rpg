@@ -13921,12 +13921,6 @@ parameters:
 			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
 
 		-
-			message: '#^Cannot access offset ''map_cell_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 2
-			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
-
-		-
 			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
@@ -13942,42 +13936,6 @@ parameters:
 			message: '#^Cannot cast mixed to string\.$#'
 			identifier: cast.string
 			count: 1
-			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
-
-		-
-			message: '#^Cannot access offset ''camp_name'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
-
-		-
-			message: '#^Cannot access offset ''coordinate_x'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
-
-		-
-			message: '#^Cannot access offset ''coordinate_y'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
-
-		-
-			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
-
-		-
-			message: '#^Method App\\Services\\Player\\TeleportUse\\TeleportUseValidator\:\:resolveMapRow\(\) should return array\{ok\: bool, error\?\: string, claimedCell\?\: array\<string, mixed\>, mapRow\?\: array\<string, mixed\>\} but returns array\{ok\: true, claimedCell\: array\<string, mixed\>, mapRow\: non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\}\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
-
-		-
-			message: '#^Parameter \#1 \$claimedCell of method App\\Services\\Player\\TeleportUse\\TeleportUseValidator\:\:resolveMapRow\(\) expects array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
-			identifier: argument.type
-			count: 2
 			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
 
 		-

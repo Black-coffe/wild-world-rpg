@@ -123,9 +123,10 @@ class TeleportUseMessageFormatter
      */
     public function chooseBase(string $kind, array $bases): array
     {
-        $count = count($bases);
-        $text  = self::ROBI_PREFIX
-               . "Активных баз: *{$count}*. Куда прыгаем?\n\n";
+        $count  = count($bases);
+        $method = $this->methodLabel($kind);
+        $text   = self::ROBI_PREFIX
+                . "Активных баз: *{$count}*. {$method} — куда прыгаем?\n\n";
 
         $buttons = [];
         foreach ($bases as $base) {
@@ -155,6 +156,22 @@ class TeleportUseMessageFormatter
             'parse_mode'   => 'Markdown',
             'reply_markup' => (string) json_encode(['inline_keyboard' => $rows]),
         ];
+    }
+
+    /**
+     * story backpack-teleport-base-choice-04 (ревью №8) — экран выбора базы называет
+     * СПОСОБ, который будет потрачен при выборе базы, но без чисел баланса (стоимость
+     * золота/опыта не печатается — анти-дрейф баланса).
+     */
+    private function methodLabel(string $kind): string
+    {
+        return match ($kind) {
+            'Backpack'       => '🎒 Рюкзак-телепорт (1 заряд)',
+            'WithGold'       => '💰 Телепорт за золото',
+            'Portable'       => '📡 Портативный телепорт (1 заряд)',
+            'WithExperience' => '✨ Телепорт за опыт',
+            default          => 'Телепорт',
+        };
     }
 
     /** @return array{text: string, parse_mode: string} */

@@ -357,5 +357,12 @@ final class TeleportUseValidatorBaseChoiceTest extends CIUnitTestCase
         $this->assertCount(2, $bases);
         $this->assertSame(1, $bases[0]['id']);
         $this->assertSame(2, $bases[1]['id']);
+        // story backpack-teleport-base-choice-04 (ревью №3) — координаты приходят
+        // именно из мока MapModel (`cell_number` → `coordinate_x/coordinate_y`), а не
+        // из claimed_cells.
+        $this->assertSame(1, $bases[0]['coordinate_x']);
+        $this->assertSame(1, $bases[0]['coordinate_y']);
+        $this->assertSame(2, $bases[1]['coordinate_x']);
+        $this->assertSame(2, $bases[1]['coordinate_y']);
     }
 }

@@ -121,6 +121,30 @@ final class TeleportUseMessageFormatterBaseChoiceTest extends CIUnitTestCase
         $this->assertStringContainsString('База', $payload['text']);
     }
 
+    /**
+     * story backpack-teleport-base-choice-04 (ревью №8) — экран выбора называет способ,
+     * который будет потрачен, но без чисел баланса (стоимость золота/опыта не печатается).
+     */
+    public function testChooseBaseNamesTheSpendingMethodForEachKind(): void
+    {
+        $bases = [
+            ['id' => 1, 'map_cell_id' => 1, 'camp_name' => 'База', 'coordinate_x' => 1, 'coordinate_y' => 1],
+        ];
+
+        $expectations = [
+            'Backpack'       => '🎒 Рюкзак-телепорт (1 заряд)',
+            'WithGold'       => '💰 Телепорт за золото',
+            'Portable'       => '📡 Портативный телепорт (1 заряд)',
+            'WithExperience' => '✨ Телепорт за опыт',
+        ];
+
+        foreach ($expectations as $kind => $label) {
+            $payload = $this->formatter->chooseBase($kind, $bases);
+            $this->assertStringContainsString($label, $payload['text'], "kind={$kind}");
+            $this->assertStringNotContainsString('💰 Списано', $payload['text'], "kind={$kind}: стоимость золота не печатается");
+        }
+    }
+
     public function testBaseNotFoundIsSelfContainedText(): void
     {
         $payload = $this->formatter->baseNotFound();
