@@ -134,7 +134,9 @@ class MarchAction extends BaseAction
         $aheadInfo = $this->aheadInfo($characterId, $charCellNumber, $dir);
         $pace      = new MarchPaceService();
         $profile   = $this->resolveVehicleProfile($characterId, $aheadInfo['terrain']);
-        $n         = max(1, min($n, max(1, $this->asInt($profile['max_steps_per_order'] ?? 60, 60))));
+        $clamp     = $this->clampOrderToCap($n, $profile);
+        $n         = $clamp['n'];
+        $cap       = $clamp['cap'];
 
         $aheadBiome = $aheadInfo['label'];
         $hpEst      = round($n * $pace->healthCostPerCell($this->healthCostPerCell(), $profile), 2);
@@ -176,10 +178,11 @@ class MarchAction extends BaseAction
             . ($breakdownLine !== '' ? "{$breakdownLine}\n" : '')
             . "_Отряд идёт сам и довольно шустро — темп от ❤️/💤 не зависит "
             . "(они лишь топливо в пути), но зависит от активного транспорта._\n\n"
+            . $clamp['capLine']
             . $hook['line'];
 
         $minus = max(1, $n - 1);
-        $plus  = min($n + 5, max(1, $this->asInt($profile['max_steps_per_order'] ?? 60, 60)));
+        $plus  = min($n + 5, $cap);
         $keyboard = [
             [
                 ['text' => '➖', 'callback_data' => "march_{$dir}_{$minus}"],
@@ -194,6 +197,39 @@ class MarchAction extends BaseAction
             ],
         ];
         return $this->editOrSendText($chatId, $text, $keyboard);
+    }
+
+    /**
+     * Story 03 (`chat-requests-batch`) — потолок заказа всегда назван в тексте, тем же
+     * числом, что клэмп `$n` (`profile['max_steps_per_order']`, ADR-174: зависит от
+     * машины). Показывается всегда, не только при упоре в потолок (feedback Max Syskov
+     * «в походе могу выбрать максимум 60 клеток, это баг или фича?)»).
+     */
+    private static function capLine(int $cap): string
+    {
+        return "Заказать можно не больше {$cap} клеток за раз (зависит от транспорта).\n\n";
+    }
+
+    /**
+     * Ревью-доследование story 03 — считает потолок из профиля транспорта, клэмпит
+     * `$n` к нему И строит `capLine()` ОДНОЙ функцией, чтобы клэмп и число,
+     * показанное игроку, физически не могли разойтись. Раньше `showRouteSetup()`
+     * сам считал `$cap`, сам клэмпил `$n` и ОТДЕЛЬНО передавал `$cap` в `capLine()`
+     * тремя независимыми строками — подменить литералом или потерять вызов при
+     * правке мог любую из них, а `MarchCapTextTest` этого не ловил: он гонял
+     * `capLine()` в изоляции, а не то, чем реально зажимается заказ в
+     * `showRouteSetup()`. Теперь оба потребителя (клэмп `$n` и текст) читают
+     * `$cap`/`capLine` из ОДНОГО возврата — разойтись им негде.
+     *
+     * @param array<string,mixed> $profile профиль транспорта ({@see resolveVehicleProfile()})
+     * @return array{n:int,cap:int,capLine:string}
+     */
+    private function clampOrderToCap(int $n, array $profile): array
+    {
+        $cap = max(1, $this->asInt($profile['max_steps_per_order'] ?? 60, 60));
+        $n   = max(1, min($n, $cap));
+
+        return ['n' => $n, 'cap' => $cap, 'capLine' => self::capLine($cap)];
     }
 
     private function startMarch(int $characterId, int $telegramUserId, int $charCellNumber, string $dir, int $n, int $chatId): ServerResponse
