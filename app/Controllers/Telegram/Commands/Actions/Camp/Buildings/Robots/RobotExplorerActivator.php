@@ -125,7 +125,8 @@ class RobotExplorerActivator implements RobotActivatorInterface
             ->where('building_id', $roboticsId)
             ->first();
 
-        $workshopLevel = $roboticsWorkshop['level'] ?? 1;
+        $hasWorkshop   = is_array($roboticsWorkshop);
+        $workshopLevel = $hasWorkshop && isset($roboticsWorkshop['level']) && is_numeric($roboticsWorkshop['level']) ? (int) $roboticsWorkshop['level'] : 1;
 
         // 4) Рассчитываем макс. время (6 ч * уровень)
         $maxHours = $workshopLevel * 6;
@@ -152,10 +153,20 @@ class RobotExplorerActivator implements RobotActivatorInterface
         //    — «Указать координаты запуска»
         //    — (V19) «Ремонт», если текущий робот частично израсходован
         //    — «Роботы»
-        $rows = [
-            [['text' => '🚀 Запустить рандомно', 'callback_data' => 'startRobotExplorer_' . $this->robotId]],
-            [['text' => '📍 Указать координаты', 'callback_data' => 'setCoordinatesRobotExplorer_' . $this->robotId]],
-        ];
+        // UX-DISCOVERABILITY: без мастерской вход не прячется — lock-кнопка, клик объясняет, что строить.
+        if (!$hasWorkshop) {
+            $text = "🔍 *Робот-исследователь*\n\n"
+                . "📊 Роботов данного типа: *{$totalQuantity}*, остаток запусков: *{$totalDurability}*.\n\n"
+                . StartRobotGatheringAction::noWorkshopMessage();
+        }
+        $rows = $hasWorkshop
+            ? [
+                [['text' => '🚀 Запустить рандомно', 'callback_data' => 'startRobotExplorer_' . $this->robotId]],
+                [['text' => '📍 Указать координаты', 'callback_data' => 'setCoordinatesRobotExplorer_' . $this->robotId]],
+            ]
+            : [
+                [['text' => '🔒 Нужна мастерская', 'callback_data' => 'startRobotExplorer_' . $this->robotId]],
+            ];
 
         // V19 (ADR-050): кнопка ремонта, если есть частично израсходованный робот этого типа.
         if ((new \App\Services\Player\RobotRepairService())->enabled()) {

@@ -134,7 +134,11 @@ class StartRobotExplorationAction extends BaseAction
             ->where('character_id', $characterId)
             ->where('building_id', $roboticsWorkshopId)
             ->first();
-        $workshopLevel = $roboticsWorkshop['level'] ?? 1;
+        // Симметрично добытчику (v0.51.647): без мастерской — отказ ДО списания прочности.
+        if (!$roboticsWorkshop) {
+            return $this->sendError(StartRobotGatheringAction::noWorkshopMessage());
+        }
+        $workshopLevel = (int) ($roboticsWorkshop['level'] ?? 1);
 
         // 7. Ищем запись о роботе в crafted_items_log
         $robotLogEntry = $this->craftedItemsLogModel

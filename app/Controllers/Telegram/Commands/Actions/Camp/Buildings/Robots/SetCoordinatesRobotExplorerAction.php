@@ -121,10 +121,7 @@ class SetCoordinatesRobotExplorerAction extends BaseAction
             ->where('building_id', $roboticsWorkshopId)
             ->first();
         if (!$roboticsWorkshop) {
-            return $this->sendError(
-                'У тебя нет построенной Мастерской робототехники, '
-                . 'значит нельзя запускать робота-исследователя.'
-            );
+            return $this->sendError(StartRobotGatheringAction::noWorkshopMessage());
         }
 
         // 5) Из callback_data извлекаем robotId
