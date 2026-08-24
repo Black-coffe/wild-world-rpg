@@ -13921,9 +13921,9 @@ parameters:
 			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
 
 		-
-			message: '#^Cannot access offset ''map_cell_id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			message: '#^Cannot access offset ''map_cell_id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
+			count: 2
 			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
 
 		-
@@ -13945,19 +13945,49 @@ parameters:
 			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
 
 		-
-			message: '#^Method App\\Services\\Player\\TeleportUse\\TeleportUseValidator\:\:findBaseLocation\(\) should return array\{ok\: bool, error\?\: string, claimedCell\?\: array\<string, mixed\>, mapRow\?\: array\<string, mixed\>\} but returns array\{ok\: true, claimedCell\: non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object, mapRow\: non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\}\.$#'
+			message: '#^Cannot access offset ''camp_name'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
+
+		-
+			message: '#^Cannot access offset ''coordinate_x'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
+
+		-
+			message: '#^Cannot access offset ''coordinate_y'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
+
+		-
+			message: '#^Cannot access offset ''id'' on array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
+			count: 1
+			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
+
+		-
+			message: '#^Method App\\Services\\Player\\TeleportUse\\TeleportUseValidator\:\:resolveMapRow\(\) should return array\{ok\: bool, error\?\: string, claimedCell\?\: array\<string, mixed\>, mapRow\?\: array\<string, mixed\>\} but returns array\{ok\: true, claimedCell\: array\<string, mixed\>, mapRow\: non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\}\.$#'
 			identifier: return.type
 			count: 1
 			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
 
 		-
-			message: '#^Offset ''claimedCell'' might not exist on array\{ok\: true, error\?\: string, claimedCell\?\: array\<string, mixed\>, mapRow\?\: array\<string, mixed\>\}\.$#'
+			message: '#^Parameter \#1 \$claimedCell of method App\\Services\\Player\\TeleportUse\\TeleportUseValidator\:\:resolveMapRow\(\) expects array\<string, mixed\>, array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
+
+		-
+			message: '#^Offset ''claimedCell'' might not exist on array\{ok\: true, error\?\: string, reason\?\: string, bases\?\: array\<int, array\<string, mixed\>\>, claimedCell\?\: array\<string, mixed\>, mapRow\?\: array\<string, mixed\>\}\.$#'
 			identifier: offsetAccess.notFound
 			count: 4
 			path: app/Services/Player/TeleportUse/TeleportUseValidator.php
 
 		-
-			message: '#^Offset ''mapRow'' might not exist on array\{ok\: true, error\?\: string, claimedCell\?\: array\<string, mixed\>, mapRow\?\: array\<string, mixed\>\}\.$#'
+			message: '#^Offset ''mapRow'' might not exist on array\{ok\: true, error\?\: string, reason\?\: string, bases\?\: array\<int, array\<string, mixed\>\>, claimedCell\?\: array\<string, mixed\>, mapRow\?\: array\<string, mixed\>\}\.$#'
 			identifier: offsetAccess.notFound
 			count: 4
 			path: app/Services/Player/TeleportUse/TeleportUseValidator.php

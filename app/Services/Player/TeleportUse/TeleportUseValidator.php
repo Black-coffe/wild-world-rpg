@@ -16,10 +16,14 @@ use DateTime;
  * для 4 teleport variants (Backpack/Gold/Portable/Experience).
  *
  * Public API (per variant):
- *   validateBackpack(character)   : array{ok:bool, error?:string, context?:array}
- *   validateGold(character)       : array{ok:bool, error?:string, context?:array}
- *   validatePortable(character)   : array{ok:bool, error?:string, context?:array}
- *   validateExperience(character) : array{ok:bool, error?:string, context?:array}
+ *   validateBackpack(character, ?claimedCellId)   : array{ok:bool, error?:string, reason?:string, bases?:array, context?:array}
+ *   validateGold(character, ?claimedCellId)       : array{ok:bool, error?:string, reason?:string, bases?:array, context?:array}
+ *   validatePortable(character, ?claimedCellId)   : array{ok:bool, error?:string, reason?:string, bases?:array, context?:array}
+ *   validateExperience(character, ?claimedCellId) : array{ok:bool, error?:string, reason?:string, bases?:array, context?:array}
+ *
+ * story backpack-teleport-base-choice-01 — $claimedCellId выбирает целевую базу явно
+ * (при нескольких активных базах); без него и ≥2 активных баз возвращается
+ * {ok:false, reason:'choose_base', bases:[...]} (см. listActiveBases()).
  *
  * Context payloads (when ok=true):
  *   backpack:   {backpackItem, backpackLog, claimedCell, mapRow, customData}
@@ -68,7 +72,7 @@ class TeleportUseValidator
      * @param array<string,mixed>|CharacterEntity $character
      * @return array<string,mixed>
      */
-    public function validateBackpack(array|CharacterEntity $character): array
+    public function validateBackpack(array|CharacterEntity $character, ?int $claimedCellId = null): array
     {
         $backpackItem = $this->craftedItemModel->where('name_eng', 'TeleportBackpack')->first();
         if (!$backpackItem) {
@@ -111,8 +115,11 @@ class TeleportUseValidator
             }
         }
 
-        $location = $this->findBaseLocation((int) $character['id']);
+        $location = $this->findBaseLocation((int) $character['id'], $claimedCellId);
         if (!$location['ok']) {
+            if (isset($location['reason'])) {
+                return $this->chooseBaseResult($location);
+            }
             $err = $location['error'] ?? "Ошибка базы.";
             // Backpack: legacy text "У тебя нет базы, куда телепортироваться!" замість generic.
             if ($err === 'no_claimed_cell') {
@@ -140,7 +147,7 @@ class TeleportUseValidator
      * @param array<string,mixed>|CharacterEntity $character
      * @return array<string,mixed>
      */
-    public function validateGold(array|CharacterEntity $character): array
+    public function validateGold(array|CharacterEntity $character, ?int $claimedCellId = null): array
     {
         $charRow = $this->characterModel->find((int) $character['id']);
         if (!$charRow) {
@@ -155,8 +162,11 @@ class TeleportUseValidator
             ];
         }
 
-        $location = $this->findBaseLocation((int) $charRow['id']);
+        $location = $this->findBaseLocation((int) $charRow['id'], $claimedCellId);
         if (!$location['ok']) {
+            if (isset($location['reason'])) {
+                return $this->chooseBaseResult($location);
+            }
             $err = $location['error'] ?? "Ошибка базы.";
             if ($err === 'no_claimed_cell') {
                 return ['ok' => false, 'error' => "У тебя нет базы для телепорта!"];
@@ -185,7 +195,7 @@ class TeleportUseValidator
      * @param array<string,mixed>|CharacterEntity $character
      * @return array<string,mixed>
      */
-    public function validatePortable(array|CharacterEntity $character): array
+    public function validatePortable(array|CharacterEntity $character, ?int $claimedCellId = null): array
     {
         $portableItem = $this->craftedItemModel->where('name_eng', 'PortableTeleport')->first();
         if (!$portableItem) {
@@ -211,8 +221,11 @@ class TeleportUseValidator
             return ['ok' => false, 'error' => "Портативный телепорт разряжен — заряды кончились."];
         }
 
-        $location = $this->findBaseLocation((int) $character['id']);
+        $location = $this->findBaseLocation((int) $character['id'], $claimedCellId);
         if (!$location['ok']) {
+            if (isset($location['reason'])) {
+                return $this->chooseBaseResult($location);
+            }
             return ['ok' => false, 'error' => "У тебя нет портативного телепорта."];
         }
 
@@ -234,15 +247,18 @@ class TeleportUseValidator
      * @param array<string,mixed>|CharacterEntity $character
      * @return array<string,mixed>
      */
-    public function validateExperience(array|CharacterEntity $character): array
+    public function validateExperience(array|CharacterEntity $character, ?int $claimedCellId = null): array
     {
         $charRow = $this->characterModel->find((int) $character['id']);
         if (!$charRow || (float) $charRow['experience'] <= self::EXPERIENCE_THRESHOLD) {
             return ['ok' => false, 'error' => "У тебя недостаточно опыта для телепортации."];
         }
 
-        $location = $this->findBaseLocation((int) $charRow['id']);
+        $location = $this->findBaseLocation((int) $charRow['id'], $claimedCellId);
         if (!$location['ok']) {
+            if (isset($location['reason'])) {
+                return $this->chooseBaseResult($location);
+            }
             return ['ok' => false, 'error' => "У тебя недостаточно опыта для телепортации."];
         }
 
@@ -257,18 +273,111 @@ class TeleportUseValidator
     }
 
     /**
-     * Common helper: find claimed_cell + map_row for given character.
-     * Returns discriminated tagged error для caller'ів якщо не знайдено.
+     * story backpack-teleport-base-choice-01 — активные базы персонажа, в порядке id.
+     * Заброшенные (`status='abandoned'`) базы в список не попадают.
      *
-     * @return array{ok:bool, error?:string, claimedCell?:array<string,mixed>, mapRow?:array<string,mixed>}
+     * @return array<int, array{id:int, map_cell_id:int, camp_name:mixed, coordinate_x:mixed, coordinate_y:mixed}>
      */
-    private function findBaseLocation(int $characterId): array
+    public function listActiveBases(int $characterId): array
     {
-        $claimedCell = $this->claimedCellModel->where('character_id', $characterId)->first();
+        $cells = $this->claimedCellModel
+            ->where('character_id', $characterId)
+            ->where('status', 'active')
+            ->orderBy('id', 'ASC')
+            ->findAll();
+
+        $bases = [];
+        foreach ($cells as $cell) {
+            $mapRow = $this->mapModel->where('cell_number', $cell['map_cell_id'])->first();
+            $bases[] = [
+                'id'           => (int) $cell['id'],
+                'map_cell_id'  => (int) $cell['map_cell_id'],
+                'camp_name'    => $cell['camp_name'] ?? null,
+                'coordinate_x' => $mapRow['coordinate_x'] ?? null,
+                'coordinate_y' => $mapRow['coordinate_y'] ?? null,
+            ];
+        }
+
+        return $bases;
+    }
+
+    /**
+     * story backpack-teleport-base-choice-01 — унифицированный wrap для `reason=no_base`
+     * и `reason=choose_base` из findBaseLocation() в форму, которую отдают validate*.
+     *
+     * @param array{reason:string, bases?:array<int,array<string,mixed>>} $location
+     * @return array<string,mixed>
+     */
+    private function chooseBaseResult(array $location): array
+    {
+        $result = ['ok' => false, 'reason' => $location['reason']];
+        if (isset($location['bases'])) {
+            $result['bases'] = $location['bases'];
+        }
+        return $result;
+    }
+
+    /**
+     * Common helper: find claimed_cell + map_row for given character.
+     *
+     * story backpack-teleport-base-choice-01 — только `status='active'`, с явным
+     * выбором по $claimedCellId (id должен принадлежать персонажу и быть active,
+     * иначе reason=no_base); без id и ≥2 активных баз — reason=choose_base + bases
+     * (см. listActiveBases()); без id и ровно 1 активная база — поведение как раньше;
+     * без id и 0 активных баз — тот же error=no_claimed_cell, что и до story (Non-goal:
+     * не трогаем PlayerRespawner и другие bare-first() по claimed_cells).
+     *
+     * @return array{ok:bool, error?:string, reason?:string, bases?:array<int,array<string,mixed>>, claimedCell?:array<string,mixed>, mapRow?:array<string,mixed>}
+     */
+    private function findBaseLocation(int $characterId, ?int $claimedCellId = null): array
+    {
+        if ($claimedCellId !== null) {
+            $claimedCell = $this->claimedCellModel
+                ->where('id', $claimedCellId)
+                ->where('character_id', $characterId)
+                ->where('status', 'active')
+                ->first();
+            if (!$claimedCell) {
+                return ['ok' => false, 'reason' => 'no_base'];
+            }
+
+            return $this->resolveMapRow($claimedCell);
+        }
+
+        $activeCount = $this->claimedCellModel
+            ->where('character_id', $characterId)
+            ->where('status', 'active')
+            ->countAllResults();
+
+        if ($activeCount === 0) {
+            return ['ok' => false, 'error' => 'no_claimed_cell'];
+        }
+
+        if ($activeCount >= 2) {
+            return ['ok' => false, 'reason' => 'choose_base', 'bases' => $this->listActiveBases($characterId)];
+        }
+
+        $claimedCell = $this->claimedCellModel
+            ->where('character_id', $characterId)
+            ->where('status', 'active')
+            ->first();
         if (!$claimedCell) {
             return ['ok' => false, 'error' => 'no_claimed_cell'];
         }
 
+        return $this->resolveMapRow($claimedCell);
+    }
+
+    /**
+     * story backpack-teleport-base-choice-01 — вынесенный общий хвост findBaseLocation():
+     * map-строка по claimed_cell + сборка успешного результата. Держит один-единственный
+     * offset-access на `map_cell_id`, чтобы не плодить дубли phpstan-паттернов.
+     *
+     * @param array<string,mixed> $claimedCell
+     * @return array{ok:bool, error?:string, claimedCell?:array<string,mixed>, mapRow?:array<string,mixed>}
+     */
+    private function resolveMapRow(array $claimedCell): array
+    {
         $mapRow = $this->mapModel->where('cell_number', $claimedCell['map_cell_id'])->first();
         if (!$mapRow) {
             return ['ok' => false, 'error' => 'no_map_row'];

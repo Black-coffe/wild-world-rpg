@@ -35,7 +35,7 @@
 
 ## Contracts
 - `TeleportUseValidator::listActiveBases(int $characterId): array` — строки `claimed_cells` (`id, map_cell_id, camp_name`) + `coordinate_x/coordinate_y` из `map`, `ORDER BY claimed_cells.id`, только `status='active'`.
-- `validateBackpack/validateGold/validatePortable/validateExperience(int $characterId, ?int $claimedCellId = null)` — при `null` и ровно одной активной базе берут её; при `null` и ≥2 возвращают `['ok'=>false,'reason'=>'choose_base','bases'=>[...]]`; при id, не принадлежащем персонажу / не active → `['ok'=>false,'reason'=>'no_base']`. Существующая форма успешного результата сохраняется.
+- `validateBackpack/validateGold/validatePortable/validateExperience(array|CharacterEntity $character, ?int $claimedCellId = null)` (первый параметр — как и был) — при `null` и ровно одной активной базе берут её; при `null` и ≥2 возвращают `['ok'=>false,'reason'=>'choose_base','bases'=>[...]]`; при id, не принадлежащем персонажу / не active → `['ok'=>false,'reason'=>'no_base']`. Существующая форма успешного результата сохраняется.
 - Callback: `TeleportUse_<Kind>_<claimedCellId>` (напр. `TeleportUse_Backpack_242`); `TeleportUse_<Kind>` без хвоста остаётся валидным (одна база → прыжок; несколько → экран выбора).
 - Подпись кнопки: `🏠 <camp_name|«База»> (<x>,<y>)`; ряды через `packButtonRows()` (2–3 в ряд).
 
