@@ -2,6 +2,9 @@
 
 namespace App\Services\Player\TeleportUse;
 
+use App\Services\Display\MarkdownSafe;
+use App\Services\Telegram\ButtonPacker;
+
 /**
  * v0.51.64 (TeleportUseAction decomp Step 2) — extract Markdown templates
  * + inline keyboards у dedicated formatter service.
@@ -15,6 +18,9 @@ namespace App\Services\Player\TeleportUse;
  *  - successGold(cost, newGold)               — Markdown
  *  - successPortable()                        — Markdown + inline keyboard {Base/Actions}
  *  - successExperience()                      — Markdown
+ *  - chooseBase(kind, bases)                  — story 02: экран выбора базы
+ *    (`reason=choose_base` от TeleportUseValidator), кнопки `TeleportUse_<Kind>_<id>`.
+ *  - baseNotFound()                           — story 02: `reason=no_base`.
  *
  * Validator's error strings залишаються pass-through (already final text).
  * Action wraps їх через sendError() helper. Step 2 не зачіпає error formatting —
@@ -100,6 +106,62 @@ class TeleportUseMessageFormatter
     {
         return [
             'text'       => self::ROBI_PREFIX . "Ты успешно использовал опыт для телепортации и телепортировался на базу.",
+            'parse_mode' => 'Markdown',
+        ];
+    }
+
+    /**
+     * story backpack-teleport-base-choice-02 — экран «Куда прыгаем?» при ≥2 активных
+     * базах. Ничего не списывается: выбор только выбирает `claimedCellId`, дальше
+     * игрок попадает в тот же `useXTeleport()`, что и при одной базе.
+     *
+     * Самодостаточен без картинки (ADR-020): текст несёт число баз и список координат,
+     * кнопки дублируют то же самое.
+     *
+     * @param  array<int, array<string,mixed>> $bases
+     * @return array{text: string, parse_mode: string, reply_markup: string}
+     */
+    public function chooseBase(string $kind, array $bases): array
+    {
+        $count = count($bases);
+        $text  = self::ROBI_PREFIX
+               . "Активных баз: *{$count}*. Куда прыгаем?\n\n";
+
+        $buttons = [];
+        foreach ($bases as $base) {
+            $campNameRaw = $base['camp_name'] ?? '';
+            $name = MarkdownSafe::name(is_scalar($campNameRaw) ? (string) $campNameRaw : '', 'База');
+            $xRaw = $base['coordinate_x'] ?? null;
+            $yRaw = $base['coordinate_y'] ?? null;
+            $x     = is_scalar($xRaw) ? (string) $xRaw : '?';
+            $y     = is_scalar($yRaw) ? (string) $yRaw : '?';
+            $idRaw = $base['id'] ?? null;
+            $id    = is_scalar($idRaw) ? (string) $idRaw : '';
+            $text .= "🏠 {$name} (X={$x}, Y={$y})\n";
+            $buttons[] = [
+                'text'          => "🏠 {$name} ({$x},{$y})",
+                'callback_data' => "TeleportUse_{$kind}_{$id}",
+            ];
+        }
+
+        $rows   = ButtonPacker::pack($buttons);
+        $rows[] = [
+            ['text' => '↩️ Назад', 'callback_data' => 'TeleportToCamp'],
+            ['text' => '🏠 База',  'callback_data' => 'Base'],
+        ];
+
+        return [
+            'text'         => $text,
+            'parse_mode'   => 'Markdown',
+            'reply_markup' => (string) json_encode(['inline_keyboard' => $rows]),
+        ];
+    }
+
+    /** @return array{text: string, parse_mode: string} */
+    public function baseNotFound(): array
+    {
+        return [
+            'text'       => self::ROBI_PREFIX . "База не найдена — возможно, её уже снесли. Попробуй ещё раз.",
             'parse_mode' => 'Markdown',
         ];
     }

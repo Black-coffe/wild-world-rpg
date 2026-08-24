@@ -52,18 +52,84 @@ class TeleportUseAction extends BaseAction
             return $this->sendFormatted(['text' => $solarGate->lockMessage()]);
         }
 
-        switch ($this->callbackQuery->getData()) {
-            case 'TeleportUse_Portable':
-                return $this->usePortableTeleport($character);
-            case 'TeleportUse_WithExperience':
-                return $this->useExperienceTeleport($character);
-            case 'TeleportUse_WithGold':
-                return $this->useGoldTeleport($character);
-            case 'TeleportUse_Backpack':
-                return $this->useBackpackTeleport($character);
+        $parsed = $this->parseCallbackData($this->callbackQuery->getData());
+        if ($parsed === null) {
+            return $this->sendFormatted($this->formatter->unknownTeleportType());
+        }
+        [$kind, $claimedCellId] = $parsed;
+
+        switch ($kind) {
+            case 'Portable':
+                return $this->usePortableTeleport($character, $claimedCellId);
+            case 'WithExperience':
+                return $this->useExperienceTeleport($character, $claimedCellId);
+            case 'WithGold':
+                return $this->useGoldTeleport($character, $claimedCellId);
+            case 'Backpack':
+                return $this->useBackpackTeleport($character, $claimedCellId);
             default:
                 return $this->sendFormatted($this->formatter->unknownTeleportType());
         }
+    }
+
+    /**
+     * story backpack-teleport-base-choice-02 — callback теперь несёт опциональный
+     * хвост `_<claimedCellId>` (`TeleportUse_Backpack_242`). Роутинг на этот класс
+     * не меняется: `CallbackqueryCommand` резолвит по первому сегменту до `_`
+     * (`TeleportUse`), хвост разбирает сам handle().
+     *
+     * @return array{0:string,1:?int}|null [kind, claimedCellId] или null для неизвестного kind.
+     */
+    private function parseCallbackData(string $data): ?array
+    {
+        if (!preg_match('/^TeleportUse_(Portable|WithExperience|WithGold|Backpack)(?:_(\d+))?$/', $data, $m)) {
+            return null;
+        }
+
+        return [$m[1], isset($m[2]) ? (int) $m[2] : null];
+    }
+
+    /**
+     * story backpack-teleport-base-choice-02 — общая ветка для `reason` из validate*()
+     * (`no_base` / `choose_base`), которую все 4 способа обрабатывают одинаково.
+     * Ничего не списано ни в одном из этих исходов.
+     *
+     * @param array<string,mixed> $result
+     */
+    private function handleReason(string $kind, array $result): ?ServerResponse
+    {
+        if (!isset($result['reason'])) {
+            return null;
+        }
+
+        if ($result['reason'] === 'choose_base') {
+            return $this->sendFormatted($this->formatter->chooseBase($kind, $this->extractBases($result['bases'] ?? null)));
+        }
+
+        // reason === 'no_base'
+        return $this->sendFormatted($this->formatter->baseNotFound());
+    }
+
+    /**
+     * Строго типизирует `$result['bases']` из validate*() (сформирован
+     * `TeleportUseValidator::listActiveBases()`, но статически он mixed).
+     *
+     * @return array<int, array<string,mixed>>
+     */
+    private function extractBases(mixed $bases): array
+    {
+        if (!is_array($bases)) {
+            return [];
+        }
+
+        $typed = [];
+        foreach ($bases as $base) {
+            if (is_array($base)) {
+                $typed[] = $base;
+            }
+        }
+
+        return $typed;
     }
 
     /**
@@ -81,10 +147,13 @@ class TeleportUseAction extends BaseAction
     /**
      * Телепорт рюкзаком (TeleportBackpack), раз в 60 минут.
      */
-    private function useBackpackTeleport(array|\App\Entities\CharacterEntity $character): ServerResponse
+    private function useBackpackTeleport(array|\App\Entities\CharacterEntity $character, ?int $claimedCellId = null): ServerResponse
     {
-        $result = $this->validator->validateBackpack($character);
+        $result = $this->validator->validateBackpack($character, $claimedCellId);
         if (!$result['ok']) {
+            if ($response = $this->handleReason('Backpack', $result)) {
+                return $response;
+            }
             return $this->sendFormatted($this->formatter->error($result['error']));
         }
 
@@ -98,10 +167,13 @@ class TeleportUseAction extends BaseAction
     /**
      * Телепорт за золото.
      */
-    private function useGoldTeleport(array|\App\Entities\CharacterEntity $character): ServerResponse
+    private function useGoldTeleport(array|\App\Entities\CharacterEntity $character, ?int $claimedCellId = null): ServerResponse
     {
-        $result = $this->validator->validateGold($character);
+        $result = $this->validator->validateGold($character, $claimedCellId);
         if (!$result['ok']) {
+            if ($response = $this->handleReason('WithGold', $result)) {
+                return $response;
+            }
             return $this->sendFormatted($this->formatter->error($result['error']));
         }
 
@@ -120,10 +192,13 @@ class TeleportUseAction extends BaseAction
      * Телепорт с помощью портативного устройства.
      * Legacy preserved: всі fail-paths повертають один generic error.
      */
-    private function usePortableTeleport(array|\App\Entities\CharacterEntity $character): ServerResponse
+    private function usePortableTeleport(array|\App\Entities\CharacterEntity $character, ?int $claimedCellId = null): ServerResponse
     {
-        $result = $this->validator->validatePortable($character);
+        $result = $this->validator->validatePortable($character, $claimedCellId);
         if (!$result['ok']) {
+            if ($response = $this->handleReason('Portable', $result)) {
+                return $response;
+            }
             return $this->sendFormatted($this->formatter->error($result['error'], true));
         }
 
@@ -138,10 +213,13 @@ class TeleportUseAction extends BaseAction
      * Телепорт за опыт.
      * Legacy preserved: всі fail-paths повертають єдиний error.
      */
-    private function useExperienceTeleport(array|\App\Entities\CharacterEntity $character): ServerResponse
+    private function useExperienceTeleport(array|\App\Entities\CharacterEntity $character, ?int $claimedCellId = null): ServerResponse
     {
-        $result = $this->validator->validateExperience($character);
+        $result = $this->validator->validateExperience($character, $claimedCellId);
         if (!$result['ok']) {
+            if ($response = $this->handleReason('WithExperience', $result)) {
+                return $response;
+            }
             return $this->sendFormatted($this->formatter->error($result['error'], true));
         }
 
