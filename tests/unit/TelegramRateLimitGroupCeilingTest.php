@@ -99,6 +99,7 @@ final class TelegramRateLimitGroupCeilingTest extends CIUnitTestCase
         putenv('telegram.RATE_LIMIT_PER_MINUTE=' . self::PERSONAL_LIMIT);
         \Config\Services::cache()->delete('tg_rate_' . self::USER);
         \Config\Services::cache()->delete('tg_rate_group_' . self::GROUP);
+        \Config\Services::cache()->delete('tg_rate_group_setting_missing_notice');
         Time::setTestNow('2026-08-25 12:00:00');
     }
 
@@ -108,6 +109,7 @@ final class TelegramRateLimitGroupCeilingTest extends CIUnitTestCase
         putenv('telegram.RATE_LIMIT_PER_MINUTE');
         \Config\Services::cache()->delete('tg_rate_' . self::USER);
         \Config\Services::cache()->delete('tg_rate_group_' . self::GROUP);
+        \Config\Services::cache()->delete('tg_rate_group_setting_missing_notice');
         $this->conn->query('DROP TABLE IF EXISTS game_settings');
 
         parent::tearDown();
@@ -210,5 +212,67 @@ final class TelegramRateLimitGroupCeilingTest extends CIUnitTestCase
         }
 
         $this->assertCount(1, $filter->calls, 'Личный лимит по-прежнему считается величиной 60/мин, независимо от группового ключа');
+    }
+
+    /**
+     * story community-chat-bot-49, дефект: признак «строки настройки нет» переписывался
+     * трижды (33 → 37 → 41), и ни разу этот путь не проверялся тестом — предыдущие тесты
+     * файла всегда держат строку `game_settings` заведённой (фикстура setUp вставляет её
+     * со значением 600), в том числе тест «не изменена» ниже по значению совпадает с
+     * fallback-константой, но НЕ проверяет случай отсутствующей строки как таковой.
+     *
+     * Здесь строка удаляется целиком: `GameSettingsService::get()` идёт по ветке
+     * `$row === null` → возвращает `$default` (в проде это `null`, сигнальное значение
+     * для `groupMaxPerMinute()`), фильтр обязан откатиться на персональный лимит 60/мин.
+     */
+    public function testGroupCeilingFallsBackToPersonalWindowWhenSettingRowIsMissing(): void
+    {
+        $this->conn->table('game_settings')->where('setting_key', self::SETTING_KEY)->delete();
+        $this->assertNull(
+            (new GameSettingsService())->get(self::SETTING_KEY, null),
+            'Предпосылка теста: строки настройки в БД действительно больше нет'
+        );
+
+        $filter = new GroupCeilingSpyTelegramRateLimitFilter();
+
+        for ($i = 0; $i < self::PERSONAL_LIMIT; $i++) {
+            $this->assertNull($this->tap($filter, $this->groupTap($i)), "Групповой тап #{$i} обязан пройти под персональным фолбэком 60/мин");
+        }
+
+        $blocked = $this->tap($filter, $this->groupTap(self::PERSONAL_LIMIT));
+
+        $this->assertInstanceOf(
+            ResponseInterface::class,
+            $blocked,
+            'При отсутствующей строке настройки групповое ведро обязано откатиться на персональный лимит 60/мин, а не остаться безлимитным'
+        );
+        $this->assertSame(200, $blocked->getStatusCode());
+    }
+
+    /**
+     * Контракт story: «след отката наблюдаем в тесте, а не только в коде». Наблюдаемый
+     * след — не лог-строка (файловый лог не читается тестом надёжно), а сам факт записи
+     * в кэш `tg_rate_group_setting_missing_notice`, которую делает
+     * `notifyGroupLimitFallbackOnce()` РОВНО тогда, когда `groupMaxPerMinute()` пошёл по
+     * ветке отсутствующей настройки. Кэш пуст до отката и не пуст после — это и есть
+     * проверяемый след, отдельный от значения лимита.
+     */
+    public function testGroupCeilingMissingSettingLeavesObservableFallbackTrace(): void
+    {
+        $this->conn->table('game_settings')->where('setting_key', self::SETTING_KEY)->delete();
+        $cache = \Config\Services::cache();
+
+        $this->assertNull(
+            $cache->get('tg_rate_group_setting_missing_notice'),
+            'Предпосылка теста: следа отката ещё нет'
+        );
+
+        $filter = new GroupCeilingSpyTelegramRateLimitFilter();
+        $this->tap($filter, $this->groupTap(1));
+
+        $this->assertNotNull(
+            $cache->get('tg_rate_group_setting_missing_notice'),
+            'После обращения к отсутствующей настройке в кэше обязан остаться наблюдаемый след отката'
+        );
     }
 }

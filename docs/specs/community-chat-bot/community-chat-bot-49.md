@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-49
 spec: community-chat-bot
-status: todo
+status: done
 tier: 1
 worker: worker-test
 tracer: false
@@ -44,9 +44,40 @@ Story 41 вдобавок заявила «существующие 12 тест�
   либо, если это недоказуемо тестом, явная запись об этом в notes вместо молчаливого ацептанса.
 
 ## Acceptance criteria
-- [ ] Оба пути (строка есть / строки нет) покрыты.
-- [ ] След отката наблюдаем в тесте, а не только в коде.
-- [ ] Утверждение о числе тестов в отчёте совпадает с файлом.
+- [x] Оба пути (строка есть / строки нет) покрыты.
+- [x] След отката наблюдаем в тесте, а не только в коде.
+- [x] Утверждение о числе тестов в отчёте совпадает с файлом.
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/TelegramRateLimitGroupCeilingTest.php tests/unit/TelegramRateLimitGroupScopeTest.php`
+
+## Implementation notes
+
+- Путь «строка есть» уже был покрыт до этой story (`testGroupCeilingReadFromGameSettingsDiffersFromPersonal`
+  и др.) — не дублировался, только уточнён контракт «применяется её значение, а не fallback».
+- Путь «строки нет» был непокрыт: старый `testGroupCeilingFallsBackToConfiguredDefaultWhenNotChanged`
+  держит строку ЗАВЕДЁННОЙ (фикстура `setUp` вставляет её со значением 600) — это «значение совпало
+  с fallback», а не «строки нет». Добавлены два новых теста, которые удаляют строку
+  (`DELETE ... WHERE setting_key = ...`) целиком:
+  - `testGroupCeilingFallsBackToPersonalWindowWhenSettingRowIsMissing` — групповой потолок при
+    отсутствующей строке равен персональному лимиту (60/мин), а не безлимитен.
+  - `testGroupCeilingMissingSettingLeavesObservableFallbackTrace` — след отката проверяется через
+    кэш-ключ `tg_rate_group_setting_missing_notice` (тот самый, что пишет
+    `notifyGroupLimitFallbackOnce()`), а не через файловый лог: `assertLogged`/`assertLogContains`
+    из CI4 `TestLogger` в проекте нигде не используется и не подключён явно к тестовому логгеру —
+    полагаться на перехват `log_message()` было бы недоказанным допущением. Кэш-ключ — тот же
+    самый observable-эффект, который код уже производит намеренно, поэтому это честная проверка
+    «в тесте», а не в коде.
+- Пункт контракта «откат не делает дополнительного некэшируемого запроса на каждый апдейт» —
+  **недоказуем этим набором тестов**: `GameSettingsService::get()` при `$row === null` НЕ кэширует
+  результат (ветка `if ($row === null) { return $default; }` идёт до `$cache->save(...)`), то есть
+  каждый апдейт с отсутствующей строкой настройки объективно делает `findByKey()` заново — это не
+  проверка «нет доп. запроса», а подтверждённое поведение «есть запрос на каждый тап, пока строка
+  не заведена». В репозитории нет установленного паттерна подсчёта SQL-запросов в тестах
+  (`BaseConnection` не даёт `getQueries()` в CI4), а городить его специально под один пункт story —
+  риск хрупкого теста, привязанного к деталям реализации построителя запросов. Отчёт по этому
+  пункту — честный «недоказуемо», а не галочка.
+- Утверждение о числе тестов: `TelegramRateLimitGroupCeilingTest.php` — 6 (`grep -c "public function test"`),
+  `TelegramRateLimitGroupScopeTest.php` — 4. Итого 10 — совпадает с выводом PHPUnit (`Tests: 10`).
+- Прогон `## Verification` дважды подряд — зелёный оба раза (10/10, 201 assertions), флуктуаций не
+  замечено.
