@@ -48,13 +48,13 @@ final class CommunityAnswerMatcherTest extends CIUnitTestCase
                 message_thread_id INT NULL,
                 message_id INT NOT NULL,
                 reply_to_message_id INT NULL,
-                telegram_user_id BIGINT NULL,
+                telegram_user_id BIGINT NOT NULL,
                 username VARCHAR(191) NULL,
                 text TEXT NULL,
-                sent_at DATETIME NULL,
+                sent_at DATETIME NOT NULL,
                 is_question TINYINT NOT NULL DEFAULT 0,
                 addressed_to_bot TINYINT NOT NULL DEFAULT 0,
-                status VARCHAR(16) NOT NULL DEFAULT \'new\',
+                status ENUM(\'new\', \'answered\', \'escalated\', \'ignored\') NOT NULL DEFAULT \'new\',
                 answered_by_id INT NULL,
                 created_at DATETIME NULL
             )
@@ -261,18 +261,44 @@ final class CommunityAnswerMatcherTest extends CIUnitTestCase
         $this->assertTrue($this->matcher()->isCancelledByHumanReply($message));
     }
 
-    // ── community-chat-bot-33: анонимный человек — тоже человек ─────────
+    // ── community-chat-bot-35: анонимный админ группы — тоже человек ────
 
-    public function testDelayIsCancelledByAnonymousGroupAdminReply(): void
+    /** Telegram `from.id` анонимного админа группы (`GroupAnonymousBot`), общий на всех. */
+    private const GROUP_ANONYMOUS_BOT_ID = 1087968824;
+
+    public function testDelayIsCancelledByAnonymousGroupAdminReplyToOrdinaryPlayer(): void
     {
-        // Анонимный админ группы (пост от имени канала) приходит без `telegram_user_id`
-        // — `IS NULL` в БД, а не значение автора. Голое `!= $authorId` в SQL молча
-        // отсекло бы такую строку (NULL != x даёт NULL, не TRUE), и живой человек,
-        // уже ответивший в чате, перебивался бы ботом.
+        // Вопрос задал обычный игрок, реплаит анонимный админ группы
+        // (`from.id = GROUP_ANONYMOUS_BOT_ID`, `telegram_user_id` строки NOT NULL —
+        // ingest сохраняет её как обычное сообщение) — это ДРУГОЙ человек, выдержка
+        // отменяется.
         $message = $this->insertMessage(['message_id' => 504, 'telegram_user_id' => 4242]);
         $this->assertFalse($this->matcher()->isCancelledByHumanReply($message));
 
-        $this->insertMessage(['reply_to_message_id' => 504, 'telegram_user_id' => null]);
+        $this->insertMessage([
+            'reply_to_message_id' => 504,
+            'telegram_user_id'    => self::GROUP_ANONYMOUS_BOT_ID,
+        ]);
+
+        $this->assertTrue($this->matcher()->isCancelledByHumanReply($message));
+    }
+
+    public function testDelayIsCancelledWhenQuestionAuthorWasAnonymousAdminToo(): void
+    {
+        // Вопрос задал сам анонимный админ группы — отличить его собственный реплай
+        // от реплая ДРУГОГО анонимного админа невозможно (оба несут один и тот же
+        // `from.id`). Контракт story 35 — консервативное поведение: отменять, а не
+        // молчать.
+        $message = $this->insertMessage([
+            'message_id'       => 505,
+            'telegram_user_id' => self::GROUP_ANONYMOUS_BOT_ID,
+        ]);
+        $this->assertFalse($this->matcher()->isCancelledByHumanReply($message));
+
+        $this->insertMessage([
+            'reply_to_message_id' => 505,
+            'telegram_user_id'    => self::GROUP_ANONYMOUS_BOT_ID,
+        ]);
 
         $this->assertTrue($this->matcher()->isCancelledByHumanReply($message));
     }
