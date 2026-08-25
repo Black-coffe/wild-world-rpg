@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-34
 spec: community-chat-bot
-status: todo
+status: done
 tier: 1
 worker: drone-docs
 tracer: false
