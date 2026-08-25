@@ -865,6 +865,10 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
                     ? ['community.enabled' => true, 'community.autoreply.enabled' => true][$key]
                     : $default,
             null,
+            static function (): void {
+                // no-op — реальный Telegram-объект тестам не нужен и не безопасен на CI
+                // (story 52/53, `feedback_taskhandler_telegram_init_in_tests`).
+            },
         );
 
         $handler->handle();
