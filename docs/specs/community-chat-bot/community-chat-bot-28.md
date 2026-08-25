@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-28
 spec: community-chat-bot
-status: todo
+status: done
 tier: 1
 worker: worker-code
 tracer: false
@@ -58,5 +58,12 @@ BUILT-BUT-DEAD при дословном исполнении.
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Config/CommunitySkillContractTest.php`
 
 ## Implementation notes
+
+Фаза 5 SKILL.md переписана: импорт теперь явно исполняется на проде по SSH (тот же ключ
+`$HOME/.ssh/wildworld_deploy` и адрес `wildworld-bot@bot.wildworld.fun`, что и у
+`community-pull.sh`), JSON подаётся через stdin из временного файла (не `echo`-аргументом),
+вызов включает `--no-header`. Добавлен тест
+`testImportPhaseUsesRemoteSshAndStdinNotLocalEcho`, проверяющий ssh/ключ/stdin/--no-header
+и явно запрещающий старую строку `echo '<json>' | php spark community:import`.
 
 ## Findings

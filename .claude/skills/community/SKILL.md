@@ -111,8 +111,22 @@ user-invocable: true
 2. Не больше **100 черновиков** и **256 КБ** на вызов (`CommunityImport::MAX_DRAFTS`,
    `MAX_BYTES`) — при превышении пачка бьётся на несколько вызовов, лишнее уходит
    следующим запуском скилла, а не отбрасывается.
-3. `echo '<json>' | php spark community:import` — прочитай stderr-сводку (создано/
-   обновлено/проигнорировано) и доложи её пользователю.
+3. 🔴 **`community:import` исполняется на проде по SSH** (ADR-176: канал «локаль → прод»,
+   симметрично `community-pull.sh`), не локальным `php spark`, — локальный вызов пишет в
+   локальную БД, а прод-банк черновиков от игроков не увидит. Тот же ключ и адрес, что и
+   у pull-хука:
+   - ключ — `$HOME/.ssh/wildworld_deploy`;
+   - адрес — `wildworld-bot@bot.wildworld.fun`, рабочая директория `~/htdocs/bot.wildworld.fun`.
+4. JSON подаётся **через stdin** (файл или pipe), а не аргументом командной строки —
+   `echo '<json>'` ломается на апострофе (обычное дело в репликах игроков), а
+   подстановка JSON в аргумент — это shell-инъекция. Запиши пачку во временный файл
+   и прогони его через `ssh` с `--no-header` (баннер `spark` иначе портит JSON на
+   stdout, тот же урок, что и на экспорте):
+   ```
+   ssh -i "$HOME/.ssh/wildworld_deploy" -o BatchMode=yes wildworld-bot@bot.wildworld.fun \
+       "cd ~/htdocs/bot.wildworld.fun && php spark --no-header community:import" < push.json
+   ```
+5. Прочитай stderr-сводку (создано/обновлено/проигнорировано) и доложи её пользователю.
 
 ## Non-goals (не делай)
 

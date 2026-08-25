@@ -147,4 +147,25 @@ final class CommunitySkillContractTest extends CIUnitTestCase
         $this->assertStringContainsString('community:import', $skill);
         $this->assertStringContainsString('draft', $skill);
     }
+
+    /**
+     * story community-chat-bot-28: ADR-176 — канал «локаль → прод», импорт исполняется
+     * на проде по SSH тем же ключом, что и pull, JSON подаётся через stdin, не как
+     * аргумент. Дословный локальный вызов оставляет черновики в локальной БД —
+     * BUILT-BUT-DEAD.
+     */
+    public function testImportPhaseUsesRemoteSshAndStdinNotLocalEcho(): void
+    {
+        $skill = $this->readFile(self::SKILL_PATH);
+
+        $this->assertStringContainsString('ssh ', $skill, 'фаза импорта обязана называть удалённое SSH-исполнение');
+        $this->assertStringContainsString('wildworld_deploy', $skill, 'фаза импорта обязана называть тот же ключ, что и pull');
+        $this->assertStringContainsString('stdin', mb_strtolower($skill), 'JSON обязан подаваться через stdin, не аргументом');
+        $this->assertStringContainsString('--no-header', $skill, 'без --no-header баннер spark портит JSON на stdout');
+        $this->assertStringNotContainsString(
+            "echo '<json>' | php spark community:import",
+            $skill,
+            'локальный вызов пишет в локальную БД — прод-банк не пополнится'
+        );
+    }
 }
