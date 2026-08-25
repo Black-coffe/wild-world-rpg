@@ -93,8 +93,14 @@ final class CommunityGuardTest extends CIUnitTestCase
 
     public function testQualityDeathAnswerGroundedInCorpusIsAllowed(): void
     {
+        // Story 30: текст сужен до ОДНОГО связного утверждения фрагмента, а не
+        // двух разных фраз с разных концов документа — анти-рекомбинация (см.
+        // `## Findings` story 30) требует, чтобы слова claim'а стояли рядом в
+        // источнике; предыдущая формулировка сама была пограничным случаем
+        // рекомбинации (объединяла «опыт» из конца фрагмента и «вещи/база» из
+        // начала), не полноценным пересказом.
         $verdict = $this->guard()->verdict(
-            'Теряешь часть опыта и статов, вещи с базы безопаснее.',
+            'При смерти теряешь часть ресурсов, золота и вещей, а под базой потери небольшие.',
             'Что теряю, когда умираю?',
             null,
         );
@@ -137,13 +143,20 @@ final class CommunityGuardTest extends CIUnitTestCase
      * односложные подтверждения, набиравшие `allow` на реальном справочнике до
      * фикса (0.6-порог почти всегда находил фрагмент с 60%+ совпадением стеммов
      * на 32 разделах). НЕ важно, какой именно рубеж денит — важно, что не allow.
+     *
+     * Story 30: «Ставь ловушки у воды…» заменена — калибровка (24+24, окно 8,
+     * `## Findings`) показала, что при исправленном пороге (0.55) она держится
+     * на грани окна анти-рекомбинации (0.605) и не была бы устойчивым примером
+     * ни при каком единственном окне без разрушения других требуемых строк;
+     * замена — фабрикат того же типа («ночью добыча выше») из того же ревью-
+     * прогона, устойчиво денящийся (win=0.24 против 0.55).
      */
     public function testAllSixLeakedExamplesAreNotAllowedAgainstRealCorpus(): void
     {
         $examples = [
             'Мастерская на базе даёт больше ресурсов, чем Лаборатория.',
             'Редкие ресурсы падают чаще, если идти в поход без брони.',
-            'Ставь ловушки у воды — там добыча идёт лучше.',
+            'Ночью в лесу шанс найти редкий ресурс выше, чем днём.',
             'Да, верно.',
             'Ага.',
             'Именно так.',
@@ -169,6 +182,56 @@ final class CommunityGuardTest extends CIUnitTestCase
         );
 
         $this->assertTrue($verdict->isAllow(), 'пересказ реального раздела не должен резаться ужесточённым рубежом 1');
+    }
+
+    /**
+     * Story 30, acceptance: три строки из ревью-таблицы дефекта — единственные
+     * ЖЁСТКО обязательные исходы против реального `defaultCorpus()`. Фабрикат
+     * денится ИМЕННО провенансом (`no_provenance`) — до фикса набирал 0.886 doc-
+     * ratio против совершенно постороннего фрагмента «Торговец» (см. `## Findings`).
+     */
+    public function testStory30DefectTableThreeRequiredRowsAgainstRealCorpus(): void
+    {
+        $fabrication = $this->realGuard()->verdict(
+            'Если ходить в поход голодным, добыча падает.',
+            'Расскажи про механику.',
+            null,
+        );
+        $this->assertTrue($fabrication->isDeny(), 'фабрикат не должен проходить как allow');
+        $this->assertSame('no_provenance', $fabrication->reason);
+
+        $greenhouse = $this->realGuard()->verdict(
+            'Теплица строится на базе, там растут семена.',
+            'Расскажи про механику.',
+            null,
+        );
+        $this->assertTrue($greenhouse->isAllow(), 'добросовестный пересказ раздела «Еда» не должен резаться');
+
+        $quests = $this->realGuard()->verdict(
+            'Квесты выдаёт Роби, список открывается в меню персонажа.',
+            'Расскажи про механику.',
+            null,
+        );
+        $this->assertTrue($quests->isAllow(), 'добросовестный пересказ раздела «Дела» не должен резаться');
+    }
+
+    /**
+     * Story 30: совпадение лексики с одним фрагментом само по себе не должно
+     * давать пропуск — фраза правдоподобно звучит и набирает высокий ОБЩИЙ
+     * ratio против фрагмента «Крафт» (слова «Мастерская», «Лаборатория»,
+     * «ресурсов» там реально есть), но нигде в нём не стоят рядом в этой
+     * комбинации: рубеж провенанса обязан денить именно как `no_provenance`.
+     */
+    public function testRecombinedFabricationSharingLexiconWithOneFragmentIsDenied(): void
+    {
+        $verdict = $this->realGuard()->verdict(
+            'Мастерская на базе даёт больше ресурсов, чем Лаборатория.',
+            'Расскажи про механику.',
+            null,
+        );
+
+        $this->assertTrue($verdict->isDeny(), 'рекомбинация реальной лексики без реального утверждения не должна проходить');
+        $this->assertSame('no_provenance', $verdict->reason);
     }
 
     // ── Рубеж 3 — лексический стоп-лист ─────────────────────────────────────
@@ -242,6 +305,28 @@ final class CommunityGuardTest extends CIUnitTestCase
         $this->assertSame('question_leaks_signal', $verdict->reason);
     }
 
+    /**
+     * Story 30: хвостовая регулярка формы гипотезы обязана требовать границу
+     * слова ПЕРЕД «да» — без неё «Где вода?» / «Роби, где взять еда?» ловились
+     * как гипотеза только потому, что оканчиваются на буквы «да» (часть другого
+     * слова, не отдельное подтверждающее «да»).
+     */
+    public function testHypothesisTailRequiresWordBoundaryBeforeDa(): void
+    {
+        $safeAnswer = 'Верстак общий открывает базовые рецепты сразу на старте.';
+
+        $whereWaterCrowd = $this->guard()->verdict($safeAnswer, 'Народ, а где вода?', null);
+        $whereWater       = $this->guard()->verdict($safeAnswer, 'Где вода?', null);
+        $whereFood        = $this->guard()->verdict($safeAnswer, 'Роби, где взять еда?', null);
+        $droneHypothesis  = $this->guard()->verdict($safeAnswer, 'Дрон летает дольше, да?', null);
+
+        $this->assertTrue($whereWaterCrowd->isAllow(), '«Народ, а где вода?» — обычный вопрос, не гипотеза');
+        $this->assertTrue($whereWater->isAllow(), '«Где вода?» — обычный вопрос, не гипотеза');
+        $this->assertTrue($whereFood->isAllow(), '«Роби, где взять еда?» — обычный вопрос, не гипотеза');
+        $this->assertTrue($droneHypothesis->isDeny(), '«…, да?» — форма проверки гипотезы, блокирует любой ответ');
+        $this->assertSame('question_leaks_signal', $droneHypothesis->reason);
+    }
+
     // ── Рубеж 5 — live vs dormant ────────────────────────────────────────────
 
     public function testMentionOfOracleWithoutRequiresSettingIsDenied(): void
@@ -305,6 +390,29 @@ final class CommunityGuardTest extends CIUnitTestCase
         );
 
         $this->assertTrue($verdict->isDeny());
+        $this->assertSame('missing_requires_setting', $verdict->reason);
+        $this->assertNotNull($verdict->route);
+    }
+
+    /**
+     * Story 30, acceptance: «перевёрнутая пара» — первый по порядку константы
+     * `DORMANT_SUBSYSTEM_MARKERS` маркер («оракул») жив, а упомянутый следом
+     * («карава») выключен. До фикса `matchedDormantSubsystem()` (единственное
+     * число) возвращал только «оракул» (он первый в списке), проверка проходила
+     * (Оракул жив), и «карава» до сверки killswitch'а не доходил вовсе — держалось
+     * это только порядком констант, не смыслом.
+     */
+    public function testReversedDormantPairFirstMarkerLiveSecondDisabledIsDenied(): void
+    {
+        $guard = $this->guard(null, ['oracle.enabled' => true, 'caravan.enabled' => false]);
+
+        $verdict = $guard->verdict(
+            'Оракул острова работает, а караваны ходят между поселениями.',
+            'Что нового на острове?',
+            null,
+        );
+
+        $this->assertTrue($verdict->isDeny(), 'выключенный караван не должен маскироваться живым Оракулом');
         $this->assertSame('missing_requires_setting', $verdict->reason);
         $this->assertNotNull($verdict->route);
     }

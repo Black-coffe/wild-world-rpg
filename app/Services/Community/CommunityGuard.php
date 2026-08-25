@@ -51,17 +51,56 @@ final class CommunityGuard
 
     /**
      * Доля ВЗВЕШЕННЫХ значимых слов предложения, которая обязана найтись в ОДНОМ
-     * фрагменте корпуса (story 21). При десятках фрагментов простой bag-of-stems
-     * ratio почти всегда набирает 0.6+ на каком-то фрагменте — родовые игровые
-     * слова («ресурс», «база», «даёт») встречаются почти везде. Вес слова —
+     * фрагменте корпуса — recall-пол, не главный фильтр (story 30 понизила порог
+     * с 0.75: на 32 фрагментах разной длины он сам по себе не разделял классы,
+     * см. `RECOMBINATION_THRESHOLD` ниже и `## Findings` story 30). Вес слова —
      * обратная частота фрагментов, где оно встречается (мини-IDF, детерминированный
      * счёт по корпусу, не семантика): редкое/специфичное слово («полис», «дрон»)
-     * весит больше, чем то, что есть в половине фрагментов. Порог откалиброван по
-     * `defaultCorpus()` (32 раздела `GuideCatalog`): добросовестный пересказ
-     * реального фрагмента набирает ~0.9+, придуманное правдоподобное утверждение
-     * из игровой лексики — ~0.6-0.7 (см. story 21 `## Findings`).
+     * весит больше, чем то, что есть в половине фрагментов.
      */
-    private const PROVENANCE_THRESHOLD = 0.75;
+    private const PROVENANCE_THRESHOLD = 0.50;
+
+    /**
+     * Story 30 — рубеж анти-рекомбинации, второй обязательный признак рядом с
+     * `PROVENANCE_THRESHOLD`. Ревью замерило: длинный фрагмент (например «Торговец»,
+     * 190+ уникальных стемов) случайно набирает высокий ratio по ВСЕМУ своему тексту
+     * даже когда слова предложения в нём нигде не стоят рядом — «Если ходить в поход
+     * голодным, добыча падает.» получала 0.886 против фрагмента про торговлю, где
+     * ни разу не встречается ни «поход», ни «голод» рядом с «добычей». Признак —
+     * то же взвешенное покрытие, но не по всему документу, а по ЛУЧШЕМУ скользящему
+     * окну фиксированного размера (`RECOMBINATION_WINDOW_WORDS`) внутри ЛУЧШЕГО по
+     * `PROVENANCE_THRESHOLD` фрагмента: у добросовестного пересказа слова claim'а
+     * стоят рядом в источнике (какое-то окно их удерживает почти целиком), у
+     * рекомбинации — разбросаны по всему документу, и ни одно окно фиксированного
+     * размера высокого покрытия не даёт. Калибровка на 24 добросовестных + 24
+     * фабрикатах — `## Findings` story 30.
+     */
+    private const RECOMBINATION_THRESHOLD = 0.55;
+
+    /**
+     * Story 30 — размер скользящего окна (в значимых словах фрагмента). Маленькое
+     * окно нарочно: калибровка показала, что более широкое окно (16+) уравнивает
+     * «Редкие ресурсы падают чаще, если идти в поход без брони.» (фабрикат) с
+     * добросовестными ответами того же порядка длины — окно шире разбросанной
+     * фабрикации начинает ту же ошибку длинного документа, только в миниатюре.
+     */
+    private const RECOMBINATION_WINDOW_WORDS = 8;
+
+    /** Story 30 — шаг скольжения окна; меньше — точнее, дороже. */
+    private const RECOMBINATION_WINDOW_STRIDE = 2;
+
+    /**
+     * Story 30 — обход анти-рекомбинации для ПОЧТИ ДОСЛОВНОГО совпадения с одним
+     * фрагментом целиком. При `RECOMBINATION_WINDOW_WORDS = 8` часть добросовестных
+     * пересказов, которые связно объединяют мысль из НЕСКОЛЬКИХ соседних предложений
+     * одного фрагмента (напр. «Смерть забирает часть ресурсов… а под своей базой
+     * потери меньше, чем у бездомного.» — doc-ratio 0.933, ужимает две фразы раздела
+     * «Что забирает смерть» в одну), не укладываются ни в одно 8-словное окно — но
+     * их ОБЩИЙ ratio настолько высок, что рекомбинация уже маловероятна: собрать
+     * фальшивку, покрывающую 90%+ ВЗВЕШЕННОЙ лексики единственного документа, кейсы
+     * калибровки не смогли (максимум фабриката — 0.886, см. `## Findings`).
+     */
+    private const RECOMBINATION_BYPASS_THRESHOLD = 0.90;
 
     /** §5, рубеж 3 — быстрее/выгоднее/оптимально/… (план §5.3, дословно). */
     private const LEXICAL_STOPLIST = [
@@ -139,8 +178,13 @@ final class CommunityGuard
         // упоминание ДРУГОЙ dormant-темы в том же ответе (Оракул при requires_setting
         // транспорта). `DORMANT_SUBSYSTEM_SETTINGS` — тот же 12-маркерный канон-словарь,
         // просто с уже задокументированными в комментариях ключами превращёнными в данные.
-        $dormantMarker = $this->matchedDormantSubsystem($answer);
-        if ($dormantMarker !== null) {
+        //
+        // Story 30: проверяются ВСЕ упомянутые маркеры, а не только первый по порядку
+        // константы — `matchedDormantSubsystem()` (единственное число) возвращал первый
+        // найденный, и «Оракул работает, а караваны ходят» проходило, если «оракул»
+        // просто стоял в списке раньше «карава» (перевёрнутая пара: первый маркер жив,
+        // второй выключен — второй маркер до проверки не доходил вовсе).
+        foreach ($this->matchedDormantSubsystems($answer) as $dormantMarker) {
             $expectedSetting = CommunityStopTopics::DORMANT_SUBSYSTEM_SETTINGS[$dormantMarker] ?? null;
             if ($expectedSetting !== $setting
                 && ($expectedSetting === null || ! $this->readKillswitch($expectedSetting))
@@ -212,7 +256,9 @@ final class CommunityGuard
         }
 
         // «уворот упирается в 75, да?» — форма проверки гипотезы через хвост «…, да?».
-        return preg_match('/,?\s*да\s*\?\s*$/u', trim($question)) === 1;
+        // Story 30: обязана быть граница слова ПЕРЕД «да» — без неё хвост ловил и
+        // «Где вода?» / «Роби, где взять еда?» (буквы «да» на конце обычного слова).
+        return preg_match('/(?<![\p{L}])да\s*\?\s*$/u', trim($question)) === 1;
     }
 
     private function answerLeaksLexically(string $answer): bool
@@ -270,20 +316,26 @@ final class CommunityGuard
         return null;
     }
 
-    /** Первый dormant-маркер (§5.5), упомянутый в тексте, или null. */
-    private function matchedDormantSubsystem(string $text): ?string
+    /**
+     * Story 30: ВСЕ dormant-маркеры (§5.5), упомянутые в тексте, не только первый —
+     * см. комментарий на месте вызова.
+     *
+     * @return list<string>
+     */
+    private function matchedDormantSubsystems(string $text): array
     {
         if ($text === '') {
-            return null;
+            return [];
         }
-        $lower = mb_strtolower($text);
+        $lower   = mb_strtolower($text);
+        $matches = [];
         foreach (CommunityStopTopics::DORMANT_SUBSYSTEM_MARKERS as $marker) {
             if (str_contains($lower, mb_strtolower($marker))) {
-                return $marker;
+                $matches[] = $marker;
             }
         }
 
-        return null;
+        return $matches;
     }
 
     /**
@@ -322,9 +374,14 @@ final class CommunityGuard
     {
         $sentences = preg_split('/(?<=[.!?])\s+|\n+/u', $answer) ?: [$answer];
 
-        $fragmentStems = [];
+        // Story 30: и bag-of-stems (порядок неважен, для ratio), и ordered (порядок
+        // сохранён, для скользящего окна анти-рекомбинации) — считаются один раз на
+        // весь корпус, не на каждое предложение.
+        $fragmentStems        = [];
+        $fragmentOrderedStems = [];
         foreach ($this->corpus as $i => $fragment) {
-            $fragmentStems[$i] = $this->stems($fragment['text']);
+            $fragmentOrderedStems[$i] = $this->stemsOrdered($fragment['text']);
+            $fragmentStems[$i]        = array_values(array_unique($fragmentOrderedStems[$i]));
         }
 
         // Story 21: вес стема — обратная частота фрагментов, в которых он встречается
@@ -333,7 +390,7 @@ final class CommunityGuard
         // весит меньше, чем специфичное слово из одного-двух разделов.
         $documentFrequency = [];
         foreach ($fragmentStems as $stemsOfFragment) {
-            foreach (array_unique($stemsOfFragment) as $stem) {
+            foreach ($stemsOfFragment as $stem) {
                 $documentFrequency[$stem] = ($documentFrequency[$stem] ?? 0) + 1;
             }
         }
@@ -343,7 +400,7 @@ final class CommunityGuard
             if ($sentence === '') {
                 continue;
             }
-            $words = $this->stems($sentence);
+            $words = array_values(array_unique($this->stemsOrdered($sentence)));
             if ($words === []) {
                 // Предложение без содержательных слов (эмодзи/связка) — риска утечки нет.
                 continue;
@@ -356,8 +413,9 @@ final class CommunityGuard
                 $totalWeight    += $weights[$stem];
             }
 
-            $bestRatio = 0.0;
-            foreach ($fragmentStems as $stemsOfFragment) {
+            $bestRatio       = 0.0;
+            $bestFragmentIdx = null;
+            foreach ($fragmentStems as $i => $stemsOfFragment) {
                 $matchedWeight = 0.0;
                 foreach ($words as $stem) {
                     if (in_array($stem, $stemsOfFragment, true)) {
@@ -366,11 +424,25 @@ final class CommunityGuard
                 }
                 $ratio = $totalWeight > 0.0 ? $matchedWeight / $totalWeight : 0.0;
                 if ($ratio > $bestRatio) {
-                    $bestRatio = $ratio;
+                    $bestRatio       = $ratio;
+                    $bestFragmentIdx = $i;
                 }
             }
 
-            if ($bestRatio < self::PROVENANCE_THRESHOLD) {
+            if ($bestRatio < self::PROVENANCE_THRESHOLD || $bestFragmentIdx === null) {
+                return false;
+            }
+
+            // Story 30 — обход: почти весь взвешенный вес фрагмента покрыт, дальше
+            // проверять локальную плотность окном не нужно (см. докблок константы).
+            if ($bestRatio >= self::RECOMBINATION_BYPASS_THRESHOLD) {
+                continue;
+            }
+
+            // Story 30 — анти-рекомбинация: тот же вес, но по лучшему скользящему
+            // окну ВНУТРИ уже выбранного фрагмента, а не по всему его тексту.
+            $windowRatio = $this->bestWindowRatio($fragmentOrderedStems[$bestFragmentIdx], $words, $weights, $totalWeight);
+            if ($windowRatio < self::RECOMBINATION_THRESHOLD) {
                 return false;
             }
         }
@@ -379,9 +451,61 @@ final class CommunityGuard
     }
 
     /**
+     * Story 30 — лучшее покрытие предложения ($words/$weights) любым скользящим
+     * окном фиксированного размера внутри ОДНОГО фрагмента (`$fragmentOrdered`,
+     * порядок стемов как в исходном тексте). Окно фиксированной длины не зависит
+     * от длины фрагмента — длинный документ больше не получает случайное
+     * преимущество только за счёт объёма уникальной лексики.
+     *
+     * @param list<string>        $fragmentOrdered
+     * @param list<string>        $words
+     * @param array<string,float> $weights
+     */
+    private function bestWindowRatio(array $fragmentOrdered, array $words, array $weights, float $totalWeight): float
+    {
+        if ($totalWeight <= 0.0) {
+            return 0.0;
+        }
+
+        $length = count($fragmentOrdered);
+        if ($length === 0) {
+            return 0.0;
+        }
+
+        $best = 0.0;
+        for ($start = 0; $start < $length; $start += self::RECOMBINATION_WINDOW_STRIDE) {
+            $window = array_slice($fragmentOrdered, $start, self::RECOMBINATION_WINDOW_WORDS);
+            if ($window === []) {
+                break;
+            }
+            $windowSet     = array_unique($window);
+            $matchedWeight = 0.0;
+            foreach ($words as $stem) {
+                if (in_array($stem, $windowSet, true)) {
+                    $matchedWeight += $weights[$stem];
+                }
+            }
+            $ratio = $matchedWeight / $totalWeight;
+            if ($ratio > $best) {
+                $best = $ratio;
+            }
+            if ($start + self::RECOMBINATION_WINDOW_WORDS >= $length) {
+                break;
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * Порядок и повторы стемов сохранены (не `array_unique`) — нужны скользящему
+     * окну анти-рекомбинации (story 30); вызовы, которым важен только набор без
+     * порядка (bag-of-stems для ratio), сами оборачивают результат в
+     * `array_unique()` на месте.
+     *
      * @return list<string>
      */
-    private function stems(string $text): array
+    private function stemsOrdered(string $text): array
     {
         preg_match_all('/\p{L}{' . self::MIN_SIGNIFICANT_WORD_LEN . ',}/u', mb_strtolower($text), $matches);
 
@@ -390,7 +514,7 @@ final class CommunityGuard
             $stems[] = mb_substr($word, 0, self::PROVENANCE_STEM_LEN);
         }
 
-        return array_values(array_unique($stems));
+        return $stems;
     }
 
     /**
@@ -409,8 +533,16 @@ final class CommunityGuard
     {
         $fragments = [];
 
-        foreach (GuideCatalog::sections() as $section) {
-            $fragments[] = ['source' => 'guide:' . $section['key'], 'text' => $section['title'] . ' ' . $section['body']];
+        // Story 30: обёрнут так же, как game_tips/site_posts ниже — GuideCatalog::sections()
+        // сама читает GameSettings (через BotMenuService::menuLabel()), а значит и она может
+        // упасть без доступной БД. Докблок обещал безопасную деградацию корпуса — код её не
+        // держал только для этого источника.
+        try {
+            foreach (GuideCatalog::sections() as $section) {
+                $fragments[] = ['source' => 'guide:' . $section['key'], 'text' => $section['title'] . ' ' . $section['body']];
+            }
+        } catch (\Throwable) {
+            // См. game_tips/site_posts ниже — корпус просто уже, не падаем.
         }
 
         try {
