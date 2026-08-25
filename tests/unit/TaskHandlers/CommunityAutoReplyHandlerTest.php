@@ -15,9 +15,11 @@ use App\TaskHandlers\Community\CommunityAutoReplyHandler;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use Config\CommunityVoice;
 use Config\Database;
 use DateTimeImmutable;
 use Longman\TelegramBot\Entities\ServerResponse;
+use RuntimeException;
 
 /**
  * community-chat-bot-09 — `CommunityAutoReplyHandler`: связывает матчер (story 08),
@@ -178,6 +180,25 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
             ->where('action', 'COMMUNITY_REACTION_SENT')
             ->where('target_id', $rowId)
             ->countAllResults();
+    }
+
+    private function auditCount(int $rowId, string $action): int
+    {
+        return (int) $this->conn->table('admin_audit_log')
+            ->where('action', $action)
+            ->where('target_id', $rowId)
+            ->countAllResults();
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function auditRows(int $rowId, string $action): array
+    {
+        return $this->conn->table('admin_audit_log')
+            ->where('action', $action)
+            ->where('target_id', $rowId)
+            ->orderBy('id', 'ASC')
+            ->get()
+            ->getResultArray();
     }
 
     // ── helpers: сборка сервисов ────────────────────────────────────────
@@ -538,5 +559,149 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         foreach ($ids as $id) {
             $this->assertSame('answered', $this->statusOf($id), "строка {$id} обязана закрыться общим ответом");
         }
+    }
+
+    // ── story 23: дефект 1 — строка перехватывается ДО вызова Telegram ───
+
+    public function testStatusIsClaimedBeforeTelegramIsCalledNotAfter(): void
+    {
+        $this->insertBankAnswer([
+            'question_pattern' => 'где найти теплицу для земледелия',
+            'answer_text'      => 'Теплица строится на базе.',
+        ]);
+        $message = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
+
+        $statusAtCallTime = null;
+        $sender           = new CommunityChatSender(
+            new CommunityMessageModel(),
+            null,
+            new AdminAuditLogModel(),
+            $this->conn,
+            function (string $method, array $data) use (&$statusAtCallTime, $message): ServerResponse {
+                // Контракт story: к моменту сетевого вызова строка уже НЕ 'new'.
+                $statusAtCallTime = $this->statusOf((int) $message['id']);
+
+                return $this->okResponse();
+            },
+            $this->senderSettings()
+        );
+        $handler = $this->handler($sender);
+
+        $handler->handle();
+
+        $this->assertNotNull($statusAtCallTime, 'транспорт обязан быть вызван');
+        $this->assertNotSame('new', $statusAtCallTime, 'условный апдейт обязан произойти до вызова Telegram');
+        $this->assertSame('answered', $this->statusOf((int) $message['id']));
+    }
+
+    public function testTransportExceptionAfterActualDeliveryDoesNotResend(): void
+    {
+        $this->insertBankAnswer([
+            'question_pattern' => 'где найти теплицу для земледелия',
+            'answer_text'      => 'Теплица строится на базе.',
+        ]);
+        $message = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
+
+        $calls  = [];
+        $sender = new CommunityChatSender(
+            new CommunityMessageModel(),
+            null,
+            new AdminAuditLogModel(),
+            $this->conn,
+            function (string $method, array $data) use (&$calls): ServerResponse {
+                $calls[] = ['method' => $method, 'data' => $data];
+
+                // Ложноотрицательный ответ транспорта: исключение уже ПОСЛЕ фактической
+                // доставки (например таймаут curl на подтверждении).
+                throw new RuntimeException('curl timeout after delivery');
+            },
+            $this->senderSettings()
+        );
+        $handler = $this->handler($sender);
+
+        $handler->handle();
+
+        $this->assertCount(1, $calls);
+        $this->assertNotSame('new', $this->statusOf((int) $message['id']), 'исключение после доставки не должно вернуть строку в очередь');
+
+        // Второй тик — статус уже не 'new', матчер строку больше не видит вовсе.
+        $handler->handle();
+        $this->assertCount(1, $calls, 'ложноотрицательный ответ транспорта не должен давать второе сообщение');
+    }
+
+    // ── story 23: дефект 2 — терминальные отказы гейта не ретраятся вечно ─
+
+    public function testTextTooLongIsTerminalNotRetried(): void
+    {
+        $this->insertBankAnswer([
+            'question_pattern' => 'где найти теплицу для земледелия',
+            'answer_text'      => 'Теплица строится на базе.',
+        ]);
+        $message = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
+
+        $calls   = [];
+        $sender  = $this->sender($calls, ['community.autoreply.max_answer_chars' => 1]);
+        $handler = $this->handler($sender);
+
+        for ($i = 0; $i < 10; $i++) {
+            $handler->handle();
+        }
+
+        $this->assertSame([], $calls, 'гейт отказывает ДО sendMessage — транспорт не звонит вовсе');
+        $this->assertSame('escalated', $this->statusOf((int) $message['id']), 'text_too_long обязан быть терминальным');
+        $this->assertSame(
+            1,
+            $this->auditCount((int) $message['id'], 'COMMUNITY_ANSWER_REJECTED'),
+            'десять тиков подряд с одним и тем же перманентным отказом не должны дать десять записей в журнале'
+        );
+    }
+
+    public function testTopicRateLimitIsNotTerminalRetriedNextTick(): void
+    {
+        $this->insertBankAnswer([
+            'question_pattern' => 'где найти теплицу для земледелия',
+            'answer_text'      => 'Теплица строится на базе.',
+        ]);
+        $message = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
+
+        $calls   = [];
+        $sender  = $this->sender($calls, ['community.autoreply.max_per_hour_per_topic' => 0]);
+        $handler = $this->handler($sender);
+
+        $handler->handle();
+        $this->assertSame('new', $this->statusOf((int) $message['id']), 'topic_rate_limit не терминален — строка остаётся new');
+
+        $handler->handle();
+        $this->assertSame(
+            2,
+            $this->auditCount((int) $message['id'], 'COMMUNITY_ANSWER_REJECTED'),
+            'на следующем тике попытка есть — гейт отказывает снова'
+        );
+        $this->assertSame('new', $this->statusOf((int) $message['id']));
+    }
+
+    // ── story 23: дефект 3 — маршрут отказа доходит до адресата ──────────
+
+    public function testDenyVerdictRouteIsObservableInAuditLog(): void
+    {
+        $this->insertBankAnswer([
+            'question_pattern' => 'где найти теплицу для земледелия',
+            'answer_text'      => 'Теплица строится на базе.',
+        ]);
+        $message = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
+
+        $calls   = [];
+        $sender  = $this->sender($calls);
+        // Пустой корпус — провенанс не пройдёт никогда, гвард денит любой текст с маршрутом.
+        $handler = $this->handler($sender, $this->denyingGuard());
+
+        $handler->handle();
+
+        $rows = $this->auditRows((int) $message['id'], 'COMMUNITY_ROUTE_LOGGED');
+        $this->assertCount(1, $rows, 'маршрут отказа обязан быть сохранён и наблюдаем');
+
+        $payload = json_decode((string) $rows[0]['payload'], true);
+        $this->assertIsArray($payload);
+        $this->assertContains($payload['route'] ?? null, CommunityVoice::REFUSAL_WITH_ROUTE, 'сохранённый маршрут обязан быть одной из утверждённых строк');
     }
 }

@@ -12,8 +12,10 @@ use App\Services\Community\CommunityAnswerMatcher;
 use App\Services\Community\CommunityChatSender;
 use App\Services\Community\CommunityGuard;
 use App\Services\Community\Decision;
+use App\Services\Community\Verdict;
 use App\Services\GameSettings\GameSettingsService;
 use App\TaskHandlers\BaseTaskHandler;
+use Config\Database;
 use DateTimeImmutable;
 
 /**
@@ -43,14 +45,31 @@ use DateTimeImmutable;
  * `Decision::coveredMessageIds` — склейка дублей: одна отправка/эскалация/отмена
  * закрывает СРАЗУ все перечисленные строки одним обновлением статуса, не по одной.
  *
- * Строка получает `answered` только после `sendAnswer()===true` — при отказе
- * (гейты `CommunityChatSender`, сетевая ошибка, Telegram not-ok) статус остаётся
- * `new`, и следующий тик повторит попытку сам (запрос `status='new'` её снова заберёт).
+ * Строка получает целевой статус (`answered`/`escalated`) ДО вызова `sendAnswer()`
+ * (story 23, ремонтная волна 8, дефект 1) — {@see claimGroup()} условным апдейтом,
+ * атомарность проверяется `affectedRows`, не read-then-write: сбой записи ПОСЛЕ
+ * успешной сети или ложноотрицательный ответ транспорта (исключение уже после
+ * фактической доставки) не могут повторно опубликовать ответ, потому что писать
+ * уже нечего — статус закоммичен до сетевого вызова. Если `sendAnswer()` возвращает
+ * `false`, {@see resolveFailure()} читает причину из `admin_audit_log` (источник
+ * правды `CommunityChatSender`, вне `## Files` этой story): гейт-отказ ДО сети
+ * (`*_REJECTED`) откатывает статус на `new` для причин, которые сами рассосутся
+ * (потолок, кулдаун, килсвитч, тема), и оставляет `escalated` для причин, которые
+ * содержимым не исправить (`text_too_long`/`unbalanced_markdown`/`canon_name_violation`,
+ * дефект 2 — иначе вечный ретрай каждую минуту плодит строку в журнале, по которому
+ * считается сам потолок); `telegram_not_ok:*` (сеть дошла, Telegram явно отказал) тоже
+ * откатывает — Telegram подтвердил недоставку; `exception:*` (сеть неопределённа) статус
+ * не трогает вовсе — риск дубля хуже риска пропуска.
  *
  * Вердикт гварда `manual`/`deny` → строка (и её склейка) помечается `escalated`,
  * текст не уходит вовсе; попытка чиркнуть 🤔 не обязана быть успешной — молчание
  * `CommunityChatSender` (например `community.autoreply.enabled=false`) не мешает
  * эскалации дойти до владельца через `/admin/community`, куда уже смотрит статус.
+ * `Verdict::route` (дефект 3) при этом не теряется — {@see logRoute()} пишет его в
+ * `admin_audit_log` (`COMMUNITY_ROUTE_LOGGED`), где владелец увидит маршрут отказа
+ * рядом со строкой очереди; повторной отправкой текста самого маршрута не рискуем —
+ * гвард уже сказал «нельзя говорить», значит и канонический текст-отказ шлём не как
+ * `sendMessage`, а как запись в тот же журнал, что уже питает потолок/кулдаун.
  *
  * `Decision::escalated` (полоса A без совпадения банка — уходит `CommunityVoice::UNKNOWN`)
  * помечает строку `escalated`, а не `answered`, даже при успешной отправке: честное
@@ -67,6 +86,13 @@ use DateTimeImmutable;
 )]
 final class CommunityAutoReplyHandler extends BaseTaskHandler
 {
+    /**
+     * Дефект 2 (story 23) — причины гейта `CommunityChatSender::checkGates()`, которые
+     * повторной попыткой не исправить (содержимое ответа, не состояние мира): переводят
+     * строку в терминальный `'escalated'`, а не бесконечный ретрай каждую минуту.
+     */
+    private const TERMINAL_GATE_REASONS = ['text_too_long', 'unbalanced_markdown', 'canon_name_violation'];
+
     private CommunityMessageModel $messageModel;
     private CommunityAnswerModel $answerModel;
     private CommunityAnswerMatcher $matcher;
@@ -206,18 +232,26 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
 
         if (! $verdict->isAllow()) {
             $this->markGroup($decision->coveredMessageIds, ['status' => 'escalated']);
+            $this->logRoute($selfId, $verdict);
             $this->reactOnce($selfId, '🤔');
             return;
         }
 
-        if (! $this->sender->sendAnswer($selfId, $text)) {
-            return; // остаётся 'new' — гейты/сеть/Telegram not-ok, повторим на следующем тике
+        // Полоса A без совпадения банка (Decision::escalated) — честное «не знаю»
+        // всё равно ждёт человека, а не закрыт банк-ответом.
+        $targetStatus = $decision->escalated ? 'escalated' : 'answered';
+
+        // Дефект 1 — строка перехватывается ДО вызова Telegram условным апдейтом:
+        // после этой точки статус уже записан, писать «после отправки» больше нечего.
+        if (! $this->claimGroup($decision->coveredMessageIds, ['status' => $targetStatus, 'answered_by_id' => $decision->answerId])) {
+            return; // уже перехвачено другим проходом — сеть не трогаем вовсе
         }
 
-        // Полоса A без совпадения банка (Decision::escalated) — честное «не знаю»
-        // ушло, но вопрос всё равно ждёт человека, а не закрыт банк-ответом.
-        $status = $decision->escalated ? 'escalated' : 'answered';
-        $this->markGroup($decision->coveredMessageIds, ['status' => $status, 'answered_by_id' => $decision->answerId]);
+        if ($this->sender->sendAnswer($selfId, $text)) {
+            return; // статус уже закоммичен до сети — дописывать нечего
+        }
+
+        $this->resolveFailure($selfId, $decision->coveredMessageIds);
     }
 
     /**
@@ -228,6 +262,134 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
     {
         foreach ($ids as $id) {
             $this->messageModel->update($id, $fields);
+        }
+    }
+
+    /**
+     * Условный апдейт `WHERE status='new'` для всей склейки дублей ДО сетевого вызова
+     * (дефект 1, контракт story) — атомарность через число затронутых строк, не через
+     * предварительное чтение. Целевой статус всегда отличен от `'new'`, поэтому
+     * `affectedRows()` совпадает с числом реально перехваченных строк.
+     *
+     * @param list<int> $ids
+     * @param array<string, bool|float|int|string|null> $fields
+     */
+    private function claimGroup(array $ids, array $fields): bool
+    {
+        if ($ids === []) {
+            return false;
+        }
+
+        $db = Database::connect();
+        $db->table('community_messages')
+            ->whereIn('id', $ids)
+            ->where('status', 'new')
+            ->update($fields);
+
+        return $db->affectedRows() === count($ids);
+    }
+
+    /**
+     * `sendAnswer()===false` после {@see claimGroup()} уже забрал статус — читает
+     * причину из последней аудит-строки `CommunityChatSender` для этого сообщения
+     * (источник правды, вне `## Files` story), чтобы решить: отпустить обратно к
+     * `'new'` (причина сама рассосётся) или оставить перехваченный статус (терминально
+     * или неопределённо доставлено).
+     *
+     * @param list<int> $coveredIds
+     */
+    private function resolveFailure(int $selfId, array $coveredIds): void
+    {
+        $audit = $this->lastAutoAnswerAudit($selfId);
+        if ($audit === null) {
+            return; // причина не читается — консервативно не трогаем перехваченный статус
+        }
+        [$action, $reason] = $audit;
+
+        if (str_ends_with($action, '_REJECTED')) {
+            // Гейт отказал ДО сети (детерминированно, `CommunityChatSender::checkGates()`).
+            if (in_array($reason, self::TERMINAL_GATE_REASONS, true)) {
+                // Дефект 2 — содержимым это не исправить, ретрай каждую минуту только
+                // плодит `*_REJECTED` в журнале, по которому считается сам потолок.
+                $this->markGroup($coveredIds, ['status' => 'escalated']);
+            } else {
+                // Потолок/кулдаун/тема/килсвитч сами рассосутся — вернём на следующий тик.
+                $this->markGroup($coveredIds, ['status' => 'new']);
+            }
+
+            return;
+        }
+
+        if (str_starts_with($reason, 'telegram_not_ok:')) {
+            // Сеть дошла, Telegram явно подтвердил недоставку — безопасно повторить.
+            $this->markGroup($coveredIds, ['status' => 'new']);
+
+            return;
+        }
+
+        // 'exception: …' — ложноотрицательный ответ транспорта, сообщение могло реально
+        // уйти. Статус уже перехвачен claimGroup() ДО отправки — оставляем как есть,
+        // повторная публикация опаснее пропущенного ответа (дефект 1, контракт story).
+    }
+
+    /** @return array{0: string, 1: string}|null [action, reason] последней строки COMMUNITY_ANSWER_* */
+    private function lastAutoAnswerAudit(int $messageRowId): ?array
+    {
+        $row = $this->auditModel
+            ->where('target_id', $messageRowId)
+            ->like('action', 'COMMUNITY_ANSWER_', 'after')
+            ->orderBy('id', 'DESC')
+            ->first();
+
+        if (! is_array($row)) {
+            return null;
+        }
+
+        $action = $row['action'] ?? null;
+        if (! is_string($action)) {
+            return null;
+        }
+
+        $reason  = '';
+        $payload = $row['payload'] ?? null;
+        if (is_string($payload)) {
+            $decoded = json_decode($payload, true);
+            if (is_array($decoded) && is_string($decoded['reason'] ?? null)) {
+                $reason = $decoded['reason'];
+            }
+        }
+
+        return [$action, $reason];
+    }
+
+    /**
+     * Дефект 3 — `Verdict::route` не должен быть мёртвым контентом: вердикт `deny`/`manual`
+     * не шлёт `sendMessage` (сам гвард сказал «нельзя говорить» — повторный текст-отказ
+     * такой же риск утечки/спама), маршрут сохраняется в тот же журнал, что уже питает
+     * потолок/кулдаун — владелец видит его рядом со строкой очереди `/admin/community`.
+     */
+    private function logRoute(int $messageRowId, Verdict $verdict): void
+    {
+        if ($verdict->route === null || trim($verdict->route) === '') {
+            return;
+        }
+
+        try {
+            $this->auditModel->insert([
+                'admin_user_id' => 0,
+                'action'        => 'COMMUNITY_ROUTE_LOGGED',
+                'target_type'   => 'community_message',
+                'target_id'     => $messageRowId,
+                'payload'       => json_encode(
+                    ['reason' => $verdict->reason, 'route' => $verdict->route],
+                    JSON_UNESCAPED_UNICODE
+                ),
+                'ip_address' => null,
+                'user_agent' => null,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        } catch (\Throwable $e) {
+            log_message('error', '[CommunityAutoReplyHandler] route audit insert failed: ' . $e->getMessage());
         }
     }
 

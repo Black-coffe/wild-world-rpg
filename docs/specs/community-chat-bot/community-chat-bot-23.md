@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-23
 spec: community-chat-bot
-status: todo
+status: done
 tier: 3
 worker: worker-code
 tracer: false
@@ -75,5 +75,33 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/TaskHandlers/`
 
 ## Implementation notes
+
+- Дефект 1: `resolveAndSend()` теперь считает целевой статус (`answered`/`escalated`) ДО
+  вызова `sender->sendAnswer()` и коммитит его условным апдейтом `claimGroup()`
+  (`WHERE status='new'`, атомарность по `affectedRows()===count(ids)`), а не после.
+  Окна «отправлено, но не записано» больше нет — писать после сети нечего.
+- Если `sendAnswer()` вернул `false`, `resolveFailure()` читает причину из последней
+  `admin_audit_log`-строки `COMMUNITY_ANSWER_*` (источник правды `CommunityChatSender`,
+  вне `## Files`): `*_REJECTED` (гейт до сети) откатывает на `'new'`, если причина сама
+  рассосётся, иначе (дефект 2 — `TERMINAL_GATE_REASONS`: `text_too_long`,
+  `unbalanced_markdown`, `canon_name_violation`) оставляет `'escalated'`; `telegram_not_ok:*`
+  откатывает (Telegram подтвердил недоставку); `exception:*` статус не трогает вовсе
+  (ложноотрицательный ответ транспорта — риск дубля хуже риска пропуска).
+- Дефект 3: при `deny`/`manual` вердикте `Verdict::route` теперь пишется в
+  `admin_audit_log` (`COMMUNITY_ROUTE_LOGGED`, payload `{reason, route}`) через новый
+  `logRoute()` — не как `sendMessage` (гвард уже сказал «нельзя говорить», повторный
+  текст-отказ той же риск утечки), а как видимая владельцу запись рядом со строкой
+  очереди `/admin/community`.
+- Новый метод `claimGroup()` использует `Config\Database::connect()` напрямую (паттерн
+  `ComebackNudgeHandler::claimToday()`), не через `CommunityMessageModel`, чтобы получить
+  `affectedRows()` с той же коннекции, что делает апдейт.
+- `CommunityChatSender`/`CommunityGuard`/`CommunityAnswerMatcher` не тронуты (Non-goals).
+  Существующий тест `testFailedSendKeepsStatusNewForRetry` (`telegram_not_ok: boom`)
+  остался зелёным без изменений — подтверждает, что явный отказ Telegram по-прежнему
+  ретраится.
+- Добавлено 6 тестов: claim-до-сети наблюдаем транспортом, exception-после-доставки не
+  даёт второго сообщения, `text_too_long` терминален (10 тиков → 1 запись в журнале),
+  `topic_rate_limit` не терминален (ретраится, 2 записи за 2 тика), маршрут отказа
+  наблюдаем в `admin_audit_log`.
 
 ## Findings
