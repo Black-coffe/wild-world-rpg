@@ -171,6 +171,7 @@ class WipeManifest extends BaseConfig
         'player_detection'       => ['strategy' => self::PLAYER_DATA, 'link' => ['detector_player_id', 'detected_player_id'], 'by' => 'character', 'note' => 'Детект игроков (текущий)'],
         'player_detection_history' => ['strategy' => self::PLAYER_DATA, 'link' => ['detector_player_id', 'detected_player_id'], 'by' => 'character', 'note' => 'История детекта игроков'],
         'poll_votes'             => ['strategy' => self::PLAYER_DATA, 'link' => 'telegram_user_id', 'by' => 'telegram', 'note' => 'Голоса игроков в опросах'],
+        'community_messages'     => ['strategy' => self::PLAYER_DATA, 'link' => 'telegram_user_id', 'by' => 'telegram', 'note' => 'Сырой поток сообщений группового чата сообщества (ADR-176) — окно хранения 30 дней, но не регенерируется: строки живут до TTL и несут telegram_user_id игрока'],
         'referrals'              => ['strategy' => self::PLAYER_DATA, 'link' => ['referrer_user_id', 'referred_user_id'], 'by' => 'telegram', 'note' => 'Реферальная петля «позови выжившего» (ADR-146, S8) — ребро кто-кого-привёл + состояние награды (титул «Зовущий»); новый сезон = реферальная гонка с нуля'],
         'pvp_ladder'             => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'PvP-рейтинг'],
         'quest_steps'            => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Прогресс по квестам'],
@@ -194,7 +195,6 @@ class WipeManifest extends BaseConfig
         'boss_kill_announce_queue' => ['strategy' => self::TRANSIENT, 'note' => 'Очередь анонсов о повергнутых узлах (ADR-137 WB11) — наполняется kill-путём, потребляется дайджест-кроном; без player-связи'],
         'queue_jobs'           => ['strategy' => self::TRANSIENT, 'note' => 'Очередь фоновых заданий'],
         'queue_jobs_failed'    => ['strategy' => self::TRANSIENT, 'note' => 'Проваленные фоновые задания'],
-        'community_messages'   => ['strategy' => self::TRANSIENT, 'note' => 'Сырой поток сообщений группового чата сообщества (ADR-176) — окно хранения 30 дней, регенерируется чатом'],
 
         // ─────────────────────────────────────────────────────────────
         // 🟣 SEED_RESET — экономика/эндгейм-агрегаты (строки остаются, счётчики → 0)
