@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-37
 spec: community-chat-bot
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -60,3 +60,13 @@ Story 33 научила `groupMaxPerMinute()` отличать «строки н
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/TelegramRateLimitGroupScopeTest.php tests/unit/TelegramRateLimitFilterTest.php tests/unit/TelegramRateLimitGroupCeilingTest.php`
+
+## Implementation notes
+- `TelegramRateLimitFilter::groupMaxPerMinute()` — обернул сырой `GameSettingsModel::findByKey()`
+  в try/catch; исключение (недоступная таблица) трактуется так же, как «строки нет»:
+  `$rowExists = false` → срабатывает существующий `notifyGroupLimitFallbackOnce()`, дальше
+  идёт прежний путь через `GameSettingsService::get()` (у него свой независимый try/catch на
+  СВОЁМ вызове модели, отдельная защита была нужна именно на прямом вызове).
+  `GameSettingsService::get()` не трогал — не в `## Files`.
+- Тестовую фикстуру не менял — `game_settings` в неё не добавлял.
+- `vendor/bin/phpunit --no-coverage --no-progress tests/unit/TelegramRateLimitGroupScopeTest.php tests/unit/TelegramRateLimitFilterTest.php tests/unit/TelegramRateLimitGroupCeilingTest.php` — 16 tests, 423 assertions, OK.

@@ -183,12 +183,26 @@ class TelegramRateLimitFilter implements FilterInterface
      * Проверяем наличие строки настройки НАПРЯМУЮ через модель (а не догадываемся
      * по совпадению значения с fallback'ом — совпасть оно может и случайно) и
      * логируем один раз на окно, той же дисциплиной throttle'а, что `notified` выше.
+     *
+     * community-chat-bot-37 — этот прямой `findByKey()` не защищён `GameSettingsService`
+     * (у неё есть свой try/catch, но он на СВОЁМ вызове `$this->model->findByKey()`, не
+     * на нашем). При недоступной таблице (сбой БД, частичная тест-схема) исключение
+     * уходило наверх ИЗ ФИЛЬТРА, который стоит на каждом апдейте вебхука — недоступность
+     * настроек не должна превращаться в отказ обработки апдейта. Ловим здесь же:
+     * недоступность БД трактуется так же, как «строки нет» — безопасный fallback,
+     * тот же наблюдаемый след.
      */
     private function groupMaxPerMinute(): int
     {
         $fallback = $this->maxPerMinute();
 
-        if ((new \App\Models\GameSettingsModel())->findByKey('experimental.community_chat.rate_limit_per_minute') === null) {
+        try {
+            $rowExists = (new \App\Models\GameSettingsModel())->findByKey('experimental.community_chat.rate_limit_per_minute') !== null;
+        } catch (\Throwable $e) {
+            $rowExists = false;
+        }
+
+        if (!$rowExists) {
             $this->notifyGroupLimitFallbackOnce($fallback);
         }
 
