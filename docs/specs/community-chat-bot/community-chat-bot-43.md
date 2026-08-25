@@ -23,6 +23,7 @@ Tech-writing перестаёт описывать поведение, кото�
 - C:/Projects/mmorpg-vault/tech-writing/services/CommunityAnswerMatcher.md
 - C:/Projects/mmorpg-vault/tech-writing/commands/CommunityCleanup.md
 - C:/Projects/mmorpg-vault/tech-writing/tasks/community/CommunityAutoReplyHandler.md
+- C:/Projects/mmorpg-vault/tech-writing/services/CommunityIngestService.md
 
 ## Non-goals
 - Не трогать код и тесты.
