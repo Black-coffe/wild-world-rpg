@@ -27,9 +27,14 @@ use Config\CommunityVoice;
  *     правдивость). Рубеж 1 собирает `advisories` — пометки для владельца на
  *     одобрении (непокрытое предложение + адрес лучшего источника + ratio),
  *     `verdict()` возвращает `allow($advisories)`, если ни один вето-рубеж не
- *     сработал (режим `community.guard.provenance_mode=deny` возвращает старое
- *     вето для отдельного случая; на авто-отправке провенанс не считается никогда
- *     — story 57/`CommunityAutoReplyHandler`). Внутри рубежа 1 — отдельная,
+ *     сработал. 🔴 Story 72 — режим `deny` больше не денит на любом вызывающем:
+ *     `verdict()` принимает явный параметр `$isApprovalContext` (default `false`,
+ *     дефолт — БЕЗОПАСНАЯ сторона отправки, забытый/новый вызывающий не рискует
+ *     заглушить уже одобренный ответ), и вето `deny`-режима применяется, ТОЛЬКО
+ *     если он `true`. Только `CommunityController::approveAnswer()` передаёт
+ *     `true` явно; `CommunityAutoReplyHandler` передаёт `false` явно (совпадает
+ *     с default, но пишет решение текстом, не полагается на умолчание молча).
+ *     Внутри рубежа 1 — отдельная,
  *     лексика-независимая проверка сравнительно-оценочной формы (§2 ADR-177,
  *     СОХРАНЯЕТ право вето): ключуется на союз сопоставления/корень оценки/
  *     рекомендательный оборот/сравнительную степень+условие-действие (R4,
@@ -190,7 +195,19 @@ final class CommunityGuard
         $this->gameSettings = $gameSettings ?? new GameSettingsService();
     }
 
-    public function verdict(string $answerText, string $questionText, ?string $requiresSetting): Verdict
+    /**
+     * @param bool $isApprovalContext Story 72 — единственный параметр, которым
+     *        вызывающая сторона различает себя перед гвардом: `true` только у
+     *        `CommunityController::approveAnswer()` (одобрение в админке),
+     *        `false` (default) — у отправки, в т.ч. `CommunityAutoReplyHandler`.
+     *        Управляет ТОЛЬКО тем, применяет ли `provenance_mode=deny` вето (см.
+     *        место чтения ниже); на `advisory`/`off` не влияет никак — их
+     *        поведение одинаково независимо от контекста. Default `false` —
+     *        безопасная сторона: забытый или новый вызывающий не рискует молча
+     *        заглушить уже одобренный ответ в живом чате, максимум пропустит
+     *        то, что `deny` в admin-контексте отклонил бы.
+     */
+    public function verdict(string $answerText, string $questionText, ?string $requiresSetting, bool $isApprovalContext = false): Verdict
     {
         $answer   = trim($answerText);
         $question = trim($questionText);
@@ -256,17 +273,22 @@ final class CommunityGuard
         }
 
         // Рубеж 1, ADR-178 — провенанс БЕЗ права вето: собирает пометки для
-        // ревьюера, а не решает allow/deny. `deny` — опциональный откат к старому
-        // поведению ADR-177 (вето на одобрении, никогда на отправке — вызывающая
-        // сторона story 57/68 сама решает, когда звать `verdict()`; этот метод не
-        // знает, одобрение это или отправка). `off` — рубеж 1 не считается вовсе.
+        // ревьюера, а не решает allow/deny. `off` — рубеж 1 не считается вовсе.
         $provenanceMode = $this->readProvenanceMode();
         if ($provenanceMode === 'off') {
             return Verdict::allow();
         }
 
         $advisories = $this->provenanceAdvisories($answer);
-        if ($provenanceMode === 'deny' && $advisories !== []) {
+
+        // Story 72 — `deny` (опциональный откат к старому вето ADR-177) применяется
+        // ТОЛЬКО в контексте одобрения (`$isApprovalContext === true`), НИКОГДА на
+        // отправке: до фикса деньило на любом вызывающем без разбора — старый
+        // докблок «на авто-отправке провенанс не считается никогда» был ложью,
+        // ADR-178 явно требует «вето только на одобрении», а корпус между
+        // одобрением и отправкой дрейфует (правка `/guide`), так что пересчёт
+        // провенанса на отправке означал бы тихую смерть уже одобренного ответа.
+        if ($provenanceMode === 'deny' && $isApprovalContext && $advisories !== []) {
             return Verdict::deny('no_provenance', CommunityVoice::REFUSAL_WITH_ROUTE[0]);
         }
 

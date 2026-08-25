@@ -287,7 +287,9 @@ final class CommunityController extends BaseAdminController
 
         // Владелец мог отредактировать текст перед одобрением («Правка») — гвард
         // обязан перепроверить АКТУАЛЬНЫЙ текст, не снимок на момент импорта черновика.
-        $verdict = $this->guard->verdict($answerText, $questionText, $requiresSetting);
+        // Story 72: $isApprovalContext=true — единственное место, где `deny` вправе
+        // денить (ADR-178 «вето только на одобрении»).
+        $verdict = $this->guard->verdict($answerText, $questionText, $requiresSetting, true);
         if (! $verdict->isAllow()) {
             return ['ok' => false, 'error' => 'CommunityGuard отклонил текст: ' . $verdict->reason];
         }

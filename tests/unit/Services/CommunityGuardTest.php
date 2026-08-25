@@ -464,6 +464,30 @@ final class CommunityGuardTest extends CIUnitTestCase
      */
     public function testProvenanceModeDenyRestoresTheOldVeto(): void
     {
+        // Story 72: `deny` денит ТОЛЬКО в контексте одобрения — $isApprovalContext=true.
+        $guard   = $this->guard(null, ['community.guard.provenance_mode' => 'deny']);
+        $verdict = $guard->verdict(
+            'Ночной дозор находит редкие ресурсы значительно активнее обычного.',
+            'Когда лучше разведывать новые клетки?',
+            null,
+            true,
+        );
+
+        $this->assertTrue($verdict->isDeny(), '`deny` обязан сохранять старое вето ADR-177 в контексте одобрения');
+        $this->assertSame('no_provenance', $verdict->reason);
+        $this->assertNotNull($verdict->route);
+        $this->assertSame([], $verdict->advisories, 'у deny() пометок нет — причина отказа уже несёт смысл');
+    }
+
+    /**
+     * Story 72, acceptance: тот же `deny`-режим на пути ОТПРАВКИ (`$isApprovalContext`
+     * не передан — default `false`) вето НЕ применяет. Второй ревьюер нашёл: до фикса
+     * `deny` денил на любом вызывающем без разбора, включая тик авто-ответа —
+     * ADR-178 требует «вето только на одобрении, никогда на отправке». Красит,
+     * если `deny` снова начнёт резать путь отправки.
+     */
+    public function testProvenanceModeDenyDoesNotVetoOnSendContextByDefault(): void
+    {
         $guard   = $this->guard(null, ['community.guard.provenance_mode' => 'deny']);
         $verdict = $guard->verdict(
             'Ночной дозор находит редкие ресурсы значительно активнее обычного.',
@@ -471,10 +495,41 @@ final class CommunityGuardTest extends CIUnitTestCase
             null,
         );
 
-        $this->assertTrue($verdict->isDeny(), '`deny` обязан сохранять старое вето ADR-177');
-        $this->assertSame('no_provenance', $verdict->reason);
-        $this->assertNotNull($verdict->route);
-        $this->assertSame([], $verdict->advisories, 'у deny() пометок нет — причина отказа уже несёт смысл');
+        $this->assertTrue($verdict->isAllow(), '`deny` не должен денить на пути отправки (default $isApprovalContext=false)');
+    }
+
+    /** Контрольная пара: то же самое явным `false` — не полагается на молчаливый default. */
+    public function testProvenanceModeDenyDoesNotVetoWhenApprovalContextIsExplicitlyFalse(): void
+    {
+        $guard   = $this->guard(null, ['community.guard.provenance_mode' => 'deny']);
+        $verdict = $guard->verdict(
+            'Ночной дозор находит редкие ресурсы значительно активнее обычного.',
+            'Когда лучше разведывать новые клетки?',
+            null,
+            false,
+        );
+
+        $this->assertTrue($verdict->isAllow(), '`deny` не должен денить, когда контекст явно не одобрение');
+    }
+
+    /**
+     * Story 72, acceptance: `advisory`/`off` не зависят от `$isApprovalContext`
+     * вовсе — параметр управляет ТОЛЬКО веткой `deny`.
+     */
+    public function testIsApprovalContextDoesNotAffectAdvisoryOrOffModes(): void
+    {
+        $answer = 'Идти в поход голодным невыгодно: добыча заметно падает.';
+
+        $advisoryFalse = $this->realGuard(['community.guard.provenance_mode' => 'advisory'])->verdict($answer, 'Расскажи?', null, false);
+        $advisoryTrue  = $this->realGuard(['community.guard.provenance_mode' => 'advisory'])->verdict($answer, 'Расскажи?', null, true);
+        $this->assertSame($advisoryFalse->reason, $advisoryTrue->reason, 'advisory-режим не должен зависеть от контекста вызова');
+
+        $offFalse = $this->guard(null, ['community.guard.provenance_mode' => 'off'])->verdict('Если у тебя есть обжитая база, потери небольшие.', 'Что теряю?', null, false);
+        $offTrue  = $this->guard(null, ['community.guard.provenance_mode' => 'off'])->verdict('Если у тебя есть обжитая база, потери небольшие.', 'Что теряю?', null, true);
+        $this->assertTrue($offFalse->isAllow());
+        $this->assertTrue($offTrue->isAllow());
+        $this->assertSame([], $offFalse->advisories);
+        $this->assertSame([], $offTrue->advisories);
     }
 
     /**

@@ -259,7 +259,9 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         $question        = $this->stringField($row, 'text');
         $text             = (string) $decision->text;
 
-        $verdict = $this->guard->verdict($text, $question, $requiresSetting);
+        // Story 72: $isApprovalContext=false явно (совпадает с default) — путь
+        // отправки, `provenance_mode=deny` здесь никогда не денит (ADR-178).
+        $verdict = $this->guard->verdict($text, $question, $requiresSetting, false);
 
         if (! $verdict->isAllow()) {
             // Story 55 — молчание вместо маршрута читалось игроком как «бот сломался»:
