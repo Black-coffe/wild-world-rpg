@@ -9,6 +9,7 @@ use App\Services\Community\CommunityGuard;
 use App\Services\Community\Verdict;
 use App\Services\GameSettings\GameSettingsService;
 use App\Services\Onboarding\GuideCatalog;
+use Config\CommunityStopTopics;
 use Config\CommunityVoice;
 use CodeIgniter\Test\CIUnitTestCase;
 
@@ -547,35 +548,61 @@ final class CommunityGuardTest extends CIUnitTestCase
      * с каждой новой механикой (GUIDE-COVERAGE), а замер за этим не следит. Этот тест
      * ГОВОРИТ вместо прозы: строит обе выборки живьём из текущего `GuideCatalog::sections()`
      * (не заморожена — растёт вместе со справочником), печатает измеренные частоты обеих
-     * ошибок в STDERR при каждом прогоне и падает, только если ЛЮБАЯ из них уходит за
-     * широкий коридор.
+     * ошибок И их разбивку по причине отказа в STDERR при каждом прогоне, и падает,
+     * только если ЛЮБАЯ из частот уходит за широкий коридор.
      *
-     * Добросовестная сторона — дословная первая содержательная фраза каждого раздела
-     * (честная цитата источника обязана проходить рубеж провенанса). Фабрикатная сторона
-     * — сравнительное утверждение, собранное из ЗАГОЛОВКОВ двух РАЗНЫХ разделов
-     * (`«X» даёт больше пользы, чем «Y».`) — по конструкции не подтверждено ни одним
-     * фрагментом целиком, тот же класс рекомбинации, что в story 30.
+     * Story 47 — ревью разобрало story 38 по причинам отказа на этом же корпусе:
+     * добросовестная сторона, 14 отказов из 32, ни разу не денилась `no_provenance`
+     * (`lexical_stoplist` 11, `missing_requires_setting` 3) — рубеж провенанса
+     * структурно НЕ мог сработать, потому что он последняя проверка в `verdict()`,
+     * а более ранние рубежи (стоп-лист, dormant-подсистемы) отсекали выборку раньше.
+     * Сообщение ассерта звучало так, будто измеряет рубеж провенанса — на деле нет:
+     * подмена рубежа была не видна, пока никто не считал причины по отдельности.
+     *
+     * Два исправления:
+     * 1. Добросовестная сторона строится через {@see firstProvenanceReachableSentenceOf()}:
+     *    перебирает предложения раздела и берёт первое, что действительно ДОХОДИТ до
+     *    рубежа 1 (не срезано стоп-листом/dormant-проверкой раньше) — так рубеж
+     *    провенанса гарантированно участвует в вердикте, а не тонет в более ранних
+     *    отказах. Дословность цитаты не теряется: предложение по-прежнему берётся
+     *    как есть из `body` раздела, просто не обязательно первое по порядку.
+     * 2. Обе выборки прогоняются через `realGuard()` со всеми `DORMANT_SUBSYSTEM_SETTINGS`
+     *    включёнными — на стенде без этого все спящие подсистемы читаются как
+     *    выключенные (`missing_requires_setting`/`dormant_setting_disabled`), а на
+     *    проде килсвитчи включены. Замер иначе идёт против конфигурации, которой
+     *    не существует в реальности.
+     *
+     * Фабрикатная сторона — сравнительное утверждение, собранное из ЗАГОЛОВКОВ двух
+     * РАЗНЫХ разделов (`«X» даёт больше пользы, чем «Y».`) — по конструкции не
+     * подтверждено ни одним фрагментом целиком, тот же класс рекомбинации, что в
+     * story 30.
      *
      * Коридор (0%..60%) — НЕ порог формулы (`Non-goals`: пороги не трогаем) и НЕ
      * повторение измеренных story 30 (12.5%/20.8%) или ревьюера (20.8%/29.2%) — тот
      * разброс уже показал, что точное число это свойство выборки. Коридор — заведомо
      * широкий guard-rail: ловит грубую поломку рубежа (например, если провенанс
      * перестанет отклонять фабрикаты вовсе), а не обычный сдвиг от нового раздела
-     * `/guide`. Обе частоты печатаются всегда — так сдвиг виден человеку, даже когда
-     * он ещё внутри коридора и набор остаётся зелёным.
+     * `/guide`. Частоты и разбивка по причине печатаются всегда — так подмена рубежа
+     * или сдвиг видны человеку, даже когда набор остаётся зелёным.
      */
     public function testCalibrationMeasuresBothErrorRatesAndReportsDriftOnLiveGuideCatalog(): void
     {
         $sections = GuideCatalog::sections();
         $this->assertGreaterThanOrEqual(20, count($sections), 'калибровке нужно не меньше 20 разделов GuideCatalog для обеих выборок');
 
-        $guard = $this->realGuard();
+        // Story 47: килсвитчи спящих подсистем включены — так замер соответствует
+        // прод-конфигурации, а не стенду, где все они читаются выключенными.
+        $liveSettings = array_fill_keys(array_values(CommunityStopTopics::DORMANT_SUBSYSTEM_SETTINGS), true);
+        $guard        = $this->realGuard($liveSettings);
 
         $goodFaithSample = [];
+        $goodFaithSkipped = 0;
         foreach ($sections as $section) {
-            $sentence = $this->firstSentenceOf($section['body']);
+            $sentence = $this->firstProvenanceReachableSentenceOf($guard, $section['body']);
             if ($sentence !== null) {
                 $goodFaithSample[] = $sentence;
+            } else {
+                $goodFaithSkipped++;
             }
         }
 
@@ -592,45 +619,88 @@ final class CommunityGuardTest extends CIUnitTestCase
         $this->assertNotEmpty($goodFaithSample);
         $this->assertNotEmpty($fabricatedSample);
 
-        $falseDeny = 0;
+        $falseDeny     = 0;
+        $goodFaithByReason = [];
         foreach ($goodFaithSample as $sentence) {
-            if (! $guard->verdict($sentence, 'Расскажи про механику.', null)->isAllow()) {
+            $verdict = $guard->verdict($sentence, 'Расскажи про механику.', null);
+            $reason  = $verdict->isAllow() ? 'allow' : $verdict->reason;
+            $goodFaithByReason[$reason] = ($goodFaithByReason[$reason] ?? 0) + 1;
+            if (! $verdict->isAllow()) {
                 $falseDeny++;
             }
         }
 
-        $falseAllow = 0;
+        $falseAllow          = 0;
+        $fabricatedByReason  = [];
         foreach ($fabricatedSample as $claim) {
-            if ($guard->verdict($claim, 'Расскажи про механику.', null)->isAllow()) {
+            $verdict = $guard->verdict($claim, 'Расскажи про механику.', null);
+            $reason  = $verdict->isAllow() ? 'allow' : $verdict->reason;
+            $fabricatedByReason[$reason] = ($fabricatedByReason[$reason] ?? 0) + 1;
+            if ($verdict->isAllow()) {
                 $falseAllow++;
             }
         }
 
-        $falseDenyRate   = $falseDeny / count($goodFaithSample);
-        $falseAllowRate  = $falseAllow / count($fabricatedSample);
+        $falseDenyRate  = $falseDeny / count($goodFaithSample);
+        $falseAllowRate = $falseAllow / count($fabricatedSample);
+
+        // Story 47, acceptance: провенанс обязан реально участвовать в вердикте
+        // добросовестной стороны — `firstProvenanceReachableSentenceOf()` подбирает
+        // предложение так, чтобы оно доходило до рубежа 1, поэтому каждый элемент
+        // выборки закончился либо `allow`, либо `no_provenance` — других причин
+        // в этой разбивке структурно быть не должно.
+        $reachedGate1 = ($goodFaithByReason['allow'] ?? 0) + ($goodFaithByReason['no_provenance'] ?? 0);
+        $this->assertGreaterThan(0, $reachedGate1, 'добросовестная выборка обязана доходить до рубежа провенанса');
+        $this->assertSame(
+            $reachedGate1,
+            count($goodFaithSample),
+            'добросовестную выборку не должен резать никакой рубеж РАНЬШЕ провенанса: '
+                . json_encode($goodFaithByReason, JSON_UNESCAPED_UNICODE),
+        );
 
         fwrite(STDERR, sprintf(
-            "\n[CommunityGuard calibration, живой GuideCatalog (%d разделов)] ложный отказ=%.1f%% (%d/%d), ложный пропуск=%.1f%% (%d/%d)\n",
+            "\n[CommunityGuard calibration, живой GuideCatalog (%d разделов, пропущено %d без "
+                . "предложения-кандидата)] ложный отказ=%.1f%% (%d/%d), ложный пропуск=%.1f%% (%d/%d)\n"
+                . "  добросовестная сторона по причине: %s\n"
+                . "  фабрикатная сторона по причине:     %s\n",
             count($sections),
+            $goodFaithSkipped,
             $falseDenyRate * 100,
             $falseDeny,
             count($goodFaithSample),
             $falseAllowRate * 100,
             $falseAllow,
             count($fabricatedSample),
+            json_encode($goodFaithByReason, JSON_UNESCAPED_UNICODE),
+            json_encode($fabricatedByReason, JSON_UNESCAPED_UNICODE),
         ));
 
         $this->assertLessThanOrEqual(0.60, $falseDenyRate, 'ложный отказ вышел за широкий коридор — рубеж 1 массово режет честные цитаты источника');
         $this->assertLessThanOrEqual(0.60, $falseAllowRate, 'ложный пропуск вышел за широкий коридор — рубеж 1 перестал ловить межраздельную рекомбинацию');
     }
 
-    /** Первое содержательное предложение текста раздела (для добросовестной стороны калибровки). */
-    private function firstSentenceOf(string $body): ?string
+    /**
+     * Story 47: первое предложение раздела, которое реально ДОХОДИТ до рубежа 1
+     * (`allow` либо `no_provenance`) — а не отсекается раньше стоп-листом/dormant-
+     * проверкой. Без этого перебора добросовестная сторона калибровки могла целиком
+     * состоять из предложений, отказанных ДО провенанса, и рубеж 1 в замере ни разу
+     * не участвовал (см. докблок теста выше). Предложение по-прежнему дословная
+     * цитата `body` — только не обязательно первое по порядку в тексте.
+     */
+    private function firstProvenanceReachableSentenceOf(CommunityGuard $guard, string $body): ?string
     {
         $plain = str_replace(['*', '_'], '', $body);
-        preg_match('/^[^.!?]{12,}[.!?]/u', trim($plain), $matches);
+        preg_match_all('/[^.!?]{12,}[.!?]/u', trim($plain), $matches);
 
-        return $matches[0] ?? null;
+        foreach ($matches[0] as $candidate) {
+            $candidate = trim($candidate);
+            $verdict   = $guard->verdict($candidate, 'Расскажи про механику.', null);
+            if ($verdict->isAllow() || $verdict->reason === 'no_provenance') {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     /** Одно значимое (не служебное, ≥4 буквы) слово заголовка раздела (для фабрикатной стороны калибровки). */

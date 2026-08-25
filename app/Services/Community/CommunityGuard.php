@@ -533,12 +533,20 @@ final class CommunityGuard
     {
         $fragments = [];
 
-        // Story 38: try/catch безвреден, но прежнее обоснование («раньше падал без БД»,
-        // story 30) не воспроизводится — GuideCatalog::sections() читает настройки через
-        // BotMenuService::menuLabel(), а тот идёт через GameSettingsService::get(), который
-        // сам глушит Throwable и возвращает default. Оставлен для защитной симметрии с
-        // game_tips/site_posts ниже (единообразная деградация корпуса по каждому источнику),
-        // а не как защита от реального падения — падать здесь действительно нечему.
+        // Story 47: story 38 утверждала «падать здесь действительно нечему» — ревью поймало
+        // исполнением обратное. GuideCatalog::sections() читает настройки через
+        // BotMenuService::menuLabel()/gatherOnCompassEnabled() и т.п., а те на КАЖДЫЙ вызов
+        // конструируют `new GameSettingsService()`, которая в конструкторе создаёт
+        // `new GameSettingsModel()` — ЭТА строка лежит вне try/catch метода `get()`
+        // (GameSettingsService.php: конструктор строкой раньше самого метода, глушащий
+        // Throwable try/catch есть только внутри `get()`). CI4 `Database::connect()`
+        // способен бросить `CriticalError` уже на этом шаге (напр. отсутствующее
+        // php-расширение драйвера БД, см. `Database::checkDbExtension()`), и `get()`'овский
+        // try/catch этого не увидит — исключение улетает из конструктора раньше, чем
+        // метод вообще начал выполняться. Между этой точкой и `defaultCorpus()` больше
+        // нет ни одного try/catch (ни в `BotMenuService`, ни в `GuideCatalog::sections()`),
+        // поэтому try/catch НИЖЕ — единственная защита, а не симметричное украшение рядом
+        // с game_tips/site_posts.
         try {
             foreach (GuideCatalog::sections() as $section) {
                 $fragments[] = ['source' => 'guide:' . $section['key'], 'text' => $section['title'] . ' ' . $section['body']];
