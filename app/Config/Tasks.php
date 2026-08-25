@@ -304,6 +304,13 @@ class Tasks extends BaseTasks
         $schedule->command('player-actions:cleanup')
             ->daily('03:40')->named('player-actions.cleanup');
 
+        // Story 22 (community-chat-bot, ADR-176) — TTL по community.retention_days (сырой
+        // текст переписки, обещание закрепа «30 дней, дальше удаляется автоматически») +
+        // закрытие зависших status=new старше community.question.max_age_hours, чтобы тик
+        // и матчер перестали пересканировать их каждую минуту. НЕ гейтится community.enabled.
+        $schedule->command('community:cleanup')
+            ->daily('03:45')->named('community.cleanup');
+
         // Аудит 2026-08-12: firehose живёт 30 дней, а первой добычи новичка больше нигде нет —
         // сравнение когорт старше месяца молча считало ноль вместо «данных нет». Снимок суточных
         // когорт фиксирует воронку до того, как чистка съест логи. Намеренно ПОСЛЕ 03:40: если

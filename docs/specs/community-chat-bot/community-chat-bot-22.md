@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-22
 spec: community-chat-bot
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -70,5 +70,24 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Commands/`
 
 ## Implementation notes
+
+- Новая команда `App\Commands\CommunityCleanup` (`php spark community:cleanup`), группа `Tasks`.
+  Две независимые оси: (1) TTL — DELETE `community_messages` старше `community.retention_days`
+  по `sent_at`; (2) зависшие — UPDATE `status='new'` → `status='ignored'` для строк старше
+  `community.question.max_age_hours` (существующий ключ, новых не заводил). Не гейтится
+  `community.enabled`. `community_answers` нигде не упоминается — код физически не может её
+  тронуть.
+- DI-конструктор `(logger, commands, settings)` — 1:1 паттерн `CommunityExport` (story 11):
+  третий параметр — единственная точка подмены `GameSettingsService` в тестах, без реальной
+  `game_settings`. Автообнаружение команд требует именно этой сигнатуры/порядка.
+- Регистрация в `app/Config/Tasks.php`: `daily('03:45')`, между `player-actions.cleanup` (03:40)
+  и `onboarding.cohorts` (03:50) — по образцу соседних cleanup-задач.
+- Идемпотентность: оба запроса условные по WHERE (возраст/статус), повторный прогон в тот же
+  день находит 0 кандидатов и не удваивает работу — покрыто `testSecondRunSameDayIsNoop`.
+- Тест сеет `sent_at` DB-часами (`UPDATE ... = NOW() - INTERVAL ? HOUR`), не PHP `date()` —
+  по уроку `feedback_db_clock_seed_not_php_in_time_window_tests` (первая версия теста ловила
+  ложный fail из-за PHP↔DB clock skew).
+- Tips/guide-вердикт: «нет» — чисто инфраструктурная чистка старых данных, не новая
+  player-facing механика; ничего не меняется в UX игрока.
 
 ## Findings
