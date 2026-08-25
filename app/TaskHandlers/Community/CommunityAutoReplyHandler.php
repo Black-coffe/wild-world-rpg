@@ -96,6 +96,10 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
      * настройка, которая сама не рассосётся так же, как потолок/кулдаун/килсвитч. Без этого
      * каждый тик писал новый `COMMUNITY_ANSWER_REJECTED` на постоянной конфигурации — тот же
      * дефект 2 из story 23, воспроизведённый на теме, а не на тексте ответа.
+     *
+     * Story 40, дефект 3 — терминальность у `silent_topic` та же, но целевой статус другой:
+     * это не отказ гварда (владелец ничего чинить не должен), а намеренно заглушённый топик —
+     * см. разбор целевого статуса в {@see resolveFailure()}.
      */
     private const TERMINAL_GATE_REASONS = ['text_too_long', 'unbalanced_markdown', 'canon_name_violation', 'silent_topic'];
 
@@ -308,6 +312,13 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
      * несовпадении числа затронутых строк откатывает сам апдейт, а не оставляет частично
      * перехваченную склейку висеть с чужим статусом навсегда.
      *
+     * Story 40, дефект 1 — возврат `transBegin()` больше не игнорируется: `false` означает,
+     * что транзакция не стартовала (или уже открыта снаружи — сегодня ни `Worker.php`, ни
+     * `BaseTaskHandler` её не открывают, но метод не должен полагаться на это молча). Без
+     * реальной транзакции последующий `transRollback()` был бы no-op, и частичный перехват
+     * склейки дублей закоммитился бы независимо от `affectedRows()` — ровно дефект, который
+     * story 31 закрывала. Гарантия отказывает ЗАКРЫТО: перехват не выполняется вовсе.
+     *
      * @param list<int> $ids
      * @param array<string, bool|float|int|string|null> $fields
      */
@@ -318,7 +329,9 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         }
 
         $db = Database::connect();
-        $db->transBegin();
+        if ($db->transBegin() === false) {
+            return false;
+        }
 
         $db->table('community_messages')
             ->whereIn('id', $ids)
@@ -369,7 +382,16 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
             if (in_array($reason, self::TERMINAL_GATE_REASONS, true)) {
                 // Дефект 2 — содержимым/конфигурацией это не исправить, ретрай каждую
                 // минуту только плодит `*_REJECTED` в журнале, по которому считается сам потолок.
-                $this->markGroup($coveredIds, ['status' => 'escalated'], $claimedStatus);
+                //
+                // Story 40, дефект 3 — `silent_topic` внутри терминальных причин не идёт в
+                // `escalated`: топик заглушили НАМЕРЕННО, это не ошибка, которую владелец
+                // должен разобрать руками в `/admin/community` (`whereIn('status', ['new',
+                // 'escalated'])` — {@see \App\Controllers\Admin\CommunityController}). Целевой
+                // статус — тот же терминальный `'ignored'`, которым уже закрывается
+                // `Decision::isSilent()` выше в {@see handle()}: намеренная тишина, а не
+                // отказ, ждущий человека.
+                $terminalStatus = $reason === 'silent_topic' ? 'ignored' : 'escalated';
+                $this->markGroup($coveredIds, ['status' => $terminalStatus], $claimedStatus);
             } else {
                 // Потолок/кулдаун/килсвитч сами рассосутся — вернём на следующий тик.
                 $this->markGroup($coveredIds, ['status' => 'new'], $claimedStatus);

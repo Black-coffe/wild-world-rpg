@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-40
 spec: community-chat-bot
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -57,3 +57,20 @@ blocked_by: []
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/TaskHandlers/CommunityAutoReplyHandlerTest.php`
+
+## Implementation notes
+- `claimGroup()`: `transBegin()` возврат больше не игнорируется — `false` (транзакция не
+  стартовала/уже открыта снаружи) → отказ закрыто, `UPDATE` не выполняется вовсе.
+- `resolveFailure()`: `TERMINAL_GATE_REASONS` разделены по целевому статусу —
+  `silent_topic` → `'ignored'` (тот же терминальный статус, которым уже закрывается
+  `Decision::isSilent()`), остальные причины (`text_too_long`/`unbalanced_markdown`/
+  `canon_name_violation`) по-прежнему → `'escalated'`. `/admin/community` читает очередь
+  как `whereIn('status', ['new','escalated'])`, `'ignored'` в неё не попадает.
+- Тест часов (`testRouteLogTimestampUsesDatabaseClockNotPhpDate`) форсирует `Etc/GMT+12`
+  на время вызова (паттерн story 27), иначе окно `[before, after]` из MySQL `NOW()`
+  накрывало бы и PHP `date()` на машине с совпадающими часами.
+- Добавлен `testClaimGroupClaimsNothingWhenTransactionCannotStart` — симулирует отказ
+  `transBegin()` через публичное свойство `BaseConnection::$transEnabled`, без мока
+  соединения.
+- Обновлён существующий `testSilentTopicGivesOneLogEntryNotOnePerTick`: ожидание статуса
+  `'escalated'` → `'ignored'`.

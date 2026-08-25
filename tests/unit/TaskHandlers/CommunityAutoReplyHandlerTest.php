@@ -722,6 +722,40 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         $this->assertSame('ignored', $this->statusOf((int) $m2['id']), 'конкурентно изменённая строка заявкой не трогается');
     }
 
+    // ── story 40: дефект 1 — транзакция не стартовала → перехват не выполняется вовсе ─
+
+    /**
+     * `transEnabled` — публичное свойство `BaseConnection`, штатный переключатель для
+     * симуляции «транзакция не стартовала» без мока соединения (тот же приём, каким
+     * фреймворк сам глушит транзакции в `TestCase::mockCache()`-подобных сценариях).
+     * На нефикшенной реализации возврат `transBegin()` игнорировался — `transRollback()`
+     * ниже был бы no-op на неоткрытой транзакции, и `UPDATE` остался бы закоммиченным.
+     */
+    public function testClaimGroupClaimsNothingWhenTransactionCannotStart(): void
+    {
+        $m1 = $this->insertMessage(['status' => 'new']);
+        $m2 = $this->insertMessage(['status' => 'new']);
+
+        $calls   = [];
+        $handler = $this->handler($this->sender($calls));
+        $claim   = new ReflectionMethod(CommunityAutoReplyHandler::class, 'claimGroup');
+        $claim->setAccessible(true);
+
+        $db                    = Database::connect();
+        $originalTransEnabled  = $db->transEnabled;
+        $db->transEnabled      = false;
+
+        try {
+            $result = $claim->invoke($handler, [(int) $m1['id'], (int) $m2['id']], ['status' => 'answered']);
+        } finally {
+            $db->transEnabled = $originalTransEnabled;
+        }
+
+        $this->assertFalse($result, 'транзакция не стартовала — заявка обязана отказать закрыто');
+        $this->assertSame('new', $this->statusOf((int) $m1['id']), 'без открытой транзакции UPDATE не должен был выполниться вовсе');
+        $this->assertSame('new', $this->statusOf((int) $m2['id']), 'без открытой транзакции UPDATE не должен был выполниться вовсе');
+    }
+
     // ── story 31: дефект 2 — silent_topic терминален, не ретраится вечно ─
 
     public function testSilentTopicGivesOneLogEntryNotOnePerTick(): void
@@ -741,7 +775,10 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         }
 
         $this->assertSame([], $calls, 'silent_topic отказывает ДО sendMessage — транспорт не звонит вовсе');
-        $this->assertSame('escalated', $this->statusOf((int) $message['id']), 'настройка сама не рассосётся — отказ обязан быть терминальным');
+        // Story 40, дефект 3 — заглушённый топик не копится у владельца как требующий
+        // ручного ответа: 'escalated' питает очередь `/admin/community`
+        // (`whereIn('status', ['new', 'escalated'])`), 'ignored' — нет.
+        $this->assertSame('ignored', $this->statusOf((int) $message['id']), 'намеренная тишина топика — терминальный отказ, но не очередь владельца');
         $this->assertSame(
             1,
             $this->auditCount((int) $message['id'], 'COMMUNITY_ANSWER_REJECTED'),
@@ -823,6 +860,16 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
 
     // ── story 31: дефект 5 — записи времени этого файла идут часами БД ───
 
+    /**
+     * Story 40, дефект 2 — «между двумя `NOW()`» само по себе не может покраснеть на
+     * дефекте «PHP `date()` вместо часов БД»: на машине с совпадающими часами и таймзоной
+     * PHP `date()` тоже укладывается в это же окно. Тест форсирует PHP-часы на 12 часов
+     * позади реального UTC (`Etc/GMT+12`), не трогая MySQL — тот же приём, что тесты
+     * story 27 (`CommunityChatSenderTest::testHourlyCeilingIsAccurateWhenAppAndDbClocksDiverge`,
+     * memory `feedback_db_clock_seed_not_php_in_time_window_tests`). На реализации через
+     * PHP `date()` запись уходит с меткой на ~12 часов «в прошлом» относительно MySQL
+     * `NOW()`, и `$before`/`$after` (тоже из MySQL) её окно не накрывают — тест краснеет.
+     */
     public function testRouteLogTimestampUsesDatabaseClockNotPhpDate(): void
     {
         $this->insertBankAnswer([
@@ -831,20 +878,27 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         ]);
         $message = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
 
-        $before = (string) $this->conn->query('SELECT NOW() AS n')->getRowArray()['n'];
+        $originalTz = date_default_timezone_get();
+        date_default_timezone_set('Etc/GMT+12');
 
-        $calls   = [];
-        $sender  = $this->sender($calls);
-        $handler = $this->handler($sender, $this->denyingGuard());
-        $handler->handle();
+        try {
+            $before = (string) $this->conn->query('SELECT NOW() AS n')->getRowArray()['n'];
 
-        $after = (string) $this->conn->query('SELECT NOW() AS n')->getRowArray()['n'];
+            $calls   = [];
+            $sender  = $this->sender($calls);
+            $handler = $this->handler($sender, $this->denyingGuard());
+            $handler->handle();
 
-        $rows = $this->auditRows((int) $message['id'], 'COMMUNITY_ROUTE_LOGGED');
-        $this->assertCount(1, $rows);
-        $createdAt = (string) $rows[0]['created_at'];
+            $after = (string) $this->conn->query('SELECT NOW() AS n')->getRowArray()['n'];
 
-        $this->assertGreaterThanOrEqual($before, $createdAt, 'created_at обязан идти часами БД (NOW()), не PHP date()');
-        $this->assertLessThanOrEqual($after, $createdAt, 'created_at обязан идти часами БД (NOW()), не PHP date()');
+            $rows = $this->auditRows((int) $message['id'], 'COMMUNITY_ROUTE_LOGGED');
+            $this->assertCount(1, $rows);
+            $createdAt = (string) $rows[0]['created_at'];
+
+            $this->assertGreaterThanOrEqual($before, $createdAt, 'created_at обязан идти часами БД (NOW()), не PHP date()');
+            $this->assertLessThanOrEqual($after, $createdAt, 'created_at обязан идти часами БД (NOW()), не PHP date()');
+        } finally {
+            date_default_timezone_set($originalTz);
+        }
     }
 }
