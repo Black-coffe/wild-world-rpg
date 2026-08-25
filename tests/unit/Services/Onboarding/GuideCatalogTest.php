@@ -235,6 +235,26 @@ final class GuideCatalogTest extends CIUnitTestCase
         }
     }
 
+    /**
+     * ADR-176 (community-chat-bot), story 15 — раздел «💬 Общий чат» (ключ `chat`, группа
+     * `meta`). Guide-вердикт Редколлегии: ДА — про навигацию и понятия (что это, где искать,
+     * что Роби там читает и отвечает, срок ответа, куда с личным вопросом), без чисел баланса.
+     */
+    public function testChatSectionExplainsWhatItIsAndOwnerRoute(): void
+    {
+        $section = GuideCatalog::find('chat');
+        $this->assertNotNull($section, 'Раздел «Общий чат» (chat) обязан быть в /guide.');
+        $this->assertSame('meta', $section['group'], 'Общий чат — раздел «Полезное».');
+
+        $body = $section['body'];
+        foreach (['Роби', 'владельцу', 'суток'] as $needle) {
+            $this->assertStringContainsStringIgnoringCase($needle, $body, "Раздел «Общий чат» не упоминает «{$needle}».");
+        }
+
+        // Без чисел баланса — раздел про навигацию и понятия, не про настраиваемые пороги.
+        $this->assertDoesNotMatchRegularExpression('/\d/u', $body, 'Раздел «Общий чат» не должен называть числа баланса.');
+    }
+
     // ── Сервис рендера ──────────────────────────────────────────────────────
 
     public function testIndexExposesButtonForEverySection(): void
