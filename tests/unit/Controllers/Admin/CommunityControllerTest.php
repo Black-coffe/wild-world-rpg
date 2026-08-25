@@ -216,6 +216,30 @@ final class CommunityControllerTest extends CIUnitTestCase
         );
     }
 
+    /**
+     * Как {@see sender()}, но с управляемыми гейтами — для story 19: подтвердить, что
+     * контроллер зовёт `sendManualAnswer()` (пропускает `community.autoreply.enabled`),
+     * а не `sendAnswer()` (блокируется им).
+     *
+     * @param array<string, bool> $settings
+     */
+    private function senderWithSettings(array $settings, bool $ok = true): CommunityChatSender
+    {
+        $transport = static fn (string $method, array $data): ServerResponse => new ServerResponse(
+            ['ok' => $ok, 'result' => ['message_id' => 1], 'description' => $ok ? null : 'boom'],
+            ''
+        );
+
+        return new CommunityChatSender(
+            new CommunityMessageModel(),
+            null,
+            null,
+            $this->conn,
+            $transport,
+            static fn (string $key, mixed $default = null): mixed => $settings[$key] ?? $default
+        );
+    }
+
     private function controller(?CommunityGuard $guard = null, ?CommunityChatSender $sender = null): CommunityController
     {
         return new CommunityController(
@@ -267,6 +291,47 @@ final class CommunityControllerTest extends CIUnitTestCase
         $this->assertSame('new', $this->statusOfMessage((int) $message['id']), 'провал отправки не должен менять статус сообщения');
     }
 
+    /**
+     * Story 19 — сквозное утверждение, которого не хватало: контроллер обязан звать
+     * `sendManualAnswer()`, а не `sendAnswer()`. При выключенных автоответах
+     * `sendAnswer()` откажет (килсвитч `community.autoreply.enabled`), и этот тест
+     * ловил бы регресс на уровне наблюдаемого поведения, а не на факте вызова метода.
+     */
+    public function testApproveSendsAndFlipsStatusWhenAutoreplyDisabled(): void
+    {
+        $message = $this->insertMessage();
+        $draft   = $this->insertDraft();
+
+        $sender = $this->senderWithSettings([
+            'community.enabled'            => true,
+            'community.autoreply.enabled'  => false,
+        ]);
+
+        $result = $this->controller(null, $sender)->approveAnswer((int) $draft['id'], (int) $message['id']);
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame('approved', $this->statusOfAnswer((int) $draft['id']));
+        $this->assertSame('answered', $this->statusOfMessage((int) $message['id']));
+    }
+
+    /** Story 19: `community.enabled=false` (общий рубильник) должен блокировать одобрение как и раньше. */
+    public function testApproveFailsAndKeepsStatusWhenCommunityDisabled(): void
+    {
+        $message = $this->insertMessage();
+        $draft   = $this->insertDraft();
+
+        $sender = $this->senderWithSettings([
+            'community.enabled'           => false,
+            'community.autoreply.enabled' => false,
+        ]);
+
+        $result = $this->controller(null, $sender)->approveAnswer((int) $draft['id'], (int) $message['id']);
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('draft', $this->statusOfAnswer((int) $draft['id']));
+        $this->assertSame('new', $this->statusOfMessage((int) $message['id']));
+    }
+
     public function testApproveRunsGuardAgainstCurrentTextAndBlocksOnDeny(): void
     {
         $message = $this->insertMessage();
@@ -308,8 +373,10 @@ final class CommunityControllerTest extends CIUnitTestCase
         $this->assertTrue($result['ok']);
         $this->assertSame('revoked', $this->statusOfAnswer((int) $draft['id']));
 
-        $corrections = $this->conn->table('admin_audit_log')->where('action', 'COMMUNITY_ANSWER_SENT')->countAllResults();
-        $this->assertSame(1, $corrections, 'поправка обязана уйти реплаем через CommunityChatSender');
+        // Story 19: контроллер зовёт sendManualAnswer() — аудит различает ручную
+        // отправку от автоматики отдельным префиксом (COMMUNITY_MANUAL_ANSWER_*).
+        $corrections = $this->conn->table('admin_audit_log')->where('action', 'COMMUNITY_MANUAL_ANSWER_SENT')->countAllResults();
+        $this->assertSame(1, $corrections, 'поправка обязана уйти реплаем через CommunityChatSender::sendManualAnswer()');
     }
 
     public function testRevokeIsAtomicWhenCorrectionSendFails(): void
@@ -326,6 +393,48 @@ final class CommunityControllerTest extends CIUnitTestCase
 
         $this->assertFalse($result['ok']);
         $this->assertSame('approved', $this->statusOfAnswer((int) $draft['id']), 'провал отправки поправки не должен менять статус');
+    }
+
+    /** Story 19: отзыв тоже обязан слать поправку через `sendManualAnswer()` при выключенных автоответах. */
+    public function testRevokeSendsCorrectionAndFlipsStatusWhenAutoreplyDisabled(): void
+    {
+        $message = $this->insertMessage();
+        $draft   = $this->insertDraft(['status' => 'approved', 'approved_at' => date('Y-m-d H:i:s')]);
+        $this->conn->table('community_messages')->where('id', $message['id'])->update([
+            'status'         => 'answered',
+            'answered_by_id' => $draft['id'],
+        ]);
+
+        $sender = $this->senderWithSettings([
+            'community.enabled'           => true,
+            'community.autoreply.enabled' => false,
+        ]);
+
+        $result = $this->controller(null, $sender)->revokeAnswer((int) $draft['id'], 'Поправка: было неверно.');
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame('revoked', $this->statusOfAnswer((int) $draft['id']));
+    }
+
+    /** Story 19: `community.enabled=false` должен блокировать и отзыв, как и одобрение. */
+    public function testRevokeFailsAndKeepsStatusWhenCommunityDisabled(): void
+    {
+        $message = $this->insertMessage();
+        $draft   = $this->insertDraft(['status' => 'approved', 'approved_at' => date('Y-m-d H:i:s')]);
+        $this->conn->table('community_messages')->where('id', $message['id'])->update([
+            'status'         => 'answered',
+            'answered_by_id' => $draft['id'],
+        ]);
+
+        $sender = $this->senderWithSettings([
+            'community.enabled'           => false,
+            'community.autoreply.enabled' => false,
+        ]);
+
+        $result = $this->controller(null, $sender)->revokeAnswer((int) $draft['id'], 'Поправка.');
+
+        $this->assertFalse($result['ok']);
+        $this->assertSame('approved', $this->statusOfAnswer((int) $draft['id']));
     }
 
     public function testRevokeWithoutKnownTargetStillFlipsStatus(): void

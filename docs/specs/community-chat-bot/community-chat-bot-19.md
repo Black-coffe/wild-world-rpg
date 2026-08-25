@@ -61,5 +61,16 @@ end-to-end, а не только на уровне отправителя.
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Controllers/Admin/`
 
 ## Implementation notes
+- `CommunityController.php:252` (`approveAnswer`) и `:307` (`revokeAnswer`) переключены на
+  `sendManualAnswer()`.
+- Тест: добавлен `senderWithSettings()` — та же `CommunityChatSender`, но с управляемым
+  settings-getter'ом (вместо жёсткого `true`/`true`), чтобы независимо гасить
+  `community.autoreply.enabled` и `community.enabled`.
+- Добавлено 4 теста: одобрение/отзыв при `autoreply.enabled=false` (сквозное — статус
+  реально меняется), одобрение/отзыв при `community.enabled=false` (остаются
+  заблокированы, статус не меняется).
+- Существующий `testRevokeSendsCorrectionToSameMessageAndFlipsStatus` проверял аудит-код
+  `COMMUNITY_ANSWER_SENT` — это прямое следствие старого (ошибочного) вызова `sendAnswer()`;
+  обновлён на `COMMUNITY_MANUAL_ANSWER_SENT`, соответствующий правильному ручному пути.
 
 ## Findings

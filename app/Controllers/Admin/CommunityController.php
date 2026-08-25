@@ -249,7 +249,7 @@ final class CommunityController extends BaseAdminController
             return ['ok' => false, 'error' => 'CommunityGuard отклонил текст: ' . $verdict->reason];
         }
 
-        if ($messageRowId !== null && ! $this->sender->sendAnswer($messageRowId, $answerText)) {
+        if ($messageRowId !== null && ! $this->sender->sendManualAnswer($messageRowId, $answerText)) {
             // Атомарность контракта: отказ отправки — ни community_answers, ни
             // community_messages не меняются, черновик остаётся draft.
             return ['ok' => false, 'error' => 'Отправка в чат не удалась — статус не изменён.'];
@@ -304,7 +304,7 @@ final class CommunityController extends BaseAdminController
 
         $correctionSent = false;
         if ($targetId !== null && $correctionText !== null) {
-            if (! $this->sender->sendAnswer($targetId, $correctionText)) {
+            if (! $this->sender->sendManualAnswer($targetId, $correctionText)) {
                 return ['ok' => false, 'error' => 'Поправка не отправилась — отзыв отменён.'];
             }
             $correctionSent = true;
