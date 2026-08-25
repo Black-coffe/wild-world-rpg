@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace Tests\Unit\Controllers\Admin;
 
 use App\Controllers\Admin\CommunityController;
+use App\Database\Migrations\Adr176CreateCommunityAnswersTable;
+use App\Database\Migrations\Adr176CreateCommunityMessagesTable;
+use App\Database\Migrations\CreateAdminAuditLogTable;
 use App\Models\CommunityAnswerModel;
 use App\Models\CommunityMessageModel;
 use App\Services\Community\CommunityChatSender;
 use App\Services\Community\CommunityGuard;
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\Forge;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -18,9 +22,10 @@ use Longman\TelegramBot\Entities\ServerResponse;
 
 /**
  * community-chat-bot-12 — `/admin/community`: единственный путь `draft` → `approved`,
- * отзыв, «стереть всё от игрока», метрики. Изолированная схема (паттерн
- * `CommunityAutoReplyHandlerTest`): свои `community_messages`/`community_answers`/
- * `admin_audit_log` в `wildworld_tests`, не общая прод-схема.
+ * отзыв, «стереть всё от игрока», метрики. Схема строится прогоном реальных миграций
+ * на группу `tests` (Forge) — паттерн `CommunityCleanupTest`/`CommunityExportTest`
+ * (story community-chat-bot-36): изолированная ручная `CREATE TABLE` разошлась с
+ * продовой миграцией и давала зелёный тест на схеме, которой на проде нет.
  *
  * Тестируется бизнес-логика напрямую ({@see CommunityController::approveAnswer()} и
  * т.п.) без HTTP-цикла — в этом репозитории нет FeatureTestTrait-инфраструктуры для
@@ -52,55 +57,16 @@ final class CommunityControllerTest extends CIUnitTestCase
             $this->conn->query("DROP TABLE IF EXISTS {$t}");
         }
 
-        $this->conn->query('
-            CREATE TABLE community_messages (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                chat_id BIGINT NOT NULL,
-                message_thread_id INT NULL,
-                message_id INT NOT NULL,
-                reply_to_message_id INT NULL,
-                telegram_user_id BIGINT NOT NULL,
-                username VARCHAR(191) NULL,
-                text TEXT NULL,
-                sent_at DATETIME NULL,
-                is_question TINYINT NOT NULL DEFAULT 0,
-                addressed_to_bot TINYINT NOT NULL DEFAULT 0,
-                status VARCHAR(16) NOT NULL DEFAULT \'new\',
-                answered_by_id INT NULL,
-                created_at DATETIME NULL
-            )
-        ');
+        $forge = Database::forge('tests');
 
-        $this->conn->query('
-            CREATE TABLE community_answers (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                client_key VARCHAR(32) NOT NULL,
-                question_pattern TEXT NOT NULL,
-                answer_text TEXT NOT NULL,
-                requires_setting VARCHAR(120) NULL,
-                source_ref VARCHAR(255) NOT NULL DEFAULT \'test\',
-                status VARCHAR(16) NOT NULL DEFAULT \'draft\',
-                approved_at DATETIME NULL,
-                approved_by VARCHAR(64) NULL,
-                revoked_at DATETIME NULL,
-                created_at DATETIME NULL,
-                updated_at DATETIME NULL
-            )
-        ');
+        $this->requireMessagesMigrationClass();
+        (new Adr176CreateCommunityMessagesTable($forge instanceof Forge ? $forge : null))->up();
 
-        $this->conn->query('
-            CREATE TABLE admin_audit_log (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                admin_user_id INT NOT NULL,
-                action VARCHAR(64) NOT NULL,
-                target_type VARCHAR(32) NULL,
-                target_id BIGINT NULL,
-                payload TEXT NULL,
-                ip_address VARCHAR(45) NULL,
-                user_agent VARCHAR(255) NULL,
-                created_at DATETIME NOT NULL
-            )
-        ');
+        $this->requireAnswersMigrationClass();
+        (new Adr176CreateCommunityAnswersTable($forge instanceof Forge ? $forge : null))->up();
+
+        $this->requireAuditMigrationClass();
+        (new CreateAdminAuditLogTable($forge instanceof Forge ? $forge : null))->up();
     }
 
     protected function tearDown(): void
@@ -108,6 +74,27 @@ final class CommunityControllerTest extends CIUnitTestCase
         parent::tearDown();
         foreach (self::TABLES as $t) {
             $this->conn->query("DROP TABLE IF EXISTS {$t}");
+        }
+    }
+
+    private function requireMessagesMigrationClass(): void
+    {
+        if (! class_exists(Adr176CreateCommunityMessagesTable::class, false)) {
+            require_once APPPATH . 'Database/Migrations/2026-08-25-100000_Adr176CreateCommunityMessagesTable.php';
+        }
+    }
+
+    private function requireAnswersMigrationClass(): void
+    {
+        if (! class_exists(Adr176CreateCommunityAnswersTable::class, false)) {
+            require_once APPPATH . 'Database/Migrations/2026-08-25-100100_Adr176CreateCommunityAnswersTable.php';
+        }
+    }
+
+    private function requireAuditMigrationClass(): void
+    {
+        if (! class_exists(CreateAdminAuditLogTable::class, false)) {
+            require_once APPPATH . 'Database/Migrations/2026-05-04-110000_CreateAdminAuditLogTable.php';
         }
     }
 

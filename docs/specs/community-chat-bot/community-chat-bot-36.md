@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-36
 spec: community-chat-bot
-status: todo
+status: done
 tier: 2
 worker: worker-test
 tracer: false
@@ -60,3 +60,31 @@ Story 35 нашла, что изолированная схема `community_mes
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Controllers/Admin/CommunityControllerTest.php tests/unit/Services/CommunityChatSenderTest.php tests/unit/Services/CommunityModerationServiceTest.php tests/unit/TaskHandlers/CommunityAutoReplyHandlerTest.php`
+
+## Implementation notes
+
+Все четыре теста переведены на схему из реальных миграций (`Adr176CreateCommunityMessagesTable`,
+`Adr176CreateCommunityAnswersTable` — где нужен `community_answers`, `CreateAdminAuditLogTable` —
+где нужен `admin_audit_log`), тем же паттерном Forge, что `CommunityCleanupTest`/`CommunityExportTest`.
+Ручной `CREATE TABLE` убран из всех четырёх файлов целиком (остались только упоминания в docblock).
+
+Находка при переходе (`CommunityChatSenderTest`): реальная миграция несёт
+`UNIQUE(chat_id, message_id)` — продовый инвариант идемпотентности повторной доставки
+Telegram-апдейта. Ручная изолированная схема этого теста такого ограничения не имела, и
+`insertMessage()` использовала фиксированный дефолт `message_id => 999` для всех вставок
+одного чата — семь тестов (`testHourlyCeilingSilencesCompletelyNotEveryOther`,
+`testSecondAnswerToSameAuthorWithinCooldownBlocked`,
+`testHourlyCeilingIsAccurateWhenAppAndDbClocksDiverge`,
+`testAuthorCooldownIsAccurateWhenAppAndDbClocksDiverge`,
+`testReactStillWorksAfterHourlyAnswerCeilingExhausted`, `testManualAnswerIgnoresHourlyCeiling`,
+`testManualAnswerIgnoresAuthorCooldown`) красными упали на `Duplicate entry` при первой же
+повторной вставке в тот же чат. Починено в пределах тестовой фикстуры: дефолт `message_id`
+сделан уникальным на каждый вызов (`static $seq`, паттерн `CommunityAutoReplyHandlerTest`) —
+набор утверждений не менялся, только фикстура. Реальный Telegram никогда не шлёт два разных
+апдейта с одним `message_id` в одном чате, так что уникальность — корректное поведение
+фикстуры, не подгонка под баг.
+
+Остальные три файла (`CommunityControllerTest`, `CommunityModerationServiceTest`,
+`CommunityAutoReplyHandlerTest`) уже генерировали `message_id` уникально (через `static $seq`
+или `random_int`) — на схеме из миграции все тесты зелёные без правок фикстур сверх смены
+источника схемы.
