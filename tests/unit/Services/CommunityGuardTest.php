@@ -360,6 +360,33 @@ final class CommunityGuardTest extends CIUnitTestCase
         $this->assertSame('question_leaks_signal', $droneHypothesis->reason);
     }
 
+    /**
+     * Story 54: живой Tier-3 нашёл вопрос с обратным слэшем после «?», который
+     * прошёл рубеж 2 — якорь `\?\s*$` требовал, чтобы «?» был последним значащим
+     * символом. Живая пунктуация («да?)», «да?!», «да?..», «да?))», «да? 🙂»,
+     * «да?\») не редкость, а норма письма, и не должна выключать проверку.
+     * Граница слова перед «да» (регрессия story 30) обязана остаться цела.
+     */
+    public function testHypothesisTailSurvivesTrailingPunctuation(): void
+    {
+        $safeAnswer = 'Верстак общий открывает базовые рецепты сразу на старте.';
+
+        $tails = ['да?)', 'да?!', 'да?..', 'да?))', 'да? 🙂', 'да?\\'];
+        foreach ($tails as $tail) {
+            $verdict = $this->guard()->verdict($safeAnswer, "Дрон перестаёт приносить после софткапа, {$tail}", null);
+            $this->assertTrue(
+                $verdict->isDeny(),
+                "«{$tail}» — форма проверки гипотезы, живая пунктуация не должна её выключать"
+            );
+            $this->assertSame('question_leaks_signal', $verdict->reason);
+        }
+
+        $whereWater = $this->guard()->verdict($safeAnswer, 'Где вода?', null);
+        $whereFood  = $this->guard()->verdict($safeAnswer, 'Роби, где взять еда?', null);
+        $this->assertTrue($whereWater->isAllow(), '«Где вода?» — обычный вопрос, не гипотеза (story 30 регрессия)');
+        $this->assertTrue($whereFood->isAllow(), '«Роби, где взять еда?» — обычный вопрос, не гипотеза (story 30 регрессия)');
+    }
+
     // ── Рубеж 5 — live vs dormant ────────────────────────────────────────────
 
     public function testMentionOfOracleWithoutRequiresSettingIsDenied(): void
