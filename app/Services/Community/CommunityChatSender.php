@@ -404,9 +404,9 @@ final class CommunityChatSender
                 INNER JOIN community_messages cm ON cm.id = a.target_id
                 WHERE a.action = \'COMMUNITY_ANSWER_SENT\'
                   AND cm.telegram_user_id = ?
-                  AND a.created_at >= (NOW() - INTERVAL ' . $cooldownSeconds . ' SECOND)';
+                  AND a.created_at >= (NOW() - INTERVAL ? SECOND)';
 
-        $query = $this->db->query($sql, [$authorId]);
+        $query = $this->db->query($sql, [$authorId, $cooldownSeconds]);
         if (! $query instanceof BaseResult) {
             return false;
         }
@@ -430,12 +430,35 @@ final class CommunityChatSender
                 ),
                 'ip_address'    => null,
                 'user_agent'    => null,
-                'created_at'    => date('Y-m-d H:i:s'),
+                'created_at'    => $this->dbNow(),
             ]);
         } catch (Throwable $e) {
             // Аудит-запись не должна ронять отправку/отказ.
             log_message('error', '[CommunityChatSender] audit insert failed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Часы, которыми сеть считает `sentInTopicLastHour()`/`authorSentWithinCooldown()` —
+     * `NOW()` из той же MySQL-сессии. Отметка времени записи обязана идти из того же
+     * источника, иначе потолок и кулдаун сравнивают запись PHP-часов с чтением
+     * MySQL-часов: при расхождении таймзон приложения и БД потолок либо не срабатывает
+     * никогда, либо блокирует всегда (memory `feedback_db_clock_seed_not_php_in_time_window_tests`,
+     * story community-chat-bot-27).
+     */
+    private function dbNow(): string
+    {
+        $query = $this->db->query('SELECT NOW() AS n');
+        if ($query instanceof BaseResult) {
+            $row = $query->getRowArray();
+            if (isset($row['n']) && is_string($row['n'])) {
+                return $row['n'];
+            }
+        }
+
+        // Отказ БД тут уже означает, что и сама вставка аудита провалится следом —
+        // запасное значение только чтобы не звать date() из другого источника времени.
+        return date('Y-m-d H:i:s');
     }
 
     // ── чтение строки сообщения ─────────────────────────────────────────

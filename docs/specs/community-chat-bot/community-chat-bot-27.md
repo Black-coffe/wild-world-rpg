@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-27
 spec: community-chat-bot
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -58,5 +58,16 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/CommunityChatSenderTest.php`
 
 ## Implementation notes
+- `audit()` теперь пишет `created_at` через новый `dbNow()` (`SELECT NOW() AS n` тем же
+  `$this->db`), а не `date('Y-m-d H:i:s')` PHP — запись и сравнение (`sentInTopicLastHour`,
+  `authorSentWithinCooldown`) идут одним источником времени.
+- Кулдаун-запрос: `INTERVAL <int> SECOND`, вклеенный строкой, заменён на `INTERVAL ? SECOND`
+  с плейсхолдером.
+- Тест: `seedPastSend()` сеет `created_at` через `NOW() - INTERVAL ? SECOND` (часы БД), а не
+  PHP `date()`; добавлен опциональный `$secondsAgo`.
+- Добавлены `testHourlyCeilingIsAccurateWhenAppAndDbClocksDiverge` и
+  `testAuthorCooldownIsAccurateWhenAppAndDbClocksDiverge`: форсируют PHP-таймзону
+  `Etc/GMT+12` (без остановки MySQL), проверено вручную, что оба краснеют на старой
+  реализации (`date()` в `audit()`) и зеленеют после фикса.
 
 ## Findings

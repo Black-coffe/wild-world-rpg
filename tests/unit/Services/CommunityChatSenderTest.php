@@ -113,17 +113,20 @@ final class CommunityChatSenderTest extends CIUnitTestCase
         return (int) $this->conn->insertID();
     }
 
-    /** Прошлая успешная отправка — для потолка/кулдауна. */
-    private function seedPastSend(int $targetMessageRowId, string $action = 'COMMUNITY_ANSWER_SENT'): void
+    /**
+     * Прошлая успешная отправка — для потолка/кулдауна. Время сеется часами БД
+     * (`NOW() - INTERVAL ? SECOND`), не PHP `date()`: гейт читает окно через
+     * MySQL `NOW()`, и семя обязано идти тем же источником времени — иначе тест
+     * зависит от совпадения таймзон окружения запуска и БД (память
+     * `feedback_db_clock_seed_not_php_in_time_window_tests`, story -27).
+     */
+    private function seedPastSend(int $targetMessageRowId, string $action = 'COMMUNITY_ANSWER_SENT', int $secondsAgo = 0): void
     {
-        $this->conn->table('admin_audit_log')->insert([
-            'admin_user_id' => 0,
-            'action'        => $action,
-            'target_type'   => 'community_message',
-            'target_id'     => $targetMessageRowId,
-            'payload'       => null,
-            'created_at'    => date('Y-m-d H:i:s'),
-        ]);
+        $this->conn->query(
+            'INSERT INTO admin_audit_log (admin_user_id, action, target_type, target_id, payload, created_at)
+             VALUES (0, ?, \'community_message\', ?, NULL, NOW() - INTERVAL ? SECOND)',
+            [$action, $targetMessageRowId, $secondsAgo]
+        );
     }
 
     private function lastAuditReason(int $targetMessageRowId): ?string
@@ -320,6 +323,89 @@ final class CommunityChatSenderTest extends CIUnitTestCase
         $this->assertFalse($result);
         $this->assertFalse($called);
         $this->assertSame('author_cooldown', $this->lastAuditReason($secondRowId));
+    }
+
+    // ── расхождение часов приложения и БД (story community-chat-bot-27) ────
+
+    /**
+     * Отметка времени записи и чтение окна обязаны идти из одного источника (память
+     * `feedback_db_clock_seed_not_php_in_time_window_tests`). Тест форсирует PHP-часы
+     * на 12 часов позади реального UTC (`Etc/GMT+12`), не трогая MySQL, — так
+     * воспроизводится расхождение таймзон приложения и БД без остановки времени.
+     * На старой реализации (`date('Y-m-d H:i:s')` в `audit()`) запись уходит с меткой
+     * на много часов "в прошлом" относительно MySQL `NOW()`, окно
+     * `NOW() - INTERVAL 1 HOUR` её не видит, и потолок не срабатывает — тест краснеет.
+     * После фикса запись идёт часами MySQL, окно видит её, потолок срабатывает как
+     * обычно.
+     */
+    public function testHourlyCeilingIsAccurateWhenAppAndDbClocksDiverge(): void
+    {
+        $chatId   = -100321;
+        $threadId = 33;
+
+        $originalTz = date_default_timezone_get();
+        date_default_timezone_set('Etc/GMT+12');
+
+        try {
+            $sender = $this->sender([], fn (): ServerResponse => $this->okResponse());
+
+            // Пять успешных ответов "прямо сейчас" (по PHP-часам это на 12 часов
+            // раньше, чем видит MySQL) — счётчик обязан их увидеть в окне часа.
+            for ($i = 0; $i < 5; $i++) {
+                $rowId = $this->insertMessage([
+                    'chat_id' => $chatId, 'message_thread_id' => $threadId, 'telegram_user_id' => 7000 + $i,
+                ]);
+                $this->assertTrue($sender->sendAnswer($rowId, "Ответ {$i}."));
+            }
+
+            $blockedSender = $this->sender([], function (): ServerResponse {
+                $this->fail('шестой ответ обязан молчать даже при расхождении часов приложения и БД');
+            });
+
+            $sixthRowId = $this->insertMessage([
+                'chat_id' => $chatId, 'message_thread_id' => $threadId, 'telegram_user_id' => 7999,
+            ]);
+            $result = $blockedSender->sendAnswer($sixthRowId, 'Шестой ответ.');
+
+            $this->assertFalse($result, 'потолок обязан сработать по единому источнику времени, а не PHP-часам');
+            $this->assertSame('topic_rate_limit', $this->lastAuditReason($sixthRowId));
+        } finally {
+            date_default_timezone_set($originalTz);
+        }
+    }
+
+    /** Тот же сценарий, что и потолок в час, но для кулдауна автора. */
+    public function testAuthorCooldownIsAccurateWhenAppAndDbClocksDiverge(): void
+    {
+        $authorId = 8383;
+
+        $originalTz = date_default_timezone_get();
+        date_default_timezone_set('Etc/GMT+12');
+
+        try {
+            $sender = $this->sender(
+                ['community.autoreply.author_cooldown_seconds' => 600],
+                fn (): ServerResponse => $this->okResponse()
+            );
+
+            $firstRowId = $this->insertMessage(['telegram_user_id' => $authorId]);
+            $this->assertTrue($sender->sendAnswer($firstRowId, 'Первый ответ.'));
+
+            $blockedSender = $this->sender(
+                ['community.autoreply.author_cooldown_seconds' => 600],
+                function (): ServerResponse {
+                    $this->fail('второй ответ автору в кулдауне обязан молчать даже при расхождении часов');
+                }
+            );
+
+            $secondRowId = $this->insertMessage(['telegram_user_id' => $authorId]);
+            $result       = $blockedSender->sendAnswer($secondRowId, 'Второй ответ.');
+
+            $this->assertFalse($result, 'кулдаун обязан сработать по единому источнику времени, а не PHP-часам');
+            $this->assertSame('author_cooldown', $this->lastAuditReason($secondRowId));
+        } finally {
+            date_default_timezone_set($originalTz);
+        }
     }
 
     // ── длина текста ─────────────────────────────────────────────────────
