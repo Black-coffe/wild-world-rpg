@@ -141,17 +141,26 @@ class CommunityCleanup extends BaseCommand
 
         $staleClosed = 0;
         if ($maxAgeHours > 0 && $staleCandidates > 0) {
-            // Снимок id ДО UPDATE — нужен для аудита «не исчезает молча» (story 32).
-            // Race с автотиком/владельцем в это же окно не критичен: возрастной
-            // WHERE в UPDATE остаётся источником правды для staleClosed, снимок
-            // только адресует, КОМУ писать аудит-строку.
-            $staleIds = $this->staleQuestionIds($maxAgeHours);
+            // Снимок id и сам UPDATE — в одной транзакции, снимок берётся с
+            // `FOR UPDATE` (row-lock): строка, которую параллельно меняет другая
+            // транзакция (уходит из `new`), либо ждёт эту блокировку и не входит
+            // в снимок при следующем прогоне, либо уже вне снимка — учтённой
+            // закрытой считается только строка, которую этот же UPDATE
+            // действительно перевёл (story 42).
+            $db->transStart();
 
-            $db->query(
-                "UPDATE community_messages SET status = 'ignored' WHERE status = 'new' AND sent_at < DATE_SUB(NOW(), INTERVAL ? HOUR)",
-                [$maxAgeHours]
-            );
-            $staleClosed = $db->affectedRows();
+            $staleIds = $this->staleQuestionIdsForUpdate($maxAgeHours);
+
+            if ($staleIds !== []) {
+                $placeholders = implode(',', array_fill(0, count($staleIds), '?'));
+                $db->query(
+                    "UPDATE community_messages SET status = 'ignored' WHERE status = 'new' AND id IN ({$placeholders})",
+                    $staleIds
+                );
+                $staleClosed = $db->affectedRows();
+            }
+
+            $db->transComplete();
 
             $this->auditAutoClosed($staleIds, $maxAgeHours);
         }
@@ -160,12 +169,15 @@ class CommunityCleanup extends BaseCommand
     }
 
     /**
+     * Снимок id зависших вопросов с row-lock (`FOR UPDATE`) — вызывать только внутри
+     * транзакции, которая следом же и переводит эти строки в `ignored`.
+     *
      * @return list<int>
      */
-    private function staleQuestionIds(int $maxAgeHours): array
+    private function staleQuestionIdsForUpdate(int $maxAgeHours): array
     {
         $res = Database::connect()->query(
-            "SELECT id FROM community_messages WHERE status = 'new' AND sent_at < DATE_SUB(NOW(), INTERVAL ? HOUR)",
+            "SELECT id FROM community_messages WHERE status = 'new' AND sent_at < DATE_SUB(NOW(), INTERVAL ? HOUR) FOR UPDATE",
             [$maxAgeHours]
         );
         if (! $res instanceof BaseResult) {

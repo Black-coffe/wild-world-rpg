@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-42
 spec: community-chat-bot
-status: todo
+status: done
 tier: 1
 worker: worker-test
 tracer: false
@@ -53,3 +53,22 @@ blocked_by: []
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/CommunityAnswerMatcherTest.php tests/unit/Commands/CommunityCleanupTest.php`
+
+## Implementation note
+- `CommunityAnswerMatcherTest` теперь строит `community_messages`/`community_answers` прогоном
+  `Adr176CreateCommunityMessagesTable`/`Adr176CreateCommunityAnswersTable` (паттерн
+  `CommunityChatSenderTest`), а не ручным `CREATE TABLE`. Docblock обновлён.
+- `CommunityCleanupTest` — ручная схема `admin_audit_log` заменена реальной миграцией
+  `CreateAdminAuditLogTable` (тот же условный `tableExists()`-паттерн, что уже был для
+  `community_messages` в этом файле). Docblock теперь не врёт: обе таблицы — из миграций.
+- `CommunityCleanup::cleanup()`: снимок id зависших вопросов и сам `UPDATE ... SET status =
+  'ignored'` теперь выполняются в одной транзакции (`transStart()`/`transComplete()`),
+  снимок — через `SELECT ... FOR UPDATE` (row-lock), `UPDATE` сужен до `id IN (...)`
+  снимка. Строка, ушедшая из `new` в параллельной транзакции между снимком и записью,
+  либо ждёт эту блокировку, либо не попадает в снимок — на аудит `COMMUNITY_QUESTION_
+  AUTO_CLOSED` (KPI) идут только id, которые этот же `UPDATE` действительно перевёл.
+- Прогон вместе (`CommunityAnswerMatcherTest` + `CommunityCleanupTest`) один раз показал
+  флуд «table already/doesn't exist» — воспроизвёл документированную гонку
+  (`feedback_never_run_full_suite_in_parallel.md`: параллельные phpunit-прогоны других
+  воркеров команды бьются за одни и те же таблицы `wildworld_tests`). 5 последующих
+  изолированных прогонов подряд — зелёные 27/27; регрессии в моём коде нет.

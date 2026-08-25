@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Services;
 
+use App\Database\Migrations\Adr176CreateCommunityAnswersTable;
+use App\Database\Migrations\Adr176CreateCommunityMessagesTable;
 use App\Models\CommunityAnswerModel;
 use App\Models\CommunityMessageModel;
 use App\Services\Community\CommunityAnswerMatcher;
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\Forge;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -15,8 +18,13 @@ use DateTimeImmutable;
 
 /**
  * community-chat-bot-08 — `CommunityAnswerMatcher`: два порога, кулдауны, склейка
- * дублей. Изолированная схема (паттерн `CommunityChatSenderTest`, story 06): свои
- * `community_messages`/`community_answers` в `wildworld_tests`.
+ * дублей.
+ *
+ * Схема строится прогоном реальных миграций на группу `tests` (Forge) — паттерн
+ * `CommunityChatSenderTest`/`CommunityExportTest` (story community-chat-bot-36/42):
+ * изолированная ручная `CREATE TABLE` расходится с продовой миграцией (например,
+ * `UNIQUE(chat_id, message_id)` community_messages) и даёт зелёный тест на схеме,
+ * которой на проде нет.
  *
  * @internal
  */
@@ -41,41 +49,13 @@ final class CommunityAnswerMatcherTest extends CIUnitTestCase
             $this->conn->query("DROP TABLE IF EXISTS {$t}");
         }
 
-        $this->conn->query('
-            CREATE TABLE community_messages (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                chat_id BIGINT NOT NULL,
-                message_thread_id INT NULL,
-                message_id INT NOT NULL,
-                reply_to_message_id INT NULL,
-                telegram_user_id BIGINT NOT NULL,
-                username VARCHAR(191) NULL,
-                text TEXT NULL,
-                sent_at DATETIME NOT NULL,
-                is_question TINYINT NOT NULL DEFAULT 0,
-                addressed_to_bot TINYINT NOT NULL DEFAULT 0,
-                status ENUM(\'new\', \'answered\', \'escalated\', \'ignored\') NOT NULL DEFAULT \'new\',
-                answered_by_id INT NULL,
-                created_at DATETIME NULL
-            )
-        ');
+        $forge = Database::forge('tests');
 
-        $this->conn->query('
-            CREATE TABLE community_answers (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                client_key VARCHAR(32) NOT NULL,
-                question_pattern TEXT NOT NULL,
-                answer_text TEXT NOT NULL,
-                requires_setting VARCHAR(120) NULL,
-                source_ref VARCHAR(255) NOT NULL DEFAULT \'test\',
-                status VARCHAR(16) NOT NULL DEFAULT \'draft\',
-                approved_at DATETIME NULL,
-                approved_by VARCHAR(64) NULL,
-                revoked_at DATETIME NULL,
-                created_at DATETIME NULL,
-                updated_at DATETIME NULL
-            )
-        ');
+        $this->requireMessagesMigrationClass();
+        (new Adr176CreateCommunityMessagesTable($forge instanceof Forge ? $forge : null))->up();
+
+        $this->requireAnswersMigrationClass();
+        (new Adr176CreateCommunityAnswersTable($forge instanceof Forge ? $forge : null))->up();
     }
 
     protected function tearDown(): void
@@ -83,6 +63,20 @@ final class CommunityAnswerMatcherTest extends CIUnitTestCase
         parent::tearDown();
         foreach (self::TABLES as $t) {
             $this->conn->query("DROP TABLE IF EXISTS {$t}");
+        }
+    }
+
+    private function requireMessagesMigrationClass(): void
+    {
+        if (! class_exists(Adr176CreateCommunityMessagesTable::class, false)) {
+            require_once APPPATH . 'Database/Migrations/2026-08-25-100000_Adr176CreateCommunityMessagesTable.php';
+        }
+    }
+
+    private function requireAnswersMigrationClass(): void
+    {
+        if (! class_exists(Adr176CreateCommunityAnswersTable::class, false)) {
+            require_once APPPATH . 'Database/Migrations/2026-08-25-100100_Adr176CreateCommunityAnswersTable.php';
         }
     }
 

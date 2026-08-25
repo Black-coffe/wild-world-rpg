@@ -7,6 +7,7 @@ namespace Tests\Unit\Commands;
 use App\Commands\CommunityCleanup;
 use App\Database\Migrations\Adr176CreateCommunityAnswersTable;
 use App\Database\Migrations\Adr176CreateCommunityMessagesTable;
+use App\Database\Migrations\CreateAdminAuditLogTable;
 use App\Models\CommunityAnswerModel;
 use App\Models\CommunityMessageModel;
 use App\Models\GameSettingsModel;
@@ -22,8 +23,10 @@ use Config\Database;
  * в терминальный `ignored`. `community_answers` (банк) вне области — эта таблица здесь не
  * трогается вообще.
  *
- * Таблица создаётся прогоном реальной миграции на группу `tests` (Forge), как
- * `CommunityExportTest`.
+ * Обе таблицы создаются прогоном реальных миграций на группу `tests` (Forge), как
+ * `CommunityExportTest`/`CommunityChatSenderTest` (story community-chat-bot-42: до этого
+ * `admin_audit_log` здесь была ручной изолированной `CREATE TABLE`, разошедшейся с
+ * `CreateAdminAuditLogTable`).
  *
  * @internal
  */
@@ -52,22 +55,12 @@ final class CommunityCleanupTest extends CIUnitTestCase
 
         // Story 32 — CommunityCleanup пишет в admin_audit_log (COMMUNITY_QUESTION_
         // AUTO_CLOSED, acceptance «не исчезает молча»). Реальная схема `tests`
-        // отстаёт на непрогнанные миграции (см. CommunityChatSenderTest) — своя
-        // изолированная таблица тем же паттерном.
+        // отстаёт на непрогнанные миграции (см. CommunityChatSenderTest) — прогоняем
+        // настоящую миграцию `CreateAdminAuditLogTable`, не ручную схему.
         if (! $db->tableExists('admin_audit_log')) {
-            $db->query('
-                CREATE TABLE admin_audit_log (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    admin_user_id INT NOT NULL,
-                    action VARCHAR(64) NOT NULL,
-                    target_type VARCHAR(32) NULL,
-                    target_id BIGINT NULL,
-                    payload TEXT NULL,
-                    ip_address VARCHAR(45) NULL,
-                    user_agent VARCHAR(255) NULL,
-                    created_at DATETIME NOT NULL
-                )
-            ');
+            $this->requireAuditMigrationClass();
+            $forge = Database::forge('tests');
+            (new CreateAdminAuditLogTable($forge instanceof Forge ? $forge : null))->up();
             $this->createdAuditTable = true;
         }
     }
@@ -84,7 +77,9 @@ final class CommunityCleanupTest extends CIUnitTestCase
         }
 
         if ($this->createdAuditTable) {
-            $db->query('DROP TABLE IF EXISTS admin_audit_log');
+            $this->requireAuditMigrationClass();
+            $forge = Database::forge('tests');
+            (new CreateAdminAuditLogTable($forge instanceof Forge ? $forge : null))->down();
         } else {
             $db->table('admin_audit_log')->truncate();
         }
@@ -96,6 +91,13 @@ final class CommunityCleanupTest extends CIUnitTestCase
     {
         if (! class_exists(Adr176CreateCommunityMessagesTable::class, false)) {
             require_once APPPATH . 'Database/Migrations/2026-08-25-100000_Adr176CreateCommunityMessagesTable.php';
+        }
+    }
+
+    private function requireAuditMigrationClass(): void
+    {
+        if (! class_exists(CreateAdminAuditLogTable::class, false)) {
+            require_once APPPATH . 'Database/Migrations/2026-05-04-110000_CreateAdminAuditLogTable.php';
         }
     }
 
