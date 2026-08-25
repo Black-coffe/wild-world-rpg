@@ -496,6 +496,31 @@ final class CommunityGuardTest extends CIUnitTestCase
     }
 
     /**
+     * Story 69, второй круг (ревью тимлида): story 69 закрыла случайное
+     * срабатывание `NUMERAL_WORDS` («одно» внутри «невыг**одно**») — фиксом
+     * границы слова обнажилась утечка «Идти в поход голодным невыгодно: добыча
+     * заметно падает.», которую раньше денил именно этот случайный матч, а не
+     * рубеж сравнительной формы по делу. R2 не ловил её, потому что корень
+     * «выгодне» (обрезан под сравнительную степень «-ее») не встречается в
+     * базовой форме «выгодн**о**». Корни `COMPARATIVE_EVALUATION_ROOTS`
+     * укорочены на одну букву — теперь substring совпадает и со сравнительной
+     * степенью, и с базовым наречием/предикативом, И с отрицанием «не-» перед
+     * корнем (substring не проверяет, что стоит ДО совпадения). Не список слов
+     * — укорочение существующих корней, применяется единообразно.
+     */
+    public function testNegatedEvaluativeAdverbIsDeniedAsComparativeClaim(): void
+    {
+        $verdict = $this->guard()->verdict(
+            'Идти в поход голодным невыгодно: добыча заметно падает.',
+            'Расскажи про механику.',
+            null,
+        );
+
+        $this->assertTrue($verdict->isDeny());
+        $this->assertSame('comparative_claim', $verdict->reason);
+    }
+
+    /**
      * Story 63, acceptance: буквально из story — «Дрон находит узлы охотнее,
      * чем в лесу» отклоняется как `comparative_claim`, а НЕ случайно провенансом
      * (в отличие от прототипа со списком прилагательных, который пропускал
@@ -887,6 +912,64 @@ final class CommunityGuardTest extends CIUnitTestCase
         $this->assertSame('lexical_stoplist', $rawDigits->reason);
     }
 
+    /**
+     * Story 69, acceptance: гипотеза «`NUMERAL_WORDS`/`LEXICAL_STOPLIST` сверяются
+     * `str_contains()` без границы слова» подтверждена исполнением (см.
+     * `## Findings`) — все пять примеров, названных в story, реально денились
+     * `lexical_stoplist` ДО фикса. Красит тест на возврат наивного `str_contains()`:
+     * если границу слова убрать, все пять снова станут `deny`.
+     */
+    public function testStopWordsNoLongerMatchInsideUnrelatedWords(): void
+    {
+        $safe = [
+            'Здесь тихое место для лагеря.',
+            'Верстак стоит на базе.',
+            'Это просто крафт ресурсов.',
+            'Копьё имеет острое остриё.',
+            'Все постройки выглядят одинаково.',
+        ];
+
+        foreach ($safe as $answer) {
+            $verdict = $this->guard()->verdict($answer, 'Расскажи про механику.', null);
+            $this->assertTrue($verdict->isAllow(), "«{$answer}» не должно денится — совпадение внутри чужого слова, не самим словом");
+        }
+    }
+
+    /** Контрольная пара: те же слова как САМОСТОЯТЕЛЬНЫЕ по-прежнему ловятся. */
+    public function testStopWordsStillMatchAsStandaloneWords(): void
+    {
+        $leaks = [
+            'Сто золотых лежит в сундуке.',
+            'Три ресурса нужно для крафта.',
+        ];
+
+        foreach ($leaks as $answer) {
+            $verdict = $this->guard()->verdict($answer, 'Расскажи про механику.', null);
+            $this->assertTrue($verdict->isDeny(), "«{$answer}» — числительное самостоятельным словом обязано денится");
+            $this->assertSame('lexical_stoplist', $verdict->reason);
+        }
+    }
+
+    /**
+     * Story 69: единственное осознанное исключение из границы слова — «дцать»/
+     * «десят» никогда не бывают отдельным словом (инфикс-фрагменты составных
+     * числительных), граница убила бы их целиком. Контрольная пара доказывает,
+     * что исключение не сломано фиксом (составные числительные всё ещё ловятся).
+     */
+    public function testCompoundNumeralsStillCaughtViaFragmentException(): void
+    {
+        $leaks = [
+            'Двадцать пять единиц урона.',
+            'Пятьдесят монет за визит.',
+        ];
+
+        foreach ($leaks as $answer) {
+            $verdict = $this->guard()->verdict($answer, 'Расскажи про механику.', null);
+            $this->assertTrue($verdict->isDeny(), "«{$answer}» — составное числительное обязано денится через «дцать»/«десят»");
+            $this->assertSame('lexical_stoplist', $verdict->reason);
+        }
+    }
+
     public function testMonosyllableConfirmationOnMechanicQuestionIsDenied(): void
     {
         $verdict = $this->guard()->verdict('Да.', 'Уворот действительно есть в игре?', null);
@@ -1238,14 +1321,22 @@ final class CommunityGuardTest extends CIUnitTestCase
         $this->assertNotEmpty($goodFaithSample);
         $this->assertNotEmpty($fabricatedSample);
 
-        $falseDeny     = 0;
+        $falseDeny         = 0;
         $goodFaithByReason = [];
+        // Story 69: сработавшее слово стоп-листа/числительного печатается
+        // поимённо, а не только причина `lexical_stoplist` — это и есть
+        // инструмент, которым доказана/будет доказана гипотеза о границе слова.
+        $lexicalStoplistHits = [];
         foreach ($goodFaithSample as $sentence) {
             $verdict = $guard->verdict($sentence, 'Расскажи про механику.', null);
             $reason  = $verdict->isAllow() ? 'allow' : $verdict->reason;
             $goodFaithByReason[$reason] = ($goodFaithByReason[$reason] ?? 0) + 1;
             if (! $verdict->isAllow()) {
                 $falseDeny++;
+            }
+            if ($reason === 'lexical_stoplist') {
+                $word = $this->matchedStopWordOf($guard, $sentence);
+                $lexicalStoplistHits[] = sprintf('«%s» ← «%s»', $word ?? '?', $sentence);
             }
         }
 
@@ -1284,7 +1375,8 @@ final class CommunityGuardTest extends CIUnitTestCase
             "\n[CommunityGuard calibration, живой GuideCatalog (%d разделов, пропущено %d без "
                 . "предложения-кандидата)] ложный отказ=%.1f%% (%d/%d), ложный пропуск=%.1f%% (%d/%d)\n"
                 . "  добросовестная сторона по причине: %s\n"
-                . "  фабрикатная сторона по причине:     %s\n",
+                . "  фабрикатная сторона по причине:     %s\n"
+                . "  сработавшее слово стоп-листа (story 69, поимённо): %s\n",
             count($sections),
             $goodFaithSkipped,
             $falseDenyRate * 100,
@@ -1295,10 +1387,40 @@ final class CommunityGuardTest extends CIUnitTestCase
             count($fabricatedSample),
             json_encode($goodFaithByReason, JSON_UNESCAPED_UNICODE),
             json_encode($fabricatedByReason, JSON_UNESCAPED_UNICODE),
+            $lexicalStoplistHits === [] ? '—' : implode(' | ', $lexicalStoplistHits),
         ));
 
         $this->assertLessThanOrEqual(0.60, $falseDenyRate, 'ложный отказ вышел за широкий коридор — рубеж 1 массово режет честные цитаты источника');
         $this->assertLessThanOrEqual(0.60, $falseAllowRate, 'ложный пропуск вышел за широкий коридор — рубеж 1 перестал ловить межраздельную рекомбинацию');
+    }
+
+    /**
+     * Story 69 — печатает СРАБОТАВШЕЕ слово `NUMERAL_WORDS`/`LEXICAL_STOPLIST`,
+     * а не только причину `lexical_stoplist`. Вызывает ту же приватную
+     * `CommunityGuard::matchesStopWord()` через reflection — не дублирует
+     * логику совпадения (дубль рисковал бы разойтись с продом и врать), просто
+     * прогоняет её список слов, пока не найдёт первое совпадение. Это и есть
+     * инструмент, которым доказана гипотеза story 69, и он же остаётся полезным
+     * после фикса — покажет поимённо, если граница слова когда-нибудь сломается.
+     */
+    private function matchedStopWordOf(CommunityGuard $guard, string $answer): ?string
+    {
+        $reflection = new \ReflectionClass($guard);
+        $matcher    = $reflection->getMethod('matchesStopWord');
+        $matcher->setAccessible(true);
+
+        $lower = mb_strtolower($answer);
+        $words = array_merge(
+            $reflection->getConstant('NUMERAL_WORDS'),
+            $reflection->getConstant('LEXICAL_STOPLIST'),
+        );
+        foreach ($words as $word) {
+            if ($matcher->invoke($guard, $lower, $word)) {
+                return $word;
+            }
+        }
+
+        return null;
     }
 
     /**
