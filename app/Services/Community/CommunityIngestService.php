@@ -58,6 +58,15 @@ final class CommunityIngestService
      */
     private const COLLECTIVE_ADDRESS_WORDS = ['народ', 'ребят', 'ребята', 'пацаны', 'всем'];
 
+    /**
+     * Telegram `from.id` анонимного админа группы (`GroupAnonymousBot`), общий на всех
+     * чатах и группах. Приходит с `is_bot: true`, но story 35
+     * ({@see \App\Services\Community\CommunityAnswerMatcher::GROUP_ANONYMOUS_BOT_ID})
+     * постановила считать его человеком — фильтр посторонних ботов ниже обязан делать
+     * для этого id исключение, иначе ветка story 35 снова недостижима (story 45).
+     */
+    private const GROUP_ANONYMOUS_BOT_ID = 1087968824;
+
     private GameSettingsService $settings;
     private string $botUsername;
 
@@ -112,7 +121,12 @@ final class CommunityIngestService
         // Иначе его реплай на вопрос ловился бы `CommunityAnswerMatcher::isCancelledByHumanReply()`
         // как «человек уже помог» и молча отменял выдержку — тот же класс дефекта, что
         // чинила story 35, но для постороннего бота, а не самого автора вопроса.
-        if (($fromRaw['is_bot'] ?? false) === true) {
+        //
+        // Исключение (story 45): анонимный админ группы (`GroupAnonymousBot`,
+        // `self::GROUP_ANONYMOUS_BOT_ID`) тоже приходит с `is_bot: true`, но story 35
+        // постановила считать его человеком — без исключения его строка не попадала
+        // бы в таблицу вовсе, и ветка story 35 была бы недостижима.
+        if (($fromRaw['is_bot'] ?? false) === true && $telegramUserId !== self::GROUP_ANONYMOUS_BOT_ID) {
             return;
         }
 
@@ -257,18 +271,32 @@ final class CommunityIngestService
     }
 
     /**
+     * Обращением к Роби считается реплай на сообщение именно Роби — не на сообщение
+     * произвольного стороннего бота (модератора, другого игрового бота в том же чате).
+     * Telegram не различает ботов признаком помимо identity, поэтому сверяем
+     * `reply_to_message.from.username` с собственным `$this->botUsername` (story 45).
+     *
      * @param array<array-key, mixed> $message
      */
     private function repliesToBot(array $message): bool
     {
+        if ($this->botUsername === '') {
+            return false;
+        }
+
         $replyRaw = $message['reply_to_message'] ?? null;
         if (! is_array($replyRaw)) {
             return false;
         }
 
         $replyFromRaw = $replyRaw['from'] ?? null;
+        if (! is_array($replyFromRaw)) {
+            return false;
+        }
 
-        return is_array($replyFromRaw) && ($replyFromRaw['is_bot'] ?? false) === true;
+        $replyUsernameRaw = $replyFromRaw['username'] ?? null;
+
+        return is_string($replyUsernameRaw) && strcasecmp($replyUsernameRaw, $this->botUsername) === 0;
     }
 
     /**

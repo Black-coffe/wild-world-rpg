@@ -7,6 +7,7 @@ namespace Tests\Unit\Services;
 use App\Database\Migrations\Adr176CreateCommunityMessagesTable;
 use App\Models\CommunityMessageModel;
 use App\Models\GameSettingsModel;
+use App\Services\Community\CommunityAnswerMatcher;
 use App\Services\Community\CommunityIngestService;
 use App\Services\GameSettings\GameSettingsService;
 use CodeIgniter\Database\Forge;
@@ -263,16 +264,36 @@ final class CommunityIngestServiceTest extends CIUnitTestCase
         $this->assertSame(0, (int) $this->row()['addressed_to_bot']);
     }
 
+    /**
+     * Обращением к Роби считается реплай именно на его сообщение — сверяется
+     * `reply_to_message.from.username` с настроенным `botUsername`.
+     */
     public function testReplyToBotMarksAddressedToBot(): void
     {
         $update = ['message' => $this->message([
             'text'             => 'а это где смотреть',
-            'reply_to_message' => ['message_id' => 5, 'from' => ['id' => 9, 'is_bot' => true]],
+            'reply_to_message' => ['message_id' => 5, 'from' => ['id' => 9, 'is_bot' => true, 'username' => self::BOT_USERNAME]],
         ])];
 
         $this->service([])->handle($update);
 
         $this->assertSame(1, (int) $this->row()['addressed_to_bot']);
+    }
+
+    /**
+     * Story 45: реплай на сообщение СТОРОННЕГО бота (не Роби) — не обращение к боту.
+     * До фикса `repliesToBot()` смотрел только на `is_bot === true` любого автора.
+     */
+    public function testReplyToOtherBotDoesNotMarkAddressedToBot(): void
+    {
+        $update = ['message' => $this->message([
+            'text'             => 'а как получить X?',
+            'reply_to_message' => ['message_id' => 5, 'from' => ['id' => 9, 'is_bot' => true, 'username' => 'moderator_bot']],
+        ])];
+
+        $this->service([])->handle($update);
+
+        $this->assertSame(0, (int) $this->row()['addressed_to_bot']);
     }
 
     public function testRobiPrefixMarksAddressedToBot(): void
@@ -372,5 +393,57 @@ final class CommunityIngestServiceTest extends CIUnitTestCase
         $row = $this->row(201);
         $this->assertNotNull($row, 'реплай человека обязан по-прежнему попадать в community_messages');
         $this->assertSame(100, (int) $row['reply_to_message_id']);
+    }
+
+    // -- story 45: анонимный админ группы остаётся человеком -------------------------
+
+    /** `from.id = 1087968824` (`GroupAnonymousBot`) приходит с `is_bot: true`, но пишется. */
+    private const GROUP_ANONYMOUS_BOT_ID = 1087968824;
+
+    public function testGroupAnonymousBotMessageIsStored(): void
+    {
+        $update = ['message' => $this->message([
+            'message_id' => 202,
+            'from'       => ['id' => self::GROUP_ANONYMOUS_BOT_ID, 'is_bot' => true, 'username' => 'GroupAnonymousBot'],
+            'text'       => 'привет от админа',
+        ])];
+
+        $this->service([])->handle($update);
+
+        $row = $this->row(202);
+        $this->assertNotNull($row, 'сообщение анонимного админа обязано попадать в community_messages');
+        $this->assertSame(self::GROUP_ANONYMOUS_BOT_ID, (int) $row['telegram_user_id']);
+    }
+
+    /**
+     * Сквозной путь story 45 — ПРИЁМ, а не прямая вставка строки в таблицу: апдейт от
+     * анонимного админа проходит через `CommunityIngestService::handle()`, и только
+     * получившуюся строку читает `CommunityAnswerMatcher::isCancelledByHumanReply()`.
+     * Ловит именно ту регрессию story 41, из-за которой строка анонимного админа
+     * вовсе не попадала в таблицу и ветка story 35 была недостижима.
+     */
+    public function testAnonymousAdminReplyReachesMatcherAsHumanReplyThroughIngest(): void
+    {
+        // Вопрос игрока — уже есть в фикстуре `message()` как message_id=100, автор 555.
+        $this->service([])->handle(['message' => $this->message()]);
+
+        $reply = ['message' => $this->message([
+            'message_id'       => 203,
+            'from'             => ['id' => self::GROUP_ANONYMOUS_BOT_ID, 'is_bot' => true, 'username' => 'GroupAnonymousBot'],
+            'text'             => 'ответил игроку в личке чата',
+            'reply_to_message' => ['message_id' => 100, 'from' => ['id' => 555, 'is_bot' => false]],
+        ])];
+        $this->service([])->handle($reply);
+
+        $this->assertNotNull($this->row(203), 'реплай анонимного админа обязан попасть в community_messages');
+
+        $question = $this->row(100);
+        $this->assertNotNull($question);
+
+        $matcher = new CommunityAnswerMatcher();
+        $this->assertTrue(
+            $matcher->isCancelledByHumanReply($question),
+            'реплай анонимного админа обязан отменять выдержку — story 35 через приём story 45',
+        );
     }
 }

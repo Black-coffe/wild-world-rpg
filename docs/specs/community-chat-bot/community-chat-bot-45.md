@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-45
 spec: community-chat-bot
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -53,10 +53,26 @@ blocked_by: []
 - Достижимость ветки story 35 проверяется тестом НА ПРИЁМЕ, а не только на матчере.
 
 ## Acceptance criteria
-- [ ] Сообщение `GroupAnonymousBot` сохраняется; сообщение стороннего бота — нет.
-- [ ] Реплай анонимного админа отменяет выдержку (сквозной путь приём → матчер).
-- [ ] Реплай на сообщение стороннего бота не ставит `addressed_to_bot`.
-- [ ] Реплай на сообщение Роби по-прежнему ставит.
+- [x] Сообщение `GroupAnonymousBot` сохраняется; сообщение стороннего бота — нет.
+- [x] Реплай анонимного админа отменяет выдержку (сквозной путь приём → матчер).
+- [x] Реплай на сообщение стороннего бота не ставит `addressed_to_bot`.
+- [x] Реплай на сообщение Роби по-прежнему ставит.
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/CommunityIngestServiceTest.php tests/unit/Services/CommunityAnswerMatcherTest.php`
+
+## Implementation notes
+- `CommunityIngestService::handle()` — фильтр «сторонний бот не пишется» (`:115`) теперь
+  делает исключение для `GROUP_ANONYMOUS_BOT_ID = 1087968824` (новая приватная константа,
+  зеркало `CommunityAnswerMatcher::GROUP_ANONYMOUS_BOT_ID`): анонимный админ приходит с
+  `is_bot: true`, но по story 35 остаётся человеком.
+- `repliesToBot()` больше не смотрит на `is_bot` реплая вообще — сверяет
+  `reply_to_message.from.username` с `$this->botUsername` (регистронезависимо), поэтому
+  обращением к Роби считается реплай именно на его сообщение, а не на любого бота.
+- Тесты: `testGroupAnonymousBotMessageIsStored` (приём), сквозной
+  `testAnonymousAdminReplyReachesMatcherAsHumanReplyThroughIngest` (ingest → строка в
+  БД → `CommunityAnswerMatcher::isCancelledByHumanReply()` на РЕАЛЬНОЙ вставленной строке,
+  не на руками собранном массиве), `testReplyToOtherBotDoesNotMarkAddressedToBot`
+  (негатив), `testReplyToBotMarksAddressedToBot` донастроен — реплай теперь несёт
+  `username` бота, иначе новый чек его бы больше не засчитал.
+- Матчер (`CommunityAnswerMatcher.php`) не тронут — это выходит за `## Files` истории.
