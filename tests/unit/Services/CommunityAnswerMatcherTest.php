@@ -48,7 +48,7 @@ final class CommunityAnswerMatcherTest extends CIUnitTestCase
                 message_thread_id INT NULL,
                 message_id INT NOT NULL,
                 reply_to_message_id INT NULL,
-                telegram_user_id BIGINT NOT NULL,
+                telegram_user_id BIGINT NULL,
                 username VARCHAR(191) NULL,
                 text TEXT NULL,
                 sent_at DATETIME NULL,
@@ -258,6 +258,22 @@ final class CommunityAnswerMatcherTest extends CIUnitTestCase
         $this->assertFalse($this->matcher()->isCancelledByHumanReply($message));
 
         $this->insertMessage(['reply_to_message_id' => 503, 'telegram_user_id' => 999]);
+        $this->assertTrue($this->matcher()->isCancelledByHumanReply($message));
+    }
+
+    // ── community-chat-bot-33: анонимный человек — тоже человек ─────────
+
+    public function testDelayIsCancelledByAnonymousGroupAdminReply(): void
+    {
+        // Анонимный админ группы (пост от имени канала) приходит без `telegram_user_id`
+        // — `IS NULL` в БД, а не значение автора. Голое `!= $authorId` в SQL молча
+        // отсекло бы такую строку (NULL != x даёт NULL, не TRUE), и живой человек,
+        // уже ответивший в чате, перебивался бы ботом.
+        $message = $this->insertMessage(['message_id' => 504, 'telegram_user_id' => 4242]);
+        $this->assertFalse($this->matcher()->isCancelledByHumanReply($message));
+
+        $this->insertMessage(['reply_to_message_id' => 504, 'telegram_user_id' => null]);
+
         $this->assertTrue($this->matcher()->isCancelledByHumanReply($message));
     }
 

@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-33
 spec: community-chat-bot
-status: todo
+status: done
 tier: 1
 worker: worker-code
 tracer: false
@@ -50,3 +50,22 @@ blocked_by: []
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/CommunityAnswerMatcherTest.php`
+
+## Implementation notes
+- `CommunityAnswerMatcher::isCancelledByHumanReply()`: голое `where('telegram_user_id !=', $authorId)`
+  заменено на `groupStart()->where('telegram_user_id !=', $authorId)->orWhere('telegram_user_id IS NULL')->groupEnd()` —
+  эта версия CI4 (`BaseBuilder`) не несёт `whereNull()`/`orWhereNull()`, поэтому NULL-ветка выражена
+  сырым условием `orWhere('telegram_user_id IS NULL')`, а не именованным хелпером.
+- `TelegramRateLimitFilter::groupMaxPerMinute()`: отсутствие строки `game_settings` для
+  `experimental.community_chat.rate_limit_per_minute` теперь проверяется напрямую через
+  `GameSettingsModel::findByKey()` (не по совпадению значения с fallback'ом — оно может совпасть
+  случайно) и логируется через `log_message('error', ...)`, throttled одним логом на окно тем же
+  cache-TTL приёмом, что `notified` в `before()` — иначе флуд группового чата печатал бы строку на
+  каждый апдейт, пока настройка не заведена.
+- `tests/unit/Services/CommunityAnswerMatcherTest.php`: изолированная тестовая схема
+  `community_messages.telegram_user_id` переведена с `BIGINT NOT NULL` на `BIGINT NULL` (только в
+  тестовой таблице — продовая миграция вне `## Files`, не тронута); добавлен
+  `testDelayIsCancelledByAnonymousGroupAdminReply`.
+- Третий acceptance-критерий (наблюдаемый след отката группового потолка) проверен только логически
+  и phpstan — story не несёт файла теста для `TelegramRateLimitFilter` (существующие
+  `tests/unit/TelegramRateLimitFilterTest.php` и соседи вне `## Files`, не трогал).

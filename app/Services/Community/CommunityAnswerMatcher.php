@@ -191,8 +191,15 @@ final class CommunityAnswerMatcher
 
         if ($authorId !== null) {
             // Реплай самого автора вопроса выдержку не отменяет — тормоз только на
-            // "перебил другой человек".
-            $query = $query->where('telegram_user_id !=', $authorId);
+            // "перебил другой человек". `telegram_user_id IS NULL` (анонимный админ
+            // группы, пост от имени канала) — тоже ДРУГОЙ человек, не автор: голое
+            // `!= $authorId` в SQL отсекло бы NULL-строки (NULL != x даёт NULL, не
+            // TRUE), и такой человеческий реплай не отменял бы выдержку. Явный OR
+            // держит это как единственную защиту от «перебил себя».
+            $query = $query->groupStart()
+                ->where('telegram_user_id !=', $authorId)
+                ->orWhere('telegram_user_id IS NULL')
+                ->groupEnd();
         }
 
         return $query->first() !== null;

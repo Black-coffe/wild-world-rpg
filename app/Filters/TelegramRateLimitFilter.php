@@ -176,14 +176,42 @@ class TelegramRateLimitFilter implements FilterInterface
      * `game_settings` недоступна или не заведена (см. doc-блок
      * {@see \App\Services\GameSettings\GameSettingsService::get()}): группа падает
      * на персональный лимит, а не молчаливо получает произвольное число.
+     *
+     * community-chat-bot-33 — этот откат раньше был невидимым: если ключ
+     * `experimental.community_chat.rate_limit_per_minute` переименуют/удалят, чат
+     * тихо вернётся к 60/мин (story 25 чинила ровно это), и следа не останется.
+     * Проверяем наличие строки настройки НАПРЯМУЮ через модель (а не догадываемся
+     * по совпадению значения с fallback'ом — совпасть оно может и случайно) и
+     * логируем один раз на окно, той же дисциплиной throttle'а, что `notified` выше.
      */
     private function groupMaxPerMinute(): int
     {
         $fallback = $this->maxPerMinute();
-        $value    = (new \App\Services\GameSettings\GameSettingsService())
+
+        if ((new \App\Models\GameSettingsModel())->findByKey('experimental.community_chat.rate_limit_per_minute') === null) {
+            $this->notifyGroupLimitFallbackOnce($fallback);
+        }
+
+        $value = (new \App\Services\GameSettings\GameSettingsService())
             ->get('experimental.community_chat.rate_limit_per_minute', $fallback);
 
         return is_numeric($value) && (int) $value > 0 ? (int) $value : $fallback;
+    }
+
+    /**
+     * Один лог на окно — иначе флуд группового чата печатал бы эту строку на
+     * каждый входящий апдейт, пока настройка не заведена.
+     */
+    private function notifyGroupLimitFallbackOnce(int $fallback): void
+    {
+        $cache = \Config\Services::cache();
+        $key   = 'tg_rate_group_setting_missing_notice';
+        if ($cache->get($key) !== null) {
+            return;
+        }
+        $cache->save($key, true, self::KEY_TTL_SECONDS);
+
+        log_message('error', "[RateLimit] game_settings.experimental.community_chat.rate_limit_per_minute не найдена — групповой лимит молча откатился на персональный ({$fallback}/мин)");
     }
 
     /**
