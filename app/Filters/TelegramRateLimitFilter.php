@@ -38,8 +38,10 @@ use CodeIgniter\I18n\Time;
  *   - Limit применяется ТОЛЬКО к /telegram/webhook, не к admin-страницам.
  *   - Считаются и inline-кнопки (callback_query), и тапы по reply-клавиатуре
  *     (message) — для игрока это одинаковые «кнопки».
- *   - Если в payload нет from.id (channel post, edited_message без отправителя)
- *     — пропускаем без счётчика.
+ *   - Если в payload нет from.id (channel post, edited_message без отправителя) и
+ *     это не групповой/канальный чат — пропускаем без счётчика. Канальный пост
+ *     (`channel_post`/`edited_channel_post`) от chat.id не пропускается: он считается
+ *     групповым ведром того же чата, хоть у него и нет `from` (story-61).
  *   - Возвращаем 200 OK (а не 429), чтобы Telegram не делал retry-bursts.
  *   - Один ключ на игрока (а не ключ-на-минуту): file-cache в CI4 не делает GC,
  *     ключи с минутным бакетом копили бы мусор в writable/cache без уборки.
@@ -69,6 +71,19 @@ class TelegramRateLimitFilter implements FilterInterface
     /** TTL ключа: с запасом больше окна, чтобы запись пережила своё окно. */
     private const KEY_TTL_SECONDS = 120;
 
+    /**
+     * story-61 — TTL кэша «настройки нет». Равен `GameSettingsService::CACHE_TTL` (60с)
+     * НАМЕРЕННО: отрицательный результат (строки нет) не должен залипать дольше, чем
+     * залипает положительный (когда строка есть, её сам `GameSettingsService::get()`
+     * кэширует на 60с). Если бы тут стояли `KEY_TTL_SECONDS` (120с) или бесконечность —
+     * появление ключа в БД подхватывалось бы медленнее, чем раньше подхватывалось бы
+     * изменение уже существующего значения.
+     */
+    private const GROUP_SETTING_MISS_TTL_SECONDS = 60;
+
+    /** Ключ кэша «строки настройки нет» — отдельный от лог-throttle'а `notifyGroupLimitFallbackOnce()`. */
+    private const GROUP_SETTING_MISS_CACHE_KEY = 'tg_rate_group_setting_miss';
+
     public function before(RequestInterface $request, $arguments = null)
     {
         $body = $request->getBody();
@@ -81,17 +96,22 @@ class TelegramRateLimitFilter implements FilterInterface
             return;
         }
 
-        $userId = $this->extractUserId($update);
-        if ($userId === null) {
-            return; // системный update без отправителя — не считаем
-        }
-
         // community-chat-bot-01 — групповой/супергрупповой/канальный трафик считается в
         // ОТДЕЛЬНОМ ключе (по чату, не по игроку): иначе флуд в общем чате съедал бы личный
         // 60/мин лимит игрока в игре. Если chat.id недостаём — считаем как раньше, по игроку
         // (лучше пере-посчитать разово, чем не посчитать вовсе).
+        //
+        // story-61 — этот блок ОБЯЗАН идти раньше проверки `$userId === null`: у
+        // channel_post/edited_channel_post нет `from` вовсе (в канал пишет не пользователь,
+        // а канал), и старый порядок выходил по пустому userId ДО того, как доходил до
+        // группового ведра — канальный флуд не считался ни там, ни там.
         $isGroupChat = $this->isGroupChat($update);
         $groupChatId = $isGroupChat ? $this->extractChatId($update) : null;
+
+        $userId = $this->extractUserId($update);
+        if ($userId === null && $groupChatId === null) {
+            return; // системный update без отправителя и без группового чата — не считаем
+        }
 
         $cache = \Config\Services::cache();
         $key   = $groupChatId !== null ? "tg_rate_group_{$groupChatId}" : "tg_rate_{$userId}";
@@ -199,15 +219,33 @@ class TelegramRateLimitFilter implements FilterInterface
      * не возвращает `null` при валидной строке (int/float/bool/string). Значит один
      * кэшируемый вызов одновременно даёт и наблюдаемость отката (строка отсутствует),
      * и само значение — второй некэшируемый запрос больше не нужен.
+     *
+     * story-61 — но `GameSettingsService::get()` кэширует только ПОЛОЖИТЕЛЬНЫЙ результат
+     * (см. её doc-блок «Cache: 60s TTL»): пока строки в `game_settings` нет, `get()`
+     * возвращает `null` каждый раз, ничего не сохраняя, и каждый апдейт группы бьёт
+     * `findByKey()` заново. Это НЕ тот же класс ошибок, что в
+     * [[feedback_ci4_cache_increment_refreshes_ttl]] (там TTL продлевался при каждом
+     * тапе — здесь же кэша для промаха не было вовсе), поэтому чинится не подменой
+     * `increment()`, а собственным кэшем-промахом на стороне фильтра: не трогаем
+     * `GameSettingsService` (Non-goals — «не рефакторить кэш-слой заодно»), заводим
+     * СВОЙ ключ `GROUP_SETTING_MISS_CACHE_KEY` с TTL, равным положительному (60с), чтобы
+     * отрицательный результат не жил дольше, чем прожил бы положительный.
      */
     private function groupMaxPerMinute(): int
     {
         $fallback = $this->maxPerMinute();
+        $cache    = \Config\Services::cache();
+
+        if ($cache->get(self::GROUP_SETTING_MISS_CACHE_KEY) !== null) {
+            // Промах уже закэширован в пределах своего окна — не читаем БД повторно.
+            return $fallback;
+        }
 
         $value = (new \App\Services\GameSettings\GameSettingsService())
             ->get('experimental.community_chat.rate_limit_per_minute', null);
 
         if ($value === null) {
+            $cache->save(self::GROUP_SETTING_MISS_CACHE_KEY, true, self::GROUP_SETTING_MISS_TTL_SECONDS);
             $this->notifyGroupLimitFallbackOnce($fallback);
 
             return $fallback;

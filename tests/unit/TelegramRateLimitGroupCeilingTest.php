@@ -3,6 +3,8 @@
 use App\Filters\TelegramRateLimitFilter;
 use App\Services\GameSettings\GameSettingsService;
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\Query;
+use CodeIgniter\Events\Events;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\I18n\Time;
@@ -98,6 +100,7 @@ final class TelegramRateLimitGroupCeilingTest extends CIUnitTestCase
 
         putenv('telegram.RATE_LIMIT_PER_MINUTE=' . self::PERSONAL_LIMIT);
         \Config\Services::cache()->delete('tg_rate_' . self::USER);
+        \Config\Services::cache()->delete('tg_rate_group_setting_miss');
         \Config\Services::cache()->delete('tg_rate_group_' . self::GROUP);
         \Config\Services::cache()->delete('tg_rate_group_setting_missing_notice');
         Time::setTestNow('2026-08-25 12:00:00');
@@ -110,6 +113,7 @@ final class TelegramRateLimitGroupCeilingTest extends CIUnitTestCase
         \Config\Services::cache()->delete('tg_rate_' . self::USER);
         \Config\Services::cache()->delete('tg_rate_group_' . self::GROUP);
         \Config\Services::cache()->delete('tg_rate_group_setting_missing_notice');
+        \Config\Services::cache()->delete('tg_rate_group_setting_miss');
         $this->conn->query('DROP TABLE IF EXISTS game_settings');
 
         parent::tearDown();
@@ -125,6 +129,24 @@ final class TelegramRateLimitGroupCeilingTest extends CIUnitTestCase
                 'from'       => ['id' => self::USER, 'is_bot' => false],
                 'chat'       => ['id' => self::GROUP, 'type' => 'supergroup'],
                 'text'       => 'привет всем',
+            ],
+        ];
+    }
+
+    /**
+     * Канальный пост: у него НЕТ `from` вообще (в канал пишет канал, а не пользователь) —
+     * ровно тот случай, который дефект 1 story-61 не считал никаким ведром.
+     *
+     * @return array<string, mixed>
+     */
+    private function channelPostTap(int $updateId): array
+    {
+        return [
+            'update_id'    => $updateId,
+            'channel_post' => [
+                'message_id' => $updateId,
+                'chat'       => ['id' => self::GROUP, 'type' => 'channel'],
+                'text'       => 'пост в канал',
             ],
         ];
     }
@@ -273,6 +295,151 @@ final class TelegramRateLimitGroupCeilingTest extends CIUnitTestCase
         $this->assertNotNull(
             $cache->get('tg_rate_group_setting_missing_notice'),
             'После обращения к отсутствующей настройке в кэше обязан остаться наблюдаемый след отката'
+        );
+    }
+
+    /**
+     * story-61, дефект 1 «channel_post не считается ничем»: `before()` выходил по
+     * `$userId === null` РАНЬШЕ группового ведра, а у канального поста `from` нет
+     * вовсе. Красный на прежнем поведении — старый код пропускал апдейт молча ДО
+     * дефекта, лимит никогда не срабатывал.
+     */
+    public function testChannelPostWithoutFromCountsTowardGroupBucket(): void
+    {
+        (new GameSettingsService())->set(self::SETTING_KEY, self::GROUP_LIMIT);
+
+        $filter = new GroupCeilingSpyTelegramRateLimitFilter();
+
+        for ($i = 0; $i < self::GROUP_LIMIT; $i++) {
+            $this->assertNull($this->tap($filter, $this->channelPostTap($i)), "Канальный пост #{$i} в пределах группового лимита");
+        }
+
+        $blocked = $this->tap($filter, $this->channelPostTap(self::GROUP_LIMIT));
+
+        $this->assertInstanceOf(
+            ResponseInterface::class,
+            $blocked,
+            'Канальный пост без from обязан учитываться групповым ведром чата и блокироваться при превышении лимита'
+        );
+        $this->assertSame(200, $blocked->getStatusCode());
+    }
+
+    /**
+     * story-61, дефект 1: смешанный поток — часть тапов обычные групповые сообщения,
+     * часть канальные посты. Оба типа обязаны делить ОДНО и то же ведро чата.
+     */
+    public function testChannelPostAndGroupMessageShareTheSameBucket(): void
+    {
+        (new GameSettingsService())->set(self::SETTING_KEY, self::GROUP_LIMIT);
+
+        $filter = new GroupCeilingSpyTelegramRateLimitFilter();
+
+        // Всего GROUP_LIMIT тапов ДОЛЖНЫ пройти (канальный + групповые вперемешку),
+        // (GROUP_LIMIT + 1)-й — упереться в лимит: 1 канальный + (GROUP_LIMIT - 1) групповых.
+        $this->assertNull($this->tap($filter, $this->channelPostTap(1)), 'Канальный пост #1 в пределах лимита');
+        for ($i = 2; $i <= self::GROUP_LIMIT; $i++) {
+            $this->assertNull($this->tap($filter, $this->groupTap($i)), "Групповое сообщение #{$i} в пределах лимита");
+        }
+
+        $blocked = $this->tap($filter, $this->channelPostTap(self::GROUP_LIMIT + 1));
+
+        $this->assertInstanceOf(
+            ResponseInterface::class,
+            $blocked,
+            'Канальный пост и групповое сообщение того же чата обязаны делить один счётчик'
+        );
+    }
+
+    /**
+     * story-61, дефект 2 «промах настройки не кэшируется»: `groupMaxPerMinute()` бил
+     * `findByKey()` на КАЖДЫЙ апдейт группы, пока строки в `game_settings` не было.
+     * Красный на прежнем поведении: без кэша-промаха появление строки в БД мгновенно
+     * (на следующем же тапе) отражалось бы на результате — здесь же строка появляется
+     * ПОСЛЕ первого тапа, а результат обязан остаться прежним (фолбэк 60/мин) до конца
+     * своего кэш-окна, доказывая, что промах был закэширован, а не перечитан заново.
+     */
+    public function testGroupCeilingMissCachedIgnoresSettingAppearingWithinSameWindow(): void
+    {
+        $this->conn->table('game_settings')->where('setting_key', self::SETTING_KEY)->delete();
+
+        $filter = new GroupCeilingSpyTelegramRateLimitFilter();
+
+        // Первый тап читает БД (строки нет), кэширует промах и откатывается на
+        // персональный фолбэк — это и есть окно, дальше по нему живёт кэш.
+        $this->tap($filter, $this->groupTap(0));
+
+        // Строка появляется В БД мимо кэша (как если бы её завела миграция) —
+        // но кэш промаха ещё не истёк.
+        $this->conn->table('game_settings')->insert([
+            'setting_key'        => self::SETTING_KEY,
+            'category'           => 'experimental',
+            'value_type'         => 'int',
+            'value_int'          => self::GROUP_LIMIT,
+            'default_value_text' => (string) self::GROUP_LIMIT,
+            'rationale_text'     => 'test fixture',
+            'effect_text'        => 'test fixture',
+            'above_effect_text'  => 'test fixture',
+            'below_effect_text'  => 'test fixture',
+        ]);
+
+        // Групповое ведро обязано остаться на персональном фолбэке (60/мин), а не
+        // мгновенно подхватить новую строку — иначе кэша промаха не было бы вовсе.
+        for ($i = 1; $i < self::PERSONAL_LIMIT; $i++) {
+            $this->assertNull(
+                $this->tap($filter, $this->groupTap($i)),
+                "Тап #{$i} обязан оставаться под персональным фолбэком — промах ещё закэширован"
+            );
+        }
+    }
+
+    /**
+     * story-61, дефект 2: групповое ведро обязано читать `game_settings` за
+     * пропавшим ключом ОДИН раз за окно кэша, а не на каждый апдейт группы
+     * (acceptance: «Отсутствие ключа настройки читается из БД один раз за окно
+     * кэша, а не на каждый апдейт»).
+     *
+     * Разбор красноты предыдущих двух попыток (`$cache->getMetaData()`, затем
+     * `Time::setTestNow()`-сдвиг на 61с): в тестах `\Config\Services::cache()`
+     * подменяется `CIUnitTestCase::mockCache()` (входит в стандартный
+     * `$setUpMethods` framework'а) на `CodeIgniter\Test\Mock\MockCache`, у
+     * которого `get()` **вообще не проверяет TTL** — `expirations` заполняется,
+     * но `get()` смотрит только в `$this->cache[$key]`. `getMetaData()` TTL
+     * проверяет, но с перевёрнутым условием (возвращает `null` для ЕЩЁ ЖИВОЙ
+     * записи) — баг самого framework-мока, не нашего кода. В этом окружении
+     * ни экспайр, ни интроспекция метаданных ничего не докажут: `MockCache`
+     * структурно не даёт кэш-записи «протухнуть» через `get()`.
+     *
+     * Честный сигнал в этих условиях — реальные SQL-запросы к `game_settings`:
+     * CI4 шлёт событие `DBQuery` на КАЖДЫЙ исполненный запрос независимо от
+     * кэш-слоя. Считаем такие запросы за серию тапов внутри одного окна — их
+     * обязано быть 1, а не по одному на тап (это ровно исходная формулировка
+     * дефекта в story).
+     */
+    public function testGroupCeilingMissReadsSettingsTableOnlyOncePerWindow(): void
+    {
+        $this->conn->table('game_settings')->where('setting_key', self::SETTING_KEY)->delete();
+
+        $filter = new GroupCeilingSpyTelegramRateLimitFilter();
+
+        $queries = 0;
+        Events::on('DBQuery', static function (Query $query) use (&$queries): void {
+            if (str_contains($query->getQuery(), 'game_settings')) {
+                $queries++;
+            }
+        });
+
+        try {
+            for ($i = 0; $i < 5; $i++) {
+                $this->assertNull($this->tap($filter, $this->groupTap($i)), "Тап #{$i} обязан пройти под персональным фолбэком");
+            }
+        } finally {
+            Events::removeAllListeners('DBQuery');
+        }
+
+        $this->assertSame(
+            1,
+            $queries,
+            'groupMaxPerMinute() обязан читать game_settings один раз за окно кэша, а не на каждый апдейт группы (5 тапов → 5 запросов при регрессии)'
         );
     }
 }
