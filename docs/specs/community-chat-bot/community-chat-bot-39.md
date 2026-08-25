@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-39
 spec: community-chat-bot
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -47,3 +47,15 @@ blocked_by: []
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Controllers/Admin/CommunityControllerTest.php`
+
+## Implementation notes
+- `guardDeniedCount()` теперь опознаёт отказ гварда через `EXISTS (COMMUNITY_ROUTE_LOGGED WHERE target_id=cm.id)`
+  вместо `NOT EXISTS (COMMUNITY_ANSWER_SENT) AND NOT EXISTS (COMMUNITY_ANSWER_REJECTED)`. `logRoute()`
+  (`CommunityAutoReplyHandler::resolveAndSend()`) пишет `COMMUNITY_ROUTE_LOGGED` ровно и только в момент
+  отказа гварда, до вызова `sendAnswer()` — своя положительная запись, не зависящая от давней истории строки.
+- Обновлены существующие тесты `testGuardRejectionRateIsShareOfEscalatedAmongAnsweredAndEscalated` и
+  `testGuardRejectionRateExcludesSenderGateTerminalRejections` — «настоящий» отказ гварда теперь явно
+  снабжён `COMMUNITY_ROUTE_LOGGED` (раньше отказ гварда распознавался по умолчанию отсутствием чужих записей).
+- Добавлен `testGuardRejectionRateCountsGuardDenialAfterEarlierRateLimitRejection`: воспроизводит
+  последовательность «сначала терминальный `topic_rate_limit` (давняя `COMMUNITY_ANSWER_REJECTED`), потом
+  гвард денит ту же строку (`COMMUNITY_ROUTE_LOGGED`)» — строка попадает в числитель.

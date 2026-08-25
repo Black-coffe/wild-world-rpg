@@ -547,8 +547,9 @@ final class CommunityControllerTest extends CIUnitTestCase
         $answered2 = $this->insertMessage(['status' => 'answered', 'sent_at' => $sentAt]);
         $this->insertAuditLog('COMMUNITY_ANSWER_SENT', (int) $answered2['id'], $sentAt);
 
-        // Настоящий отказ гварда: escalated БЕЗ COMMUNITY_ANSWER_SENT — текст не ушёл.
-        $this->insertMessage(['status' => 'escalated', 'sent_at' => $sentAt]);
+        // Настоящий отказ гварда: escalated с собственной COMMUNITY_ROUTE_LOGGED.
+        $guardDenied = $this->insertMessage(['status' => 'escalated', 'sent_at' => $sentAt]);
+        $this->insertAuditLog('COMMUNITY_ROUTE_LOGGED', (int) $guardDenied['id'], $sentAt);
 
         $metrics = $this->controller()->computeMetrics($now);
 
@@ -582,7 +583,7 @@ final class CommunityControllerTest extends CIUnitTestCase
      * markdown/неканоничное имя — `CommunityChatSender::checkGates()`, story 23)
      * тоже уходит в `escalated` без `COMMUNITY_ANSWER_SENT`, но это не отказ
      * гварда: гвард уже разрешил, отказал гейт отправки. Различитель на записи —
-     * `COMMUNITY_ANSWER_REJECTED`, которую гвард-отказ не пишет вовсе.
+     * своя `COMMUNITY_ROUTE_LOGGED` (story 39: не отсутствие чужой `_REJECTED`).
      */
     public function testGuardRejectionRateExcludesSenderGateTerminalRejections(): void
     {
@@ -592,11 +593,13 @@ final class CommunityControllerTest extends CIUnitTestCase
         $answered = $this->insertMessage(['status' => 'answered', 'sent_at' => $sentAt]);
         $this->insertAuditLog('COMMUNITY_ANSWER_SENT', (int) $answered['id'], $sentAt);
 
-        // Настоящий отказ гварда: escalated, ни SENT, ни REJECTED от отправителя.
+        // Настоящий отказ гварда: escalated со своей COMMUNITY_ROUTE_LOGGED.
         $guardDenied = $this->insertMessage(['status' => 'escalated', 'sent_at' => $sentAt]);
+        $this->insertAuditLog('COMMUNITY_ROUTE_LOGGED', (int) $guardDenied['id'], $sentAt);
 
         // Гейт отправителя отказал по длине текста ПОСЛЕ того, как гвард разрешил —
-        // тоже escalated, но с собственной COMMUNITY_ANSWER_REJECTED-записью.
+        // тоже escalated, но с собственной COMMUNITY_ANSWER_REJECTED-записью, а не
+        // COMMUNITY_ROUTE_LOGGED (гвард сюда вообще не дошёл — allow уже был выдан).
         $gateDenied = $this->insertMessage(['status' => 'escalated', 'sent_at' => $sentAt]);
         $this->insertAuditLog('COMMUNITY_ANSWER_REJECTED', (int) $gateDenied['id'], $sentAt, ['payload' => json_encode(['reason' => 'text_too_long'])]);
 
@@ -604,6 +607,39 @@ final class CommunityControllerTest extends CIUnitTestCase
 
         // guardTotal = 1 (answered) + 1 (guardDenied) = 2; доля = 1/2, не 2/3.
         $this->assertEqualsWithDelta(0.5, $metrics['guard_rejection_rate'], 0.0001, 'отказ гейта отправителя не должен считаться отказом гварда');
+    }
+
+    /**
+     * Story 39: строка сначала упёрлась в `topic_rate_limit` (отправитель пишет
+     * `COMMUNITY_ANSWER_REJECTED`, строка возвращается в `new`), а ПОЗЖЕ ту же
+     * строку денит гвард (`escalated`, своя `COMMUNITY_ROUTE_LOGGED`). Старый
+     * различитель `NOT EXISTS (... COMMUNITY_ANSWER_REJECTED ...)` смотрел на всю
+     * историю строки и терял её из числителя — новый смотрит на собственную
+     * положительную запись гварда и обязан её засчитать.
+     */
+    public function testGuardRejectionRateCountsGuardDenialAfterEarlierRateLimitRejection(): void
+    {
+        $now    = new DateTimeImmutable('2026-08-25 12:00:00');
+        $sentAt = $now->modify('-1 day')->format('Y-m-d H:i:s');
+
+        $answered = $this->insertMessage(['status' => 'answered', 'sent_at' => $sentAt]);
+        $this->insertAuditLog('COMMUNITY_ANSWER_SENT', (int) $answered['id'], $sentAt);
+
+        // Сначала — давний терминальный отказ гейта отправителя по лимиту темы.
+        $rateLimited = $this->insertMessage(['status' => 'escalated', 'sent_at' => $sentAt]);
+        $this->insertAuditLog(
+            'COMMUNITY_ANSWER_REJECTED',
+            (int) $rateLimited['id'],
+            $now->modify('-3 days')->format('Y-m-d H:i:s'),
+            ['payload' => json_encode(['reason' => 'topic_rate_limit'])]
+        );
+        // Позже — ту же строку денит гвард, своя положительная запись.
+        $this->insertAuditLog('COMMUNITY_ROUTE_LOGGED', (int) $rateLimited['id'], $sentAt);
+
+        $metrics = $this->controller()->computeMetrics($now);
+
+        // guardTotal = 1 (answered) + 1 (guardDenied) = 2; доля = 1/2, строка не выпала.
+        $this->assertEqualsWithDelta(0.5, $metrics['guard_rejection_rate'], 0.0001, 'давний отказ гейта не должен маскировать более поздний отказ гварда');
     }
 
     // ── очередь: маршрут отказа виден рядом со строкой (дефект 3) ──────────

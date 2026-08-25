@@ -482,9 +482,17 @@ final class CommunityController extends BaseAdminController
      * терминальные отказы ГЕЙТА ОТПРАВИТЕЛЯ (`CommunityChatSender::checkGates()` —
      * длина, непарный `*`, неканоничное имя), которые `CommunityAutoReplyHandler`
      * тоже переводит в `escalated` без `SENT` — но это НЕ отказ гварда: гвард уже
-     * сказал allow, текст отклонил гейт отправки. Различитель НА ЗАПИСИ: только
-     * гейт-отказ пишет `COMMUNITY_ANSWER_REJECTED` (гвард-отказ этот экшен не
-     * пишет вовсе — `resolveAndSend()` возвращается до вызова `sendAnswer()`).
+     * сказал allow, текст отклонил гейт отправки.
+     *
+     * Story 39, дефект — различитель через `NOT EXISTS (... COMMUNITY_ANSWER_REJECTED ...)`
+     * смотрел на строку целиком, а не на ЭТУ попытку: если сообщение раньше упёрлось в
+     * `topic_rate_limit` (отправитель пишет `COMMUNITY_ANSWER_REJECTED`, строка возвращается
+     * в `new`), а затем ту же строку денит гвард (`escalated` без `SENT`), давняя
+     * `_REJECTED` всё ещё есть — строка тихо выпадала и из числителя, и из знаменателя.
+     * Различитель теперь — СВОЯ положительная запись: `resolveAndSend()` пишет
+     * `COMMUNITY_ROUTE_LOGGED` (см. `CommunityAutoReplyHandler::logRoute()`) именно и
+     * только в момент отказа гварда, до вызова `sendAnswer()` — гейт отправки этот
+     * экшен не пишет вовсе. `EXISTS` вместо `NOT EXISTS` на чужой истории.
      */
     private function guardDeniedCount(string $since): int
     {
@@ -492,13 +500,9 @@ final class CommunityController extends BaseAdminController
                 FROM community_messages cm
                 WHERE cm.status = 'escalated'
                   AND cm.sent_at >= ?
-                  AND NOT EXISTS (
+                  AND EXISTS (
                       SELECT 1 FROM admin_audit_log a
-                      WHERE a.action = 'COMMUNITY_ANSWER_SENT' AND a.target_id = cm.id
-                  )
-                  AND NOT EXISTS (
-                      SELECT 1 FROM admin_audit_log a
-                      WHERE a.action = 'COMMUNITY_ANSWER_REJECTED' AND a.target_id = cm.id
+                      WHERE a.action = 'COMMUNITY_ROUTE_LOGGED' AND a.target_id = cm.id
                   )";
 
         $query = $this->db->query($sql, [$since]);
