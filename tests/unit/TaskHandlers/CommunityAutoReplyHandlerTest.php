@@ -382,6 +382,62 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         $this->assertSame('answered', $this->statusOf((int) $message['id']));
     }
 
+    /**
+     * Story 57, дефект 1: выборка тика раньше резала `WHERE is_question=1` — прямое
+     * обращение вроде «Роби, подскажи» (story 56, честная эвристика оставляет
+     * `is_question=0` для таких строк) до матчера не доезжало никогда. Проверяем
+     * `is_question=0 AND addressed_to_bot=1`.
+     */
+    public function testAddressedWithoutQuestionHeuristicStillReachesMatcher(): void
+    {
+        $this->insertBankAnswer([
+            'question_pattern' => 'где найти теплицу для земледелия',
+            'answer_text'      => 'Теплица строится на базе.',
+        ]);
+        $message = $this->insertMessage([
+            'is_question'      => 0,
+            'addressed_to_bot' => 1,
+            'text'             => 'Роби, где найти теплицу для земледелия',
+        ]);
+
+        $calls   = [];
+        $sender  = $this->sender($calls);
+        $handler = $this->handler($sender);
+
+        $handler->handle();
+
+        $this->assertCount(1, $calls, 'is_question=0 не должен блокировать addressed_to_bot=1 на входе в тик');
+        $this->assertSame('sendMessage', $calls[0]['method']);
+        $this->assertSame('answered', $this->statusOf((int) $message['id']));
+    }
+
+    /**
+     * Story 57, дефект 1, контроль: подслушанное (не обращённое к боту) сообщение с
+     * `is_question=0` по-прежнему не входит в выборку тика — расширение фильтра не
+     * должно превратить полосу B в «отвечаем на всё подряд».
+     */
+    public function testOverheardWithoutQuestionHeuristicStillSkipsTick(): void
+    {
+        $this->insertBankAnswer([
+            'question_pattern' => 'где найти теплицу для земледелия',
+            'answer_text'      => 'Теплица строится на базе.',
+        ]);
+        $message = $this->insertMessage([
+            'is_question'      => 0,
+            'addressed_to_bot' => 0,
+            'text'             => 'где найти теплицу для земледелия',
+        ]);
+
+        $calls   = [];
+        $sender  = $this->sender($calls);
+        $handler = $this->handler($sender);
+
+        $handler->handle();
+
+        $this->assertSame([], $calls, 'подслушанная строка без вопроса и без обращения не должна попадать в тик');
+        $this->assertSame('new', $this->statusOf((int) $message['id']));
+    }
+
     // ── story 52: Telegram-мост инициализируется лениво перед реальной отправкой ──
 
     public function testActualSendInitializesTelegramBeforeSending(): void
@@ -498,6 +554,16 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         $this->assertSame((int) $message['message_id'], $sendCalls[0]['data']['reply_to_message_id'] ?? null);
         $this->assertSame('escalated', $this->statusOf((int) $message['id']));
         $this->assertSame(1, $this->reactionCount((int) $message['id']), 'реакция остаётся вместе с текстом, не вместо него');
+
+        // Story 57, дефект 2: маршрут отказа обязан уйти через sendGuardRoute() и
+        // писать своё аудит-действие COMMUNITY_ROUTE_SENT, а не COMMUNITY_ANSWER_SENT —
+        // иначе отказ гварда считался бы ответом бота в метрике /admin/community.
+        $this->assertSame(
+            1,
+            $this->auditCount((int) $message['id'], 'COMMUNITY_ROUTE_SENT'),
+            'маршрут отказа обязан писать COMMUNITY_ROUTE_SENT, а не COMMUNITY_ANSWER_SENT'
+        );
+        $this->assertSame(0, $this->auditCount((int) $message['id'], 'COMMUNITY_ANSWER_SENT'));
     }
 
     /**
@@ -524,7 +590,9 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         $this->assertContains('setMessageReaction', $methods, 'прежнее поведение (только реакция) сохраняется при сработавшем ограничителе');
         $this->assertSame('escalated', $this->statusOf((int) $message['id']));
 
-        $rejected = $this->auditRows((int) $message['id'], 'COMMUNITY_ANSWER_REJECTED');
+        // Story 57, дефект 2: маршрут отказа уходит через sendGuardRoute() — своё
+        // аудит-действие COMMUNITY_ROUTE_REJECTED, не COMMUNITY_ANSWER_REJECTED.
+        $rejected = $this->auditRows((int) $message['id'], 'COMMUNITY_ROUTE_REJECTED');
         $this->assertCount(1, $rejected, 'отказ ограничителя обязан быть виден в журнале, а не проглочен молча');
         $payload = json_decode((string) $rejected[0]['payload'], true);
         $this->assertSame('topic_rate_limit', $payload['reason'] ?? null);
@@ -570,6 +638,39 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         $this->assertNotContains('sendMessage', $methods, 'кулдаун автора обязан заблокировать текст маршрута так же, как обычный ответ');
         $this->assertContains('setMessageReaction', $methods, 'прежнее поведение (только реакция) сохраняется при сработавшем ограничителе');
         $this->assertSame('escalated', $this->statusOf((int) $message['id']));
+    }
+
+    /**
+     * Story 57, дефект 3: `escalateGuardDenial()` раньше апдейтил статус безусловным
+     * `whereIn('id', …)->update()`, без `WHERE status=…` — правка владельца между
+     * чтением тика ({@see CommunityAutoReplyHandler::handle()}) и этим вызовом
+     * терялась молча. Симулируем ровно этот зазор через `ReflectionMethod`: строка
+     * уже сдвинута на `'answered'` кем-то другим ДО вызова эскалации.
+     */
+    public function testEscalateGuardDenialDoesNotOverwriteStatusChangedBetweenReadAndWrite(): void
+    {
+        // handle() читал строку как 'new' на старте тика; к моменту эскалации
+        // владелец руками (или community:cleanup) уже перевёл её в 'answered'.
+        $message = $this->insertMessage(['status' => 'answered']);
+
+        $calls   = [];
+        $sender  = $this->sender($calls);
+        $handler = $this->handler($sender, $this->denyingGuard());
+
+        $verdict = $this->denyingGuard()->verdict('что угодно', (string) $message['text'], null);
+
+        $escalate = new ReflectionMethod(CommunityAutoReplyHandler::class, 'escalateGuardDenial');
+        $escalate->setAccessible(true);
+        $applied = $escalate->invoke($handler, [(int) $message['id']], $verdict);
+
+        $this->assertFalse($applied, 'эскалация обязана отказаться применяться, если статус уже не new — факт видим по возврату false');
+        $this->assertSame(
+            'answered',
+            $this->statusOf((int) $message['id']),
+            'чужая правка статуса между чтением тика и эскалацией не должна затираться'
+        );
+        $this->assertSame(0, $this->auditCount((int) $message['id'], 'COMMUNITY_ROUTE_LOGGED'), 'неприменённая эскалация не должна оставлять аудит-след маршрута');
+        $this->assertLogContains('error', 'guard denial escalation skipped', 'факт неприменения обязан быть виден в журнале приложения');
     }
 
     // ── receipt_only: реакция один раз, не на каждом тике ────────────────

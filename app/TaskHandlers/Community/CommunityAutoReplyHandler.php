@@ -30,8 +30,9 @@ use DateTimeImmutable;
  *    здесь читается как «повторим на следующем тике», а не как отказ гварда.
  *
  * Тик (`everyMinute`, singleInstance): выбирает `community_messages` со
- * `status='new' AND is_question=1`, по порядку `sent_at`, и для каждой ещё
- * необработанной в этом тике строки спрашивает матчера:
+ * `status='new' AND (is_question=1 OR addressed_to_bot=1)` (story 57, дефект 1 —
+ * прямое обращение без вопросительной формы иначе матчера не достигает), по
+ * порядку `sent_at`, и для каждой ещё необработанной в этом тике строки спрашивает матчера:
  *  - `answer_now` → гвард → отправка реплаем на исходное сообщение;
  *  - `answer_after_delay` → ждём `sent_at + delaySeconds`, ПЕРЕД самой отправкой
  *    обязательно перепроверяем {@see CommunityAnswerMatcher::isCancelledByHumanReply()}
@@ -176,7 +177,10 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
 
         $rows = $this->messageModel
             ->where('status', 'new')
-            ->where('is_question', 1)
+            ->groupStart()
+                ->where('is_question', 1)
+                ->orWhere('addressed_to_bot', 1)
+            ->groupEnd()
             ->orderBy('sent_at', 'ASC')
             ->orderBy('id', 'ASC')
             ->findAll();
@@ -509,6 +513,16 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
      * на следующем тике — отправка текста ПРЯМО СЕЙЧАС при этом дала бы игроку два
      * одинаковых сообщения (это и следующий тик), когда эскалация всё-таки пройдёт.
      *
+     * Story 57, дефект 3 — раньше апдейт был безусловным `whereIn('id', …)->update()`,
+     * без `WHERE status=…`: правка владельца между чтением тика ({@see handle()}) и этим
+     * вызовом (`/admin/community` руками или `community:cleanup`) молча терялась — чужой
+     * новый статус переписывался в `'escalated'` без следа. Теперь апдейт условный
+     * `WHERE status='new'` (та же дисциплина, что {@see markGroup()} с `$onlyIfStatus`
+     * и {@see claimGroup()} рядом), и `affectedRows()` сверяется с числом строк склейки:
+     * при частичном или полном несовпадении транзакция откатывается, эскалация не
+     * применяется, а факт — сколько строк ожидалось и сколько реально перехвачено —
+     * пишется в лог, чтобы не потеряться молча.
+     *
      * @param list<int> $coveredIds
      */
     private function escalateGuardDenial(array $coveredIds, Verdict $verdict): bool
@@ -525,7 +539,20 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         try {
             $db->table('community_messages')
                 ->whereIn('id', $coveredIds)
+                ->where('status', 'new')
                 ->update(['status' => 'escalated']);
+
+            if ($db->affectedRows() !== count($coveredIds)) {
+                $db->transRollback();
+                log_message(
+                    'error',
+                    '[CommunityAutoReplyHandler] guard denial escalation skipped: expected '
+                        . count($coveredIds) . ' row(s), matched ' . $db->affectedRows()
+                        . ' — status changed between tick read and escalation, ids=' . implode(',', $coveredIds)
+                );
+
+                return false;
+            }
 
             foreach ($coveredIds as $coveredId) {
                 $this->logRoute($coveredId, $verdict);
@@ -555,10 +582,16 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
      * через ТЕ ЖЕ ограничители, что обычный ответ (потолок в час, кулдаун автора,
      * килсвитчи, длина/парность `*`) — анти-спам контракта story не требует второго
      * источника правды про лимиты рядом с уже существующим в `CommunityChatSender`.
-     * Если гейт откажет — `sendAnswer()` вернёт `false`, а `CommunityChatSender::audit()`
-     * уже запишет `COMMUNITY_ANSWER_REJECTED` с причиной: прежнее поведение (только
+     * Если гейт откажет — `sendGuardRoute()` вернёт `false`, а `CommunityChatSender::audit()`
+     * уже запишет `COMMUNITY_ROUTE_REJECTED` с причиной: прежнее поведение (только
      * реакция) сохраняется, и отказ ограничителя виден в журнале — это и есть контракт
      * «факт виден в журнале», выполненный существующим гейтом, а не новым кодом здесь.
+     *
+     * Story 57, дефект 2: раньше здесь звался `sendAnswer()`, и отказ гварда писался в
+     * журнал как `COMMUNITY_ANSWER_SENT` — то есть считался ответом бота в метрике
+     * `guardTotal = botAnswers + guardDenied` дважды. `sendGuardRoute()` (story 58)
+     * пишет отдельное действие `COMMUNITY_ROUTE_SENT` — имя метода и имя действия не
+     * переименовывать, контракт story 58/59.
      *
      * `Verdict::manual()` может нести `route=null` (например `bug_report_topic` — там
      * сказать нечего, только квитанция-реакция); `Verdict::deny()` конструктором
@@ -573,7 +606,7 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         }
 
         $this->ensureTelegramInitialized();
-        $this->sender->sendAnswer($selfId, $route);
+        $this->sender->sendGuardRoute($selfId, $route);
     }
 
     /**
@@ -581,7 +614,7 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
      * 55) для самого игрока: маршрут сохраняется в тот же журнал, что уже питает
      * потолок/кулдаун — владелец видит его рядом со строкой очереди `/admin/community`,
      * а {@see sendGuardRouteText()} шлёт тот же текст игроку реплаем (тем же гейтом
-     * `CommunityChatSender::sendAnswer()`, что и обычный ответ).
+     * `CommunityChatSender::sendGuardRoute()`, что и маршрут отказа).
      *
      * Больше не глушит `Throwable` сама — {@see escalateGuardDenial()} держит вставку в
      * общей транзакции со статусом склейки (story 46, дефект 2) и откатывает обе стороны
