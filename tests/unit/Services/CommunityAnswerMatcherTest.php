@@ -233,11 +233,31 @@ final class CommunityAnswerMatcherTest extends CIUnitTestCase
 
     public function testDelayIsCancelledWhenHumanRepliedInThread(): void
     {
-        $message = $this->insertMessage(['message_id' => 501]);
+        $message = $this->insertMessage(['message_id' => 501, 'telegram_user_id' => 4242]);
         $this->assertFalse($this->matcher()->isCancelledByHumanReply($message));
 
         $this->insertMessage(['reply_to_message_id' => 501, 'telegram_user_id' => 999]);
 
+        $this->assertTrue($this->matcher()->isCancelledByHumanReply($message));
+    }
+
+    public function testDelayIsNotCancelledByAuthorsOwnReply(): void
+    {
+        $message = $this->insertMessage(['message_id' => 502, 'telegram_user_id' => 4242]);
+
+        $this->insertMessage(['reply_to_message_id' => 502, 'telegram_user_id' => 4242]);
+
+        $this->assertFalse($this->matcher()->isCancelledByHumanReply($message));
+    }
+
+    public function testDelayIsCancelledByAnotherPersonEvenAfterAuthorsOwnReply(): void
+    {
+        $message = $this->insertMessage(['message_id' => 503, 'telegram_user_id' => 4242]);
+
+        $this->insertMessage(['reply_to_message_id' => 503, 'telegram_user_id' => 4242]);
+        $this->assertFalse($this->matcher()->isCancelledByHumanReply($message));
+
+        $this->insertMessage(['reply_to_message_id' => 503, 'telegram_user_id' => 999]);
         $this->assertTrue($this->matcher()->isCancelledByHumanReply($message));
     }
 

@@ -165,27 +165,37 @@ final class CommunityAnswerMatcher
 
     /**
      * Полоса B: выдержка `answer_after_delay` отменяется, если за время ожидания в
-     * том же чате появился ответ человека реплаем на исходное сообщение (план §4).
+     * том же чате появился ответ **другого** человека реплаем на исходное сообщение
+     * (план §4). Реплай самого автора вопроса (уточнение, дописанный скриншот) — не
+     * отмена: тормоз существует, чтобы не перебивать того, кто уже помогает, а не
+     * чтобы гасить выдержку от того, что спрашивающий сам себе что-то дописал (story 29).
      * Story 09 обязан вызвать это НЕПОСРЕДСТВЕННО перед публикацией — решение из
      * {@see match()} снимок момента матча, а не момента отправки.
      *
      * @param array<string, mixed> $message строка `community_messages`, на которую
-     *        ждём (нужны `chat_id` и `message_id` — Telegram-id, не PK-строка).
+     *        ждём (нужны `chat_id` и `message_id` — Telegram-id, не PK-строка; и
+     *        `telegram_user_id` автора вопроса — реплай самого автора не в счёт).
      */
     public function isCancelledByHumanReply(array $message): bool
     {
         $chatId    = $this->intOrNull($message['chat_id'] ?? null);
         $messageId = $this->intOrNull($message['message_id'] ?? null);
+        $authorId  = $this->intOrNull($message['telegram_user_id'] ?? null);
         if ($chatId === null || $messageId === null) {
             return false;
         }
 
-        $reply = $this->messageModel
+        $query = $this->messageModel
             ->where('chat_id', $chatId)
-            ->where('reply_to_message_id', $messageId)
-            ->first();
+            ->where('reply_to_message_id', $messageId);
 
-        return $reply !== null;
+        if ($authorId !== null) {
+            // Реплай самого автора вопроса выдержку не отменяет — тормоз только на
+            // "перебил другой человек".
+            $query = $query->where('telegram_user_id !=', $authorId);
+        }
+
+        return $query->first() !== null;
     }
 
     // ── банк ответов ─────────────────────────────────────────────────────

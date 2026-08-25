@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-29
 spec: community-chat-bot
-status: todo
+status: done
 tier: 1
 worker: worker-code
 tracer: false
@@ -53,5 +53,10 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/CommunityAnswerMatcherTest.php`
 
 ## Implementation notes
+`isCancelledByHumanReply()` теперь читает `telegram_user_id` из исходного сообщения (`$message`,
+он уже приходит из `community_messages`) и добавляет `->where('telegram_user_id !=', $authorId)`
+к запросу реплаев — если поле отсутствует, условие не добавляется (fail-open к прежнему
+поведению, а не молчаливый пропуск отмены). Добавлены 2 теста: реплай автора не отменяет,
+реплай другого после реплая автора — отменяет.
 
 ## Findings
