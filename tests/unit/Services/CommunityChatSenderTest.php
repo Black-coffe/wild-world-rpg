@@ -476,4 +476,209 @@ final class CommunityChatSenderTest extends CIUnitTestCase
         $this->assertSame('COMMUNITY_ANSWER_FAILED', $this->lastAuditAction($rowId));
         $this->assertStringContainsString('telegram_not_ok', (string) $this->lastAuditReason($rowId));
     }
+
+    // ── sendManualAnswer(): владелец не немой при выключенном автоответе (story 18) ──
+
+    public function testManualAnswerGoesThroughWhenAutoreplyDisabled(): void
+    {
+        $rowId = $this->insertMessage(['chat_id' => -100777, 'message_thread_id' => 12, 'message_id' => 501]);
+
+        $calls  = [];
+        $sender = $this->sender(
+            ['community.autoreply.enabled' => false],
+            function (string $method, array $data) use (&$calls): ServerResponse {
+                $calls[] = ['method' => $method, 'data' => $data];
+                return $this->okResponse();
+            }
+        );
+
+        $result = $sender->sendManualAnswer($rowId, 'В теплице на базе.');
+
+        $this->assertTrue($result, 'ручная отправка обязана проходить даже при выключенном автоответе — аварийный выход не должен отказывать в аварии');
+        $this->assertCount(1, $calls);
+        $this->assertSame('sendMessage', $calls[0]['method']);
+        $this->assertSame('COMMUNITY_MANUAL_ANSWER_SENT', $this->lastAuditAction($rowId));
+    }
+
+    public function testAutomaticAnswerStillBlockedWhenAutoreplyDisabled(): void
+    {
+        $rowId = $this->insertMessage();
+
+        $called = false;
+        $sender = $this->sender(
+            ['community.autoreply.enabled' => false],
+            function () use (&$called): ServerResponse {
+                $called = true;
+                return $this->okResponse();
+            }
+        );
+
+        $result = $sender->sendAnswer($rowId, 'Ответ.');
+
+        $this->assertFalse($result, 'автоматический путь не должен получить ручную льготу');
+        $this->assertFalse($called);
+        $this->assertSame('autoreply_disabled', $this->lastAuditReason($rowId));
+    }
+
+    public function testManualAnswerStillBlockedWhenCommunityDisabled(): void
+    {
+        $rowId = $this->insertMessage();
+
+        $called = false;
+        $sender = $this->sender(
+            ['community.enabled' => false],
+            function () use (&$called): ServerResponse {
+                $called = true;
+                return $this->okResponse();
+            }
+        );
+
+        $result = $sender->sendManualAnswer($rowId, 'Ответ.');
+
+        $this->assertFalse($result, 'community.enabled=false обязан гасить и ручную отправку');
+        $this->assertFalse($called);
+        $this->assertSame('community_disabled', $this->lastAuditReason($rowId));
+    }
+
+    public function testManualAnswerBlockedBySilentTopic(): void
+    {
+        $rowId = $this->insertMessage(['message_thread_id' => 77]);
+
+        $called = false;
+        $sender = $this->sender(
+            ['community.autoreply.silent_topics' => '10,77,99'],
+            function () use (&$called): ServerResponse {
+                $called = true;
+                return $this->okResponse();
+            }
+        );
+
+        $result = $sender->sendManualAnswer($rowId, 'Ответ.');
+
+        $this->assertFalse($result, 'silent_topics обязан блокировать и ручную отправку');
+        $this->assertFalse($called);
+        $this->assertSame('silent_topic', $this->lastAuditReason($rowId));
+    }
+
+    public function testManualAnswerIgnoresHourlyCeiling(): void
+    {
+        $chatId   = -100999;
+        $threadId = 30;
+
+        for ($i = 0; $i < 5; $i++) {
+            $priorRowId = $this->insertMessage([
+                'chat_id' => $chatId, 'message_thread_id' => $threadId, 'telegram_user_id' => 1000 + $i,
+            ]);
+            $this->seedPastSend($priorRowId);
+        }
+
+        $calls  = [];
+        $sender = $this->sender([], function (string $method, array $data) use (&$calls): ServerResponse {
+            $calls[] = ['method' => $method, 'data' => $data];
+            return $this->okResponse();
+        });
+
+        $rowId  = $this->insertMessage([
+            'chat_id' => $chatId, 'message_thread_id' => $threadId, 'telegram_user_id' => 6001,
+        ]);
+        $result = $sender->sendManualAnswer($rowId, 'Ручной ответ поверх исчерпанного потолка.');
+
+        $this->assertTrue($result, 'исчерпанный потолок в час не должен мешать живому владельцу');
+        $this->assertCount(1, $calls);
+    }
+
+    public function testManualAnswerIgnoresAuthorCooldown(): void
+    {
+        $authorId = 8181;
+
+        $firstRowId = $this->insertMessage(['telegram_user_id' => $authorId]);
+        $this->seedPastSend($firstRowId);
+
+        $calls  = [];
+        $sender = $this->sender(
+            ['community.autoreply.author_cooldown_seconds' => 600],
+            function (string $method, array $data) use (&$calls): ServerResponse {
+                $calls[] = ['method' => $method, 'data' => $data];
+                return $this->okResponse();
+            }
+        );
+
+        $secondRowId = $this->insertMessage(['telegram_user_id' => $authorId]);
+        $result       = $sender->sendManualAnswer($secondRowId, 'Ответ.');
+
+        $this->assertTrue($result, 'кулдаун автора не должен мешать живому владельцу');
+        $this->assertCount(1, $calls);
+    }
+
+    public function testManualAnswerRejectsTooLongText(): void
+    {
+        $rowId = $this->insertMessage();
+
+        $called = false;
+        $sender = $this->sender(
+            ['community.autoreply.max_answer_chars' => 10],
+            function () use (&$called): ServerResponse {
+                $called = true;
+                return $this->okResponse();
+            }
+        );
+
+        $result = $sender->sendManualAnswer($rowId, str_repeat('а', 20));
+
+        $this->assertFalse($result);
+        $this->assertFalse($called);
+        $this->assertSame('text_too_long', $this->lastAuditReason($rowId));
+    }
+
+    public function testManualAnswerRejectsUnbalancedAsterisk(): void
+    {
+        $rowId = $this->insertMessage();
+
+        $called = false;
+        $sender = $this->sender([], function () use (&$called): ServerResponse {
+            $called = true;
+            return $this->okResponse();
+        });
+
+        $result = $sender->sendManualAnswer($rowId, 'Тут *непарная звёздочка без пары.');
+
+        $this->assertFalse($result);
+        $this->assertFalse($called);
+        $this->assertSame('unbalanced_markdown', $this->lastAuditReason($rowId));
+    }
+
+    public function testManualAnswerRejectsWrongSpellingOfName(): void
+    {
+        $rowId = $this->insertMessage();
+
+        $called = false;
+        $sender = $this->sender([], function () use (&$called): ServerResponse {
+            $called = true;
+            return $this->okResponse();
+        });
+
+        $result = $sender->sendManualAnswer($rowId, 'Я Робби, отвечаю за студию.');
+
+        $this->assertFalse($result);
+        $this->assertFalse($called);
+        $this->assertSame('canon_name_violation', $this->lastAuditReason($rowId));
+    }
+
+    public function testManualAndAutomaticAuditActionsAreDistinguishable(): void
+    {
+        $autoRowId = $this->insertMessage(['chat_id' => -100555, 'message_thread_id' => 21, 'message_id' => 601]);
+        $sender    = $this->sender([], function (): ServerResponse {
+            return $this->okResponse();
+        });
+        $this->assertTrue($sender->sendAnswer($autoRowId, 'Автоматический ответ.'));
+        $this->assertSame('COMMUNITY_ANSWER_SENT', $this->lastAuditAction($autoRowId));
+
+        $manualRowId = $this->insertMessage(['chat_id' => -100555, 'message_thread_id' => 21, 'message_id' => 602]);
+        $this->assertTrue($sender->sendManualAnswer($manualRowId, 'Ручной ответ владельца.'));
+        $this->assertSame(
+            'COMMUNITY_MANUAL_ANSWER_SENT',
+            $this->lastAuditAction($manualRowId),
+            'метрика "бот против живых" не должна путать ручную отправку с автоматической'
+        );
+    }
 }

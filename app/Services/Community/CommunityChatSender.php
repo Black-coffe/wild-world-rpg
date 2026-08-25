@@ -19,6 +19,17 @@ use Throwable;
  * говорит в групповом чате: ответ в топик реплаем на исходное сообщение
  * (`sendAnswer`) и служебная реакция-эмодзи вместо молчания (`react`).
  *
+ * `sendAnswer()` — автоматический тик (`CommunityAutoReplyHandler`). `sendManualAnswer()`
+ * (story 18) — владелец за админкой: снимает килсвитч `community.autoreply.enabled`,
+ * потолок в час и кулдаун автора (они существуют, чтобы бот не забивал топик сам собой,
+ * а не чтобы ограничивать живого владельца), но не другие гейты — `community.enabled`,
+ * `silent_topics`, длина/парность `*`/канон имени остаются для обеих отправок. Аудит
+ * различает их именем действия (`COMMUNITY_MANUAL_ANSWER_*` vs `COMMUNITY_ANSWER_*`),
+ * иначе метрика «бот против живых» посчитает ручные ответы владельца ответами бота.
+ * `App\Controllers\Admin\CommunityController` (story 12) на момент этой story ещё
+ * зовёт `sendAnswer()` — сама дверь `sendManualAnswer()` открыта, но не подключена
+ * (`CommunityController.php` вне `## Files`, Закон 3); подключение — отдельная story.
+ *
  * НЕ `BroadcastService`/`MediaSender`/`MessageController` — та инфраструктура шлёт
  * только в личные чаты игроков (по `telegram_id`), тут же адресат всегда групповой
  * `chat_id` + `message_thread_id` конкретного топика, и ответ ОБЯЗАН быть реплаем —
@@ -99,18 +110,49 @@ final class CommunityChatSender
     /**
      * Ответ в тот же топик, реплаем на исходное сообщение. Реплай не опционален:
      * без него ответ в топике с активным чатом нечитаем — не понятно, на что он.
+     *
+     * Автоматический путь — единственный вызывающий {@see \App\TaskHandlers\Community\CommunityAutoReplyHandler}.
+     * Полный набор гейтов, включая килсвитч `community.autoreply.enabled`, потолок в
+     * час и кулдаун автора: они существуют, чтобы бот не забивал топик сам по себе.
      */
     public function sendAnswer(int $messageRowId, string $text): bool
     {
+        return $this->sendText($messageRowId, $text, false);
+    }
+
+    /**
+     * Ручная отправка — владелец за админкой (`/admin/community`, story 12), одобряет
+     * черновик или шлёт правку. Story 18: `community.autoreply.enabled=false` НЕ
+     * блокирует эту дверь (план §12 — первые три дня Роби немой, владелец отвечает
+     * руками; тот же ключ гасит и аварийный откат, который иначе отбирал бы у
+     * владельца и ручной канал). Потолок в час и кулдаун автора — тоже только про
+     * автоматику, живого владельца не ограничивают. `community.enabled`,
+     * `silent_topics`, длина, парность `*` и канон имени остаются — ручной режим не
+     * означает «без правил».
+     *
+     * Аудит различает ручную и автоматическую отправку названием действия
+     * (`COMMUNITY_MANUAL_ANSWER_*` vs `COMMUNITY_ANSWER_*`) — иначе метрика «бот
+     * против живых» посчитает ответы владельца ответами бота.
+     */
+    public function sendManualAnswer(int $messageRowId, string $text): bool
+    {
+        return $this->sendText($messageRowId, $text, true);
+    }
+
+    /** @param bool $isManual см. {@see sendAnswer()} vs {@see sendManualAnswer()} */
+    private function sendText(int $messageRowId, string $text, bool $isManual): bool
+    {
+        $auditPrefix = $isManual ? 'COMMUNITY_MANUAL_ANSWER' : 'COMMUNITY_ANSWER';
+
         $row = $this->findMessage($messageRowId);
         if ($row === null) {
-            $this->audit('COMMUNITY_ANSWER_REJECTED', $messageRowId, null, 'message_not_found');
+            $this->audit($auditPrefix . '_REJECTED', $messageRowId, null, 'message_not_found');
             return false;
         }
 
-        $reason = $this->checkGates($row, $text);
+        $reason = $this->checkGates($row, $text, false, $isManual);
         if ($reason !== null) {
-            $this->audit('COMMUNITY_ANSWER_REJECTED', $messageRowId, $this->authorId($row), $reason);
+            $this->audit($auditPrefix . '_REJECTED', $messageRowId, $this->authorId($row), $reason);
             return false;
         }
 
@@ -125,7 +167,7 @@ final class CommunityChatSender
             $data['message_thread_id'] = $threadId;
         }
 
-        return $this->dispatch('sendMessage', $data, $messageRowId, $row, 'COMMUNITY_ANSWER');
+        return $this->dispatch('sendMessage', $data, $messageRowId, $row, $auditPrefix);
     }
 
     /**
@@ -240,13 +282,19 @@ final class CommunityChatSender
      * Иначе шестой вопрос в топике за час не получит даже 👀, и игрок читает это как
      * «меня игнорят» — ровно то, ради чего реакции и придуманы. Реакция и так ставится
      * не больше одного раза на сообщение — свой предохранитель избыточен.
+     *
+     * `$isManual` (story 18) отделяет ручную отправку владельца от автоматического
+     * тика: снимает ТОЛЬКО гейты, существующие ради того, чтобы бот не забивал топик
+     * сам по себе — килсвитч `community.autoreply.enabled`, потолок в час, кулдаун
+     * автора. `community.enabled`, `silent_topics` и все проверки текста остаются
+     * для обеих отправок без исключений.
      */
-    private function checkGates(array $row, ?string $text, bool $isReaction = false): ?string
+    private function checkGates(array $row, ?string $text, bool $isReaction = false, bool $isManual = false): ?string
     {
         if (! $this->readBool('community.enabled', false)) {
             return 'community_disabled';
         }
-        if (! $this->readBool('community.autoreply.enabled', false)) {
+        if (! $isManual && ! $this->readBool('community.autoreply.enabled', false)) {
             return 'autoreply_disabled';
         }
 
@@ -260,15 +308,17 @@ final class CommunityChatSender
             return null;
         }
 
-        $maxPerHour = $this->readInt('community.autoreply.max_per_hour_per_topic', 5);
-        if ($maxPerHour >= 0 && $this->sentInTopicLastHour($this->chatId($row), $threadId) >= $maxPerHour) {
-            return 'topic_rate_limit';
-        }
+        if (! $isManual) {
+            $maxPerHour = $this->readInt('community.autoreply.max_per_hour_per_topic', 5);
+            if ($maxPerHour >= 0 && $this->sentInTopicLastHour($this->chatId($row), $threadId) >= $maxPerHour) {
+                return 'topic_rate_limit';
+            }
 
-        $cooldown = $this->readInt('community.autoreply.author_cooldown_seconds', 600);
-        $authorId = $this->authorId($row);
-        if ($cooldown > 0 && $authorId !== null && $this->authorSentWithinCooldown($authorId, $cooldown)) {
-            return 'author_cooldown';
+            $cooldown = $this->readInt('community.autoreply.author_cooldown_seconds', 600);
+            $authorId = $this->authorId($row);
+            if ($cooldown > 0 && $authorId !== null && $this->authorSentWithinCooldown($authorId, $cooldown)) {
+                return 'author_cooldown';
+            }
         }
 
         if ($text !== null) {
