@@ -164,6 +164,33 @@ final class CommunityModerationServiceTest extends CIUnitTestCase
         );
     }
 
+    /**
+     * Как `service()`, но `notifyOwner` не подменяется — используется дефолт сервиса
+     * (прямой `sendMessage` через `$transport`, без `BroadcastService`/`parse_mode`).
+     * Все вызовы транспорта (и `deleteMessage`, и `sendMessage`) попадают в один массив.
+     *
+     * @param array<string, mixed> $settingsOverrides
+     * @param array<int, array{method: string, data: array<string, mixed>}> $transportCalls
+     */
+    private function serviceWithDefaultNotify(
+        array $settingsOverrides,
+        array &$transportCalls,
+    ): CommunityModerationService {
+        return new CommunityModerationService(
+            new AdminAuditLogModel(),
+            null,
+            $this->settingsWith(array_merge($this->openSettings(), $settingsOverrides)),
+            $this->conn,
+            function (string $method, array $data) use (&$transportCalls): \Longman\TelegramBot\Entities\ServerResponse {
+                $transportCalls[] = ['method' => $method, 'data' => $data];
+                return new \Longman\TelegramBot\Entities\ServerResponse(['ok' => true], 'testbot');
+            },
+            null,
+            '352706554',
+            '@wildworldrpg_bot',
+        );
+    }
+
     /** @param array<string, mixed> $overrides */
     private function update(array $overrides = []): array
     {
@@ -352,6 +379,69 @@ final class CommunityModerationServiceTest extends CIUnitTestCase
         $this->assertCount(1, $noticesShadow);
         $this->assertCount(1, $deleteCallsLive, 'live — тот же контракт, но с удалением');
         $this->assertCount(1, $noticesLive);
+    }
+
+    // ── story 24: сигнал доходит при любом содержимом ───────────────────
+
+    public function testDefaultNotifyOwnerDeliversMessageWithUnbalancedMarkdown(): void
+    {
+        $calls   = [];
+        $service = $this->serviceWithDefaultNotify(['community.moderation.mode' => 'shadow'], $calls);
+
+        $service->evaluate($this->update([
+            'text' => 'заходи по ссылке https://example.tld/join_a*b`c[d злая ссылка',
+        ]));
+
+        $sendCalls = array_values(array_filter($calls, static fn (array $c): bool => $c['method'] === 'sendMessage'));
+        $this->assertCount(1, $sendCalls, 'сигнал владельцу уходит через прямой sendMessage');
+        $this->assertArrayNotHasKey(
+            'parse_mode',
+            $sendCalls[0]['data'],
+            'без parse_mode — непарные _ * ` [ игрока не дают Telegram 400 «cant parse entities»'
+        );
+        $this->assertStringContainsString('join_a*b`c[d', (string) $sendCalls[0]['data']['text']);
+    }
+
+    public function testLongQuoteIsTruncatedToFitNoticeLimit(): void
+    {
+        $deleteCalls = [];
+        $notices     = [];
+        $service     = $this->service(['community.moderation.mode' => 'shadow'], $deleteCalls, $notices);
+
+        $longText = 'куплю аккаунт ' . str_repeat('а', 5000);
+        $service->evaluate($this->update(['text' => $longText]));
+
+        $this->assertCount(1, $notices, 'очень длинная реплика не мешает сигналу уйти');
+        $this->assertLessThanOrEqual(4096, mb_strlen($notices[0], 'UTF-8'));
+    }
+
+    // ── story 24: правка сообщения не обходит модерацию ──────────────────
+
+    public function testEditedMessageWithLinkFromNewcomerTriggers(): void
+    {
+        $deleteCalls = [];
+        $notices     = [];
+        $service     = $this->service(['community.moderation.mode' => 'shadow'], $deleteCalls, $notices);
+
+        $edited = $this->update(['text' => 'заходи по ссылке https://example-scam.tld/join']);
+
+        $service->evaluate(['edited_message' => $edited['message']]);
+
+        $this->assertCount(1, $notices, 'edited_message со ссылкой от новичка триггерит модерацию');
+    }
+
+    public function testEditedMessageWithoutSignalsDoesNothing(): void
+    {
+        $deleteCalls = [];
+        $notices     = [];
+        $service     = $this->service(['community.moderation.mode' => 'shadow'], $deleteCalls, $notices);
+
+        $edited = $this->update(['text' => 'привет всем, как дела?']);
+
+        $service->evaluate(['edited_message' => $edited['message']]);
+
+        $this->assertSame([], $notices, 'edited_message без признаков не триггерит ничего');
+        $this->assertSame(0, $this->conn->table('admin_audit_log')->countAllResults());
     }
 
     private function lastAuditAction(): ?string

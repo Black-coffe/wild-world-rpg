@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-24
 spec: community-chat-bot
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -67,5 +67,21 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/CommunityModerationServiceTest.php`
 
 ## Implementation notes
+
+- Дефект 1 (сигнал теряется): дефолтный `notifyOwner` больше не оборачивает
+  `BroadcastService::broadcastTo()` (legacy `parse_mode=Markdown`, без backslash-экранирования —
+  `feedback_legacy_markdown_no_backslash_escape`). Теперь он шлёт `sendMessage` напрямую через
+  уже существующий seam `$transport`, без `parse_mode` вообще — Telegram не парсит сущности,
+  непарные `_`/`*`/`` ` ``/`[` в тексте игрока не дают 400. Импорт `BroadcastService` убран.
+- Цитата в `buildOwnerNotice()` обрезается (`truncateQuote()`, многоточие `…`) так, чтобы весь
+  нотис укладывался в протокольный лимит `sendMessage` (4096 символов, `NOTICE_MAX_LENGTH`) —
+  не баланс-число, в `GameSettings` не выносится.
+- Дефект 2 (правка обходит модерацию): `evaluate()` читает `$update['message'] ?? $update['edited_message']`.
+  Остальная логика (стаж, сигналы, режимы) не изменилась — использует поля разобранного
+  сообщения как есть.
+- Добавлены тесты: непарный markdown в тексте доставляется без `parse_mode` (через
+  `serviceWithDefaultNotify()` — новый хелпер, гоняет дефолтный `notifyOwner` через `$transport`),
+  обрезка длинной цитаты, `edited_message` со ссылкой триггерит, `edited_message` без признаков —
+  нет.
 
 ## Findings

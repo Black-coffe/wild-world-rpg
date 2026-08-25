@@ -6,7 +6,6 @@ namespace App\Services\Community;
 
 use App\Models\AdminAuditLogModel;
 use App\Services\GameSettings\GameSettingsService;
-use App\Services\Notifications\BroadcastService;
 use App\Services\Telegram\Request;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\BaseResult;
@@ -75,6 +74,9 @@ final class CommunityModerationService
     private const NEWCOMER_MAX_MESSAGES  = 3;
     private const NEWCOMER_MAX_AGE_HOURS = 24;
 
+    /** Лимит длины `sendMessage` в Telegram — протокольная константа, не баланс. */
+    private const NOTICE_MAX_LENGTH = 4096;
+
     private AdminAuditLogModel $auditModel;
 
     /** @var BaseConnection<\mysqli, \mysqli_result> */
@@ -86,7 +88,12 @@ final class CommunityModerationService
     /** @var callable(string, array<string, mixed>): ServerResponse удаление в live */
     private $transport;
 
-    /** @var callable(string): void сигнал владельцу — обёртка над BroadcastService::broadcastTo() */
+    /**
+     * @var callable(string): void сигнал владельцу — прямой `sendMessage` без `parse_mode`.
+     *      Не `BroadcastService::broadcastTo()`: тот жёстко шлёт `parse_mode=Markdown`
+     *      (legacy, без backslash-экранирования — `feedback_legacy_markdown_no_backslash_escape`),
+     *      а цитата в нотисе — сырой текст игрока, который почти всегда несёт `_`/`*`/`` ` ``.
+     */
     private $notifyOwner;
 
     private string $ownerTelegramId;
@@ -118,11 +125,16 @@ final class CommunityModerationService
         $this->botUsername     = ltrim($botUsername ?? (string) getenv('telegram.BOT_USERNAME'), '@');
 
         $ownerId           = $this->ownerTelegramId;
-        $this->notifyOwner = $notifyOwner ?? static function (string $text) use ($ownerId): void {
+        $transportForNotice = $this->transport;
+        $this->notifyOwner = $notifyOwner ?? static function (string $text) use ($ownerId, $transportForNotice): void {
             if ($ownerId === '') {
                 return;
             }
-            (new BroadcastService())->broadcastTo([$ownerId], $text);
+            try {
+                ($transportForNotice)('sendMessage', ['chat_id' => $ownerId, 'text' => $text]);
+            } catch (Throwable $e) {
+                log_message('error', '[CommunityModerationService] notifyOwner failed: ' . $e->getMessage());
+            }
         };
     }
 
@@ -140,7 +152,10 @@ final class CommunityModerationService
             return;
         }
 
-        $messageRaw = $update['message'] ?? null;
+        // Правка сообщения не должна обходить модерацию (ремонт story 24): гейт по типу
+        // чата пропускает `edited_message` на community-путь, значит и сюда он должен
+        // доходить и судиться по актуальному (отредактированному) тексту.
+        $messageRaw = $update['message'] ?? $update['edited_message'] ?? null;
         if (! is_array($messageRaw)) {
             return;
         }
@@ -412,11 +427,36 @@ final class CommunityModerationService
         $verdict     = $reason === 'recruitment_or_other_game'
             ? 'похоже на вербовку или рекламу другой игры'
             : 'похоже на спам от новичка (ссылка/чужой бот/форвард/фото)';
+        $link        = $this->messageLink($chatId, $threadId, $messageId);
+
+        // Цитата — единственная часть нотиса без предсказуемой длины (текст игрока).
+        // Обрезаем её так, чтобы весь нотис укладывался в лимит `sendMessage`, а не
+        // отправлял скелет и полагался на то, что Telegram сам обрежет/примет длинное.
+        $skeletonLength = mb_strlen(
+            "Модерация чата — я бы удалил вот это ({$verdict}):\n"
+                . "От: {$author}\n"
+                . "Цитата: «»\n"
+                . "Ссылка на сообщение: {$link}",
+            'UTF-8'
+        );
+        $quote = $this->truncateQuote($quote, max(0, self::NOTICE_MAX_LENGTH - $skeletonLength));
 
         return "Модерация чата — я бы удалил вот это ({$verdict}):\n"
             . "От: {$author}\n"
             . "Цитата: «{$quote}»\n"
-            . 'Ссылка на сообщение: ' . $this->messageLink($chatId, $threadId, $messageId);
+            . "Ссылка на сообщение: {$link}";
+    }
+
+    private function truncateQuote(string $quote, int $maxLength): string
+    {
+        if (mb_strlen($quote, 'UTF-8') <= $maxLength) {
+            return $quote;
+        }
+
+        $ellipsis = '…';
+        $keep     = max(0, $maxLength - mb_strlen($ellipsis, 'UTF-8'));
+
+        return mb_substr($quote, 0, $keep, 'UTF-8') . $ellipsis;
     }
 
     private function messageLink(int $chatId, ?int $threadId, int $messageId): string
