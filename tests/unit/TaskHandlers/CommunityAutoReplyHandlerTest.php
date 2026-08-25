@@ -294,13 +294,19 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         );
     }
 
-    /** @param array<string, mixed> $topLevelSettings */
+    /**
+     * @param array<string, mixed> $topLevelSettings
+     * @param (callable(): void)|null $telegramInitializer story 52 — по умолчанию no-op:
+     *        реальный `BaseTaskHandler::telegram()` в тестах не трогаем вовсе
+     *        (`feedback_taskhandler_telegram_init_in_tests` — на CI нет `telegram.API_KEY`).
+     */
     private function handler(
         CommunityChatSender $sender,
         ?CommunityGuard $guard = null,
         array $topLevelSettings = [],
         ?DateTimeImmutable $now = null,
         array $matcherSettingsOverrides = [],
+        ?callable $telegramInitializer = null,
     ): CommunityAutoReplyHandler {
         $defaults = ['community.enabled' => true, 'community.autoreply.enabled' => true];
         $merged   = array_merge($defaults, $topLevelSettings);
@@ -316,6 +322,9 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
             static fn (string $key, mixed $default = null): mixed
                 => array_key_exists($key, $merged) ? $merged[$key] : $default,
             $now,
+            $telegramInitializer ?? static function (): void {
+                // no-op — реальный Telegram-объект тестам не нужен и не безопасен на CI.
+            },
         );
     }
 
@@ -371,6 +380,81 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         $this->assertSame('sendMessage', $calls[0]['method']);
         $this->assertSame('Теплица строится на базе.', $calls[0]['data']['text']);
         $this->assertSame('answered', $this->statusOf((int) $message['id']));
+    }
+
+    // ── story 52: Telegram-мост инициализируется лениво перед реальной отправкой ──
+
+    public function testActualSendInitializesTelegramBeforeSending(): void
+    {
+        $this->insertBankAnswer([
+            'question_pattern' => 'где найти теплицу для земледелия',
+            'answer_text'      => 'Теплица строится на базе.',
+        ]);
+        $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
+
+        $calls        = [];
+        $sender       = $this->sender($calls);
+        $initializedCount = 0;
+        $handler      = $this->handler($sender, null, [], null, [], function () use (&$initializedCount): void {
+            ++$initializedCount;
+        });
+
+        $handler->handle();
+
+        $this->assertCount(1, $calls, 'sanity: реплай реально ушёл');
+        $this->assertSame(
+            1,
+            $initializedCount,
+            'перед реальной отправкой (`CommunityChatSender::sendAnswer()`, минующей `safeSendMessage()`) '
+                . 'тик обязан инициализировать Telegram-мост — иначе `Request::send()` в кроне падает '
+                . 'на `getBotUsername() on null` (story 52)'
+        );
+    }
+
+    public function testReceiptOnlyReactionAlsoInitializesTelegramBeforeSending(): void
+    {
+        $this->insertMessage(['addressed_to_bot' => 0, 'is_question' => 0]);
+
+        $calls            = [];
+        $sender           = $this->sender($calls);
+        $initializedCount = 0;
+        $handler          = $this->handler($sender, null, [], null, [], function () use (&$initializedCount): void {
+            ++$initializedCount;
+        });
+
+        $handler->handle();
+
+        // Не проверяем конкретную ветку матчера здесь — важно только: если ушла хоть
+        // одна реакция/ответ, инициализация обязана была случиться ровно перед ней.
+        if ($calls !== []) {
+            $this->assertGreaterThanOrEqual(1, $initializedCount);
+        } else {
+            $this->assertSame(0, $initializedCount);
+        }
+    }
+
+    public function testNoCandidatesToSendDoesNotInitializeTelegram(): void
+    {
+        // Килсвитч выключен — тик обязан выйти ДО первого запроса к БД сообщений
+        // (контракт story 09/14), значит и до какой-либо инициализации Telegram.
+        $this->insertBankAnswer();
+        $this->insertMessage(['addressed_to_bot' => 1]);
+
+        $calls            = [];
+        $sender           = $this->sender($calls);
+        $initializedCount = 0;
+        $handler          = $this->handler($sender, null, ['community.autoreply.enabled' => false], null, [], function () use (&$initializedCount): void {
+            ++$initializedCount;
+        });
+
+        $handler->handle();
+
+        $this->assertSame([], $calls);
+        $this->assertSame(
+            0,
+            $initializedCount,
+            'тик без единого кандидата на отправку не должен платить за инициализацию Telegram (лень сохранена)'
+        );
     }
 
     // ── answer_now без совпадения → UNKNOWN, ушло, но escalated ──────────

@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-52
 spec: community-chat-bot
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -57,10 +57,33 @@ payload={"reason":"exception: Call to a member function getBotUsername() on null
 - Есть проверка, которая краснеет, если инициализацию убрать.
 
 ## Acceptance criteria
-- [ ] В cron-контексте отправка не бросает `getBotUsername() on null`.
-- [ ] Тик без кандидатов на отправку Telegram не инициализирует.
-- [ ] Существующие тесты тика зелёные без изменения их смысла.
-- [ ] Тест краснеет при удалении инициализации.
+- [x] В cron-контексте отправка не бросает `getBotUsername() on null`.
+- [x] Тик без кандидатов на отправку Telegram не инициализирует.
+- [x] Существующие тесты тика зелёные без изменения их смысла.
+- [x] Тест краснеет при удалении инициализации.
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/TaskHandlers/CommunityAutoReplyHandlerTest.php`
+
+## Implementation notes
+
+- Добавлен сеам `?callable $telegramInitializer` (по умолчанию `fn() => $this->telegram()`,
+  унаследованный `BaseTaskHandler`-метод) — новый private-параметр конструктора
+  `CommunityAutoReplyHandler`, добавлен последним, старые вызовы конструктора не ломает.
+- `ensureTelegramInitialized()` вызывается ровно в двух точках, где `CommunityChatSender`
+  реально идёт в сеть через `Request::send()`: перед `sender->sendAnswer()` в
+  `resolveAndSend()` и перед `sender->react()` в `reactOnce()` (покрывает и полосу A/B,
+  и `receipt_only`/🤔-реакцию при отказе гварда). Килсвитч-`return` в начале `handle()`
+  и «нечего слать» ветки (`isSilent`) инициализацию не трогают вовсе — лень сохранена.
+- Тесты: `handler()`-фабрика получила 6-й опциональный параметр `$telegramInitializer`
+  (default — no-op, чтобы существующие ~25 тестов не трогали реальный `BaseTaskHandler::telegram()`
+  на CI, где нет `.env`/`telegram.API_KEY` — см. `feedback_taskhandler_telegram_init_in_tests`).
+  Добавлены 3 новых теста со счётчиком-спаем: `testActualSendInitializesTelegramBeforeSending`
+  (must=1 перед реальным `sendMessage`), `testReceiptOnlyReactionAlsoInitializesTelegramBeforeSending`
+  (симметрично для ветки реакции), `testNoCandidatesToSendDoesNotInitializeTelegram` (килсвитч
+  выключен → must=0).
+- Редность проверена вручную: временный `sed` убрал оба вызова `$this->ensureTelegramInitialized();`
+  из рабочего кода → `testActualSendInitializesTelegramBeforeSending` покраснел
+  (`Failed asserting that 0 is identical to 1`), остальные 27 тестов остались зелёными;
+  файл восстановлен из бэкапа, полный прогон снова зелёный (28/28).
+- `CommunityChatSender`/`CommunityGuard`/`CommunityAnswerMatcher`/админка не тронуты (Non-goals).

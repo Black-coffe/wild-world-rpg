@@ -114,11 +114,21 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
     /** @var callable(string, mixed): mixed */
     private $settingsGetter;
 
+    /** @var callable(): void */
+    private $telegramInitializer;
+
     /**
      * @param (callable(string, mixed): mixed)|null $settingsGetter сеам для тестов
      *        (паттерн `CommunityChatSender`/`CommunityAnswerMatcher`) — `GameSettingsService::get()` по умолчанию.
      * @param DateTimeImmutable|null $now сеам для тестов выдержки полосы B —
      *        детерминированное «сейчас»; null — берётся реальное на каждый `handle()`.
+     * @param (callable(): void)|null $telegramInitializer story 52 — сеам инициализации Telegram-моста
+     *        перед реальной отправкой; по умолчанию `BaseTaskHandler::telegram()` (тот же ленивый
+     *        lazy-getter, которым уже пользуются соседние task-handler'ы). `CommunityChatSender` шлёт
+     *        через `Request::send()` напрямую, минуя `safeSendMessage()`, поэтому этот тик обязан
+     *        вызвать инициализацию сам — иначе `Request::$telegram` остаётся `null` (дефект story 52).
+     *        Тесты подменяют на no-op/счётчик, чтобы не трогать реальный Telegram-объект
+     *        (`feedback_taskhandler_telegram_init_in_tests`).
      */
     public function __construct(
         ?CommunityMessageModel $messageModel = null,
@@ -130,6 +140,7 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         ?GameSettingsService $settings = null,
         ?callable $settingsGetter = null,
         ?DateTimeImmutable $now = null,
+        ?callable $telegramInitializer = null,
     ) {
         $this->messageModel  = $messageModel ?? new CommunityMessageModel();
         $this->answerModel   = $answerModel ?? new CommunityAnswerModel();
@@ -140,6 +151,9 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         $settings               = $settings ?? new GameSettingsService();
         $this->settingsGetter   = $settingsGetter ?? [$settings, 'get'];
         $this->fixedNow         = $now;
+        $this->telegramInitializer = $telegramInitializer ?? function (): void {
+            $this->telegram();
+        };
     }
 
     /**
@@ -267,6 +281,11 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         // тогда неотличимо принимает чужую строку за свою. `id` строго монотонен вне
         // зависимости от того, сколько записей легло в одну и ту же секунду.
         $attemptWatermarkId = $this->auditWatermarkId();
+
+        // Story 52 — `CommunityChatSender::sendAnswer()` зовёт `Request::send()` напрямую,
+        // минуя `BaseTaskHandler::safeSendMessage()`; без этого вызова `Request::$telegram`
+        // в реальном cron-процессе остаётся `null` (тик никогда его не трогал).
+        $this->ensureTelegramInitialized();
 
         if ($this->sender->sendAnswer($selfId, $text)) {
             return; // статус уже закоммичен до сети — дописывать нечего
@@ -545,7 +564,22 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         if ($messageRowId <= 0 || $this->alreadyReacted($messageRowId)) {
             return;
         }
+        // Story 52 — та же инициализация, что перед `sendAnswer()`: реакция тоже уходит
+        // через `Request::send()` (`CommunityChatSender::react()`).
+        $this->ensureTelegramInitialized();
         $this->sender->react($messageRowId, $emoji);
+    }
+
+    /**
+     * Story 52 — лениво инициализирует Telegram-мост (`Request::initialize()` через
+     * `BaseTaskHandler::telegram()`) ровно перед реальной отправкой. Вызывается только
+     * с двух точек этого класса, где `CommunityChatSender` реально идёт в сеть
+     * ({@see resolveAndSend()}, {@see reactOnce()}) — тик, у которого нет ни одной
+     * строки на отправку, эту инициализацию не оплачивает (контракт story).
+     */
+    private function ensureTelegramInitialized(): void
+    {
+        ($this->telegramInitializer)();
     }
 
     /** Реакция ставится не больше раза на сообщение — `CommunityChatSender` сама
