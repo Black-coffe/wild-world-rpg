@@ -296,6 +296,27 @@ final class CommunityIngestServiceTest extends CIUnitTestCase
         $this->assertSame(0, (int) $this->row()['addressed_to_bot']);
     }
 
+    /**
+     * Дефект ревью 2026-08-25 №1, сторона приёма — прямое обращение к боту без «?» и
+     * без вопросительного слова сохраняется с `addressed_to_bot=1`. `is_question`
+     * остаётся честной эвристикой (0) — эту колонку читает не только тик, но и очередь
+     * `/admin/community` со счётчиками, смешивать в неё «обращено к боту» нельзя (иначе
+     * «Роби, спасибо, всё понял» стало бы вопросом в очереди). Доведение такого
+     * обращения до тика — выборка `is_question=1 OR addressed_to_bot=1` в story 57,
+     * эта story её не трогает.
+     */
+    public function testDirectAddressWithoutQuestionMarkOrWordIsStoredButNotAQuestion(): void
+    {
+        $this->service([])->handle(['message' => $this->message(['message_id' => 1, 'text' => 'Роби, подскажи'])]);
+        $this->service([])->handle(['message' => $this->message(['message_id' => 2, 'text' => '@testbot помоги'])]);
+
+        foreach ([1, 2] as $id) {
+            $row = $this->row($id);
+            $this->assertSame(1, (int) $row['addressed_to_bot'], "message_id=$id должен быть addressed_to_bot");
+            $this->assertSame(0, (int) $row['is_question'], "message_id=$id — не вопрос по эвристике");
+        }
+    }
+
     public function testRobiPrefixMarksAddressedToBot(): void
     {
         $this->service([])->handle(['message' => $this->message(['text' => 'Роби, а где взять доски'])]);
@@ -335,6 +356,47 @@ final class CommunityIngestServiceTest extends CIUnitTestCase
             $this->assertSame(1, (int) $this->row($i)['is_question'], "вопрос #$i должен пройти как вопрос");
         }
         $this->assertSame(0, (int) $this->row(self::MAX_PER_HOUR + 1)['is_question'], 'шестой вопрос за час — мимо квоты');
+    }
+
+    /**
+     * Дефект ревью 2026-08-25 №1 — квота гасит подслушанное, но не прямое обращение
+     * к боту: шестой ЗА ЧАС вопрос того же автора, адресованный боту, обязан пройти,
+     * а такой же по счёту, но не адресованный — по-прежнему гасится (регрессия
+     * `testSixthQuestionFromSameAuthorInHourIsForcedToZero` не должна перестать падать).
+     */
+    public function testAuthorQuotaDoesNotZeroAddressedToBotQuestion(): void
+    {
+        $service = $this->service([]);
+
+        for ($i = 1; $i <= self::MAX_PER_HOUR; $i++) {
+            $service->handle(['message' => $this->message([
+                'message_id' => $i,
+                'date'       => 1_700_000_000 + $i,
+                'text'       => 'как крафтить предмет номер ' . $i,
+            ])]);
+        }
+
+        $service->handle(['message' => $this->message([
+            'message_id' => self::MAX_PER_HOUR + 1,
+            'date'       => 1_700_000_000 + self::MAX_PER_HOUR + 1,
+            'text'       => 'Роби, как крафтить ещё один предмет',
+        ])]);
+        $service->handle(['message' => $this->message([
+            'message_id' => self::MAX_PER_HOUR + 2,
+            'date'       => 1_700_000_000 + self::MAX_PER_HOUR + 2,
+            'text'       => 'как крафтить ещё ещё один предмет',
+        ])]);
+
+        $this->assertSame(
+            1,
+            (int) $this->row(self::MAX_PER_HOUR + 1)['is_question'],
+            'обращение к боту не гасится квотой',
+        );
+        $this->assertSame(
+            0,
+            (int) $this->row(self::MAX_PER_HOUR + 2)['is_question'],
+            'подслушанное сверх квоты по-прежнему гасится',
+        );
     }
 
     // -- гейты --------------------------------------------------------------------
@@ -445,5 +507,66 @@ final class CommunityIngestServiceTest extends CIUnitTestCase
             $matcher->isCancelledByHumanReply($question),
             'реплай анонимного админа обязан отменять выдержку — story 35 через приём story 45',
         );
+    }
+
+    // -- дефект ревью 2026-08-25 №3: выборочный список коллективных обращений --------
+
+    public function testMoreCollectiveAddressWordsAreQuestions(): void
+    {
+        $this->service([])->handle(['message' => $this->message(['message_id' => 1, 'text' => 'Люди, где вода?'])]);
+        $this->service([])->handle(['message' => $this->message(['message_id' => 2, 'text' => 'Мужики, как крафтить?'])]);
+        $this->service([])->handle(['message' => $this->message(['message_id' => 3, 'text' => 'Друзья, кто-нибудь дома?'])]);
+
+        $this->assertSame(1, (int) $this->row(1)['is_question'], '«Люди, …» — коллективное обращение');
+        $this->assertSame(1, (int) $this->row(2)['is_question'], '«Мужики, …» — коллективное обращение');
+        $this->assertSame(1, (int) $this->row(3)['is_question'], '«Друзья, …» — коллективное обращение');
+    }
+
+    // -- дефект ревью 2026-08-25 №2: правка сообщения не доходит до приёма -----------
+
+    public function testEditedMessageUpdatesTextAndRecomputesFlags(): void
+    {
+        $this->service([])->handle(['message' => $this->message(['text' => 'привет'])]);
+        $this->assertSame(0, (int) $this->row()['is_question'], 'исходное сообщение — не вопрос');
+
+        $edited = ['edited_message' => $this->message(['text' => 'Роби, где вода?'])];
+        $this->service([])->handle($edited);
+
+        $row = $this->row();
+        $this->assertSame('Роби, где вода?', $row['text']);
+        $this->assertSame(1, (int) $row['is_question'], 'после правки признак вопроса пересчитан по новому тексту');
+        $this->assertSame(1, (int) $row['addressed_to_bot'], 'после правки признак обращения пересчитан по новому тексту');
+
+        $count = (new CommunityMessageModel())->where('chat_id', self::CHAT_ID)->where('message_id', 100)->countAllResults();
+        $this->assertSame(1, $count, 'правка обновляет существующую строку, а не создаёт вторую');
+    }
+
+    /** Обратный случай: правка убирает признаки, если новый текст уже не вопрос. */
+    public function testEditedMessageCanClearQuestionFlag(): void
+    {
+        $this->service([])->handle(['message' => $this->message(['text' => 'Роби, где вода?'])]);
+        $this->assertSame(1, (int) $this->row()['is_question']);
+
+        $edited = ['edited_message' => $this->message(['text' => 'а, само нашлось'])];
+        $this->service([])->handle($edited);
+
+        $row = $this->row();
+        $this->assertSame(0, (int) $row['is_question']);
+        $this->assertSame(0, (int) $row['addressed_to_bot']);
+    }
+
+    /**
+     * Правка сообщения, которого в таблице нет (TTL-чистка удалила строку, либо
+     * сообщение никогда не проходило приём — не тот чат/автор-бот) — no-op: без
+     * дубля и без падения.
+     */
+    public function testEditOfMissingRowIsNoopAndDoesNotThrow(): void
+    {
+        $edited = ['edited_message' => $this->message(['message_id' => 999, 'text' => 'Роби, где вода?'])];
+
+        $this->service([])->handle($edited);
+
+        $this->assertNull($this->row(999));
+        $this->assertSame(0, (new CommunityMessageModel())->countAll());
     }
 }

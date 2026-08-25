@@ -56,7 +56,9 @@ final class CommunityIngestService
      *
      * @var list<string>
      */
-    private const COLLECTIVE_ADDRESS_WORDS = ['народ', 'ребят', 'ребята', 'пацаны', 'всем'];
+    private const COLLECTIVE_ADDRESS_WORDS = [
+        'народ', 'ребят', 'ребята', 'пацаны', 'всем', 'люди', 'мужики', 'друзья',
+    ];
 
     /**
      * Telegram `from.id` анонимного админа группы (`GroupAnonymousBot`), общий на всех
@@ -86,10 +88,26 @@ final class CommunityIngestService
         }
 
         $messageRaw = $update['message'] ?? null;
-        if (! is_array($messageRaw)) {
+        if (is_array($messageRaw)) {
+            $this->ingestNewMessage($messageRaw);
             return;
         }
 
+        // Правка сообщения — story 24 делегировала её story 25, та записала в
+        // Non-goals и оставила `$update['edited_message']` непрочитанным (дефект
+        // ревью 2026-08-25 №2). Обновляем ТУ ЖЕ строку по UNIQUE(chat_id,message_id),
+        // не вставляем новую — правка не должна плодить дубли.
+        $editedRaw = $update['edited_message'] ?? null;
+        if (is_array($editedRaw)) {
+            $this->ingestEditedMessage($editedRaw);
+        }
+    }
+
+    /**
+     * @param array<array-key, mixed> $messageRaw
+     */
+    private function ingestNewMessage(array $messageRaw): void
+    {
         $chatRaw = $messageRaw['chat'] ?? null;
         $chatIdRaw = is_array($chatRaw) ? ($chatRaw['id'] ?? null) : null;
         if (! is_numeric($chatIdRaw)) {
@@ -139,8 +157,18 @@ final class CommunityIngestService
         $dateRaw     = $messageRaw['date'] ?? null;
         $sentAt      = is_int($dateRaw) ? date('Y-m-d H:i:s', $dateRaw) : date('Y-m-d H:i:s');
 
-        $isQuestion = $text !== null && $this->looksLikeQuestion($text);
-        if ($isQuestion && $this->authorOverQuota($telegramUserId, $sentAt)) {
+        // `is_question` остаётся ЧИСТО эвристикой «похоже на вопрос» — эту колонку
+        // читает не только тик, но и очередь `/admin/community` со счётчиками; смешивать
+        // в неё «обращено к боту» значило бы, что «Роби, спасибо, всё понял» станет
+        // вопросом в очереди. Доведение прямого обращения без эвристики до тика — story 57
+        // (выборка `is_question=1 OR addressed_to_bot=1`), эта story её не трогает.
+        //
+        // Анти-флуд (дефект ревью 2026-08-25 №1) обязан глушить подслушанное, а не
+        // прямое обращение к боту — иначе на «Роби, помоги» бот молчал бы после пятого
+        // вопроса автора за час.
+        $isAddressedToBot = $this->addressedToBot($messageRaw, $text);
+        $isQuestion       = $text !== null && $this->looksLikeQuestion($text);
+        if ($isQuestion && ! $isAddressedToBot && $this->authorOverQuota($telegramUserId, $sentAt)) {
             $isQuestion = false;
         }
 
@@ -159,9 +187,66 @@ final class CommunityIngestService
             'text'                => $text,
             'sent_at'             => $sentAt,
             'is_question'         => $isQuestion ? 1 : 0,
-            'addressed_to_bot'    => $this->addressedToBot($messageRaw, $text) ? 1 : 0,
+            'addressed_to_bot'    => $isAddressedToBot ? 1 : 0,
             'status'              => 'new',
             'created_at'          => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * Правка сообщения (`edited_message`) — обновляет текст и пересчитывает
+     * is_question/addressed_to_bot у УЖЕ существующей строки, найденной по
+     * UNIQUE(chat_id, message_id). Если строки нет (TTL-чистка, автор-бот,
+     * не тот чат — сообщение никогда не проходило приём) — no-op, без вставки
+     * и без падения (Non-goals истории).
+     *
+     * @param array<array-key, mixed> $messageRaw
+     */
+    private function ingestEditedMessage(array $messageRaw): void
+    {
+        $chatRaw   = $messageRaw['chat'] ?? null;
+        $chatIdRaw = is_array($chatRaw) ? ($chatRaw['id'] ?? null) : null;
+        if (! is_numeric($chatIdRaw)) {
+            return;
+        }
+        $chatId = (int) $chatIdRaw;
+
+        $configuredChatIdRaw = $this->settings->get('community.chat_id', '');
+        $configuredChatId    = is_string($configuredChatIdRaw) ? $configuredChatIdRaw : '';
+        if ($configuredChatId === '' || $configuredChatId !== (string) $chatId) {
+            return;
+        }
+
+        $messageIdRaw = $messageRaw['message_id'] ?? null;
+        if (! is_int($messageIdRaw)) {
+            return;
+        }
+        $messageId = $messageIdRaw;
+
+        $model    = new CommunityMessageModel();
+        $existing = $model->where('chat_id', $chatId)->where('message_id', $messageId)->first();
+        if ($existing === null) {
+            return;
+        }
+
+        $textRaw = $messageRaw['text'] ?? $messageRaw['caption'] ?? null;
+        $text    = is_string($textRaw) ? $textRaw : null;
+
+        $telegramUserId = (int) $existing['telegram_user_id'];
+        $sentAt         = (string) $existing['sent_at'];
+
+        // Та же дисциплина, что в `ingestNewMessage()`: `is_question` — чистая эвристика,
+        // квота не гасит прямое обращение к боту.
+        $isAddressedToBot = $this->addressedToBot($messageRaw, $text);
+        $isQuestion       = $text !== null && $this->looksLikeQuestion($text);
+        if ($isQuestion && ! $isAddressedToBot && $this->authorOverQuota($telegramUserId, $sentAt)) {
+            $isQuestion = false;
+        }
+
+        $model->update($existing['id'], [
+            'text'             => $text,
+            'is_question'      => $isQuestion ? 1 : 0,
+            'addressed_to_bot' => $isAddressedToBot ? 1 : 0,
         ]);
     }
 
