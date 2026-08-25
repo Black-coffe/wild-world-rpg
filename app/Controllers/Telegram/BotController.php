@@ -5,6 +5,7 @@ namespace App\Controllers\Telegram;
 use CodeIgniter\Controller;
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Telegram;
+use App\Services\Community\CommunityIngestService;
 use App\Services\Telegram\Request;
 
 class BotController extends Controller
@@ -255,15 +256,20 @@ class BotController extends Controller
     }
 
     /**
-     * Точка расширения story 04/05: приём и обработка сообщений из общего чата.
-     * В этой story — пустой метод, story 04 наполнит (сохранение сообщений,
-     * рейтинг/полезность и т.д. — см. `docs/specs/community-chat-bot/plan.md`).
+     * story 16 — связка: делегирует групповой апдейт в `CommunityIngestService`
+     * (готов и покрыт тестами с story 05, но до этой story не вызывался ниоткуда —
+     * BUILT-BUT-DEAD). Исключение из сервиса не должно ронять вебхук: обёрнуто в
+     * try/catch, как соседние E6/E8-хуки выше по `webhook()`.
      *
      * @param array<array-key, mixed> $update
      */
     protected function handleCommunityUpdate(array $update): void
     {
-        // story 04 наполнит
+        try {
+            (new CommunityIngestService())->handle($update);
+        } catch (\Throwable $e) {
+            log_message('error', 'CommunityIngestService: ' . $e->getMessage());
+        }
     }
 
     /**

@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-16
 spec: community-chat-bot
-status: todo
+status: done
 tier: 1
 worker: worker-code
 tracer: false
