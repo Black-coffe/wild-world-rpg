@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-53
 spec: community-chat-bot
-status: todo
+status: done
 tier: 1
 worker: worker-test
 tracer: false
@@ -57,3 +57,8 @@ Longman\TelegramBot\Exception\TelegramException: Invalid API KEY defined!
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/TaskHandlers/CommunityAutoReplyHandlerTest.php`
+
+## Implementation notes
+Единственный тест, обходивший фабрику `handler()`, получил тот же no-op инициализатор
+десятым аргументом. Проверено: прямых `new CommunityAutoReplyHandler(` в файле два — сама
+фабрика и этот тест, других обходчиков нет. Смысл проверки не менялся.
