@@ -49,8 +49,19 @@ final class CommunityGuard
     /** Минимальная длина слова, чтобы считаться «значимым» (не предлог/союз). */
     private const MIN_SIGNIFICANT_WORD_LEN = 4;
 
-    /** Доля значимых слов предложения, которая обязана найтись в ОДНОМ фрагменте корпуса. */
-    private const PROVENANCE_THRESHOLD = 0.6;
+    /**
+     * Доля ВЗВЕШЕННЫХ значимых слов предложения, которая обязана найтись в ОДНОМ
+     * фрагменте корпуса (story 21). При десятках фрагментов простой bag-of-stems
+     * ratio почти всегда набирает 0.6+ на каком-то фрагменте — родовые игровые
+     * слова («ресурс», «база», «даёт») встречаются почти везде. Вес слова —
+     * обратная частота фрагментов, где оно встречается (мини-IDF, детерминированный
+     * счёт по корпусу, не семантика): редкое/специфичное слово («полис», «дрон»)
+     * весит больше, чем то, что есть в половине фрагментов. Порог откалиброван по
+     * `defaultCorpus()` (32 раздела `GuideCatalog`): добросовестный пересказ
+     * реального фрагмента набирает ~0.9+, придуманное правдоподобное утверждение
+     * из игровой лексики — ~0.6-0.7 (см. story 21 `## Findings`).
+     */
+    private const PROVENANCE_THRESHOLD = 0.75;
 
     /** §5, рубеж 3 — быстрее/выгоднее/оптимально/… (план §5.3, дословно). */
     private const LEXICAL_STOPLIST = [
@@ -58,8 +69,15 @@ final class CommunityGuard
         'упирается', 'потолок', 'порог', 'перестаёт', 'бесполезно', 'окупается',
     ];
 
-    /** Односложные подтверждения запрещены как КЛАСС ответа о механике (§5.3). */
-    private const MONOSYLLABLE_CONFIRMATIONS = ['да', 'нет', 'верно', 'почти'];
+    /**
+     * Односложные подтверждения запрещены как КЛАСС ответа о механике (§5.3).
+     * Story 21: список расширен словами-связками вокруг подтверждения («ага»,
+     * «именно», «так») — проверка ниже (`answerLeaksLexically()`) требует, чтобы
+     * ВСЕ слова ответа входили сюда (не точное равенство склеенной строки), тогда
+     * «Да, верно.» / «Ага.» / «Именно так.» ловятся независимо от пунктуации,
+     * эмодзи и порядка слов-связок.
+     */
+    private const MONOSYLLABLE_CONFIRMATIONS = ['да', 'нет', 'верно', 'почти', 'ага', 'именно', 'так'];
 
     /**
      * Числительные словами — тот же список, что уже проверен в `CommunityVoiceCanonTest`
@@ -104,19 +122,31 @@ final class CommunityGuard
         $question = trim($questionText);
 
         // §5.4 исключение: подозрение на баг — не молчать, квитировать и эскалировать.
-        if ($this->mentionsAny($question, CommunityStopTopics::BUG_REPORT_MARKERS)) {
+        // Story 21: word-boundary матч, а не substring — «баг» не обязан ловить «багаж»
+        // (короткий корень иначе даёт неверную причину в аудите раньше стоп-тем).
+        if ($this->mentionsBugMarker($question)) {
             return Verdict::manual('bug_report_topic', CommunityVoice::RECEIPT[0]);
         }
 
         // Рубеж 5 — live vs dormant.
         $setting = $requiresSetting !== null && trim($requiresSetting) !== '' ? trim($requiresSetting) : null;
-        if ($setting !== null) {
-            $enabled = $this->readKillswitch($setting);
-            if (! $enabled) {
-                return Verdict::deny('dormant_setting_disabled', CommunityVoice::REFUSAL_WITH_ROUTE[0]);
+        if ($setting !== null && ! $this->readKillswitch($setting)) {
+            return Verdict::deny('dormant_setting_disabled', CommunityVoice::REFUSAL_WITH_ROUTE[0]);
+        }
+
+        // Story 21: проверка dormant-подсистем идёт ВСЕГДА, не в ветке «иначе» —
+        // заполненный requires_setting закрывает СВОЮ тему, но не должен маскировать
+        // упоминание ДРУГОЙ dormant-темы в том же ответе (Оракул при requires_setting
+        // транспорта). `DORMANT_SUBSYSTEM_SETTINGS` — тот же 12-маркерный канон-словарь,
+        // просто с уже задокументированными в комментариях ключами превращёнными в данные.
+        $dormantMarker = $this->matchedDormantSubsystem($answer);
+        if ($dormantMarker !== null) {
+            $expectedSetting = CommunityStopTopics::DORMANT_SUBSYSTEM_SETTINGS[$dormantMarker] ?? null;
+            if ($expectedSetting !== $setting
+                && ($expectedSetting === null || ! $this->readKillswitch($expectedSetting))
+            ) {
+                return Verdict::deny('missing_requires_setting', CommunityVoice::REFUSAL_WITH_ROUTE[0]);
             }
-        } elseif ($this->mentionsAny($answer, CommunityStopTopics::DORMANT_SUBSYSTEM_MARKERS)) {
-            return Verdict::deny('missing_requires_setting', CommunityVoice::REFUSAL_WITH_ROUTE[0]);
         }
 
         // Рубеж 2 — гвард на входящем: утечку несёт и вопрос, любой ответ читается битом.
@@ -216,9 +246,14 @@ final class CommunityGuard
             }
         }
 
-        $onlyLetters = preg_replace('/[^\p{L}]+/u', '', $lower);
+        // Story 21: ответ — КЛАСС «голое подтверждение», если ВСЕ его слова (после
+        // удаления пунктуации/эмодзи) входят в MONOSYLLABLE_CONFIRMATIONS. Точное
+        // равенство склеенной строки ловило только `«Да.»`; так «Да, верно.» /
+        // «Ага.» / «Именно так.» тоже опознаются как класс, а не как одно слово.
+        preg_match_all('/\p{L}+/u', $lower, $wordMatches);
+        $words = $wordMatches[0];
 
-        return in_array($onlyLetters, self::MONOSYLLABLE_CONFIRMATIONS, true);
+        return $words !== [] && array_diff($words, self::MONOSYLLABLE_CONFIRMATIONS) === [];
     }
 
     private function matchedStopTopic(string $text): ?string
@@ -235,17 +270,47 @@ final class CommunityGuard
         return null;
     }
 
+    /** Первый dormant-маркер (§5.5), упомянутый в тексте, или null. */
+    private function matchedDormantSubsystem(string $text): ?string
+    {
+        if ($text === '') {
+            return null;
+        }
+        $lower = mb_strtolower($text);
+        foreach (CommunityStopTopics::DORMANT_SUBSYSTEM_MARKERS as $marker) {
+            if (str_contains($lower, mb_strtolower($marker))) {
+                return $marker;
+            }
+        }
+
+        return null;
+    }
+
     /**
-     * @param list<string> $markers
+     * Story 21: `CommunityStopTopics::BUG_REPORT_MARKERS` содержит и фразы, и короткие
+     * слова-корни («баг», «глюк»). Фраза как substring уже достаточно специфична —
+     * ложных срабатываний не даёт. Короткий корень — да: substring-матч «баг» ловил
+     * и «багаж» (другое слово, случайно начинается с тех же трёх букв). Для
+     * однословных маркеров требуем границу слова — маркер плюс МАКСИМУМ одна
+     * дополнительная буква-окончание («баг» → «бага»/«багу»/«баги» проходят,
+     * «багаж» с двумя лишними буквами — нет).
      */
-    private function mentionsAny(string $text, array $markers): bool
+    private function mentionsBugMarker(string $text): bool
     {
         if ($text === '') {
             return false;
         }
         $lower = mb_strtolower($text);
-        foreach ($markers as $marker) {
-            if (str_contains($lower, mb_strtolower($marker))) {
+        foreach (CommunityStopTopics::BUG_REPORT_MARKERS as $marker) {
+            $marker = mb_strtolower($marker);
+            if (str_contains($marker, ' ')) {
+                if (str_contains($lower, $marker)) {
+                    return true;
+                }
+                continue;
+            }
+            $pattern = '/(?<![\p{L}])' . preg_quote($marker, '/') . '\p{L}?(?![\p{L}])/u';
+            if (preg_match($pattern, $lower) === 1) {
                 return true;
             }
         }
@@ -262,6 +327,17 @@ final class CommunityGuard
             $fragmentStems[$i] = $this->stems($fragment['text']);
         }
 
+        // Story 21: вес стема — обратная частота фрагментов, в которых он встречается
+        // (мини-IDF, посчитанный ПО ЭТОМУ ЖЕ корпусу — детерминированно, не семантика).
+        // Родовое слово из половины разделов справочника («ресурс», «база», «даёт»)
+        // весит меньше, чем специфичное слово из одного-двух разделов.
+        $documentFrequency = [];
+        foreach ($fragmentStems as $stemsOfFragment) {
+            foreach (array_unique($stemsOfFragment) as $stem) {
+                $documentFrequency[$stem] = ($documentFrequency[$stem] ?? 0) + 1;
+            }
+        }
+
         foreach ($sentences as $sentence) {
             $sentence = trim($sentence, " \t\n\r\0\x0B.!?");
             if ($sentence === '') {
@@ -273,15 +349,22 @@ final class CommunityGuard
                 continue;
             }
 
+            $weights     = [];
+            $totalWeight = 0.0;
+            foreach ($words as $stem) {
+                $weights[$stem] = 1.0 / ($documentFrequency[$stem] ?? 1);
+                $totalWeight    += $weights[$stem];
+            }
+
             $bestRatio = 0.0;
             foreach ($fragmentStems as $stemsOfFragment) {
-                $matched = 0;
+                $matchedWeight = 0.0;
                 foreach ($words as $stem) {
                     if (in_array($stem, $stemsOfFragment, true)) {
-                        ++$matched;
+                        $matchedWeight += $weights[$stem];
                     }
                 }
-                $ratio = $matched / count($words);
+                $ratio = $totalWeight > 0.0 ? $matchedWeight / $totalWeight : 0.0;
                 if ($ratio > $bestRatio) {
                     $bestRatio = $ratio;
                 }

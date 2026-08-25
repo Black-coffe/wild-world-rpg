@@ -120,4 +120,31 @@ class CommunityStopTopics extends BaseConfig
         'позови выжившего', 'реферал', // referral.enabled
         'элиты остров', 'элитн',   // world.elites.enabled
     ];
+
+    /**
+     * Story 21 (`CommunityGuard` рубеж 5): те же 12 маркеров выше, но с ключом
+     * killswitch'а как ДАННЫМИ, а не только в комментарии — иначе гвард умеет
+     * сверить лишь ОДИН заявленный `requires_setting`, и ответ про транспорт,
+     * заодно упоминающий Оракул при выключенном Оракуле, проходил вслепую. НЕ
+     * расширение списка маркеров до всех подсистем (см. Non-goals) — карта только
+     * для уже перечисленных 12.
+     */
+    public const DORMANT_SUBSYSTEM_SETTINGS = [
+        'оракул'             => 'oracle.enabled',
+        'дуэл'               => 'pvp.duel.enabled',
+        'транспорт'          => 'world.vehicle.enabled',
+        'машин'              => 'world.vehicle.enabled',
+        'карава'             => 'caravan.enabled',
+        'поселени'           => 'settlements.enabled',
+        'специализац'        => 'specialization.enabled',
+        'титул'              => 'titles.enabled',
+        'коллекц'            => 'collections.enabled',
+        'достижени'          => 'achievement.enabled',
+        'трофейная подать'   => 'tribute.enabled',
+        'трофейн'            => 'tribute.enabled',
+        'позови выжившего'   => 'referral.enabled',
+        'реферал'            => 'referral.enabled',
+        'элиты остров'       => 'world.elites.enabled',
+        'элитн'              => 'world.elites.enabled',
+    ];
 }

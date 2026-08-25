@@ -102,6 +102,75 @@ final class CommunityGuardTest extends CIUnitTestCase
         $this->assertTrue($verdict->isAllow(), 'сужение стоп-темы "смерть" не должно резать полезный качественный ответ');
     }
 
+    /**
+     * Story 21: гвард держит на РЕАЛЬНОМ `defaultCorpus()` (живой `GuideCatalog`,
+     * 32 раздела на момент записи), а не на трёх самодельных фрагментах выше —
+     * приёмка Queen против них воспроизводилась на узком корпусе и не держалась
+     * на боевом. `realGuard()` передаёт `corpus: null`, так что `CommunityGuard`
+     * сам собирает `defaultCorpus()`; `game_tips`/`site_posts` внутри него молча
+     * сужаются до пустоты без БД (см. докблок `defaultCorpus()`) — `GuideCatalog`
+     * достаточно, он pure-данные (см. `GuideCatalogTest`).
+     */
+    private function realGuard(array $settingValues = []): CommunityGuard
+    {
+        $model = new class ($settingValues) extends GameSettingsModel {
+            /** @param array<string, bool> $values */
+            public function __construct(private array $values)
+            {
+            }
+
+            public function findByKey(string $key): ?array
+            {
+                if (! array_key_exists($key, $this->values)) {
+                    return null;
+                }
+
+                return ['setting_key' => $key, 'value_type' => 'bool', 'value_bool' => $this->values[$key] ? 1 : 0];
+            }
+        };
+
+        return new CommunityGuard(null, new GameSettingsService($model));
+    }
+
+    /**
+     * Story 21: все шесть строк из таблицы дефекта — правдоподобные утечки и
+     * односложные подтверждения, набиравшие `allow` на реальном справочнике до
+     * фикса (0.6-порог почти всегда находил фрагмент с 60%+ совпадением стеммов
+     * на 32 разделах). НЕ важно, какой именно рубеж денит — важно, что не allow.
+     */
+    public function testAllSixLeakedExamplesAreNotAllowedAgainstRealCorpus(): void
+    {
+        $examples = [
+            'Мастерская на базе даёт больше ресурсов, чем Лаборатория.',
+            'Редкие ресурсы падают чаще, если идти в поход без брони.',
+            'Ставь ловушки у воды — там добыча идёт лучше.',
+            'Да, верно.',
+            'Ага.',
+            'Именно так.',
+        ];
+
+        foreach ($examples as $example) {
+            $verdict = $this->realGuard()->verdict($example, 'Расскажи про механику.', null);
+            $this->assertFalse($verdict->isAllow(), "«{$example}» не должно проходить как allow против реального корпуса");
+        }
+    }
+
+    /**
+     * Story 21, acceptance: добросовестный пересказ реального раздела «🛡 Что
+     * забирает смерть» (`guide:insurance`) не режется — полезное не теряет allow
+     * от ужесточённого рубежа 1.
+     */
+    public function testGoodFaithParaphraseOfRealCorpusFragmentIsAllowed(): void
+    {
+        $verdict = $this->realGuard()->verdict(
+            'Смерть забирает часть ресурсов, золота и вещей, а под своей базой потери меньше, чем у бездомного.',
+            'Что теряю, когда умираю?',
+            null,
+        );
+
+        $this->assertTrue($verdict->isAllow(), 'пересказ реального раздела не должен резаться ужесточённым рубежом 1');
+    }
+
     // ── Рубеж 3 — лексический стоп-лист ─────────────────────────────────────
 
     public function testLexicalLeakWithoutAnyDigitsIsDenied(): void
@@ -219,6 +288,27 @@ final class CommunityGuardTest extends CIUnitTestCase
         $this->assertSame('lexical_stoplist', $verdict->reason);
     }
 
+    /**
+     * Story 21, acceptance: заполненный `requires_setting` закрывает СВОЮ тему
+     * (транспорт), но не должен маскировать упоминание ДРУГОЙ dormant-темы в том
+     * же ответе — до фикса проверка dormant-маркеров жила в ветке `elseif` и
+     * пропускалась целиком, как только `requires_setting` был заполнен чем угодно.
+     */
+    public function testTransportAnswerMentioningDisabledOracleIsDeniedDespiteOwnKillswitchEnabled(): void
+    {
+        $guard = $this->guard(null, ['world.vehicle.enabled' => true, 'oracle.enabled' => false]);
+
+        $verdict = $guard->verdict(
+            'В игре есть транспорт, а ещё Оракул острова.',
+            'Что нового в игре?',
+            'world.vehicle.enabled',
+        );
+
+        $this->assertTrue($verdict->isDeny());
+        $this->assertSame('missing_requires_setting', $verdict->reason);
+        $this->assertNotNull($verdict->route);
+    }
+
     // ── Стоп-темы: узкое сужение не режет полезное (уже проверено выше в
     //    testQualityDeathAnswerGroundedInCorpusIsAllowed — "пороги смерти" не тема) ──
 
@@ -232,6 +322,23 @@ final class CommunityGuardTest extends CIUnitTestCase
 
         $this->assertTrue($verdict->isManual(), 'баг-репорт не молчит и не деньится — квитируется и эскалируется');
         $this->assertSame('bug_report_topic', $verdict->reason);
+    }
+
+    /**
+     * Story 21, acceptance: «баг» — короткий корень, substring-матч ловил и
+     * «багаж» (случайно начинается с тех же трёх букв, другое слово). Ответ
+     * не должен уходить в манual-очередь баг-репорта на пустом месте.
+     */
+    public function testLuggageMentionDoesNotTriggerBugMarker(): void
+    {
+        $verdict = $this->guard()->verdict(
+            'Ночной дозор находит редкие ресурсы охотнее, чем дневной обход.',
+            'У меня багаж полный, что с ним делать?',
+            null,
+        );
+
+        $this->assertFalse($verdict->isManual(), '«багаж» не должен опознаваться как баг-репорт');
+        $this->assertNotSame('bug_report_topic', $verdict->reason);
     }
 
     // ── Инвариант: любой deny несёт маршрут ─────────────────────────────────
