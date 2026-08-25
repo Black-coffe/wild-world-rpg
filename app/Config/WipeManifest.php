@@ -81,6 +81,7 @@ class WipeManifest extends BaseConfig
         'events'               => ['strategy' => self::KEEP, 'note' => 'Определения мировых событий'],
         'factions'             => ['strategy' => self::KEEP, 'note' => 'Определения фракций'],
         'game_tips'            => ['strategy' => self::KEEP, 'note' => 'Контент советов /tips'],
+        'community_answers'    => ['strategy' => self::KEEP, 'note' => 'Банк утверждённых ответов community-бота (ADR-176) — авторский корпус наравне с game_tips, вайп прогресса игроков не должен стирать написанные владельцем ответы'],
         'outfits'              => ['strategy' => self::KEEP, 'note' => 'Определения брони'],
         'weapons'              => ['strategy' => self::KEEP, 'note' => 'Определения оружия'],
         'resources'            => ['strategy' => self::KEEP, 'note' => 'Определения ресурсов'],
@@ -193,6 +194,7 @@ class WipeManifest extends BaseConfig
         'boss_kill_announce_queue' => ['strategy' => self::TRANSIENT, 'note' => 'Очередь анонсов о повергнутых узлах (ADR-137 WB11) — наполняется kill-путём, потребляется дайджест-кроном; без player-связи'],
         'queue_jobs'           => ['strategy' => self::TRANSIENT, 'note' => 'Очередь фоновых заданий'],
         'queue_jobs_failed'    => ['strategy' => self::TRANSIENT, 'note' => 'Проваленные фоновые задания'],
+        'community_messages'   => ['strategy' => self::TRANSIENT, 'note' => 'Сырой поток сообщений группового чата сообщества (ADR-176) — окно хранения 30 дней, регенерируется чатом'],
 
         // ─────────────────────────────────────────────────────────────
         // 🟣 SEED_RESET — экономика/эндгейм-агрегаты (строки остаются, счётчики → 0)
