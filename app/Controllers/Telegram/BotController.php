@@ -53,12 +53,24 @@ class BotController extends Controller
             }
         }
 
+        $rawBody = $this->request->getBody();
+        $update  = is_string($rawBody) ? json_decode($rawBody, true) : null;
+
+        // community-chat-bot-01 — гейт по типу чата, ДО игровой обработки: групповой/
+        // супергрупповой/канальный апдейт не должен двигать firehose (ADR-148), E6/E8-хуки
+        // (login-streak, ежедневки, return-digest) и не должен доходить до Longman.
+        // Отсутствующий/неизвестный chat.type трактуется как приватный — иначе одна
+        // неожиданная форма апдейта обрушила бы игру для всех (см. Contract story-файла).
+        if (is_array($update) && $this->isCommunityChat($update)) {
+            $this->handleCommunityUpdate($update);
+
+            return $this->response->setStatusCode(200)->setBody('');
+        }
+
         // E6 (ADR-108) Фаза 1 — достаём telegram_id ДО обработки, проставляем last_seen
         // ПОСЛЕ (в finally). Порядок важен: во время handle() код видит ПРЕДЫДУЩЕЕ
         // значение last_seen (основа digest «пока тебя не было», Ф2). Defensive — stamp
         // не должен влиять на обработку апдейта.
-        $rawBody        = $this->request->getBody();
-        $update         = is_string($rawBody) ? json_decode($rawBody, true) : null;
         $telegramUserId = is_array($update)
             ? \App\Services\Player\LastSeenService::extractTelegramId($update)
             : null;
@@ -129,7 +141,7 @@ class BotController extends Controller
         }
 
         try {
-            $this->telegram->handle();
+            $this->dispatchToTelegram();
         } catch (TelegramException $e) {
             // Текущее поведение: логируем и глотаем TelegramException.
             log_message('error', $e->getMessage());
@@ -179,6 +191,91 @@ class BotController extends Controller
             }
             return Request::sendMessage($data);
         }
+    }
+
+    /**
+     * Групповые типы чата (community-chat-bot-01, ADR — spec `community-chat-bot`).
+     * `channel` трактуется как групповой путь по контракту story: боту в канале
+     * тоже нечего делать в игровом диспетчере.
+     *
+     * @var list<string>
+     */
+    private const COMMUNITY_CHAT_TYPES = ['group', 'supergroup', 'channel'];
+
+    /**
+     * true, если апдейт пришёл из группы/супергруппы/канала. Отсутствующий или
+     * нераспознанный `chat.type` — приватный путь по умолчанию (fail-safe: одна
+     * неожиданная форма апдейта не должна выключать игру всем).
+     *
+     * @param array<array-key, mixed> $update
+     */
+    protected function isCommunityChat(array $update): bool
+    {
+        $type = $this->extractChatType($update);
+
+        return $type !== null && in_array($type, self::COMMUNITY_CHAT_TYPES, true);
+    }
+
+    /**
+     * `chat.type` из message / edited_message / callback_query.message — те же формы
+     * апдейта, что уже разбирает {@see \App\Services\Player\LastSeenService}.
+     *
+     * @param array<array-key, mixed> $update
+     */
+    private function extractChatType(array $update): ?string
+    {
+        foreach ([['message'], ['edited_message'], ['callback_query', 'message']] as $path) {
+            $type = $this->dig($update, [...$path, 'chat', 'type']);
+            if (is_string($type)) {
+                return $type;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Безопасно достаёт вложенное значение из распарсенного апдейта — тело приходит
+     * из сети, любой уровень может оказаться не-массивом.
+     *
+     * @param array<array-key, mixed> $update
+     * @param list<string>            $path
+     */
+    private function dig(array $update, array $path): mixed
+    {
+        $node = $update;
+        foreach ($path as $segment) {
+            if (!is_array($node) || !array_key_exists($segment, $node)) {
+                return null;
+            }
+            $node = $node[$segment];
+        }
+
+        return $node;
+    }
+
+    /**
+     * Точка расширения story 04/05: приём и обработка сообщений из общего чата.
+     * В этой story — пустой метод, story 04 наполнит (сохранение сообщений,
+     * рейтинг/полезность и т.д. — см. `docs/specs/community-chat-bot/plan.md`).
+     *
+     * @param array<array-key, mixed> $update
+     */
+    protected function handleCommunityUpdate(array $update): void
+    {
+        // story 04 наполнит
+    }
+
+    /**
+     * Seam для тестов: реальный `$this->telegram->handle()` требует живого
+     * Longman-клиента (читает php://input, диспетчит команды/action-handler'ы,
+     * которые могут ходить в сеть). Тест переопределяет этот метод спаем и
+     * никогда не трогает `$this->telegram` — паттерн из
+     * [[feedback_taskhandler_telegram_init_in_tests]].
+     */
+    protected function dispatchToTelegram(): void
+    {
+        $this->telegram->handle();
     }
 
 }

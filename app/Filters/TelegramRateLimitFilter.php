@@ -86,8 +86,15 @@ class TelegramRateLimitFilter implements FilterInterface
             return; // системный update без отправителя — не считаем
         }
 
+        // community-chat-bot-01 — групповой/супергрупповой/канальный трафик считается в
+        // ОТДЕЛЬНОМ ключе (по чату, не по игроку): иначе флуд в общем чате съедал бы личный
+        // 60/мин лимит игрока в игре. Если chat.id недостаём — считаем как раньше, по игроку
+        // (лучше пере-посчитать разово, чем не посчитать вовсе).
+        $isGroupChat = $this->isGroupChat($update);
+        $groupChatId = $isGroupChat ? $this->extractChatId($update) : null;
+
         $cache = \Config\Services::cache();
-        $key   = "tg_rate_{$userId}";
+        $key   = $groupChatId !== null ? "tg_rate_group_{$groupChatId}" : "tg_rate_{$userId}";
         // Time::now() (а не time()) — тот же источник времени, что у CI4-кэша,
         // и он мокается через Time::setTestNow() в тестах окна.
         $now   = Time::now()->getTimestamp();
@@ -121,10 +128,15 @@ class TelegramRateLimitFilter implements FilterInterface
                 // Одна строка на ОКНО, а не на отброшенный апдейт: под флудом в 1000
                 // запросов в минуту логирование каждого забило бы диск. Окно — и есть
                 // нужная единица измерения («сколько раз игроки упирались в лимит»).
-                log_message('error', "[RateLimit] Telegram user {$userId} превысил {$limit}/мин — апдейты отбрасываются до конца окна");
+                $subject = $groupChatId !== null ? "чат {$groupChatId}" : "Telegram user {$userId}";
+                log_message('error', "[RateLimit] {$subject} превысил {$limit}/мин — апдейты отбрасываются до конца окна");
             }
 
-            $this->notifyBlocked($update, $alreadyNotified);
+            // community-chat-bot-01 — бот молчит в общих чатах (Non-goals: «после этой story
+            // бот в чате нем»). Персональному игровому лимиту нужен toast-ответ, групповому — нет.
+            if ($groupChatId === null) {
+                $this->notifyBlocked($update, $alreadyNotified);
+            }
 
             // 200 OK с пустым body — Telegram не делает retry, просто получает ack
             return service('response')->setStatusCode(200)->setBody('');
@@ -229,6 +241,47 @@ class TelegramRateLimitFilter implements FilterInterface
         } catch (\Throwable $e) {
             log_message('error', '[RateLimit] уведомление не ушло: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * community-chat-bot-01 — групповые типы чата. Совпадает с
+     * `BotController::COMMUNITY_CHAT_TYPES` (контракт story), `channel` включён по той
+     * же причине: боту там тоже нечего слать.
+     *
+     * @param array<array-key, mixed> $update
+     */
+    private function isGroupChat(array $update): bool
+    {
+        $type = $this->dig($update, 'message', 'chat', 'type')
+            ?? $this->dig($update, 'edited_message', 'chat', 'type')
+            ?? $this->dig($update, 'callback_query', 'message', 'chat', 'type');
+
+        return is_string($type) && in_array($type, ['group', 'supergroup', 'channel'], true);
+    }
+
+    /**
+     * chat.id из message / edited_message / callback_query.message — та же форма, что уже
+     * разбирает {@see \App\Services\Player\LastSeenService::extractChatId()}.
+     *
+     * @param array<array-key, mixed> $update
+     */
+    private function extractChatId(array $update): ?int
+    {
+        $candidates = [
+            $this->dig($update, 'message', 'chat', 'id'),
+            $this->dig($update, 'edited_message', 'chat', 'id'),
+            $this->dig($update, 'callback_query', 'message', 'chat', 'id'),
+        ];
+        foreach ($candidates as $id) {
+            if (is_int($id)) {
+                return $id;
+            }
+            if (is_string($id) && ctype_digit(ltrim($id, '-'))) {
+                return (int) $id;
+            }
+        }
+
+        return null;
     }
 
     /**
