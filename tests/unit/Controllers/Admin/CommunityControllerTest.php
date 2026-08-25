@@ -642,6 +642,64 @@ final class CommunityControllerTest extends CIUnitTestCase
         $this->assertEqualsWithDelta(0.5, $metrics['guard_rejection_rate'], 0.0001, 'давний отказ гейта не должен маскировать более поздний отказ гварда');
     }
 
+    /**
+     * Story 59: story 58 заводит отдельное действие `COMMUNITY_ROUTE_SENT` для
+     * отправки маршрута отказа (story 57 переводит на него `CommunityAutoReplyHandler`).
+     * Строка несёт СВОЮ `COMMUNITY_ROUTE_LOGGED` (маркер «записан как отказ») и
+     * `COMMUNITY_ROUTE_SENT` (маркер отправки текста маршрута) — но НЕ
+     * `COMMUNITY_ANSWER_SENT`. Тест краснеет, если `autoAnswerCount()` вернётся к счёту
+     * по маркеру `COMMUNITY_ROUTE_LOGGED` вместо действия `COMMUNITY_ANSWER_SENT`.
+     */
+    public function testGuardDenialRouteTextDoesNotDoubleCountAsBotAnswer(): void
+    {
+        $now    = new DateTimeImmutable('2026-08-25 12:00:00');
+        $sentAt = $now->modify('-1 day')->format('Y-m-d H:i:s');
+
+        // Отказ гварда, доехавший до игрока: escalated, своя COMMUNITY_ROUTE_LOGGED,
+        // и COMMUNITY_ROUTE_SENT — sendGuardRoute() отправил текст маршрута отдельным
+        // действием (story 57/58), не COMMUNITY_ANSWER_SENT.
+        $guardDenied = $this->insertMessage(['status' => 'escalated', 'sent_at' => $sentAt]);
+        $this->insertAuditLog('COMMUNITY_ROUTE_LOGGED', (int) $guardDenied['id'], $sentAt);
+        $this->insertAuditLog('COMMUNITY_ROUTE_SENT', (int) $guardDenied['id'], $sentAt);
+
+        $metrics = $this->controller()->computeMetrics($now);
+
+        // guardTotal обязан остаться 1 (одна строка), а не 2 — иначе доля отказов
+        // гварда была бы задвоена/занижена в зависимости от знаменателя.
+        $this->assertSame(1.0, $metrics['guard_rejection_rate'], 'отказ гварда не должен считаться и ответом бота одновременно');
+    }
+
+    /**
+     * Story 59, главный сценарий: 10 вопросов, все отклонены гвардом (и доехали
+     * до игроков маршрутом через `COMMUNITY_ROUTE_SENT`), живые игроки друг другу
+     * отвечают отдельно от бота — «доля ответов бота» обязана быть 0%, а не 100%
+     * (старый баг: отказ считался ответом бота, human-реплаи в знаменатель не попадали).
+     */
+    public function testAllGuardDeniedWithLiveHumanChatGivesZeroBotShareNotHundredPercent(): void
+    {
+        $now    = new DateTimeImmutable('2026-08-25 12:00:00');
+        $sentAt = $now->modify('-1 day')->format('Y-m-d H:i:s');
+
+        for ($i = 0; $i < 10; $i++) {
+            $denied = $this->insertMessage(['status' => 'escalated', 'sent_at' => $sentAt]);
+            $this->insertAuditLog('COMMUNITY_ROUTE_LOGGED', (int) $denied['id'], $sentAt);
+            $this->insertAuditLog('COMMUNITY_ROUTE_SENT', (int) $denied['id'], $sentAt);
+        }
+
+        // Живые игроки общаются между собой, бот в этом не участвует.
+        $author = $this->insertMessage(['telegram_user_id' => 111, 'message_id' => 6001, 'sent_at' => $sentAt]);
+        $this->insertMessage([
+            'telegram_user_id'    => 222,
+            'reply_to_message_id' => $author['message_id'],
+            'sent_at'             => $sentAt,
+        ]);
+
+        $metrics = $this->controller()->computeMetrics($now);
+
+        $this->assertSame(0.0, $metrics['bot_vs_human_share'], 'все отказы гварда не должны выглядеть как 100% ответов бота');
+        $this->assertSame(1.0, $metrics['guard_rejection_rate']);
+    }
+
     // ── очередь: маршрут отказа виден рядом со строкой (дефект 3) ──────────
 
     /**

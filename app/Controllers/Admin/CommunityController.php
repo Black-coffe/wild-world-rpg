@@ -397,11 +397,16 @@ final class CommunityController extends BaseAdminController
 
         // Доля отказов гварда: `status='escalated'` покрывает ДВА разных случая —
         // (а) `CommunityGuard::verdict()` реально не выдал allow (`resolveAndSend()`
-        // помечает escalated и ничего не отправляет), и (б) полоса A без совпадения
-        // банка, где гвард ПРОПУСТИЛ честное «не знаю» и текст ушёл (`Decision::escalated`,
-        // `resolveAndSend()` всё равно ставит escalated при успешной отправке). Только
-        // (а) — отказ гварда; (б) отличим по наличию `COMMUNITY_ANSWER_SENT` — эта
-        // запись пишется ТОЛЬКО при успешной отправке, гвард-отказ до неё не доходит.
+        // помечает escalated), и (б) полоса A без совпадения банка, где гвард ПРОПУСТИЛ
+        // честное «не знаю» и текст ушёл (`Decision::escalated`, `resolveAndSend()` всё
+        // равно ставит escalated при успешной отправке). Только (а) — отказ гварда; (б)
+        // отличим по своей `COMMUNITY_ROUTE_LOGGED` (см. guardDeniedCount()) — маркер о
+        // том, что строку записали как отказ, независимо от того, что именно отправил
+        // бот. Story 58 заводит отдельное действие `COMMUNITY_ROUTE_SENT` для самой
+        // отправки маршрута (story 57 переводит на него `CommunityAutoReplyHandler`) —
+        // с этого момента отказ и ответ пишут РАЗНЫЕ действия и структурно не могут
+        // пересечься: `autoAnswerCount()` считает только `COMMUNITY_ANSWER_SENT`, отказ
+        // туда никогда не попадает, и `guardTotal` не задваивает одно сообщение.
         $guardDenied        = $this->guardDeniedCount($since);
         $guardTotal         = $botAnswers + $guardDenied;
         $guardRejectionRate = $guardTotal > 0 ? (float) $guardDenied / $guardTotal : null;
@@ -455,15 +460,23 @@ final class CommunityController extends BaseAdminController
         return max(1, (int) round($maxAgeHours * self::STALE_FRACTION));
     }
 
-    /** Автоматические отправки бота в окне — только `COMMUNITY_ANSWER_SENT` (автотик),
-     *  ручные (`COMMUNITY_MANUAL_ANSWER_SENT`) сюда не входят (см. computeMetrics()). */
+    /**
+     * Автоматические ОТВЕТЫ бота в окне — только `COMMUNITY_ANSWER_SENT` (автотик).
+     * Отказ гварда сюда не попадает: `sendGuardRoute()` (story 58) пишет отдельное
+     * действие `COMMUNITY_ROUTE_SENT`, `CommunityAutoReplyHandler` переходит на него
+     * в story 57 — считать по действию, а не по маркеру журнала `COMMUNITY_ROUTE_LOGGED`
+     * (который значит «строку записали как отказ», а не «что именно отправил бот»),
+     * иначе метрика зависит от совпадения двух независимых механизмов (story 59, ревью
+     * лида). Ручные (`COMMUNITY_MANUAL_ANSWER_SENT`) сюда по-прежнему не входят
+     * (computeMetrics()).
+     */
     private function autoAnswerCount(string $since): int
     {
-        $sql = 'SELECT COUNT(*) AS n
+        $sql = "SELECT COUNT(*) AS n
                 FROM admin_audit_log a
                 INNER JOIN community_messages cm ON cm.id = a.target_id
-                WHERE a.action = \'COMMUNITY_ANSWER_SENT\'
-                  AND cm.sent_at >= ?';
+                WHERE a.action = 'COMMUNITY_ANSWER_SENT'
+                  AND cm.sent_at >= ?";
 
         $query = $this->db->query($sql, [$since]);
         if (! $query instanceof BaseResult) {
@@ -475,8 +488,12 @@ final class CommunityController extends BaseAdminController
     }
 
     /**
-     * Строки `escalated` в окне, для которых гвард НЕ выдал allow — то есть у строки
-     * нет своего `COMMUNITY_ANSWER_SENT`, текст туда не уходил вовсе.
+     * Строки `escalated` в окне, для которых гвард НЕ выдал allow. Различитель — СВОЯ
+     * отметка `COMMUNITY_ROUTE_LOGGED` (ниже): значит «строку записали как отказ гварда»,
+     * независимо от того, ушёл ли и чем именно текст игроку — `autoAnswerCount()` эту
+     * отметку не читает вовсе, отказ и ответ различаются по РАЗНЫМ действиям аудита
+     * (`COMMUNITY_ROUTE_SENT` у отправки маршрута, story 58, против `COMMUNITY_ANSWER_SENT`
+     * у ответа), а не по присутствию/отсутствию этого журнального маркера.
      *
      * Story 32, дефект 2 — этого одного условия недостаточно: story 23 завела
      * терминальные отказы ГЕЙТА ОТПРАВИТЕЛЯ (`CommunityChatSender::checkGates()` —
