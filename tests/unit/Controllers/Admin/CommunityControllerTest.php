@@ -590,6 +590,72 @@ final class CommunityControllerTest extends CIUnitTestCase
         $this->assertSame(0.0, $metrics['guard_rejection_rate'], 'честное "не знаю" не должно считаться отказом гварда');
     }
 
+    /**
+     * Story 32, дефект 2: терминальный отказ ГЕЙТА ОТПРАВИТЕЛЯ (длина/непарный
+     * markdown/неканоничное имя — `CommunityChatSender::checkGates()`, story 23)
+     * тоже уходит в `escalated` без `COMMUNITY_ANSWER_SENT`, но это не отказ
+     * гварда: гвард уже разрешил, отказал гейт отправки. Различитель на записи —
+     * `COMMUNITY_ANSWER_REJECTED`, которую гвард-отказ не пишет вовсе.
+     */
+    public function testGuardRejectionRateExcludesSenderGateTerminalRejections(): void
+    {
+        $now    = new DateTimeImmutable('2026-08-25 12:00:00');
+        $sentAt = $now->modify('-1 day')->format('Y-m-d H:i:s');
+
+        $answered = $this->insertMessage(['status' => 'answered', 'sent_at' => $sentAt]);
+        $this->insertAuditLog('COMMUNITY_ANSWER_SENT', (int) $answered['id'], $sentAt);
+
+        // Настоящий отказ гварда: escalated, ни SENT, ни REJECTED от отправителя.
+        $guardDenied = $this->insertMessage(['status' => 'escalated', 'sent_at' => $sentAt]);
+
+        // Гейт отправителя отказал по длине текста ПОСЛЕ того, как гвард разрешил —
+        // тоже escalated, но с собственной COMMUNITY_ANSWER_REJECTED-записью.
+        $gateDenied = $this->insertMessage(['status' => 'escalated', 'sent_at' => $sentAt]);
+        $this->insertAuditLog('COMMUNITY_ANSWER_REJECTED', (int) $gateDenied['id'], $sentAt, ['payload' => json_encode(['reason' => 'text_too_long'])]);
+
+        $metrics = $this->controller()->computeMetrics($now);
+
+        // guardTotal = 1 (answered) + 1 (guardDenied) = 2; доля = 1/2, не 2/3.
+        $this->assertEqualsWithDelta(0.5, $metrics['guard_rejection_rate'], 0.0001, 'отказ гейта отправителя не должен считаться отказом гварда');
+    }
+
+    // ── очередь: маршрут отказа виден рядом со строкой (дефект 3) ──────────
+
+    /**
+     * Story 32, дефект 3: `COMMUNITY_ROUTE_LOGGED` писался в журнал, но очередь
+     * `/admin/community` его не читала — маршрут был виден только на общем
+     * `/admin/audit-log`. Очередь обязана нести его рядом со строкой.
+     */
+    public function testOpenQuestionsFlatExposesLoggedRoute(): void
+    {
+        $escalated = $this->insertMessage(['status' => 'escalated', 'is_question' => 1]);
+        $this->insertAuditLog(
+            'COMMUNITY_ROUTE_LOGGED',
+            (int) $escalated['id'],
+            date('Y-m-d H:i:s'),
+            ['payload' => json_encode(['reason' => 'dormant_setting_disabled', 'route' => 'Загляни в /guide про эту тему.'], JSON_UNESCAPED_UNICODE)]
+        );
+
+        $method = new \ReflectionMethod(CommunityController::class, 'openQuestionsFlat');
+        $method->setAccessible(true);
+        $rows = $method->invoke($this->controller());
+
+        $this->assertCount(1, $rows);
+        $this->assertSame('Загляни в /guide про эту тему.', $rows[0]['route']);
+    }
+
+    public function testOpenQuestionsFlatRouteIsNullWithoutLoggedRoute(): void
+    {
+        $this->insertMessage(['status' => 'new', 'is_question' => 1]);
+
+        $method = new \ReflectionMethod(CommunityController::class, 'openQuestionsFlat');
+        $method->setAccessible(true);
+        $rows = $method->invoke($this->controller());
+
+        $this->assertCount(1, $rows);
+        $this->assertNull($rows[0]['route']);
+    }
+
     // ── очередь: открытые вопросы (дефект 1) ────────────────────────────────
 
     /**
@@ -633,8 +699,13 @@ final class CommunityControllerTest extends CIUnitTestCase
     {
         $draft = $this->insertDraft(['status' => 'approved', 'approved_at' => date('Y-m-d H:i:s')]);
 
-        $earlier = $this->insertMessage(['sent_at' => '2026-08-20 10:00:00']);
+        // Story 32, дефект 4: вставка НАРОЧНО против порядка sent_at — $later получает
+        // меньший id (вставлен первым). Без orderBy('sent_at') в revokeAnswer() голый
+        // first() вернул бы insertion/PK-порядок, то есть $later — тест обязан
+        // покраснеть, если сортировку убрать (прошлая версия вставляла в совпадающем
+        // порядке и не ловила дефект).
         $later   = $this->insertMessage(['sent_at' => '2026-08-20 11:00:00']);
+        $earlier = $this->insertMessage(['sent_at' => '2026-08-20 10:00:00']);
 
         $this->conn->table('community_messages')->where('id', $earlier['id'])->update([
             'status' => 'answered', 'answered_by_id' => $draft['id'],

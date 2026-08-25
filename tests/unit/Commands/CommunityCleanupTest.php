@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace Tests\Unit\Commands;
 
 use App\Commands\CommunityCleanup;
+use App\Database\Migrations\Adr176CreateCommunityAnswersTable;
 use App\Database\Migrations\Adr176CreateCommunityMessagesTable;
+use App\Models\CommunityAnswerModel;
 use App\Models\CommunityMessageModel;
+use App\Models\GameSettingsModel;
+use App\Services\GameSettings\GameSettingsService;
 use CodeIgniter\Database\Forge;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -31,7 +35,8 @@ final class CommunityCleanupTest extends CIUnitTestCase
 
     private const CHAT_ID = -1009999;
 
-    private bool $createdTable = false;
+    private bool $createdTable      = false;
+    private bool $createdAuditTable = false;
 
     protected function setUp(): void
     {
@@ -43,6 +48,27 @@ final class CommunityCleanupTest extends CIUnitTestCase
             $forge = Database::forge('tests');
             (new Adr176CreateCommunityMessagesTable($forge instanceof Forge ? $forge : null))->up();
             $this->createdTable = true;
+        }
+
+        // Story 32 — CommunityCleanup пишет в admin_audit_log (COMMUNITY_QUESTION_
+        // AUTO_CLOSED, acceptance «не исчезает молча»). Реальная схема `tests`
+        // отстаёт на непрогнанные миграции (см. CommunityChatSenderTest) — своя
+        // изолированная таблица тем же паттерном.
+        if (! $db->tableExists('admin_audit_log')) {
+            $db->query('
+                CREATE TABLE admin_audit_log (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    admin_user_id INT NOT NULL,
+                    action VARCHAR(64) NOT NULL,
+                    target_type VARCHAR(32) NULL,
+                    target_id BIGINT NULL,
+                    payload TEXT NULL,
+                    ip_address VARCHAR(45) NULL,
+                    user_agent VARCHAR(255) NULL,
+                    created_at DATETIME NOT NULL
+                )
+            ');
+            $this->createdAuditTable = true;
         }
     }
 
@@ -57,6 +83,12 @@ final class CommunityCleanupTest extends CIUnitTestCase
             (new Adr176CreateCommunityMessagesTable($forge instanceof Forge ? $forge : null))->down();
         }
 
+        if ($this->createdAuditTable) {
+            $db->query('DROP TABLE IF EXISTS admin_audit_log');
+        } else {
+            $db->table('admin_audit_log')->truncate();
+        }
+
         parent::tearDown();
     }
 
@@ -65,6 +97,74 @@ final class CommunityCleanupTest extends CIUnitTestCase
         if (! class_exists(Adr176CreateCommunityMessagesTable::class, false)) {
             require_once APPPATH . 'Database/Migrations/2026-08-25-100000_Adr176CreateCommunityMessagesTable.php';
         }
+    }
+
+    private function requireAnswersMigrationClass(): void
+    {
+        if (! class_exists(Adr176CreateCommunityAnswersTable::class, false)) {
+            require_once APPPATH . 'Database/Migrations/2026-08-25-100100_Adr176CreateCommunityAnswersTable.php';
+        }
+    }
+
+    private function createAnswersTable(): void
+    {
+        $this->requireAnswersMigrationClass();
+        $forge = Database::forge('tests');
+        (new Adr176CreateCommunityAnswersTable($forge instanceof Forge ? $forge : null))->up();
+    }
+
+    private function dropAnswersTable(): void
+    {
+        $this->requireAnswersMigrationClass();
+        $forge = Database::forge('tests');
+        (new Adr176CreateCommunityAnswersTable($forge instanceof Forge ? $forge : null))->down();
+    }
+
+    private function insertAnswer(array $overrides = []): int
+    {
+        $row = array_merge([
+            'client_key'       => 'cleanup-test-' . random_int(1, 1_000_000),
+            'question_pattern' => 'где найти теплицу',
+            'answer_text'      => 'Теплица строится на базе.',
+            'requires_setting' => null,
+            'source_ref'       => 'guide:building',
+            'status'           => 'draft',
+        ], $overrides);
+
+        $model = new CommunityAnswerModel();
+        $model->insert($row);
+
+        return (int) $model->getInsertID();
+    }
+
+    /**
+     * Двойник GameSettingsService — паттерн `CommunityExportTest::exporter()`, без
+     * реальной таблицы `game_settings`. `community.enabled` намеренно передаётся
+     * как значение НАСТРОЙКИ (даже хотя `cleanup()` его никогда не читает — story 32
+     * acceptance «работает при выключенном килсвитче» проверяется вызовом через
+     * `run()`, который единственный consultирует `$settings`).
+     *
+     * @param array<string, bool|int|string> $values
+     */
+    private function fakeSettings(array $values): GameSettingsService
+    {
+        $model = new class ($values) extends GameSettingsModel {
+            /** @param array<string, bool|int|string> $values */
+            public function __construct(private array $values)
+            {
+            }
+
+            public function findByKey(string $key): ?array
+            {
+                if (! array_key_exists($key, $this->values)) {
+                    return null;
+                }
+
+                return ['setting_key' => $key, 'value_type' => 'string', 'value_string' => (string) $this->values[$key]];
+            }
+        };
+
+        return new GameSettingsService($model);
     }
 
     private function insertMessage(array $overrides = []): int
@@ -201,5 +301,72 @@ final class CommunityCleanupTest extends CIUnitTestCase
 
         $this->assertSame(0, $second['ttlDeleted']);
         $this->assertSame(0, $second['staleClosed']);
+    }
+
+    // -- story 32, acceptance «не исчезает молча» -------------------------------------
+
+    public function testClosingStaleRowWritesAuditTrail(): void
+    {
+        $staleId = $this->insertMessage(['status' => 'new', 'sent_at_hours_ago' => 72]);
+
+        $this->command()->cleanup(30, 48);
+
+        $log = Database::connect('tests')->table('admin_audit_log')
+            ->where('action', 'COMMUNITY_QUESTION_AUTO_CLOSED')
+            ->where('target_id', $staleId)
+            ->get(1)->getRowArray();
+
+        $this->assertNotNull($log, 'закрытие зависшего вопроса обязано оставить аудит-след — иначе он молча выпадает из очереди владельца');
+    }
+
+    // -- story 32, acceptance: community_answers вне области -------------------------
+
+    public function testCleanupNeverTouchesCommunityAnswers(): void
+    {
+        $this->createAnswersTable();
+
+        try {
+            $answerId = $this->insertAnswer();
+            $this->insertMessage(['sent_at_hours_ago' => 24 * 40]);
+            $this->insertMessage(['status' => 'new', 'sent_at_hours_ago' => 72]);
+
+            $result = $this->command()->cleanup(30, 48);
+
+            $this->assertGreaterThan(0, $result['ttlDeleted'] + $result['staleClosed'], 'фикстура обязана реально что-то менять в community_messages');
+
+            $row = (new CommunityAnswerModel())->find($answerId);
+            $this->assertIsArray($row);
+            $this->assertSame('draft', $row['status'], 'community_answers — отдельная KEEP-таблица, чистка её не трогает вовсе');
+        } finally {
+            $this->dropAnswersTable();
+        }
+    }
+
+    // -- story 32, acceptance: killswitch community.enabled не гейтит чистку ---------
+
+    /**
+     * `community:cleanup` — обещание про удаление из закрепа, оно не должно
+     * зависеть от того, включён ли автоответ. `run()` — единственный путь, который
+     * реально consultирует `GameSettingsService`; двойник настроек явно несёт
+     * `community.enabled=false`, чтобы проверить это утверждение, а не просто
+     * повторить факт «cleanup() параметр не принимает» (тот же вывод дают все
+     * тесты выше).
+     */
+    public function testRunIgnoresCommunityEnabledKillswitch(): void
+    {
+        $staleId = $this->insertMessage(['status' => 'new', 'sent_at_hours_ago' => 72]);
+        $oldId   = $this->insertMessage(['status' => 'answered', 'sent_at_hours_ago' => 24 * 40]);
+
+        $settings = $this->fakeSettings([
+            'community.enabled'                  => false,
+            'community.retention_days'           => 30,
+            'community.question.max_age_hours'   => 48,
+        ]);
+        $command = new CommunityCleanup(service('logger'), service('commands'), $settings);
+
+        $command->run([]);
+
+        $this->assertSame('ignored', $this->statusOf($staleId), 'зависший вопрос обязан закрыться при выключенном community.enabled');
+        $this->assertNull($this->statusOf($oldId), 'TTL-строка обязана удалиться при выключенном community.enabled');
     }
 }

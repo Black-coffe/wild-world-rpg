@@ -8,6 +8,7 @@ use App\Models\CommunityAnswerModel;
 use App\Models\CommunityMessageModel;
 use App\Services\Community\CommunityChatSender;
 use App\Services\Community\CommunityGuard;
+use App\Services\GameSettings\GameSettingsReaderTrait;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\BaseResult;
 use CodeIgniter\HTTP\RedirectResponse;
@@ -55,11 +56,21 @@ use DateTimeImmutable;
  */
 final class CommunityController extends BaseAdminController
 {
+    use GameSettingsReaderTrait;
+
     /** План §13: метрики считаются за окно, а не за всё время. */
     private const METRICS_WINDOW_DAYS = 7;
 
-    /** План §13: открытый вопрос старше этого — инцидент, не «низкий приоритет». */
-    private const STALE_QUESTION_HOURS = 72;
+    /**
+     * Story 32, дефект 1 — прошлая константа (72ч) жила независимо от порога, которым
+     * `CommunityCleanup` закрывает зависшие вопросы в `ignored` (`community.question.
+     * max_age_hours`, дефолт 48ч). Чистка почти всегда успевала закрыть вопрос ДО того,
+     * как он доживал до 72ч — будильник деградировал до одних `escalated`. Явное
+     * отношение вместо второй независимой константы: порог "просрочен" — доля того же
+     * ключа GameSettings, СТРОГО МЕНЬШЕ порога авто-закрытия, чтобы у владельца был
+     * запас среагировать до того, как чистка в 03:45 молча уберёт строку из очереди.
+     */
+    private const STALE_FRACTION = 0.5;
 
     private CommunityMessageModel $messageModel;
     private CommunityAnswerModel $answerModel;
@@ -101,7 +112,7 @@ final class CommunityController extends BaseAdminController
             'drafts'       => (new CommunityAnswerModel())->where('status', 'draft')->orderBy('created_at', 'ASC')->findAll(),
             'approved'     => (new CommunityAnswerModel())->where('status', 'approved')->orderBy('approved_at', 'DESC')->findAll(),
             'metrics'      => $this->computeMetrics(),
-            'staleHours'   => self::STALE_QUESTION_HOURS,
+            'staleHours'   => $this->staleQuestionHours(),
         ]);
     }
 
@@ -359,6 +370,7 @@ final class CommunityController extends BaseAdminController
      *     bot_vs_human_share: ?float,
      *     guard_rejection_rate: ?float,
      *     stale_open_questions: int,
+     *     auto_closed_unanswered: int,
      *     top_repeated: list<array{answer_id:int, question_pattern:string, uses:int}>,
      * }
      */
@@ -366,7 +378,7 @@ final class CommunityController extends BaseAdminController
     {
         $now            = $now ?? new DateTimeImmutable();
         $since          = $now->modify('-' . self::METRICS_WINDOW_DAYS . ' days')->format('Y-m-d H:i:s');
-        $staleThreshold = $now->modify('-' . self::STALE_QUESTION_HOURS . ' hours')->format('Y-m-d H:i:s');
+        $staleThreshold = $now->modify('-' . $this->staleQuestionHours() . ' hours')->format('Y-m-d H:i:s');
 
         // «Бот против живых» (план §13, главная метрика): доля АВТОМАТИЧЕСКИХ
         // бот-ответов среди (бот-ответы + человек-человеку) в окне. `status='answered'`
@@ -401,11 +413,46 @@ final class CommunityController extends BaseAdminController
             ->countAllResults();
 
         return [
-            'bot_vs_human_share'   => $botVsHuman,
-            'guard_rejection_rate' => $guardRejectionRate,
-            'stale_open_questions' => $staleOpen,
-            'top_repeated'         => $this->topRepeatedQuestions($since),
+            'bot_vs_human_share'      => $botVsHuman,
+            'guard_rejection_rate'    => $guardRejectionRate,
+            'stale_open_questions'    => $staleOpen,
+            'auto_closed_unanswered'  => $this->autoClosedCount($since),
+            'top_repeated'            => $this->topRepeatedQuestions($since),
         ];
+    }
+
+    /**
+     * Story 32, acceptance «не исчезает молча»: `CommunityCleanup` пишет
+     * `COMMUNITY_QUESTION_AUTO_CLOSED` на каждую строку, которую чистка в 03:45
+     * переводит в `ignored` по возрасту — иначе вопрос без ответа тихо выпадает
+     * из `openQuestionsBuilder()` (только `new`/`escalated`), и владелец о нём
+     * никогда не узнаёт.
+     */
+    private function autoClosedCount(string $since): int
+    {
+        $sql = "SELECT COUNT(*) AS n
+                FROM admin_audit_log
+                WHERE action = 'COMMUNITY_QUESTION_AUTO_CLOSED' AND created_at >= ?";
+
+        $query = $this->db->query($sql, [$since]);
+        if (! $query instanceof BaseResult) {
+            return 0;
+        }
+        $row = $query->getRowArray();
+
+        return isset($row['n']) && is_numeric($row['n']) ? (int) $row['n'] : 0;
+    }
+
+    /**
+     * Story 32, дефект 1 — единый источник с `CommunityCleanup::cleanup()`
+     * (`community.question.max_age_hours`), явная доля {@see STALE_FRACTION}
+     * вместо совпадения двух независимых констант.
+     */
+    private function staleQuestionHours(): int
+    {
+        $maxAgeHours = $this->gsInt('community.question.max_age_hours', 48);
+
+        return max(1, (int) round($maxAgeHours * self::STALE_FRACTION));
     }
 
     /** Автоматические отправки бота в окне — только `COMMUNITY_ANSWER_SENT` (автотик),
@@ -427,8 +474,18 @@ final class CommunityController extends BaseAdminController
         return isset($row['n']) && is_numeric($row['n']) ? (int) $row['n'] : 0;
     }
 
-    /** Строки `escalated` в окне, для которых гвард НЕ выдал allow — то есть у
-     *  строки нет своего `COMMUNITY_ANSWER_SENT`, текст туда не уходил вовсе. */
+    /**
+     * Строки `escalated` в окне, для которых гвард НЕ выдал allow — то есть у строки
+     * нет своего `COMMUNITY_ANSWER_SENT`, текст туда не уходил вовсе.
+     *
+     * Story 32, дефект 2 — этого одного условия недостаточно: story 23 завела
+     * терминальные отказы ГЕЙТА ОТПРАВИТЕЛЯ (`CommunityChatSender::checkGates()` —
+     * длина, непарный `*`, неканоничное имя), которые `CommunityAutoReplyHandler`
+     * тоже переводит в `escalated` без `SENT` — но это НЕ отказ гварда: гвард уже
+     * сказал allow, текст отклонил гейт отправки. Различитель НА ЗАПИСИ: только
+     * гейт-отказ пишет `COMMUNITY_ANSWER_REJECTED` (гвард-отказ этот экшен не
+     * пишет вовсе — `resolveAndSend()` возвращается до вызова `sendAnswer()`).
+     */
     private function guardDeniedCount(string $since): int
     {
         $sql = "SELECT COUNT(*) AS n
@@ -438,6 +495,10 @@ final class CommunityController extends BaseAdminController
                   AND NOT EXISTS (
                       SELECT 1 FROM admin_audit_log a
                       WHERE a.action = 'COMMUNITY_ANSWER_SENT' AND a.target_id = cm.id
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM admin_audit_log a
+                      WHERE a.action = 'COMMUNITY_ANSWER_REJECTED' AND a.target_id = cm.id
                   )";
 
         $query = $this->db->query($sql, [$since]);
@@ -522,7 +583,10 @@ final class CommunityController extends BaseAdminController
         return $out;
     }
 
-    /** @return list<array<string, mixed>> */
+    /**
+     * @return list<array<string, mixed>> строки несут дополнительный ключ `route`
+     *         (string|null) — {@see routesByMessageId()}, дефект 3.
+     */
     private function openQuestionsFlat(): array
     {
         $rows = $this->openQuestionsBuilder()
@@ -530,10 +594,76 @@ final class CommunityController extends BaseAdminController
             ->orderBy('sent_at', 'ASC')
             ->findAll();
 
-        $out = [];
+        $out          = [];
+        $escalatedIds = [];
         foreach ($rows as $row) {
-            if (is_array($row)) {
-                $out[] = $this->normalize($row);
+            if (! is_array($row)) {
+                continue;
+            }
+            $normalized = $this->normalize($row);
+            $out[]      = $normalized;
+            if (($normalized['status'] ?? null) === 'escalated' && isset($normalized['id']) && is_numeric($normalized['id'])) {
+                $escalatedIds[] = (int) $normalized['id'];
+            }
+        }
+
+        if ($escalatedIds === []) {
+            foreach ($out as &$row) {
+                $row['route'] = null;
+            }
+            unset($row);
+
+            return $out;
+        }
+
+        $routes = $this->routesByMessageId($escalatedIds);
+        foreach ($out as &$row) {
+            $id           = isset($row['id']) && is_numeric($row['id']) ? (int) $row['id'] : null;
+            $row['route'] = $id !== null ? ($routes[$id] ?? null) : null;
+        }
+        unset($row);
+
+        return $out;
+    }
+
+    /**
+     * Дефект 3: `COMMUNITY_ROUTE_LOGGED` (пишет `CommunityAutoReplyHandler::logRoute()`
+     * на вердикт гварда `deny`/`manual`) читался ТОЛЬКО на общем `/admin/audit-log` —
+     * владелец не видел маршрут отказа рядом со строкой очереди, где реально её
+     * разбирает. Последняя запись на строку (склейка дублей могла переоценивать
+     * гвард несколько раз) — `ORDER BY id DESC`, первая встреченная и есть свежая.
+     *
+     * @param list<int> $messageIds
+     * @return array<int, string> id сообщения → человекочитаемый маршрут
+     */
+    private function routesByMessageId(array $messageIds): array
+    {
+        if ($messageIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($messageIds), '?'));
+        $sql          = "SELECT target_id, payload
+                FROM admin_audit_log
+                WHERE action = 'COMMUNITY_ROUTE_LOGGED' AND target_id IN ({$placeholders})
+                ORDER BY id DESC";
+
+        $query = $this->db->query($sql, $messageIds);
+        if (! $query instanceof BaseResult) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($query->getResultArray() as $row) {
+            $targetId = isset($row['target_id']) && is_numeric($row['target_id']) ? (int) $row['target_id'] : null;
+            if ($targetId === null || isset($out[$targetId])) {
+                continue;
+            }
+            $payloadRaw = $row['payload'] ?? null;
+            $payload    = is_string($payloadRaw) ? json_decode($payloadRaw, true) : null;
+            $route      = is_array($payload) && isset($payload['route']) && is_string($payload['route']) ? $payload['route'] : null;
+            if ($route !== null && $route !== '') {
+                $out[$targetId] = $route;
             }
         }
 

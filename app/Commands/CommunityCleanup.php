@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Commands;
 
+use App\Models\AdminAuditLogModel;
 use App\Services\GameSettings\GameSettingsService;
 use CodeIgniter\CLI\BaseCommand;
 use CodeIgniter\CLI\CLI;
 use CodeIgniter\CLI\Commands;
+use CodeIgniter\Database\BaseResult;
 use Config\Database;
 use Psr\Log\LoggerInterface;
+use Throwable;
 
 /**
  * Story 22 (community-chat-bot, ADR-176) — механизм под обещание закрепа «хранится 30
@@ -30,6 +33,12 @@ use Psr\Log\LoggerInterface;
  * НЕ гейтится community.enabled — обещание про удаление не должно зависеть от того,
  * включён ли автоответ (см. contract story). `community_answers` (банк) не трогается
  * вообще: это отдельная таблица, KEEP, авторский корпус без TTL.
+ *
+ * Story 32, acceptance «не исчезает молча»: каждая закрытая зависшая строка пишет
+ * `COMMUNITY_QUESTION_AUTO_CLOSED` в `admin_audit_log` — иначе она молча выпадает из
+ * `CommunityController::openQuestionsBuilder()` (только `new`/`escalated`), и владелец
+ * никогда не узнаёт, что вопрос остался без ответа. `/admin/community` читает эти
+ * записи в KPI «закрыто чисткой без ответа» ({@see \App\Controllers\Admin\CommunityController::computeMetrics()}).
  *
  * Идемпотентна: оба запроса условные (WHERE по возрасту/статусу), повторный прогон
  * в тот же день просто находит 0 строк и ничего не делает.
@@ -52,16 +61,23 @@ class CommunityCleanup extends BaseCommand
     ];
 
     private GameSettingsService $settings;
+    private AdminAuditLogModel $auditModel;
 
     /**
      * `$logger`/`$commands` — стандартная DI-пара `BaseCommand`, в этом порядке (см.
-     * CommunityExport для полного объяснения автообнаружения). `$settings` — третий,
-     * единственная DI-точка для тестов.
+     * CommunityExport для полного объяснения автообнаружения). `$settings`/`$auditModel`
+     * — четвёртый и пятый, DI-точки для тестов (двойник настроек, реальная модель
+     * аудита — таблица `admin_audit_log` уже часть базовой схемы `tests`).
      */
-    public function __construct(?LoggerInterface $logger = null, ?Commands $commands = null, ?GameSettingsService $settings = null)
-    {
+    public function __construct(
+        ?LoggerInterface $logger = null,
+        ?Commands $commands = null,
+        ?GameSettingsService $settings = null,
+        ?AdminAuditLogModel $auditModel = null,
+    ) {
         parent::__construct($logger ?? \Config\Services::logger(), $commands ?? \Config\Services::commands());
-        $this->settings = $settings ?? new GameSettingsService();
+        $this->settings   = $settings ?? new GameSettingsService();
+        $this->auditModel = $auditModel ?? new AdminAuditLogModel();
     }
 
     public function run(array $params)
@@ -125,14 +141,73 @@ class CommunityCleanup extends BaseCommand
 
         $staleClosed = 0;
         if ($maxAgeHours > 0 && $staleCandidates > 0) {
+            // Снимок id ДО UPDATE — нужен для аудита «не исчезает молча» (story 32).
+            // Race с автотиком/владельцем в это же окно не критичен: возрастной
+            // WHERE в UPDATE остаётся источником правды для staleClosed, снимок
+            // только адресует, КОМУ писать аудит-строку.
+            $staleIds = $this->staleQuestionIds($maxAgeHours);
+
             $db->query(
                 "UPDATE community_messages SET status = 'ignored' WHERE status = 'new' AND sent_at < DATE_SUB(NOW(), INTERVAL ? HOUR)",
                 [$maxAgeHours]
             );
             $staleClosed = $db->affectedRows();
+
+            $this->auditAutoClosed($staleIds, $maxAgeHours);
         }
 
         return ['ttlDeleted' => $ttlDeleted, 'staleClosed' => $staleClosed, 'ttlCandidates' => $ttlCandidates, 'staleCandidates' => $staleCandidates];
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function staleQuestionIds(int $maxAgeHours): array
+    {
+        $res = Database::connect()->query(
+            "SELECT id FROM community_messages WHERE status = 'new' AND sent_at < DATE_SUB(NOW(), INTERVAL ? HOUR)",
+            [$maxAgeHours]
+        );
+        if (! $res instanceof BaseResult) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($res->getResultArray() as $row) {
+            if (isset($row['id']) && is_numeric($row['id'])) {
+                $ids[] = (int) $row['id'];
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Story 32, acceptance «не исчезает молча» — по одной строке аудита на каждый
+     * закрытый вопрос; источник для KPI «закрыто чисткой без ответа» на
+     * `/admin/community`. Аудит-сбой не должен ронять саму чистку (тот же приём,
+     * что `CommunityChatSender::audit()`).
+     *
+     * @param list<int> $ids
+     */
+    private function auditAutoClosed(array $ids, int $maxAgeHours): void
+    {
+        foreach ($ids as $id) {
+            try {
+                $this->auditModel->insert([
+                    'admin_user_id' => 0, // 0 = крон, не человек за админкой
+                    'action'        => 'COMMUNITY_QUESTION_AUTO_CLOSED',
+                    'target_type'   => 'community_message',
+                    'target_id'     => $id,
+                    'payload'       => json_encode(['max_age_hours' => $maxAgeHours], JSON_UNESCAPED_UNICODE),
+                    'ip_address'    => null,
+                    'user_agent'    => null,
+                    'created_at'    => date('Y-m-d H:i:s'),
+                ]);
+            } catch (Throwable $e) {
+                log_message('error', '[community:cleanup] audit insert failed: ' . $e->getMessage());
+            }
+        }
     }
 
     /**

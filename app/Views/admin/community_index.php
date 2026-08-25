@@ -6,7 +6,7 @@
  * @var list<array<string, mixed>>                                    $openMessages
  * @var list<array<string, mixed>>                                    $drafts
  * @var list<array<string, mixed>>                                    $approved
- * @var array{bot_vs_human_share: ?float, guard_rejection_rate: ?float, stale_open_questions: int, top_repeated: list<array{answer_id:int, question_pattern:string, uses:int}>} $metrics
+ * @var array{bot_vs_human_share: ?float, guard_rejection_rate: ?float, stale_open_questions: int, auto_closed_unanswered: int, top_repeated: list<array{answer_id:int, question_pattern:string, uses:int}>} $metrics
  * @var int                                                           $staleHours
  */
 
@@ -62,6 +62,12 @@ $statusBadge = static function (string $status): string {
         <div class="aui-kpi__sub">открытые вопросы без ответа дольше <?= (int) $staleHours ?> часов — инцидент, не низкий приоритет</div>
     </div>
     <div class="aui-kpi aui-rise">
+        <div class="aui-kpi__top"><span class="aui-kpi__label">Закрыто чисткой без ответа</span><i class="ri-archive-line aui-kpi__icon"></i></div>
+        <div class="aui-kpi__value"><?= (int) $metrics['auto_closed_unanswered'] ?></div>
+        <div class="aui-kpi__rule"></div>
+        <div class="aui-kpi__sub">ночная чистка перевела в «проигнорирован» за 7 дней — вопрос без ответа, не решённый, а молча убранный из очереди</div>
+    </div>
+    <div class="aui-kpi aui-rise">
         <div class="aui-kpi__top"><span class="aui-kpi__label">Топ повторов</span><i class="ri-repeat-line aui-kpi__icon"></i></div>
         <div class="aui-kpi__value"><?= count($metrics['top_repeated']) ?></div>
         <div class="aui-kpi__rule"></div>
@@ -107,7 +113,12 @@ $statusBadge = static function (string $status): string {
                                     <span class="aui-muted"><?= $ageHours !== null ? $ageHours . 'ч' : '—' ?></span>
                                 <?php endif; ?>
                             </td>
-                            <td><?= $statusBadge((string) ($row['status'] ?? 'new')) ?></td>
+                            <td>
+                                <?= $statusBadge((string) ($row['status'] ?? 'new')) ?>
+                                <?php if (($row['route'] ?? null) !== null): ?>
+                                    <br><span class="aui-muted aui-small">→ <?= esc((string) $row['route']) ?></span>
+                                <?php endif; ?>
+                            </td>
                             <td>
                                 <form action="<?= site_url('admin/community/erase') ?>" method="post" onsubmit="return confirm('Стереть все сообщения этого игрока из community_messages?');">
                                     <?= csrf_field() ?>

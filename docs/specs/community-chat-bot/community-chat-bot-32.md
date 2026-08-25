@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-32
 spec: community-chat-bot
-status: todo
+status: done
 tier: 3
 worker: worker-code
 tracer: false
@@ -70,3 +70,39 @@ blocked_by: []
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Controllers/Admin/CommunityControllerTest.php tests/unit/Commands/CommunityCleanupTest.php`
+
+## Implementation notes
+
+- Дефект 1: `STALE_QUESTION_HOURS=72` заменён на `staleQuestionHours()` — читает
+  `community.question.max_age_hours` (тот же ключ, что `CommunityCleanup`) через
+  `GameSettingsReaderTrait`, порог = явная доля `STALE_FRACTION=0.5` от него,
+  строго меньше порога авто-закрытия. `index()`/`computeMetrics()` переведены на
+  этот метод.
+- Acceptance «не исчезает молча»: `CommunityCleanup::auditAutoClosed()` пишет
+  `COMMUNITY_QUESTION_AUTO_CLOSED` в `admin_audit_log` на каждую закрытую строку
+  (id снимаются `staleQuestionIds()` до `UPDATE`); контроллер добавил
+  `autoClosedCount()` → метрика `auto_closed_unanswered`, новая KPI-плитка «Закрыто
+  чисткой без ответа» во вьюхе (существующие `.aui-kpi`-компоненты, новых токенов не
+  вводилось).
+- Дефект 2: `guardDeniedCount()` добавил `NOT EXISTS (... COMMUNITY_ANSWER_REJECTED ...)`
+  — различитель на записи между отказом гварда (не пишет `_REJECTED` вовсе) и
+  терминальным отказом гейта отправителя (story 23, всегда пишет `_REJECTED`).
+- Дефект 3: `openQuestionsFlat()` собирает id `escalated`-строк и подмешивает
+  `route` через новый `routesByMessageId()` (последняя `COMMUNITY_ROUTE_LOGGED` на
+  строку); вьюха показывает маршрут под статус-бейджем (`.aui-muted.aui-small`,
+  существующие классы).
+- Дефект 4: тест отзыва переставлен — `$later` вставляется ДО `$earlier` (более
+  ранний по `sent_at`, но со старшим `id`), так что `first()` без `orderBy`
+  вернул бы неверную цель.
+- Story 22 gaps: добавлены `testCleanupNeverTouchesCommunityAnswers` (создаёт
+  `community_answers` через Forge-миграцию как временную таблицу теста) и
+  `testRunIgnoresCommunityEnabledKillswitch` (двойник `GameSettingsService` с
+  `community.enabled=false`, вызов через `run()` — единственный путь, где
+  `$settings` реально консультируется).
+- `CommunityCleanupTest` — своя изолированная `admin_audit_log` (реальная схема
+  `tests` отстаёт на непрогнанные миграции, паттерн `CommunityChatSenderTest`).
+- Файлы вне `## Files` не трогались; конкурентная правка `CommunityGuard.php`
+  другим воркером в общей рабочей копии задела `git stash` — восстановлена через
+  `git checkout stash@{0} -- <мои файлы>`, чужой файл не тронут.
+- Tier-2 visual smoke (MCP Chrome, 1440/768/375) не выполнен — MCP Chrome
+  недоступен в этой сессии; owner-воркер сообщил, что организует его отдельно.
