@@ -184,30 +184,34 @@ class TelegramRateLimitFilter implements FilterInterface
      * по совпадению значения с fallback'ом — совпасть оно может и случайно) и
      * логируем один раз на окно, той же дисциплиной throttle'а, что `notified` выше.
      *
-     * community-chat-bot-37 — этот прямой `findByKey()` не защищён `GameSettingsService`
-     * (у неё есть свой try/catch, но он на СВОЁМ вызове `$this->model->findByKey()`, не
-     * на нашем). При недоступной таблице (сбой БД, частичная тест-схема) исключение
-     * уходило наверх ИЗ ФИЛЬТРА, который стоит на каждом апдейте вебхука — недоступность
-     * настроек не должна превращаться в отказ обработки апдейта. Ловим здесь же:
-     * недоступность БД трактуется так же, как «строки нет» — безопасный fallback,
-     * тот же наблюдаемый след.
+     * community-chat-bot-37 — прежде наличие строки проверялось ОТДЕЛЬНЫМ прямым
+     * `findByKey()` (не защищённым и не кэшируемым — у `GameSettingsService` свой
+     * try/catch, но на СВОЁМ вызове модели, не на нашем), рядом с обычным кэшируемым
+     * `GameSettingsService::get()` за значением. На горячем пути вебхука (каждый
+     * апдейт группы) это удваивало чтения настроек ПОСТОЯННО, а не только пока
+     * строка не заведена.
+     *
+     * community-chat-bot-41 — оставляем один вызов `get()`. `$default` в него — не
+     * "безопасный fallback вместо настоящего значения" (для этого дальше и так есть
+     * `$fallback`), а сигнальное `null`: `get()` возвращает его РОВНО тогда, когда
+     * строки нет либо чтение упало ({@see GameSettingsService::get()} — try/catch на
+     * `findByKey()` внутри неё же возвращает `$default` при недоступной БД), и никогда
+     * не возвращает `null` при валидной строке (int/float/bool/string). Значит один
+     * кэшируемый вызов одновременно даёт и наблюдаемость отката (строка отсутствует),
+     * и само значение — второй некэшируемый запрос больше не нужен.
      */
     private function groupMaxPerMinute(): int
     {
         $fallback = $this->maxPerMinute();
 
-        try {
-            $rowExists = (new \App\Models\GameSettingsModel())->findByKey('experimental.community_chat.rate_limit_per_minute') !== null;
-        } catch (\Throwable $e) {
-            $rowExists = false;
-        }
-
-        if (!$rowExists) {
-            $this->notifyGroupLimitFallbackOnce($fallback);
-        }
-
         $value = (new \App\Services\GameSettings\GameSettingsService())
-            ->get('experimental.community_chat.rate_limit_per_minute', $fallback);
+            ->get('experimental.community_chat.rate_limit_per_minute', null);
+
+        if ($value === null) {
+            $this->notifyGroupLimitFallbackOnce($fallback);
+
+            return $fallback;
+        }
 
         return is_numeric($value) && (int) $value > 0 ? (int) $value : $fallback;
     }

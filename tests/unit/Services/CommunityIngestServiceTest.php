@@ -334,4 +334,43 @@ final class CommunityIngestServiceTest extends CIUnitTestCase
         $count = (new CommunityMessageModel())->countAll();
         $this->assertSame(0, $count);
     }
+
+    // -- story 41: чужой бот не человек ---------------------------------------------
+
+    /**
+     * Реплай стороннего бота (`from.is_bot === true`) не пишется в `community_messages`
+     * вовсе — иначе он ловился бы `CommunityAnswerMatcher::isCancelledByHumanReply()`
+     * как «человек уже помог» и молча отменял выдержку (та же ошибка, что story 35
+     * чинила для автора вопроса — здесь для постороннего бота).
+     */
+    public function testReplyFromOtherBotIsNotStored(): void
+    {
+        $update = ['message' => $this->message([
+            'message_id'       => 200,
+            'from'             => ['id' => 777, 'username' => 'other_bot', 'is_bot' => true],
+            'text'             => 'вот тут написано в вики',
+            'reply_to_message' => ['message_id' => 100, 'from' => ['id' => 555, 'is_bot' => false]],
+        ])];
+
+        $this->service([])->handle($update);
+
+        $this->assertNull($this->row(200), 'сообщение от бота не должно попадать в community_messages');
+    }
+
+    /** Регрессия story 29/35: реплай человека по-прежнему пишется как обычно. */
+    public function testReplyFromHumanIsStillStored(): void
+    {
+        $update = ['message' => $this->message([
+            'message_id'       => 201,
+            'from'             => ['id' => 777, 'username' => 'helper', 'is_bot' => false],
+            'text'             => 'вот тут написано в вики',
+            'reply_to_message' => ['message_id' => 100, 'from' => ['id' => 555, 'is_bot' => false]],
+        ])];
+
+        $this->service([])->handle($update);
+
+        $row = $this->row(201);
+        $this->assertNotNull($row, 'реплай человека обязан по-прежнему попадать в community_messages');
+        $this->assertSame(100, (int) $row['reply_to_message_id']);
+    }
 }

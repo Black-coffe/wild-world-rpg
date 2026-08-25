@@ -107,6 +107,15 @@ final class CommunityIngestService
         }
         $telegramUserId = (int) $telegramUserIdRaw;
 
+        // story 41 — автор-бот (сторонний бот в общем чате, не наш Роби — свои исходящие
+        // сообщения к нам вебхуком не приходят вовсе) не пишется в `community_messages`.
+        // Иначе его реплай на вопрос ловился бы `CommunityAnswerMatcher::isCancelledByHumanReply()`
+        // как «человек уже помог» и молча отменял выдержку — тот же класс дефекта, что
+        // чинила story 35, но для постороннего бота, а не самого автора вопроса.
+        if (($fromRaw['is_bot'] ?? false) === true) {
+            return;
+        }
+
         if ((new CommunityMessageModel())->where('chat_id', $chatId)->where('message_id', $messageId)->first() !== null) {
             return; // идемпотентность (chat_id,message_id) — повторная доставка апдейта
         }

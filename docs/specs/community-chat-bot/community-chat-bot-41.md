@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-41
 spec: community-chat-bot
-status: todo
+status: done
 tier: 1
 worker: worker-code
 tracer: false
@@ -53,3 +53,25 @@ blocked_by: []
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/CommunityIngestServiceTest.php tests/unit/TelegramRateLimitGroupScopeTest.php`
+
+## Implementation notes
+
+- `CommunityIngestService::handle()` — сразу после вычисления `$telegramUserId` добавлена
+  проверка `($fromRaw['is_bot'] ?? false) === true` → `return` до идемпотентность-SELECT'а
+  и до INSERT'а. Сторонний бот больше не попадает в `community_messages`, а значит не
+  ловится `CommunityAnswerMatcher::isCancelledByHumanReply()` как «человек уже помог».
+  Решение — «не сохранять вовсе» (контракт разрешал оба варианта): в схеме нет колонки
+  `is_bot`, заводить её ради этой story — выход за `## Files`/WIPE-COVERAGE. Свои
+  исходящие сообщения Роби по-прежнему не пишутся — вебхук их и раньше не доставлял.
+- `TelegramRateLimitFilter::groupMaxPerMinute()` — убран отдельный некэшируемый
+  `GameSettingsModel::findByKey()`-пробник. Теперь один вызов
+  `GameSettingsService::get(key, null)`: `null` — не «безопасный дефолт вместо
+  значения» (для этого есть отдельный `$fallback`), а сигнал «строки нет / чтение
+  упало», потому что `get()` возвращает `$default` ровно в этих двух случаях и никогда
+  не возвращает `null` при валидной строке. Наблюдаемость (`notifyGroupLimitFallbackOnce`)
+  переехала на `$value === null`, на горячем пути остался один кэшируемый (TTL 60с) запрос.
+- Добавлены 2 теста в `CommunityIngestServiceTest`: реплай стороннего бота не пишется в
+  таблицу; реплай человека по-прежнему пишется (регрессия story 29/35).
+- `TelegramRateLimitGroupScopeTest` не менялся — существующие 12 тестов (в т.ч. неявно
+  бьющие в `groupMaxPerMinute()` через реальный `groupTap()`/`privateTap()`) остались
+  зелёными без правок, они и были верификацией отсутствия регрессии по счётчику лимита.
