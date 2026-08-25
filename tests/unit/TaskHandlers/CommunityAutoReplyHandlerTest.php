@@ -190,6 +190,17 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
             ->getResultArray();
     }
 
+    /**
+     * Тот же водораздел, что снимает {@see CommunityAutoReplyHandler} перед
+     * `sendAnswer()` (story 51) — auto-increment `id`, а не часы БД.
+     */
+    private function auditWatermarkId(): int
+    {
+        $row = $this->conn->query('SELECT MAX(id) AS m FROM admin_audit_log')->getRowArray();
+
+        return isset($row['m']) && is_numeric($row['m']) ? (int) $row['m'] : 0;
+    }
+
     // ── helpers: сборка сервисов ────────────────────────────────────────
 
     /** @param array<string, mixed> $overrides @return callable(string, mixed): mixed */
@@ -893,18 +904,62 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         $resolve = new ReflectionMethod(CommunityAutoReplyHandler::class, 'resolveFailure');
         $resolve->setAccessible(true);
 
-        // Часы БД, снятые как «начало текущей попытки» — своя вставка аудита этой
-        // попытки проглочена (Throwable в CommunityChatSender::audit()), новой строки
-        // после этой отметки нет.
-        $attemptStartedAt = $this->conn->query('SELECT NOW() AS n')->getRowArray()['n'];
+        // Водораздел «начало текущей попытки» (story 51 — auto-increment `id`, а не
+        // часы БД) снят ПОСЛЕ устаревшей строки — своя вставка аудита этой попытки
+        // проглочена (Throwable в CommunityChatSender::audit()), новой строки после
+        // этого `id` нет.
+        $attemptWatermarkId = $this->auditWatermarkId();
 
-        $resolve->invoke($handler, (int) $message['id'], [(int) $message['id']], 'answered', (string) $attemptStartedAt);
+        $resolve->invoke($handler, (int) $message['id'], [(int) $message['id']], 'answered', $attemptWatermarkId);
 
         $this->assertSame(
             'answered',
             $this->statusOf((int) $message['id']),
             'устаревшая строка прошлой попытки не должна читаться как причина ЭТОГО отказа — без строки '
-                . 'после attemptStartedAt причина не читается, ретрая не будет'
+                . 'после attemptWatermarkId причина не читается, ретрая не будет'
+        );
+    }
+
+    // ── story 51 — водораздел не зависит от секундной гранулярности часов БД
+
+    public function testStaleAuditInSameSecondAsAttemptWatermarkDoesNotTriggerRetry(): void
+    {
+        // claimGroup() этой попытки уже забрал статус в 'answered'.
+        $message = $this->insertMessage(['status' => 'answered']);
+
+        $now = (string) $this->conn->query('SELECT NOW() AS n')->getRowArray()['n'];
+
+        // Устаревшая строка ПРОШЛОЙ попытки — `created_at` совпадает секунда-в-секунду
+        // с моментом старта ЭТОЙ попытки. Именно эта гонка валила CI (дефект story 51):
+        // при секундной гранулярности часов БД `created_at >= $since` не отличает такую
+        // строку от строки текущей попытки. Тест форсирует коллизию через явный
+        // `created_at`, не через `sleep`/скорость машины — воспроизводится детерминированно.
+        $this->conn->table('admin_audit_log')->insert([
+            'admin_user_id' => 0,
+            'action'        => 'COMMUNITY_ANSWER_REJECTED',
+            'target_type'   => 'community_message',
+            'target_id'     => $message['id'],
+            'payload'       => json_encode(['reason' => 'topic_rate_limit'], JSON_UNESCAPED_UNICODE),
+            'created_at'    => $now,
+        ]);
+
+        $calls   = [];
+        $handler = $this->handler($this->sender($calls));
+        $resolve = new ReflectionMethod(CommunityAutoReplyHandler::class, 'resolveFailure');
+        $resolve->setAccessible(true);
+
+        // Водораздел снимается ПОСЛЕ вставки устаревшей строки (как в проде — прямо
+        // перед сетевым вызовом): граница проходит по auto-increment `id`, той же
+        // секунды `created_at` строке не хватает.
+        $attemptWatermarkId = $this->auditWatermarkId();
+
+        $resolve->invoke($handler, (int) $message['id'], [(int) $message['id']], 'answered', $attemptWatermarkId);
+
+        $this->assertSame(
+            'answered',
+            $this->statusOf((int) $message['id']),
+            'устаревшая строка с created_at в ту же секунду, что и водораздел попытки, не должна '
+                . 'читаться как причина ЭТОГО отказа — привязка по auto-increment id, не по секундам'
         );
     }
 
@@ -915,7 +970,7 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         // claimGroup() этой попытки уже забрал статус в 'answered'.
         $message = $this->insertMessage(['status' => 'answered']);
 
-        $attemptStartedAt = $this->conn->query('SELECT NOW() AS n')->getRowArray()['n'];
+        $attemptWatermarkId = $this->auditWatermarkId();
 
         // Между заявкой и обработкой отказа кто-то другой (владелец/cleanup) уже
         // сдвинул строку на свой статус.
@@ -934,7 +989,7 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         $handler = $this->handler($this->sender($calls));
         $resolve = new ReflectionMethod(CommunityAutoReplyHandler::class, 'resolveFailure');
         $resolve->setAccessible(true);
-        $resolve->invoke($handler, (int) $message['id'], [(int) $message['id']], 'answered', (string) $attemptStartedAt);
+        $resolve->invoke($handler, (int) $message['id'], [(int) $message['id']], 'answered', $attemptWatermarkId);
 
         $this->assertSame(
             'ignored',

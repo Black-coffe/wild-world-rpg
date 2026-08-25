@@ -256,16 +256,23 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
             return; // всё-или-ничего (story 31, дефект 1) — ни одна строка не осталась перехваченной
         }
 
-        // Story 31, дефект 3 — часы БД ДО сетевого вызова: `resolveFailure()` свяжет
-        // причину отказа только с аудит-строкой, записанной не раньше этой отметки,
+        // Story 31, дефект 3 — водораздел ДО сетевого вызова: `resolveFailure()` свяжет
+        // причину отказа только с аудит-строкой, записанной СТРОГО после этой отметки,
         // а не с последней строкой журнала (которая могла принадлежать прошлой попытке).
-        $attemptStartedAt = $this->dbNow();
+        //
+        // Story 51 — водораздел идёт по auto-increment `id` `admin_audit_log`, не по
+        // часам БД: `created_at` и отметка попытки делят одну и ту же секундную
+        // гранулярность, и на быстрой машине (CI) устаревшая строка прошлой попытки и
+        // текущая отметка легко попадают в одну секунду — `created_at >= $since`
+        // тогда неотличимо принимает чужую строку за свою. `id` строго монотонен вне
+        // зависимости от того, сколько записей легло в одну и ту же секунду.
+        $attemptWatermarkId = $this->auditWatermarkId();
 
         if ($this->sender->sendAnswer($selfId, $text)) {
             return; // статус уже закоммичен до сети — дописывать нечего
         }
 
-        $this->resolveFailure($selfId, $decision->coveredMessageIds, $targetStatus, $attemptStartedAt);
+        $this->resolveFailure($selfId, $decision->coveredMessageIds, $targetStatus, $attemptWatermarkId);
     }
 
     /**
@@ -355,11 +362,15 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
      * (причина сама рассосётся) или оставить перехваченный статус (терминально
      * или неопределённо доставлено).
      *
-     * Story 31, дефект 3 — `$attemptStartedAt` (часы БД, снятые ДО вызова `sendAnswer()`)
-     * ограничивает поиск аудит-строкой ЭТОЙ попытки, а не «последней в журнале»:
-     * `CommunityChatSender::audit()` глушит `Throwable`, и при проглоченной вставке
-     * прошлой попытки читалась бы её причина — «исключение после реальной доставки»
-     * могло превратиться в ретрай по чужому старому `_REJECTED`.
+     * Story 31, дефект 3 — `$attemptWatermarkId` (auto-increment `admin_audit_log.id`,
+     * снятый ДО вызова `sendAnswer()`) ограничивает поиск аудит-строкой ЭТОЙ попытки, а
+     * не «последней в журнале»: `CommunityChatSender::audit()` глушит `Throwable`, и при
+     * проглоченной вставке прошлой попытки читалась бы её причина — «исключение после
+     * реальной доставки» могло превратиться в ретрай по чужому старому `_REJECTED`.
+     *
+     * Story 51 — водораздел по `id`, не по `created_at`: секундная гранулярность часов
+     * БД делала прошлый водораздел неотличим от текущей попытки при совпадении секунды
+     * (см. {@see auditWatermarkId()}).
      *
      * Story 31, дефект 4 — оба отката в `'new'`/`'escalated'` идут через
      * {@see markGroup()} с `$claimedStatus` как условием: если статус, выставленный
@@ -368,9 +379,9 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
      *
      * @param list<int> $coveredIds
      */
-    private function resolveFailure(int $selfId, array $coveredIds, string $claimedStatus, string $attemptStartedAt): void
+    private function resolveFailure(int $selfId, array $coveredIds, string $claimedStatus, int $attemptWatermarkId): void
     {
-        $audit = $this->lastAutoAnswerAudit($selfId, $attemptStartedAt);
+        $audit = $this->lastAutoAnswerAudit($selfId, $attemptWatermarkId);
         if ($audit === null) {
             return; // причина не читается — консервативно не трогаем перехваченный статус
         }
@@ -413,14 +424,14 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
 
     /**
      * @return array{0: string, 1: string}|null [action, reason] аудит-строки этой попытки
-     *         (`created_at >= $since`, часы БД — story 31, дефект 3/5)
+     *         (`id > $sinceId` — story 51, auto-increment вместо часов БД, дефект 3/5)
      */
-    private function lastAutoAnswerAudit(int $messageRowId, string $since): ?array
+    private function lastAutoAnswerAudit(int $messageRowId, int $sinceId): ?array
     {
         $row = $this->auditModel
             ->where('target_id', $messageRowId)
             ->like('action', 'COMMUNITY_ANSWER_', 'after')
-            ->where('created_at >=', $since)
+            ->where('id >', $sinceId)
             ->orderBy('id', 'DESC')
             ->first();
 
@@ -561,10 +572,12 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
     }
 
     /**
-     * Часы БД (`NOW()`), не PHP `date()` — story 31, дефекты 3 и 5. Служит и меткой
-     * записи (`logRoute()`), и границей поиска «своей» аудит-строки (`resolveFailure()`
-     * через {@see lastAutoAnswerAudit()}), тем же приёмом, что `CommunityChatSender::dbNow()`
-     * (story 27, memory `feedback_db_clock_seed_not_php_in_time_window_tests`).
+     * Часы БД (`NOW()`), не PHP `date()` — story 31, дефекты 3 и 5. Служит меткой записи
+     * (`logRoute()`), тем же приёмом, что `CommunityChatSender::dbNow()` (story 27,
+     * memory `feedback_db_clock_seed_not_php_in_time_window_tests`).
+     *
+     * Story 51 — границей поиска «своей» аудит-строки (`resolveFailure()` через
+     * {@see lastAutoAnswerAudit()}) больше не служит: см. {@see auditWatermarkId()}.
      */
     private function dbNow(): string
     {
@@ -580,6 +593,33 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         // Отказ БД тут уже означает, что и запись/чтение аудита следом провалятся —
         // запасное значение только чтобы не подменять единственный источник времени.
         return date('Y-m-d H:i:s');
+    }
+
+    /**
+     * Водораздел «эта попытка/прошлая» для {@see lastAutoAnswerAudit()} — story 51.
+     * Возвращает максимальный `id` (auto-increment PK) из `admin_audit_log` на момент
+     * вызова, снятый ДО `sendAnswer()`: строка, принадлежащая ЭТОЙ попытке, обязана
+     * получить `id` строго больше этого значения — гарантия, которую даёт сам механизм
+     * auto-increment вне зависимости от того, сколько записей легло в одну и ту же
+     * секунду часов БД (в отличие от прежнего `created_at >= $since`, story 31, дефект
+     * 3/5, который на быстрой машине не отличал текущую попытку от предыдущей).
+     *
+     * Пустая таблица (гипотетически, до первой когда-либо записанной аудит-строки) даёт
+     * `0` — `id > 0` совпадает с «любая существующая строка», что и требуется до первой
+     * реальной вставки.
+     */
+    private function auditWatermarkId(): int
+    {
+        $db    = Database::connect();
+        $query = $db->query('SELECT MAX(id) AS m FROM admin_audit_log');
+        if ($query instanceof BaseResult) {
+            $row = $query->getRowArray();
+            if (isset($row['m']) && is_numeric($row['m'])) {
+                return (int) $row['m'];
+            }
+        }
+
+        return 0;
     }
 
     // ── типобезопасные читатели ──────────────────────────────────────────

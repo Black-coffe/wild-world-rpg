@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-51
 spec: community-chat-bot
-status: todo
+status: done
 tier: 1
 worker: worker-code
 tracer: false
@@ -56,11 +56,33 @@ Story 31 связала причину отказа с попыткой чере
   и краснеет на старой реализации.
 
 ## Acceptance criteria
-- [ ] Устаревшая строка, записанная в ту же секунду, что и отметка попытки, не читается как причина
+- [x] Устаревшая строка, записанная в ту же секунду, что и отметка попытки, не читается как причина
       текущего отказа.
-- [ ] Регрессии story 23/31 целы: настоящая причина текущей попытки по-прежнему читается,
+- [x] Регрессии story 23/31 целы: настоящая причина текущей попытки по-прежнему читается,
       проглоченная вставка не приводит к повторной отправке, частичный перехват откатывается.
-- [ ] Тест не опирается на скорость машины (никаких `sleep`, никакой зависимости от длительности).
+- [x] Тест не опирается на скорость машины (никаких `sleep`, никакой зависимости от длительности).
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/TaskHandlers/CommunityAutoReplyHandlerTest.php`
+
+## Implementation notes
+Признак принадлежности попытке заменён с `admin_audit_log.created_at >= $since` (секундная
+гранулярность) на `admin_audit_log.id > $sinceId` — auto-increment PK строго монотонен вне
+зависимости от того, сколько строк легло в одну и ту же секунду часов БД. Новый приватный метод
+`CommunityAutoReplyHandler::auditWatermarkId()` (аналог `dbNow()`, но возвращает `MAX(id)`)
+снимается в `resolveAndSend()` ДО `sendAnswer()`, вместо прежнего `dbNow()`; `resolveFailure()` и
+`lastAutoAnswerAudit()` принимают/сравнивают `int`, а не `string`. `dbNow()` не удалён — он всё ещё
+пишет `created_at` в `logRoute()`. Новых таблиц/колонок/ENUM не заводил — контракт story 23/31 цел.
+
+Добавлен тест `testStaleAuditInSameSecondAsAttemptWatermarkDoesNotTriggerRetry`: форсирует
+коллизию явным `created_at = NOW()` для устаревшей строки (без `sleep`/зависимости от скорости
+машины). Проверил, что он краснеет на старой реализации: временно вернул
+`resolveAndSend`/`resolveFailure`/`lastAutoAnswerAudit` на `dbNow()`/`created_at >=` (строковый
+параметр) и временно передал в тесте тот же `$now`, что и у устаревшей строки, вместо
+`auditWatermarkId()`, — прогон дал `Expected: 'answered' / Actual: 'new'`, ту же сигнатуру провала,
+что на CI. После проверки обе временные правки отменены, финальное состояние — новая (id-based)
+реализация; полный файл тестов зелёный (25/25).
+
+Существующие reflection-тесты (`testStaleAuditFromPreviousAttemptDoesNotTriggerRetryOnSwallowedInsert`,
+`testFailureRollbackDoesNotOverwriteStatusChangedByAnotherPass`) переведены на `auditWatermarkId()`
+вместо `SELECT NOW()` — их сценарии (устаревшая строка на час раньше; конкурентный откат) целы.
