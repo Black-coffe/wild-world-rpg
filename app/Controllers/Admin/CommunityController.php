@@ -162,16 +162,38 @@ final class CommunityController extends BaseAdminController
         return $this->redirectWithSuccess(site_url('admin/community/answer/' . $answerId . '/edit'), 'Черновик сохранён.');
     }
 
-    public function approve(int $answerId): RedirectResponse|ResponseInterface
+    /**
+     * ADR-178 (story 68) — одобрение с непустыми `advisories` не проходит с первого
+     * нажатия: страница переотрисовывается тем же шаблоном {@see editForm()}, но с
+     * пометками рубежа 1 и чекбоксом «отвечаю за него» (`confirm_advisories`).
+     * Второе нажатие с отмеченным чекбоксом несёт `confirm_advisories=1` и проходит.
+     */
+    public function approve(int $answerId): string|RedirectResponse|ResponseInterface
     {
-        if (! is_array($this->answerModel->find($answerId))) {
+        $answerRaw = $this->answerModel->find($answerId);
+        if (! is_array($answerRaw)) {
             return $this->failNotFound('Черновик не найден.');
         }
 
         $messageIdRaw = $this->request->getPost('message_id');
         $messageId    = is_numeric($messageIdRaw) ? (int) $messageIdRaw : null;
 
-        $result = $this->approveAnswer($answerId, $messageId);
+        $confirmRaw         = $this->request->getPost('confirm_advisories');
+        $confirmedAdvisories = $confirmRaw === '1';
+
+        $result = $this->approveAnswer($answerId, $messageId, $confirmedAdvisories);
+
+        $advisories = $result['advisories'] ?? [];
+        if (! $result['ok'] && $advisories !== []) {
+            return view('admin/community_answer_form', [
+                'title'            => 'Правка ответа: #' . $answerId,
+                'answer'           => $this->normalize($answerRaw),
+                'openMessages'     => $this->openQuestionsFlat(),
+                'advisories'       => $advisories,
+                'pendingMessageId' => $messageId,
+            ]);
+        }
+
         if (! $result['ok']) {
             return $this->redirectBackWithError($result['error'] ?? 'Не удалось одобрить ответ.');
         }
@@ -227,9 +249,18 @@ final class CommunityController extends BaseAdminController
     // ── бизнес-логика (тестируется напрямую, без HTTP-цикла) ──────────────
 
     /**
-     * @return array{ok: bool, error: ?string}
+     * ADR-178 (story 68) — `$confirmAdvisories` несёт второе явное подтверждение
+     * владельца («текст не подтверждён источником — отвечаю за него»). Провенанс
+     * (рубеж 1) не имеет права вето: непустые `$verdict->advisories` не блокируют
+     * `verdict()->isAllow()`, но без `$confirmAdvisories=true` одобрение здесь всё
+     * равно останавливается — форма обязана переотрисоваться с пометками, а не
+     * пройти бегло. Отсутствие пометки НЕ означает «подтверждено источником»: рубеж
+     * 1 просто не нашёл, к чему придраться (см. ADR-178, замер — 4 фабриката из 22
+     * прошли без пометки случайно).
+     *
+     * @return array{ok: bool, error: ?string, advisories?: list<string>}
      */
-    public function approveAnswer(int $answerId, ?int $messageRowId): array
+    public function approveAnswer(int $answerId, ?int $messageRowId, bool $confirmAdvisories = false): array
     {
         $answerRaw = $this->answerModel->find($answerId);
         if (! is_array($answerRaw)) {
@@ -261,6 +292,14 @@ final class CommunityController extends BaseAdminController
             return ['ok' => false, 'error' => 'CommunityGuard отклонил текст: ' . $verdict->reason];
         }
 
+        if ($verdict->advisories !== [] && ! $confirmAdvisories) {
+            return [
+                'ok'         => false,
+                'error'      => 'Часть текста не подтверждена источником — нужно второе подтверждение.',
+                'advisories' => $verdict->advisories,
+            ];
+        }
+
         if ($messageRowId !== null && ! $this->sender->sendManualAnswer($messageRowId, $answerText)) {
             // Атомарность контракта: отказ отправки — ни community_answers, ни
             // community_messages не меняются, черновик остаётся draft.
@@ -281,7 +320,10 @@ final class CommunityController extends BaseAdminController
         }
 
         $this->audit('COMMUNITY_ANSWER_APPROVED', 'community_answer', $answerId, [
-            'message_row_id' => $messageRowId,
+            'message_row_id'       => $messageRowId,
+            // ADR-178 — «одобрено вопреки пометке»: сигнал для будущего разбора, не
+            // только для текущего решения. null, если пометок не было вовсе.
+            'advisories_confirmed' => $verdict->advisories !== [] ? $verdict->advisories : null,
         ]);
 
         return ['ok' => true, 'error' => null];

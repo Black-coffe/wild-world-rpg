@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\Community;
 
 use App\Models\GameTipsModel;
-use App\Models\SitePostModel;
 use App\Services\GameSettings\GameSettingsService;
 use App\Services\Onboarding\GuideCatalog;
 use Config\CommunityStopTopics;
@@ -19,12 +18,23 @@ use Config\CommunityVoice;
  * story 08) и не решает КАК отправить (это `CommunityChatSender`, story 06).
  *
  * Пять рубежей (первая редакция плана имела три — панель обошла все три за минуту):
- *  1. Провенанс предложений — каждое предложение обязано отображаться в достаточную
- *     долю значимых слов какого-то одного фрагмента белого корпуса. Не строгий
- *     дословный substring (Русский язык сильно склоняется — «вещи»/«вещей»), а
- *     детерминированный стеммингом-по-префиксу (3 символа) порог покрытия — ловит
- *     класс утечек без цифр («упирается в потолок», «раньше было иначе»), для
- *     которых таких формулировок в корпусе по построению не существует.
+ *  1. Провенанс предложений (ADR-177 §1, поправлено ADR-178) — единица подтверждения
+ *     предложение-юнит белого корпуса, mini-IDF по юнитам, ОДИН юнит целиком, никогда
+ *     объединением нескольких. 🔴 Провенанс — БЕЗ права вето (ADR-178): признак не
+ *     разделяет классы (законный пересказ своими словами измерен на 0.265, лучший
+ *     несравнительный фабрикат — на 0.805; распределение двумодально, порога между
+ *     ними не существует — лексическое покрытие детектирует дословность, а не
+ *     правдивость). Рубеж 1 собирает `advisories` — пометки для владельца на
+ *     одобрении (непокрытое предложение + адрес лучшего источника + ratio),
+ *     `verdict()` возвращает `allow($advisories)`, если ни один вето-рубеж не
+ *     сработал (режим `community.guard.provenance_mode=deny` возвращает старое
+ *     вето для отдельного случая; на авто-отправке провенанс не считается никогда
+ *     — story 57/`CommunityAutoReplyHandler`). Внутри рубежа 1 — отдельная,
+ *     лексика-независимая проверка сравнительно-оценочной формы (§2 ADR-177,
+ *     СОХРАНЯЕТ право вето): ключуется на союз сопоставления/корень оценки/
+ *     рекомендательный оборот/сравнительную степень+условие-действие (R4,
+ *     ADR-178 поправка №2), а не на список прилагательных (список в русском не
+ *     закрывается, союз закрывается).
  *  2. Гвард на входящем — вопрос с числом/%/диапазоном/словом-порогом или в форме
  *     проверки гипотезы («…, да?») блокирует ЛЮБОЙ ответ: бот не работает оракулом
  *     с одним битом на выход.
@@ -38,8 +48,8 @@ use Config\CommunityVoice;
  *     выключено значит `deny`.
  *
  * 🔴 НЕ зависит от `Config\GameBalance` и не читает `game_settings` напрямую —
- * единственное исключение конституции (рубеж 5) идёт через `GameSettingsService`
- * по ключу килсвитча, а не как «свериться с числом баланса».
+ * исключения конституции (рубеж 5, четыре ключа рубежа 1 из ADR-177/ADR-178) идут
+ * через `GameSettingsService` по ключу, а не как «свериться с числом баланса».
  */
 final class CommunityGuard
 {
@@ -50,57 +60,43 @@ final class CommunityGuard
     private const MIN_SIGNIFICANT_WORD_LEN = 4;
 
     /**
-     * Доля ВЗВЕШЕННЫХ значимых слов предложения, которая обязана найтись в ОДНОМ
-     * фрагменте корпуса — recall-пол, не главный фильтр (story 30 понизила порог
-     * с 0.75: на 32 фрагментах разной длины он сам по себе не разделял классы,
-     * см. `RECOMBINATION_THRESHOLD` ниже и `## Findings` story 30). Вес слова —
-     * обратная частота фрагментов, где оно встречается (мини-IDF, детерминированный
-     * счёт по корпусу, не семантика): редкое/специфичное слово («полис», «дрон»)
-     * весит больше, чем то, что есть в половине фрагментов.
+     * ADR-177 §1, поправлено ADR-178 — default порога рубежа 1.
+     *
+     * 🔴 Story 63 сначала расширила фабрикатную выборку до 22 полных предложений
+     * и честно нашла: высший несравнительный фабрикат — **0.805**, а законный
+     * пересказ своими словами (не цитата) — **0.265** на отдельном замере ревью
+     * (12 ответов в тоне владельца, не цитаты `/guide`). Классы не просто
+     * перекрыты — перевёрнуты: значения порога, при котором правда проходит, а
+     * выдумка нет, **не существует**. Дальше: 0.50 и 0.80 дают ОДИНАКОВЫЙ
+     * результат до строки на живой выборке — признак двумодален (у предложения
+     * либо есть почти дословная опора ≈0.9+, либо её нет ≈0.3), а не непрерывен,
+     * и число между модами не разделяет ничего. ADR-178: лексическое покрытие
+     * детектирует ДОСЛОВНОСТЬ, не ПРАВДИВОСТЬ, и не имеет права вето именно
+     * поэтому (см. `Verdict::$advisories`, `readProvenanceMode()`).
+     *
+     * Порог остаётся **0.65** (исходное число ADR-177) не потому что он лучше
+     * 0.80 — они неотличимы — а потому что story 63 сняла обязательство его
+     * перемерять: он больше не решает «можно/нельзя», а только регулирует
+     * шумность пометки для ревьюера (выше — меньше пометок, ниже — больше).
+     * Настраивать здесь больше нечего.
      */
-    private const PROVENANCE_THRESHOLD = 0.50;
+    private const DEFAULT_PROVENANCE_THRESHOLD = 0.65;
 
     /**
-     * Story 30 — рубеж анти-рекомбинации, второй обязательный признак рядом с
-     * `PROVENANCE_THRESHOLD`. Ревью замерило: длинный фрагмент (например «Торговец»,
-     * 190+ уникальных стемов) случайно набирает высокий ratio по ВСЕМУ своему тексту
-     * даже когда слова предложения в нём нигде не стоят рядом — «Если ходить в поход
-     * голодным, добыча падает.» получала 0.886 против фрагмента про торговлю, где
-     * ни разу не встречается ни «поход», ни «голод» рядом с «добычей». Признак —
-     * то же взвешенное покрытие, но не по всему документу, а по ЛУЧШЕМУ скользящему
-     * окну фиксированного размера (`RECOMBINATION_WINDOW_WORDS`) внутри ЛУЧШЕГО по
-     * `PROVENANCE_THRESHOLD` фрагмента: у добросовестного пересказа слова claim'а
-     * стоят рядом в источнике (какое-то окно их удерживает почти целиком), у
-     * рекомбинации — разбросаны по всему документу, и ни одно окно фиксированного
-     * размера высокого покрытия не даёт. Калибровка на 24 добросовестных + 24
-     * фабрикатах — `## Findings` story 30.
+     * ADR-177 §1 — юнит короче этого числа значимых слов подтверждением быть не
+     * может (обрывок фразы совпадёт со слишком многим случайно). `GameSettings`
+     * ключ `community.guard.min_source_sentence_words`, default 3.
      */
-    private const RECOMBINATION_THRESHOLD = 0.55;
+    private const DEFAULT_MIN_SOURCE_SENTENCE_WORDS = 3;
 
     /**
-     * Story 30 — размер скользящего окна (в значимых словах фрагмента). Маленькое
-     * окно нарочно: калибровка показала, что более широкое окно (16+) уравнивает
-     * «Редкие ресурсы падают чаще, если идти в поход без брони.» (фабрикат) с
-     * добросовестными ответами того же порядка длины — окно шире разбросанной
-     * фабрикации начинает ту же ошибку длинного документа, только в миниатюре.
+     * ADR-178 — режим рубежа 1: `advisory` (default, пометка без вето) ·
+     * `deny` (старое поведение ADR-177, вето на одобрении — не на отправке,
+     * см. `readProvenanceMode()` и место вызова в `verdict()`) · `off` (рубеж 1
+     * не считается вовсе, ни пометок, ни вето). `GameSettings` ключ
+     * `community.guard.provenance_mode`.
      */
-    private const RECOMBINATION_WINDOW_WORDS = 8;
-
-    /** Story 30 — шаг скольжения окна; меньше — точнее, дороже. */
-    private const RECOMBINATION_WINDOW_STRIDE = 2;
-
-    /**
-     * Story 30 — обход анти-рекомбинации для ПОЧТИ ДОСЛОВНОГО совпадения с одним
-     * фрагментом целиком. При `RECOMBINATION_WINDOW_WORDS = 8` часть добросовестных
-     * пересказов, которые связно объединяют мысль из НЕСКОЛЬКИХ соседних предложений
-     * одного фрагмента (напр. «Смерть забирает часть ресурсов… а под своей базой
-     * потери меньше, чем у бездомного.» — doc-ratio 0.933, ужимает две фразы раздела
-     * «Что забирает смерть» в одну), не укладываются ни в одно 8-словное окно — но
-     * их ОБЩИЙ ratio настолько высок, что рекомбинация уже маловероятна: собрать
-     * фальшивку, покрывающую 90%+ ВЗВЕШЕННОЙ лексики единственного документа, кейсы
-     * калибровки не смогли (максимум фабриката — 0.886, см. `## Findings`).
-     */
-    private const RECOMBINATION_BYPASS_THRESHOLD = 0.90;
+    private const DEFAULT_PROVENANCE_MODE = 'advisory';
 
     /** §5, рубеж 3 — быстрее/выгоднее/оптимально/… (план §5.3, дословно). */
     private const LEXICAL_STOPLIST = [
@@ -134,6 +130,16 @@ final class CommunityGuard
     /** Формы проверки гипотезы во входящем — «правда, что…», «…, да?». */
     private const QUESTION_HYPOTHESIS_MARKERS = ['правда, что', 'правда что', 'не так ли'];
 
+    /**
+     * ADR-177 §2, R2 — корень оценочного сравнения БЕЗ союза сопоставления
+     * («Лаборатория полезнее»). Список — дословно из ADR (`быстрее`/`выгоднее`
+     * уже в {@see LEXICAL_STOPLIST}, здесь не дублируются).
+     */
+    private const COMPARATIVE_EVALUATION_ROOTS = [
+        'полезне', 'выгодне', 'эффективне', 'оптимальне', 'предпочтительне',
+        'целесообразне', 'разумне', 'лучше', 'хуже',
+    ];
+
     /** @var list<array{source: string, text: string}> */
     private array $corpus;
 
@@ -142,10 +148,14 @@ final class CommunityGuard
     /**
      * @param list<array{source: string, text: string}>|null $corpus Белый корпус
      *        (адрес фрагмента + текст). null — собирается дефолтно из живого
-     *        `GuideCatalog::sections()` + `game_tips` + разрешённых `site_posts`
-     *        (см. {@see defaultCorpus()}). Тесты передают свой корпус — без БД.
+     *        `GuideCatalog::sections()` + `game_tips` (ADR-177 §3: `site_posts`
+     *        исключены — жанр без обязательства актуальности; `community_answers`
+     *        не входят никогда — инвариант анти-храповика, корпус не питается
+     *        собственным выходом бота) (см. {@see defaultCorpus()}). Тесты
+     *        передают свой корпус — без БД.
      * @param GameSettingsService|null $gameSettings Читатель килсвитча по ключу
-     *        (рубеж 5). null — реальный `GameSettingsService()`. Тесты подменяют его
+     *        (рубеж 5) и трёх ключей рубежа 1 (ADR-177). null — реальный
+     *        `GameSettingsService()`. Тесты подменяют его
      *        конструктором с двойником `GameSettingsModel` (паттерн
      *        `CommunityIngestServiceTest`) — без реальной таблицы `game_settings`.
      */
@@ -210,12 +220,32 @@ final class CommunityGuard
             return Verdict::deny('lexical_stoplist', CommunityVoice::REFUSAL_WITH_ROUTE[0]);
         }
 
-        // Рубеж 1 — провенанс предложений, главный рубеж.
-        if (! $this->hasProvenance($answer)) {
+        // Рубеж 1, ADR-177 §2 — сравнительно-оценочная форма деньится НЕЗАВИСИМО от
+        // лексического совпадения с корпусом, до самого провенанса: список
+        // сравнительных прилагательных в русском не закрывается, а союз/корень/
+        // рекомендательный оборот — закрывается. `comparative_form=off` — аварийный
+        // выключатель этой части без деплоя (см. миграцию), сам рубеж 1 при этом
+        // продолжает работать.
+        if ($this->readComparativeFormMode() !== 'off' && $this->isComparativeClaim($answer)) {
+            return Verdict::deny('comparative_claim', CommunityVoice::REFUSAL_WITH_ROUTE[0]);
+        }
+
+        // Рубеж 1, ADR-178 — провенанс БЕЗ права вето: собирает пометки для
+        // ревьюера, а не решает allow/deny. `deny` — опциональный откат к старому
+        // поведению ADR-177 (вето на одобрении, никогда на отправке — вызывающая
+        // сторона story 57/68 сама решает, когда звать `verdict()`; этот метод не
+        // знает, одобрение это или отправка). `off` — рубеж 1 не считается вовсе.
+        $provenanceMode = $this->readProvenanceMode();
+        if ($provenanceMode === 'off') {
+            return Verdict::allow();
+        }
+
+        $advisories = $this->provenanceAdvisories($answer);
+        if ($provenanceMode === 'deny' && $advisories !== []) {
             return Verdict::deny('no_provenance', CommunityVoice::REFUSAL_WITH_ROUTE[0]);
         }
 
-        return Verdict::allow();
+        return Verdict::allow($advisories);
     }
 
     /** Рубеж 5 — типобезопасное чтение килсвитча; неизвестный/недоступный ключ = dormant. */
@@ -227,6 +257,119 @@ final class CommunityGuard
         }
 
         return is_numeric($value) ? ((int) $value === 1) : false;
+    }
+
+    /**
+     * `GameSettings` читатели рубежа 1 (ADR-177) — сужение `mixed` через переменную,
+     * не прямой cast на offset (phpstan L9 `cast.int`/`cast.float` на `mixed`,
+     * memory `feedback_phpstan_no_mixed_to_int_cast`), тот же паттерн, что
+     * `CommunityAnswerMatcher::readFloat()`.
+     */
+    private function readFloat(string $key, float $default): float
+    {
+        $raw = $this->gameSettings->get($key, $default);
+
+        return is_numeric($raw) ? (float) $raw : $default;
+    }
+
+    private function readInt(string $key, int $default): int
+    {
+        $raw = $this->gameSettings->get($key, $default);
+
+        return is_numeric($raw) ? (int) $raw : $default;
+    }
+
+    /** `community.guard.comparative_form` — `deny` (default) / `off`. Неизвестное значение = `deny`. */
+    private function readComparativeFormMode(): string
+    {
+        $raw = $this->gameSettings->get('community.guard.comparative_form', 'deny');
+
+        return is_string($raw) && trim($raw) !== '' ? trim($raw) : 'deny';
+    }
+
+    /**
+     * ADR-178 — `community.guard.provenance_mode`: `advisory` (default) / `deny` /
+     * `off`. Значение вне трёх — трактуется как `advisory` (тот же safe-default
+     * принцип, что у остальных читателей `GameSettings` в этом классе).
+     */
+    private function readProvenanceMode(): string
+    {
+        $raw  = $this->gameSettings->get('community.guard.provenance_mode', self::DEFAULT_PROVENANCE_MODE);
+        $mode = is_string($raw) && trim($raw) !== '' ? trim($raw) : self::DEFAULT_PROVENANCE_MODE;
+
+        return in_array($mode, ['advisory', 'deny', 'off'], true) ? $mode : self::DEFAULT_PROVENANCE_MODE;
+    }
+
+    /**
+     * ADR-177 §2, R4 добавлена поправкой ADR-178 №2 — сравнительно-оценочная
+     * форма, ключуется на союз/корень/оборот, НЕ на список прилагательных.
+     * Четыре детерминированных правила, срабатывает любое (регулярки — дословно
+     * из ADR):
+     *  - R1 союз сопоставления по границе слова («чем», «нежели», «вместо», «а не»);
+     *  - R2 корень оценочного сравнения без союза («Лаборатория полезнее»);
+     *  - R3 рекомендательный оборот («стоит»/«лучше»/«советую»/«рекомендую»/
+     *    «имеет смысл») + инфинитив в том же предложении;
+     *  - R4 сравнительная степень + условие-действие («попадаются чаще, если
+     *    идти без брони») — зеркало R3: R3 ловит совет-в-главной-части, R4 —
+     *    тот же совет в условной форме, которая по-русски естественнее. Обе
+     *    части ОБЯЗАНЫ совпасть в одном предложении. 🔴 Не список прилагательных
+     *    — закрытый класс нерегулярных степеней перечислен, открытый ловится
+     *    продуктивным суффиксом `-ее` (список в русском не закрывается: на нём
+     *    уже была пропущена «охотнее, чем», ADR-177, отвергнутые варианты).
+     *    Суффикс `-ей` НЕ используется — это окончание родительного/творительного
+     *    («своей», «людей», «идей»), поймал бы пол-словаря. Условие требует
+     *    ИМЕННО инфинитив («если идти») — обобщённый совет по-русски берёт
+     *    инфинитив, личная форма («если ты идёшь») адресна и на лайфхак похожа
+     *    меньше; этот пробел признан и не закрывается (`## Findings` story 63).
+     *    Принятое ложное срабатывание: прилагательное среднего рода на `-ее`
+     *    («среднее», «лишнее») рядом с условием-инфинитивом — отказ несёт
+     *    маршрут, владелец переформулирует.
+     */
+    private function isComparativeClaim(string $answer): bool
+    {
+        if ($answer === '') {
+            return false;
+        }
+        $lower = mb_strtolower($answer);
+
+        // R1.
+        if (preg_match('/(?<![\p{L}])(чем|нежели|вместо)(?![\p{L}])/u', $lower) === 1) {
+            return true;
+        }
+        if (preg_match('/(?<![\p{L}])а\s+не(?![\p{L}])/u', $lower) === 1) {
+            return true;
+        }
+
+        // R2.
+        foreach (self::COMPARATIVE_EVALUATION_ROOTS as $root) {
+            if (str_contains($lower, $root)) {
+                return true;
+            }
+        }
+
+        // R3.
+        if (preg_match(
+            '/(?<![\p{L}])(стоит|лучше|советую|рекомендую|имеет\s+смысл)\s+(\p{L}+\s+){0,2}\p{L}+(ть|ти|чь)(?![\p{L}])/u',
+            $lower,
+        ) === 1) {
+            return true;
+        }
+
+        // R4 — сравнительная степень (закрытый список ∪ суффикс -ее) И условие
+        // с действием (если/когда/стоит только + инфинитив) в ОДНОМ предложении.
+        $hasComparativeDegree = preg_match(
+            '/(?<![\p{L}])(больше|меньше|лучше|хуже|выше|ниже|чаще|реже|дальше|ближе|дольше|легче|проще|тише|дороже|дешевле|крепче|раньше|позже|глубже|шире)(?![\p{L}])/u',
+            $lower,
+        ) === 1 || preg_match('/(?<![\p{L}])\p{L}{3,}ее(?![\p{L}])/u', $lower) === 1;
+
+        if ($hasComparativeDegree && preg_match(
+            '/(?<![\p{L}])(если|когда|стоит\s+только)(?![\p{L}])(?:[^.!?]*?)\p{L}+(ть|ти|чь)(?![\p{L}])/u',
+            $lower,
+        ) === 1) {
+            return true;
+        }
+
+        return false;
     }
 
     private function questionLeaksSignal(string $question): bool
@@ -373,31 +516,43 @@ final class CommunityGuard
         return false;
     }
 
-    private function hasProvenance(string $answer): bool
+    /**
+     * ADR-177 §1, поправлено ADR-178 — единица подтверждения предложение-юнит
+     * корпуса, порог из `GameSettings` (`community.guard.provenance_threshold`,
+     * default 0.65). Каждое предложение ответа сверяется со взвешенным покрытием
+     * ОДНОГО юнита целиком — `bestRatio` ниже берёт максимум ПО ОДНОМУ юниту за
+     * раз и никогда не суммирует покрытие нескольких: утверждение, набранное
+     * объединением двух источников, по определению новое утверждение, которого
+     * ни один источник не делал (инвариант ADR §1, story 63) — такое предложение
+     * получает пометку, даже если по отдельности оба источника существуют.
+     *
+     * 🔴 Провенанс БЕЗ права вето (ADR-178) — метод НЕ решает allow/deny, только
+     * СОБИРАЕТ пометки: каждая называет непокрытое предложение целиком, адрес
+     * лучшего (даже если недостаточного) источника и его ratio — иначе ревьюеру
+     * не на что смотреть в форме одобрения (story 68, не эта).
+     *
+     * @return list<string>
+     */
+    private function provenanceAdvisories(string $answer): array
     {
         $sentences = preg_split('/(?<=[.!?])\s+|\n+/u', $answer) ?: [$answer];
 
-        // Story 30: и bag-of-stems (порядок неважен, для ratio), и ordered (порядок
-        // сохранён, для скользящего окна анти-рекомбинации) — считаются один раз на
-        // весь корпус, не на каждое предложение.
-        $fragmentStems        = [];
-        $fragmentOrderedStems = [];
-        foreach ($this->corpus as $i => $fragment) {
-            $fragmentOrderedStems[$i] = $this->stemsOrdered($fragment['text']);
-            $fragmentStems[$i]        = array_values(array_unique($fragmentOrderedStems[$i]));
-        }
+        $minWords  = $this->readInt('community.guard.min_source_sentence_words', self::DEFAULT_MIN_SOURCE_SENTENCE_WORDS);
+        $threshold = $this->readFloat('community.guard.provenance_threshold', self::DEFAULT_PROVENANCE_THRESHOLD);
 
-        // Story 21: вес стема — обратная частота фрагментов, в которых он встречается
-        // (мини-IDF, посчитанный ПО ЭТОМУ ЖЕ корпусу — детерминированно, не семантика).
-        // Родовое слово из половины разделов справочника («ресурс», «база», «даёт»)
-        // весит меньше, чем специфичное слово из одного-двух разделов.
+        $units = $this->corpusUnits($minWords);
+
+        // Мини-IDF, посчитанный ПО ЮНИТАМ-ПРЕДЛОЖЕНИЯМ (не по фрагментам, story 63):
+        // редкое/специфичное слово («полис», «дрон») весит больше, чем то, что есть
+        // в половине юнитов.
         $documentFrequency = [];
-        foreach ($fragmentStems as $stemsOfFragment) {
-            foreach ($stemsOfFragment as $stem) {
+        foreach ($units as $unit) {
+            foreach ($unit['stems'] as $stem) {
                 $documentFrequency[$stem] = ($documentFrequency[$stem] ?? 0) + 1;
             }
         }
 
+        $advisories = [];
         foreach ($sentences as $sentence) {
             $sentence = trim($sentence, " \t\n\r\0\x0B.!?");
             if ($sentence === '') {
@@ -405,7 +560,7 @@ final class CommunityGuard
             }
             $words = array_values(array_unique($this->stemsOrdered($sentence)));
             if ($words === []) {
-                // Предложение без содержательных слов (эмодзи/связка) — риска утечки нет.
+                // Предложение без содержательных слов (эмодзи/связка) — пометка не нужна.
                 continue;
             }
 
@@ -416,96 +571,82 @@ final class CommunityGuard
                 $totalWeight    += $weights[$stem];
             }
 
-            $bestRatio       = 0.0;
-            $bestFragmentIdx = null;
-            foreach ($fragmentStems as $i => $stemsOfFragment) {
+            $bestRatio  = 0.0;
+            $bestSource = null;
+            foreach ($units as $unit) {
                 $matchedWeight = 0.0;
                 foreach ($words as $stem) {
-                    if (in_array($stem, $stemsOfFragment, true)) {
+                    if (in_array($stem, $unit['stems'], true)) {
                         $matchedWeight += $weights[$stem];
                     }
                 }
                 $ratio = $totalWeight > 0.0 ? $matchedWeight / $totalWeight : 0.0;
                 if ($ratio > $bestRatio) {
-                    $bestRatio       = $ratio;
-                    $bestFragmentIdx = $i;
+                    $bestRatio  = $ratio;
+                    $bestSource = $unit['source'];
                 }
             }
 
-            if ($bestRatio < self::PROVENANCE_THRESHOLD || $bestFragmentIdx === null) {
-                return false;
-            }
-
-            // Story 30 — обход: почти весь взвешенный вес фрагмента покрыт, дальше
-            // проверять локальную плотность окном не нужно (см. докблок константы).
-            if ($bestRatio >= self::RECOMBINATION_BYPASS_THRESHOLD) {
-                continue;
-            }
-
-            // Story 30 — анти-рекомбинация: тот же вес, но по лучшему скользящему
-            // окну ВНУТРИ уже выбранного фрагмента, а не по всему его тексту.
-            $windowRatio = $this->bestWindowRatio($fragmentOrderedStems[$bestFragmentIdx], $words, $weights, $totalWeight);
-            if ($windowRatio < self::RECOMBINATION_THRESHOLD) {
-                return false;
+            if ($bestRatio < $threshold) {
+                $advisories[] = sprintf(
+                    '«%s» — не подтверждено источником целиком (лучшее совпадение: %s, ratio=%.2f)',
+                    $sentence,
+                    $bestSource ?? '—',
+                    $bestRatio,
+                );
             }
         }
 
-        return true;
+        return $advisories;
     }
 
     /**
-     * Story 30 — лучшее покрытие предложения ($words/$weights) любым скользящим
-     * окном фиксированного размера внутри ОДНОГО фрагмента (`$fragmentOrdered`,
-     * порядок стемов как в исходном тексте). Окно фиксированной длины не зависит
-     * от длины фрагмента — длинный документ больше не получает случайное
-     * преимущество только за счёт объёма уникальной лексики.
+     * ADR-177 §1 — корпус, разрезанный на предложения-юниты (не фрагменты
+     * целиком). Юнит короче `$minWords` значимых слов подтверждением быть не
+     * может — обрывок фразы совпадает со слишком многим случайно.
      *
-     * @param list<string>        $fragmentOrdered
-     * @param list<string>        $words
-     * @param array<string,float> $weights
+     * @return list<array{source: string, stems: list<string>}>
      */
-    private function bestWindowRatio(array $fragmentOrdered, array $words, array $weights, float $totalWeight): float
+    private function corpusUnits(int $minWords): array
     {
-        if ($totalWeight <= 0.0) {
-            return 0.0;
-        }
-
-        $length = count($fragmentOrdered);
-        if ($length === 0) {
-            return 0.0;
-        }
-
-        $best = 0.0;
-        for ($start = 0; $start < $length; $start += self::RECOMBINATION_WINDOW_STRIDE) {
-            $window = array_slice($fragmentOrdered, $start, self::RECOMBINATION_WINDOW_WORDS);
-            if ($window === []) {
-                break;
-            }
-            $windowSet     = array_unique($window);
-            $matchedWeight = 0.0;
-            foreach ($words as $stem) {
-                if (in_array($stem, $windowSet, true)) {
-                    $matchedWeight += $weights[$stem];
+        $units = [];
+        foreach ($this->corpus as $fragment) {
+            foreach ($this->sentencesOf($fragment['text']) as $sentence) {
+                $stems = array_values(array_unique($this->stemsOrdered($sentence)));
+                if (count($stems) < $minWords) {
+                    continue;
                 }
-            }
-            $ratio = $matchedWeight / $totalWeight;
-            if ($ratio > $best) {
-                $best = $ratio;
-            }
-            if ($start + self::RECOMBINATION_WINDOW_WORDS >= $length) {
-                break;
+                $units[] = ['source' => $fragment['source'], 'stems' => $stems];
             }
         }
 
-        return $best;
+        return $units;
     }
 
     /**
-     * Порядок и повторы стемов сохранены (не `array_unique`) — нужны скользящему
-     * окну анти-рекомбинации (story 30); вызовы, которым важен только набор без
-     * порядка (bag-of-stems для ratio), сами оборачивают результат в
-     * `array_unique()` на месте.
+     * Режет текст фрагмента на предложения по границе `.!?;:` или переносу строки;
+     * markdown-декорации `GuideCatalog` (`*bold*`, «кавычки») сняты до резки, чтобы
+     * они не мешали границе предложения.
      *
+     * @return list<string>
+     */
+    private function sentencesOf(string $text): array
+    {
+        $plain = str_replace(['*', '_', '«', '»'], '', $text);
+        $parts = preg_split('/(?<=[.!?;:])\s+|\n+/u', $plain) ?: [$plain];
+
+        $sentences = [];
+        foreach ($parts as $part) {
+            $part = trim($part, " \t\n\r\0\x0B.!?;:—-");
+            if ($part !== '') {
+                $sentences[] = $part;
+            }
+        }
+
+        return $sentences;
+    }
+
+    /**
      * @return list<string>
      */
     private function stemsOrdered(string $text): array
@@ -521,11 +662,17 @@ final class CommunityGuard
     }
 
     /**
-     * Дефолтный белый корпус: живой `GuideCatalog` (адресами `sections()`, не
-     * замороженной копией текста — иначе корпус начнёт врать про кнопки), `game_tips`,
-     * разрешённые `site_posts` (`canon_reviewed=1` + `published`). Безопасная деградация
-     * при недоступной БД — как `GameSettingsService::get()`: гвард сужает корпус, а не
-     * падает (известный компромисс, см. `## Findings` story 07).
+     * ADR-177 §3 — дефолтный белый корпус: живой `GuideCatalog` (адресами
+     * `sections()`, не замороженной копией текста — иначе корпус начнёт врать про
+     * кнопки) + `game_tips`. `site_posts` намеренно исключены (девблог — жанр
+     * «как было / что поменяли», устаревающий по построению, без конституционного
+     * обязательства актуальности вроде GUIDE-COVERAGE/TIPS-COVERAGE — провенанс
+     * против такого источника легитимизировал бы устаревшее утверждение). 🔴
+     * `community_answers` не входят никогда ни при каких обстоятельствах —
+     * инвариант анти-храповика: корпус, питаемый собственным выходом бота, дрейфует
+     * без верхней границы. Безопасная деградация при недоступной БД — как
+     * `GameSettingsService::get()`: гвард сужает корпус, а не падает (известный
+     * компромисс, см. `## Findings` story 07).
      *
      * ⚠️ `glossary/` НЕ включён: это markdown в `mmorpg-vault/`, соседнем репозитории,
      * не гарантированно доступном рантайму прод-сервера. Отдельный пробел, см. Findings.
@@ -549,13 +696,13 @@ final class CommunityGuard
         // метод вообще начал выполняться. Между этой точкой и `defaultCorpus()` больше
         // нет ни одного try/catch (ни в `BotMenuService`, ни в `GuideCatalog::sections()`),
         // поэтому try/catch НИЖЕ — единственная защита, а не симметричное украшение рядом
-        // с game_tips/site_posts.
+        // с game_tips.
         try {
             foreach (GuideCatalog::sections() as $section) {
                 $fragments[] = ['source' => 'guide:' . $section['key'], 'text' => $section['title'] . ' ' . $section['body']];
             }
         } catch (\Throwable) {
-            // См. game_tips/site_posts ниже — корпус просто уже, не падаем.
+            // См. game_tips ниже — корпус просто уже, не падаем.
         }
 
         try {
@@ -572,20 +719,6 @@ final class CommunityGuard
             // Тестовая/неполная БД без game_tips — корпус просто уже (не падаем).
         }
 
-        try {
-            $posts = (new SitePostModel())->where('canon_reviewed', 1)->where('status', 'published')->findAll();
-            foreach ($posts as $post) {
-                if (! is_array($post)) {
-                    continue;
-                }
-                $slug        = is_string($post['slug'] ?? null) ? $post['slug'] : '?';
-                $contentHtml = $post['content_html'] ?? '';
-                $fragments[] = ['source' => 'post:' . $slug, 'text' => strip_tags(is_string($contentHtml) ? $contentHtml : '')];
-            }
-        } catch (\Throwable) {
-            // См. выше.
-        }
-
         return $fragments;
     }
 }
@@ -599,19 +732,31 @@ final class CommunityGuard
  * `deny()` структурно не может существовать без маршрута — конструктор требует
  * непустую строку, а не nullable: «отказ без маршрута — запрещённый класс» (§6 плана)
  * гарантирован типом, не соглашением.
+ *
+ * ADR-178 — `$advisories`: пометки рубежа 1 (провенанс), непустые ТОЛЬКО у `allow()`
+ * (провенанс лишён права вето, `deny()`/`manual()` несут иную причину отказа, им
+ * нечего рекомендовать вдобавок). Каждая строка называет непокрытое предложение,
+ * адрес лучшего источника и его ratio — см. `CommunityGuard::provenanceAdvisories()`.
  */
 final class Verdict
 {
+    /**
+     * @param list<string> $advisories
+     */
     private function __construct(
         public readonly string $status,
         public readonly string $reason,
         public readonly ?string $route,
+        public readonly array $advisories = [],
     ) {
     }
 
-    public static function allow(): self
+    /**
+     * @param list<string> $advisories
+     */
+    public static function allow(array $advisories = []): self
     {
-        return new self('allow', 'ok', null);
+        return new self('allow', 'ok', null, $advisories);
     }
 
     public static function deny(string $reason, string $route): self

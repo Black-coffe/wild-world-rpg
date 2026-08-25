@@ -319,7 +319,15 @@ final class CommunityControllerTest extends CIUnitTestCase
         $this->assertSame('new', $this->statusOfMessage((int) $message['id']));
     }
 
-    public function testApproveRunsGuardAgainstCurrentTextAndBlocksOnDeny(): void
+    /**
+     * ADR-178 (story 63) — провенанс без права вето: гвард с несовпадающим корпусом
+     * больше НЕ отказывает (`Verdict::deny('no_provenance', …)` больше не существует),
+     * он собирает пометки и возвращает `allow($advisories)`. Story 68: непустые
+     * пометки без явного второго подтверждения (`$confirmAdvisories`) всё равно не
+     * дают одобрению пройти с первого нажатия — но причина другая (требуется
+     * подтверждение), не вето гварда.
+     */
+    public function testApproveRunsGuardAgainstCurrentTextAndBlocksOnUnconfirmedAdvisories(): void
     {
         $message = $this->insertMessage();
         $draft   = $this->insertDraft();
@@ -331,8 +339,34 @@ final class CommunityControllerTest extends CIUnitTestCase
         $result     = $controller->approveAnswer((int) $draft['id'], (int) $message['id']);
 
         $this->assertFalse($result['ok']);
+        $this->assertNotSame([], $result['advisories'] ?? [], 'несовпадающий корпус обязан дать хотя бы одну пометку');
         $this->assertSame('draft', $this->statusOfAnswer((int) $draft['id']));
         $this->assertSame('new', $this->statusOfMessage((int) $message['id']));
+    }
+
+    /** ADR-178 (story 68), acceptance — второе явное подтверждение одобряет и пишет факт в аудит. */
+    public function testApproveWithConfirmedAdvisoriesApprovesAndRecordsAuditPayload(): void
+    {
+        $message = $this->insertMessage();
+        $draft   = $this->insertDraft();
+
+        $controller = $this->controller($this->denyingGuard(), $this->sender(true));
+
+        $first = $controller->approveAnswer((int) $draft['id'], (int) $message['id']);
+        $this->assertFalse($first['ok'], 'первое нажатие без подтверждения обязано не пройти');
+
+        $second = $controller->approveAnswer((int) $draft['id'], (int) $message['id'], true);
+
+        $this->assertTrue($second['ok']);
+        $this->assertSame('approved', $this->statusOfAnswer((int) $draft['id']));
+        $this->assertSame('answered', $this->statusOfMessage((int) $message['id']));
+
+        $row = $this->conn->table('admin_audit_log')->where('action', 'COMMUNITY_ANSWER_APPROVED')->get(1)->getRowArray();
+        $this->assertIsArray($row);
+        $payload = json_decode((string) ($row['payload'] ?? '{}'), true);
+        $this->assertIsArray($payload);
+        $this->assertArrayHasKey('advisories_confirmed', $payload);
+        $this->assertNotSame([], $payload['advisories_confirmed'] ?? [], 'факт подтверждения обязан уйти в payload аудита');
     }
 
     public function testApproveRejectsNonDraftAnswer(): void
