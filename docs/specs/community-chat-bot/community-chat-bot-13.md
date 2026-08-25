@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-13
 spec: community-chat-bot
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -79,4 +79,65 @@ blocked_by: [community-chat-bot-11]
 
 ## Implementation notes
 
+- `.claude/hooks/community-pull.sh` — курсор из `.claude/community/state.json` (повреждённый
+  файл → сброс в 0 с предупреждением в stderr), затем `ssh -i ~/.ssh/wildworld_deploy … "cd
+  ~/htdocs/bot.wildworld.fun && php spark --no-header community:export --since=<id>"`. Второй
+  рубеж — валидация JSON через `php -r` перед записью (тихий мусор в inbox хуже, чем ничего);
+  инвалид/сбой SSH/нет ключа → одна строка в stdout, код 0 всегда (`exit 0` на каждой ветке
+  сбоя). Результат — `.claude/community/inbox-<дата>.json`; курсор двигается на max `id` из
+  выгрузки. `timeout` оборачивает `ssh` только если команда есть в PATH (Windows Git Bash не
+  гарантирует coreutils `timeout`) — иначе таймаут держит только `-o ConnectTimeout` ssh и
+  внешний `timeout: 20` самого хука в `settings.json`.
+- `.claude/settings.json` — четвёртый хук добавлен в существующий массив `SessionStart.hooks`
+  (три соседних не тронуты, порядок сохранён).
+- `.gitignore` — `.claude/community/` уже накрыт правилом `.claude/*` (проверено
+  `git check-ignore` до правки), явная строка добавлена как задокументированное намерение на
+  случай, если список исключений выше изменится.
+- `tests/unit/Commands/CommunityPullHookTest.php` — реально исполняет bash-скрипт как процесс
+  (`proc_open`), не грепает исходник (`feedback_source_scan_tests_are_not_coverage`): `ssh`
+  подменяется фейковым исполняемым первым в `$PATH`, `$HOME`/`$CLAUDE_PROJECT_DIR` — временный
+  каталог на тест. На Windows голое `bash` в `$PATH` резолвится в WSL (см. Findings) — явный
+  путь `C:\Program Files\Git\bin\bash.exe`; передача `$PATH` через `env`-массив `proc_open()`
+  не сработала (git-bash не подхватывает смешанный Windows/Unix формат) — вместо этого
+  launcher-скрипт собирает `$PATH` изнутри уже запущенного bash.
+
 ## Findings
+
+### PATH через `proc_open()`'s env-массив не работает на Windows/git-bash
+
+При написании теста три подхода к подмене `ssh` не сработали, четвёртый сработал:
+1. `proc_open(['bash', ...], ..., $env)` с модифицированным `$env['PATH']` — молча резолвит
+   голое `bash` в `C:\Windows\System32\bash.exe` (WSL), а не Git Bash; PATH внутри WSL в другом
+   формате (`/mnt/c/...`), фейковый unix-путь `/c/...` не совпадает.
+2. Тот же `env`-массив, но с явным `C:\Program Files\Git\bin\bash.exe` — тоже не сработало:
+   git-bash использует собственный `$PATH` не из переданного `env`, если он смешанного формата
+   (Windows-style `C:/...` вперемешку с MSYS `/mingw64/...`) — резолвит системный `/usr/bin/ssh`.
+3. Инлайн `PATH="/c/.../fakebin:$PATH"; ssh` внутри `-c` строки — сработало отдельно, но
+   собирать весь вызов хука как одну `-c`-строку с несколькими экспортами и вложенным вызовом
+   `bash "$script"` оказалось хрупким на кавычках.
+4. **Рабочее решение**: launcher-скрипт на диске (`export HOME="$1"; export
+   CLAUDE_PROJECT_DIR="$2"; export PATH="$3:$PATH"; exec bash "$4"`), вызванный через
+   `proc_open` с явным `C:\Program Files\Git\bin\bash.exe` и позиционными аргументами (без
+   `env`-массива вовсе). `$PATH`-компонент обязан быть в unix-виде (`/c/Users/...`) — иначе
+   двоеточие после буквы диска (`C:/...`) рвёт список PATH на две части. `$HOME` и
+   `$CLAUDE_PROJECT_DIR` от этой проблемы не страдают (это одиночные пути, не PATH-списки) —
+   Windows-style с прямыми слэшами (`C:/Users/.../tmp`) работает как есть.
+
+Актуально для любого будущего теста, реально исполняющего bash-хуки на этой машине через PHP.
+
+### `shell_exec()` на Windows зовёт `cmd.exe`, не bash
+
+Первая версия `testCommunityDirIsGitIgnored` использовала `shell_exec('... ; echo $?')` —
+`;`/`$?` не значат ничего в `cmd.exe` (PHP на Windows шеллит через него по умолчанию), git
+получил `; echo $?` как лишний позиционный аргумент и упал с «--quiet is only valid with a
+single pathname». Исправлено на `proc_open(['git', 'check-ignore', '-q', ...])` с массивом
+аргументов и чтением кода через `proc_close()` — без POSIX-конструкций в командной строке.
+
+### Приёмка Queen — разрешение конфликта двух требований
+
+Контракт требовал и «падать громко при невалидном JSON», и «никогда не валить старт
+сессии». Воркер заметил противоречие и выбрал: видимое сообщение в контекст сессии
+(`[community-pull] получен невалидный JSON — синхронизация пропущена`) + выход с нулём.
+Принято: громкость нужна была для того, чтобы владелец узнал о поломке канала, а не
+чтобы сломать ему терминал. Мусор в inbox при этом не попадает — ради чего рубеж и вводился.
+

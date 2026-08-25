@@ -34,6 +34,12 @@
             "timeout": 30,
             "statusMessage": "Проверяю git-обновления с другой машины…",
             "command": "$ErrorActionPreference='SilentlyContinue'; function st($p){ if(Test-Path $p){ git -C $p fetch -q --all --tags 2>$null; (git -C $p status -sb 2>$null | Select-Object -First 1) } else { \"missing: $p\" } }; $code=st 'C:\\laragon\\www\\mmorpg'; $vault=st 'C:\\Projects\\mmorpg-vault'; $ctx=\"Multi-machine git check (PC<->laptop) at session start. code: $code | vault: $vault. If either shows 'behind' run git pull --rebase before working; if 'diverged' rebase, do not force.\"; @{hookSpecificOutput=@{hookEventName='SessionStart';additionalContext=$ctx}} | ConvertTo-Json -Compress"
+          },
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/community-pull.sh\"",
+            "timeout": 20,
+            "statusMessage": "ADR-176: тяну открытые вопросы из чата сообщества…"
           }
         ]
       }
