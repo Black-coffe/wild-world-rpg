@@ -82,6 +82,12 @@ blocked_by: []
   (без INSERT, без исключения); при наличии — `UPDATE` полей `text/is_question/addressed_to_bot`,
   `telegram_user_id`/`sent_at` для квоты берёт из уже существующей строки (правка не меняет автора
   и время получения).
+- phpstan L9 (замечание ревью 2026-08-26): `Model::first()` типизирован базовым классом как
+  `array|object|null` независимо от `returnType='array'` в конкретной модели — добавлен явный
+  `is_array($existing)` с ранним выходом вместо `(array)`-приведения (обходит касты Entity, урок
+  этого репо), и `is_numeric()`-проверки перед `(int)`-кастом полей `telegram_user_id`/`id` (не
+  голый `(int) $mixed`, отдельная ошибка L9). `vendor/bin/phpstan analyse --memory-limit=512M
+  --no-progress app/Services/Community/CommunityIngestService.php` — чисто.
 - Тесты добавлены в `CommunityIngestServiceTest.php`: `testDirectAddressWithoutQuestionMarkOrWordIsStoredButNotAQuestion`
   (переименован после правки ревью — доказывает `addressed_to_bot=1` + честный `is_question=0`),
   `testAuthorQuotaDoesNotZeroAddressedToBotQuestion`, `testMoreCollectiveAddressWordsAreQuestions`,

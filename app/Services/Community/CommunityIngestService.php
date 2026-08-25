@@ -225,15 +225,24 @@ final class CommunityIngestService
 
         $model    = new CommunityMessageModel();
         $existing = $model->where('chat_id', $chatId)->where('message_id', $messageId)->first();
-        if ($existing === null) {
+        // `returnType = 'array'` в модели гарантирует массив на рантайме, но phpstan L9
+        // типизирует `Model::first()` как `array|object|null` на уровне базового класса —
+        // сужаем явно, без `(array)`-приведения (обходит касты Entity, урок этого репо).
+        if (! is_array($existing)) {
             return;
         }
 
         $textRaw = $messageRaw['text'] ?? $messageRaw['caption'] ?? null;
         $text    = is_string($textRaw) ? $textRaw : null;
 
-        $telegramUserId = (int) $existing['telegram_user_id'];
-        $sentAt         = (string) $existing['sent_at'];
+        $telegramUserIdRaw = $existing['telegram_user_id'] ?? null;
+        $telegramUserId    = is_numeric($telegramUserIdRaw) ? (int) $telegramUserIdRaw : 0;
+        $sentAtRaw         = $existing['sent_at'] ?? null;
+        $sentAt            = is_string($sentAtRaw) ? $sentAtRaw : date('Y-m-d H:i:s');
+        $existingIdRaw     = $existing['id'] ?? null;
+        if (! is_numeric($existingIdRaw)) {
+            return;
+        }
 
         // Та же дисциплина, что в `ingestNewMessage()`: `is_question` — чистая эвристика,
         // квота не гасит прямое обращение к боту.
@@ -243,7 +252,7 @@ final class CommunityIngestService
             $isQuestion = false;
         }
 
-        $model->update($existing['id'], [
+        $model->update((int) $existingIdRaw, [
             'text'             => $text,
             'is_question'      => $isQuestion ? 1 : 0,
             'addressed_to_bot' => $isAddressedToBot ? 1 : 0,
