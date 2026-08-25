@@ -62,15 +62,18 @@ use DateTimeImmutable;
  * откатывает — Telegram подтвердил недоставку; `exception:*` (сеть неопределённа) статус
  * не трогает вовсе — риск дубля хуже риска пропуска.
  *
- * Вердикт гварда `manual`/`deny` → строка (и её склейка) помечается `escalated`,
- * текст не уходит вовсе; попытка чиркнуть 🤔 не обязана быть успешной — молчание
- * `CommunityChatSender` (например `community.autoreply.enabled=false`) не мешает
- * эскалации дойти до владельца через `/admin/community`, куда уже смотрит статус.
- * `Verdict::route` (дефект 3) при этом не теряется — {@see logRoute()} пишет его в
- * `admin_audit_log` (`COMMUNITY_ROUTE_LOGGED`), где владелец увидит маршрут отказа
- * рядом со строкой очереди; повторной отправкой текста самого маршрута не рискуем —
- * гвард уже сказал «нельзя говорить», значит и канонический текст-отказ шлём не как
- * `sendMessage`, а как запись в тот же журнал, что уже питает потолок/кулдаун.
+ * Вердикт гварда `manual`/`deny` → строка (и её склейка) помечается `escalated`;
+ * попытка чиркнуть 🤔 не обязана быть успешной — молчание `CommunityChatSender`
+ * (например `community.autoreply.enabled=false`) не мешает эскалации дойти до
+ * владельца через `/admin/community`, куда уже смотрит статус. `Verdict::route`
+ * (дефект 3) при этом не теряется — {@see logRoute()} пишет его в `admin_audit_log`
+ * (`COMMUNITY_ROUTE_LOGGED`), где владелец увидит маршрут отказа рядом со строкой
+ * очереди. С story 55 тот же канонический текст маршрута (не свободный текст, не
+ * повторный проход через гвард) уходит и самому игроку реплаем — {@see sendGuardRouteText()}
+ * зовёт тот же `CommunityChatSender::sendAnswer()`, что обычный ответ, поэтому те же
+ * гейты (потолок в час, кулдаун автора, килсвитчи) применяются к отказу так же, как к
+ * любой другой отправке: молчаливая реакция без единого слова читалась игроком как
+ * «бот сломался», хотя объяснение уже было написано и лежало рядом в журнале.
  *
  * `Decision::escalated` (полоса A без совпадения банка — уходит `CommunityVoice::UNKNOWN`)
  * помечает строку `escalated`, а не `answered`, даже при успешной отправке: честное
@@ -255,7 +258,14 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         $verdict = $this->guard->verdict($text, $question, $requiresSetting);
 
         if (! $verdict->isAllow()) {
-            $this->escalateGuardDenial($decision->coveredMessageIds, $verdict);
+            // Story 55 — молчание вместо маршрута читалось игроком как «бот сломался»:
+            // текст уходит реплаем ТОЛЬКО если склейка реально ушла в escalated (иначе
+            // это тот же дефект, что story 46 закрывала — «отправили, но не записали»,
+            // тут наоборот «записали бы дважды на повторной попытке следующего тика»).
+            $escalated = $this->escalateGuardDenial($decision->coveredMessageIds, $verdict);
+            if ($escalated) {
+                $this->sendGuardRouteText($selfId, $verdict);
+            }
             $this->reactOnce($selfId, '🤔');
             return;
         }
@@ -493,17 +503,23 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
      * попытается), вместо того чтобы навсегда потерять признак, по которому её считает
      * читающая сторона.
      *
+     * Story 55 — возвращает `bool` (раньше `void`): {@see resolveAndSend()} шлёт игроку
+     * текст маршрута ТОЛЬКО когда эскалация реально закоммитилась. Если транзакция
+     * откатилась (сбой аудит-вставки), строка остаётся `'new'` и получит второй шанс
+     * на следующем тике — отправка текста ПРЯМО СЕЙЧАС при этом дала бы игроку два
+     * одинаковых сообщения (это и следующий тик), когда эскалация всё-таки пройдёт.
+     *
      * @param list<int> $coveredIds
      */
-    private function escalateGuardDenial(array $coveredIds, Verdict $verdict): void
+    private function escalateGuardDenial(array $coveredIds, Verdict $verdict): bool
     {
         if ($coveredIds === []) {
-            return;
+            return false;
         }
 
         $db = Database::connect();
         if ($db->transBegin() === false) {
-            return;
+            return false;
         }
 
         try {
@@ -518,17 +534,54 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
             $db->transRollback();
             log_message('error', '[CommunityAutoReplyHandler] guard denial escalation failed: ' . $e->getMessage());
 
-            return;
+            return false;
         }
 
         $db->transCommit();
+
+        return true;
     }
 
     /**
-     * `Verdict::route` не должен быть мёртвым контентом: вердикт `deny`/`manual` не шлёт
-     * `sendMessage` (сам гвард сказал «нельзя говорить» — повторный текст-отказ такой же
-     * риск утечки/спама), маршрут сохраняется в тот же журнал, что уже питает потолок/
-     * кулдаун — владелец видит его рядом со строкой очереди `/admin/community`.
+     * Story 55 — маршрут отказа теперь реально уходит игроку реплаем, а не только в
+     * `admin_audit_log` для владельца: молчаливая реакция 🤔 без единого слова читалась
+     * игроком как «бот сломался, не заметил или обиделся» (дефект в шапке story), и
+     * вопрос задавался снова. Текст канонический (`Verdict::route`) — гвард уже сказал
+     * «нельзя своими словами», повторно звать `guard->verdict()` на него не нужно
+     * (контракт story: «текст отказа не проходит повторно через гвард по кругу»).
+     *
+     * Отправка идёт через {@see CommunityChatSender::sendAnswer()} — тот же метод, что
+     * шлёт банк-ответ, а не отдельный необгейченный вызов транспорта: он прогоняет текст
+     * через ТЕ ЖЕ ограничители, что обычный ответ (потолок в час, кулдаун автора,
+     * килсвитчи, длина/парность `*`) — анти-спам контракта story не требует второго
+     * источника правды про лимиты рядом с уже существующим в `CommunityChatSender`.
+     * Если гейт откажет — `sendAnswer()` вернёт `false`, а `CommunityChatSender::audit()`
+     * уже запишет `COMMUNITY_ANSWER_REJECTED` с причиной: прежнее поведение (только
+     * реакция) сохраняется, и отказ ограничителя виден в журнале — это и есть контракт
+     * «факт виден в журнале», выполненный существующим гейтом, а не новым кодом здесь.
+     *
+     * `Verdict::manual()` может нести `route=null` (например `bug_report_topic` — там
+     * сказать нечего, только квитанция-реакция); `Verdict::deny()` конструктором
+     * гарантирует непустой `route`, но пустая строка после `trim()` тоже трактуется
+     * как «нечего слать».
+     */
+    private function sendGuardRouteText(int $selfId, Verdict $verdict): void
+    {
+        $route = $verdict->route;
+        if ($route === null || trim($route) === '') {
+            return;
+        }
+
+        $this->ensureTelegramInitialized();
+        $this->sender->sendAnswer($selfId, $route);
+    }
+
+    /**
+     * `Verdict::route` не должен быть мёртвым контентом ни для владельца, ни (с story
+     * 55) для самого игрока: маршрут сохраняется в тот же журнал, что уже питает
+     * потолок/кулдаун — владелец видит его рядом со строкой очереди `/admin/community`,
+     * а {@see sendGuardRouteText()} шлёт тот же текст игроку реплаем (тем же гейтом
+     * `CommunityChatSender::sendAnswer()`, что и обычный ответ).
      *
      * Больше не глушит `Throwable` сама — {@see escalateGuardDenial()} держит вставку в
      * общей транзакции со статусом склейки (story 46, дефект 2) и откатывает обе стороны

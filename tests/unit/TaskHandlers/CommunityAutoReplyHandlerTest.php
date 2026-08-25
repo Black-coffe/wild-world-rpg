@@ -473,9 +473,9 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         $this->assertSame('escalated', $this->statusOf((int) $message['id']));
     }
 
-    // ── вердикт гварда deny → escalated, ноль отправок ───────────────────
+    // ── story 55: вердикт гварда deny → escalated, но текст маршрута доезжает ───
 
-    public function testGuardDenyEscalatesWithoutSending(): void
+    public function testGuardDenyEscalatesAndSendsRouteTextToPlayer(): void
     {
         $this->insertBankAnswer([
             'question_pattern' => 'где найти теплицу для земледелия',
@@ -490,9 +490,85 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
 
         $handler->handle();
 
-        // При deny допустима реакция 🤔 (квитанция вместо молчания), но НЕ sendMessage.
+        // При deny больше не молчание: реплай с текстом маршрута уходит игроку,
+        // как и обычный банк-ответ — story 55, дефект «молчание вместо маршрута».
+        $sendCalls = array_values(array_filter($calls, static fn (array $c): bool => $c['method'] === 'sendMessage'));
+        $this->assertCount(1, $sendCalls, 'отказ гварда обязан дать игроку текст маршрута реплаем, не только реакцию');
+        $this->assertContains($sendCalls[0]['data']['text'], CommunityVoice::REFUSAL_WITH_ROUTE);
+        $this->assertSame((int) $message['message_id'], $sendCalls[0]['data']['reply_to_message_id'] ?? null);
+        $this->assertSame('escalated', $this->statusOf((int) $message['id']));
+        $this->assertSame(1, $this->reactionCount((int) $message['id']), 'реакция остаётся вместе с текстом, не вместо него');
+    }
+
+    /**
+     * Story 55, анти-спам — потолок в час, у которого один и тот же гейт что и у
+     * банк-ответа, обязан заблокировать и текст маршрута отказа: иначе поток
+     * провокаций гварда стал бы отдельным, не ограниченным каналом сообщений бота.
+     */
+    public function testGuardDenyRouteTextRespectsHourlyCapLeavesOnlyReaction(): void
+    {
+        $this->insertBankAnswer([
+            'question_pattern' => 'где найти теплицу для земледелия',
+            'answer_text'      => 'Теплица строится на базе.',
+        ]);
+        $message = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
+
+        $calls   = [];
+        $sender  = $this->sender($calls, ['community.autoreply.max_per_hour_per_topic' => 0]);
+        $handler = $this->handler($sender, $this->denyingGuard());
+
+        $handler->handle();
+
         $methods = array_column($calls, 'method');
-        $this->assertNotContains('sendMessage', $methods, 'при deny вердикте sendAnswer не должен вызываться вовсе');
+        $this->assertNotContains('sendMessage', $methods, 'исчерпанный потолок в час обязан заблокировать текст маршрута так же, как обычный ответ');
+        $this->assertContains('setMessageReaction', $methods, 'прежнее поведение (только реакция) сохраняется при сработавшем ограничителе');
+        $this->assertSame('escalated', $this->statusOf((int) $message['id']));
+
+        $rejected = $this->auditRows((int) $message['id'], 'COMMUNITY_ANSWER_REJECTED');
+        $this->assertCount(1, $rejected, 'отказ ограничителя обязан быть виден в журнале, а не проглочен молча');
+        $payload = json_decode((string) $rejected[0]['payload'], true);
+        $this->assertSame('topic_rate_limit', $payload['reason'] ?? null);
+    }
+
+    /**
+     * Story 55, анти-спам — кулдаун автора, тот же гейт, что у банк-ответа: если
+     * автор уже получил автоматический ответ недавно, повторный отказ-с-маршрутом от
+     * того же автора текстом не идёт, только реакция.
+     */
+    public function testGuardDenyRouteTextRespectsAuthorCooldownLeavesOnlyReaction(): void
+    {
+        $this->insertBankAnswer([
+            'question_pattern' => 'где найти теплицу для земледелия',
+            'answer_text'      => 'Теплица строится на базе.',
+        ]);
+        $authorId = 777777;
+        $prior    = $this->insertMessage(['telegram_user_id' => $authorId, 'status' => 'answered', 'is_question' => 0]);
+        $this->conn->table('admin_audit_log')->insert([
+            'admin_user_id' => 0,
+            'action'        => 'COMMUNITY_ANSWER_SENT',
+            'target_type'   => 'community_message',
+            'target_id'     => $prior['id'],
+            'payload'       => json_encode(['reason' => 'ok', 'telegram_user_id' => $authorId], JSON_UNESCAPED_UNICODE),
+            'ip_address'    => null,
+            'user_agent'    => null,
+            'created_at'    => date('Y-m-d H:i:s'),
+        ]);
+
+        $message = $this->insertMessage([
+            'telegram_user_id' => $authorId,
+            'addressed_to_bot' => 1,
+            'text'             => 'Роби, где найти теплицу для земледелия?',
+        ]);
+
+        $calls   = [];
+        $sender  = $this->sender($calls, ['community.autoreply.author_cooldown_seconds' => 600]);
+        $handler = $this->handler($sender, $this->denyingGuard());
+
+        $handler->handle();
+
+        $methods = array_column($calls, 'method');
+        $this->assertNotContains('sendMessage', $methods, 'кулдаун автора обязан заблокировать текст маршрута так же, как обычный ответ');
+        $this->assertContains('setMessageReaction', $methods, 'прежнее поведение (только реакция) сохраняется при сработавшем ограничителе');
         $this->assertSame('escalated', $this->statusOf((int) $message['id']));
     }
 
@@ -817,7 +893,11 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
 
         $handler->handle();
 
-        $this->assertNotContains('sendMessage', array_column($calls, 'method'));
+        // Story 55 — текст маршрута уходит РЕПЛАЕМ только представителю группы (та же
+        // логика, что и у реакции 🤔 ниже): дубликаты получают статус и аудит-запись
+        // маршрута для метрики, но не второе сообщение в чат за тот же вопрос.
+        $sendCalls = array_values(array_filter($calls, static fn (array $c): bool => $c['method'] === 'sendMessage'));
+        $this->assertCount(1, $sendCalls, 'ровно один реплай с текстом маршрута на всю склейку дублей, не по одному на строку');
 
         foreach ($ids as $id) {
             $this->assertSame('escalated', $this->statusOf($id), "строка {$id} склейки обязана стать escalated");
@@ -834,6 +914,10 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
      * без признака, по которому её опознаёт метрика — статус тоже обязан откатиться, а не
      * закоммититься сам по себе. Строка остаётся `'new'` и получает второй шанс на
      * следующем тике вместо того, чтобы навсегда потерять и статус, и признак одновременно.
+     *
+     * Story 55 — по той же причине текст маршрута игроку тоже НЕ уходит в этой попытке:
+     * эскалация не закоммитилась, значит следующий тик денит по новой и текст ушёл бы
+     * второй раз, если бы отправка не ждала успешного коммита.
      */
     public function testGuardDenialInsertFailureRollsBackStatusInsteadOfLosingMetricSignal(): void
     {
