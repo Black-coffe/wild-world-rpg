@@ -249,7 +249,15 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         return new CommunityGuard($corpus, new GameSettingsService());
     }
 
-    /** Гвард, который отказывает всегда (никакой текст не проходит провенанс). */
+    /**
+     * Story 71 (ADR-178 сняла с провенанса право вето, story 63): пустой корпус
+     * больше НЕ гарантирует deny — при default `provenance_mode=advisory` пустой
+     * корпус даёт `allow()` с пометками, не `deny()`. Оставлен только для сценариев,
+     * которым нужен произвольный `Verdict` (не важно, allow или deny) — реальный
+     * отказ в тестах тика вызывается рубежом с сохранённым вето (лексический
+     * стоп-лист/сравнительная форма/стоп-тема/килсвитч), см. `permissiveGuard()`
+     * + текст-триггер в `insertBankAnswer()`.
+     */
     private function denyingGuard(): CommunityGuard
     {
         return new CommunityGuard([], new GameSettingsService());
@@ -533,16 +541,17 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
 
     public function testGuardDenyEscalatesAndSendsRouteTextToPlayer(): void
     {
+        // Story 71 (ADR-178 сняла вето с провенанса): деним рубежом 3 (лексический
+        // стоп-лист, вето сохранено) — «быстрее» есть в CommunityGuard::LEXICAL_STOPLIST.
         $this->insertBankAnswer([
             'question_pattern' => 'где найти теплицу для земледелия',
-            'answer_text'      => 'Теплица строится на базе.',
+            'answer_text'      => 'Теплица строится на базе быстрее.',
         ]);
         $message = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
 
         $calls   = [];
         $sender  = $this->sender($calls);
-        // Пустой корпус — провенанс не пройдёт никогда, гвард денит любой текст.
-        $handler = $this->handler($sender, $this->denyingGuard());
+        $handler = $this->handler($sender, $this->permissiveGuard());
 
         $handler->handle();
 
@@ -573,15 +582,17 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
      */
     public function testGuardDenyRouteTextRespectsHourlyCapLeavesOnlyReaction(): void
     {
+        // Story 71 (ADR-178 сняла вето с провенанса) — деним рубежом 3 (лексический
+        // стоп-лист, вето сохранено), не провенансом.
         $this->insertBankAnswer([
             'question_pattern' => 'где найти теплицу для земледелия',
-            'answer_text'      => 'Теплица строится на базе.',
+            'answer_text'      => 'Теплица строится на базе быстрее.',
         ]);
         $message = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
 
         $calls   = [];
         $sender  = $this->sender($calls, ['community.autoreply.max_per_hour_per_topic' => 0]);
-        $handler = $this->handler($sender, $this->denyingGuard());
+        $handler = $this->handler($sender, $this->permissiveGuard());
 
         $handler->handle();
 
@@ -605,9 +616,11 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
      */
     public function testGuardDenyRouteTextRespectsAuthorCooldownLeavesOnlyReaction(): void
     {
+        // Story 71 (ADR-178 сняла вето с провенанса) — деним рубежом 3 (лексический
+        // стоп-лист, вето сохранено), не провенансом.
         $this->insertBankAnswer([
             'question_pattern' => 'где найти теплицу для земледелия',
-            'answer_text'      => 'Теплица строится на базе.',
+            'answer_text'      => 'Теплица строится на базе быстрее.',
         ]);
         $authorId = 777777;
         $prior    = $this->insertMessage(['telegram_user_id' => $authorId, 'status' => 'answered', 'is_question' => 0]);
@@ -630,7 +643,7 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
 
         $calls   = [];
         $sender  = $this->sender($calls, ['community.autoreply.author_cooldown_seconds' => 600]);
-        $handler = $this->handler($sender, $this->denyingGuard());
+        $handler = $this->handler($sender, $this->permissiveGuard());
 
         $handler->handle();
 
@@ -945,16 +958,17 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
 
     public function testDenyVerdictRouteIsObservableInAuditLog(): void
     {
+        // Story 71 (ADR-178 сняла вето с провенанса) — деним рубежом 3 (лексический
+        // стоп-лист, вето сохранено), не провенансом.
         $this->insertBankAnswer([
             'question_pattern' => 'где найти теплицу для земледелия',
-            'answer_text'      => 'Теплица строится на базе.',
+            'answer_text'      => 'Теплица строится на базе быстрее.',
         ]);
         $message = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
 
         $calls   = [];
         $sender  = $this->sender($calls);
-        // Пустой корпус — провенанс не пройдёт никогда, гвард денит любой текст с маршрутом.
-        $handler = $this->handler($sender, $this->denyingGuard());
+        $handler = $this->handler($sender, $this->permissiveGuard());
 
         $handler->handle();
 
@@ -976,9 +990,11 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
      */
     public function testGuardDenialLogsRouteForEveryDuplicateInGroupNotJustRepresentative(): void
     {
+        // Story 71 (ADR-178 сняла вето с провенанса) — деним рубежом 3 (лексический
+        // стоп-лист, вето сохранено), не провенансом.
         $this->insertBankAnswer([
             'question_pattern' => 'где найти теплицу для земледелия',
-            'answer_text'      => 'Теплица строится на базе.',
+            'answer_text'      => 'Теплица строится на базе быстрее.',
         ]);
 
         $ids = [];
@@ -989,8 +1005,7 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
 
         $calls   = [];
         $sender  = $this->sender($calls);
-        // Пустой корпус — провенанс не пройдёт никогда, гвард денит любой текст с маршрутом.
-        $handler = $this->handler($sender, $this->denyingGuard());
+        $handler = $this->handler($sender, $this->permissiveGuard());
 
         $handler->handle();
 
@@ -1022,9 +1037,11 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
      */
     public function testGuardDenialInsertFailureRollsBackStatusInsteadOfLosingMetricSignal(): void
     {
+        // Story 71 (ADR-178 сняла вето с провенанса) — деним рубежом 3 (лексический
+        // стоп-лист, вето сохранено), не провенансом.
         $this->insertBankAnswer([
             'question_pattern' => 'где найти теплицу для земледелия',
-            'answer_text'      => 'Теплица строится на базе.',
+            'answer_text'      => 'Теплица строится на базе быстрее.',
         ]);
         $message = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
 
@@ -1041,7 +1058,7 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
             new CommunityMessageModel(),
             new CommunityAnswerModel(),
             $this->matcher(),
-            $this->denyingGuard(),
+            $this->permissiveGuard(),
             $sender,
             $throwingAudit,
             null,
@@ -1285,9 +1302,11 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
      */
     public function testRouteLogTimestampUsesDatabaseClockNotPhpDate(): void
     {
+        // Story 71 (ADR-178 сняла вето с провенанса) — деним рубежом 3 (лексический
+        // стоп-лист, вето сохранено), не провенансом.
         $this->insertBankAnswer([
             'question_pattern' => 'где найти теплицу для земледелия',
-            'answer_text'      => 'Теплица строится на базе.',
+            'answer_text'      => 'Теплица строится на базе быстрее.',
         ]);
         $message = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
 
@@ -1299,7 +1318,7 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
 
             $calls   = [];
             $sender  = $this->sender($calls);
-            $handler = $this->handler($sender, $this->denyingGuard());
+            $handler = $this->handler($sender, $this->permissiveGuard());
             $handler->handle();
 
             $after = (string) $this->conn->query('SELECT NOW() AS n')->getRowArray()['n'];
