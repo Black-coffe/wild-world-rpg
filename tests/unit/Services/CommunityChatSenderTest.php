@@ -454,6 +454,219 @@ final class CommunityChatSenderTest extends CIUnitTestCase
         $this->assertSame('unbalanced_markdown', $this->lastAuditReason($rowId));
     }
 
+    // ── story 58: полная парность легаси-Markdown, не только `*` ────────
+
+    public function testUnbalancedUnderscoreRejectedBeforeApiCall(): void
+    {
+        $rowId = $this->insertMessage();
+
+        $called = false;
+        $sender = $this->sender([], function () use (&$called): ServerResponse {
+            $called = true;
+            return $this->okResponse();
+        });
+
+        $result = $sender->sendAnswer($rowId, 'слаг с непарным подчёркиванием слаг_вот');
+
+        $this->assertFalse($result);
+        $this->assertFalse($called);
+        $this->assertSame('unbalanced_markdown', $this->lastAuditReason($rowId));
+    }
+
+    public function testUnbalancedBacktickRejectedBeforeApiCall(): void
+    {
+        $rowId = $this->insertMessage();
+
+        $called = false;
+        $sender = $this->sender([], function () use (&$called): ServerResponse {
+            $called = true;
+            return $this->okResponse();
+        });
+
+        $result = $sender->sendAnswer($rowId, 'Тут `непарный апостроф без пары.');
+
+        $this->assertFalse($result);
+        $this->assertFalse($called);
+        $this->assertSame('unbalanced_markdown', $this->lastAuditReason($rowId));
+    }
+
+    public function testUnbalancedBracketRejectedBeforeApiCall(): void
+    {
+        $rowId = $this->insertMessage();
+
+        $called = false;
+        $sender = $this->sender([], function () use (&$called): ServerResponse {
+            $called = true;
+            return $this->okResponse();
+        });
+
+        $result = $sender->sendAnswer($rowId, 'Тут [непарная скобка без пары.');
+
+        $this->assertFalse($result);
+        $this->assertFalse($called);
+        $this->assertSame('unbalanced_markdown', $this->lastAuditReason($rowId));
+    }
+
+    // ── story 58, дефект 1: ok=false по содержимому — терминален, не ретраится ──
+
+    /**
+     * Ключевой тест на «вечный ретрай» (acceptance criterion 5): без фикса Telegram
+     * `can't parse entities` писался бы как обычный `_FAILED`/`telegram_not_ok`, и
+     * этот тест краснел бы на обоих утверждениях ниже — вызывающий (`CommunityAutoReplyHandler`)
+     * ретраил бы такую склейку каждую минуту вечно.
+     */
+    public function testContentParseErrorFromTelegramIsRejectedNotFailed(): void
+    {
+        $rowId = $this->insertMessage();
+
+        $sender = $this->sender([], function (): ServerResponse {
+            return $this->notOkResponse("Bad Request: can't parse entities: Character '_' is reserved and must be escaped");
+        });
+
+        $result = $sender->sendAnswer($rowId, 'Текст, который наш парный чек не поймал.');
+
+        $this->assertFalse($result);
+        $this->assertSame('COMMUNITY_ANSWER_REJECTED', $this->lastAuditAction($rowId));
+        $this->assertSame('unbalanced_markdown', $this->lastAuditReason($rowId));
+    }
+
+    /** Транзиентный сетевой отказ (не про содержимое) — по-прежнему `_FAILED`, ретраится. */
+    public function testNetworkFailureFromTelegramStaysFailedNotRejected(): void
+    {
+        $rowId = $this->insertMessage();
+
+        $sender = $this->sender([], function (): ServerResponse {
+            return $this->notOkResponse('Bad Request: message thread not found');
+        });
+
+        $result = $sender->sendAnswer($rowId, 'Ответ.');
+
+        $this->assertFalse($result);
+        $this->assertSame('COMMUNITY_ANSWER_FAILED', $this->lastAuditAction($rowId));
+        $this->assertStringContainsString('telegram_not_ok', (string) $this->lastAuditReason($rowId));
+    }
+
+    // ── sendGuardRoute(): контракт для story 57/59 ───────────────────────
+
+    public function testSendGuardRouteWritesRouteActionNotAnswer(): void
+    {
+        $rowId = $this->insertMessage(['chat_id' => -100444, 'message_thread_id' => 15, 'message_id' => 511]);
+
+        $calls  = [];
+        $sender = $this->sender([], function (string $method, array $data) use (&$calls): ServerResponse {
+            $calls[] = ['method' => $method, 'data' => $data];
+            return $this->okResponse();
+        });
+
+        $result = $sender->sendGuardRoute($rowId, 'Спроси иначе, пожалуйста.');
+
+        $this->assertTrue($result);
+        $this->assertCount(1, $calls);
+        $this->assertSame('sendMessage', $calls[0]['method']);
+        $this->assertSame(-100444, $calls[0]['data']['chat_id']);
+        $this->assertSame(15, $calls[0]['data']['message_thread_id']);
+        $this->assertSame(511, $calls[0]['data']['reply_to_message_id']);
+        $this->assertSame('COMMUNITY_ROUTE_SENT', $this->lastAuditAction($rowId));
+    }
+
+    public function testSendGuardRouteRespectsHourlyCeilingLikeAnswer(): void
+    {
+        $chatId   = -100666;
+        $threadId = 66;
+
+        for ($i = 0; $i < 5; $i++) {
+            $priorRowId = $this->insertMessage([
+                'chat_id' => $chatId, 'message_thread_id' => $threadId, 'telegram_user_id' => 3000 + $i,
+            ]);
+            $this->seedPastSend($priorRowId);
+        }
+
+        $sender = $this->sender([], function (): ServerResponse {
+            $this->fail('маршрут гварда обязан молчать при исчерпанном потолке топика, как и обычный ответ');
+        });
+
+        $rowId  = $this->insertMessage([
+            'chat_id' => $chatId, 'message_thread_id' => $threadId, 'telegram_user_id' => 6666,
+        ]);
+        $result = $sender->sendGuardRoute($rowId, 'Спроси иначе.');
+
+        $this->assertFalse($result);
+        $this->assertSame('topic_rate_limit', $this->lastAuditReason($rowId));
+    }
+
+    public function testSendGuardRouteRejectedTextNotCountedAsAnswer(): void
+    {
+        $rowId = $this->insertMessage();
+
+        $called = false;
+        $sender = $this->sender([], function () use (&$called): ServerResponse {
+            $called = true;
+            return $this->okResponse();
+        });
+
+        $result = $sender->sendGuardRoute($rowId, 'Тут *непарная звёздочка без пары.');
+
+        $this->assertFalse($result);
+        $this->assertFalse($called);
+        $this->assertSame('COMMUNITY_ROUTE_REJECTED', $this->lastAuditAction($rowId));
+        $this->assertSame('unbalanced_markdown', $this->lastAuditReason($rowId));
+    }
+
+    /**
+     * Ремонт по замечанию лида (2026-08-26): маршрут ОБЯЗАН и уважать потолок топика,
+     * и пополнять его — иначе тот, кто целенаправленно выуживает читы, получает
+     * гарантированный текстовый ответ на каждую пробу, потому что счётчик от его
+     * собственных отказов никогда не растёт (вектор спама, запрещённый `## Non-goals`
+     * story). Пять прошлых `COMMUNITY_ROUTE_SENT` (не `COMMUNITY_ANSWER_SENT`) обязаны
+     * сами исчерпать потолок для следующего маршрута.
+     */
+    public function testGuardRouteSentCountsTowardHourlyCeilingForNextRoute(): void
+    {
+        $chatId   = -100777222;
+        $threadId = 71;
+
+        for ($i = 0; $i < 5; $i++) {
+            $priorRowId = $this->insertMessage([
+                'chat_id' => $chatId, 'message_thread_id' => $threadId, 'telegram_user_id' => 4000 + $i,
+            ]);
+            $this->seedPastSend($priorRowId, 'COMMUNITY_ROUTE_SENT');
+        }
+
+        $sender = $this->sender([], function (): ServerResponse {
+            $this->fail('шестой маршрут за час обязан молчать — потолок пополняется маршрутами, не только ответами');
+        });
+
+        $rowId  = $this->insertMessage([
+            'chat_id' => $chatId, 'message_thread_id' => $threadId, 'telegram_user_id' => 7771,
+        ]);
+        $result = $sender->sendGuardRoute($rowId, 'Спроси иначе.');
+
+        $this->assertFalse($result);
+        $this->assertSame('topic_rate_limit', $this->lastAuditReason($rowId));
+    }
+
+    /** Та же логика, что и потолок, но для кулдауна автора — тот же выуживающий автор. */
+    public function testGuardRouteSentCountsTowardAuthorCooldown(): void
+    {
+        $authorId = 9191;
+
+        $firstRowId = $this->insertMessage(['telegram_user_id' => $authorId]);
+        $this->seedPastSend($firstRowId, 'COMMUNITY_ROUTE_SENT');
+
+        $sender = $this->sender(
+            ['community.autoreply.author_cooldown_seconds' => 600],
+            function (): ServerResponse {
+                $this->fail('маршрут в кулдауне автора обязан молчать — прошлый маршрут заводит кулдаун, как и ответ');
+            }
+        );
+
+        $secondRowId = $this->insertMessage(['telegram_user_id' => $authorId]);
+        $result       = $sender->sendGuardRoute($secondRowId, 'Спроси иначе.');
+
+        $this->assertFalse($result);
+        $this->assertSame('author_cooldown', $this->lastAuditReason($secondRowId));
+    }
+
     // ── канон имени — «Робби» запрещён даже тут ─────────────────────────
 
     public function testTextContainingWrongSpellingOfNameRejected(): void

@@ -71,6 +71,17 @@ final class CommunityChatSender
 {
     private const REACTION_METHOD = 'setMessageReaction';
 
+    /**
+     * Story 58: подстрока, по которой Bot API опознаёт отказ по содержимому текста
+     * (не сеть/права/адресат) — общая для legacy `Markdown` и `MarkdownV2`. Хрупко:
+     * Telegram формулировку явно не документирует, и она может смениться без
+     * уведомления. Если этот матч перестанет срабатывать — `isContentParseError()`
+     * начнёт молчать, а такие отказы вернутся к обычному `_FAILED`/ретраю (дефект 1
+     * story 58 снова оживёт незаметно). Признак поломки — рост `*_FAILED` с причиной
+     * `telegram_not_ok: Bad Request: can't parse entities...` в `admin_audit_log`.
+     */
+    private const TELEGRAM_CONTENT_PARSE_ERROR_MARKER = "can't parse entities";
+
     private CommunityMessageModel $messageModel;
     private AdminAuditLogModel $auditModel;
 
@@ -117,7 +128,7 @@ final class CommunityChatSender
      */
     public function sendAnswer(int $messageRowId, string $text): bool
     {
-        return $this->sendText($messageRowId, $text, false);
+        return $this->sendText($messageRowId, $text, 'COMMUNITY_ANSWER', false);
     }
 
     /**
@@ -136,14 +147,27 @@ final class CommunityChatSender
      */
     public function sendManualAnswer(int $messageRowId, string $text): bool
     {
-        return $this->sendText($messageRowId, $text, true);
+        return $this->sendText($messageRowId, $text, 'COMMUNITY_MANUAL_ANSWER', true);
     }
 
-    /** @param bool $isManual см. {@see sendAnswer()} vs {@see sendManualAnswer()} */
-    private function sendText(int $messageRowId, string $text, bool $isManual): bool
+    /**
+     * Маршрут отказа гварда (story 55: текст «спроси иначе»/«эту тему не обсуждаем»)
+     * — story 58, дефект 2. Те же гейты и потолок, что у {@see sendAnswer()} (не
+     * ручная льгота — `$isManual=false`), но **отдельное** аудит-действие
+     * `COMMUNITY_ROUTE_SENT`/`COMMUNITY_ROUTE_REJECTED`/`COMMUNITY_ROUTE_FAILED`
+     * вместо `COMMUNITY_ANSWER_*`: иначе отказ гварда считается ответом бота в
+     * `guardTotal = botAnswers + guardDenied` (`/admin/community`) и попадает в обе
+     * половины метрики сразу. Контракт story — имя метода и имя действия не
+     * переименовывать (используются story 57/59, которые едут следом).
+     */
+    public function sendGuardRoute(int $selfId, string $text): bool
     {
-        $auditPrefix = $isManual ? 'COMMUNITY_MANUAL_ANSWER' : 'COMMUNITY_ANSWER';
+        return $this->sendText($selfId, $text, 'COMMUNITY_ROUTE', false);
+    }
 
+    /** @param string $auditPrefix `COMMUNITY_ANSWER` / `COMMUNITY_MANUAL_ANSWER` / `COMMUNITY_ROUTE` */
+    private function sendText(int $messageRowId, string $text, string $auditPrefix, bool $isManual): bool
+    {
         $row = $this->findMessage($messageRowId);
         if ($row === null) {
             $this->audit($auditPrefix . '_REJECTED', $messageRowId, null, 'message_not_found');
@@ -213,17 +237,48 @@ final class CommunityChatSender
         }
 
         if (! $resp->isOk()) {
+            $description = (string) $resp->getDescription();
+
+            // Дефект 1, story 58: наша предочистка (`checkGates()`) ловит парность
+            // `*`/`_`/`` ` ``/`[`…`]`, но не покрывает ВСЕ квирки легаси `Markdown`
+            // (вложенные сущности, спецсимволы внутри уже сбалансированной пары).
+            // Если Telegram сам вернул «не смог распарсить сущности» — причина не в
+            // сети и не рассосётся сама: пишем как отказ гейта (`_REJECTED`), а не
+            // как обычный `_FAILED`. `unbalanced_markdown` уже входит в
+            // `TERMINAL_GATE_REASONS` у вызывающего (`CommunityAutoReplyHandler`,
+            // вне `## Files` этой story) — без этого шага склейка вечно возвращалась
+            // бы в `'new'` и повторяла тот же необрабатываемый `ok=false` каждую
+            // минуту, каждый раз дописывая строку в тот самый `admin_audit_log`, по
+            // которому считается сам часовой потолок. Транзиентные отказы (не про
+            // содержимое текста — например, «message thread not found») остаются
+            // `_FAILED`, чтобы вызывающий их по-прежнему ретраил.
+            if ($method === 'sendMessage' && $this->isContentParseError($description)) {
+                $this->audit($auditPrefix . '_REJECTED', $messageRowId, $this->authorId($row), 'unbalanced_markdown');
+                return false;
+            }
+
             $this->audit(
                 $auditPrefix . '_FAILED',
                 $messageRowId,
                 $this->authorId($row),
-                'telegram_not_ok: ' . (string) $resp->getDescription()
+                'telegram_not_ok: ' . $description
             );
             return false;
         }
 
         $this->audit($auditPrefix . '_SENT', $messageRowId, $this->authorId($row), 'ok');
         return true;
+    }
+
+    /**
+     * Story 58, дефект 1: Telegram использует одну и ту же формулировку для ЛЮБОЙ
+     * не разобранной сущности, независимо от `parse_mode` (легаси `Markdown` или
+     * `MarkdownV2`) — по ней и опознаём отказ, вызванный содержимым текста, а не
+     * сетью/правами/адресатом.
+     */
+    private function isContentParseError(string $description): bool
+    {
+        return stripos($description, self::TELEGRAM_CONTENT_PARSE_ERROR_MARKER) !== false;
     }
 
     /** @param array<string, mixed> $data */
@@ -326,7 +381,7 @@ final class CommunityChatSender
             if ($maxChars > 0 && mb_strlen($text) > $maxChars) {
                 return 'text_too_long';
             }
-            if (substr_count($text, '*') % 2 !== 0) {
+            if ($this->hasUnbalancedMarkdownEntities($text)) {
                 return 'unbalanced_markdown';
             }
             if (mb_stripos($text, 'Робби') !== false) {
@@ -335,6 +390,27 @@ final class CommunityChatSender
         }
 
         return null;
+    }
+
+    /**
+     * Story 58, дефект 1: `checkGates()` раньше проверял парность только `*`, хотя
+     * отправка идёт `parse_mode=Markdown` (легаси, `:163`), где сущностей больше:
+     * `_`, обратный апостроф, `[`…`]`. Текст банка с непарным `_` (слаг с
+     * подчёркиванием, обрезанная скобка после правки владельца) раньше уходил в
+     * сеть, Telegram возвращал `ok=false`, а склейка возвращалась в `'new'` — тик
+     * повторял её каждую минуту вечно. Причина-класс одна и та же —
+     * `unbalanced_markdown` — чтобы вызывающий (`CommunityAutoReplyHandler`,
+     * `TERMINAL_GATE_REASONS`) не различал их отдельно.
+     */
+    private function hasUnbalancedMarkdownEntities(string $text): bool
+    {
+        foreach (['*', '_', '`'] as $marker) {
+            if (substr_count($text, $marker) % 2 !== 0) {
+                return true;
+            }
+        }
+
+        return substr_count($text, '[') !== substr_count($text, ']');
     }
 
     /**
@@ -379,10 +455,19 @@ final class CommunityChatSender
     {
         // Только текстовые ответы — реакция не занимает строку и не расходует
         // потолок ответов в топике (ремонтный круг 1, 2026-08-25).
+        //
+        // Story 58 (ремонт по замечанию лида, 2026-08-26): `COMMUNITY_ANSWER_SENT` И
+        // `COMMUNITY_ROUTE_SENT` — оба считаются в потолок. Потолок топика защищает чат
+        // от того, чтобы бот тараторил, ему всё равно, ответ это или маршрут отказа. Если
+        // маршрут уважает потолок, но не пополняет его — тот, кто целенаправленно выуживает
+        // читы, получает гарантированный текстовый ответ на КАЖДУЮ пробу: счётчик от его
+        // отказов никогда не растёт. Это ровно вектор спама, запрещённый `## Non-goals`
+        // story. Метрика «доля ответов бота» (`/admin/community`, story 59) — другой
+        // счётчик, считает только `COMMUNITY_ANSWER_SENT`; она вне этого файла.
         $sql = 'SELECT COUNT(*) AS n
                 FROM admin_audit_log a
                 INNER JOIN community_messages cm ON cm.id = a.target_id
-                WHERE a.action = \'COMMUNITY_ANSWER_SENT\'
+                WHERE a.action IN (\'COMMUNITY_ANSWER_SENT\', \'COMMUNITY_ROUTE_SENT\')
                   AND cm.chat_id = ?
                   AND cm.message_thread_id <=> ?
                   AND a.created_at >= (NOW() - INTERVAL 1 HOUR)';
@@ -399,10 +484,15 @@ final class CommunityChatSender
     {
         // Только текстовые ответы — прошлая реакция автору не запускает кулдаун
         // на следующий текстовый ответ (ремонтный круг 1, 2026-08-25).
+        //
+        // Story 58 (ремонт по замечанию лида, 2026-08-26): та же логика, что у
+        // {@see sentInTopicLastHour()} — маршрут отказа тоже запускает кулдаун автору,
+        // иначе автор, целенаправленно выуживающий чити, дёргает бота раз за разом без
+        // ограничения, потому что каждый отказ маршрутом сам кулдаун не заводит.
         $sql = 'SELECT COUNT(*) AS n
                 FROM admin_audit_log a
                 INNER JOIN community_messages cm ON cm.id = a.target_id
-                WHERE a.action = \'COMMUNITY_ANSWER_SENT\'
+                WHERE a.action IN (\'COMMUNITY_ANSWER_SENT\', \'COMMUNITY_ROUTE_SENT\')
                   AND cm.telegram_user_id = ?
                   AND a.created_at >= (NOW() - INTERVAL ? SECOND)';
 
