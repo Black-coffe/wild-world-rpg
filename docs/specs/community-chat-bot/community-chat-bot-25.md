@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-25
 spec: community-chat-bot
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -66,5 +66,36 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Controllers/Telegram/`
 
 ## Implementation notes
+
+- `BotController::extractChatType()` — добавлены пути `['channel_post']` и
+  `['edited_channel_post']` в перебор конвертов; `channel` в
+  `COMMUNITY_CHAT_TYPES` тем самым впервые реально достижим.
+- `TelegramRateLimitFilter::isGroupChat()`/`extractChatId()` — те же два конверта
+  добавлены в разбор (второй дефект «Конверты» касался и фильтра тоже).
+- `TelegramRateLimitFilter::groupMaxPerMinute()` (новый метод) — групповое ведро
+  `tg_rate_group_{chatId}` читает потолок из `GameSettings`
+  (`experimental.community_chat.rate_limit_per_minute`, стартовое значение 600 —
+  миграция `Adr176CommunityRateLimitSetting`) вместо персонального
+  `DEFAULT_MAX_PER_MINUTE`. Fallback при недоступной/незаведённой настройке —
+  `maxPerMinute()` (тот же персональный лимит), а не отдельная магическая
+  константа: так деградация безопасна и не расходится с уже существующими
+  regression-тестами story 01/16/17, которые молчаливо полагались на «группа
+  падает на персональный лимит, если GameSettings не сконфигурирован».
+  Персональный путь (`groupChatId === null`) не тронут ни ключом, ни величиной.
+- Миграция `2026-08-25-120000_Adr176CommunityRateLimitSetting.php` — только
+  INSERT в существующую `game_settings` (KEEP), новых таблиц/player-колонок
+  нет → WipeManifest трогать не нужно.
+- Новые тесты: `BotControllerChannelEnvelopeTest` (channel_post/edited_channel_post
+  гейтятся до диспетчера, fail-safe для неизвестного конверта цел) и
+  `TelegramRateLimitGroupCeilingTest` (групповой потолок из GameSettings отличим
+  от персонального, превышение группового лимита не расходует личное окно).
+  Второй тест — изолированная DROP+CREATE-схема `game_settings` в setUp/tearDown
+  (паттерн `CommunityChatSenderTest`/`DatabaseTestTrait`, `$migrate=false`):
+  локальная `wildworld_tests` отстаёт от реальных миграций (см.
+  `feedback_local_green_on_empty_test_db_proves_nothing`), реальный `set()`/`reset()`
+  требуют существующей таблицы и без try/catch падают на её отсутствии.
+- Tip-вердикт: «нет» — изменение затрагивает внутренний rate-limit/webhook-гейт,
+  не player-facing поверхность.
+- Guide-вердикт: «нет» — та же причина, нет новой видимой механики для игрока.
 
 ## Findings

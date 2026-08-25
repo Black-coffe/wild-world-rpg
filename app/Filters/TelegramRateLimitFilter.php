@@ -98,7 +98,11 @@ class TelegramRateLimitFilter implements FilterInterface
         // Time::now() (а не time()) — тот же источник времени, что у CI4-кэша,
         // и он мокается через Time::setTestNow() в тестах окна.
         $now   = Time::now()->getTimestamp();
-        $limit = $this->maxPerMinute();
+        // story-25 (ADR-176) — у группового ведра СВОЙ лимит, а не персональный
+        // 60/мин: чат на пару сотен человек превышает личный лимит игрока за секунды.
+        // Персональное окно ($groupChatId === null) величину не меняет ни ключом,
+        // ни лимитом — читает прежнюю константу/env, как и до этой story.
+        $limit = $groupChatId !== null ? $this->groupMaxPerMinute() : $this->maxPerMinute();
 
         $state = $cache->get($key);
         // Не-массив = либо пусто, либо legacy-значение (голый int от старой версии).
@@ -160,6 +164,26 @@ class TelegramRateLimitFilter implements FilterInterface
         }
 
         return self::DEFAULT_MAX_PER_MINUTE;
+    }
+
+    /**
+     * story-25 (ADR-176) — лимит группового ведра `tg_rate_group_{chatId}`, отдельный
+     * от персонального. В отличие от `maxPerMinute()` это admin-tunable игровой
+     * параметр (рассчитан на масштаб конкретного community-чата, не на архитектурный
+     * timeout), поэтому живёт в `GameSettings`, а не в .env/константе (CLAUDE.md
+     * §admin-tunable). Значение по умолчанию в миграции — 600/мин (масштаб чата, не
+     * игрока). Fallback на `maxPerMinute()` — безопасная деградация, если строка
+     * `game_settings` недоступна или не заведена (см. doc-блок
+     * {@see \App\Services\GameSettings\GameSettingsService::get()}): группа падает
+     * на персональный лимит, а не молчаливо получает произвольное число.
+     */
+    private function groupMaxPerMinute(): int
+    {
+        $fallback = $this->maxPerMinute();
+        $value    = (new \App\Services\GameSettings\GameSettingsService())
+            ->get('experimental.community_chat.rate_limit_per_minute', $fallback);
+
+        return is_numeric($value) && (int) $value > 0 ? (int) $value : $fallback;
     }
 
     /**
@@ -254,14 +278,17 @@ class TelegramRateLimitFilter implements FilterInterface
     {
         $type = $this->dig($update, 'message', 'chat', 'type')
             ?? $this->dig($update, 'edited_message', 'chat', 'type')
-            ?? $this->dig($update, 'callback_query', 'message', 'chat', 'type');
+            ?? $this->dig($update, 'callback_query', 'message', 'chat', 'type')
+            ?? $this->dig($update, 'channel_post', 'chat', 'type')
+            ?? $this->dig($update, 'edited_channel_post', 'chat', 'type');
 
         return is_string($type) && in_array($type, ['group', 'supergroup', 'channel'], true);
     }
 
     /**
-     * chat.id из message / edited_message / callback_query.message — та же форма, что уже
-     * разбирает {@see \App\Services\Player\LastSeenService::extractChatId()}.
+     * chat.id из message / edited_message / callback_query.message / channel_post /
+     * edited_channel_post — та же форма, что уже разбирает
+     * {@see \App\Services\Player\LastSeenService::extractChatId()}.
      *
      * @param array<array-key, mixed> $update
      */
@@ -271,6 +298,8 @@ class TelegramRateLimitFilter implements FilterInterface
             $this->dig($update, 'message', 'chat', 'id'),
             $this->dig($update, 'edited_message', 'chat', 'id'),
             $this->dig($update, 'callback_query', 'message', 'chat', 'id'),
+            $this->dig($update, 'channel_post', 'chat', 'id'),
+            $this->dig($update, 'edited_channel_post', 'chat', 'id'),
         ];
         foreach ($candidates as $id) {
             if (is_int($id)) {

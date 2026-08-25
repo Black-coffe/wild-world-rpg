@@ -219,14 +219,22 @@ class BotController extends Controller
     }
 
     /**
-     * `chat.type` из message / edited_message / callback_query.message — те же формы
-     * апдейта, что уже разбирает {@see \App\Services\Player\LastSeenService}.
+     * `chat.type` из message / edited_message / callback_query.message / channel_post /
+     * edited_channel_post. Последние два — конверты Telegram-канала: `channel` внесён
+     * в {@see COMMUNITY_CHAT_TYPES} сознательно, но до story-25 не был покрыт ни одним
+     * путём разбора, поэтому фактически всегда падал в fail-safe «приватный».
      *
      * @param array<array-key, mixed> $update
      */
     private function extractChatType(array $update): ?string
     {
-        foreach ([['message'], ['edited_message'], ['callback_query', 'message']] as $path) {
+        foreach ([
+            ['message'],
+            ['edited_message'],
+            ['callback_query', 'message'],
+            ['channel_post'],
+            ['edited_channel_post'],
+        ] as $path) {
             $type = $this->dig($update, [...$path, 'chat', 'type']);
             if (is_string($type)) {
                 return $type;
