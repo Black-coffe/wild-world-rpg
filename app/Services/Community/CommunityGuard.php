@@ -533,10 +533,12 @@ final class CommunityGuard
     {
         $fragments = [];
 
-        // Story 30: обёрнут так же, как game_tips/site_posts ниже — GuideCatalog::sections()
-        // сама читает GameSettings (через BotMenuService::menuLabel()), а значит и она может
-        // упасть без доступной БД. Докблок обещал безопасную деградацию корпуса — код её не
-        // держал только для этого источника.
+        // Story 38: try/catch безвреден, но прежнее обоснование («раньше падал без БД»,
+        // story 30) не воспроизводится — GuideCatalog::sections() читает настройки через
+        // BotMenuService::menuLabel(), а тот идёт через GameSettingsService::get(), который
+        // сам глушит Throwable и возвращает default. Оставлен для защитной симметрии с
+        // game_tips/site_posts ниже (единообразная деградация корпуса по каждому источнику),
+        // а не как защита от реального падения — падать здесь действительно нечему.
         try {
             foreach (GuideCatalog::sections() as $section) {
                 $fragments[] = ['source' => 'guide:' . $section['key'], 'text' => $section['title'] . ' ' . $section['body']];

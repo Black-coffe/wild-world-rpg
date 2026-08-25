@@ -8,6 +8,7 @@ use App\Models\GameSettingsModel;
 use App\Services\Community\CommunityGuard;
 use App\Services\Community\Verdict;
 use App\Services\GameSettings\GameSettingsService;
+use App\Services\Onboarding\GuideCatalog;
 use Config\CommunityVoice;
 use CodeIgniter\Test\CIUnitTestCase;
 
@@ -139,19 +140,23 @@ final class CommunityGuardTest extends CIUnitTestCase
     }
 
     /**
-     * Story 21: все шесть строк из таблицы дефекта — правдоподобные утечки и
-     * односложные подтверждения, набиравшие `allow` на реальном справочнике до
-     * фикса (0.6-порог почти всегда находил фрагмент с 60%+ совпадением стеммов
-     * на 32 разделах). НЕ важно, какой именно рубеж денит — важно, что не allow.
+     * Story 21: шесть строк из таблицы дефекта — правдоподобные утечки и односложные
+     * подтверждения, набиравшие `allow` на реальном справочнике до фикса (0.6-порог
+     * почти всегда находил фрагмент с 60%+ совпадением стеммов на 32 разделах). НЕ
+     * важно, какой именно рубеж денит — важно, что не allow.
      *
-     * Story 30: «Ставь ловушки у воды…» заменена — калибровка (24+24, окно 8,
-     * `## Findings`) показала, что при исправленном пороге (0.55) она держится
-     * на грани окна анти-рекомбинации (0.605) и не была бы устойчивым примером
-     * ни при каком единственном окне без разрушения других требуемых строк;
-     * замена — фабрикат того же типа («ночью добыча выше») из того же ревью-
-     * прогона, устойчиво денящийся (win=0.24 против 0.55).
+     * Story 30/38: пять из этих шести строк держатся против исправленного порога
+     * (0.55) как есть; шестая, «Ставь ловушки у воды — там добыча идёт лучше.»,
+     * держится на грани окна анти-рекомбинации (0.605) и НЕ является устойчивым
+     * примером — калибровка (`## Implementation notes` story 30) нашла её в числе
+     * измеренного false-allow. Она НЕ проверяется здесь (это соврало бы про
+     * покрытие теста), а зафиксирована отдельно, поимённо, как известное
+     * ограничение — {@see testKnownFalseAllowStopTrapExampleAgainstRealCorpus()}.
+     * Место шестой строки в этом списке занимает фабрикат того же типа («ночью
+     * добыча выше») из того же ревью-прогона, устойчиво денящийся (win=0.24
+     * против 0.55) — пять строк из таблицы дефекта плюс один однотипный заменитель.
      */
-    public function testAllSixLeakedExamplesAreNotAllowedAgainstRealCorpus(): void
+    public function testFiveLeakedExamplesAndAOneTypeSubstituteAreNotAllowedAgainstRealCorpus(): void
     {
         $examples = [
             'Мастерская на базе даёт больше ресурсов, чем Лаборатория.',
@@ -166,6 +171,33 @@ final class CommunityGuardTest extends CIUnitTestCase
             $verdict = $this->realGuard()->verdict($example, 'Расскажи про механику.', null);
             $this->assertFalse($verdict->isAllow(), "«{$example}» не должно проходить как allow против реального корпуса");
         }
+    }
+
+    /**
+     * Story 38: известный ложный пропуск (story 30 калибровка, `## Implementation
+     * notes`) зафиксирован поимённо, а не исключён из репозитория молча. Формулу
+     * НЕ доводим под этот случай — это non-goal story 38: числа калибровки приняты
+     * владельцем осознанно (ложный пропуск ~20.8%), и «Ставь ловушки у воды…» —
+     * один из этих измеренных случаев, а не регресс.
+     *
+     * Тест утверждает ТЕКУЩЕЕ (нежелательное) поведение — allow. Если формула
+     * когда-нибудь изменится и начнёт денить эту фразу, это assertTrue упадёт:
+     * сигнал обновить и эту заметку, и заметку в story 30, а не тихо потерять
+     * пример второй раз.
+     */
+    public function testKnownFalseAllowStopTrapExampleAgainstRealCorpus(): void
+    {
+        $verdict = $this->realGuard()->verdict(
+            'Ставь ловушки у воды — там добыча идёт лучше.',
+            'Расскажи про механику.',
+            null,
+        );
+
+        $this->assertTrue(
+            $verdict->isAllow(),
+            'известный ложный пропуск (story 30/38) — если это упало, формула изменилась '
+                . 'и ограничение можно снять из story 30/38, а не потерять пример молча',
+        );
     }
 
     /**
@@ -505,5 +537,113 @@ final class CommunityGuardTest extends CIUnitTestCase
         }
 
         $this->assertStringNotContainsString('GameBalance', $codeOnly, 'CommunityGuard не имеет права зависеть от Config\\GameBalance');
+    }
+
+    // ── Story 38 — калибровка исполняется, а не живёт только в прозе story ──
+
+    /**
+     * Story 38: story 30 замерила 24 добросовестных + 24 фабриката один раз вручную
+     * и записала результат прозой (`## Implementation notes`) — `GuideCatalog` растёт
+     * с каждой новой механикой (GUIDE-COVERAGE), а замер за этим не следит. Этот тест
+     * ГОВОРИТ вместо прозы: строит обе выборки живьём из текущего `GuideCatalog::sections()`
+     * (не заморожена — растёт вместе со справочником), печатает измеренные частоты обеих
+     * ошибок в STDERR при каждом прогоне и падает, только если ЛЮБАЯ из них уходит за
+     * широкий коридор.
+     *
+     * Добросовестная сторона — дословная первая содержательная фраза каждого раздела
+     * (честная цитата источника обязана проходить рубеж провенанса). Фабрикатная сторона
+     * — сравнительное утверждение, собранное из ЗАГОЛОВКОВ двух РАЗНЫХ разделов
+     * (`«X» даёт больше пользы, чем «Y».`) — по конструкции не подтверждено ни одним
+     * фрагментом целиком, тот же класс рекомбинации, что в story 30.
+     *
+     * Коридор (0%..60%) — НЕ порог формулы (`Non-goals`: пороги не трогаем) и НЕ
+     * повторение измеренных story 30 (12.5%/20.8%) или ревьюера (20.8%/29.2%) — тот
+     * разброс уже показал, что точное число это свойство выборки. Коридор — заведомо
+     * широкий guard-rail: ловит грубую поломку рубежа (например, если провенанс
+     * перестанет отклонять фабрикаты вовсе), а не обычный сдвиг от нового раздела
+     * `/guide`. Обе частоты печатаются всегда — так сдвиг виден человеку, даже когда
+     * он ещё внутри коридора и набор остаётся зелёным.
+     */
+    public function testCalibrationMeasuresBothErrorRatesAndReportsDriftOnLiveGuideCatalog(): void
+    {
+        $sections = GuideCatalog::sections();
+        $this->assertGreaterThanOrEqual(20, count($sections), 'калибровке нужно не меньше 20 разделов GuideCatalog для обеих выборок');
+
+        $guard = $this->realGuard();
+
+        $goodFaithSample = [];
+        foreach ($sections as $section) {
+            $sentence = $this->firstSentenceOf($section['body']);
+            if ($sentence !== null) {
+                $goodFaithSample[] = $sentence;
+            }
+        }
+
+        $fabricatedSample = [];
+        for ($i = 0; $i + 1 < count($sections); $i++) {
+            $wordA = $this->significantWordOf($sections[$i]['title']);
+            $wordB = $this->significantWordOf($sections[$i + 1]['title']);
+            if ($wordA === null || $wordB === null) {
+                continue;
+            }
+            $fabricatedSample[] = "«{$wordA}» даёт больше пользы, чем «{$wordB}».";
+        }
+
+        $this->assertNotEmpty($goodFaithSample);
+        $this->assertNotEmpty($fabricatedSample);
+
+        $falseDeny = 0;
+        foreach ($goodFaithSample as $sentence) {
+            if (! $guard->verdict($sentence, 'Расскажи про механику.', null)->isAllow()) {
+                $falseDeny++;
+            }
+        }
+
+        $falseAllow = 0;
+        foreach ($fabricatedSample as $claim) {
+            if ($guard->verdict($claim, 'Расскажи про механику.', null)->isAllow()) {
+                $falseAllow++;
+            }
+        }
+
+        $falseDenyRate   = $falseDeny / count($goodFaithSample);
+        $falseAllowRate  = $falseAllow / count($fabricatedSample);
+
+        fwrite(STDERR, sprintf(
+            "\n[CommunityGuard calibration, живой GuideCatalog (%d разделов)] ложный отказ=%.1f%% (%d/%d), ложный пропуск=%.1f%% (%d/%d)\n",
+            count($sections),
+            $falseDenyRate * 100,
+            $falseDeny,
+            count($goodFaithSample),
+            $falseAllowRate * 100,
+            $falseAllow,
+            count($fabricatedSample),
+        ));
+
+        $this->assertLessThanOrEqual(0.60, $falseDenyRate, 'ложный отказ вышел за широкий коридор — рубеж 1 массово режет честные цитаты источника');
+        $this->assertLessThanOrEqual(0.60, $falseAllowRate, 'ложный пропуск вышел за широкий коридор — рубеж 1 перестал ловить межраздельную рекомбинацию');
+    }
+
+    /** Первое содержательное предложение текста раздела (для добросовестной стороны калибровки). */
+    private function firstSentenceOf(string $body): ?string
+    {
+        $plain = str_replace(['*', '_'], '', $body);
+        preg_match('/^[^.!?]{12,}[.!?]/u', trim($plain), $matches);
+
+        return $matches[0] ?? null;
+    }
+
+    /** Одно значимое (не служебное, ≥4 буквы) слово заголовка раздела (для фабрикатной стороны калибровки). */
+    private function significantWordOf(string $title): ?string
+    {
+        $plain = preg_replace('/[^\p{L}\s]/u', ' ', $title) ?? '';
+        foreach (explode(' ', $plain) as $word) {
+            $word = trim($word);
+            if (mb_strlen($word) >= 4) {
+                return mb_strtolower($word);
+            }
+        }
+
+        return null;
     }
 }
