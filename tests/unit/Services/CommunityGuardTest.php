@@ -728,12 +728,34 @@ final class CommunityGuardTest extends CIUnitTestCase
     }
 
     /**
-     * Story 70, acceptance: «а не только»/«а не просто»/«а не лишь» — связка
-     * уточнения объёма одного варианта («можно говорить, а не ТОЛЬКО
-     * драться»), не сопоставление двух вариантов. R1 больше не денит эту
-     * форму «а не».
+     * 🔴 Story 73 (ADR-178, поправка №4) ОТМЕНЯЕТ story 70's вырез под
+     * «а не только/просто/лишь» — различитель стоял на неверной оси:
+     * поверхность уточнения («можно говорить, а не только драться» — законно)
+     * и замены («Ставь X, а не просто Y» — лайфхак) идентична, списком слов
+     * после союза семантика не различается. Замена БЕЗ выреза денится честно;
+     * законное уточнение теперь тоже денится (цена, принятая ADR — уточнение
+     * тривиально перефразируется, `guide:npc` уходит в петлю «лечить источник»).
+     * Тест краснеет на возврат story 70's поведения (снова allow на замене).
      */
-    public function testANeOnlyClarificationPassesWithoutBeingTreatedAsComparison(): void
+    public function testANeIsUnconditionalAgainAfterAdr178Amendment4(): void
+    {
+        $substitution1 = $this->guard()->verdict('Ставь Лабораторию, а не просто Мастерскую.', 'Расскажи про механику.', null);
+        $substitution2 = $this->guard()->verdict('Качай выносливость, а не только силу.', 'Расскажи про механику.', null);
+
+        $this->assertTrue($substitution1->isDeny(), 'совет-замена под прикрытием «а не просто» обязан денится');
+        $this->assertSame('comparative_claim', $substitution1->reason);
+        $this->assertTrue($substitution2->isDeny(), 'совет-замена под прикрытием «а не только» обязан денится');
+        $this->assertSame('comparative_claim', $substitution2->reason);
+    }
+
+    /**
+     * Story 73: цена отката — законное уточнение объёма («не только X, а ещё
+     * Y») тоже теперь денится рубежом формы. Это НЕ регрессия story 63/70, а
+     * принятая цена ADR-178 поправки №4 — `guide:npc` переходит в петлю «лечить
+     * источник», как раньше находка про телепорт (правка `GuideCatalog` —
+     * отдельная задача, не эта story).
+     */
+    public function testLegitimateOnlyClarificationNowDeniedAsAcceptedCost(): void
     {
         $verdict = $this->guard()->verdict(
             'Там можно торговать, а не только драться.',
@@ -741,7 +763,8 @@ final class CommunityGuardTest extends CIUnitTestCase
             null,
         );
 
-        $this->assertTrue($verdict->isAllow(), '«а не только» — уточнение объёма, не сопоставление двух вариантов');
+        $this->assertTrue($verdict->isDeny(), 'ADR-178 поправка №4: цена отката — уточнение тоже денится, лечится правкой источника');
+        $this->assertSame('comparative_claim', $verdict->reason);
     }
 
     /**
@@ -758,7 +781,7 @@ final class CommunityGuardTest extends CIUnitTestCase
 
         $this->assertTrue($viaVsto->isDeny(), '«вместо» — безусловный триггер, степень требовать запрещено');
         $this->assertSame('comparative_claim', $viaVsto->reason);
-        $this->assertTrue($viaANe->isDeny(), '«а не» без «только/просто/лишь» — безусловный триггер');
+        $this->assertTrue($viaANe->isDeny(), '«а не» — безусловный триггер (story 73: и с «только/просто/лишь» тоже)');
         $this->assertSame('comparative_claim', $viaANe->reason);
     }
 
@@ -778,6 +801,84 @@ final class CommunityGuardTest extends CIUnitTestCase
         $this->assertSame('comparative_claim', $viaR1->reason);
         $this->assertTrue($viaR4->isDeny());
         $this->assertSame('comparative_claim', $viaR4->reason);
+    }
+
+    /**
+     * R5 (ADR-178, поправка №4), acceptance: клауза-императив + маркер
+     * оптимизации по времени/моменту в одном предложении — три утечки из
+     * поправки, все три формы маркера (время суток, «перед», «пока»).
+     */
+    public function testR5ImperativeWithTimingMarkerIsDeniedAsComparativeClaim(): void
+    {
+        $cases = [
+            'Собирай ресурсы ночью — охрана спит.',
+            'Оставляй вещи на базе перед вылазкой.',
+            'Заходи в чужую базу, пока хозяин в походе.',
+        ];
+
+        foreach ($cases as $answer) {
+            $verdict = $this->guard()->verdict($answer, 'Расскажи про механику.', null);
+            $this->assertTrue($verdict->isDeny(), "«{$answer}» — императив + маркер оптимизации, обязан денится");
+            $this->assertSame('comparative_claim', $verdict->reason);
+        }
+    }
+
+    /**
+     * R5, acceptance: императив — защита ОПИСАТЕЛЬНЫХ фраз, не полнота
+     * покрытия. Законные инструкции без маркера времени/момента (место,
+     * предусловие) и описательные фразы без императива вовсе — обязаны
+     * проходить.
+     */
+    public function testR5DoesNotCatchLegitimateInstructionsOrDescriptionsWithoutBothParts(): void
+    {
+        $legitimate = [
+            'Поставь Теплицу на базе.',
+            'Скрафти флягу.',
+            'Открой вкладку Крафт.',
+            'Дрон заряжается, пока ты на базе.',
+            'Ночью на карте темнее.',
+        ];
+
+        foreach ($legitimate as $answer) {
+            $verdict = $this->guard()->verdict($answer, 'Расскажи про механику.', null);
+            $this->assertTrue($verdict->isAllow(), "«{$answer}» не должно денится R5 — нет обеих частей (императив+маркер) сразу");
+        }
+    }
+
+    /**
+     * Story 73, acceptance: правка границы слова story 69 («максимум одна
+     * лишняя буква») закрыла случайные подстрочные совпадения, но заодно
+     * перестала ловить падежные формы самого стоп-слова длиннее одной буквы —
+     * «потолка»/«потолки» (беглая гласная «о» ломает буквальный префикс,
+     * закрыто `STEM_OVERRIDES`), «порогов»/«сотни» (2-3-буквенное окончание,
+     * закрыто допуском по длине стема). Пять слов из story 69 остаются allow —
+     * граница не откатилась к голому `str_contains()`.
+     */
+    public function testStopWordDeclensionFormsAreCaughtWithoutReopeningStory69FalsePositives(): void
+    {
+        $declinedForms = [
+            'Урон упирается в потолка прочности.',
+            'Урон упирается в потолки прочности.',
+            'Стражи охраняют порогов входа.',
+            'В сундуке лежат сотни монет.',
+        ];
+        foreach ($declinedForms as $answer) {
+            $verdict = $this->guard()->verdict($answer, 'Расскажи про механику.', null);
+            $this->assertTrue($verdict->isDeny(), "«{$answer}» — падежная форма стоп-слова, обязана денится");
+            $this->assertSame('lexical_stoplist', $verdict->reason);
+        }
+
+        $protectedByStory69 = [
+            'Здесь тихое место для лагеря.',
+            'Верстак стоит на базе.',
+            'Это просто крафт ресурсов.',
+            'Копьё имеет острое остриё.',
+            'Все постройки выглядят одинаково.',
+        ];
+        foreach ($protectedByStory69 as $answer) {
+            $verdict = $this->guard()->verdict($answer, 'Расскажи про механику.', null);
+            $this->assertTrue($verdict->isAllow(), "«{$answer}» — совпадение внутри чужого слова, story 69 обязана остаться в силе");
+        }
     }
 
     /**
