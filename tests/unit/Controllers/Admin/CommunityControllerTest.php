@@ -481,12 +481,37 @@ final class CommunityControllerTest extends CIUnitTestCase
 
     // ── метрики ──────────────────────────────────────────────────────────
 
+    /** @param array<string, mixed> $overrides */
+    private function insertAuditLog(string $action, int $targetId, string $createdAt, array $overrides = []): void
+    {
+        $row = array_merge([
+            'admin_user_id' => 0,
+            'action'        => $action,
+            'target_type'   => 'community_message',
+            'target_id'     => $targetId,
+            'payload'       => null,
+            'ip_address'    => null,
+            'user_agent'    => null,
+            'created_at'    => $createdAt,
+        ], $overrides);
+
+        $this->conn->table('admin_audit_log')->insert($row);
+    }
+
     public function testBotVsHumanMetricCountsWithinWindowOnly(): void
     {
         $now = new DateTimeImmutable('2026-08-25 12:00:00');
 
-        // Бот ответил (status=answered) — в окне (7 дней).
-        $this->insertMessage(['status' => 'answered', 'sent_at' => $now->modify('-2 days')->format('Y-m-d H:i:s')]);
+        // Бот ответил (status=answered) — в окне (7 дней), сопровождается
+        // автоматическим аудитом COMMUNITY_ANSWER_SENT (дефект 2: только он
+        // должен учитываться в «бот против живых»).
+        $auto = $this->insertMessage(['status' => 'answered', 'sent_at' => $now->modify('-2 days')->format('Y-m-d H:i:s')]);
+        $this->insertAuditLog('COMMUNITY_ANSWER_SENT', (int) $auto['id'], $now->modify('-2 days')->format('Y-m-d H:i:s'));
+
+        // Ручной ответ владельца (status=answered тоже, но аудит — MANUAL) — не
+        // должен увеличивать долю «бот» (дефект 2, story 26 acceptance).
+        $manual = $this->insertMessage(['status' => 'answered', 'sent_at' => $now->modify('-2 days')->format('Y-m-d H:i:s')]);
+        $this->insertAuditLog('COMMUNITY_MANUAL_ANSWER_SENT', (int) $manual['id'], $now->modify('-2 days')->format('Y-m-d H:i:s'));
 
         // Человек ответил человеку — в окне: reply на реальную строку другого автора.
         $author = $this->insertMessage([
@@ -501,11 +526,13 @@ final class CommunityControllerTest extends CIUnitTestCase
         ]);
 
         // Вне окна (10 дней назад) — не должно учитываться вовсе.
-        $this->insertMessage(['status' => 'answered', 'sent_at' => $now->modify('-10 days')->format('Y-m-d H:i:s')]);
+        $stale = $this->insertMessage(['status' => 'answered', 'sent_at' => $now->modify('-10 days')->format('Y-m-d H:i:s')]);
+        $this->insertAuditLog('COMMUNITY_ANSWER_SENT', (int) $stale['id'], $now->modify('-10 days')->format('Y-m-d H:i:s'));
 
         $metrics = $this->controller()->computeMetrics($now);
 
-        // 1 бот-ответ в окне против 1 человек-человеку в окне = 0.5, устаревшая строка не в счёте.
+        // 1 АВТО бот-ответ в окне против 1 человек-человеку в окне = 0.5, ручной
+        // ответ и устаревшая строка не в счёте.
         $this->assertSame(0.5, $metrics['bot_vs_human_share']);
     }
 
@@ -526,12 +553,102 @@ final class CommunityControllerTest extends CIUnitTestCase
     {
         $now = new DateTimeImmutable('2026-08-25 12:00:00');
 
-        $this->insertMessage(['status' => 'answered', 'sent_at' => $now->modify('-1 day')->format('Y-m-d H:i:s')]);
-        $this->insertMessage(['status' => 'answered', 'sent_at' => $now->modify('-1 day')->format('Y-m-d H:i:s')]);
-        $this->insertMessage(['status' => 'escalated', 'sent_at' => $now->modify('-1 day')->format('Y-m-d H:i:s')]);
+        $sentAt = $now->modify('-1 day')->format('Y-m-d H:i:s');
+
+        $answered1 = $this->insertMessage(['status' => 'answered', 'sent_at' => $sentAt]);
+        $this->insertAuditLog('COMMUNITY_ANSWER_SENT', (int) $answered1['id'], $sentAt);
+        $answered2 = $this->insertMessage(['status' => 'answered', 'sent_at' => $sentAt]);
+        $this->insertAuditLog('COMMUNITY_ANSWER_SENT', (int) $answered2['id'], $sentAt);
+
+        // Настоящий отказ гварда: escalated БЕЗ COMMUNITY_ANSWER_SENT — текст не ушёл.
+        $this->insertMessage(['status' => 'escalated', 'sent_at' => $sentAt]);
 
         $metrics = $this->controller()->computeMetrics($now);
 
         $this->assertEqualsWithDelta(1 / 3, $metrics['guard_rejection_rate'], 0.0001);
+    }
+
+    /**
+     * Дефект 3: полоса A «не знаю» тоже помечает строку escalated, но гвард её
+     * пропустил и текст реально ушёл (COMMUNITY_ANSWER_SENT есть) — это НЕ отказ
+     * гварда и не должно раздувать guard_rejection_rate.
+     */
+    public function testGuardRejectionRateExcludesHonestUnknownEscalations(): void
+    {
+        $now    = new DateTimeImmutable('2026-08-25 12:00:00');
+        $sentAt = $now->modify('-1 day')->format('Y-m-d H:i:s');
+
+        $answered = $this->insertMessage(['status' => 'answered', 'sent_at' => $sentAt]);
+        $this->insertAuditLog('COMMUNITY_ANSWER_SENT', (int) $answered['id'], $sentAt);
+
+        // Полоса A: escalated, но бот честно отправил «не знаю» — есть SENT-аудит.
+        $honestUnknown = $this->insertMessage(['status' => 'escalated', 'sent_at' => $sentAt]);
+        $this->insertAuditLog('COMMUNITY_ANSWER_SENT', (int) $honestUnknown['id'], $sentAt);
+
+        $metrics = $this->controller()->computeMetrics($now);
+
+        $this->assertSame(0.0, $metrics['guard_rejection_rate'], 'честное "не знаю" не должно считаться отказом гварда');
+    }
+
+    // ── очередь: открытые вопросы (дефект 1) ────────────────────────────────
+
+    /**
+     * Дефект 1: очередь фильтровала только `status`, не `is_question` — на
+     * обкатке (авто-тик выключен) любая принятая реплика в статусе `new`
+     * показывалась как «открытый вопрос».
+     */
+    public function testOpenQuestionsExcludesNonQuestionMessages(): void
+    {
+        $this->insertMessage(['status' => 'new', 'is_question' => 1]);
+        $this->insertMessage(['status' => 'new', 'is_question' => 0]); // обычная реплика, не вопрос
+
+        $method = new \ReflectionMethod(CommunityController::class, 'openQuestionsFlat');
+        $method->setAccessible(true);
+        $rows = $method->invoke($this->controller());
+
+        $this->assertCount(1, $rows);
+    }
+
+    /** Дефект 1: то же определение — метрика просроченных тоже фильтрует is_question. */
+    public function testStaleOpenQuestionsExcludesNonQuestionMessages(): void
+    {
+        $now = new DateTimeImmutable('2026-08-25 12:00:00');
+
+        $this->insertMessage(['status' => 'new', 'is_question' => 1, 'sent_at' => $now->modify('-100 hours')->format('Y-m-d H:i:s')]);
+        $this->insertMessage(['status' => 'new', 'is_question' => 0, 'sent_at' => $now->modify('-100 hours')->format('Y-m-d H:i:s')]); // не вопрос
+
+        $metrics = $this->controller()->computeMetrics($now);
+
+        $this->assertSame(1, $metrics['stale_open_questions']);
+    }
+
+    // ── отзыв: детерминированная цель среди дублей (дефект 4) ──────────────
+
+    /**
+     * Дефект 4: `answered_by_id` может стоять на нескольких строках (склейка
+     * дублей) — отзыв обязан адресовать поправку предсказуемой из них (самой
+     * ранней), а не произвольной строке через `first()` без сортировки.
+     */
+    public function testRevokeTargetsEarliestMessageAmongDuplicates(): void
+    {
+        $draft = $this->insertDraft(['status' => 'approved', 'approved_at' => date('Y-m-d H:i:s')]);
+
+        $earlier = $this->insertMessage(['sent_at' => '2026-08-20 10:00:00']);
+        $later   = $this->insertMessage(['sent_at' => '2026-08-20 11:00:00']);
+
+        $this->conn->table('community_messages')->where('id', $earlier['id'])->update([
+            'status' => 'answered', 'answered_by_id' => $draft['id'],
+        ]);
+        $this->conn->table('community_messages')->where('id', $later['id'])->update([
+            'status' => 'answered', 'answered_by_id' => $draft['id'],
+        ]);
+
+        $result = $this->controller()->revokeAnswer((int) $draft['id'], 'Поправка.');
+
+        $this->assertTrue($result['ok']);
+        $log = $this->conn->table('admin_audit_log')->where('action', 'COMMUNITY_ANSWER_REVOKED')->get(1)->getRowArray();
+        $this->assertNotNull($log);
+        $payload = json_decode((string) $log['payload'], true);
+        $this->assertSame((int) $earlier['id'], $payload['target_message_id'], 'поправка обязана уйти на самое раннее сообщение');
     }
 }

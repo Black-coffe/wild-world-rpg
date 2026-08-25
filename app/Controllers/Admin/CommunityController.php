@@ -22,7 +22,8 @@ use DateTimeImmutable;
  * `audit()`»); импорт (`community:import`, story 11) создаёт и трогает только `draft`.
  *
  * Экран показывает две живые сущности разом: открытые вопросы `community_messages`
- * (`status IN ('new','escalated')`) и черновики банка `community_answers`
+ * (`status IN ('new','escalated') AND is_question=1` — {@see openQuestionsBuilder()},
+ * единое определение с метрикой просроченных) и черновики банка `community_answers`
  * (`status='draft'`). Они НЕ связаны FK — `community_answers.source_ref` несёт
  * провенанс ТЕКСТА (`guide:…`/`tip:…`/`post:…`, тот же формат, что корпус
  * `CommunityGuard::defaultCorpus()`), а не id вопроса, который его породил.
@@ -45,12 +46,12 @@ use DateTimeImmutable;
  * Кнопка «Стереть всё от этого игрока» — {@see eraseMessagesFromPlayer()} — обещание
  * из закрепа (план §9): без реально работающей кнопки просьба на удаление невыполнима.
  *
- * 🔴 `CommunityChatSender::checkGates()` требует `community.autoreply.enabled=true`
- * безусловно, включая ручные вызовы отсюда — план §4 (`below_effect_text` ключа)
- * обещает «отвечает только владелец вручную через `/admin/community`» именно КОГДА
- * `autoreply.enabled=false`, но общий гейт `CommunityChatSender` эту ручную дверь не
- * отличает от авто-тика и тоже её закрывает. `CommunityChatSender.php` не входит в
- * `## Files` этой story (Закон 3) — задокументировано как находка, не починено здесь.
+ * Ручная дверь (`approveAnswer()`/`revokeAnswer()`) зовёт {@see CommunityChatSender::sendManualAnswer()}
+ * (story 18/19), а не `sendAnswer()` — этот путь НЕ гасится килсвитчем
+ * `community.autoreply.enabled`, потолком в час и кулдауном автора: они существуют
+ * только против того, чтобы бот забивал топик сам собой, живого владельца за
+ * админкой не ограничивают. `community.enabled`, `silent_topics` и проверки текста
+ * (длина/парность `*`/канон имени) остаются для обеих отправок без исключений.
  */
 final class CommunityController extends BaseAdminController
 {
@@ -293,7 +294,15 @@ final class CommunityController extends BaseAdminController
             return ['ok' => false, 'error' => 'Отозвать можно только одобренный ответ.'];
         }
 
-        $answeredMessageRaw = (new CommunityMessageModel())->where('answered_by_id', $answerId)->first();
+        // `answered_by_id` может стоять сразу на нескольких строках — склейка дублей
+        // (`Decision::coveredMessageIds`) помечает им все накрытые строки. Цель
+        // отзыва — самая ранняя из них (реальный исходный вопрос, не случайный
+        // дубль), поэтому сортировка обязательна, `first()` без неё детерминизма не даёт.
+        $answeredMessageRaw = (new CommunityMessageModel())
+            ->where('answered_by_id', $answerId)
+            ->orderBy('sent_at', 'ASC')
+            ->orderBy('id', 'ASC')
+            ->first();
         $targetId           = null;
         if (is_array($answeredMessageRaw)) {
             $answeredMessage = $this->normalize($answeredMessageRaw);
@@ -359,27 +368,35 @@ final class CommunityController extends BaseAdminController
         $since          = $now->modify('-' . self::METRICS_WINDOW_DAYS . ' days')->format('Y-m-d H:i:s');
         $staleThreshold = $now->modify('-' . self::STALE_QUESTION_HOURS . ' hours')->format('Y-m-d H:i:s');
 
-        // «Бот против живых» (план §13, главная метрика): доля бот-ответов среди
-        // (бот-ответы + человек-человеку) в окне. Сообщения бота вообще не попадают
+        // «Бот против живых» (план §13, главная метрика): доля АВТОМАТИЧЕСКИХ
+        // бот-ответов среди (бот-ответы + человек-человеку) в окне. `status='answered'`
+        // ставят ОБА пути (автотик и ручное одобрение владельцем через
+        // `approveAnswer()`) — считать по статусу значит засчитывать ручные ответы
+        // владельца ответами бота, ровно то, ради чего story 18 завела раздельные
+        // имена аудит-действий (`COMMUNITY_ANSWER_SENT` — автотик,
+        // `COMMUNITY_MANUAL_ANSWER_SENT` — владелец). Сообщения бота вообще не попадают
         // в community_messages (вебхук не получает апдейт на собственную отправку) —
         // поэтому reply_to_message_id, указывающий на строку в ЭТОЙ ЖЕ таблице,
         // структурно не может быть ответом боту, только другому игроку.
-        $botAnswers   = (int) (new CommunityMessageModel())->where('status', 'answered')->where('sent_at >=', $since)->countAllResults();
+        $botAnswers   = $this->autoAnswerCount($since);
         $humanReplies = $this->humanToHumanReplyCount($since);
         $totalReplies = $botAnswers + $humanReplies;
-        $botVsHuman   = $totalReplies > 0 ? $botAnswers / $totalReplies : null;
+        $botVsHuman   = $totalReplies > 0 ? (float) $botAnswers / $totalReplies : null;
 
-        // Доля отказов гварда: `escalated` — это то, на чём CommunityGuard::verdict()
-        // не выдал allow (см. CommunityAutoReplyHandler::resolveAndSend()); рост доли —
-        // сигнал пополнить банк, не «гвард работает» (план §13).
-        $answered   = (int) (new CommunityMessageModel())->where('status', 'answered')->where('sent_at >=', $since)->countAllResults();
-        $escalated  = (int) (new CommunityMessageModel())->where('status', 'escalated')->where('sent_at >=', $since)->countAllResults();
-        $guardTotal = $answered + $escalated;
-        $guardRejectionRate = $guardTotal > 0 ? $escalated / $guardTotal : null;
+        // Доля отказов гварда: `status='escalated'` покрывает ДВА разных случая —
+        // (а) `CommunityGuard::verdict()` реально не выдал allow (`resolveAndSend()`
+        // помечает escalated и ничего не отправляет), и (б) полоса A без совпадения
+        // банка, где гвард ПРОПУСТИЛ честное «не знаю» и текст ушёл (`Decision::escalated`,
+        // `resolveAndSend()` всё равно ставит escalated при успешной отправке). Только
+        // (а) — отказ гварда; (б) отличим по наличию `COMMUNITY_ANSWER_SENT` — эта
+        // запись пишется ТОЛЬКО при успешной отправке, гвард-отказ до неё не доходит.
+        $guardDenied        = $this->guardDeniedCount($since);
+        $guardTotal         = $botAnswers + $guardDenied;
+        $guardRejectionRate = $guardTotal > 0 ? (float) $guardDenied / $guardTotal : null;
 
-        $staleOpen = (int) (new CommunityMessageModel())
-            ->whereIn('status', ['new', 'escalated'])
-            ->where('is_question', 1)
+        // Дефект 1: очередь и метрика просроченных обязаны использовать одно
+        // определение «открытого вопроса» (см. openQuestionsBuilder()).
+        $staleOpen = (int) $this->openQuestionsBuilder()
             ->where('sent_at <', $staleThreshold)
             ->countAllResults();
 
@@ -389,6 +406,47 @@ final class CommunityController extends BaseAdminController
             'stale_open_questions' => $staleOpen,
             'top_repeated'         => $this->topRepeatedQuestions($since),
         ];
+    }
+
+    /** Автоматические отправки бота в окне — только `COMMUNITY_ANSWER_SENT` (автотик),
+     *  ручные (`COMMUNITY_MANUAL_ANSWER_SENT`) сюда не входят (см. computeMetrics()). */
+    private function autoAnswerCount(string $since): int
+    {
+        $sql = 'SELECT COUNT(*) AS n
+                FROM admin_audit_log a
+                INNER JOIN community_messages cm ON cm.id = a.target_id
+                WHERE a.action = \'COMMUNITY_ANSWER_SENT\'
+                  AND cm.sent_at >= ?';
+
+        $query = $this->db->query($sql, [$since]);
+        if (! $query instanceof BaseResult) {
+            return 0;
+        }
+        $row = $query->getRowArray();
+
+        return isset($row['n']) && is_numeric($row['n']) ? (int) $row['n'] : 0;
+    }
+
+    /** Строки `escalated` в окне, для которых гвард НЕ выдал allow — то есть у
+     *  строки нет своего `COMMUNITY_ANSWER_SENT`, текст туда не уходил вовсе. */
+    private function guardDeniedCount(string $since): int
+    {
+        $sql = "SELECT COUNT(*) AS n
+                FROM community_messages cm
+                WHERE cm.status = 'escalated'
+                  AND cm.sent_at >= ?
+                  AND NOT EXISTS (
+                      SELECT 1 FROM admin_audit_log a
+                      WHERE a.action = 'COMMUNITY_ANSWER_SENT' AND a.target_id = cm.id
+                  )";
+
+        $query = $this->db->query($sql, [$since]);
+        if (! $query instanceof BaseResult) {
+            return 0;
+        }
+        $row = $query->getRowArray();
+
+        return isset($row['n']) && is_numeric($row['n']) ? (int) $row['n'] : 0;
     }
 
     private function humanToHumanReplyCount(string $since): int
@@ -467,8 +525,7 @@ final class CommunityController extends BaseAdminController
     /** @return list<array<string, mixed>> */
     private function openQuestionsFlat(): array
     {
-        $rows = (new CommunityMessageModel())
-            ->whereIn('status', ['new', 'escalated'])
+        $rows = $this->openQuestionsBuilder()
             ->orderBy('message_thread_id', 'ASC')
             ->orderBy('sent_at', 'ASC')
             ->findAll();
@@ -481,6 +538,21 @@ final class CommunityController extends BaseAdminController
         }
 
         return $out;
+    }
+
+    /**
+     * Дефект 1: определение «открытого вопроса» — общее для очереди
+     * ({@see openQuestionsFlat()}) и метрики просроченных (`computeMetrics()`).
+     * `status IN ('new','escalated')` один `is_question=1` не фильтрует — дефолтный
+     * статус ЛЮБОЙ принятой реплики `new`, и её меняет только авто-тик, который на
+     * днях 1–5 обкатки не запускается вовсе: без `is_question=1` очередь показывает
+     * как «открытые вопросы» каждое сообщение чата.
+     */
+    private function openQuestionsBuilder(): CommunityMessageModel
+    {
+        return (new CommunityMessageModel())
+            ->whereIn('status', ['new', 'escalated'])
+            ->where('is_question', 1);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────

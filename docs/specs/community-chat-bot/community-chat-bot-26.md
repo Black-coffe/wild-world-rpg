@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-26
 spec: community-chat-bot
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -74,5 +74,22 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Controllers/Admin/`
 
 ## Implementation notes
+
+- Дефект 1: завёл `openQuestionsBuilder()` — единое определение открытого вопроса
+  (`status IN ('new','escalated') AND is_question=1`), используют и очередь
+  (`openQuestionsFlat()`), и метрика просроченных.
+- Дефект 2: `bot_vs_human_share` теперь считает `autoAnswerCount()` — только строки
+  с аудитом `COMMUNITY_ANSWER_SENT` (автотик), не по `status='answered'` (который
+  ставят оба пути).
+- Дефект 3: `guard_rejection_rate` = `guardDeniedCount()` (escalated БЕЗ
+  `COMMUNITY_ANSWER_SENT` — гвард реально не пропустил) / (autoAnswerCount +
+  guardDeniedCount). Полоса A «не знаю» (escalated, но с `COMMUNITY_ANSWER_SENT`)
+  из числителя исключена.
+- Дефект 4: `revokeAnswer()` сортирует `answered_by_id`-совпадения по
+  `sent_at ASC, id ASC` перед `first()` — детерминированная (самая ранняя) цель.
+- Докблок класса приведён в соответствие с кодом: убрано устаревшее утверждение
+  «не починено здесь» — контроллер уже зовёт `sendManualAnswer()` (story 18/19).
+- `bot_vs_human_share`/`guard_rejection_rate` приведены к явному `(float)` перед
+  делением — PHP возвращает `int` при точном делении, `assertSame(0.0, …)` иначе не проходил.
 
 ## Findings
