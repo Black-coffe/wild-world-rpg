@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-20
 spec: community-chat-bot
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -68,5 +68,12 @@ blocked_by: []
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Services/CommunityIngestServiceTest.php`
 
 ## Implementation notes
+
+`addressesSpecificPerson()` теперь захватывает имя из regex и пропускает вопрос, если
+имя — `BOT_NAME` (`'роби'`, тот же источник, что и в `addressedToBot()`) или входит в
+`COLLECTIVE_ADDRESS_WORDS` (`народ/ребят/ребята/пацаны/всем`), иначе поведение отсева не
+изменилось. Хардкод `'роби'` в `addressedToBot()` заменён на `self::BOT_NAME` — источник
+один. Тесты: дополнен `testRobiPrefixMarksAddressedToBot` утверждением про `is_question`,
+добавлены `testAddressToBotByNameIsAQuestion` и `testCollectiveAddressToChatIsAQuestion`.
 
 ## Findings

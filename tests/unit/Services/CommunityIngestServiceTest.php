@@ -199,6 +199,27 @@ final class CommunityIngestServiceTest extends CIUnitTestCase
         $this->assertSame(0, (int) $this->row()['is_question']);
     }
 
+    /**
+     * Ремонт (2026-08-25): «Роби, …» — обращение к боту, не к постороннему человеку.
+     * До этого `addressesSpecificPerson()` отсекало его так же, как «Вась, …», и такие
+     * вопросы не доходили до хендлера никогда (полоса A была мёртвой).
+     */
+    public function testAddressToBotByNameIsAQuestion(): void
+    {
+        $this->service([])->handle(['message' => $this->message(['text' => 'Роби, а где взять доски?'])]);
+
+        $this->assertSame(1, (int) $this->row()['is_question']);
+    }
+
+    public function testCollectiveAddressToChatIsAQuestion(): void
+    {
+        $this->service([])->handle(['message' => $this->message(['message_id' => 1, 'text' => 'Народ, а где вода?'])]);
+        $this->service([])->handle(['message' => $this->message(['message_id' => 2, 'text' => 'Ребят, как крафтить?'])]);
+
+        $this->assertSame(1, (int) $this->row(1)['is_question']);
+        $this->assertSame(1, (int) $this->row(2)['is_question']);
+    }
+
     // -- обращение к боту -------------------------------------------------------------
 
     public function testMentionMarksAddressedToBot(): void
@@ -258,7 +279,9 @@ final class CommunityIngestServiceTest extends CIUnitTestCase
     {
         $this->service([])->handle(['message' => $this->message(['text' => 'Роби, а где взять доски'])]);
 
-        $this->assertSame(1, (int) $this->row()['addressed_to_bot']);
+        $row = $this->row();
+        $this->assertSame(1, (int) $row['addressed_to_bot']);
+        $this->assertSame(1, (int) $row['is_question']);
     }
 
     public function testOrdinaryMessageIsNotAddressedToBot(): void

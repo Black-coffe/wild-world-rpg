@@ -43,6 +43,21 @@ final class CommunityIngestService
 
     private const MIN_QUESTION_LENGTH = 3;
 
+    /**
+     * Имя бота в обращениях («Роби, …») — единственный источник, используется и
+     * в {@see addressedToBot()}, и в {@see addressesSpecificPerson()}, чтобы не
+     * заводить второй хардкод, который может разъехаться с первым.
+     */
+    private const BOT_NAME = 'роби';
+
+    /**
+     * Коллективные обращения к чату («Народ, …», «Ребят, …») — это обращение
+     * в том числе к боту, а не к конкретному постороннему человеку.
+     *
+     * @var list<string>
+     */
+    private const COLLECTIVE_ADDRESS_WORDS = ['народ', 'ребят', 'ребята', 'пацаны', 'всем'];
+
     private GameSettingsService $settings;
     private string $botUsername;
 
@@ -164,10 +179,20 @@ final class CommunityIngestService
     /**
      * «Вась, а как ты качался?» — обращение к конкретному человеку в начале реплики:
      * слово с заглавной буквы (имя/обращение), сразу за которым идёт запятая.
+     *
+     * Имя бота («Роби, …») и коллективные обращения к чату («Народ, …», «Ребят, …»)
+     * из этого отсева исключены — это не «чужой разговор», а обращение к боту либо
+     * ко всем сразу, то есть в том числе к боту.
      */
     private function addressesSpecificPerson(string $text): bool
     {
-        return (bool) preg_match('/^[А-ЯЁ][а-яё]{1,15},\s/u', $text);
+        if (preg_match('/^([А-ЯЁ][а-яё]{1,15}),\s/u', $text, $matches) !== 1) {
+            return false;
+        }
+
+        $name = mb_strtolower($matches[1], 'UTF-8');
+
+        return $name !== self::BOT_NAME && ! in_array($name, self::COLLECTIVE_ADDRESS_WORDS, true);
     }
 
     private function containsWholeWord(string $normalizedText, string $word): bool
@@ -211,7 +236,7 @@ final class CommunityIngestService
      */
     private function addressedToBot(array $message, ?string $text): bool
     {
-        if ($text !== null && mb_stripos(ltrim($text), 'роби', 0, 'UTF-8') === 0) {
+        if ($text !== null && mb_stripos(ltrim($text), self::BOT_NAME, 0, 'UTF-8') === 0) {
             return true;
         }
 
