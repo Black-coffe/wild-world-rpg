@@ -16,20 +16,28 @@ use Config\WipeManifest;
  * TTL и несут telegram_user_id на каждой — как и структурный близнец player_action_log. Из-за
  * TRANSIENT сброс одного персонажа (WipeService::resetCharacter()) не трогал его сообщения в
  * чате сообщества, хотя чистил его firehose действий.
+ *
+ * by = 'telegram_raw', НЕ 'telegram' (story community-chat-bot-74): community_messages.telegram_user_id
+ * — это СЫРОЙ Telegram from.id (пишет CommunityIngestService), а НЕ внутренний telegram_users.id,
+ * которым является characters.telegram_user_id (конвенция CharacterModel/PlayerActionLogger).
+ * Первая версия этого теста утверждала by='telegram' — совпадение с чужой конвенцией, которое
+ * маскировало дефект моста: WipeService::telegramUserIdOf() читал internal id и сравнивал его с
+ * сырым from.id, resetCharacter() удалял 0 строк и рапортовал успехом. Мост — явный join
+ * WipeService::rawTelegramIdOf() (characters → telegram_users.id → telegram_users.telegram_id).
  * community_answers  → KEEP (авторский корпус наравне с game_tips).
  *
  * @internal
  */
 final class CommunityWipeClassificationTest extends CIUnitTestCase
 {
-    public function testCommunityMessagesIsPlayerDataLinkedByTelegram(): void
+    public function testCommunityMessagesIsPlayerDataLinkedByRawTelegramId(): void
     {
         $manifest = (new WipeManifest())->tables;
 
         $this->assertArrayHasKey('community_messages', $manifest);
         $this->assertSame(WipeManifest::PLAYER_DATA, $manifest['community_messages']['strategy']);
         $this->assertSame('telegram_user_id', $manifest['community_messages']['link']);
-        $this->assertSame('telegram', $manifest['community_messages']['by']);
+        $this->assertSame('telegram_raw', $manifest['community_messages']['by']);
     }
 
     public function testCommunityAnswersIsKeep(): void

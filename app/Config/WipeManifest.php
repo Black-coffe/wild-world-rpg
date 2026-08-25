@@ -47,7 +47,16 @@ class WipeManifest extends BaseConfig
      * Дескриптор:
      *   strategy : одна из констант выше (обязательно)
      *   link     : string|list<string> — колонка(и) связи с игроком (для PLAYER_DATA)
-     *   by       : 'character'|'telegram' — чем линкуется (для PLAYER_DATA, single-char путь)
+     *   by       : чем линкуется (для PLAYER_DATA, single-char путь) — одно из:
+     *              'character'    — колонка = characters.id;
+     *              'telegram'     — колонка = characters.telegram_user_id (ВНУТРЕННИЙ
+     *                                telegram_users.id, конвенция CharacterModel/PlayerActionLogger);
+     *              'telegram_raw' — колонка = СЫРОЙ Telegram from.id (telegram_users.telegram_id),
+     *                                как пишет CommunityIngestService. Это ДРУГОЕ пространство
+     *                                id, чем 'telegram' — мост через join в
+     *                                WipeService::rawTelegramIdOf() (story community-chat-bot-74:
+     *                                молчаливое совпадение значений «telegram»↔«telegram_raw»
+     *                                удаляло 0 строк и рапортовало успехом).
      *   reset    : array<string,mixed> — колонки→значения для IDENTITY_RESET / SEED_RESET
      *   note     : человекочитаемое пояснение (для preview-таблицы в админке)
      *
@@ -171,7 +180,7 @@ class WipeManifest extends BaseConfig
         'player_detection'       => ['strategy' => self::PLAYER_DATA, 'link' => ['detector_player_id', 'detected_player_id'], 'by' => 'character', 'note' => 'Детект игроков (текущий)'],
         'player_detection_history' => ['strategy' => self::PLAYER_DATA, 'link' => ['detector_player_id', 'detected_player_id'], 'by' => 'character', 'note' => 'История детекта игроков'],
         'poll_votes'             => ['strategy' => self::PLAYER_DATA, 'link' => 'telegram_user_id', 'by' => 'telegram', 'note' => 'Голоса игроков в опросах'],
-        'community_messages'     => ['strategy' => self::PLAYER_DATA, 'link' => 'telegram_user_id', 'by' => 'telegram', 'note' => 'Сырой поток сообщений группового чата сообщества (ADR-176) — окно хранения 30 дней, но не регенерируется: строки живут до TTL и несут telegram_user_id игрока'],
+        'community_messages'     => ['strategy' => self::PLAYER_DATA, 'link' => 'telegram_user_id', 'by' => 'telegram_raw', 'note' => 'Сырой поток сообщений группового чата сообщества (ADR-176) — окно хранения 30 дней, но не регенерируется: строки живут до TTL. telegram_user_id тут — СЫРОЙ Telegram from.id (CommunityIngestService), не internal telegram_users.id как у characters.telegram_user_id; мост — WipeService::rawTelegramIdOf() (story community-chat-bot-74)'],
         'referrals'              => ['strategy' => self::PLAYER_DATA, 'link' => ['referrer_user_id', 'referred_user_id'], 'by' => 'telegram', 'note' => 'Реферальная петля «позови выжившего» (ADR-146, S8) — ребро кто-кого-привёл + состояние награды (титул «Зовущий»); новый сезон = реферальная гонка с нуля'],
         'pvp_ladder'             => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'PvP-рейтинг'],
         'quest_steps'            => ['strategy' => self::PLAYER_DATA, 'link' => 'character_id', 'by' => 'character', 'note' => 'Прогресс по квестам'],

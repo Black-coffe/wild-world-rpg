@@ -83,8 +83,8 @@ final class WipeManifestCoverageTest extends CIUnitTestCase
                 continue;
             }
             $this->assertArrayHasKey('link', $d, "PLAYER_DATA {$table}: нет link-колонки (нужна для single-char сброса)");
-            $this->assertArrayHasKey('by', $d, "PLAYER_DATA {$table}: нет by (character|telegram)");
-            $this->assertContains($d['by'], ['character', 'telegram'], "PLAYER_DATA {$table}: by должно быть character|telegram");
+            $this->assertArrayHasKey('by', $d, "PLAYER_DATA {$table}: нет by (character|telegram|telegram_raw)");
+            $this->assertContains($d['by'], ['character', 'telegram', 'telegram_raw'], "PLAYER_DATA {$table}: by должно быть character|telegram|telegram_raw");
         }
     }
 

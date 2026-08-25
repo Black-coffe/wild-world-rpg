@@ -373,6 +373,7 @@ final class WipeService
         }
 
         $telegramUserId = $this->telegramUserIdOf($characterId);
+        $rawTelegramId  = $this->rawTelegramIdOf($characterId);
         $deleted        = [];
 
         $this->db->query('SET FOREIGN_KEY_CHECKS = 0');
@@ -392,7 +393,11 @@ final class WipeService
                 if ($link === null) {
                     continue;
                 }
-                $matchId = $by === 'telegram' ? $telegramUserId : $characterId;
+                $matchId = match ($by) {
+                    'telegram'     => $telegramUserId,
+                    'telegram_raw' => $rawTelegramId,
+                    default        => $characterId,
+                };
                 if ($matchId === null) {
                     continue; // telegram-linked, но у персонажа нет tg-аккаунта — пропускаем
                 }
@@ -443,6 +448,30 @@ final class WipeService
         $res = $this->db->table('characters')->select('telegram_user_id')->where('id', $characterId)->get();
         $row = $res === false ? null : $res->getRowArray();
         $rawId = is_array($row) ? ($row['telegram_user_id'] ?? null) : null;
+
+        return is_numeric($rawId) ? (int) $rawId : null;
+    }
+
+    /**
+     * Мост между двумя системами Telegram-id (story community-chat-bot-74).
+     * `characters.telegram_user_id` — ВНУТРЕННИЙ `telegram_users.id`. Таблицы, которые пишет
+     * `CommunityIngestService` (`community_messages`), хранят СЫРОЙ Telegram `from.id`
+     * (`telegram_users.telegram_id`) — другое пространство id. Явный join вместо совпадения
+     * значений — без него `by => 'telegram_raw'` сравнивал бы несравнимые id и удалял 0 строк.
+     */
+    private function rawTelegramIdOf(int $characterId): ?int
+    {
+        if (! $this->db->tableExists('telegram_users')) {
+            return null;
+        }
+
+        $res = $this->db->table('characters')
+            ->select('telegram_users.telegram_id')
+            ->join('telegram_users', 'telegram_users.id = characters.telegram_user_id')
+            ->where('characters.id', $characterId)
+            ->get();
+        $row   = $res === false ? null : $res->getRowArray();
+        $rawId = is_array($row) ? ($row['telegram_id'] ?? null) : null;
 
         return is_numeric($rawId) ? (int) $rawId : null;
     }

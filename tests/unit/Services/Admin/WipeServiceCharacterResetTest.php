@@ -12,19 +12,29 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 
 /**
- * Story community-chat-bot-60 — `WipeService::resetCharacter()` должен чистить
+ * Story community-chat-bot-60/74 — `WipeService::resetCharacter()` должен чистить
  * `community_messages` персонажа так же, как чистит его `player_action_log`, потому что
  * `Config\WipeManifest` классифицирует таблицу `PLAYER_DATA` (а не `TRANSIENT`).
  *
  * Схема `community_messages` берётся из реальной миграции `Adr176CreateCommunityMessagesTable`
  * (Forge, паттерн `CommunityIngestServiceTest`), а не сочиняется руками — ровно та таблица,
- * которую переклассифицировали. `characters`/`map` — узкая ручная схема под нужды
- * `resetCharacter()` (паттерн `AchievementServiceTest`/`DefenseStructureServiceTest`), эти
- * таблицы не были предметом story.
+ * которую переклассифицировали. `characters`/`telegram_users`/`map` — узкая ручная схема под
+ * нужды `resetCharacter()` (паттерн `AchievementServiceTest`/`DefenseStructureServiceTest`),
+ * эти таблицы не были предметом дефекта.
  *
- * Тест использует боевой `Config\WipeManifest` без подмен: если стратегию `community_messages`
- * вернуть в `TRANSIENT`, цикл `resetCharacter()` пропустит таблицу (`$d['strategy'] !==
- * PLAYER_DATA` → continue) и строки персонажа A не удалятся — тест покраснеет.
+ * 🔴 story community-chat-bot-74: первая версия этого теста сеяла `characters.telegram_user_id`
+ * и `community_messages.telegram_user_id` ОДНИМ И ТЕМ ЖЕ значением (1001) — то есть кодировала
+ * ошибочное предположение, что это одно пространство id. На деле `characters.telegram_user_id` —
+ * ВНУТРЕННИЙ `telegram_users.id` (join в `CharacterModel`), а `community_messages.telegram_user_id`
+ * — СЫРОЙ Telegram `from.id` (`CommunityIngestService`). Тест был зелёным на вымысле: мост
+ * между системами id отсутствовал, `resetCharacter()` удалял 0 строк, а тест этого не ловил.
+ * Теперь внутренний id (7 / 8) и сырой Telegram-id (584213905 / 112233445) — разные числа,
+ * связанные только через `telegram_users` — и тест проверяет именно мост
+ * (`WipeService::rawTelegramIdOf()`), а не совпадение цифр.
+ *
+ * Тест использует боевой `Config\WipeManifest` без подмен — красен на любой из двух поломок:
+ * стратегию `community_messages` вернуть в `TRANSIENT` (цикл `resetCharacter()` пропустит
+ * таблицу) или `by` вернуть в `'telegram'` (сравнение внутреннего id с сырым не даст совпадений).
  *
  * @internal
  */
@@ -34,7 +44,7 @@ final class WipeServiceCharacterResetTest extends CIUnitTestCase
 
     protected $migrate = false;
 
-    private const TABLES = ['characters', 'map', 'community_messages'];
+    private const TABLES = ['characters', 'telegram_users', 'map', 'community_messages'];
 
     protected function setUp(): void
     {
@@ -50,7 +60,7 @@ final class WipeServiceCharacterResetTest extends CIUnitTestCase
         $db->query('
             CREATE TABLE characters (
                 id INT AUTO_INCREMENT PRIMARY KEY,
-                telegram_user_id BIGINT NULL,
+                telegram_user_id INT NULL,
                 name VARCHAR(64) NULL,
                 level INT DEFAULT 1,
                 experience DECIMAL(10,2) DEFAULT 0,
@@ -88,6 +98,16 @@ final class WipeServiceCharacterResetTest extends CIUnitTestCase
             )
         ');
 
+        // ВНУТРЕННИЙ id (characters.telegram_user_id ссылается сюда) ↔ telegram_id — СЫРОЙ
+        // Telegram from.id. Ровно два поля нужны rawTelegramIdOf(), остальная схема telegram_users
+        // тут не нужна.
+        $db->query('
+            CREATE TABLE telegram_users (
+                id INT NOT NULL PRIMARY KEY,
+                telegram_id BIGINT NOT NULL
+            )
+        ');
+
         // Пусто — spawnCells() вернёт [], respawned=false, cell_number/biome_id трогать не нужно.
         $db->query('CREATE TABLE map (cell_number INT NULL, biome_id INT NULL, coordinate_y INT NULL)');
 
@@ -116,12 +136,23 @@ final class WipeServiceCharacterResetTest extends CIUnitTestCase
         }
     }
 
-    private function seedCharacter(int $telegramUserId): int
+    /**
+     * @param int $internalTelegramUserId `telegram_users.id` — то, на что ссылается
+     *            `characters.telegram_user_id` (конвенция CharacterModel).
+     * @param int $rawTelegramId          `telegram_users.telegram_id` — сырой Telegram
+     *            `from.id`, тем же значением пишет `CommunityIngestService` в
+     *            `community_messages.telegram_user_id`.
+     */
+    private function seedCharacter(int $internalTelegramUserId, int $rawTelegramId): int
     {
         $db = Database::connect('tests');
+        $db->table('telegram_users')->insert([
+            'id'          => $internalTelegramUserId,
+            'telegram_id' => $rawTelegramId,
+        ]);
         $db->table('characters')->insert([
-            'telegram_user_id' => $telegramUserId,
-            'name'              => 'char' . $telegramUserId,
+            'telegram_user_id' => $internalTelegramUserId,
+            'name'              => 'char' . $internalTelegramUserId,
             'created_at'        => date('Y-m-d H:i:s'),
         ]);
 
@@ -129,15 +160,15 @@ final class WipeServiceCharacterResetTest extends CIUnitTestCase
     }
 
     /** @param list<int> $messageIds */
-    private function seedCommunityMessages(int $telegramUserId, array $messageIds): void
+    private function seedCommunityMessages(int $rawTelegramId, array $messageIds): void
     {
         $db = Database::connect('tests');
         foreach ($messageIds as $messageId) {
             $db->table('community_messages')->insert([
                 'chat_id'          => -1009999,
                 'message_id'       => $messageId,
-                'telegram_user_id' => $telegramUserId,
-                'username'         => 'user' . $telegramUserId,
+                'telegram_user_id' => $rawTelegramId,
+                'username'         => 'user' . $rawTelegramId,
                 'text'             => 'сообщение ' . $messageId,
                 'sent_at'          => date('Y-m-d H:i:s'),
                 'is_question'      => 0,
@@ -148,23 +179,25 @@ final class WipeServiceCharacterResetTest extends CIUnitTestCase
         }
     }
 
-    public function testResetCharacterDeletesOnlyItsOwnCommunityMessages(): void
+    public function testResetCharacterDeletesOnlyItsOwnCommunityMessagesAcrossKeySpaces(): void
     {
         $db = Database::connect('tests');
 
-        $charA = $this->seedCharacter(1001);
-        $charB = $this->seedCharacter(1002);
+        // Внутренний id и сырой Telegram-id намеренно НЕ совпадают числом — тест обязан
+        // проверять мост через telegram_users, а не подстановку одинаковых цифр.
+        $charA = $this->seedCharacter(7, 584213905);
+        $charB = $this->seedCharacter(8, 112233445);
 
-        $this->seedCommunityMessages(1001, [1, 2, 3]);
-        $this->seedCommunityMessages(1002, [4, 5]);
+        $this->seedCommunityMessages(584213905, [1, 2, 3]);
+        $this->seedCommunityMessages(112233445, [4, 5]);
 
         $service = new WipeService(null, $db);
         $result  = $service->resetCharacter($charA);
 
-        $remainingA = $db->table('community_messages')->where('telegram_user_id', 1001)->countAllResults();
-        $remainingB = $db->table('community_messages')->where('telegram_user_id', 1002)->countAllResults();
+        $remainingA = $db->table('community_messages')->where('telegram_user_id', 584213905)->countAllResults();
+        $remainingB = $db->table('community_messages')->where('telegram_user_id', 112233445)->countAllResults();
 
-        $this->assertSame(0, $remainingA, 'Сообщения персонажа A должны быть удалены сбросом.');
+        $this->assertSame(0, $remainingA, 'Сообщения персонажа A (по его сырому Telegram-id) должны быть удалены сбросом.');
         $this->assertSame(2, $remainingB, 'Сообщения персонажа B — чужие, сброс их не должен трогать.');
         $this->assertArrayHasKey('community_messages', $result['deleted']);
         $this->assertSame(3, $result['deleted']['community_messages']);
