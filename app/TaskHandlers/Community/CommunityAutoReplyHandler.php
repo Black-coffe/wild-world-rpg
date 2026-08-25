@@ -241,8 +241,7 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         $verdict = $this->guard->verdict($text, $question, $requiresSetting);
 
         if (! $verdict->isAllow()) {
-            $this->markGroup($decision->coveredMessageIds, ['status' => 'escalated']);
-            $this->logRoute($selfId, $verdict);
+            $this->escalateGuardDenial($decision->coveredMessageIds, $verdict);
             $this->reactOnce($selfId, '🤔');
             return;
         }
@@ -447,10 +446,63 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
     }
 
     /**
-     * Дефект 3 — `Verdict::route` не должен быть мёртвым контентом: вердикт `deny`/`manual`
-     * не шлёт `sendMessage` (сам гвард сказал «нельзя говорить» — повторный текст-отказ
-     * такой же риск утечки/спама), маршрут сохраняется в тот же журнал, что уже питает
-     * потолок/кулдаун — владелец видит его рядом со строкой очереди `/admin/community`.
+     * Story 46, дефект 1 — маршрут гварда пишется на КАЖДУЮ строку склейки дублей, не
+     * только на строку-представителя: {@see \App\Controllers\Admin\CommunityController::guardDeniedCount()}
+     * опознаёт отказ гварда по `EXISTS(COMMUNITY_ROUTE_LOGGED)` для КОНКРЕТНОЙ строки, а
+     * `markGroup()` переводит в `escalated` ВСЮ склейку. Раньше `logRoute()` писал только на
+     * `$selfId` — остальные строки склейки получали статус, но не аудит-запись, и выпадали
+     * и из числителя, и из знаменателя метрики (тот же дефект, что story 39 закрывала на
+     * «упёрлись в лимит», переехавший на дубликаты одного вопроса).
+     *
+     * Story 46, дефект 2 — статус склейки и все аудит-записи маршрута коммитятся ОДНОЙ
+     * транзакцией: `logRoute()` раньше глушила `Throwable` на вставке и молча продолжала —
+     * при сбое (например, обрыв соединения) строка навсегда оседала `escalated` БЕЗ
+     * аудит-строки, по которой её опознаёт метрика, то есть best-effort лог тихо вычитал
+     * строку из доли отказов. Теперь сбой вставки откатывает и статус — склейка остаётся
+     * `'new'` и получает второй шанс на следующем тике (гвард снова денит, вставка снова
+     * попытается), вместо того чтобы навсегда потерять признак, по которому её считает
+     * читающая сторона.
+     *
+     * @param list<int> $coveredIds
+     */
+    private function escalateGuardDenial(array $coveredIds, Verdict $verdict): void
+    {
+        if ($coveredIds === []) {
+            return;
+        }
+
+        $db = Database::connect();
+        if ($db->transBegin() === false) {
+            return;
+        }
+
+        try {
+            $db->table('community_messages')
+                ->whereIn('id', $coveredIds)
+                ->update(['status' => 'escalated']);
+
+            foreach ($coveredIds as $coveredId) {
+                $this->logRoute($coveredId, $verdict);
+            }
+        } catch (\Throwable $e) {
+            $db->transRollback();
+            log_message('error', '[CommunityAutoReplyHandler] guard denial escalation failed: ' . $e->getMessage());
+
+            return;
+        }
+
+        $db->transCommit();
+    }
+
+    /**
+     * `Verdict::route` не должен быть мёртвым контентом: вердикт `deny`/`manual` не шлёт
+     * `sendMessage` (сам гвард сказал «нельзя говорить» — повторный текст-отказ такой же
+     * риск утечки/спама), маршрут сохраняется в тот же журнал, что уже питает потолок/
+     * кулдаун — владелец видит его рядом со строкой очереди `/admin/community`.
+     *
+     * Больше не глушит `Throwable` сама — {@see escalateGuardDenial()} держит вставку в
+     * общей транзакции со статусом склейки (story 46, дефект 2) и откатывает обе стороны
+     * разом при сбое.
      */
     private function logRoute(int $messageRowId, Verdict $verdict): void
     {
@@ -458,27 +510,23 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
             return;
         }
 
-        try {
-            $this->auditModel->insert([
-                'admin_user_id' => 0,
-                'action'        => 'COMMUNITY_ROUTE_LOGGED',
-                'target_type'   => 'community_message',
-                'target_id'     => $messageRowId,
-                'payload'       => json_encode(
-                    ['reason' => $verdict->reason, 'route' => $verdict->route],
-                    JSON_UNESCAPED_UNICODE
-                ),
-                'ip_address' => null,
-                'user_agent' => null,
-                // Story 31, дефект 5 — «одни часы»: соседний `audit()` в `CommunityChatSender`
-                // (story 27) пишет `created_at` часами БД в ту же `admin_audit_log`, а не
-                // PHP `date()` — расхождение таймзон приложения и БД иначе ломает сравнение
-                // времени между записями одной таблицы.
-                'created_at' => $this->dbNow(),
-            ]);
-        } catch (\Throwable $e) {
-            log_message('error', '[CommunityAutoReplyHandler] route audit insert failed: ' . $e->getMessage());
-        }
+        $this->auditModel->insert([
+            'admin_user_id' => 0,
+            'action'        => 'COMMUNITY_ROUTE_LOGGED',
+            'target_type'   => 'community_message',
+            'target_id'     => $messageRowId,
+            'payload'       => json_encode(
+                ['reason' => $verdict->reason, 'route' => $verdict->route],
+                JSON_UNESCAPED_UNICODE
+            ),
+            'ip_address' => null,
+            'user_agent' => null,
+            // Story 31, дефект 5 — «одни часы»: соседний `audit()` в `CommunityChatSender`
+            // (story 27) пишет `created_at` часами БД в ту же `admin_audit_log`, а не
+            // PHP `date()` — расхождение таймзон приложения и БД иначе ломает сравнение
+            // времени между записями одной таблицы.
+            'created_at' => $this->dbNow(),
+        ]);
     }
 
     private function reactOnce(int $messageRowId, string $emoji): void

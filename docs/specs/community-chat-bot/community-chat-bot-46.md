@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-46
 spec: community-chat-bot
-status: todo
+status: done
 tier: 2
 worker: worker-code
 tracer: false
@@ -45,9 +45,34 @@ blocked_by: []
 - Тесты строят склейку из нескольких строк, а не одиночный вопрос.
 
 ## Acceptance criteria
-- [ ] Склейка из N строк, отказанная гвардом, даёт N в числителе и N в знаменателе.
-- [ ] Сбой аудит-вставки не меняет метрику.
-- [ ] Терминальный отказ отправителя по-прежнему в числитель не попадает (регрессия story 39/32).
+- [x] Склейка из N строк, отказанная гвардом, даёт N в числителе и N в знаменателе.
+- [x] Сбой аудит-вставки не меняет метрику.
+- [x] Терминальный отказ отправителя по-прежнему в числитель не попадает (регрессия story 39/32).
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/TaskHandlers/CommunityAutoReplyHandlerTest.php tests/unit/Controllers/Admin/CommunityControllerTest.php`
+
+## Implementation notes
+
+- Починка на стороне **записи** (`CommunityAutoReplyHandler`), не чтения: `guardDeniedCount()`
+  в `CommunityController` не тронут структурно (только докблок) — читающая сторона не может
+  восстановить `Decision::coveredMessageIds` постфактум, эта информация нигде не персистится,
+  кроме момента самого решения.
+- Новый приватный метод `escalateGuardDenial(array $coveredIds, Verdict $verdict)` заменил пару
+  `markGroup(..., ['status' => 'escalated']); logRoute($selfId, $verdict);` на строке 244: теперь
+  статус склейки и аудит-запись маршрута для **каждой** строки `$coveredIds` (не только
+  `$selfId`) коммитятся одной транзакцией (`transBegin/transCommit/transRollback`, паттерн
+  `claimGroup()`).
+- `logRoute()` больше не глушит `Throwable` сама — вставку теперь оборачивает
+  `escalateGuardDenial()`, и сбой (DBDebug=true бросает `DatabaseException`) откатывает и статус:
+  строка остаётся `'new'`, получает второй шанс на следующем тике, вместо того чтобы навсегда
+  осесть `escalated` без аудит-строки, по которой её опознаёт метрика.
+- Реакция 🤔 (`reactOnce`) осталась вне транзакции — она не влияет на метрику и не должна
+  блокироваться откатом БД.
+- Тесты: `testGuardDenialLogsRouteForEveryDuplicateInGroupNotJustRepresentative` строит склейку
+  из 3 строк и проверяет по одной аудит-записи на каждую; `testGuardDenialInsertFailureRollsBackStatusInsteadOfLosingMetricSignal`
+  подсовывает `AdminAuditLogModel`-анонимный класс, у которого `insert()` бросает, и проверяет
+  откат статуса на `'new'` и ноль аудит-строк.
+- Замечено, но не тронуто (вне `## Files` и Non-goals): `tests/unit/Services/CommunityGuardTest.php`
+  был уже модифицирован в рабочем дереве до начала этой story (параллельная сессия/воркер) —
+  не мой diff, не входит в отчёт.

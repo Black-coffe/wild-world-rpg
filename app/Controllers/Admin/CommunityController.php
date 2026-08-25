@@ -493,6 +493,16 @@ final class CommunityController extends BaseAdminController
      * `COMMUNITY_ROUTE_LOGGED` (см. `CommunityAutoReplyHandler::logRoute()`) именно и
      * только в момент отказа гварда, до вызова `sendAnswer()` — гейт отправки этот
      * экшен не пишет вовсе. `EXISTS` вместо `NOT EXISTS` на чужой истории.
+     *
+     * Story 46 — этот запрос не менялся: дефект переехал не в SQL, а в то, что писала
+     * запись. `resolveAndSend()` вызывала `logRoute()` один раз на строку-представителя,
+     * а `escalated` получала ВСЯ склейка дублей — остальные строки склейки были
+     * `escalated` без своего `COMMUNITY_ROUTE_LOGGED` и выпадали из этого `EXISTS` (тот же
+     * класс дефекта, что и story 39, просто переехавший с «упёрлись в лимит» на дубликаты
+     * одного вопроса). Починка — {@see \App\TaskHandlers\Community\CommunityAutoReplyHandler::escalateGuardDenial()}:
+     * маршрут пишется на КАЖДУЮ строку склейки, одной транзакцией со статусом, так что
+     * сбой best-effort вставки больше не может оставить `escalated` без аудит-строки,
+     * по которой её опознаёт этот запрос.
      */
     private function guardDeniedCount(string $since): int
     {

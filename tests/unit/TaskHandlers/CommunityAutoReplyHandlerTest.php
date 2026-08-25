@@ -694,6 +694,91 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         $this->assertContains($payload['route'] ?? null, CommunityVoice::REFUSAL_WITH_ROUTE, 'сохранённый маршрут обязан быть одной из утверждённых строк');
     }
 
+    // ── story 46: дефект 1 — маршрут пишется на КАЖДУЮ строку склейки ────
+
+    /**
+     * Три дубликата одного вопроса, гвард денит — вся склейка обязана дать N=3
+     * аудит-строки `COMMUNITY_ROUTE_LOGGED` (по одной на строку), а не одну на
+     * строку-представителя. Именно этот дефект `CommunityController::guardDeniedCount()`
+     * (`EXISTS` per-row) видит как «дубликаты выпали из метрики».
+     */
+    public function testGuardDenialLogsRouteForEveryDuplicateInGroupNotJustRepresentative(): void
+    {
+        $this->insertBankAnswer([
+            'question_pattern' => 'где найти теплицу для земледелия',
+            'answer_text'      => 'Теплица строится на базе.',
+        ]);
+
+        $ids = [];
+        for ($i = 0; $i < 3; $i++) {
+            $m     = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
+            $ids[] = (int) $m['id'];
+        }
+
+        $calls   = [];
+        $sender  = $this->sender($calls);
+        // Пустой корпус — провенанс не пройдёт никогда, гвард денит любой текст с маршрутом.
+        $handler = $this->handler($sender, $this->denyingGuard());
+
+        $handler->handle();
+
+        $this->assertNotContains('sendMessage', array_column($calls, 'method'));
+
+        foreach ($ids as $id) {
+            $this->assertSame('escalated', $this->statusOf($id), "строка {$id} склейки обязана стать escalated");
+            $rows = $this->auditRows($id, 'COMMUNITY_ROUTE_LOGGED');
+            $this->assertCount(1, $rows, "строка {$id} склейки обязана получить свою аудит-запись маршрута, не только представитель группы");
+        }
+    }
+
+    // ── story 46: дефект 2 — сбой аудит-вставки не портит метрику ────────
+
+    /**
+     * Аудит-вставка `COMMUNITY_ROUTE_LOGGED` сломана (симуляция сбоя записи). Контракт
+     * story: сбой необязательной аудит-записи не должен молча оставить строку `escalated`
+     * без признака, по которому её опознаёт метрика — статус тоже обязан откатиться, а не
+     * закоммититься сам по себе. Строка остаётся `'new'` и получает второй шанс на
+     * следующем тике вместо того, чтобы навсегда потерять и статус, и признак одновременно.
+     */
+    public function testGuardDenialInsertFailureRollsBackStatusInsteadOfLosingMetricSignal(): void
+    {
+        $this->insertBankAnswer([
+            'question_pattern' => 'где найти теплицу для земледелия',
+            'answer_text'      => 'Теплица строится на базе.',
+        ]);
+        $message = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
+
+        $throwingAudit = new class () extends AdminAuditLogModel {
+            public function insert($data = null, bool $returnID = true)
+            {
+                throw new RuntimeException('simulated audit insert failure');
+            }
+        };
+
+        $calls   = [];
+        $sender  = $this->sender($calls);
+        $handler = new CommunityAutoReplyHandler(
+            new CommunityMessageModel(),
+            new CommunityAnswerModel(),
+            $this->matcher(),
+            $this->denyingGuard(),
+            $sender,
+            $throwingAudit,
+            null,
+            static fn (string $key, mixed $default = null): mixed
+                => array_key_exists($key, ['community.enabled' => true, 'community.autoreply.enabled' => true])
+                    ? ['community.enabled' => true, 'community.autoreply.enabled' => true][$key]
+                    : $default,
+            null,
+        );
+
+        $handler->handle();
+
+        $this->assertNotContains('sendMessage', array_column($calls, 'method'));
+        $this->assertSame('new', $this->statusOf((int) $message['id']), 'сбой аудит-вставки обязан откатить и статус — иначе escalated остаётся без признака для метрики');
+        $this->assertSame(0, $this->auditCount((int) $message['id'], 'COMMUNITY_ROUTE_LOGGED'));
+    }
+
     // ── story 31: дефект 1 — заявка на склейку всё-или-ничего ────────────
 
     public function testClaimGroupIsAllOrNothingUnderConcurrentStatusChange(): void
