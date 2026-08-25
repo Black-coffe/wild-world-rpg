@@ -147,30 +147,44 @@ class CommunityCleanup extends BaseCommand
             // в снимок при следующем прогоне, либо уже вне снимка — учтённой
             // закрытой считается только строка, которую этот же UPDATE
             // действительно перевёл (story 42).
-            $db->transStart();
-
-            $staleIds = $this->staleQuestionIdsForUpdate($maxAgeHours);
-
-            if ($staleIds !== []) {
-                $placeholders = implode(',', array_fill(0, count($staleIds), '?'));
-                $db->query(
-                    "UPDATE community_messages SET status = 'ignored' WHERE status = 'new' AND id IN ({$placeholders})",
-                    $staleIds
+            //
+            // Story 48 — возврат `transStart()` проверяется по образцу
+            // `claimGroup()` (CommunityAutoReplyHandler): если транзакция не
+            // стартовала, `SELECT … FOR UPDATE` и `UPDATE` ниже вообще не
+            // выполняются — иначе `SELECT` шёл бы без блокировки, `UPDATE`
+            // автокоммитился бы, и провал остался бы незамеченным.
+            if ($db->transStart() === false) {
+                log_message(
+                    'error',
+                    "[community:cleanup] transStart() failed — зависшие вопросы не закрыты (max_age_hours={$maxAgeHours})"
                 );
-                $staleClosed = $db->affectedRows();
-            }
-
-            // Story 44 — исход читается из возврата самого вызова, не из
-            // `transStatus()` постфактум: на этом соединении `strictOn=false`
-            // (`Config\Database`), и после отката `transStatus()` тихо
-            // возвращается в `true` (feedback_transcomplete_false_success_when_strict_off).
-            // Неуспех — строки остались `new`, ни `staleClosed`, ни аудит-запись
-            // авто-закрытия не должны появляться.
-            if (! $db->transComplete()) {
-                $staleClosed = 0;
-                $staleIds    = [];
             } else {
-                $this->auditAutoClosed($staleIds, $maxAgeHours);
+                $staleIds = $this->staleQuestionIdsForUpdate($maxAgeHours);
+
+                if ($staleIds !== []) {
+                    $placeholders = implode(',', array_fill(0, count($staleIds), '?'));
+                    $db->query(
+                        "UPDATE community_messages SET status = 'ignored' WHERE status = 'new' AND id IN ({$placeholders})",
+                        $staleIds
+                    );
+                    $staleClosed = $db->affectedRows();
+                }
+
+                // Story 44 — исход читается из возврата самого вызова, не из
+                // `transStatus()` постфактум: `transStrict` по умолчанию `true`
+                // и в этом репозитории не переключается, поэтому после отката
+                // `transStatus` остаётся `false` до явного `resetTransStatus()`
+                // (`strictOn` из `Config\Database` — SQL-режим MySQL, к исходу
+                // транзакции отношения не имеет;
+                // feedback_transcomplete_false_success_when_strict_off).
+                // Неуспех — строки остались `new`, ни `staleClosed`, ни аудит-запись
+                // авто-закрытия не должны появляться.
+                if (! $db->transComplete()) {
+                    $staleClosed = 0;
+                    $staleIds    = [];
+                } else {
+                    $this->auditAutoClosed($staleIds, $maxAgeHours);
+                }
             }
         }
 

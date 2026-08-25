@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-48
 spec: community-chat-bot
-status: todo
+status: done
 tier: 1
 worker: worker-code
 tracer: false
@@ -45,9 +45,21 @@ blocked_by: []
   местах, где записано.
 
 ## Acceptance criteria
-- [ ] Неудачный старт транзакции не оставляет закрытых строк и сообщает об этом.
-- [ ] Комментарии в коде и тесте не упоминают `strictOn` как причину.
-- [ ] Поведение успешного пути и тесты story 44 не изменились.
+- [x] Неудачный старт транзакции не оставляет закрытых строк и сообщает об этом.
+- [x] Комментарии в коде и тесте не упоминают `strictOn` как причину.
+- [x] Поведение успешного пути и тесты story 44 не изменились.
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Commands/CommunityCleanupTest.php`
+→ 12 tests, 30 assertions, OK (0 failures).
+
+## Implementation notes
+- `cleanup()` теперь проверяет возврат `transStart()` по образцу `claimGroup()`
+  (`CommunityAutoReplyHandler`): при `false` `SELECT … FOR UPDATE`/`UPDATE` вообще не
+  выполняются, пишется `log_message('error', …)`, `staleClosed` остаётся 0, аудит не пишется.
+- Комментарии в коде (`:163` было) и в тесте (docblock `testFailedTransactionDoesNotReportStaleClosedOrAudit`)
+  переписаны: причина липкости `transStatus` — `transStrict` по умолчанию `true` (не переключается
+  в репо), `strictOn` из `Config\Database` — SQL-режим MySQL, к исходу транзакции отношения не имеет.
+- Новый тест `testTransStartFailureLeavesRowsUntouchedAndUnreported` воспроизводит провал старта
+  через `$db->transOff()` (единственный способ гарантированно получить `transStart()===false` без
+  подмены соединения); `finally` возвращает `transEnabled = true` для изоляции от соседних тестов.

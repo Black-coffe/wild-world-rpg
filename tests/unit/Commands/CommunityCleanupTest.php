@@ -326,8 +326,9 @@ final class CommunityCleanupTest extends CIUnitTestCase
     /**
      * Story 44 — `cleanup()` теперь ветвится по возврату `transComplete()`, а не
      * предполагает успех (feedback_transcomplete_false_success_when_strict_off:
-     * `strictOn=false` тихо возвращает `transStatus()` обратно в `true` после
-     * отката, поэтому именно возврат вызова — единственный надёжный сигнал).
+     * `transStrict` по умолчанию `true` и не переключается в этом репозитории,
+     * поэтому после отката `transStatus` остаётся `false` до явного
+     * `resetTransStatus()` — именно возврат вызова является надёжным сигналом).
      * Триггер валит UPDATE только для сигнального id — воспроизводит именно
      * неуспех ЭТОЙ транзакции закрытия, а не общий отказ БД (остальные строки
      * никак не задеты).
@@ -367,6 +368,42 @@ final class CommunityCleanupTest extends CIUnitTestCase
             // `transStart()` не происходит) — без этой строки следующий тест на том
             // же соединении получил бы откат уже без всякого триггера.
             $db->resetTransStatus();
+        }
+    }
+
+    // -- story 48, транзакция не стартовала -------------------------------------------
+
+    /**
+     * Story 48 — возврат `transStart()` обязан проверяться (по образцу
+     * `claimGroup()` в `CommunityAutoReplyHandler`): если транзакция не
+     * стартовала, `SELECT … FOR UPDATE`/`UPDATE` вообще не выполняются, строки
+     * остаются `new`, `staleClosed=0`, аудит-запись не пишется. `transOff()`
+     * заставляет `transStart()` вернуть `false` без единого запроса к БД —
+     * чистый способ воспроизвести именно это ветвление, не сбой самого SQL.
+     */
+    public function testTransStartFailureLeavesRowsUntouchedAndUnreported(): void
+    {
+        $staleId = $this->insertMessage(['status' => 'new', 'sent_at_hours_ago' => 72]);
+
+        $db = Database::connect('tests');
+        $db->transOff();
+
+        try {
+            $result = $this->command()->cleanup(30, 48);
+
+            $this->assertSame(0, $result['staleClosed'], 'без транзакции строки не должны считаться закрытыми');
+            $this->assertSame('new', $this->statusOf($staleId), 'строка обязана остаться new, если транзакция не стартовала');
+
+            $log = Database::connect('tests')->table('admin_audit_log')
+                ->where('action', 'COMMUNITY_QUESTION_AUTO_CLOSED')
+                ->where('target_id', $staleId)
+                ->get(1)->getRowArray();
+            $this->assertNull($log, 'без транзакции не должно быть аудит-записи авто-закрытия');
+        } finally {
+            // Тестовая изоляция: `transEnabled` — свойство того же общего
+            // соединения, что и в остальных тестах файла — вернуть его назад,
+            // иначе следующий тест унаследует отключённые транзакции.
+            $db->transEnabled = true;
         }
     }
 
