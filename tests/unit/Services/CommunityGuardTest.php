@@ -655,6 +655,77 @@ final class CommunityGuardTest extends CIUnitTestCase
     }
 
     /**
+     * Story 70 (ADR-178, поправка №3), acceptance: «чем» БЕЗ сравнительной
+     * степени в том же ответе — риторический оборот, не сопоставление, R1
+     * больше не денит. Story 65 нашла это как искажающий состав отказов на
+     * замороженном эталоне (9.4% вместо ожидавшихся ~3%), два из трёх — ровно
+     * этот класс.
+     */
+    public function testQuestionWordUsageOfChemPassesWithoutComparativeDegree(): void
+    {
+        $verdict = $this->guard()->verdict(
+            'Не знаешь, чем заняться — открой Дела.',
+            'Расскажи про механику.',
+            null,
+        );
+
+        $this->assertTrue($verdict->isAllow(), '«чем» как вопросительное местоимение — не сопоставление, не должно денится');
+    }
+
+    /**
+     * Story 70, acceptance: «а не только»/«а не просто»/«а не лишь» — связка
+     * уточнения объёма одного варианта («можно говорить, а не ТОЛЬКО
+     * драться»), не сопоставление двух вариантов. R1 больше не денит эту
+     * форму «а не».
+     */
+    public function testANeOnlyClarificationPassesWithoutBeingTreatedAsComparison(): void
+    {
+        $verdict = $this->guard()->verdict(
+            'Там можно торговать, а не только драться.',
+            'Расскажи про механику.',
+            null,
+        );
+
+        $this->assertTrue($verdict->isAllow(), '«а не только» — уточнение объёма, не сопоставление двух вариантов');
+    }
+
+    /**
+     * Story 70, acceptance: «нежели»/«вместо» остаются БЕЗУСЛОВНЫМИ — советы-
+     * замены не несут сравнительной степени по построению («Ставь Лабораторию
+     * вместо Мастерской» — нет ни одного слова из `hasComparativeDegree()»),
+     * и требовать её открыло бы этот класс лайфхака. Ни R3, ни R4 их не ловят
+     * (нет инфинитива-условия, нет рекомендательного триггера).
+     */
+    public function testSubstitutionAdviceIsDeniedUnconditionallyViaVstoAndNeither(): void
+    {
+        $viaVsto = $this->guard()->verdict('Ставь Лабораторию вместо Мастерской.', 'Расскажи про механику.', null);
+        $viaANe  = $this->guard()->verdict('Иди в лес, а не в горы.', 'Расскажи про механику.', null);
+
+        $this->assertTrue($viaVsto->isDeny(), '«вместо» — безусловный триггер, степень требовать запрещено');
+        $this->assertSame('comparative_claim', $viaVsto->reason);
+        $this->assertTrue($viaANe->isDeny(), '«а не» без «только/просто/лишь» — безусловный триггер');
+        $this->assertSame('comparative_claim', $viaANe->reason);
+    }
+
+    /**
+     * Story 70, acceptance: детектор сравнительной степени — ОДНА функция,
+     * общая для R1 («чем») и R4 (степень + условие). Проверяется поведенчески:
+     * степень, добавленная к «чем», денит (R1), та же степень в условной форме
+     * денит тоже (R4) — оба пути видят один и тот же признак «дороже», а не
+     * два независимых списка, которые могли бы разойтись.
+     */
+    public function testComparativeDegreeDetectorIsSharedBetweenR1AndR4(): void
+    {
+        $viaR1 = $this->guard()->verdict('Верстак общий открывает базовые рецепты дороже, чем другие способы.', 'Расскажи?', null);
+        $viaR4 = $this->guard()->verdict('Верстак общий открывает базовые рецепты дороже, если покупать у торговца.', 'Расскажи?', null);
+
+        $this->assertTrue($viaR1->isDeny());
+        $this->assertSame('comparative_claim', $viaR1->reason);
+        $this->assertTrue($viaR4->isDeny());
+        $this->assertSame('comparative_claim', $viaR4->reason);
+    }
+
+    /**
      * Story 63, acceptance: сравнительная форма деньится НЕЗАВИСИМО от того,
      * есть ли для неё лексическое подтверждение — ответ почти дословно совпадает
      * с реальным фрагментом (лексика прошла бы провенанс), но несёт союз «чем» и
@@ -662,8 +733,12 @@ final class CommunityGuardTest extends CIUnitTestCase
      */
     public function testComparativeClaimIsDeniedRegardlessOfLexicalSupport(): void
     {
+        // Story 70 (ADR-178 поправка №3): «чем» без сравнительной степени в
+        // ответе R1 больше не ловит (см. testUnconditionalRewordingsAllow…) —
+        // фраза для этого теста обязана нести И «чем», И степень («дороже»),
+        // иначе тест перестанет проверять именно R1.
         $verdict = $this->guard()->verdict(
-            'Верстак общий открывает базовые рецепты сразу на старте, чем и хорош.',
+            'Верстак общий открывает базовые рецепты дороже, чем другие способы.',
             'Расскажи про верстак.',
             null,
         );
