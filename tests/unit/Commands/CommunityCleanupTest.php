@@ -321,6 +321,51 @@ final class CommunityCleanupTest extends CIUnitTestCase
         $this->assertNotNull($log, 'закрытие зависшего вопроса обязано оставить аудит-след — иначе он молча выпадает из очереди владельца');
     }
 
+    // -- story 62: created_at пишется часами БД, не PHP (расхождение таймзон) --------
+
+    /**
+     * `auditAutoClosed()` обязан писать `created_at` часами MySQL (`NOW()`), не PHP
+     * `date()` — эти строки читаются тем же оконным запросом, что и аудит отправителя
+     * (`CommunityController::autoClosedCount()` и соседние счётчики потолка,
+     * memory `feedback_db_clock_seed_not_php_in_time_window_tests`, story -27/-62).
+     *
+     * Тест форсирует PHP-часы на 12 часов позади реального UTC (`Etc/GMT+12`), не
+     * трогая MySQL, — так воспроизводится расхождение таймзон приложения и БД без
+     * остановки времени. На старой реализации (`date('Y-m-d H:i:s')` в
+     * `auditAutoClosed()`) запись уходит с меткой на 12 часов "в прошлом" относительно
+     * MySQL `NOW()`, и оконный запрос `NOW() - INTERVAL 1 MINUTE` её не видит — тест
+     * краснеет. После фикса запись идёт часами MySQL, окно видит её всегда.
+     */
+    public function testAutoClosedAuditCreatedAtUsesDbClockWhenAppAndDbClocksDiverge(): void
+    {
+        $staleId = $this->insertMessage(['status' => 'new', 'sent_at_hours_ago' => 72]);
+
+        $originalTz = date_default_timezone_get();
+        date_default_timezone_set('Etc/GMT+12');
+
+        try {
+            $this->command()->cleanup(30, 48);
+        } finally {
+            date_default_timezone_set($originalTz);
+        }
+
+        $this->assertSame('ignored', $this->statusOf($staleId));
+
+        $inWindow = Database::connect('tests')->query(
+            'SELECT COUNT(*) AS n FROM admin_audit_log
+             WHERE action = \'COMMUNITY_QUESTION_AUTO_CLOSED\'
+               AND target_id = ?
+               AND created_at >= (NOW() - INTERVAL 1 MINUTE)',
+            [$staleId]
+        )->getRow('n');
+
+        $this->assertSame(
+            1,
+            (int) $inWindow,
+            'created_at обязан идти часами БД (NOW()), а не PHP date() — иначе запись выпадает из оконного запроса при расхождении таймзон'
+        );
+    }
+
     // -- story 44, провал транзакции не рапортует успех -------------------------------
 
     /**

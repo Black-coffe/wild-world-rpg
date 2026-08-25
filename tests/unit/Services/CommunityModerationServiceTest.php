@@ -437,6 +437,54 @@ final class CommunityModerationServiceTest extends CIUnitTestCase
         $this->assertSame(0, $this->conn->table('admin_audit_log')->countAllResults());
     }
 
+    // ── story 62: created_at пишется часами БД, не PHP (расхождение таймзон) ───
+
+    /**
+     * `audit()` обязан писать `created_at` часами MySQL (`NOW()`), не PHP `date()` —
+     * эти строки читаются тем же оконным запросом, что и аудит отправителя
+     * (`CommunityController::autoClosedCount()` и соседние счётчики потолка,
+     * memory `feedback_db_clock_seed_not_php_in_time_window_tests`, story -27/-62).
+     *
+     * Тест форсирует PHP-часы на 12 часов позади реального UTC (`Etc/GMT+12`), не
+     * трогая MySQL, — так воспроизводится расхождение таймзон приложения и БД без
+     * остановки времени. На старой реализации (`date('Y-m-d H:i:s')` в `audit()`)
+     * запись уходит с меткой на 12 часов "в прошлом" относительно MySQL `NOW()`, и
+     * оконный запрос `NOW() - INTERVAL 1 MINUTE` её не видит — тест краснеет. После
+     * фикса запись идёт часами MySQL, окно видит её всегда.
+     */
+    public function testAuditCreatedAtUsesDbClockWhenAppAndDbClocksDiverge(): void
+    {
+        $deleteCalls = [];
+        $notices     = [];
+        $service     = $this->service(['community.moderation.mode' => 'live'], $deleteCalls, $notices);
+
+        $originalTz = date_default_timezone_get();
+        date_default_timezone_set('Etc/GMT+12');
+
+        try {
+            $service->evaluate($this->update([
+                'message_id' => 4242,
+                'text'       => 'прокачаю за донат, пишите',
+            ]));
+        } finally {
+            date_default_timezone_set($originalTz);
+        }
+
+        $this->assertSame('COMMUNITY_MODERATION_DELETED', $this->lastAuditAction());
+
+        $inWindow = $this->conn->query(
+            "SELECT COUNT(*) AS n FROM admin_audit_log
+             WHERE action = 'COMMUNITY_MODERATION_DELETED'
+               AND created_at >= (NOW() - INTERVAL 1 MINUTE)"
+        )->getRow('n');
+
+        $this->assertSame(
+            1,
+            (int) $inWindow,
+            'created_at обязан идти часами БД (NOW()), а не PHP date() — иначе запись выпадает из оконного запроса при расхождении таймзон'
+        );
+    }
+
     private function lastAuditAction(): ?string
     {
         $row = $this->conn->table('admin_audit_log')->orderBy('id', 'DESC')->get(1)->getRowArray();

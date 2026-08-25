@@ -237,12 +237,35 @@ class CommunityCleanup extends BaseCommand
                     'payload'       => json_encode(['max_age_hours' => $maxAgeHours], JSON_UNESCAPED_UNICODE),
                     'ip_address'    => null,
                     'user_agent'    => null,
-                    'created_at'    => date('Y-m-d H:i:s'),
+                    'created_at'    => $this->dbNow(),
                 ]);
             } catch (Throwable $e) {
                 log_message('error', '[community:cleanup] audit insert failed: ' . $e->getMessage());
             }
         }
+    }
+
+    /**
+     * Часы, которыми считаются оконные запросы (`CommunityController::autoClosedCount()`
+     * и соседние счётчики потолка) — `NOW()` из той же MySQL-сессии, а не `date()` PHP.
+     * Отметка времени этой записи обязана идти из того же источника, что и чтение,
+     * иначе при расхождении таймзон приложения и БД строка либо попадает в окно лишний
+     * раз, либо выпадает из него (memory `feedback_db_clock_seed_not_php_in_time_window_tests`,
+     * story community-chat-bot-27/62; тот же приём — `CommunityChatSender::dbNow()`).
+     */
+    private function dbNow(): string
+    {
+        $query = Database::connect()->query('SELECT NOW() AS n');
+        if ($query instanceof BaseResult) {
+            $row = $query->getRowArray();
+            if (isset($row['n']) && is_string($row['n'])) {
+                return $row['n'];
+            }
+        }
+
+        // Отказ БД тут уже означает, что и сама вставка аудита провалится следом —
+        // запасное значение только чтобы не звать date() из другого источника времени.
+        return date('Y-m-d H:i:s');
     }
 
     /**
