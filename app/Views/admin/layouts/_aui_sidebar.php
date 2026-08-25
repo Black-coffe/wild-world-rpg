@@ -50,6 +50,7 @@ $siteOpen    = $is('admin/site');
             <div class="aui-navgroup__title">Операции</div>
             <a class="aui-navlink<?= $act($is('admin/tips')) ?>" href="<?= base_url('admin/tips') ?>"><i class="ri-advertisement-line"></i> Советы в игре</a>
             <a class="aui-navlink<?= $act($is('admin/send-message')) ?>" href="<?= base_url('admin/send-message') ?>"><i class="ri-megaphone-line"></i> Сообщение всем</a>
+            <a class="aui-navlink<?= $act($is('admin/community')) ?>" href="<?= base_url('admin/community') ?>"><i class="ri-chat-3-line"></i> Чат сообщества</a>
             <a class="aui-navlink" href="#" data-collapse="aui-sub-polls" aria-expanded="<?= $pollsOpen ? 'true' : 'false' ?>">
                 <i class="ri-bar-chart-box-line"></i> Опросы <i class="ri-arrow-right-s-line aui-navlink__arrow"></i>
             </a>

@@ -89,6 +89,15 @@ $routes->group('admin', ['filter' => 'login'], function($routes) {
     $routes->post('tips/update/(:segment)', 'Admin\GameTipsController::updateTip/$1'); // Обновление совета
     $routes->post('tips/delete/(:segment)', 'Admin\GameTipsController::deleteTip/$1'); // Удаление совета (POST — destructive, CSRF)
 
+    // ADR-176 (community-chat-bot), story 12 — очередь модерации чат-бота Роби в супергруппе.
+    $routes->get('community', 'Admin\CommunityController::index');
+    $routes->get('community/answer/(:num)/edit', 'Admin\CommunityController::editForm/$1');
+    $routes->post('community/answer/(:num)/save', 'Admin\CommunityController::save/$1');
+    $routes->post('community/answer/(:num)/approve', 'Admin\CommunityController::approve/$1');
+    $routes->post('community/answer/(:num)/reject', 'Admin\CommunityController::reject/$1');
+    $routes->post('community/answer/(:num)/revoke', 'Admin\CommunityController::revoke/$1');
+    $routes->post('community/erase', 'Admin\CommunityController::erase'); // «Стереть всё от этого игрока» (POST — destructive, CSRF)
+
     // Роутинг для биомов
     $routes->get('biomes', 'Admin\BiomeController::index');
     $routes->get('biomes/edit/(:segment)', 'Admin\BiomeController::editBiomeForm/$1');
