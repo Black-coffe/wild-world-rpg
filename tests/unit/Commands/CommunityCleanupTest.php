@@ -321,6 +321,55 @@ final class CommunityCleanupTest extends CIUnitTestCase
         $this->assertNotNull($log, 'закрытие зависшего вопроса обязано оставить аудит-след — иначе он молча выпадает из очереди владельца');
     }
 
+    // -- story 44, провал транзакции не рапортует успех -------------------------------
+
+    /**
+     * Story 44 — `cleanup()` теперь ветвится по возврату `transComplete()`, а не
+     * предполагает успех (feedback_transcomplete_false_success_when_strict_off:
+     * `strictOn=false` тихо возвращает `transStatus()` обратно в `true` после
+     * отката, поэтому именно возврат вызова — единственный надёжный сигнал).
+     * Триггер валит UPDATE только для сигнального id — воспроизводит именно
+     * неуспех ЭТОЙ транзакции закрытия, а не общий отказ БД (остальные строки
+     * никак не задеты).
+     */
+    public function testFailedTransactionDoesNotReportStaleClosedOrAudit(): void
+    {
+        $staleId = $this->insertMessage(['status' => 'new', 'sent_at_hours_ago' => 72]);
+
+        $db = Database::connect('tests');
+        $db->query(
+            "CREATE TRIGGER community_cleanup_story44_fail BEFORE UPDATE ON community_messages
+             FOR EACH ROW
+             BEGIN
+                 IF NEW.id = {$staleId} THEN
+                     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'story44: forced transaction failure';
+                 END IF;
+             END"
+        );
+
+        try {
+            $result = $this->command()->cleanup(30, 48);
+
+            $this->assertSame(0, $result['staleClosed'], 'провал транзакции не должен рапортовать закрытые строки');
+            $this->assertSame('new', $this->statusOf($staleId), 'строка обязана остаться new при откате транзакции');
+
+            $log = Database::connect('tests')->table('admin_audit_log')
+                ->where('action', 'COMMUNITY_QUESTION_AUTO_CLOSED')
+                ->where('target_id', $staleId)
+                ->get(1)->getRowArray();
+            $this->assertNull($log, 'провал транзакции не должен писать аудит авто-закрытия');
+        } finally {
+            $db->query('DROP TRIGGER IF EXISTS community_cleanup_story44_fail');
+
+            // Тестовая изоляция, не продакшн-поведение: CI4 держит один и тот же
+            // объект соединения между методами теста, а `transStatus` после отката
+            // остаётся false до явного `resetTransStatus()` (сброс на новый успешный
+            // `transStart()` не происходит) — без этой строки следующий тест на том
+            // же соединении получил бы откат уже без всякого триггера.
+            $db->resetTransStatus();
+        }
+    }
+
     // -- story 32, acceptance: community_answers вне области -------------------------
 
     public function testCleanupNeverTouchesCommunityAnswers(): void

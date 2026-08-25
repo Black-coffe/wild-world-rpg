@@ -160,9 +160,18 @@ class CommunityCleanup extends BaseCommand
                 $staleClosed = $db->affectedRows();
             }
 
-            $db->transComplete();
-
-            $this->auditAutoClosed($staleIds, $maxAgeHours);
+            // Story 44 — исход читается из возврата самого вызова, не из
+            // `transStatus()` постфактум: на этом соединении `strictOn=false`
+            // (`Config\Database`), и после отката `transStatus()` тихо
+            // возвращается в `true` (feedback_transcomplete_false_success_when_strict_off).
+            // Неуспех — строки остались `new`, ни `staleClosed`, ни аудит-запись
+            // авто-закрытия не должны появляться.
+            if (! $db->transComplete()) {
+                $staleClosed = 0;
+                $staleIds    = [];
+            } else {
+                $this->auditAutoClosed($staleIds, $maxAgeHours);
+            }
         }
 
         return ['ttlDeleted' => $ttlDeleted, 'staleClosed' => $staleClosed, 'ttlCandidates' => $ttlCandidates, 'staleCandidates' => $staleCandidates];
