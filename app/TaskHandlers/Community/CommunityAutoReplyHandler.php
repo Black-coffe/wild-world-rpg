@@ -15,6 +15,7 @@ use App\Services\Community\Decision;
 use App\Services\Community\Verdict;
 use App\Services\GameSettings\GameSettingsService;
 use App\TaskHandlers\BaseTaskHandler;
+use CodeIgniter\Database\BaseResult;
 use Config\Database;
 use DateTimeImmutable;
 
@@ -90,8 +91,13 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
      * Дефект 2 (story 23) — причины гейта `CommunityChatSender::checkGates()`, которые
      * повторной попыткой не исправить (содержимое ответа, не состояние мира): переводят
      * строку в терминальный `'escalated'`, а не бесконечный ретрай каждую минуту.
+     *
+     * `silent_topic` (story 31, дефект 2) присоединён сюда же: `community.autoreply.silent_topics` —
+     * настройка, которая сама не рассосётся так же, как потолок/кулдаун/килсвитч. Без этого
+     * каждый тик писал новый `COMMUNITY_ANSWER_REJECTED` на постоянной конфигурации — тот же
+     * дефект 2 из story 23, воспроизведённый на теме, а не на тексте ответа.
      */
-    private const TERMINAL_GATE_REASONS = ['text_too_long', 'unbalanced_markdown', 'canon_name_violation'];
+    private const TERMINAL_GATE_REASONS = ['text_too_long', 'unbalanced_markdown', 'canon_name_violation', 'silent_topic'];
 
     private CommunityMessageModel $messageModel;
     private CommunityAnswerModel $answerModel;
@@ -244,25 +250,49 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         // Дефект 1 — строка перехватывается ДО вызова Telegram условным апдейтом:
         // после этой точки статус уже записан, писать «после отправки» больше нечего.
         if (! $this->claimGroup($decision->coveredMessageIds, ['status' => $targetStatus, 'answered_by_id' => $decision->answerId])) {
-            return; // уже перехвачено другим проходом — сеть не трогаем вовсе
+            return; // всё-или-ничего (story 31, дефект 1) — ни одна строка не осталась перехваченной
         }
+
+        // Story 31, дефект 3 — часы БД ДО сетевого вызова: `resolveFailure()` свяжет
+        // причину отказа только с аудит-строкой, записанной не раньше этой отметки,
+        // а не с последней строкой журнала (которая могла принадлежать прошлой попытке).
+        $attemptStartedAt = $this->dbNow();
 
         if ($this->sender->sendAnswer($selfId, $text)) {
             return; // статус уже закоммичен до сети — дописывать нечего
         }
 
-        $this->resolveFailure($selfId, $decision->coveredMessageIds);
+        $this->resolveFailure($selfId, $decision->coveredMessageIds, $targetStatus, $attemptStartedAt);
     }
 
     /**
      * @param list<int> $ids
      * @param array<string, bool|float|int|string|null> $fields
+     * @param string|null $onlyIfStatus если задан — условный апдейт `WHERE status=$onlyIfStatus`
+     *        (story 31, дефект 4): откат назад (в частности `resolveFailure()`) не должен
+     *        затирать строку, которую между `claimGroup()` и этим вызовом уже сдвинул кто-то
+     *        другой (владелец руками из `/admin/community`, `community:cleanup`) — тот же
+     *        lost-update, что и дефект 1, но со стороны отката, а не заявки.
      */
-    private function markGroup(array $ids, array $fields): void
+    private function markGroup(array $ids, array $fields, ?string $onlyIfStatus = null): void
     {
-        foreach ($ids as $id) {
-            $this->messageModel->update($id, $fields);
+        if ($ids === []) {
+            return;
         }
+
+        if ($onlyIfStatus === null) {
+            foreach ($ids as $id) {
+                $this->messageModel->update($id, $fields);
+            }
+
+            return;
+        }
+
+        $db = Database::connect();
+        $db->table('community_messages')
+            ->whereIn('id', $ids)
+            ->where('status', $onlyIfStatus)
+            ->update($fields);
     }
 
     /**
@@ -270,6 +300,13 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
      * (дефект 1, контракт story) — атомарность через число затронутых строк, не через
      * предварительное чтение. Целевой статус всегда отличен от `'new'`, поэтому
      * `affectedRows()` совпадает с числом реально перехваченных строк.
+     *
+     * Story 31, дефект 1 — единственный `UPDATE ... WHERE id IN (...) AND status='new'`
+     * задевает КАЖДУЮ подходящую строку независимо от остальных: при частичном совпадении
+     * (часть склейки уже не `'new'`) те строки, что ещё были `'new'`, уже переписаны в БД
+     * ДО проверки `affectedRows()`. Транзакция делает заявку всё-или-ничего — при
+     * несовпадении числа затронутых строк откатывает сам апдейт, а не оставляет частично
+     * перехваченную склейку висеть с чужим статусом навсегда.
      *
      * @param list<int> $ids
      * @param array<string, bool|float|int|string|null> $fields
@@ -281,26 +318,47 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         }
 
         $db = Database::connect();
+        $db->transBegin();
+
         $db->table('community_messages')
             ->whereIn('id', $ids)
             ->where('status', 'new')
             ->update($fields);
 
-        return $db->affectedRows() === count($ids);
+        $claimed = $db->affectedRows() === count($ids);
+
+        if ($claimed) {
+            $db->transCommit();
+        } else {
+            $db->transRollback();
+        }
+
+        return $claimed;
     }
 
     /**
      * `sendAnswer()===false` после {@see claimGroup()} уже забрал статус — читает
-     * причину из последней аудит-строки `CommunityChatSender` для этого сообщения
-     * (источник правды, вне `## Files` story), чтобы решить: отпустить обратно к
-     * `'new'` (причина сама рассосётся) или оставить перехваченный статус (терминально
+     * причину из аудит-строки `CommunityChatSender` для этого сообщения (источник
+     * правды, вне `## Files` story), чтобы решить: отпустить обратно к `'new'`
+     * (причина сама рассосётся) или оставить перехваченный статус (терминально
      * или неопределённо доставлено).
+     *
+     * Story 31, дефект 3 — `$attemptStartedAt` (часы БД, снятые ДО вызова `sendAnswer()`)
+     * ограничивает поиск аудит-строкой ЭТОЙ попытки, а не «последней в журнале»:
+     * `CommunityChatSender::audit()` глушит `Throwable`, и при проглоченной вставке
+     * прошлой попытки читалась бы её причина — «исключение после реальной доставки»
+     * могло превратиться в ретрай по чужому старому `_REJECTED`.
+     *
+     * Story 31, дефект 4 — оба отката в `'new'`/`'escalated'` идут через
+     * {@see markGroup()} с `$claimedStatus` как условием: если статус, выставленный
+     * этой же попыткой в {@see claimGroup()}, уже сдвинут кем-то другим (владелец
+     * руками, `community:cleanup`), откат его не затирает.
      *
      * @param list<int> $coveredIds
      */
-    private function resolveFailure(int $selfId, array $coveredIds): void
+    private function resolveFailure(int $selfId, array $coveredIds, string $claimedStatus, string $attemptStartedAt): void
     {
-        $audit = $this->lastAutoAnswerAudit($selfId);
+        $audit = $this->lastAutoAnswerAudit($selfId, $attemptStartedAt);
         if ($audit === null) {
             return; // причина не читается — консервативно не трогаем перехваченный статус
         }
@@ -309,12 +367,12 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         if (str_ends_with($action, '_REJECTED')) {
             // Гейт отказал ДО сети (детерминированно, `CommunityChatSender::checkGates()`).
             if (in_array($reason, self::TERMINAL_GATE_REASONS, true)) {
-                // Дефект 2 — содержимым это не исправить, ретрай каждую минуту только
-                // плодит `*_REJECTED` в журнале, по которому считается сам потолок.
-                $this->markGroup($coveredIds, ['status' => 'escalated']);
+                // Дефект 2 — содержимым/конфигурацией это не исправить, ретрай каждую
+                // минуту только плодит `*_REJECTED` в журнале, по которому считается сам потолок.
+                $this->markGroup($coveredIds, ['status' => 'escalated'], $claimedStatus);
             } else {
-                // Потолок/кулдаун/тема/килсвитч сами рассосутся — вернём на следующий тик.
-                $this->markGroup($coveredIds, ['status' => 'new']);
+                // Потолок/кулдаун/килсвитч сами рассосутся — вернём на следующий тик.
+                $this->markGroup($coveredIds, ['status' => 'new'], $claimedStatus);
             }
 
             return;
@@ -322,7 +380,7 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
 
         if (str_starts_with($reason, 'telegram_not_ok:')) {
             // Сеть дошла, Telegram явно подтвердил недоставку — безопасно повторить.
-            $this->markGroup($coveredIds, ['status' => 'new']);
+            $this->markGroup($coveredIds, ['status' => 'new'], $claimedStatus);
 
             return;
         }
@@ -332,12 +390,16 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         // повторная публикация опаснее пропущенного ответа (дефект 1, контракт story).
     }
 
-    /** @return array{0: string, 1: string}|null [action, reason] последней строки COMMUNITY_ANSWER_* */
-    private function lastAutoAnswerAudit(int $messageRowId): ?array
+    /**
+     * @return array{0: string, 1: string}|null [action, reason] аудит-строки этой попытки
+     *         (`created_at >= $since`, часы БД — story 31, дефект 3/5)
+     */
+    private function lastAutoAnswerAudit(int $messageRowId, string $since): ?array
     {
         $row = $this->auditModel
             ->where('target_id', $messageRowId)
             ->like('action', 'COMMUNITY_ANSWER_', 'after')
+            ->where('created_at >=', $since)
             ->orderBy('id', 'DESC')
             ->first();
 
@@ -386,7 +448,11 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
                 ),
                 'ip_address' => null,
                 'user_agent' => null,
-                'created_at' => date('Y-m-d H:i:s'),
+                // Story 31, дефект 5 — «одни часы»: соседний `audit()` в `CommunityChatSender`
+                // (story 27) пишет `created_at` часами БД в ту же `admin_audit_log`, а не
+                // PHP `date()` — расхождение таймзон приложения и БД иначе ломает сравнение
+                // времени между записями одной таблицы.
+                'created_at' => $this->dbNow(),
             ]);
         } catch (\Throwable $e) {
             log_message('error', '[CommunityAutoReplyHandler] route audit insert failed: ' . $e->getMessage());
@@ -422,6 +488,28 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
         $value = $row['requires_setting'] ?? null;
 
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /**
+     * Часы БД (`NOW()`), не PHP `date()` — story 31, дефекты 3 и 5. Служит и меткой
+     * записи (`logRoute()`), и границей поиска «своей» аудит-строки (`resolveFailure()`
+     * через {@see lastAutoAnswerAudit()}), тем же приёмом, что `CommunityChatSender::dbNow()`
+     * (story 27, memory `feedback_db_clock_seed_not_php_in_time_window_tests`).
+     */
+    private function dbNow(): string
+    {
+        $db    = Database::connect();
+        $query = $db->query('SELECT NOW() AS n');
+        if ($query instanceof BaseResult) {
+            $row = $query->getRowArray();
+            if (isset($row['n']) && is_string($row['n'])) {
+                return $row['n'];
+            }
+        }
+
+        // Отказ БД тут уже означает, что и запись/чтение аудита следом провалятся —
+        // запасное значение только чтобы не подменять единственный источник времени.
+        return date('Y-m-d H:i:s');
     }
 
     // ── типобезопасные читатели ──────────────────────────────────────────

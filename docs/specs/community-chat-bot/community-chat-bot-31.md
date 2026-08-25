@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-31
 spec: community-chat-bot
-status: todo
+status: done
 tier: 3
 worker: worker-code
 tracer: false
@@ -66,3 +66,24 @@ blocked_by: []
 
 ## Verification
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/TaskHandlers/CommunityAutoReplyHandlerTest.php`
+
+## Implementation notes
+- `claimGroup()` теперь оборачивает условный `UPDATE ... WHERE id IN (...) AND status='new'` в
+  `transBegin/transCommit/transRollback`: при `affectedRows !== count($ids)` откатывает сам апдейт —
+  раньше строки, ещё бывшие `'new'`, уже переписывались в БД одним SQL-запросом ДО проверки
+  `affectedRows()`, и `false` не откатывал их назад (дефект 1).
+- `TERMINAL_GATE_REASONS` пополнен `'silent_topic'` — конфигурация сама не рассосётся, отказ
+  классифицируется как содержимое, а не как временное состояние мира (дефект 2).
+- `markGroup()` получил опциональный третий параметр `$onlyIfStatus` — условный `UPDATE ... WHERE
+  status=$onlyIfStatus`; `resolveFailure()` передаёт туда статус, выставленный этой же попыткой в
+  `claimGroup()`, так что откат не затирает конкурентное изменение статуса (дефект 4). Вызов из
+  `handleDelayed()` (отмена по `isCancelledByHumanReply()`) не тронут — Non-goals/scope.
+- `resolveFailure()`/`lastAutoAnswerAudit()` получили `$attemptStartedAt` (часы БД, снятые ДО вызова
+  `sendAnswer()`) — поиск причины отказа фильтруется `created_at >= $attemptStartedAt`, не читает
+  последнюю строку журнала вслепую (дефект 3).
+- Добавлен приватный `dbNow()` (паттерн `CommunityChatSender::dbNow()`, story 27) — используется и в
+  `logRoute()` вместо PHP `date()`, и как источник `$attemptStartedAt` (дефект 3 и 5, «одни часы»).
+- Тесты: 5 новых в `CommunityAutoReplyHandlerTest` (по одному на дефект 1–5); `claimGroup()` и
+  `resolveFailure()` покрыты через `ReflectionMethod` (private-методы, точечное воспроизведение
+  каждого дефекта без пересборки всего матчера). Полный прогон: 21/21 зелёных, 59 assertions,
+  1 PHPUnit deprecation — тот же, что на baseline (не регрессия).

@@ -19,6 +19,7 @@ use Config\CommunityVoice;
 use Config\Database;
 use DateTimeImmutable;
 use Longman\TelegramBot\Entities\ServerResponse;
+use ReflectionMethod;
 use RuntimeException;
 
 /**
@@ -703,5 +704,159 @@ final class CommunityAutoReplyHandlerTest extends CIUnitTestCase
         $payload = json_decode((string) $rows[0]['payload'], true);
         $this->assertIsArray($payload);
         $this->assertContains($payload['route'] ?? null, CommunityVoice::REFUSAL_WITH_ROUTE, 'сохранённый маршрут обязан быть одной из утверждённых строк');
+    }
+
+    // ── story 31: дефект 1 — заявка на склейку всё-или-ничего ────────────
+
+    public function testClaimGroupIsAllOrNothingUnderConcurrentStatusChange(): void
+    {
+        $m1 = $this->insertMessage(['status' => 'new']);
+        $m2 = $this->insertMessage(['status' => 'new']);
+
+        // Конкурентное изменение: владелец руками из /admin/community (или cleanup)
+        // уже увёл вторую строку склейки из 'new' между чтением матчера и заявкой.
+        $this->conn->table('community_messages')->where('id', $m2['id'])->update(['status' => 'ignored']);
+
+        $calls   = [];
+        $handler = $this->handler($this->sender($calls));
+        $claim   = new ReflectionMethod(CommunityAutoReplyHandler::class, 'claimGroup');
+        $claim->setAccessible(true);
+
+        $result = $claim->invoke($handler, [(int) $m1['id'], (int) $m2['id']], ['status' => 'answered']);
+
+        $this->assertFalse($result, 'частичное совпадение обязано провалить заявку целиком');
+        $this->assertSame(
+            'new',
+            $this->statusOf((int) $m1['id']),
+            'до транзакции этот UPDATE уже переписал бы строку в answered до проверки affectedRows — '
+                . 'откат обязан вернуть её обратно, чтобы ни одна строка не осталась перехваченной'
+        );
+        $this->assertSame('ignored', $this->statusOf((int) $m2['id']), 'конкурентно изменённая строка заявкой не трогается');
+    }
+
+    // ── story 31: дефект 2 — silent_topic терминален, не ретраится вечно ─
+
+    public function testSilentTopicGivesOneLogEntryNotOnePerTick(): void
+    {
+        $this->insertBankAnswer([
+            'question_pattern' => 'где найти теплицу для земледелия',
+            'answer_text'      => 'Теплица строится на базе.',
+        ]);
+        $message = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
+
+        $calls   = [];
+        $sender  = $this->sender($calls, ['community.autoreply.silent_topics' => (string) $message['message_thread_id']]);
+        $handler = $this->handler($sender);
+
+        for ($i = 0; $i < 5; $i++) {
+            $handler->handle();
+        }
+
+        $this->assertSame([], $calls, 'silent_topic отказывает ДО sendMessage — транспорт не звонит вовсе');
+        $this->assertSame('escalated', $this->statusOf((int) $message['id']), 'настройка сама не рассосётся — отказ обязан быть терминальным');
+        $this->assertSame(
+            1,
+            $this->auditCount((int) $message['id'], 'COMMUNITY_ANSWER_REJECTED'),
+            'пять тиков подряд на постоянной конфигурации не должны дать пять записей в журнале'
+        );
+    }
+
+    // ── story 31: дефект 3 — причина отказа связана с ЭТОЙ попыткой ──────
+
+    public function testStaleAuditFromPreviousAttemptDoesNotTriggerRetryOnSwallowedInsert(): void
+    {
+        // claimGroup() этой попытки уже забрал статус в 'answered'.
+        $message = $this->insertMessage(['status' => 'answered']);
+
+        // Устаревшая строка ПРОШЛОЙ попытки — записана заведомо раньше текущей.
+        $this->conn->table('admin_audit_log')->insert([
+            'admin_user_id' => 0,
+            'action'        => 'COMMUNITY_ANSWER_REJECTED',
+            'target_type'   => 'community_message',
+            'target_id'     => $message['id'],
+            'payload'       => json_encode(['reason' => 'topic_rate_limit'], JSON_UNESCAPED_UNICODE),
+            'created_at'    => date('Y-m-d H:i:s', strtotime('-1 hour')),
+        ]);
+
+        $calls   = [];
+        $handler = $this->handler($this->sender($calls));
+        $resolve = new ReflectionMethod(CommunityAutoReplyHandler::class, 'resolveFailure');
+        $resolve->setAccessible(true);
+
+        // Часы БД, снятые как «начало текущей попытки» — своя вставка аудита этой
+        // попытки проглочена (Throwable в CommunityChatSender::audit()), новой строки
+        // после этой отметки нет.
+        $attemptStartedAt = $this->conn->query('SELECT NOW() AS n')->getRowArray()['n'];
+
+        $resolve->invoke($handler, (int) $message['id'], [(int) $message['id']], 'answered', (string) $attemptStartedAt);
+
+        $this->assertSame(
+            'answered',
+            $this->statusOf((int) $message['id']),
+            'устаревшая строка прошлой попытки не должна читаться как причина ЭТОГО отказа — без строки '
+                . 'после attemptStartedAt причина не читается, ретрая не будет'
+        );
+    }
+
+    // ── story 31: дефект 4 — откат не затирает чужое конкурентное изменение
+
+    public function testFailureRollbackDoesNotOverwriteStatusChangedByAnotherPass(): void
+    {
+        // claimGroup() этой попытки уже забрал статус в 'answered'.
+        $message = $this->insertMessage(['status' => 'answered']);
+
+        $attemptStartedAt = $this->conn->query('SELECT NOW() AS n')->getRowArray()['n'];
+
+        // Между заявкой и обработкой отказа кто-то другой (владелец/cleanup) уже
+        // сдвинул строку на свой статус.
+        $this->conn->table('community_messages')->where('id', $message['id'])->update(['status' => 'ignored']);
+
+        $this->conn->table('admin_audit_log')->insert([
+            'admin_user_id' => 0,
+            'action'        => 'COMMUNITY_ANSWER_FAILED',
+            'target_type'   => 'community_message',
+            'target_id'     => $message['id'],
+            'payload'       => json_encode(['reason' => 'telegram_not_ok: boom'], JSON_UNESCAPED_UNICODE),
+            'created_at'    => date('Y-m-d H:i:s'),
+        ]);
+
+        $calls   = [];
+        $handler = $this->handler($this->sender($calls));
+        $resolve = new ReflectionMethod(CommunityAutoReplyHandler::class, 'resolveFailure');
+        $resolve->setAccessible(true);
+        $resolve->invoke($handler, (int) $message['id'], [(int) $message['id']], 'answered', (string) $attemptStartedAt);
+
+        $this->assertSame(
+            'ignored',
+            $this->statusOf((int) $message['id']),
+            'откат в new не должен затирать статус, выставленный не этой попыткой'
+        );
+    }
+
+    // ── story 31: дефект 5 — записи времени этого файла идут часами БД ───
+
+    public function testRouteLogTimestampUsesDatabaseClockNotPhpDate(): void
+    {
+        $this->insertBankAnswer([
+            'question_pattern' => 'где найти теплицу для земледелия',
+            'answer_text'      => 'Теплица строится на базе.',
+        ]);
+        $message = $this->insertMessage(['addressed_to_bot' => 1, 'text' => 'Роби, где найти теплицу для земледелия?']);
+
+        $before = (string) $this->conn->query('SELECT NOW() AS n')->getRowArray()['n'];
+
+        $calls   = [];
+        $sender  = $this->sender($calls);
+        $handler = $this->handler($sender, $this->denyingGuard());
+        $handler->handle();
+
+        $after = (string) $this->conn->query('SELECT NOW() AS n')->getRowArray()['n'];
+
+        $rows = $this->auditRows((int) $message['id'], 'COMMUNITY_ROUTE_LOGGED');
+        $this->assertCount(1, $rows);
+        $createdAt = (string) $rows[0]['created_at'];
+
+        $this->assertGreaterThanOrEqual($before, $createdAt, 'created_at обязан идти часами БД (NOW()), не PHP date()');
+        $this->assertLessThanOrEqual($after, $createdAt, 'created_at обязан идти часами БД (NOW()), не PHP date()');
     }
 }
