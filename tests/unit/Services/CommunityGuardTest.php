@@ -9,7 +9,6 @@ use App\Models\GameSettingsModel;
 use App\Services\Community\CommunityGuard;
 use App\Services\Community\Verdict;
 use App\Services\GameSettings\GameSettingsService;
-use App\Services\Onboarding\GuideCatalog;
 use CodeIgniter\Database\Forge;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -36,6 +35,13 @@ use Config\Database;
  * исключением тестов с суффиксом `AgainstRealCorpus`, которые намеренно держат
  * гвард на живом `GuideCatalog::sections()` — паттерн подмены `GameSettingsModel`
  * тот же, что в `CommunityIngestServiceTest`).
+ *
+ * Story 65 (ADR-177 §5а): калибровка (`testCalibrationOnFrozenProvenanceCorpusFixture`)
+ * НЕ мерит живой `GuideCatalog`/`game_tips` вовсе — раньше это молча давало
+ * благополучные числа на 32 фрагментах вместо боевых 133 (дважды пропустило
+ * BLOCK). Судит `tests/_support/Community/provenance-corpus.php` — версионированный
+ * срез боевого корпуса, состав которого утверждается тестом поимённо. Живой
+ * корпус мерит `php spark community:guard-calibrate` (story 66), не PHPUnit.
  *
  * @internal
  */
@@ -114,6 +120,112 @@ final class CommunityGuardTest extends CIUnitTestCase
         'community.guard.min_source_sentence_words',
         'community.guard.comparative_form',
         'community.guard.provenance_mode',
+    ];
+
+    /**
+     * Story 65 — состав `tests/_support/Community/provenance-corpus.php` на
+     * дату среза (2026-08-26), утверждается ПОИМЁННО (не только счётчиком
+     * 32+28=60) — расхождение даже при совпавшем количестве обязано красить
+     * тест (`testProvenanceCorpusFixtureHasExpectedComposition`).
+     */
+    private const PROVENANCE_CORPUS_EXPECTED_SOURCES = [
+        'guide:arena',
+        'guide:atmosphere',
+        'guide:base',
+        'guide:biomes',
+        'guide:bosses',
+        'guide:chat',
+        'guide:combat',
+        'guide:craft',
+        'guide:endgame',
+        'guide:faction',
+        'guide:food',
+        'guide:gather',
+        'guide:grow',
+        'guide:insurance',
+        'guide:island',
+        'guide:march',
+        'guide:move',
+        'guide:nav',
+        'guide:npc',
+        'guide:oracle',
+        'guide:quests',
+        'guide:referral',
+        'guide:robots',
+        'guide:settings',
+        'guide:storage',
+        'guide:teleport',
+        'guide:top',
+        'guide:trade',
+        'guide:transport',
+        'guide:tribute',
+        'guide:worldevents',
+        'guide:wounds',
+        'tip:1st level workbench',
+        'tip:Buy a buy buy buy',
+        'tip:Character level calculation',
+        'tip:Character relocation',
+        'tip:Characters first ride',
+        'tip:Events in the game',
+        'tip:Experience gain',
+        'tip:Explore and Collect',
+        'tip:Explore territories and bust character',
+        'tip:First aid kit basic',
+        'tip:Food and water',
+        'tip:Fraction availability',
+        'tip:Game "Guess Number',
+        'tip:Game "Stone, Scissors, Paper"',
+        'tip:Game "Wheel of Fortune',
+        'tip:Game map',
+        'tip:Greenhouse Bonuses',
+        'tip:Health regeneration',
+        'tip:Knowledge is power!',
+        'tip:Kraft gives rise to parameters',
+        'tip:Random gaming advice',
+        'tip:Resource extraction (formula)',
+        'tip:Resource sale',
+        'tip:Set up camp',
+        'tip:Terrain Study = Success',
+        'tip:The craft or the shopping?',
+        'tip:Tool precedence',
+        'tip:Water resource',
+    ];
+
+    /**
+     * Story 63/65 — 22 полных естественных НЕсравнительных фабриката (не
+     * title-конкатенацию — та даёт вырожденно короткие фразы с искусственно
+     * высоким ratio, см. `## Implementation notes` story 63) о РАЗНЫХ
+     * механиках. Story 65 §«Старую фабрикатную выборку не переиспользовать»:
+     * старые 29 утверждений вида «X даёт больше пользы, чем Y» после R1-R4
+     * отсекаются раньше рубежа 1 как `comparative_claim` — эта выборка
+     * намеренно НЕ содержит союзов/корней/оборотов сравнения, используется и
+     * story 63's `testExpandedNonComparativeFabricationSampleReportsAdvisoryCoverageAgainstRealCorpus`,
+     * и story 65's калибровкой на замороженном корпусе — единственный список,
+     * не дублирован.
+     */
+    private const NON_COMPARATIVE_FABRICATED_SAMPLE = [
+        'Если идти в поход голодным, добыча падает.',
+        'Дрон заряжается от солнечной станции на базе.',
+        'Раны затягиваются быстрее, если спать у костра на привале.',
+        'Караваны платят пошлину, если проходят рядом с занятой базой.',
+        'Оракул острова открывает ставки только по выходным.',
+        'Ловушки у воды приманивают редких рыб по ночам.',
+        'Телепорт между маяками сжигает часть прочности рюкзака.',
+        'Фракция выдаёт бесплатный ремонт брони раз в неделю.',
+        'Трофейная подать снижается, если сдать её лично старосте.',
+        'Роботы в Ангаре требуют топлива из Мастерской для запуска.',
+        'Арена открывается только после завершения похода.',
+        'Топ игроков обновляется сразу после каждого боя.',
+        'Настройки уведомлений сбрасываются при каждом уровне персонажа.',
+        'Общий чат отключается на время активного похода.',
+        'Ресурсы со склада пропадают, если не заходить неделю.',
+        'Узлы-боссы появляются только рядом с занятыми базами.',
+        'Эндгейм-коллекции открывают доступ к бесплатному телепорту.',
+        'Мировые события начинаются сразу после завершения похода.',
+        'Раны мешают собирать ресурсы в тундре.',
+        'Ферма даёт двойной урожай в дождь.',
+        'Транспорт ломается, если ехать через воду.',
+        'Мастерская расположена рядом с Лабораторией и Роботами на базе.',
     ];
 
     private function migration(): Adr177CommunityGuardThresholds
@@ -602,30 +714,7 @@ final class CommunityGuardTest extends CIUnitTestCase
      */
     public function testExpandedNonComparativeFabricationSampleReportsAdvisoryCoverageAgainstRealCorpus(): void
     {
-        $fabrications = [
-            'Если идти в поход голодным, добыча падает.',
-            'Дрон заряжается от солнечной станции на базе.',
-            'Раны затягиваются быстрее, если спать у костра на привале.',
-            'Караваны платят пошлину, если проходят рядом с занятой базой.',
-            'Оракул острова открывает ставки только по выходным.',
-            'Ловушки у воды приманивают редких рыб по ночам.',
-            'Телепорт между маяками сжигает часть прочности рюкзака.',
-            'Фракция выдаёт бесплатный ремонт брони раз в неделю.',
-            'Трофейная подать снижается, если сдать её лично старосте.',
-            'Роботы в Ангаре требуют топлива из Мастерской для запуска.',
-            'Арена открывается только после завершения похода.',
-            'Топ игроков обновляется сразу после каждого боя.',
-            'Настройки уведомлений сбрасываются при каждом уровне персонажа.',
-            'Общий чат отключается на время активного похода.',
-            'Ресурсы со склада пропадают, если не заходить неделю.',
-            'Узлы-боссы появляются только рядом с занятыми базами.',
-            'Эндгейм-коллекции открывают доступ к бесплатному телепорту.',
-            'Мировые события начинаются сразу после завершения похода.',
-            'Раны мешают собирать ресурсы в тундре.',
-            'Ферма даёт двойной урожай в дождь.',
-            'Транспорт ломается, если ехать через воду.',
-            'Мастерская расположена рядом с Лабораторией и Роботами на базе.',
-        ];
+        $fabrications = self::NON_COMPARATIVE_FABRICATED_SAMPLE;
         $this->assertGreaterThanOrEqual(20, count($fabrications), 'story обязала расширить выборку до ≥20');
 
         $guard             = $this->realGuard();
@@ -1259,139 +1348,229 @@ final class CommunityGuardTest extends CIUnitTestCase
         $this->assertStringNotContainsString('GameBalance', $codeOnly, 'CommunityGuard не имеет права зависеть от Config\\GameBalance');
     }
 
-    // ── Story 38/63 — калибровка исполняется, а не живёт только в прозе story ──
+    // ── Story 65 — калибровка судит зафиксированный корпус-эталон ───────────
 
     /**
-     * Story 38: story 30 замерила 24 добросовестных + 24 фабриката один раз вручную
-     * и записала результат прозой (`## Implementation notes`) — `GuideCatalog` растёт
-     * с каждой новой механикой (GUIDE-COVERAGE), а замер за этим не следит. Этот тест
-     * ГОВОРИТ вместо прозы: строит обе выборки живьём из текущего `GuideCatalog::sections()`
-     * (не заморожена — растёт вместе со справочником), печатает измеренные частоты обеих
-     * ошибок И их разбивку по причине отказа в STDERR при каждом прогоне, и падает,
-     * только если ЛЮБАЯ из частот уходит за широкий коридор.
+     * Story 65 (ADR-177 §5а): PHPUnit больше не меряет живой `GuideCatalog`/
+     * `game_tips` (story 38/47/63's `testCalibrationMeasuresBothErrorRates…`
+     * печатала благополучные числа на 32 фрагментах вместо боевых 133 и НЕ
+     * ЗНАЛА об этом — ровно это дважды пропустило BLOCK). Эталон —
+     * `tests/_support/Community/provenance-corpus.php`, срез боевого корпуса на
+     * дату 2026-08-26. Живой корпус мерит отдельная spark-команда (story 66),
+     * не PHPUnit.
      *
-     * Story 47 — ревью разобрало story 38 по причинам отказа на этом же корпусе:
-     * добросовестная сторона, 14 отказов из 32, ни разу не денилась `no_provenance`
-     * (`lexical_stoplist` 11, `missing_requires_setting` 3) — рубеж провенанса
-     * структурно НЕ мог сработать, потому что он последняя проверка в `verdict()`,
-     * а более ранние рубежи (стоп-лист, dormant-подсистемы) отсекали выборку раньше.
-     *
-     * Story 63: добросовестная сторона теперь считается ДОШЕДШЕЙ до рубежа 1 и по
-     * причине `comparative_claim` — эта проверка структурно ЧАСТЬ рубежа 1 (ADR-177
-     * §2, «внутри рубежа 1»), не более ранний рубеж вроде стоп-листа.
-     *
-     * ADR-178: `no_provenance` в разбивке `goodFaithByReason`/`fabricatedByReason`
-     * ниже структурно почти всегда 0 в advisory-режиме (default) — провенанс
-     * больше не денит, он ПОМЕЧАЕТ. Бакет оставлен в `$reachedGate1` не как
-     * мёртвый код, а как совместимость: тест, использующий `realGuard($settings)`
-     * с явным `community.guard.provenance_mode=>'deny'`, снова получал бы этот
-     * бакет ненулевым, и учёт не должен ломаться в этом случае.
+     * Состав утверждается ПОИМЁННО, не только числом — расхождение даже при
+     * совпавших счётчиках (напр. подменили один tip на другой того же
+     * количества) обязано красить тест.
      */
-    public function testCalibrationMeasuresBothErrorRatesAndReportsDriftOnLiveGuideCatalog(): void
+    public function testProvenanceCorpusFixtureHasExpectedComposition(): void
     {
-        $sections = GuideCatalog::sections();
-        $this->assertGreaterThanOrEqual(20, count($sections), 'калибровке нужно не меньше 20 разделов GuideCatalog для обеих выборок');
+        $fixture = $this->provenanceCorpusFixture();
 
-        // Story 47: килсвитчи спящих подсистем включены — так замер соответствует
-        // прод-конфигурации, а не стенду, где все они читаются выключенными.
+        $sources = array_column($fixture['corpus'], 'source');
+        sort($sources);
+        $expected = self::PROVENANCE_CORPUS_EXPECTED_SOURCES;
+        sort($expected);
+        $this->assertSame($expected, $sources, 'состав эталонного корпуса разошёлся с зафиксированным списком источников');
+
+        $byKind = [];
+        foreach ($fixture['corpus'] as $fragment) {
+            $kind = explode(':', $fragment['source'])[0];
+            $byKind[$kind] = ($byKind[$kind] ?? 0) + 1;
+        }
+        $this->assertSame(['guide' => 32, 'tip' => 28], $byKind, 'эталон обязан быть 32 раздела /guide + 28 советов');
+        $this->assertCount(32, $fixture['guideBodies'], 'guideBodies обязаны покрывать все 32 раздела');
+    }
+
+    /**
+     * Story 65 — три выборки на замороженном корпусе-эталоне, каждая строится
+     * ДЕТЕРМИНИРОВАННО, без обратной связи от классификатора:
+     *
+     *  1. **Дословная цитата** — по одному предложению на раздел `/guide` (32),
+     *     первое предложение `guideBodies[$key]` (ТЕЛО без заголовка — story
+     *     65's находка: заголовок с двоеточием типа «📋 Дела: квесты и задания
+     *     дня» иначе ломает нарезку на предложения, `sentencesOf()` режет и по
+     *     «:») с ≥6 значимыми стемами. Не «пока не дойдёт до рубежа»
+     *     (Non-goals story 65, ровно то, чем грешила `firstProvenanceReachableSentenceOf()`)
+     *     — предложение берётся ПЕРВОЕ подходящее по длине, независимо от
+     *     того, что оно вызовет у гварда.
+     *  2. **Пересказ** — та же цитата минус каждое третье значимое слово
+     *     (известный оптимизм этого метода — см. `## Findings` story 63/65).
+     *  3. **Фабрикат** — `NON_COMPARATIVE_FABRICATED_SAMPLE` (22, story 63),
+     *     НЕ старые 29 сравнительных (Non-goals: они отсекаются раньше рубежа
+     *     1 после R1-R4 и мерили бы не тот рубеж).
+     *
+     * ADR-178: провенанс не денит — «ложного пропуска по провенансу» не
+     * существует. Меряются: (а) ложный отказ рубежа ФОРМЫ (`comparative_claim`)
+     * на дословной цитате, коридор ≤10%, отклонённые фрагменты — поимённо; (б)
+     * шумность пометки (доля `advisory` непустых) на дословной и на пересказе;
+     * (в) число фабрикатов, прошедших БЕЗ пометки вовсе — обязательная величина
+     * (доказательство инварианта ADR-178 «пометки нет → не значит ничего»),
+     * поимённо, без гейта на долю.
+     */
+    public function testCalibrationOnFrozenProvenanceCorpusFixture(): void
+    {
+        $fixture = $this->provenanceCorpusFixture();
+
+        // Килсвитчи спящих подсистем включены — замер соответствует
+        // прод-конфигурации, а не стенду, где все они читаются выключенными
+        // (story 47).
         $liveSettings = array_fill_keys(array_values(CommunityStopTopics::DORMANT_SUBSYSTEM_SETTINGS), true);
-        $guard        = $this->realGuard($liveSettings);
+        $guard        = $this->guard($fixture['corpus'], $liveSettings);
 
-        $goodFaithSample = [];
-        $goodFaithSkipped = 0;
-        foreach ($sections as $section) {
-            $sentence = $this->firstProvenanceReachableSentenceOf($guard, $section['body']);
-            if ($sentence !== null) {
-                $goodFaithSample[] = $sentence;
-            } else {
-                $goodFaithSkipped++;
-            }
-        }
+        $verbatim = $this->verbatimSampleFromGuideBodies($guard, $fixture['guideBodies']);
+        $this->assertCount(32, $verbatim, 'дословная выборка обязана покрывать все 32 раздела эталона');
 
-        $fabricatedSample = [];
-        for ($i = 0; $i + 1 < count($sections); $i++) {
-            $wordA = $this->significantWordOf($sections[$i]['title']);
-            $wordB = $this->significantWordOf($sections[$i + 1]['title']);
-            if ($wordA === null || $wordB === null) {
-                continue;
-            }
-            $fabricatedSample[] = "«{$wordA}» даёт больше пользы, чем «{$wordB}».";
-        }
+        $paraphrase = $this->paraphraseOf($verbatim);
+        $this->assertNotEmpty($paraphrase);
 
-        $this->assertNotEmpty($goodFaithSample);
-        $this->assertNotEmpty($fabricatedSample);
+        $fabrications = self::NON_COMPARATIVE_FABRICATED_SAMPLE;
 
-        $falseDeny         = 0;
-        $goodFaithByReason = [];
-        // Story 69: сработавшее слово стоп-листа/числительного печатается
-        // поимённо, а не только причина `lexical_stoplist` — это и есть
-        // инструмент, которым доказана/будет доказана гипотеза о границе слова.
-        $lexicalStoplistHits = [];
-        foreach ($goodFaithSample as $sentence) {
+        // ── (а) дословная цитата: ложный отказ рубежа формы, поимённо ──
+        $verbatimDeniedByForm = [];
+        $verbatimByReason     = [];
+        $verbatimNoisy        = 0;
+        foreach ($verbatim as $source => $sentence) {
             $verdict = $guard->verdict($sentence, 'Расскажи про механику.', null);
             $reason  = $verdict->isAllow() ? 'allow' : $verdict->reason;
-            $goodFaithByReason[$reason] = ($goodFaithByReason[$reason] ?? 0) + 1;
-            if (! $verdict->isAllow()) {
-                $falseDeny++;
+            $verbatimByReason[$reason] = ($verbatimByReason[$reason] ?? 0) + 1;
+            if ($reason === 'comparative_claim') {
+                $verbatimDeniedByForm[] = sprintf('%s: «%s»', $source, $sentence);
             }
-            if ($reason === 'lexical_stoplist') {
-                $word = $this->matchedStopWordOf($guard, $sentence);
-                $lexicalStoplistHits[] = sprintf('«%s» ← «%s»', $word ?? '?', $sentence);
+            if ($verdict->isAllow() && $verdict->advisories !== []) {
+                $verbatimNoisy++;
+            }
+        }
+        $formRejectionRate = count($verbatimDeniedByForm) / count($verbatim);
+
+        // ── (б) пересказ: та же шумность пометки, для сравнения с (а) ──
+        $paraphraseNoisy = 0;
+        foreach ($paraphrase as $sentence) {
+            $verdict = $guard->verdict($sentence, 'Расскажи про механику.', null);
+            if ($verdict->isAllow() && $verdict->advisories !== []) {
+                $paraphraseNoisy++;
             }
         }
 
-        $falseAllow          = 0;
-        $fabricatedByReason  = [];
-        foreach ($fabricatedSample as $claim) {
-            $verdict = $guard->verdict($claim, 'Расскажи про механику.', null);
+        // ── (в) фабрикат: сколько проходит БЕЗ пометки вовсе, поимённо ──
+        $fabricationsWithoutAdvisory = [];
+        $fabricationsByReason        = [];
+        foreach ($fabrications as $fabrication) {
+            $verdict = $guard->verdict($fabrication, 'Расскажи про механику.', null);
             $reason  = $verdict->isAllow() ? 'allow' : $verdict->reason;
-            $fabricatedByReason[$reason] = ($fabricatedByReason[$reason] ?? 0) + 1;
-            if ($verdict->isAllow()) {
-                $falseAllow++;
+            $fabricationsByReason[$reason] = ($fabricationsByReason[$reason] ?? 0) + 1;
+            if ($verdict->isAllow() && $verdict->advisories === []) {
+                $fabricationsWithoutAdvisory[] = $fabrication;
             }
         }
-
-        $falseDenyRate  = $falseDeny / count($goodFaithSample);
-        $falseAllowRate = $falseAllow / count($fabricatedSample);
-
-        // Story 47/63, acceptance: провенанс (или сравнительная форма — часть того
-        // же рубежа 1, ADR-177 §2) обязан реально участвовать в вердикте
-        // добросовестной стороны — `firstProvenanceReachableSentenceOf()` подбирает
-        // предложение так, чтобы оно доходило до рубежа 1, поэтому каждый элемент
-        // выборки закончился либо `allow`, либо `no_provenance`/`comparative_claim` —
-        // других причин в этой разбивке структурно быть не должно.
-        $reachedGate1 = ($goodFaithByReason['allow'] ?? 0)
-            + ($goodFaithByReason['no_provenance'] ?? 0)
-            + ($goodFaithByReason['comparative_claim'] ?? 0);
-        $this->assertGreaterThan(0, $reachedGate1, 'добросовестная выборка обязана доходить до рубежа провенанса');
-        $this->assertSame(
-            $reachedGate1,
-            count($goodFaithSample),
-            'добросовестную выборку не должен резать никакой рубеж РАНЬШЕ рубежа 1: '
-                . json_encode($goodFaithByReason, JSON_UNESCAPED_UNICODE),
-        );
 
         fwrite(STDERR, sprintf(
-            "\n[CommunityGuard calibration, живой GuideCatalog (%d разделов, пропущено %d без "
-                . "предложения-кандидата)] ложный отказ=%.1f%% (%d/%d), ложный пропуск=%.1f%% (%d/%d)\n"
-                . "  добросовестная сторона по причине: %s\n"
-                . "  фабрикатная сторона по причине:     %s\n"
-                . "  сработавшее слово стоп-листа (story 69, поимённо): %s\n",
-            count($sections),
-            $goodFaithSkipped,
-            $falseDenyRate * 100,
-            $falseDeny,
-            count($goodFaithSample),
-            $falseAllowRate * 100,
-            $falseAllow,
-            count($fabricatedSample),
-            json_encode($goodFaithByReason, JSON_UNESCAPED_UNICODE),
-            json_encode($fabricatedByReason, JSON_UNESCAPED_UNICODE),
-            $lexicalStoplistHits === [] ? '—' : implode(' | ', $lexicalStoplistHits),
+            "\n[CommunityGuard story 65, замороженный корпус-эталон] "
+                . "ложный отказ рубежа формы (дословно)=%.1f%% (%d/%d): %s\n"
+                . "  шумность пометки: дословно=%d/%d, пересказ=%d/%d\n"
+                . "  дословная сторона по причине: %s\n"
+                . "  фабрикатная сторона по причине: %s\n"
+                . "  фабрикаты БЕЗ пометки вовсе (%d/%d, поимённо — инвариант «пометки нет → не значит ничего»): %s\n",
+            $formRejectionRate * 100,
+            count($verbatimDeniedByForm),
+            count($verbatim),
+            $verbatimDeniedByForm === [] ? '—' : implode(' | ', $verbatimDeniedByForm),
+            $verbatimNoisy,
+            count($verbatim),
+            $paraphraseNoisy,
+            count($paraphrase),
+            json_encode($verbatimByReason, JSON_UNESCAPED_UNICODE),
+            json_encode($fabricationsByReason, JSON_UNESCAPED_UNICODE),
+            count($fabricationsWithoutAdvisory),
+            count($fabrications),
+            $fabricationsWithoutAdvisory === [] ? '—' : implode(' | ', $fabricationsWithoutAdvisory),
         ));
 
-        $this->assertLessThanOrEqual(0.60, $falseDenyRate, 'ложный отказ вышел за широкий коридор — рубеж 1 массово режет честные цитаты источника');
-        $this->assertLessThanOrEqual(0.60, $falseAllowRate, 'ложный пропуск вышел за широкий коридор — рубеж 1 перестал ловить межраздельную рекомбинацию');
+        // Acceptance: коридор ≤10% по comparative_claim на дословной цитате —
+        // проверяется утверждением, не только печатается. Рост лечится правкой
+        // источника (переписать сравнительно-оценочное предложение в
+        // GuideCatalog), а не ослаблением правила (ADR-177) — фрагменты уже
+        // названы поимённо выше и в сообщении assert.
+        $this->assertLessThanOrEqual(
+            0.10,
+            $formRejectionRate,
+            'ложный отказ рубежа формы на дословной цитате вышел за коридор ADR (≤10%): '
+                . implode(' | ', $verbatimDeniedByForm),
+        );
+    }
+
+    /**
+     * Story 65: `guideBodies[$key]` — ТЕЛО раздела БЕЗ заголовка (см. докблок
+     * фикстуры). Первое предложение с ≥6 значимыми стемами, взятое КАК ЕСТЬ —
+     * без учёта того, что оно вызовет у гварда (Non-goals story 65: замер не
+     * строится методом «перебирай, пока не дойдёт до рубежа»).
+     *
+     * @param array<string, string> $guideBodies
+     * @return array<string, string> ключ — `guide:<key>`, значение — предложение
+     */
+    private function verbatimSampleFromGuideBodies(CommunityGuard $guard, array $guideBodies): array
+    {
+        $reflection    = new \ReflectionClass($guard);
+        $sentencesOf   = $reflection->getMethod('sentencesOf');
+        $sentencesOf->setAccessible(true);
+        $stemsOrdered  = $reflection->getMethod('stemsOrdered');
+        $stemsOrdered->setAccessible(true);
+
+        $sample = [];
+        foreach ($guideBodies as $key => $body) {
+            foreach ($sentencesOf->invoke($guard, $body) as $sentence) {
+                $stems = array_unique($stemsOrdered->invoke($guard, $sentence));
+                if (count($stems) < 6) {
+                    continue;
+                }
+                $sample['guide:' . $key] = $sentence;
+                break;
+            }
+        }
+
+        return $sample;
+    }
+
+    /**
+     * Добросовестный пересказ: та же цитата минус каждое третье значимое
+     * слово (тот же метод, что ADR-177/story 63) — известный оптимизм:
+     * подмножество совпавшего юнита не может дать МЕНЬШЕЕ покрытие себя же,
+     * так что этот метод systematически завышает шумность пересказа с
+     * синонимами, которого не проверяет ни один из этих замеров.
+     *
+     * @param array<string, string> $verbatim
+     * @return list<string>
+     */
+    private function paraphraseOf(array $verbatim): array
+    {
+        $paraphrase = [];
+        foreach ($verbatim as $sentence) {
+            preg_match_all('/\p{L}{2,}/u', $sentence, $matches);
+            $words = $matches[0];
+            if (count($words) < 6) {
+                continue;
+            }
+            $kept = [];
+            foreach ($words as $i => $word) {
+                if ($i % 3 !== 2) {
+                    $kept[] = $word;
+                }
+            }
+            $paraphrase[] = implode(' ', $kept) . '.';
+        }
+
+        return $paraphrase;
+    }
+
+    /**
+     * @return array{corpus: list<array{source: string, text: string}>, guideBodies: array<string, string>}
+     */
+    private function provenanceCorpusFixture(): array
+    {
+        /** @var array{corpus: list<array{source: string, text: string}>, guideBodies: array<string, string>} $fixture */
+        $fixture = require SUPPORTPATH . 'Community/provenance-corpus.php';
+
+        return $fixture;
     }
 
     /**
@@ -1423,40 +1602,4 @@ final class CommunityGuardTest extends CIUnitTestCase
         return null;
     }
 
-    /**
-     * Story 47: первое предложение раздела, которое реально ДОХОДИТ до рубежа 1
-     * (`allow`, `no_provenance` либо, с story 63, `comparative_claim` — та же
-     * структурная позиция) — а не отсекается раньше стоп-листом/dormant-проверкой.
-     * Предложение по-прежнему дословная цитата `body` — только не обязательно
-     * первое по порядку в тексте.
-     */
-    private function firstProvenanceReachableSentenceOf(CommunityGuard $guard, string $body): ?string
-    {
-        $plain = str_replace(['*', '_'], '', $body);
-        preg_match_all('/[^.!?]{12,}[.!?]/u', trim($plain), $matches);
-
-        foreach ($matches[0] as $candidate) {
-            $candidate = trim($candidate);
-            $verdict   = $guard->verdict($candidate, 'Расскажи про механику.', null);
-            if ($verdict->isAllow() || $verdict->reason === 'no_provenance' || $verdict->reason === 'comparative_claim') {
-                return $candidate;
-            }
-        }
-
-        return null;
-    }
-
-    /** Одно значимое (не служебное, ≥4 буквы) слово заголовка раздела (для фабрикатной стороны калибровки). */
-    private function significantWordOf(string $title): ?string
-    {
-        $plain = preg_replace('/[^\p{L}\s]/u', ' ', $title) ?? '';
-        foreach (explode(' ', $plain) as $word) {
-            $word = trim($word);
-            if (mb_strlen($word) >= 4) {
-                return mb_strtolower($word);
-            }
-        }
-
-        return null;
-    }
 }
