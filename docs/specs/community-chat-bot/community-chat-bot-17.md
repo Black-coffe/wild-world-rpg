@@ -1,7 +1,7 @@
 ---
 story: community-chat-bot-17
 spec: community-chat-bot
-status: todo
+status: done
 tier: 1
 worker: worker-code
 tracer: false
@@ -61,5 +61,14 @@ blocked_by: [community-chat-bot-10, community-chat-bot-16]
 `vendor/bin/phpunit --no-coverage --no-progress tests/unit/Controllers/Telegram/`
 
 ## Implementation notes
+- `BotController::handleCommunityUpdate()`: добавлен второй независимый блок
+  `try { (new CommunityModerationService())->evaluate($update); } catch (...)` сразу
+  после существующего вызова `CommunityIngestService::handle()` — отдельный try/catch,
+  свой лог-префикс `'CommunityModerationService: '`.
+- Добавлен `use App\Services\Community\CommunityModerationService;`.
+- Новый тест `BotControllerModerationWiringTest.php` зеркалит паттерн
+  `BotControllerCommunityWiringTest` (story 16): спай-контроллер с двумя независимыми
+  спаями (`ingestCalls`/`moderationCalls`, `throwFromIngest`/`throwFromModeration`) +
+  один тест с реальным (не заспайненным) `handleCommunityUpdate()` на честную связку.
 
 ## Findings

@@ -6,6 +6,7 @@ use CodeIgniter\Controller;
 use Longman\TelegramBot\Exception\TelegramException;
 use Longman\TelegramBot\Telegram;
 use App\Services\Community\CommunityIngestService;
+use App\Services\Community\CommunityModerationService;
 use App\Services\Telegram\Request;
 
 class BotController extends Controller
@@ -258,8 +259,11 @@ class BotController extends Controller
     /**
      * story 16 — связка: делегирует групповой апдейт в `CommunityIngestService`
      * (готов и покрыт тестами с story 05, но до этой story не вызывался ниоткуда —
-     * BUILT-BUT-DEAD). Исключение из сервиса не должно ронять вебхук: обёрнуто в
-     * try/catch, как соседние E6/E8-хуки выше по `webhook()`.
+     * BUILT-BUT-DEAD). story 17 — рядом добавлена модерация (`CommunityModerationService`,
+     * готова и покрыта тестами с story 10, тоже была BUILT-BUT-DEAD): сначала приём,
+     * потом модерация — она считает стаж автора по уже записанным `community_messages`.
+     * Оба вызова независимы: исключение из одного сервиса не должно мешать другому и
+     * не должно ронять вебхук, поэтому у каждого свой try/catch.
      *
      * @param array<array-key, mixed> $update
      */
@@ -269,6 +273,12 @@ class BotController extends Controller
             (new CommunityIngestService())->handle($update);
         } catch (\Throwable $e) {
             log_message('error', 'CommunityIngestService: ' . $e->getMessage());
+        }
+
+        try {
+            (new CommunityModerationService())->evaluate($update);
+        } catch (\Throwable $e) {
+            log_message('error', 'CommunityModerationService: ' . $e->getMessage());
         }
     }
 
