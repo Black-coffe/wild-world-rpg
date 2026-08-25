@@ -367,5 +367,13 @@ class Tasks extends BaseTasks
         // everyMinute + killswitch quests.daily.enabled (default OFF dormant). singleInstance.
         $schedule->call(static fn() => (new \App\TaskHandlers\Quests\DailyTaskProgressHandler())->handle())
             ->everyMinute()->singleInstance()->named('quests.daily-progress');
+
+        // ADR-176 (community-chat-bot), story 09 — авто-ответ в общем чате сообщества:
+        // матчит новые вопросы (CommunityAnswerMatcher), гейтит текст (CommunityGuard),
+        // отправляет реплаем/реакцией (CommunityChatSender). Килсвитч community.enabled +
+        // community.autoreply.enabled (оба default OFF — молчит, пока не включено явно).
+        // everyMinute + singleInstance — отложенная публикация полосы B не должна дублироваться.
+        $schedule->call(static fn() => (new \App\TaskHandlers\Community\CommunityAutoReplyHandler())->handle())
+            ->everyMinute()->singleInstance()->named('community.auto-reply');
     }
 }
