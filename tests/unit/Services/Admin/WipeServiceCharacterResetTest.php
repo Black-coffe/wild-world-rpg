@@ -12,7 +12,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
 
 /**
- * Story community-chat-bot-60/74 — `WipeService::resetCharacter()` должен чистить
+ * Story community-chat-bot-60/74/77 — `WipeService::resetCharacter()` должен чистить
  * `community_messages` персонажа так же, как чистит его `player_action_log`, потому что
  * `Config\WipeManifest` классифицирует таблицу `PLAYER_DATA` (а не `TRANSIENT`).
  *
@@ -35,6 +35,14 @@ use Config\Database;
  * Тест использует боевой `Config\WipeManifest` без подмен — красен на любой из двух поломок:
  * стратегию `community_messages` вернуть в `TRANSIENT` (цикл `resetCharacter()` пропустит
  * таблицу) или `by` вернуть в `'telegram'` (сравнение внутреннего id с сырым не даст совпадений).
+ *
+ * 🔴 story community-chat-bot-77: `previewCharacter()` (сосед `resetCharacter()` в том же файле)
+ * остался на прежней бинарной развилке `$by === 'telegram' ? $tgId : $characterId` уже ПОСЛЕ
+ * того, как `resetCharacter()` починили на `resolveMatchId()` — превью для `community_messages`
+ * подставляло id персонажа в колонку с сырым Telegram-id и показывало владельцу 0 строк там,
+ * где сброс удалял всё. Разрешение id вынесено в один метод `WipeService::resolveMatchId()`,
+ * которым обязаны пользоваться ОБА метода — `testPreviewCharacterCountsSameRowsAsReset...`
+ * проверяет именно это: превью и сброс видят одно и то же число на разных id-пространствах.
  *
  * @internal
  */
@@ -203,6 +211,38 @@ final class WipeServiceCharacterResetTest extends CIUnitTestCase
         $this->assertSame(3, $result['deleted']['community_messages']);
 
         // Персонаж B не тронут в принципе.
+        $this->assertNotNull($charB);
+    }
+
+    public function testPreviewCharacterCountsSameRowsAsResetAcrossKeySpaces(): void
+    {
+        $db = Database::connect('tests');
+
+        $charA = $this->seedCharacter(7, 584213905);
+        $charB = $this->seedCharacter(8, 112233445);
+
+        $this->seedCommunityMessages(584213905, [1, 2, 3]);
+        $this->seedCommunityMessages(112233445, [4, 5]);
+
+        $service = new WipeService(null, $db);
+        $preview = $service->previewCharacter($charA);
+
+        $this->assertArrayHasKey(
+            'community_messages',
+            $preview,
+            'Превью обязано видеть сообщения персонажа A по мосту через telegram_users, а не по совпадению с internal id.'
+        );
+        $this->assertSame(
+            3,
+            $preview['community_messages'],
+            'Превью обязано показать ровно то число, которое удалит resetCharacter() — не 0.'
+        );
+
+        // Превью и реальный сброс считают ОДНО И ТО ЖЕ число строк на одних и тех же данных —
+        // не совпадение реализаций, а гарантия общего resolveMatchId().
+        $result = $service->resetCharacter($charA);
+        $this->assertSame($preview['community_messages'], $result['deleted']['community_messages']);
+
         $this->assertNotNull($charB);
     }
 }

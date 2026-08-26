@@ -212,7 +212,8 @@ final class WipeService
         if ($characterId <= 0) {
             return $out;
         }
-        $tgId = $this->telegramUserIdOf($characterId);
+        $telegramUserId = $this->telegramUserIdOf($characterId);
+        $rawTelegramId  = $this->rawTelegramIdOf($characterId);
 
         foreach ($this->manifest->tables as $table => $d) {
             if ($d['strategy'] !== WipeManifest::PLAYER_DATA || ! $this->db->tableExists($table)) {
@@ -223,7 +224,7 @@ final class WipeService
             if ($link === null) {
                 continue;
             }
-            $matchId = $by === 'telegram' ? $tgId : $characterId;
+            $matchId = $this->resolveMatchId($by, $characterId, $telegramUserId, $rawTelegramId);
             if ($matchId === null) {
                 continue;
             }
@@ -393,11 +394,7 @@ final class WipeService
                 if ($link === null) {
                     continue;
                 }
-                $matchId = match ($by) {
-                    'telegram'     => $telegramUserId,
-                    'telegram_raw' => $rawTelegramId,
-                    default        => $characterId,
-                };
+                $matchId = $this->resolveMatchId($by, $characterId, $telegramUserId, $rawTelegramId);
                 if ($matchId === null) {
                     continue; // telegram-linked, но у персонажа нет tg-аккаунта — пропускаем
                 }
@@ -474,6 +471,23 @@ final class WipeService
         $rawId = is_array($row) ? ($row['telegram_id'] ?? null) : null;
 
         return is_numeric($rawId) ? (int) $rawId : null;
+    }
+
+    /**
+     * Единственное место, где `by` из манифеста превращается в конкретный id для WHERE
+     * (story community-chat-bot-77). И `previewCharacter()`, и `resetCharacter()` обязаны
+     * звать этот метод, а не переизобретать развилку — иначе превью и реальное удаление
+     * снова разойдутся на новом способе связи, как уже произошло с `telegram_raw`
+     * (story 74: `resetCharacter()` починили, `previewCharacter()` остался на бинарной
+     * `telegram`/`character` развилке и показывал 0 строк там, где сброс удалял всё).
+     */
+    private function resolveMatchId(string $by, int $characterId, ?int $telegramUserId, ?int $rawTelegramId): ?int
+    {
+        return match ($by) {
+            'telegram'     => $telegramUserId,
+            'telegram_raw' => $rawTelegramId,
+            default        => $characterId,
+        };
     }
 
     /**
