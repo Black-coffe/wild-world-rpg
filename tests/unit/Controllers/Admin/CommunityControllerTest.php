@@ -803,6 +803,59 @@ final class CommunityControllerTest extends CIUnitTestCase
         $this->assertSame(1, $metrics['stale_open_questions']);
     }
 
+    // ── очередь: эскалированное прямое обращение видно владельцу (story 76) ────
+
+    /**
+     * Story 76: «Роби помоги» — ни `?`, ни вопросительного слова, значит
+     * `is_question=0`, но `addressed_to_bot=1`. Тик (`CommunityAutoReplyHandler`)
+     * такую строку обрабатывает и при отказе гварда переводит в `escalated` — то
+     * есть формально передал владельцу. Прежний фильтр очереди (только
+     * `is_question=1`) её прятал; после фикса она обязана быть видна.
+     */
+    public function testOpenQuestionsIncludesEscalatedAddressedToBotNonQuestion(): void
+    {
+        $this->insertMessage(['status' => 'escalated', 'is_question' => 0, 'addressed_to_bot' => 1]);
+
+        $method = new \ReflectionMethod(CommunityController::class, 'openQuestionsFlat');
+        $method->setAccessible(true);
+        $rows = $method->invoke($this->controller());
+
+        $this->assertCount(1, $rows, 'эскалированное прямое обращение без вопросительной формы обязано быть видно в очереди');
+    }
+
+    /**
+     * Story 76, Non-goal: болтовня без обращения к боту (`is_question=0,
+     * addressed_to_bot=0`) в очередь по-прежнему не попадает — закрытая находка
+     * §17 №8 («очередь показывала весь чат») не переоткрывается.
+     */
+    public function testOpenQuestionsStillExcludesChatterNotAddressedToBot(): void
+    {
+        $this->insertMessage(['status' => 'new', 'is_question' => 0, 'addressed_to_bot' => 0]);
+
+        $method = new \ReflectionMethod(CommunityController::class, 'openQuestionsFlat');
+        $method->setAccessible(true);
+        $rows = $method->invoke($this->controller());
+
+        $this->assertCount(0, $rows, 'болтовня без обращения к боту не должна попадать в очередь');
+    }
+
+    /** Story 76: метрика просроченных обязана использовать то же определение. */
+    public function testStaleOpenQuestionsIncludesEscalatedAddressedToBotNonQuestion(): void
+    {
+        $now = new DateTimeImmutable('2026-08-25 12:00:00');
+
+        $this->insertMessage([
+            'status'           => 'escalated',
+            'is_question'      => 0,
+            'addressed_to_bot' => 1,
+            'sent_at'          => $now->modify('-100 hours')->format('Y-m-d H:i:s'),
+        ]);
+
+        $metrics = $this->controller()->computeMetrics($now);
+
+        $this->assertSame(1, $metrics['stale_open_questions']);
+    }
+
     // ── отзыв: детерминированная цель среди дублей (дефект 4) ──────────────
 
     /**

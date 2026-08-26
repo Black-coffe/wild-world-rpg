@@ -23,8 +23,9 @@ use DateTimeImmutable;
  * `audit()`»); импорт (`community:import`, story 11) создаёт и трогает только `draft`.
  *
  * Экран показывает две живые сущности разом: открытые вопросы `community_messages`
- * (`status IN ('new','escalated') AND is_question=1` — {@see openQuestionsBuilder()},
- * единое определение с метрикой просроченных) и черновики банка `community_answers`
+ * (`status IN ('new','escalated') AND (is_question=1 OR addressed_to_bot=1)` —
+ * {@see openQuestionsBuilder()}, единое определение с метрикой просроченных, зеркалит
+ * выборку тика story 76) и черновики банка `community_answers`
  * (`status='draft'`). Они НЕ связаны FK — `community_answers.source_ref` несёт
  * провенанс ТЕКСТА (`guide:…`/`tip:…`/`post:…`, тот же формат, что корпус
  * `CommunityGuard::defaultCorpus()`), а не id вопроса, который его породил.
@@ -752,12 +753,25 @@ final class CommunityController extends BaseAdminController
      * статус ЛЮБОЙ принятой реплики `new`, и её меняет только авто-тик, который на
      * днях 1–5 обкатки не запускается вовсе: без `is_question=1` очередь показывает
      * как «открытые вопросы» каждое сообщение чата.
+     *
+     * Story 76: одного `is_question=1` тоже мало — с story 57 тик
+     * ({@see \App\TaskHandlers\Community\CommunityAutoReplyHandler::handle()}) забирает
+     * и прямые обращения без вопросительной формы («Роби помоги»). Если гвард такую
+     * строку отклоняет, тик переводит её в `escalated` — формально «передал
+     * владельцу», а прежний фильтр очереди (только `is_question=1`) её прятал: вопрос
+     * молча исчезал между двумя выборками. Инвариант — строка, которую тик имеет
+     * право обработать, обязана быть видима владельцу, если она эскалирована. Условие
+     * вынесено в {@see CommunityMessageModel::whereAddressedOrQuestion()} — единый
+     * источник для тика и очереди, расхождение между ними больше не текстовое
+     * совпадение, а структурная невозможность. Болтовня без обращения (`is_question=0
+     * AND addressed_to_bot=0`) по-прежнему отсеивается — закрытая находка §17 №8 не
+     * переоткрывается.
      */
     private function openQuestionsBuilder(): CommunityMessageModel
     {
         return (new CommunityMessageModel())
             ->whereIn('status', ['new', 'escalated'])
-            ->where('is_question', 1);
+            ->whereAddressedOrQuestion();
     }
 
     // ── helpers ──────────────────────────────────────────────────────────

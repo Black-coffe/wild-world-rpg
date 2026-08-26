@@ -175,12 +175,12 @@ final class CommunityAutoReplyHandler extends BaseTaskHandler
 
         $now = $this->fixedNow ?? new DateTimeImmutable();
 
+        // Story 76: условие вынесено в CommunityMessageModel::whereAddressedOrQuestion() —
+        // тот же метод зовёт очередь владельца (CommunityController::openQuestionsBuilder()),
+        // одно место вместо двух совпадающих текстов.
         $rows = $this->messageModel
             ->where('status', 'new')
-            ->groupStart()
-                ->where('is_question', 1)
-                ->orWhere('addressed_to_bot', 1)
-            ->groupEnd()
+            ->whereAddressedOrQuestion()
             ->orderBy('sent_at', 'ASC')
             ->orderBy('id', 'ASC')
             ->findAll();
