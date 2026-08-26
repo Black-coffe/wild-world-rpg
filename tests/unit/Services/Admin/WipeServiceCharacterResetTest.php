@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Unit\Services\Admin;
 
 use App\Database\Migrations\Adr176CreateCommunityMessagesTable;
+use App\Database\Migrations\CreateTelegramUsersTable;
 use App\Services\Admin\WipeService;
 use CodeIgniter\Database\Forge;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -16,11 +17,14 @@ use Config\Database;
  * `community_messages` персонажа так же, как чистит его `player_action_log`, потому что
  * `Config\WipeManifest` классифицирует таблицу `PLAYER_DATA` (а не `TRANSIENT`).
  *
- * Схема `community_messages` берётся из реальной миграции `Adr176CreateCommunityMessagesTable`
- * (Forge, паттерн `CommunityIngestServiceTest`), а не сочиняется руками — ровно та таблица,
- * которую переклассифицировали. `characters`/`telegram_users`/`map` — узкая ручная схема под
- * нужды `resetCharacter()` (паттерн `AchievementServiceTest`/`DefenseStructureServiceTest`),
- * эти таблицы не были предметом дефекта.
+ * Схема `community_messages` и `telegram_users` берётся из реальных миграций
+ * (`Adr176CreateCommunityMessagesTable`, `CreateTelegramUsersTable`; Forge, паттерн
+ * `CommunityIngestServiceTest`), а не сочиняется руками — обе таблицы участвуют в самом мосте,
+ * который проверяет этот тест (`feedback_test_schema_must_come_from_migration`: самодельная
+ * схема однажды разошлась с продом по четырём пунктам, семь тестов были зелёными зря).
+ * `characters`/`map` — узкая ручная схема под нужды `resetCharacter()` (паттерн
+ * `AchievementServiceTest`/`DefenseStructureServiceTest`), они не участвуют в самом мосте
+ * между двумя id-пространствами, только несут поля, которые `resetCharacter()` перезаписывает.
  *
  * 🔴 story community-chat-bot-74: первая версия этого теста сеяла `characters.telegram_user_id`
  * и `community_messages.telegram_user_id` ОДНИМ И ТЕМ ЖЕ значением (1001) — то есть кодировала
@@ -106,21 +110,15 @@ final class WipeServiceCharacterResetTest extends CIUnitTestCase
             )
         ');
 
-        // ВНУТРЕННИЙ id (characters.telegram_user_id ссылается сюда) ↔ telegram_id — СЫРОЙ
-        // Telegram from.id. Ровно два поля нужны rawTelegramIdOf(), остальная схема telegram_users
-        // тут не нужна.
-        $db->query('
-            CREATE TABLE telegram_users (
-                id INT NOT NULL PRIMARY KEY,
-                telegram_id BIGINT NOT NULL
-            )
-        ');
-
         // Пусто — spawnCells() вернёт [], respawned=false, cell_number/biome_id трогать не нужно.
         $db->query('CREATE TABLE map (cell_number INT NULL, biome_id INT NULL, coordinate_y INT NULL)');
 
-        $this->requireMigrationClass();
+        $this->requireMigrationClasses();
         $forge = Database::forge('tests');
+        // ВНУТРЕННИЙ id (characters.telegram_user_id ссылается сюда) ↔ telegram_id — СЫРОЙ
+        // Telegram from.id — обе колонки участвуют в мосте, который проверяет этот тест, поэтому
+        // схема из реальной миграции, не написана руками (story 74/77 ревью).
+        (new CreateTelegramUsersTable($forge instanceof Forge ? $forge : null))->up();
         (new Adr176CreateCommunityMessagesTable($forge instanceof Forge ? $forge : null))->up();
     }
 
@@ -134,11 +132,14 @@ final class WipeServiceCharacterResetTest extends CIUnitTestCase
     }
 
     /**
-     * Файл миграции назван с датой-префиксом (конвенция CI4 MigrationLocator, а не PSR-4),
-     * composer-автозагрузчик его не видит — требуется вручную, как в `CommunityIngestServiceTest`.
+     * Файлы миграций названы с датой-префиксом (конвенция CI4 MigrationLocator, а не PSR-4),
+     * composer-автозагрузчик их не видит — требуются вручную, как в `CommunityIngestServiceTest`.
      */
-    private function requireMigrationClass(): void
+    private function requireMigrationClasses(): void
     {
+        if (! class_exists(CreateTelegramUsersTable::class, false)) {
+            require_once APPPATH . 'Database/Migrations/2024-03-20-153728_CreateTelegramUsersTable.php';
+        }
         if (! class_exists(Adr176CreateCommunityMessagesTable::class, false)) {
             require_once APPPATH . 'Database/Migrations/2026-08-25-100000_Adr176CreateCommunityMessagesTable.php';
         }

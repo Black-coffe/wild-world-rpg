@@ -68,5 +68,12 @@ Telegram-id, и показывает владельцу **0 строк** — т�
 - `resetCharacter()` по существу не менялся (non-goal) — только точка вызова развилки заменена
   на общий метод, поведение то же самое (проверено: тест на resetCharacter из story 74 остался
   зелёным без изменений).
+- По отдельному запросу ревью (тот же класс, что `feedback_test_schema_must_come_from_migration`):
+  ручная схема `telegram_users` в тесте заменена на реальную миграцию
+  `App\Database\Migrations\CreateTelegramUsersTable` (Forge, тот же паттерн, что уже был у
+  `community_messages` с story 74). Обе колонки, которые читает `rawTelegramIdOf()` (`id`,
+  `telegram_id`), теперь берутся из настоящей схемы, а не написаны на глаз.
+  `requireMigrationClass()` переименован в `requireMigrationClasses()` (множественное число, обе
+  миграции). Прогнал файл повторно — 2 теста, 9 assertions, зелёный.
 
 ## Findings
