@@ -887,12 +887,33 @@ final class CommunityGuardTest extends CIUnitTestCase
     }
 
     /**
+     * 🔴 Story 80, Major пятого круга ревью: `'порог' => 2` и `'перестаёт' => 2`
+     * сужали формулу (которая дала бы 3) БЕЗ обоснования конкретным
+     * посторонним словом — мимо рубежа проезжало именно то, ради чего он
+     * заведён («перестанет»/«перестанут» — будущее время 3-го лица, «порогами»
+     * — творительный падеж мн.ч.). Обе записи удалены из `TOLERANCE_OVERRIDES`
+     * story 80, действует формула (допуск 3 для стемов ≥5 букв).
+     */
+    public function testMapEntriesCannotNarrowBelowFormulaWithoutJustification(): void
+    {
+        $cases = [
+            'Прирост перестанет расти на этом пределе.',
+            'Урожай ресурсов не перестанут вносить.',
+            'Стражи охраняют порогами входа.',
+        ];
+
+        foreach ($cases as $answer) {
+            $verdict = $this->guard()->verdict($answer, 'Расскажи про механику.', null);
+            $this->assertTrue($verdict->isDeny(), "«{$answer}» — форма в пределах формулы, узкая запись карты не должна её пропускать");
+            $this->assertSame('lexical_stoplist', $verdict->reason);
+        }
+    }
+
+    /**
      * Story 78, acceptance: обратные ложные срабатывания — «стол»/«сток»
      * (посторонние слова, начинающиеся так же, как числительное «сто», плюс
-     * ОДНА буква — старый допуск их ловил) и «достаточность» (другая часть
-     * речи от «достаточно» через суффикс «-ость», не падежная форма). Story 78
-     * убрала допуск для «сто» (0 букв, ADR: оно практически не склоняется) и
-     * не расширяла допуск «достаточно» сверх default (1 буква).
+     * ОДНА буква — старый допуск их ловил) и «достаточность» (суффикс
+     * «-ость», меняющий часть речи, не падежная форма).
      */
     public function testReverseFalsePositivesNoLongerMatch(): void
     {
@@ -905,6 +926,41 @@ final class CommunityGuardTest extends CIUnitTestCase
         foreach ($notLeaks as $answer) {
             $verdict = $this->guard()->verdict($answer, 'Расскажи про механику.', null);
             $this->assertTrue($verdict->isAllow(), "«{$answer}» — постороннее слово, не должно денится стоп-листом");
+        }
+    }
+
+    /**
+     * 🔴 Story 80: класс «-ость» решён ТОЛЬКО для «достаточно», не наполовину
+     * — намеренно, а не по недосмотру. «Оптимально»/«бесполезно» делят корень
+     * со списком R2 (`COMPARATIVE_EVALUATION_ROOTS`): «оптимальность»
+     * буквально содержит подстроку «оптимальн», «бесполезность» — «полезн».
+     * Проверено ОБА варианта прогоном: без записи в `TOLERANCE_OVERRIDES`
+     * формула (допуск 3) ловит их лексикой (рубеж 3, `lexical_stoplist`,
+     * текущее поведение, denies ниже); с записью-в-1 (по образцу
+     * «достаточно») их вместо этого ловит рубеж формы (R2, `comparative_claim`,
+     * рубеж 1) — итог `deny` в обоих случаях один и тот же, запись была бы
+     * мёртвым кодом. Только «достаточно» не делит корень ни с одним правилом
+     * формы, поэтому только для него допуск лексики реально решает allow/deny
+     * — это и есть ответ на вопрос ревью «применить одинаково или обосновать
+     * исключение»: исключение обосновано структурно, не выбором.
+     */
+    public function testOstSuffixWordsSharingComparativeRootsStillDenyEitherWay(): void
+    {
+        $cases = [
+            'Оптимальность маршрута под вопросом.',
+            'Бесполезность вылазки очевидна для всех.',
+        ];
+
+        foreach ($cases as $answer) {
+            $verdict = $this->guard()->verdict($answer, 'Расскажи про механику.', null);
+            $this->assertTrue($verdict->isDeny(), "«{$answer}» — делит корень с R2, обязана денится (текущим путём — лексикой формулы)");
+            $this->assertSame(
+                'lexical_stoplist',
+                $verdict->reason,
+                'причина сейчас — формула лексического допуска (рубеж 3); если бы кто-то снова добавил '
+                    . 'этому слову запись в TOLERANCE_OVERRIDES, причина сменилась бы на comparative_claim '
+                    . '(рубеж формы, R2), но deny остался бы тем же — см. докблок TOLERANCE_OVERRIDES',
+            );
         }
     }
 
@@ -1018,6 +1074,80 @@ final class CommunityGuardTest extends CIUnitTestCase
         }
         foreach (array_keys($ref->getReflectionConstant('TOLERANCE_OVERRIDES')->getValue()) as $key) {
             $this->assertContains($key, $allWords, "TOLERANCE_OVERRIDES['{$key}'] — ключ не найден ни в NUMERAL_WORDS, ни в LEXICAL_STOPLIST (опечатка молча теряет форму)");
+        }
+    }
+
+    /**
+     * 🔴 Story 80, ревью пятого круга: `testStopWordToleranceCoversEveryWordNotJustTheOnesWithAnOverride`
+     * вычисляет ожидаемый допуск ИЗ ТЕХ ЖЕ карт, что использует код — он ловит
+     * только смену default-правила (формулы), но слишком узкая запись самой
+     * карты (гипотетически `'сорок' => 0`) не покраснеет НИГДЕ, потому что
+     * тест сверяет карту с собой же. Здесь — опора на настоящие словоформы,
+     * взятые не из карты, а из языка: если бы кто-то узкой записью откатил
+     * покрытие «порог»/«перестаёт» назад к 2 (регрессия story 80), этот тест
+     * покраснел бы независимо от того, что скажет сама карта.
+     */
+    public function testToleranceIsGroundedInRealWordFormsNotJustSelfConsistentWithTheMap(): void
+    {
+        $guard = $this->guard();
+        $ref   = new \ReflectionClass($guard);
+        $matchesStopWord = $ref->getMethod('matchesStopWord');
+        $matchesStopWord->setAccessible(true);
+
+        $mustMatch = [
+            'порог'      => 'порогами',    // твор. падеж мн.ч. — допуск 3
+            'перестаёт'  => 'перестанет',  // буд. вр. 3 л. ед.ч. — допуск 3
+            'процент'    => 'процентах',
+            'тысяч'      => 'тысячами',
+            'миллион'    => 'миллионов',
+            'упирается'  => 'упираются',
+            'окупается'  => 'окупаются',
+        ];
+        foreach ($mustMatch as $word => $realForm) {
+            $lower = mb_strtolower(' ' . $realForm . ' ');
+            $this->assertTrue(
+                $matchesStopWord->invoke($guard, $lower, $word) === true,
+                "«{$word}» обязан ловить настоящую словоформу «{$realForm}» независимо от того, что сейчас записано в карте допусков",
+            );
+        }
+
+        // «оптимально»/«бесполезно» намеренно НЕ в этом списке: формула (3) их
+        // ловит лексикой, и это правильно (см. `testOstSuffixWordsSharingComparativeRootsStillDenyEitherWay`
+        // и докблок `TOLERANCE_OVERRIDES` — они делят корень с R2, deny нужен).
+        $mustNotMatch = [
+            'сто'        => 'стол',
+            'достаточно' => 'достаточность',
+        ];
+        foreach ($mustNotMatch as $word => $realForm) {
+            $lower = mb_strtolower(' ' . $realForm . ' ');
+            $this->assertFalse(
+                $matchesStopWord->invoke($guard, $lower, $word) === true,
+                "«{$word}» не обязан ловить постороннее слово «{$realForm}» независимо от того, что сейчас записано в карте допусков",
+            );
+        }
+    }
+
+    /**
+     * 🔴 Story 80, пункт 5: короткие числительные («три», «семь», «сорок») на
+     * допуске формулы (1 буква) ловят обиходные слова — «семь» → «семья»,
+     * «три» → «трио», «сорок» → «сорока» (птица). Решение зафиксировано в
+     * докблоке `NUMERAL_WORDS`: цена ПРИНЯТА (список исключений в русском не
+     * закрывается), а не устранена. Этот тест документирует известную и
+     * принятую цену — не регрессия, если он краснеет по другой причине,
+     * значит решение изменилось и докблок надо перечитать.
+     */
+    public function testShortNumeralWordsKnownCollisionsAreAcceptedCost(): void
+    {
+        $knownCollisions = [
+            'Семья выживших держит базу вместе.',
+            'На арене выступает трио акробатов.',
+            'Над лагерем кружит сорока.',
+        ];
+
+        foreach ($knownCollisions as $answer) {
+            $verdict = $this->guard()->verdict($answer, 'Расскажи про механику.', null);
+            $this->assertTrue($verdict->isDeny(), "«{$answer}» — известная и принятая цена короткого числительного, обязана денится (не регрессия)");
+            $this->assertSame('lexical_stoplist', $verdict->reason);
         }
     }
 
@@ -1797,6 +1927,15 @@ final class CommunityGuardTest extends CIUnitTestCase
 
         $fabrications = self::NON_COMPARATIVE_FABRICATED_SAMPLE;
 
+        // Story 80: считать отказ РУБЕЖА ФОРМЫ напрямую через `isComparativeClaim()`
+        // (рефлексия), а не через итоговую причину `verdict()` — та же дыра, что
+        // story 79 закрыла для третьей выборки, здесь оставалась открытой: если
+        // рубеж 3 (лексика) денит фразу первым, отказ формы на ТОЙ ЖЕ фразе молча
+        // выпадал бы из счётчика, спрятавшись за чужой причиной.
+        $ref                 = new \ReflectionClass($guard);
+        $isComparativeClaim  = $ref->getMethod('isComparativeClaim');
+        $isComparativeClaim->setAccessible(true);
+
         // ── (а) дословная цитата: ложный отказ рубежа формы, поимённо ──
         $verbatimDeniedByForm = [];
         $verbatimByReason     = [];
@@ -1805,7 +1944,7 @@ final class CommunityGuardTest extends CIUnitTestCase
             $verdict = $guard->verdict($sentence, 'Расскажи про механику.', null);
             $reason  = $verdict->isAllow() ? 'allow' : $verdict->reason;
             $verbatimByReason[$reason] = ($verbatimByReason[$reason] ?? 0) + 1;
-            if ($reason === 'comparative_claim') {
+            if ($isComparativeClaim->invoke($guard, $sentence) === true) {
                 $verbatimDeniedByForm[] = sprintf('%s: «%s»', $source, $sentence);
             }
             if ($verdict->isAllow() && $verdict->advisories !== []) {
