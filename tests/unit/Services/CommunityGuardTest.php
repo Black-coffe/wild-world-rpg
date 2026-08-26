@@ -909,6 +909,119 @@ final class CommunityGuardTest extends CIUnitTestCase
     }
 
     /**
+     * 🔴 Story 79: регрессия story 78. Плоский `default = 1` в
+     * `matchesStopWord()` молча снял с падежных форм длинные числительные
+     * (`процент`, `тысяч`, `миллион`), у которых нет собственной записи в
+     * `TOLERANCE_OVERRIDES` — они и не были нужны ДО story 78, потому что
+     * прежняя формула по длине стема (`≥5 букв → допуск 3`) их уже покрывала.
+     * По одному числительному слову на фразу (story 79, требование №3) — иначе
+     * утверждение держится по ЛЮБОМУ совпавшему слову во фразе, не обязательно
+     * по проверяемому.
+     */
+    public function testNumeralWordFormsAreCaughtAcrossDeclensionOneWordPerPhrase(): void
+    {
+        $cases = [
+            'Урон измеряется в процентах.',
+            'Ресурсы считают тысячами.',
+            'Награда — несколько миллионов.',
+        ];
+        foreach ($cases as $answer) {
+            $verdict = $this->guard()->verdict($answer, 'Расскажи про механику.', null);
+            $this->assertTrue($verdict->isDeny(), "«{$answer}» — падежная форма числительного словами, обязана денится");
+            $this->assertSame('lexical_stoplist', $verdict->reason);
+        }
+
+        // Каноническая форма выуживания числа, ради которой рубеж 2 заведён —
+        // денится независимо от текста ответа, потому что решает вопрос.
+        $questionVerdict = $this->guard()->verdict(
+            'Верстак общий открывает базовые рецепты сразу на старте.',
+            'Сколько процентов даёт броня?',
+            null,
+        );
+        $this->assertTrue($questionVerdict->isDeny(), 'вопрос с числительным словами обязан денится рубежом 2 независимо от ответа');
+        $this->assertSame('question_leaks_signal', $questionVerdict->reason);
+    }
+
+    /**
+     * Story 79, acceptance: тест обязан краснеть при потере формы ЛЮБОГО слова
+     * обоих списков, а не только тех четырёх, что записаны в
+     * `STEM_OVERRIDES`/`TOLERANCE_OVERRIDES` — иначе он тест карты, а не тест
+     * сверки (ровно так регрессия story 78 прошла мимо 3800 зелёных). Для
+     * каждого слова обоих списков (кроме `SUBSTRING_FRAGMENT_WORDS` — они
+     * сверяются substring'ом, не границей слова) синтетическая форма
+     * «стем + нейтральный наполнитель длиной ровно в допуск» обязана ловиться,
+     * а форма «на одну букву длиннее допуска» — нет. Наполнитель («х») не
+     * является частью ни одного реального слова из списков — тест не зависит
+     * от того, какая ИМЕННО буква меняется в реальной словоформе, только от
+     * количества.
+     */
+    public function testStopWordToleranceCoversEveryWordNotJustTheOnesWithAnOverride(): void
+    {
+        $guard = $this->guard();
+        $ref   = new \ReflectionClass($guard);
+
+        $numeral           = $ref->getReflectionConstant('NUMERAL_WORDS')->getValue();
+        $lexical           = $ref->getReflectionConstant('LEXICAL_STOPLIST')->getValue();
+        $fragments         = $ref->getReflectionConstant('SUBSTRING_FRAGMENT_WORDS')->getValue();
+        $stemOverrides     = $ref->getReflectionConstant('STEM_OVERRIDES')->getValue();
+        $toleranceOverrides = $ref->getReflectionConstant('TOLERANCE_OVERRIDES')->getValue();
+
+        $matchesStopWord = $ref->getMethod('matchesStopWord');
+        $matchesStopWord->setAccessible(true);
+
+        $allWords = array_values(array_unique(array_merge($numeral, $lexical)));
+        $checked  = 0;
+        foreach ($allWords as $word) {
+            if (in_array($word, $fragments, true)) {
+                continue;
+            }
+            $stem      = $stemOverrides[$word] ?? $word;
+            $tolerance = $toleranceOverrides[$word] ?? (mb_strlen($stem) <= 4 ? 1 : 3);
+
+            $withinTolerance = mb_strtolower(' ' . $stem . str_repeat('х', $tolerance) . ' ');
+            $beyondTolerance = mb_strtolower(' ' . $stem . str_repeat('х', $tolerance + 1) . ' ');
+
+            $this->assertTrue(
+                $matchesStopWord->invoke($guard, $withinTolerance, $word) === true,
+                "«{$word}» (стем «{$stem}», допуск {$tolerance}) обязан ловить форму в пределах допуска: «{$withinTolerance}»",
+            );
+            $this->assertFalse(
+                $matchesStopWord->invoke($guard, $beyondTolerance, $word) === true,
+                "«{$word}» (стем «{$stem}», допуск {$tolerance}) не обязан ловить форму ЗА пределами допуска: «{$beyondTolerance}»",
+            );
+            $checked++;
+        }
+
+        $this->assertGreaterThan(
+            15,
+            $checked,
+            'сверка обязана пройтись по обоим спискам целиком (за вычетом substring-фрагментов), а не по горстке слов',
+        );
+    }
+
+    /**
+     * Story 79, acceptance: каждый ключ `STEM_OVERRIDES`/`TOLERANCE_OVERRIDES`
+     * обязан утверждением принадлежать одному из списков — опечатка вроде
+     * «перестает» (без «ё») молча создала бы мёртвую запись, вернув default
+     * ровно тому слову из списка, которое и нуждалось в переопределении.
+     */
+    public function testOverrideMapKeysBelongToOneOfTheStopWordLists(): void
+    {
+        $ref = new \ReflectionClass(CommunityGuard::class);
+
+        $numeral = $ref->getReflectionConstant('NUMERAL_WORDS')->getValue();
+        $lexical = $ref->getReflectionConstant('LEXICAL_STOPLIST')->getValue();
+        $allWords = array_merge($numeral, $lexical);
+
+        foreach (array_keys($ref->getReflectionConstant('STEM_OVERRIDES')->getValue()) as $key) {
+            $this->assertContains($key, $allWords, "STEM_OVERRIDES['{$key}'] — ключ не найден ни в NUMERAL_WORDS, ни в LEXICAL_STOPLIST (опечатка молча теряет форму)");
+        }
+        foreach (array_keys($ref->getReflectionConstant('TOLERANCE_OVERRIDES')->getValue()) as $key) {
+            $this->assertContains($key, $allWords, "TOLERANCE_OVERRIDES['{$key}'] — ключ не найден ни в NUMERAL_WORDS, ни в LEXICAL_STOPLIST (опечатка молча теряет форму)");
+        }
+    }
+
+    /**
      * Story 63, acceptance: сравнительная форма деньится НЕЗАВИСИМО от того,
      * есть ли для неё лексическое подтверждение — ответ почти дословно совпадает
      * с реальным фрагментом (лексика прошла бы провенанс), но несёт союз «чем» и
@@ -1798,6 +1911,14 @@ final class CommunityGuardTest extends CIUnitTestCase
         $liveSettings = array_fill_keys(array_values(CommunityStopTopics::DORMANT_SUBSYSTEM_SETTINGS), true);
         $guard        = $this->guard($fixture['corpus'], $liveSettings);
 
+        // Story 79: считать отказ РУБЕЖА ФОРМЫ напрямую через `isComparativeClaim()`
+        // (рефлексия), а не через итоговую причину `verdict()` — иначе, если рубеж 3
+        // (лексика) сработает раньше и денит фразу первым, отказ формы на ТОЙ ЖЕ фразе
+        // молча выпадет из счётчика, спрятавшись за чужой причиной.
+        $ref               = new \ReflectionClass($guard);
+        $isComparativeClaim = $ref->getMethod('isComparativeClaim');
+        $isComparativeClaim->setAccessible(true);
+
         $sample       = self::OWNER_TONE_SHORT_ANSWER_SAMPLE;
         $deniedByForm = [];
         $byReason     = [];
@@ -1805,16 +1926,16 @@ final class CommunityGuardTest extends CIUnitTestCase
             $verdict = $guard->verdict($answer, 'Расскажи про механику.', null);
             $reason  = $verdict->isAllow() ? 'allow' : $verdict->reason;
             $byReason[$reason] = ($byReason[$reason] ?? 0) + 1;
-            if ($reason === 'comparative_claim') {
+            if ($isComparativeClaim->invoke($guard, $answer) === true) {
                 $deniedByForm[] = $answer;
             }
         }
         $rate = count($deniedByForm) / count($sample);
 
         fwrite(STDERR, sprintf(
-            "\n[CommunityGuard story 78, третья выборка — тон владельца] "
-                . "ложный отказ рубежа формы=%.1f%% (%d/%d): %s\n"
-                . "  по причине: %s\n",
+            "\n[CommunityGuard story 78/79, третья выборка — тон владельца] "
+                . "ложный отказ рубежа формы (независимо от порядка рубежей)=%.1f%% (%d/%d): %s\n"
+                . "  итоговая причина verdict() по фразам (для сравнения, не для счёта): %s\n",
             $rate * 100,
             count($deniedByForm),
             count($sample),
