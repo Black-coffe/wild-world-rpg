@@ -16,10 +16,17 @@ use Config\Database;
  * и писал — при `$amount > quantity` не отказывал, а удалял строку и рапортовал успех. Здесь
  * решение принимает один условный `UPDATE` с проверкой `affectedRows()`.
  *
- * Схема — реальная таблица `character_resources` из уже накатанной общей тестовой БД, а не
- * ручной `CREATE TABLE` (урок `feedback_test_schema_must_come_from_migration`: расхождение с
- * продовой схемой красит зелёным поведение, которого прод не допускает). Стенд общий
- * (`wildworld_tests`, параллельно работают другие воркеры) — никаких TRUNCATE/DROP, только
+ * Схема — та же форма, что и у реальной таблицы `character_resources` на этом стенде (не
+ * ручное изобретение: сверена точечно по `DESCRIBE`, включая легаси-колонку
+ * `id_telegram_users`, которой нет ни в одной миграции репозитория — тот же класс разрыва
+ * истории миграций, что уже задокументирован в `GapAuditTest`/`CancelQueuedCraftConditionalDeleteTest`
+ * для `character_resources`, урок `feedback_test_schema_must_come_from_migration`: расхождение
+ * с продовой схемой красит зелёным поведение, которого прод не допускает — значит схема обязана
+ * совпадать с фактической, а не с историей миграций, где она разошлась). Таблица создаётся,
+ * только если её на стенде нет (другие тесты репозитория дропают общие таблицы и не
+ * восстанавливают их — story exploit-fix-13), и дропается в tearDown только если создал её
+ * именно этот тест — персистентную общую таблицу дропать нельзя. Стенд общий (`wildworld_tests`,
+ * параллельно работают другие воркеры) — на персистентной таблице никаких TRUNCATE/DROP, только
  * удаление своих строк по `id` в tearDown, и id персонажа/ресурса — случайные на каждый тест,
  * чтобы `WHERE id_characters = ? AND id_resources = ?` внутри `decrementIfAtLeast()` не мог
  * зацепить чужую строку той же пары (урок `feedback_first_row_is_not_the_right_row`).
@@ -35,6 +42,36 @@ final class CharacterResourceConditionalWriteTest extends CIUnitTestCase
     /** @var list<int> id вставленных строк character_resources — удаляются в tearDown поштучно. */
     private array $insertedRowIds = [];
 
+    /** Создал ли этот тест таблицу `character_resources` сам (и поэтому вправе её дропнуть). */
+    private bool $createdTable = false;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $db = Database::connect('tests');
+        // Кэш списка таблиц живёт на соединении между тестами класса — без сброса тест видит
+        // устаревшее «таблица есть», хотя другой тест репозитория её уже дропнул (тот же класс
+        // дефекта, что story exploit-fix-11 чинила в GapAuditTest).
+        $db->resetDataCache();
+
+        if (! $db->tableExists('character_resources')) {
+            $db->query('
+                CREATE TABLE character_resources (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    id_characters INT NULL,
+                    id_resources INT NULL,
+                    id_telegram_users INT NULL,
+                    quantity INT NULL DEFAULT 0,
+                    custom_data TEXT NULL,
+                    created_at DATETIME NULL,
+                    updated_at DATETIME NULL
+                )
+            ');
+            $this->createdTable = true;
+        }
+    }
+
     protected function tearDown(): void
     {
         $db = Database::connect('tests');
@@ -42,6 +79,11 @@ final class CharacterResourceConditionalWriteTest extends CIUnitTestCase
             $db->table('character_resources')->where('id', $id)->delete();
         }
         $this->insertedRowIds = [];
+
+        if ($this->createdTable) {
+            $db->query('DROP TABLE IF EXISTS character_resources');
+            $this->createdTable = false;
+        }
 
         parent::tearDown();
     }

@@ -59,9 +59,15 @@ final class RelocationConfirmOutcomeTest extends CIUnitTestCase
 
     /** Таблица → колонка-владелец персонажа, для чистки строк в общих таблицах (НЕ созданных нами). */
     private const CHAR_LINKED = [
-        'characters'     => 'id',
-        'claimed_cells'  => 'character_id',
-        'explored_cells' => 'character_id',
+        'characters'      => 'id',
+        'claimed_cells'   => 'character_id',
+        'explored_cells'  => 'character_id',
+        // `character_tasks` персистентна на этом стенде (как и `tasks`/`claimed_cells`/
+        // `explored_cells`) — без построчной чистки `testAppliedOutcomeSendsTaskStartedAndCreatesOneRow`
+        // оставляет `in_work`-строку на целевую ячейку навсегда, и следующий прогон того же теста
+        // (та же цель X=10,Y=20) честно получает отказ RelocationValidator «туда уже переезжает
+        // другой игрок» — не баг обвиняемого кода, а грязь предыдущего прогона этого же файла.
+        'character_tasks' => 'character_id',
     ];
 
     protected function setUp(): void
@@ -74,6 +80,64 @@ final class RelocationConfirmOutcomeTest extends CIUnitTestCase
         // Нужен, чтобы App\Services\Telegram\Request коротил на фейковый ServerResponse
         // (урок feedback_taskhandler_telegram_init_in_tests).
         new Telegram('123456:TEST-fake-token-for-tests', 'test_bot');
+
+        // Кэш списка таблиц живёт на соединении между тестами — без сброса `tableExists()` ниже
+        // может увидеть устаревшее «есть»/«нет», если другой тест репозитория только что создал
+        // или дропнул одну из этих же таблиц (урок story exploit-fix-11, GapAuditTest).
+        $this->db()->resetDataCache();
+
+        // Другие тесты репозитория дропают общие таблицы (`telegram_users`, `characters`,
+        // `claimed_cells`, `explored_cells`) и не восстанавливают их — story exploit-fix-13.
+        // Своя минимальная схема (та же форма, что уже сверена точечно в
+        // GapAuditTest/CancelQueuedCraftConditionalDeleteTest/DuplicationTest), а не рукописное
+        // изобретение с нуля.
+        $this->createTableIfMissing('telegram_users', '
+            CREATE TABLE telegram_users (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                telegram_id BIGINT NULL
+            )
+        ');
+        $this->createTableIfMissing('characters', '
+            CREATE TABLE characters (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                telegram_user_id INT NULL,
+                name VARCHAR(64) NULL,
+                gold INT NULL DEFAULT 0,
+                health DECIMAL(10,2) NULL DEFAULT 100,
+                tired DECIMAL(10,2) NULL DEFAULT 100,
+                cell_number INT NULL,
+                biome_id INT NULL,
+                level INT NULL DEFAULT 1,
+                created_at DATETIME NULL,
+                updated_at DATETIME NULL
+            ) AUTO_INCREMENT=' . random_int(4_000_000, 4_999_999));
+        // AUTO_INCREMENT со случайного высокого значения — тот же приём, что в
+        // CancelQueuedCraftConditionalDeleteTest: fallback на случай отсутствия `characters` на
+        // стенде, сдвиг не даёт новому персонажу столкнуться со строками прошлых прогонов в
+        // персистентных character-linked таблицах (см. CHAR_LINKED).
+        $this->createTableIfMissing('claimed_cells', '
+            CREATE TABLE claimed_cells (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                character_id INT NULL,
+                map_cell_id INT NULL,
+                status VARCHAR(16) NULL DEFAULT "active",
+                claimed_at DATETIME NULL
+            )
+        ');
+        $this->createTableIfMissing('explored_cells', '
+            CREATE TABLE explored_cells (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                character_id INT NULL,
+                telegram_user_id INT NULL,
+                map_cell_id INT NULL,
+                biome_id INT NULL,
+                character_level INT NULL,
+                cell_status VARCHAR(255) NULL,
+                notes TEXT NULL,
+                created_at DATETIME NULL,
+                updated_at DATETIME NULL
+            )
+        ');
 
         // `tasks`/`character_tasks` отсутствуют сегодня в общей `wildworld_tests` — своя минимальная
         // схема (та же форма, что уже сверена точечно в GapAuditTest/CancelQueuedCraftConditionalDeleteTest).
