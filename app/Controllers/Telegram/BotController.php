@@ -58,6 +58,17 @@ class BotController extends Controller
         $rawBody = $this->request->getBody();
         $update  = is_string($rawBody) ? json_decode($rawBody, true) : null;
 
+        // ADR-181 — дедуп повторной доставки webhook'а по update_id. До этой проверки
+        // защиты не было вовсе (встроенный дедуп Longman мёртв: enableMySql() не
+        // вызывается). Гейт сразу после разбора JSON и ДО всего остального — community-
+        // gate, ADR-168 strip, firehose (ADR-148), E6/E8-хуки, dispatchToTelegram() —
+        // повтор не должен наследить нигде из этого. Но ПОСЛЕ секрет-токена, иначе
+        // неавторизованный поток просто набивает таблицу дублей. Дубль → тихий 200 OK
+        // (тот же мотив, что у ADR-163: любой другой код заставит Telegram ретраить).
+        if (is_array($update) && $this->isDuplicateUpdate($update)) {
+            return $this->response->setStatusCode(200)->setBody('');
+        }
+
         // community-chat-bot-01 — гейт по типу чата, ДО игровой обработки: групповой/
         // супергрупповой/канальный апдейт не должен двигать firehose (ADR-148), E6/E8-хуки
         // (login-streak, ежедневки, return-digest) и не должен доходить до Longman.
@@ -163,6 +174,49 @@ class BotController extends Controller
             // ADR-168 — холдер источника живёт ровно один апдейт (гигиена: процесс может
             // переиспользоваться, и чужая метка не должна протечь в следующее действие).
             \App\Services\Logging\ActionOrigin::reset();
+        }
+    }
+
+    /**
+     * ADR-181 — дедуп повторной доставки webhook'а. Хранилище — таблица
+     * `telegram_updates_seen` (PK `update_id`, story exploit-fix-04). Решение
+     * принимается по ИСХОДУ INSERT, не по предварительному SELECT: `1062` (дубль
+     * первичного ключа) → true, апдейт отбрасывается. Апдейт без числового
+     * `update_id` (битый JSON) дедупу не подлежит и проходит насквозь — false.
+     *
+     * Fail-open при недоступности хранилища (не при найденном дубле — тот всегда
+     * отбрасывается): любая другая ошибка БД (нет таблицы, нет соединения) не
+     * должна останавливать бота для всех игроков — обработка продолжается, error-
+     * лог с фиксированным маркером `[Bot.webhook] dedup:` для грепа/мониторинга.
+     *
+     * @param array<array-key, mixed> $update
+     */
+    private function isDuplicateUpdate(array $update): bool
+    {
+        $updateId = $update['update_id'] ?? null;
+        if (! is_int($updateId)) {
+            return false;
+        }
+
+        try {
+            \Config\Database::connect()->query(
+                'INSERT INTO telegram_updates_seen (update_id, created_at) VALUES (?, ?)',
+                [$updateId, date('Y-m-d H:i:s')]
+            );
+
+            return false;
+        } catch (\CodeIgniter\Database\Exceptions\DatabaseException $e) {
+            if ((int) $e->getCode() === 1062) {
+                return true;
+            }
+
+            log_message(
+                'error',
+                '[Bot.webhook] dedup: telegram_updates_seen недоступна — fail-open, update_id '
+                    . $updateId . ' обработан без дедупа (' . $e->getMessage() . ')'
+            );
+
+            return false;
         }
     }
 

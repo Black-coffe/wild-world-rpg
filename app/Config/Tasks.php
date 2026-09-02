@@ -311,6 +311,12 @@ class Tasks extends BaseTasks
         $schedule->command('community:cleanup')
             ->daily('03:45')->named('community.cleanup');
 
+        // ADR-181 — TTL-очистка telegram_updates_seen (дедуп повторной доставки webhook'а по
+        // update_id, гейт в BotController::webhook()). Срок хранения — .env
+        // telegram.UPDATES_SEEN_RETENTION_DAYS (инфраструктурная величина, не GameSettings).
+        $schedule->command('telegram-updates:cleanup')
+            ->daily('03:47')->named('telegram-updates.cleanup');
+
         // Аудит 2026-08-12: firehose живёт 30 дней, а первой добычи новичка больше нигде нет —
         // сравнение когорт старше месяца молча считало ноль вместо «данных нет». Снимок суточных
         // когорт фиксирует воронку до того, как чистка съест логи. Намеренно ПОСЛЕ 03:40: если

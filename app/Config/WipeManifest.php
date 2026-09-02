@@ -204,6 +204,7 @@ class WipeManifest extends BaseConfig
         'boss_kill_announce_queue' => ['strategy' => self::TRANSIENT, 'note' => 'Очередь анонсов о повергнутых узлах (ADR-137 WB11) — наполняется kill-путём, потребляется дайджест-кроном; без player-связи'],
         'queue_jobs'           => ['strategy' => self::TRANSIENT, 'note' => 'Очередь фоновых заданий'],
         'queue_jobs_failed'    => ['strategy' => self::TRANSIENT, 'note' => 'Проваленные фоновые задания'],
+        'telegram_updates_seen' => ['strategy' => self::TRANSIENT, 'note' => 'Дедуп повторной доставки Telegram-апдейтов по update_id (ADR-181) — без player-связи, ретенция чистится telegram-updates:cleanup'],
 
         // ─────────────────────────────────────────────────────────────
         // 🟣 SEED_RESET — экономика/эндгейм-агрегаты (строки остаются, счётчики → 0)
