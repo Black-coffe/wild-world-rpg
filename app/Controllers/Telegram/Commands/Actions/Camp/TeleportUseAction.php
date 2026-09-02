@@ -166,7 +166,16 @@ class TeleportUseAction extends BaseAction
         }
 
         $ctx = $result['context'];
+        // exploit-fix-08 (F7) — CAS по снимку: телепорт только после подтверждённого списания.
+        // Устаревший снимок (второй тап по тому же результату validate*()) отдаёт null — заряд
+        // не списан, персонаж остаётся на месте.
         $newDurability = $this->itemConsumer->consumeBackpack($ctx['backpackLog'], $ctx['customData']);
+        if ($newDurability === null) {
+            return $this->sendFormatted($this->formatter->error(
+                'Рюкзак телепорта уже использован — заряд списан другим запросом. Попробуй ещё раз.',
+                true
+            ));
+        }
         $this->executor->teleport((int) $character['id'], $ctx['claimedCell'], $ctx['mapRow']);
 
         return $this->sendFormatted($this->formatter->successBackpack($newDurability));
@@ -211,8 +220,18 @@ class TeleportUseAction extends BaseAction
         }
 
         $ctx = $result['context'];
+        // exploit-fix-08 (F7, EA-duplication-02) — CAS по снимку: списание идёт ПЕРЕД
+        // перемещением, и перемещение выполняется только при подтверждённом списании.
+        // Устаревший снимок (второй тап по тому же результату validate*()) отдаёт false —
+        // заряд не списан, персонаж остаётся на месте.
+        $charged = $this->itemConsumer->consumePortable($ctx['portableItem'], $ctx['portableLog']);
+        if (!$charged) {
+            return $this->sendFormatted($this->formatter->error(
+                'Портативный телепорт уже использован — заряд списан другим запросом. Попробуй ещё раз.',
+                true
+            ));
+        }
         $this->executor->teleport((int) $character['id'], $ctx['claimedCell'], $ctx['mapRow']);
-        $this->itemConsumer->consumePortable($ctx['portableItem'], $ctx['portableLog']);
 
         return $this->sendFormatted($this->formatter->successPortable());
     }
