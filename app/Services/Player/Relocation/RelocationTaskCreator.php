@@ -2,7 +2,8 @@
 
 namespace App\Services\Player\Relocation;
 
-use App\Models\CharacterTaskModel;
+use App\Services\Db\WriteOutcome;
+use App\Services\Tasks\ActiveTasksService;
 use CodeIgniter\I18n\Time;
 
 /**
@@ -17,18 +18,25 @@ use CodeIgniter\I18n\Time;
  * у calling code (handleCallback). Separation of concerns: persistence vs UI.
  *
  * Public API:
- *  - createTask(charId, telegramUserId, frTaskId, mapCellId, targetX, targetY): void
+ *  - createTask(charId, telegramUserId, frTaskId, mapCellId, targetX, targetY): WriteOutcome
+ *
+ * exploit-fix-09 (ADR-181 §5) — вставка идёт через
+ * `ActiveTasksService::insertExclusiveTaskRow()` (`ConditionalWriteService::insertUnique()`),
+ * не голый `Model::insert()`: `Refused` — второй почти одновременный переезд, гонка
+ * между `RelocationValidator::checkPreconditions()` и записью. Ответ игроку на
+ * `Refused` остаётся за вызывающим (`BaseShiftingCommand::handleCallback()`) — этот
+ * сервис как и раньше только пишет в БД.
  *
  * Hardcoded duration 24h (1440 minutes) — matches original constant у migration
  * `tasks` table FullRelocation row.
  */
 class RelocationTaskCreator
 {
-    private CharacterTaskModel $characterTaskModel;
+    private ActiveTasksService $activeTasks;
 
-    public function __construct(?CharacterTaskModel $characterTaskModel = null)
+    public function __construct(?ActiveTasksService $activeTasks = null)
     {
-        $this->characterTaskModel = $characterTaskModel ?? new CharacterTaskModel();
+        $this->activeTasks = $activeTasks ?? new ActiveTasksService();
     }
 
     /**
@@ -44,7 +52,7 @@ class RelocationTaskCreator
         int $targetX,
         int $targetY,
         int $sourceMapCellId = 0
-    ): void {
+    ): WriteOutcome {
         $now = Time::now();
         $end = $now->addHours(24);
 
@@ -56,7 +64,7 @@ class RelocationTaskCreator
             'note'                => "Переезд в X={$targetX},Y={$targetY} (map_id={$mapCellId})",
         ];
 
-        $this->characterTaskModel->insert([
+        return $this->activeTasks->insertExclusiveTaskRow([
             'character_id'     => $charId,
             'telegram_user_id' => $telegramUserId,
             'task_id'          => $frTaskId,

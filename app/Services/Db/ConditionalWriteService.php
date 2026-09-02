@@ -6,6 +6,7 @@ namespace App\Services\Db;
 
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\BaseResult;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use Config\Database;
 
 /**
@@ -126,6 +127,65 @@ final class ConditionalWriteService
         );
 
         return $this->db->affectedRows() < 1 ? WriteOutcome::Missing : WriteOutcome::Applied;
+    }
+
+    /**
+     * exploit-fix-09 (ADR-181 §5) — вставка под уникальностью, дубль ловится
+     * централизованно здесь, а не в каждом вызывающем: при `DBDebug=true` он
+     * прилетает `DatabaseException` (код ошибки MySQL в `getCode()`), при
+     * `DBDebug=false` — `query()` возвращает `false`, а код лежит в
+     * `$db->error()`. Обе формы приводятся к одному `WriteOutcome::Refused`.
+     *
+     * До появления самого `UNIQUE`-индекса (story 10, `character_tasks` /
+     * `quest_steps`) дублей физически не бывает — метод просто вставляет и
+     * отдаёт `Applied`: контракт вызывающих обязан пережить появление индекса,
+     * а не наоборот.
+     *
+     * `Missing` этот метод не возвращает — у вставки нет «строки нет».
+     * Любая другая ошибка (не 1062) пробрасывается наружу как есть — глотать
+     * можно только дубль, не любую поломку записи.
+     *
+     * @param array<string,mixed> $row
+     */
+    public function insertUnique(string $table, array $row): WriteOutcome
+    {
+        $prefixed = $this->db->prefixTable($table);
+        $columns  = array_keys($row);
+        $sql      = "INSERT INTO {$prefixed} (" . implode(', ', $columns) . ') VALUES ('
+            . implode(', ', array_fill(0, count($columns), '?')) . ')';
+
+        try {
+            $result = $this->db->query($sql, array_values($row));
+        } catch (DatabaseException $e) {
+            if ($this->isDuplicateKeyError((int) $e->getCode())) {
+                return WriteOutcome::Refused;
+            }
+
+            throw $e;
+        }
+
+        if ($result === false) {
+            $error = $this->db->error();
+            $code  = isset($error['code']) && is_numeric($error['code']) ? (int) $error['code'] : 0;
+
+            if ($this->isDuplicateKeyError($code)) {
+                return WriteOutcome::Refused;
+            }
+
+            $message = isset($error['message']) ? $error['message'] : 'insertUnique: insert failed';
+            throw new DatabaseException($message, $code);
+        }
+
+        return WriteOutcome::Applied;
+    }
+
+    /**
+     * MySQL 1062 (`ER_DUP_ENTRY`) — единственный код, который означает «дубль
+     * по уникальному ключу», а не какую-то другую поломку записи.
+     */
+    private function isDuplicateKeyError(int $code): bool
+    {
+        return $code === 1062;
     }
 
     /**

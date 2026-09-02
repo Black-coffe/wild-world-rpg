@@ -7,6 +7,8 @@ namespace App\Controllers\Telegram\Commands\Actions\Quest;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Models\QuestModel;
 use App\Models\QuestStepsModel;
+use App\Services\Db\ConditionalWriteService;
+use App\Services\Db\WriteOutcome;
 use App\Services\Notifications\MediaSender;
 use App\Services\Quest\QuestChainService;
 use Longman\TelegramBot\Entities\ServerResponse;
@@ -83,13 +85,21 @@ final class GenericQuestStartAction extends BaseAction
             return $this->alert('Ты уже начал этот квест — смотри «🚀 Активные квесты».');
         }
 
-        $questStepModel->insert([
+        // exploit-fix-09 (ADR-181 §5) — предыдущая проверка выше закрывает общий случай
+        // быстрым чтением, но не гонку: два почти одновременных тапа оба проходят её ДО
+        // первой записи. insertUnique() — вторая, окончательная линия: до UNIQUE-индекса
+        // на quest_steps (story 10) он просто вставляет, после — гасит гонку в `Refused`
+        // вместо второй строки/500.
+        $outcome = (new ConditionalWriteService())->insertUnique('quest_steps', [
             'quest_id'     => $questId,
             'character_id' => $charId,
             'step_order'   => 1,
             'description'  => is_string($quest['title_ru'] ?? null) ? $quest['title_ru'] : 'Квест начат',
             'is_completed' => false,
         ]);
+        if ($outcome === WriteOutcome::Refused) {
+            return $this->alert('Ты уже начал этот квест — смотри «🚀 Активные квесты».');
+        }
 
         $titleRu     = is_string($quest['title_ru'] ?? null) ? $quest['title_ru'] : $titleEn;
         $description = is_string($quest['description'] ?? null) ? $quest['description'] : '';

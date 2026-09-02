@@ -4,6 +4,8 @@ namespace App\Services\Tasks;
 
 use App\Models\CharacterTaskModel;
 use App\Models\TaskModel;
+use App\Services\Db\ConditionalWriteService;
+use App\Services\Db\WriteOutcome;
 use CodeIgniter\I18n\Time;
 use App\Services\Telegram\Request;
 
@@ -14,11 +16,43 @@ class ActiveTasksService
 {
     protected $characterTaskModel;
     protected $taskModel;
+    private ?ConditionalWriteService $writer = null;
 
     public function __construct()
     {
         $this->characterTaskModel = new CharacterTaskModel();
         $this->taskModel          = new TaskModel();
+    }
+
+    private function writer(): ConditionalWriteService
+    {
+        return $this->writer ??= new ConditionalWriteService();
+    }
+
+    /**
+     * exploit-fix-09 (ADR-181 §5) — единая точка вставки строки `character_tasks`
+     * для старта эксклюзивной 🔒-задачи (второй из двух путей, которым контракт
+     * обязателен уже сейчас — первый см. `GenericQuestStartAction`). Вставка идёт
+     * через `insertUnique()`, а не голый `Model::insert()`: до появления
+     * `UNIQUE`-индекса (story 10) он просто вставляет и отдаёт `Applied`, после —
+     * гасит гонку двух почти одновременных стартов в `Refused`, не в исключение.
+     *
+     * @param array<string,mixed> $row строка `character_tasks` (тот же набор
+     *                                 полей, что раньше шёл в `Model::insert()`)
+     */
+    public function insertExclusiveTaskRow(array $row): WriteOutcome
+    {
+        return $this->writer()->insertUnique('character_tasks', $row);
+    }
+
+    /**
+     * Единый текст отказа при повторном (дублирующем) старте эксклюзивной
+     * задачи — «уже начато», а не 500 (ADR-181 §5, инвариант 8): 500 на
+     * вебхуке заставляет Telegram переслать апдейт и произвести следующий дубль.
+     */
+    public function alreadyStartedExclusiveTaskText(): string
+    {
+        return 'Это дело уже начато — проверь *«🚀 Активные задачи»*.';
     }
 
     /**
