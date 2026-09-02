@@ -32,6 +32,10 @@ outbound: `Services/Player` (статы, смерть, дебаффы), моде
   Прежде чем считать ветку живой — SELECT по таблице боёв, а не grep по коду.
 - `effect_log` фиксирует и лечение тоже: наличие записи ≠ был вред.
 - Умножающий бонус может быть невидимым: `round(1 × 1.55) = 1`.
+- Ловушка (exploit-audit, `docs/specs/exploit-audit/REPORT.md` #6, `EA-duplication-01`): двойной
+  вызов `NpcInteractionService::fight()` за один `spawnId` честно отвергается свежим `find()` на
+  `NpcInteractionService.php:355-357` — понижена до 🟠, красным PoC не доказана (последовательный
+  двойной тап), но read-then-write без блокировки строки `npc_spawns` в коде остался.
 
 ## Vault
 `mmorpg-vault/apps/pve/index.md`

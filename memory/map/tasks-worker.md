@@ -32,6 +32,10 @@ outbound: почти все доменные сервисы + `Services/Notifica
   полагаться на «задача ещё in_work».
 - В тестах не поднимать Telegram эйджерно: `telegram()` в конструкторе handler'а валит DB-тесты.
 - Эксклюзивные (🔒) задачи не стартуют поверх других эксклюзивных — симметрия ADR-167.
+- Ловушка (exploit-audit, `docs/specs/exploit-audit/REPORT.md` #9/#27, `EA-tasks-01`/`EA-tasks-02`):
+  `character_tasks` несёт только `PRIMARY(id)`, никакого `UNIQUE` на эксклюзивном слоте — гейт
+  ADR-167 корректен как чтение, но ничего не резервирует; единственное доказанное нарушение на
+  проде — 3 перехлёста Похода у одного персонажа 27.08 (зазоры 9/17/46 с).
 
 ## Vault
 `mmorpg-vault/apps/tasks/index.md` · `mmorpg-vault/tech-writing/tasks/`

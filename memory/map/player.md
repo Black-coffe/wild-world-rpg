@@ -38,6 +38,10 @@ outbound: модели `app/Models/*`, `Services/GameSettings`, `Services/Notifi
 - Заряды при слиянии стаков зажимаются `min(dur, base)` на каждом чтении.
 - `Death/PlayerRespawner.php:82` всё ещё берёт `claimed_cells` bare `first()` (не тронут story
   backpack-teleport-base-choice — non-goal).
+- Ловушки (exploit-audit, `docs/specs/exploit-audit/REPORT.md`): 🔴 `EA-duplication-02` —
+  портативный телепорт срабатывает дважды с одного заряда (снимок `validatePortable()`,
+  `TeleportItemConsumer` пишет абсолют и ничего не возвращает); 🔴 `EA-gaps-04` — маяк ставится
+  до списания предмета, `false` от `subtractItem()` игнорируется.
 
 ## Vault
 `mmorpg-vault/apps/player/index.md` · `mmorpg-vault/tech-writing/services/`

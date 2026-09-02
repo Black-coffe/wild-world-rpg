@@ -32,6 +32,9 @@ outbound: ресурсы, статы, `Services/Notifications`, `GameSettings`.
   эффект компаундится.
 - Дефолт в коде ≠ значение на проде: сверять `game_settings` на проде перед выводами.
 - Enum-колонки в STRICT-режиме валят INSERT при значении вне списка (`action_log`).
+- Ловушка (exploit-audit, `docs/specs/exploit-audit/REPORT.md` #5, `EA-tasks-03`): `quest_steps`
+  несёт только внешние ключи, никакого `UNIQUE(quest_id, character_id)` — двойной тап
+  `questStart<TitleEn>` может создать две строки; 0 дублей на проде при 1230 строках.
 
 ## Vault
 `mmorpg-vault/apps/quests/index.md` · `mmorpg-vault/apps/events/index.md` · `mmorpg-vault/apps/npc/index.md`

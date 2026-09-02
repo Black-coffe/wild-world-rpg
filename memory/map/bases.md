@@ -30,6 +30,10 @@ outbound: ресурсы, `GameSettings`, `Services/Coverage`.
   перестаёт укрывать. База обязана укрывать всегда, когда игрок на ней.
 - Смерть: −3% с базой, −50% без базы.
 - Открытый хвост: штраф при сносе одной базы из нескольких.
+- Ловушка (exploit-audit, `docs/specs/exploit-audit/REPORT.md` #3, `EA-economy-04`):
+  `ResourcesBankModel::updatePurchasedQuantity()` / `ResourceTradeService::buyResource()` не
+  ограничивают объём покупки сырья — арбитраж «купи → дождись тика крона → продай дороже»,
+  цена меняется только между тиками `ResourceBankUpdateHandler`.
 
 ## Vault
 `mmorpg-vault/apps/bases/index.md`

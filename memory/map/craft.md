@@ -32,6 +32,11 @@ outbound: ресурсы персонажа, `GameSettings`, `Images`.
 - Цена на экране обязана приходить из сервиса сделки, а не из сырого поля БД.
 - Списание — `deductCraftedItem`, не `update()` с raw-set.
 - Любое число баланса (стоимость, время, вероятность) — в `GameSettings` с rationale, не в коде.
+- Ловушка (exploit-audit, `docs/specs/exploit-audit/REPORT.md` #4, `EA-economy-01`):
+  `BuyCraftConfirmAction` не имеет ни одной проверки `qty > 0` на всём пути от разбора callback
+  до записи — отрицательное `qty` печатает золото и раздувает сток торговца (нужен модифицированный
+  клиент, кнопки шлют только положительные значения). Тот же незащищённый вход, `qty=0`, пишет
+  фантомную строку в `transactions` (`EA-economy-02`).
 
 ## Vault
 `mmorpg-vault/tech-writing/craft/` · `mmorpg-vault/apps/player/index.md`

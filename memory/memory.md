@@ -33,6 +33,12 @@
 Settlement,Social,Display,Duration,More}`, `app/Commands/` (14 spark-команд), `app/Filters/`,
 `app/Language/`, `deploy/`, `tests/`.
 
+## Аудиты
+- `docs/specs/exploit-audit/REPORT.md` — 34 находки эксплойт-аудита (4 🔴 / 4 🟠 / 18 🟡 / 8 ⚪),
+  бэклог правок `FIX-BACKLOG.md` (F0–F30). `tests/exploit-poc/` — 29 PoC-тестов (RED = доказанный
+  эксплойт), testsuite `exploit-poc` исключён из дефолтного `--testsuite App` (`phpunit.xml.dist`),
+  гонять по одному файлу.
+
 ## Wiki domains
 Доменные ноты живут в vault'е, не в `docs/wiki/`:
 - `mmorpg-vault/apps/<подсистема>/index.md` — участники подсистемы

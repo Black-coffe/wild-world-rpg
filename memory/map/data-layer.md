@@ -33,6 +33,10 @@ outbound: MySQL / MariaDB.
 - В тестах время сеять как `NOW() - INTERVAL`, а не `date()` в PHP — иначе окна плывут.
 - Миграции phpstan не смотрит: синтаксис проверяется `php -l` (см. `## Commands` в конституции).
 - Локальная база поднимается **дампом с testbot**: прогон миграций с нуля не проходит.
+- `tests/exploit-poc/` (testsuite `exploit-poc`, `phpunit.xml.dist`) — 8 файлов делят таблицы
+  общей `wildworld_tests`; никогда не `DROP` таблицу, которую не создавал сам файл; гонять
+  по одному файлу (`--testsuite App` её исключает); схема — из миграций, не вручную (реальные
+  `characters` не несут `armor`/`max_health`).
 
 ## Vault
 `mmorpg-vault/tech-writing/models/` · `mmorpg-vault/tech-writing/db/` · ADR-087
