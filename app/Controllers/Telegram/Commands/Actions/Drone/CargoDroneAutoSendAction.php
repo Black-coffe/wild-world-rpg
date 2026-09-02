@@ -9,6 +9,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\BaseStorageModel;
 use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Db\WriteOutcome;
 use App\Services\Player\CargoAutoLoadService;
 use App\Services\Player\DroneService;
 use App\Services\Telegram\Request;
@@ -121,9 +122,18 @@ final class CargoDroneAutoSendAction extends BaseAction
         $db = \Config\Database::connect();
         $db->transStart();
 
+        $delivered  = [];
+        $totalUnits = 0;
+        $totalKg    = 0.0;
         foreach ($plan['items'] as $item) {
-            $this->resourceModel->decreaseResources($charId, $item['resource_id'], $item['qty']);
+            $outcome = $this->resourceModel->decrementIfAtLeast($charId, $item['resource_id'], $item['qty']);
+            if ($outcome !== WriteOutcome::Applied) {
+                continue;
+            }
             $this->storageModel->deliver($charId, $item['resource_id'], $item['qty'], $fromCell);
+            $delivered[]  = $item;
+            $totalUnits  += $item['qty'];
+            $totalKg     += $item['qty'] * $item['weight'];
         }
 
         $newCharge = max(0, $charge - $drain);
@@ -131,10 +141,16 @@ final class CargoDroneAutoSendAction extends BaseAction
 
         $db->transComplete();
 
+        if ($delivered === []) {
+            return $this->errReply($chatId, 'Рюкзак опустел раньше, чем дрон успел взлететь, — кто-то успел потратиться. Попробуй ещё раз.');
+        }
+
+        $totalKg = round($totalKg, 1);
+
         $this->logActivity(
             $charId,
             'DRONE_CARGO_AUTO_SEND',
-            "kinds=" . count($plan['items']) . " units={$plan['total_units']} kg={$plan['total_kg']}"
+            "kinds=" . count($delivered) . " units={$totalUnits} kg={$totalKg}"
         );
 
         Request::answerCallbackQuery([
@@ -148,18 +164,21 @@ final class CargoDroneAutoSendAction extends BaseAction
         $text  = "🚚 *Автовывоз выполнен*\n\n";
         $text .= "Дрон взял самое ценное — по убыванию редкости — и увёз на склад базы:\n";
 
-        foreach (array_slice($plan['items'], 0, self::REPORT_LINES) as $item) {
+        foreach (array_slice($delivered, 0, self::REPORT_LINES) as $item) {
             $emoji = ResourceIconHelper::for($item['name']);
             $kg    = round($item['qty'] * $item['weight'], 1);
             $text .= "  {$emoji} *{$item['name']}* × *{$item['qty']}* ({$kg} кг)\n";
         }
 
-        if (count($plan['items']) > self::REPORT_LINES) {
-            $text .= "  _…и ещё " . (count($plan['items']) - self::REPORT_LINES) . " видов_\n";
+        if (count($delivered) > self::REPORT_LINES) {
+            $text .= "  _…и ещё " . (count($delivered) - self::REPORT_LINES) . " видов_\n";
         }
 
-        $text .= "\nВсего: *{$plan['total_units']}* шт., *{$plan['total_kg']}* кг\n";
+        $text .= "\nВсего: *{$totalUnits}* шт., *{$totalKg}* кг\n";
         $text .= "🔋 Остаток заряда: `{$newCharge}/{$batteryMax}` ({$chargePct}%)\n";
+        if (count($delivered) < count($plan['items'])) {
+            $text .= "_Часть добычи утекла из рюкзака до вылета — увезено только то, что реально нашлось._\n";
+        }
 
         if ($plan['skipped_kinds'] > 0) {
             $text .= "\n_Еда, вода и семена остались при тебе — автовывоз их не трогает._";

@@ -9,6 +9,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\BaseStorageModel;
 use App\Models\CharacterResourceModel;
 use App\Services\Bases\BaseCheckService;
+use App\Services\Db\WriteOutcome;
 use App\Services\Telegram\ButtonPacker;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
@@ -175,9 +176,17 @@ final class BaseStorageDepositAction extends BaseAction
 
         $db = \Config\Database::connect();
         $db->transStart();
-        $this->resourceModel->decreaseResources($characterId, $resourceId, $row['quantity']);
-        $this->storageModel->deliver($characterId, $resourceId, $row['quantity'], $fromCell);
+        $outcome = $this->resourceModel->decrementIfAtLeast($characterId, $resourceId, $row['quantity']);
+        if ($outcome === WriteOutcome::Applied) {
+            $this->storageModel->deliver($characterId, $resourceId, $row['quantity'], $fromCell);
+        }
         $db->transComplete();
+
+        if ($outcome !== WriteOutcome::Applied) {
+            return $this->errReply($chatId, $outcome === WriteOutcome::Missing
+                ? 'Этого ресурса в рюкзаке уже нет.'
+                : 'В рюкзаке столько не набралось — кто-то успел его потратить. Попробуй ещё раз.');
+        }
 
         $this->logActivity($characterId, 'BASE_STORAGE_DEPOSIT', "res={$row['name']} qty={$row['quantity']}");
 
@@ -226,8 +235,13 @@ final class BaseStorageDepositAction extends BaseAction
 
         $totalUnits = 0;
         $kinds      = 0;
+        $skipped    = 0;
         foreach ($rows as $r) {
-            $this->resourceModel->decreaseResources($characterId, $r['resource_id'], $r['quantity']);
+            $outcome = $this->resourceModel->decrementIfAtLeast($characterId, $r['resource_id'], $r['quantity']);
+            if ($outcome !== WriteOutcome::Applied) {
+                $skipped++;
+                continue;
+            }
             $this->storageModel->deliver($characterId, $r['resource_id'], $r['quantity'], $fromCell);
             $totalUnits += $r['quantity'];
             $kinds++;
@@ -235,10 +249,17 @@ final class BaseStorageDepositAction extends BaseAction
 
         $db->transComplete();
 
-        $this->logActivity($characterId, 'BASE_STORAGE_DEPOSIT_ALL', "kinds={$kinds} units={$totalUnits}");
+        $this->logActivity($characterId, 'BASE_STORAGE_DEPOSIT_ALL', "kinds={$kinds} units={$totalUnits} skipped={$skipped}");
+
+        if ($kinds === 0) {
+            return $this->errReply($chatId, 'В рюкзаке уже ничего не осталось — кто-то успел его потратить. Попробуй ещё раз.');
+        }
 
         $text  = "📥 *Убрано на склад: " . number_format($totalUnits, 0, '.', ' ') . " шт.*\n\n";
         $text .= "Видов ресурсов: *{$kinds}*. Рюкзак пуст, всё лежит на складе базы — забрать можно там же.";
+        if ($skipped > 0) {
+            $text .= "\n\n_Часть ({$skipped} вид." . ($skipped === 1 ? '' : 'а') . ") уже утекла из рюкзака до сдачи — пропущено без потерь._";
+        }
 
         return Request::sendMessage([
             'chat_id'      => $chatId,

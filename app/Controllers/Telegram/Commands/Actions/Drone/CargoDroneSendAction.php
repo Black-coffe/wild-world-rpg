@@ -11,6 +11,7 @@ use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
+use App\Services\Db\WriteOutcome;
 use App\Services\Player\DroneService;
 
 /**
@@ -22,7 +23,8 @@ use App\Services\Player\DroneService;
  *   2. Validate qty>0 / charge >= drain.
  *   3. Resolve resource info (qty в инвентаре + weight).
  *   4. Compute send_qty = min(invQty, floor(payload_kg / weight)).
- *   5. CharacterResourceModel::decreaseResources(charId, resId, send_qty).
+ *   5. CharacterResourceModel::decrementIfAtLeast(charId, resId, send_qty) — условный UPDATE,
+ *      отказ игроку при race (exploit-fix-06).
  *   6. BaseStorageModel::deliver(charId, resId, send_qty, fromCell=current_cell).
  *   7. UPDATE crafted_items_log SET durability_count -= drain.
  *
@@ -125,11 +127,20 @@ class CargoDroneSendAction extends BaseAction
         $fromCell = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : null;
 
         $db->transStart();
-        $this->resourceModel->decreaseResources($charId, $resId, $sendQty);
-        $this->storageModel->deliver($charId, $resId, $sendQty, $fromCell);
-        $newCharge = max(0, $charge - $drain);
-        $this->logModel->update($logId, ['durability_count' => $newCharge]);
+        $outcome   = $this->resourceModel->decrementIfAtLeast($charId, $resId, $sendQty);
+        $newCharge = $charge;
+        if ($outcome === WriteOutcome::Applied) {
+            $this->storageModel->deliver($charId, $resId, $sendQty, $fromCell);
+            $newCharge = max(0, $charge - $drain);
+            $this->logModel->update($logId, ['durability_count' => $newCharge]);
+        }
         $db->transComplete();
+
+        if ($outcome !== WriteOutcome::Applied) {
+            return $this->errReply($chatId, $outcome === WriteOutcome::Missing
+                ? 'Этого ресурса в инвентаре уже нет.'
+                : 'В инвентаре стало меньше ресурса, чем при проверке — попробуй ещё раз.');
+        }
 
         // E20 (ADR-120) — инструментация адопшена дронов (раньше use-path был немеряем).
         $this->logActivity($charId, 'DRONE_CARGO_SEND', "res={$resName} qty={$sendQty}");

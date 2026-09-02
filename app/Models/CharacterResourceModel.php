@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Services\Db\ConditionalWriteService;
+use App\Services\Db\WriteOutcome;
 use CodeIgniter\Model;
 
 class CharacterResourceModel extends Model
@@ -54,25 +56,33 @@ class CharacterResourceModel extends Model
         }
     }
 
-    public function decreaseResources($characterId, $resourceId, $amount)
+    /**
+     * exploit-fix-06 (ADR-181 §3) — заменяет удалённый `decreaseResources()`. Тот читал строку
+     * через `first()`, вычитал в PHP и писал — при `$amount > quantity` не отказывал, а удалял
+     * строку и рапортовал успех (`bool`, который ни один из семи вызывающих не читал). Здесь
+     * решение принимает один условный `UPDATE` с проверкой `affectedRows()`
+     * ({@see ConditionalWriteService::decrementIfAtLeast()}) — прочитанный ниже остаток лишь
+     * находит id строки для `WHERE id = ?`, на исход списания он не влияет.
+     */
+    public function decrementIfAtLeast(int $characterId, int $resourceId, int $amount): WriteOutcome
     {
-        $existingResource = $this->where([
+        $row = $this->where([
             'id_characters' => $characterId,
-            'id_resources'  => $resourceId
+            'id_resources'  => $resourceId,
         ])->first();
 
-        if ($existingResource) {
-            $newQuantity = $existingResource['quantity'] - $amount;
-
-            if ($newQuantity <= 0) {
-                return $this->delete($existingResource['id']);
-            } else {
-                return $this->update($existingResource['id'], ['quantity' => $newQuantity]);
-            }
-        } else {
-            log_message('error', "Attempt to decrease non-existing resource for character $characterId and resource $resourceId");
-            return false;
+        $rowId = is_array($row) && isset($row['id']) && is_numeric($row['id']) ? (int) $row['id'] : 0;
+        if ($rowId <= 0) {
+            return WriteOutcome::Missing;
         }
+
+        return (new ConditionalWriteService($this->db))->decrementIfAtLeast(
+            $this->table,
+            $rowId,
+            'quantity',
+            $amount,
+            true
+        );
     }
 
     public function getTotalResourcesByRarity($characterId, $resourceRarity)

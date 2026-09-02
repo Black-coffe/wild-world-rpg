@@ -11,6 +11,7 @@ use App\Models\BuildingModel;
 use App\Models\ResourceModel;
 use App\Models\CharacterResourceModel;
 use App\Services\PVE\DefenseStructureService;
+use App\Services\Db\WriteOutcome;
 use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\Services\Notifications\MediaSender;
 
@@ -108,13 +109,32 @@ class RepairBuildingAction extends BaseAction
             return $this->msg($chatId, '❗ Недостаточно ресурсов для ремонта.');
         }
 
-        // Списываем ресурсы и мгновенно восстанавливаем hp до maxHp.
+        // Списываем ресурсы и мгновенно восстанавливаем hp до maxHp — списание и восстановление
+        // hp в одной транзакции (найдено разведкой: раньше списание шло вне какой-либо
+        // транзакции вовсе).
+        $db = \Config\Database::connect();
+        $db->transStart();
+
+        $shortage = false;
         foreach ($plan['lines'] as $l) {
             if ($l['qty'] > 0 && $l['resId'] > 0) {
-                $this->characterResourceModel->decreaseResources($charId, $l['resId'], $l['qty']);
+                $outcome = $this->characterResourceModel->decrementIfAtLeast($charId, $l['resId'], $l['qty']);
+                if ($outcome !== WriteOutcome::Applied) {
+                    $shortage = true;
+                    break;
+                }
             }
         }
-        $this->characterBuildingModel->update($this->asInt($cb['id'] ?? null), ['hp' => $plan['maxHp']]);
+
+        if (! $shortage) {
+            $this->characterBuildingModel->update($this->asInt($cb['id'] ?? null), ['hp' => $plan['maxHp']]);
+        }
+
+        $db->transComplete();
+
+        if ($shortage) {
+            return $this->msg($chatId, '❗ Ресурсов стало меньше, чем при проверке, — кто-то успел их потратить. Попробуй снова.');
+        }
 
         Request::answerCallbackQuery([
             'callback_query_id' => $this->callbackQuery->getId(),

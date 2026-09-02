@@ -6,6 +6,7 @@ use App\Services\Telegram\Request;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Models\ResourceModel;
 use App\Models\CharacterResourceModel;
+use App\Services\Db\WriteOutcome;
 use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Notifications\MediaSender;
@@ -260,9 +261,22 @@ class ShuffleResourcesAction extends BaseAction
         }
         $target = $targets[array_rand($targets)];
 
-        $this->characterResourceModel->decreaseResources($characterId, $source['id'], $count);
-        if ($received > 0) {
+        // Списание и зачисление — в одной транзакции (найдено разведкой: раньше списание шло
+        // вне какой-либо транзакции вовсе). `increaseResources()` вне scope этой story (F0
+        // backlog), остаётся как есть — здесь меняется только форма списания.
+        $db = \Config\Database::connect();
+        $db->transStart();
+        $outcome = $this->characterResourceModel->decrementIfAtLeast($characterId, $source['id'], $count);
+        if ($outcome === WriteOutcome::Applied && $received > 0) {
             $this->characterResourceModel->increaseResources($characterId, $target['id'], $received);
+        }
+        $db->transComplete();
+
+        if ($outcome !== WriteOutcome::Applied) {
+            return $this->screen(
+                "🔀 Уже не хватает ресурсов этой редкости в нужном объёме — кто-то успел потратиться.",
+                [[['text' => '⬅️ Назад', 'callback_data' => 'ShuffleResources_restart']]]
+            );
         }
 
         $lost = $count - $received;

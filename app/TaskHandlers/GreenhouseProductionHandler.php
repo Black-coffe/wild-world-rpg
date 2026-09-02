@@ -11,6 +11,7 @@ use App\Models\ResourceModel;
 use App\Models\CharacterModel;
 use App\Models\TelegramUserModel;
 use App\Services\BuildingEffects\BuildingEffectsService;
+use App\Services\Db\WriteOutcome;
 use App\Services\GameSettings\GameSettingsReaderTrait;
 use App\Services\GameSettings\GameSettingsService;
 use Config\GameBalance;
@@ -213,20 +214,28 @@ class GreenhouseProductionHandler extends BaseTaskHandler
             $db = \Config\Database::connect();
             $db->transStart();
 
+            // exploit-fix-06: списание — условный UPDATE с проверкой affectedRows, а не
+            // read-then-write. Если рюкзак и склад между чтением poolQty выше и этой точкой
+            // опустели (гонка двух задач крона / игрока), списание отказывает — урожай в этот
+            // проход не начисляется, а не выдаётся за счёт недостачи.
+            $waterDeducted = true;
             if ($fromBackpack > 0 && is_array($charResWater)) {
-                // decreaseResources() удаляет строку при уходе в 0 — как decreaseResources()
-                // у ResourcePoolService. Раньше здесь был прямой update(), который при полном
-                // расходе рюкзака оставлял строку «Вода | 0 шт», всплывающую в
+                // decrementIfAtLeast() удаляет строку при уходе в 0 — тот же инвариант, что был
+                // у decreaseResources(): опустевшая строка не остаётся «Вода | 0 шт» на экране
                 // ResourcesGatheredAction (тот экран листает рюкзак без фильтра quantity > 0).
-                $this->characterResourceModel->decreaseResources($characterId, (int) $waterResource['id'], $fromBackpack);
+                $waterDeducted = $this->characterResourceModel
+                    ->decrementIfAtLeast($characterId, (int) $waterResource['id'], $fromBackpack) === WriteOutcome::Applied;
             }
-            if ($fromStorage > 0) {
+            if ($waterDeducted && $fromStorage > 0) {
                 $this->baseStorageModel->withdraw($characterId, (int) $waterResource['id'], $fromStorage);
             }
 
-            // Начисляем harvest (Fruit / Berries / Mushrooms / Crops и т.д.)
-            foreach ($harvest as $resourceNameEn => $count) {
-                $this->addResourceToCharacter($characterId, $resourceNameEn, $count, $resourceByName);
+            // Начисляем harvest (Fruit / Berries / Mushrooms / Crops и т.д.) — только если вода
+            // реально списалась.
+            if ($waterDeducted) {
+                foreach ($harvest as $resourceNameEn => $count) {
+                    $this->addResourceToCharacter($characterId, $resourceNameEn, $count, $resourceByName);
+                }
             }
 
             $db->transComplete();
