@@ -7,6 +7,7 @@ namespace App\Controllers\Telegram\Commands\Actions\Craft;
 use App\Controllers\Telegram\Commands\Actions\BaseAction;
 use App\Services\Craft\CraftShortfallBuyService;
 use App\Services\Craft\CraftShortfallQuote;
+use App\Services\Db\NamedLock;
 use App\Services\GameSettings\GameSettingsService;
 use App\Services\Player\Trade\ResourceTradeService;
 use App\Services\Telegram\ButtonPacker;
@@ -49,15 +50,6 @@ class CraftShortfallBuyAction extends BaseAction
 
     /** TTL кэша ожидаемой суммы — меньше минуты (цены живые, ADR-175). */
     private const QUOTE_CACHE_TTL_SEC = 50;
-
-    /**
-     * Ревью-находка 4: двойной тап / повтор вебхука Telegram проводили сделку дважды.
-     * Замок на связке персонаж+рецепт держится на время самой покупки. TTL здесь
-     * декоративен для новой реализации ({@see acquireLock()}) — MySQL-примитив сам
-     * освобождает именованный лок, когда соединение закрывается, и параметр остаётся
-     * только ради сигнатуры/протокола вызова.
-     */
-    private const PURCHASE_LOCK_TTL_SEC = 15;
 
     public const REASON_TEXT = [
         CraftShortfallBuyService::REASON_NOT_TRADEABLE  => 'У торговца нет этого сырья — его можно только добыть.',
@@ -372,15 +364,27 @@ class CraftShortfallBuyAction extends BaseAction
         $charId  = $this->intField($character, 'id');
         $lockKey = $this->purchaseLockKey($charId);
 
-        if (!$this->acquireLock($lockKey, self::PURCHASE_LOCK_TTL_SEC)) {
-            return ['success' => false, 'message' => 'Эта докупка уже обрабатывается — подожди пару секунд и проверь инвентарь.'];
-        }
+        $result = $this->withPurchaseLock(
+            $lockKey,
+            fn (): array => $this->runPurchaseTransaction($character, $quote, $chatId, $charId)
+        );
 
-        try {
-            return $this->runPurchaseTransaction($character, $quote, $chatId, $charId);
-        } finally {
-            $this->releaseLock($lockKey);
-        }
+        return $result ?? ['success' => false, 'message' => 'Эта докупка уже обрабатывается — подожди пару секунд и проверь инвентарь.'];
+    }
+
+    /**
+     * Seam: именованный лок покупки — {@see NamedLock::withLock()} (exploit-fix-01,
+     * ADR-181 §4). `null` — лок уже занят другим запросом (двойной тап / повтор
+     * вебхука); `runPurchaseTransaction()` сам никогда не возвращает `null`, поэтому
+     * исход «лок не получен» не пересекается с честным результатом покупки.
+     *
+     * @template TResult
+     * @param callable(): TResult $fn
+     * @return TResult|null
+     */
+    protected function withPurchaseLock(string $key, callable $fn): mixed
+    {
+        return (new NamedLock())->withLock($key, $fn);
     }
 
     /**
@@ -547,32 +551,10 @@ class CraftShortfallBuyAction extends BaseAction
      * и только потом звал `save()` — не CAS, окно между двумя вызовами реальное.
      * Профиль проекта (`AGENTS.md`) — один узел и одна БД, но НЕ один процесс:
      * вебхуки Telegram обслуживают параллельные PHP-FPM воркеры одного узла.
-     * Комментарий, оправдывавший невозможность гонки «одним процессом», был
-     * утверждением, не соответствующим тому, как это развёрнуто.
+     * Атомарный примитив (`GET_LOCK`/`RELEASE_LOCK`, session-scoped, сам
+     * освобождается при обрыве соединения) с exploit-fix-01 живёт в {@see NamedLock}
+     * — этот класс больше не несёт своих `acquireLock()`/`releaseLock()`.
      *
-     * На единственной БД есть настоящий атомарный примитив — именованный лок
-     * MySQL/MariaDB (`GET_LOCK`/`RELEASE_LOCK`): захват и проверка — одна атомарная
-     * операция на сервере БД, лок session-scoped и сам освобождается, если процесс
-     * упал и соединение оборвалось (страховка на случай сбоя даже без явного TTL).
-     */
-    protected function acquireLock(string $key, int $ttlSec): bool
-    {
-        $db     = \Config\Database::connect();
-        $result = $db->query('SELECT GET_LOCK(?, 0) AS locked', [$key]);
-        if (!$result instanceof \CodeIgniter\Database\BaseResult) {
-            return false;
-        }
-        $row = $result->getRow();
-
-        return $row !== null && (int) $row->locked === 1;
-    }
-
-    protected function releaseLock(string $key): void
-    {
-        \Config\Database::connect()->query('SELECT RELEASE_LOCK(?)', [$key]);
-    }
-
-    /**
      * Имя именованного лока MySQL ограничено 64 символами — хэшируем, чтобы длинный
      * `recipeKey` не мог случайно обрезать ключ до неуникального префикса.
      */

@@ -7,6 +7,7 @@ namespace Tests\Unit\Controllers\Telegram;
 use App\Controllers\Telegram\Commands\Actions\Craft\CraftShortfallBuyAction;
 use App\Services\Craft\CraftShortfallBuyService;
 use App\Services\Craft\CraftShortfallQuote;
+use App\Services\Db\NamedLock;
 use App\Services\Player\Trade\ResourceTradeService;
 use CodeIgniter\Test\CIUnitTestCase;
 
@@ -108,17 +109,6 @@ final class CraftShortfallBuyActionTestDouble extends CraftShortfallBuyAction
         return $this->resolveMaxUnits($raw);
     }
 
-    /** Реальный (не переопределённый) cache-замок — используется для теста примитива. */
-    public function pubAcquireLock(string $key, int $ttlSec): bool
-    {
-        return $this->acquireLock($key, $ttlSec);
-    }
-
-    public function pubReleaseLock(string $key): void
-    {
-        $this->releaseLock($key);
-    }
-
     protected function maxUnitsPerPurchase(): int
     {
         return 1;
@@ -166,21 +156,25 @@ final class CraftShortfallBuyActionMoneyPathTestDouble extends CraftShortfallBuy
         return $this->executePurchase($character, $quote, $chatId);
     }
 
-    protected function acquireLock(string $key, int $ttlSec): bool
+    /**
+     * Симуляция {@see NamedLock::withLock()} без реальной БД: `lockAvailable=false`
+     * воспроизводит «первый тап ещё держит лок» — `$fn` не выполняется вовсе и
+     * метод возвращает `null`, ровно как настоящий `NamedLock`.
+     */
+    protected function withPurchaseLock(string $key, callable $fn): mixed
     {
         $this->callLog[] = 'acquireLock';
         if (!$this->lockAvailable) {
-            return false;
+            return null;
         }
         $this->lockAvailable = false;
 
-        return true;
-    }
-
-    protected function releaseLock(string $key): void
-    {
-        $this->callLog[] = 'releaseLock';
-        $this->lockAvailable = true;
+        try {
+            return $fn();
+        } finally {
+            $this->callLog[] = 'releaseLock';
+            $this->lockAvailable = true;
+        }
     }
 
     protected function buyLine(array $character, array $line, int $chatId): array
@@ -816,6 +810,9 @@ final class CraftShortfallBuyActionTest extends CIUnitTestCase
     // ── 🔴 находка 4 (повторное ревью): реальный атомарный примитив, а не cache ──
 
     /**
+     * exploit-fix-01: `acquireLock()`/`releaseLock()` переехали из этого класса в
+     * {@see NamedLock} (ADR-181 §4) — примитив тестируется напрямую, без Action.
+     *
      * Прежний cache-замок (`get()!==null` → `save()`) был бы «зелёным» и на одном
      * PHP-соединении — гонка живёт МЕЖДУ параллельными вебхук-процессами, то есть
      * между разными DB-соединениями, не внутри одного. Открываем второе, реально
@@ -823,26 +820,56 @@ final class CraftShortfallBuyActionTest extends CIUnitTestCase
      * — так тест доказывает то же, что видели бы два параллельных PHP-FPM воркера,
      * а не совпадение проверки на самой себе.
      */
-    public function testAcquireLockBlocksAnotherConnectionUntilReleased(): void
+    public function testNamedLockBlocksAnotherConnectionUntilReleased(): void
     {
-        $action = new CraftShortfallBuyActionTestDouble();
-        $key    = 'test_craft_shortfall_lock_' . bin2hex(random_bytes(6));
-        $other  = \Config\Database::connect('tests', false);
+        $lock  = new NamedLock();
+        $key   = 'test_craft_shortfall_lock_' . bin2hex(random_bytes(6));
+        $other = \Config\Database::connect('tests', false);
 
         try {
-            $this->assertTrue($action->pubAcquireLock($key, 5), 'первый тап получает замок');
+            $seenInsideLock = null;
+            $result         = $lock->withLock($key, function () use ($other, $key, &$seenInsideLock) {
+                $row              = $other->query('SELECT GET_LOCK(?, 0) AS locked', [$key])->getRow();
+                $seenInsideLock   = (int) $row->locked;
 
-            $row = $other->query('SELECT GET_LOCK(?, 0) AS locked', [$key])->getRow();
+                return 'holder';
+            });
+
             $this->assertSame(
                 0,
-                (int) $row->locked,
+                $seenInsideLock,
                 'другое соединение (симуляция второго вебхук-процесса) обязано получить отказ, пока первое держит замок'
             );
+            $this->assertSame('holder', $result, 'withLock() обязан вернуть то, что вернул callable, когда лок получен');
 
-            $action->pubReleaseLock($key);
-            $this->assertTrue($action->pubAcquireLock($key, 5), 'после освобождения замок снова доступен');
+            // Лок освобождён в finally самой обёртки — следующий (не двойной) тап проходит.
+            $this->assertTrue($lock->withLock($key, static fn (): bool => true), 'после освобождения замок снова доступен');
         } finally {
-            $action->pubReleaseLock($key);
+            $other->query('SELECT RELEASE_LOCK(?)', [$key]);
+            $other->close();
+        }
+    }
+
+    /** Занятый другим соединением лок — `withLock()` не выполняет callable и отдаёт `null`. */
+    public function testNamedLockReturnsNullAndSkipsCallableWhenAlreadyHeld(): void
+    {
+        $lock   = new NamedLock();
+        $key    = 'test_craft_shortfall_lock_' . bin2hex(random_bytes(6));
+        $other  = \Config\Database::connect('tests', false);
+        $called = false;
+
+        try {
+            $other->query('SELECT GET_LOCK(?, 0) AS locked', [$key]);
+
+            $result = $lock->withLock($key, function () use (&$called) {
+                $called = true;
+
+                return 'should-not-happen';
+            });
+
+            $this->assertNull($result, 'занятый лок обязан сообщить об этом вызывающему через null');
+            $this->assertFalse($called, 'callable не должен выполняться, пока лок занят другим соединением');
+        } finally {
             $other->query('SELECT RELEASE_LOCK(?)', [$key]);
             $other->close();
         }
