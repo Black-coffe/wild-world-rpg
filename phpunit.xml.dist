@@ -29,6 +29,10 @@
     <testsuites>
         <testsuite name="App">
             <directory>./tests</directory>
+            <exclude>./tests/exploit-poc</exclude>
+        </testsuite>
+        <testsuite name="exploit-poc">
+            <directory>./tests/exploit-poc</directory>
         </testsuite>
     </testsuites>
     <logging>
