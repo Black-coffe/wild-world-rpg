@@ -195,7 +195,7 @@ class BaseShiftingCommand extends UserCommand
 
             // Всё нормально => создаём задачу (v0.51.49 — RelocationTaskCreator)
             $rawUserId = $user['id'] ?? null;
-            $this->taskCreator()->createTask(
+            $outcome = $this->taskCreator()->createTask(
                 $charIdNum,
                 is_numeric($rawUserId) ? (int) $rawUserId : 0,
                 $frTaskId,
@@ -204,6 +204,17 @@ class BaseShiftingCommand extends UserCommand
                 $y,
                 $sourceCell
             );
+
+            // exploit-fix-12 (ADR-181 §5) — читаем исход, а не рапортуем успех вслепую:
+            // после миграции story 10 гонка двух почти одновременных подтверждений
+            // отклонит вторую вставку (`Refused`), и экран обязан сказать то же, что
+            // сделал механизм. Текст отказа общий — `ActiveTasksService`, не свой.
+            if ($outcome !== \App\Services\Db\WriteOutcome::Applied) {
+                return $this->send($chatId, [
+                    'text'       => (new \App\Services\Tasks\ActiveTasksService())->alreadyStartedExclusiveTaskText(),
+                    'parse_mode' => 'Markdown',
+                ]);
+            }
 
             return $this->send($chatId, $this->formatter()->taskStarted($x, $y));
         }
