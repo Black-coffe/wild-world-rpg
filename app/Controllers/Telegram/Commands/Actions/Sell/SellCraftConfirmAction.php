@@ -47,6 +47,25 @@ class SellCraftConfirmAction extends BaseAction
         $quantity = (int) $quantity;
         $craftedItemId = (int) $craftedItemId;
 
+        // H1 (exploit-fix-02): гвард принадлежит экрану, а не побочному эффекту чужого
+        // сервиса. Сегодня qty<=0 случайно ловит VendorDailyLimitService::allowedQuantity()
+        // (:143-145, `$requested <= 0 → return 0`) — это пол дневного лимита выкупа
+        // (EA-economy-03), не гвард ввода, и игроку показывает чужую причину («монеты
+        // торговца кончились») при неверном вводе. Отказ здесь — свой и честный.
+        if ($quantity <= 0) {
+            $this->logRejected($character['id'], 'SELL_CRAFT', 'invalid_quantity', ['requested' => $quantity]);
+
+            return Request::sendMessage([
+                'chat_id'      => $chatId,
+                'text'         => "❗ *Не то количество*\n\nУкажи число больше нуля — с таким количеством сделка не пройдёт.",
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode(['inline_keyboard' => [[
+                    ['text' => '🛒 Продать крафт', 'callback_data' => 'sellCraft'],
+                    ['text' => '🎒 Инвентарь',      'callback_data' => 'inventory'],
+                ]]]),
+            ]);
+        }
+
         // Информация о предмете (read-only, нужна для формулы цены и UI)
         $craftedItem = $this->craftedItemsModel->find($craftedItemId);
         if (!$craftedItem) {

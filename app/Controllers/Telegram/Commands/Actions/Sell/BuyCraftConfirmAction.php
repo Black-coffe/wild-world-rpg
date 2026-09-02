@@ -62,6 +62,25 @@ class BuyCraftConfirmAction extends BaseAction
         $quantity = (int) $quantity;
         $craftedItemId = (int) $craftedItemId;
 
+        // H1 (exploit-fix-02): гвард принадлежит экрану, а не побочному эффекту чужого
+        // сервиса. У продажи это случайно спасал VendorDailyLimitService::allowedQuantity()
+        // — у покупки такого спасителя нет вовсе (recon money.md: «NO daily cap on buy
+        // side»), поэтому qty<=0 без этой проверки доходил до денежной математики и
+        // ЧЕКАНИЛ золото при отрицательном qty (:181 gold = gold - totalPrice).
+        if ($quantity <= 0) {
+            $this->logRejected($character['id'], 'BUY_CRAFT', 'invalid_quantity', ['requested' => $quantity]);
+
+            return Request::sendMessage([
+                'chat_id'      => $chatId,
+                'text'         => "❗ *Не то количество*\n\nУкажи число больше нуля — с таким количеством сделка не пройдёт.",
+                'parse_mode'   => 'Markdown',
+                'reply_markup' => json_encode(['inline_keyboard' => [[
+                    ['text' => '🛍️ Купить крафт', 'callback_data' => 'buyCraft'],
+                    ['text' => '👨‍🎤 Персонаж',    'callback_data' => 'character'],
+                ]]]),
+            ]);
+        }
+
         // Получение информации о предмете (read-only, для UI и каскадных полей)
         $craftedItem = $this->craftedItemsModel->find($craftedItemId);
         if (!$craftedItem) {
