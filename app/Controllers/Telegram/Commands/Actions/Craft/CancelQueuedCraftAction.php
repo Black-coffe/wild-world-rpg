@@ -79,24 +79,41 @@ class CancelQueuedCraftAction extends BaseAction
             return $this->sendError("Неизвестный рецепт: {$recipeKey}");
         }
 
-        // Транзакція: refund + delete row
+        // Транзакція: умовне зняття рядка йде ПЕРШИМ — рішення про refund приймає сам факт
+        // запису (affectedRows), а не $task, прочитаний вище ДО транзакції (він міг застаріти).
+        // Обхід Model::delete(): його bool каже лише що запит не впав, а не що WHERE співпав з
+        // рядком (та сама причина, з якої BaseStorageModel::withdrawRow() працює через сирий
+        // $db->query()).
         $db = \Config\Database::connect();
         $db->transStart();
 
-        $this->refundResources((int) $character['id'], $recipe['resources'] ?? [], $quantity);
-        $this->refundCraftedItems((int) $character['id'], $recipe['crafted_items'] ?? [], $quantity);
+        $prefixedTasks = $db->prefixTable('character_tasks');
+        $db->query(
+            "DELETE FROM {$prefixedTasks} WHERE id = ? AND character_id = ? AND status = ?",
+            [$charTaskId, $character['id'], 'queued']
+        );
+        $rowRemoved = $db->affectedRows() >= 1;
 
-        $goldRefund = (int) ($recipe['gold_required'] ?? 0) * $quantity;
-        if ($goldRefund > 0) {
-            $this->characterModel->where('id', $character['id'])->set('gold', "gold + {$goldRefund}", false)->update();
+        if ($rowRemoved) {
+            $this->refundResources((int) $character['id'], $recipe['resources'] ?? [], $quantity);
+            $this->refundCraftedItems((int) $character['id'], $recipe['crafted_items'] ?? [], $quantity);
+
+            $goldRefund = (int) ($recipe['gold_required'] ?? 0) * $quantity;
+            if ($goldRefund > 0) {
+                $this->characterModel->where('id', $character['id'])->set('gold', "gold + {$goldRefund}", false)->update();
+            }
         }
-
-        $this->characterTaskModel->delete($charTaskId);
 
         $db->transComplete();
         if ($db->transStatus() === false) {
             log_message('error', "[CancelQueuedCraft] транзакция упала task_id={$charTaskId} char_id={$character['id']}");
             return $this->sendError('Ошибка при отмене. Попробуйте ещё раз.');
+        }
+
+        if (!$rowRemoved) {
+            // $task (:58-62) застарів між читанням і записом — рядок вже не 'queued' (знятий
+            // паралельним викликом/воркером). Чесна відмова без жодного повернення.
+            return $this->sendError('Задача в очереди не найдена или уже активирована.');
         }
 
         Request::answerCallbackQuery([
