@@ -13,6 +13,7 @@ use App\Models\BiomeModel;
 use App\Models\CharacterModel;
 
 // Сервисы — encapsulate всю domain логику.
+use App\Services\Db\WriteOutcome;
 use App\Services\Player\TeleportBeacon\BeaconCaptureService;
 use App\Services\Player\TeleportBeacon\BeaconInstaller;
 use App\Services\Player\TeleportBeacon\BeaconMessageFormatter;
@@ -153,7 +154,11 @@ class TeleportBeaconSetAction
      *
      * v0.51.53 (Step 2) — formatting extract → BeaconMessageFormatter.
      * v0.51.54 (Step 3) — DB write + inventory extract → BeaconInstaller.
-     * Метод тепер тонкий orchestrator: install → biome lookup → format → send.
+     * exploit-fix-07 (ADR-181) — `install()` теперь списывает предмет ДО вставки
+     * маяка и возвращает исход (`WriteOutcome`): на отказе маяк не поставлен, и
+     * игрок получает честное сообщение вместо тишины или ложного «успеха».
+     * Метод тепер тонкий orchestrator: install → outcome check → biome lookup →
+     * format → send.
      */
     private function installBeacon(
         int $chatId,
@@ -164,8 +169,18 @@ class TeleportBeaconSetAction
         int $playerLevel,
         int $maxBeacons
     ): void {
-        // 1) Persistence (DB insert + inventory subtract).
+        // 1) Persistence (списание предмета → INSERT маяка, одной транзакцией).
         $counters = $this->installer->install($characterId, $mapRow, $playerLevel, $beaconItem);
+
+        if ($counters['outcome'] !== WriteOutcome::Applied) {
+            $this->send($chatId, $this->formatter->error(
+                'Не удалось поставить маяк: в инвентаре не нашлось предмета «Маяк телепорта» '
+                . 'в момент списания (кто-то опередил или он уже кончился). Маяк не поставлен, '
+                . 'предмет не списан. Проверь остаток на экране «Маяки» и попробуй ещё раз.'
+            ));
+
+            return;
+        }
 
         // 2) Biome lookup (потрібен для display details).
         //
