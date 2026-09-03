@@ -265,7 +265,7 @@ final class BaseStorageDepositAction extends BaseAction
         if ($skipped > 0) {
             // exploit-fix-26 (R2-minor, reviewer-2) — «2 видов» вместо «2 вида»: было бинарное
             // 1/не-1, без склонения по числу (1 вид, 2–4 вида, 5+ видов, с исключением 11–14).
-            $text .= "\n\n_Часть ({$skipped} " . $this->pluralizeKinds($skipped) . ") уже утекла из рюкзака до сдачи — пропущено без потерь._";
+            $text .= "\n\n_Часть ({$skipped} " . self::pluralizeKinds($skipped) . ") уже утекла из рюкзака до сдачи — пропущено без потерь._";
         }
 
         return Request::sendMessage([
@@ -377,8 +377,11 @@ final class BaseStorageDepositAction extends BaseAction
     /**
      * exploit-fix-26 (R2-minor) — русское склонение «вид/вида/видов» по числу: 1 вид,
      * 2–4 вида, 5+ видов, с исключением 11–14 (11 видов, не 11 вид).
+     *
+     * exploit-fix-34 (R3-minor, ревью m9): чистая функция без состояния — сделана
+     * `public static`, чтобы её закрыл юнит-тест напрямую, без инстанцирования action.
      */
-    private function pluralizeKinds(int $n): string
+    public static function pluralizeKinds(int $n): string
     {
         $mod100 = $n % 100;
         $mod10  = $n % 10;

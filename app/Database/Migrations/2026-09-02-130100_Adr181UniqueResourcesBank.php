@@ -36,6 +36,13 @@ use CodeIgniter\Database\Migration;
  * ждать серверный дефолт (обычно порядка года), и `post-deploy.sh` завис бы вместо быстрого
  * падения. Исходное значение читается до `SET SESSION` и восстанавливается в `finally` —
  * независимо от того, что происходит внутри `LOCK TABLES`/`ALTER TABLE`.
+ *
+ * exploit-fix-34 (ревью m8): чтение `@@SESSION.lock_wait_timeout` теоретически может не
+ * вернуть строку (пустой result set) — раньше `(int) null` в `finally` записал бы `SET SESSION
+ * lock_wait_timeout = 0`, что вне допустимого диапазона MySQL (минимум 1) и роняло бы сам
+ * restore. Восстановление теперь null-safe: если исходное значение не прочиталось строкой,
+ * `finally` не выставляет таймаут вообще — переопределять нечем, а сессия миграции закрывается
+ * сразу после `up()`.
  */
 class Adr181UniqueResourcesBank extends Migration
 {
@@ -44,7 +51,10 @@ class Adr181UniqueResourcesBank extends Migration
         $db    = \Config\Database::connect();
         $table = $db->prefixTable('resources_bank');
 
-        $originalLockWaitTimeout = $db->query('SELECT @@SESSION.lock_wait_timeout AS v')->getRow()->v;
+        $originalLockWaitTimeoutRow = $db->query('SELECT @@SESSION.lock_wait_timeout AS v')->getRow();
+        $originalLockWaitTimeout    = $originalLockWaitTimeoutRow !== null && $originalLockWaitTimeoutRow->v !== null
+            ? (string) $originalLockWaitTimeoutRow->v
+            : null;
 
         $db->query('SET SESSION lock_wait_timeout = 30');
 
@@ -108,7 +118,9 @@ class Adr181UniqueResourcesBank extends Migration
                 $db->query('UNLOCK TABLES');
             }
         } finally {
-            $db->query('SET SESSION lock_wait_timeout = ' . (int) $originalLockWaitTimeout);
+            if ($originalLockWaitTimeout !== null && $originalLockWaitTimeout !== '') {
+                $db->query('SET SESSION lock_wait_timeout = ' . (int) $originalLockWaitTimeout);
+            }
         }
     }
 
