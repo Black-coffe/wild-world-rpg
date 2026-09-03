@@ -92,6 +92,7 @@ class BeaconInstaller
         $logRow = $this->craftedItemsLogModel
             ->where('character_id', $charId)
             ->where('crafted_item_id', $beaconItem['id'])
+            ->orderBy('id', 'ASC')
             ->first();
 
         $logRowId = is_array($logRow) && isset($logRow['id']) && is_scalar($logRow['id'])
@@ -139,7 +140,17 @@ class BeaconInstaller
             ->first();
         $beaconLeft = $beaconLogUpdated ? (int) $beaconLogUpdated['quantity'] : 0;
 
-        $this->db->transComplete();
+        // exploit-fix-23 — исход читаем по возврату transComplete(): откат по
+        // любой причине (deadlock, второй тап) не должен возвращать вызывающему
+        // Applied — иначе TeleportBeaconSetAction скажет игроку «маяк поставлен»,
+        // когда INSERT/списание откатились.
+        if (! $this->db->transComplete()) {
+            return [
+                'outcome'      => WriteOutcome::Refused,
+                'updatedCount' => 0,
+                'beaconLeft'   => 0,
+            ];
+        }
 
         return [
             'outcome'      => WriteOutcome::Applied,

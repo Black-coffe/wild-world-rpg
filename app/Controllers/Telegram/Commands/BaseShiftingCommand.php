@@ -206,9 +206,10 @@ class BaseShiftingCommand extends UserCommand
             );
 
             // exploit-fix-12 (ADR-181 §5) — читаем исход, а не рапортуем успех вслепую:
-            // после миграции story 10 гонка двух почти одновременных подтверждений
-            // отклонит вторую вставку (`Refused`), и экран обязан сказать то же, что
-            // сделал механизм. Текст отказа общий — `ActiveTasksService`, не свой.
+            // insertUnique() гасит гонку двух почти одновременных подтверждений в `Refused`
+            // (UNIQUE-индекс на `character_tasks` под этот путь не заведён — story 10
+            // ограничена `resources_bank`, см. plan.md `## Descoped`), и экран обязан
+            // сказать то же, что сделал механизм. Текст отказа общий — `ActiveTasksService`.
             if ($outcome !== \App\Services\Db\WriteOutcome::Applied) {
                 return $this->send($chatId, [
                     'text'       => (new \App\Services\Tasks\ActiveTasksService())->alreadyStartedExclusiveTaskText(),

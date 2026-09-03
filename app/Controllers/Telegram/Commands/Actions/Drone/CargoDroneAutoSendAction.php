@@ -146,9 +146,11 @@ final class CargoDroneAutoSendAction extends BaseAction
             $this->logModel->update($logId, ['durability_count' => $newCharge]);
         }
 
-        $db->transComplete();
+        // exploit-fix-23 — исход читаем по возврату transComplete(): откат по любой
+        // причине не должен вести в ветку «взлетел».
+        $committed = $db->transComplete();
 
-        if ($delivered === []) {
+        if ($delivered === [] || !$committed) {
             return $this->errReply($chatId, 'Рюкзак опустел раньше, чем дрон успел взлететь, — кто-то успел потратиться. Попробуй ещё раз.');
         }
 

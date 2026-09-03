@@ -226,8 +226,13 @@ class GreenhouseProductionHandler extends BaseTaskHandler
                 $waterDeducted = $this->characterResourceModel
                     ->decrementIfAtLeast($characterId, (int) $waterResource['id'], $fromBackpack) === WriteOutcome::Applied;
             }
+            // exploit-fix-23 — складская половина была неусловной: `withdraw()` честно
+            // возвращает реально списанное (меньше запрошенного, если склад опустел между
+            // чтением poolQty и этой точкой), но возврат игнорировался — урожай начислялся
+            // за недостачу. Теперь сверяем фактически списанное с $fromStorage.
             if ($waterDeducted && $fromStorage > 0) {
-                $this->baseStorageModel->withdraw($characterId, (int) $waterResource['id'], $fromStorage);
+                $storageWithdrawn = $this->baseStorageModel->withdraw($characterId, (int) $waterResource['id'], $fromStorage);
+                $waterDeducted    = $storageWithdrawn === $fromStorage;
             }
 
             // Начисляем harvest (Fruit / Berries / Mushrooms / Crops и т.д.) — только если вода
@@ -236,11 +241,14 @@ class GreenhouseProductionHandler extends BaseTaskHandler
                 foreach ($harvest as $resourceNameEn => $count) {
                     $this->addResourceToCharacter($characterId, $resourceNameEn, $count, $resourceByName);
                 }
-            }
-
-            $db->transComplete();
-            if ($db->transStatus() === false) {
-                log_message('error', "[GreenhouseProductionHandler] транзакция урожая упала для character {$characterId}");
+                $db->transComplete();
+                if ($db->transStatus() === false) {
+                    log_message('error', "[GreenhouseProductionHandler] транзакция урожая упала для character {$characterId}");
+                }
+            } else {
+                // Недостача на любой из половин (рюкзак или склад) откатывает уже списанное —
+                // урожай в этот проход не начисляется, а не выдаётся за счёт недостачи.
+                $db->transRollback();
             }
         }
     }

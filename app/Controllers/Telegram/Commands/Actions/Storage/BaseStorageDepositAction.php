@@ -180,9 +180,11 @@ final class BaseStorageDepositAction extends BaseAction
         if ($outcome === WriteOutcome::Applied) {
             $this->storageModel->deliver($characterId, $resourceId, $row['quantity'], $fromCell);
         }
-        $db->transComplete();
+        // exploit-fix-23 — исход читаем по возврату transComplete(): откат вне
+        // ветки WriteOutcome не должен вести в ветку «убрано на склад».
+        $committed = $db->transComplete();
 
-        if ($outcome !== WriteOutcome::Applied) {
+        if ($outcome !== WriteOutcome::Applied || !$committed) {
             return $this->errReply($chatId, $outcome === WriteOutcome::Missing
                 ? 'Этого ресурса в рюкзаке уже нет.'
                 : 'В рюкзаке столько не набралось — кто-то успел его потратить. Попробуй ещё раз.');
@@ -247,18 +249,21 @@ final class BaseStorageDepositAction extends BaseAction
             $kinds++;
         }
 
-        $db->transComplete();
+        // exploit-fix-23 — исход читаем по возврату transComplete(): откат не должен
+        // вести в ветку «убрано на склад», а лог активности пишем только на успех, не
+        // до проверки отказа.
+        $committed = $db->transComplete();
 
-        $this->logActivity($characterId, 'BASE_STORAGE_DEPOSIT_ALL', "kinds={$kinds} units={$totalUnits} skipped={$skipped}");
-
-        if ($kinds === 0) {
+        if ($kinds === 0 || !$committed) {
             return $this->errReply($chatId, 'В рюкзаке уже ничего не осталось — кто-то успел его потратить. Попробуй ещё раз.');
         }
+
+        $this->logActivity($characterId, 'BASE_STORAGE_DEPOSIT_ALL', "kinds={$kinds} units={$totalUnits} skipped={$skipped}");
 
         $text  = "📥 *Убрано на склад: " . number_format($totalUnits, 0, '.', ' ') . " шт.*\n\n";
         $text .= "Видов ресурсов: *{$kinds}*. Рюкзак пуст, всё лежит на складе базы — забрать можно там же.";
         if ($skipped > 0) {
-            $text .= "\n\n_Часть ({$skipped} вид." . ($skipped === 1 ? '' : 'а') . ") уже утекла из рюкзака до сдачи — пропущено без потерь._";
+            $text .= "\n\n_Часть ({$skipped} " . ($skipped === 1 ? 'вид' : 'видов') . ") уже утекла из рюкзака до сдачи — пропущено без потерь._";
         }
 
         return Request::sendMessage([

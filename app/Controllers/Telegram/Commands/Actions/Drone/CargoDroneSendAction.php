@@ -134,12 +134,17 @@ class CargoDroneSendAction extends BaseAction
             $newCharge = max(0, $charge - $drain);
             $this->logModel->update($logId, ['durability_count' => $newCharge]);
         }
-        $db->transComplete();
+        // exploit-fix-23 — исход читаем по возврату transComplete(): откат вне
+        // ветки WriteOutcome не должен вести в ветку «взлетел».
+        $committed = $db->transComplete();
 
         if ($outcome !== WriteOutcome::Applied) {
             return $this->errReply($chatId, $outcome === WriteOutcome::Missing
                 ? 'Этого ресурса в инвентаре уже нет.'
                 : 'В инвентаре стало меньше ресурса, чем при проверке — попробуй ещё раз.');
+        }
+        if (!$committed) {
+            return $this->errReply($chatId, 'В инвентаре стало меньше ресурса, чем при проверке — попробуй ещё раз.');
         }
 
         // E20 (ADR-120) — инструментация адопшена дронов (раньше use-path был немеряем).

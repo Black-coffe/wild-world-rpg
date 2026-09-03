@@ -126,6 +126,7 @@ class RepairBuildingAction extends BaseAction
             }
         }
 
+        $committed = true;
         if ($shortage) {
             // exploit-fix-15 (C2) — отказ на любой строке обязан откатить уже списанные
             // строки, а не коммитить их через transComplete(): раньше break без
@@ -134,11 +135,17 @@ class RepairBuildingAction extends BaseAction
             $db->transRollback();
         } else {
             $this->characterBuildingModel->update($this->asInt($cb['id'] ?? null), ['hp' => $plan['maxHp']]);
-            $db->transComplete();
+            // exploit-fix-23 — исход читаем по возврату transComplete(), а не молча
+            // считаем «готово»: откат по любой другой причине (deadlock, второй тап)
+            // не должен говорить игроку, что структура отремонтирована.
+            $committed = $db->transComplete();
         }
 
         if ($shortage) {
             return $this->msg($chatId, '❗ Ресурсов стало меньше, чем при проверке, — кто-то успел их потратить. Попробуй снова.');
+        }
+        if (!$committed) {
+            return $this->msg($chatId, '❗ Не удалось сохранить ремонт — попробуй снова.');
         }
 
         Request::answerCallbackQuery([

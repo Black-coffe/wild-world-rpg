@@ -18,17 +18,20 @@ use App\Services\PVE\DefenseStructureService;
  * Pre-conditions: caller already validated through BuildingUpgradeValidator —
  * character has gold/level/resources, building exists, nextLevel reachable.
  *
- * Behavior preservation: identical 3-step sequence as inline у confirmUpgrade
- * pre-decomp:
- *  1. characters.gold -= requirements.gold
- *  2. for each (name_en, qty) in resources: character_resources.decreaseResources(...)
+ * Current sequence (insurance-06: ресурсы теперь первым шагом, было золото →
+ * ресурсы → level):
+ *  1. for each (name_en, qty) in resources: `ResourcePoolService::consume(...)`
+ *     (рюкзак сначала, остаток со склада; при нехватке бросает `RuntimeException`
+ *     и не списывает ничего)
+ *  2. characters.gold -= requirements.gold (через `CharacterStatsService::adjust()`)
  *  3. character_buildings.level = nextLevel
  *
  * ADR-171 + ревью-фикс: все шаги — под одной `$db->transStart()`/`transComplete()`
  * (тот же приём, что и `GenericCraftActionStart` в story -05). `ResourcePoolService::consume()`
  * атомарен: при нехватке НЕ списывает ничего и бросает `RuntimeException`. Раньше это глушилось
  * логом внутри цикла — level bump применялся, ничего не заплатив за ресурс (хуже прежнего
- * `decreaseResources()`, который хотя бы недоплачивал, но списывал что было).
+ * удалённого `CharacterResourceModel::decreaseResources()`, который хотя бы недоплачивал, но
+ * списывал что было — метод убран в exploit-fix-06, заменён условной записью).
  *
  * insurance-06: порядок шагов — РЕСУРСЫ → золото → level, а не золото → ресурсы → level, как
  * было раньше. При отказе на ресурсах (гонка/нехватка) golden-adjust и level-bump физически не

@@ -87,9 +87,9 @@ final class GenericQuestStartAction extends BaseAction
 
         // exploit-fix-09 (ADR-181 §5) — предыдущая проверка выше закрывает общий случай
         // быстрым чтением, но не гонку: два почти одновременных тапа оба проходят её ДО
-        // первой записи. insertUnique() — вторая, окончательная линия: до UNIQUE-индекса
-        // на quest_steps (story 10) он просто вставляет, после — гасит гонку в `Refused`
-        // вместо второй строки/500.
+        // первой записи. insertUnique() — вторая, окончательная линия, гасящая гонку в
+        // `Refused` вместо второй строки/500 (UNIQUE-индекс на `quest_steps` под этот путь
+        // не заведён — story 10 ограничена `resources_bank`, см. plan.md `## Descoped`).
         // exploit-fix-14 — `created_at`/`updated_at` раньше подставляла `QuestStepsModel`
         // (`$useTimestamps`); сырая вставка мимо модели несёт их сама.
         $nowStr  = date('Y-m-d H:i:s');

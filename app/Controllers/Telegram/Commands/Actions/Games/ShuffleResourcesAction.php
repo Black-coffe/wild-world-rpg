@@ -270,9 +270,11 @@ class ShuffleResourcesAction extends BaseAction
         if ($outcome === WriteOutcome::Applied && $received > 0) {
             $this->characterResourceModel->increaseResources($characterId, $target['id'], $received);
         }
-        $db->transComplete();
+        // exploit-fix-23 — исход читаем по возврату transComplete(): откат вне
+        // ветки WriteOutcome не должен вести в ветку «перемешано».
+        $committed = $db->transComplete();
 
-        if ($outcome !== WriteOutcome::Applied) {
+        if ($outcome !== WriteOutcome::Applied || !$committed) {
             return $this->screen(
                 "🔀 Уже не хватает ресурсов этой редкости в нужном объёме — кто-то успел потратиться.",
                 [[['text' => '⬅️ Назад', 'callback_data' => 'ShuffleResources_restart']]]
