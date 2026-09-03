@@ -13893,19 +13893,13 @@ parameters:
 		-
 			message: '#^Cannot access offset ''id'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
+			count: 2
 			path: app/Services/Player/Trade/ResourceTradeService.php
 
 		-
 			message: '#^Cannot access offset ''quantity'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 3
-			path: app/Services/Player/Trade/ResourceTradeService.php
-
-		-
-			message: '#^Cannot access offset ''resources_sold'' on non\-empty\-array\<int\|string, bool\|float\|int\|object\|string\|null\>\|object\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
 			path: app/Services/Player/Trade/ResourceTradeService.php
 
 		-
