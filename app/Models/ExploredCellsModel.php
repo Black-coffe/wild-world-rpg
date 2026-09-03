@@ -6,12 +6,16 @@ use CodeIgniter\Model;
 
 class ExploredCellsModel extends Model
 {
+    /** Границы плотной сетки координат мира 0..999 × 0..999 (1 000 000 клеток). */
+    public const WORLD_MIN = 0;
+    public const WORLD_MAX = 999;
+
     /**
      * Туман войны (ADR-019 §1): раскрывает квадратное окно `(2·radius+1)²` вокруг
      * клетки с координатами `($centerX, $centerY)` — центр + соседи по метрике
      * Чебышёва — в personal `explored_cells` персонажа. Идемпотентно: уже
      * раскрытые клетки пропускаются (де-дуп по `map_cell_id` = `cell_number`).
-     * За границами карты (1..1000) клеток нет — окно обрезается.
+     * За границами карты (0..999) клеток нет — окно обрезается.
      *
      * Вызывается при любой смене позиции: одиночный шаг (`MoveCharacterToDirectionAction`),
      * тик марша (ADR-019 §3), телепорт, респаун, создание персонажа.
@@ -26,10 +30,13 @@ class ExploredCellsModel extends Model
         ?int $characterLevel = null,
         int $radius = 1
     ): int {
-        $xMin = max(1, $centerX - $radius);
-        $xMax = min(1000, $centerX + $radius);
-        $yMin = max(1, $centerY - $radius);
-        $yMax = min(1000, $centerY + $radius);
+        // Сетка мира плотная 0..999 × 0..999 (см. MoveCharacterToDirectionAction::MAP_MIN/MAX).
+        // До 03.09.2026 зажим был 1..1000 → ряд Y=0 и столбец X=0 никогда не раскрывались,
+        // даже когда игрок стоял прямо на них (баг-репорт «ордината 0 не отображается»).
+        $xMin = max(self::WORLD_MIN, $centerX - $radius);
+        $xMax = min(self::WORLD_MAX, $centerX + $radius);
+        $yMin = max(self::WORLD_MIN, $centerY - $radius);
+        $yMax = min(self::WORLD_MAX, $centerY + $radius);
 
         // 3×3-окно из map: cell_number → biome_id (raw query — типизированный getResultArray).
         $windowQuery = $this->db->query(

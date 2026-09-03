@@ -193,10 +193,10 @@ class RecceDroneAction extends BaseAction
      */
     private function collectBiomeNamesInRadius(int $centerX, int $centerY, int $radius): array
     {
-        $xMin = max(1, $centerX - $radius);
-        $xMax = min(1000, $centerX + $radius);
-        $yMin = max(1, $centerY - $radius);
-        $yMax = min(1000, $centerY + $radius);
+        $xMin = max(ExploredCellsModel::WORLD_MIN, $centerX - $radius);
+        $xMax = min(ExploredCellsModel::WORLD_MAX, $centerX + $radius);
+        $yMin = max(ExploredCellsModel::WORLD_MIN, $centerY - $radius);
+        $yMax = min(ExploredCellsModel::WORLD_MAX, $centerY + $radius);
 
         $rows = $this->mapModel
             ->where('coordinate_x >=', $xMin)

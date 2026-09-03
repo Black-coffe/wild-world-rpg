@@ -13,7 +13,8 @@ use Config\Database;
  * Покрывает:
  *   - раскрытие 3×3-окна (центр + 8 соседей по Чебышёву) → 9 новых клеток;
  *   - идемпотентность (повторный вызов → 0 новых, дублей нет);
- *   - обрезка окна на углах карты (центр у (1,1) / (1000,1000) → 4 клетки);
+ *   - обрезка окна на углах карты (центр у (0,0) / (9,9) → 4 клетки; мир 0..999, не 1..1000 —
+ *     регресс 03.09.2026: ряд Y=0 никогда не раскрывался);
  *   - частичное перекрытие (часть окна уже раскрыта → только новые);
  *   - изоляция по character_id (чужие раскрытые клетки не считаются);
  *   - перенос biome_id из map в explored_cells;
@@ -64,11 +65,11 @@ final class ExploredCellsRevealAroundTest extends CIUnitTestCase
             )
         ');
 
-        // Сетка 10×10 (coords 1..10 × 1..10), cell_number = (y-1)*10 + x.
+        // Сетка 10×10 (coords 0..9 × 0..9 — как реальный мир начинается с 0), cell_number = y*10 + x + 1.
         // biome_id = 1 везде, кроме клетки (3,3) — biome_id = 7 (проверяем перенос).
-        for ($y = 1; $y <= 10; $y++) {
-            for ($x = 1; $x <= 10; $x++) {
-                $cn     = ($y - 1) * 10 + $x;
+        for ($y = 0; $y <= 9; $y++) {
+            for ($x = 0; $x <= 9; $x++) {
+                $cn     = $y * 10 + $x + 1;
                 $biome  = ($x === 3 && $y === 3) ? 7 : 1;
                 $db->query(
                     'INSERT INTO map (cell_number, coordinate_x, coordinate_y, biome_id) VALUES (?, ?, ?, ?)',
@@ -102,11 +103,11 @@ final class ExploredCellsRevealAroundTest extends CIUnitTestCase
         $this->assertSame(9, $new);
         $this->assertSame(9, (int) $this->countFor(1));
 
-        // Раскрыты cell_number'ы (4..6)×(4..6): (y-1)*10+x.
+        // Раскрыты cell_number'ы (4..6)×(4..6): y*10+x+1.
         $expected = [];
         for ($y = 4; $y <= 6; $y++) {
             for ($x = 4; $x <= 6; $x++) {
-                $expected[] = ($y - 1) * 10 + $x;
+                $expected[] = $y * 10 + $x + 1;
             }
         }
         sort($expected);
@@ -132,13 +133,14 @@ final class ExploredCellsRevealAroundTest extends CIUnitTestCase
 
     public function testClampsAtTopLeftCorner(): void
     {
-        // Центр (1,1), radius 1 → окно (1..2)×(1..2) = 4 клетки.
-        $new = $this->model->revealAround(1, 1, 1, 1, 5);
+        // Центр (0,0) — настоящий угол мира, radius 1 → окно (0..1)×(0..1) = 4 клетки.
+        // Ряд Y=0 и столбец X=0 обязаны раскрываться (баг «ордината 0 не отображается»).
+        $new = $this->model->revealAround(1, 1, 0, 0, 5);
 
         $this->assertSame(4, $new);
         $this->assertSame(4, (int) $this->countFor(1));
 
-        $expected = [1, 2, 11, 12]; // (1,1)=1 (2,1)=2 (1,2)=11 (2,2)=12
+        $expected = [1, 2, 11, 12]; // (0,0)=1 (1,0)=2 (0,1)=11 (1,1)=12
         $rows = Database::connect('tests')
             ->query('SELECT map_cell_id FROM explored_cells WHERE character_id = 1 ORDER BY map_cell_id')
             ->getResultArray();
@@ -147,8 +149,8 @@ final class ExploredCellsRevealAroundTest extends CIUnitTestCase
 
     public function testClampsAtBottomRightCorner(): void
     {
-        // Центр (10,10) на сетке 10×10 → окно (9..10)×(9..10) = 4 клетки.
-        $new = $this->model->revealAround(1, 1, 10, 10, 5);
+        // Центр (9,9) на сетке 0..9 → окно (8..9)×(8..9) = 4 клетки.
+        $new = $this->model->revealAround(1, 1, 9, 9, 5);
 
         $this->assertSame(4, $new);
         $this->assertSame(4, (int) $this->countFor(1));
@@ -156,16 +158,16 @@ final class ExploredCellsRevealAroundTest extends CIUnitTestCase
 
     public function testPartialOverlapRevealsOnlyNew(): void
     {
-        // Сначала угол (1,1) → 4 клетки: 1,2,11,12.
-        $this->assertSame(4, $this->model->revealAround(1, 1, 1, 1, 1));
-        // Затем центр (3,3) → окно (2..4)×(2..4) = 9 клеток, из них (2,2)=12 уже раскрыта.
-        $new = $this->model->revealAround(1, 1, 3, 3, 1);
+        // Сначала угол (0,0) → 4 клетки: 1,2,11,12.
+        $this->assertSame(4, $this->model->revealAround(1, 1, 0, 0, 1));
+        // Затем центр (2,2) → окно (1..3)×(1..3) = 9 клеток, из них (1,1)=12 уже раскрыта.
+        $new = $this->model->revealAround(1, 1, 2, 2, 1);
         $this->assertSame(8, $new);
         $this->assertSame(12, (int) $this->countFor(1));
 
-        // Клетка (3,3) (cell_number = 23) должна иметь biome_id = 7.
+        // Клетка (3,3) (cell_number = 34) должна иметь biome_id = 7.
         $row = Database::connect('tests')
-            ->query('SELECT biome_id FROM explored_cells WHERE character_id = 1 AND map_cell_id = 23')
+            ->query('SELECT biome_id FROM explored_cells WHERE character_id = 1 AND map_cell_id = 34')
             ->getRowArray();
         $this->assertNotNull($row);
         $this->assertSame(7, (int) $row['biome_id']);
