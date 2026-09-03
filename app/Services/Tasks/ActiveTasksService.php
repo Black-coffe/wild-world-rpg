@@ -37,11 +37,21 @@ class ActiveTasksService
      * `UNIQUE`-индекса (story 10) он просто вставляет и отдаёт `Applied`, после —
      * гасит гонку двух почти одновременных стартов в `Refused`, не в исключение.
      *
+     * exploit-fix-14 — `insertUnique()` бьёт сырым SQL мимо модели, поэтому
+     * `created_at`/`updated_at` (раньше их подставляла `CharacterTaskModel::$useTimestamps`)
+     * подставляются здесь, в единственной точке (Non-goals story 14 — не в каждом
+     * вызывающем): на проде обе колонки `DATETIME NOT NULL` без DEFAULT (замер
+     * 03.09.2026), без них вставка ловит 1364 под `STRICT_TRANS_TABLES`. Вызывающий
+     * может передать свои значения — они не перезаписываются.
+     *
      * @param array<string,mixed> $row строка `character_tasks` (тот же набор
      *                                 полей, что раньше шёл в `Model::insert()`)
      */
     public function insertExclusiveTaskRow(array $row): WriteOutcome
     {
+        $now = Time::now()->toDateTimeString();
+        $row += ['created_at' => $now, 'updated_at' => $now];
+
         return $this->writer()->insertUnique('character_tasks', $row);
     }
 

@@ -201,4 +201,47 @@ final class InsertUniqueContractTest extends CIUnitTestCase
             'обе строки обязаны физически лежать в таблице — сегодня индекс их не различает'
         );
     }
+
+    // ── exploit-fix-14 — нарушение NOT NULL внутри insertUnique() ──
+
+    /**
+     * Acceptance 🔴 (story 14): нарушение NOT NULL внутри `insertUnique()` обязано дать
+     * исключение или иной не-`Refused` исход, а не `Refused` — недостающая обязательная
+     * колонка не то же самое, что дубль.
+     *
+     * Проектный `app/Config/Database.php` несёт `strictOn = false` для группы `tests`
+     * (как и для `default`) — CI4 явно снимает `STRICT_TRANS_TABLES`/`STRICT_ALL_TABLES`
+     * из `sql_mode` соединения на коннекте (`MySQLi\Connection::connect()`), даже когда
+     * глобальный `sql_mode` сервера строгий (замер 03.09.2026 подтвердил строгий режим на
+     * уровне сервера и для `wildworld_tests`, и для прода). Поэтому здесь пропавшая
+     * `NOT NULL`-колонка без `DEFAULT` не бросает `DatabaseException` — MySQL молча
+     * подставляет implicit-default (`0` у `INT`), запрос проходит, `insertUnique()` отдаёт
+     * `Applied`. Это и есть «иной не-`Refused` исход», которым явно оговорена акцептанс-
+     * критерия — проверяем именно факт «не Refused», а не наличие исключения, потому что
+     * в этом DB-конфиге исключения физически не будет.
+     */
+    public function testInsertUniqueOnMissingNotNullColumnIsNotRefused(): void
+    {
+        $db = Database::connect('tests');
+        $db->query(
+            'CREATE TABLE ' . self::SCRATCH_TABLE . ' ('
+            . 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,'
+            . 'character_id INT UNSIGNED NOT NULL,'
+            . 'must_have_task_id INT UNSIGNED NOT NULL'
+            . ')'
+        );
+        $this->createdScratchTable = true;
+
+        $this->enableDBDebug();
+        $outcome = (new ConditionalWriteService($db))->insertUnique(self::SCRATCH_TABLE, [
+            'character_id' => 5,
+            // `must_have_task_id` намеренно не передан — обязательная колонка без DEFAULT.
+        ]);
+
+        $this->assertNotSame(
+            WriteOutcome::Refused,
+            $outcome,
+            'нарушение NOT NULL не должно маскироваться под "дубль"'
+        );
+    }
 }

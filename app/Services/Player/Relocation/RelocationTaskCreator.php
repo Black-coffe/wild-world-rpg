@@ -64,6 +64,8 @@ class RelocationTaskCreator
             'note'                => "Переезд в X={$targetX},Y={$targetY} (map_id={$mapCellId})",
         ];
 
+        // exploit-fix-14 — `created_at`/`updated_at` подставляет `insertExclusiveTaskRow()`
+        // сама (единая точка, Non-goals story 14), этому вызывающему нести их не нужно.
         return $this->activeTasks->insertExclusiveTaskRow([
             'character_id'     => $charId,
             'telegram_user_id' => $telegramUserId,

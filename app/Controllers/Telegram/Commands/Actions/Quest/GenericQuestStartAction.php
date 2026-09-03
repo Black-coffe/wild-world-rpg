@@ -90,12 +90,17 @@ final class GenericQuestStartAction extends BaseAction
         // первой записи. insertUnique() — вторая, окончательная линия: до UNIQUE-индекса
         // на quest_steps (story 10) он просто вставляет, после — гасит гонку в `Refused`
         // вместо второй строки/500.
+        // exploit-fix-14 — `created_at`/`updated_at` раньше подставляла `QuestStepsModel`
+        // (`$useTimestamps`); сырая вставка мимо модели несёт их сама.
+        $nowStr  = date('Y-m-d H:i:s');
         $outcome = (new ConditionalWriteService())->insertUnique('quest_steps', [
             'quest_id'     => $questId,
             'character_id' => $charId,
             'step_order'   => 1,
             'description'  => is_string($quest['title_ru'] ?? null) ? $quest['title_ru'] : 'Квест начат',
             'is_completed' => false,
+            'created_at'   => $nowStr,
+            'updated_at'   => $nowStr,
         ]);
         if ($outcome === WriteOutcome::Refused) {
             return $this->alert('Ты уже начал этот квест — смотри «🚀 Активные квесты».');

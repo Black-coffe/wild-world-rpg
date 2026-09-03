@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace Tests\Unit\Controllers\Telegram;
 
 use App\Controllers\Telegram\Commands\BaseShiftingCommand;
+use App\Database\Migrations\CreateCharacterTasksTable;
+use App\Database\Migrations\CreateTasksTable;
 use App\Services\Db\WriteOutcome;
 use App\Services\Player\Relocation\RelocationTaskCreator;
 use App\Services\Tasks\ActiveTasksService;
 use CodeIgniter\Database\BaseConnection;
+use CodeIgniter\Database\Forge;
+use CodeIgniter\Database\Migration;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -54,6 +58,17 @@ final class RelocationConfirmOutcomeTest extends CIUnitTestCase
     /** @var list<string> таблицы, которые СОЗДАЛ этот тест (и поэтому вправе дропнуть). */
     private array $createdTables = [];
 
+    /**
+     * exploit-fix-14 (находка story 18) — `app/Config/Database.php` несёт `strictOn = false`
+     * для группы `tests`: CI4 явно снимает `STRICT_TRANS_TABLES` из `sql_mode` соединения на
+     * каждом коннекте, даже когда `sql_mode` сервера строгий (прод — строгий, замер 03.09.2026).
+     * Без ручного восстановления пропавшая `NOT NULL`-колонка тут не бросает исключение — MySQL
+     * молча подставляет implicit-default, и «тест краснеет без таймстемпов» был бы зелёным
+     * ни за что. Значение сохраняется здесь и возвращается в tearDown — правка `SESSION`-уровня,
+     * не глобальная, но соединение переиспользуется между тестами файла/набора.
+     */
+    private ?string $originalSqlMode = null;
+
     /** @var list<int> id персонажей, заведённых этим тестом — ключ чистки общих таблиц. */
     private array $ownCharacterIds = [];
 
@@ -86,6 +101,14 @@ final class RelocationConfirmOutcomeTest extends CIUnitTestCase
         // или дропнул одну из этих же таблиц (урок story exploit-fix-11, GapAuditTest).
         $this->db()->resetDataCache();
 
+        // exploit-fix-14 (находка story 18) — включаем STRICT_TRANS_TABLES на этой сессии:
+        // `strictOn = false` в конфиге группы `tests` снимает его на каждом коннекте (см.
+        // докблок $originalSqlMode). Без этого NOT NULL-регресс в insertExclusiveTaskRow() не
+        // проявится — implicit-default тихо пройдёт.
+        $modeRow               = $this->db()->query('SELECT @@sql_mode AS m')->getRowArray();
+        $this->originalSqlMode = is_array($modeRow) && is_string($modeRow['m'] ?? null) ? $modeRow['m'] : '';
+        $this->db()->query("SET SESSION sql_mode = CONCAT(@@sql_mode, ',STRICT_TRANS_TABLES')");
+
         // Другие тесты репозитория дропают общие таблицы (`telegram_users`, `characters`,
         // `claimed_cells`, `explored_cells`) и не восстанавливают их — story exploit-fix-13.
         // Своя минимальная схема (та же форма, что уже сверена точечно в
@@ -93,13 +116,13 @@ final class RelocationConfirmOutcomeTest extends CIUnitTestCase
         // изобретение с нуля.
         $this->createTableIfMissing('telegram_users', '
             CREATE TABLE telegram_users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                 telegram_id BIGINT NULL
             )
         ');
         $this->createTableIfMissing('characters', '
             CREATE TABLE characters (
-                id INT AUTO_INCREMENT PRIMARY KEY,
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
                 telegram_user_id INT NULL,
                 name VARCHAR(64) NULL,
                 gold INT NULL DEFAULT 0,
@@ -139,43 +162,21 @@ final class RelocationConfirmOutcomeTest extends CIUnitTestCase
             )
         ');
 
-        // `tasks`/`character_tasks` отсутствуют сегодня в общей `wildworld_tests` — своя минимальная
-        // схема (та же форма, что уже сверена точечно в GapAuditTest/CancelQueuedCraftConditionalDeleteTest).
-        $this->createTableIfMissing('tasks', '
-            CREATE TABLE tasks (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(64) NULL,
-                handler_key VARCHAR(64) NULL,
-                name_rus VARCHAR(64) NULL,
-                description VARCHAR(255) NULL,
-                min_duration INT NULL,
-                max_duration INT NULL,
-                type VARCHAR(32) NULL,
-                difficulty_level INT NULL,
-                execution_limit INT NULL,
-                parallel_execution_allowed TINYINT NULL DEFAULT 1,
-                interruptible TINYINT NULL DEFAULT 1,
-                created_at DATETIME NULL,
-                updated_at DATETIME NULL
-            )
-        ');
+        // exploit-fix-14 (урок feedback_test_schema_must_come_from_migration) — `tasks` и
+        // `character_tasks` больше не рукописный DDL: рукописная схема сделала таймстемпы
+        // NULL-able, тогда как на проде обе колонки `DATETIME NOT NULL` без DEFAULT под
+        // STRICT_TRANS_TABLES (замер 03.09.2026), и рукописная форма это молча прятала.
+        // Поднимаются реальными миграциями (Forge) — тот же приём, что в
+        // `tests/exploit-poc/TaskExclusivityTest.php`. `tasks` строится ДО `character_tasks`
+        // (её `task_id` — реальный FK на `tasks.id`) и дропается ПОСЛЕ неё в tearDown.
+        $this->requireMigrationClass(CreateTasksTable::class, '2024-03-22-111828_CreateTasksTable.php');
+        $this->createTableIfMissing('tasks', new CreateTasksTable($this->forge()));
+
         // Никакого UNIQUE — форсирование `Refused` больше не зависит от коллизии внутри
         // `insertUnique()` (см. докблок класса), эта таблица нужна только чтобы
         // `checkPreconditions()` смог её прочитать и пропустить вызов дальше.
-        $this->createTableIfMissing('character_tasks', '
-            CREATE TABLE character_tasks (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                character_id INT NULL,
-                telegram_user_id INT NULL,
-                task_id INT NULL,
-                start_time DATETIME NULL,
-                end_time DATETIME NULL,
-                status VARCHAR(16) NULL,
-                task_settings TEXT NULL,
-                created_at DATETIME NULL,
-                updated_at DATETIME NULL
-            )
-        ');
+        $this->requireMigrationClass(CreateCharacterTasksTable::class, '2024-03-22-132411_CreateCharacterTasksTable.php');
+        $this->createTableIfMissing('character_tasks', new CreateCharacterTasksTable($this->forge()));
 
         $this->enableDBDebug();
         $this->cleanCache();
@@ -183,6 +184,12 @@ final class RelocationConfirmOutcomeTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        // exploit-fix-14 — возвращаем sql_mode этой сессии как было ДО правки, чтобы включённый
+        // STRICT_TRANS_TABLES не утёк в следующий тест набора через переиспользуемое соединение.
+        if ($this->originalSqlMode !== null && $this->originalSqlMode !== '') {
+            $this->db()->query('SET SESSION sql_mode = ?', [$this->originalSqlMode]);
+        }
+
         try {
             foreach (self::CHAR_LINKED as $table => $col) {
                 if ($this->ownCharacterIds === []) {
@@ -209,11 +216,37 @@ final class RelocationConfirmOutcomeTest extends CIUnitTestCase
         return Database::connect('tests');
     }
 
-    private function createTableIfMissing(string $table, string $ddl): void
+    /**
+     * @param string|Migration $ddlOrMigration сырой DDL (спутниковые таблицы `telegram_users`/
+     *                                          `characters`/…) либо экземпляр реальной миграции
+     *                                          (`tasks`/`character_tasks`, exploit-fix-14) —
+     *                                          создаёт таблицу, только если её ещё нет вообще.
+     */
+    private function createTableIfMissing(string $table, string|Migration $ddlOrMigration): void
     {
-        if (! $this->db()->tableExists($table)) {
-            $this->db()->query($ddl);
-            $this->createdTables[] = $table;
+        if ($this->db()->tableExists($table)) {
+            return;
+        }
+
+        if ($ddlOrMigration instanceof Migration) {
+            $ddlOrMigration->up();
+        } else {
+            $this->db()->query($ddlOrMigration);
+        }
+        $this->createdTables[] = $table;
+    }
+
+    private function forge(): Forge
+    {
+        $forge = Database::forge('tests');
+
+        return $forge instanceof Forge ? $forge : new Forge(Database::connect('tests'));
+    }
+
+    private function requireMigrationClass(string $class, string $file): void
+    {
+        if (! class_exists($class, false)) {
+            require_once APPPATH . 'Database/Migrations/' . $file;
         }
     }
 
@@ -312,9 +345,28 @@ final class RelocationConfirmOutcomeTest extends CIUnitTestCase
             'Applied обязан по-прежнему давать прежний текст успеха'
         );
 
-        $rows = $this->db()->table('character_tasks')
-            ->where('character_id', $charId)->where('status', 'in_work')->countAllResults();
-        $this->assertSame(1, (int) $rows, 'Applied обязан оставить ровно одну строку переезда');
+        $row = $this->db()->table('character_tasks')
+            ->where('character_id', $charId)->where('status', 'in_work')->get()->getRowArray();
+        $this->assertNotNull($row, 'Applied обязан оставить ровно одну строку переезда');
+
+        // exploit-fix-14 — прямая проверка `affectedRows()`/countAllResults() здесь не различила
+        // бы честную вставку от вставки без `created_at`/`updated_at`: проектный DB-конфиг несёт
+        // `strictOn = false` (`app/Config/Database.php`), поэтому MySQL на пропавшей
+        // `NOT NULL`-колонке без DEFAULT тихо подставляет implicit-default (`0000-00-00 00:00:00`
+        // у DATETIME), а не бросает исключение — `INSERT` всё равно проходит и строка всё равно
+        // одна. Единственный способ поймать регресс — сверить сами значения с реальной, недавней
+        // датой; удаление `created_at`/`updated_at` из `insertExclusiveTaskRow()` красит именно
+        // эту проверку.
+        $this->assertMatchesRegularExpression(
+            '/^20\d{2}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/',
+            (string) ($row['created_at'] ?? ''),
+            'created_at обязан быть реальной датой, не NULL и не implicit-default 0000-00-00'
+        );
+        $this->assertMatchesRegularExpression(
+            '/^20\d{2}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/',
+            (string) ($row['updated_at'] ?? ''),
+            'updated_at обязан быть реальной датой, не NULL и не implicit-default 0000-00-00'
+        );
     }
 
     public function testRefusedOutcomeSendsAlreadyStartedTextAndCreatesNoNewRow(): void
