@@ -228,66 +228,18 @@ final class ConditionalWriteServiceTest extends CIUnitTestCase
     }
 
     /**
-     * Acceptance 🔴 (exploit-fix-27, R2-major №1 обоих ревьюеров): раньше (story 24)
-     * `deleteWhenEmpty` уходил точным `DELETE ... WHERE quantity = ?` ДО `UPDATE` —
-     * под autocommit несовпавший `DELETE` (чужое параллельное списание уже сдвинуло
-     * остаток) проваливался в `UPDATE`, который доводил колонку до нуля БЕЗ
-     * последующей подчистки: постоянная нулевая строка. Теперь `UPDATE` всегда идёт
-     * первым, а хвостовой `DELETE ... WHERE quantity <= 0` — безусловный и
-     * самолечащий: он подчищает строку независимо от того, ЧЬЁ соединение довело
-     * колонку до нуля. Два РЕАЛЬНЫХ соединения (`Database::connect('tests', false)`,
-     * не общий shared-инстанс), никаких транзакций — чистый autocommit, ровно
-     * условие story: «независимо от того, открыта ли транзакция вызывающим».
-     *
-     * Чередование «UPDATE A → декремент B до нуля → DELETE A»: A выполняет только
-     * половину-`UPDATE` своего вызова (частичное списание, не опустошает), затем B
-     * успевает выполнить ПОЛНЫЙ вызов и опустошает строку сам (свой `UPDATE` +
-     * свой хвостовой `DELETE`), и только затем A наконец добирается до своего
-     * отложенного хвостового `DELETE` — он находит строку уже удалённой, идемпотентный
-     * no-op. Нулевая строка нигде не задерживается.
-     */
-    public function testDecrementIfAtLeastDeleteWhenEmptySelfHealsWhenForeignConnectionDrainsFirst(): void
-    {
-        $id = $this->insertStorageRow(46, 5, 7);
-
-        $dbA = Database::connect('tests', false);
-        $dbB = Database::connect('tests', false);
-
-        // A: только UPDATE-половина decrementIfAtLeast(amount: 3, deleteWhenEmpty: true) —
-        // собственный хвостовой DELETE придерживаем, чтобы вклиниться соединением B.
-        $dbA->query(
-            'UPDATE base_storage SET quantity = quantity - ? WHERE id = ? AND quantity >= ?',
-            [3, $id, 3]
-        );
-        $this->assertSame(1, $dbA->affectedRows());
-        $this->assertSame(4, (int) $this->storageRow($id)['quantity']);
-
-        // B: полный decrementIfAtLeast(amount: 4, deleteWhenEmpty: true) — опустошает и
-        // подчищает строку целиком сам, пока хвостовой DELETE A ещё не выполнен.
-        $outcomeB = (new ConditionalWriteService($dbB))
-            ->decrementIfAtLeast('base_storage', $id, 'quantity', 4, deleteWhenEmpty: true);
-        $this->assertSame(WriteOutcome::Applied, $outcomeB);
-        $this->assertNull($this->storageRow($id), 'B обязан был опустошить и удалить строку сам');
-
-        // Отложенный хвостовой DELETE A выполняется последним — строки уже нет.
-        $dbA->query('DELETE FROM base_storage WHERE id = ? AND quantity <= 0', [$id]);
-        $this->assertSame(
-            0,
-            $dbA->affectedRows(),
-            'хвостовой DELETE A обязан быть идемпотентным no-op — строку уже удалило чужое соединение'
-        );
-
-        $this->assertNull($this->storageRow($id), 'нулевая строка не пережила это чередование двух соединений');
-    }
-
-    /**
-     * Acceptance 🔴 (exploit-fix-33, R3-major): два теста выше собирали чередование
-     * ВРУЧНУЮ — сырыми SQL-половинками через `dbA`/`dbB`, не вызывая
+     * Acceptance 🔴 (exploit-fix-33, R3-major; exploit-fix-38, R4-minor): единственный
+     * оставшийся тест самолечения `deleteWhenEmpty`. Предшественники собирали
+     * чередование ВРУЧНУЮ — сырыми SQL-половинками через `dbA`/`dbB`, не вызывая
      * `decrementIfAtLeast()` вовсе на стороне A и не различая текущую форму
      * (UPDATE, затем хвостовой самолечащий DELETE) от старой (exploit-fix-24: точный
      * `DELETE … WHERE column = $amount` ПЕРВЫМ, `UPDATE`-фолбэк без подчистки) —
-     * старый тест на этих числах (`amount` B точно равен остатку после A) давал
-     * `Applied` на ОБЕИХ формах одинаково.
+     * такой тест на числах, где `amount` B точно равен остатку после A, давал
+     * `Applied` на ОБЕИХ формах одинаково; последний из них
+     * (`testDecrementIfAtLeastDeleteWhenEmptySelfHealsWhenForeignConnectionDrainsFirst`,
+     * story 33 оставила его без изменений как «уже зовущий примитив для B») по той же
+     * причине не различал реализацию (сторона A ни разу не вызывала примитив) и
+     * удалён story 38 — это единственный тест ниже, который доказывает самолечение.
      *
      * Этот тест перехватывает ПЕРВЫЙ SQL-оператор РЕАЛЬНОГО вызова
      * `decrementIfAtLeast()` через `Events::on('DBQuery', …)` (образец —
