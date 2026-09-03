@@ -61,11 +61,21 @@ use Config\Database;
  *    ни довела колонку до нуля (эта или чужая параллельная), её собственный
  *    хвостовой `DELETE` уходит СЛЕДОМ и убирает ноль независимо от того, кто именно
  *    его написал; выжить в БД нулевая строка не может ни при каком чередовании двух
- *    соединений (доказано `ConditionalWriteServiceTest` — тест двух соединений под
- *    autocommit). Цена — лишний `DELETE`-запрос на КАЖДЫЙ вызов с флагом (а не
+ *    соединений. Цена — лишний `DELETE`-запрос на КАЖДЫЙ вызов с флагом (а не
  *    только на точное опустошение), это сознательный обмен: примитив не открывает
  *    транзакций (Non-goals story 27, ADR-181 §3), поэтому не может полагаться на
  *    X-lock вызывающего как единственную защиту от промежуточного чтения.
+ *
+ *    exploit-fix-33 (R3-major): доказано `ConditionalWriteServiceTest::
+ *    testDecrementIfAtLeastDeleteWhenEmptySelfHealsWhenForeignWriteInterleavesWithTheRealCallsOwnStatements`
+ *    — единственный тест здесь, который перехватывает ПЕРВЫЙ SQL-оператор
+ *    РЕАЛЬНОГО вызова `decrementIfAtLeast()` через `Events::on('DBQuery', …)` и
+ *    вклинивает чужое списание с отдельного соединения МЕЖДУ ним и вторым
+ *    оператором того же вызова — то самое чередование, а не его ручная
+ *    сырая-SQL имитация. Красный при временной замене реализации на форму
+ *    «точный DELETE до UPDATE» (story 24): у неё нет второго, самолечащего
+ *    оператора вовсе, поэтому нулевая строка, оставленная чужим вклиниванием
+ *    между DELETE и запасным UPDATE, ничем не подчищается.
  */
 final class ConditionalWriteService
 {
@@ -200,13 +210,39 @@ final class ConditionalWriteService
      * У этой операции нет предусловия сверх «строка существует», поэтому
      * `Refused` она не возвращает — только `Applied`/`Missing`.
      *
+     * exploit-fix-33 (R3-major m2): `$amount <= 0` и пустой `$where` — те же
+     * классы дефекта, что у `decrementIfAtLeast()`/`transitionIfCurrent()`.
+     * `amount <= 0` отвергается тем же `InvalidArgumentException`, что и у
+     * соседей: при `amount=0` `col = col + 0` — UPDATE, не меняющий значение
+     * колонки, неотличим по `affectedRows()` от настоящего отказа («строки
+     * нет»); при `amount<0` инкремент бесшумно становится декрементом, а у
+     * этого метода нет проверки достатка (она и не нужна — `increment()`
+     * задуман для начислений, а не списаний, для которых есть
+     * `decrementIfAtLeast()`). Пустой `$where` собрал бы `WHERE` без единого
+     * условия (`buildWhere([])` даёт пустую строку) — `UPDATE` без ограничения
+     * задел бы КАЖДУЮ строку таблицы, а не одну.
+     *
      * @param array<string,int|string> $where пары колонка => значение, склеиваются через AND
-     * @throws \InvalidArgumentException невалидное имя таблицы/колонки
+     * @throws \InvalidArgumentException невалидное имя таблицы/колонки, `$amount <= 0` или `$where === []`
      */
     public function increment(string $table, array $where, string $column, int $amount): WriteOutcome
     {
         $this->assertValidIdentifier($table);
         $this->assertValidIdentifier($column);
+
+        if ($amount <= 0) {
+            throw new \InvalidArgumentException(
+                'increment: $amount <= 0 не имеет однозначного исхода — при amount=0 UPDATE, не '
+                . 'меняющий значение колонки, неотличим по affectedRows() от настоящего отказа; '
+                . 'при amount<0 инкремент становится декрементом без проверки достатка'
+            );
+        }
+
+        if ($where === []) {
+            throw new \InvalidArgumentException(
+                'increment: $where не может быть пустым — UPDATE без WHERE задел бы каждую строку таблицы'
+            );
+        }
 
         $prefixed            = $this->db->prefixTable($table);
         [$whereSql, $params] = $this->buildWhere($where);

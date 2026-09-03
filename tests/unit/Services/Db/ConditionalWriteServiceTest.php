@@ -10,6 +10,8 @@ use App\Services\Db\ConditionalWriteService;
 use App\Services\Db\WriteOutcome;
 use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Database\Forge;
+use CodeIgniter\Database\Query;
+use CodeIgniter\Events\Events;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database;
@@ -56,6 +58,10 @@ final class ConditionalWriteServiceTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        // exploit-fix-33: страхует тесты с Events::on('DBQuery', …) ниже — слушатель не должен
+        // пережить свой тест и мешать соседним (образец — CargoDroneAutoSendChargeTest::tearDown()).
+        Events::removeAllListeners('DBQuery');
+
         $db = Database::connect('tests');
 
         if ($this->createdBaseStorage) {
@@ -275,49 +281,83 @@ final class ConditionalWriteServiceTest extends CIUnitTestCase
     }
 
     /**
-     * Acceptance 🔴: обратное чередование той же гарантии — очищает строку НЕ то
-     * соединение, чей `UPDATE` довёл колонку до нуля. Оба соединения выполняют
-     * только свою `UPDATE`-половину (B доводит остаток до нуля, A — нет), затем
-     * хвостовой `DELETE` A (родом от совсем не того вызова, что обнулил строку)
-     * срабатывает первым и убирает ноль, а собственный хвостовой `DELETE` B,
-     * выполненный следом, обязан остаться идемпотентным no-op. Самолечение не
-     * зависит от того, какое из двух соединений физически пишет `DELETE` первым.
+     * Acceptance 🔴 (exploit-fix-33, R3-major): два теста выше собирали чередование
+     * ВРУЧНУЮ — сырыми SQL-половинками через `dbA`/`dbB`, не вызывая
+     * `decrementIfAtLeast()` вовсе на стороне A и не различая текущую форму
+     * (UPDATE, затем хвостовой самолечащий DELETE) от старой (exploit-fix-24: точный
+     * `DELETE … WHERE column = $amount` ПЕРВЫМ, `UPDATE`-фолбэк без подчистки) —
+     * старый тест на этих числах (`amount` B точно равен остатку после A) давал
+     * `Applied` на ОБЕИХ формах одинаково.
+     *
+     * Этот тест перехватывает ПЕРВЫЙ SQL-оператор РЕАЛЬНОГО вызова
+     * `decrementIfAtLeast()` через `Events::on('DBQuery', …)` (образец —
+     * `CargoDroneAutoSendChargeTest::testConcurrentChargeDrainRefusesSecondLaunchAndRollsBackDelivery`,
+     * перехват WRITE-, а не READ-запроса — тот же приём) и вклинивает МЕЖДУ ним и
+     * вторым оператором ТОГО ЖЕ вызова чужое списание с отдельного, реально не
+     * разделяемого соединения (`Database::connect('tests', false)`, автокоммит, без
+     * транзакций). Фильтр ловит и `UPDATE`, и `DELETE` — какой из них форма шлёт
+     * первым, тесту знать не нужно; `$fired` гарантирует ровно одно срабатывание,
+     * чтобы запись конкурента (тоже `UPDATE … base_storage`) не вызвала
+     * перехватчик рекурсивно.
+     *
+     * Текущая форма (доказывается зелёным): `UPDATE` списывает 3 из 7 → 4,
+     * перехватчик срабатывает, конкурент списывает оставшиеся 4 → 0 своим
+     * отдельным условным `UPDATE`, затем безусловный хвостовой `DELETE` реального
+     * вызова находит `quantity <= 0` и убирает строку — `Applied`, строки больше
+     * нет.
+     *
+     * Старая форма (exploit-fix-24, доказывается красным — см. `## Implementation
+     * notes` story exploit-fix-33: временная ручная правка на месте, SHA256
+     * до/после, восстановлено вручную без `git checkout/stash`): точный `DELETE
+     * WHERE quantity = 3` не совпадает (остаток ещё 7) → 0 затронутых строк,
+     * перехватчик срабатывает ПОСЛЕ этого DELETE, конкурент списывает 4 из 7 → 3,
+     * и только ПОТОМ старая форма проваливается в `UPDATE SET quantity = quantity
+     * - 3 WHERE quantity >= 3` — на текущих 3 условие проходит, остаток становится
+     * 0, но хвостовой подчистки в старой форме нет вовсе: нулевая строка
+     * переживает вызов, и `assertNull()` ниже красит тест.
      */
-    public function testDecrementIfAtLeastDeleteWhenEmptySelfHealsWhenForeignDeleteWinsTheRace(): void
+    public function testDecrementIfAtLeastDeleteWhenEmptySelfHealsWhenForeignWriteInterleavesWithTheRealCallsOwnStatements(): void
     {
         $id = $this->insertStorageRow(47, 5, 7);
 
-        $dbA = Database::connect('tests', false);
-        $dbB = Database::connect('tests', false);
+        $concurrentDb = Database::connect('tests', false);
+        $fired        = false;
 
-        // A и B — обе только UPDATE-половины, хвостовые DELETE обоих придержаны.
-        $dbA->query(
-            'UPDATE base_storage SET quantity = quantity - ? WHERE id = ? AND quantity >= ?',
-            [3, $id, 3]
+        Events::on('DBQuery', function (Query $query) use ($id, $concurrentDb, &$fired): void {
+            if ($fired) {
+                return;
+            }
+
+            $sql                     = $query->getOriginalQuery();
+            $isFirstStatementOfCall = str_contains($sql, 'base_storage')
+                && (str_starts_with($sql, 'UPDATE') || str_starts_with($sql, 'DELETE'));
+            if (! $isFirstStatementOfCall) {
+                return;
+            }
+
+            $fired = true;
+
+            // Чужое списание вклинивается между первым и вторым оператором реального
+            // вызова — отдельное соединение, автокоммит, никаких транзакций.
+            $concurrentDb->query(
+                'UPDATE base_storage SET quantity = quantity - ? WHERE id = ? AND quantity >= ?',
+                [4, $id, 4]
+            );
+        });
+
+        try {
+            $outcome = (new ConditionalWriteService(Database::connect('tests')))
+                ->decrementIfAtLeast('base_storage', $id, 'quantity', 3, deleteWhenEmpty: true);
+        } finally {
+            Events::removeAllListeners('DBQuery');
+            $concurrentDb->close();
+        }
+
+        $this->assertSame(WriteOutcome::Applied, $outcome);
+        $this->assertNull(
+            $this->storageRow($id),
+            'чужое списание до нуля между двумя операторами реального вызова не должно оставить нулевую строку'
         );
-        $this->assertSame(1, $dbA->affectedRows());
-
-        $dbB->query(
-            'UPDATE base_storage SET quantity = quantity - ? WHERE id = ? AND quantity >= ?',
-            [4, $id, 4]
-        );
-        $this->assertSame(1, $dbB->affectedRows());
-        $this->assertSame(0, (int) $this->storageRow($id)['quantity'], 'B довёл остаток до нуля своим UPDATE');
-
-        // Хвостовой DELETE A отрабатывает первым и подчищает ноль, который создал B.
-        $dbA->query('DELETE FROM base_storage WHERE id = ? AND quantity <= 0', [$id]);
-        $this->assertSame(1, $dbA->affectedRows(), 'A подчистил ноль, который создал B');
-        $this->assertNull($this->storageRow($id));
-
-        // Собственный хвостовой DELETE B выполняется следом — строки уже нет.
-        $dbB->query('DELETE FROM base_storage WHERE id = ? AND quantity <= 0', [$id]);
-        $this->assertSame(
-            0,
-            $dbB->affectedRows(),
-            'хвостовой DELETE B обязан быть идемпотентным no-op — строку уже удалило A'
-        );
-
-        $this->assertNull($this->storageRow($id), 'обратное чередование тоже не оставляет строку с нулём');
     }
 
     // ── валидация имён таблиц/колонок ──
@@ -434,6 +474,51 @@ final class ConditionalWriteServiceTest extends CIUnitTestCase
             ->increment('base_storage', ['character_id' => 777, 'resource_id' => 888], 'quantity', 1);
 
         $this->assertSame(WriteOutcome::Missing, $outcome);
+    }
+
+    /**
+     * Acceptance 🔴 (exploit-fix-33, R3-major m2): граница `increment()`, тот же класс
+     * дефекта, что `amount=0` у `decrementIfAtLeast()` — `col = col + 0` неотличим по
+     * `affectedRows()` от настоящего отказа. Докблок метода выбирает
+     * `\InvalidArgumentException`.
+     */
+    public function testIncrementRejectsZeroAmount(): void
+    {
+        $id = $this->insertStorageRow(48, 5, 10);
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        (new ConditionalWriteService(Database::connect('tests')))
+            ->increment('base_storage', ['id' => $id], 'quantity', 0);
+    }
+
+    /**
+     * Acceptance 🔴 (exploit-fix-33, R3-major m2): отрицательный `amount` превращает
+     * инкремент в декремент без единой проверки достатка — `increment()` её
+     * сознательно не делает (для этого есть `decrementIfAtLeast()`). Отвергается тем
+     * же исключением, что и `amount=0`.
+     */
+    public function testIncrementRejectsNegativeAmount(): void
+    {
+        $id = $this->insertStorageRow(49, 5, 10);
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        (new ConditionalWriteService(Database::connect('tests')))
+            ->increment('base_storage', ['id' => $id], 'quantity', -2);
+    }
+
+    /**
+     * Acceptance 🔴 (exploit-fix-33, R3-major m2): пустой `$where` собрал бы `UPDATE`
+     * без единого условия (`buildWhere([])` даёт пустую строку) — задело бы КАЖДУЮ
+     * строку таблицы, а не одну.
+     */
+    public function testIncrementRejectsEmptyWhere(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        (new ConditionalWriteService(Database::connect('tests')))
+            ->increment('base_storage', [], 'quantity', 1);
     }
 
     // ── insertUnique внутри чужой транзакции (exploit-fix-18) ──
