@@ -8,6 +8,7 @@ use App\Database\Migrations\Adr176CreateCommunityMessagesTable;
 use App\Database\Migrations\W3aCreateBaseStorage;
 use App\Services\Db\ConditionalWriteService;
 use App\Services\Db\WriteOutcome;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Database\Forge;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -239,5 +240,119 @@ final class ConditionalWriteServiceTest extends CIUnitTestCase
             ->increment('base_storage', ['character_id' => 777, 'resource_id' => 888], 'quantity', 1);
 
         $this->assertSame(WriteOutcome::Missing, $outcome);
+    }
+
+    // ── insertUnique внутри чужой транзакции (exploit-fix-18) ──
+
+    /** @return array<string,mixed> */
+    private function communityMessageRow(int $messageId): array
+    {
+        return [
+            'chat_id'          => -1001,
+            'message_id'       => $messageId,
+            'telegram_user_id' => 555,
+            'sent_at'          => date('Y-m-d H:i:s'),
+            'status'           => 'new',
+        ];
+    }
+
+    /**
+     * Acceptance 🔴: раньше `insertUnique()` ловил дубль как MySQL 1062 через
+     * `DatabaseException`/`query() === false` — упавший на уровне драйвера
+     * запрос внутри `transStart()` вызывающего проводит через
+     * `handleTransStatus()` и делает `transStatus=false` НАВСЕГДА для этой
+     * транзакции, даже когда вызывающий получает штатный `Refused` и решает
+     * продолжать. Теперь дубль идёт формой `INSERT … ON DUPLICATE KEY UPDATE
+     * id = id` — запрос не падает вовсе, `transStatus` дубль не трогает.
+     */
+    public function testInsertUniqueDuplicateInsideForeignTransactionDoesNotPoisonTransStatusAndCommits(): void
+    {
+        $db = Database::connect('tests');
+        $db->resetTransStatus();
+        $service = new ConditionalWriteService($db);
+
+        $db->transStart();
+
+        $first  = $service->insertUnique('community_messages', $this->communityMessageRow(301));
+        $second = $service->insertUnique('community_messages', $this->communityMessageRow(301));
+
+        $this->assertSame(WriteOutcome::Applied, $first);
+        $this->assertSame(WriteOutcome::Refused, $second);
+        $this->assertTrue(
+            $db->transStatus(),
+            'дубль внутри чужой транзакции не должен переводить transStatus в false'
+        );
+
+        // соседняя запись той же транзакции — доказывает, что transComplete() не откатит её
+        $neighborId = $this->insertMessageRow(302, 'new');
+
+        $db->transComplete();
+
+        $this->assertTrue($db->transStatus(), 'transComplete() обязан закоммитить, а не откатить, транзакцию');
+        $this->assertSame(
+            1,
+            (int) $db->table('community_messages')->where(['chat_id' => -1001, 'message_id' => 301])->countAllResults(),
+            'дубль не должен был породить вторую строку'
+        );
+        $this->assertNotNull($this->messageRow($neighborId), 'соседняя запись той же транзакции обязана пережить commit');
+    }
+
+    /**
+     * Acceptance 🔴: `ON DUPLICATE KEY UPDATE id = id` не гасит другие ошибки
+     * записи — только дубль по УНИКАЛЬНОМУ ключу (`ON DUPLICATE KEY UPDATE`
+     * ловит и `PRIMARY`, и любой secondary `UNIQUE`, но не FK-нарушение — оно
+     * другой категории и InnoDB его проверяет независимо от `sql_mode`, в
+     * отличие от `NOT NULL`: на этом соединении `sql_mode` не несёт
+     * `STRICT_TRANS_TABLES`, и пропущенный `NOT NULL`-столбец без default тихо
+     * получает MySQL-дефолт вместо ошибки — FK честно доказывает «другая
+     * ошибка» независимо от режима строгости). Временная таблица со
+     * scratch-FK на `characters(id)`: вставка с несуществующим `character_id`
+     * обязана пробросить исключение, а не `Refused`.
+     */
+    public function testInsertUniqueThrowsOnForeignKeyViolationInsteadOfRefusing(): void
+    {
+        $db = Database::connect('tests');
+        $db->query(
+            'CREATE TABLE insert_unique_fk_scratch ('
+            . 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,'
+            . 'character_id INT UNSIGNED NOT NULL,'
+            . 'slot VARCHAR(32) NOT NULL,'
+            . 'UNIQUE KEY uq_character_slot (character_id, slot),'
+            . 'CONSTRAINT fk_insert_unique_fk_scratch_character FOREIGN KEY (character_id) '
+            . 'REFERENCES ' . $db->prefixTable('characters') . ' (id)'
+            . ') ENGINE=InnoDB'
+        );
+
+        try {
+            $this->expectException(DatabaseException::class);
+
+            (new ConditionalWriteService($db))->insertUnique('insert_unique_fk_scratch', [
+                'character_id' => 999999999,
+                'slot'         => 'head',
+            ]);
+        } finally {
+            $db->query('DROP TABLE IF EXISTS insert_unique_fk_scratch');
+        }
+    }
+
+    /**
+     * Acceptance 🔴: `affectedRows()` на дубле — `0`, а не `1` (был бы `1`, если
+     * бы соединение несло `MYSQLI_CLIENT_FOUND_ROWS`; `Config\Database::$foundRows`
+     * нигде в проекте не включён — доказано напрямую на соединении `tests`).
+     */
+    public function testInsertUniqueDuplicateLeavesZeroAffectedRowsOnConnection(): void
+    {
+        $db      = Database::connect('tests');
+        $service = new ConditionalWriteService($db);
+
+        $service->insertUnique('community_messages', $this->communityMessageRow(303));
+        $outcome = $service->insertUnique('community_messages', $this->communityMessageRow(303));
+
+        $this->assertSame(WriteOutcome::Refused, $outcome);
+        $this->assertSame(
+            0,
+            $db->affectedRows(),
+            'дубль обязан оставлять 0 affectedRows на этом соединении — иначе foundRows включён и метод сломан'
+        );
     }
 }

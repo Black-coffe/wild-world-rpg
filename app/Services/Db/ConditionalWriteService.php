@@ -25,6 +25,16 @@ use Config\Database;
  * (образец — `ResourcePoolService::consume()`, который намеренно полагается на
  * транзакцию вызывающего). Внутри общее соединение CI4, поэтому сервис
  * автоматически оказывается внутри транзакции вызывающего, если она открыта.
+ *
+ * exploit-fix-18 — контракт внутри чужой транзакции: дубль в `insertUnique()`
+ * НЕ меняет `transStatus` вызывающего (нет упавшего запроса на уровне
+ * драйвера — см. докблок метода) и `Refused` не обрекает транзакцию на откат
+ * в `transComplete()`. Любая другая ошибка записи (NOT NULL, FK) по-прежнему
+ * пробрасывается исключением и ведёт себя как обычный упавший запрос внутри
+ * транзакции. Условного `DELETE` и CAS (compare-and-swap на произвольном
+ * условии) в примитиве нет — здесь только формы условного `UPDATE`
+ * (`decrementIfAtLeast`, `transitionIfCurrent`), относительный `increment` и
+ * условная вставка `insertUnique`; всё остальное — инлайн у вызывающих.
  */
 final class ConditionalWriteService
 {
@@ -130,20 +140,40 @@ final class ConditionalWriteService
     }
 
     /**
-     * exploit-fix-09 (ADR-181 §5) — вставка под уникальностью, дубль ловится
-     * централизованно здесь, а не в каждом вызывающем: при `DBDebug=true` он
-     * прилетает `DatabaseException` (код ошибки MySQL в `getCode()`), при
-     * `DBDebug=false` — `query()` возвращает `false`, а код лежит в
-     * `$db->error()`. Обе формы приводятся к одному `WriteOutcome::Refused`.
+     * exploit-fix-09 (ADR-181 §5), контракт внутри чужой транзакции переписан
+     * в exploit-fix-18: раньше дубль ловился как MySQL 1062 (`DatabaseException`
+     * при `DBDebug=true`, `query() === false` при `DBDebug=false`) — но упавший
+     * запрос внутри `transStart()` вызывающего проводит через
+     * `handleTransStatus()` и делает `transStatus=false` НАВСЕГДА для этой
+     * транзакции: штатный `Refused`, возвращённый вызывающему, на деле
+     * незаметно обрекал всю транзакцию на откат в `transComplete()`.
+     *
+     * Теперь дубль не порождает ошибки на уровне драйвера вовсе: вставка идёт
+     * формой `INSERT … ON DUPLICATE KEY UPDATE id = id` — self-reference на
+     * первичный ключ, который у дубля не меняется. `$db->foundRows` (см.
+     * `app/Config/Database.php`) нигде в проекте не включён, поэтому
+     * `MYSQLI_CLIENT_FOUND_ROWS` не выставляется на соединении, и MySQL
+     * возвращает `affectedRows() === 0` для дубля, у которого `UPDATE` не
+     * изменил ни одного значения (доказано `ConditionalWriteServiceTest`). Если
+     * бы `foundRows` включили — `affectedRows()` стал бы `1` и на дубле, метод
+     * сломался бы молча; тест это тоже фиксирует явно в докстроке своего кейса.
+     *
+     * Прочие ошибки (NOT NULL, FK и любая другая поломка записи) `ON DUPLICATE
+     * KEY UPDATE` не гасит — `query()` по-прежнему упадёт исключением или
+     * вернёт `false`, и метод пробрасывает это наружу как есть: глотать можно
+     * только дубль, не любую поломку записи.
      *
      * До появления самого `UNIQUE`-индекса (story 10, `character_tasks` /
      * `quest_steps`) дублей физически не бывает — метод просто вставляет и
-     * отдаёт `Applied`: контракт вызывающих обязан пережить появление индекса,
-     * а не наоборот.
+     * отдаёт `Applied`.
      *
      * `Missing` этот метод не возвращает — у вставки нет «строки нет».
-     * Любая другая ошибка (не 1062) пробрасывается наружу как есть — глотать
-     * можно только дубль, не любую поломку записи.
+     *
+     * Условного `DELETE`/CAS в примитиве нет и не появится здесь — они
+     * остаются инлайн у вызывающих (Non-goals story 18); это ровно две формы
+     * условного `UPDATE`, разобранные выше (`decrementIfAtLeast`,
+     * `transitionIfCurrent`), плюс относительный `increment` и эта условная
+     * вставка.
      *
      * @param array<string,mixed> $row
      */
@@ -152,40 +182,20 @@ final class ConditionalWriteService
         $prefixed = $this->db->prefixTable($table);
         $columns  = array_keys($row);
         $sql      = "INSERT INTO {$prefixed} (" . implode(', ', $columns) . ') VALUES ('
-            . implode(', ', array_fill(0, count($columns), '?')) . ')';
+            . implode(', ', array_fill(0, count($columns), '?')) . ')'
+            . ' ON DUPLICATE KEY UPDATE id = id';
 
-        try {
-            $result = $this->db->query($sql, array_values($row));
-        } catch (DatabaseException $e) {
-            if ($this->isDuplicateKeyError((int) $e->getCode())) {
-                return WriteOutcome::Refused;
-            }
-
-            throw $e;
-        }
+        $result = $this->db->query($sql, array_values($row));
 
         if ($result === false) {
-            $error = $this->db->error();
-            $code  = isset($error['code']) && is_numeric($error['code']) ? (int) $error['code'] : 0;
-
-            if ($this->isDuplicateKeyError($code)) {
-                return WriteOutcome::Refused;
-            }
-
+            $error   = $this->db->error();
+            $code    = isset($error['code']) && is_numeric($error['code']) ? (int) $error['code'] : 0;
             $message = isset($error['message']) ? $error['message'] : 'insertUnique: insert failed';
+
             throw new DatabaseException($message, $code);
         }
 
-        return WriteOutcome::Applied;
-    }
-
-    /**
-     * MySQL 1062 (`ER_DUP_ENTRY`) — единственный код, который означает «дубль
-     * по уникальному ключу», а не какую-то другую поломку записи.
-     */
-    private function isDuplicateKeyError(int $code): bool
-    {
-        return $code === 1062;
+        return $this->db->affectedRows() < 1 ? WriteOutcome::Refused : WriteOutcome::Applied;
     }
 
     /**
