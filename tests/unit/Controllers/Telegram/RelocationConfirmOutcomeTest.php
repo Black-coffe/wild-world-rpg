@@ -210,9 +210,29 @@ final class RelocationConfirmOutcomeTest extends CIUnitTestCase
                 }
             }
         } finally {
+            // exploit-fix-14 (CI red, team-lead 03.09.2026, run 33789728615) — `tasks`/
+            // `character_tasks` НЕ дропаются здесь, даже если этот тест их создал: обе
+            // персистентны и общие с другими наборами (Campfire, ExclusiveTaskLockTest,
+            // DuplicationTest и другие), которые проверяют `tableExists()` на РАЗДЕЛЯЕМОМ
+            // соединении и полагаются, что таблица останется. Канонически поднятая
+            // `healCharacterTasksSchemaIfDrifted()`/реальной миграцией таблица, оставленная
+            // висеть, безвредна — а дропнутая без восстановления ломает соседа, который её не
+            // создавал и не ждёт её исчезновения.
+            $keepAlive = ['tasks', 'character_tasks'];
             foreach (array_reverse($this->createdTables) as $t) {
+                if (in_array($t, $keepAlive, true)) {
+                    continue;
+                }
                 $this->db()->query("DROP TABLE IF EXISTS {$t}");
             }
+
+            // Находка CI: DROP выше не инвалидирует кэш `tableExists()` соединения — без сброса
+            // следующий тест того же процесса (тот же PHP, то же соединение) видит устаревшее
+            // «есть» для только что снесённой таблицы, пропускает своё создание, и падает на
+            // «Table doesn't exist» при первом же обращении. `resetDataCache()` — обязателен
+            // после ЛЮБОГО DROP/CREATE этого tearDown, не только для собственного следующего
+            // прогона этого же класса.
+            $this->db()->resetDataCache();
         }
 
         $this->cleanCache();
