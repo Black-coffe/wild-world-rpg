@@ -17167,6 +17167,18 @@ parameters:
 			path: app/Views/templates/front.php
 
 		-
+			message: '#^Method App\Models\ResourcesBankModel\:\:updatePurchasedQuantity\(\) has parameter \$quantity with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: app/Models/ResourcesBankModel.php
+
+		-
+			message: '#^Method App\Models\ResourcesBankModel\:\:updatePurchasedQuantity\(\) has parameter \$resourceId with no type specified\.$#'
+			identifier: missingType.parameter
+			count: 1
+			path: app/Models/ResourcesBankModel.php
+
+		-
 			message: '#^Cannot call method getCurrentUser\(\) on object\|null\.$#'
 			identifier: method.nonObject
 			count: 1
