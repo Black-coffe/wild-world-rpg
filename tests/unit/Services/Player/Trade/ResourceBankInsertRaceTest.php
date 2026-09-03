@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Services\Player\Trade;
 
+use App\Models\ResourcesBankModel;
+use App\Services\Db\WriteOutcome;
 use App\Services\Player\Trade\ResourceTradeService;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -319,5 +321,62 @@ final class ResourceBankInsertRaceTest extends CIUnitTestCase
         $this->assertSame(7, (int) $bank['resources_purchased'], 'покупка учтена один раз (4 существующих + 3 новых)');
         $this->assertSame(6, (int) $bank['resources_sold'], 'обновление счётчика покупок не должно трогать чужой resources_sold');
         $this->assertSame(9, (int) $bank['current_quantity'], 'перечитывание строки на Refused не должно затирать чужой current_quantity');
+    }
+
+    /**
+     * exploit-fix-25 (R2-major reviewer 1) — ЯДРО ЭТОЙ STORY: двумя РЕАЛЬНЫМИ соединениями,
+     * не reflection-подстановкой готового состояния, как выше. Первое соединение открывает
+     * транзакцию (как `bulkSellResources()`) и снимает снимок REPEATABLE READ ПУСТОЙ
+     * таблицы `SELECT`-ом до того, как второе соединение вставляет и коммитит строку банка.
+     * Старый код (`where()->first()` на `Refused`) в этот момент читал бы по снимку и не
+     * увидел бы строку конкурента вовсе — бамп терялся молча. `increment()` — `UPDATE`,
+     * который в InnoDB читает последнюю зафиксированную версию (locking read), а не снимок
+     * транзакции, поэтому видит строку конкурента независимо от снимка. Проверка исхода —
+     * после `transCommit()` первого соединения, как требует acceptance criteria story.
+     */
+    public function testCreateOrBumpCounterSurvivesRealTwoConnectionRepeatableReadRace(): void
+    {
+        $db1 = Database::connect('tests');        // соединение, которым пользуется модель ниже (defaultGroup='tests' в testing)
+        $db2 = Database::connect('tests', false);  // независимое второе соединение — отдельный mysqli-линк
+
+        $db1->transBegin();
+
+        // Снимаем снимок REPEATABLE READ на db1: таблица сейчас пуста для этого ресурса.
+        $seenBeforeRace = $db1->table('resources_bank')->where('resource_id', self::RESOURCE_ID)->countAllResults();
+        $this->assertSame(0, $seenBeforeRace, 'предусловие: до гонки строки банка ещё нет');
+
+        // "Второе соединение" создаёт строку банка и коммитит вне снимка db1.
+        $db2->table('resources_bank')->insert([
+            'resource_id'         => self::RESOURCE_ID,
+            'current_quantity'    => 3,
+            'resources_purchased' => 0,
+            'resources_sold'      => 10,
+            'last_update'         => date('Y-m-d H:i:s'),
+        ]);
+
+        // Внутри транзакции db1 (снимок не видит строку конкурента) — insertUnique() ловит
+        // Refused через реальную коллизию UNIQUE(resource_id), не через снимок.
+        $outcome = (new ResourcesBankModel())->createOrBumpCounter(self::RESOURCE_ID, 5, 'resources_sold');
+
+        $db1->transCommit();
+
+        $this->assertSame(WriteOutcome::Applied, $outcome, 'increment() обязан применить бамп, а не потеряться на снимке');
+        $this->assertSame(
+            1,
+            $this->bankRowsForResource(self::RESOURCE_ID),
+            'Refused не должен был создать вторую строку'
+        );
+        $bank = $this->bankRow(self::RESOURCE_ID);
+        $this->assertNotNull($bank);
+        $this->assertSame(
+            15,
+            (int) $bank['resources_sold'],
+            'бамп конкурента (10) + новый (5) виден после transComplete() — не потерян снимком db1'
+        );
+        $this->assertSame(
+            3,
+            (int) $bank['current_quantity'],
+            'increment() не трогает чужие поля строки'
+        );
     }
 }

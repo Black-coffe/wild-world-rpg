@@ -44,62 +44,9 @@ class ResourcesBankModel extends Model
         return $this->conditionalWrite ??= new ConditionalWriteService();
     }
 
-    /**
-     * Обновляет или добавляет данные ресурса в банке ресурсов.
-     *
-     * @param int $resourceId ID ресурса
-     * @param int $quantity Количество ресурса
-     * @param int $purchased Количество приобретенных ресурсов
-     * @param int $sold Количество проданных ресурсов
-     * @return bool Результат выполнения операции
-     */
-    public function updateOrInsertResource(int $resourceId, int $quantity, int $purchased, int $sold): bool
+    public function updatePurchasedQuantity($resourceId, $quantity): WriteOutcome
     {
-        $existing = $this->where('resource_id', $resourceId)->first();
-
-        if ($existing) {
-            return $this->update($existing['id'], [
-                'current_quantity' => $quantity,
-                'resources_purchased' => $purchased,
-                'resources_sold' => $sold,
-                'last_update' => date('Y-m-d H:i:s'),
-            ]);
-        }
-
-        // exploit-fix-16: этот метод пишет абсолютные значения всех трёх счётчиков разом
-        // (не относительный bump одной колонки, как createOrBumpCounter ниже) — не подходит
-        // под общий примитив по форме, поэтому вставка через insertUnique() инлайн, с тем же
-        // Refused → перечитать → обновить, что и у остальных вызывающих.
-        $now      = date('Y-m-d H:i:s');
-        $outcome  = $this->conditionalWrite()->insertUnique('resources_bank', [
-            'resource_id'         => $resourceId,
-            'current_quantity'    => $quantity,
-            'resources_purchased' => $purchased,
-            'resources_sold'      => $sold,
-            'last_update'         => $now,
-        ]);
-        if ($outcome !== WriteOutcome::Refused) {
-            return $outcome === WriteOutcome::Applied;
-        }
-
-        $row = $this->where('resource_id', $resourceId)->first();
-        if (! is_array($row) || ! is_numeric($row['id'] ?? null)) {
-            return false;
-        }
-
-        return (bool) $this->update((int) $row['id'], [
-            'current_quantity'    => $quantity,
-            'resources_purchased' => $purchased,
-            'resources_sold'      => $sold,
-            'last_update'         => $now,
-        ]);
-    }
-
-    public function updatePurchasedQuantity($resourceId, $quantity)
-    {
-        $this->createOrBumpCounter((int) $resourceId, (int) $quantity, 'resources_purchased', (int) $quantity);
-
-        return true;
+        return $this->createOrBumpCounter((int) $resourceId, (int) $quantity, 'resources_purchased', (int) $quantity);
     }
 
     /**
@@ -113,8 +60,21 @@ class ResourcesBankModel extends Model
      * `$initialCurrentQuantity` — покупка исторически заводит новую строку с
      * `current_quantity = $quantity` (а не 0, как продажа) — сохраняем эту семантику как
      * есть (Non-goals story 16: не менять формулы), только способ вставки меняется.
+     *
+     * exploit-fix-25 (R2-major reviewer 1) — ветка `Refused` раньше перечитывала строку
+     * (`where()->first()`) и писала абсолютное значение прочитанного счётчика + `$qty`:
+     * внутри чужой транзакции (оптовая продажа, `bulkSellResources()` держит
+     * `transStart()`/`transComplete()` вокруг цикла) этот `SELECT` идёт по снимку
+     * REPEATABLE READ вызывающего, снятому ДО того, как конкурент вставил строку между
+     * `Refused`-коллизией и этим перечитыванием — строку не видно, `$existingId <= 0`,
+     * бамп терялся молча (ревьюер 1 воспроизвёл двумя реальными соединениями). `UPDATE`,
+     * в отличие от обычного `SELECT`, в InnoDB — read ПОСЛЕДНЕЙ зафиксированной версии
+     * (locking read), а не снимка транзакции, поэтому `increment()` видит строку
+     * конкурента независимо от момента её коммита. `last_update` на этой ветке больше не
+     * обновляется — `increment()` (контракт story 27, не меняется здесь) бампает только
+     * одну колонку; это принятый компромисс, не задача этой story.
      */
-    public function createOrBumpCounter(int $resourceId, int $qty, string $counterColumn, int $initialCurrentQuantity = 0): void
+    public function createOrBumpCounter(int $resourceId, int $qty, string $counterColumn, int $initialCurrentQuantity = 0): WriteOutcome
     {
         if (! in_array($counterColumn, ['resources_sold', 'resources_purchased'], true)) {
             throw new \InvalidArgumentException("createOrBumpCounter: недопустимая колонка {$counterColumn}");
@@ -132,20 +92,9 @@ class ResourcesBankModel extends Model
 
         $outcome = $this->conditionalWrite()->insertUnique('resources_bank', $row);
         if ($outcome !== WriteOutcome::Refused) {
-            return;
+            return $outcome;
         }
 
-        $existing   = $this->where('resource_id', $resourceId)->first();
-        $existingId = is_array($existing) && is_numeric($existing['id'] ?? null) ? (int) $existing['id'] : 0;
-        if ($existingId <= 0) {
-            return;
-        }
-
-        $currentRaw = $existing[$counterColumn] ?? 0;
-        $current    = is_numeric($currentRaw) ? (int) $currentRaw : 0;
-        $this->update($existingId, [
-            $counterColumn => $current + $qty,
-            'last_update'  => $now,
-        ]);
+        return $this->conditionalWrite()->increment('resources_bank', ['resource_id' => $resourceId], $counterColumn, $qty);
     }
 }
