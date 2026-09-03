@@ -54,6 +54,15 @@ outbound: MySQL / MariaDB.
   общей `wildworld_tests`; никогда не `DROP` таблицу, которую не создавал сам файл; гонять
   по одному файлу (`--testsuite App` её исключает); схема — из миграций, не вручную (реальные
   `characters` не несут `armor`/`max_health`).
+- Упавший запрос ВНУТРИ уже открытой транзакции (`transDepth>0`) CI4 не бросает исключением —
+  глотает молча и выставляет `transStatus=false` на ОБЩЕМ дефолтном соединении теста (кэшируется
+  по группе). `transBegin()` не сбрасывает `transStatus` при старте нового блока — флаг держится
+  `false` до конца процесса PHPUnit, и любой следующий тест того же файла/процесса, идущий через
+  `transStart()/transComplete()`, тихо уходит в rollback-ветку. Фикстуры обязаны строить каждую
+  таблицу, которую трогают (включая ту, что кажется «наверняка уже есть» на CI-базе).
+- Миграция `2024-03-21-224528_CreateResourcesTable.php` не проходит на пустой БД: `biome_id`
+  объявлен `TEXT` + `unsigned=>true`, CI4 `Forge` безусловно приписывает `UNSIGNED` любому типу —
+  `TEXT UNSIGNED` MySQL 8 отклоняет. Падает и на голом `php spark migrate`, не только в тестах.
 
 ## Vault
 `mmorpg-vault/tech-writing/models/` · `mmorpg-vault/tech-writing/db/` · ADR-087 · ADR-181
