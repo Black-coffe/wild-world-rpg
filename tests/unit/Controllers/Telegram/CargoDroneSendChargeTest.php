@@ -176,7 +176,15 @@ final class CargoDroneSendChargeTest extends CIUnitTestCase
 
     private function createTableIfMissing(string $table, string $ddl): void
     {
-        if (! $this->db()->tableExists($table)) {
+        // exploit-fix-31 follow-up — `tableExists()` c дефолтным `$cached=true` держит список
+        // имён таблиц в `BaseConnection::$dataCache` на весь процесс: на пустой CI-базе этот
+        // же тест сам создаёт и дропает `telegram_users` в каждом `tearDown()`, но кеш об этом
+        // не узнаёт — второй тестовый метод в том же файле видит «уже есть» по стухшему кешу,
+        // ничего не создаёт, и первый же INSERT/SELECT падает на «таблица не существует». На
+        // персистентной `wildworld_tests` баг незаметен: таблица там мигрирована один раз и
+        // никогда не дропается этим тестом. `$cached=false` бьёт по БД каждый раз, но таблиц
+        // в списке немного и это только тестовый фикстур-путь.
+        if (! $this->db()->tableExists($table, false)) {
             $this->db()->query($ddl);
             $this->createdTables[] = $table;
         }

@@ -189,7 +189,12 @@ final class CargoDroneAutoSendChargeTest extends CIUnitTestCase
 
     private function createTableIfMissing(string $table, string $ddl): void
     {
-        if (! $this->db()->tableExists($table)) {
+        // exploit-fix-31 follow-up — тот же кеш-баг, что и в CargoDroneSendChargeTest (общий
+        // фикстур-паттерн): `tableExists()` с `$cached=true` держит список имён на весь
+        // процесс, и на пустой CI-базе второй тестовый метод в этом файле видит стухшее «уже
+        // есть» после того, как первый метод сам дропнул им же созданную таблицу в
+        // `tearDown()`. `$cached=false` бьёт по БД каждый раз вместо кеша.
+        if (! $this->db()->tableExists($table, false)) {
             $this->db()->query($ddl);
             $this->createdTables[] = $table;
         }
