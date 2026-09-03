@@ -134,9 +134,14 @@ class BeaconInstaller
             ->countAllResults();
 
         // 4) Read remaining beacon items для display
+        // exploit-fix-26 (R2-major, m2) — `(character_id, crafted_item_id)` не несёт UNIQUE:
+        // без orderBy() first() возвращает произвольную строку при дубле пары, и остаток на
+        // экране мог не совпасть со строкой, которую только что списал шаг 1. orderBy('id')
+        // делает выбор детерминированным — та же строка, что читал шаг 1.
         $beaconLogUpdated = $this->craftedItemsLogModel
             ->where('character_id', $charId)
             ->where('crafted_item_id', $beaconItem['id'])
+            ->orderBy('id', 'ASC')
             ->first();
         $beaconLeft = $beaconLogUpdated ? (int) $beaconLogUpdated['quantity'] : 0;
 

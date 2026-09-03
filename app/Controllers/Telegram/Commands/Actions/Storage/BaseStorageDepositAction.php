@@ -263,7 +263,9 @@ final class BaseStorageDepositAction extends BaseAction
         $text  = "📥 *Убрано на склад: " . number_format($totalUnits, 0, '.', ' ') . " шт.*\n\n";
         $text .= "Видов ресурсов: *{$kinds}*. Рюкзак пуст, всё лежит на складе базы — забрать можно там же.";
         if ($skipped > 0) {
-            $text .= "\n\n_Часть ({$skipped} " . ($skipped === 1 ? 'вид' : 'видов') . ") уже утекла из рюкзака до сдачи — пропущено без потерь._";
+            // exploit-fix-26 (R2-minor, reviewer-2) — «2 видов» вместо «2 вида»: было бинарное
+            // 1/не-1, без склонения по числу (1 вид, 2–4 вида, 5+ видов, с исключением 11–14).
+            $text .= "\n\n_Часть ({$skipped} " . $this->pluralizeKinds($skipped) . ") уже утекла из рюкзака до сдачи — пропущено без потерь._";
         }
 
         return Request::sendMessage([
@@ -370,5 +372,25 @@ final class BaseStorageDepositAction extends BaseAction
             'text'              => $msg,
         ]);
         return Request::sendMessage(['chat_id' => $chatId, 'text' => $msg]);
+    }
+
+    /**
+     * exploit-fix-26 (R2-minor) — русское склонение «вид/вида/видов» по числу: 1 вид,
+     * 2–4 вида, 5+ видов, с исключением 11–14 (11 видов, не 11 вид).
+     */
+    private function pluralizeKinds(int $n): string
+    {
+        $mod100 = $n % 100;
+        $mod10  = $n % 10;
+
+        if ($mod100 >= 11 && $mod100 <= 14) {
+            return 'видов';
+        }
+
+        return match ($mod10) {
+            1       => 'вид',
+            2, 3, 4 => 'вида',
+            default => 'видов',
+        };
     }
 }

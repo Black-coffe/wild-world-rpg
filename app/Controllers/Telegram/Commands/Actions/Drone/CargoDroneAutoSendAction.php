@@ -9,6 +9,7 @@ use App\Helpers\ResourceIconHelper;
 use App\Models\BaseStorageModel;
 use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
+use App\Services\Db\ConditionalWriteService;
 use App\Services\Db\WriteOutcome;
 use App\Services\Player\CargoAutoLoadService;
 use App\Services\Player\DroneService;
@@ -137,20 +138,41 @@ final class CargoDroneAutoSendAction extends BaseAction
         }
 
         // exploit-fix-15 (M1) — заряд списывается только при увезённом грузе: раньше
-        // durability_count уменьшался безусловно, вне ветки успеха и до проверки
-        // $delivered, — при полностью провалившемся автовывозе (близнец CargoDroneSendAction
-        // списывает только внутри WriteOutcome::Applied) заряд уходил впустую.
-        $newCharge = $charge;
+        // durability_count уменьшался безусловно, вне ветки успеха и до проверки $delivered.
+        // exploit-fix-26 (R2-major) — и это по-прежнему был безусловный UPDATE абсолютным
+        // значением, посчитанным из $charge, прочитанного до транзакции: два параллельных
+        // вылета читают один заряд и пишут одно и то же уменьшенное — второй вылет
+        // оказывается бесплатным. Теперь списание — decrementIfAtLeast() на
+        // crafted_items_log.durability_count: исход решает WHERE durability_count >= $drain
+        // и affectedRows(), а не прочитанное ранее число.
+        $newCharge     = $charge;
+        $chargeOutcome = WriteOutcome::Applied;
         if ($delivered !== []) {
+            $chargeOutcome = (new ConditionalWriteService($db))->decrementIfAtLeast(
+                'crafted_items_log',
+                $logId,
+                'durability_count',
+                $drain
+            );
             $newCharge = max(0, $charge - $drain);
-            $this->logModel->update($logId, ['durability_count' => $newCharge]);
+        }
+
+        $chargeRefused = $chargeOutcome !== WriteOutcome::Applied;
+        if ($chargeRefused) {
+            // Груз уже списан с рюкзака и доставлен на склад выше в этой же транзакции — оба
+            // writes реально применились (affectedRows > 0) и сами по себе не откатят
+            // transStatus. Явный rollback нужен, иначе транзакция «успешно» закоммитит доставку
+            // без списания заряда — тот самый бесплатный вылет.
+            $db->transRollback();
         }
 
         // exploit-fix-23 — исход читаем по возврату transComplete(): откат по любой
-        // причине не должен вести в ветку «взлетел».
-        $committed = $db->transComplete();
+        // причине не должен вести в ветку «взлетел». Не зовём transComplete() после уже
+        // сделанного вручную transRollback() — иначе CI4 пытается завершить транзакцию
+        // с нулевой глубиной.
+        $committed = !$chargeRefused && $db->transComplete();
 
-        if ($delivered === [] || !$committed) {
+        if ($delivered === [] || $chargeRefused || !$committed) {
             return $this->errReply($chatId, 'Рюкзак опустел раньше, чем дрон успел взлететь, — кто-то успел потратиться. Попробуй ещё раз.');
         }
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Controllers\Telegram;
 
-use App\Controllers\Telegram\Commands\Actions\Drone\CargoDroneAutoSendAction;
+use App\Controllers\Telegram\Commands\Actions\Drone\CargoDroneSendAction;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\Database\Query;
 use CodeIgniter\Events\Events;
@@ -16,34 +16,21 @@ use Longman\TelegramBot\Entities\ServerResponse;
 use Longman\TelegramBot\Telegram;
 
 /**
- * exploit-fix-15 (M1) — заряд карго-дрона в автовывозе (`CargoDroneAutoSendAction`)
- * списывался безусловно и до проверки `$delivered`, вне ветки успеха — в отличие от
- * образца `CargoDroneSendAction`, который списывает заряд только внутри
- * `WriteOutcome::Applied`. После правки `durability_count` и `crafted_items_log`
- * трогаются только если хотя бы один предмет реально уехал.
+ * exploit-fix-26 (R2-major) — заряд карго-дрона в ручной отправке (`CargoDroneSendAction`)
+ * списывался безусловным `UPDATE` абсолютным значением, посчитанным из `$charge`,
+ * прочитанного до транзакции (`find($logId)` в начале `handle()`): два параллельных вылета
+ * по одному прочитанному заряду писали одно и то же уменьшенное число — второй вылет
+ * оказывался бесплатным. Близнец {@see CargoDroneAutoSendChargeTest} для ручной отправки.
  *
- * `CargoAutoLoadService::plan()` читает `character_resources` ДО открытия транзакции
- * (`:100` в actione), а сам `decrementIfAtLeast()` — уже ВНУТРИ неё, отдельным SELECT+UPDATE
- * (`CharacterResourceModel::decrementIfAtLeast()`). Между этими двумя чтениями честная гонка
- * возможна только при параллельном писателе — не симулируема тайминг-ожиданием в
- * последовательном PHPUnit (тот же вывод, что и `CancelQueuedCraftConditionalDeleteTest`).
- * Здесь она воспроизведена детерминированно через `Events::on('DBQuery', …)`: колбэк
- * перехватывает ИМЕННО SQL-запрос `CargoAutoLoadService::plan()` (сигнатура JOIN +
- * ORDER BY) и сразу после него, но ДО вызова `decrementIfAtLeast()`, обнуляет остаток в
- * `character_resources` — ровно то состояние, которое оставил бы конкурентный писатель,
- * успевший потратить ресурс в промежутке между чтением плана и условным списанием.
- *
- * Схема таблиц — минимальный набор колонок, которые реально трогают
- * `CargoDroneAutoSendAction`, `CargoAutoLoadService`, `BaseStorageModel::deliver()` и
- * `BaseAction::getUserAndCharacter()` (тот же паттерн DDL, что и
- * `CancelQueuedCraftConditionalDeleteTest`; миграции этих таблиц локально с нуля не идут —
- * `feedback_test_schema_must_come_from_migration`). Таблицы общего стенда `wildworld_tests`,
- * которые существовали ДО этого теста (параллельные воркеры), не дропаются — чистятся
- * только собственные строки этого теста.
+ * Схема таблиц и приём воспроизведения гонки — тот же паттерн, что и в
+ * `CargoDroneAutoSendChargeTest` (`Events::on('DBQuery', …)` перехватывает SELECT внутри
+ * `CharacterResourceModel::decrementIfAtLeast()` и сразу после него симулирует уже
+ * завершившийся конкурентный вылет, обнулив запас заряда ниже `drain`). Таблицы общего
+ * стенда `wildworld_tests` не дропаются — чистятся только собственные строки этого теста.
  *
  * @internal
  */
-final class CargoDroneAutoSendChargeTest extends CIUnitTestCase
+final class CargoDroneSendChargeTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
 
@@ -248,7 +235,7 @@ final class CargoDroneAutoSendChargeTest extends CIUnitTestCase
         return (int) $this->db()->insertID();
     }
 
-    /** Новая CallbackQuery на каждый вызов handle() — как в CancelQueuedCraftConditionalDeleteTest. */
+    /** Новая CallbackQuery на каждый вызов handle() — как в CargoDroneAutoSendChargeTest. */
     private function cbq(int $tgId, string $data): CallbackQuery
     {
         return new CallbackQuery([
@@ -264,49 +251,7 @@ final class CargoDroneAutoSendChargeTest extends CIUnitTestCase
         ]);
     }
 
-    public function testAllDecrementsRefusedAfterPlanLeavesChargeAndLogUntouched(): void
-    {
-        [$tgId, $charId] = $this->seedCharacter();
-        $woodId = $this->ensureResource('Древесина', 'Wood');
-
-        $this->db()->table('character_resources')->insert([
-            'id_characters' => $charId, 'id_resources' => $woodId, 'quantity' => 5,
-        ]);
-        $logId = $this->seedCargoDrone($charId, 100);
-
-        // Честная гонка: между тем, как `CargoAutoLoadService::plan()` прочитал остаток Wood
-        // (5, «есть что взять») СВОИМ сырым SQL (raw `cr`/`r`-алиасы, без билдера), и тем, как
-        // `CharacterResourceModel::decrementIfAtLeast()` внутри транзакции спишет его ЗАНОВО
-        // отдельным условным `UPDATE`, кто-то успел потратить Wood до 0. `plan()` использует
-        // сырой `Database::connect()->query()` — его SQL не содержит бэктиков построителя и
-        // потому НЕ совпадает с сигнатурой ниже; перехватываем именно builder-чтение внутри
-        // `decrementIfAtLeast()` (`where(...)->first()` — те же бэктики, что и в
-        // `RepairBuildingShortageRollbackTest`) и режем остаток сразу после того, как он нашёл
-        // строку, но ДО условного `UPDATE ... WHERE quantity >= ?`.
-        $charIdForHook = $charId;
-        $woodIdForHook = $woodId;
-        Events::on('DBQuery', function (Query $query) use ($charIdForHook, $woodIdForHook): void {
-            $sql = $query->getOriginalQuery();
-            if (! str_contains($sql, 'FROM `character_resources`') || ! str_contains($sql, '`id_characters`')) {
-                return;
-            }
-            $this->db()->table('character_resources')
-                ->where('id_characters', $charIdForHook)
-                ->where('id_resources', $woodIdForHook)
-                ->update(['quantity' => 0]);
-        });
-
-        $response = (new CargoDroneAutoSendAction($this->cbq($tgId, 'cargoDroneAuto_' . $logId)))->handle();
-
-        $this->assertInstanceOf(ServerResponse::class, $response);
-
-        $log = $this->db()->table('crafted_items_log')->where('id', $logId)->get()->getRowArray();
-        $this->assertIsArray($log);
-        $this->assertSame(100, (int) $log['durability_count'], 'заряд не списан — ни один предмет не уехал');
-        $this->assertSame(0, $this->backpackQty($charId, $woodId), 'остаток так и остался обнулённым гонкой — decrementIfAtLeast отказал (Refused), UPDATE не применился');
-    }
-
-    public function testSuccessfulDeliveryDrainsChargeExactlyOnce(): void
+    public function testSuccessfulSendDrainsChargeExactlyOnce(): void
     {
         [$tgId, $charId] = $this->seedCharacter();
         $woodId = $this->ensureResource('Древесина', 'Wood');
@@ -316,13 +261,13 @@ final class CargoDroneAutoSendChargeTest extends CIUnitTestCase
         ]);
         $logId = $this->seedCargoDrone($charId, 250);
 
-        $response = (new CargoDroneAutoSendAction($this->cbq($tgId, 'cargoDroneAuto_' . $logId)))->handle();
+        $response = (new CargoDroneSendAction($this->cbq($tgId, "cargoDroneSend_{$logId}_{$woodId}")))->handle();
 
         $this->assertInstanceOf(ServerResponse::class, $response);
 
         $log = $this->db()->table('crafted_items_log')->where('id', $logId)->get()->getRowArray();
         $this->assertIsArray($log);
-        $this->assertSame(150, (int) $log['durability_count'], 'заряд списан ровно один раз (default drain=100 — GameSettings недоступны, откат на caller-default DroneService::cargoBatteryDrainPerLaunch())');
+        $this->assertSame(150, (int) $log['durability_count'], 'заряд списан ровно один раз (default drain=100)');
         $this->assertSame(0, $this->backpackQty($charId, $woodId), 'весь запас уехал на склад');
 
         $storageRow = $this->db()->table('base_storage')
@@ -332,33 +277,14 @@ final class CargoDroneAutoSendChargeTest extends CIUnitTestCase
     }
 
     /**
-     * exploit-fix-26 (R2-major) — два вылета по одному прочитанному заряду: раньше
-     * `durability_count` записывался абсолютным значением, посчитанным из `$charge`,
-     * прочитанного ДО транзакции (`find($logId)` в начале `handle()`) — второй параллельный
-     * вылет читал тот же заряд и писал то же самое уменьшенное число, второй вылет
-     * оказывался бесплатным.
-     *
-     * Гонка воспроизведена детерминированно тем же приёмом, что и выше, но перехватывает
-     * WRITE-запрос, а не SELECT: колбэк на `DBQuery` ловит `UPDATE`/`DELETE ... character_resources`
-     * — то есть само условное списание рюкзака внутри `CharacterResourceModel::decrementIfAtLeast()`
-     * (при полном списании остатка примитив уходит в `DELETE FROM ... WHERE quantity = ?` — см.
-     * докблок `ConditionalWriteService::decrementIfAtLeast()`) — и сразу после него пишет
-     * `crafted_items_log.durability_count` ниже `drain`, симулируя уже завершившийся конкурентный
-     * вылет, который «успел» списать заряд первым.
-     *
-     * Перехват именно WRITE-, а не READ-запроса — не случайный выбор: `BaseConnection::query()`
-     * триггерит событие `DBQuery` ДО того, как для read-типа собирает `Result`-обёртку вокруг
-     * `$this->resultID`, а колбэк-обработчик сам выполняет запрос НА ТОЙ ЖЕ `$this->db()`-связи —
-     * это перезаписывает `$this->resultID` соединения ДО того, как исходный `SELECT` успел его
-     * прочитать, и `first()` снаружи детерминированно возвращает `null` независимо от реальных
-     * данных в таблице (не гонка, а искажение самого измерения). Для write-типа код обходит эту
-     * ветку — `query()` возвращает `true` сразу после события, не трогая `$this->resultID` —
-     * поэтому перехват на `UPDATE`/`DELETE` этого искажения не вносит.
-     *
-     * decrementIfAtLeast() на durability_count обязан отказать (заряда уже не хватает) —
-     * и весь остальной груз этого вылета (уже списанный из рюкзака и уже доставленный на
-     * склад в этой же транзакции) обязан откатиться вместе с отказом, а не закоммититься
-     * без оплаты зарядом.
+     * exploit-fix-26 (R2-major) — два вылета по одному прочитанному заряду: второй должен
+     * получить отказ, а не списать доставку без оплаты зарядом. Гонка воспроизведена тем же
+     * приёмом, что и в `CargoDroneAutoSendChargeTest`: колбэк на `DBQuery` перехватывает
+     * WRITE-запрос (`UPDATE`/`DELETE ... character_resources`) внутри
+     * `CharacterResourceModel::decrementIfAtLeast()` — не SELECT, см. докблок метода-близнеца
+     * в `CargoDroneAutoSendChargeTest` про искажение `$this->resultID` при перехвате READ — и
+     * сразу после него пишет `crafted_items_log.durability_count` ниже `drain` — состояние,
+     * которое оставил бы уже завершившийся конкурентный вылет.
      */
     public function testConcurrentChargeDrainRefusesSecondLaunchAndRollsBackDelivery(): void
     {
@@ -380,8 +306,7 @@ final class CargoDroneAutoSendChargeTest extends CIUnitTestCase
         Events::on('DBQuery', function (Query $query) use ($logIdForHook, $concurrentDb): void {
             $sql = $query->getOriginalQuery();
             // ConditionalWriteService собирает UPDATE/DELETE через prefixTable() — сырой SQL без
-            // бэктиков вокруг имени таблицы (в отличие от builder-SELECT выше по стеку), поэтому
-            // фильтр здесь без бэктиков.
+            // бэктиков вокруг имени таблицы, поэтому фильтр здесь без бэктиков.
             $isResourceWrite = str_contains($sql, 'character_resources')
                 && (str_starts_with($sql, 'UPDATE') || str_starts_with($sql, 'DELETE'));
             if (! $isResourceWrite) {
@@ -395,7 +320,7 @@ final class CargoDroneAutoSendChargeTest extends CIUnitTestCase
                 ->update(['durability_count' => 50]);
         });
 
-        $response = (new CargoDroneAutoSendAction($this->cbq($tgId, 'cargoDroneAuto_' . $logId)))->handle();
+        $response = (new CargoDroneSendAction($this->cbq($tgId, "cargoDroneSend_{$logId}_{$woodId}")))->handle();
 
         $concurrentDb->close();
 

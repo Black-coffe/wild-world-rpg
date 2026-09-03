@@ -11,6 +11,7 @@ use App\Models\CharacterResourceModel;
 use App\Models\CraftedItemsLogModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
+use App\Services\Db\ConditionalWriteService;
 use App\Services\Db\WriteOutcome;
 use App\Services\Player\DroneService;
 
@@ -127,24 +128,52 @@ class CargoDroneSendAction extends BaseAction
         $fromCell = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : null;
 
         $db->transStart();
-        $outcome   = $this->resourceModel->decrementIfAtLeast($charId, $resId, $sendQty);
-        $newCharge = $charge;
+        $outcome       = $this->resourceModel->decrementIfAtLeast($charId, $resId, $sendQty);
+        $newCharge     = $charge;
+        $chargeOutcome = WriteOutcome::Applied;
         if ($outcome === WriteOutcome::Applied) {
             $this->storageModel->deliver($charId, $resId, $sendQty, $fromCell);
+            // exploit-fix-26 (R2-major) — было безусловным UPDATE абсолютным значением,
+            // посчитанным из $charge, прочитанного до транзакции: два параллельных вылета по
+            // одному прочитанному заряду списывали одно и то же уменьшенное число — второй
+            // вылет бесплатный. Теперь decrementIfAtLeast() решает по WHERE durability_count
+            // >= $drain и affectedRows(), не по прочитанному ранее значению.
+            $chargeOutcome = (new ConditionalWriteService($db))->decrementIfAtLeast(
+                'crafted_items_log',
+                $logId,
+                'durability_count',
+                $drain
+            );
             $newCharge = max(0, $charge - $drain);
-            $this->logModel->update($logId, ['durability_count' => $newCharge]);
         }
+
+        $chargeRefused = $outcome === WriteOutcome::Applied && $chargeOutcome !== WriteOutcome::Applied;
+        if ($chargeRefused) {
+            // Ресурс уже списан из рюкзака и доставлен на склад выше в этой же транзакции —
+            // явный rollback нужен, иначе транзакция закоммитит доставку без списания заряда.
+            $db->transRollback();
+        }
+
         // exploit-fix-23 — исход читаем по возврату transComplete(): откат вне
-        // ветки WriteOutcome не должен вести в ветку «взлетел».
-        $committed = $db->transComplete();
+        // ветки WriteOutcome не должен вести в ветку «взлетел». Не зовём transComplete()
+        // после уже сделанного вручную transRollback().
+        $committed = $outcome === WriteOutcome::Applied && !$chargeRefused && $db->transComplete();
 
         if ($outcome !== WriteOutcome::Applied) {
             return $this->errReply($chatId, $outcome === WriteOutcome::Missing
                 ? 'Этого ресурса в инвентаре уже нет.'
                 : 'В инвентаре стало меньше ресурса, чем при проверке — попробуй ещё раз.');
         }
+        if ($chargeRefused) {
+            return $this->errReply($chatId, 'Заряд дрона списал кто-то другой быстрее — груз не отправлен, попробуй ещё раз.');
+        }
         if (!$committed) {
-            return $this->errReply($chatId, 'В инвентаре стало меньше ресурса, чем при проверке — попробуй ещё раз.');
+            // exploit-fix-26 (minor, R2 reviewer-2) — раньше этот текст повторял «попробуй
+            // ещё раз» про ресурс, будто откатилась только нехватка инвентаря; на самом деле
+            // сюда ведёт ЛЮБОЙ незакоммиченный transComplete() (deadlock, повторный тап), и
+            // игрок должен читать про откат, а не про конкретную причину, которой могло не
+            // быть.
+            return $this->errReply($chatId, 'Отправка не сохранилась — транзакция откатилась, попробуй ещё раз.');
         }
 
         // E20 (ADR-120) — инструментация адопшена дронов (раньше use-path был немеряем).
