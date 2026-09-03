@@ -424,4 +424,71 @@ final class CargoDroneAutoSendChargeTest extends CIUnitTestCase
             ->where('character_id', $charId)->where('resource_id', $woodId)->get()->getRowArray();
         $this->assertNull($storageRow, 'доставка на склад откатилась — второй вылет не состоялся');
     }
+
+    /**
+     * exploit-fix-36 (R4-major) — исключение между `transStart()` и завершением (любой запрос
+     * тела: `decrementIfAtLeast()`/`deliver()`/`ConditionalWriteService`) раньше пробрасывалось
+     * мимо `transRollback()` — транзакция оставалась открытой на глубине 1, тот же класс потери,
+     * что exploit-fix-31 закрыл для веток отказа по `WriteOutcome`. Близнец
+     * {@see CargoDroneSendChargeTest::testExceptionDuringTransactionRollsBackAndClosesTransaction()}.
+     * Исключение воспроизведено искусственно: `DBQuery`-хук бросает на `INSERT`/`UPDATE` в
+     * `base_storage` внутри `BaseStorageModel::deliver()` — выполняется уже ПОСЛЕ условного
+     * списания ресурса из рюкзака, но ДО списания заряда дрона.
+     */
+    public function testExceptionDuringTransactionRollsBackAndClosesTransaction(): void
+    {
+        [$tgId, $charId] = $this->seedCharacter();
+        $woodId = $this->ensureResource('Древесина', 'Wood');
+
+        $this->db()->table('character_resources')->insert([
+            'id_characters' => $charId, 'id_resources' => $woodId, 'quantity' => 5,
+        ]);
+        $logId = $this->seedCargoDrone($charId, 250);
+
+        Events::on('DBQuery', function (Query $query): void {
+            $sql = $query->getOriginalQuery();
+            $isStorageWrite = str_contains($sql, 'base_storage')
+                && (str_starts_with($sql, 'INSERT') || str_starts_with($sql, 'UPDATE'));
+            if ($isStorageWrite) {
+                throw new \RuntimeException('exploit-fix-36: искусственный сбой внутри транзакции дрона');
+            }
+        });
+
+        $caught = null;
+        try {
+            (new CargoDroneAutoSendAction($this->cbq($tgId, 'cargoDroneAuto_' . $logId)))->handle();
+        } catch (\Throwable $e) {
+            $caught = $e;
+        }
+
+        Events::removeAllListeners('DBQuery');
+
+        $this->assertInstanceOf(\RuntimeException::class, $caught, 'исключение обязано быть доставлено вызывающему, а не проглочено');
+        $this->assertSame('exploit-fix-36: искусственный сбой внутри транзакции дрона', $caught->getMessage());
+
+        $this->assertSame(0, $this->db()->transDepth, 'транзакция обязана закрыться на пути исключения — глубина 0 после handle()');
+        $this->assertTrue($this->db()->transStatus(), 'resetTransStatus() обязан вернуть флаг успеха, иначе следующий transStart() того же соединения унаследует чужой сбой');
+
+        $this->assertSame(5, $this->backpackQty($charId, $woodId), 'списание рюкзака откатилось вместе с исключением');
+
+        $log = $this->db()->table('crafted_items_log')->where('id', $logId)->get()->getRowArray();
+        $this->assertIsArray($log);
+        $this->assertSame(250, (int) $log['durability_count'], 'заряд не тронут — исключение случилось раньше его списания');
+
+        $storageRow = $this->db()->table('base_storage')
+            ->where('character_id', $charId)->where('resource_id', $woodId)->get()->getRowArray();
+        $this->assertNull($storageRow, 'доставка на склад откатилась вместе с исключением');
+
+        // Запись сразу после handle() на ТОМ ЖЕ соединении — как BotController::finally пишет
+        // last_seen/firehose. Если бы транзакция осталась висеть открытой, эта запись ушла бы в
+        // неё же и была бы невидима другому соединению до незапланированного коммита/отката.
+        $this->db()->table('telegram_users')->insert(['telegram_id' => $tgId]);
+        $markerId = (int) $this->db()->insertID();
+
+        $secondDb = Database::connect('tests', false);
+        $visible  = $secondDb->table('telegram_users')->where('id', $markerId)->get()->getRowArray();
+        $secondDb->close();
+
+        $this->assertIsArray($visible, 'запись, сделанная после handle(), обязана пережить конец «запроса» — видна второму соединению');
+    }
 }

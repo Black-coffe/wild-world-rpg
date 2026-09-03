@@ -123,54 +123,67 @@ final class CargoDroneAutoSendAction extends BaseAction
         $db = \Config\Database::connect();
         $db->transStart();
 
-        $delivered  = [];
-        $totalUnits = 0;
-        $totalKg    = 0.0;
-        foreach ($plan['items'] as $item) {
-            $outcome = $this->resourceModel->decrementIfAtLeast($charId, $item['resource_id'], $item['qty']);
-            if ($outcome !== WriteOutcome::Applied) {
-                continue;
+        try {
+            $delivered  = [];
+            $totalUnits = 0;
+            $totalKg    = 0.0;
+            foreach ($plan['items'] as $item) {
+                $outcome = $this->resourceModel->decrementIfAtLeast($charId, $item['resource_id'], $item['qty']);
+                if ($outcome !== WriteOutcome::Applied) {
+                    continue;
+                }
+                $this->storageModel->deliver($charId, $item['resource_id'], $item['qty'], $fromCell);
+                $delivered[]  = $item;
+                $totalUnits  += $item['qty'];
+                $totalKg     += $item['qty'] * $item['weight'];
             }
-            $this->storageModel->deliver($charId, $item['resource_id'], $item['qty'], $fromCell);
-            $delivered[]  = $item;
-            $totalUnits  += $item['qty'];
-            $totalKg     += $item['qty'] * $item['weight'];
-        }
 
-        // exploit-fix-15 (M1) — заряд списывается только при увезённом грузе: раньше
-        // durability_count уменьшался безусловно, вне ветки успеха и до проверки $delivered.
-        // exploit-fix-26 (R2-major) — и это по-прежнему был безусловный UPDATE абсолютным
-        // значением, посчитанным из $charge, прочитанного до транзакции: два параллельных
-        // вылета читают один заряд и пишут одно и то же уменьшенное — второй вылет
-        // оказывается бесплатным. Теперь списание — decrementIfAtLeast() на
-        // crafted_items_log.durability_count: исход решает WHERE durability_count >= $drain
-        // и affectedRows(), а не прочитанное ранее число.
-        $newCharge     = $charge;
-        $chargeOutcome = WriteOutcome::Applied;
-        if ($delivered !== []) {
-            $chargeOutcome = (new ConditionalWriteService($db))->decrementIfAtLeast(
-                'crafted_items_log',
-                $logId,
-                'durability_count',
-                $drain
-            );
-            $newCharge = max(0, $charge - $drain);
-        }
+            // exploit-fix-15 (M1) — заряд списывается только при увезённом грузе: раньше
+            // durability_count уменьшался безусловно, вне ветки успеха и до проверки $delivered.
+            // exploit-fix-26 (R2-major) — и это по-прежнему был безусловный UPDATE абсолютным
+            // значением, посчитанным из $charge, прочитанного до транзакции: два параллельных
+            // вылета читают один заряд и пишут одно и то же уменьшенное — второй вылет
+            // оказывается бесплатным. Теперь списание — decrementIfAtLeast() на
+            // crafted_items_log.durability_count: исход решает WHERE durability_count >= $drain
+            // и affectedRows(), а не прочитанное ранее число.
+            $newCharge     = $charge;
+            $chargeOutcome = WriteOutcome::Applied;
+            if ($delivered !== []) {
+                $chargeOutcome = (new ConditionalWriteService($db))->decrementIfAtLeast(
+                    'crafted_items_log',
+                    $logId,
+                    'durability_count',
+                    $drain
+                );
+                $newCharge = max(0, $charge - $drain);
+            }
 
-        $chargeRefused = $chargeOutcome !== WriteOutcome::Applied;
-        if ($chargeRefused) {
-            // Груз уже списан с рюкзака и доставлен на склад выше в этой же транзакции — оба
-            // writes реально применились (affectedRows > 0) и сами по себе не откатят
-            // transStatus. Явный rollback нужен, иначе транзакция «успешно» закоммитит доставку
-            // без списания заряда — тот самый бесплатный вылет.
+            $chargeRefused = $chargeOutcome !== WriteOutcome::Applied;
+            if ($chargeRefused) {
+                // Груз уже списан с рюкзака и доставлен на склад выше в этой же транзакции — оба
+                // writes реально применились (affectedRows > 0) и сами по себе не откатят
+                // transStatus. Явный rollback нужен, иначе транзакция «успешно» закоммитит доставку
+                // без списания заряда — тот самый бесплатный вылет.
+                $db->transRollback();
+            }
+
+            // exploit-fix-23 — исход читаем по возврату transComplete(): откат по любой
+            // причине не должен вести в ветку «взлетел». Не зовём transComplete() после уже
+            // сделанного вручную transRollback() — иначе CI4 пытается завершить транзакцию
+            // с нулевой глубиной.
+            $committed = !$chargeRefused && $db->transComplete();
+        } catch (\Throwable $e) {
+            // exploit-fix-36 (R4-major) — исключение между transStart() и завершением (любой
+            // запрос внутри тела — decrementIfAtLeast/deliver/ConditionalWriteService) раньше
+            // пробрасывалось мимо transRollback(): транзакция оставалась открытой на глубине 1.
+            // Тот же класс потери, что exploit-fix-31 закрыл для веток отказа по WriteOutcome —
+            // здесь тот же инвариант нужен на пути исключения. transStrict() включён
+            // (Config\Database), поэтому после отката transStatus() держится false до явного
+            // resetTransStatus() (feedback_transcomplete_false_success_when_strict_off).
             $db->transRollback();
+            $db->resetTransStatus();
+            throw $e;
         }
-
-        // exploit-fix-23 — исход читаем по возврату transComplete(): откат по любой
-        // причине не должен вести в ветку «взлетел». Не зовём transComplete() после уже
-        // сделанного вручную transRollback() — иначе CI4 пытается завершить транзакцию
-        // с нулевой глубиной.
-        $committed = !$chargeRefused && $db->transComplete();
 
         if ($delivered === []) {
             return $this->errReply($chatId, 'Рюкзак опустел раньше, чем дрон успел взлететь, — кто-то успел потратиться. Попробуй ещё раз.');

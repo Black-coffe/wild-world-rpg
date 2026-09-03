@@ -128,41 +128,56 @@ class CargoDroneSendAction extends BaseAction
         $fromCell = is_numeric($character['cell_number'] ?? null) ? (int) $character['cell_number'] : null;
 
         $db->transStart();
-        $outcome       = $this->resourceModel->decrementIfAtLeast($charId, $resId, $sendQty);
-        $newCharge     = $charge;
-        $chargeOutcome = WriteOutcome::Applied;
-        if ($outcome === WriteOutcome::Applied) {
-            $this->storageModel->deliver($charId, $resId, $sendQty, $fromCell);
-            // exploit-fix-26 (R2-major) — было безусловным UPDATE абсолютным значением,
-            // посчитанным из $charge, прочитанного до транзакции: два параллельных вылета по
-            // одному прочитанному заряду списывали одно и то же уменьшенное число — второй
-            // вылет бесплатный. Теперь decrementIfAtLeast() решает по WHERE durability_count
-            // >= $drain и affectedRows(), не по прочитанному ранее значению.
-            $chargeOutcome = (new ConditionalWriteService($db))->decrementIfAtLeast(
-                'crafted_items_log',
-                $logId,
-                'durability_count',
-                $drain
-            );
-            $newCharge = max(0, $charge - $drain);
-        }
+        try {
+            $outcome       = $this->resourceModel->decrementIfAtLeast($charId, $resId, $sendQty);
+            $newCharge     = $charge;
+            $chargeOutcome = WriteOutcome::Applied;
+            if ($outcome === WriteOutcome::Applied) {
+                $this->storageModel->deliver($charId, $resId, $sendQty, $fromCell);
+                // exploit-fix-26 (R2-major) — было безусловным UPDATE абсолютным значением,
+                // посчитанным из $charge, прочитанного до транзакции: два параллельных вылета по
+                // одному прочитанному заряду списывали одно и то же уменьшенное число — второй
+                // вылет бесплатный. Теперь decrementIfAtLeast() решает по WHERE durability_count
+                // >= $drain и affectedRows(), не по прочитанному ранее значению.
+                $chargeOutcome = (new ConditionalWriteService($db))->decrementIfAtLeast(
+                    'crafted_items_log',
+                    $logId,
+                    'durability_count',
+                    $drain
+                );
+                $newCharge = max(0, $charge - $drain);
+            }
 
-        $chargeRefused = $outcome === WriteOutcome::Applied && $chargeOutcome !== WriteOutcome::Applied;
+            $chargeRefused = $outcome === WriteOutcome::Applied && $chargeOutcome !== WriteOutcome::Applied;
 
-        // exploit-fix-31 (R3-critical) — раньше на пути $outcome !== Applied (Refused/Missing)
-        // не звался ни transComplete(), ни transRollback(): транзакция оставалась открытой на
-        // глубине 1, и записи BotController::finally (last_seen, firehose) на том же соединении
-        // после этого экшена терялись. Теперь транзакция завершается ровно один раз на КАЖДОМ
-        // пути выхода: rollback при отказе на любом из двух списаний, иначе — исход по
-        // transComplete() (exploit-fix-23 — откат вне ветки WriteOutcome не должен вести в ветку
-        // «взлетел», поэтому transComplete() не зовём после уже сделанного вручную rollback).
-        if ($outcome !== WriteOutcome::Applied || $chargeRefused) {
-            // Ресурс уже списан из рюкзака и доставлен на склад выше в этой же транзакции —
-            // явный rollback нужен, иначе транзакция закоммитит доставку без списания заряда.
+            // exploit-fix-31 (R3-critical) — раньше на пути $outcome !== Applied (Refused/Missing)
+            // не звался ни transComplete(), ни transRollback(): транзакция оставалась открытой на
+            // глубине 1, и записи BotController::finally (last_seen, firehose) на том же соединении
+            // после этого экшена терялись. Теперь транзакция завершается ровно один раз на КАЖДОМ
+            // пути выхода: rollback при отказе на любом из двух списаний, иначе — исход по
+            // transComplete() (exploit-fix-23 — откат вне ветки WriteOutcome не должен вести в ветку
+            // «взлетел», поэтому transComplete() не зовём после уже сделанного вручную rollback).
+            if ($outcome !== WriteOutcome::Applied || $chargeRefused) {
+                // Ресурс уже списан из рюкзака и доставлен на склад выше в этой же транзакции —
+                // явный rollback нужен, иначе транзакция закоммитит доставку без списания заряда.
+                $db->transRollback();
+                $committed = false;
+            } else {
+                $committed = $db->transComplete();
+            }
+        } catch (\Throwable $e) {
+            // exploit-fix-36 (R4-major) — исключение между transStart() и завершением (любой
+            // запрос внутри тела — decrementIfAtLeast/deliver/ConditionalWriteService) раньше
+            // пробрасывалось мимо transRollback(): транзакция оставалась открытой на глубине 1,
+            // и это тот же класс потери, что exploit-fix-31 закрыл для веток отказа по
+            // WriteOutcome — здесь тот же инвариант нужен на пути исключения. transStrict()
+            // включён (Config\Database), поэтому после отката transStatus() держится false до
+            // явного resetTransStatus() — иначе следующий transStart() того же запроса
+            // унаследует чужой сбой и откатит уже не относящуюся к нему работу
+            // (feedback_transcomplete_false_success_when_strict_off).
             $db->transRollback();
-            $committed = false;
-        } else {
-            $committed = $db->transComplete();
+            $db->resetTransStatus();
+            throw $e;
         }
 
         if ($outcome !== WriteOutcome::Applied) {
