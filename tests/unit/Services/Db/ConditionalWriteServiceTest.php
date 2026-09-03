@@ -205,47 +205,119 @@ final class ConditionalWriteServiceTest extends CIUnitTestCase
     }
 
     /**
-     * Acceptance 🔴: `deleteWhenEmpty` при точном опустошении обязан уходить одним
-     * `DELETE` — реализация исполняет `DELETE ... WHERE id=? AND quantity=?` ДО
-     * какого-либо `UPDATE`, поэтому для строки, которая опустошается ровно этим
-     * вызовом, ни один `UPDATE`, устанавливающий `quantity=0`, не выполняется
-     * вовсе. Триггер на `base_storage` ловит КАЖДЫЙ `UPDATE`, после которого
-     * `quantity=0`, и пишет его в лог — лог обязан остаться пустым для строки из
-     * этого теста, даже если параллельно на общем стенде что-то ещё пишет в ту же
-     * таблицу (лог фильтруется по `storage_id` этой строки, не по общему count).
-     * Раз строка никогда не была записана с нулевым остатком — её физически
-     * невозможно прочитать другим соединением в этом состоянии: окна нет.
+     * Acceptance 🔴 (exploit-fix-27, R2-minor m3): отрицательный `amount` превращал бы
+     * списание в начисление (`quantity = quantity - (-N)`) при условии «не меньше»,
+     * которое с отрицательным правым операндом почти всегда истинно — отказ по
+     * недостаче становится практически недостижим. Отвергается тем же исключением,
+     * что и `amount=0`.
      */
-    public function testDecrementIfAtLeastExactDrainNeverWritesAnIntermediateZeroRow(): void
+    public function testDecrementIfAtLeastRejectsNegativeAmount(): void
     {
-        $db      = Database::connect('tests');
-        $suffix  = bin2hex(random_bytes(4));
-        $logTable = 'cws_zero_write_log_' . $suffix;
-        $trigger  = 'cws_zero_write_trg_' . $suffix;
+        $id = $this->insertStorageRow(45, 5, 10);
 
-        $db->query("CREATE TABLE {$logTable} (id INT AUTO_INCREMENT PRIMARY KEY, storage_id INT NOT NULL)");
-        $db->query(
-            "CREATE TRIGGER {$trigger} AFTER UPDATE ON base_storage FOR EACH ROW "
-            . "BEGIN IF NEW.quantity = 0 THEN INSERT INTO {$logTable} (storage_id) VALUES (NEW.id); END IF; END"
+        $this->expectException(\InvalidArgumentException::class);
+
+        (new ConditionalWriteService(Database::connect('tests')))
+            ->decrementIfAtLeast('base_storage', $id, 'quantity', -3);
+    }
+
+    /**
+     * Acceptance 🔴 (exploit-fix-27, R2-major №1 обоих ревьюеров): раньше (story 24)
+     * `deleteWhenEmpty` уходил точным `DELETE ... WHERE quantity = ?` ДО `UPDATE` —
+     * под autocommit несовпавший `DELETE` (чужое параллельное списание уже сдвинуло
+     * остаток) проваливался в `UPDATE`, который доводил колонку до нуля БЕЗ
+     * последующей подчистки: постоянная нулевая строка. Теперь `UPDATE` всегда идёт
+     * первым, а хвостовой `DELETE ... WHERE quantity <= 0` — безусловный и
+     * самолечащий: он подчищает строку независимо от того, ЧЬЁ соединение довело
+     * колонку до нуля. Два РЕАЛЬНЫХ соединения (`Database::connect('tests', false)`,
+     * не общий shared-инстанс), никаких транзакций — чистый autocommit, ровно
+     * условие story: «независимо от того, открыта ли транзакция вызывающим».
+     *
+     * Чередование «UPDATE A → декремент B до нуля → DELETE A»: A выполняет только
+     * половину-`UPDATE` своего вызова (частичное списание, не опустошает), затем B
+     * успевает выполнить ПОЛНЫЙ вызов и опустошает строку сам (свой `UPDATE` +
+     * свой хвостовой `DELETE`), и только затем A наконец добирается до своего
+     * отложенного хвостового `DELETE` — он находит строку уже удалённой, идемпотентный
+     * no-op. Нулевая строка нигде не задерживается.
+     */
+    public function testDecrementIfAtLeastDeleteWhenEmptySelfHealsWhenForeignConnectionDrainsFirst(): void
+    {
+        $id = $this->insertStorageRow(46, 5, 7);
+
+        $dbA = Database::connect('tests', false);
+        $dbB = Database::connect('tests', false);
+
+        // A: только UPDATE-половина decrementIfAtLeast(amount: 3, deleteWhenEmpty: true) —
+        // собственный хвостовой DELETE придерживаем, чтобы вклиниться соединением B.
+        $dbA->query(
+            'UPDATE base_storage SET quantity = quantity - ? WHERE id = ? AND quantity >= ?',
+            [3, $id, 3]
+        );
+        $this->assertSame(1, $dbA->affectedRows());
+        $this->assertSame(4, (int) $this->storageRow($id)['quantity']);
+
+        // B: полный decrementIfAtLeast(amount: 4, deleteWhenEmpty: true) — опустошает и
+        // подчищает строку целиком сам, пока хвостовой DELETE A ещё не выполнен.
+        $outcomeB = (new ConditionalWriteService($dbB))
+            ->decrementIfAtLeast('base_storage', $id, 'quantity', 4, deleteWhenEmpty: true);
+        $this->assertSame(WriteOutcome::Applied, $outcomeB);
+        $this->assertNull($this->storageRow($id), 'B обязан был опустошить и удалить строку сам');
+
+        // Отложенный хвостовой DELETE A выполняется последним — строки уже нет.
+        $dbA->query('DELETE FROM base_storage WHERE id = ? AND quantity <= 0', [$id]);
+        $this->assertSame(
+            0,
+            $dbA->affectedRows(),
+            'хвостовой DELETE A обязан быть идемпотентным no-op — строку уже удалило чужое соединение'
         );
 
-        try {
-            $id = $this->insertStorageRow(42, 5, 9);
+        $this->assertNull($this->storageRow($id), 'нулевая строка не пережила это чередование двух соединений');
+    }
 
-            $outcome = (new ConditionalWriteService($db))
-                ->decrementIfAtLeast('base_storage', $id, 'quantity', 9, deleteWhenEmpty: true);
+    /**
+     * Acceptance 🔴: обратное чередование той же гарантии — очищает строку НЕ то
+     * соединение, чей `UPDATE` довёл колонку до нуля. Оба соединения выполняют
+     * только свою `UPDATE`-половину (B доводит остаток до нуля, A — нет), затем
+     * хвостовой `DELETE` A (родом от совсем не того вызова, что обнулил строку)
+     * срабатывает первым и убирает ноль, а собственный хвостовой `DELETE` B,
+     * выполненный следом, обязан остаться идемпотентным no-op. Самолечение не
+     * зависит от того, какое из двух соединений физически пишет `DELETE` первым.
+     */
+    public function testDecrementIfAtLeastDeleteWhenEmptySelfHealsWhenForeignDeleteWinsTheRace(): void
+    {
+        $id = $this->insertStorageRow(47, 5, 7);
 
-            $this->assertSame(WriteOutcome::Applied, $outcome);
-            $this->assertNull($this->storageRow($id));
-            $this->assertSame(
-                0,
-                (int) $db->table($logTable)->where('storage_id', $id)->countAllResults(),
-                'точное опустошение обязано уйти одним DELETE — UPDATE, пишущий quantity=0 для этой строки, не должен был исполниться вовсе'
-            );
-        } finally {
-            $db->query("DROP TRIGGER IF EXISTS {$trigger}");
-            $db->query("DROP TABLE IF EXISTS {$logTable}");
-        }
+        $dbA = Database::connect('tests', false);
+        $dbB = Database::connect('tests', false);
+
+        // A и B — обе только UPDATE-половины, хвостовые DELETE обоих придержаны.
+        $dbA->query(
+            'UPDATE base_storage SET quantity = quantity - ? WHERE id = ? AND quantity >= ?',
+            [3, $id, 3]
+        );
+        $this->assertSame(1, $dbA->affectedRows());
+
+        $dbB->query(
+            'UPDATE base_storage SET quantity = quantity - ? WHERE id = ? AND quantity >= ?',
+            [4, $id, 4]
+        );
+        $this->assertSame(1, $dbB->affectedRows());
+        $this->assertSame(0, (int) $this->storageRow($id)['quantity'], 'B довёл остаток до нуля своим UPDATE');
+
+        // Хвостовой DELETE A отрабатывает первым и подчищает ноль, который создал B.
+        $dbA->query('DELETE FROM base_storage WHERE id = ? AND quantity <= 0', [$id]);
+        $this->assertSame(1, $dbA->affectedRows(), 'A подчистил ноль, который создал B');
+        $this->assertNull($this->storageRow($id));
+
+        // Собственный хвостовой DELETE B выполняется следом — строки уже нет.
+        $dbB->query('DELETE FROM base_storage WHERE id = ? AND quantity <= 0', [$id]);
+        $this->assertSame(
+            0,
+            $dbB->affectedRows(),
+            'хвостовой DELETE B обязан быть идемпотентным no-op — строку уже удалило A'
+        );
+
+        $this->assertNull($this->storageRow($id), 'обратное чередование тоже не оставляет строку с нулём');
     }
 
     // ── валидация имён таблиц/колонок ──
@@ -280,6 +352,20 @@ final class ConditionalWriteServiceTest extends CIUnitTestCase
 
         (new ConditionalWriteService(Database::connect('tests')))
             ->insertUnique('community_messages', ['chat_id; DROP TABLE community_messages' => -1001]);
+    }
+
+    /**
+     * Acceptance 🔴 (exploit-fix-27, R2-minor m9 ревьюера 2): `$columns[0]` на пустом
+     * `$row` — `Warning` и пустые бэктики в SQL, а не однозначный отказ. Пустой `$row`
+     * не имеет смысла для self-reference `ON DUPLICATE KEY UPDATE` — отвергается
+     * `InvalidArgumentException` до попадания в SQL.
+     */
+    public function testInsertUniqueRejectsEmptyRow(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        (new ConditionalWriteService(Database::connect('tests')))
+            ->insertUnique('community_messages', []);
     }
 
     // ── transitionIfCurrent ──

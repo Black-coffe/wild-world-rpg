@@ -50,14 +50,22 @@ use Config\Database;
  *    настоящего отказа условия. Различить «условие не выполнено» и «условие уже
  *    и так выполнено» без лишнего `SELECT` эти два примитива не могут — вызывающий
  *    обязан не звать их с no-op аргументами.
- *  - `deleteWhenEmpty`: раньше `UPDATE` и последующий `DELETE WHERE column <= 0`
- *    были двумя отдельными операторами — между ними другое соединение могло
- *    прочитать строку с нулевым остатком, которая по инварианту метода не должна
- *    существовать вовсе. Теперь при точном опустошении (`column = $amount` до
- *    вычитания, то есть после — ровно ноль) строка удаляется ОДНИМ `DELETE`, а
- *    `UPDATE` вообще не выполняется для этого случая; частичное списание
- *    по-прежнему один `UPDATE`. Ни одна операция не порождает промежуточного
- *    состояния «строка с нулём» — оно физически никогда не пишется.
+ *  - `deleteWhenEmpty` (exploit-fix-27, после ревью круга 2 M2·MAJOR №1): условный
+ *    `UPDATE` списывает как обычно, затем безусловный `DELETE … WHERE id = ? AND
+ *    {$column} <= 0` подчищает строку, если она после этого вызова оказалась
+ *    пустой. Раньше (story 24) `DELETE` шёл ПЕРВЫМ и точным условием (`column =
+ *    $amount` до вычитания) — под autocommit несовпавший `DELETE` (например, чужое
+ *    параллельное списание уже сдвинуло остаток) проваливался в `UPDATE`, который
+ *    доводил колонку до нуля БЕЗ последующей подчистки: постоянная нулевая строка,
+ *    окно не закрыто, а перенесено. Нынешняя форма — самолечение: какая бы строка
+ *    ни довела колонку до нуля (эта или чужая параллельная), её собственный
+ *    хвостовой `DELETE` уходит СЛЕДОМ и убирает ноль независимо от того, кто именно
+ *    его написал; выжить в БД нулевая строка не может ни при каком чередовании двух
+ *    соединений (доказано `ConditionalWriteServiceTest` — тест двух соединений под
+ *    autocommit). Цена — лишний `DELETE`-запрос на КАЖДЫЙ вызов с флагом (а не
+ *    только на точное опустошение), это сознательный обмен: примитив не открывает
+ *    транзакций (Non-goals story 27, ADR-181 §3), поэтому не может полагаться на
+ *    X-lock вызывающего как единственную защиту от промежуточного чтения.
  */
 final class ConditionalWriteService
 {
@@ -91,12 +99,15 @@ final class ConditionalWriteService
      * вторым представлением одного состояния.
      *
      * exploit-fix-24: `$amount === 0` бросает `InvalidArgumentException` — см.
-     * докблок класса. При `$deleteWhenEmpty` точное опустошение (`$column ===
-     * $amount` до вычитания) уходит одним `DELETE`, минуя промежуточный `UPDATE`
-     * в ноль — строка с нулевым остатком никогда не пишется, окна для чужого
-     * чтения между двумя инструкциями больше нет.
+     * докблок класса. exploit-fix-27: отрицательный `$amount` отвергается тем же
+     * исключением — `{$column} = {$column} - ?` с отрицательным `?` превращает
+     * списание в начисление, а условие `{$column} >= ?` с отрицательным правым
+     * операндом почти всегда истинно, то есть отказ по недостаче становится
+     * практически недостижим. При `$deleteWhenEmpty` строка, доведённая ЭТИМ или
+     * ЛЮБЫМ параллельным вызовом до `{$column} <= 0`, подчищается хвостовым
+     * `DELETE` — см. докблок класса, раздел `deleteWhenEmpty`.
      *
-     * @throws \InvalidArgumentException невалидное имя таблицы/колонки или `$amount === 0`
+     * @throws \InvalidArgumentException невалидное имя таблицы/колонки или `$amount <= 0`
      */
     public function decrementIfAtLeast(
         string $table,
@@ -108,25 +119,16 @@ final class ConditionalWriteService
         $this->assertValidIdentifier($table);
         $this->assertValidIdentifier($column);
 
-        if ($amount === 0) {
+        if ($amount <= 0) {
             throw new \InvalidArgumentException(
-                'decrementIfAtLeast: $amount === 0 не имеет однозначного исхода — UPDATE, не '
-                . 'меняющий значение колонки, неотличим по affectedRows() от настоящего отказа'
+                'decrementIfAtLeast: $amount <= 0 не имеет однозначного исхода — при amount=0 '
+                . 'UPDATE, не меняющий значение колонки, неотличим по affectedRows() от настоящего '
+                . 'отказа; при amount<0 списание становится начислением, а условие "не меньше" '
+                . 'почти всегда истинно'
             );
         }
 
         $prefixed = $this->db->prefixTable($table);
-
-        if ($deleteWhenEmpty) {
-            $this->db->query(
-                "DELETE FROM {$prefixed} WHERE id = ? AND {$column} = ?",
-                [$rowId, $amount]
-            );
-
-            if ($this->db->affectedRows() >= 1) {
-                return WriteOutcome::Applied;
-            }
-        }
 
         $this->db->query(
             "UPDATE {$prefixed} SET {$column} = {$column} - ? WHERE id = ? AND {$column} >= ?",
@@ -135,6 +137,17 @@ final class ConditionalWriteService
 
         if ($this->db->affectedRows() < 1) {
             return $this->rowExists($table, $rowId) ? WriteOutcome::Refused : WriteOutcome::Missing;
+        }
+
+        if ($deleteWhenEmpty) {
+            // Самолечение (exploit-fix-27): безусловный, идемпотентный хвостовой DELETE —
+            // подчищает строку, если ИМЕННО ЭТОТ UPDATE (или чужой параллельный, успевший
+            // проскочить между ними) довёл колонку до нуля. Если строку уже подчистил чужой
+            // такой же хвостовой DELETE — этот запрос находит 0 строк и не делает ничего.
+            $this->db->query(
+                "DELETE FROM {$prefixed} WHERE id = ? AND {$column} <= 0",
+                [$rowId]
+            );
         }
 
         return WriteOutcome::Applied;
@@ -232,13 +245,31 @@ final class ConditionalWriteService
      * Прочие ошибки (NOT NULL, FK и любая другая поломка записи) `ON DUPLICATE
      * KEY UPDATE` не гасит — `query()` по-прежнему упадёт исключением или
      * вернёт `false`, и метод пробрасывает это наружу как есть: глотать можно
-     * только дубль, не любую поломку записи.
+     * только дубль, не любую поломку записи. exploit-fix-27: на соединениях
+     * ЭТОГО проекта (`app/Config/Database.php:42,67` — `strictOn = false` для
+     * групп `default` и `tests`) пропущенная `NOT NULL`-колонка БЕЗ `DEFAULT`
+     * не даёт исключения вовсе — CI4 на коннекте явно снимает
+     * `STRICT_TRANS_TABLES`/`STRICT_ALL_TABLES` из `sql_mode` соединения
+     * ({@see \CodeIgniter\Database\MySQLi\Connection::connect()}), MySQL молча
+     * подставляет implicit default (`0` у целого, `''` у строки), запрос
+     * проходит, метод отдаёт `Applied`. Исключение из этого абзаца прилетит
+     * только если сам вызывающий поднимет `STRICT_TRANS_TABLES` на сессии —
+     * доказано `InsertUniqueContractTest` для обоих случаев явно.
      *
      * До появления самого `UNIQUE`-индекса (story 10, `character_tasks` /
      * `quest_steps`) дублей физически не бывает — метод просто вставляет и
      * отдаёт `Applied`.
      *
      * `Missing` этот метод не возвращает — у вставки нет «строки нет».
+     *
+     * exploit-fix-27: `ON DUPLICATE KEY UPDATE` на СУЩЕСТВУЮЩЕЙ строке — не
+     * бесплатный no-op. InnoDB берёт X-lock на найденную строку до конца
+     * транзакции вызывающего (как и любой `UPDATE`), И сжигает значение
+     * `AUTO_INCREMENT` таблицы на каждом таком вызове (проверено на MySQL
+     * 8.0.30: id 1, затем 3 — при `id INT UNSIGNED` на реалистичных объёмах
+     * несущественно). Метод не предназначен для горячего пути «строка почти
+     * всегда уже есть» — для него сначала `first()`/`increment()`, а
+     * `insertUnique()` только на путь «строки обычно нет».
      *
      * Условного `DELETE`/CAS в примитиве нет и не появится здесь — они
      * остаются инлайн у вызывающих (Non-goals story 18); это ровно две формы
@@ -247,11 +278,18 @@ final class ConditionalWriteService
      * вставка.
      *
      * @param array<string,mixed> $row
-     * @throws \InvalidArgumentException невалидное имя таблицы или колонки `$row`
+     * @throws \InvalidArgumentException невалидное имя таблицы или колонки `$row`, либо `$row === []`
      */
     public function insertUnique(string $table, array $row): WriteOutcome
     {
         $this->assertValidIdentifier($table);
+
+        if ($row === []) {
+            throw new \InvalidArgumentException(
+                'insertUnique: $row не может быть пустым — self-reference ON DUPLICATE KEY UPDATE '
+                . 'требует хотя бы одной колонки, а $columns[0] на пустом массиве не существует'
+            );
+        }
 
         $prefixed = $this->db->prefixTable($table);
         $columns  = array_keys($row);
@@ -260,10 +298,13 @@ final class ConditionalWriteService
         }
         // exploit-fix-17 — self-reference на ПЕРВУЮ колонку `$row`, не литеральный `id`:
         // `telegram_updates_seen` не несёт колонки `id` вовсе (PK — сам `update_id`).
-        // Бэктики — колонка приходит от вызывающего, а не от игрока, но `INSERT …
-        // ({$columns})` уже собирается тем же способом чуть ниже — риск не новый.
-        $selfRefColumn = '`' . $columns[0] . '`';
-        $sql           = "INSERT INTO {$prefixed} (" . implode(', ', $columns) . ') VALUES ('
+        // exploit-fix-27 (m10): бэктики теперь и в списке колонок INSERT, и в
+        // самоссылке — раньше расходилось внутри одного запроса (обе стороны уже
+        // проходят assertValidIdentifier(), инъекции не было, но форма была
+        // непоследовательной).
+        $quotedColumns = array_map(static fn ($column): string => '`' . (string) $column . '`', $columns);
+        $selfRefColumn = $quotedColumns[0];
+        $sql           = "INSERT INTO {$prefixed} (" . implode(', ', $quotedColumns) . ') VALUES ('
             . implode(', ', array_fill(0, count($columns), '?')) . ')'
             . " ON DUPLICATE KEY UPDATE {$selfRefColumn} = {$selfRefColumn}";
 

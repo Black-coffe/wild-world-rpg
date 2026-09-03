@@ -7,6 +7,7 @@ namespace Tests\Unit\Services\Db;
 use App\Database\Migrations\W9CreateCharacterAchievementsTable;
 use App\Services\Db\ConditionalWriteService;
 use App\Services\Db\WriteOutcome;
+use CodeIgniter\Database\Exceptions\DatabaseException;
 use CodeIgniter\Database\Forge;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -59,6 +60,7 @@ final class InsertUniqueContractTest extends CIUnitTestCase
         // DBDebug — value persists on the shared connection (DatabaseTestTrait docblock
         // warning) — всегда возвращаем к дефолту, даже если тест упал до restore.
         $this->enableDBDebug();
+        $this->resetSessionSqlModeToProjectDefault();
 
         $db = Database::connect('tests');
 
@@ -76,6 +78,27 @@ final class InsertUniqueContractTest extends CIUnitTestCase
         }
 
         parent::tearDown();
+    }
+
+    /**
+     * exploit-fix-27: `sql_mode` — сессионное значение, персистирует на общем
+     * `tests`-соединении между тестами (тот же урок, что и `DBDebug` в `tearDown()`
+     * выше). Возвращает соединение к проектному дефолту ровно той же формой, которой
+     * CI4 снимает `STRICT_TRANS_TABLES`/`STRICT_ALL_TABLES` при `strictOn = false`
+     * на коннекте ({@see \CodeIgniter\Database\MySQLi\Connection::connect()}).
+     */
+    private function resetSessionSqlModeToProjectDefault(): void
+    {
+        Database::connect('tests')->query(
+            "SET SESSION sql_mode = REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                                @@sql_mode,
+                                'STRICT_ALL_TABLES,', ''),
+                            ',STRICT_ALL_TABLES', ''),
+                        'STRICT_ALL_TABLES', ''),
+                    'STRICT_TRANS_TABLES,', ''),
+                ',STRICT_TRANS_TABLES', ''),
+            'STRICT_TRANS_TABLES', '')"
+        );
     }
 
     private function requireMigrationClass(): void
@@ -202,27 +225,30 @@ final class InsertUniqueContractTest extends CIUnitTestCase
         );
     }
 
-    // ── exploit-fix-14 — нарушение NOT NULL внутри insertUnique() ──
+    // ── exploit-fix-14 / exploit-fix-27 — нарушение NOT NULL внутри insertUnique() ──
 
     /**
-     * Acceptance 🔴 (story 14): нарушение NOT NULL внутри `insertUnique()` обязано дать
-     * исключение или иной не-`Refused` исход, а не `Refused` — недостающая обязательная
-     * колонка не то же самое, что дубль.
-     *
-     * Проектный `app/Config/Database.php` несёт `strictOn = false` для группы `tests`
-     * (как и для `default`) — CI4 явно снимает `STRICT_TRANS_TABLES`/`STRICT_ALL_TABLES`
-     * из `sql_mode` соединения на коннекте (`MySQLi\Connection::connect()`), даже когда
-     * глобальный `sql_mode` сервера строгий (замер 03.09.2026 подтвердил строгий режим на
-     * уровне сервера и для `wildworld_tests`, и для прода). Поэтому здесь пропавшая
-     * `NOT NULL`-колонка без `DEFAULT` не бросает `DatabaseException` — MySQL молча
-     * подставляет implicit-default (`0` у `INT`), запрос проходит, `insertUnique()` отдаёт
-     * `Applied`. Это и есть «иной не-`Refused` исход», которым явно оговорена акцептанс-
-     * критерия — проверяем именно факт «не Refused», а не наличие исключения, потому что
-     * в этом DB-конфиге исключения физически не будет.
+     * Acceptance 🔴 (story 14, story 27 — R2-major №3): нарушение NOT NULL внутри
+     * `insertUnique()` обязано дать исход, отличный от `Refused` — недостающая
+     * обязательная колонка не то же самое, что дубль. До story 27 этот тест проверял
+     * только «не Refused» и называл себя «единственно возможным исходом на этом
+     * DB-конфиге» — но `sql_mode` СЕССИОННЫЙ, а не жёстко зашитый в конфиг
+     * соединения: любой вызывающий, поднявший `STRICT_TRANS_TABLES` на своей сессии,
+     * получит настоящее исключение. Театром было утверждение «исключения физически
+     * не будет» — оно верно только для дефолтной сессии проекта, не для примитива
+     * вообще. Этот тест теперь доказывает именно дефолт: `strictOn = false`
+     * (`app/Config/Database.php:42,67`) снимает `STRICT_TRANS_TABLES`/
+     * `STRICT_ALL_TABLES` из `sql_mode` на коннекте
+     * ({@see \CodeIgniter\Database\MySQLi\Connection::connect()}), даже когда
+     * глобальный `sql_mode` сервера строгий (замер 03.09.2026 подтвердил строгий
+     * режим на уровне сервера и для `wildworld_tests`, и для прода) — MySQL молча
+     * подставляет implicit default (`0` у `INT`), запрос проходит, `insertUnique()`
+     * отдаёт `Applied`. Сосед ниже доказывает противоположную сессию явно.
      */
-    public function testInsertUniqueOnMissingNotNullColumnIsNotRefused(): void
+    public function testInsertUniqueOnMissingNotNullColumnAppliesWithImplicitDefaultWithoutSessionStrictMode(): void
     {
         $db = Database::connect('tests');
+        $this->resetSessionSqlModeToProjectDefault();
         $db->query(
             'CREATE TABLE ' . self::SCRATCH_TABLE . ' ('
             . 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,'
@@ -238,10 +264,48 @@ final class InsertUniqueContractTest extends CIUnitTestCase
             // `must_have_task_id` намеренно не передан — обязательная колонка без DEFAULT.
         ]);
 
-        $this->assertNotSame(
-            WriteOutcome::Refused,
+        $this->assertSame(
+            WriteOutcome::Applied,
             $outcome,
-            'нарушение NOT NULL не должно маскироваться под "дубль"'
+            'без STRICT_TRANS_TABLES на сессии implicit default проходит и метод отдаёт Applied, не Refused'
         );
+    }
+
+    /**
+     * Acceptance 🔴 (story 27 — контр-пример к соседу выше): та же схема, та же
+     * пропавшая `NOT NULL`-колонка, но сессия ЯВНО поднимает `STRICT_TRANS_TABLES`
+     * (форма — точная противоположность тому, как CI4 её снимает при
+     * `strictOn = false`). На этой сессии implicit default недоступен — MySQL
+     * бросает исключение, `query()` его не гасит (глотать можно только дубль по
+     * `ON DUPLICATE KEY UPDATE`, см. докблок метода), и `insertUnique()` пробрасывает
+     * `DatabaseException` наружу как есть.
+     */
+    public function testInsertUniqueOnMissingNotNullColumnThrowsUnderSessionStrictMode(): void
+    {
+        $db = Database::connect('tests');
+        $db->query(
+            'CREATE TABLE ' . self::SCRATCH_TABLE . ' ('
+            . 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,'
+            . 'character_id INT UNSIGNED NOT NULL,'
+            . 'must_have_task_id INT UNSIGNED NOT NULL'
+            . ')'
+        );
+        $this->createdScratchTable = true;
+
+        $db->query("SET SESSION sql_mode = CONCAT(@@sql_mode, ',STRICT_TRANS_TABLES')");
+
+        $this->enableDBDebug();
+        $this->expectException(DatabaseException::class);
+
+        try {
+            (new ConditionalWriteService($db))->insertUnique(self::SCRATCH_TABLE, [
+                'character_id' => 5,
+                // `must_have_task_id` намеренно не передан — обязательная колонка без DEFAULT.
+            ]);
+        } finally {
+            // tearDown() тоже снимает STRICT_TRANS_TABLES, но explicitly здесь — на случай,
+            // если ожидаемое исключение по какой-то причине не долетит до PHPUnit.
+            $this->resetSessionSqlModeToProjectDefault();
+        }
     }
 }
