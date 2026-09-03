@@ -295,4 +295,83 @@ final class CancelQueuedCraftConditionalDeleteTest extends CIUnitTestCase
         $this->assertIsArray($row, 'строка осталась в очереди — снятие было отвергнуто, а не выполнено');
         $this->assertSame('in_work', $row['status'], 'статус строки не тронут неподтверждённой попыткой отмены');
     }
+
+    /**
+     * exploit-fix-20 (M4) — настоящая гонка: ранний гейт (`:58-62`) читает строку ещё `queued` и
+     * пропускает вызов дальше, но ДО того, как условный `DELETE` (`:91-94`) успевает выполниться,
+     * строку успевает забрать конкурентный обработчик (второе соединение меняет `status` на
+     * `in_work`). `RaceInducingCharacterTaskModel::first()` — это и есть та точка врезки: она
+     * подставляется вместо обычного `characterTaskModel` и мутирует строку сразу ПОСЛЕ того, как
+     * гейт получил свой (ещё `queued`) результат, но ДО того, как `handle()` дойдёт до транзакции.
+     * Если условный `DELETE` потеряет `AND status = ?` (мысленный откат story 05), эта строка будет
+     * снята безусловно, и тест покраснеет на возвратах/статусе — см. Implementation notes.
+     */
+    public function testGateSeesQueuedButRowFlipsToInWorkBeforeDeleteRefundsNothing(): void
+    {
+        [$tgId, $charId] = $this->seedCharacter();
+        $woodId = $this->ensureResource('Древесина', 'Wood');
+        $herbId = $this->ensureResource('Травы', 'Herbs');
+
+        $this->db()->table('character_tasks')->insert([
+            'character_id'  => $charId,
+            'status'        => 'queued',
+            'task_settings' => json_encode(['recipe' => 'WinterHerbalBrew', 'quantity' => 1]),
+        ]);
+        $taskRowId = (int) $this->db()->insertID();
+
+        $action = new RaceInducingCancelQueuedCraftAction($this->cbq($tgId, 'cancelQueued_' . $taskRowId), $taskRowId);
+        $response = $action->handle();
+
+        $this->assertInstanceOf(ServerResponse::class, $response);
+        $this->assertSame(0, $this->backpackQty($charId, $woodId), 'гонка: гейт видел queued, но DELETE обязан отбить in_work — древесина не возвращена');
+        $this->assertSame(0, $this->backpackQty($charId, $herbId), 'гонка: гейт видел queued, но DELETE обязан отбить in_work — травы не возвращены');
+        $this->assertSame(0, $this->goldOf($charId), 'гонка: гейт видел queued, но DELETE обязан отбить in_work — золото не возвращено');
+
+        $row = $this->db()->table('character_tasks')->where('id', $taskRowId)->get()->getRowArray();
+        $this->assertIsArray($row, 'строка цела — конкурентно изменённый статус не должен быть снесён устаревшим гейтом');
+        $this->assertSame('in_work', $row['status'], 'статус, выставленный конкурентом ПОСЛЕ гейта, не тронут условным DELETE');
+    }
+}
+
+/**
+ * Точка врезки гонки: `first()` — единственный метод, через который
+ * `CancelQueuedCraftAction::handle()` (`:58-62`) читает строку ДО транзакции. Переопределение здесь
+ * выполняется синхронно ПОСЛЕ того, как гейт получил свой результат (ещё `queued`), но раньше, чем
+ * `handle()` дойдёт до `$db->transStart()` (`:88`) и условного `DELETE` (`:91-94`) — тем самым
+ * честно воспроизводит состояние гонки без правки `CancelQueuedCraftAction.php`.
+ */
+final class RaceInducingCharacterTaskModel extends \App\Models\CharacterTaskModel
+{
+    public ?int $flipRowIdToInWorkAfterFirstRead = null;
+
+    public function first()
+    {
+        $result = parent::first();
+
+        if ($result !== null && $this->flipRowIdToInWorkAfterFirstRead !== null) {
+            \Config\Database::connect('tests')
+                ->table('character_tasks')
+                ->where('id', $this->flipRowIdToInWorkAfterFirstRead)
+                ->update(['status' => 'in_work']);
+            // Врезка одноразовая: конструктор `WHERE id=? AND character_id=? AND status=?`
+            // (`:58-62`) в этом экшене вызывается ровно один раз за `handle()`, но `first()` может
+            // быть вызван моделью и на промежуточных шагах — снимаем крючок сразу после первого
+            // успешного попадания, чтобы не мутировать строку повторно.
+            $this->flipRowIdToInWorkAfterFirstRead = null;
+        }
+
+        return $result;
+    }
+}
+
+final class RaceInducingCancelQueuedCraftAction extends CancelQueuedCraftAction
+{
+    public function __construct($callbackQuery, int $raceRowId)
+    {
+        parent::__construct($callbackQuery);
+
+        $raceModel = new RaceInducingCharacterTaskModel();
+        $raceModel->flipRowIdToInWorkAfterFirstRead = $raceRowId;
+        $this->characterTaskModel = $raceModel;
+    }
 }
