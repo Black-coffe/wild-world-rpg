@@ -178,6 +178,16 @@ final class RelocationConfirmOutcomeTest extends CIUnitTestCase
         $this->requireMigrationClass(CreateCharacterTasksTable::class, '2024-03-22-132411_CreateCharacterTasksTable.php');
         $this->createTableIfMissing('character_tasks', new CreateCharacterTasksTable($this->forge()));
 
+        // Находка team-lead/Queen 03.09.2026 — этот же стенд однажды уже держал персистентную
+        // `character_tasks` с `created_at`/`updated_at` NULLable, разошедшуюся со своей же
+        // применённой миграцией (артефакт старого рукописного DDL этого файла). `createTableIfMissing()`
+        // не видит такую драйфнувшую персистентную таблицу — «есть» для него значит «использовать
+        // как есть». Явная проверка формы через `information_schema` не даёт этому дрейфу молчать
+        // второй раз: если колонка снова окажется NULLable, тест валится с понятным сообщением
+        // вместо того, чтобы тихо перестать проверять то, что заявлено в acceptance.
+        $this->assertColumnNotNullable('character_tasks', 'created_at');
+        $this->assertColumnNotNullable('character_tasks', 'updated_at');
+
         $this->enableDBDebug();
         $this->cleanCache();
     }
@@ -247,6 +257,32 @@ final class RelocationConfirmOutcomeTest extends CIUnitTestCase
     {
         if (! class_exists($class, false)) {
             require_once APPPATH . 'Database/Migrations/' . $file;
+        }
+    }
+
+    /**
+     * exploit-fix-14 — гейт формы схемы: без него драйфнувшая персистентная таблица (NULLable
+     * там, где применённая миграция объявляет NOT NULL) тихо делает acceptance этой story
+     * недоказуемым молча, не тестом. Падает явно и рано (в setUp, до самого теста), а не даёт
+     * акцептанс-проверке провалиться загадочно позже.
+     */
+    private function assertColumnNotNullable(string $table, string $column): void
+    {
+        $row = $this->db()->query(
+            'SELECT IS_NULLABLE FROM information_schema.COLUMNS
+             WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$table, $column]
+        )->getRowArray();
+
+        $nullable = is_array($row) ? ($row['IS_NULLABLE'] ?? null) : null;
+
+        if ($nullable !== 'NO') {
+            self::fail(
+                "Схема стенда разошлась с миграцией: {$table}.{$column} обязана быть NOT NULL "
+                . "(IS_NULLABLE=" . var_export($nullable, true) . ") — story exploit-fix-14 не может "
+                . 'доказать своё acceptance на этой таблице. Персистентная таблица на стенде '
+                . 'дрейфнула от применённой миграции — чинить схему стенда, не рукописный DDL здесь.'
+            );
         }
     }
 
