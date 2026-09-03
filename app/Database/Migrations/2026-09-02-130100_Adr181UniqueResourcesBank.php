@@ -25,69 +25,105 @@ use CodeIgniter\Database\Migration;
  * вставка первого трейда в окно между `DELETE` дублей и `ALTER TABLE` не роняла ALTER и не
  * останавливала `post-deploy.sh`. `UNLOCK TABLES` — в `finally`, чтобы упавший ALTER не оставил
  * таблицу запертой.
+ *
+ * exploit-fix-30 (ревью m11): три правки. (1) Имя таблицы берётся один раз через
+ * `$db->prefixTable('resources_bank')` и используется во всех запросах — раньше SQL был написан
+ * с голым именем таблицы в обход табличного префикса CI4. (2) `ADD UNIQUE KEY` теперь идёт только
+ * если индекс `uniq_resource_id` ещё не существует (проверка через
+ * `information_schema.STATISTICS`) — повторный `up()` на таблице с уже применённым индексом
+ * больше не падает на дубликате имени ключа. (3) Перед `LOCK TABLES` сессии выставляется
+ * `lock_wait_timeout = 30`: без этого чужой metadata-лок на таблице заставил бы `LOCK TABLES`
+ * ждать серверный дефолт (обычно порядка года), и `post-deploy.sh` завис бы вместо быстрого
+ * падения. Исходное значение читается до `SET SESSION` и восстанавливается в `finally` —
+ * независимо от того, что происходит внутри `LOCK TABLES`/`ALTER TABLE`.
  */
 class Adr181UniqueResourcesBank extends Migration
 {
     public function up()
     {
-        $db = \Config\Database::connect();
+        $db    = \Config\Database::connect();
+        $table = $db->prefixTable('resources_bank');
 
-        $db->query('LOCK TABLES resources_bank WRITE');
+        $originalLockWaitTimeout = $db->query('SELECT @@SESSION.lock_wait_timeout AS v')->getRow()->v;
+
+        $db->query('SET SESSION lock_wait_timeout = 30');
 
         try {
-            // Защитное слияние — по замеру (Q7/Q8) не найдёт ни одной группы, но должно пережить
-            // гонку между замером и накаткой без падения ALTER TABLE ниже.
-            $dupGroups = $db->query(
-                'SELECT resource_id FROM resources_bank GROUP BY resource_id HAVING COUNT(*) > 1'
-            )->getResultArray();
+            $db->query('LOCK TABLES ' . $table . ' WRITE');
 
-            foreach ($dupGroups as $group) {
-                $resourceId = (int) $group['resource_id'];
-
-                $rows = $db->query(
-                    'SELECT id, current_quantity, resources_purchased, resources_sold FROM resources_bank WHERE resource_id = ? ORDER BY id ASC',
-                    [$resourceId]
+            try {
+                // Защитное слияние — по замеру (Q7/Q8) не найдёт ни одной группы, но должно
+                // пережить гонку между замером и накаткой без падения ALTER TABLE ниже.
+                $dupGroups = $db->query(
+                    'SELECT resource_id FROM ' . $table . ' GROUP BY resource_id HAVING COUNT(*) > 1'
                 )->getResultArray();
 
-                if (count($rows) < 2) {
-                    continue;
+                foreach ($dupGroups as $group) {
+                    $resourceId = (int) $group['resource_id'];
+
+                    $rows = $db->query(
+                        'SELECT id, current_quantity, resources_purchased, resources_sold FROM ' . $table . ' WHERE resource_id = ? ORDER BY id ASC',
+                        [$resourceId]
+                    )->getResultArray();
+
+                    if (count($rows) < 2) {
+                        continue;
+                    }
+
+                    $keepId  = (int) $rows[0]['id'];
+                    $orphans = array_slice($rows, 1);
+
+                    log_message(
+                        'error',
+                        'ADR-181 resources_bank merge: resource_id={resource_id} kept id={keep_id}, orphans discarded (values NOT summed, F13/ADR-175: orphan counters never priced anything): {orphans}',
+                        [
+                            'resource_id' => $resourceId,
+                            'keep_id'     => $keepId,
+                            'orphans'     => json_encode(array_map(static function (array $orphan): array {
+                                return [
+                                    'orphan_id' => (int) $orphan['id'],
+                                    'cq'        => $orphan['current_quantity'],
+                                    'rp'        => $orphan['resources_purchased'],
+                                    'rs'        => $orphan['resources_sold'],
+                                ];
+                            }, $orphans)),
+                        ]
+                    );
+
+                    $orphanIds = array_map(static fn (array $orphan): int => (int) $orphan['id'], $orphans);
+                    $db->query(
+                        'DELETE FROM ' . $table . ' WHERE id IN (' . implode(',', $orphanIds) . ')'
+                    );
                 }
 
-                $keepId  = (int) $rows[0]['id'];
-                $orphans = array_slice($rows, 1);
+                $indexExists = (int) $db->query(
+                    'SELECT COUNT(*) AS c FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?',
+                    [$table, 'uniq_resource_id']
+                )->getRow()->c;
 
-                log_message(
-                    'error',
-                    'ADR-181 resources_bank merge: resource_id={resource_id} kept id={keep_id}, orphans discarded (values NOT summed, F13/ADR-175: orphan counters never priced anything): {orphans}',
-                    [
-                        'resource_id' => $resourceId,
-                        'keep_id'     => $keepId,
-                        'orphans'     => json_encode(array_map(static function (array $orphan): array {
-                            return [
-                                'orphan_id' => (int) $orphan['id'],
-                                'cq'        => $orphan['current_quantity'],
-                                'rp'        => $orphan['resources_purchased'],
-                                'rs'        => $orphan['resources_sold'],
-                            ];
-                        }, $orphans)),
-                    ]
-                );
-
-                $orphanIds = array_map(static fn (array $orphan): int => (int) $orphan['id'], $orphans);
-                $db->query(
-                    'DELETE FROM resources_bank WHERE id IN (' . implode(',', $orphanIds) . ')'
-                );
+                if ($indexExists === 0) {
+                    $db->query('ALTER TABLE ' . $table . ' ADD UNIQUE KEY uniq_resource_id (resource_id)');
+                }
+            } finally {
+                $db->query('UNLOCK TABLES');
             }
-
-            $db->query('ALTER TABLE resources_bank ADD UNIQUE KEY uniq_resource_id (resource_id)');
         } finally {
-            $db->query('UNLOCK TABLES');
+            $db->query('SET SESSION lock_wait_timeout = ' . (int) $originalLockWaitTimeout);
         }
     }
 
     public function down()
     {
-        $db = \Config\Database::connect();
-        $db->query('ALTER TABLE resources_bank DROP INDEX uniq_resource_id');
+        $db    = \Config\Database::connect();
+        $table = $db->prefixTable('resources_bank');
+
+        $indexExists = (int) $db->query(
+            'SELECT COUNT(*) AS c FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?',
+            [$table, 'uniq_resource_id']
+        )->getRow()->c;
+
+        if ($indexExists > 0) {
+            $db->query('ALTER TABLE ' . $table . ' DROP INDEX uniq_resource_id');
+        }
     }
 }
