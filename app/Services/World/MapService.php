@@ -2,6 +2,7 @@
 
 namespace App\Services\World;
 
+use App\Models\ExploredCellsModel;
 use App\Models\MapModel;
 use Longman\TelegramBot\Entities\ServerResponse;
 use App\Services\Telegram\Request;
@@ -80,17 +81,11 @@ class MapService
         $x = (int) $mapRow['coordinate_x'];
         $y = (int) $mapRow['coordinate_y'];
 
-        // Граничные проверки (1..1000)
-        if ($x < 1) {
-            $x = 1;
-        } elseif ($x > 1000) {
-            $x = 1000;
-        }
-        if ($y < 1) {
-            $y = 1;
-        } elseif ($y > 1000) {
-            $y = 1000;
-        }
+        // Граничные проверки — сетка мира 0..999 (ExploredCellsModel::WORLD_MIN/MAX).
+        // До 03.09.2026 зажим был 1..1000: на краю X=0/Y=0 подпись показывала X=1/Y=1,
+        // расходясь с текстовой картой (тот же класс бага, что «ордината 0 не отображается»).
+        $x = max(ExploredCellsModel::WORLD_MIN, min(ExploredCellsModel::WORLD_MAX, $x));
+        $y = max(ExploredCellsModel::WORLD_MIN, min(ExploredCellsModel::WORLD_MAX, $y));
 
         // 2. Проверяем, существует ли файл
         if (!file_exists($baseMapPath)) {
@@ -109,10 +104,10 @@ class MapService
             ]);
         }
 
-        // 4. Масштабируем логические координаты (1..1000) в пиксели (0..2000)
+        // 4. Масштабируем логические координаты (0..999) в пиксели (0..1998)
         // 2 px = 1 координата
-        $gdX = 2 * ($x - 1);
-        $gdY = 2 * ($y - 1);
+        $gdX = 2 * $x;
+        $gdY = 2 * $y;
 
         // Красный цвет для перекрестия
         $color = imagecolorallocate($im, 255, 0, 0);
