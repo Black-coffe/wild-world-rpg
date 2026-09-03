@@ -35,6 +35,29 @@ use Config\Database;
  * условии) в примитиве нет — здесь только формы условного `UPDATE`
  * (`decrementIfAtLeast`, `transitionIfCurrent`), относительный `increment` и
  * условная вставка `insertUnique`; всё остальное — инлайн у вызывающих.
+ *
+ * exploit-fix-24 — границы примитива:
+ *  - `$table`/`$column` (и ключи `$where`/`$row` у `increment()`/`insertUnique()`)
+ *    валидируются `^[A-Za-z_][A-Za-z0-9_]*$` до попадания в сырой SQL —
+ *    `InvalidArgumentException` на невалидном имени. Значения по-прежнему идут
+ *    только параметрами `query()`, это защита от иного класса дыры: вызывающего,
+ *    который сам собрал имя колонки из чужого ввода.
+ *  - `decrementIfAtLeast(amount: 0)` и `transitionIfCurrent(from === to)`
+ *    отвергаются `InvalidArgumentException`, а не выполняются как SQL: оба —
+ *    UPDATE, который не меняет значение колонки, а MySQL без
+ *    `MYSQLI_CLIENT_FOUND_ROWS` на этом соединении ({@see insertUnique()})
+ *    возвращает `affectedRows() === 0` для не изменившей строки — неотличимо от
+ *    настоящего отказа условия. Различить «условие не выполнено» и «условие уже
+ *    и так выполнено» без лишнего `SELECT` эти два примитива не могут — вызывающий
+ *    обязан не звать их с no-op аргументами.
+ *  - `deleteWhenEmpty`: раньше `UPDATE` и последующий `DELETE WHERE column <= 0`
+ *    были двумя отдельными операторами — между ними другое соединение могло
+ *    прочитать строку с нулевым остатком, которая по инварианту метода не должна
+ *    существовать вовсе. Теперь при точном опустошении (`column = $amount` до
+ *    вычитания, то есть после — ровно ноль) строка удаляется ОДНИМ `DELETE`, а
+ *    `UPDATE` вообще не выполняется для этого случая; частичное списание
+ *    по-прежнему один `UPDATE`. Ни одна операция не порождает промежуточного
+ *    состояния «строка с нулём» — оно физически никогда не пишется.
  */
 final class ConditionalWriteService
 {
@@ -66,6 +89,14 @@ final class ConditionalWriteService
      * `$deleteWhenEmpty` существует потому, что и `character_resources`, и
      * `base_storage` не различают «нет строки» и «ноль»: нулевой остаток был бы
      * вторым представлением одного состояния.
+     *
+     * exploit-fix-24: `$amount === 0` бросает `InvalidArgumentException` — см.
+     * докблок класса. При `$deleteWhenEmpty` точное опустошение (`$column ===
+     * $amount` до вычитания) уходит одним `DELETE`, минуя промежуточный `UPDATE`
+     * в ноль — строка с нулевым остатком никогда не пишется, окна для чужого
+     * чтения между двумя инструкциями больше нет.
+     *
+     * @throws \InvalidArgumentException невалидное имя таблицы/колонки или `$amount === 0`
      */
     public function decrementIfAtLeast(
         string $table,
@@ -74,7 +105,28 @@ final class ConditionalWriteService
         int $amount,
         bool $deleteWhenEmpty = false
     ): WriteOutcome {
+        $this->assertValidIdentifier($table);
+        $this->assertValidIdentifier($column);
+
+        if ($amount === 0) {
+            throw new \InvalidArgumentException(
+                'decrementIfAtLeast: $amount === 0 не имеет однозначного исхода — UPDATE, не '
+                . 'меняющий значение колонки, неотличим по affectedRows() от настоящего отказа'
+            );
+        }
+
         $prefixed = $this->db->prefixTable($table);
+
+        if ($deleteWhenEmpty) {
+            $this->db->query(
+                "DELETE FROM {$prefixed} WHERE id = ? AND {$column} = ?",
+                [$rowId, $amount]
+            );
+
+            if ($this->db->affectedRows() >= 1) {
+                return WriteOutcome::Applied;
+            }
+        }
 
         $this->db->query(
             "UPDATE {$prefixed} SET {$column} = {$column} - ? WHERE id = ? AND {$column} >= ?",
@@ -85,10 +137,6 @@ final class ConditionalWriteService
             return $this->rowExists($table, $rowId) ? WriteOutcome::Refused : WriteOutcome::Missing;
         }
 
-        if ($deleteWhenEmpty) {
-            $this->db->query("DELETE FROM {$prefixed} WHERE id = ? AND {$column} <= 0", [$rowId]);
-        }
-
         return WriteOutcome::Applied;
     }
 
@@ -96,6 +144,11 @@ final class ConditionalWriteService
      * Переводит `$column` строки `$rowId` из `$from` в `$to` — только если сейчас в
      * ней действительно ещё `$from`. Тот же примитив во второй форме: резерв
      * кулдауна до выдачи лута, `status='in_work' → 'completed'`.
+     *
+     * exploit-fix-24: `$from === $to` бросает `InvalidArgumentException` — см.
+     * докблок класса.
+     *
+     * @throws \InvalidArgumentException невалидное имя таблицы/колонки или `$from === $to`
      */
     public function transitionIfCurrent(
         string $table,
@@ -104,6 +157,16 @@ final class ConditionalWriteService
         string $from,
         string $to
     ): WriteOutcome {
+        $this->assertValidIdentifier($table);
+        $this->assertValidIdentifier($column);
+
+        if ($from === $to) {
+            throw new \InvalidArgumentException(
+                'transitionIfCurrent: $from === $to не имеет однозначного исхода — UPDATE, не '
+                . 'меняющий значение колонки, неотличим по affectedRows() от настоящего отказа'
+            );
+        }
+
         $prefixed = $this->db->prefixTable($table);
 
         $this->db->query(
@@ -125,9 +188,13 @@ final class ConditionalWriteService
      * `Refused` она не возвращает — только `Applied`/`Missing`.
      *
      * @param array<string,int|string> $where пары колонка => значение, склеиваются через AND
+     * @throws \InvalidArgumentException невалидное имя таблицы/колонки
      */
     public function increment(string $table, array $where, string $column, int $amount): WriteOutcome
     {
+        $this->assertValidIdentifier($table);
+        $this->assertValidIdentifier($column);
+
         $prefixed            = $this->db->prefixTable($table);
         [$whereSql, $params] = $this->buildWhere($where);
 
@@ -180,11 +247,17 @@ final class ConditionalWriteService
      * вставка.
      *
      * @param array<string,mixed> $row
+     * @throws \InvalidArgumentException невалидное имя таблицы или колонки `$row`
      */
     public function insertUnique(string $table, array $row): WriteOutcome
     {
+        $this->assertValidIdentifier($table);
+
         $prefixed = $this->db->prefixTable($table);
         $columns  = array_keys($row);
+        foreach ($columns as $column) {
+            $this->assertValidIdentifier((string) $column);
+        }
         // exploit-fix-17 — self-reference на ПЕРВУЮ колонку `$row`, не литеральный `id`:
         // `telegram_updates_seen` не несёт колонки `id` вовсе (PK — сам `update_id`).
         // Бэктики — колонка приходит от вызывающего, а не от игрока, но `INSERT …
@@ -232,10 +305,26 @@ final class ConditionalWriteService
         $parts  = [];
         $params = [];
         foreach ($where as $column => $value) {
+            $this->assertValidIdentifier((string) $column);
             $parts[]  = "{$column} = ?";
             $params[] = $value;
         }
 
         return [implode(' AND ', $parts), $params];
+    }
+
+    /**
+     * exploit-fix-24: имена таблиц/колонок в этом сервисе интерполируются в сырой
+     * SQL напрямую (значения — только параметрами `query()`). До этой story ничто
+     * не мешало вызывающему передать имя, собранное из чужого ввода — валидация
+     * закрывает эту границу примитива на уровне сигнатуры, а не по договорённости.
+     *
+     * @throws \InvalidArgumentException
+     */
+    private function assertValidIdentifier(string $name): void
+    {
+        if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name) !== 1) {
+            throw new \InvalidArgumentException("ConditionalWriteService: невалидное имя таблицы/колонки: \"{$name}\"");
+        }
     }
 }

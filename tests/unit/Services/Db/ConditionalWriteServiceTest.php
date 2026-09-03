@@ -189,6 +189,99 @@ final class ConditionalWriteServiceTest extends CIUnitTestCase
         $this->assertSame(0, (int) $this->storageRow($id)['quantity']);
     }
 
+    /**
+     * Acceptance 🔴: `amount=0` — граница примитива. Докблок класса выбирает
+     * `\InvalidArgumentException`: UPDATE, не меняющий значение колонки, даёт
+     * `affectedRows() === 0` неотличимо от настоящего отказа условия.
+     */
+    public function testDecrementIfAtLeastRejectsZeroAmount(): void
+    {
+        $id = $this->insertStorageRow(41, 5, 10);
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        (new ConditionalWriteService(Database::connect('tests')))
+            ->decrementIfAtLeast('base_storage', $id, 'quantity', 0);
+    }
+
+    /**
+     * Acceptance 🔴: `deleteWhenEmpty` при точном опустошении обязан уходить одним
+     * `DELETE` — реализация исполняет `DELETE ... WHERE id=? AND quantity=?` ДО
+     * какого-либо `UPDATE`, поэтому для строки, которая опустошается ровно этим
+     * вызовом, ни один `UPDATE`, устанавливающий `quantity=0`, не выполняется
+     * вовсе. Триггер на `base_storage` ловит КАЖДЫЙ `UPDATE`, после которого
+     * `quantity=0`, и пишет его в лог — лог обязан остаться пустым для строки из
+     * этого теста, даже если параллельно на общем стенде что-то ещё пишет в ту же
+     * таблицу (лог фильтруется по `storage_id` этой строки, не по общему count).
+     * Раз строка никогда не была записана с нулевым остатком — её физически
+     * невозможно прочитать другим соединением в этом состоянии: окна нет.
+     */
+    public function testDecrementIfAtLeastExactDrainNeverWritesAnIntermediateZeroRow(): void
+    {
+        $db      = Database::connect('tests');
+        $suffix  = bin2hex(random_bytes(4));
+        $logTable = 'cws_zero_write_log_' . $suffix;
+        $trigger  = 'cws_zero_write_trg_' . $suffix;
+
+        $db->query("CREATE TABLE {$logTable} (id INT AUTO_INCREMENT PRIMARY KEY, storage_id INT NOT NULL)");
+        $db->query(
+            "CREATE TRIGGER {$trigger} AFTER UPDATE ON base_storage FOR EACH ROW "
+            . "BEGIN IF NEW.quantity = 0 THEN INSERT INTO {$logTable} (storage_id) VALUES (NEW.id); END IF; END"
+        );
+
+        try {
+            $id = $this->insertStorageRow(42, 5, 9);
+
+            $outcome = (new ConditionalWriteService($db))
+                ->decrementIfAtLeast('base_storage', $id, 'quantity', 9, deleteWhenEmpty: true);
+
+            $this->assertSame(WriteOutcome::Applied, $outcome);
+            $this->assertNull($this->storageRow($id));
+            $this->assertSame(
+                0,
+                (int) $db->table($logTable)->where('storage_id', $id)->countAllResults(),
+                'точное опустошение обязано уйти одним DELETE — UPDATE, пишущий quantity=0 для этой строки, не должен был исполниться вовсе'
+            );
+        } finally {
+            $db->query("DROP TRIGGER IF EXISTS {$trigger}");
+            $db->query("DROP TABLE IF EXISTS {$logTable}");
+        }
+    }
+
+    // ── валидация имён таблиц/колонок ──
+
+    public function testDecrementIfAtLeastRejectsInvalidTableName(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        (new ConditionalWriteService(Database::connect('tests')))
+            ->decrementIfAtLeast('base_storage; DROP TABLE base_storage', 1, 'quantity', 1);
+    }
+
+    public function testDecrementIfAtLeastRejectsInvalidColumnName(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        (new ConditionalWriteService(Database::connect('tests')))
+            ->decrementIfAtLeast('base_storage', 1, 'quantity = 0 -- ', 1);
+    }
+
+    public function testIncrementRejectsInvalidWhereColumnName(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        (new ConditionalWriteService(Database::connect('tests')))
+            ->increment('base_storage', ['character_id; DROP TABLE base_storage' => 1], 'quantity', 1);
+    }
+
+    public function testInsertUniqueRejectsInvalidRowColumnName(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        (new ConditionalWriteService(Database::connect('tests')))
+            ->insertUnique('community_messages', ['chat_id; DROP TABLE community_messages' => -1001]);
+    }
+
     // ── transitionIfCurrent ──
 
     public function testTransitionIfCurrentAppliesWhenStatusMatches(): void
@@ -219,6 +312,21 @@ final class ConditionalWriteServiceTest extends CIUnitTestCase
             ->transitionIfCurrent('community_messages', 999999, 'status', 'new', 'answered');
 
         $this->assertSame(WriteOutcome::Missing, $outcome);
+    }
+
+    /**
+     * Acceptance 🔴: `from === to` — граница примитива, тот же класс дефекта, что
+     * `amount=0` у `decrementIfAtLeast()`. Докблок класса выбирает
+     * `\InvalidArgumentException`.
+     */
+    public function testTransitionIfCurrentRejectsSameFromAndTo(): void
+    {
+        $id = $this->insertMessageRow(103, 'new');
+
+        $this->expectException(\InvalidArgumentException::class);
+
+        (new ConditionalWriteService(Database::connect('tests')))
+            ->transitionIfCurrent('community_messages', $id, 'status', 'new', 'new');
     }
 
     // ── increment ──
@@ -306,12 +414,23 @@ final class ConditionalWriteServiceTest extends CIUnitTestCase
      * `STRICT_TRANS_TABLES`, и пропущенный `NOT NULL`-столбец без default тихо
      * получает MySQL-дефолт вместо ошибки — FK честно доказывает «другая
      * ошибка» независимо от режима строгости). Временная таблица со
-     * scratch-FK на `characters(id)`: вставка с несуществующим `character_id`
-     * обязана пробросить исключение, а не `Refused`.
+     * scratch-FK: вставка с несуществующим `character_id` обязана пробросить
+     * исключение, а не `Refused`.
+     *
+     * exploit-fix-24: FK-родитель — своя scratch-таблица
+     * `insert_unique_fk_scratch_parent`, созданная и удалённая этим же тестом,
+     * а не чужая `characters` — на общем стенде `wildworld_tests` `characters`
+     * не гарантированно существует (03.09.2026 тест падал `Failed to open the
+     * referenced table 'characters'`, когда соседний тест её снёс).
      */
     public function testInsertUniqueThrowsOnForeignKeyViolationInsteadOfRefusing(): void
     {
         $db = Database::connect('tests');
+        $db->query(
+            'CREATE TABLE insert_unique_fk_scratch_parent ('
+            . 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY'
+            . ') ENGINE=InnoDB'
+        );
         $db->query(
             'CREATE TABLE insert_unique_fk_scratch ('
             . 'id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,'
@@ -319,7 +438,7 @@ final class ConditionalWriteServiceTest extends CIUnitTestCase
             . 'slot VARCHAR(32) NOT NULL,'
             . 'UNIQUE KEY uq_character_slot (character_id, slot),'
             . 'CONSTRAINT fk_insert_unique_fk_scratch_character FOREIGN KEY (character_id) '
-            . 'REFERENCES ' . $db->prefixTable('characters') . ' (id)'
+            . 'REFERENCES insert_unique_fk_scratch_parent (id)'
             . ') ENGINE=InnoDB'
         );
 
@@ -332,6 +451,7 @@ final class ConditionalWriteServiceTest extends CIUnitTestCase
             ]);
         } finally {
             $db->query('DROP TABLE IF EXISTS insert_unique_fk_scratch');
+            $db->query('DROP TABLE IF EXISTS insert_unique_fk_scratch_parent');
         }
     }
 

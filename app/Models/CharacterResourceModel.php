@@ -39,10 +39,14 @@ class CharacterResourceModel extends Model
 
     public function increaseResources($characterId, $resourceId, $amount)
     {
+        // exploit-fix-24: `(id_characters, id_resources)` не несёт UNIQUE — `first()` без
+        // `orderBy` возвращает произвольную строку, если пара продублирована. `orderBy('id')`
+        // делает выбор детерминированным (всегда самая старая строка пары), а не убирает сами
+        // дубли — те вне scope этой story.
         $existingResource = $this->where([
             'id_characters' => $characterId,
             'id_resources'  => $resourceId
-        ])->first();
+        ])->orderBy('id', 'ASC')->first();
 
         if ($existingResource) {
             $newQuantity = $existingResource['quantity'] + $amount;
@@ -66,10 +70,14 @@ class CharacterResourceModel extends Model
      */
     public function decrementIfAtLeast(int $characterId, int $resourceId, int $amount): WriteOutcome
     {
+        // exploit-fix-24: `(id_characters, id_resources)` не несёт UNIQUE — `first()` без
+        // `orderBy` возвращает произвольную строку, если пара продублирована. `orderBy('id')`
+        // делает выбор детерминированным: всегда одна и та же строка (самая старая пары),
+        // а не молча меняющийся id между вызовами при одинаковых данных.
         $row = $this->where([
             'id_characters' => $characterId,
             'id_resources'  => $resourceId,
-        ])->first();
+        ])->orderBy('id', 'ASC')->first();
 
         $rowId = is_array($row) && isset($row['id']) && is_numeric($row['id']) ? (int) $row['id'] : 0;
         if ($rowId <= 0) {
@@ -106,10 +114,12 @@ class CharacterResourceModel extends Model
 
     public function addOrIncreaseResource($characterId, $resourceId, $amount)
     {
+        // exploit-fix-24: та же детерминизация, что в increaseResources()/decrementIfAtLeast() —
+        // пара `(id_characters, id_resources)` без UNIQUE.
         $existingResource = $this->where([
             'id_characters' => $characterId,
             'id_resources'  => $resourceId
-        ])->first();
+        ])->orderBy('id', 'ASC')->first();
 
         if ($existingResource) {
             return $this->update($existingResource['id'], [

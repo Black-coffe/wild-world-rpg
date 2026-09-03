@@ -164,4 +164,29 @@ final class CharacterResourceConditionalWriteTest extends CIUnitTestCase
 
         $this->assertSame(WriteOutcome::Missing, $outcome);
     }
+
+    /**
+     * Acceptance 🔴 (exploit-fix-24): `(id_characters, id_resources)` не несёт UNIQUE —
+     * если пара продублирована (реальный разрыв на этом стенде — таблица не завела
+     * ограничения ни в одной миграции), `first()` без `orderBy` возвращал бы
+     * произвольную из двух строк. С `orderBy('id', 'ASC')` выбор детерминирован:
+     * всегда первая (наименьший id, самая старая) строка пары. Доказывается тем, что
+     * `decrementIfAtLeast()` списывает ИМЕННО первую вставленную строку, а не вторую,
+     * даже когда только вторая формально достаточна для более крупного списания.
+     */
+    public function testDecrementIfAtLeastPicksTheLowestIdRowWhenPairIsDuplicated(): void
+    {
+        $characterId = $this->uniqueId();
+        $resourceId  = $this->uniqueId();
+        $firstId     = $this->insertRow($characterId, $resourceId, 4);
+        $secondId    = $this->insertRow($characterId, $resourceId, 6);
+
+        $outcome = (new CharacterResourceModel())->decrementIfAtLeast($characterId, $resourceId, 4);
+
+        $this->assertSame(WriteOutcome::Applied, $outcome);
+        $this->assertNull($this->row($firstId), 'первая (наименьший id) строка дубля-пары обязана быть выбрана и опустошена');
+        $secondRow = $this->row($secondId);
+        $this->assertNotNull($secondRow, 'вторая строка дубля-пары не должна быть тронута списанием первой');
+        $this->assertSame(6, (int) $secondRow['quantity']);
+    }
 }
